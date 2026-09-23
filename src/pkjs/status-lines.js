@@ -7,6 +7,8 @@ var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var thresholds = require('./status-thresholds.js');
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
+var isPolarSunPair = require('./weather/sun-events.js').isPolarSunPair;
+var statusPair = require('./status-pair.js');
 var wireUnits = require('./wire-units.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
@@ -43,12 +45,16 @@ function readInt32LE(bytes, off) {
 }
 
 /**
+ * Null for the polar day/night pair too: its two events only tell the watch
+ * how to shade the chart, and neither is a real sunrise or sunset time.
  * @param {number[]} sunEvents packed SUN_EVENTS wire bytes
  * @returns {{startType: number, epoch: number}|null} the next sun event
  */
 function decodeFirstSunEvent(sunEvents) {
   if (!sunEvents || sunEvents.length < 5) { return null; }
-  return { startType: sunEvents[0], epoch: readInt32LE(sunEvents, 1) };
+  var epoch = readInt32LE(sunEvents, 1);
+  if (sunEvents.length >= 9 && isPolarSunPair(epoch, readInt32LE(sunEvents, 5))) { return null; }
+  return { startType: sunEvents[0], epoch: epoch };
 }
 
 /**
@@ -187,10 +193,11 @@ function formatWind(v, settings, showUnit, cap) {
  * Convert an internal °F temperature to the display unit as a bare number.
  * Shared by the actual and feels-like halves of the temp slot and by the dew
  * point slot, so all three ride the identical conversion/rounding path.
- * Rounds LAST, in both units: the temp/feels callers already pass whole °F, but
- * DEW_TREND carries the provider's unrounded reading (kept unrounded so the °C
- * conversion rounds once rather than twice), and an unrounded °F would render as
- * "53.6" — four characters of nonsense in an 8-byte slot.
+ * Rounds LAST, in both units: CURRENT_TEMP, FEELS_CURRENT and DEW_TREND all carry
+ * the provider's unrounded reading (so the °C conversion rounds once rather than
+ * twice — a whole-°F pre-round put 0.3 °C at "1" and could show a dew point above
+ * the air temperature), and an unrounded °F would render as "53.6" — four
+ * characters of nonsense in an 8-byte slot.
  * @param {number} vF temperature in °F
  * @param {Object} settings Clay settings blob (reads temperatureUnits)
  * @returns {string} e.g. "20" or "-12"
@@ -291,8 +298,9 @@ function phoneBatterySupported() {
  * @param {Object} settings Clay settings blob
  * @param {string} slotKey Owning status-slot settings key.
  * @param {number} [cap] The slot's byte cap; defaults to the narrow edge cap.
- *   Only the per-kind unit consults it -- the value itself is still truncated by
- *   the caller, which owns the wire.
+ *   Only the per-kind unit and the two-value pairs' fit rule (status-pair.js)
+ *   consult it -- the value itself is still truncated by the caller, which owns
+ *   the wire.
  * @returns {string} display text, '--' when the value is unavailable
  */
 function formatValue(code, payload, settings, slotKey, cap) {
@@ -322,9 +330,12 @@ function formatValue(code, payload, settings, slotKey, cap) {
       // every mode falls back to the actual temp alone -- never '--/--' or '12/--'.
       if (typeof payload.FEELS_CURRENT === 'number') {
         var feels = formatTemp(payload.FEELS_CURRENT, settings);
-        // 'both' is slash-separated, actual first. It carries no degree at all
-        // (see above); 'feels' takes one like the plain reading does.
-        return withUnit(mode === 'feels' ? feels : actual + '/' + feels, degree, cap);
+        // 'both' joins the two in the user's order and separator (status-pair.js;
+        // absent = actual first, slash: '12/10'), falling back to the slash when
+        // a styled pair would overflow the slot. It carries no degree at all (see
+        // above); 'feels' takes one like the plain reading does.
+        return withUnit(mode === 'feels' ? feels
+          : statusPair.formatTempPair(actual, feels, settings, cap), degree, cap);
       }
     }
     return withUnit(actual, degree, cap);
@@ -335,8 +346,16 @@ function formatValue(code, payload, settings, slotKey, cap) {
     return ev ? formatSunTime(ev.epoch, settings) : '--';
   }
   if (code === 'uv') {
-    v = trendHead(payload.UV_TREND_UINT8);
-    return v === null ? '--' : String(Math.round(v / 10));
+    // Global per-kind display mode (UV slot's Edit sheet), the temp slot's pattern:
+    // absent = 'current'. 'max' is the day's peak (wire-units' uvShown): today's
+    // while it is ahead or running, then tomorrow's once the UV drops below it,
+    // carrying the user's next-day mark; 'both' pairs the two in the user's order and separator. The
+    // text is status-pair's -- absent settings = current first, slash, '»' mark:
+    // 3/7, 5/»6. No peak ahead known falls back to the current reading alone,
+    // never '3/--'.
+    var uv = wireUnits.uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
+      settings.uvSlotDisplay);
+    return uv ? statusPair.formatUv(uv, settings, cap) : '--';
   }
   if (code === 'wind') {
     v = trendHead(payload.WIND_TREND_UINT8);
@@ -605,6 +624,7 @@ var SOURCE_KEYS = [
   'FEELS_CURRENT',
   'SUN_EVENTS',
   'UV_TREND_UINT8',
+  'UV_DAY_PEAKS',
   'WIND_TREND_UINT8',
   'GUST_TREND_UINT8',
   'WIND_DIR_TREND',

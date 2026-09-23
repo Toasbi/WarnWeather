@@ -27,6 +27,62 @@ test('tempSlotDisplay changes the render signature (forces a rebake)', () => {
     renderSignature({ tempSlotDisplay: 'feels' }));
 });
 
+// uvSlotDisplay is the UV slot's twin of the rule above: the phone bakes the
+// current / day-max / both text, so switching it must force a rebake too.
+test('uvSlotDisplay changes the render signature (forces a rebake)', () => {
+  const base = renderSignature({});
+  assert.notEqual(renderSignature({ uvSlotDisplay: 'max' }), base);
+  assert.notEqual(renderSignature({ uvSlotDisplay: 'both' }),
+    renderSignature({ uvSlotDisplay: 'max' }));
+});
+
+// The two-value slots' presentation (status-pair.js) is baked into the temp/UV slot
+// text the same way, so each of its nine keys must force the rebake as well.
+test('the temp pair separator, its custom text, the spacing and the order change the render signature', () => {
+  const base = renderSignature({});
+  assert.notEqual(renderSignature({ tempSlotSeparator: 'brackets' }), base);
+  assert.notEqual(renderSignature({ tempSlotSeparator: 'brackets' }),
+    renderSignature({ tempSlotSeparator: 'dot' }));
+  // The spacing toggle alone: '12/10' and '12 / 10' are different slot text.
+  assert.notEqual(renderSignature({ tempSlotSeparatorSpaced: true }), base);
+  assert.notEqual(renderSignature({ tempSlotSeparatorSpaced: true }),
+    renderSignature({ tempSlotSeparatorSpaced: false }));
+  // The custom text alone: editing it re-bakes while the separator stays 'custom'.
+  assert.notEqual(renderSignature({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '-' }),
+    renderSignature({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '~' }));
+  assert.notEqual(renderSignature({ tempSlotOrder: 'feels' }), base);
+  assert.notEqual(renderSignature({ tempSlotOrder: 'feels' }),
+    renderSignature({ tempSlotOrder: 'actual' }));
+});
+
+test('the UV pair separator, its custom text, the spacing, the order and the next-day mark change the render signature', () => {
+  const base = renderSignature({});
+  assert.notEqual(renderSignature({ uvSlotSeparator: 'dot' }), base);
+  assert.notEqual(renderSignature({ uvSlotSeparatorSpaced: true }), base);
+  assert.notEqual(renderSignature({ uvSlotSeparatorSpaced: true }),
+    renderSignature({ uvSlotSeparatorSpaced: false }));
+  assert.notEqual(renderSignature({ uvSlotSeparator: 'bar' }),
+    renderSignature({ uvSlotSeparator: 'dot' }));
+  assert.notEqual(renderSignature({ uvSlotSeparator: 'custom', uvSlotSeparatorCustom: '-' }),
+    renderSignature({ uvSlotSeparator: 'custom', uvSlotSeparatorCustom: '~' }));
+  assert.notEqual(renderSignature({ uvSlotOrder: 'max' }), base);
+  assert.notEqual(renderSignature({ uvSlotOrder: 'max' }), renderSignature({ uvSlotOrder: 'now' }));
+  assert.notEqual(renderSignature({ uvSlotNextDayMark: 'star' }), base);
+  assert.notEqual(renderSignature({ uvSlotNextDayMark: 'star' }),
+    renderSignature({ uvSlotNextDayMark: 'gt' }));
+});
+
+test('the nine pair keys are independent of each other', () => {
+  // Each must occupy its own position: the temp slot's separator may not read as the
+  // UV slot's (they bake different slots), nor a separator as its own custom text.
+  const keys = ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
+    'tempSlotOrder', 'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
+    'uvSlotOrder', 'uvSlotNextDayMark'];
+  const seen = keys.map((key) => renderSignature({ [key]: 'x' }));
+  seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
+    assert.notEqual(sig, other, keys[i] + ' and ' + keys[i + 1 + j] + ' share a signature slot')));
+});
+
 // The wind/gust direction arrows are baked phone-side into the slot text (a trailing
 // sentinel byte appended in status-lines.js), so per the force-fetch rule both toggles
 // must be part of the signature — otherwise the arrow appears only after the next
@@ -62,6 +118,47 @@ test('the Show unit toggles are independent of each other', () => {
   seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
     assert.notEqual(sig, other,
       UNIT_KEYS[i] + ' and ' + UNIT_KEYS[i + 1 + j] + ' share a signature slot')));
+});
+
+// The countdown slot's day count is baked phone-side from '<slot>Countdown' (the Clay
+// message never carries the date), so a date-only edit must force the rebake or the
+// watch keeps the old count until the next scheduled fetch. Signed only while the slot
+// shows the countdown: the page hydrates every slot's date to today, so signing the
+// unused ones would buy a needless fetch on the first save that writes them.
+const SLOT_KEYS = require('../src/pkjs/status-line-catalog.js').allSlotKeys();
+
+test('a countdown slot\'s target date changes the render signature', () => {
+  assert.equal(SLOT_KEYS.length, 12);
+  SLOT_KEYS.forEach((key) => {
+    assert.notEqual(
+      renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2026-12-25' }),
+      renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2027-06-01' }),
+      key + 'Countdown must be signed while ' + key + ' shows the countdown');
+  });
+});
+
+test('the target date of a slot NOT showing the countdown stays out of the signature', () => {
+  SLOT_KEYS.forEach((key) => {
+    assert.equal(
+      renderSignature({ [key]: 'temp', [key + 'Countdown']: '2026-12-25' }),
+      renderSignature({ [key]: 'temp' }),
+      key + 'Countdown is inert while ' + key + ' shows something else');
+  });
+});
+
+test('each countdown date keeps its own signature slot', () => {
+  // A fixed position per slot: one slot's date may never read as another's, nor as a
+  // slot selection.
+  const seen = SLOT_KEYS.map((key) =>
+    renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2026-12-25' }));
+  seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
+    assert.notEqual(sig, other, SLOT_KEYS[i] + ' and ' + SLOT_KEYS[i + 1 + j] + ' collide')));
+  const a = SLOT_KEYS[0];
+  const b = SLOT_KEYS[1];
+  assert.notEqual(
+    renderSignature({ [a]: 'countdown', [a + 'Countdown']: 'x', [b]: 'temp' }),
+    renderSignature({ [a]: 'countdown', [b]: 'x' }),
+    'a date may not shift into the next slot selection');
 });
 
 // The night pause decides whether fetching happens at all (and which IS_SLEEPING glyph
@@ -102,12 +199,64 @@ test('settings that need no refetch stay OUT of the render signature', () => {
     { backlightDim: false }, { backlightDimStartHour: '22' },
     { backlightDimEndHour: '6' }, { backlightDimColor: '1,2,3' },
     { themeAuto: true }, { themeAutoMode: 'manual' }, { themeNight: 'light' },
-    { themeAutoStartHour: '20' }, { themeAutoEndHour: '7' }
+    { themeAutoStartHour: '20' }, { themeAutoEndHour: '7' },
+    // the theme and the area fill: every colour they move (line colours, the fill
+    // flag, threshold auto-colours) rides the Clay message
+    { theme: 'light' }, { theme: 'bw' }, { secondaryLineFill: true },
+    { secondaryLineFill: false }
   ].forEach((over) => {
     assert.equal(renderSignature({ sleepNightEnabled: true, sleepStartHour: '0',
       sleepEndHour: '7', ...over }), base,
     JSON.stringify(over) + ' must not force a refetch');
   });
+});
+
+// The premise behind keeping the theme and the area fill out: the weather bake reads
+// neither. Should a bake ever start reading one again, this goes red and the key has
+// to rejoin the signature (the force-fetch rule above).
+test('the weather bake is identical across themes and the area-fill toggle', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const store = {};
+  global.localStorage = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
+    const defaults = require('../src/pkjs/settings').getDefaults();
+    let compared = 0;
+    ['berlin.json', 'windy.json', 'graph-colors.json'].forEach((name) => {
+      const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
+      ['basalt', 'aplite', 'emery'].forEach((platform) => {
+        ['precip_prob', 'wind', 'uv'].forEach((secondaryLine) => {
+          let ref = null;
+          ['dark', 'light', 'bw', 'bw-light'].forEach((theme) => {
+            [true, false].forEach((secondaryLineFill) => {
+              const s = Object.assign({}, defaults, fx.claySettings || {}, {
+                secondaryLine, theme, secondaryLineFill,
+                // Weather thresholds on, with auto colours: the one bake-time reader of
+                // settings.theme (status-thresholds' resolveAutoColor) is exercised.
+                threshWindWarn: '5', threshWindDanger: '10', threshUvWarn: '1', threshUvDanger: '2'
+              });
+              const out = fixtureWeather.getFixtureWeatherPayload(
+                JSON.parse(JSON.stringify(fx)), s, { platform });
+              const ser = JSON.stringify(out, Object.keys(out).sort());
+              compared++;
+              if (ref === null) { ref = ser; }
+              assert.equal(ser, ref, [name, platform, secondaryLine, theme, secondaryLineFill].join(' '));
+            });
+          });
+        });
+      });
+    });
+    assert.ok(compared >= 200, 'the sweep ran');
+  } finally {
+    console.log = origLog;
+  }
 });
 
 // The weather kinds are evaluated phone-side at weather-bake time, so enabling one

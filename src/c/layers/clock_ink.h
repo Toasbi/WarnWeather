@@ -6,27 +6,41 @@
 
 // Where each time font's digits actually ink inside the clock band — the one quantity the
 // layout solver cannot derive. The SDK has no ink-bbox call (text_layer_get_content_size
-// reports the LINE BOX, and each face relates its ink to that box differently), and the six
-// screen x font combinations are genuinely different faces:
+// reports the LINE BOX, and each face relates its ink to that box differently), and every
+// screen x font combination is a genuinely different face:
 //
-//   screen   roboto                          leco                        bitham
-//   144px    FONT_KEY_ROBOTO_BOLD_SUBSET_49  FONT_KEY_LECO_42_NUMBERS    FONT_KEY_BITHAM_42_MEDIUM_NUMBERS
-//   emery    custom Roboto-Bold-62           FONT_KEY_LECO_60_NUMBERS_AM_PM  custom Montserrat-Medium-62
+//   screen       roboto                          leco                            bitham
+//   144px B/W    FONT_KEY_ROBOTO_BOLD_SUBSET_49  FONT_KEY_LECO_42_NUMBERS        FONT_KEY_BITHAM_42_MEDIUM_NUMBERS
+//   basalt       strip: Roboto-Bold 49           FONT_KEY_LECO_42_NUMBERS        strip: Montserrat-Medium 44
+//   emery        strip: Roboto-Bold 62           FONT_KEY_LECO_60_NUMBERS_AM_PM  strip: Montserrat-Medium 62
 //
-// So: six measured pairs. This header is included by main_window.c (which passes the pair to the
-// layout solver) and by layers/time_layer.c (which seats the AM/PM label on the digits' ink row)
-// — and by nothing else. It depends on config.h, which is exactly why windows/layout.c must not
+// Two kinds of row, then. The SYSTEM fonts carry MEASURED pairs (procedure below). The
+// "strip" faces are the anti-aliased clock (clock_glyphs.h): their ink_h is GENERATED with the
+// strips (clock_glyphs_ink.h), and their centre_off only places the band and its clip rect —
+// time_layer.c draws a strip's first inked row at clock_ink_top_in_band() and the band solver
+// seats with clock_seat_y(), which subtracts that same term, so centre_off cancels and the ink
+// lands where the solver asked whatever its value. (The centre_off values kept there are the
+// old 1-bit faces' measurements. Every strip's ink_h matches its old face's too except basalt
+// Roboto's, 34 rows against 35, which seats that band one row lower in compactDense and
+// compactSwap while the ink stays balanced.) Nothing to re-measure on those rows: a row scan
+// returns whatever centre_off is set to.
+//
+// This header is included by main_window.c (which passes the pair to the layout solver) and by
+// layers/time_layer.c (which seats the AM/PM label on the digits' ink row) — and by nothing else. It depends on config.h, which is exactly why windows/layout.c must not
 // reach it: that module's purity is enforced by the host stub (test/c/stub/pebble.h), so the
 // metric arrives there as a parameter, not a lookup. For the same reason nothing in this header
 // can appear in a host test — it pulls layer_util.h, whose inline bodies call the text API.
 //
-// ── How these were measured (2026-08-25), so a font change is a re-run and not an eyeball ──
+// ── How the system-font pairs were measured (2026-08-25), so a font change is a re-run and not
+//    an eyeball. The Roboto and Bitham rows here predate the strips on basalt and emery. ──
 // 1. Fixtures fixtures/clock-cal-{roboto,leco,bitham}.json: the noCal preset, 24h, health and
 //    radar off. noCal is the one preset where NOTHING else paints inside the clock band — the
 //    strip's ink floor sits above it and the status row's ink top below it — so a plain row scan
 //    isolates the digits with no colour tricks and no AM/PM child in the way.
-// 2. PLATFORMS="basalt emery" scripts/capture-screenshots.sh cal-<font> clock-cal-<font>
-//    (basalt stands in for the whole 144px family: same screen, same three fonts).
+// 2. PLATFORMS="diorite emery" scripts/capture-screenshots.sh cal-<font> clock-cal-<font>
+//    (diorite stands in for the whole 144px B/W family: same screen, same three fonts. Not
+//    basalt: it draws Roboto and Bitham from the strips and shares only LECO, so a scan there
+//    measures the strip — 34 rows of Roboto, not the 1-bit face's 35).
 // 3. scripts/ink-scan style row scan of the clock band for the first and last inked row.
 //    The band is pinned by test/c/layout_test.c's `none.time` golden: (0,16,144,45) on 144px,
 //    (2,24,196,60) on emery, i.e. band centres 38 and 54.

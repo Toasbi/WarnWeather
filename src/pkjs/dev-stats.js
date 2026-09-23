@@ -9,11 +9,18 @@
  *   setting: { k: 'setting', t: <epoch ms>, sent: 1|0, ok: 1|0 }
  * `ok` is omitted when nothing was transmitted (full skip). `c` lists only
  * categories present in that payload: 1 = updated (transmitted), 0 = cached.
+ *
+ * The settings page never gets the raw log: summarize() hands it per-day totals
+ * plus the newest events, a size bounded whatever the update interval.
  */
 
 var KEYS = require('./storage-keys');
 
 var MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Newest raw events handed to the settings page (see summarize()); older events
+// reach it only through the per-day totals.
+var PAGE_EVENT_CAP = 100;
 
 var enabled = false;
 
@@ -133,6 +140,83 @@ function read() {
 }
 
 /**
+ * Zero-pad a date part to two digits.
+ *
+ * @param {number} value Month, day, hour or minute.
+ * @returns {string} Two-digit string.
+ */
+function pad2(value) {
+    return value < 10 ? '0' + value : String(value);
+}
+
+/**
+ * The bounded view the settings page's Connection stats panel renders. The raw
+ * 7-day log cost ~240 characters of the page's data: URL per event, and at a
+ * 5-10 min update interval it pushed that URL past Android WebView's 2 MiB limit:
+ * the settings page opened blank, and the toggle that stops recording was on it.
+ * So the page gets per-day totals over the whole window plus only the newest
+ * PAGE_EVENT_CAP raw events -- a size that no longer grows with the interval.
+ * Days are keyed in this phone's local time, the zone the webview renders in too.
+ *
+ * Day shape: { d: 'MM-DD', weather: {ack, nack, skip}, setting: {ack, nack, skip},
+ * cats: { <category>: {sent, cached} } }. `cats` counts every category the weather
+ * events carry, leaving out rejected (nack) sends, which delivered nothing.
+ *
+ * @returns {{days: Object[], events: Object[], total: number}} Days and events
+ *     oldest first; total is the number of events in the window.
+ */
+function summarize() {
+    var events = read();
+    var days = [];
+    var byDay = {};
+
+    events.forEach(function(ev) {
+        var date = new Date(ev.t);
+        var key = pad2(date.getMonth() + 1) + '-' + pad2(date.getDate());
+        var bucket = byDay[key];
+        var outcome = ev.ok === 1 ? 'ack' : (ev.ok === 0 ? 'nack' : 'skip');
+        var name;
+        var cat;
+
+        if (!bucket) {
+            bucket = {
+                d: key,
+                weather: { ack: 0, nack: 0, skip: 0 },
+                setting: { ack: 0, nack: 0, skip: 0 },
+                cats: {}
+            };
+            byDay[key] = bucket;
+            days.push(bucket);
+        }
+        if (ev.k !== 'weather') {
+            bucket.setting[outcome] += 1;
+            return;
+        }
+        bucket.weather[outcome] += 1;
+        if (!ev.c || outcome === 'nack') {
+            return;
+        }
+        for (name in ev.c) {
+            if (Object.prototype.hasOwnProperty.call(ev.c, name)) {
+                cat = bucket.cats[name] || (bucket.cats[name] = { sent: 0, cached: 0 });
+                if (ev.c[name] === 1) {
+                    cat.sent += 1;
+                }
+                else {
+                    cat.cached += 1;
+                }
+            }
+        }
+    });
+
+    return {
+        days: days,
+        events: events.slice(-PAGE_EVENT_CAP),
+        total: events.length
+    };
+}
+
+/**
  * Discard the entire stored event log.
  *
  * @returns {void}
@@ -166,6 +250,7 @@ module.exports = {
     setEnabled: setEnabled,
     record: record,
     read: read,
+    summarize: summarize,
     clear: clear,
     gc: gc
 };

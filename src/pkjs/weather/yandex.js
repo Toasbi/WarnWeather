@@ -67,11 +67,25 @@ function flattenHours(weatherByPoint) {
     return hours;
 }
 
+/**
+ * @param {Object} hour A flattened Yandex hour.
+ * @returns {number} Its timestamp in epoch seconds (NaN when unparsable).
+ */
+function hourEpoch(hour) {
+    return parseInt(hour.timestamp, 10);
+}
+
+/**
+ * @param {Object} hour A flattened Yandex hour.
+ * @returns {number} Its UV index, 0 when unreported.
+ */
+function hourUv(hour) {
+    return typeof hour.uvIndex === 'number' ? hour.uvIndex : 0;
+}
+
 // hourly-window owns the anchor rule; Yandex hours carry unix-second strings.
 function anchorIndex(hours, nowEpoch) {
-    return hourlyWindow.anchorIndex(hours, nowEpoch, function(hour) {
-        return parseInt(hour.timestamp, 10);
-    });
+    return hourlyWindow.anchorIndex(hours, nowEpoch, hourEpoch);
 }
 
 /**
@@ -105,7 +119,6 @@ function mapResponse(json, nowEpoch) {
     var rainTrend = [];
     var windTrend = [];
     var gustTrend = [];
-    var uvTrend = [];
     var feelsTrend = [];
     var i;
     var hr;
@@ -116,7 +129,6 @@ function mapResponse(json, nowEpoch) {
         rainTrend.push(typeof hr.prec === 'number' ? hr.prec : 0);
         windTrend.push(typeof hr.windSpeed === 'number' ? hr.windSpeed : 0);
         gustTrend.push(typeof hr.windGust === 'number' ? hr.windGust : 0);
-        uvTrend.push(typeof hr.uvIndex === 'number' ? hr.uvIndex : 0);
         // Server-side °F like temperature; a missing hour falls back to the
         // mapped temp so the series stays numeric.
         feelsTrend.push(typeof hr.feelsLike === 'number' ? hr.feelsLike : tempTrend[i]);
@@ -128,9 +140,11 @@ function mapResponse(json, nowEpoch) {
         rainTrend: rainTrend,
         windTrend: windTrend,
         gustTrend: gustTrend,
-        uvTrend: uvTrend,
+        // UV alone reads on to UV_HOURS (hourly-window.js). days(limit: 3) carries
+        // the rest of today plus two full days, past the end of tomorrow.
+        uvTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.UV_HOURS, hourEpoch, hourUv),
         feelsTrend: feelsTrend,
-        startTime: parseInt(hours[anchor].timestamp, 10),
+        startTime: hourEpoch(hours[anchor]),
         currentTemp: now.temperature,
         // Missing → null so FEELS_CURRENT is omitted rather than echoing the temp.
         currentFeels: typeof now.feelsLike === 'number' ? now.feelsLike : null

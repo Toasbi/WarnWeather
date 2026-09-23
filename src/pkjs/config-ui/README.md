@@ -191,6 +191,11 @@ configUi.hexToInt(h)                 // '#FFFFFF' → 16777215
 // Schema introspection
 configUi.deriveDefaults(schema)      // { messageKey: defaultValue, … } — colors as ints
 configUi.deriveColorKeys(schema)     // ['key', …] — all type:'color' messageKeys
+
+// Page injection
+configUi.inlineScriptJson(value)     // JSON.stringify with '<', U+2028/2029 escaped — safe to
+                                     // splice into the page's inline <script> (generateUrl and
+                                     // scripts/build-page.js previewPage both use it)
 ```
 
 ---
@@ -268,6 +273,11 @@ and the sheet it opens name a colour identically. `dots` are small pips, outline
 entry sets `ring` and filled otherwise, for a row previewing several colours at once where
 several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
 actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
+
+Rows inside an open sheet behave as they do in a card. A `select` or `searchSelect` row there
+opens its option list in the same dialog, over the sheet; a pick, the close button, the
+backdrop, Escape or a swipe-down all return to the sheet at the scroll offset it had, with
+focus back on the row's trigger. Only closing the sheet itself dismisses the dialog.
 
 The fifteen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
@@ -575,7 +585,9 @@ no changes:
 - `getSettings(responseStr)` — parses the `webviewclosed` response, persists to
   `options.storageKey` (default `'clay-settings'`), and returns the blob — like `clay.getSettings`.
   Note: Clay's second "auto-send" argument is intentionally absent; the library never sends
-  AppMessages; the app owns that.
+  AppMessages; the app owns that. Like Clay, `parseResponse` accepts the response either still
+  URI-encoded or already decoded by the host (a leading `{` means decoded), so a `%` in user
+  text survives hosts that decode the `pebblejs://close#` fragment themselves.
 - `setSettings(key, value)` / `setSettings(object)` — read-modify-write the stored blob.
 - `meta.userData` — a mutable object the app populates before calling `generateUrl()`.
 
@@ -666,19 +678,27 @@ npm publish
 All library files under `lib/` and `index.js` must be authored in **ES5**:
 
 - Use `var`, `function` declarations, and string concatenation.
-- No arrow functions, `const`/`let`, template literals, `class`, `for…of`, spread, or
-  destructuring.
+- No arrow functions, `const`/`let`, template literals, `class`, `for…of`, spread,
+  destructuring, default parameters, shorthand or computed object members, `?.`/`??`, `**`,
+  or a trailing comma in a call.
 - No unpolyfilled ES6 built-ins: no `padStart`/`padEnd`, `Object.values`/`entries`,
   `Array.from`, `Promise`, `Map`, `Set`, or `String.prototype.includes`/`startsWith`.
-- `Object.assign`, `Array.prototype.find`/`findIndex`/`includes` are safe (polyfilled in the
-  repo's `src/pkjs/polyfills.js`, required first).
+- `Object.assign`, `Math.trunc` and `Array.prototype.find`/`findIndex`/`includes` are safe: the
+  PKJS runtime gets them from the repo's `src/pkjs/polyfills.js` (required first), and the
+  webview page, which never loads that file, from the guarded shims at the top of
+  `lib/shell.html`'s inline script, which runs before every lib and app file.
+  `String.prototype.includes` is not polyfilled anywhere.
 
 PKJS-parsed files (`index.js`, `lib/color.js`, `lib/platform.js`, `lib/defaults.js`) must be ES5
 because aplite runs the PKJS phone-side JS on a pre-ES6 JavaScriptCore. WebView-only files
 (`lib/show-when.js`, `lib/engine.js`) must be ES5 to protect ancient Android WebViews. The SDK
 build does not catch stray ES6 — failures are silent until runtime.
 
-An automated regex guardrail in the test suite scans all shipped ES5 files and fails on any
-detected ES6 syntax or known-unsafe built-ins.
+An automated guardrail in the test suite (`test/config-es5.test.js`) tokenizes every shipped ES5
+file and fails on ES2015+ syntax and on calls to ES2015+ built-ins that nothing polyfills. It also
+fails on the ES5 strict-mode errors ES2015 dropped (so Node never reports them): duplicate object
+keys and function declarations inside a block. The whole page is one `"use strict"` script, so
+either one in any page file stops the page on an old WebView. It is not a full parser:
+`String.prototype.includes` (indistinguishable from the polyfilled Array one) still gets past it.
 
 **Test files** run in Node and may use modern JS — the ES5 rule applies only to shipped files.

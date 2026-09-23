@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const tomorrowio = require('../src/pkjs/weather/tomorrowio.js');
+const { UV_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 const mapResponse = tomorrowio.mapResponse;
 
 // BASE is hour-aligned: 1718841600 / 3600 === 477456 exactly.
@@ -45,6 +46,17 @@ test('mapResponse anchors at the current hour and converts units', () => {
   assert.equal(out.tempTrend[23], (13 + 23) * 9 / 5 + 32);
 });
 
+test('mapResponse carries the UV series on to UV_HOURS; every other trend keeps 24', () => {
+  const r = sampleResponse();
+  for (let i = 30; i < 60; i += 1) r.data.timelines[0].intervals.push(interval(i));
+  const out = mapResponse(r, BASE + 3 * 3600);
+  assert.equal(out.uvTrend.length, UV_HOURS);
+  assert.equal(out.uvTrend[UV_HOURS - 1], (3 + UV_HOURS - 1) % 12);
+  assert.equal(out.tempTrend.length, 24);
+  // The 30-interval fixture leaves 27 from anchor 3: UV stops where the feed does.
+  assert.equal(mapResponse(sampleResponse(), BASE + 3 * 3600).uvTrend.length, 27);
+});
+
 test('mapResponse returns null when fewer than 24 buckets remain after the anchor', () => {
   const nowEpoch = BASE + 10 * 3600; // 30 - 10 = 20 < 24
   assert.equal(mapResponse(sampleResponse(), nowEpoch), null);
@@ -77,9 +89,10 @@ test('buildUrl floors the hour, requests 1h metric timelines with the reduced fi
   assert.match(url, /fields=temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex/);
   assert.match(url, /apikey=KEY123/);
   const startIso = encodeURIComponent(new Date(BASE * 1000).toISOString());
-  const endIso = encodeURIComponent(new Date((BASE + 25 * 3600) * 1000).toISOString());
+  const endIso = encodeURIComponent(new Date((BASE + (UV_HOURS + 1) * 3600) * 1000).toISOString());
   assert.ok(url.indexOf('startTime=' + startIso) >= 0, 'startTime is the floored hour');
-  assert.ok(url.indexOf('endTime=' + endIso) >= 0, 'endTime is floored hour + 25h');
+  assert.ok(url.indexOf('endTime=' + endIso) >= 0,
+    'endTime is floored hour + (UV_HOURS + 1) h: the UV series reads UV_HOURS buckets');
   // no weatherCode / 1d fields — nothing consumes them (see plan spec-corrections)
   assert.doesNotMatch(url, /weatherCode/);
   assert.doesNotMatch(url, /1d/);

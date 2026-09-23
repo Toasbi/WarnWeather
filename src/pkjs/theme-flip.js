@@ -20,6 +20,18 @@
 //      sentinel, not a color choice (see calendar_layer.c today_color()).
 //   2. The rain-bar and radar-graph color modes (multicolor <-> Solid). The
 //      pair itself lives in resolve-ink.js (barColorDefault / BAR_COLOR_KEYS).
+//   3. The threshold highlight colours (thresh<Kind>WarnColor/DangerColor) that
+//      hold a foreground value — the page's "auto, track the theme fg" state
+//      (blocks.js thresholdAutoColor), which onbuild.js otherwise re-derives
+//      only on the NEXT page open. '' (no outline) and real picks are left alone.
+//
+// Every colour rule matches BOTH encodings a settings object carries: the page's
+// live S holds '#RRGGBB' strings, while the phone's stored blob holds 0xRRGGBB
+// ints (config-ui parseResponse runs hexToInt on every colour key at save, and
+// seedDefaults writes GColorWhite as an int) — and the phone converts THAT blob
+// (theme-schedule.js's night scratch copy). The converted value keeps the
+// encoding it came in: an int stays an int (it rides the wire as-is, e.g.
+// CLAY_COLOR_TIME), a string stays a string.
 (function () {
     // Dual-context (see resolve-ink.js): a CommonJS require under Node/PKJS, the
     // window global published by the file concatenated ahead of this one in the
@@ -28,16 +40,52 @@
         ? require('./resolve-ink.js') : window.ResolveInk;
     // dark and bw are both white-on-black; light and bw-light are both black-on-white.
     var POLARITY = { dark: 'dark', bw: 'dark', light: 'light', 'bw-light': 'light' };
-    var OLD_FG = { dark: '#FFFFFF', light: '#000000' };
+    // Each polarity's default foreground, in both encodings (see the header).
+    var FG_HEX = { dark: '#FFFFFF', light: '#000000' };
+    var FG_INT = { dark: 0xFFFFFF, light: 0x000000 };
     var CONVERTIBLE_KEYS = ['colorTime', 'colorSunday', 'colorSaturday', 'colorUSFederal'];
+    // The threshold highlight colours (schema.js's per-kind WarnColor/DangerColor).
+    var THRESHOLD_COLOR_KEY = /^thresh[A-Za-z]+(Warn|Danger)Color$/;
+
+    /**
+     * Whether a stored colour is a polarity's default foreground, in either
+     * encoding: a 0xRRGGBB int (the phone's stored blob) or a '#RRGGBB' string
+     * (the page's live state; case-insensitive).
+     * @param {*} value Stored colour value.
+     * @param {string} polarity 'dark'|'light'.
+     * @returns {boolean} True when value is that polarity's foreground.
+     */
+    function isFg(value, polarity) {
+        if (typeof value === 'number') { return value === FG_INT[polarity]; }
+        if (typeof value === 'string') { return value.toUpperCase() === FG_HEX[polarity]; }
+        return false;
+    }
+
+    /**
+     * Swap S[k] from the old polarity's foreground to the new one's, keeping the
+     * value's encoding (int stays int, string stays string). Anything else — a
+     * real pick, '' (no outline), an absent key — is left alone.
+     * @param {Object} S Settings state (mutated).
+     * @param {string} k Settings key.
+     * @param {string} oldPolarity 'dark'|'light'.
+     * @param {string} newPolarity 'dark'|'light'.
+     * @returns {void}
+     */
+    function convertFg(S, k, oldPolarity, newPolarity) {
+        if (!isFg(S[k], oldPolarity)) { return; }
+        S[k] = (typeof S[k] === 'number') ? FG_INT[newPolarity] : FG_HEX[newPolarity];
+    }
 
     /**
      * Convert the polarity-dependent settings when the theme's polarity flips — the
-     * four "match default foreground" color pickers and the two bar color modes.
+     * four "match default foreground" color pickers, the threshold highlight colours
+     * on auto, and the two bar color modes. Colours match and keep either encoding
+     * ('#RRGGBB' string or 0xRRGGBB int, see the header).
      * Mutates S in place; no-op when the polarity is unchanged (including a dark<->bw
      * or light<->bw-light flip, neither of which is a polarity change) or when a
      * setting holds anything other than the OLD polarity's default.
-     * @param {Object} S Live settings state (config-ui engine's S, or a scratch copy).
+     * @param {Object} S Live settings state (config-ui engine's S, or a scratch copy
+     *     of the phone's stored blob).
      * @param {string} oldTheme 'dark'|'light'|'bw'|'bw-light'.
      * @param {string} newTheme 'dark'|'light'|'bw'|'bw-light'.
      * @returns {void}
@@ -48,13 +96,13 @@
         if (oldPolarity === newPolarity) {
             return;
         }
-        var oldFg = OLD_FG[oldPolarity];
-        var newFg = OLD_FG[newPolarity];
         var i, k;
         for (i = 0; i < CONVERTIBLE_KEYS.length; i += 1) {
-            k = CONVERTIBLE_KEYS[i];
-            if (typeof S[k] === 'string' && S[k].toUpperCase() === oldFg) {
-                S[k] = newFg;
+            convertFg(S, CONVERTIBLE_KEYS[i], oldPolarity, newPolarity);
+        }
+        for (k in S) {
+            if (Object.prototype.hasOwnProperty.call(S, k) && THRESHOLD_COLOR_KEY.test(k)) {
+                convertFg(S, k, oldPolarity, newPolarity);
             }
         }
         // barColorDefault reads polarity off the theme itself, so the raw themes go

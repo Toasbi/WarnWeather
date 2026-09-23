@@ -192,6 +192,30 @@ test('renderNewsListHtml renders a single message composer targeting the newest 
     'the hint sits above the "Write a message" button');
 });
 
+test('renderNewsListHtml dates each item by the local calendar day, not the UTC one', () => {
+  // created_at is a UTC timestamptz. Slicing its first ten characters showed a post
+  // made at 23:30 UTC as the day before to everyone east of UTC.
+  const dateOf = (createdAt) => {
+    const html = news.renderNewsListHtml([{ id: 1, title: 't', created_at: createdAt, body_md: 'b' }], false);
+    return /<div class="news-date">([^<]*)<\/div>/.exec(html)[1];
+  };
+  const prevTz = process.env.TZ;
+  try {
+    process.env.TZ = 'Europe/Berlin';
+    // PostgREST's microsecond fraction must not make the date unparseable.
+    assert.equal(dateOf('2026-09-22T23:30:00.123456+00:00'), '2026-09-23');
+    assert.equal(dateOf('2026-09-22T02:00:00+00:00'), '2026-09-22');
+    process.env.TZ = 'America/Los_Angeles';
+    assert.equal(dateOf('2026-09-22T02:00:00+00:00'), '2026-09-21');
+    assert.equal(dateOf('2026-09-22T23:30:00Z'), '2026-09-22');
+    // A bare date is already a calendar day, and garbage keeps its old rendering.
+    assert.equal(dateOf('2026-09-22'), '2026-09-22');
+    assert.equal(dateOf('not-a-date'), 'not-a-date');
+  } finally {
+    if (prevTz === undefined) { delete process.env.TZ; } else { process.env.TZ = prevTz; }
+  }
+});
+
 test('renderNewsListHtml shows no composer when there is nothing to attach a reply to', () => {
   const html = news.renderNewsListHtml([], true);
   assert.doesNotMatch(html, /data-news-reply=/);

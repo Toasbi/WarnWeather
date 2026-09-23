@@ -176,3 +176,72 @@ test('mapWaqi returns null for error envelope, non-numeric aqi, or malformed inp
   assert.equal(aq.mapWaqi({}), null);
   assert.equal(aq.mapWaqi(null), null);
 });
+
+/**
+ * Drive fetchWithCoordinates once per responder on ONE provider instance (as
+ * index.js does between config closes), with the real air-quality fetch and only
+ * the network, the outbox send and the city/sun/provider-data stages stubbed.
+ * @param {Object} aqiSettings fetchAqi/aqiSource/aqicnToken/aqiScale overrides.
+ * @param {Function[]} responders One http.request stub per cycle.
+ * @returns {Object[]} The payload sent on each cycle.
+ */
+function fetchCyclesOnOneProvider(aqiSettings, responders) {
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const outbox = require('../src/pkjs/outbox.js');
+  const origRequest = http.request;
+  const origSend = outbox.sendWeather;
+  const sent = [];
+  const provider = new WeatherProvider();
+  Object.assign(provider, aqiSettings);
+  let cycleStart = START;
+  provider.withCityName = (lat, lon, done) => done('Town', 'DE');
+  provider.withSunEvents = (lat, lon, done) => done([{ type: 'sunrise', date: new Date(START * 1000) }]);
+  provider.withProviderData = function (lat, lon, force, done) {
+    this.tempTrend = new Array(24).fill(50);
+    this.precipTrend = new Array(24).fill(0);
+    this.currentTemp = 50;
+    this.startTime = cycleStart;
+    done();
+  };
+  outbox.sendWeather = (payload, onAck) => { sent.push(payload); onAck(); };
+  try {
+    responders.forEach((responder) => {
+      http.request = responder;
+      provider.fetchWithCoordinates(49.2, 7.0, () => {}, assert.fail, false, null, null);
+      cycleStart += H;
+    });
+  } finally {
+    http.request = origRequest;
+    outbox.sendWeather = origSend;
+  }
+  return sent;
+}
+
+const waqiOk87 = (url, method, onSuccess) => onSuccess(JSON.stringify({ status: 'ok', data: { aqi: 87 } }));
+
+[
+  ['a "-" reading', (url, method, onSuccess) => onSuccess(JSON.stringify({ status: 'ok', data: { aqi: '-' } }))],
+  ['no station', (url, method, onSuccess) => onSuccess(JSON.stringify({ status: 'error', data: 'Unknown station' }))],
+  ['a transport error', (url, method, onSuccess, onError) => onError({ code: 0, message: 'timeout' })]
+].forEach(([label, failing]) => {
+  test('strict waqi on a reused provider ships no AQI after ' + label + ' (slot shows --, not the last reading)', () => {
+    const sent = fetchCyclesOnOneProvider(
+      { fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T' }, [waqiOk87, failing]);
+    assert.equal(sent.length, 2);
+    assert.deepEqual(sent[0].AQI_TREND, [87]);
+    assert.deepEqual(sent[1].AQI_TREND, []);
+  });
+});
+
+test('open-meteo AQI on a reused provider ships no AQI after a timeout (not the previous window)', () => {
+  const sent = fetchCyclesOnOneProvider(
+    { fetchAqi: true, aqiSource: 'openmeteo', aqiScale: 'european' }, [
+      (url, method, onSuccess) => onSuccess(JSON.stringify({
+        hourly: { time: [START, START + H, START + 2 * H], european_aqi: [30, 31, 32] }
+      })),
+      (url, method, onSuccess, onError) => onError({ code: 0, message: 'timeout' })
+    ]);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].AQI_TREND[0], 30);
+  assert.deepEqual(sent[1].AQI_TREND, []);
+});

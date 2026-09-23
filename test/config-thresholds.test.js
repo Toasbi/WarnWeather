@@ -657,6 +657,64 @@ test('a pointer drag in the sheet commits both wire keys through the role mappin
   assert.equal(page.S.threshStepsWarn, '2000', 'no writes after pointerup');
 });
 
+test('a pair stacked at the track max can be pulled apart from the knob hidden underneath', () => {
+  // Steps 19750/20000 on a 300px track: the thumbs are ~4px apart and the danger (goal)
+  // knob sits on top, so every press on the visible warn knob hit the danger thumb —
+  // which can move neither right (max) nor left (one span from warn). The drag went
+  // nowhere and the pair stayed jammed. The press now goes to the hidden warn thumb.
+  const page = bootGeneratedPage();
+  page.S.threshStepsWarn = '19750';
+  page.S.threshStepsDanger = '20000';
+  /**
+   * A 300px-track root whose thumbs report their 28px boxes.
+   * @param {number} lo data-lo
+   * @param {number} hi data-hi
+   * @returns {Object} root stub with .thumbs.{lo,hi}
+   */
+  function stackRoot(lo, hi) {
+    const root = makeRngRoot('threshStepsWarn', lo, hi);
+    const px = v => (v * 300) / 20000;
+    const thumbs = { lo: thumbOn(root, 'lo'), hi: thumbOn(root, 'hi') };
+    thumbs.lo.getBoundingClientRect = () => ({ left: px(lo) - 14, right: px(lo) + 14 });
+    thumbs.hi.getBoundingClientRect = () => ({ left: px(hi) - 14, right: px(hi) + 14 });
+    const query = root.querySelector;
+    root.querySelector = sel => (sel === '[data-range-thumb=lo]' ? thumbs.lo
+      : sel === '[data-range-thumb=hi]' ? thumbs.hi
+        : sel === '.rng-track' ? { getBoundingClientRect: () => ({ left: 0, width: 300 }) }
+          : query(sel));
+    root.thumbs = thumbs;
+    return root;
+  }
+  const root = stackRoot(19750, 20000);
+  // The hit test returns the danger thumb (on top); the finger is on the warn knob's centre.
+  page.modal.dispatch('pointerdown', { target: root.thumbs.hi, pointerId: 5, clientX: 296.25, preventDefault() {} });
+  page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 5, clientX: 216.25 });
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 5 });
+  assert.equal(page.S.threshStepsWarn, '14500', 'the hidden close (warn) thumb followed the finger');
+  assert.equal(page.S.threshStepsDanger, '20000', 'the goal stayed at the max');
+
+  // Not pinned (mid-track stack): the top thumb can move, so it keeps the press.
+  page.S.threshStepsWarn = '10000';
+  page.S.threshStepsDanger = '10250';
+  const mid = stackRoot(10000, 10250);
+  page.modal.dispatch('pointerdown', { target: mid.thumbs.hi, pointerId: 6, clientX: 152, preventDefault() {} });
+  page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 6, clientX: 225 });
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 6 });
+  assert.equal(page.S.threshStepsDanger, '15000', 'a free top thumb is dragged as hit');
+  assert.equal(page.S.threshStepsWarn, '10000');
+
+  // Pinned, but the finger is on the far side of the top knob, clear of the other
+  // knob's box: that knob is not what the finger is on, so no hand-over.
+  page.S.threshStepsWarn = '19750';
+  page.S.threshStepsDanger = '20000';
+  const far = stackRoot(19750, 20000);
+  page.modal.dispatch('pointerdown', { target: far.thumbs.hi, pointerId: 7, clientX: 312, preventDefault() {} });
+  page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 7, clientX: 216.25 });
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 7 });
+  assert.equal(page.S.threshStepsWarn, '19750', 'no hand-over outside the hidden knob');
+  assert.equal(page.S.threshStepsDanger, '20000');
+});
+
 test('keyboard nudge steps half-units and keeps the untouched decimal thumb intact', () => {
   const page = bootGeneratedPage();
   page.S.threshSleepWarn = '6.5';
@@ -713,10 +771,89 @@ test('the inline scale-max editor: open, sanitize, and untouched-blur writes not
   assert.equal(page.S.threshAqiMax, '', 'blurring the untouched field stores no override');
   page.modal.dispatch('focusout', blurWith('500'));
   assert.equal(page.S.threshAqiMax, '500', 'an edited value is stored raw');
+  // This stub field sits in no .rng root, so it takes commitMaxEdit's full-render
+  // fallback; the real in-place fold-back is pinned by the next test.
   assert.ok(page.modal.innerHTML.indexOf('data-max-current="500"') !== -1,
     'the re-render shows the grown scale');
   page.modal.dispatch('focusout', blurWith('abc'));
   assert.equal(page.S.threshAqiMax, '', 'garbage clears the override instead of storing it');
+});
+
+test('closing the scale-max field rebuilds only its slider, so the tap that closed it still lands', () => {
+  // On a tap, focus moves on the mousedown, BEFORE the click. The focusout used to
+  // re-render the whole sheet, replacing the node being tapped (the sheet's X, a Bold
+  // option …), so that click never arrived and every first tap after the editor was
+  // swallowed. Now only the slider's own .rng root is rebuilt in place.
+  const page = bootGeneratedPage();
+  page.openEditSheet('threshAqi');
+  page.clickModalToggle('threshAqiOn');
+  page.S.threshAqiWarn = '50';
+  page.S.threshAqiDanger = '100';
+  /**
+   * A focusout from the inline field, inside a .rng root whose outerHTML setter
+   * records the in-place swap.
+   * @param {string} value field text at blur
+   * @param {string} seed the max the field was opened with
+   * @returns {{ev: Object, swapped: function(): ?string}} event + recorded swap
+   */
+  function blurIn(value, seed) {
+    let swapped = null;
+    const root = {
+      parentNode: {},
+      getAttribute: n => (n === 'data-range' ? 'threshAqiWarn' : null),
+      set outerHTML(v) { swapped = v; },
+      get outerHTML() { return swapped; }
+    };
+    const inp = {
+      value,
+      getAttribute: n => (n === 'data-max-input' ? 'threshAqiMax'
+        : n === 'data-max-seed' ? seed : null),
+      closest: sel => (sel === '[data-max-input]' ? inp : sel === '.rng' ? root : null)
+    };
+    return { ev: { target: inp }, swapped: () => swapped };
+  }
+  const modalWrites = page.modal.writes, scrollWrites = page.scroll.writes;
+
+  const edited = blurIn('500', '300');
+  page.modal.dispatch('focusout', edited.ev);
+  assert.equal(page.S.threshAqiMax, '500', 'the edited max is stored');
+  assert.equal(page.modal.writes, modalWrites,
+    'no full re-render: the rest of the sheet stays attached for the pending click');
+  assert.equal(page.scroll.writes, scrollWrites, 'nor of the tab body behind it');
+  const html = edited.swapped();
+  assert.ok(html, 'the slider was rebuilt in place');
+  assert.match(html, /^<div class="rng" data-range="threshAqiWarn" data-lo="50" data-hi="100">/);
+  assert.ok(html.indexOf('data-max-current="500"') !== -1, 'the rebuilt slider shows the grown scale');
+  assert.equal(html.indexOf('data-max-input'), -1, 'the field folded back into its label');
+  assert.ok(html.indexOf('data-max-edit="threshAqiMax"') !== -1, 'and the pencil is back');
+
+  // The in-place copy is exactly what a full render draws for that slider: a grab and
+  // release of a thumb (endRangeDrag renders once) must reproduce it byte for byte.
+  const root = makeRngRoot('threshAqiWarn', 50, 100);
+  page.modal.dispatch('pointerdown', { target: thumbOn(root, 'lo'), pointerId: 3, preventDefault() {} });
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 3 });
+  assert.equal(page.modal.writes, modalWrites + 1, 'the release rendered once');
+  assert.ok(page.modal.innerHTML.indexOf(html) !== -1,
+    'the in-place slider matches the full render of the same state');
+
+  // Opened and left unchanged: nothing stored, but the field still folds back.
+  const untouched = blurIn('500', '500');
+  page.modal.dispatch('focusout', untouched.ev);
+  assert.equal(page.S.threshAqiMax, '500', 'an untouched field writes nothing');
+  assert.equal(page.modal.writes, modalWrites + 1, 'still no full re-render');
+  assert.ok(untouched.swapped() && untouched.swapped().indexOf('data-max-edit=') !== -1,
+    'the untouched field folds back too (nothing else would)');
+
+  // Blurred by grabbing a thumb: the drag owns the slider until release — no swap now,
+  // and the release's render folds the field back.
+  page.modal.dispatch('pointerdown', { target: thumbOn(root, 'hi'), pointerId: 4, preventDefault() {} });
+  const mid = blurIn('700', '500');
+  page.modal.dispatch('focusout', mid.ev);
+  assert.equal(page.S.threshAqiMax, '700', 'the value still commits mid-drag');
+  assert.equal(mid.swapped(), null, 'no swap under a live drag');
+  assert.equal(page.modal.writes, modalWrites + 1, 'and no render under it either');
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 4 });
+  assert.equal(page.modal.writes, modalWrites + 2, 'the release renders, folding the field back');
 });
 
 // The section-level platform gate has to survive into the FLAT generated page (the
@@ -1041,7 +1178,8 @@ test('the slot button is labelled Edit for every kind', () => {
 // (wire ids 8..16 in status-thresholds.js; the battery GLYPH item deliberately
 // absent — its slot draws a glyph, not text, so a Bold option would be a no-op
 // lie. The battery PERCENTAGE kind renders text, so it gets a normal sheet.
-// Temp's sheet additionally carries the tempSlotDisplay row — see below.)
+// Temp's sheet additionally carries the tempSlotDisplay row and the rows shaping
+// its Both pair — see below and test/config-slot-pair.test.js.)
 
 const BOLD_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct'];
 const BOLD_CODES = {
@@ -1053,7 +1191,8 @@ const BOLD_CODES = {
 // alone. The unit toggles exist only for the kinds the phone bakes the text for
 // (status-lines.js); the watch-formatted ones — Hr, BatteryPct — have no such row.
 const BOLD_SHEET_EXTRA_ROWS = {
-  Temp: ['tempSlotDisplay', 'tempSlotUnit'],
+  Temp: ['tempSlotDisplay', 'tempSlotSeparator', 'tempSlotSeparatorCustom',
+    'tempSlotSeparatorSpaced', 'tempSlotOrder', 'tempSlotUnit'],
   Pressure: ['pressureSlotUnit'],
   Countdown: ['countdownSlotUnit'],
   Date: ['dateSlotMonthFormat', 'dateSlotFullFormat']
@@ -1165,12 +1304,43 @@ test('the Temp sheet puts its display-mode pills below the Bold row', () => {
     [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]);
   assert.match(String(disp.hint), /both/i, 'hint explains the Both mode');
   assert.match(String(disp.hint), /feels/i, 'hint names the feels-like value');
+  // The pair's shape is a choice now, so the hint points at the rows below instead of
+  // promising one fixed "actual/feels-like" rendering.
+  assert.doesNotMatch(String(disp.hint), /actual\/feels/, 'hint no longer hard-codes the slash pair');
+  assert.match(String(disp.hint), /separator/i, 'hint points at the separator row');
+  assert.match(String(disp.hint), /order/i, 'hint points at the order row');
   // No gate of its own: it inherits the sheet's THRESHOLD_WHEN, so aplite (which
   // has no Edit sheets) deliberately never reaches it — feels-like is left out
   // there entirely (slot mode AND graph metric, see the forecastMetric resolver).
   assert.equal(disp.showWhen, undefined);
   // NOT muted by the master Bold row: display mode is not a bold setting.
   assert.equal(disp.disabledWhen, undefined);
+});
+
+test('the UV sheet puts its display-mode pills between the Bold row and the Thresholds group', () => {
+  const items = sheetFor('Uv').items;
+  assert.equal(items[0].messageKey, 'threshUvBoldMode', 'Bold leads, as in every sibling sheet');
+  const disp = items[1];
+  assert.equal(disp.messageKey, 'uvSlotDisplay');
+  assert.equal(disp.type, 'segmented');
+  assert.equal(disp.defaultValue, 'current', 'shipped behaviour: the current index');
+  assert.deepEqual(disp.options, [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]);
+  assert.match(String(disp.hint), /tomorrow/i, 'hint says the max rolls on to tomorrow');
+  // The mark is a choice now (uvSlotNextDayMark), so the hint points at it instead of
+  // quoting one glyph that may not be the one on screen.
+  assert.equal(String(disp.hint).indexOf('\u00BB'), -1, 'hint no longer hard-codes the \u00BB mark');
+  assert.match(String(disp.hint), /mark/i, 'hint says tomorrow\'s max is marked');
+  assert.match(String(disp.hint), /below/i, 'hint points at the rows that shape the reading');
+  assert.match(String(disp.hint), /highlight/i, 'hint says which value the highlight judges');
+  // It configures the SLOT, not the highlight, so it sits above the group header
+  // like the wind arrow — and stays live while the highlight is off. So do the rows
+  // shaping how it reads (test/config-slot-pair.test.js), which follow it directly.
+  assert.deepEqual(items.slice(2, 7).map(it => it.messageKey),
+    ['uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced', 'uvSlotOrder',
+      'uvSlotNextDayMark'],
+    'the pair rows and the tomorrow mark follow the display pills');
+  assert.equal(items[7].type, 'subheader', 'the Thresholds group follows them');
+  assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
 });
 
 test('the slot pencil resolves the bold-only sheet for every new kind', () => {
@@ -1194,6 +1364,8 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
   });
   assert.equal(blob.tempSlotDisplay, 'actual',
     'tempSlotDisplay must survive hydrate → serialize');
+  assert.equal(blob.uvSlotDisplay, 'current',
+    'uvSlotDisplay must survive hydrate → serialize');
 });
 
 // --- the Watch-tab master Bold row (statusBoldAll) ---------------------------
@@ -1285,7 +1457,7 @@ test('the generated page renders the Temp display pills and the battery-% sheet'
 
 /** @returns {Object} A settings state with nothing at its default. */
 function scrambledSlotState() {
-  const S = { statusBoldAll: 'all', tempSlotDisplay: 'both' };
+  const S = { statusBoldAll: 'all', tempSlotDisplay: 'both', uvSlotDisplay: 'both' };
   // 'uv' is not the default of any of the 12 slots.
   catalog.allSlotKeys().forEach(k => { S[k] = 'uv'; });
   thresholds.KINDS.forEach((kind, i) => {
@@ -1317,6 +1489,8 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
     assert.equal(S.statusBoldAll, 'perSlot', name + ': master Bold row back to perSlot');
     assert.equal(S.tempSlotDisplay, 'actual',
       name + ': temp display pills back to Temp (same sheet, no reset path of its own)');
+    assert.equal(S.uvSlotDisplay, 'current',
+      name + ': UV display pills back to Now (its sheet\'s reset covers the thresholds only)');
     thresholds.KINDS.forEach(kind => {
       assert.equal(S['thresh' + kind.key + 'BoldMode'], kind.boldOnly ? 'off' : 'warn',
         name + ': ' + kind.key + ' BoldMode back to its sheet default');

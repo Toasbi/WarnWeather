@@ -113,3 +113,16 @@ test('minSleepHoursFor derives the unlock rule (5 min + radar needs >= 4 h)', ()
   // no tomorrow.io in play -> 0 (nothing to unlock)
   assert.equal(budget.minSleepHoursFor(S({ provider: 'dwd', radarMode: 'off' }), 5), 0);
 });
+
+test('STATE_KEYS lists every settings key the budget math reads', () => {
+  // The onSubmit guard (onbuild.js) rebuilds its state object from exactly these keys;
+  // a key read here but missing there would silently read as undefined at save time.
+  const read = new Set();
+  const spy = new Proxy(S({ radarMode: 'graph', sleepNightEnabled: true }), {
+    get: (target, k) => { if (typeof k === 'string') { read.add(k); } return target[k]; }
+  });
+  budget.fittingOptions(spy);
+  budget.fits(spy, 5);
+  budget.minSleepHoursFor(spy, 5);
+  assert.deepEqual([...read].sort(), budget.STATE_KEYS.slice().sort());
+});

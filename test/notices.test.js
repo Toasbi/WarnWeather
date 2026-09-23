@@ -50,7 +50,7 @@ test('dismissAll empties the list', function () {
 });
 
 test('noticeForFailure classifies auth/ratelimit/other', function () {
-  var auth = notices.noticeForFailure({ code: 'owm_status_401' }, 'OpenWeatherMap', 500);
+  var auth = notices.noticeForFailure({ stage: 'provider_data', code: 'owm_status_401' }, 'OpenWeatherMap', 500);
   assert.strictEqual(auth.key, 'auth');
   assert.strictEqual(auth.type, 'error');
   assert.strictEqual(auth.watch, 'API key error');
@@ -58,13 +58,29 @@ test('noticeForFailure classifies auth/ratelimit/other', function () {
   assert.ok(auth.html.indexOf('OpenWeatherMap') !== -1);
   assert.ok(auth.html.indexOf('401') !== -1);
 
-  var rl = notices.noticeForFailure({ code: 'status_429' }, 'Yandex', 600);
+  var rl = notices.noticeForFailure({ stage: 'provider_data', code: 'yandex_status_429' }, 'Yandex', 600);
   assert.strictEqual(rl.key, 'ratelimit');
   assert.strictEqual(rl.type, 'info');
   assert.strictEqual(typeof rl.watch, 'undefined');
 
-  assert.strictEqual(notices.noticeForFailure({ code: 'network_error' }, 'X', 1), null);
+  assert.strictEqual(notices.noticeForFailure({ stage: 'provider_data', code: 'network_error' }, 'X', 1), null);
   assert.strictEqual(notices.noticeForFailure(null, 'X', 1), null);
+});
+
+test('noticeForFailure raises nothing for a geocoder 401/403/429', function () {
+  // The ArcGIS city lookup and the shared LocationIQ key report bare
+  // status_<n> codes under their own stages. Neither is the weather provider,
+  // and neither is a key the user can fix — a notice naming the provider and
+  // pointing at its key field (plus the 'API key error' watch overlay) was
+  // wrong on both counts.
+  ['reverse_geocode', 'forward_geocode'].forEach(function (stage) {
+    ['status_401', 'status_403', 'status_429'].forEach(function (code) {
+      assert.strictEqual(notices.noticeForFailure({ stage: stage, code: code }, 'Open-Meteo', 1), null,
+        stage + ' ' + code);
+    });
+  });
+  // No stage at all is not a provider failure either.
+  assert.strictEqual(notices.noticeForFailure({ code: 'owm_status_401' }, 'OpenWeatherMap', 1), null);
 });
 
 test('gc drops notices older than 7 days, keeps fresh ones', function () {

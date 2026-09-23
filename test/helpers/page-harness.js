@@ -30,6 +30,7 @@ function makeEl(id) {
     querySelector() { return null; },
     querySelectorAll() { return []; },
     classList: { add() {}, remove() {} },
+    style: {},
     focus() {}, getAttribute() { return null; }, setAttribute() {}
   };
   Object.defineProperty(el, 'innerHTML', {
@@ -40,7 +41,7 @@ function makeEl(id) {
 }
 
 /** Boot the real generated page in a vm sandbox with a fake DOM.
- * @param {Object} [cfg] stored settings to hydrate from
+ * @param {Object} [cfg] stored settings to hydrate from (onboardingDone defaults to true)
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
  * @returns {{S: Object, scroll: Object, modal: Object, clickTab: function,
  *   openEditSheet: function, clickModalToggle: function}}
@@ -49,7 +50,11 @@ function bootGeneratedPage(cfg, platformName) {
   const html = require('../../src/pkjs/config-ui/scripts/build-page.js').previewPage({
     appFiles: require('../../scripts/build-config-page.js').APP_FILES,
     schema, env: platformLib.computeEnv({ platform: platformName || 'basalt' }),
-    cfg: cfg || { provider: 'dwd' }, userData: {}, returnTo: '#'
+    // An installed, already-onboarded config: the real boot injects a seeded blob,
+    // and without onboardingDone the first-run wizard would auto-open over the page
+    // (wizard.js shouldShow). A caller can still pass onboardingDone: false.
+    cfg: Object.assign({ onboardingDone: true }, cfg || { provider: 'dwd' }),
+    userData: {}, returnTo: '#'
   });
   const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
     .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady
@@ -62,6 +67,7 @@ function bootGeneratedPage(cfg, platformName) {
     addEventListener() {}
   };
   sandbox.navigator = {};
+  sandbox.location = { href: '' };   // save() navigates to RETURN_TO + the saved blob
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
   let ready = null;
@@ -94,6 +100,23 @@ function bootGeneratedPage(cfg, platformName) {
         closest: sel => (sel === '[data-toggle]' ? t : null)
       };
       els.modal.dispatch('click', { target: t });
+    },
+    // Pick an option in a select sheet — the engine's #modal pick handler (sets the value,
+    // runs the item's onChange, closes the sheet).
+    pickOption(key, value) {
+      const t = {
+        getAttribute: n => (n === 'data-k' ? key : (n === 'data-select-pick' ? value : null)),
+        closest: sel => (sel === '[data-select-pick]' ? t : null)
+      };
+      els.modal.dispatch('click', { target: t });
+    },
+    // Tap Save: the submit hooks run, the state serializes, and after the toast delay the
+    // page navigates to RETURN_TO ('#') + the encoded blob. Resolves with that blob.
+    save() {
+      els.save.dispatch('click', { target: els.save });
+      return new Promise(resolve => setTimeout(() => {
+        resolve(JSON.parse(decodeURIComponent(sandbox.location.href.slice(1))));
+      }, 350));
     }
   };
 }

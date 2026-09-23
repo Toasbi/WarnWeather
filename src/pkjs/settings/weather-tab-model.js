@@ -187,9 +187,9 @@
 
     /**
      * ES5 stand-in for Math.trunc (ES2015): this file rides the PAGE bundle,
-     * which carries no polyfills — rain-tier.js can call Math.trunc because
-     * PKJS loads polyfills.js first, but here it would throw on a pre-ES6
-     * WebView the first time it rains (the v1.1.0 Object.assign lesson).
+     * which never loads polyfills.js — lib/shell.html now shims Math.trunc for
+     * the page, but this local copy predates that and keeps the port free of
+     * the dependency (the v1.1.0 Object.assign lesson).
      * Bit-identical to Math.trunc for this port's integer-range inputs.
      * @param {number} v Value.
      * @returns {number} v truncated toward zero.
@@ -491,6 +491,85 @@
         return null;
     }
 
+    // --- hour convention ---------------------------------------------------------
+
+    /**
+     * Re-stamp fields a provider reports for the PRECEDING hour onto the hour
+     * they START, which is what every hour of the tab means: the row stamped
+     * 14:00 is 14:00-15:00, the bar right of the 14:00 tick, the figure a tap
+     * there reads, and the slot the watch fills from the same provider
+     * (openmeteo.js's precedingHourSlice, dwd.js's slotRecords). So row T
+     * takes the value stamped T+1h. The pair is found by TIME, never by
+     * index -- a provider can skip an hour, and a parser drops rows it
+     * cannot date, so an index shift would slide every later hour -- and a
+     * row with no T+1h partner takes `fills[key]` (null: unsourced).
+     *
+     * A skipped stamp S-1h would leave the values stamped S no row to land
+     * on, and the grid would fill that hour from its neighbours: the next
+     * hour's rain, drawn twice. So such an S gets a row of its own at S-1h,
+     * as the watch gives it a slot: its re-stamped fields are S's, and its
+     * other series are what the grid would have drawn there anyway (the
+     * interpolated or nearest sample, buildHourlyGrid). The first stamp gets
+     * none: its hour lies before the response, and the watch never reads it
+     * either.
+     *
+     * Only Open-Meteo and DWD need this. tomorrow.io and OWM One Call report
+     * an INSTANT at the stamp (a rate, a chance, a gust), which holds for
+     * the hour starting there, as their own daily sums treat it; shifting
+     * them would put them an hour early. (OWM's 3-hourly tail totals the
+     * hours before its stamp too, but in 3 h blocks: parseOwmForecast3h
+     * spreads those itself.)
+     * @param {{time: number[]}} hourly Normalized hourly arrays (time = epoch
+     *   ms); rewritten in place, every per-row array replaced.
+     * @param {Object<string, *>} fills Series key -> the value for a row with no T+1h partner.
+     * @returns {number[]} Per row of the result, the index (into the arrays
+     *   passed in) its re-stamped values came from, or -1.
+     */
+    function startHourFields(hourly, fills) {
+        var HOUR_MS = 3600000;
+        var time = hourly.time;
+        var n = time.length;
+        var at = {};
+        var keys = [];
+        var out = {};
+        var times = [];
+        var from = [];
+        var i, k, key, gap, sample;
+        for (i = 0; i < n; i += 1) { at[time[i]] = i; }
+        for (key in hourly) {
+            if (Object.prototype.hasOwnProperty.call(hourly, key) && key !== 'time'
+                && Array.isArray(hourly[key]) && hourly[key].length === n) {
+                keys.push(key);
+                out[key] = [];
+            }
+        }
+        for (i = 0; i < n; i += 1) {
+            gap = time[i] - HOUR_MS;
+            if (i > 0 && at[gap] === undefined && gap > time[i - 1]) {
+                sample = buildHourlyGrid(hourly, gap, 1);
+                times.push(gap);
+                for (k = 0; k < keys.length; k += 1) {
+                    out[keys[k]].push(sample[keys[k]] ? sample[keys[k]][0] : null);
+                }
+            }
+            times.push(time[i]);
+            for (k = 0; k < keys.length; k += 1) { out[keys[k]].push(hourly[keys[k]][i]); }
+        }
+        for (i = 0; i < times.length; i += 1) {
+            var j = at[times[i] + HOUR_MS];
+            from.push(j === undefined ? -1 : j);
+        }
+        for (key in fills) {
+            if (!Object.prototype.hasOwnProperty.call(fills, key) || !out[key]) { continue; }
+            for (i = 0; i < times.length; i += 1) {
+                out[key][i] = from[i] < 0 ? fills[key] : hourly[key][from[i]];
+            }
+        }
+        hourly.time = times;
+        for (k = 0; k < keys.length; k += 1) { hourly[keys[k]] = out[keys[k]]; }
+        return from;
+    }
+
     // --- daily aggregation ----------------------------------------------------
 
     /**
@@ -571,6 +650,7 @@
         owmIcon: owmIcon,
         tomorrowIcon: tomorrowIcon,
         pickDailyIcon: pickDailyIcon,
+        startHourFields: startHourFields,
         aggregateDaily: aggregateDaily
     };
 

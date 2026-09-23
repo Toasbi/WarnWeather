@@ -4,6 +4,26 @@ var platform = require('./lib/platform.js');  // isColorPlatform, computeEnv
 var defaults = require('./lib/defaults.js');  // deriveDefaults(schema), deriveColorKeys(schema)
 require('../polyfills.js');                    // Object.assign / Array.find on aplite
 
+/**
+ * JSON for splicing into the page's only inline <script>. Plain JSON.stringify
+ * escapes neither '<' nor U+2028/U+2029, so a stored or third-party string holding
+ * '</script' ends the element mid-literal and an unclosed '<!--' derails the HTML
+ * tokenizer past the real '</script>' -- either way boot() never runs, on every open,
+ * and the page that could fix the value is the one that is dead. A raw U+2028/2029
+ * inside a string literal is a SyntaxError before ES2019 (old Android WebViews).
+ * '<' and both separators can only occur inside JSON strings, where the \uXXXX
+ * escapes decode to the identical value, so the result stays valid JSON and JS.
+ * Keep the regexes as escapes: a literal U+2028 in a regex is a SyntaxError that
+ * would kill the whole PKJS bundle.
+ *
+ * @param {*} value Any JSON-serialisable value.
+ * @returns {string} JSON text safe inside an HTML <script> element.
+ */
+function inlineScriptJson(value) {
+  return String(JSON.stringify(value)).replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+
 function createConfig(cfg) {
   var schema    = cfg.schema;
   var options   = cfg.options || {};
@@ -21,7 +41,13 @@ function createConfig(cfg) {
   function getDefaults() { return defaults.deriveDefaults(schema); }   // colors as ints
 
   function parseResponse(responseStr) {                  // raw response -> blob (colors hex->int)
-    var raw = JSON.parse(decodeURIComponent(responseStr)), out = {}, k;
+    // Clay's guard: some hosts hand webviewclosed an already-decoded response (Core
+    // Devices' app runs decodeURLPart on the pebblejs://close# fragment). Decoding that
+    // again throws on a lone '%' ("Rain 0%") -- the whole save is lost -- or silently
+    // rewrites a '%41' in user text. The page's encoded blob always starts '%7B', the
+    // decoded one '{', so the check cannot misfire.
+    var json = /^\s*\{/.test(responseStr) ? responseStr : decodeURIComponent(responseStr);
+    var raw = JSON.parse(json), out = {}, k;
     for (k in raw) { if (Object.prototype.hasOwnProperty.call(raw, k)) {
       // '' passes through: it is an app-level "no color" sentinel, and
       // hexToInt('') is NaN — which JSON persistence would turn into null.
@@ -33,12 +59,12 @@ function createConfig(cfg) {
     var valuesHex = Object.assign({}, opts.values), i, ck;
     for (i = 0; i < colorKeys.length; i += 1) { ck = colorKeys[i];
       if (typeof valuesHex[ck] === 'number') { valuesHex[ck] = color.intToHex(valuesHex[ck]); } }
-    var snippet =
-      'INJECTED_SCHEMA='   + JSON.stringify(schema)               + ';' +
-      'INJECTED_CFG='      + JSON.stringify(valuesHex)            + ';' +
-      'INJECTED_ENV='      + JSON.stringify(opts.env || null)     + ';' +
-      'INJECTED_USERDATA=' + JSON.stringify(opts.userData || null)+ ';' +
-      'INJECTED_RETURN='   + JSON.stringify(opts.returnTo || 'pebblejs://close#') + ';';
+    var snippet =                                        // inlineScriptJson: see its doc
+      'INJECTED_SCHEMA='   + inlineScriptJson(schema)               + ';' +
+      'INJECTED_CFG='      + inlineScriptJson(valuesHex)            + ';' +
+      'INJECTED_ENV='      + inlineScriptJson(opts.env || null)     + ';' +
+      'INJECTED_USERDATA=' + inlineScriptJson(opts.userData || null)+ ';' +
+      'INJECTED_RETURN='   + inlineScriptJson(opts.returnTo || 'pebblejs://close#') + ';';
     return pageStr.replace('/*__PCONF_INJECT__*/', function () { return snippet; });
   }
 
@@ -99,5 +125,7 @@ module.exports = {                                        // factory + reusable 
   // telemetry.js gates the Dim backlight fields on this: the LED is emery's alone.
   isColorBacklightPlatform: platform.isColorBacklightPlatform,
   intToHex: color.intToHex, hexToInt: color.hexToInt,
-  deriveDefaults: defaults.deriveDefaults, deriveColorKeys: defaults.deriveColorKeys
+  deriveDefaults: defaults.deriveDefaults, deriveColorKeys: defaults.deriveColorKeys,
+  // scripts/build-page.js previewPage fills the same markers for the dev preview.
+  inlineScriptJson: inlineScriptJson
 };

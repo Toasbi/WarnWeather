@@ -145,6 +145,55 @@ test('scenario 4b: migration Clay NACK -> onClayAck skipped, startup fetch still
     assert.equal(h.calls.startFetch[0], true);
 });
 
+// The deferred migration markers (onClayAck) must commit on the next scheduler Clay
+// send that lands when the migration send itself NACKs: every later send carries the
+// same migrated blob, and a marker left unset for the session lets the next launch
+// re-run the migration over whatever the user picked in between.
+test('scenario 4c: after a migration NACK, the next ACKed Clay (config close) runs onClayAck once', function () {
+    resetStore();
+    var h = makeHarness();
+    var ackRuns = 0;
+    h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.nackClay();
+    assert.equal(ackRuns, 0);
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.nackClay();
+    assert.equal(ackRuns, 0, 'a NACK never commits');
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.ackClay();
+    assert.equal(ackRuns, 1, 'the ACKed config-close Clay commits the markers');
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.ackClay();
+    assert.equal(ackRuns, 1, 'exactly once');
+});
+
+test('scenario 4d: a day-change resend ACK also commits a pending migration', function () {
+    resetStore();
+    var h = makeHarness();
+    var ackRuns = 0;
+    h.setNow(new Date(2026, 6, 7, 12, 0, 0));
+    h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.scheduler.start();                // index.js order: the NACK lands after the first tick
+    h.nackClay();
+    h.setNow(new Date(2026, 6, 8, 0, 1, 0));
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'the day-change resend went out');
+    h.ackClay();
+    assert.equal(ackRuns, 1);
+});
+
+test('scenario 4e: a storage reset drops the pending migration commit', function () {
+    resetStore();
+    var h = makeHarness();
+    var ackRuns = 0;
+    h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.nackClay();
+    h.scheduler.onStorageReset();
+    h.scheduler.onConfigClosed({ forceFetch: true });
+    h.ackClay();
+    assert.equal(ackRuns, 0, 'no markers written into the wiped store');
+});
+
 test('scenario 6: config close with forceFetch -> Clay sent, fetch deferred via setTimeout(0)', function () {
     resetStore();
     var h = makeHarness();
@@ -422,4 +471,161 @@ test('theme flip: a NACKed day-change send does not swallow a coincident flip', 
     h.ackClay();
     h.tick();
     assert.equal(h.calls.sendClay.length, 3, 'ACK ends the retry loop');
+});
+
+// --- holiday-data resend: refreshHolidays' Nager callback -------------------
+// The fetch lands at an arbitrary moment (often while the config-close or startup
+// Clay is still in flight), and once it has, the cache is fresh: nothing fetches
+// or resends it again before the next midnight. So the resend is coalesced into
+// one send, and a NACK hands it to the tick's day-change resend to retry.
+
+test('holiday data: callbacks landing in the same turn ride ONE deferred Clay send', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onHolidaysUpdated();
+    h.scheduler.onHolidaysUpdated();   // a second callback before the queued send runs
+    assert.equal(h.calls.sendClay.length, 0, 'deferred past the XHR callback');
+    assert.equal(h.timers.length, 1, 'one queued send for both callbacks');
+    assert.equal(h.timers[0].ms, 0);
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 1, 'exactly one Clay send');
+    h.ackClay();
+    h.scheduler.onHolidaysUpdated();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'a later landing queues its own send');
+});
+
+test('holiday data: a NACKed resend is retried by the next tick, until one is ACKed', function () {
+    resetStore();
+    var h = makeHarness();
+    h.setNow(new Date(2026, 11, 1, 10, 0, 0));
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-11-1');   // today already sent
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 0, 'steady state: nothing due');
+
+    h.scheduler.onHolidaysUpdated();
+    h.flushTimers();                    // the queued resend (plus the next tick, which is quiet)
+    assert.equal(h.calls.sendClay.length, 1, 'the new mask goes out');
+    h.nackClay();                       // collided with an in-flight send
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), null,
+        'a NACK forgets the day stamp so the tick retries');
+
+    h.flushTimers();                    // next minute tick
+    assert.equal(h.calls.sendClay.length, 2, 'the tick resends the mask');
+    h.nackClay();                       // still no link
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'and keeps retrying while it NACKs');
+    h.ackClay();
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), '2026-11-1');
+    h.flushTimers();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'an ACK ends the retries');
+});
+
+test('holiday data: an ACKed resend keeps today stamped (no extra tick send)', function () {
+    resetStore();
+    var h = makeHarness();
+    h.setNow(new Date(2026, 11, 1, 10, 0, 0));
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-11-1');
+    h.scheduler.start();
+    h.scheduler.onHolidaysUpdated();
+    h.flushTimers();
+    h.ackClay();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 1, 'no retry after an ACK');
+});
+
+// --- theme flip vs the startup Clay send ------------------------------------
+// index.js calls onReady() and then start() in the same turn, and start() runs the
+// first tick synchronously — before any ACK. The outbox commits its last-sent cache
+// only on ACK, so it cannot dedupe the first tick's flip send against a startup
+// Clay still in flight: without the startup send claiming the flip stamp, a
+// Theme-switching user gets two identical Clay messages back-to-back on the
+// half-duplex channel.
+
+test('theme flip: a migration Clay at startup is not doubled by the first tick', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.themeId.value = 'dark';
+    h.scheduler.onReady({ migrationClayRequired: true });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1, 'one Clay in flight, not two');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 1, 'and the ACK leaves nothing to flip-send');
+    h.themeId.value = 'light';
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'a real flip later still sends');
+});
+
+test('theme flip: a handshake Clay (watch has no config) is not doubled by the first tick', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.themeId.value = 'dark';
+    h.scheduler.onWatchStatus({ hasConfig: false, hasForecast: true });
+    h.scheduler.onReady({ migrationClayRequired: false });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1, 'one Clay in flight, not two');
+});
+
+test('theme flip: a NACKed startup Clay is retried by the flip path and still drains the fetch', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.themeId.value = 'dark';
+    h.scheduler.onWatchStatus({ hasConfig: true, hasForecast: false });
+    h.scheduler.onReady({ migrationClayRequired: true });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1);
+    h.nackClay();
+    assert.deepEqual(h.calls.startFetch, [true], 'the NACK still drains the startup fetch');
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'the forgotten stamps let the next tick resend');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'and the ACK ends it');
+});
+
+// A NACKed startup Clay must not wait for midnight when Theme switching is OFF (the
+// flip path is then inert): the handshake / migration send stamped today's holiday
+// day, so without forgetting it no tick resends until the local day rolls over — a
+// watch that reported no config would run on its built-in defaults all day, and a
+// migration would reach it (and commit its markers) only at midnight.
+
+test('a NACKed handshake Clay is retried by the next tick with Theme switching off', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onWatchStatus({ hasConfig: false, hasForecast: true });
+    h.scheduler.onReady({ migrationClayRequired: false });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1, 'the handshake Clay, and no first-tick resend beside it');
+    h.nackClay();
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), null,
+        'a NACK forgets the day stamp the handshake claimed');
+    h.flushTimers();                    // next minute tick
+    assert.equal(h.calls.sendClay.length, 2, 'the tick re-delivers the config');
+    h.nackClay();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'and keeps retrying while it NACKs');
+    h.ackClay();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'an ACK ends the retries');
+});
+
+test('a NACKed migration Clay is retried by the next tick, whose ACK commits the markers', function () {
+    resetStore();
+    var h = makeHarness();
+    var ackRuns = 0;
+    h.scheduler.onWatchStatus({ hasConfig: true, hasForecast: false });
+    h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1);
+    h.nackClay();
+    assert.deepEqual(h.calls.startFetch, [true], 'the NACK still drains the startup fetch');
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'the tick resends the migrated settings');
+    assert.equal(ackRuns, 0);
+    h.ackClay();
+    assert.equal(ackRuns, 1, 'that ACK commits the deferred markers');
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'and nothing more is due');
 });

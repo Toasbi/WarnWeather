@@ -148,6 +148,39 @@ test('temp slot display modes: actual, feels, and slash-separated both', () => {
     baseSettings({ tempSlotDisplay: 'both' })), '20/10', 'actual first');
 });
 
+test('°C temp and feels slots round the provider reading once, like the dew slot', () => {
+  // End to end through getPayload: a whole-°F round there, then the °C round in
+  // formatTemp, put ~16% of °C readings one degree off and could show a dew
+  // point above the air temperature (DEW_TREND was already single-rounded).
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const c2f = require('../src/pkjs/wire-units.js').celsiusToFahrenheit;
+  function payloadAt(tempF) {
+    const p = new WeatherProvider();
+    p.tempTrend = new Array(24).fill(tempF);
+    p.precipTrend = new Array(24).fill(0);
+    p.startTime = 1767258000;
+    p.currentTemp = tempF;
+    p.currentFeels = tempF;
+    p.dewTrend = [tempF];
+    p.cityName = 'X';
+    p.sunEvents = [{ type: 'sunrise', date: new Date(1767258000 * 1000) }];
+    return p.getPayload();
+  }
+  const c = baseSettings({ temperatureUnits: 'c' });
+  // Open-Meteo's 0.1 °F feed in fog: T = Td = 31.46 °F (-0.3 °C).
+  const fog = payloadAt(31.46);
+  assert.equal(statusLines.formatValue('temp', fog, c), '0', 'was "-1" via whole °F 31');
+  assert.equal(statusLines.formatValue('dew', fog, c), '0');
+  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'feels' })), '0');
+  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'both' })), '0/0');
+  // °C-native providers (DWD/met.no/Tomorrow.io convert °C → °F).
+  [[0.3, '0'], [-29.7, '-30'], [20.3, '20'], [-5.3, '-5']].forEach(([celsius, shown]) => {
+    assert.equal(statusLines.formatValue('temp', payloadAt(c2f(celsius)), c), shown, celsius + ' °C');
+  });
+  // °F users see exactly what the whole-°F round gave them.
+  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ temperatureUnits: 'f' })), '31');
+});
+
 test('temp display modes convert both halves with temperatureUnits', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
   assert.equal(statusLines.formatValue('temp', p,
@@ -169,6 +202,69 @@ test('missing or null FEELS_CURRENT renders the actual temp alone in every mode'
   const noTemp = basePayload(); delete noTemp.CURRENT_TEMP;
   assert.equal(statusLines.formatValue('temp', noTemp,
     baseSettings({ tempSlotDisplay: 'both' })), '--');
+});
+
+// --- the UV slot's display modes (uvSlotDisplay: current / max / both) ---
+// UV_DAY_PEAKS is [rest of today, tomorrow] in tenths, computed phone-side by
+// getPayload off the 48 h UV series (see test/hourly-window.test.js); the slot
+// only formats it.
+function uvDayPayload(overrides) {
+  return Object.assign(basePayload(), {
+    UV_TREND_UINT8: [20, 35, 52, 64, 71, 68, 55, 40],
+    UV_DAY_PEAKS: [71, 95]
+  }, overrides);
+}
+
+test('uv slot display modes: current, the peak ahead, and slash-separated both', () => {
+  const p = uvDayPayload();
+  assert.equal(statusLines.formatValue('uv', p, baseSettings()), '2',
+    'absent uvSlotDisplay defaults to the current reading');
+  assert.equal(statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'current' })), '2');
+  assert.equal(statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'max' })), '7',
+    'today\'s peak (7.1) is still ahead: no marker');
+  assert.equal(statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both' })), '2/7',
+    'current first, like the temp slot\'s actual/feels');
+});
+
+test('uv peak rolls to tomorrow\'s, marked », once today\'s is reached', () => {
+  // At the peak: nothing later today prints above the 7 now.
+  const atPeak = uvDayPayload({ UV_TREND_UINT8: [71, 68, 55], UV_DAY_PEAKS: [71, 95] });
+  assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'both' })),
+    '7/\u00BB10', 'never "7/7": the max half is tomorrow\'s 9.5 -> 10, marked');
+  assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'max' })),
+    '\u00BB10');
+  // Late evening: today is spent, tomorrow's midday is the next peak.
+  const late = uvDayPayload({ UV_TREND_UINT8: [0, 0], UV_DAY_PEAKS: [0, 60] });
+  assert.equal(statusLines.formatValue('uv', late, baseSettings({ uvSlotDisplay: 'both' })),
+    '0/\u00BB6');
+});
+
+test('uv modes fall back to the current reading when no peak ahead is known', () => {
+  // A payload without day peaks (defensive: v1 snapshots are dropped on restore),
+  // or today's peak reached with tomorrow beyond the feed: every mode renders the
+  // current value alone — never '2/--' — the temp slot's missing-feels rule.
+  const noPeaks = uvDayPayload(); delete noPeaks.UV_DAY_PEAKS;
+  const noTomorrow = uvDayPayload({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, null] });
+  ['current', 'max', 'both'].forEach((mode) => {
+    assert.equal(statusLines.formatValue('uv', noPeaks, baseSettings({ uvSlotDisplay: mode })), '2',
+      mode + ': no day peaks, current alone');
+    assert.equal(statusLines.formatValue('uv', noTomorrow, baseSettings({ uvSlotDisplay: mode })), '2',
+      mode + ': today\'s peak reached, tomorrow unknown, current alone');
+  });
+  // ...and no UV at all is '--' whatever the mode.
+  const none = uvDayPayload({ UV_TREND_UINT8: [] });
+  ['current', 'max', 'both'].forEach((mode) => {
+    assert.equal(statusLines.formatValue('uv', none, baseSettings({ uvSlotDisplay: mode })), '--');
+  });
+});
+
+test('worst realistic uv both-mode text fits the edge-slot byte cap untruncated', () => {
+  // UV 11 now and at today's peak, 12 tomorrow: "11/»12" — » is 2 UTF-8 bytes.
+  const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });
+  const text = statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both' }));
+  assert.equal(text, '11/\u00BB12');
+  assert.equal(statusLines.utf8Encode(text).length, 7);
+  assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX);
 });
 
 test('worst realistic both-mode text fits the edge-slot byte cap untruncated', () => {
@@ -372,6 +468,28 @@ test('sun time mirrors leading-zero and AM/PM settings', () => {
   assert.equal(statusLines.formatValue('sun', p,
     baseSettings({ axisTimeFormat: '12h', timeShowAmPm: true })),
     hour12 + ':' + minute + marker);
+});
+
+// Midnight sun / polar night: sun-events.js sends a pair five days apart that
+// only tells the watch how to shade the chart. Neither event is a real sunrise
+// or sunset, so the slot reads '--' rather than a made-up clock time.
+test('sun slot reads -- for the polar day/night pair', () => {
+  const sunEventsLib = require('../src/pkjs/weather/sun-events.js');
+  [new Date('2026-06-21T12:00:00Z'), new Date('2026-12-15T12:00:00Z')].forEach((now) => {
+    const pair = sunEventsLib.nextSunEvents(now, 69.65, 18.96);
+    const epochs = pair.map((e) => Math.round(e.date.getTime() / 1000));
+    const p = Object.assign(basePayload(),
+      { SUN_EVENTS: sunEvents(pair[0].type === 'sunrise' ? 0 : 1, epochs) });
+    assert.equal(statusLines.formatValue('sun', p, baseSettings()), '--', now.toISOString());
+  });
+});
+
+test('sun slot keeps a real pair\'s time, even one nearly a day apart', () => {
+  // Tromso's last sunset before polar night (2026-11-27T10:56Z) and the
+  // mirrored sunrise after it: 23 h 13 min apart, still a real next event.
+  const p = Object.assign(basePayload(),
+    { SUN_EVENTS: sunEvents(1, [1795777010, 1795860572]) });
+  assert.match(statusLines.formatValue('sun', p, baseSettings()), /^\d{1,2}:\d{2}$/);
 });
 
 test('aqi slot renders the bare index from AQI_TREND head (leaf icon carries context)', () => {
@@ -839,6 +957,133 @@ test('the other two temp modes still take the degree when it is switched on', ()
     '10' + DEG);
 });
 
+// --- the two-value slots' presentation (status-pair.js) ---------------------
+// Temp 'both' and UV 'both' take a per-kind separator and order, UV a next-day
+// mark too. test/status-pair.test.js covers the full matrix; these pin the BAKE:
+// formatValue hands the slot's own cap down (so a styled pair too wide for a
+// corner falls back to the slash there and nowhere else), packLine ships the
+// result, and every mode that shows ONE value ignores the pair settings.
+const EDGE_CAP = catalog.CAPS.EDGE_TEXT_MAX;
+const MID_CAP = catalog.CAPS.MID_TEXT_MAX;
+const RAQUO = '»';
+
+test('the temp pair bakes in the chosen order, separator and spacing', () => {
+  const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });   // 20C / 10C
+  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparator: 'brackets',
+    tempSlotOrder: 'feels' });
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft', EDGE_CAP), '10(20)');
+  assertPlainText(slotBytesFor('temp', p, s), '10(20)', 'packed edge slot');
+  const spaced = Object.assign({}, s, { tempSlotSeparatorSpaced: true });
+  assert.equal(statusLines.formatValue('temp', p, spaced, 'statusRadarLeft', EDGE_CAP),
+    '10 (20)');
+  assertPlainText(slotBytesFor('temp', p, spaced), '10 (20)', 'packed edge slot, spaced');
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'both', tempSlotSeparator: 'custom',
+      tempSlotSeparatorCustom: ', ' }), 'statusRadarLeft', EDGE_CAP), '20, 10');
+});
+
+test('a spaced temp pair too wide for an edge slot drops its spaces there only', () => {
+  const p = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });  // -12C/-10C
+  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparatorSpaced: true });
+  // Never utf8Truncate's '-12 / -1': a clipped reading looks like a real one.
+  assertPlainText(slotBytesFor('temp', p, s), '-12/-10', 'edge: 9 B spaced, tight instead');
+  assertPlainText(midSlotBytesFor('temp', p, s), '-12 / -10', 'mid: 19 B of room');
+  assertPlainText(slotBytesFor('temp', p, Object.assign({ tempSlotOrder: 'feels' }, s)),
+    '-10/-12', 'the fallback keeps the order');
+  // The spaces go, the user's separator stays: '-12(-10)' is exactly 8 B.
+  const brackets = Object.assign({ tempSlotSeparator: 'brackets' }, s);
+  assertPlainText(slotBytesFor('temp', p, brackets), '-12(-10)', 'edge: brackets kept');
+  assertPlainText(midSlotBytesFor('temp', p, brackets), '-12 (-10)', 'mid: spaced');
+  // No cap passed = the narrow edge slot, withUnit's convention.
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft'), '-12/-10');
+});
+
+test('a styled both-mode temp still never takes the degree', () => {
+  const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
+  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true,
+    tempSlotSeparatorSpaced: true });
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP), '20 / 10');
+});
+
+test('the single-value temp modes and the missing-feels fallback ignore the pair settings', () => {
+  const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
+  const style = { tempSlotSeparator: 'brackets', tempSlotOrder: 'feels', tempSlotUnit: true };
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings(Object.assign({ tempSlotDisplay: 'actual' }, style)), 'statusRadarLeft'),
+    '20' + DEG);
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings(Object.assign({ tempSlotDisplay: 'feels' }, style)), 'statusRadarLeft'),
+    '10' + DEG);
+  // FEELS_CURRENT missing: 'both' is the actual temp alone, never '(20)' or '20 ('.
+  assert.equal(statusLines.formatValue('temp', basePayload(),
+    baseSettings(Object.assign({ tempSlotDisplay: 'both' }, style)), 'statusRadarLeft'), '20');
+});
+
+test('every temp pair preset fits the edge slot untruncated, across the planet\'s range', () => {
+  for (let f = -80; f <= 140; f += 1) {
+    for (const units of ['c', 'f']) {
+      for (const sep of ['slash', 'brackets', 'dot', 'bar', 'custom']) {
+        for (const spaced of [false, true]) {
+          for (const order of ['actual', 'feels']) {
+            const text = statusLines.formatValue('temp',
+              { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
+              baseSettings({ temperatureUnits: units, tempSlotDisplay: 'both',
+                tempSlotSeparator: sep, tempSlotOrder: order, tempSlotSeparatorSpaced: spaced,
+                tempSlotSeparatorCustom: 'ÿÿ' }), 'statusRadarLeft', EDGE_CAP);
+            assert.ok(statusLines.utf8Encode(text).length <= EDGE_CAP,
+              `"${text}" exceeds EDGE_TEXT_MAX (${f}F ${units} ${sep} ${spaced} ${order})`);
+          }
+        }
+      }
+    }
+  }
+});
+
+test('the UV pair bakes in the chosen order, separator and next-day mark', () => {
+  const late = uvDayPayload({ UV_TREND_UINT8: [0, 0], UV_DAY_PEAKS: [0, 60] });   // 0/»6
+  const s = baseSettings({ uvSlotDisplay: 'both', uvSlotOrder: 'max', uvSlotSeparator: 'bar',
+    uvSlotNextDayMark: 'star' });
+  assert.equal(statusLines.formatValue('uv', late, s, 'statusRadarLeft', EDGE_CAP), '6*|0');
+  assertPlainText(slotBytesFor('uv', late, s), '6*|0', 'packed edge slot');
+  // Today's peak is never marked, whatever the setting.
+  assert.equal(statusLines.formatValue('uv', uvDayPayload(), s, 'statusRadarLeft', EDGE_CAP),
+    '7|2');
+});
+
+test('the next-day mark applies to the lone peak in max mode', () => {
+  const late = uvDayPayload({ UV_TREND_UINT8: [0, 0], UV_DAY_PEAKS: [0, 60] });
+  const max = (mark) => statusLines.formatValue('uv', late,
+    baseSettings({ uvSlotDisplay: 'max', uvSlotNextDayMark: mark }), 'statusRadarLeft', EDGE_CAP);
+  assert.equal(max(undefined), RAQUO + '6', 'absent: today\'s »');
+  assert.equal(max('gt'), '>6');
+  assert.equal(max('plus'), '+6');
+  assert.equal(max('star'), '6*');
+  assert.equal(max('none'), '6');
+});
+
+test('a styled UV pair too wide for an edge slot narrows step by step, order and mark kept', () => {
+  const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });   // 11/»12
+  const s = baseSettings({ uvSlotDisplay: 'both', uvSlotSeparator: 'brackets',
+    uvSlotOrder: 'max', uvSlotSeparatorSpaced: true });
+  assertPlainText(slotBytesFor('uv', p, s), RAQUO + '12(11)',
+    'edge: "»12 (11)" is 9 B, so the spaces go and the brackets stay');
+  assertPlainText(midSlotBytesFor('uv', p, s), RAQUO + '12 (11)', 'mid');
+  // Only a pair too wide even tight takes the slash: '»12ÿÿ11' is 10 B.
+  const custom = Object.assign({}, s, { uvSlotSeparator: 'custom', uvSlotSeparatorCustom: 'ÿÿ' });
+  assertPlainText(slotBytesFor('uv', p, custom), RAQUO + '12/11', 'edge: the slash');
+  assertPlainText(midSlotBytesFor('uv', p, custom), RAQUO + '12 ÿÿ 11', 'mid');
+});
+
+test('the current UV mode and the no-peak fallback ignore the pair settings', () => {
+  const style = { uvSlotSeparator: 'brackets', uvSlotOrder: 'max', uvSlotNextDayMark: 'star' };
+  assert.equal(statusLines.formatValue('uv', uvDayPayload(),
+    baseSettings(Object.assign({ uvSlotDisplay: 'current' }, style)), 'statusRadarLeft'), '2');
+  const noPeaks = uvDayPayload(); delete noPeaks.UV_DAY_PEAKS;
+  assert.equal(statusLines.formatValue('uv', noPeaks,
+    baseSettings(Object.assign({ uvSlotDisplay: 'both' }, style)), 'statusRadarLeft'), '2',
+    'never "(2)" or "2 ()"');
+});
+
 test('no unit ever pushes a slot past its 8-byte edge cap', () => {
   const fits = (text, what) => assert.ok(
     statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
@@ -1031,8 +1276,10 @@ test('buildStatusLines derives env.phoneBattery from the persisted detector verd
 // charging event can re-bake after a PKJS restart. If a new slot starts reading a
 // payload key that is not on the list, the key is absent from the restored blob
 // and that slot silently re-bakes as '--' -- no throw, no failing assertion, just
-// a wrong watchface after every relaunch. So pin the list to the code: scan both
+// a wrong watchface after every relaunch. So pin the list to the code: scan the
 // baking modules for payload.<KEY> accesses and require the list to match.
+// status-pair.js formats numbers it is handed and reads no payload today; it is
+// scanned so that a read added there later cannot slip past the list.
 //
 // Deliberately an exact set equality, not a subset check: an EXTRA key on the list
 // is dead weight persisted to flash on every fetch, which is worth catching too.
@@ -1046,7 +1293,7 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
   const WRITTEN = new Set(['STATUS_LEVELS_UINT8']);
 
   const seen = new Set();
-  for (const file of ['status-lines.js', 'status-thresholds.js']) {
+  for (const file of ['status-lines.js', 'status-thresholds.js', 'status-pair.js']) {
     for (const m of read(file).matchAll(/payload\.([A-Z][A-Z_0-9]*)/g)) {
       if (!WRITTEN.has(m[1])) { seen.add(m[1]); }
     }

@@ -192,11 +192,13 @@ test('applyForecastSeries swaps raw keys for render-ready series in place, delet
   const payload = {
     TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30, NUM_ENTRIES: 3,
     PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 5, 20],
-    WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100], UV_TREND_UINT8: [0, 55, 110]
+    WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100], UV_TREND_UINT8: [0, 55, 110],
+    UV_DAY_PEAKS: [110, 90]
   };
   const out = applyForecastSeries(payload, { secondaryLine: 'uv', thirdLine: 'wind', windScale: 'mid', barSource: 'off' });
   assert.equal(out, payload);
-  ['PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8'].forEach(function(k) {
+  ['PRECIP_TREND_UINT8', 'RAIN_TREND_UINT8', 'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8',
+   'UV_DAY_PEAKS'].forEach(function(k) {
     assert.ok(!(k in out), k + ' should be deleted before the wire');
   });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]); // uv
@@ -382,7 +384,7 @@ test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the
     CURRENT_TEMP: 68, CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0],
     AQI_TREND: [150], POLLEN_TODAY: '3', DEW_TREND: [53.6], FEELS_CURRENT: 70,
     PRECIP_TREND_UINT8: [70], RAIN_TREND_UINT8: [0],
-    WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64],
+    WIND_TREND_UINT8: [17], GUST_TREND_UINT8: [48], UV_TREND_UINT8: [64], UV_DAY_PEAKS: [64, 80],
     WIND_DIR_TREND: [270], PRESSURE_TREND: [1013],
     TEMP_TREND_UINT8: [100], TEMP_MIN: 0, TEMP_MAX: 30,
     FORECAST_START: 1700000000, NUM_ENTRIES: 1
@@ -413,7 +415,7 @@ test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the
   // BEFORE the deletes: every transient the bake reads is still on the payload
   // the stash was taken from -- and really is gone by the time the caller sees it.
   ['CURRENT_TEMP', 'CITY', 'AQI_TREND', 'POLLEN_TODAY', 'DEW_TREND', 'FEELS_CURRENT',
-   'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8', 'WIND_DIR_TREND',
+   'WIND_TREND_UINT8', 'GUST_TREND_UINT8', 'UV_TREND_UINT8', 'UV_DAY_PEAKS', 'WIND_DIR_TREND',
    'PRESSURE_TREND'].forEach(function(k) {
     assert.ok(k in seen[0].payload, k + ' must still be present at stash time');
     assert.equal(k in out, false, k + ' is deleted after the bake');
@@ -818,6 +820,35 @@ test('feels selected but FEELS_TREND absent/empty: line off, band falls back to 
   }
 });
 
+// aplite never gets CLAY_CURVE_INSET_UINT8 and freezes its insets at 7/0/0, so a
+// feels line there maps full-height against a 7 px-inset temp curve that the joint
+// band has squashed off its hi/lo labels. The settings page never offers feels on
+// aplite, but a stored blob can carry it (set on a colour watch, same phone).
+test('REGRESSION: aplite drops a stored feels line — temps keep their own band, the channel is off', () => {
+  for (const lines of [{ secondaryLine: 'feels', thirdLine: 'off' },
+                       { secondaryLine: 'precip_prob', thirdLine: 'feels' }]) {
+    const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [5, 15, 25], FEELS_CURRENT: 8 }),
+      Object.assign({ barSource: 'off' }, lines), { platform: 'aplite' });
+    assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250], 'temps span the plot their labels name');
+    assert.equal(out.TEMP_MIN, 10);
+    assert.equal(out.TEMP_MAX, 30);
+    const feelsChannel = lines.secondaryLine === 'feels'
+      ? out.SECONDARY_LINE_TREND_UINT8 : out.THIRD_LINE_TREND_UINT8;
+    assert.deepEqual(feelsChannel, [], 'feels renders off');
+    assert.equal('FEELS_TREND' in out, false, 'transient still stripped');
+  }
+});
+
+test('the aplite feels gate is exactly aplite: diorite and an unknown platform keep the feels line', () => {
+  // Same payload as the basalt case above, so the same joint-band bytes.
+  for (const watchInfo of [{ platform: 'diorite' }, null, undefined, {}]) {
+    const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [5, 15, 25] }),
+      { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, watchInfo);
+    assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250], JSON.stringify(watchInfo));
+    assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [19, 111, 204], JSON.stringify(watchInfo));
+  }
+});
+
 test('buildForecastSeries without a tempBand: feels scales against its own min/max (self-band degrade)', () => {
   // No band (a direct caller, not the applyForecastSeries path): feels scales against
   // itself, so there is no overshoot to pad. Its floor is still floated off byte 0 by
@@ -947,6 +978,14 @@ test('needsFeels: line selections and temp slot display modes', () => {
   assert.equal(needsFeels({ secondaryLine: 'wind', thirdLine: 'off', tempSlotDisplay: 'actual' }), false);
   assert.equal(needsFeels({ secondaryLine: 'wind', thirdLine: 'off', tempSlotDisplay: 'feels' }), true);
   assert.equal(needsFeels({ tempSlotDisplay: 'both' }), true);
+  // aplite never draws the feels LINE, so it alone fetches nothing — but the temp
+  // slot's feels display still needs the data there.
+  const aplite = { platform: 'aplite' };
+  assert.equal(needsFeels({ secondaryLine: 'feels' }, aplite), false);
+  assert.equal(needsFeels({ secondaryLine: 'wind', thirdLine: 'feels' }, aplite), false);
+  assert.equal(needsFeels({ secondaryLine: 'feels', tempSlotDisplay: 'both' }, aplite), true);
+  assert.equal(needsFeels({ secondaryLine: 'feels' }, { platform: 'basalt' }), true);
+  assert.equal(needsFeels({ secondaryLine: 'feels' }, null), true, 'unknown platform stays capable');
 });
 
 // Ordering pin, same contract as CURRENT_TEMP: buildStatusLines (which bakes the

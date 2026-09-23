@@ -128,6 +128,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return { lo: range.lo, hi: v };
   }
 
+  /**
+   * Which thumb a press should drag, given the one the hit test returned. A thumb
+   * pinned against its track end with the other thumb only minSpan beside it cannot
+   * move at all — the end stops it one way, moveThumb's span the other — so the
+   * press goes to the sibling instead, which can. This is what lets a stack pinned
+   * at a track end be pulled apart: the two knobs sit one step apart, which on a
+   * fine-grained track (Steps: 250 of 20000) is a few pixels, so the top thumb (the
+   * danger knob, z-index) covers nearly all of the other one and wins every press.
+   * (The caller also requires the pointer to be over the sibling.)
+   * @param {{lo:number, hi:number}} range Current range.
+   * @param {string} which 'lo' | 'hi' — the thumb that was hit.
+   * @param {Object} item Range schema item (min/max/minSpan).
+   * @returns {string} 'lo' | 'hi' — the thumb to drag.
+   */
+  function pickThumb(range, which, item) {
+    // A hair of tolerance: half-step kinds (sleep hours, km) carry float values.
+    if (range.hi - range.lo > rangeMinSpan(item) + 1e-9) { return which; }
+    if (which === 'hi' && range.hi >= Number(item.max)) { return 'lo'; }
+    if (which === 'lo' && range.lo <= Number(item.min)) { return 'hi'; }
+    return which;
+  }
+
   // ---- rgb (three-channel colour) value helpers ----------------------------
   // An rgb item stores ALL THREE channels in ONE messageKey as "r,g,b" — the same
   // one-key-composite-string shape `range` uses for "lo-hi" and `date` for
@@ -357,11 +379,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var below = item.dir === 'below';
     var lo = below ? danger : warn, hi = below ? warn : danger;
     // Repair a legacy pair closer than the minimum span (the old text UI accepted
-    // warn == danger): stacked thumbs put the danger knob on top (z-index) and a
-    // stack pinned at a track end could never be separated again. Push the WARN
+    // warn == danger): exactly stacked thumbs could not be told apart. Push the WARN
     // thumb inward first (danger keeps its stored position), and only shift the
     // danger thumb when the pair is pinned at the warn thumb's own bound. Display/
     // interaction-only — the stored pair changes on the next drag, not before.
+    // One step apart is still mostly hidden under the danger knob (z-index) on a
+    // fine-grained track, so a pair pinned at a track end is separable only because
+    // pointerdown hands a press on the immovable thumb to its sibling (pickThumb).
     var span = rangeMinSpan(item);
     if (hi - lo < span) {
       if (below) {
@@ -743,6 +767,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var root = th.closest('.rng');
         var item = liveRangeItem(root);
         if (!item) { return; }
+        // A thumb that cannot move (pinned at a track end, the other thumb one span
+        // beside it) hands the press to that sibling — but only when the pointer is
+        // over the sibling too, i.e. it is the knob hidden under this one.
+        if (!isRgbItem(item)) {
+          var hit = th.getAttribute('data-range-thumb');
+          var want = pickThumb(rangeState(root, item), hit, item);
+          var sib = want !== hit ? root.querySelector('[data-range-thumb=' + want + ']') : null;
+          var box = (sib && sib.getBoundingClientRect) ? sib.getBoundingClientRect() : null;
+          if (box && e.clientX >= box.left && e.clientX <= box.right) { th = sib; }
+        }
         drag = { root: root, thumb: th, which: th.getAttribute('data-range-thumb'),
           item: item, pointerId: e.pointerId };
         th.setPointerCapture(e.pointerId);
@@ -822,14 +856,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /**
      * Commit the inline scale-max field (focusout): store the raw request — the
      * range resolver clamps/grows it against the current thresholds at the next
-     * resolve — then re-render, which folds the field back into its label. No
-     * data-k on the field keeps it out of the shared text plumbing.
+     * resolve — then fold the field back into its label by rebuilding THIS
+     * slider's .rng root in place. No data-k on the field keeps it out of the
+     * shared text plumbing.
+     * Only the slider, never the whole host: on a tap, focus moves on the
+     * mousedown, before the click, so a full render() here replaced the node the
+     * user was tapping (the sheet's X, a Bold option …) and the click never
+     * arrived — every first tap after the editor was swallowed. The whole root
+     * is rebuilt, not just the label: the resolver grows or clamps the max, and
+     * the thumb, zone and chip positions all hang off it. Nothing outside the
+     * slider reads the max, so there is nothing else to refresh.
      * An UNTOUCHED field (opened, then blurred) writes nothing: the seed it was
      * opened with is the RESOLVED max, and storing that would silently pin an
-     * override where none existed. And while a thumb drag is in flight (grabbing
-     * a thumb blurs the field via th.focus()), the render is skipped — it would
-     * detach the dragged nodes mid-gesture and slam the value to the track start;
-     * endRangeDrag's render on release folds the field back instead.
+     * override where none existed — but it still folds back. And while a thumb
+     * drag is in flight (grabbing a thumb blurs the field via th.focus()), the
+     * fold-back is skipped — it would detach the dragged nodes mid-gesture and
+     * slam the value to the track start; endRangeDrag's render on release folds
+     * the field back instead.
      * @param {Event} e focusout event.
      * @returns {void}
      */
@@ -841,7 +884,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var n = s === '' ? NaN : Number(s);
         ctx.S[inp.getAttribute('data-max-input')] = (isFinite(n) && n > 0) ? String(n) : '';
       }
-      if (!drag) { ctx.render(); }
+      if (drag) { return; }
+      var root = inp.closest('.rng');
+      var item = (root && root.parentNode) ? liveRangeItem(root) : null;
+      if (!item) { ctx.render(); return; }
+      root.outerHTML = renderRange(item,
+        { value: ctx.S[item.messageKey], dangerValue: ctx.S[item.dangerKey] });
     }
     return {
       wireRangeEvents: wireRangeEvents,
@@ -857,6 +905,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     formatRange: formatRange,
     parseRange: parseRange,
     moveThumb: moveThumb,
+    pickThumb: pickThumb,
     thresholdValues: thresholdValues,
     renderThresholdRange: renderThresholdRange,
     paintThresholdRange: paintThresholdRange,

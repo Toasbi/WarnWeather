@@ -9,6 +9,14 @@
 //   hourly: parallel arrays over `time` (epoch ms) — temp °C, rain mm/h,
 //           prob %, wind/gust km/h, dir deg, rh %, dew °C, pressure hPa,
 //           icon id (weather-tab-model.js vocabulary); null = unsourced.
+//           A row is the hour STARTING at its stamp: rain, chance and gust
+//           stamped 14:00 are 14:00-15:00's. Open-Meteo and DWD stamp those
+//           at the hour's END, so their parsers re-stamp them
+//           (model.startHourFields), as the watch's adapters do, with the
+//           icon that describes the same rain (the watch reads its pinned
+//           model's 3-hourly Open-Meteo chance by block); OWM's
+//           3-hourly tail totals the 3 h before its stamp, spread over them
+//           (parseOwmForecast3h).
 //           Two provenance flags, per hour. `measured` says whether the
 //           RAIN was read off a station rather than modelled — it gates
 //           the rain bar, so it follows that one field exactly.
@@ -175,10 +183,24 @@
             var code = h.weather_code ? h.weather_code[i] : null;
             hourly.icon.push(code === null || code === undefined ? null : model.wmoIcon(code));
         }
+        // Open-Meteo documents precipitation, its probability and the gust as
+        // the PRECEDING hour's ("preceding hour sum/probability/max"); every
+        // other series here is an instant. Row 14:00 takes the 15:00 stamp's.
+        // weather_code rides along: the docs call it an instant, but the
+        // server derives its rain and snow from the same stamp's
+        // preceding-hour precipitation, so left in place the strip and the
+        // chip showed a shower's icon an hour after its bar.
+        model.startHourFields(hourly, { rain: null, prob: null, gust: null, icon: null });
         var daily = [];
         var d = data.daily;
         var off = offsetSec === null ? model.phoneUtcOffsetSec(nowMs) : offsetSec;
         var todayStartMs = model.localDayStart(nowMs, off);
+        // The API's own daily sum and maximum run over the 24 values STAMPED
+        // in the day, which for preceding-hour values is 23:00 the evening
+        // before to 23:00 -- an hour off the day whose bars sit under the
+        // tile. A tile's rain and chance come from the re-stamped hours
+        // instead, so it totals exactly its own day's bars.
+        var sums = model.aggregateDaily(hourly, nowMs, DAILY_COUNT, offsetSec);
         if (d && d.time) {
             for (var j = 0; j < d.time.length && daily.length < DAILY_COUNT; j += 1) {
                 var dayMs = d.time[j] * 1000;
@@ -186,18 +208,35 @@
                 // location's midnights); the hour of slack absorbs DST edges.
                 if (dayMs < todayStartMs - 3600000) { continue; }
                 var sun = num(d.sunshine_duration && d.sunshine_duration[j]);
+                var own = sumsFor(sums, dayMs);
+                var rainMm = own ? own.rainMm : null;
+                var probMax = own ? own.probMax : null;
                 daily.push({
                     date: dayMs,
                     tmin: num(d.temperature_2m_min && d.temperature_2m_min[j]),
                     tmax: num(d.temperature_2m_max && d.temperature_2m_max[j]),
                     icon: d.weather_code ? model.wmoIcon(d.weather_code[j]) : null,
-                    rainMm: num(d.precipitation_sum && d.precipitation_sum[j]),
-                    probMax: num(d.precipitation_probability_max && d.precipitation_probability_max[j]),
+                    rainMm: rainMm !== null ? rainMm : num(d.precipitation_sum && d.precipitation_sum[j]),
+                    probMax: probMax !== null ? probMax : num(d.precipitation_probability_max && d.precipitation_probability_max[j]),
                     sunshineH: sun === null ? null : sun / 3600
                 });
             }
         }
         return { hourly: hourly, daily: daily, utcOffsetSec: offsetSec };
+    }
+
+    /**
+     * The aggregated tile for a provider's day stamp, within the hour of
+     * slack a DST edge can put between the two.
+     * @param {Array<{date: number}>} sums Tiles from model.aggregateDaily.
+     * @param {number} dayMs The provider's day-start instant (epoch ms).
+     * @returns {?Object} The matching tile, or null.
+     */
+    function sumsFor(sums, dayMs) {
+        for (var i = 0; i < sums.length; i += 1) {
+            if (Math.abs(sums[i].date - dayMs) <= 3600000) { return sums[i]; }
+        }
+        return null;
     }
 
     /**
@@ -260,20 +299,21 @@
         return Boolean(measuredIds[id]);
     }
 
-    // The fields the panels plot a PAST value from, which is what the
-    // caption above them vouches for. Brightsky's own IGNORED_MISSING_FIELDS
-    // never fills relative_humidity from MOSMIX (MOSMIX has none) nor
-    // precipitation_probability from a station, so neither can appear in a
-    // fallback map pointing the wrong way; they are listed for completeness.
-    var DRAWN_FIELDS = {
-        temperature: true, precipitation: true, wind_speed: true,
-        wind_gust_speed: true, wind_direction: true, relative_humidity: true,
-        dew_point: true, pressure_msl: true
+    // The fields the panels plot a PAST value from off an hour's OWN record,
+    // which is what the caption above them vouches for. Brightsky's own
+    // IGNORED_MISSING_FIELDS never fills relative_humidity from MOSMIX
+    // (MOSMIX has none), so it cannot appear in a fallback map pointing the
+    // wrong way; it is listed for completeness. The precipitation and the
+    // gust are not here: an hour draws them from the NEXT record (they are
+    // re-stamped), so parseBrightsky vouches for them from that record.
+    var OWN_FIELDS = {
+        temperature: true, wind_speed: true, wind_direction: true,
+        relative_humidity: true, dew_point: true, pressure_msl: true
     };
 
     /**
-     * Whether EVERY field this tab plots for a past hour was read off a
-     * station. The caption sits above all four panels, so the word has to
+     * Whether every field this tab plots for a past hour off its own record
+     * (OWN_FIELDS) was read off a station. The caption sits above all four panels, so the word has to
      * be true of all four: an observation row whose temperature was filled
      * in from MOSMIX draws a modelled line, and "Measured" must not span
      * it on the strength of the rain alone.
@@ -285,14 +325,14 @@
      * excluded here merely reads as Estimated, never the reverse.
      * @param {Object} row One `weather[]` record.
      * @param {Object} measuredIds Set-shaped map from observedSourceIds.
-     * @returns {boolean} True when the whole drawn row came from stations.
+     * @returns {boolean} True when the row's drawn fields came from stations.
      */
     function rowMeasured(row, measuredIds) {
         if (!measuredIds[row.source_id]) { return false; }
         var fb = row.fallback_source_ids;
         if (!fb) { return true; }
         for (var k in fb) {
-            if (Object.prototype.hasOwnProperty.call(fb, k) && DRAWN_FIELDS[k]
+            if (Object.prototype.hasOwnProperty.call(fb, k) && OWN_FIELDS[k]
                 && !measuredIds[fb[k]]) { return false; }
         }
         return true;
@@ -324,6 +364,12 @@
         var offsetSec = echoed ? echoed : null;
         var measuredIds = observedSourceIds(data.sources);
         var hourly = emptyHourly();
+        // Per stamp, whether the record's own drawn fields were measured:
+        // looked up by time once the rows are re-stamped, so a row that
+        // startHourFields adds for a skipped stamp (no record of its own:
+        // its instants are interpolated) finds none.
+        var ownMeasured = {};
+        hourly.gustMeasured = [];
         for (var i = 0; i < rows.length; i += 1) {
             var r = rows[i];
             var t = Date.parse(r.timestamp);
@@ -331,9 +377,10 @@
             // One flag per question. The rain bar asks only about the rain,
             // so a station that read the rain licenses it whatever else on
             // the row fell back; the caption asks about every panel it
-            // stands over, so it takes the whole row or nothing.
+            // stands over, so it takes the whole hour or nothing.
             hourly.measured.push(fieldMeasured(r, 'precipitation', measuredIds));
-            hourly.measuredAll.push(rowMeasured(r, measuredIds));
+            hourly.gustMeasured.push(fieldMeasured(r, 'wind_gust_speed', measuredIds));
+            ownMeasured[t] = rowMeasured(r, measuredIds);
             hourly.time.push(t);
             hourly.temp.push(num(r.temperature));
             hourly.rain.push(num(r.precipitation));
@@ -347,6 +394,25 @@
             hourly.icon.push(r.icon ? model.brightskyIcon(r.icon) : null);
             hourly.sunshineMin.push(num(r.sunshine));
         }
+        // Brightsky documents the precipitation, its probability, the gust
+        // and the sunshine as the PRECEDING hour's ("during previous 60
+        // minutes"), and its icon shows rain only for that same hour's
+        // precipitation (brightsky/enhancements.py get_icon); each field's
+        // provenance moves with it. Before the tiles are summed, so each one
+        // totals its own calendar day. Wind speed and direction stay on their
+        // own row, as the watch keeps them (dwd.js).
+        model.startHourFields(hourly, { rain: null, prob: null, gust: null,
+            sunshineMin: null, icon: null, measured: false, gustMeasured: false });
+        // The caption vouches for every panel over a past hour, and two of
+        // them draw the NEXT record's rain and gust: the hour counts as
+        // measured only when its own record's fields do and those two of
+        // that record do too.
+        hourly.measuredAll = [];
+        for (i = 0; i < hourly.time.length; i += 1) {
+            hourly.measuredAll.push(Boolean(ownMeasured[hourly.time[i]])
+                && hourly.measured[i] && hourly.gustMeasured[i]);
+        }
+        delete hourly.gustMeasured;
         return {
             hourly: hourly,
             daily: model.aggregateDaily(hourly, nowMs, DAILY_COUNT, offsetSec),
@@ -357,6 +423,9 @@
     /**
      * OWM One Call 3.0 (metric) response → normalized: m/s → km/h,
      * pop 0..1 → %, its own daily array, timezone_offset for the local clock.
+     * OWM reports snowfall apart from rain (both mm, water equivalent), so the
+     * precipitation series is rain + snow — the total the other providers report,
+     * and what the watch's own OWM adapter feeds its rain bar.
      * @param {Object} data Raw response body.
      * @param {number} nowMs Reference time.
      * @returns {?Object} Normalized result, or null when unusable.
@@ -371,7 +440,7 @@
             var r = rows[i];
             hourly.time.push(r.dt * 1000);
             hourly.temp.push(num(r.temp));
-            hourly.rain.push(num(r.rain && r.rain['1h']) || 0);
+            hourly.rain.push((num(r.rain && r.rain['1h']) || 0) + (num(r.snow && r.snow['1h']) || 0));
             hourly.prob.push(num(r.pop) === null ? null : r.pop * 100);
             hourly.wind.push(num(r.wind_speed) === null ? null : r.wind_speed * MPS_TO_KMH);
             hourly.gust.push(num(r.wind_gust) === null ? null : r.wind_gust * MPS_TO_KMH);
@@ -390,7 +459,7 @@
                 tmin: num(d.temp && d.temp.min),
                 tmax: num(d.temp && d.temp.max),
                 icon: d.weather && d.weather[0] ? model.owmIcon(d.weather[0].id) : null,
-                rainMm: num(d.rain) || 0,
+                rainMm: (num(d.rain) || 0) + (num(d.snow) || 0),
                 probMax: num(d.pop) === null ? null : d.pop * 100,
                 sunshineH: null
             });
@@ -400,10 +469,18 @@
 
     /**
      * OWM 5-day/3-hour forecast (2.5/forecast, metric) → normalized hourly
-     * arrays at 3 h steps: the COARSER series that extends the timeline past
-     * One Call's 48 h of hourlies (the grid resampler interpolates it back
-     * onto hour marks). No dew point in this endpoint; rain['3h'] totals
-     * become mm/h rates.
+     * rows: the series that extends the timeline past One Call's 48 h of
+     * hourlies. No dew point in this endpoint.
+     *
+     * A record's rain['3h'] + snow['3h'] total and its pop are the 3 hours
+     * that END at its dt ("Rain volume for last 3 hours"), so they fill the
+     * three hourly rows before it, T-3h to T-1h, as an even mm/h rate: the
+     * bars right of those ticks, where the rain fell. Its condition (the
+     * icon) is that period's too. Its temperature, wind, humidity and
+     * pressure are the instant at dt; the rows between two records take
+     * the resampled values the grid would draw there anyway
+     * (model.buildHourlyGrid). The last record's own row has no period
+     * after it, so its rain and chance are unsourced.
      * @param {Object} data Raw response body.
      * @returns {?{hourly: Object, utcOffsetSec: ?number}} Parsed tail, or null.
      */
@@ -411,26 +488,50 @@
         var rows = data && data.list;
         if (!rows || !rows.length) { return null; }
         var MPS_TO_KMH = 3.6;
-        var hourly = emptyHourly();
+        var HOUR_MS = 3600000;
+        var PERIOD_MS = 3 * HOUR_MS;
+        var at = emptyHourly();
         for (var i = 0; i < rows.length; i += 1) {
             var r = rows[i];
             if (!r || typeof r.dt !== 'number') { continue; }
             var main = r.main || {};
             var wind = r.wind || {};
-            var rain3 = num(r.rain && r.rain['3h']);
-            hourly.time.push(r.dt * 1000);
-            hourly.temp.push(num(main.temp));
-            hourly.rain.push(rain3 === null ? 0 : rain3 / 3);
-            hourly.prob.push(num(r.pop) === null ? null : r.pop * 100);
-            hourly.wind.push(num(wind.speed) === null ? null : wind.speed * MPS_TO_KMH);
-            hourly.gust.push(num(wind.gust) === null ? null : wind.gust * MPS_TO_KMH);
-            hourly.dir.push(num(wind.deg));
-            hourly.rh.push(num(main.humidity));
-            hourly.dew.push(null);
-            hourly.pressure.push(num(main.pressure));
-            hourly.icon.push(r.weather && r.weather[0] ? model.owmIcon(r.weather[0].id) : null);
+            var precip3 = (num(r.rain && r.rain['3h']) || 0) + (num(r.snow && r.snow['3h']) || 0);
+            at.time.push(r.dt * 1000);
+            at.temp.push(num(main.temp));
+            at.rain.push(precip3 / 3);
+            at.prob.push(num(r.pop) === null ? null : r.pop * 100);
+            at.wind.push(num(wind.speed) === null ? null : wind.speed * MPS_TO_KMH);
+            at.gust.push(num(wind.gust) === null ? null : wind.gust * MPS_TO_KMH);
+            at.dir.push(num(wind.deg));
+            at.rh.push(num(main.humidity));
+            at.dew.push(null);
+            at.pressure.push(num(main.pressure));
+            at.icon.push(r.weather && r.weather[0] ? model.owmIcon(r.weather[0].id) : null);
         }
-        if (!hourly.time.length) { return null; }
+        var n = at.time.length;
+        if (!n) { return null; }
+        var first = at.time[0] - PERIOD_MS;
+        var count = Math.floor((at.time[n - 1] - first) / HOUR_MS) + 1;
+        var grid = model.buildHourlyGrid(at, first, count);
+        var hourly = emptyHourly();
+        var k = 0;   // the first record stamped after the row: the period holding it
+        for (var g = 0; g < count; g += 1) {
+            var t = first + g * HOUR_MS;
+            while (k < n && at.time[k] <= t) { k += 1; }
+            var inPeriod = k < n && at.time[k] - t <= PERIOD_MS;
+            hourly.time.push(t);
+            hourly.temp.push(grid.temp[g]);
+            hourly.rain.push(inPeriod ? at.rain[k] : null);
+            hourly.prob.push(inPeriod ? at.prob[k] : null);
+            hourly.wind.push(grid.wind[g]);
+            hourly.gust.push(grid.gust[g]);
+            hourly.dir.push(grid.dir[g]);
+            hourly.rh.push(grid.rh[g]);
+            hourly.dew.push(null);
+            hourly.pressure.push(grid.pressure[g]);
+            hourly.icon.push(inPeriod ? at.icon[k] : null);
+        }
         return { hourly: hourly, utcOffsetSec: num(data.city && data.city.timezone) };
     }
 
@@ -564,7 +665,7 @@
      * @returns {void}
      */
     function fetchOwm(lat, lon, settings, nowMs, cb) {
-        var key = (settings && settings.owmApiKey) || '';
+        var key = String((settings && settings.owmApiKey) || '').trim();  // paste whitespace
         if (!key) { cb(null, 'no_key'); return; }
         var oneUrl = 'https://api.openweathermap.org/data/3.0/onecall?lat=' + lat + '&lon=' + lon
             + '&units=metric&exclude=minutely,alerts&appid=' + encodeURIComponent(key);
@@ -612,7 +713,7 @@
      * @returns {void}
      */
     function fetchTomorrowIo(lat, lon, settings, nowMs, cb) {
-        var key = (settings && settings.tomorrowioApiKey) || '';
+        var key = String((settings && settings.tomorrowioApiKey) || '').trim();  // paste whitespace
         if (!key) { cb(null, 'no_key'); return; }
         var url = 'https://api.tomorrow.io/v4/timelines?location=' + lat + ',' + lon
             + '&fields=temperature,precipitationIntensity,precipitationProbability,windSpeed,windGust,'
@@ -640,20 +741,24 @@
      * provider + location. A cache hit answers on the SAME tick — callers that
      * repaint from the callback must handle the synchronous case (weather-tab.js
      * skips its render() then, because it is already inside one).
+     * `force` (the manual refresh) skips the cache hit but still stores a fresh
+     * answer — so a refresh that fails leaves this key's entry, and every other
+     * location's, exactly as they were.
      * @param {string} providerId A GRAPH_PROVIDERS id.
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
      * @param {Object} settings Live settings state.
      * @param {function(?Object, ?string):void} cb Normalized result callback.
+     * @param {boolean} [force] Go to the network even when a fresh entry is cached.
      * @returns {void}
      */
-    function fetchWeather(providerId, lat, lon, settings, cb) {
+    function fetchWeather(providerId, lat, lon, settings, cb, force) {
         var adapter = ADAPTERS[providerId];
         if (!adapter) { cb(null, 'unknown_provider'); return; }
         var key = providerId + '|' + lat.toFixed(3) + '|' + lon.toFixed(3);
         var nowMs = Date.now();
         var hit = cache[key];
-        if (hit && (nowMs - hit.at) < CACHE_TTL_MS) {
+        if (!force && hit && (nowMs - hit.at) < CACHE_TTL_MS) {
             cb(hit.data, null);
             return;
         }

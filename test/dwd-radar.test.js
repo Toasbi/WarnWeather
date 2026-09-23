@@ -85,7 +85,7 @@ test('out-of-coverage (radar: []) ships 24 zeros with slotZeroEpoch (not a failu
   assert.equal(out.RAIN_RADAR_START, SLOT0);
 });
 
-test('transient request failure (onError) -> callback(null) preserves the watch radar', () => {
+test('transient request failure (onError) -> callback(null): no radar keys in this send', () => {
   responder = function(url, type, onSuccess, onError) { onError({ code: 'status_502' }); };
   let out = 'unset';
   fetchTuples(function(t) { out = t; });
@@ -104,4 +104,69 @@ test('missing body.radar field -> callback(null)', () => {
   let out = 'unset';
   fetchTuples(function(t) { out = t; });
   assert.equal(out, null);
+});
+
+// A frame is stamped at the END of its 5 minutes (Brightsky's RadarParser
+// reads the RV product's enddate/endtime): frame T is [T-5min, T). Slot i is
+// [SLOT0 + 5i, SLOT0 + 5i + 5), so it takes the frame stamped SLOT0 + 5(i+1).
+const iso = (epoch) => new Date(epoch * 1000).toISOString().replace('.000Z', '+00:00');
+const framesAt = (stamps, wet) => stamps.map((t) => ({
+  timestamp: iso(t), precipitation_5: [[wet.indexOf(t) !== -1 ? 50 : 0]]
+}));
+const minutes = (from, to) => {
+  const out = [];
+  for (let m = from; m <= to; m += 5) { out.push(SLOT0 + m * 60); }
+  return out;
+};
+
+test('asks for the frames that close each slot: one frame past slot 0 through the 2 h mark', () => {
+  let seenUrl;
+  responder = function(url, type, onSuccess) { seenUrl = url; onSuccess(JSON.stringify({ radar: [] })); };
+  fetchTuples(function() {});
+  const q = (k) => decodeURIComponent(new RegExp('[?&]' + k + '=([^&]+)').exec(seenUrl)[1]);
+  assert.equal(Date.parse(q('date')) / 1000, SLOT0 + 300, 'slot 0 is closed by the frame 5 min on');
+  assert.equal(Date.parse(q('last_date')) / 1000, SLOT0 + 24 * 300, 'slot 23 by the one at +2 h');
+});
+
+test('a frame fills the slot its 5 minutes cover, by its timestamp', () => {
+  // Rain stamped +15 and +20 fell 10-20 min from slot 0: slots 2 and 3.
+  respondWith({ latlon_position: { x: 0, y: 0 },
+    radar: framesAt(minutes(5, 120), [SLOT0 + 15 * 60, SLOT0 + 20 * 60]) });
+  let out;
+  fetchTuples(function(t) { out = t; });
+  const expected = zeros();
+  expected[2] = 60;
+  expected[3] = 60;
+  assert.deepEqual(out.RAIN_RADAR_TREND_UINT8, expected);
+  assert.equal(out.RAIN_RADAR_START, SLOT0, 'the window still opens at slot 0');
+
+  // A frame Brightsky skips leaves its slot dry; it does not slide the rest.
+  respondWith({ latlon_position: { x: 0, y: 0 },
+    radar: framesAt(minutes(5, 120).filter((t) => t !== SLOT0 + 15 * 60), [SLOT0 + 20 * 60]) });
+  fetchTuples(function(t) { out = t; });
+  assert.equal(out.RAIN_RADAR_TREND_UINT8[2], 0);
+  assert.equal(out.RAIN_RADAR_TREND_UINT8[3], 60, 'the +20 frame stays in slot 3');
+
+  // A frame for the five minutes before slot 0, or one off the 5-min grid,
+  // has no slot.
+  respondWith({ latlon_position: { x: 0, y: 0 },
+    radar: framesAt([SLOT0, SLOT0 + 5 * 60 + 30], [SLOT0, SLOT0 + 5 * 60 + 30]) });
+  fetchTuples(function(t) { out = t; });
+  assert.deepEqual(out.RAIN_RADAR_TREND_UINT8, zeros());
+});
+
+test('past the newest run\'s 2 h horizon the last frame holds, briefly', () => {
+  // The run stamped slot 0 is not out yet: frames stop at +115, and slot 23
+  // repeats slot 22 rather than reading a shower as ending there.
+  respondWith({ latlon_position: { x: 0, y: 0 },
+    radar: framesAt(minutes(5, 115), minutes(100, 115)) });
+  let out;
+  fetchTuples(function(t) { out = t; });
+  assert.deepEqual(out.RAIN_RADAR_TREND_UINT8.slice(18), [0, 60, 60, 60, 60, 60]);
+  // Two slots at most: frames that stop at +105 leave slot 23 dry.
+  respondWith({ latlon_position: { x: 0, y: 0 },
+    radar: framesAt(minutes(5, 105), minutes(90, 105)) });
+  fetchTuples(function(t) { out = t; });
+  assert.deepEqual(out.RAIN_RADAR_TREND_UINT8.slice(17), [60, 60, 60, 60, 60, 60, 0]);
+  assert.deepEqual(out.RAIN_RADAR_TREND_AREA_UINT8.slice(17), [60, 60, 60, 60, 60, 60, 0]);
 });

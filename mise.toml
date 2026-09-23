@@ -136,10 +136,11 @@ description = "Host-compiled C tests (layout golden rects; 'mise test-c -- dump'
 run = "scripts/test-c.sh"
 
 [tasks.test-deno]
-description = "Run the Edge Functions' Deno test suites (rainbow-nowcast + news) — separate runner from 'mise test' (Node can't run Deno's @std/assert imports). news's test imports index.ts, whose top-level Deno.serve binds a port at load, hence --allow-net."
+description = "Run the Edge Functions' Deno test suites (rainbow-nowcast + news + telemetry-ingest) — separate runner from 'mise test' (Node can't run Deno's @std/assert imports). news's and telemetry-ingest's tests import index.ts, whose top-level Deno.serve binds a port at load, hence --allow-net."
 run = [
   "cd supabase/functions/rainbow-nowcast && deno test",
   "cd supabase/functions/news && deno test --allow-net",
+  "cd supabase/functions/telemetry-ingest && deno test --allow-net",
 ]
 
 [tasks.aplite-size]

@@ -80,3 +80,81 @@ test('aux failure on a reused instance drops feels instead of shipping the stale
   assert.deepEqual(p.feelsTrend, [], 'stale feels dropped when the aux call fails');
   assert.equal(p.currentFeels, null);
 });
+
+test('the aux gusts land in the same slot as the main call\'s rain for the same hour', () => {
+  // Both calls stamp preceding-hour values at the END of the hour they cover.
+  // A squall between 18:00 and 19:00 is stamped 19:00 in both, and at 18:10
+  // the watch's slot 0 IS 18:00-19:00 — the rain bar and the gust head must
+  // both show it there, not in the 19:00-20:00 slot.
+  const p = new OpenMeteoProvider();
+  p.fetchUv = false;
+  responder = function(url, onSuccess) {
+    if (url.indexOf('current=apparent_temperature') !== -1) {
+      const aux = auxResponse();
+      aux.hourly.windgusts_10m = aux.hourly.time.map((t) => (t === BASE + 19 * HOUR ? 70 : 20));
+      onSuccess(JSON.stringify(aux));
+      return;
+    }
+    const main = mainResponse();
+    main.hourly.precipitation = main.hourly.time.map((t) => (t === BASE + 19 * HOUR ? 4 : 0));
+    onSuccess(JSON.stringify(main));
+  };
+  withMockedNow(BASE + 18 * HOUR + 600, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('fetch failed: ' + JSON.stringify(f)); });
+  });
+  assert.equal(p.startTime, BASE + 18 * HOUR);
+  assert.deepEqual(p.rainTrend.slice(0, 2), [4, 0], 'rain in the 18:00-19:00 slot');
+  assert.deepEqual(p.gustTrend.slice(0, 2), [70, 20], 'gust in the 18:00-19:00 slot');
+  assert.equal(p.gustTrend.length, 24);
+});
+
+/** @returns {Object} UV response; the value at each hour is its GMT hour, so misalignment shows. */
+function uvResponse() {
+  const time = [], uv_index = [];
+  for (let i = 0; i < 72; i += 1) {
+    time.push(BASE + i * HOUR);
+    uv_index.push(i % 24);
+  }
+  return { hourly: { time, uv_index } };
+}
+
+test('UV failure on a reused instance drops UV instead of shipping the previous window', () => {
+  const p = new OpenMeteoProvider();
+  p.fetchUv = true;
+  function respond(uvFails) {
+    return function(url, onSuccess, onError) {
+      if (url.indexOf('hourly=uv_index') !== -1) {
+        if (uvFails) { onError({ code: 0, message: 'timeout' }); return; }
+        onSuccess(JSON.stringify(uvResponse()));
+        return;
+      }
+      onSuccess(JSON.stringify(url.indexOf('current=apparent_temperature') !== -1 ? auxResponse() : mainResponse()));
+    };
+  }
+
+  // Cycle 1 at 08:xx: UV succeeds, aligned to the 08:00 start.
+  responder = respond(false);
+  withMockedNow(BASE + 8 * HOUR + 300, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('cycle 1 failed: ' + JSON.stringify(f)); });
+  });
+  assert.equal(p.startTime, BASE + 8 * HOUR);
+  // Entry 0 is the 08:00-09:00 hour, whose GFS mean is stamped 09:00.
+  assert.equal(p.uvTrend[0], 9, 'cycle 1 adopted the UV window');
+
+  // Cycle 2 at 09:xx: UV times out. The 08:00 window must not ship against the
+  // new 09:00 start (UV an hour late in the slot, graph and day peaks).
+  responder = respond(true);
+  withMockedNow(BASE + 9 * HOUR + 300, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('cycle 2 failed: ' + JSON.stringify(f)); });
+  });
+  assert.equal(p.startTime, BASE + 9 * HOUR);
+  assert.deepEqual(p.uvTrend, [], 'stale UV dropped when the UV call fails');
+  p.cityName = 'X';
+  p.sunEvents = [{ type: 'sunrise', date: new Date((BASE + 10 * HOUR) * 1000) }];
+  const payload = p.getPayload();
+  assert.deepEqual(payload.UV_TREND_UINT8, [], 'UV line off for this cycle');
+  assert.equal(payload.UV_DAY_PEAKS, undefined, 'no day peaks from a stale window');
+});

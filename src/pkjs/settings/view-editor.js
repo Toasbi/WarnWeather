@@ -72,9 +72,90 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * The band order the watch's LEGACY engine (stored order code 0, 'TACB' — what
+     * every preset seeds) renders view `i` in. The legacy engine seats the upper status
+     * row above the clock only under the 2-row (COMPACT) calendar; a 3-row calendar, a
+     * radar top and no top at all put the clock first and the status row(s) below it
+     * (layout.c compute_with_weights; preview-layout.js contentBands mirrors it). Read
+     * off the COMPILED tier, which already folds a radar top the watch can't draw.
+     * @param {Object} S @param {number} i @returns {string} 'TACB' or 'TCAB'
+     */
+    function legacyOrder(S, i) {
+        var s = viewCycleLib.buildCustomCycle(S)[i];
+        return (s && s.tier === viewCycleLib.TIER_COMPACT) ? 'TACB' : 'TCAB';
+    }
+
+    /**
+     * The order view `i` is DISPLAYED (and edited) in: what the watch renders. A stacked
+     * order code renders as stored; the legacy code renders per legacyOrder, so a
+     * seeded fullCal/noCal view lists its status bar below the clock, where it is.
+     * @param {Object} S @param {number} i @returns {string[]} display order array
+     */
+    function displayOrder(S, i) {
+        var ord = orderArr(S, i);
+        if (viewCycleLib.orderCode(ord.join('')) !== 0) { return ord; }
+        return legacyOrder(S, i).split('');
+    }
+
+    /** @param {string} seq order letters @param {Object} pres presence() @returns {string} the present ones */
+    function visibleBands(seq, pres) {
+        var out = '', j;
+        for (j = 0; j < seq.length; j++) { if (pres[seq.charAt(j)]) { out += seq.charAt(j); } }
+        return out;
+    }
+
+    /**
+     * The order string to STORE so the watch renders view `i` as the (canonical) display
+     * order `ord`: the legacy 'TACB' when the legacy render already shows the present
+     * bands in that order — so a seeded preset moved away and back is byte-identical
+     * again — else the stacked code spelling it, else any stacked code showing the same
+     * present bands in the same order (an absent band's slot is free). null when no wire
+     * order renders it: a status bar above the clock with a second one below it, over a
+     * 3-row calendar or radar, is only the legacy slot's order, which that top renders
+     * differently — and the stacked engine has no code for it.
+     * @param {Object} S @param {number} i @param {string[]} ord canonical display order
+     * @returns {?string} the order to store, or null when unrepresentable
+     */
+    function storedOrderFor(S, i, ord) {
+        var pres = presence(S, i);
+        var want = visibleBands(ord.join(''), pres);
+        if (visibleBands(legacyOrder(S, i), pres) === want) { return 'TACB'; }
+        if (viewCycleLib.orderCode(ord.join('')) !== 0) { return ord.join(''); }
+        var c;
+        for (c = 1; c < viewCycleLib.STACK_ORDERS.length; c++) {
+            if (visibleBands(viewCycleLib.STACK_ORDERS[c], pres) === want) { return viewCycleLib.STACK_ORDERS[c]; }
+        }
+        return null;
+    }
+
+    /**
+     * Canonicalize `ord` (which may swap the two status sources) and store the order the
+     * watch renders it in. When nothing renders it, the sources are put back and nothing
+     * is stored.
+     * @param {Object} S settings state (mutated on success)
+     * @param {number} i view slot
+     * @param {string[]} ord display order array (mutated)
+     * @returns {boolean} whether it was stored
+     */
+    function storeOrder(S, i, ord) {
+        var up = S[k('Upper', i)], lo = S[k('Lower', i)];
+        canonicalize(ord, S, i);
+        var stored = storedOrderFor(S, i, ord);
+        if (stored === null) {
+            S[k('Upper', i)] = up;
+            S[k('Lower', i)] = lo;
+            return false;
+        }
+        S[k('Order', i)] = stored;
+        return true;
+    }
+
+    /**
      * Move a band one visible step up (dir -1) or down (dir +1): swap with the
      * nearest PRESENT band in that direction (absent bands keep their stored place
-     * and are stepped over). No-op at the visible edge.
+     * and are stepped over). Works on the DISPLAYED order, so the arrows move what the
+     * list shows. No-op at the visible edge, and where no wire order renders the result
+     * (see storedOrderFor).
      * @param {Object} S settings state (mutated)
      * @param {number} i view slot
      * @param {string} band 'T'|'C'|'A'|'B'
@@ -82,7 +163,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} whether anything changed
      */
     function moveBand(S, i, band, dir) {
-        var ord = orderArr(S, i);
+        var ord = displayOrder(S, i);
         var pres = presence(S, i);
         var idx = -1, j;
         for (j = 0; j < 4; j++) { if (ord[j] === band) { idx = j; } }
@@ -91,23 +172,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         while (j >= 0 && j < 4 && !pres[ord[j]]) { j += dir; }
         if (j < 0 || j > 3) { return false; }
         var tmp = ord[idx]; ord[idx] = ord[j]; ord[j] = tmp;
-        canonicalize(ord, S, i);
-        S[k('Order', i)] = ord.join('');
-        return true;
+        return storeOrder(S, i, ord);
     }
 
     /**
-     * Send a band to the end of the stored order (directly above the graph) —
-     * where a re-added element lands.
-     * @param {Object} S @param {number} i @param {string} band @returns {void}
+     * Send a band to the end of the order (directly above the graph) — where a
+     * re-added element lands; or, where the watch can't render it there (see
+     * storedOrderFor), as low as it can.
+     * @param {Object} S settings state (mutated)
+     * @param {number} i view slot
+     * @param {string} band 'T'|'C'|'A'|'B'
+     * @param {string[]} [from] the display order to start from — the one shown BEFORE
+     *   the element was re-added, since re-adding the top area can change the tier
+     *   and with it the legacy display order. Defaults to the current display order.
+     * @returns {void}
      */
-    function bandToEnd(S, i, band) {
-        var ord = orderArr(S, i);
-        var out = [], j;
-        for (j = 0; j < 4; j++) { if (ord[j] !== band) { out.push(ord[j]); } }
-        out.push(band);
-        canonicalize(out, S, i);
-        S[k('Order', i)] = out.join('');
+    function bandToEnd(S, i, band, from) {
+        var ord = from || displayOrder(S, i);
+        var others = [], j, pos;
+        for (j = 0; j < 4; j++) { if (ord[j] !== band) { others.push(ord[j]); } }
+        for (pos = others.length; pos >= 0; pos--) {
+            if (storeOrder(S, i, others.slice(0, pos).concat([band], others.slice(pos)))) { return; }
+        }
     }
 
     /**
@@ -187,11 +273,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Add an element to view `i` (lands directly above the graph; the user moves it
      * from there). 'status' fills whichever status slot is free — the fresh row
-     * always ends visually lowest via bandToEnd + canonicalize.
+     * ends visually lowest via bandToEnd + canonicalize, or as low as the watch can
+     * render it (a second status bar under a 3-row calendar whose first sits above
+     * the clock lands right below the first).
      * @param {Object} S @param {number} i @param {string} kind
      * @returns {boolean} whether anything changed
      */
     function addElement(S, i, kind) {
+        // The order as shown before the element appears: re-adding the top area turns a
+        // no-top view into a 2-row one, which changes how a legacy order displays.
+        var shown = displayOrder(S, i);
         if (kind === 'topbar') {
             if (i === 0 || !S[k('StripOff', i)]) { return false; }
             S[k('StripOff', i)] = false; return true;
@@ -199,12 +290,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (kind === 'clock') {
             if (i === 0 || !S[k('ClockOff', i)]) { return false; }
             S[k('ClockOff', i)] = false;
-            bandToEnd(S, i, 'C'); return true;
+            bandToEnd(S, i, 'C', shown); return true;
         }
         if (kind === 'top') {
             if ((S[k('Top', i)] || 'cal2') !== 'none') { return false; }
             S[k('Top', i)] = 'cal2';
-            bandToEnd(S, i, 'T'); return true;
+            bandToEnd(S, i, 'T', shown); return true;
         }
         if (kind === 'status') {
             var pres = presence(S, i);
@@ -212,11 +303,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (src === null) { return false; }
             if (!pres.A) {
                 S[k('Upper', i)] = src;
-                bandToEnd(S, i, 'A'); return true;
+                bandToEnd(S, i, 'A', shown); return true;
             }
             if (!pres.B) {
                 S[k('Lower', i)] = src;
-                bandToEnd(S, i, 'B'); return true;
+                bandToEnd(S, i, 'B', shown); return true;
             }
             return false;
         }
@@ -404,7 +495,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         VE.overlay.querySelector('[data-ve-tabs]').innerHTML = tabs;
 
         var pres = presence(S, i);
-        var ord = orderArr(S, i);
+        var ord = displayOrder(S, i);   // what the watch renders, not the stored letters
         var body = '';
         if (i === 0 || !S[k('StripOff', i)]) {
             body += rowHtml({
@@ -570,6 +661,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             presence: presence, canonicalize: canonicalize, moveBand: moveBand,
+            displayOrder: displayOrder,
             bandToEnd: bandToEnd, removeElement: removeElement, addElement: addElement,
             addableElements: addableElements, freeStatusSource: freeStatusSource,
             normalizeAfterPick: normalizeAfterPick,

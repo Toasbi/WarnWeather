@@ -184,12 +184,20 @@ function demoteRadarBody(s) {
  * @returns {Array<{tier:number,top:number,body:number,statusUpper:number,statusLower:number}>}
  */
 function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
-  var byPreset = MATRIX[presetKey] || MATRIX.compactCal;
   // 'slot' shows health only in the regular status bars — it adds no dedicated
   // Health view, so its flick cycle is identical to 'off'.
   var mode = (healthMode === 'slot') ? 'off' : healthMode;
-  var byHealth = byPreset[mode] || byPreset.off;
   var radarShowsView = (radarMode === 'status' || radarMode === 'graph');
+  // A compactDense that neither a health status row nor a radar view makes dense is
+  // DORMANT: the settings page hides the option and shows "Compact calendar" (and its
+  // swap toggle) in its place. Its cycle is already compactCal's, so compile it AS
+  // compactCal — swap included — or the watch would ignore the swap the page offers.
+  // Keep in step with blocks.js layoutPresetOptions and schema.js's swapClockStatus gate.
+  if (presetKey === 'compactDense' && mode === 'off' && !radarShowsView) {
+    presetKey = 'compactCal';
+  }
+  var byPreset = MATRIX[presetKey] || MATRIX.compactCal;
+  var byHealth = byPreset[mode] || byPreset.off;
   var cycle = byHealth[radarShowsView ? 'r' : 'n'];
 
   // compactDense + radar='status' + health has no bar (off/slot): fold radar into the

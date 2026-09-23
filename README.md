@@ -53,6 +53,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Watch**
 * Custom color, 12h/24h, optional AM/PM
+* Smooth, anti-aliased clock digits on color watches (Roboto and Bitham fonts)
 * Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
 * Battery saver (pause updates to the watch between hours you set, to save battery)
 * Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself
@@ -76,7 +77,12 @@ Two things that both involve rain over time, but answer different questions:
   temperature (drawn muted on the same scale as the temperature curve) as a main
   metric (solid line) and an optional second metric (drawn as bar-aligned square dots; the same
   metric can't appear on both), plus optional bars for the hourly rain amount. The temperature
-  status slot can also show the feels-like value, or both as `12/10`.
+  status slot can also show the feels-like value, or both as `12/10`; the UV index slot can
+  show today's highest UV still to come, or both as `3/7`; today's peak stays until the UV
+  drops below it, then tomorrow's shows instead, marked `»` (`4/»8`). How the pair is written is up to you: pick
+  the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or without spaces
+  around it (`12 / 10`), which value comes first, and how tomorrow's peak is marked (`»6`,
+  `>6`, `+6`, `6*` or no mark).
 - **Rain radar** — unlike the forecast graph's model prediction, this is a short-term nowcast
   based on actual radar measurements moving toward you, refreshed often as new scans arrive.
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are

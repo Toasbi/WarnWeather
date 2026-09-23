@@ -105,3 +105,19 @@ test('shell.html lets a .grp sub-header own the line above it', () => {
   assert.equal(/\.subhdr\s*\{[^}]*border-top/.test(shell), false,
     'only the .grp flavour owns a line');
 });
+
+test('shell.html never lets a third-party stylesheet block boot', () => {
+  // A pending stylesheet blocks every later script, and the whole page is one inline
+  // <script> ending in boot(). Where fonts.googleapis.com is blackholed (not refused)
+  // the page stayed blank until the connect timed out, tens of seconds. The font is
+  // cosmetic -- every rule names system fallbacks -- so a remote sheet must load as
+  // media="print" and switch itself on once it arrives, never render-blocking.
+  const links = shell.match(/<link\b[^>]*>/gi) || [];
+  const remoteSheets = links.filter((l) => /rel="stylesheet"/i.test(l) && /href="https?:/i.test(l));
+  assert.ok(remoteSheets.length >= 1, 'expected the web-font stylesheet to be found');
+  remoteSheets.forEach((l) => {
+    assert.ok(/\bmedia="print"/.test(l), 'remote stylesheet must not block rendering: ' + l);
+    assert.ok(/\bonload="this\.media='all'"/.test(l), 'remote stylesheet must enable itself on load: ' + l);
+  });
+  assert.equal(/<script\b[^>]*\bsrc=/i.test(shell), false, 'no external script gates boot either');
+});

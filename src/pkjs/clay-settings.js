@@ -54,11 +54,14 @@ function resetAll() {
     // by the save) wins over its parked predecessor.
     if (restorePreserved(keep)) { kept = true; }
     localStorage.clear();
-    // The settings blob itself must stay ABSENT: the wizard only reopens for a
-    // config with no keys at all, so putting the kept credentials straight back
-    // would silently skip the first-time setup this reset promises. They wait in
-    // their own entry instead, and seedDefaults folds them into the fresh blob on
-    // the next boot. The WU key never lived in the blob, so it just goes back.
+    // The settings blob itself must stay ABSENT: the next boot reads an absent
+    // blob as a fresh install, which is what keeps onboardingDone false through
+    // the onboarding migration (clay-migrations.js) and reopens the wizard.
+    // Putting the kept credentials straight back would make that boot read as an
+    // existing install and silently skip the first-time setup this reset
+    // promises. They wait in their own entry instead, and seedDefaults folds them
+    // into the fresh blob on the next boot. The WU key never lived in the blob,
+    // so it just goes back.
     if (kept) { localStorage.setItem(KEYS.PRESERVED_KEYS_KEY, JSON.stringify(keep)); }
     if (wuKey) { localStorage.setItem(KEYS.WU_API_KEY, wuKey); }
     return keep;
@@ -139,6 +142,34 @@ function restorePreserved(target) {
     }
     localStorage.removeItem(KEYS.PRESERVED_KEYS_KEY);
     return restored;
+}
+
+/**
+ * A copy of a settings blob fit for console.log: each user API key
+ * (PRESERVED_SETTING_KEYS, the one list of credential keys) becomes '<set>' or
+ * ''. PKJS logs end up in bug reports and pasted issues, so they must not carry a
+ * key someone may have paid for. Logging only -- the copy must never be saved or
+ * sent, and the blob itself is left untouched (the page and providers need the
+ * real keys).
+ *
+ * @param {?Object} blob Settings blob (may be null).
+ * @returns {?Object} Shallow copy with the keys redacted, or the input when not an object.
+ */
+function redactForLog(blob) {
+    var out;
+    var i;
+    var k;
+    if (!blob || typeof blob !== 'object') {
+        return blob;
+    }
+    out = Object.assign({}, blob);
+    for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
+        k = PRESERVED_SETTING_KEYS[i];
+        if (Object.prototype.hasOwnProperty.call(out, k)) {
+            out[k] = out[k] ? '<set>' : '';
+        }
+    }
+    return out;
 }
 
 /**
@@ -376,6 +407,7 @@ module.exports = {
     resetAll: resetAll,
     fillFromPreserved: fillFromPreserved,
     shouldReset: shouldReset,
+    redactForLog: redactForLog,
     hasStored: hasStored,
     getDefaults: getDefaults,
     seedDefaults: seedDefaults,

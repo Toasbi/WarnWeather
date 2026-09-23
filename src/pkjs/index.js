@@ -31,6 +31,7 @@ var holidayMask = require('./holidays/holiday-mask.js');
 var nagerSource = require('./holidays/nager-source.js');
 var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 var effectiveHolidayCountry = require('./clay-payload.js').effectiveHolidayCountry;
+var holidayWindowOpts = require('./clay-payload.js').holidayWindowOpts;
 var providerFactory = require('./provider-factory.js');
 var previewPalette = require('./settings/preview-palette.js');
 var newsCache = require('./news-cache.js');
@@ -41,6 +42,7 @@ var renderSignature = require('./render-signature.js').renderSignature;
 var decideConfigClose = require('./config-close.js').decideConfigClose;
 var phoneBattery = require('./phone-battery.js');
 var statusRebake = require('./status-rebake.js');
+var platformLib = require('./config-ui/lib/platform.js');
 
 /**
  * Full release-notification manifest (dev: force-show by version). Omitted from bundle if missing.
@@ -60,6 +62,7 @@ var releaseNotificationsManifest = loadReleaseNotificationsManifest();
 /**
  * @type {{
  *     fetchInProgress: boolean,
+ *     pendingForcedFetch: boolean,
  *     lastIsSleeping?: boolean,
  *     settings?: Object,
  *     telemetry?: Object,
@@ -84,10 +87,16 @@ var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_NOTICES = storageKeys.NOTICES_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
-// How long a forced fetch waits out an in-flight fetch before retrying. Long
-// enough to clear the common case (a fetch already past its requests), short
-// enough that a settings change still feels immediate.
-var FORCED_RETRY_MS = 3000;
+// How long an in-flight weather fetch may run before it is presumed lost. A
+// healthy chain is bounded by its own timeouts — GPS 10 s, then the radar,
+// geocode, provider and UV/AQI/pollen XHRs at 5 s each, then the AppMessage
+// ACK — so one still running after this long had a callback that threw or
+// never came back, and its in-progress flag would otherwise block every later
+// fetch until PKJS restarts.
+var FETCH_WATCHDOG_MS = 2 * 60 * 1000;
+// Tolerance when comparing a failure backoff against the tick clock (see
+// isFailureBackoffActive): half of the 60 s scheduler tick.
+var FAILURE_BACKOFF_SLACK_MS = 30 * 1000;
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -99,6 +108,9 @@ var DEFAULT_COLOR_BLUE_MOON = pebbleColors.GColorBlueMoon;
 var DEFAULT_HOLIDAY_COLORS = { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY, holiday: DEFAULT_COLOR_BLUE_MOON };
 
 app.fetchInProgress = false;
+// A forced fetch that arrived while another fetch was in flight; it runs once
+// that one settles (see fetch()).
+app.pendingForcedFetch = false;
 
 (function initLastIsSleeping() {
     var raw = localStorage.getItem(KEY_LAST_IS_SLEEPING);
@@ -172,7 +184,9 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // city name off the status-bake snapshot. null when no fix exists yet.
         graphsSeed: buildGraphsSeed(),
         notices: localStorage.getItem(KEY_NOTICES),
-        devStats: JSON.stringify(devStats.read()),
+        // Day totals + the newest events, never the raw 7-day log: that pushed the
+        // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).
+        devStats: devStats.summarize(),
         palette: previewPalette.buildPreviewPalette(),
         newsEndpoint: (pkg.news && pkg.news.endpoint) || '',
         appVersion: pkg.version || '',
@@ -202,7 +216,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
         env: { phoneBattery: phoneBatteryEnv },
         userData: userData
     }));
-    console.log('Showing clay: ' + JSON.stringify(values));
+    console.log('Showing clay: ' + JSON.stringify(claySettings.redactForLog(values)));
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
@@ -221,8 +235,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
     var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
     var oldRadarMode = app.settings ? app.settings.radarMode : undefined;
     // Capture the render-affecting settings before they're overwritten below so we can
-    // detect a change and force a resend. Rain/radar colors are NOT here: they ride the
-    // Clay message and the watch persists them, so a color change needs no weather refetch.
+    // detect a change and force a resend. Colours are NOT here — rain/radar, graph lines
+    // and fill, the theme itself: they ride the Clay message and the watch persists
+    // them, so a colour or theme change needs no weather refetch.
     var prevRender = renderSignature(app.settings);
     // fillFromPreserved: between a "Reset watchface" and the next boot the page
     // hydrates from an absent blob, so this response carries '' for every API key
@@ -240,11 +255,13 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // fetch below still has one to fetch with instead of failing on an empty
         // key the user never actually removed.
         var preserved = claySettings.resetAll();
-        // Storage stays EMPTY on purpose: the wizard only reopens for a config with
-        // no keys at all (wizard.js shouldShow), so seeding here would silently skip
-        // the first-time setup this reset promises. The next boot's seedDefaults
-        // fills it in, and until then the page's defaultValue hydration shows the
-        // same defaults.
+        // Storage stays EMPTY on purpose: the next boot reads the absent blob as a
+        // fresh install (hadExistingInstall false), so the onboarding migration
+        // leaves onboardingDone false and the wizard reopens (wizard.js
+        // shouldShow). Seeding here would make that boot read as an existing
+        // install and silently skip the first-time setup this reset promises. The
+        // next boot's seedDefaults fills it in; until then the page hydrates the
+        // same defaults from an empty config, which opens the wizard too.
         //
         // But the IN-MEMORY copy must not keep the settings we just erased. The
         // 60-second scheduler tick is still armed, and clearing storage also cleared
@@ -257,6 +274,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
         app.settings = Object.assign(claySettings.getDefaults(DEFAULT_HOLIDAY_COLORS), preserved);
         refreshProvider();   // the default provider, holding the preserved key
         outbox.clearWeatherCaches();
+        // A boot migration still waiting for its Clay ACK must not commit its
+        // markers into the storage we just wiped.
+        scheduler.onStorageReset();
         scheduler.onConfigClosed({ forceFetch: true, clearNotice: false });
         return;
     }
@@ -304,7 +324,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     });
     refreshHolidays();
     // app.settings was just reloaded from storage above; log it rather than re-reading.
-    console.log('Closing clay: ' + JSON.stringify(app.settings));
+    console.log('Closing clay: ' + JSON.stringify(claySettings.redactForLog(app.settings)));
 });
 
 /**
@@ -349,7 +369,10 @@ Pebble.addEventListener('ready',
         var migrations = clayMigrations.runMigrations({
             platform: statusMigrationPlatform,
             colors: DEFAULT_HOLIDAY_COLORS,
-            defaultRadarProvider: 'rainbow'
+            defaultRadarProvider: 'rainbow',
+            // Read BEFORE seedDefaults above: the onboarding migration's only way
+            // to tell a fresh install (wizard auto-opens) from an existing one.
+            hadExistingInstall: hadExistingInstall
         });
         claySettings.applyDevConfig(app.devConfig);
         claySettings.applyFixtureSettings(activeFixture, pebbleColors);
@@ -408,8 +431,10 @@ Pebble.addEventListener('ready',
         }
         scheduler.onReady({
             migrationClayRequired: migrations.clayRequired,
-            // Runs on ACK only, so a NACK leaves the deferred migration markers
-            // unset and the migration retries next boot.
+            // Runs on ACK only: the migration send's, or — when that one NACKs —
+            // the next scheduler Clay send's that lands this session (it carries
+            // the same migrated blob). Only a session with no ACKed Clay at all
+            // leaves the markers unset, and the migration retries next boot.
             onClayAck: migrations.commitDeferredMarkers
         });
         refreshHolidays();
@@ -578,7 +603,8 @@ function resetFetchAttemptCounter() {
 
 /**
  * Ensure the selected country's holiday data is cached for the visible window's
- * year(s); when a fetch lands new data, resend Clay so the mask updates. The
+ * year(s); when a fetch lands new data, the scheduler resends Clay so the mask
+ * updates (coalesced, and retried on a NACK — see onHolidaysUpdated). The
  * mask itself is always built synchronously from cache in sendClaySettings, so
  * this never blocks a send — the deduping outbox transmits only on a real change.
  *
@@ -591,14 +617,11 @@ function refreshHolidays() {
     // guard of its own (the deleted registry's null used to shield it).
     if (!country || country === 'none') { return; }
     if (app.settings.holidaysEnabled === false) { return; }
-    var compact = (app.settings.topViewMode || 'compact') !== 'full';
-    var years = holidayMask.windowYears({
-        startMon: app.settings.weekStartDay === 'mon',
-        prevWeek: compact ? false : (app.settings.firstWeek === 'prev')
-    }, new Date());
-    nagerSource.ensure(country, years, function () {
-        sendClaySettings(function () {}, function () {});
-    });
+    // The SAME window the HOLIDAYS tuple scans (clay-payload's holidayWindowOpts):
+    // ensure() prunes every cached year outside `years`, so a narrower window here
+    // deletes data the mask still reads.
+    var years = holidayMask.windowYears(holidayWindowOpts(app.settings, app.watchInfo), new Date());
+    nagerSource.ensure(country, years, scheduler.onHolidaysUpdated);
 }
 
 /**
@@ -640,8 +663,12 @@ function themeCoords() {
  * display name — the last reverse-geocoded CITY from the status-bake snapshot
  * when one exists, else the manual location text. Injected as userData at
  * settings-open; the page cannot geolocate itself (data: URI webview).
+ * `gps` says whether the watch follows the phone's position (no manual
+ * location saved): only then may the tab's Refresh re-read the phone's GPS
+ * for the Current chip — a manual location is the watch's place, not the
+ * phone's.
  *
- * @returns {?{lat: number, lon: number, name: string}} Seed, or null before any fix.
+ * @returns {?{lat: number, lon: number, name: string, gps: boolean}} Seed, or null before any fix.
  */
 function buildGraphsSeed() {
     var coords = themeCoords();
@@ -656,7 +683,8 @@ function buildGraphsSeed() {
     if (!name && app.settings && app.settings.location) {
         name = app.settings.location;
     }
-    return { lat: coords.lat, lon: coords.lon, name: name || 'Current location' };
+    var gps = locationLib.parseLocationOverride(app.settings ? app.settings.location : null).type === 'gps';
+    return { lat: coords.lat, lon: coords.lon, name: name || 'Current location', gps: gps };
 }
 
 /**
@@ -792,9 +820,10 @@ function isWatchConnected() {
 
 /**
  * Fetch rain-radar tuples for already-resolved coordinates (single per-cycle
- * acquisition). On any failure calls `callback(null)`; the weather payload still
- * ships without radar tuples. Out-of-coverage produces zero arrays, shipped
- * normally.
+ * acquisition). A transient failure calls `callback(null)`; the weather payload
+ * still ships without radar tuples. A permanent one (missing key/endpoint,
+ * rejected key) calls back the clearing tuples. Out-of-coverage produces zero
+ * arrays, shipped normally.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
@@ -802,6 +831,16 @@ function isWatchConnected() {
  * @returns {void}
  */
 function withRainRadarTuplesAt(lat, lon, callback) {
+    if (!platformLib.computeEnv(app.watchInfo).radar) {
+        // The watch compiles the radar out (aplite: no WW_RAIN_RADAR) and drops
+        // every RAIN_RADAR_* tuple, so skip the request and leave the keys out
+        // of the send. The Radar settings tab is hidden there, so an install
+        // whose settings were never saved still holds the 'graph' default — the
+        // gate has to live here, not in the stored radarMode. An unknown
+        // platform (no watchInfo) stays radar-capable, as in computeEnv.
+        callback(null);
+        return;
+    }
     // Radar source is configured independently of the forecast provider. The
     // 5-min pinned slot-0 epoch (RAIN_RADAR_START on the wire) is computed here
     // at the clock edge, so the adapters stay deterministic (no clock injection).
@@ -810,8 +849,9 @@ function withRainRadarTuplesAt(lat, lon, callback) {
         // adapter; any non-off mode fetches the full trend (countdown needs it).
         (app.settings.radarMode || 'graph') === 'off' ? 'disabled' : app.settings.radarProvider,
         // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
-        // adapter then fails soft (callback(null)). tomorrowioApiKey is the
-        // user's key from settings; '' likewise fails soft in the adapter.
+        // adapter then clears the watch's radar (it can never answer).
+        // tomorrowioApiKey is the user's key from settings; '' likewise
+        // clears in the adapter.
         {
             rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || '',
             tomorrowioApiKey: (app.settings && app.settings.tomorrowioApiKey) || ''
@@ -822,22 +862,28 @@ function withRainRadarTuplesAt(lat, lon, callback) {
 
 /**
  * Build the extra-payload object merged into provider.fetch: the optional radar
- * tuples plus the freshly-updated IS_SLEEPING flag. Called synchronously per
- * fetch so the sleep state is current.
+ * tuples plus the current IS_SLEEPING flag. Called synchronously per fetch so
+ * the sleep state is current. Pure: the flag is recorded as the watch's state
+ * only once the payload carrying it is delivered (see commitSleepState).
  *
  * @param {Object|null} radarTuples Radar AppMessage tuples, or null on failure.
  * @returns {Object} extraPayload for provider.fetch.
  */
 function buildWeatherExtras(radarTuples) {
     var extras = radarTuples ? Object.assign({}, radarTuples) : {};
-    extras.IS_SLEEPING = updateSleepState();
+    extras.IS_SLEEPING = isSleepingNow();
     return extras;
 }
 
 /**
+ * Run one weather fetch cycle unless one is already in flight (a forced fetch
+ * is then queued to run once that one settles). Each fetch completes exactly
+ * once: success, failure, or abandonment by the FETCH_WATCHDOG_MS watchdog.
+ *
  * @typedef {import("./weather/provider")} WeatherProvider
  * @param {WeatherProvider} provider
  * @param {boolean} force
+ * @returns {void}
  */
 function fetch(provider, force) {
     if (!isWatchConnected()) {
@@ -853,10 +899,12 @@ function fetch(provider, force) {
         if (force) {
             // Don't drop a forced fetch: the in-flight one closed over the PREVIOUS
             // provider, so it can't satisfy a force triggered by a provider or
-            // location change — its result would be the old provider's data. The
-            // in-flight fetch is bounded by the XHR/GPS timeouts, so retry shortly
-            // rather than leaving the change until the next scheduled fetch.
-            setTimeout(function () { fetch(app.provider, true); }, FORCED_RETRY_MS);
+            // location change — its result would be the old provider's data.
+            // Queue ONE forced refetch for when the in-flight fetch settles (or
+            // its watchdog gives up on it). This used to re-poll every 3 s, and a
+            // fetch whose callback never came back kept that loop — one per
+            // forced fetch — spinning until PKJS restarted.
+            app.pendingForcedFetch = true;
         }
         return;
     }
@@ -869,7 +917,8 @@ function fetch(provider, force) {
         authBackoff.clear();
         // Same contract for the geocode cooldown: a forced fetch is an explicit user
         // action (Force toggle, provider/key/location change), so it overrides the
-        // rate-limit backoff too. Without this the guard below silently swallowed
+        // rate-limit backoff too, and the day-long pause on an address LocationIQ
+        // could not resolve. Without this the guard below silently swallowed
         // every forced refresh for up to 30 minutes whenever a manual location's
         // geocode had 429'd — the reported "changing settings doesn't refresh".
         if (typeof provider.clearGeocodeBackoff === 'function') {
@@ -893,7 +942,6 @@ function fetch(provider, force) {
     }
 
     console.log('Fetching from ' + provider.name);
-    app.fetchInProgress = true;
     // Tell providers whether to spend a request on UV (DWD/Open-Meteo fallback).
     provider.fetchUv = forecastSeries.needsUv(app.settings);
     provider.fetchAqi = forecastSeries.needsAqi(app.settings);
@@ -901,26 +949,69 @@ function fetch(provider, force) {
     // Apparent temperature: no provider spends an extra REQUEST on it (it always
     // rides a response already being fetched), but DWD and Met.no compute Steadman
     // per hour and the rest map a series — all wasted when nothing renders it.
-    // Every input of needsFeels is in renderSignature, so flipping a feels
-    // selection forces a refetch and this gate is re-evaluated immediately.
-    provider.fetchFeels = forecastSeries.needsFeels(app.settings);
+    // Every settings input of needsFeels is in renderSignature, so flipping a
+    // feels selection forces a refetch and this gate is re-evaluated immediately;
+    // watchInfo (an aplite watch never draws the feels line) is fixed per session.
+    provider.fetchFeels = forecastSeries.needsFeels(app.settings, app.watchInfo);
     provider.aqiScale = (app.settings && app.settings.aqiScale) || 'european';
     provider.aqiSource = (app.settings && app.settings.aqiSource) || 'waqi';
     provider.aqicnToken = (pkg.waqi && pkg.waqi.token) || '';
+    app.fetchInProgress = true;
+    // This fetch's once-guard: set by the first of success, failure or the
+    // watchdog, after which every later completion from this fetch is a no-op.
+    var settled = false;
     var fetchStart = Date.now();
-    var attempt = incrementFetchAttemptCounter();
+    var attempt = null;
     var fetchStatus = {
         time: new Date(),
         id: provider.id,
         name: provider.name
     };
-    localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(fetchStatus));
+    // The IS_SLEEPING value this fetch's payload carries (null until built).
+    var sentSleeping = null;
+
+    /**
+     * Claim this fetch's single completion: clear the in-progress flag and run
+     * a forced fetch that queued up behind this one.
+     *
+     * @returns {boolean} True for the first completion, false for any later one.
+     */
+    function settle() {
+        if (settled) {
+            console.log('Ignoring a late completion from an already-finished weather fetch.');
+            return false;
+        }
+        settled = true;
+        app.fetchInProgress = false;
+        if (app.pendingForcedFetch) {
+            app.pendingForcedFetch = false;
+            // Off this callback's stack; re-reads app.provider, which a settings
+            // change may have replaced while this fetch was in flight.
+            setTimeout(function () { fetch(app.provider, true); }, 0);
+        }
+        return true;
+    }
+
+    /**
+     * Whether this fetch may still deliver: false once it settled, so a chain
+     * the watchdog abandoned never puts its stale payload on the channel.
+     *
+     * @returns {boolean} True while this fetch is the live one.
+     */
+    function isCurrent() {
+        return !settled;
+    }
 
     function onFetchSuccess() {
+        if (!settle()) { return; }
         // Success: record the fetch time and reset the attempt counter.
-        app.fetchInProgress = false;
         localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
         resetFetchAttemptCounter();
+        // The payload reached the watch (ACK, or unchanged since the last ACK):
+        // only now is its IS_SLEEPING the watch's state.
+        if (typeof sentSleeping === 'boolean') {
+            commitSleepState(sentSleeping);
+        }
         authBackoff.clear();
         // A successful fetch means the provider is working: drop error notices and
         // reset the notice send-cache so a later identical error re-notifies. The
@@ -933,8 +1024,14 @@ function fetch(provider, force) {
         maybeTrackWeatherFetch(successEvent);
     }
 
-    function onFetchFailure(failure) {
-        app.fetchInProgress = false;
+    /**
+     * @param {Object} failure Normalized fetch failure.
+     * @param {?Object} [radarTuples] This cycle's radar answer when the FORECAST
+     *   half failed (runFetchCycle); undefined on a coordinate failure.
+     * @returns {void}
+     */
+    function onFetchFailure(failure, radarTuples) {
+        if (!settle()) { return; }
         console.log('[!] Provider failed to update weather: ' + JSON.stringify(failure));
         // A 401/403 won't recover on its own — set the backoff so we stop
         // re-fetching a doomed key every cycle until the user forces a retry.
@@ -942,17 +1039,33 @@ function fetch(provider, force) {
             console.log('[!] Auth failure — pausing auto-fetch until Force fetch or config change.');
             authBackoff.set(failure);
         }
+        // No weather data is available on failure, so whatever the watch still
+        // needs rides alone, bundled into ONE send (the channel is half-duplex;
+        // change-detector skips absent categories).
+        var failureSend = {};
         // Surface notice-worthy failures (401/403 → watch overlay + settings panel;
         // 429 → settings panel only). Other failures raise nothing.
         var notice = notices.noticeForFailure(failure, provider.name, Date.now());
         if (notice) {
             notices.add(notice);
             if (notice.watch) {
-                // Error notices push a plain-text overlay; no weather data is
-                // available on failure, so this rides alone (change-detector skips
-                // absent categories).
-                outbox.sendWeather({ NOTICE_TEXT: notices.watchText() });
+                // Error notices push a plain-text overlay.
+                failureSend.NOTICE_TEXT = notices.watchText();
             }
+        }
+        // A radar CLEAR (radar off, or a source that can never answer: no key or
+        // endpoint, rejected key) must reach the watch even when the forecast half
+        // failed — e.g. tomorrow.io as both forecast and radar source with no key
+        // or a revoked one. Its extras died with the forecast, and without the
+        // clear the watch rolls its last window into a made-up "No rain ahead".
+        // The outbox dedupe sends it once. Not on a NACK: that send already
+        // carried it, and its uncommitted cache retries next cycle.
+        if (radarWire.isClearRadarTuples(radarTuples)
+            && !(failure && failure.stage === 'app_message')) {
+            Object.assign(failureSend, radarTuples);
+        }
+        if (Object.keys(failureSend).length > 0) {
+            outbox.sendWeather(failureSend);
         }
         var attemptStatus = {
             time: fetchStatus.time,
@@ -975,20 +1088,48 @@ function fetch(provider, force) {
         return forecastSeries.applyForecastSeries(payload, app.settings, app.watchInfo);
     }
 
+    // Watchdog: the chain is asynchronous, so a callback that throws — or a
+    // platform call that never answers, like a silent geolocation — escapes the
+    // try below and never reaches either completion. Give up on it after
+    // FETCH_WATCHDOG_MS and report it as a failure.
+    setTimeout(function () {
+        if (!settled) {
+            console.log('[!] Weather fetch still unfinished after ' + (FETCH_WATCHDOG_MS / 1000) + ' s, abandoning it.');
+            onFetchFailure(WeatherProvider.failure('fetch', 'watchdog_timeout'));
+        }
+    }, FETCH_WATCHDOG_MS);
+
     try {
+        attempt = incrementFetchAttemptCounter();
+        localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(fetchStatus));
         runFetchCycle({
             provider: provider,
             fetchRadar: withRainRadarTuplesAt,
-            buildExtras: buildWeatherExtras,
+            buildExtras: function (radarTuples) {
+                var extras = buildWeatherExtras(radarTuples);
+                sentSleeping = extras.IS_SLEEPING;
+                return extras;
+            },
             onSuccess: onFetchSuccess,
             onFailure: onFetchFailure,
             force: force,
-            payloadTransform: toRenderPayload
+            payloadTransform: toRenderPayload,
+            isCurrent: isCurrent
         });
     }
     catch (e) {
-        app.fetchInProgress = false;
+        // Once-guarded: a throw after this fetch already completed is ignored.
         console.log('Weather fetch threw synchronously: ' + e.message);
+        // The failure path writes storage and telemetry too, so it can throw for
+        // the same reason (a full localStorage); fetch() runs on the scheduler
+        // tick, and a throw escaping here would stop the tick loop for good.
+        // settle() runs first inside it, so the in-progress flag is clear either way.
+        try {
+            onFetchFailure(WeatherProvider.failure('fetch', 'exception'));
+        }
+        catch (eFail) {
+            console.log('Recording the weather fetch failure threw: ' + eFail.message);
+        }
     }
 }
 
@@ -1038,20 +1179,69 @@ function isSleepingNow() {
 }
 
 /**
- * Compute the current sleep state, persist it (app.lastIsSleeping + localStorage)
- * for the next needRefresh() call, and return it so the caller can include it in
- * a payload. The name signals the write: this is not a pure getter.
+ * Record the sleep state the watch now holds (app.lastIsSleeping +
+ * localStorage) for needRefresh(), which pauses fetching while asleep and
+ * known asleep. Call it only once a payload carrying IS_SLEEPING was
+ * delivered, with the value that payload CARRIED — not a fresh reading, which
+ * could differ if a window edge passed in between. Committing at build time
+ * let a failed sleep-onset fetch (geocode/provider error, NACK) mark the watch
+ * asleep although IS_SLEEPING never reached it, and needRefresh() then skipped
+ * every retry until the window ended: no sleep glyph, no radar snooze.
  *
- * Call this exactly once per fetch attempt that carries IS_SLEEPING; the
- * outbox transmits it to the watch only when the value changed.
- *
- * @returns {boolean} Current sleep state.
+ * @param {boolean} sleeping The IS_SLEEPING value that was delivered.
+ * @returns {void}
  */
-function updateSleepState() {
-    var sleeping = isSleepingNow();
+function commitSleepState(sleeping) {
     app.lastIsSleeping = sleeping;
     localStorage.setItem(KEY_LAST_IS_SLEEPING, sleeping ? 'true' : 'false');
-    return sleeping;
+}
+
+/**
+ * Whether a scheduled weather fetch should run this tick: a refresh is due
+ * (isRefreshDue) and the last attempt's failure backoff has run out.
+ *
+ * @returns {boolean} True when a fetch should run this tick.
+ */
+function needRefresh() {
+    if (!isRefreshDue()) { return false; }
+    return !isFailureBackoffActive(app.settings.fetchIntervalMin * 60 * 1000);
+}
+
+/**
+ * Whether the last fetch attempt failed recently enough that a scheduled
+ * refresh should still wait. Only the last SUCCESS feeds isRefreshDue, so
+ * without this a failing provider (5xx, 429, no network, no GPS fix) was
+ * re-requested on every 60 s tick whatever the interval. Spacing follows
+ * createChannelScheduler.failureBackoffMs over the persisted attempt record
+ * and counter, so it survives PKJS restarts; forced fetches never ask. Runs
+ * on every tick, where a throw would kill the loop — so a missing or corrupt
+ * record means no backoff, and nothing here throws.
+ *
+ * @param {number} intervalMs Refresh interval in ms.
+ * @returns {boolean} True while the backoff holds.
+ */
+function isFailureBackoffActive(intervalMs) {
+    try {
+        var last = JSON.parse(localStorage.getItem(KEY_LAST_FETCH_ATTEMPT));
+        if (!last || !last.error || !last.time) { return false; }
+        var elapsed = Date.now() - new Date(last.time).getTime();
+        // NaN, or a clock that went backwards: never stall on it.
+        if (!(elapsed >= 0)) { return false; }
+        var failures = getFetchAttemptCounter();
+        var waitMs = createChannelScheduler.failureBackoffMs(failures, last.error, intervalMs);
+        // Ticks land ~60 s apart, a few ms either side of the failed attempt's
+        // own tick; half a tick of slack retries on the tick the backoff names
+        // rather than the one after it. Written as "not still waiting" so a NaN
+        // wait (a non-numeric fetchIntervalMin) means no backoff, not one that
+        // never runs out.
+        if (!(elapsed + FAILURE_BACKOFF_SLACK_MS < waitMs)) { return false; }
+        console.log('Skipping weather fetch: backing off after ' + failures
+            + ' failed attempt(s), next try in ~' + Math.ceil((waitMs - elapsed) / 60000) + ' min.');
+        return true;
+    }
+    catch (e) {
+        return false;
+    }
 }
 
 /**
@@ -1059,9 +1249,9 @@ function updateSleepState() {
  * last-success marker, or once Date.now() crosses into a later refresh slot
  * (unless asleep and already known to be asleep).
  *
- * @returns {boolean} True when a fetch should run this tick.
+ * @returns {boolean} True when the refresh slot calls for a fetch.
  */
-function needRefresh() {
+function isRefreshDue() {
     // Slot-based boundary check: a "slot" is a chunk of length intervalMs since the
     // Unix epoch. Refresh whenever Date.now() sits in a later slot than the last
     // successful fetch. Slots are UTC-aligned, which matches local clock :NN

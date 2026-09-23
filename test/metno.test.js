@@ -13,6 +13,7 @@ WeatherProvider.request = function(url, type, onSuccess, onError, headers) {
   responder(url, type, onSuccess, onError, headers);
 };
 const metno = require('../src/pkjs/weather/metno.js');
+const { UV_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 
 const HOUR = 3600;
 const NOW = 1700003600;                       // some wall-clock "now"
@@ -100,6 +101,31 @@ test('missing probability and gusts (outside the Nordics) map to 0', () => {
   assert.equal(mapped.tempTrend[5], 50, 'the rest of the mapping is unaffected');
 });
 
+test('a gust fills the hour before its stamp: slot i reads bucket i + 1', () => {
+  // Met.no's instant wind_speed_of_gust is the peak of the hour ENDING at its
+  // stamp, so the 20 m/s stamped HOUR0 + 3h blew between +2h and +3h: slot 2.
+  const body = forecastBody(26, HOUR0, { 3: { instant: { wind_speed_of_gust: 20 } } });
+  const mapped = metno.mapResponse(body, NOW);
+  assert.equal(mapped.gustTrend[2], 72, '20 m/s → 72 km/h in the hour it blew in');
+  assert.equal(mapped.gustTrend[3], 36, 'not the hour after it');
+  assert.equal(mapped.gustTrend[1], 36);
+  // Rain and chance stay on their own bucket: next_1_hours starts at the stamp.
+  const wet = metno.mapResponse(forecastBody(26, HOUR0, { 3: { next1: { precipitation_amount: 4 } } }), NOW);
+  assert.equal(wet.rainTrend[3], 4);
+  assert.equal(wet.rainTrend[2], 0.8);
+});
+
+test('the last slot\'s gust degrades to 0 when the next bucket is missing or not an hour on', () => {
+  const exact = metno.mapResponse(forecastBody(24, HOUR0), NOW);
+  assert.equal(exact.gustTrend.length, 24);
+  assert.equal(exact.gustTrend[22], 36);
+  assert.equal(exact.gustTrend[23], 0, 'no bucket after the window');
+  // A 6-hourly step after the window is not the next hour either.
+  const body = forecastBody(25, HOUR0);
+  body.properties.timeseries[24].time = iso(HOUR0 + 29 * HOUR);
+  assert.equal(metno.mapResponse(body, NOW).gustTrend[23], 0);
+});
+
 test('mapResponse returns null when fewer than 24 hourly buckets remain from the anchor', () => {
   assert.equal(metno.mapResponse(forecastBody(20, HOUR0), NOW), null);
 });
@@ -136,8 +162,21 @@ test('withProviderData fills uvTrend only when fetchUv is set', () => {
   withMockedNow(NOW, () => {
     p.withProviderData(59.91, 10.75, true, () => {}, () => { throw new Error('must not fail'); });
   });
-  assert.equal(p.uvTrend.length, 24);
+  assert.equal(p.uvTrend.length, 26, 'UV reads on past the 24 h window, as far as the feed goes');
   assert.equal(p.uvTrend[0], 1.4);
+});
+
+test('mapResponse reads UV UV_HOURS deep and stops where Met.no turns 6-hourly', () => {
+  const last = UV_HOURS - 1;
+  const mapped = metno.mapResponse(forecastBody(60, HOUR0, { [last]: { instant: { ultraviolet_index_clear_sky: 6.2 } } }), NOW);
+  assert.equal(mapped.uvTrend.length, UV_HOURS);
+  assert.equal(mapped.uvTrend[last], 6.2);
+  assert.equal(mapped.tempTrend.length, 24, 'every other trend keeps the 24 h window');
+  // 30 hourly buckets, then a 6-hourly one: the coarse sample is not an hour.
+  const body = forecastBody(30, HOUR0);
+  const coarse = forecastBody(1, HOUR0 + 35 * HOUR).properties.timeseries[0];
+  body.properties.timeseries.push(coarse);
+  assert.equal(metno.mapResponse(body, NOW).uvTrend.length, 30);
 });
 
 test('withProviderData routes a parse error to onFailure', () => {

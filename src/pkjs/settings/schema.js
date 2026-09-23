@@ -8,6 +8,10 @@ var STATUS_THRESHOLDS = require('../status-thresholds.js');
 // The per-kind "Show unit" defaults come from the catalog's UNIT_TOGGLES
 // table (shared with the baker, the reset, and renderSignature).
 var STATUS_LINE_CATALOG = require('../status-line-catalog.js');
+// The two-value slots' presentation vocabulary: the separator presets, the UV next-day
+// marks and the custom separator's length, from the module that PRINTS them into the
+// slot text — so every option label is exactly what the watch will show.
+var STATUS_PAIR = require('../status-pair.js');
 var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_CURVE_HPA;
 // The graph-colour vocabulary: the storage key behind every picker, the roles each
 // metric actually owns, and the built-in colour each one defaults to. All of it comes
@@ -408,6 +412,117 @@ var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to '
 // the readers will read it backwards. Shared by both slots: one arrow, two kinds.
 var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
     'wind is blowing.';
+// The two-value slots — Temperature and UV in their "Both" mode — print a pair in one
+// slot (12/10, 3/7). How the pair reads is chosen per kind, on the rows pairRows()
+// builds below that kind's display pills. The phone bakes the text (status-pair.js,
+// through status-lines.js formatValue) and sanitises the custom separator there,
+// authoritatively, so the page stores what was typed and needs no hook. An absent key
+// reads as the default, so a blob saved before these rows existed keeps printing 12/10.
+//
+// The formatter's fit rule: a pair wider than its slot's byte cap drops its spaces, and
+// one still too wide prints with the plain slash, for that reading only. Only the
+// narrow left/right slots ever hit it ('-12 / -10' is 9 bytes of their 8), so the hint
+// names them the way the Watch tab's intro does, not as "edge slots".
+var PAIR_FALLBACK_HINT = 'In a left or right slot, a pair too wide to fit ' +
+    'drops its spaces, then falls back to the slash.';
+// The watch draws slot text in its Gothic system fonts, which cover printable ASCII and
+// Latin-1 (the slots already print '°' and '»' from them); the formatter keeps
+// only those, then the first two. Spaces are kept, not trimmed: ', ' is a real separator.
+var PAIR_CUSTOM_HINT = 'Up to ' + STATUS_PAIR.CUSTOM_MAX_CHARS + ' characters, spaces ' +
+    'included; empty uses the slash. Only characters the watch font can draw are kept ' +
+    '(printable ASCII and Latin-1).';
+/**
+ * Build the rows that shape a two-value slot's pair: the separator dropdown, the custom
+ * separator it can reveal, whether spaces flank the separator, and which value leads.
+ * All four show only in the kind's "Both" mode — the one mode that prints a pair — and
+ * join the display row tight, the way every group of rows revealed by a control joins
+ * that control (Theme switching's Night theme and Enabled hours).
+ *
+ * The presets are labelled by EXAMPLE, built on the kind's own sample numbers from the
+ * formatter's table: "12(10)" says what a name like "Brackets" would leave the reader
+ * to picture, and it cannot disagree with what the slot prints tight. The labels show
+ * the tight forms, the table's own; spacing is the toggle below, over every preset
+ * alike, so the dropdown stays one entry per separator instead of doubling (with the
+ * toggle on, the slot prints the label's spaced form).
+ *
+ * @param {string} prefix Key prefix: 'temp' or 'uv' (tempSlotDisplay, tempSlotSeparator …).
+ * @param {string} first Sample of the value that leads by default, e.g. '12'.
+ * @param {string} second Sample of the other value, e.g. '10'.
+ * @param {Array<Array<string>>} orderOptions The order pills as [label, value]; the
+ *     first one is the default (the order the slot has always printed).
+ * @returns {Object[]} The separator select, the custom-separator text field, the spacing
+ *     toggle, the order pills.
+ */
+function pairRows(prefix, first, second, orderOptions) {
+    var bothWhen = {key: prefix + 'SlotDisplay', eq: 'both'};
+    var presets = STATUS_PAIR.SEPARATORS;
+    var separators = Object.keys(presets).map(function (value) {
+        return [first + presets[value].mid + second + presets[value].end, value];
+    });
+    return [{
+        // A dropdown, not pills: five choices would be a wide pill row, and the owner
+        // asked for a drop-down of presets.
+        type: 'select',
+        messageKey: prefix + 'SlotSeparator',
+        label: 'Separator',
+        defaultValue: 'slash',
+        hint: PAIR_FALLBACK_HINT,
+        options: separators.concat([['Custom', 'custom']]),
+        joinPrevious: true,
+        showWhen: bothWhen
+    }, {
+        // maxlength is the soft UI cap (the browser counts UTF-16 units); the formatter
+        // re-applies the limit after dropping what the font can't draw.
+        type: 'text',
+        messageKey: prefix + 'SlotSeparatorCustom',
+        label: 'Custom separator',
+        defaultValue: '',
+        attributes: {maxlength: STATUS_PAIR.CUSTOM_MAX_CHARS},
+        hint: PAIR_CUSTOM_HINT,
+        joinPrevious: true,
+        showWhen: {all: [bothWhen, {key: prefix + 'SlotSeparator', eq: 'custom'}]}
+    }, {
+        // Spacing is orthogonal to the separator — the owner asked for 8/8 or 8 / 8
+        // "for all of them" — so it is one toggle, not a spaced twin of every preset.
+        // Off by default: an absent key must keep printing the 12/10 the slot always
+        // baked. The hint shows the spaced form of two separators, built through the
+        // formatter's own spaceAround on the kind's samples, so it says plainly that
+        // the toggle covers every separator (not "switch to a spaced slash", which
+        // the removed preset was) and cannot drift from what the slot prints.
+        type: 'toggle',
+        messageKey: prefix + 'SlotSeparatorSpaced',
+        label: 'Spaces around separator',
+        defaultValue: false,
+        hint: 'Adds spaces to any separator: ' +
+            [presets.slash, presets.brackets].map(function (preset) {
+                var spaced = STATUS_PAIR.spaceAround(preset);
+                return first + spaced.mid + second + spaced.end;
+            }).join(', ') + '.',
+        joinPrevious: true,
+        showWhen: bothWhen
+    }, {
+        type: 'segmented',
+        messageKey: prefix + 'SlotOrder',
+        label: 'Order',
+        defaultValue: orderOptions[0][1],
+        options: orderOptions,
+        joinPrevious: true,
+        showWhen: bothWhen
+    }];
+}
+/**
+ * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
+ * formatter's own table, so each label shows where its mark lands (three lead the
+ * number, the star trails it). 'none' would print a bare 6, which reads as no choice
+ * at all, so it is spelled out.
+ * @returns {Array<Array<string>>} [label, value] pairs, the formatter's order.
+ */
+function nextDayMarkOptions() {
+    var marks = STATUS_PAIR.NEXT_DAY_MARKS;
+    return Object.keys(marks).map(function (value) {
+        return [value === 'none' ? 'No mark' : marks[value].pre + '6' + marks[value].post, value];
+    });
+}
 /**
  * Build a slot kind's "Show unit" row — whether its status slot prints the unit after
  * the number. Only the kinds the PHONE bakes can offer it (status-lines.js formats the
@@ -942,23 +1057,13 @@ module.exports = {
             // owns its hours outright — there is no card-level window, so nothing in
             // the card reads or moves another group's times.
             title: 'Nighttime settings', items: [{
-                // Header and toggle carry the SAME gate on purpose: a hidden
-                // subheader stops hosting the switch, which would then render as a
-                // row of its own on every watch without the LED.
-                type: 'subheader',
-                text: 'Dim backlight',
-                toggleKey: 'backlightDim',
-                showWhen: BACKLIGHT_WHEN,
-                intro: 'Dim the backlight when it comes on between the hours below, so it is easier on your eyes.'
-            }, {
-                // The hosted toggle keeps its place in `items` (hydrate, serialize
-                // and the derived defaults all still see it); only its row is
-                // suppressed — which is also why the copy above rides the header's
-                // intro instead of this item's hint.
+                // Each group opens on its own switch row, which carries the group's
+                // copy as its hint — the same shape as every other toggle row.
                 type: 'toggle',
                 messageKey: 'backlightDim',
                 label: 'Dim backlight',
                 defaultValue: true,
+                hint: 'Dim the backlight when it comes on between the hours below, so it is easier on your eyes.',
                 showWhen: BACKLIGHT_WHEN
             }, {
                 // The dim window, and now the feature's only one — it no longer
@@ -970,17 +1075,14 @@ module.exports = {
                 // page and the reader agree on an install that never opened this
                 // card.
                 //
-                // No joinPrevious: this is the group's FIRST row. A join only ever
-                // acts on the row above (the engine's look-ahead classes the
-                // PRECEDING row), and above this one is the sub-header, which paints
-                // its own line and is skipped by the look-ahead — so a join here
-                // would render nothing and only read as if it did.
+                // First row under its switch — joins it tight.
                 type: 'select',
                 messageKey: 'backlightDimStartHour',
                 label: 'From',
                 defaultValue: '0',
                 options: HOURS,
                 inline: 'backlightDimHours',
+                joinPrevious: true,
                 showWhen: BACKLIGHT_ON_WHEN
             }, {
                 type: 'select',
@@ -1012,8 +1114,8 @@ module.exports = {
                     args: {key: 'backlightDimColor', defaultValue: BACKLIGHT_COLOR_DEFAULT}
                 },
                 // Joins the rows above into ONE block: everything a group reveals when its
-                // switch goes on belongs to that switch, so the only line inside the card is
-                // the one each group's sub-header draws above itself.
+                // switch goes on belongs to that switch, so the only lines inside the card
+                // are the ones between groups.
                 //
                 // TIGHT, not 'loose', and that is a card-wide rule rather than this row's
                 // taste: a tight join sets the gap to 5px+5px and a loose one leaves the
@@ -1025,14 +1127,6 @@ module.exports = {
                 joinPrevious: true,
                 showWhen: BACKLIGHT_ON_WHEN
             }, {
-                type: 'subheader',
-                text: 'Theme switching',
-                toggleKey: 'themeAuto',
-                // themePolarity: aplite has nothing to switch between (the light
-                // polarity is compiled out there), so the whole group hides.
-                showWhen: {env: 'themePolarity'},
-                intro: 'Switch between two themes automatically — with the sun, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.'
-            }, {
                 // The Theme row in the card above doubles as the day theme and is
                 // left exactly as the user set it; enabling this only seeds a night
                 // theme (theme-flip.js).
@@ -1040,17 +1134,22 @@ module.exports = {
                 messageKey: 'themeAuto',
                 label: 'Theme switching',
                 defaultValue: false,
+                hint: 'Switch between two themes automatically — with the sun, or on a fixed schedule. The phone applies the switch, so it can land a little late while the watch is disconnected.',
+                // themePolarity: aplite has nothing to switch between (the light
+                // polarity is compiled out there), so the whole group hides.
                 showWhen: {env: 'themePolarity'},
                 onChange: 'themeAutoPreset'
             }, {
                 // No themeConvert here: the stored colour defaults track the DAY
                 // theme's polarity; the night flip converts a scratch copy at send
-                // time instead (theme-schedule.js).
+                // time instead (theme-schedule.js). First row under its switch, so
+                // both copies join it tight.
                 type: 'select',
                 messageKey: 'themeNight',
                 label: 'Night theme',
                 defaultValue: 'dark',
                 options: [['Dark', 'dark'], ['Light', 'light'], ['B&W', 'bw'], ['B&W Inverted', 'bw-light']],
+                joinPrevious: true,
                 showWhen: {all: [{env: 'color'}, {key: 'themeAuto', eq: true}]}
             }, {
                 type: 'select',
@@ -1058,6 +1157,7 @@ module.exports = {
                 label: 'Night theme',
                 defaultValue: 'dark',
                 options: [['Dark', 'dark'], ['Light', 'light']],
+                joinPrevious: true,
                 showWhen: {all: [{not: {env: 'color'}}, {env: 'themePolarity'}, {key: 'themeAuto', eq: true}]}
             }, {
                 // The one mode switch left in the card: sunrise/sunset is a real
@@ -1096,30 +1196,25 @@ module.exports = {
                 // "Sending", not "fetching": with the phone-battery slot the saver
                 // also suppresses the status micro-send, so the copy has to describe
                 // what it stops, not where the data comes from.
-                type: 'subheader',
-                text: 'Battery saver',
-                toggleKey: 'sleepNightEnabled',
-                intro: 'Stop sending updates to your watch between the hours below to save battery.'
-            }, {
                 type: 'toggle',
                 messageKey: 'sleepNightEnabled',
                 label: 'Battery saver',
-                defaultValue: true
+                defaultValue: true,
+                hint: 'Stop sending updates to your watch between the hours below to save battery.'
             }, {
                 // sleepStartHour/sleepEndHour, back under the switch that has always
                 // owned them: same keys, same options, same '0'/'7' defaults, same
                 // gate. Nothing an install has stored means anything different than
                 // it did before the Nighttime card existed.
                 //
-                // No joinPrevious, for the same reason as Dim backlight's From: the
-                // group's first row has only its sub-header above it, and a join
-                // classes the row ABOVE — there is none to class.
+                // First row under its switch — joins it tight.
                 type: 'select',
                 messageKey: 'sleepStartHour',
                 label: 'From',
                 defaultValue: '0',
                 options: HOURS,
                 inline: 'sleepHours',
+                joinPrevious: true,
                 showWhen: {key: 'sleepNightEnabled', eq: true}
             }, {
                 type: 'select',
@@ -1660,7 +1755,33 @@ module.exports = {
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
         }, unitRow('gustSlotUnit', null, null)]),
-        thresholdSection('UV index', 'Uv', ''),
+        // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
+        // per-kind, baked phone-side (status-lines.js formatValue), and on
+        // renderSignature() so a change re-bakes without waiting for the next fetch.
+        // What each mode prints is wire-units' uvShown.
+        // It sits above the Thresholds group like the wind arrow: it configures the
+        // slot, and the highlight follows it (the policy is status-thresholds.js
+        // displayValue's). So do the rows shaping how it reads, which change the
+        // text only — the highlight judges the numbers, never their presentation.
+        thresholdSection('UV index', 'Uv', '', null, [{
+            type: 'segmented',
+            messageKey: 'uvSlotDisplay',
+            label: 'UV selection',
+            hint: 'Show the UV index now, the highest it still gets today, or both. Today\'s peak shows until the UV drops below it, then the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.',
+            defaultValue: 'current',
+            options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
+        }].concat(pairRows('uv', '3', '7', [['Now first', 'now'], ['Max first', 'max']]), [{
+            // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
+            // Both, the two modes that print a max. 'raquo' is the '»' the slot
+            // printed before this row existed, so it stays the default.
+            type: 'select',
+            messageKey: 'uvSlotNextDayMark',
+            label: 'Tomorrow\'s peak mark',
+            defaultValue: 'raquo',
+            options: nextDayMarkOptions(),
+            joinPrevious: true,
+            showWhen: {key: 'uvSlotDisplay', in: ['max', 'both']}
+        }])),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
         thresholdSection('Sleep', 'Sleep',
@@ -1668,7 +1789,8 @@ module.exports = {
         thresholdSection('Walked distance', 'Distance',
             'Distance walked per day.', HEALTH_SLOT_WHEN),
         // Bold-only sheets for the level-less slot kinds (same pencil, one row —
-        // plus Temp's display-mode row). Order and labels mirror the contract's
+        // plus the display rows a few kinds add below it: Temp's mode and pair,
+        // the units, the date formats). Order and labels mirror the contract's
         // KINDS appendix (wire ids 8..19); the battery GLYPH item is deliberately
         // absent — see boldSection (the battery PERCENTAGE kind sits near the end).
         // "Temperature slot", not the catalog's "Temperature (actual/feels like)":
@@ -1678,28 +1800,30 @@ module.exports = {
             // Global per-kind, like the bold modes: one choice covers every slot
             // showing temp. The phone bakes the slot text from it (status-lines.js
             // formatValue) and it rides renderSignature(), so a change re-bakes
-            // without waiting for the next fetch. 'both' renders slash-separated,
-            // actual first: 12/10; a missing feels-like value falls back to the
-            // actual temp alone.
+            // without waiting for the next fetch. 'both' prints the pair the rows
+            // below shape — 12/10, actual first, until someone picks otherwise; a
+            // missing feels-like value falls back to the actual temp alone.
             type: 'segmented',
             messageKey: 'tempSlotDisplay',
             label: 'Temperature selection',
-            hint: 'Show the measured temperature, what it feels like, or both as actual/feels-like.',
+            hint: 'Show the measured temperature, what it feels like, or both. For both, choose the separator and order below.',
             defaultValue: 'actual',
             options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']],
             // Picking Both clears the degree: "-12/-10" is already 7 of an edge
             // slot's 8 bytes and the sign is two more, so the pair cannot fit.
             // Clearing it here is the fill-vs-feels pattern (forecastMetricFill).
             onChange: 'tempUnitExclusive'
+        }].concat(pairRows('temp', '12', '10',
+            [['Temp first', 'actual'], ['Feels like first', 'feels']]), [
             // The degree sign alone, never °C/°F: the unit is already the Units tab's
             // temperatureUnits choice, and restating it in a three-character slot
             // spends the width on something the user picked once. Off by default —
             // temp slots have never printed a degree sign. Turning it ON while the
             // mode is Both drops the mode back to Temp, the mirror of the hook above;
             // status-lines.js holds the authoritative gate for a blob that predates
-            // either.
-        }, Object.assign(unitRow('tempSlotUnit', '12°', '12'),
-            { onChange: 'tempUnitExclusive' })]),
+            // either. No join: it answers to every mode, not to Both's pair rows.
+            Object.assign(unitRow('tempSlotUnit', '12°', '12'),
+                { onChange: 'tempUnitExclusive' })])),
         boldSection('Air pressure (hPa)', 'Pressure', null,
             [unitRow('pressureSlotUnit', '1013hPa', '1013')]),
         boldSection('Sunrise/sunset', 'Sun'),
@@ -1835,7 +1959,19 @@ module.exports = {
                 // view-cycle.js's bake); the other presets ignore it.
                 defaultValue: true,
                 hint: 'Move the status row below the clock, next to the forecast.',
-                showWhen: {key: 'layoutPreset', eq: 'compactCal'}
+                // Gated on the preset the radio SHOWS, not merely the stored one: a DORMANT
+                // value displays as compactCal (layoutPreset's dormantValues) and compiles
+                // as compactCal, swap included (view-cycle.js buildViewCycle, resolvePresetKey).
+                // That is a compactDense no status row makes dense — the complement of
+                // blocks.js layoutPresetOptions' dense predicate; keep the two in step — and
+                // a 'custom' on aplite, which never offers Custom.
+                showWhen: {any: [
+                    {key: 'layoutPreset', eq: 'compactCal'},
+                    {all: [{key: 'layoutPreset', eq: 'compactDense'},
+                           {key: 'healthMode', in: ['off', 'slot']},
+                           {key: 'radarMode', in: ['off', 'countdown']}]},
+                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]}
+                ]}
             }, {
                 // Last in the section deliberately: the rows above shape what the layout
                 // LOOKS like, this one is about when it snaps back. It is also the one row

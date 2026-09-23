@@ -1863,7 +1863,8 @@ static const struct clock_case CLOCK_CASES[] = {
     { "noCal+lower",   1, STATUS_SRC_HEALTH,   STATUS_SRC_FORECAST },
 };
 
-// The six SHIPPING metrics from clock_ink.h, plus two synthetic ones. The synthetics matter more
+// The SHIPPING metrics from clock_ink.h (the six measured pairs, and on 144px the one pair the
+// anti-aliased strips change: basalt's Roboto inks 34 rows, not 35), plus two synthetic ones. The synthetics matter more
 // than the real ones here: a rule that only balances the fonts it was measured on is a table in
 // disguise, so one deliberately off-centre face and one with the opposite ink_h parity are swept
 // too (parity is what made the naive "centre = (above+below)/2" formulation lean 2px).
@@ -1872,6 +1873,7 @@ static const ClockInk CLOCK_INKS[] = {
     {  2, 46 }, {  2, 42 }, {  2, 45 },
 #else
     {  0, 35 }, { -1, 29 }, { -2, 31 },
+    {  0, 34 },    // basalt Roboto, an anti-aliased strip (clock_glyphs_ink.h)
 #endif
     {  7, 20 },    // wildly off-centre, even ink
     { -6, 33 },    // off-centre the other way, odd ink

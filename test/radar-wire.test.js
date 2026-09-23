@@ -29,3 +29,13 @@ test('clearRadarTuples returns empty trend arrays and a zero start', () => {
     RAIN_RADAR_START: 0
   });
 });
+
+test('isClearRadarTuples: the clear only — not a window, not a flat out-of-coverage window, not no answer', () => {
+  assert.equal(radarWire.isClearRadarTuples(radarWire.clearRadarTuples()), true);
+  assert.equal(radarWire.isClearRadarTuples(radarWire.flatRadarTuples(1700000100)), false);
+  const rain = new Array(24).fill(0); rain[5] = 30;
+  assert.equal(radarWire.isClearRadarTuples(radarWire.pointRadarTuples(rain, 1700000100)), false);
+  assert.equal(radarWire.isClearRadarTuples(null), false);
+  assert.equal(radarWire.isClearRadarTuples(undefined), false);
+  assert.equal(radarWire.isClearRadarTuples({}), false);
+});

@@ -105,3 +105,42 @@ test('onSubmit leaves a GPS cache at or above the interval unchanged', function 
     OB.onSubmit(ctx);
     assert.equal(store.gpsCacheMin, '30');
 });
+
+// --- the tomorrow.io budget guard at save time --------------------------------------
+// The page snaps fetchIntervalMin into its budget list only while that row renders (the
+// General tab); the radar provider/mode it depends on are edited on the Radar tab.
+function budgetCtx(over) {
+    var store = Object.assign({
+        provider: 'tomorrowio', radarProvider: 'tomorrowio', radarMode: 'graph',
+        sleepNightEnabled: false, sleepStartHour: 22, sleepEndHour: 7,
+        tomorrowioFitBudget: true, fetchIntervalMin: '5', gpsCacheMin: '5',
+        locationMode: 'gps', location: ''
+    }, over || {});
+    return { store: store, ctx: loadContext(store, 'basalt') };
+}
+
+test('onSubmit fits an interval the tomorrow.io budget no longer affords', function () {
+    // Weather + radar on tomorrow.io, no night pause: 5 min = 576 calls/day > 500.
+    var b = budgetCtx();
+    OB.onSubmit(b.ctx);
+    assert.equal(b.store.fetchIntervalMin, '15', 'the item default, which fits');
+    assert.equal(b.store.gpsCacheMin, '15', 'and the GPS cache raise sees the fitted interval');
+});
+
+test('onSubmit leaves an interval alone when it fits, the guard is off, or no tomorrow.io call is made', function () {
+    var fits = budgetCtx({ radarProvider: 'rainbow' });   // 1 call/cycle: 288/day
+    OB.onSubmit(fits.ctx);
+    assert.equal(fits.store.fetchIntervalMin, '5');
+
+    var paused = budgetCtx({ sleepNightEnabled: true });  // 9 h pause: 360/day
+    OB.onSubmit(paused.ctx);
+    assert.equal(paused.store.fetchIntervalMin, '5');
+
+    var off = budgetCtx({ tomorrowioFitBudget: false });
+    OB.onSubmit(off.ctx);
+    assert.equal(off.store.fetchIntervalMin, '5', 'guard off: the page only warns');
+
+    var none = budgetCtx({ provider: 'dwd', radarProvider: 'dwd', fetchIntervalMin: '20' });
+    OB.onSubmit(none.ctx);
+    assert.equal(none.store.fetchIntervalMin, '20', 'no tomorrow.io in play: not this guard\'s business');
+});

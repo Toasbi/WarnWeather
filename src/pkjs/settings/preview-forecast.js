@@ -120,6 +120,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // (see rainBars' `outline` param below) using ink.fg as the stroke color, which
         // this variable also equals there — same value, different role.
         var barFg = isColor ? (isLightPolarity(cx.theme) ? '#555555' : '#FFFFFF') : ink.fg;
+        // The light colour theme keeps that interior and adds chart.c's theme_fg()
+        // silhouette on top (BAR_OUTLINED is drawn in every theme but colour-dark).
+        var barEdge = (isColor && isLightPolarity(cx.theme)) ? ink.fg : null;
 
         // One coherent 12-point scenario starting at noon (slot 0 = 12:00): an afternoon
         // shower that suppresses UV, UV gone overnight, temp dipping then rising toward dawn.
@@ -232,12 +235,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         function drawAxis() {
             // One tick per hourly slot; a big tick + hour digit every 3rd slot (mirrors the watch's
-            // big_every = 3). Hour = 12 + i (mod 24): 12, 15, 18, 21 over the noon→23:00 window.
+            // big_every = 3). Hour = 12 + i (mod 24): 12, 15, 18, 21 over the noon→23:00 window,
+            // folded to 12, 3, 6, 9 by the 12h axis setting (config.c config_axis_hour: 0 → 12).
             var out = '';
             for (var i = 0; i < n; i += 1) {
                 var big = i % 3 === 0;
                 out += '<line x1="' + tickX(i) + '" y1="' + PB + '" x2="' + tickX(i) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.32') + '" stroke-width="0.6"></line>';
-                if (big) { out += txt(tickX(i), 111, 7.5, '#7C828D', 'middle', 600, String((12 + i) % 24)); }
+                if (big) {
+                    var h = (12 + i) % 24;
+                    if (state.axisTimeFormat === '12h') { h = h % 12 || 12; }
+                    out += txt(tickX(i), 111, 7.5, '#7C828D', 'middle', 600, String(h));
+                }
             }
             return out;
         }
@@ -389,6 +397,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * Legend strip below the chart. Lists only the shown series (Temp always; main metric;
          * second metric if on; Rain if bars on). Color watch: hued glyph + label, with a 5-band
          * gradient for Rain. B&W: white style glyphs (thick line / thin line / dots / outline box).
+         * The row starts under the plot (PX0) and never runs past the frame's right edge: a
+         * row too long for that first borrows the empty hi/lo label column (x = 3; the hi/lo
+         * labels sit higher up), then closes the gaps toward a floor, and only then shrinks
+         * the label text. The frame cannot grow a second row — its height is fixed and the
+         * block is sticky, so extra height would cost scroll space on the Forecast tab.
          * @returns {string} SVG markup
          */
         function drawLegend() {
@@ -401,18 +414,34 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             if (state.barSource === 'rain') { entries.push({ kind: 'rain', label: 'Rain' }); }
 
-            var gy = 118, ty = 121, out = '', x = PX0;
+            var tierGlyph = isColor && state.rainBarColor !== 'white';
+            var glyphW = function (en) { return (en.kind === 'rain' && tierGlyph) ? P.rainTiers.length * 2.4 + 2 : 14; };
+            // Fit the row: fixed glyph widths + 3 before each label, label.length * 4.3 of text.
+            var ADV = 4.3, FONT = 7.5, RIGHT = PX1, gap = 8, fixedW = 0, textW = 0, j;
+            for (j = 0; j < entries.length; j += 1) {
+                fixedW += glyphW(entries[j]) + 3;
+                textW += entries[j].label.length * ADV;
+            }
+            var gaps = entries.length - 1, start = PX0, textK = 1;
+            if (start + fixedW + textW + gap * gaps > RIGHT) { start = 3; }
+            if (gaps > 0 && start + fixedW + textW + gap * gaps > RIGHT) {
+                gap = Math.max(3, (RIGHT - start - fixedW - textW) / gaps);
+            }
+            if (textW > 0 && start + fixedW + textW + gap * gaps > RIGHT) {
+                textK = (RIGHT - start - fixedW - gap * gaps) / textW;
+            }
+
+            var gy = 118, ty = 121, out = '', x = start;
             for (var i = 0; i < entries.length; i += 1) {
-                var en = entries[i], gw = 14;
+                var en = entries[i], gw = glyphW(en);
                 if (en.kind === 'line') {
                     out += '<line x1="' + x + '" y1="' + gy + '" x2="' + (x + 12) + '" y2="' + gy + '" stroke="' + en.color + '" stroke-width="' + en.w + '" stroke-linecap="round"></line>';
                 } else if (en.kind === 'dots') {
                     out += rect(x + 1, gy - 1.6, 3.2, 3.2, en.color) + rect(x + 8, gy - 1.6, 3.2, 3.2, en.color);
-                } else if (isColor && state.rainBarColor !== 'white') {
+                } else if (tierGlyph) {
                     for (var k = 0; k < P.rainTiers.length; k += 1) {
                         out += rect(x + k * 2.4, gy - 3.5, 2.4, 7, P.rainTiers[k].color);
                     }
-                    gw = P.rainTiers.length * 2.4 + 2;
                 } else if (isColor) {
                     // colour + Solid bars: a solid swatch, matching the solid bars (dims to
                     // DarkGray in the light theme, like the bars themselves — see barFg)
@@ -422,8 +451,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                     out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + ink.fg + '" stroke-width="1"></rect>';
                 }
                 var lx = x + gw + 3;
-                out += txt(lx, ty, 7.5, '#AEB4BD', 'start', 600, en.label);
-                x = lx + en.label.length * 4.3 + 8;
+                out += txt(lx, ty, textK < 1 ? Math.round(FONT * textK * 100) / 100 : FONT, '#AEB4BD', 'start', 600, en.label);
+                x = lx + en.label.length * ADV * textK + gap;
             }
             return out;
         }
@@ -451,12 +480,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // night-area underlay, which re-shades the filled area during the night hours.
         e += nightTint;
         if (state.barSource === 'rain') {
-            // White (or theme-flipped) when the setting says so OR effectively-B&W. B&W draws
-            // the outlined silhouette (BAR_OUTLINED); colour-white draws a solid bar
-            // (BAR_SOLID) — matching the watch.
+            // White (or theme-flipped) when the setting says so OR effectively-B&W. The watch
+            // draws every one of these bars BAR_OUTLINED: B&W as a theme_bg()-filled
+            // silhouette, colour-light as the palette/Solid interior with the theme_fg()
+            // silhouette over it (barEdge), colour-dark with no outline at all.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
             for (var i = 0; i < n - 1; i += 1) {
-                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg);
+                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg, barEdge);
             }
         }
         e += lineFor(state.secondaryLine);

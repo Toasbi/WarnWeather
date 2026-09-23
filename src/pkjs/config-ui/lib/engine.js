@@ -652,10 +652,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var key = esc(item.messageKey), value = cx.S[item.messageKey];
     var listId = 'ssel-list-' + key, titleId = 'ssel-ttl-' + key;
     var title = esc(String(item.label || 'Selection'));
+    // The search box sits in a wrapper that owns the spacing as PADDING. A margin on the
+    // input itself exposed the dialog's own box in the strips beside/under it, and a tap
+    // there targets the <dialog> — which the click handler reads as a ::backdrop tap and
+    // closes the sheet (dropping the query). No sheet child may carry an outer margin.
     var search = item.type === 'searchSelect'
-      ? '<input type="text" class="ssel-search" data-select-search="' + key
-        + '" aria-controls="' + listId + '" placeholder="Search…" value="'
-        + esc(cx.selectQuery || '') + '">'
+      ? '<div class="ssel-search-wrap"><input type="text" class="ssel-search" data-select-search="'
+        + key + '" aria-controls="' + listId + '" placeholder="Search…" value="'
+        + esc(cx.selectQuery || '') + '"></div>'
       : '';
     // Inner content only — the host <dialog id="modal"> is the sheet, and its ::backdrop
     // replaces the old dim overlay. The dialog carries role/modal semantics natively;
@@ -1370,6 +1374,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var lastSelectKey = null;
     // Same, for an edit sheet: the sheetId whose pencil trigger regains focus on close.
     var lastEditSheet = null;
+    // A `select` row inside an edit sheet opens its options in the same dialog, on top
+    // of the sheet (openSelect set while openEdit stays set); every close path then
+    // returns to the sheet instead of dismissing both (closeModal). This holds the
+    // sheet's scroll offset across that detour — null when no detour is pending.
+    var sheetScrollTop = null;
     // Optional one-shot callback fired after the sheet closes, set by openSheet() so an external
     // caller (the onboarding wizard, which lives in its own overlay) can react to a pick/dismiss.
     var onSheetClose = null;
@@ -1409,7 +1418,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (opening) { dlg.showModal(); }
         var ttl = dlg.querySelector('.ssel-modal-ttl');
         if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
-        if (openEdit) { dlg.classList.add('edit'); } else { dlg.classList.remove('edit'); }
+        // A select nested over an edit sheet is dressed as a select: the sheet is not
+        // what the dialog shows until the select closes.
+        var editShown = Boolean(openEdit && !openSelect);
+        if (editShown) { dlg.classList.add('edit'); } else { dlg.classList.remove('edit'); }
         // An expanded palette needs more room than the 80dvh cap allows (.picking raises it
         // to 94dvh). syncDialog runs on EVERY render, not just the open edge, so this tracks
         // the palette opening and closing inside an already-open sheet. add/remove, never the
@@ -1417,7 +1429,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // openColor is shared with the tab body, and only the EDIT sheet ever renders a
         // palette; without the openEdit half, a palette left expanded in the body would
         // also grow (and un-peek) an unrelated select sheet opened from the same card.
-        if (openEdit && openColor) { dlg.classList.add('picking'); } else { dlg.classList.remove('picking'); }
+        if (editShown && openColor) { dlg.classList.add('picking'); } else { dlg.classList.remove('picking'); }
         if (openDate) {
           dlg.classList.remove('search');
           dlg.classList.add('date');
@@ -1498,6 +1510,26 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var selectKey = lastSelectKey;
       var dateKey = openDate;
       var editKey = lastEditSheet;
+      // A select nested over an edit sheet closes back to the sheet — a pick, the X,
+      // the backdrop, Escape and the swipe-down all land here — and focus returns to
+      // its trigger row inside the sheet. The sheet itself stays open.
+      if (openSelect && openEdit) {
+        openSelect = null;
+        selectQuery = '';
+        lastSelectKey = null;
+        var modal = document.getElementById('modal');
+        // A swipe-down leaves the drag offset inline on the dialog, and only the
+        // full-close branch of syncDialog clears it — the sheet would come back
+        // pushed down by the swipe distance with its bottom rows off-screen.
+        modal.style.transform = '';
+        modal.style.transition = '';
+        render();
+        var back = (selectKey && modal.querySelector)
+          ? modal.querySelector('[data-select="' + selectKey + '"]') : null;
+        if (back) { back.focus(); }
+        return;
+      }
+      sheetScrollTop = null;
       dateWiring.flushPending();
       openSelect = null;
       openDate = null;
@@ -1560,16 +1592,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var modalEl = document.getElementById('modal');
       var prevList = modalEl.querySelector ? modalEl.querySelector('.ssel-list') : null;
       var keepTop = prevList ? prevList.scrollTop : 0;
+      // A select opened FROM an edit sheet takes the dialog over; the sheet comes back
+      // when it closes (closeModal).
+      var editShown = Boolean(openEdit && !openSelect);
       modalEl.innerHTML = openDate
         ? renderDateModal(SCHEMA, cx)
-        : openEdit ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
+        : editShown ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
       // The edit sheet's scroll container is a NEW node after every render, so a swatch
       // click would otherwise snap the sheet back to the top. Restore the offset, then
       // nudge a freshly opened palette into view. Rect math, not offsetTop (.ssel-list is
       // not positioned, so it is not the offsetParent) and not scrollIntoView({block:…})
       // (the options-object form is unsafe in old Android WebViews).
-      var list = (openEdit && modalEl.querySelector) ? modalEl.querySelector('.ssel-list') : null;
+      var list = (editShown && modalEl.querySelector) ? modalEl.querySelector('.ssel-list') : null;
       if (list) {
+        // Back from a nested select: the list just replaced was the select's, so the
+        // offset to restore is the one the sheet had when the select opened.
+        if (sheetScrollTop !== null) { keepTop = sheetScrollTop; sheetScrollTop = null; }
         list.scrollTop = keepTop;
         var sw = openColor ? list.querySelector('[data-color="' + openColor + '"]') : null;
         var row = (sw && sw.closest) ? sw.closest('.row') : null;
@@ -1779,7 +1817,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // render() repaints the dialog's innerHTML in place (openEdit is
         // unchanged), so the sheet stays open throughout. The openEdit gate keeps
         // clicks inside date/select sheets out of the control cases.
-        if (openEdit && e.target.closest && controlClick(e)) { return; }
+        // A select row in the sheet opens its options over the sheet (see
+        // sheetScrollTop); closeModal brings the sheet back.
+        if (openEdit && !openSelect && e.target.closest && (t = e.target.closest('[data-select]'))) {
+          var list = modal.querySelector ? modal.querySelector('.ssel-list') : null;
+          sheetScrollTop = list ? list.scrollTop : 0;
+          openColor = null;
+          openSelect = t.getAttribute('data-select');
+          selectQuery = '';
+          lastSelectKey = openSelect;
+          render();
+          focusModal();
+          return;
+        }
+        if (openEdit && !openSelect && e.target.closest && controlClick(e)) { return; }
         if (e.target.closest && (t = e.target.closest('.date-opt')) && openDate) {
           var wheel = t.closest('[data-date-wheel]');
           if (!wheel) { return; }
@@ -1792,7 +1843,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           render();
           return;
         }
-        // Backdrop light-dismiss: a ::backdrop click targets the dialog element itself.
+        // Backdrop light-dismiss: a ::backdrop click targets the dialog element itself. So
+        // does a tap on any bare patch of the sheet, which is why no sheet child may carry
+        // an outer margin (see .ssel-search-wrap in renderSelectModal).
         if ((e.target.closest && e.target.closest('[data-select-close]'))
             || e.target === modal) {
           closeModal(); return;
@@ -1826,6 +1879,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // (translateY) and closes past a threshold; a shorter drag snaps back.
       var dragY = null, dragging = false;
       modal.addEventListener('touchstart', function (e) {
+        // A date wheel must not settle (and re-render) under a finger that is still down.
+        dateWiring.onModalTouch(e);
         // A touch that lands on a slider is a value adjustment, never a sheet
         // dismissal — arming here would drag the whole sheet along with every
         // slightly-diagonal thumb gesture (and close it past the threshold). Same
@@ -1855,12 +1910,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         modal.style.transform = 'translateY(' + dy + 'px)';
       }, { passive: false });
       modal.addEventListener('touchend', function (e) {
+        dateWiring.onModalTouch(e);   // the release re-arms a wheel's held-back settle
         if (dragY != null && dragging) {
           if (e.changedTouches[0].clientY - dragY > 90) { closeModal(); }
           else { modal.style.transition = 'transform .2s ease'; modal.style.transform = ''; }
         }
         dragY = null; dragging = false;
       }, { passive: true });
+      modal.addEventListener('touchcancel', dateWiring.onModalTouch, { passive: true });
       // Threshold sliders live in the edit sheet: the same shared range drag/keyboard
       // handlers (and the scale-max commit) #scroll carries must work here too.
       modal.addEventListener('focusout', rangeWiring.commitMaxEdit);
@@ -1924,6 +1981,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     PConf.hooks.runReady({
       S: S, ENV: ENV, USERDATA: USERDATA, schema: SCHEMA, cfg: INJECTED_CFG || {},
       get: hookCtx.get, set: hookCtx.set, render: render, save: save,
+      // The id of the tab on screen right now. render() rebuilds only that tab, so a
+      // block repainting from an async completion can skip a repaint no one would see
+      // (and that would tear down a field the user is typing in on another tab).
+      activeTab: function () { return activeTab; },
       // Open a schema select/searchSelect in the shared bottom-sheet dialog. Used by the wizard,
       // which lives in its own overlay: the sheet is a showModal() top-layer dialog, so it renders
       // above that overlay. The engine sets S[key] on pick; onClose fires after any close.

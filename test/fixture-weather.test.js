@@ -166,6 +166,38 @@ test('fixture uvIndex feeds the UV secondary line', () => {
   assert.ok(payload.SECONDARY_LINE_TREND_UINT8.every(function(b) { return b === 125; }), 'all UV 5.5 → byte 125');
 });
 
+// End to end: provider series -> getPayload (localDayPeaks, tenths on the wire)
+// -> the baked slot text and level, UV_DAY_PEAKS stripped before send. The
+// fixture's numEntries comes from temps (3), while uvTrend keeps all 48 hours,
+// just like a live provider's longer UV reach.
+const UV_SLOT = { statusForecastLeft: 'uv', uvSlotDisplay: 'both', threshUvWarn: '6', threshUvDanger: '8',
+  secondaryLine: 'wind', windScale: 'mid', barSource: 'off' };
+test('a 48 h fixture uvIndex bakes the day peaks into the UV slot text and level', () => {
+  const eve = new Date(2026, 6, 15, 20).getTime() / 1000;   // local: host-TZ-proof
+  const uvE = new Array(48).fill(0); uvE[16] = 8.4;          // 12:00 tomorrow
+  const o1 = getFixtureWeatherPayload(makeFixture({ startEpoch: eve, uvIndex: uvE }), UV_SLOT);
+  assert.equal(decodeLine(o1.STATUS_LINE_1_UINT8)[0].text, '0/»8');
+  assert.deepEqual(o1.STATUS_LEVELS_UINT8, [0, 0], "tomorrow's marked peak never counts");
+  assert.ok(!('UV_DAY_PEAKS' in o1), 'transient, stripped before send');
+  const morn = new Date(2026, 6, 15, 9).getTime() / 1000;
+  const uvM = new Array(48).fill(0); uvM[3] = 8.4;           // 12:00 today
+  const o2 = getFixtureWeatherPayload(makeFixture({ startEpoch: morn, uvIndex: uvM }), UV_SLOT);
+  assert.equal(decodeLine(o2.STATUS_LINE_1_UINT8)[0].text, '0/8');
+  assert.deepEqual(o2.STATUS_LEVELS_UINT8, [0, 2]);
+});
+
+// The pair's presentation (status-pair.js) rides the same bake: one non-default style
+// end to end, in the 8-byte edge slot. The level is the numbers', not the text's.
+test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow\'s', () => {
+  const eve = new Date(2026, 6, 15, 20).getTime() / 1000;
+  const uvE = new Array(48).fill(0); uvE[16] = 8.4;          // 12:00 tomorrow
+  const styled = Object.assign({}, UV_SLOT,
+    { uvSlotOrder: 'max', uvSlotSeparatorSpaced: true, uvSlotNextDayMark: 'star' });
+  const o = getFixtureWeatherPayload(makeFixture({ startEpoch: eve, uvIndex: uvE }), styled);
+  assert.equal(decodeLine(o.STATUS_LINE_1_UINT8)[0].text, '8* / 0');
+  assert.deepEqual(o.STATUS_LEVELS_UINT8, [0, 0], "tomorrow's peak still never counts");
+});
+
 // fixture-weather.js reads currentTemp/precipPct/windKmh/etc from the fixture's weather
 // block onto the corresponding provider.*Trend field, but pressureHpa was never wired to
 // provider.pressureTrend — so PRESSURE_TREND stayed permanently empty on the fixture/dev

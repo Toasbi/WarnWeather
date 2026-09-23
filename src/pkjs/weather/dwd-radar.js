@@ -15,13 +15,19 @@ var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var DISTANCE_METERS = 2000;   // must match NEARBY_RADIUS_KM * 1000; Brightsky returns all cells within this radius
 var NEARBY_RADIUS_KM = 2;      // disk radius for the "nearby" max signal; radar grid is ~1 km/cell
+// Trailing slots past the newest nowcast run's horizon that repeat the last
+// frame instead of reading dry (see fetchRadarTuplesAt).
+var HORIZON_HOLD_SLOTS = 2;
 
 /**
  * Build the URL for the Brightsky /radar request.
  *
- * Anchors `date` at slotZeroEpoch and `last_date` one second short of
- * slotZeroEpoch + NUM_BARS * SLOT_SECONDS, so Brightsky returns exactly
- * NUM_BARS forward-looking nowcast frames in order.
+ * A frame is stamped at the END of its 5 minutes: frame T holds the rain
+ * that fell in [T-5min, T) (Brightsky's RadarParser takes the RV product's
+ * enddate/endtime). Slot i is [slotZero + 5i, slotZero + 5i + 5), so it
+ * needs the frame stamped slotZero + 5(i + 1): the window runs from one
+ * frame past slot 0 through the frame closing the last slot (both bounds
+ * inclusive).
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
@@ -29,9 +35,8 @@ var NEARBY_RADIUS_KM = 2;      // disk radius for the "nearby" max signal; radar
  * @returns {string} Fully-formed request URL.
  */
 function buildRadarUrl(lat, lon, slotZeroEpoch) {
-    var windowSeconds = NUM_BARS * SLOT_SECONDS;
-    var startIso = new Date(slotZeroEpoch * 1000).toISOString();
-    var endIso = new Date((slotZeroEpoch + windowSeconds - 1) * 1000).toISOString();
+    var startIso = new Date((slotZeroEpoch + SLOT_SECONDS) * 1000).toISOString();
+    var endIso = new Date((slotZeroEpoch + NUM_BARS * SLOT_SECONDS) * 1000).toISOString();
     return BRIGHTSKY_BASE + '/radar'
         + '?lat=' + lat
         + '&lon=' + lon
@@ -191,10 +196,35 @@ function sampleFrame(frame, xy, hasXy) {
 }
 
 /**
+ * The slot a frame fills: the one its 5 minutes cover, by its timestamp
+ * (the END of those minutes — see buildRadarUrl). By timestamp, not by
+ * position, so a frame Brightsky skips cannot slide every later one a
+ * slot early. A frame with no readable timestamp falls back to its
+ * position in the requested window, which starts at slot 0's frame.
+ *
+ * @param {Object} frame One body.radar frame.
+ * @param {number} index The frame's position in body.radar.
+ * @param {number} slotZeroEpoch Slot-0 wall-clock epoch seconds.
+ * @returns {number} Slot index (may fall outside 0..NUM_BARS-1).
+ */
+function frameSlot(frame, index, slotZeroEpoch) {
+    var ms = frame && typeof frame.timestamp === 'string' ? Date.parse(frame.timestamp) : NaN;
+    if (!isFinite(ms)) {
+        return index;
+    }
+    var offset = Math.round(ms / 1000) - slotZeroEpoch;
+    if (offset % SLOT_SECONDS !== 0) {
+        return -1;   // off the 5-min grid: no slot is its
+    }
+    return offset / SLOT_SECONDS - 1;
+}
+
+/**
  * Fetch 2-hour DWD rain-radar tuples for pre-resolved coordinates — the one
  * seam every radar source exports (radar-factory). Coordinates come from the
  * single per-cycle acquisition in the orchestrator. A parse/transport failure
- * or missing fields calls back null (preserves the watch's existing radar);
+ * or missing fields calls back null (transient: the watch keeps and
+ * self-advances its last window — see radar-fetch.js);
  * an out-of-coverage answer ships the flat 24-zero signal.
  *
  * @param {number} lat Latitude in decimal degrees.
@@ -221,17 +251,33 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
         var hasXy = Boolean(xy && isFinite(xy.x) && isFinite(xy.y));
         var exactOut = zeroFilledArray(NUM_BARS);
         var nearbyOut = zeroFilledArray(NUM_BARS);
+        var last = -1;
         var i;
+        var slot;
         var sampled;
-        for (i = 0; i < NUM_BARS && i < frames.length; i += 1) {
+        for (i = 0; i < frames.length; i += 1) {
+            slot = frameSlot(frames[i], i, slotZeroEpoch);
+            if (slot < 0 || slot >= NUM_BARS) {
+                continue;
+            }
             sampled = sampleFrame(frames[i], xy, hasXy);
             // A malformed frame contributes a (0, 0) pair (the zero-filled
             // default) rather than aborting the whole fetch.
             if (sampled === null) {
                 continue;
             }
-            exactOut[i] = sampled.exact;
-            nearbyOut[i] = sampled.nearby;
+            exactOut[slot] = sampled.exact;
+            nearbyOut[slot] = sampled.nearby;
+            if (slot > last) { last = slot; }
+        }
+        // The last frame (slot 23's, stamped slotZero + 2 h) exists only
+        // once the nowcast run stamped slotZero is out: each run reaches 2 h
+        // ahead, and a fetch usually lands before it. Read as dry, that
+        // missing tail would cut a shower short at the window's edge, so
+        // the last frame's reading holds for up to HORIZON_HOLD_SLOTS.
+        for (slot = last + 1; last >= 0 && slot < NUM_BARS && slot <= last + HORIZON_HOLD_SLOTS; slot += 1) {
+            exactOut[slot] = exactOut[last];
+            nearbyOut[slot] = nearbyOut[last];
         }
         return {
             RAIN_RADAR_TREND_UINT8: exactOut,

@@ -97,6 +97,22 @@ function buildSettingsSnapshot(settings, watchInfo) {
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
+        // The UV slot's display mode ('current' | 'max' | 'both'), raw like
+        // tempSlotDisplay.
+        uvSlotDisplay: safe.uvSlotDisplay,
+        // The two-value slots' presentation (status-pair.js), raw like
+        // tempSlotDisplay: an absent key reads as the default, as it does in the
+        // bake. The custom separator TEXT is never sent -- it is free text a user
+        // typed, and a separator of 'custom' already records the choice.
+        tempSlotSeparator: safe.tempSlotSeparator,
+        // The spacing toggles default OFF, so an absent key reports false --
+        // windSlotDirection's convention for a default-off toggle.
+        tempSlotSeparatorSpaced: Boolean(safe.tempSlotSeparatorSpaced),
+        tempSlotOrder: safe.tempSlotOrder,
+        uvSlotSeparator: safe.uvSlotSeparator,
+        uvSlotSeparatorSpaced: Boolean(safe.uvSlotSeparatorSpaced),
+        uvSlotOrder: safe.uvSlotOrder,
+        uvSlotNextDayMark: safe.uvSlotNextDayMark,
         // The date slot's two format picks (edit sheet), raw like tempSlotDisplay.
         // dateSlotFullFormat is wizard-seeded per country ('slash' for US installs,
         // 'auto' elsewhere), so a present value does NOT mean the user opened the
@@ -289,6 +305,31 @@ function normalizeLocationMode(mode) {
     return null;
 }
 
+// durationMs is wall-clock (Date.now() - fetchStart in index.js), so a clock
+// step during a fetch turns it negative or huge: a phone that boots at its
+// build-time floor and syncs network time mid-fetch reports ~1.7e12 ms, which
+// overflowed the ingest's int4 column — a 500 that is retried, so it wedged the
+// queue head for the whole 72 h window — and a backward step 400'd the whole
+// batch. A clock-step duration means nothing, so it is nulled at queue time
+// above an hour: far past any real fetch (a 10 s GPS fix plus a few sequential
+// XHRs) yet loose enough to keep a genuinely stalled one in the p99 dashboard.
+var TELEMETRY_MAX_DURATION_MS = 60 * 60 * 1000;
+
+/**
+ * Normalize a fetch duration to a whole number of ms in
+ * [0, TELEMETRY_MAX_DURATION_MS], or null when it is not a plausible one.
+ *
+ * @param {*} value Raw durationMs.
+ * @returns {number|null} Normalized duration or null.
+ */
+function normalizeDurationMs(value) {
+    if (typeof value !== 'number' || !isFinite(value) ||
+        value < 0 || value > TELEMETRY_MAX_DURATION_MS) {
+        return null;
+    }
+    return Math.floor(value);
+}
+
 /**
  * Build telemetry-safe WatchInfo snapshot.
  *
@@ -458,6 +499,13 @@ var TELEMETRY_MAX_EVENT_AGE_MS = 72 * 60 * 60 * 1000;  // ingest clamps received
 // POST per fetch, the exact per-fetch invocation rate batching exists to kill,
 // aimed at an endpoint that is already down.
 var TELEMETRY_RETRY_BACKOFF_MS = 60 * 60 * 1000;
+// A POST that never answers must not hold the flush latch for the rest of the
+// session (no further flush, the queue only grows to its cap). Far longer than
+// the weather XHRs' 5 s: this is a background POST to an edge function that can
+// cold-start, and a timeout that fires after the server already inserted the
+// batch re-POSTs it an hour later (no idempotency key) — the same ambiguity
+// onerror already has, so it takes the same 'retry' path.
+var TELEMETRY_XHR_TIMEOUT_MS = 30 * 1000;
 
 // MODULE scope, not per-client: the webviewclosed handler recreates the client
 // (index.js), and a per-client latch would let the new client re-POST the head
@@ -618,6 +666,11 @@ function createTelemetryClient(options) {
             console.log('[telemetry] request error');
             onOutcome('retry');
         };
+        xhr.timeout = TELEMETRY_XHR_TIMEOUT_MS;
+        xhr.ontimeout = function() {
+            console.log('[telemetry] request timeout');
+            onOutcome('retry');
+        };
         xhr.send(JSON.stringify(payload));
     }
 
@@ -754,7 +807,7 @@ function createTelemetryClient(options) {
             usedGpsCache: Boolean(event.usedGpsCache),
             gpsErrorCode: typeof event.gpsErrorCode === 'number' ? event.gpsErrorCode : null,
             locationMode: normalizeLocationMode(event.locationMode),
-            durationMs: typeof event.durationMs === 'number' ? event.durationMs : null,
+            durationMs: normalizeDurationMs(event.durationMs),
             attempt: attempt
         };
         var queue = readTelemetryQueue();
@@ -786,7 +839,9 @@ module.exports.TELEMETRY_BATCH = {
     MAX_QUEUE_EVENTS: TELEMETRY_MAX_QUEUE_EVENTS,
     MAX_BATCH_EVENTS: TELEMETRY_MAX_BATCH_EVENTS,
     MAX_EVENT_AGE_MS: TELEMETRY_MAX_EVENT_AGE_MS,
-    RETRY_BACKOFF_MS: TELEMETRY_RETRY_BACKOFF_MS
+    MAX_DURATION_MS: TELEMETRY_MAX_DURATION_MS,
+    RETRY_BACKOFF_MS: TELEMETRY_RETRY_BACKOFF_MS,
+    XHR_TIMEOUT_MS: TELEMETRY_XHR_TIMEOUT_MS
 };
 // The flush latch and retry backoff are MODULE state (shared across the clients
 // one session creates — see maybeFlush); node runs every test in one process,

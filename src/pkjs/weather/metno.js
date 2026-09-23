@@ -4,6 +4,7 @@ var feelsLikeF = require('./feels-like.js').feelsLikeF;
 
 var hourlyWindow = require('./hourly-window.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 // Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
 var celsiusToFahrenheit = require('../wire-units.js').celsiusToFahrenheit;
 var normalizeBearing = require('../wire-units.js').normalizeBearing;
@@ -34,6 +35,49 @@ function buildForecastUrl(lat, lon) {
 }
 
 /**
+ * @param {Object} entry A locationforecast timeseries bucket.
+ * @returns {number} Its time in epoch seconds (NaN when unparsable).
+ */
+function entryEpoch(entry) {
+    return Math.round(Date.parse(entry.time) / 1000);
+}
+
+/**
+ * @param {Object} entry A locationforecast timeseries bucket.
+ * @returns {number} Its clear-sky UV index, 0 when unreported.
+ */
+function entryUv(entry) {
+    var instant = entry.data && entry.data.instant && entry.data.instant.details;
+    return (instant && typeof instant.ultraviolet_index_clear_sky === 'number')
+        ? instant.ultraviolet_index_clear_sky : 0;
+}
+
+/**
+ * The gust for the hour STARTING at bucket i. Met.no files wind_speed_of_gust
+ * under `instant`, but its values behave as the peak of the hour ENDING at the
+ * stamp: in recorded /complete responses the gust at T never falls below the
+ * mean wind at T-1h or T, yet falls below the mean wind at T+1h -- which a
+ * peak over [T, T+1h] cannot do -- and it tracks the wind's change into T,
+ * not out of it. (Open-Meteo, which serves the same MET Nordic field, labels
+ * it the maximum of the preceding hour.) So, like the Open-Meteo and DWD
+ * gusts, slot i reads the next bucket's value. A next bucket that is missing
+ * or not exactly an hour on reads as no gust, the degrade a missing field
+ * already gets.
+ *
+ * @param {Array} timeseries The response's buckets.
+ * @param {number} i Index of the slot's own bucket.
+ * @returns {number} The gust in m/s, 0 when unreported.
+ */
+function followingGust(timeseries, i) {
+    var next = timeseries[i + 1];
+    var details = next && next.data && next.data.instant && next.data.instant.details;
+    if (!details || entryEpoch(next) !== entryEpoch(timeseries[i]) + HOUR_SECONDS) {
+        return 0;
+    }
+    return details.wind_speed_of_gust || 0;
+}
+
+/**
  * Map a Met.no locationforecast response into provider trend fields.
  *
  * Anchors the 24-hour window at the current wall-clock hour (the series
@@ -42,7 +86,9 @@ function buildForecastUrl(lat, lon) {
  * mm/h, probability as a 0..1 fraction, wind bearing in "comes from" degrees.
  * probability_of_precipitation and wind_speed_of_gust exist in the Nordics only
  * — missing values read 0, they are not a failure (the "(Nordics only)" label
- * documents the scope).
+ * documents the scope). Rain and chance come from next_1_hours, the hour that
+ * starts at the stamp, so slot i reads its own bucket; the gust is the peak of
+ * the hour ending at the stamp, so it reads the next one (followingGust).
  *
  * @param {Object} json Parsed locationforecast/2.0/complete response.
  * @param {number} nowEpoch Current time in epoch seconds.
@@ -61,9 +107,7 @@ function mapResponse(json, nowEpoch) {
     }
     // hourly-window owns the anchor rule; an unparsable time yields NaN, which
     // never anchors — the same skip the old inline isFinite check performed.
-    var anchor = hourlyWindow.anchorIndex(timeseries, nowEpoch, function(entry) {
-        return Math.round(Date.parse(entry.time) / 1000);
-    });
+    var anchor = hourlyWindow.anchorIndex(timeseries, nowEpoch, entryEpoch);
     var i;
     if (anchor < 0 || timeseries.length - anchor < FORECAST_HOURS) {
         return null;
@@ -74,7 +118,6 @@ function mapResponse(json, nowEpoch) {
     var rainTrend = [];
     var windTrend = [];
     var gustTrend = [];
-    var uvTrend = [];
     var pressureTrend = [];
     var feelsTrend = [];
     var dewTrend = [];
@@ -106,9 +149,7 @@ function mapResponse(json, nowEpoch) {
         }
         feelsTrend.push(feels === null ? tempF : feels);
         windTrend.push(msToKmh(instant.wind_speed || 0));
-        gustTrend.push(msToKmh(instant.wind_speed_of_gust || 0));
-        uvTrend.push(typeof instant.ultraviolet_index_clear_sky === 'number'
-            ? instant.ultraviolet_index_clear_sky : 0);
+        gustTrend.push(msToKmh(followingGust(timeseries, i)));
         pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
             ? instant.air_pressure_at_sea_level : 0);
         // Dew point and bearing degrade to null, not 0, and keep their slot so the
@@ -134,12 +175,15 @@ function mapResponse(json, nowEpoch) {
         rainTrend: rainTrend,
         windTrend: windTrend,
         gustTrend: gustTrend,
-        uvTrend: uvTrend,
+        // UV alone reads on to UV_HOURS (hourly-window.js). Met.no turns 6-hourly
+        // after its first ~2.5 days, which readHourly's next-hour rule stops at.
+        uvTrend: hourlyWindow.readHourly(timeseries, anchor, hourlyWindow.UV_HOURS,
+            entryEpoch, entryUv),
         pressureTrend: pressureTrend,
         feelsTrend: feelsTrend,
         dewTrend: dewTrend,
         windDirTrend: windDirTrend,
-        startTime: Math.round(Date.parse(timeseries[anchor].time) / 1000),
+        startTime: entryEpoch(timeseries[anchor]),
         currentTemp: celsiusToFahrenheit(timeseries[anchor].data.instant.details.air_temperature),
         currentFeels: currentFeels
     };

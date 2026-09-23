@@ -1,6 +1,6 @@
 // src/pkjs/weather/radar-fetch.js — the shared transport skeleton of the
 // point-radar sources (Met.no, Rainbow, Tomorrow.io): one request, one guarded
-// JSON.parse, one log-and-preserve error policy. Each source keeps its own
+// JSON.parse, one log-and-null error policy. Each source keeps its own
 // COVERAGE POLICY in its interpret function (what counts as out-of-coverage vs
 // transient vs data), and pre-flight guards (missing key/endpoint) stay in the
 // source files — this module is strictly transport-level.
@@ -13,9 +13,16 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
 
 /**
  * request -> JSON.parse -> interpret(body). A parse error or transport error
- * logs and calls back null (null preserves the watch's existing radar) —
- * unless the source's onTransportError hook claims the error first (met.no
- * turns a 422 into an out-of-coverage clear).
+ * logs and calls back null — unless the source's onTransportError hook claims
+ * the error first (met.no turns a 422 into an out-of-coverage clear,
+ * tomorrow.io a 401/403 key rejection into clearRadarTuples()).
+ *
+ * null means TRANSIENT: the radar keys stay out of this send, so the watch
+ * keeps its last window and, at each fetch boundary, self-advances it with a
+ * zero-filled tail exactly as for a deduped (validated-dry) skip — it cannot
+ * tell the two apart. So null must only ever answer a failure that can heal
+ * on the next cycle; one that cannot (missing key/endpoint, rejected key)
+ * calls back radarWire.clearRadarTuples() instead.
  *
  * @param {Object} opts
  *   {string} opts.url Request URL.
@@ -24,7 +31,7 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
  *   {function(Object, Function): boolean} [opts.onTransportError] Receives
  *     (error, callback); return true to claim the error.
  * @param {function(Object): ?Object} interpret Parsed body -> radar tuples,
- *   or null to preserve (it may log its own reasons).
+ *   or null for a transient miss (it may log its own reasons).
  * @param {Function} callback Receives the tuples object or null.
  * @returns {void}
  */
@@ -39,7 +46,17 @@ function fetchRadarJson(opts, interpret, callback) {
             callback(null);
             return;
         }
-        callback(interpret(body));
+        // Radar is best-effort: an interpret throw preserves the watch's radar
+        // like any other bad response, rather than stranding the fetch chain.
+        var tuples;
+        try {
+            tuples = interpret(body);
+        }
+        catch (exInterpret) {
+            console.log('[!] ' + opts.label + ' radar: response interpret error: ' + exInterpret.message);
+            tuples = null;
+        }
+        callback(tuples);
     }, function (error) {
         if (opts.onTransportError && opts.onTransportError(error, callback)) { return; }
         console.log('[!] ' + opts.label + ' radar fetch failed: ' + JSON.stringify(error));

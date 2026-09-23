@@ -94,8 +94,8 @@ function install() {
         });
     }
 
-    // ES2015 static, so possibly absent on aplite's pre-ES6 JSC. The regex
-    // guard in test/config-es5.test.js can't see built-in METHOD calls, which
+    // ES2015 static, so possibly absent on aplite's pre-ES6 JSC. The old regex
+    // guard in test/config-es5.test.js couldn't see built-in METHOD calls, which
     // is how rain-tier.js's Math.trunc slipped through — guard it here.
     if (!Math.trunc) {
         Math.trunc = function (v) {

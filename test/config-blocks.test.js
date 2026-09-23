@@ -52,11 +52,71 @@ test('forecastPreview forces white rain bars on B/W even when setting says multi
   assert.ok(color.indexOf(GREEN_BAND) >= 0, 'color watch keeps multicolor rain bands');
   assert.equal(bw.indexOf(GREEN_BAND), -1, 'B/W watch draws no color rain bands');
 });
+/**
+ * The userData.devStats shape index.js injects (dev-stats.js summarize()).
+ * @param {Object[]} days Day buckets, oldest first.
+ * @param {Object[]} events Newest raw events, oldest first.
+ * @param {number} [total] Events in the whole window.
+ * @returns {Object} Summary.
+ */
+function dsSummary(days, events, total) {
+  return { days: days, events: events, total: typeof total === 'number' ? total : events.length };
+}
+/**
+ * One summarize() day bucket with no settings sends.
+ * @param {string} d 'MM-DD'.
+ * @param {Object} weather {ack, nack, skip}.
+ * @param {Object} cats Category name -> {sent, cached}.
+ * @returns {Object} Day bucket.
+ */
+function dsDay(d, weather, cats) {
+  return { d: d, weather: weather, setting: { ack: 0, nack: 0, skip: 0 }, cats: cats };
+}
 test('devStats: table only, no clear button; empty when disabled', () => {
-  const ds = DG.devStats({ devStatsEnabled: true }, {}, { devStats: JSON.stringify([{ t: Date.now(), k: 'weather', ok: 1, c: { forecast: 1 } }]) });
+  const ev = { t: Date.now(), k: 'weather', ok: 1, c: { forecast: 1 } };
+  const summary = dsSummary([dsDay('09-23', { ack: 1, nack: 0, skip: 0 }, { forecast: { sent: 1, cached: 0 } })], [ev]);
+  const ds = DG.devStats({ devStatsEnabled: true }, {}, { devStats: summary });
   assert.ok(ds.indexOf('Daily summary') >= 0);
   assert.equal(ds.indexOf('devStatsClearBtn'), -1, 'no live Clear button (now a toggle)');
-  assert.equal(DG.devStats({ devStatsEnabled: false }, {}, { devStats: '[]' }), '');
+  assert.equal(DG.devStats({ devStatsEnabled: false }, {}, { devStats: summary }), '');
+  assert.equal(DG.devStats({ devStatsEnabled: true }, {}, { devStats: dsSummary([], []) }), '', 'nothing recorded');
+  assert.equal(DG.devStats({ devStatsEnabled: true }, {}, {}), '', 'no summary handed over');
+});
+test('devStats: a notice-only weather send shows in its own column, not as an empty send', () => {
+  // NOTICE_TEXT rides alone (an auth-failure overlay, or its dismissal). Without a
+  // notice column the row read "delivered, nothing in the payload".
+  const ev = { t: Date.now(), k: 'weather', ok: 1, c: { notice: 1 } };
+  const summary = dsSummary([dsDay('09-23', { ack: 1, nack: 0, skip: 0 }, { notice: { sent: 1, cached: 0 } })], [ev]);
+  const ds = DG.devStats({ devStatsEnabled: true }, {}, { devStats: summary });
+  const headers = (ds.match(/<tr><th[\s\S]*?<\/tr>/g) || [])
+    .map((row) => (row.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map((th) => th.replace(/<[^>]*>/g, '')));
+  assert.equal(headers.length, 2);
+  headers.forEach((h) => assert.equal(h[h.length - 2], 'ntc', 'notice column sits before setting'));
+  const eventRow = ds.slice(ds.lastIndexOf('<tr>'));
+  const cells = (eventRow.match(/<td[^>]*>([^<]*)<\/td>/g) || []).map((td) => td.replace(/<[^>]*>/g, ''));
+  assert.equal(cells[cells.length - 2], '●', 'the notice was sent');
+  assert.ok(ds.indexOf('1●<br>0–</td><td') >= 0, 'the day row counts it too');
+});
+test('devStats: the panel shows every weather category the outbox sends', () => {
+  const outbox = require('../src/pkjs/outbox.js');
+  assert.deepEqual(DG.CATEGORIES, outbox.WEATHER_CATEGORIES.map((c) => c.name));
+});
+test('devStats: the daily table shows the phone-side day totals, not a count of the capped raw list', () => {
+  // The phone side hands over day totals for the whole window plus only the newest 100
+  // events (the raw 7-day log overflowed the page's data: URL). The day row must still
+  // say 150 delivered, and the footer must say how many events were left out.
+  const events = [];
+  for (let i = 0; i < 100; i += 1) { events.push({ t: Date.now() - (100 - i) * 1000, k: 'weather', ok: 1, c: { forecast: 1 } }); }
+  const summary = dsSummary([
+    dsDay('09-22', { ack: 40, nack: 2, skip: 0 }, { forecast: { sent: 40, cached: 0 } }),
+    dsDay('09-23', { ack: 150, nack: 0, skip: 3 }, { forecast: { sent: 120, cached: 33 } })
+  ], events, 195);
+  const ds = DG.devStats({ devStatsEnabled: true }, {}, { devStats: summary });
+  assert.ok(ds.indexOf('150✓<br>3c') >= 0, 'day outcome totals come from the summary');
+  assert.ok(ds.indexOf('120●<br>33–') >= 0, 'category totals come from the summary');
+  assert.ok(ds.indexOf('09-23') < ds.indexOf('09-22'), 'newest day first');
+  assert.ok(ds.indexOf('Showing last 100 of 195 events.') >= 0);
+  assert.equal((ds.match(/<tr>/g) || []).length, 2 + 2 + 100, 'two header rows, two days, 100 event rows');
 });
 test('lastFetch formats success / Never / failed-attempt-with-error', () => {
   const lf = DG.lastFetch({}, {}, { lastFetchSuccess: JSON.stringify({ time: Date.now(), name: 'Berlin' }), lastFetchAttempt: null });
@@ -320,6 +380,20 @@ test('forecast grid: temp line spans the first tick to the last tick (edge to ed
   assert.equal(lastX, 197, 'temp line ends on the last tick (PX1=197); got ' + lastX);
 });
 
+// The watch prints each axis digit through config_axis_hour (config.c), which folds the
+// hour to 1..12 when CLAY_AXIS_12H is set (clay-payload: axisTimeFormat === '12h').
+test('forecast axis hour labels follow the 12h/24h axis setting', () => {
+  const axisLabels = (fmt) => {
+    const svg = FC.forecastPreview({ barSource: 'off', secondaryLine: 'off', dayNightShading: false, axisTimeFormat: fmt }, { color: true });
+    const out = [];
+    svg.replace(/<text x="[^"]+" y="111"[^>]*>([^<]*)<\/text>/g, (m, t) => { out.push(t); return m; });
+    return out;
+  };
+  assert.deepEqual(axisLabels('24h'), ['12', '15', '18', '21'], '24h: the noon→23:00 window');
+  assert.deepEqual(axisLabels(undefined), ['12', '15', '18', '21'], 'unset stays 24h');
+  assert.deepEqual(axisLabels('12h'), ['12', '3', '6', '9'], '12h: folded like config_axis_hour');
+});
+
 test('forecast grid: rain bars sit centered in the hour gaps between ticks', () => {
   const svg = FC.forecastPreview(
     { dayNightShading: false, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', windScale: 'mid' },
@@ -372,6 +446,47 @@ test('legend lists the shown series with palette colors (color watch)', () => {
   assert.ok(svg.indexOf('>Precip %<') >= 0, 'main metric entry (Precip %)');
   assert.ok(svg.indexOf('>Wind<') >= 0, 'second metric entry (Wind)');
   assert.ok(svg.indexOf('>Rain<') >= 0, 'Rain entry (bars on)');
+});
+
+// The legend is one row in a fixed 200-wide viewBox (the page clips past it). Walk every
+// main / second metric / bars / bar colour combination, colour and B&W, and hold each
+// label's estimated extent (the layout's own 4.3 units per char at font 7.5) inside it.
+test('legend never runs past the 200-wide frame, for any metric combination', () => {
+  const METRICS = ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'];
+  const legendTexts = (svg) => {
+    const out = [];
+    svg.replace(/<text x="([^"]+)" y="121" font-size="([^"]+)"[^>]*>([^<]*)<\/text>/g, (m, x, fs, t) => {
+      out.push({ x: Number(x), fs: Number(fs), t }); return m;
+    });
+    return out;
+  };
+  let worst = 0;
+  METRICS.forEach((main) => {
+    ['off'].concat(METRICS).forEach((third) => {
+      ['rain', 'off'].forEach((bars) => {
+        ['multicolor', 'white'].forEach((barColor) => {
+          [true, false].forEach((color) => {
+            const svg = FC.forecastPreview({ secondaryLine: main, thirdLine: third, barSource: bars, rainBarColor: barColor, windScale: 'mid', dayNightShading: false }, { color });
+            const texts = legendTexts(svg);
+            assert.ok(texts.length >= 2, 'the legend rendered');
+            let prevEnd = -Infinity;
+            texts.forEach((tx) => {
+              const end = tx.x + tx.t.length * 4.3 * (tx.fs / 7.5);
+              assert.ok(tx.x > prevEnd, main + '/' + third + '/' + bars + ': "' + tx.t + '" does not overlap the entry before it');
+              assert.ok(end <= 200, main + '/' + third + '/' + bars + '/' + barColor + '/' + (color ? 'color' : 'bw') + ': "' + tx.t + '" ends at ' + end.toFixed(1) + ' (> 200)');
+              prevEnd = end;
+              worst = Math.max(worst, end);
+            });
+          });
+        });
+      });
+    });
+  });
+  assert.ok(worst > 180, 'sanity: the long combinations were exercised (worst end ' + worst.toFixed(1) + ')');
+  // A row that already fits keeps its long-standing layout: Temp's label at PX0 + 14 + 3.
+  const dflt = legendTexts(FC.forecastPreview({ secondaryLine: 'precip_prob', thirdLine: 'uv', barSource: 'rain', rainBarColor: 'multicolor', windScale: 'mid' }, { color: true }));
+  assert.deepEqual(dflt.map((t) => t.x.toFixed(1)), ['37.0', '79.2', '138.6', '172.2'], 'the default row is untouched');
+  assert.ok(dflt.every((t) => t.fs === 7.5), 'at the full label size');
 });
 
 test('legend omits the second metric when thirdLine is off, and Rain when bars are off', () => {
@@ -437,6 +552,26 @@ test('countdown glyph is tier-coloured on color, white on B&W; text stays white'
   assert.ok(/stroke="#00FF00"/.test(color), 'glyph uses the green tier stroke on color');
   assert.equal(/stroke="#00FF00"/.test(bw), false, 'no green glyph stroke on B&W');
   assert.ok(color.indexOf('fill="#FFFFFF"') >= 0, 'white band text present on color');
+});
+
+// The watch colours the countdown glyph with palette_radar_color(tier) (top_status_layer.c
+// rain_glyph_color), clamped to the RADAR palette's last stop — and a Solid radar palette
+// has just the one stop. So the glyph follows the Solid bar colour, never the green tier.
+test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s single radar stop)', () => {
+  const rainTier = require('../src/pkjs/weather/rain-tier.js');
+  const colorLib = require('../src/pkjs/config-ui/lib/color.js');
+  const userData = { palette: require('../src/pkjs/settings/preview-palette.js').buildPreviewPalette() };
+  ['dark', 'light'].forEach((theme) => {
+    const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'white', radarMode: 'graph', theme },
+      { color: true, platform: 'basalt' }, userData);
+    const strokes = [];
+    svg.replace(/<line [^>]*stroke="([^"]+)" stroke-width="1\.4"/g, (m, c) => { strokes.push(c); return m; });
+    const watch = rainTier.buildPalette('basalt', 'white', theme);
+    const expected = colorLib.intToHex(watch.rgb[watch.rgb.length - 1]);
+    assert.equal(strokes.length, 3, theme + ': the three glyph strokes are drawn');
+    assert.deepEqual(strokes, [expected, expected, expected], theme + ': glyph takes the Solid stop ' + expected);
+    assert.equal(/stroke="#00FF00"/.test(svg), false, theme + ': no green tier stroke anywhere');
+  });
 });
 
 test('precip secondary line draws the cobalt fill on color and a dither on B&W', () => {
@@ -809,6 +944,38 @@ test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not 
   assert.equal(svg.indexOf('fill="#000000"'), -1, 'never a plain black fill in the light theme');
 });
 
+
+// chart.c draws BAR_OUTLINED (the forecast rain bars and the radar bars alike) with a
+// theme_fg() top+side silhouette in every theme except colour-dark. So the light COLOUR
+// theme outlines its bars in black too — over the palette interior, not instead of it.
+const EDGE_MARK = /<path d="M[^"]+" fill="none" stroke="#000000" stroke-width="1"><\/path>/g;
+function countMatches(svg, re) { return (svg.match(re) || []).length; }
+test('light colour theme: rain and radar bars carry the watch\'s black silhouette over their colour', () => {
+  const env = { color: true, platform: 'basalt' };
+  const fcBase = { barSource: 'rain', secondaryLine: 'off', windScale: 'mid', dayNightShading: false };
+  const rdBase = { radarProvider: 'dwd', radarMode: 'graph' };
+  // Every drawn bar is outlined: the same bar count bw-light (the B&W silhouette) draws.
+  const fcBars = countMatches(FC.forecastPreview(Object.assign({}, fcBase, { rainBarColor: 'multicolor', theme: 'bw-light' }), env), new RegExp(OUTLINE_MARK, 'g'));
+  const rdBars = countMatches(RD.radarPreview(Object.assign({}, rdBase, { radarColor: 'multicolor', theme: 'bw-light' }), env), new RegExp(OUTLINE_MARK, 'g'));
+  assert.ok(fcBars > 0 && rdBars > 0, 'sanity: both previews draw bars');
+  ['multicolor', 'white'].forEach((mode) => {
+    const fc = FC.forecastPreview(Object.assign({}, fcBase, { rainBarColor: mode, theme: 'light' }), env);
+    const rd = RD.radarPreview(Object.assign({}, rdBase, { radarColor: mode, theme: 'light' }), env);
+    assert.equal(countMatches(fc, EDGE_MARK), fcBars, 'forecast ' + mode + ': every rain bar outlined');
+    assert.equal(countMatches(rd, EDGE_MARK), rdBars, 'radar ' + mode + ': every exact bar outlined');
+    const interior = mode === 'white' ? /width="9"[^>]*fill="#555555"/ : /fill="#00FF00"/;
+    assert.ok(interior.test(fc), 'forecast ' + mode + ': the colour interior is kept under the outline');
+    // (The radar's countdown band prints its text in theme-fg black, so only shapes count.)
+    assert.equal(/<(rect|path)[^>]*fill="#000000"/.test(fc), false, 'forecast ' + mode + ': the outline is a stroke, never a black fill');
+    assert.equal(/<(rect|path)[^>]*fill="#000000"/.test(rd), false, 'radar ' + mode + ': the outline is a stroke, never a black fill');
+    // Colour-dark opts out of the silhouette on the watch, so it stays unoutlined here.
+    const fcDark = FC.forecastPreview(Object.assign({}, fcBase, { rainBarColor: mode, theme: 'dark' }), env);
+    const rdDark = RD.radarPreview(Object.assign({}, rdBase, { radarColor: mode, theme: 'dark' }), env);
+    const anyEdge = /<path d="M[^"]+" fill="none" stroke="[^"]+" stroke-width="1"><\/path>/g;
+    assert.equal(countMatches(fcDark, anyEdge), 0, 'forecast ' + mode + ' dark: no outline');
+    assert.equal(countMatches(rdDark, anyEdge), 0, 'radar ' + mode + ' dark: no outline');
+  });
+});
 
 test('radarPreview (metno): point provider renders like rainbow — no nearby bars or legend', () => {
   const metno = RD.radarPreview({ radarProvider: 'metno', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });

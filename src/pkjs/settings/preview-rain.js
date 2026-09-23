@@ -4,12 +4,9 @@
 // Shared by preview-forecast.js (the rain bars under the graph) and
 // preview-radar.js (the nowcast bars) — the only two consumers rain math has.
 // Registers nothing; it is a library, not a block.
-// barPermille below calls Math.trunc (ES2015); polyfills.js never loads in the
-// flat concatenated page, so guard it here for pre-ES6 WebViews (same body as
-// the polyfills.js one).
-if (!Math.trunc) {
-    Math.trunc = function (v) { return v < 0 ? Math.ceil(v) : Math.floor(v); };
-}
+// barPermille below calls Math.trunc (ES2015): polyfills.js never loads in the
+// flat concatenated page, so lib/shell.html's inline script shims it for
+// pre-ES6 WebViews before any page file runs.
 (function () {
     // Dual-context pattern (see line-style.js): a CommonJS module under Node, a
     // concatenated <script> exposing window.PreviewSvg in the webview. preview-svg.js
@@ -101,6 +98,10 @@ if (!Math.trunc) {
      * painted behind it (e.g. a dithered area fill) show through. SVG fills an open
      * subpath as if closed by a straight line back to its start, so the implicit 4th
      * (bottom) edge closes exactly on the baseline without needing to be stroked.
+     * `edge` is the colour-light half of the same BAR_OUTLINED rule: chart.c strokes the
+     * theme_fg() top+sides in every theme but colour-dark, so a light colour theme keeps
+     * its palette interior (tier bands, or the Solid bar) and gets that open-bottom
+     * silhouette stroked on top, unfilled.
      * @param {number} mm Rain for this column, in mm.
      * @param {number} x Left edge of the bar.
      * @param {number} bw Bar width.
@@ -111,29 +112,36 @@ if (!Math.trunc) {
      * @param {boolean} outline Draw the B&W open-bottom silhouette rather than a solid bar.
      * @param {string} [fg='#FFFFFF'] Bar/stroke colour in the `white` modes.
      * @param {string} [bg='#000000'] Interior fill of the outlined silhouette.
+     * @param {?string} [edge] Stroke colour (theme-fg) of an unfilled open-bottom
+     *   silhouette over a coloured interior; colour-light only. Falsy draws none.
      * @returns {string} SVG markup.
      */
-    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg, bg) {
+    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg, bg, edge) {
         var H = barPermille(Math.round(mm * 10)) / 1000;
         if (H <= 0) { return ''; }
         fg = fg || '#FFFFFF';
         bg = bg || '#000000';
         var top = baseY - H * plotH;
-        if (white) {
-            if (outline) {
-                return '<path d="M' + x + ',' + baseY + ' L' + x + ',' + top + ' L' + (x + bw) + ',' + top
-                    + ' L' + (x + bw) + ',' + baseY + '" fill="' + bg + '" stroke="' + fg + '" stroke-width="1"></path>';
-            }
-            return rect(x, top, bw, H * plotH, fg);
+        var walls = 'M' + x + ',' + baseY + ' L' + x + ',' + top + ' L' + (x + bw) + ',' + top
+            + ' L' + (x + bw) + ',' + baseY;
+        if (white && outline) {
+            return '<path d="' + walls + '" fill="' + bg + '" stroke="' + fg + '" stroke-width="1"></path>';
         }
         var out = '';
-        for (var k = 0; k < tiers.length; k += 1) {
-            var from = tiers[k].from / 1000;
-            if (H <= from) { break; }
-            var to = (k + 1 < tiers.length) ? tiers[k + 1].from / 1000 : 1;
-            var bandTop = Math.min(to, H);
-            var h = (bandTop - from) * plotH - 0.5;
-            out += rect(x, baseY - bandTop * plotH, bw, Math.max(h, 0.5), tiers[k].color);
+        if (white) {
+            out = rect(x, top, bw, H * plotH, fg);
+        } else {
+            for (var k = 0; k < tiers.length; k += 1) {
+                var from = tiers[k].from / 1000;
+                if (H <= from) { break; }
+                var to = (k + 1 < tiers.length) ? tiers[k + 1].from / 1000 : 1;
+                var bandTop = Math.min(to, H);
+                var h = (bandTop - from) * plotH - 0.5;
+                out += rect(x, baseY - bandTop * plotH, bw, Math.max(h, 0.5), tiers[k].color);
+            }
+        }
+        if (edge) {
+            out += '<path d="' + walls + '" fill="none" stroke="' + edge + '" stroke-width="1"></path>';
         }
         return out;
     }

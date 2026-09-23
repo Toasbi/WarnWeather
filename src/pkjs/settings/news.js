@@ -39,6 +39,36 @@
     }
 
     /**
+     * Zero-pad a date part to two digits.
+     *
+     * @param {number} n Month or day number.
+     * @returns {string} Two-digit string.
+     */
+    function pad2(n) {
+        return (n < 10 ? '0' : '') + n;
+    }
+
+    /**
+     * An item's calendar day in the user's own time zone. created_at arrives as a
+     * UTC timestamptz, so its first ten characters are the UTC day: a post made
+     * late in the UTC evening showed the day before east of UTC, an early-UTC one
+     * the next day west of it. The fraction is cut to milliseconds first, because
+     * ES5 only specifies `.sss` and older engines give NaN for PostgREST's
+     * microseconds; anything unparseable (or a bare date) keeps its date part.
+     *
+     * @param {*} createdAt ISO 8601 timestamp.
+     * @returns {string} YYYY-MM-DD.
+     */
+    function localDay(createdAt) {
+        var s = String(createdAt);
+        var d = /T/.test(s) ? new Date(s.replace(/(\.\d{3})\d+/, '$1')) : new Date(NaN);
+        if (isNaN(d.getTime())) {
+            return s.slice(0, 10);
+        }
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    }
+
+    /**
      * Inline markdown on one already-escaped line: links (http/https only),
      * then bold, then italic. Anything else stays literal text.
      *
@@ -177,7 +207,7 @@
             it = items[i];
             html += '<div class="news-item">'
                 + '<div class="news-title">' + escapeHtml(it.title) + '</div>'
-                + '<div class="news-date">' + escapeHtml(String(it.created_at).slice(0, 10)) + '</div>'
+                + '<div class="news-date">' + escapeHtml(localDay(it.created_at)) + '</div>'
                 + '<div class="news-body">' + renderMarkdown(it.body_md) + '</div>';
             if (canReply) {
                 html += renderChoicesHtml(it);

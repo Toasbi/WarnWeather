@@ -8,8 +8,10 @@ var feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
 
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
-var FORECAST_HOURS = require('./hourly-window.js').FORECAST_HOURS;
-var HOUR_MS = 60 * 60 * 1000;
+var hourlyWindow = require('./hourly-window.js');
+var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
+var HOUR_MS = HOUR_SECONDS * 1000;
 // Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
 var celsiusToFahrenheit = require('../wire-units.js').celsiusToFahrenheit;
 var normalizeBearing = require('../wire-units.js').normalizeBearing;
@@ -105,9 +107,12 @@ function currentFeelsFrom(current) {
 
 /**
  * ISO 8601 forecast window starting at the current wall-clock hour and
- * covering FORECAST_HOURS buckets. Brightsky returns `hourly[0]` as the
+ * covering FORECAST_HOURS + 1 buckets. Brightsky returns `hourly[0]` as the
  * bucket whose timestamp >= `date`, so anchoring `date` at the hour
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
+ * `last_date` is inclusive, so ending it FORECAST_HOURS on returns one record
+ * past the window: the one stamped at the last slot's END, which carries that
+ * slot's preceding-hour rain, chance and gust (see slotRecords).
  *
  * @returns {{ start: string, end: string }} ISO timestamps.
  */
@@ -115,14 +120,65 @@ function forecastWindow() {
     var startMs = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
     return {
         start: new Date(startMs).toISOString(),
-        end: new Date(startMs + (FORECAST_HOURS - 1) * HOUR_MS).toISOString()
+        end: new Date(startMs + FORECAST_HOURS * HOUR_MS).toISOString()
     };
+}
+
+/**
+ * Each forecast slot's two Brightsky records, both looked up BY TIMESTAMP.
+ *
+ * `own[i]` is the record stamped startTime + i h: the slot's instants
+ * (temperature, wind speed, pressure, dew point, bearing, feels), drawn on
+ * tick i.
+ *
+ * `following[i]` is the record stamped startTime + (i + 1) h: the slot's
+ * PRECEDING-HOUR values. Brightsky reports precipitation,
+ * precipitation_probability and wind_gust_speed for the 60 minutes BEFORE a
+ * record's timestamp, but the watch draws slot i as the hour STARTING at
+ * startTime + i h (bar i sits right of tick i). Read from the slot's own
+ * record, every shower landed an hour late and the current-hour bar showed the
+ * hour that had just ended. (The settings page's Weather tab re-stamps the
+ * same fields the same way, weather-tab-model.js's startHourFields, so a tap
+ * on 14:00 there reads the hour this slot shows.)
+ *
+ * Both halves pair by timestamp, not by index, so a record Brightsky skips
+ * cannot slide every later hour — and cannot pair one slot's rain with the
+ * next hour's temperature. A skipped `own` record carries the previous hour's
+ * forward (slot 0's is hourly[0] itself, so there is always one): a null
+ * temperature would draw as 0 °F. A missing `following` record — the end of
+ * the MOSMIX horizon, a short response, a skip — comes back null, which the
+ * caller reads as no rain / no gust.
+ *
+ * @param {Object[]} hourly Brightsky `weather` records, ascending.
+ * @param {number} startEpoch Epoch seconds of slot 0 (hourly[0]'s timestamp).
+ * @param {number} count Number of slots to pair.
+ * @returns {{own: Object[], following: Array.<(Object|null)>}} One record per
+ *   slot each (`following` entries may be null).
+ */
+function slotRecords(hourly, startEpoch, count) {
+    var byEpoch = {};
+    var own = [];
+    var following = [];
+    var i;
+    var record;
+    for (i = 0; i < hourly.length; i += 1) {
+        byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
+    }
+    for (i = 0; i < count; i += 1) {
+        record = byEpoch[startEpoch + i * HOUR_SECONDS] || (i > 0 ? own[i - 1] : hourly[0]);
+        own.push(record);
+        following.push(byEpoch[startEpoch + (i + 1) * HOUR_SECONDS] || null);
+    }
+    return { own: own, following: following };
 }
 
 var DwdProvider = function() {
     this._super.call(this);
     this.name = 'Brightsky (Deutscher Wetterdienst)';
     this.id = 'dwd';
+    // Its UV is Open-Meteo's (openmeteo.fetchUvInto): the UV day record carries
+    // across a switch between the two.
+    this.uvFeedId = 'openmeteo';
 };
 
 DwdProvider.prototype = Object.create(WeatherProvider.prototype);
@@ -181,17 +237,28 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             return;
         }
         this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF, currentBearing) {
-            this.tempTrend = hourly.map(function(e) { return celsiusToFahrenheit(e.temperature); });
-            this.precipTrend = hourly.map(function(e) { return e.precipitation_probability / 100; });
-            this.rainTrend = hourly.map(function(e) { return e.precipitation; });
-            this.windTrend = hourly.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
-            this.gustTrend = hourly.map(function(e) { return e.wind_gust_speed || 0; }); // Brightsky wind_gust_speed is km/h
-            this.pressureTrend = hourly.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
+            var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
+            // The window asks for one record past FORECAST_HOURS (forecastWindow);
+            // the slots themselves stop at FORECAST_HOURS so every series agrees
+            // on its length. A response short of that (fewer records than slots)
+            // stays short, so hasValidData still rejects it.
+            // Instants (temperature, wind speed, pressure, dew point, bearing)
+            // read the slot's own record; the preceding-hour totals read the
+            // record one hour on (slotRecords).
+            var paired = slotRecords(hourly, startEpoch, Math.min(hourly.length, FORECAST_HOURS));
+            var slots = paired.own;
+            var following = paired.following;
+            this.tempTrend = slots.map(function(e) { return celsiusToFahrenheit(e.temperature); });
+            this.precipTrend = following.map(function(e) { return e ? e.precipitation_probability / 100 : 0; });
+            this.rainTrend = following.map(function(e) { return e ? e.precipitation : 0; });
+            this.windTrend = slots.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
+            this.gustTrend = following.map(function(e) { return (e && e.wind_gust_speed) || 0; }); // Brightsky wind_gust_speed is km/h
+            this.pressureTrend = slots.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
             // Dew point rides along free: Brightsky returns the full field set, so
             // this is the same value hourFeels already reads. Ungated by fetchFeels
             // — the dew slot is independent of the feels curve and costs no math.
-            this.dewTrend = hourly.map(hourDewF); // °F, null where unsourced
-            this.windDirTrend = hourly.map(hourBearing); // degrees 0-359, "comes from"
+            this.dewTrend = slots.map(hourDewF); // °F, null where unsourced
+            this.windDirTrend = slots.map(hourBearing); // degrees 0-359, "comes from"
             // MOSMIX can omit the bearing on the hour we are inside (it already
             // omits relative_humidity there); the live observation carries it, so
             // fill just that gap. The forecast wins whenever it has a value: the
@@ -202,8 +269,8 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             }
             // Steadman-computed (no Brightsky feels field), and the most expensive
             // feels path of any provider — an exp() per hour — so it honours the gate.
-            this.feelsTrend = this.fetchFeels ? hourly.map(hourFeels) : [];
-            this.startTime = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
+            this.feelsTrend = this.fetchFeels ? slots.map(hourFeels) : [];
+            this.startTime = startEpoch;
             this.currentTemp = currentTempF;
             this.currentFeels = this.fetchFeels ? currentFeelsF : null;
             openmeteo.fetchUvInto(this, lat, lon, onSuccess);
