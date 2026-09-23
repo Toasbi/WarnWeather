@@ -388,7 +388,13 @@
             hourly.wind.push(num(r.wind_speed));
             hourly.gust.push(num(r.wind_gust_speed));
             hourly.dir.push(num(r.wind_direction));
-            hourly.rh.push(num(r.relative_humidity));
+            // MOSMIX has no humidity, so every forecast hour arrives without
+            // one (Brightsky's IGNORED_MISSING_FIELDS) and the bars stopped
+            // at the now line. Its dew point is always there, and with the
+            // temperature it gives the humidity exactly.
+            var rh = num(r.relative_humidity);
+            hourly.rh.push(rh !== null ? rh
+                : model.humidityFromDewPoint(num(r.temperature), num(r.dew_point)));
             hourly.dew.push(num(r.dew_point));
             hourly.pressure.push(num(r.pressure_msl));
             hourly.icon.push(r.icon ? model.brightskyIcon(r.icon) : null);

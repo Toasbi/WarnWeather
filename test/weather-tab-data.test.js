@@ -92,6 +92,15 @@ test('Brightsky parser: DWD units pass through, daily aggregates client-side', (
   assert.ok(out.daily.length >= 1);
   assert.equal(out.daily[0].icon, 'rain');
   assert.equal(out.daily[0].sunshineH, 6);
+  // MOSMIX sends no humidity (Brightsky leaves relative_humidity null on
+  // every forecast hour) but always a dew point: the forecast's humidity is
+  // derived from it, while a station's own reading is kept as it came.
+  const mosmix = rows.map((r) => Object.assign({}, r, { relative_humidity: null, temperature: 20, dew_point: 10 }));
+  mosmix[3].dew_point = null;
+  const derived = data.parsers.dwd({ weather: mosmix }, NOON).hourly;
+  assert.equal(Math.round(derived.rh[0]), 53, 'humidity from temperature and dew point');
+  assert.ok(derived.rh.slice(0, 29).every((v, i) => i === 3 ? v === null : v > 52 && v < 53),
+    'every forecast hour gets one; the hour with no dew point stays unsourced');
   assert.equal(data.parsers.dwd({ weather: [] }, NOON), null);
 
   // Brightsky answers in the timezone we ASKED in — it adopts the `date`

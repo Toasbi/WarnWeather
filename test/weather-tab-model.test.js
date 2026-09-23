@@ -65,6 +65,18 @@ test('unit conversion honors the watch settings', () => {
   assert.equal(model.windUnitLabel({ windUnits: 'knots' }), 'kn');
 });
 
+test('humidityFromDewPoint: Magnus ratio, saturated at the dew point, null without both inputs', () => {
+  assert.equal(model.humidityFromDewPoint(12, 12), 100, 'air at its dew point is saturated');
+  // e_sat(10) / e_sat(20) with feels-like.js's constants (17.27, 237.7): 52.6 %.
+  assert.equal(Math.round(model.humidityFromDewPoint(20, 10) * 10) / 10, 52.6);
+  assert.equal(Math.round(model.humidityFromDewPoint(-5, -10) * 10) / 10, 67.9, 'below freezing too');
+  assert.equal(model.humidityFromDewPoint(10, 11), 100, 'a dew point above the air (rounding in the feed) caps at 100');
+  assert.equal(model.humidityFromDewPoint(null, 8), null);
+  assert.equal(model.humidityFromDewPoint(15, null), null);
+  assert.equal(model.humidityFromDewPoint(15, undefined), null);
+  assert.equal(model.humidityFromDewPoint(NaN, 8), null);
+});
+
 test('icon normalization: WMO, Brightsky, OWM, tomorrow.io spot checks', () => {
   assert.equal(model.wmoIcon(0), 'clear');
   assert.equal(model.wmoIcon(2), 'partly');
