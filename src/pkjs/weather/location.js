@@ -1,6 +1,7 @@
 // src/pkjs/weather/location.js — the storage-and-parse half of coordinate
 // resolution: the GPS-fix cache, the LocationIQ geocode cache and its
-// 429/401/403 backoff record, and the location-override parser. Extracted
+// 429/401/403 backoff record, the last reverse-geocoded city (the City slot's
+// stand-in when ArcGIS fails), and the location-override parser. Extracted
 // from provider.js so these are testable without instantiating a
 // WeatherProvider; the withCoordinates/withGpsCoordinates/
 // withGeocodeCoordinates ORCHESTRATION (and its usedGpsCache/gpsErrorCode/
@@ -12,6 +13,12 @@ var GPS_CACHE_KEY = 'gpsCache';
 var GPS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 var GEOCODE_CACHE_KEY = storageKeys.GEOCODE_CACHE_KEY;
 var RATE_LIMIT_BACKOFF_KEY = storageKeys.GEOCODE_BACKOFF_KEY;
+var LAST_CITY_KEY = storageKeys.LAST_CITY_KEY;
+// How far a fix may sit from the last resolved city, in degrees of latitude
+// and, separately, of longitude (about 11 km and 7 km at 50°N), for that name
+// to stand in when a lookup fails: GPS drift and a trip across town keep it,
+// a trip to another town gets 'Unknown' rather than the old town's name.
+var LAST_CITY_MAX_DELTA_DEG = 0.1;
 
 /**
  * Parse stored JSON and clear invalid values.
@@ -106,6 +113,43 @@ function writeGeocodeBackoff() {
     }));
 
     return backoffMs;
+}
+
+/**
+ * Remember the city name a reverse geocode resolved, and where.
+ *
+ * @param {string} name Resolved city name.
+ * @param {number|string} lat Latitude it was resolved for.
+ * @param {number|string} lon Longitude it was resolved for.
+ * @returns {void}
+ */
+function writeLastCity(name, lat, lon) {
+    localStorage.setItem(LAST_CITY_KEY, JSON.stringify({
+        name: name,
+        lat: Number(lat),
+        lon: Number(lon)
+    }));
+}
+
+/**
+ * The last resolved city name, if it was resolved near these coordinates.
+ *
+ * @param {number|string} lat Latitude (manual coordinates arrive as strings).
+ * @param {number|string} lon Longitude.
+ * @returns {?string} The name, or null when none is stored or it belongs
+ *   to a place farther than LAST_CITY_MAX_DELTA_DEG away.
+ */
+function readLastCityNear(lat, lon) {
+    var last = readStoredJson(LAST_CITY_KEY);
+    if (!last || typeof last.name !== 'string' || last.name.length === 0
+        || typeof last.lat !== 'number' || typeof last.lon !== 'number') {
+        return null;
+    }
+    if (Math.abs(Number(lat) - last.lat) <= LAST_CITY_MAX_DELTA_DEG
+        && Math.abs(Number(lon) - last.lon) <= LAST_CITY_MAX_DELTA_DEG) {
+        return last.name;
+    }
+    return null;
 }
 
 var LAT_LON_PATTERN = /^([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)$/;
@@ -217,6 +261,8 @@ module.exports = {
     readGeocodeBackoff: readGeocodeBackoff,
     writeGeocodeBackoff: writeGeocodeBackoff,
     clearGeocodeBackoff: clearGeocodeBackoff,
+    writeLastCity: writeLastCity,
+    readLastCityNear: readLastCityNear,
     readGpsCache: readGpsCache,
     writeGpsCache: writeGpsCache
 };

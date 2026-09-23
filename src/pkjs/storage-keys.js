@@ -21,6 +21,10 @@ module.exports = {
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
     GEOCODE_CACHE_KEY: 'geocodeCache',
     GEOCODE_BACKOFF_KEY: 'geocodeBackoff',
+    // The last city name the ArcGIS reverse geocode resolved, with the
+    // coordinates it was resolved for ({name, lat, lon}) — the City slot's
+    // stand-in when a later lookup fails nearby (weather/location.js).
+    LAST_CITY_KEY: 'lastCity',
     AUTH_BACKOFF_KEY: 'authBackoff',
     LAST_IS_SLEEPING_KEY: 'lastIsSleeping',
     LAST_HOLIDAY_DAY_KEY: 'last_holiday_day',

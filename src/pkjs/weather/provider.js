@@ -196,16 +196,30 @@ WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure
 
 /**
  * Reverse-geocode coordinates to a display city name + country code via ArcGIS.
+ * Never fails: the city is only the City slot's display string, so a slow,
+ * down or refusing ArcGIS must not cost the forecast. A failed lookup carries
+ * on with the last name resolved near these coordinates, else 'Unknown' (what
+ * a response without an address already gives), and a null country code.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {Function} callback Receives (cityName, countryCode).
- * @param {Function} onFailure Called with a failure object on error.
  * @returns {void}
  */
-WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure) {
+WeatherProvider.prototype.withCityName = function(lat, lon, callback) {
     var url = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location='
         + lon + ',' + lat;
+
+    /**
+     * Continue the fetch with a stand-in name after a failed lookup.
+     * @param {string} reason Failure code, for the log only.
+     * @returns {void}
+     */
+    function fallBack(reason) {
+        var name = locationLib.readLastCityNear(lat, lon) || 'Unknown';
+        console.log('[!] Reverse geocode failed (' + reason + '), using city: ' + name);
+        callback(name, null);
+    }
 
     request(
         url,
@@ -219,19 +233,24 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure)
                 body = JSON.parse(response);
             }
             catch (ex) {
-                onFailure(failure('reverse_geocode', 'parse_error'));
+                fallBack('parse_error');
                 return;
             }
 
-            address = body.address || {};
-            name = address.District || address.City || address.Region || 'Unknown';
+            address = (body && body.address) || {};
+            name = address.District || address.City || address.Region;
+            if (name) {
+                locationLib.writeLastCity(name, lat, lon);
+            }
+            else {
+                name = 'Unknown';
+            }
             countryCode = address.CountryCode || null;
             console.log('Running callback with city: ' + name + ', countryCode=' + countryCode);
             callback(name, countryCode);
         },
         function(error) {
-            console.log('[!] Reverse geocode failed: ' + JSON.stringify(error));
-            onFailure(failure('reverse_geocode', error.code));
+            fallBack(error.code);
         }
     );
 };
@@ -488,10 +507,10 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
 
 /**
  * Run the weather-fetch chain for already-resolved coordinates: reverse-geocode
- * the city, compute sun events, fetch provider data, then send the composed
- * payload via the deduping outbox. Callers MUST resolve coordinates via
- * withCoordinates() first — it owns the usedGpsCache/gpsErrorCode/locationMode
- * resets this method relies on.
+ * the city (never fatal — see withCityName), compute sun events, fetch provider
+ * data, then send the composed payload via the deduping outbox. Callers MUST
+ * resolve coordinates via withCoordinates() first — it owns the
+ * usedGpsCache/gpsErrorCode/locationMode resets this method relies on.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -548,9 +567,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
         }).bind(this), function(sunFailure) {
             onFailure(sunFailure || failure('sun_events', 'unknown_error'));
         });
-    }).bind(this), function(cityFailure) {
-        onFailure(cityFailure || failure('reverse_geocode', 'unknown_error'));
-    });
+    }).bind(this));
 };
 
 /**
