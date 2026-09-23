@@ -473,8 +473,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #if defined(WW_LINE_STYLE)
     // Bottom stripes live BELOW the plot's zero line, in a band of their own
     // between it and the hour axis, so bars, fills and lines can never paint
-    // over them: each stripe takes a 1 px gap plus its height, and the old axis
-    // row stays free for the ticks. The plot's baseline lifts by the band.
+    // over them. The first hangs flush under the zero line, further ones stack
+    // below it with a 1 px gap between stripes, and the old axis row stays free
+    // for the ticks. The plot's baseline lifts by the band.
     const int stripe_h = FORECAST_STRIPE_H(axis_y);
     int bottom_stripes = 0;
     for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
@@ -482,7 +483,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         if (s->present && SERIES_IS_STRIPE(s) && !s->line.stripe_top) ++bottom_stripes;
     }
     const int16_t stripe_band = bottom_stripes
-        ? (int16_t)(bottom_stripes * (stripe_h + FORECAST_STRIPE_GAP) + 1) : 0;
+        ? (int16_t)(bottom_stripes * stripe_h + (bottom_stripes - 1) * FORECAST_STRIPE_GAP + 1)
+        : 0;
 #else
     const int16_t stripe_band = 0;
 #endif
@@ -611,11 +613,10 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             const Series *s = &ds.series[sid];
             if (!s->present || !SERIES_IS_STRIPE(s)) continue;
             // Every stripe is laid out from the top of its own rect: the plot
-            // for a top stripe, the band (1 px gap first) for a bottom one.
-            const int16_t y_offset = s->line.stripe_top
-                ? (int16_t)(stacked_top++ * (stripe_h + FORECAST_STRIPE_GAP))
-                : (int16_t)(stacked_bottom++ * (stripe_h + FORECAST_STRIPE_GAP)
-                            + FORECAST_STRIPE_GAP);
+            // for a top stripe, the band (flush under the zero line) for a
+            // bottom one; a 1 px gap separates stripes sharing an edge.
+            int *stacked = s->line.stripe_top ? &stacked_top : &stacked_bottom;
+            const int16_t y_offset = (int16_t)((*stacked)++ * (stripe_h + FORECAST_STRIPE_GAP));
             const ChartLayer stripe = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
                 .values = s->line.values, .count = ds.num_entries,
                 .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,

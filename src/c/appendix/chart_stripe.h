@@ -43,23 +43,26 @@ static inline uint8_t chart_stripe_blend(uint8_t bg_argb, uint8_t fg_argb, int l
     return out;
 }
 
-// Colour: a cell is a pale tint of the line colour with vertical lines in the
-// full line colour on top, the lines tightening with the level — so the level
-// reads from the pattern even where two tints round to the same Pebble colour
-// (a light ground blending toward a dark line does that). Level 4 is solid.
-// The tint level under each pattern level:
+// Colour: a cell is a tint of the line colour with vertical lines in the full
+// line colour on top, the lines tightening with the level — so the level reads
+// from the pattern even where two tints round to the same Pebble colour (a
+// light ground blending toward a dark line does that). Level 1 has no tint at
+// all (just the background) and the sparsest lines, so it stands well apart
+// from level 2's tinted cell; level 4 is solid. The tint level under each
+// pattern level:
 static inline int chart_stripe_tint_level(int level) {
-    static const uint8_t TINT[CHART_STRIPE_LEVELS + 1] = { 0, 1, 1, 2, 4 };
+    static const uint8_t TINT[CHART_STRIPE_LEVELS + 1] = { 0, 0, 1, 2, 4 };
     return (level < 0 || level > CHART_STRIPE_LEVELS) ? 0 : TINT[level];
 }
 
 // Colour: whether pixel column x carries a full-colour line at this level —
-// every 4th column, every 3rd, every 2nd, every one. Absolute x, so the lines
+// every 5th column, every 3rd, every 2nd, every one. Absolute x, so the lines
 // run on unbroken across neighbouring cells of the same level.
 static inline bool chart_stripe_line_on(int level, int x) {
+    static const uint8_t EVERY[CHART_STRIPE_LEVELS + 1] = { 0, 5, 3, 2, 1 };
     if (level <= 0) { return false; }
     if (level >= CHART_STRIPE_LEVELS) { return true; }
-    return (x % (CHART_STRIPE_LEVELS + 1 - level)) == 0;
+    return (x % EVERY[level]) == 0;
 }
 
 // B&W: whether pixel (x, y) is inked at this level — one pixel in four, a

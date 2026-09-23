@@ -41,15 +41,16 @@ int main(void) {
     }
     assert(!chart_stripe_dither_on(0, 0, 0));
 
-    // Colour pattern: a pale tint under full-colour vertical lines every 4th,
-    // 3rd and 2nd column, then solid — so every level differs even where two
-    // tints round to the same colour.
-    assert(chart_stripe_tint_level(1) == 1 && chart_stripe_tint_level(2) == 1);
+    // Colour pattern: full-colour vertical lines every 5th, 3rd and 2nd column,
+    // then solid, over a tint that is absent at level 1 (background only) — so
+    // every level differs even where two tints round to the same colour, and
+    // level 1 stands well apart from level 2.
+    assert(chart_stripe_tint_level(1) == 0 && chart_stripe_tint_level(2) == 1);
     assert(chart_stripe_tint_level(3) == 2 && chart_stripe_tint_level(4) == 4);
     for (int level = 1; level <= 4; ++level) {
         int lines = 0;
-        for (int x = 0; x < 12; ++x) { lines += chart_stripe_line_on(level, x); }
-        static const int EXPECTED[5] = { 0, 3, 4, 6, 12 };   // 12 columns: /4, /3, /2, all
+        for (int x = 0; x < 30; ++x) { lines += chart_stripe_line_on(level, x); }
+        static const int EXPECTED[5] = { 0, 6, 10, 15, 30 };   // 30 columns: /5, /3, /2, all
         assert(lines == EXPECTED[level]);
     }
     assert(!chart_stripe_line_on(0, 0));

@@ -215,16 +215,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
               style: styleFor('fifthLineStyle'), color: hexColor(gc.fifth) }
         ];
         // Bottom stripes sit BELOW the plot's zero line, in their own band above the
-        // hour axis (forecast_layer.c's stripe_band): a 1-unit gap plus a stripe per
-        // line, and one free row over the ticks. The plot's baseline PB lifts by it;
-        // AXIS_Y is where the ticks and labels always hang.
+        // hour axis (forecast_layer.c's stripe_band): the first flush under the zero
+        // line, further ones 1 unit apart, and one free row over the ticks. The
+        // plot's baseline PB lifts by it; AXIS_Y is where the ticks and labels hang.
         var STRIPE_H = 5, STRIPE_GAP = 1;
         var bottomStripes = 0;
         for (var bs = 0; bs < LINES.length; bs += 1) {
             if (LINES[bs].on && LINES[bs].style === 'stripeBottom') { bottomStripes += 1; }
         }
         var AXIS_Y = 94;
-        var stripeBand = bottomStripes ? bottomStripes * (STRIPE_H + STRIPE_GAP) + 1 : 0;
+        var stripeBand = bottomStripes
+            ? bottomStripes * STRIPE_H + (bottomStripes - 1) * STRIPE_GAP + 1 : 0;
         var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
         var plotW = PX1 - PX0, plotH = PB - PT;
         // One watch-faithful slot grid (chart.c): N hourly slots, one tick per slot. Slot 0 is
@@ -550,17 +551,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         // chart_stripe.h's colour pattern, mirrored: the tint level under each pattern
         // level, and the column test for the full-colour vertical lines on top.
-        var STRIPE_TINT = [0, 1, 1, 2, 4];
+        var STRIPE_TINT = [0, 0, 1, 2, 4];
+        var STRIPE_EVERY = [0, 5, 3, 2, 1];
         /**
          * Whether watch pixel column px carries a full-colour line at this level —
-         * chart_stripe_line_on: every 4th, 3rd, 2nd column, then solid.
+         * chart_stripe_line_on: every 5th, 3rd, 2nd column, then solid.
          * @param {number} level 1..4.
          * @param {number} px Watch pixel column.
          * @returns {boolean} True when the column is lined.
          */
         function stripeLineOn(level, px) {
             if (level >= 4) { return true; }
-            return px % (5 - level) === 0;
+            return px % STRIPE_EVERY[level] === 0;
         }
         /**
          * One colour stripe cell: the pale tint, then the full-colour vertical lines —
@@ -598,7 +600,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var m = METRIC[metric];
             if (!m || m.tempAxis) { return ''; }
             var off = slot * (STRIPE_H + STRIPE_GAP);
-            var y = top ? PT + off : PB + STRIPE_GAP + off;
+            // Bottom: flush under the zero line — past its 0.7-unit stroke's half.
+            var y = top ? PT + off : PB + 0.35 + off;
             var out = '';
             for (var i = 0; i < n - 1; i += 1) {
                 var level = stripeLevel(m, i);

@@ -1273,8 +1273,9 @@ test('forecastPreview: a stripe draws hourly cells shaded like the watch, and no
   const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
   const cells = stripeCells(svg);
   assert.ok(cells.length >= 10, 'one cell per hour column');
-  // Tints: level 1-2 -> blend 1, level 3 -> blend 2, level 4 -> the solid line colour.
-  ['#005555', '#5555AA', '#55AAFF'].forEach((c) => {
+  // Tints: level 1 -> none (the background), level 2 -> blend 1, level 3 -> blend 2,
+  // level 4 -> the solid line colour.
+  ['#000000', '#005555', '#5555AA', '#55AAFF'].forEach((c) => {
     assert.ok(cells.some((r) => r.indexOf(c) >= 0), c + ' (a chart_stripe_blend tint) is used');
   });
   // The full-colour vertical lines over the tints (levels 1-3).
@@ -1282,10 +1283,10 @@ test('forecastPreview: a stripe draws hourly cells shaded like the watch, and no
   assert.ok(lines.length > 0 && lines.every((r) => r.indexOf('#55AAFF') >= 0),
     'the pattern lines are drawn in the full line colour');
   // Bottom stripes live BELOW the zero line: the plot's baseline lifts from the
-  // axis row (94) by the band (1 stripe: 5 + 1 gap + 1 free row = 7) to 87, and
-  // every cell sits one gap under it — nothing in the plot can paint over them.
-  cells.forEach((r) => assert.match(r, /y="88"/));
-  assert.ok(svg.indexOf('y1="87" x2="197" y2="87"') >= 0, 'the zero line moved up to 87');
+  // axis row (94) by the band (1 stripe: 5 + 1 free row = 6) to 88, and every
+  // cell hangs flush under it — nothing in the plot can paint over them.
+  cells.forEach((r) => assert.match(r, /y="88.35"/));
+  assert.ok(svg.indexOf('y1="88" x2="197" y2="88"') >= 0, 'the zero line moved up to 88');
   assert.ok(/<line x1="20" y1="94" x2="20" y2="98"/.test(svg), 'the hour ticks still hang from 94');
   assert.equal(svg.indexOf('fill-opacity="0.25"'), -1, 'a stripe main line never fills');
   assert.equal(svg.indexOf('stroke="#55AAFF"'), -1, 'and draws no stroke');

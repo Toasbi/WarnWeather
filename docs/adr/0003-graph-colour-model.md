@@ -251,8 +251,9 @@ magenta, wind yellow, pressure orange, gust the greys, cloud a grey-blue.
   blends from the background toward the line colour per 2-bit channel (`chart_stripe.h`),
   and with only four levels per channel neighbouring tints can round to the same colour
   (a light ground toward a dark line) or alternate hue (grey vs. blue). So the tint is
-  not what carries the level: full-colour vertical lines over it do, every 4th, 3rd and
+  not what carries the level: full-colour vertical lines over it do, every 5th, 3rd and
   2nd pixel column, then solid — distinct on any colour, whatever the tints round to.
+  Level 1 also drops the tint (background only), so it stands clearly apart from level 2.
 - **Light-theme variants.** Fills and night bases take a *brighter* tint of the hue (the
   dark shades read too heavy on white); lines take a *darker* step. Those are the shapes
   the values happen to have, **not a formula** — every light cell was tuned metric by
