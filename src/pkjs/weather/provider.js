@@ -145,7 +145,11 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
         return true;
     }
 
-    locationLib.clearGeocodeBackoff();
+    // Expired: let the lookup through, but keep the record. Its attempt count
+    // is what makes the next 429/401/403 wait longer (writeGeocodeBackoff);
+    // clearing it here restarted every cooldown at 60 s, so a dead or
+    // rate-limited key was asked again on every minute tick. A 2xx answer,
+    // any other error, or a forced fetch drops it.
     return false;
 };
 
@@ -336,6 +340,9 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
         (function(response) {
             var locations;
             var closest;
+            // A 2xx answer: the key is accepted and not rate-limited, so the
+            // cooldown's escalation starts over.
+            locationLib.clearGeocodeBackoff();
             try {
                 locations = JSON.parse(response);
             }

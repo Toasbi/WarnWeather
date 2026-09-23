@@ -76,6 +76,34 @@ function geocode(address) {
   });
 });
 
+test('a LocationIQ refusal that keeps coming waits longer each time; a 2xx starts over', () => {
+  var realNow = Date.now;
+  var now = realNow();
+  Date.now = function () { return now; };
+  var p = new WeatherProvider();
+  p.location = 'Berlin, Germany';
+  var waits = [];
+  try {
+    route = function () { return { status: 403, body: '{"error":"Invalid key"}' }; };
+    for (var i = 0; i < 5; i++) {
+      assert.equal(p.isGeocodeBackoffActive(), false, 'the cooldown has run out: ask again');
+      geocode('Berlin, Germany');
+      var until = JSON.parse(store[storageKeys.GEOCODE_BACKOFF_KEY]).until;
+      waits.push(until - now);
+      now = until;                                  // the next check lands on expiry
+    }
+    // The expired record carries its attempt count into the next cooldown;
+    // clearing it on expiry restarted every wait at 60 s (a request a minute).
+    assert.deepEqual(waits, [60000, 60000, 120000, 240000, 480000]);
+
+    route = function () { return { status: 200, body: '[{"lat":"52.52","lon":"13.40"}]' }; };
+    assert.deepEqual(geocode('Berlin, Germany').coords, ['52.52', '13.40']);
+    assert.equal(store[storageKeys.GEOCODE_BACKOFF_KEY], undefined, 'a working key resets the escalation');
+  } finally {
+    Date.now = realNow;
+  }
+});
+
 test('a LocationIQ timeout arms no backoff (transient, retry next cycle)', () => {
   route = function () { return 'timeout'; };
   var out = geocode('Berlin, Germany');

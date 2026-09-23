@@ -1,21 +1,30 @@
 // test/geocode-not-found-boot.test.js
 // End to end through the REAL index.js boot and 60 s tick loop (the
 // test/index-boot.test.js harness): a manual address LocationIQ cannot
-// resolve used to be looked up again on every tick — the failed fetch leaves
-// needRefresh() true — each time spending the one key every install shares.
-// Now the miss is remembered and the scheduled fetches skip the lookup.
+// resolve, or refuses outright, used to be looked up again on every tick —
+// the failed fetch leaves needRefresh() true — each time spending the one key
+// every install shares. Now a miss is remembered and the scheduled fetches
+// skip the lookup, and a refusal waits out a cooldown that keeps growing.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('path');
 
 /**
- * Boot index.js with a misspelled manual address and count LocationIQ
- * requests across ready plus ten minute ticks.
+ * Boot index.js with a manual address and count LocationIQ requests across
+ * ready plus `ticks` minute ticks. The mocked clock (setTimeout and Date)
+ * advances with each tick, so time-based cooldowns expire as they would.
  * @param {Object} t node:test context.
  * @param {{status: number, body: string}} answer LocationIQ's reply.
+ * @param {number} [ticks] Minute ticks to run after ready (default 10).
  * @returns {{perTick: number[], store: Object}} Cumulative counts + storage.
  */
-function bootWithUnresolvableAddress(t, answer) {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+function bootWithUnresolvableAddress(t, answer, ticks) {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() });
+  // Each test boots a fresh index.js (it registers its listeners on load).
+  const pkjsDir = path.resolve(__dirname, '../src/pkjs') + path.sep;
+  Object.keys(require.cache).forEach((id) => {
+    if (id.indexOf(pkjsDir) === 0) { delete require.cache[id]; }
+  });
   const store = {};
   global.localStorage = {
     getItem: (k) => Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null,
@@ -71,7 +80,7 @@ function bootWithUnresolvableAddress(t, answer) {
   require('../src/pkjs/index.js');
   listeners.ready({});
   const perTick = [liq];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < (ticks || 10); i++) {
     t.mock.timers.tick(60 * 1000);
     perTick.push(liq);
   }
@@ -86,4 +95,17 @@ test('an address LocationIQ answers 404 for is asked once, not every minute', (t
   assert.deepEqual(attempt.error, { stage: 'forward_geocode', code: 'status_404' },
     'the settings diagnostics still show why weather is missing');
   assert.equal(run.store.authBackoff, undefined, 'not mistaken for a provider key failure');
+});
+
+test('a LocationIQ key refusal (401) is asked again after a growing pause, not every minute', (t) => {
+  const run = bootWithUnresolvableAddress(t, { status: 401, body: '{"error":"Invalid key"}' }, 60);
+  // The ticks on which a new request went out: the cooldown doubles each
+  // time (60 s, 60 s, 2, 4, 8, 16 min ... up to 30 min), where resetting it
+  // on every expiry asked the shared key once a minute.
+  const askedAt = run.perTick.reduce((acc, n, i) => {
+    if (n > (i === 0 ? 0 : run.perTick[i - 1])) { acc.push(i); }
+    return acc;
+  }, []);
+  assert.deepEqual(askedAt, [0, 1, 2, 4, 8, 16, 32]);
+  assert.equal(run.store.authBackoff, undefined, 'the shared key is not the provider\'s');
 });

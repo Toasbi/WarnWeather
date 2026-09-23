@@ -272,8 +272,10 @@ function readGpsCache() {
 }
 
 /**
- * Drop the LocationIQ backoff record (a successful call, an error that arms no
- * backoff, or the user closing the settings page all clear it).
+ * Drop the LocationIQ backoff record (a 2xx answer, an error that arms no
+ * backoff, a forced fetch, or a location change all clear it). An expired
+ * record is deliberately kept until then: its attempt count escalates the
+ * next cooldown.
  * @returns {void}
  */
 function clearGeocodeBackoff() {
@@ -281,7 +283,9 @@ function clearGeocodeBackoff() {
 }
 
 /**
- * @returns {?{until: number, attempts: number}} The active backoff record, or null.
+ * @returns {?{until: number, attempts: number}} The backoff record, or null.
+ *   `until` may already be past: the record outlives its window so the
+ *   attempt count keeps escalating.
  */
 function readGeocodeBackoff() {
     return readStoredJson(RATE_LIMIT_BACKOFF_KEY);
