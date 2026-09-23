@@ -3,7 +3,8 @@
 
 The watch's system fonts (and the SDK's TTF font resources) are 1-bit, so the clock
 digits on a colour screen have hard, stair-stepped edges. This script rasterises the
-digits ONCE, here, with FreeType's anti-aliasing, and quantises each pixel's coverage
+digits ONCE, here, grid-fitted (see fit_glyph) and with FreeType's anti-aliasing, and
+quantises each pixel's coverage
 to the 2-bit alpha a GColor8 carries (0, 1/3, 2/3, opaque). The SDK packs each strip
 as a 2-bit palette whose four entries are those four alpha levels; the watch recolours
 the entries to the clock colour (keeping each one's alpha) and draws with GCompOpSet,
@@ -58,9 +59,276 @@ FACES = [
 PLATFORMS = ['basalt', 'emery']
 PLATFORM_MACRO = {'basalt': 'PBL_PLATFORM_BASALT', 'emery': 'PBL_PLATFORM_EMERY'}
 
-# LIGHT hinting snaps only vertically, so the digits keep their designed widths and
-# curves while the horizontal edges land on whole rows (crisp tops and baselines).
-LOAD_FLAGS = freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_LIGHT
+# Grid fitting. LIGHT hinting snapped only vertically, so every vertical stem kept fractional left
+# and right edges: a grey rail down each side. Instead, FreeType's auto-hinter fits the outline for
+# a 1-bit target (TARGET_MONO), which snaps BOTH axes -- straight stems and bars land on whole
+# pixels -- and the fitted outline is then rasterised in 8-bit grey, so curves and diagonals keep
+# their anti-aliasing. The auto-hinter rounds each stroke's width to the NEAREST pixel, though (a
+# bar's height even rounds down below .75), which thins a stroke whose fraction is small: Bitham's
+# 4.36 px stem draws 4 px at 44 px. fit_glyph() undoes that stroke by stroke on the fitted outline:
+# a thinned stroke gets its design width back exactly -- the edge the hinter placed nearer the
+# design stays on the grid and the other moves out by the lost fraction (one grey column or row
+# where LIGHT drew two). A stroke counts as thinned when the hinter took SLIVER or more off its
+# design width; less is under the 2-bit alpha's half step, which the strip could not show anyway.
+HINT_FLAGS = freetype.FT_LOAD_TARGET_MONO | freetype.FT_LOAD_FORCE_AUTOHINT | freetype.FT_LOAD_NO_BITMAP
+DESIGN_FLAGS = freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP
+SLIVER = 10     # 26.6 units, ~1/6 px
+MERGE = 16      # same-side straight runs within 1/4 px are one edge (as the auto-hinter merges them)
+MIN_RUN = 64    # a straight run shorter than 1 px is not an edge
+ASPECT = 2      # a stem is at most ASPECT times wider than its straight runs are long (a bar's two
+                # ends face each other across solid ink too, but they are not a stem)
+
+
+def contours(ends):
+    start = 0
+    for end in ends:
+        yield list(range(start, end + 1))
+        start = end + 1
+
+
+def straight_edges(P, tags, ends):
+    """The outline's straight axis-parallel edges, in 26.6 units, pen-relative, y up.
+
+    A run is a chain of points between on-curve ends that keeps one coordinate (k = 0: x, a
+    vertical run; k = 1: y). Same-side runs within MERGE are merged into one edge: {'k', 'side',
+    'pos' (length-weighted), 'runs': [(lo, hi)], 'idx'}. side +1: ink at the larger coordinate --
+    TrueType contours keep the ink on their right, so an upward run is a left edge of ink and a
+    leftward run a bottom edge.
+    """
+    runs = []
+    for idx in contours(ends):
+        n = len(idx)
+        for k in (0, 1):
+            same = [P[idx[j]][k] == P[idx[(j + 1) % n]][k] for j in range(n)]
+            if all(same):
+                continue
+            j, run = (same.index(False) + 1) % n, []
+            for _ in range(n + 1):
+                if same[j]:
+                    run = run or [j]
+                    run.append((j + 1) % n)
+                elif run:
+                    pts = [idx[t] for t in run]
+                    while pts and not tags[pts[0]] & 1:
+                        pts.pop(0)
+                    while pts and not tags[pts[-1]] & 1:
+                        pts.pop()
+                    if len(pts) >= 2:
+                        a, b = P[pts[0]], P[pts[-1]]
+                        length = b[1 - k] - a[1 - k]
+                        run_key = (k, tuple(pts))
+                        if abs(length) >= MIN_RUN and run_key not in [r[0] for r in runs]:
+                            side = (1 if length > 0 else -1) * (1 if k == 0 else -1)
+                            runs.append((run_key, k, side, a[k], min(a[1 - k], b[1 - k]),
+                                         max(a[1 - k], b[1 - k]), pts))
+                    run = []
+                j = (j + 1) % n
+    edges = []
+    for _key, k, side, pos, lo, hi, pts in sorted(runs, key=lambda r: (1 - r[1], r[2], r[3])):
+        e = edges[-1] if edges else None
+        if e and e['k'] == k and e['side'] == side and pos - e['last'] <= MERGE:
+            e['runs'].append((lo, hi, pos))
+        else:
+            e = {'k': k, 'side': side, 'runs': [(lo, hi, pos)], 'idx': []}
+            edges.append(e)
+        e['last'] = pos
+        e['idx'] += pts
+    for e in edges:
+        total = sum(hi - lo for lo, hi, _pos in e['runs'])
+        e['pos'] = sum(pos * (hi - lo) for lo, hi, pos in e['runs']) / float(total)
+        e['idx'] = sorted(set(e['idx']))
+    return edges
+
+
+def polygons(P, tags, ends):
+    """The outline as closed polygons (each conic cut into 8 chords), for inside tests."""
+    polys = []
+    for idx in contours(ends):
+        pts = []
+        for j, i in enumerate(idx):
+            a, b = P[i], P[idx[(j + 1) % len(idx)]]
+            pts.append((a[0], a[1], tags[i] & 1))
+            if not tags[i] & 1 and not tags[idx[(j + 1) % len(idx)]] & 1:
+                pts.append(((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, 1))
+        while not pts[0][2]:
+            pts.append(pts.pop(0))
+        poly, j, n = [], 0, len(pts)
+        while j < n:
+            a, b = pts[j], pts[(j + 1) % n]
+            if b[2]:
+                poly.append((a[0], a[1]))
+                j += 1
+            else:
+                c = pts[(j + 2) % n]
+                for t in range(8):
+                    u = t / 8.0
+                    poly.append(((1 - u) ** 2 * a[0] + 2 * (1 - u) * u * b[0] + u * u * c[0],
+                                 (1 - u) ** 2 * a[1] + 2 * (1 - u) * u * b[1] + u * u * c[1]))
+                j += 2
+        polys.append(poly)
+    return polys
+
+
+def inside(polys, x, y):
+    winding = 0
+    for poly in polys:
+        for i in range(len(poly)):
+            (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % len(poly)]
+            if (y0 <= y) != (y1 <= y) and x0 + (y - y0) * (x1 - x0) / (y1 - y0) > x:
+                winding += 1 if y1 > y0 else -1
+    return winding != 0
+
+
+def overlap_span(a, b):
+    """The longest stretch along which two edges face each other: (lo, hi) or None."""
+    best = None
+    for alo, ahi, _ in a['runs']:
+        for blo, bhi, _ in b['runs']:
+            lo, hi = max(alo, blo), min(ahi, bhi)
+            if hi > lo and (best is None or hi - lo > best[1] - best[0]):
+                best = (lo, hi)
+    return best
+
+
+def straight_strokes(edges, polys):
+    """Stems (k = 0) and bars (k = 1): mutually nearest facing edges with solid ink between them."""
+    strokes = []
+    for k in (0, 1):
+        los = [e for e in edges if e['k'] == k and e['side'] > 0]
+        his = [e for e in edges if e['k'] == k and e['side'] < 0]
+        for a in los:
+            facing = [b for b in his if b['pos'] > a['pos'] and overlap_span(a, b)]
+            b = min(facing, key=lambda b: b['pos']) if facing else None
+            if b is None or max((e for e in los if e['pos'] < b['pos'] and overlap_span(e, b)),
+                                key=lambda e: e['pos']) is not a:
+                continue
+            w = b['pos'] - a['pos']
+            lo, hi = overlap_span(a, b)
+            mid = (lo + hi) / 2.0
+            solid = all(inside(polys, *((a['pos'] + w * t, mid) if k == 0 else (mid, a['pos'] + w * t)))
+                        for t in (0.1, 0.3, 0.5, 0.7, 0.9))
+            if solid and w <= ASPECT * (hi - lo):
+                strokes.append((k, a, b))
+    return strokes
+
+
+def extremes(P, tags, ends, k):
+    """On-curve points where the contour turns back along axis k."""
+    out = set()
+    for idx in contours(ends):
+        n = len(idx)
+        for j, i in enumerate(idx):
+            if tags[i] & 1:
+                c = P[i][k]
+                prev = next((P[idx[(j - s) % n]][k] for s in range(1, n) if P[idx[(j - s) % n]][k] != c), c)
+                nxt = next((P[idx[(j + s) % n]][k] for s in range(1, n) if P[idx[(j + s) % n]][k] != c), c)
+                if (prev - c) * (nxt - c) > 0:
+                    out.add(i)
+    return out
+
+
+def ink_columns(P):
+    xs = [p[0] for p in P]
+    return (min(xs) // 64, -(-max(xs) // 64))
+
+
+def restored_widths(U, H, strokes):
+    """{id(edge): 26.6 move} that gives each thinned stroke back its design width."""
+    ymin, ymax = min(p[1] for p in U), max(p[1] for p in U)
+    moves = {}
+    for k, a, b in strokes:
+        ha, hb = set(H[i][k] for i in a['idx']), set(H[i][k] for i in b['idx'])
+        if len(ha) != 1 or len(hb) != 1:
+            continue    # the hinter split the edge; leave it as fitted
+        ha, hb = ha.pop(), hb.pop()
+        design, fitted = b['pos'] - a['pos'], hb - ha
+        centre = (a['pos'] + b['pos']) / 2.0
+        # a bar's edge on the glyph's top or bottom keeps its row: the ink height must not change
+        fix_a = k == 1 and abs(a['pos'] - ymin) <= MERGE
+        fix_b = k == 1 and abs(b['pos'] - ymax) <= MERGE
+        da = db = 0
+        if design - fitted >= SLIVER:
+            # keep on the grid the edge whose design-width partner lands the stroke's centre
+            # nearest the design's; a bar's top or bottom row (fix_a/fix_b) is never the one moved
+            keep_a = [] if fix_b else [(abs(ha + design / 2.0 - centre), 0, 'a')]
+            keep_b = [] if fix_a else [(abs(hb - design / 2.0 - centre), 1, 'b')]
+            if min(keep_a + keep_b)[2] == 'a':
+                db = int(round(ha + design)) - hb
+            else:
+                da = int(round(hb - design)) - ha
+        if da:
+            moves[id(a)] = da
+        if db:
+            moves[id(b)] = db
+    return moves
+
+
+def interpolate(P, ends, k, delta):
+    """Move every point by its delta along axis k: points without one interpolate between their
+    contour's nearest moved-or-anchored neighbours (TrueType's IUP), else follow the nearer one."""
+    d = [0.0] * len(P)
+    for idx in contours(ends):
+        t = [i for i in idx if i in delta]
+        for i in t:
+            d[i] = delta[i]
+        if len(t) == 1:
+            for i in idx:
+                d[i] = delta[t[0]]
+        if len(t) < 2:
+            continue
+        pos = {i: j for j, i in enumerate(idx)}
+        for m in range(len(t)):
+            t1, t2 = t[m], t[(m + 1) % len(t)]
+            j = (pos[t1] + 1) % len(idx)
+            while idx[j] != t2:
+                i = idx[j]
+                o1, o2, d1, d2 = P[t1][k], P[t2][k], d[t1], d[t2]
+                if o1 > o2:
+                    o1, o2, d1, d2 = o2, o1, d2, d1
+                x = P[i][k]
+                d[i] = d1 if x <= o1 else d2 if x >= o2 else d1 + (x - o1) * (d2 - d1) / float(o2 - o1)
+                j = (j + 1) % len(idx)
+    return d
+
+
+def fit_glyph(face, ch):
+    """Load ch grid-fitted with its thinned strokes restored into face.glyph, rendered in 8-bit
+    grey. Returns the advance: the unhinted one rounded, as LIGHT gave it (the hinter's own may
+    differ by a pixel; the glyph goes back to the design's pen position instead)."""
+    face.load_char(ch, DESIGN_FLAGS)
+    o = face.glyph.outline
+    U, tags, ends = [list(p) for p in o.points], list(o.tags), list(o.contours)
+    adv = (face.glyph.advance.x + 32) // 64
+    face.load_char(ch, HINT_FLAGS)
+    points = face.glyph.outline._FT_Outline.points
+    H = [[points[i].x, points[i].y] for i in range(len(U))]
+    # The hinter shifts the outline by whole pixels to fit its own advance; undo the shift that
+    # puts the glyph's ink columns nearest the design's (ties: nearest outline).
+    L0, R0 = ink_columns(U)
+    shift = min(((abs(ink_columns([[x + 64 * s, y] for x, y in H])[0] - L0)
+                  + abs(ink_columns([[x + 64 * s, y] for x, y in H])[1] - R0),
+                  sum(abs(h[0] + 64 * s - u[0]) for u, h in zip(U, H))), s) for s in (-1, 0, 1))[1]
+    H = [[x + 64 * shift, y] for x, y in H]
+    edges = straight_edges(U, tags, ends)
+    polys = polygons(U, tags, ends)
+    strokes = straight_strokes(edges, polys)
+    moves = restored_widths(U, H, strokes)
+    for k in (0, 1):
+        # every straight edge, round extreme and corner moves by its stroke's correction (most by
+        # none): they anchor the interpolation of the points between them
+        delta = dict((i, 0) for i in extremes(U, tags, ends, k))
+        for e in edges:
+            if e['k'] == k:
+                for i in e['idx']:
+                    delta[i] = moves.get(id(e), 0)
+        d = interpolate(H, ends, k, delta)
+        for i in range(len(H)):
+            if k == 0:
+                points[i].x = H[i][0] + int(round(d[i]))
+            else:
+                points[i].y = H[i][1] + int(round(d[i]))
+    face.glyph.render(freetype.FT_RENDER_MODE_NORMAL)
+    return adv
 
 
 def alpha_level(coverage):
@@ -80,7 +348,7 @@ def render_face(ttf, size):
     glyphs = []
     top, bottom = None, None
     for ch in GLYPHS:
-        face.load_char(ch, LOAD_FLAGS)
+        adv = fit_glyph(face, ch)
         g = face.glyph
         bm = g.bitmap
         levels = [[alpha_level(bm.buffer[y * bm.pitch + x]) for x in range(bm.width)]
@@ -93,7 +361,7 @@ def render_face(ttf, size):
         for y, row in enumerate(levels):
             if any(row[c0:c1 + 1]):
                 rows[y - g.bitmap_top] = row[c0:c1 + 1]
-        glyphs.append({'char': ch, 'adv': g.advance.x // 64, 'lsb': g.bitmap_left + c0,
+        glyphs.append({'char': ch, 'adv': adv, 'lsb': g.bitmap_left + c0,
                        'w': c1 - c0 + 1, 'rows': rows})
         if ch != ':':
             # The digits define the ink box; the colon sits inside it.
