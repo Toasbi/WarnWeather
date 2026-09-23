@@ -81,10 +81,12 @@ test('Tomorrow.io: forecast and radar send the same key the Test button checked'
 
 test('Tomorrow.io radar: a whitespace-only key is a missing key, not a request', () => {
   const radar = require('../src/pkjs/weather/tomorrowio-radar.js');
+  const radarWire = require('../src/pkjs/weather/radar-wire.js');
   let got;
   const urls = capture(() => { radar.fetchRadarTuplesAt(' \t', 1, 2, 1700000100, (t) => { got = t; }); });
   assert.equal(urls.length, 0);
-  assert.equal(got, null);
+  // A missing key clears the watch's radar, the same as an empty one.
+  assert.deepEqual(got, radarWire.clearRadarTuples());
 });
 
 test('settings Weather tab: OWM and Tomorrow.io graphs send the trimmed key', () => {
