@@ -74,37 +74,64 @@ function countdownTarget() {
 // flicks capture-showcase.sh sends before the screenshot to reach the intended view;
 // `radar` (when set) replaces the base radar series so the rain countdown reads a
 // specific state.
+/**
+ * Feels-like weather override for scene 4 (the temp slot's actual|feels pair). The Berlin base carries no feels data, so
+ * derive it from the base temps: a wind-chill-style drop of wind/4 °F (the fixture's
+ * internal unit), which puts the current 75 °F / 24 °C at 70 °F / 21 °C.
+ * @param {Object} weather The base fixture's weather block.
+ * @returns {{feelsTemps: number[], currentFeels: number}} Fields merged into the frame.
+ */
+function feelsFrom(weather) {
+  const drop = (i) => Math.round((weather.windKmh[i] || 0) / 4);
+  return {
+    feelsTemps: weather.temps.map((t, i) => t - drop(i)),
+    currentFeels: weather.currentTemp - drop(0),
+  };
+}
+// Clock fonts by scene pair (user call): 1+2 roboto, 3+4 leco, 5+6 bitham.
+// Roboto and Bitham draw from the anti-aliased glyph strips on basalt/emery; leco stays
+// on the system font. The reel intro (scenes 1/2/3/4/6) therefore previews all three.
 const SCENES = [
   {
-    // Full top view (classic 3-row calendar) with a "Rain in X" countdown up top.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
+    // Full top view (classic 3-row calendar) with a quiet top strip: calendar week
+    // left, date mid, the watch battery right. Weather status row temp / city /
+    // sunrise-sunset. Graph: temp + filled precip line, multicolour rain bars, no
+    // third/fourth line. No rain countdown (radar off) so the top strip shows its slots.
+    // largeGraphFont off (emery-only toggle, default on): the smaller axis labels
+    // match the status bar's font in this dense layout.
     id: 1, flicks: 0,
     clay: {
       layoutPreset: 'fullCal', healthMode: 'off',
-      secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
+      secondaryLine: 'precip_prob', secondaryLineFill: true, secondaryLineStyle: 'line',
+      thirdLine: 'off', fourthLine: 'off',
       barSource: 'rain', rainBarColor: 'multicolor',
-      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
-      timeFont: 'leco',
+      radarProvider: 'disabled', rainCountdownHorizon: '0',
+      timeFont: 'roboto', largeGraphFont: false,
+      statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'battery',
+      statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun',
     },
-    radar: { exact: RAIN_APPROACH_EXACT, area: RAIN_APPROACH_AREA },
-    countdown: { text: "Rain in 15'", tier: 3 },
+    radar: null,
   },
   {
     // Compact-DENSE: weather & health status shown together by default (no flick needed),
-    // with a different-looking forecast (wind + dotted gust). Radar off — the dense
-    // preset's off-radar cycle is a single view, so there's nothing to flick to anyway.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
+    // with a different-looking forecast (filled wind + dotted gust, no rain bars) and
+    // a "Rain in 15'" countdown over the top strip's left/mid, sunset on the right.
+    // The countdown is baked (countdown block) and flicks stay 0, so the radar view
+    // never shows. largeGraphFont off (emery-only toggle): the smaller axis labels
+    // match the dense status rows.
     // No threshold highlighting here (user call: too busy for the intro scenes);
     // the left slot stays wind to match the scene's wind+gust graph.
     id: 2, flicks: 0, variants: { emery: HR_EMERY },
     clay: {
       layoutPreset: 'compactDense', healthMode: 'status',
-      secondaryLine: 'wind', thirdLine: 'gust', barSource: 'off',
-      radarProvider: 'disabled', rainCountdownHorizon: '0',
-      timeFont: 'leco',
-      statusForecastLeft: 'wind',
+      secondaryLine: 'wind', secondaryLineFill: true, thirdLine: 'gust', barSource: 'off',
+      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
+      timeFont: 'roboto', largeGraphFont: false,
+      statusTopRight: 'sun',
+      statusForecastLeft: 'wind', statusForecastRight: 'gust',
     },
-    radar: null,
+    radar: { exact: RAIN_APPROACH_EXACT, area: RAIN_APPROACH_AREA },
+    countdown: { text: "Rain in 15'", tier: 3 },
   },
   {
     // Compact + single status showing the weather status, with a health-flavoured top
@@ -112,7 +139,6 @@ const SCENES = [
     // countdown up top; this frame is the bold + health-top-slot showcase). The
     // drizzle radar series stays for the graph's rain bar, but the countdown is off
     // (horizon '0', no baked strip) so the top strip shows the slots.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
     id: 3, flicks: 0,
     clay: {
       layoutPreset: 'compactCal', healthMode: 'status',
@@ -120,14 +146,18 @@ const SCENES = [
       barSource: 'rain', rainBarColor: 'multicolor',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0',
       timeFont: 'leco',
+      // Status row between calendar and clock (cal → status → clock → graph), so the
+      // clock sits lower than scene 4's swapped layout. Pinned: swapClockStatus now
+      // defaults ON, so an unset key would render scene 4's order here too.
+      swapClockStatus: false,
       // All-bold showcase: the master Bold values override packs every slot kind's
       // bold cell as always at blob-build time.
       statusBoldAll: 'all',
-      // Base = basalt/flint: their 144px strip can't fit bold side values next to
-      // the bold date (user call) — leave left/right empty. emery pins the full
-      // hr/date/steps look; aplite keeps its classic week/date/sun strip (its
-      // narrower B/W font fits).
-      statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'empty',
+      // Base = basalt/flint: narrow side values next to the bold date — UV index left,
+      // watch battery percentage right (user call). emery pins the full
+      // hr/date/steps look; aplite keeps its classic week/date/sun strip (it has no
+      // battery-percentage slot).
+      statusTopLeft: 'uv', statusTopMid: 'date', statusTopRight: 'batteryPct',
     },
     variants: {
       emery:  { statusTopLeft: 'hr', statusTopRight: 'steps' },
@@ -138,10 +168,10 @@ const SCENES = [
   {
     // Compact 2-row calendar with every status slot bold (mirrors the user's real-watch
     // look): a bold date in the top-mid — flanked by a date-countdown ("21d") and steps
-    // on emery, narrow week/UV elsewhere — over the classic temp / city / AQI forecast
-    // bar. The radar series feeds the graph's rain bar, but the rain countdown stays off
-    // (horizon '0') so the top strip shows its slots.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
+    // on emery, narrow week/UV elsewhere — over a temp / city / AQI forecast bar whose
+    // temp slot shows actual|feels-like ("24|21", tempSlotDisplay 'both'; the feels
+    // numbers come from feelsFrom). The radar series feeds the graph's rain bar, but
+    // the rain countdown stays off (horizon '0') so the top strip shows its slots.
     id: 4, flicks: 0,
     clay: {
       layoutPreset: 'compactCal', healthMode: 'status',
@@ -154,6 +184,7 @@ const SCENES = [
       swapClockStatus: true,
       statusBoldAll: 'all',
       statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi',
+      tempSlotDisplay: 'both',
       // Base = the 144px platforms (aplite/basalt/flint): the bold date needs narrow
       // side slots or it gets cut off (user call) — calendar week left, UV right.
       statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'uv',
@@ -163,6 +194,7 @@ const SCENES = [
       emery: { statusTopLeft: 'countdown', statusTopLeftCountdown: countdownTarget(),
                statusTopRight: 'steps' },
     },
+    weather: feelsFrom,
     radar: { exact: RAIN_APPROACH_EXACT, area: RAIN_APPROACH_AREA },
   },
   {
@@ -170,7 +202,9 @@ const SCENES = [
     // full-screen forecast for the hourly health graph — step bars + step-count scale, a
     // sleep band, and the heart-rate line — with the health status line above. Radar off
     // so the single flick lands on the graph. The graph's numbers come from the
-    // health_fixture.c twin.
+    // health_fixture.c twin, whose HR curve spans 54–85 bpm: hrScale '50-100' (the
+    // setting's 50-bpm minimum span) makes the line use the plot instead of hugging
+    // the floor of the 40–150 default.
     // reelIntro: false — the reel intro reuses the showcase scenes in THIS table's
     // order (gen-reel-fixtures.js derives its INTRO_SCENES from here); this one is
     // skipped there (flick-gated, and degraded on aplite).
@@ -179,20 +213,25 @@ const SCENES = [
       layoutPreset: 'noCal', healthMode: 'all',
       secondaryLine: 'precip_prob', barSource: 'off',
       radarProvider: 'disabled', rainCountdownHorizon: '0',
+      timeFont: 'bitham',
+      hrScale: '50-100',
     },
     radar: null,
   },
   {
     // NONE mode with a rain-now countdown ("Rain for X"): full-date strip, big clock,
-    // full-screen forecast.
-    // timeFont 'leco' — reel intro (scenes 1/2/3/4/6) is all leco.
+    // full-screen forecast. Three metric lines: filled precip, wind and gust as x marks
+    // in their default colours (wind yellow, gust white), multicolour rain bars.
+    // aplite has no fourth line or style picker and keeps its classic look.
     id: 6, flicks: 0,
     clay: {
       layoutPreset: 'noCal', healthMode: 'off',
-      secondaryLine: 'precip_prob', secondaryLineFill: true,
+      secondaryLine: 'precip_prob', secondaryLineFill: true, secondaryLineStyle: 'line',
+      thirdLine: 'wind', thirdLineStyle: 'x',
+      fourthLine: 'gust', fourthLineStyle: 'x',
       barSource: 'rain', rainBarColor: 'multicolor',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60',
-      timeFont: 'leco',
+      timeFont: 'bitham',
     },
     radar: { exact: RAIN_NOW_EXACT, area: RAIN_NOW_AREA },
     countdown: { text: "Rain for 20'", tier: 3 },
@@ -228,6 +267,9 @@ function generateShowcaseFixtures(opts = {}) {
     const frame = JSON.parse(JSON.stringify(base));
     frame.watch.now = { ...frame.watch.now, ...NOW_OVERRIDE };
     frame.claySettings = { ...base.claySettings, ...scene.clay, ...extraClay };
+    if (scene.weather) {
+      Object.assign(frame.weather, scene.weather(base.weather));
+    }
     if (scene.radar) {
       frame.weather.rainRadarExactMm = scene.radar.exact.slice();
       frame.weather.rainRadarAreaMm = scene.radar.area.slice();

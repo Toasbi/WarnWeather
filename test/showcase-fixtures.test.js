@@ -106,22 +106,23 @@ test('every scene resolves its intended preset through the real Clay settings pi
   }
 });
 
-test('scenes 1, 3 & 4 add UV as the second metric (thirdLine)', () => {
+test('scenes 3 & 4 add UV as the second metric (thirdLine); scene 1 draws precip alone', () => {
   const byId = generateIntoTmp();
-  assert.strictEqual(byId[1].claySettings.thirdLine, 'uv');
+  assert.strictEqual(byId[1].claySettings.thirdLine, 'off');
+  assert.strictEqual(byId[1].claySettings.fourthLine, 'off');
   assert.strictEqual(byId[3].claySettings.thirdLine, 'uv');
   assert.strictEqual(byId[4].claySettings.thirdLine, 'uv');
 });
 
-test('radar states: rain approaching (1, 4), drizzle approaching (3), raining now (6)', () => {
+test('radar states: rain approaching (2, 4), drizzle approaching (3), raining now (6)', () => {
   const byId = generateIntoTmp();
   // Scene 3: dry at slot 0, drizzle-tier rain later — feeds the graph's rain bar only
   // (its countdown is off; see the countdown test below).
   const drizzle = byId[3].weather.rainRadarExactMm;
   assert.strictEqual(drizzle[0], 0, 'scene 3 dry now');
   assert.ok(Math.max(...drizzle) <= 0.5, 'scene 3 peak is drizzle-tier');
-  // Scenes 1 (full, "Rain in X") & 4 (bold-countdown, bar only): dry now, rain-tier later.
-  for (const id of [1, 4]) {
+  // Scenes 2 ("Rain in X") & 4 (bold-countdown, bar only): dry now, rain-tier later.
+  for (const id of [2, 4]) {
     const approach = byId[id].weather.rainRadarExactMm;
     assert.strictEqual(approach[0], 0, 'scene ' + id + ' dry now');
     assert.ok(Math.max(...approach) > 0.5 && Math.max(...approach) <= 2, 'scene ' + id + ' peak is rain-tier');
@@ -132,22 +133,22 @@ test('radar states: rain approaching (1, 4), drizzle approaching (3), raining no
   assert.ok(Math.max(...rain) > 0.5 && Math.max(...rain) <= 2, 'scene 6 peak is rain-tier');
 });
 
-test('countdown strip text/tier is baked on 1 & 6 only; scenes 2 & 4 keep their top strips (horizon 0)', () => {
+test('countdown strip text/tier is baked on 2 & 6 only; the rest keep their top strips (horizon 0)', () => {
   const byId = generateIntoTmp();
-  assert.deepStrictEqual(byId[1].countdown, { text: "Rain in 15'", tier: 3 });
+  assert.deepStrictEqual(byId[2].countdown, { text: "Rain in 15'", tier: 3 });
   assert.deepStrictEqual(byId[6].countdown, { text: "Rain for 20'", tier: 3 });
-  for (const id of [2, 3, 4, 5]) {
+  for (const id of [1, 3, 4, 5]) {
     assert.strictEqual(byId[id].countdown, undefined, 'scene ' + id + ' has no baked countdown');
   }
-  for (const id of [3, 4]) {
+  for (const id of [1, 3, 4]) {
     assert.strictEqual(byId[id].claySettings.rainCountdownHorizon, '0',
       'scene ' + id + ' disables the runtime countdown so its radar series cannot summon one');
   }
 });
 
-test('scenes 2 & 5 disable radar so the intended view is undisturbed', () => {
+test('scenes 1 & 5 disable radar so the intended view is undisturbed', () => {
   const byId = generateIntoTmp();
-  assert.strictEqual(byId[2].claySettings.radarProvider, 'disabled');
+  assert.strictEqual(byId[1].claySettings.radarProvider, 'disabled');
   assert.strictEqual(byId[5].claySettings.radarProvider, 'disabled');
 });
 
@@ -214,14 +215,16 @@ test('scene 4: all slots bold, temp/city/aqi bar; countdown/date/steps strip on 
   assert.strictEqual(Math.round((target - today) / 86400000), 21, 'target is 21 days out');
 });
 
-test('scene 3 top strip: bold hr/date/steps on emery, lone bold date on basalt/flint, classic week/date/sun on aplite', () => {
+test('scene 3 top strip: bold hr/date/steps on emery, uv/date/battery % on basalt/flint, classic week/date/sun on aplite', () => {
   const base = generateIntoTmp();
   const variants = generateVariantsIntoTmp();
   assert.strictEqual(base[3].claySettings.statusBoldAll, 'all', 'every slot value bold');
-  // basalt/flint can't fit bold side values next to the bold date — sides stay empty.
-  assert.strictEqual(base[3].claySettings.statusTopLeft, 'empty');
+  assert.strictEqual(base[3].claySettings.swapClockStatus, false,
+    'clock stays below the status row (the swap defaults on, scene 4 uses it)');
+  // basalt/flint: narrow side values next to the bold date.
+  assert.strictEqual(base[3].claySettings.statusTopLeft, 'uv');
   assert.strictEqual(base[3].claySettings.statusTopMid, 'date');
-  assert.strictEqual(base[3].claySettings.statusTopRight, 'empty');
+  assert.strictEqual(base[3].claySettings.statusTopRight, 'batteryPct');
   assert.strictEqual(variants['3-emery'].claySettings.statusTopLeft, 'hr',
     'emery, the sole HR platform, shows the real heart rate');
   assert.strictEqual(variants['3-emery'].claySettings.statusTopRight, 'steps');
@@ -229,4 +232,59 @@ test('scene 3 top strip: bold hr/date/steps on emery, lone bold date on basalt/f
     'aplite has no health — keep its classic week/date/sun strip');
   assert.strictEqual(variants['3-aplite'].claySettings.statusTopRight, 'sun');
   assert.strictEqual(variants['3-aplite'].claySettings.statusTopMid, 'date');
+});
+
+test('clock fonts by scene pair: 1+2 roboto, 3+4 leco, 5+6 bitham', () => {
+  const byId = generateIntoTmp();
+  const expected = { 1: 'roboto', 2: 'roboto', 3: 'leco', 4: 'leco', 5: 'bitham', 6: 'bitham' };
+  for (const id of Object.keys(expected)) {
+    assert.strictEqual(byId[id].claySettings.timeFont, expected[id], 'scene ' + id + ' timeFont');
+  }
+});
+
+test('scene 1: week / date / battery top strip, temp / city / sun bar, multicolour rain bars', () => {
+  const clay = generateIntoTmp()[1].claySettings;
+  assert.strictEqual(clay.btIcons, undefined, 'default bluetooth icon behaviour');
+  assert.deepStrictEqual([clay.statusTopLeft, clay.statusTopMid, clay.statusTopRight],
+    ['week', 'date', 'battery']);
+  assert.deepStrictEqual([clay.statusForecastLeft, clay.statusForecastMid, clay.statusForecastRight],
+    ['temp', 'city', 'sun']);
+  assert.strictEqual(clay.rainBarColor, 'multicolor');
+  assert.strictEqual(clay.secondaryLine, 'precip_prob');
+  assert.strictEqual(clay.secondaryLineFill, true);
+});
+
+test('scenes 1 & 2 use the smaller graph font; scene 2 keeps filled wind + dotted gust, no bars', () => {
+  const byId = generateIntoTmp();
+  assert.strictEqual(byId[1].claySettings.largeGraphFont, false);
+  assert.strictEqual(byId[2].claySettings.largeGraphFont, false);
+  const clay = byId[2].claySettings;
+  assert.strictEqual(clay.secondaryLineFill, true);
+  assert.strictEqual(clay.barSource, 'off');
+  assert.strictEqual(clay.fourthLine, undefined);
+  assert.strictEqual(clay.statusTopRight, 'sun', 'sunset top right beside the countdown');
+  assert.strictEqual(clay.statusForecastRight, 'gust');
+});
+
+test('scene 4 carries feels-like data derived from the base temps; the rest do not', () => {
+  const byId = generateIntoTmp();
+  const w = byId[4].weather;
+  assert.strictEqual(w.feelsTemps.length, w.temps.length, 'hourly feels');
+  assert.ok(w.feelsTemps.every((f, i) => f <= w.temps[i]), 'feels at or below temp');
+  assert.ok(w.currentFeels < w.currentTemp, 'current feels below actual');
+  for (const id of [1, 2, 3, 5, 6]) {
+    assert.strictEqual(byId[id].weather.feelsTemps, undefined, 'scene ' + id + ' has no feels data');
+  }
+  assert.strictEqual(byId[4].claySettings.tempSlotDisplay, 'both');
+});
+
+test('scene 5 tightens the heart-rate scale; scene 6 adds wind + gust as x marks in default colours', () => {
+  const byId = generateIntoTmp();
+  assert.strictEqual(byId[5].claySettings.hrScale, '50-100');
+  const clay = byId[6].claySettings;
+  assert.strictEqual(clay.secondaryLineFill, true);
+  assert.deepStrictEqual([clay.thirdLine, clay.thirdLineStyle], ['wind', 'x']);
+  assert.deepStrictEqual([clay.fourthLine, clay.fourthLineStyle], ['gust', 'x']);
+  assert.strictEqual(clay.gcWindLineDark, undefined, 'default wind colour (yellow)');
+  assert.strictEqual(clay.gcGustLineDark, undefined, 'default gust colour (white)');
 });
