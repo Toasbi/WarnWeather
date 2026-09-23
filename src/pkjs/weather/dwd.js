@@ -112,7 +112,7 @@ function currentFeelsFrom(current) {
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
  * `last_date` is inclusive, so ending it FORECAST_HOURS on returns one record
  * past the window: the one stamped at the last slot's END, which carries that
- * slot's preceding-hour rain, chance and gust (see followingHourRecords).
+ * slot's preceding-hour rain, chance and gust (see slotRecords).
  *
  * @returns {{ start: string, end: string }} ISO timestamps.
  */
@@ -125,36 +125,51 @@ function forecastWindow() {
 }
 
 /**
- * The record carrying each forecast slot's PRECEDING-HOUR values. Brightsky
- * reports precipitation, precipitation_probability and wind_gust_speed for
- * the 60 minutes BEFORE a record's timestamp, but the watch draws slot i as
- * the hour STARTING at startTime + i h (bar i sits right of tick i). So slot
- * i's rain, chance and gust live in the record stamped startTime + (i + 1) h;
- * read from the slot's own record, every shower landed an hour late and the
- * current-hour bar showed the hour that had just ended. (The settings page's
- * Weather tab keeps the raw stamps and draws each bar as the hour ENDING at
- * its tick instead, so it needs no shift.)
+ * Each forecast slot's two Brightsky records, both looked up BY TIMESTAMP.
  *
- * Paired by timestamp, not by index: a record Brightsky skips must not slide
- * every later hour. A missing one — the end of the MOSMIX horizon, a short
- * response — comes back null, which the caller reads as no rain / no gust.
+ * `own[i]` is the record stamped startTime + i h: the slot's instants
+ * (temperature, wind speed, pressure, dew point, bearing, feels), drawn on
+ * tick i.
+ *
+ * `following[i]` is the record stamped startTime + (i + 1) h: the slot's
+ * PRECEDING-HOUR values. Brightsky reports precipitation,
+ * precipitation_probability and wind_gust_speed for the 60 minutes BEFORE a
+ * record's timestamp, but the watch draws slot i as the hour STARTING at
+ * startTime + i h (bar i sits right of tick i). Read from the slot's own
+ * record, every shower landed an hour late and the current-hour bar showed the
+ * hour that had just ended. (The settings page's Weather tab keeps the raw
+ * stamps and draws each bar as the hour ENDING at its tick instead, so it
+ * needs no shift.)
+ *
+ * Both halves pair by timestamp, not by index, so a record Brightsky skips
+ * cannot slide every later hour — and cannot pair one slot's rain with the
+ * next hour's temperature. A skipped `own` record carries the previous hour's
+ * forward (slot 0's is hourly[0] itself, so there is always one): a null
+ * temperature would draw as 0 °F. A missing `following` record — the end of
+ * the MOSMIX horizon, a short response, a skip — comes back null, which the
+ * caller reads as no rain / no gust.
  *
  * @param {Object[]} hourly Brightsky `weather` records, ascending.
  * @param {number} startEpoch Epoch seconds of slot 0 (hourly[0]'s timestamp).
  * @param {number} count Number of slots to pair.
- * @returns {Array.<(Object|null)>} One record (or null) per slot.
+ * @returns {{own: Object[], following: Array.<(Object|null)>}} One record per
+ *   slot each (`following` entries may be null).
  */
-function followingHourRecords(hourly, startEpoch, count) {
+function slotRecords(hourly, startEpoch, count) {
     var byEpoch = {};
-    var out = [];
+    var own = [];
+    var following = [];
     var i;
+    var record;
     for (i = 0; i < hourly.length; i += 1) {
         byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
     }
     for (i = 0; i < count; i += 1) {
-        out.push(byEpoch[startEpoch + (i + 1) * HOUR_SECONDS] || null);
+        record = byEpoch[startEpoch + i * HOUR_SECONDS] || (i > 0 ? own[i - 1] : hourly[0]);
+        own.push(record);
+        following.push(byEpoch[startEpoch + (i + 1) * HOUR_SECONDS] || null);
     }
-    return out;
+    return { own: own, following: following };
 }
 
 var DwdProvider = function() {
@@ -222,12 +237,14 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
             // The window asks for one record past FORECAST_HOURS (forecastWindow);
             // the slots themselves stop at FORECAST_HOURS so every series agrees
-            // on its length.
-            var slots = hourly.slice(0, FORECAST_HOURS);
+            // on its length. A response short of that (fewer records than slots)
+            // stays short, so hasValidData still rejects it.
             // Instants (temperature, wind speed, pressure, dew point, bearing)
             // read the slot's own record; the preceding-hour totals read the
-            // record one hour on (followingHourRecords).
-            var following = followingHourRecords(hourly, startEpoch, slots.length);
+            // record one hour on (slotRecords).
+            var paired = slotRecords(hourly, startEpoch, Math.min(hourly.length, FORECAST_HOURS));
+            var slots = paired.own;
+            var following = paired.following;
             this.tempTrend = slots.map(function(e) { return celsiusToFahrenheit(e.temperature); });
             this.precipTrend = following.map(function(e) { return e ? e.precipitation_probability / 100 : 0; });
             this.rainTrend = following.map(function(e) { return e ? e.precipitation : 0; });

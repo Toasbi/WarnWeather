@@ -141,6 +141,24 @@ test('DWD pairs a slot with the record one hour later by timestamp, not by index
   assert.equal(p.rainTrend[7], 0);
 });
 
+test('DWD pairs a slot\'s instants by timestamp too, carrying a skipped hour forward', () => {
+  // 24 records (the 12:00Z one skipped) is a full window once the extra record
+  // is asked for — so the instants must not slide either, or slot 8 would draw
+  // 16Z's temperature over 15Z's rain.
+  const offsets = Array.from({ length: 25 }, (_, i) => i).filter((i) => i !== 5);
+  const records = stampedRecords(offsets, 9);
+  records.forEach((r, k) => { r.pressure_msl = 1000 + offsets[k]; });
+  const { p, ok } = runAt0920(records);
+  assert.equal(ok, true);
+  assert.equal(p.tempTrend.length, 24);
+  const celsius = p.tempTrend.map((f) => Math.round((f - 32) * 5 / 9));
+  // stampedRecords sets temperature = offset: slot i reads i, the skip reads 4.
+  assert.deepEqual(celsius.slice(3, 9), [3, 4, 4, 6, 7, 8], 'skipped 12Z carries 11Z; later slots on their own stamp');
+  assert.equal(celsius[23], 23, 'the extra record past the window feeds no instant');
+  assert.deepEqual(p.pressureTrend.slice(4, 7), [1004, 1004, 1006]);
+  assert.equal(p.rainTrend[8], 3, 'and slot 8 still pairs with its own hour\'s rain');
+});
+
 test('DWD maps Brightsky pressure_msl into pressureTrend', () => {
   responder = function(url, onSuccess) {
     if (url.indexOf('/current_weather') !== -1) {
