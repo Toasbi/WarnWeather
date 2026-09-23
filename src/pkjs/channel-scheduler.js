@@ -297,9 +297,11 @@ function createChannelScheduler(deps) {
         return true;
     }
 
-    // One holiday-data resend queued for the next turn: a single ensure() calls
-    // back once per fetched year (two across a year boundary), and every call
-    // that lands before the queued send goes out rides that one send.
+    // One holiday-data resend queued for the next turn: every onUpdated call that
+    // lands before it goes out rides that one send. A year-boundary ensure()
+    // fetches two years, and answers that land in separate turns (separate XHR
+    // loads, the usual case) each queue their own send; when the second collides
+    // with the first and NACKs, the tick's day-change resend retries it.
     var holidayResendQueued = false;
 
     /**

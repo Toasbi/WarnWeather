@@ -479,11 +479,11 @@ test('theme flip: a NACKed day-change send does not swallow a coincident flip', 
 // or resends it again before the next midnight. So the resend is coalesced into
 // one send, and a NACK hands it to the tick's day-change resend to retry.
 
-test('holiday data: per-year callbacks of one landing ride ONE deferred Clay send', function () {
+test('holiday data: callbacks landing in the same turn ride ONE deferred Clay send', function () {
     resetStore();
     var h = makeHarness();
     h.scheduler.onHolidaysUpdated();
-    h.scheduler.onHolidaysUpdated();   // the second year of a year-boundary window
+    h.scheduler.onHolidaysUpdated();   // a second callback before the queued send runs
     assert.equal(h.calls.sendClay.length, 0, 'deferred past the XHR callback');
     assert.equal(h.timers.length, 1, 'one queued send for both callbacks');
     assert.equal(h.timers[0].ms, 0);
