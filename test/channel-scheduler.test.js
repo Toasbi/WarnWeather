@@ -173,11 +173,11 @@ test('scenario 4d: a day-change resend ACK also commits a pending migration', fu
     var ackRuns = 0;
     h.setNow(new Date(2026, 6, 7, 12, 0, 0));
     h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.scheduler.start();                // index.js order: the NACK lands after the first tick
     h.nackClay();
-    h.scheduler.start();
     h.setNow(new Date(2026, 6, 8, 0, 1, 0));
     h.flushTimers();
-    assert.equal(h.calls.sendClay.length, 2, 'the midnight resend went out');
+    assert.equal(h.calls.sendClay.length, 2, 'the day-change resend went out');
     h.ackClay();
     assert.equal(ackRuns, 1);
 });
@@ -579,8 +579,53 @@ test('theme flip: a NACKed startup Clay is retried by the flip path and still dr
     h.nackClay();
     assert.deepEqual(h.calls.startFetch, [true], 'the NACK still drains the startup fetch');
     h.tick();
-    assert.equal(h.calls.sendClay.length, 2, 'the forgotten stamp lets the flip path resend');
+    assert.equal(h.calls.sendClay.length, 2, 'the forgotten stamps let the next tick resend');
     h.ackClay();
     h.tick();
     assert.equal(h.calls.sendClay.length, 2, 'and the ACK ends it');
+});
+
+// A NACKed startup Clay must not wait for midnight when Theme switching is OFF (the
+// flip path is then inert): the handshake / migration send stamped today's holiday
+// day, so without forgetting it no tick resends until the local day rolls over — a
+// watch that reported no config would run on its built-in defaults all day, and a
+// migration would reach it (and commit its markers) only at midnight.
+
+test('a NACKed handshake Clay is retried by the next tick with Theme switching off', function () {
+    resetStore();
+    var h = makeHarness();
+    h.scheduler.onWatchStatus({ hasConfig: false, hasForecast: true });
+    h.scheduler.onReady({ migrationClayRequired: false });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1, 'the handshake Clay, and no first-tick resend beside it');
+    h.nackClay();
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), null,
+        'a NACK forgets the day stamp the handshake claimed');
+    h.flushTimers();                    // next minute tick
+    assert.equal(h.calls.sendClay.length, 2, 'the tick re-delivers the config');
+    h.nackClay();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'and keeps retrying while it NACKs');
+    h.ackClay();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'an ACK ends the retries');
+});
+
+test('a NACKed migration Clay is retried by the next tick, whose ACK commits the markers', function () {
+    resetStore();
+    var h = makeHarness();
+    var ackRuns = 0;
+    h.scheduler.onWatchStatus({ hasConfig: true, hasForecast: false });
+    h.scheduler.onReady({ migrationClayRequired: true, onClayAck: function () { ackRuns++; } });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1);
+    h.nackClay();
+    assert.deepEqual(h.calls.startFetch, [true], 'the NACK still drains the startup fetch');
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'the tick resends the migrated settings');
+    assert.equal(ackRuns, 0);
+    h.ackClay();
+    assert.equal(ackRuns, 1, 'that ACK commits the deferred markers');
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 2, 'and nothing more is due');
 });

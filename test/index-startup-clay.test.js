@@ -59,6 +59,30 @@ test('a choice saved after a NACKed migration send survives the next launch', (t
   assert.equal(stored().radarColor, 'multicolor');
 });
 
+test('a NACKed migration send is re-delivered on the next minute tick, not at midnight', (t) => {
+  const h = installIndexRuntime({ now: new Date(2026, 8, 23, 12, 0, 0).getTime() });
+  t.after(h.restore);
+  h.quietNetwork();
+  const KEYS = seedLightUpgrade(h);   // Theme switching stays off: no flip-path retry
+
+  h.policy = () => 'hold';
+  h.boot().ready({});
+  assert.equal(h.claySends().length, 1, 'boot 1: the migration Clay');
+  h.policy = () => 'ack';
+  h.nack(h.claySends()[0]);            // it NACKs after the first tick, as on a phone
+  assert.equal(h.store[KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], undefined);
+
+  h.advance(60 * 1000);
+  const retried = h.claySends(1);
+  assert.equal(retried.length, 1, 'the next tick resends the migrated settings');
+  assert.equal(retried[0].outcome, 'ack');
+  assert.ok(Object.prototype.hasOwnProperty.call(retried[0].dict, 'BAR_PALETTE_UINT8'),
+    'the resend carries the migrated bar palette the watch never got');
+  assert.equal(h.store[KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], '1', 'its ACK commits the marker');
+  h.advance(60 * 1000);
+  assert.equal(h.claySends().length, 2, 'and nothing more is due');
+});
+
 test('Reset watchface after a NACKed migration send leaves no marker in the wiped store', (t) => {
   const h = installIndexRuntime({ now: new Date(2026, 8, 23, 12, 0, 0).getTime() });
   t.after(h.restore);

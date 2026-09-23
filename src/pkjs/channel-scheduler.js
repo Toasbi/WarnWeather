@@ -120,14 +120,19 @@ function createChannelScheduler(deps) {
     }
 
     /**
-     * NACK side of a startup Clay send: forget the claimed theme stamp (so the
-     * flip path retries, re-delivering the settings the watch never got), then
-     * still run the startup fetch the send was holding back.
+     * NACK side of a startup Clay send (the watch-reported-no-config handshake,
+     * or a migration's): forget the claimed theme stamp and today's holiday day
+     * stamp, both claimed for this send, so the next tick's day-change resend
+     * re-delivers the settings the watch never got — once a minute until one is
+     * ACKed, whether or not Theme switching is on (that ACK also commits a
+     * pending migration's markers). Then still run the startup fetch the send
+     * was holding back.
      *
      * @returns {void}
      */
     function onStartupClayNack() {
         lastEffectiveTheme = null;
+        forgetHolidayDaySent();
         drainPendingStartupFetch();
     }
 
