@@ -148,6 +148,39 @@ test('compact top view anchors the holiday window to the current week (prevWeek 
   assert.notStrictEqual(got, prevAnchor);        // the override actually changed the anchor
 });
 
+// The watch draws the previous week on top of EVERY 3-row view (config_n_today), not
+// only the default one, and cell_is_holiday can never light a cell before the anchor.
+// A custom layout may put the 3-row calendar (or a radar top, drawn as the 3-row
+// calendar until radar data arrives) on a flick view, so the window has to anchor
+// there too, or that view's top row never shows a holiday.
+test('a 3-row calendar on a flick view anchors the holiday window on the previous week', () => {
+  const anchorOf = (b) => (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
+  const MON_OCT_5 = new Date(2026, 9, 5, 12, 0, 0);
+  const windowAt = (prevWeek) => holidayMask.build({ startMon: true, prevWeek: prevWeek,
+    country: 'none', region: 'all', enabled: true }, MON_OCT_5).anchor;
+  const custom = (top1, extra) => Object.assign(baseSettings(), {
+    layoutPreset: 'custom', viewCount: '2', viewTop0: 'cal2', viewTop1: top1,
+    firstWeek: 'prev', weekStartDay: 'mon', holidayCountry: 'DE'
+  }, extra);
+  const BASALT = { platform: 'basalt' };
+
+  const flickCal3 = buildClayPayload(custom('cal3'), BASALT, MON_OCT_5);
+  assert.equal(anchorOf(flickCal3.HOLIDAYS), windowAt(true),
+    'the 3-row flick view starts on Mon 28 Sep, so the window must too');
+  assert.equal(flickCal3.CLAY_TOP_VIEW_MODE, 1, 'the boot hint stays the default slot (compact)');
+
+  const flickRadar = buildClayPayload(custom('radar', { radarMode: 'graph' }), BASALT, MON_OCT_5);
+  assert.equal(anchorOf(flickRadar.HOLIDAYS), windowAt(true),
+    'a radar top is FULL-tier: the watch draws it as the 3-row calendar without radar data');
+
+  const firstWeekCurr = buildClayPayload(custom('cal3', { firstWeek: 'curr' }), BASALT, MON_OCT_5);
+  assert.equal(anchorOf(firstWeekCurr.HOLIDAYS), windowAt(false), 'curr keeps the current week');
+
+  const noFull = buildClayPayload(custom('cal2'), BASALT, MON_OCT_5);
+  assert.equal(anchorOf(noFull.HOLIDAYS), windowAt(false),
+    'with no 3-row view the window keeps its two weeks of headroom');
+});
+
 // index.js's holiday prefetch hands holidayWindowOpts to holidayMask.windowYears and
 // nagerSource.ensure prunes every year outside that list, so the helper must describe
 // exactly the window the HOLIDAYS tuple scans — for every layout shape, the aplite
@@ -166,6 +199,8 @@ test('holidayWindowOpts is the window the HOLIDAYS tuple anchors on, for every l
     ['noCal', { layoutPreset: 'noCal' }, BASALT],
     ['legacy topViewMode full on a compact preset', { layoutPreset: 'compactCal', topViewMode: 'full' }, BASALT],
     ['custom with a 3-row default view', cal3Custom, BASALT],
+    ['custom with a 3-row flick view',
+      { layoutPreset: 'custom', viewCount: '2', viewTop0: 'cal2', viewTop1: 'cal3' }, BASALT],
     ['custom, unknown platform', cal3Custom, null],
     ['aplite folds a dormant custom layout', cal3Custom, APLITE],
   ];

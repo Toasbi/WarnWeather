@@ -72,18 +72,28 @@ function resolveViewCycle(settings, env) {
 }
 
 /**
- * The holiday window's calendar layout for an already-resolved cycle: the mask
- * anchors on the previous week only when the default (slot 0) view is the
- * 3-row calendar — the one the watch draws with the previous week on top.
+ * The holiday window's calendar layout for an already-resolved cycle. The watch
+ * picks the calendar rows per ACTIVE view and puts the previous week on top of
+ * every 3-row one (config_n_today), while the one HOLIDAYS window serves them
+ * all and cannot reach before its anchor. So the window anchors on the previous
+ * week when ANY slot is FULL-tier, not only the default: a custom layout may put
+ * the 3-row calendar on a flick view, and a radar-top slot (also FULL) is drawn
+ * as the 3-row calendar while radar has no data (view_spec_resolve). The 2-row
+ * views then read bits 7-20, keeping the one week of rollover headroom the
+ * fullCal preset (full default, compact flicks) already ships with.
  *
  * @param {Object} settings Clay settings.
  * @param {Array<Object>} cycle resolveViewCycle() result.
  * @returns {{startMon: boolean, prevWeek: boolean}} holidayMask window options.
  */
 function holidayWindowOptsForCycle(settings, cycle) {
+    var anyFull = false;
+    for (var i = 0; i < cycle.length; i++) {
+        if (cycle[i] && cycle[i].tier === viewCycle.TIER_FULL) { anyFull = true; }
+    }
     return {
         startMon: settings.weekStartDay === 'mon',
-        prevWeek: cycle[0].tier === viewCycle.TIER_FULL && settings.firstWeek === 'prev'
+        prevWeek: anyFull && settings.firstWeek === 'prev'
     };
 }
 
