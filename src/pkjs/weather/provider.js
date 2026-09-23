@@ -1,5 +1,7 @@
 var SunCalc = require('suncalc');
-var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
+var sunEventsLib = require('./sun-events.js');
+var pickNext24hSunEvents = sunEventsLib.pickNext24hSunEvents;
+var isValidSunEvent = sunEventsLib.isValidSunEvent;
 var outbox = require('../outbox.js');
 var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
@@ -678,10 +680,20 @@ function scaleTrendToBytes(trend, numEntries, scale) {
  * series starts on a sunrise, else 1) followed by each event's epoch-seconds
  * reinterpreted as little-endian Int32 bytes.
  *
+ * Null when fewer than two events carry a real date, and getPayload then
+ * leaves the key out. The watch needs the start byte plus two epochs
+ * (handle_sun_events ignores anything shorter), and an Invalid Date would pack
+ * as epoch 0, which the watch persists over its last good pair before
+ * get_valid_sun_events rejects it.
+ *
  * @param {{type: string, date: Date}[]} sunEvents Ordered sun events.
- * @returns {number[]} SUN_EVENTS wire bytes.
+ * @returns {?number[]} SUN_EVENTS wire bytes, or null when there is no pair.
  */
 function encodeSunEvents(sunEvents) {
+    sunEvents = Array.isArray(sunEvents) ? sunEvents.filter(isValidSunEvent) : [];
+    if (sunEvents.length < 2) {
+        return null;
+    }
     var intView = new Int32Array(sunEvents.map(function(sunEvent) {
         return sunEvent.date.getTime() / 1000; // Seconds since epoch
     }));
@@ -741,10 +753,16 @@ WeatherProvider.prototype.getPayload = function() {
         // Transient PKJS-only: °F, unrounded like DEW_TREND — formatTemp rounds once,
         // in the display unit; a whole-°F round here made °C readings round twice.
         CURRENT_TEMP: this.currentTemp,
-        CITY: this.cityName,
-        // First byte flags whether the event list starts on a sunrise (0) or sunset (1).
-        SUN_EVENTS: encodeSunEvents(this.sunEvents)
+        CITY: this.cityName
     };
+    // First byte flags whether the event list starts on a sunrise (0) or sunset (1).
+    // Absent rather than empty with no pair to send: the outbox skips the
+    // absent 'sun' category, the watch keeps its last pair, and the sun status
+    // slot reads '--'.
+    var sunEventBytes = encodeSunEvents(this.sunEvents);
+    if (sunEventBytes) {
+        payload.SUN_EVENTS = sunEventBytes;
+    }
     // Feels-like keys are emitted only when sourced (unlike PRESSURE_TREND's
     // always-present empty array) so a feels-less payload has no keys to strip.
     // Transient PKJS-only: forecast-series/formatValue consume + delete before send.
