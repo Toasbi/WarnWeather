@@ -548,6 +548,41 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             return out;
         }
+        // chart_stripe.h's colour pattern, mirrored: the tint level under each pattern
+        // level, and the column test for the full-colour vertical lines on top.
+        var STRIPE_TINT = [0, 1, 1, 2, 4];
+        /**
+         * Whether watch pixel column px carries a full-colour line at this level —
+         * chart_stripe_line_on: every 4th, 3rd, 2nd column, then solid.
+         * @param {number} level 1..4.
+         * @param {number} px Watch pixel column.
+         * @returns {boolean} True when the column is lined.
+         */
+        function stripeLineOn(level, px) {
+            if (level >= 4) { return true; }
+            return px % (5 - level) === 0;
+        }
+        /**
+         * One colour stripe cell: the pale tint, then the full-colour vertical lines —
+         * chart_render_stripe's colour arm. One watch pixel column = 2 preview units.
+         * @param {number} x Cell left.
+         * @param {number} y Cell top.
+         * @param {number} w Cell width.
+         * @param {number} h Cell height.
+         * @param {string} color Line colour (hex).
+         * @param {number} level 1..4.
+         * @returns {string} SVG markup.
+         */
+        function stripeColorCell(x, y, w, h, color, level) {
+            var out = rect(x, y, w, h, stripeBlend(ink.bg, color, STRIPE_TINT[level]));
+            if (level >= 4) { return out; }
+            for (var px = Math.ceil(x / 2); px * 2 < x + w; px += 1) {
+                if (stripeLineOn(level, px)) {
+                    out += rect(px * 2, y, Math.min(2, x + w - px * 2), h, color);
+                }
+            }
+            return out;
+        }
         /**
          * One metric as a stripe of hourly cells: along the plot's top edge, or in the
          * band below its zero line (stacked downward from a 1-unit gap).
@@ -568,8 +603,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             for (var i = 0; i < n - 1; i += 1) {
                 var level = stripeLevel(m, i);
                 if (!level) { continue; }
-                var fill = isColor ? stripeBlend(ink.bg, color, level) : 'url(#sd' + level + ')';
-                out += rect(tickX(i), y, pitch, STRIPE_H, fill);
+                out += isColor ? stripeColorCell(tickX(i), y, pitch, STRIPE_H, color, level)
+                    : rect(tickX(i), y, pitch, STRIPE_H, 'url(#sd' + level + ')');
             }
             return out;
         }
@@ -670,8 +705,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 } else if (en.kind === 'stripe') {
                     // The ramp itself, weakest to strongest: what the cells mean.
                     for (var sl = 1; sl <= 4; sl += 1) {
-                        out += rect(ex + (sl - 1) * 3, gy - 2, 3, 4,
-                            isColor ? stripeBlend(ink.bg, en.color, sl) : 'url(#sd' + sl + ')');
+                        out += isColor ? stripeColorCell(ex + (sl - 1) * 3, gy - 2, 3, 4, en.color, sl)
+                            : rect(ex + (sl - 1) * 3, gy - 2, 3, 4, 'url(#sd' + sl + ')');
                     }
                 } else if (isColor && state.rainBarColor !== 'white') {
                     for (var k = 0; k < P.rainTiers.length; k += 1) {

@@ -624,9 +624,10 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
 #if defined(WW_LINE_STYLE)
 // One cell per slot, a full pitch wide (tick to tick, so the band reads as one
 // continuous strip under the bar columns), shaded by the value's level. Colour:
-// the background→line-colour blend, opaque over whatever lies beneath. B&W:
-// a theme_bg() cell dithered with theme_fg() — on real B&W builds theme_is_bw()
-// is constant-true, so the colour arm compiles out.
+// an opaque background→line-colour tint with full-colour vertical lines that
+// tighten with the level (chart_stripe.h). B&W: a theme_bg() cell dithered with
+// theme_fg() — on real B&W builds theme_is_bw() is constant-true, so the colour
+// arm compiles out.
 static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s) {
     const int   count = chart_clamp_count(r, s->count);
     const GRect c     = r->geo.content;
@@ -654,8 +655,18 @@ static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s)
 #if defined(PBL_COLOR)
         else {
             graphics_context_set_fill_color(r->ctx, (GColor){ .argb =
-                chart_stripe_blend(theme_bg().argb, s->color.argb, level) });
+                chart_stripe_blend(theme_bg().argb, s->color.argb,
+                                   chart_stripe_tint_level(level)) });
             graphics_fill_rect(r->ctx, cell, 0, GCornerNone);
+            if (level < CHART_STRIPE_LEVELS) {
+                graphics_context_set_fill_color(r->ctx, s->color);
+                for (int px = cell.origin.x; px < cell.origin.x + cell.size.w; ++px) {
+                    if (chart_stripe_line_on(level, px)) {
+                        graphics_fill_rect(r->ctx, GRect(px, cell.origin.y, 1, cell.size.h),
+                                           0, GCornerNone);
+                    }
+                }
+            }
         }
 #endif
     }

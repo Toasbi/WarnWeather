@@ -1258,17 +1258,29 @@ test('resetGraphColors is a no-op without a key list, a state or a resolver', ()
 });
 
 // The stripe line style, mirrored against chart.c's chart_render_stripe. The
-// colours are the ones test/c/chart_stripe_test.c pins for black -> PictonBlue,
-// so the preview and the watch cannot shade a cell differently.
+// tints are the ones test/c/chart_stripe_test.c pins for black -> PictonBlue,
+// so the preview and the watch cannot shade a cell differently. A cell is its
+// full-pitch tint rect plus 2-unit full-colour line rects (one watch column each).
+// Split on width: a tint cell spans the whole pitch (~16 units), a line rect at
+// most 2 (a line clipped at the cell's right edge is narrower still).
+const stripeRects = (svg) => (svg.match(/<rect [^>]*width="[0-9.]+" height="5" fill="#[0-9A-F]{6}"/g) || []);
+const rectWidth = (r) => Number(/width="([0-9.]+)"/.exec(r)[1]);
+const stripeCells = (svg) => stripeRects(svg).filter((r) => rectWidth(r) > 3);
+const stripeLines = (svg) => stripeRects(svg).filter((r) => rectWidth(r) <= 2);
 test('forecastPreview: a stripe draws hourly cells shaded like the watch, and no line or fill', () => {
   const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
     secondaryLineStyle: 'stripeBottom', secondaryLineFill: true, thirdLine: 'off', windScale: 'mid' };
   const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
-  const cells = svg.match(/<rect [^>]*height="5" fill="#[0-9A-F]{6}"/g) || [];
+  const cells = stripeCells(svg);
   assert.ok(cells.length >= 10, 'one cell per hour column');
-  ['#005555', '#55AAAA', '#55AAFF'].forEach((c) => {
-    assert.ok(cells.some((r) => r.indexOf(c) >= 0), c + ' (a chart_stripe_blend level) is used');
+  // Tints: level 1-2 -> blend 1, level 3 -> blend 2, level 4 -> the solid line colour.
+  ['#005555', '#5555AA', '#55AAFF'].forEach((c) => {
+    assert.ok(cells.some((r) => r.indexOf(c) >= 0), c + ' (a chart_stripe_blend tint) is used');
   });
+  // The full-colour vertical lines over the tints (levels 1-3).
+  const lines = stripeLines(svg);
+  assert.ok(lines.length > 0 && lines.every((r) => r.indexOf('#55AAFF') >= 0),
+    'the pattern lines are drawn in the full line colour');
   // Bottom stripes live BELOW the zero line: the plot's baseline lifts from the
   // axis row (94) by the band (1 stripe: 5 + 1 gap + 1 free row = 7) to 87, and
   // every cell sits one gap under it — nothing in the plot can paint over them.
@@ -1300,6 +1312,5 @@ test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
   const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'uv',
     secondaryLineStyle: 'stripeTop', thirdLine: 'off', windScale: 'mid' };
   const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
-  const cells = svg.match(/<rect [^>]*height="5" fill="#[0-9A-F]{6}"/g) || [];
-  assert.equal(cells.length, 6, 'only the six non-zero hours get a cell');
+  assert.equal(stripeCells(svg).length, 6, 'only the six non-zero hours get a cell');
 });

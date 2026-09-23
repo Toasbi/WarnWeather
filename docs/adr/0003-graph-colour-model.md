@@ -247,11 +247,12 @@ magenta, wind yellow, pressure orange, gust the greys, cloud a grey-blue.
   on dark, Liberty on light, so a cloud line next to a rain-chance line still reads as
   two. Its dark night triple (OxfordBlue / Liberty / BabyBlueEyes) happens to be the
   derive recipe's own output, so it is the one hand-listed triple a pick of its base
-  reproduces exactly. Its most common use is the stripe style, whose cells blend from
-  the background toward the line colour per 2-bit channel (`chart_stripe.h`); with only
-  four levels per channel the in-between steps of a two-hue colour alternate grey and
-  blue while their brightness still climbs — accepted, as any unequal-channel colour
-  does the same.
+  reproduces exactly. Its most common use is the stripe style. A stripe cell's tint
+  blends from the background toward the line colour per 2-bit channel (`chart_stripe.h`),
+  and with only four levels per channel neighbouring tints can round to the same colour
+  (a light ground toward a dark line) or alternate hue (grey vs. blue). So the tint is
+  not what carries the level: full-colour vertical lines over it do, every 4th, 3rd and
+  2nd pixel column, then solid — distinct on any colour, whatever the tints round to.
 - **Light-theme variants.** Fills and night bases take a *brighter* tint of the hue (the
   dark shades read too heavy on white); lines take a *darker* step. Those are the shapes
   the values happen to have, **not a formula** — every light cell was tuned metric by
