@@ -56,6 +56,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return d;
     }
 
+    /**
+     * Split [x, y] vertices on null-y gaps into contiguous runs — the preview
+     * half of chart_runs.h's chart_next_run (host-pinned by
+     * test/c/chart_absent_test.c; this side by test/config-blocks.test.js).
+     * A lone vertex stays its own run: the caller draws chart_render_line's
+     * run == 1 small square for it.
+     * @param {Array.<Array.<?number>>} pts [x, y|null] vertices in draw order.
+     * @returns {Array.<Array.<Array.<number>>>} Runs of gap-free vertices.
+     */
+    function splitRuns(pts) {
+        var runs = [], run = [];
+        for (var i = 0; i < pts.length; i += 1) {
+            if (pts[i][1] === null) {
+                if (run.length) { runs.push(run); run = []; }
+            } else {
+                run.push(pts[i]);
+            }
+        }
+        if (run.length) { runs.push(run); }
+        return runs;
+    }
+
     // Mirrors forecast-series.PRESSURE_SCALE_CURVE_HPA (+ curvePermille); a drift
     // test keeps the curves equal. Duplicated rather than imported because this file
     // is bundled into the config page, which has no access to the watch modules
@@ -397,21 +419,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var lineFor = function (metric, color, w) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            var out = '', run = [];
-            function flush() {
+            var pts = [];
+            for (var i = 0; i < m.vals.length; i += 1) {
+                pts.push([tickX(i), metricY(m, i, true)]);
+            }
+            var runs = splitRuns(pts), out = '';
+            for (var r = 0; r < runs.length; r += 1) {
+                var run = runs[r];
                 if (run.length >= 2) {
                     out += '<path d="' + smooth(run) + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
-                } else if (run.length === 1) {
+                } else {
+                    // Lone reading between gaps: chart_render_line's run == 1
+                    // small square. The fixed demo series never produce a lone
+                    // run, so this arm is pinned via splitRuns (below) and the
+                    // C kernel's run == 1 case (test/c/chart_absent_test.c).
                     out += rect(run[0][0] - w / 2, run[0][1] - w / 2, w, w, color);
                 }
-                run = [];
             }
-            for (var i = 0; i < m.vals.length; i += 1) {
-                var y = metricY(m, i, true);
-                if (y === null) { flush(); continue; }
-                run.push([tickX(i), y]);
-            }
-            flush();
             return out;
         };
         /**
@@ -621,7 +645,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             forecastPreview: forecastPreview,
-            pressureCurves: PRESSURE_CURVES
+            pressureCurves: PRESSURE_CURVES,
+            splitRuns: splitRuns
         };
     }
 })();

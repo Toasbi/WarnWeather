@@ -365,6 +365,20 @@ test('UV line breaks across its zero stretch instead of hugging the baseline', (
   assert.ok(Math.abs(starts[1] - (20 + 10 * (177 / 11))) < 1e-9, 'second run starts on slot 10; got ' + starts[1]);
 });
 
+test('splitRuns keeps a lone sample as its own run (the small-square arm)', () => {
+  // The run segmentation behind lineFor — chart_runs.h's chart_next_run,
+  // mirrored: a lone non-null vertex between gaps must survive as a length-1
+  // run (drawn as chart_render_line's small square), matching the C kernel's
+  // [5,0,0,3,2] pin in test/c/chart_absent_test.c. The fixed demo series never
+  // produce a lone run (UV splits 5 + 2), so this is the arm's only reachable pin.
+  assert.deepEqual(
+    FC.splitRuns([[0, 5], [1, null], [2, null], [3, 7], [4, 2]]),
+    [[[0, 5]], [[3, 7], [4, 2]]]);
+  assert.deepEqual(FC.splitRuns([[0, null], [1, 3], [2, null]]), [[[1, 3]]]);
+  assert.deepEqual(FC.splitRuns([[0, null], [1, null]]), []);
+  assert.deepEqual(FC.splitRuns([]), []);
+});
+
 test('a filled zero-based main metric keeps its fill contour at the baseline over zeros', () => {
   // The stroke gaps, but the area fill still closes to the axis: metricPoints
   // (skipZero false) keeps a baseline vertex per zero, matching chart_render_area's

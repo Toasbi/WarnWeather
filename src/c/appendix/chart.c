@@ -381,16 +381,6 @@ static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) 
     }
 }
 
-// One line sample's "draw nothing here" test for the SOLID path: the explicit
-// CHART_ABSENT sentinel (the health HR line's genuine gaps), plus — for layers
-// that opt in via zero_absent — anything at or below the floor. The mark styles
-// (chart_draw_bar_marks) skip `<= lo` unconditionally; this flag lets the solid
-// stroke honor the same wire invariant on the metric lines without touching the
-// temp/feels curves, whose byte 0 is the band floor.
-static bool chart_line_sample_absent(const ChartLineLayer *l, int16_t v) {
-    return v == CHART_ABSENT || (l->zero_absent && v <= l->lo);
-}
-
 static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     const int count = chart_clamp_count(r, l->count);
     if (count < 2) return;
@@ -413,7 +403,7 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         const int  plot_bottom = c.origin.y + c.size.h;
         const int  range       = l->hi - l->lo;
         for (int i = 0; i < count; ++i) {
-            if (vals && chart_line_sample_absent(l, vals[i])) {
+            if (vals && chart_sample_absent(vals[i], l->lo, l->zero_absent)) {
                 // Placeholder for an absent bucket; never drawn (skipped below).
                 out[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom);
                 continue;
@@ -429,14 +419,15 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     graphics_context_set_stroke_width(r->ctx, l->width);
 
     // Break the polyline across absent buckets: each contiguous run of non-absent
-    // points is its own open path. A line without a values[] array (precomputed
+    // points is its own open path (chart_next_run, chart_runs.h — host-pinned by
+    // test/c/chart_absent_test.c). A line without a values[] array (precomputed
     // points) carries no sentinel, so it draws as a single run — unchanged.
     int i = 0;
     while (i < count) {
-        while (i < count && vals && chart_line_sample_absent(l, vals[i])) { i++; }      // skip gap
-        const int start = i;
-        while (i < count && !(vals && chart_line_sample_absent(l, vals[i]))) { i++; }   // collect run
-        const int run = i - start;
+        int start;
+        const int run = chart_next_run(vals, count, l->lo, l->zero_absent, i, &start);
+        if (run == 0) { break; }
+        i = start + run;
         if (run >= 2) {
 #ifdef PBL_PLATFORM_APLITE
             // aplite: stroke the open polyline segment-by-segment instead of via a
