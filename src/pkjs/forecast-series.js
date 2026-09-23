@@ -370,7 +370,7 @@ function metricPermille(metric, raw, settings) {
  * longer takes watchInfo.
  *
  * @param {{precips:number[], clouds:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], tempBand:Object}} raw Raw series (+ the temp axis band the feels metric shares).
- * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, windScale:string, barSource:string}} settings Settings.
+ * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, fifthLine:string, windScale:string, barSource:string}} settings Settings.
  * @returns {Object} Wire fields (see module interface).
  */
 function buildForecastSeries(raw, settings) {
@@ -380,7 +380,8 @@ function buildForecastSeries(raw, settings) {
     var LINE_TREND_KEYS = {
         secondaryLine: 'SECONDARY_LINE_TREND_UINT8',
         thirdLine: 'THIRD_LINE_TREND_UINT8',
-        fourthLine: 'FOURTH_LINE_TREND_UINT8'
+        fourthLine: 'FOURTH_LINE_TREND_UINT8',
+        fifthLine: 'FIFTH_LINE_TREND_UINT8'
     };
     for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
         var key = lineStyle.FORECAST_LINES[i].key;
@@ -475,12 +476,13 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // message now (CLAY_LINE_STYLE_UINT8), so the weather send carries no styling.
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
     payload.THIRD_LINE_TREND_UINT8 = series.THIRD_LINE_TREND_UINT8;
-    // The third-metric line only ships to platforms that compile it
-    // (WW_LINE_STYLE — aplite has no SERIES_FOURTH, so the key would only
+    // The third- and fourth-metric lines only ship to platforms that compile them
+    // (WW_LINE_STYLE — aplite has no SERIES_FOURTH/FIFTH, so the keys would only
     // spend weather-bundle bytes there). An unknown platform keeps the key:
     // the capability table treats missing watchInfo as capable.
     if (configUi.isLineStylePlatform(watchInfo && watchInfo.platform ? watchInfo.platform : '')) {
         payload.FOURTH_LINE_TREND_UINT8 = series.FOURTH_LINE_TREND_UINT8;
+        payload.FIFTH_LINE_TREND_UINT8 = series.FIFTH_LINE_TREND_UINT8;
     }
     payload.BAR_TREND_UINT8 = series.BAR_TREND_UINT8;
     return payload;
@@ -494,7 +496,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
 function needsUv(settings) {
     if (!settings) { return false; }
     if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv'
-        || settings.fourthLine === 'uv') { return true; }
+        || settings.fourthLine === 'uv' || settings.fifthLine === 'uv') { return true; }
     // A status-line UV slot must extend the fetch gate or it bakes empty.
     return statusCatalog.selectedCodes(settings).indexOf('uv') !== -1;
 }

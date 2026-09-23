@@ -70,6 +70,11 @@ var THIRD_LINE_HINTS = lineHintsWithNote(DOTS_NOTE,
 // bans it; blocks.js' forecastMetric resolver drops it via noFeels).
 var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
     'No third metric — the two metric lines above only.', ['feels']);
+// The fourth metric: no feels either (same missing curve-inset channel), and it
+// debuts as a top stripe — handy for cloud cover next to three lines.
+var STRIPE_NOTE = '<br>Drawn as a stripe along the top of the graph by default.';
+var FIFTH_LINE_HINTS = lineHintsWithNote(STRIPE_NOTE,
+    'No fourth metric — the three metric lines above only.', ['feels']);
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -91,7 +96,7 @@ var LINE_STYLE_OPTIONS = [
 ];
 /**
  * One line-style picker.
- * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+ * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
  * @param {string} [lineKey] Metric-picker key whose 'off' also hides this row.
  * @returns {Object} Schema item.
  */
@@ -157,11 +162,12 @@ var WIND_SCALE_HINTS_KNOTS = windScaleHints('knots', 'kn');
 var LINE_CONTEXTS = [
     {key: 'secondaryLine'},
     {key: 'thirdLine'},
-    {key: 'fourthLine', gates: [LINE_STYLES_WHEN]}
+    {key: 'fourthLine', gates: [LINE_STYLES_WHEN]},
+    {key: 'fifthLine', gates: [LINE_STYLES_WHEN]}
 ];
 /**
  * Index of one picker key in LINE_CONTEXTS.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @returns {number} Its position.
  */
 function lineContextIndex(pickerKey) {
@@ -174,7 +180,7 @@ function lineContextIndex(pickerKey) {
  * The showWhen conditions ARRAY for one line-context's scale row: the
  * context's gates, then the matcher on its own picker, then a {not: ...} of
  * the matcher on every earlier picker.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {function(string): Object} matchOf Picker key -> matcher leaf.
  * @returns {Array.<Object>} Conditions, for {all: ...} (or bare when single).
  */
@@ -877,7 +883,7 @@ var PRESSURE_SCALE_HINTS = {
 /**
  * One pressureScale control for a line-context. Unlike windScaleCopy this needs no
  * per-unit duplication — pressure ships hPa only, so one copy per context is enough.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @returns {Object} Schema item.
  */
 function pressureScaleCopy(pickerKey) {
@@ -1481,7 +1487,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, cloud cover %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, little x marks, or a shaded stripe along the top or bottom of the graph) — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, cloud cover %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, an optional second metric adds another, and on watches with enough memory an optional third and fourth metric add more — each line in its own selectable style (thin or thick line, square dots, little x marks, or a shaded stripe along the top or bottom of the graph) — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1551,6 +1557,21 @@ module.exports = {
             windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('fourthLine'),
+            {
+                type: 'select',
+                messageKey: 'fifthLine',
+                label: 'Fourth metric',
+                defaultValue: 'off',
+                hintByValue: FIFTH_LINE_HINTS,
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine'], noFeels: true}},
+                // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
+                showWhen: LINE_STYLES_WHEN
+            },
+            lineStyleCopy('fifthLineStyle', 'fifthLine'),
+            windScaleCopy('fifthLine', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('fifthLine'),
             {
                 type: 'segmented',
                 messageKey: 'barSource',

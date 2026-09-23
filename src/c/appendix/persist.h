@@ -127,6 +127,14 @@ void persist_get_curve_insets(uint8_t out[3]);
 // of CLAY_LINE_STYLE_UINT8 whenever the line is configured.
 GColor persist_get_fourth_line_color(void);
 bool persist_set_fourth_line_color(GColor color);
+// The fourth selectable metric line (SERIES_FIFTH): colour + its own style
+// byte (same kind | field layout as a LINE_STYLES byte, below), both off the
+// third tail block of CLAY_LINE_STYLE_UINT8 (bytes [14..15]). The style
+// defaults to a top stripe when unset.
+GColor persist_get_fifth_line_color(void);
+bool persist_set_fifth_line_color(GColor color);
+uint8_t persist_get_fifth_line_style(void);
+bool persist_set_fifth_line_style(uint8_t style);
 
 // CANONICAL layout of the LINE_STYLES blob — the per-line marker styles the
 // phone resolved, copied verbatim off bytes [11..13] of CLAY_LINE_STYLE_UINT8

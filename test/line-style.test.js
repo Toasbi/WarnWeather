@@ -7,11 +7,12 @@ const { resolveInk } = require('../src/pkjs/resolve-ink.js');
 
 const emery = { platform: 'emery' };
 
-test('packs fourteen bytes: four line colours, a line flag byte, five night colours, a night flag byte, three style bytes', () => {
+test('packs sixteen bytes: five line colours, a line flag byte, five night colours, a night flag byte, four style bytes', () => {
   const bytes = lineStyle.buildLineStyleBytes(
     { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, theme: 'dark' }, emery);
-  assert.equal(bytes.length, 14);
-  [0, 1, 2, 4, 5, 6, 7, 8, 10].forEach(
+  assert.equal(bytes.length, 16);
+  assert.equal(bytes[15], 0x07, 'the fourth metric debuts as a top stripe');
+  [0, 1, 2, 4, 5, 6, 7, 8, 10, 14].forEach(
     (i) => assert.ok(bytes[i] >= 0xC0 && bytes[i] <= 0xFF, `byte ${i} (${bytes[i]}) is not a GColor8`));
   assert.equal(bytes[3], 0, 'fill off');
   assert.equal(bytes[9], 0, 'night fill still on its built-in tint');
@@ -28,7 +29,7 @@ test('the night block is a contiguous six-byte block at [4..9], flag included', 
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark',
     gcWindNightDark: '#550055'
   }, emery);
-  assert.equal(bytes.length, 14, 'night block [4..9] + ext block [10..13]');
+  assert.equal(bytes.length, 16, 'night block [4..9] + ext block [10..13] + fifth block [14..15]');
   assert.equal(bytes[9] & lineStyle.FLAG_NIGHT_FILL_EXPLICIT, lineStyle.FLAG_NIGHT_FILL_EXPLICIT);
   assert.equal(bytes[3] & 0x01, 1, 'the line flag byte still carries only the fill bit');
   assert.equal(bytes[3], 0x01, 'and nothing else — the night flag left byte [3] entirely');
@@ -748,7 +749,10 @@ test('the style-byte encoding matches the C headers, decoded with their own cons
   assert.equal(byteFor('stripeTop'), 0x07);
   // The wire's style block is exactly the persist blob the watch stores.
   const bytes = lineStyle.buildLineStyleBytes({ secondaryLine: 'wind', thirdLine: 'gust', theme: 'dark' }, { platform: 'emery' });
-  assert.equal(bytes.length - 11, STYLE_BYTES, 'bytes [11..13] are LINE_STYLE_STYLE_BYTES');
+  assert.equal(bytes.length - 11 - 2, STYLE_BYTES, 'bytes [11..13] are LINE_STYLE_STYLE_BYTES');
+  // The fourth metric's style byte ([15]) rides its own persist slot, same layout.
+  assert.equal(decodeKind(bytes[15]), KIND.stripe);
+  assert.equal(decodeStripeTop(bytes[15]), true);
 });
 
 test('a stripe-styled main line never fills, unless the watch ignores the styles', () => {

@@ -83,6 +83,7 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
         { SERIES_THIRD,  MESSAGE_KEY_THIRD_LINE_TREND_UINT8     },
 #if defined(WW_LINE_STYLE)
         { SERIES_FOURTH, MESSAGE_KEY_FOURTH_LINE_TREND_UINT8    },
+        { SERIES_FIFTH,  MESSAGE_KEY_FIFTH_LINE_TREND_UINT8     },
 #endif
         { SERIES_BARS,   MESSAGE_KEY_BAR_TREND_UINT8            },
     };
@@ -386,6 +387,11 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 // receive.
 #define LINE_STYLE_EXT_OFFSET 10
 #define LINE_STYLE_EXT_BYTES 4
+// Third appended tail block: [14] the fourth-metric line colour, [15] its
+// style byte (kind | field, as a LINE_STYLES byte). Own length check, per the
+// growth contract; WW_LINE_STYLE-guarded like the block above.
+#define LINE_STYLE_FIFTH_OFFSET 14
+#define LINE_STYLE_FIFTH_BYTES 2
 
 static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_LINE_STYLE_UINT8);
@@ -419,6 +425,11 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
         changed |= persist_set_fourth_line_color(
             (GColor){ .argb = b[LINE_STYLE_EXT_OFFSET] });
         changed |= persist_set_line_styles(&b[LINE_STYLE_EXT_OFFSET + 1]);
+    }
+    if (tuple->length >= LINE_STYLE_FIFTH_OFFSET + LINE_STYLE_FIFTH_BYTES) {
+        changed |= persist_set_fifth_line_color(
+            (GColor){ .argb = b[LINE_STYLE_FIFTH_OFFSET] });
+        changed |= persist_set_fifth_line_style(b[LINE_STYLE_FIFTH_OFFSET + 1]);
     }
 #endif
     *forecast_dirty |= changed;
@@ -770,7 +781,16 @@ void app_message_init() {
     // 536 (was 528): the threshold-highlight levels byte rides the weather
     // bundle as its own tuple — 1 value byte + the 7-byte tuple header
     // (recorded heaviest bundle now 525 B; headroom 11).
+#if defined(PBL_PLATFORM_APLITE)
+    // aplite: the buffer comes out of its tiny heap, so 536 B is a hard ceiling;
+    // its bundle never carries the fourth/fifth metric lines (WW_LINE_STYLE).
     const int inbox_size = 536;
+#else
+    // Every other platform has heap to spare and carries the extra metric lines
+    // (test/inbox-size.test.js sizes each platform's heaviest bundle against its
+    // own value here).
+    const int inbox_size = 600;
+#endif
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));
     APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage buffer sizes: inbox=%d outbox=%d", inbox_size, outbox_size);
     app_message_open(inbox_size, outbox_size);

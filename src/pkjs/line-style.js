@@ -362,7 +362,10 @@
         { key: 'thirdLine' },
         // feels never rides the fourth line: it has no curve-inset channel,
         // so it could never share the temperature axis.
-        { key: 'fourthLine', bans: { feels: true } }
+        { key: 'fourthLine', bans: { feels: true } },
+        // The fourth metric ("Fourth metric" in the settings): no curve-inset
+        // channel either, so the same ban.
+        { key: 'fifthLine', bans: { feels: true } }
     ];
 
     /**
@@ -370,7 +373,7 @@
      * when the line is off, banned from that metric, or repeating an earlier
      * line's stored pick.
      * @param {Object} settings Clay settings blob.
-     * @param {string} key secondaryLine|thirdLine|fourthLine.
+     * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
      * @returns {string|null} The drawn metric, or null for line-off.
      */
     function effectiveLineMetric(settings, key) {
@@ -405,11 +408,13 @@
     var LINE_STYLE_KINDS = { line: 0, bold: 0, dots: 1, x: 2, stripeTop: 3, stripeBottom: 3 };
     var LINE_STYLE_WIDTHS = { line: 1, bold: 3, stripeTop: 1 };
     // Defaults reproduce the pre-feature look: solid 1 px main line, dotted
-    // second line — and the new third-metric line debuts as x marks.
+    // second line — the third-metric line debuted as x marks, and the fourth
+    // debuts as a stripe along the top (where cloud cover reads naturally).
     var LINE_STYLE_DEFAULTS = {
         secondaryLineStyle: 'line',
         thirdLineStyle: 'dots',
-        fourthLineStyle: 'x'
+        fourthLineStyle: 'x',
+        fifthLineStyle: 'stripeTop'
     };
 
     /**
@@ -418,7 +423,7 @@
      * the kind table — a bare object literal answers truthy for every
      * Object.prototype name.
      * @param {Object} settings Clay settings blob.
-     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
      * @returns {string} 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
      */
     function lineStyleValue(settings, key) {
@@ -430,7 +435,7 @@
     /**
      * Is this line drawn as a stripe (either edge) rather than a stroke or marks?
      * @param {Object} settings Clay settings blob.
-     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
      * @returns {boolean} True for 'stripeTop' and 'stripeBottom'.
      */
     function isStripeStyle(settings, key) {
@@ -440,7 +445,7 @@
     /**
      * The packed wire/persist byte for one line-style key (layout above).
      * @param {Object} settings Clay settings blob.
-     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
      * @returns {number} kind | (field << 2) — stroke width, or the stripe's edge.
      */
     function lineStyleByte(settings, key) {
@@ -681,7 +686,7 @@
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
      *   (treated as colour basalt).
      * @returns {{secondary: number, fill: number, third: number, fourth: number,
-     *   fillOn: boolean, night: Object}} Four 0xRRGGBB colours, the resolved fill flag,
+     *   fifth: number, fillOn: boolean, night: Object}} Four 0xRRGGBB colours, the resolved fill flag,
      *   and the night colours (see resolveNightColors).
      */
     function resolveLineStyle(settings, watchInfo) {
@@ -700,7 +705,7 @@
      *   (aplite) ignores the stored styles, so a stripe picked on a colour watch paired to
      *   the same phone cannot switch an aplite fill off.
      * @returns {{secondary: number, fill: number, third: number, fourth: number,
-     *   fillOn: boolean, night: Object}} As resolveLineStyle.
+     *   fifth: number, fillOn: boolean, night: Object}} As resolveLineStyle.
      */
     function resolveGraphColors(settings, caps) {
         var cx = renderContextFor(settings, caps);
@@ -731,6 +736,7 @@
             fill: resolved(secMetric, 'Fill'),
             third: resolved(thirdMetric, 'Line'),
             fourth: resolved(settings.fourthLine, 'Line'),
+            fifth: resolved(settings.fifthLine, 'Line'),
             night: resolveNightColors(settings, cx, secMetric),
             // THE authoritative gate on feels never filling (ADR-0003 §6) — the config UI
             // also hides and clears the toggle, but a blob stored before that landed, or
@@ -742,7 +748,7 @@
     }
 
     /**
-     * Pack the line styling for the Clay wire — FOURTEEN bytes:
+     * Pack the line styling for the Clay wire — SIXTEEN bytes:
      *
      *   [0] main-metric line colour    (GColor8 argb)
      *   [1] area fill colour           (GColor8 argb)
@@ -758,18 +764,20 @@
      *   [11] main-metric line style    ┐ bytes [11..13] are byte-for-byte the watch's
      *   [12] second-metric line style  │ LINE_STYLES persist blob (kind | width << 2 —
      *   [13] third-metric line style   ┘ see LINE_STYLE_KINDS above; persist.h).
+     *   [14] fourth-metric line colour (GColor8 argb)  ┐ the third tail block:
+     *   [15] fourth-metric line style  (kind | field)  ┘ FIFTH_LINE_COLOR / _STYLE.
      *
      * rgbToGColor8 matches Pebble's GColorFromHEX exactly, so the pixel is identical to
      * sending the full 0xRRGGBB. The watch treats everything past byte [3] as OPTIONAL
      * tail blocks (its length checks are minimums, one per block), so a shorter tuple
      * from an older sender still applies in full — which is the rule for growing this:
      * append a block plus its own length check, never widen the minimum. ADR-0003 §7.
-     * Bytes [10..13] ship to every watch — aplite has no parse arm for them and simply
+     * Bytes [10..15] ship to every watch — aplite has no parse arm for them and simply
      * ignores the tail, exactly as pre-feature watches ignore bytes they postdate.
      *
      * @param {Object} settings Clay settings blob.
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null.
-     * @returns {number[]} The fourteen bytes above.
+     * @returns {number[]} The sixteen bytes above.
      */
     function buildLineStyleBytes(settings, watchInfo) {
         var s = resolveLineStyle(settings, watchInfo);
@@ -787,7 +795,9 @@
             rainTier.rgbToGColor8(s.fourth),
             lineStyleByte(settings, 'secondaryLineStyle'),
             lineStyleByte(settings, 'thirdLineStyle'),
-            lineStyleByte(settings, 'fourthLineStyle')
+            lineStyleByte(settings, 'fourthLineStyle'),
+            rainTier.rgbToGColor8(s.fifth),
+            lineStyleByte(settings, 'fifthLineStyle')
         ];
     }
 

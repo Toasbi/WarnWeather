@@ -1129,3 +1129,21 @@ test('a provider without cloud cover leaves the cloud line off', () => {
   }, { secondaryLine: 'cloud', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []);
 });
+
+test('the fourth metric line ships as FIFTH_LINE_TREND_UINT8 off aplite only', () => {
+  const base = () => ({
+    TEMP_RAW_TREND: [10, 20], TEMP_MIN: 10, TEMP_MAX: 20, NUM_ENTRIES: 2,
+    PRECIP_TREND_UINT8: [0, 0], RAIN_TREND_UINT8: [0, 0], WIND_TREND_UINT8: [0, 0],
+    GUST_TREND_UINT8: [0, 0], UV_TREND_UINT8: [], CLOUD_TREND: [40, 100]
+  });
+  const settings = { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off',
+    fifthLine: 'cloud', barSource: 'off' };
+  assert.deepEqual(applyForecastSeries(base(), settings, { platform: 'basalt' }).FIFTH_LINE_TREND_UINT8,
+    [100, 250]);
+  assert.ok(!('FIFTH_LINE_TREND_UINT8' in applyForecastSeries(base(), settings, { platform: 'aplite' })),
+    'aplite has no SERIES_FIFTH, so the key would only spend bundle bytes');
+  // A metric an earlier line already draws turns the fourth metric off.
+  assert.deepEqual(applyForecastSeries(base(), Object.assign({}, settings, { fifthLine: 'precip_prob' }),
+    { platform: 'basalt' }).FIFTH_LINE_TREND_UINT8, []);
+  assert.equal(needsUv({ fifthLine: 'uv' }), true, 'a UV fourth metric extends the UV fetch gate');
+});

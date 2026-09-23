@@ -71,7 +71,7 @@ const EXPECTED_KEYS = [
   // sleepNightStartHour / sleepNightEndHour / backlightDimMode are gone.
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
-  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','tempSlotDisplay',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
@@ -94,8 +94,8 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   const counts = {};
   seen.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
-  // windScale: one slot per line context (main / second / third-metric line).
-  // pressureScale: same three-way split. theme: color-env (4 options) vs. B&W-env
+  // windScale: one slot per line context (main / second / third / fourth metric).
+  // pressureScale: same four-way split. theme: color-env (4 options) vs. B&W-env
   // (2 options) — two slots, not four: the 'Day theme' pair is gone and the Theme
   // row is never renamed. themeNight is the same color/B&W split. colorUSFederal:
   // dark-exclude-white vs. light-exclude-black.
@@ -104,8 +104,8 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   assert.deepEqual(dups.sort(),
     ['colorUSFederal', 'pressureScale', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  assert.equal(counts.windScale, 9, 'windScale appears in nine slots (3 contexts × 3 units)');
-  assert.equal(counts.pressureScale, 3, 'pressureScale appears in three slots (secondary + third + fourth)');
+  assert.equal(counts.windScale, 12, 'windScale appears in twelve slots (4 contexts × 3 units)');
+  assert.equal(counts.pressureScale, 4, 'pressureScale appears in four slots (one per line context)');
   assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
   assert.equal(counts.themeNight, 2, 'themeNight appears in two slots (color / B&W env)');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
@@ -461,9 +461,9 @@ test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', ()
   assert.match(hint, /half-height/);
 });
 
-test('windScale has nine contextual slots: three line-contexts × three wind units', () => {
+test('windScale has twelve contextual slots: four line-contexts × three wind units', () => {
   const slots = items.filter((i) => i.messageKey === 'windScale');
-  assert.equal(slots.length, 9, 'nine windScale slots');
+  assert.equal(slots.length, 12, 'twelve windScale slots');
   // Leaf conditions only: the fourth-line copies name the other two lines inside
   // {not: …} wrappers, which carry no .key, so each filter matches one context.
   const secondary = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'secondaryLine' && c.in));
@@ -1036,20 +1036,24 @@ test('forecast tab nests style, fill and wind scale under the line that enables 
   const iFill = keys.indexOf('secondaryLineFill');
   const iThird = keys.indexOf('thirdLine');
   const iFourth = keys.indexOf('fourthLine');
-  assert.ok(iSolid >= 0 && iFill > iSolid && iThird > iFill && iFourth > iThird,
-    'order must be Main metric -> Fill area -> Second metric -> Third metric; got ' + keys.join(','));
+  const iFifth = keys.indexOf('fifthLine');
+  assert.ok(iSolid >= 0 && iFill > iSolid && iThird > iFill && iFourth > iThird && iFifth > iFourth,
+    'order must be Main metric -> Fill area -> Second -> Third -> Fourth metric; got ' + keys.join(','));
   // Each line's style picker sits directly under its metric picker.
   assert.equal(keys.indexOf('secondaryLineStyle'), iSolid + 1, 'main style under Main metric');
   assert.equal(keys.indexOf('thirdLineStyle'), iThird + 1, 'second style under Second metric');
   assert.equal(keys.indexOf('fourthLineStyle'), iFourth + 1, 'third style under Third metric');
+  assert.equal(keys.indexOf('fifthLineStyle'), iFifth + 1, 'fourth style under Fourth metric');
   const windIdxs = keys.reduce((a, k, i) => (k === 'windScale' ? a.concat(i) : a), []);
-  assert.equal(windIdxs.length, 9, 'nine wind-scale slots (3 contexts × 3 units)');
+  assert.equal(windIdxs.length, 12, 'twelve wind-scale slots (4 contexts × 3 units)');
   assert.ok(windIdxs.slice(0, 3).every((i) => i > iFill && i < iThird),
     'secondary-line wind-scale copies sit under the solid line');
   assert.ok(windIdxs.slice(3, 6).every((i) => i > iThird && i < iFourth),
     'third-line wind-scale copies sit under the second metric');
-  assert.ok(windIdxs.slice(6).every((i) => i > iFourth),
+  assert.ok(windIdxs.slice(6, 9).every((i) => i > iFourth && i < iFifth),
     'fourth-line wind-scale copies sit under the third metric');
+  assert.ok(windIdxs.slice(9).every((i) => i > iFifth),
+    'fifth-line wind-scale copies sit under the fourth metric');
 });
 
 test('startOnWeatherTab is a page-only toggle that defaults to General', () => {
@@ -2254,7 +2258,7 @@ test('the line-style pickers offer thin/thick/dots/x/top/bottom with per-line de
 
 test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
   const scales = items.filter((i) => i.messageKey === 'pressureScale');
-  assert.equal(scales.length, 3, 'one copy per line-context (secondary + third + fourth)');
+  assert.equal(scales.length, 4, 'one copy per line-context (secondary + third + fourth + fifth)');
   for (const s of scales) {
     assert.deepEqual(s.options, [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']]);
     assert.equal(s.defaultValue, 'mid');
@@ -2320,7 +2324,7 @@ test('the wind slot arrows by default, the gust slot beside it does not', () => 
 // in either dependency cannot silently rewrite user-facing copy.
 test('windScale hints derive from the graph ceilings, strings pinned', () => {
   const winds = items.filter((i) => i.messageKey === 'windScale');
-  assert.equal(winds.length, 9, 'three units x three line-contexts');
+  assert.equal(winds.length, 12, 'three units x four line-contexts');
   const hintFor = (unit) => winds.find((i) =>
     JSON.stringify(i.showWhen).indexOf('"' + unit + '"') >= 0).hintByValue;
   assert.equal(hintFor('kph').low, 'Tops out at 30 kph — emphasizes light, gentle winds.');

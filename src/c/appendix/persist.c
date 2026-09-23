@@ -86,7 +86,15 @@ enum key {
     // THIRD_LINE_TREND convention, not the count-keyed LINE_/BAR_ one.
     FOURTH_LINE_TREND,            // 49 — uint8 trend bytes, absent = line off
     FOURTH_LINE_COLOR,            // 50 — GColor8 argb byte, absent = theme foreground
-    LINE_STYLES                   // 51 — 3 style bytes (layout in persist.h), absent = the frozen look
+    LINE_STYLES,                  // 51 — 3 style bytes (layout in persist.h), absent = the frozen look
+    // Appended: the fourth selectable metric line (SERIES_FIFTH, "Fourth
+    // metric" in the settings) — the same WW_LINE_STYLE feature set and the
+    // same existence-keyed presence as FOURTH_LINE_TREND. Its style byte has a
+    // slot of its own rather than widening LINE_STYLES, whose fixed 3-byte
+    // length is what existing installs have on flash.
+    FIFTH_LINE_TREND,             // 52 — uint8 trend bytes, absent = line off
+    FIFTH_LINE_COLOR,             // 53 — GColor8 argb byte, absent = theme foreground
+    FIFTH_LINE_STYLE              // 54 — 1 style byte (persist.h layout), absent = top stripe
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -194,6 +202,7 @@ bool persist_series_present(SeriesId id) {
         case SERIES_THIRD:  return persist_third_line_present();
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return persist_exists(FOURTH_LINE_TREND);
+        case SERIES_FIFTH:  return persist_exists(FIFTH_LINE_TREND);
 #endif
         case SERIES_BARS:   return persist_get_bar_count() > 0;
         default:            return false;  // FIRST: caller uses num_entries > 0
@@ -207,6 +216,7 @@ int persist_series_trend(SeriesId id, int16_t *out, size_t n) {
         case SERIES_THIRD:  return persist_get_third_line_trend(out, n);
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return read_trend_widened(FOURTH_LINE_TREND, out, n);
+        case SERIES_FIFTH:  return read_trend_widened(FIFTH_LINE_TREND, out, n);
 #endif
         case SERIES_BARS:   return persist_get_bar_trend(out, n);
         default:            return 0;
@@ -219,6 +229,7 @@ bool persist_series_set_trend(SeriesId id, uint8_t *data, size_t size) {
         case SERIES_THIRD:  return persist_set_third_line_trend(data, size);
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return set_existence_keyed_trend(FOURTH_LINE_TREND, data, size);
+        case SERIES_FIFTH:  return set_existence_keyed_trend(FIFTH_LINE_TREND, data, size);
 #endif
         case SERIES_BARS:   return persist_set_bar_trend(data, size);
         default:            return false;  // FIRST/temp is handled bespoke
@@ -231,6 +242,7 @@ bool persist_series_set_color(SeriesId id, GColor c) {
         case SERIES_THIRD:  return persist_set_third_line_color(c);
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return persist_set_fourth_line_color(c);
+        case SERIES_FIFTH:  return persist_set_fifth_line_color(c);
 #endif
         default:            return false;  // BARS has a palette, not a single color
     }
@@ -327,6 +339,28 @@ GColor persist_get_fourth_line_color(void) {
 
 bool persist_set_fourth_line_color(GColor color) {
     return write_int_if_changed(FOURTH_LINE_COLOR, color.argb);
+}
+
+GColor persist_get_fifth_line_color(void) {
+    if (!persist_exists(FIFTH_LINE_COLOR)) { return theme_fg(); }
+    return (GColor){ .argb = (uint8_t) persist_read_int(FIFTH_LINE_COLOR) };
+}
+
+bool persist_set_fifth_line_color(GColor color) {
+    return write_int_if_changed(FIFTH_LINE_COLOR, color.argb);
+}
+
+uint8_t persist_get_fifth_line_style(void) {
+    if (!persist_exists(FIFTH_LINE_STYLE)) {
+        // Unset: the line's built-in, a top stripe (line-style.js
+        // LINE_STYLE_DEFAULTS.fifthLineStyle).
+        return (uint8_t) (CHART_LINE_STRIPE | (1 << LINE_STYLE_WIDTH_SHIFT));
+    }
+    return (uint8_t) persist_read_int(FIFTH_LINE_STYLE);
+}
+
+bool persist_set_fifth_line_style(uint8_t style) {
+    return write_int_if_changed(FIFTH_LINE_STYLE, style);
 }
 
 bool persist_set_line_styles(const uint8_t styles[LINE_STYLE_STYLE_BYTES]) {

@@ -168,7 +168,7 @@
     "body": "The forecast graph can now show a third metric (little x marks), and every metric line has a selectable style: thin or thick line, square dots, or x marks. Set them in the Forecast tab. (Not on Pebble Classic/Steel, which keeps its classic look.)"
   },
   "1.22.0": {
-    "title": "Cloud cover + stripes",
-    "body": "The forecast graph can now show cloud cover, and any metric can be drawn as a shaded stripe along the top or bottom of the graph: the stronger the value, the stronger the colour. Set them in the Forecast tab. (Stripes not on Pebble Classic/Steel.)"
+    "title": "Cloud cover, stripes, 4th metric",
+    "body": "The forecast graph can show cloud cover and a fourth metric, and any metric can be drawn as a shaded stripe along the top of the graph or below its zero line: the stronger the value, the stronger the colour. Set them in the Forecast tab. (Stripes and the fourth metric not on Pebble Classic/Steel.)"
   }
 }

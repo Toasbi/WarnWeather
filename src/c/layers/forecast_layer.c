@@ -202,6 +202,14 @@ static void load_dataset(ForecastDataset *ds) {
     apply_line_style(&ds->series[SERIES_SECOND].line, line_styles[0], 1);
     apply_line_style(&ds->series[SERIES_THIRD].line,  line_styles[1], 1);
     apply_line_style(&ds->series[SERIES_FOURTH].line, line_styles[2], 1);
+
+    ds->series[SERIES_FIFTH] = (Series){
+        .id = SERIES_FIFTH, .kind = SERIES_KIND_LINE,
+        .present = persist_series_present(SERIES_FIFTH),
+        .line = { .color  = persist_get_fifth_line_color(),   // raw per-metric — SDK reduces on B&W
+                  .width  = FORECAST_GRID_BAR_W,
+                  .inset_y = 0 } };   // full-height mapping; feels is never offered on this line
+    apply_line_style(&ds->series[SERIES_FIFTH].line, persist_get_fifth_line_style(), 1);
 #endif
 
     ds->series[SERIES_BARS] = (Series){

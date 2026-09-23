@@ -209,7 +209,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
               style: styleFor('thirdLineStyle'), color: hexColor(gc.third) },
             { metric: state.fourthLine,
               on: !stylesFrozen && Boolean(lineStyle.effectiveLineMetric(state, 'fourthLine')),
-              style: styleFor('fourthLineStyle'), color: hexColor(gc.fourth) }
+              style: styleFor('fourthLineStyle'), color: hexColor(gc.fourth) },
+            { metric: state.fifthLine,
+              on: !stylesFrozen && Boolean(lineStyle.effectiveLineMetric(state, 'fifthLine')),
+              style: styleFor('fifthLineStyle'), color: hexColor(gc.fifth) }
         ];
         // Bottom stripes sit BELOW the plot's zero line, in their own band above the
         // hour axis (forecast_layer.c's stripe_band): a 1-unit gap plus a stripe per
