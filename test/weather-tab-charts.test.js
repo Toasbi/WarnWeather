@@ -1217,6 +1217,32 @@ test('moonPhasePath: the terminator tracks the fraction and the lit limb the dir
   assert.equal(gibbous[0].sweep, gibbous[1].sweep, 'past half it bulges away, over the dark side');
 });
 
+// The moon disc is a picture of the sky: south of the tropics the phase is mirrored, so
+// a waxing crescent is lit on the LEFT there. The lit limb follows the location's own
+// geometry, not the phase alone.
+test('the moon disc lights the limb the local sky shows, mirrored in the southern hemisphere', () => {
+  const pal = charts.palette(false);
+  const litLimb = (lat, lon, whenMs) => {
+    const day0 = Math.floor(whenMs / 86400000) * 86400000;
+    const view = charts.prepareView(fixtureData(day0), whenMs);
+    const spec = charts.sunMoonPanelSvg(view, { lat, lon }, pal, SunCalc);
+    const d = new RegExp('<path d="(M[^"]+)" fill="' + pal.moonLit.replace(/[().]/g, '\\$&') + '"/>').exec(spec.main);
+    assert.ok(d, 'a lit slice is drawn at ' + new Date(whenMs).toISOString());
+    return /A[\d.]+ [\d.]+ 0 0 (\d)/.exec(d[1])[1] === '1' ? 'right' : 'left';
+  };
+  const illum = (ms) => SunCalc.getMoonIllumination(new Date(ms)).phase;
+  const WAXING = Date.UTC(2026, 8, 14, 17);   // a waxing crescent (phase ~0.12)
+  const SYD_WAXING = Date.UTC(2026, 8, 14, 9);
+  const WANING = Date.UTC(2026, 8, 30, 1);    // a waning gibbous (phase ~0.62)
+  const SYD_WANING = Date.UTC(2026, 8, 29, 17);
+  assert.ok(illum(WAXING) < 0.5 && illum(SYD_WAXING) < 0.5, 'sanity: waxing');
+  assert.ok(illum(WANING) > 0.5 && illum(SYD_WANING) > 0.5, 'sanity: waning');
+  assert.equal(litLimb(52.52, 13.405, WAXING), 'right', 'Berlin: a waxing moon is lit on the right');
+  assert.equal(litLimb(-33.9, 151.2, SYD_WAXING), 'left', 'Sydney: the same phase is lit on the left');
+  assert.equal(litLimb(52.52, 13.405, WANING), 'left', 'Berlin: a waning moon is lit on the left');
+  assert.equal(litLimb(-33.9, 151.2, SYD_WANING), 'right', 'Sydney: mirrored to the right');
+});
+
 test('tipText carries every series at the index, per panel (the crosshair contract)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const s = { temperatureUnits: 'c', windUnits: 'kph' };

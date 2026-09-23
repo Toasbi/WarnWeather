@@ -1509,17 +1509,19 @@
      * @param {number} cy Disc center y.
      * @param {number} r Disc radius.
      * @param {number} fraction Illuminated fraction, 0..1.
-     * @param {boolean} waxing Whether the RIGHT limb is the lit one.
+     * @param {boolean} litRight Whether the RIGHT limb is the lit one (as the
+     *   sky shows it from the location — not simply "waxing", which is only
+     *   right-lit north of the tropics).
      * @returns {string} Path data for the lit area ('' at new moon).
      */
-    function moonPhasePath(cx, cy, r, fraction, waxing) {
+    function moonPhasePath(cx, cy, r, fraction, litRight) {
         if (!(fraction > 0.02)) { return ''; }
         var rx = (r * Math.abs(1 - 2 * fraction)).toFixed(2);
         // Past half the terminator crosses to the far side of the disc, so
         // its arc sweeps the other way; the lit limb picks the outer half.
         var bulge = fraction > 0.5 ? 1 : 0;
-        var limb = waxing ? 1 : 0;
-        var term = waxing ? bulge : 1 - bulge;
+        var limb = litRight ? 1 : 0;
+        var term = litRight ? bulge : 1 - bulge;
         return 'M' + cx.toFixed(1) + ' ' + (cy - r).toFixed(1)
             + 'A' + r + ' ' + r + ' 0 0 ' + limb + ' ' + cx.toFixed(1) + ' ' + (cy + r).toFixed(1)
             + 'A' + rx + ' ' + r + ' 0 0 ' + term + ' ' + cx.toFixed(1) + ' ' + (cy - r).toFixed(1) + 'Z';
@@ -1842,12 +1844,19 @@
         var nx = nowX(view);
         var atNow = new Date(nowSnapMs(view));
         var sunAlt = SunCalcLib.getPosition(atNow, loc.lat, loc.lon).altitude;
-        var moonAlt = SunCalcLib.getMoonPosition(atNow, loc.lat, loc.lon).altitude;
+        var moonPos = SunCalcLib.getMoonPosition(atNow, loc.lat, loc.lon);
+        var moonAlt = moonPos.altitude;
         var illum = SunCalcLib.getMoonIllumination(atNow);
         var my = altToY(moonAlt);
         s += '<circle cx="' + nx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="5.5" fill="' + pal.moonDisc
             + '" stroke="' + pal.moonNight + '" stroke-width="1"/>';
-        var lit = moonPhasePath(nx, my, 5.5, illum.fraction, illum.phase < 0.5);
+        // The lit side as THIS sky shows it. A waxing moon is lit on the
+        // right only north of the tropics; south of them it is mirrored. The
+        // bright limb's angle from the observer's zenith (its position angle
+        // less the parallactic angle, counter-clockwise from up) says which
+        // side faces the sun from here: a negative sine is the right.
+        var litRight = Math.sin(illum.angle - moonPos.parallacticAngle) < 0;
+        var lit = moonPhasePath(nx, my, 5.5, illum.fraction, litRight);
         if (lit) { s += '<path d="' + lit + '" fill="' + pal.moonLit + '"/>'; }
         s += sunGlyph(nx, altToY(sunAlt), 4.5, pal);
         // The percentage sits beside the disc, and swaps sides rather than
