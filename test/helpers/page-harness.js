@@ -67,6 +67,7 @@ function bootGeneratedPage(cfg, platformName) {
     addEventListener() {}
   };
   sandbox.navigator = {};
+  sandbox.location = { href: '' };   // save() navigates to RETURN_TO + the saved blob
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
   let ready = null;
@@ -99,6 +100,23 @@ function bootGeneratedPage(cfg, platformName) {
         closest: sel => (sel === '[data-toggle]' ? t : null)
       };
       els.modal.dispatch('click', { target: t });
+    },
+    // Pick an option in a select sheet — the engine's #modal pick handler (sets the value,
+    // runs the item's onChange, closes the sheet).
+    pickOption(key, value) {
+      const t = {
+        getAttribute: n => (n === 'data-k' ? key : (n === 'data-select-pick' ? value : null)),
+        closest: sel => (sel === '[data-select-pick]' ? t : null)
+      };
+      els.modal.dispatch('click', { target: t });
+    },
+    // Tap Save: the submit hooks run, the state serializes, and after the toast delay the
+    // page navigates to RETURN_TO ('#') + the encoded blob. Resolves with that blob.
+    save() {
+      els.save.dispatch('click', { target: els.save });
+      return new Promise(resolve => setTimeout(() => {
+        resolve(JSON.parse(decodeURIComponent(sandbox.location.href.slice(1))));
+      }, 350));
     }
   };
 }

@@ -823,7 +823,9 @@ if (typeof require !== 'undefined') {
     // tomorrow.io budget affords (full ladder when no tomorrow.io is selected);
     // guard off -> full ladder (the info block shows the red warning instead).
     // If the stored interval drops out, the engine's resolveRowItem snaps it to
-    // the item default ('15').
+    // the item default ('15') — but only while the row renders (General tab), so
+    // onbuild.js's onSubmit applies the same fit at save time for a change made
+    // on another tab (the radar provider/mode, on the Radar tab).
     PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env, args) {
         if (!S || S.tomorrowioFitBudget === false) { return tomorrowioBudget.INTERVAL_LADDER.slice(); }
         return tomorrowioBudget.fittingOptions(S);
