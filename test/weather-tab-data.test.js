@@ -42,15 +42,17 @@ test('Open-Meteo parser: hourly series + provider daily, unixtime seconds → ms
   assert.equal(out.hourly.temp[0], 18.2);
   // Rain, chance and gust are the PRECEDING hour's at Open-Meteo, so the
   // row for noon takes the 13:00 stamp's; the last row has no 14:00 stamp to
-  // read and is unsourced. Instants stay on their own stamp.
+  // read and is unsourced. Instants stay on their own stamp. The weather code
+  // is built from its stamp's preceding-hour rain, so it moves with the rain:
+  // the 61 stamped noon (with its 0.4 mm) is the hour before this window.
   assert.equal(out.hourly.prob[0], 20);
   assert.equal(out.hourly.rain[0], 0);
   assert.equal(out.hourly.gust[0], 28);
   assert.equal(out.hourly.prob[1], null);
   assert.equal(out.hourly.rain[1], null);
   assert.equal(out.hourly.wind[0], 12);
-  assert.equal(out.hourly.icon[0], 'rain');
-  assert.equal(out.hourly.icon[1], 'cloudy');
+  assert.equal(out.hourly.icon[0], 'cloudy');
+  assert.equal(out.hourly.icon[1], null);
   assert.equal(out.daily.length, 2, 'yesterday is dropped');
   assert.equal(out.daily[0].tmax, 21);
   assert.equal(out.daily[0].sunshineH, 2);

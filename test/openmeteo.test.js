@@ -57,39 +57,99 @@ test('mapResponse anchors at the current hour and returns 24-length trends', () 
   assert.equal(out.tempTrend[23], 91);  // 50 + 41
   assert.equal(out.windTrend[0], 18);   // km/h passthrough, an instant: read at the anchor
   assert.equal(out.currentTemp, 71.5);
-  // The preceding-hour fields read one bucket ahead (bucket 19 for slot 0).
-  assert.equal(out.precipTrend[0], 19 / 100); // probability 19% -> 0.19 fraction
+  // The preceding-hour fields read one bucket ahead (bucket 19 for slot 0);
+  // the chance reads its 3-hour block's boundary bucket (21 for 18:00-21:00).
+  assert.equal(out.precipTrend[0], 21 / 100); // probability 21% -> 0.21 fraction
   assert.equal(out.rainTrend[0], 19);   // mm passthrough
   assert.equal(out.gustTrend[0], 24);   // (19 + 5) km/h passthrough
   assert.equal(out.rainTrend[23], 42);  // the last slot reads the bucket after the window
   // Element [1] proves the per-element transform applies across the whole slice.
   assert.equal(out.tempTrend[1], 69);          // 50 + 19
-  assert.equal(out.precipTrend[1], 20 / 100);  // probability 20% at bucket 20
+  assert.equal(out.precipTrend[1], 21 / 100);  // same block, same chance
+  assert.equal(out.precipTrend[3], 24 / 100);  // 21:00-22:00 opens the next block
 });
 
 test('mapResponse puts a preceding-hour value in the slot of the hour it covers', () => {
-  // Open-Meteo stamps precipitation, precipitation_probability and
-  // windgusts_10m at the END of the hour they cover: 5 mm / 90% / 60 km/h
-  // stamped 16:00 fell between 15:00 and 16:00. The watch draws slot i as the
-  // hour STARTING at startTime + i h, so at 15:10 that hour is slot 0 — the
-  // current-hour bar — not slot 1.
+  // Open-Meteo stamps precipitation and windgusts_10m at the END of the hour
+  // they cover: 5 mm / 60 km/h stamped 16:00 fell between 15:00 and 16:00.
+  // The watch draws slot i as the hour STARTING at startTime + i h, so at
+  // 15:10 that hour is slot 0 — the current-hour bar — not slot 1. (The
+  // chance reads by 3-hour block; see the ensemble test below.)
   const json = sampleResponse();
   json.hourly.precipitation = json.hourly.time.map(() => 0);
-  json.hourly.precipitation_probability = json.hourly.time.map(() => 0);
   json.hourly.windgusts_10m = json.hourly.time.map(() => 15);
   json.hourly.precipitation[16] = 5;
-  json.hourly.precipitation_probability[16] = 90;
   json.hourly.windgusts_10m[16] = 60;
   const out = mapResponse(json, BASE + 15 * 3600 + 600);
   assert.equal(out.startTime, BASE + 15 * 3600, 'slot 0 starts at 15:00');
   assert.equal(out.rainTrend[0], 5, 'the 15:00-16:00 rain fills the 15:00-16:00 slot');
-  assert.equal(out.precipTrend[0], 0.9);
   assert.equal(out.gustTrend[0], 60);
   assert.equal(out.rainTrend[1], 0, 'and does not leak into 16:00-17:00');
-  assert.equal(out.precipTrend[1], 0);
   assert.equal(out.gustTrend[1], 15);
   // Instants are untouched: temperature stays on its own stamp.
   assert.equal(out.tempTrend[0], 50 + 15);
+});
+
+/**
+ * A 72-bucket response (forecast_days=3) carrying one wet 3-hour ensemble
+ * block, 12:00-15:00 GMT, as Open-Meteo serves it for models=ecmwf_ifs025:
+ * the rain's 3 mm spread evenly over the stamps 13, 14 and 15, and the
+ * ensemble chance -- 90 % for that block, 10 % for its neighbours -- exact
+ * at the 3-hour stamps and hermite-blended between them.
+ * @returns {Object} The response.
+ */
+function ensembleResponse() {
+  const json = sampleResponse();
+  const blend = { 12: 10, 13: 37, 14: 72, 15: 90, 16: 72, 17: 37 };
+  const time = [];
+  const chance = [];
+  const rain = [];
+  for (let i = 0; i < 72; i += 1) {
+    time.push(BASE + i * 3600);
+    chance.push(blend[i] === undefined ? 10 : blend[i]);
+    rain.push(i >= 13 && i <= 15 ? 1 : 0);
+  }
+  json.hourly.time = time;
+  json.hourly.precipitation_probability = chance;
+  json.hourly.precipitation = rain;
+  ['temperature_2m', 'windspeed_10m', 'windgusts_10m'].forEach((key) => {
+    json.hourly[key] = time.map((_, i) => i);
+  });
+  return json;
+}
+
+test('mapResponse reads the ensemble chance by 3-hour block, in step with the rain', () => {
+  // Read one bucket ahead like the rain, the blended stamps put 37/72/90 %
+  // over the wet hours and 72/37 % over the two dry hours after them: the
+  // chance peaked an hour after the rain and trailed it by two.
+  const out = mapResponse(ensembleResponse(), BASE + 11 * 3600 + 600);
+  assert.equal(out.startTime, BASE + 11 * 3600);
+  assert.deepEqual(out.rainTrend.slice(0, 5), [0, 1, 1, 1, 0]);
+  assert.deepEqual(out.precipTrend.slice(0, 8), [0.1, 0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.1]);
+});
+
+test('three GMT days hold the last slot\'s block boundary; a missing one keeps the next bucket', () => {
+  // A 23:00 anchor's last slot, 22:00-23:00 the next evening, belongs to the
+  // block that ends at 00:00 two days on: bucket 48, the third GMT day's first.
+  const json = ensembleResponse();
+  json.hourly.precipitation_probability = json.hourly.time.map((_, i) => i);
+  const out = mapResponse(json, BASE + 23 * 3600);
+  assert.equal(out.precipTrend[22], 0.48);
+  assert.equal(out.precipTrend[23], 0.48);
+  // Cut to two days, that boundary is past the response: the slot keeps the
+  // bucket after it, as before the block read.
+  ['time', 'temperature_2m', 'precipitation_probability', 'precipitation',
+    'windspeed_10m', 'windgusts_10m'].forEach((key) => {
+    json.hourly[key] = json.hourly[key].slice(0, 48);
+  });
+  const cut = mapResponse(json, BASE + 23 * 3600);
+  assert.equal(cut.precipTrend[21], 0.45, 'boundary 45 is still there');
+  assert.equal(cut.precipTrend[22], 0.46);
+  assert.equal(cut.precipTrend[23], 0.47);
+});
+
+test('buildForecastUrl asks for three GMT days', () => {
+  assert.match(openmeteo.buildForecastUrl(52.52, 13.41), /&forecast_days=3(&|$)/);
 });
 
 test('mapResponse returns null when fewer than 24 buckets remain after the anchor', () => {
@@ -219,40 +279,58 @@ test('mapGusts returns null on malformed input', () => {
   assert.equal(openmeteo.mapGusts(null, BASE), null);
 });
 
-test('buildUvUrl requests only uv_index from the keyless best_match model', () => {
+test('buildUvUrl requests only uv_index, from GFS', () => {
   const url = openmeteo.buildUvUrl(52.52, 13.41);
   assert.match(url, /[?&]hourly=uv_index(&|$)/);
-  assert.doesNotMatch(url, /models=/);          // best_match (DWD/ecmwf both lack UV)
-  // Three GMT days: the UV window runs UV_HOURS ahead (to tomorrow's end in any zone).
-  assert.match(url, /[?&]forecast_days=3(&|$)/);
+  // GFS everywhere: best_match hands the UK/Ireland to UKMO, whose UV is an
+  // instant, where GFS's is the mean of the hour ending at the stamp.
+  assert.match(url, /[?&]models=ncep_gfs_global(&|$)/);
+  // Four GMT days: the UV window runs UV_HOURS ahead (to tomorrow's end in any
+  // zone), read one bucket ahead.
+  assert.match(url, /[?&]forecast_days=4(&|$)/);
 });
 
-test('mapUv aligns uv_index to the forecast start by timestamp, UV_HOURS deep', () => {
+test('mapUv aligns uv_index to the forecast start by timestamp, one bucket ahead, UV_HOURS deep', () => {
   const time = [], uv_index = [];
-  for (let i = 0; i < 50; i += 1) { time.push(BASE + i * 3600); uv_index.push(i); }
+  for (let i = 0; i < 52; i += 1) { time.push(BASE + i * 3600); uv_index.push(i); }
   const out = openmeteo.mapUv({ hourly: { time, uv_index } }, BASE + 3600); // start one hour in
   // UV_HOURS, not FORECAST_HOURS: the UV slot needs tomorrow's peak; the graph slices 24.
   assert.equal(out.length, UV_HOURS);
-  assert.equal(out[0], 1);   // bucket at start
-  assert.equal(out[23], 24);
-  assert.equal(out[UV_HOURS - 1], UV_HOURS);
+  // GFS UV stamped T is the mean of the hour before T, so entry 0 -- the hour
+  // starting at the start -- reads the bucket stamped an hour after it.
+  assert.equal(out[0], 2);
+  assert.equal(out[23], 25);
+  assert.equal(out[UV_HOURS - 1], UV_HOURS + 1);
 });
 
-test('three GMT days (forecast_days=3) source every UV_HOURS bucket from the latest start', () => {
+test('a midday UV peak lands on the hour it was measured in, not the hour after', () => {
+  // The 12:00-13:00 mean (UV 7) is stamped 13:00; entry 12 is 12:00-13:00.
+  const time = [], uv_index = [];
+  for (let i = 0; i < 52; i += 1) { time.push(BASE + i * 3600); uv_index.push(i === 13 ? 7 : 1); }
+  const out = openmeteo.mapUv({ hourly: { time, uv_index } }, BASE);
+  assert.equal(out[12], 7);
+  assert.equal(out[13], 1);
+});
+
+test('four GMT days (forecast_days=4) source every UV_HOURS bucket from the latest start', () => {
   // The start is the floored current hour, at most 23:00 on the response's first
-  // GMT day; its three days end at day+2 23:00, exactly UV_HOURS - 1 hours later.
+  // GMT day; the one-bucket-ahead read's last bucket is UV_HOURS hours later,
+  // 00:00 on the fourth GMT day -- one past what three days hold.
   const day0 = Date.UTC(2026, 6, 15) / 1000;
   const time = [], uv_index = [];
-  for (let i = 0; i < 72; i += 1) { time.push(day0 + i * 3600); uv_index.push(1); }
+  for (let i = 0; i < 96; i += 1) { time.push(day0 + i * 3600); uv_index.push(1); }
   const out = openmeteo.mapUv({ hourly: { time, uv_index } }, day0 + 23 * 3600);
   assert.equal(out.length, UV_HOURS);
   assert.ok(out.every((v) => v === 1), 'no null tail: ' + JSON.stringify(out));
+  const three = openmeteo.mapUv({ hourly: { time: time.slice(0, 72), uv_index } }, day0 + 23 * 3600);
+  assert.equal(three[UV_HOURS - 1], null, 'three days miss the last bucket');
 });
 
 test('mapUv: missing/non-numeric buckets become null; malformed → null', () => {
-  const out = openmeteo.mapUv({ hourly: { time: [BASE, BASE + 3600], uv_index: [null, 5] } }, BASE);
+  const out = openmeteo.mapUv({ hourly: { time: [BASE, BASE + 3600, BASE + 7200], uv_index: [5, null, 6] } }, BASE);
   assert.equal(out[0], null);
-  assert.equal(out[1], 5);
+  assert.equal(out[1], 6);
+  assert.equal(out[2], null);
   assert.equal(openmeteo.mapUv({ hourly: { time: [BASE] } }, BASE), null); // no uv_index array
 });
 

@@ -35,6 +35,48 @@ function precedingHourSlice(series, anchor, bucketCount, fill) {
     return out;
 }
 
+// The ECMWF IFS 0.25° ensemble's forecast step: its buckets fall on 00, 03,
+// 06 … UTC.
+var ENSEMBLE_STEP_SECONDS = 3 * HOUR_SECONDS;
+
+/**
+ * precipitation_probability under models=ecmwf_ifs025, read by 3-hour block.
+ * Open-Meteo takes that model's chance from the IFS 0.25° ENSEMBLE, which only
+ * has 3-hourly steps: the bucket stamped at a 3-hour UTC boundary T holds the
+ * chance of rain in [T-3h, T), and the two stamps between boundaries are a
+ * smooth (hermite) blend of the neighbouring blocks, as if each block's value
+ * were an instant at its stamp. Read one bucket ahead like the rain, the
+ * chance therefore peaked in the last hour of a wet block and trailed two
+ * hours past it -- an hour behind the rain bars, which spread the same 3-hour
+ * block's total evenly over its three hours. Slot i reads its own block's
+ * boundary bucket instead: the first 3-hour boundary at or after the slot's
+ * end. A block whose boundary is past the response keeps the one-bucket-ahead
+ * value, and a short series stays short so hasValidData still rejects it.
+ *
+ * @param {Array} series hourly.precipitation_probability.
+ * @param {Array.<number>} times hourly.time (epoch seconds, GMT hours).
+ * @param {number} anchor Index of slot 0's bucket.
+ * @returns {Array} Up to FORECAST_HOURS chances in %.
+ */
+function ensembleBlockSlice(series, times, anchor) {
+    var out = precedingHourSlice(series, anchor, times.length, 0);
+    var at = {};
+    var i;
+    var slotEnd;
+    var block;
+    for (i = 0; i < times.length; i += 1) {
+        at[times[i]] = i;
+    }
+    for (i = 0; i < out.length; i += 1) {
+        slotEnd = times[anchor] + (i + 1) * HOUR_SECONDS;
+        block = at[Math.ceil(slotEnd / ENSEMBLE_STEP_SECONDS) * ENSEMBLE_STEP_SECONDS];
+        if (block !== undefined && typeof series[block] === 'number') {
+            out[i] = series[block];
+        }
+    }
+    return out;
+}
+
 /**
  * Map an Open-Meteo forecast response into provider trend fields.
  *
@@ -53,7 +95,9 @@ function precedingHourSlice(series, anchor, bucketCount, fill) {
  * anchor, the current-hour bar showed the hour that had just ended and every
  * shower landed an hour late. (The settings page's Weather tab re-stamps the
  * same three fields the same way, weather-tab-model.js's startHourFields, so
- * a tap on 14:00 there reads the hour this slot shows.)
+ * a tap on 14:00 there reads the hour this slot shows.) The chance goes one
+ * step further: the pinned model's comes from a 3-hourly ensemble, so each
+ * slot reads its whole 3-hour block (ensembleBlockSlice).
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.
@@ -87,10 +131,11 @@ function mapResponse(json, nowEpoch) {
     var end = anchor + FORECAST_HOURS;
     return {
         tempTrend: hourly.temperature_2m.slice(anchor, end),
-        // Preceding-hour fields: one bucket ahead (see the doc comment).
-        // forecast_days=2 at GMT is 48 buckets and the anchor is at most 23,
-        // so the bucket after the window is there for a well-formed response.
-        precipTrend: precedingHourSlice(hourly.precipitation_probability, anchor, times.length, 0)
+        // Preceding-hour fields: one bucket ahead (see the doc comment), the
+        // chance by 3-hour block. forecast_days=3 at GMT is 72 buckets and the
+        // anchor is at most 23, so the bucket after the window and the last
+        // slot's block boundary are there for a well-formed response.
+        precipTrend: ensembleBlockSlice(hourly.precipitation_probability, times, anchor)
             .map(function(p) {
                 return p / 100;
             }),
@@ -122,8 +167,10 @@ OpenMeteoProvider.prototype._super = WeatherProvider;
 
 /**
  * Build the Open-Meteo forecast request URL. Requests native °F / km/h / mm
- * units and unixtime so the mapper does zero conversion, and forecast_days=2
- * (48 buckets) so a current-hour-anchored 24h window always fits.
+ * units and unixtime so the mapper does zero conversion, and forecast_days=3
+ * (72 buckets) so a current-hour-anchored 24h window always fits along with
+ * the bucket after it and the 3-hour ensemble boundary the chance reads for
+ * its last slot (up to 00:00 GMT two days on, from a 22:00 or 23:00 anchor).
  *
  * Pins models=ecmwf_ifs025 rather than the default best_match: best_match
  * blends models and sources precipitation_probability separately from the
@@ -148,7 +195,7 @@ function buildForecastUrl(lat, lon) {
         + '&timeformat=unixtime'
         + '&timezone=GMT'
         + '&models=ecmwf_ifs025'
-        + '&forecast_days=2';
+        + '&forecast_days=3';
 }
 
 /**
@@ -160,8 +207,9 @@ function buildForecastUrl(lat, lon) {
  * extra request, which is why neither needs a fetch gate. temperature_unit is
  * per-request, so the °F ask must repeat here (it governs dew point too, so the
  * dew mapper converts nothing). Mirrors the main request's unixtime/GMT/km-h
- * conventions and forecast_days so the hourly buckets line up with the main
- * window by timestamp.
+ * conventions so the hourly buckets line up with the main window by
+ * timestamp; two GMT days already hold every bucket its window reads (the
+ * gust's startTime + 24 h included), so it stays at forecast_days=2.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
@@ -301,13 +349,19 @@ function adoptFeels(provider, json) {
 }
 
 /**
- * Build a minimal keyless Open-Meteo request for hourly UV index only. Uses the
- * default best_match model (the main forecast's ecmwf_ifs025 pin omits UV, and
- * DWD has no UV at all), mirroring the gust call's unixtime/GMT conventions so
- * buckets align with the main window by timestamp. Three GMT days, not two: the
- * UV window reaches UV_HOURS ahead so the UV slot can name TOMORROW's peak,
- * and the end of the phone's local tomorrow can fall on the third GMT day (far-east
- * zones early in their morning).
+ * Build a minimal keyless Open-Meteo request for hourly UV index only,
+ * mirroring the gust call's unixtime/GMT conventions so buckets align with the
+ * main window by timestamp (the main forecast's ecmwf_ifs025 pin omits UV, and
+ * DWD has no UV at all). Pins GFS: it is the source of Open-Meteo's UV almost
+ * everywhere, and its UV is the MEAN of the hour ending at the stamp (built
+ * from GFS's time-averaged UV-B flux) -- but best_match hands the UK and
+ * Ireland to the Met Office UKV model, whose UV is an instant at the stamp, so
+ * the same stamp meant two different hours depending on where the watch was.
+ * With GFS everywhere, mapUv reads one bucket ahead for every location. Four
+ * GMT days, not two: the UV window reaches UV_HOURS ahead so the UV slot can
+ * name TOMORROW's peak, the end of the phone's local tomorrow can fall on the
+ * third GMT day (far-east zones early in their morning), and the one-bucket-
+ * ahead read reaches an hour past that.
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @returns {string} Fully-formed UV request URL.
@@ -319,7 +373,8 @@ function buildUvUrl(lat, lon) {
         + '&hourly=uv_index'
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&forecast_days=3';
+        + '&models=ncep_gfs_global'
+        + '&forecast_days=4';
 }
 
 /**
@@ -327,13 +382,18 @@ function buildUvUrl(lat, lon) {
  * forecast window, so the UV slot can place tomorrow's peak (the graph still takes
  * only the first FORECAST_HOURS; getPayload slices) — indexing the
  * response's hourly uv_index by timestamp (so a feed whose offset differs still
- * lines up). Missing/non-numeric buckets become null (getPayload coerces to 0).
+ * lines up). GFS UV is the mean of the hour ENDING at its stamp (buildUvUrl), so
+ * entry i -- the hour starting at startTime + i h, where the UV slot's current
+ * reading and the day peaks put it -- reads the bucket stamped an hour later,
+ * the one-bucket-ahead rule the gust and rain follow. Read at its own stamp,
+ * the UV and the day-max hold ran an hour late. Missing/non-numeric buckets
+ * become null (getPayload coerces to 0).
  * @param {Object} json Parsed Open-Meteo response carrying hourly.uv_index.
  * @param {number} startTime Window start in epoch seconds.
  * @returns {Array.<(number|null)>|null} UV values, or null when malformed.
  */
 function mapUv(json, startTime) {
-    return alignHourly(json, 'uv_index', startTime, hourlyWindow.UV_HOURS);
+    return alignHourly(json, 'uv_index', startTime + HOUR_SECONDS, hourlyWindow.UV_HOURS);
 }
 
 /**

@@ -140,7 +140,8 @@ test('UV failure on a reused instance drops UV instead of shipping the previous 
       function(f) { throw new Error('cycle 1 failed: ' + JSON.stringify(f)); });
   });
   assert.equal(p.startTime, BASE + 8 * HOUR);
-  assert.equal(p.uvTrend[0], 8, 'cycle 1 adopted the UV window');
+  // Entry 0 is the 08:00-09:00 hour, whose GFS mean is stamped 09:00.
+  assert.equal(p.uvTrend[0], 9, 'cycle 1 adopted the UV window');
 
   // Cycle 2 at 09:xx: UV times out. The 08:00 window must not ship against the
   // new 09:00 start (UV an hour late in the slot, graph and day peaks).

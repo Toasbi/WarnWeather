@@ -12,7 +12,8 @@
 //           A row is the hour STARTING at its stamp: rain, chance and gust
 //           stamped 14:00 are 14:00-15:00's. Open-Meteo and DWD stamp those
 //           at the hour's END, so their parsers re-stamp them
-//           (model.startHourFields), as the watch's adapters do; OWM's
+//           (model.startHourFields), as the watch's adapters do, with the
+//           icon that describes the same rain; OWM's
 //           3-hourly tail totals the 3 h before its stamp, spread over them
 //           (parseOwmForecast3h).
 //           Two provenance flags, per hour. `measured` says whether the
@@ -184,7 +185,11 @@
         // Open-Meteo documents precipitation, its probability and the gust as
         // the PRECEDING hour's ("preceding hour sum/probability/max"); every
         // other series here is an instant. Row 14:00 takes the 15:00 stamp's.
-        model.startHourFields(hourly, { rain: null, prob: null, gust: null });
+        // weather_code rides along: the docs call it an instant, but the
+        // server derives its rain and snow from the same stamp's
+        // preceding-hour precipitation, so left in place the strip and the
+        // chip showed a shower's icon an hour after its bar.
+        model.startHourFields(hourly, { rain: null, prob: null, gust: null, icon: null });
         var daily = [];
         var d = data.daily;
         var off = offsetSec === null ? model.phoneUtcOffsetSec(nowMs) : offsetSec;

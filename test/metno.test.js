@@ -101,6 +101,31 @@ test('missing probability and gusts (outside the Nordics) map to 0', () => {
   assert.equal(mapped.tempTrend[5], 50, 'the rest of the mapping is unaffected');
 });
 
+test('a gust fills the hour before its stamp: slot i reads bucket i + 1', () => {
+  // Met.no's instant wind_speed_of_gust is the peak of the hour ENDING at its
+  // stamp, so the 20 m/s stamped HOUR0 + 3h blew between +2h and +3h: slot 2.
+  const body = forecastBody(26, HOUR0, { 3: { instant: { wind_speed_of_gust: 20 } } });
+  const mapped = metno.mapResponse(body, NOW);
+  assert.equal(mapped.gustTrend[2], 72, '20 m/s → 72 km/h in the hour it blew in');
+  assert.equal(mapped.gustTrend[3], 36, 'not the hour after it');
+  assert.equal(mapped.gustTrend[1], 36);
+  // Rain and chance stay on their own bucket: next_1_hours starts at the stamp.
+  const wet = metno.mapResponse(forecastBody(26, HOUR0, { 3: { next1: { precipitation_amount: 4 } } }), NOW);
+  assert.equal(wet.rainTrend[3], 4);
+  assert.equal(wet.rainTrend[2], 0.8);
+});
+
+test('the last slot\'s gust degrades to 0 when the next bucket is missing or not an hour on', () => {
+  const exact = metno.mapResponse(forecastBody(24, HOUR0), NOW);
+  assert.equal(exact.gustTrend.length, 24);
+  assert.equal(exact.gustTrend[22], 36);
+  assert.equal(exact.gustTrend[23], 0, 'no bucket after the window');
+  // A 6-hourly step after the window is not the next hour either.
+  const body = forecastBody(25, HOUR0);
+  body.properties.timeseries[24].time = iso(HOUR0 + 29 * HOUR);
+  assert.equal(metno.mapResponse(body, NOW).gustTrend[23], 0);
+});
+
 test('mapResponse returns null when fewer than 24 hourly buckets remain from the anchor', () => {
   assert.equal(metno.mapResponse(forecastBody(20, HOUR0), NOW), null);
 });

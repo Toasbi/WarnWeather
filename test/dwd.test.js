@@ -389,7 +389,8 @@ test('DWD drops the previous UV window when the shared UV fetch fails on a reuse
   p.fetchUv = true;
   responder = respond(START, false);
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('cycle 1 failed: ' + JSON.stringify(f)); });
-  assert.equal(p.uvTrend[0], 0, 'cycle 1 adopted the UV window aligned to 08:00');
+  // Entry 0 is the 08:00-09:00 hour, whose GFS mean is stamped 09:00 (value 1).
+  assert.equal(p.uvTrend[0], 1, 'cycle 1 adopted the UV window aligned to 08:00');
   assert.ok(p.uvTrend.length > 0);
 
   responder = respond(START + HOUR, true);

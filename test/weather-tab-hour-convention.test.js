@@ -99,10 +99,12 @@ test('the tab and the watch read the same Open-Meteo hour for 14:00', () => {
   // PRECEDING hour — it fell between 14:00 and 15:00.
   const BASE = Math.floor(DAY0 / 1000);
   const hourly = { time: [], temperature_2m: [], precipitation: [], precipitation_probability: [],
-    windspeed_10m: [], windgusts_10m: [], wind_speed_10m: [], wind_gusts_10m: [] };
+    windspeed_10m: [], windgusts_10m: [], wind_speed_10m: [], wind_gusts_10m: [], weather_code: [] };
   for (let i = 0; i < 48; i += 1) {
     const shower = i === 15;
     hourly.time.push(BASE + i * 3600);
+    // The server derives the code from the same stamp's preceding-hour rain.
+    hourly.weather_code.push(shower ? 61 : 0);
     hourly.temperature_2m.push(15);
     hourly.precipitation.push(shower ? 2 : 0);
     hourly.precipitation_probability.push(shower ? 70 : 5);
@@ -127,6 +129,11 @@ test('the tab and the watch read the same Open-Meteo hour for 14:00', () => {
   assert.equal(tab.hourly.rain[i14 + 1], 0, 'and 15:00 is dry, as the watch\'s next slot is');
   assert.equal(tab.hourly.rain[i14 + 1], watch.rainTrend[1]);
   assert.equal(tab.hourly.temp[i14], watch.tempTrend[0], 'instants stay on their own stamp');
+  // The icon rides with the rain: the strip and the chip show the shower's
+  // icon on the hour its bar fills, not the hour after.
+  assert.equal(tab.hourly.icon[i14], model.wmoIcon(61));
+  assert.equal(tab.hourly.icon[i14 + 1], model.wmoIcon(0));
+  assert.notEqual(model.wmoIcon(61), model.wmoIcon(0), 'precondition: distinct icons');
 });
 
 test('tomorrow.io and OWM One Call report the hour starting at the stamp: no re-stamping', () => {

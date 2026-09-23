@@ -4,6 +4,7 @@ var feelsLikeF = require('./feels-like.js').feelsLikeF;
 
 var hourlyWindow = require('./hourly-window.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 // Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
 var celsiusToFahrenheit = require('../wire-units.js').celsiusToFahrenheit;
 var normalizeBearing = require('../wire-units.js').normalizeBearing;
@@ -52,6 +53,31 @@ function entryUv(entry) {
 }
 
 /**
+ * The gust for the hour STARTING at bucket i. Met.no files wind_speed_of_gust
+ * under `instant`, but its values behave as the peak of the hour ENDING at the
+ * stamp: in recorded /complete responses the gust at T never falls below the
+ * mean wind at T-1h or T, yet falls below the mean wind at T+1h -- which a
+ * peak over [T, T+1h] cannot do -- and it tracks the wind's change into T,
+ * not out of it. (Open-Meteo, which serves the same MET Nordic field, labels
+ * it the maximum of the preceding hour.) So, like the Open-Meteo and DWD
+ * gusts, slot i reads the next bucket's value. A next bucket that is missing
+ * or not exactly an hour on reads as no gust, the degrade a missing field
+ * already gets.
+ *
+ * @param {Array} timeseries The response's buckets.
+ * @param {number} i Index of the slot's own bucket.
+ * @returns {number} The gust in m/s, 0 when unreported.
+ */
+function followingGust(timeseries, i) {
+    var next = timeseries[i + 1];
+    var details = next && next.data && next.data.instant && next.data.instant.details;
+    if (!details || entryEpoch(next) !== entryEpoch(timeseries[i]) + HOUR_SECONDS) {
+        return 0;
+    }
+    return details.wind_speed_of_gust || 0;
+}
+
+/**
  * Map a Met.no locationforecast response into provider trend fields.
  *
  * Anchors the 24-hour window at the current wall-clock hour (the series
@@ -60,7 +86,9 @@ function entryUv(entry) {
  * mm/h, probability as a 0..1 fraction, wind bearing in "comes from" degrees.
  * probability_of_precipitation and wind_speed_of_gust exist in the Nordics only
  * — missing values read 0, they are not a failure (the "(Nordics only)" label
- * documents the scope).
+ * documents the scope). Rain and chance come from next_1_hours, the hour that
+ * starts at the stamp, so slot i reads its own bucket; the gust is the peak of
+ * the hour ending at the stamp, so it reads the next one (followingGust).
  *
  * @param {Object} json Parsed locationforecast/2.0/complete response.
  * @param {number} nowEpoch Current time in epoch seconds.
@@ -121,7 +149,7 @@ function mapResponse(json, nowEpoch) {
         }
         feelsTrend.push(feels === null ? tempF : feels);
         windTrend.push(msToKmh(instant.wind_speed || 0));
-        gustTrend.push(msToKmh(instant.wind_speed_of_gust || 0));
+        gustTrend.push(msToKmh(followingGust(timeseries, i)));
         pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
             ? instant.air_pressure_at_sea_level : 0);
         // Dew point and bearing degrade to null, not 0, and keep their slot so the
