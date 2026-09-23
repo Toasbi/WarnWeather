@@ -683,8 +683,11 @@ All library files under `lib/` and `index.js` must be authored in **ES5**:
   or a trailing comma in a call.
 - No unpolyfilled ES6 built-ins: no `padStart`/`padEnd`, `Object.values`/`entries`,
   `Array.from`, `Promise`, `Map`, `Set`, or `String.prototype.includes`/`startsWith`.
-- `Object.assign`, `Array.prototype.find`/`findIndex`/`includes` are safe (polyfilled in the
-  repo's `src/pkjs/polyfills.js`, required first).
+- `Object.assign`, `Math.trunc` and `Array.prototype.find`/`findIndex`/`includes` are safe: the
+  PKJS runtime gets them from the repo's `src/pkjs/polyfills.js` (required first), and the
+  webview page, which never loads that file, from the guarded shims at the top of
+  `lib/shell.html`'s inline script, which runs before every lib and app file.
+  `String.prototype.includes` is not polyfilled anywhere.
 
 PKJS-parsed files (`index.js`, `lib/color.js`, `lib/platform.js`, `lib/defaults.js`) must be ES5
 because aplite runs the PKJS phone-side JS on a pre-ES6 JavaScriptCore. WebView-only files

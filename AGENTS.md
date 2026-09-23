@@ -77,8 +77,11 @@ platforms and in the build:
 Write watch-runtime PKJS as ES5: `var` + `function`, no arrow/template-literal syntax,
 and avoid ES6 built-ins. Already polyfilled and safe to call: `Object.assign`, `Math.trunc`, and
 `Array.prototype.find`/`findIndex`/`includes` (see `src/pkjs/polyfills.js`, required
-first in `index.js`). Need another ES6 method? Add a guarded polyfill there instead of
-calling it directly. No exemption for webview-only files: `src/pkjs/config-ui/`
+first in `index.js`; the settings page never loads it, so the inline script in
+`src/pkjs/config-ui/lib/shell.html` carries the same set for the webview, and
+`test/config-page-polyfills.test.js` keeps the two in lockstep). `String.prototype.includes`
+is NOT polyfilled anywhere. Need another ES6 method? Add a guarded polyfill to both instead
+of calling it directly. No exemption for webview-only files: `src/pkjs/config-ui/`
 (the settings UI on all platforms) requires ES5 even in files that only run in the phone
 webview (e.g. `lib/show-when.js`, `lib/engine.js`) to protect ancient Android WebViews,
 enforced by an automated guardrail in the test suite (`test/config-es5.test.js`, a

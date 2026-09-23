@@ -4,12 +4,9 @@
 // Shared by preview-forecast.js (the rain bars under the graph) and
 // preview-radar.js (the nowcast bars) — the only two consumers rain math has.
 // Registers nothing; it is a library, not a block.
-// barPermille below calls Math.trunc (ES2015); polyfills.js never loads in the
-// flat concatenated page, so guard it here for pre-ES6 WebViews (same body as
-// the polyfills.js one).
-if (!Math.trunc) {
-    Math.trunc = function (v) { return v < 0 ? Math.ceil(v) : Math.floor(v); };
-}
+// barPermille below calls Math.trunc (ES2015): polyfills.js never loads in the
+// flat concatenated page, so lib/shell.html's inline script shims it for
+// pre-ES6 WebViews before any page file runs.
 (function () {
     // Dual-context pattern (see line-style.js): a CommonJS module under Node, a
     // concatenated <script> exposing window.PreviewSvg in the webview. preview-svg.js

@@ -187,9 +187,9 @@
 
     /**
      * ES5 stand-in for Math.trunc (ES2015): this file rides the PAGE bundle,
-     * which carries no polyfills — rain-tier.js can call Math.trunc because
-     * PKJS loads polyfills.js first, but here it would throw on a pre-ES6
-     * WebView the first time it rains (the v1.1.0 Object.assign lesson).
+     * which never loads polyfills.js — lib/shell.html now shims Math.trunc for
+     * the page, but this local copy predates that and keeps the port free of
+     * the dependency (the v1.1.0 Object.assign lesson).
      * Bit-identical to Math.trunc for this port's integer-range inputs.
      * @param {number} v Value.
      * @returns {number} v truncated toward zero.

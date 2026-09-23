@@ -425,6 +425,21 @@ if (!Object.assign) {
     return t;
   };
 }
+// The rest of src/pkjs/polyfills.js's set, which only the PKJS runtime loads:
+// this script runs before every lib/app file, so the ES2015 methods the rulebooks
+// call safe (AGENTS.md, config-ui README) are safe in the page too.
+// Non-enumerable like the natives, so a for...in over an array never sees them.
+(function (ap) {
+  function def(name, fn) {
+    if (!ap[name]) { Object.defineProperty(ap, name, { value: fn, configurable: true, writable: true, enumerable: false }); }
+  }
+  def('find', function (p, t) { var i; for (i = 0; i < this.length; i += 1) { if (p.call(t, this[i], i, this)) { return this[i]; } } return undefined; });
+  def('findIndex', function (p, t) { var i; for (i = 0; i < this.length; i += 1) { if (p.call(t, this[i], i, this)) { return i; } } return -1; });
+  def('includes', function (v) { var i, x; for (i = 0; i < this.length; i += 1) { x = this[i]; if (x === v || (v !== v && x !== x)) { return true; } } return false; });
+}(Array.prototype));
+if (!Math.trunc) {
+  Math.trunc = function (v) { return v < 0 ? Math.ceil(v) : Math.floor(v); };
+}
 var PConf = {};
 var INJECTED_SCHEMA = null, INJECTED_CFG = null, INJECTED_ENV = null, INJECTED_USERDATA = null, INJECTED_RETURN = null;
 /*__PCONF_INJECT__*/
