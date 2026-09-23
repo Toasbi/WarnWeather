@@ -10,7 +10,7 @@
 
 var storageKeys = require('../storage-keys.js');
 
-var GPS_CACHE_KEY = 'gpsCache';
+var GPS_CACHE_KEY = storageKeys.GPS_CACHE_KEY;
 var GPS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 var GEOCODE_CACHE_KEY = storageKeys.GEOCODE_CACHE_KEY;
 var RATE_LIMIT_BACKOFF_KEY = storageKeys.GEOCODE_BACKOFF_KEY;

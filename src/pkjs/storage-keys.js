@@ -20,6 +20,10 @@ module.exports = {
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
+    // The last GPS fix ({lat, lon, time}) — the fallback location.js serves for
+    // up to 24 h when a fresh fix fails. Must stay exactly 'gpsCache': installs
+    // already persist it under that name.
+    GPS_CACHE_KEY: 'gpsCache',
     GEOCODE_CACHE_KEY: 'geocodeCache',
     GEOCODE_BACKOFF_KEY: 'geocodeBackoff',
     // An address LocationIQ could not resolve ({query, time}): it is not asked
