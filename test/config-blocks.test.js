@@ -1292,3 +1292,14 @@ test('forecastPreview: stripes stack per edge, top and bottom, and B&W dithers t
   const frozen = FC.forecastPreview(state, { color: true, platform: 'aplite', lineStyles: false });
   assert.equal(/height="5" fill="#/.test(frozen), false, 'aplite previews no stripes');
 });
+
+test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
+  // The sample UV series is [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3]: of the 11 hour
+  // columns, the five UV-0 hours draw nothing (chart_stripe_level(0) == 0 on the
+  // watch, pinned by test/c/chart_stripe_test.c), so the background shows through.
+  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'uv',
+    secondaryLineStyle: 'stripeTop', thirdLine: 'off', windScale: 'mid' };
+  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
+  const cells = svg.match(/<rect [^>]*height="5" fill="#[0-9A-F]{6}"/g) || [];
+  assert.equal(cells.length, 6, 'only the six non-zero hours get a cell');
+});
