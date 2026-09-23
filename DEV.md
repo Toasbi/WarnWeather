@@ -133,8 +133,8 @@ Serve `telemetry-ingest` edge function locally:
 mise telemetry-serve
 ```
 
-Run the Edge Functions' Deno test suites (rainbow-nowcast + news; separate runner
-from `mise test`):
+Run the Edge Functions' Deno test suites (rainbow-nowcast + news + telemetry-ingest;
+separate runner from `mise test`):
 ```bash
 mise test-deno
 ```

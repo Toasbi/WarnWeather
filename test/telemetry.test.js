@@ -592,8 +592,8 @@ test('reporting default agrees with the wire painting the built-in', () => {
 
 // Targeted half of the lockstep for the six colour fields, per threshPhoneBatteryBoldMode
 // above — and the ONLY automated guard on their TYPE: the set-equality test catches a
-// missing key but not a wrong type, and `mise test-deno` never loads telemetry-ingest
-// (it runs rainbow-nowcast and news only). A z.number() here would make every 'default'
+// missing key but not a wrong type, and `mise test-deno`'s telemetry-ingest suite checks
+// durationMs only. A z.number() here would make every 'default'
 // fail safeParse and 400 the whole event fleet-wide, taking the fetch outcome with it.
 // These six names and types are what the per-metric redesign deliberately did NOT move:
 // the storage changed, the reporting contract did not.
@@ -992,4 +992,18 @@ test('a synchronous XHR throw releases the latch and backs off instead of wedgin
   h.track();
   assert.equal(h.requests.length, 1, 'the latch is free — the next window flushes normally');
   h.requests[0].respond(202);
+});
+
+test('a clock-step durationMs queues as null; a real one as-is', () => {
+  // durationMs is wall-clock (Date.now() - fetchStart), so a clock step inside a
+  // fetch makes it huge or negative. Queued raw, a forward step past int4
+  // (~1.7e12 after an RTC reset + network-time sync) 500'd the ingest insert and
+  // wedged the queue head for 72 h; a backward step 400'd the whole batch.
+  const h = batchHarness();
+  const max = TELEMETRY_BATCH.MAX_DURATION_MS;
+  [2300, 1700000000000, -8000, max + 1, max, 1234.9, NaN, Infinity, '1500', undefined]
+    .forEach((durationMs) => h.track({ durationMs }));
+  assert.deepEqual(h.queue().map((r) => r.durationMs),
+    [2300, null, null, null, max, 1234, null, null, null, null]);
+  assert.ok(max <= 2147483647, 'the phone-side bound sits inside the int4 column');
 });

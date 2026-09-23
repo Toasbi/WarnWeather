@@ -305,6 +305,31 @@ function normalizeLocationMode(mode) {
     return null;
 }
 
+// durationMs is wall-clock (Date.now() - fetchStart in index.js), so a clock
+// step during a fetch turns it negative or huge: a phone that boots at its
+// build-time floor and syncs network time mid-fetch reports ~1.7e12 ms, which
+// overflowed the ingest's int4 column — a 500 that is retried, so it wedged the
+// queue head for the whole 72 h window — and a backward step 400'd the whole
+// batch. A clock-step duration means nothing, so it is nulled at queue time
+// above an hour: far past any real fetch (a 10 s GPS fix plus a few sequential
+// XHRs) yet loose enough to keep a genuinely stalled one in the p99 dashboard.
+var TELEMETRY_MAX_DURATION_MS = 60 * 60 * 1000;
+
+/**
+ * Normalize a fetch duration to a whole number of ms in
+ * [0, TELEMETRY_MAX_DURATION_MS], or null when it is not a plausible one.
+ *
+ * @param {*} value Raw durationMs.
+ * @returns {number|null} Normalized duration or null.
+ */
+function normalizeDurationMs(value) {
+    if (typeof value !== 'number' || !isFinite(value) ||
+        value < 0 || value > TELEMETRY_MAX_DURATION_MS) {
+        return null;
+    }
+    return Math.floor(value);
+}
+
 /**
  * Build telemetry-safe WatchInfo snapshot.
  *
@@ -770,7 +795,7 @@ function createTelemetryClient(options) {
             usedGpsCache: Boolean(event.usedGpsCache),
             gpsErrorCode: typeof event.gpsErrorCode === 'number' ? event.gpsErrorCode : null,
             locationMode: normalizeLocationMode(event.locationMode),
-            durationMs: typeof event.durationMs === 'number' ? event.durationMs : null,
+            durationMs: normalizeDurationMs(event.durationMs),
             attempt: attempt
         };
         var queue = readTelemetryQueue();
@@ -802,6 +827,7 @@ module.exports.TELEMETRY_BATCH = {
     MAX_QUEUE_EVENTS: TELEMETRY_MAX_QUEUE_EVENTS,
     MAX_BATCH_EVENTS: TELEMETRY_MAX_BATCH_EVENTS,
     MAX_EVENT_AGE_MS: TELEMETRY_MAX_EVENT_AGE_MS,
+    MAX_DURATION_MS: TELEMETRY_MAX_DURATION_MS,
     RETRY_BACKOFF_MS: TELEMETRY_RETRY_BACKOFF_MS
 };
 // The flush latch and retry backoff are MODULE state (shared across the clients
