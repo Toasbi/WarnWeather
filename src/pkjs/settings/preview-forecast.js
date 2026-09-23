@@ -139,7 +139,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // samples tell.
         var pressure = [1016, 1012, 1007, 1003, 984, 1004, 1007, 1010, 1012, 1013, 1014, 1015];
 
-        var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = 100;
+        var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = 94;
         var plotW = PX1 - PX0, plotH = PB - PT;
         // One watch-faithful slot grid (chart.c): N hourly slots, one tick per slot. Slot 0 is
         // 12:00; hour = 12 + i. Line vertices sit ON the ticks (so a line spans the first tick to
@@ -170,7 +170,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // below) is inset symmetrically from the shared full-height band
         // ([PT+3 .. PB], the mapping every other metric uses), mirroring the
         // watch's per-series inset_y (fixed 7 px — not a user setting). Scale:
-        // the preview band (93 units) is taller than the watch plot; 7 watch px
+        // the preview band (87 units) is taller than the watch plot; 7 watch px
         // = the preview's long-standing 12-unit bottom clearance over the axis
         // row (the top gains the same symmetric margin the watch actually draws).
         var curveInsetPrev = 12;
@@ -254,7 +254,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             for (var i = 0; i < n; i += 1) {
                 var big = i % 3 === 0;
                 out += '<line x1="' + tickX(i) + '" y1="' + PB + '" x2="' + tickX(i) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.32') + '" stroke-width="0.6"></line>';
-                if (big) { out += txt(tickX(i), 111, 7.5, '#7C828D', 'middle', 600, String((12 + i) % 24)); }
+                if (big) { out += txt(tickX(i), PB + 11, 7.5, '#7C828D', 'middle', 600, String((12 + i) % 24)); }
             }
             return out;
         }
@@ -464,7 +464,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * lines that are on; Rain if bars on), each with a glyph in the line's own style.
          * Color watch: hued glyph + label, with a 5-band gradient for Rain. B&W: white style
          * glyphs (thick line / thin line / dots / x / outline box).
-         * @returns {string} SVG markup
+         *
+         * LAYOUT-FIRST: with three metric lines + Rain the entries can outgrow the
+         * 200-unit frame, so the legend wraps onto further rows — and the frame
+         * height follows the last row. Positions are computed before any markup so
+         * the caller can size the background and viewBox from `height`.
+         * @returns {{markup: string, height: number}} Legend markup + total frame height.
          */
         function drawLegend() {
             var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure', feels: 'Feels' };
@@ -473,7 +478,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
              * @param {string} style 'line'|'bold'|'dots'|'x'.
              * @param {string} color Resolved colour (hex).
              * @param {string} label Legend label.
-             * @returns {Object} Entry for the loop below.
+             * @returns {Object} Entry for the loops below.
              */
             function legendEntry(style, color, label) {
                 if (style === 'dots') { return { kind: 'dots', color: color, label: label }; }
@@ -491,41 +496,60 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             if (state.barSource === 'rain') { entries.push({ kind: 'rain', label: 'Rain' }); }
 
-            var gy = 118, ty = 121, out = '', x = PX0;
-            for (var i = 0; i < entries.length; i += 1) {
-                var en = entries[i], gw = 14;
+            // Pass 1 — layout. Same width model the draw pass uses: glyph gw, 3-unit
+            // gap, ~4.3 units per label character, 8-unit trailing gap. An entry that
+            // would cross the right edge starts the next row (never the first in a
+            // row, so an over-long single entry still renders).
+            var ROW_H = 10, RIGHT_EDGE = 198, gy0 = PB + 18;
+            var x = PX0, row = 0, i, en;
+            for (i = 0; i < entries.length; i += 1) {
+                en = entries[i];
+                en.gw = (en.kind === 'rain' && isColor && state.rainBarColor !== 'white')
+                    ? P.rainTiers.length * 2.4 + 2 : 14;
+                var w = en.gw + 3 + en.label.length * 4.3;
+                if (x > PX0 && x + w > RIGHT_EDGE) { x = PX0; row += 1; }
+                en.x = x;
+                en.gy = gy0 + row * ROW_H;
+                x = en.x + w + 8;
+            }
+
+            // Pass 2 — markup, at the computed positions.
+            var out = '';
+            for (i = 0; i < entries.length; i += 1) {
+                en = entries[i];
+                var ex = en.x, gy = en.gy;
                 if (en.kind === 'line') {
-                    out += '<line x1="' + x + '" y1="' + gy + '" x2="' + (x + 12) + '" y2="' + gy + '" stroke="' + en.color + '" stroke-width="' + en.w + '" stroke-linecap="round"></line>';
+                    out += '<line x1="' + ex + '" y1="' + gy + '" x2="' + (ex + 12) + '" y2="' + gy + '" stroke="' + en.color + '" stroke-width="' + en.w + '" stroke-linecap="round"></line>';
                 } else if (en.kind === 'dots') {
-                    out += rect(x + 1, gy - 1.6, 3.2, 3.2, en.color) + rect(x + 8, gy - 1.6, 3.2, 3.2, en.color);
+                    out += rect(ex + 1, gy - 1.6, 3.2, 3.2, en.color) + rect(ex + 8, gy - 1.6, 3.2, 3.2, en.color);
                 } else if (en.kind === 'x') {
-                    out += legendX(x + 2.6, gy, en.color) + legendX(x + 9.6, gy, en.color);
+                    out += legendX(ex + 2.6, gy, en.color) + legendX(ex + 9.6, gy, en.color);
                 } else if (isColor && state.rainBarColor !== 'white') {
                     for (var k = 0; k < P.rainTiers.length; k += 1) {
-                        out += rect(x + k * 2.4, gy - 3.5, 2.4, 7, P.rainTiers[k].color);
+                        out += rect(ex + k * 2.4, gy - 3.5, 2.4, 7, P.rainTiers[k].color);
                     }
-                    gw = P.rainTiers.length * 2.4 + 2;
                 } else if (isColor) {
                     // colour + Solid bars: a solid swatch, matching the solid bars (dims to
                     // DarkGray in the light theme, like the bars themselves — see barFg)
-                    out += rect(x, gy - 3.5, 12, 7, barFg);
+                    out += rect(ex, gy - 3.5, 12, 7, barFg);
                 } else {
                     // B&W: outline box, matching the outlined silhouette bars
-                    out += '<rect x="' + x + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + ink.fg + '" stroke-width="1"></rect>';
+                    out += '<rect x="' + ex + '" y="' + (gy - 3.5) + '" width="12" height="7" fill="none" stroke="' + ink.fg + '" stroke-width="1"></rect>';
                 }
-                var lx = x + gw + 3;
-                out += txt(lx, ty, 7.5, '#AEB4BD', 'start', 600, en.label);
-                x = lx + en.label.length * 4.3 + 8;
+                out += txt(ex + en.gw + 3, en.gy + 3, 7.5, '#AEB4BD', 'start', 600, en.label);
             }
-            return out;
+            return { markup: out, height: gy0 + row * ROW_H + 6 };
         }
 
         // The night clip is the one conditional def: it exists only when there is a tint
         // to clip. The hatch pattern is unconditional — its stroke, not its presence,
         // carries the night colour.
         var nightTint = nightFillTint();
+        // Legend layout runs first: its row count sets the frame height, which the
+        // background rect below needs before any chart markup is emitted.
+        var legend = drawLegend();
         var e = '';
-        e += rect(0, 0, 200, 124, ink.bg);
+        e += rect(0, 0, 200, legend.height, ink.bg);
         e += '<defs>'
             + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + nightHatchStroke + '" stroke-width="0.7"></line></pattern>'
             + '<pattern id="fillhatch" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect><rect x="1" y="1" width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect></pattern>'
@@ -566,8 +590,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // would be a lie. With feels off the two are identical.
         e += txt(3, PT + 11, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
         e += drawAxis();
-        e += drawLegend();
-        return svgFrame(e, 124);
+        e += legend.markup;
+        return svgFrame(e, legend.height);
     }
 
     PConf.blocks.register('forecastPreview', forecastPreview);
