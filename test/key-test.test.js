@@ -8,17 +8,19 @@ const assert = require('node:assert/strict');
 /**
  * Register the tomorrow.io Test action on a fresh PConf over a fake field + result line,
  * with an XHR fake that only answers when the test tells it to.
- * @returns {{run: Function, field: Object, result: Object, xhrs: Array}} Harness.
+ * @returns {{run: Function, field: Object, result: Object, rerender: Function, xhrs: Array}}
+ *   Harness; `result` is the result line currently on the page, and rerender() replaces
+ *   it with a fresh, empty one (a page re-render) and returns the detached old one.
  */
 function harness() {
   const field = { value: '' };
-  const result = { textContent: '' };
+  const dom = { result: { textContent: '' } };
   const xhrs = [];
   global.PConf = {};
   global.document = {
     querySelector: (sel) => {
       if (sel === 'input[data-k="tomorrowioApiKey"]') { return field; }
-      if (sel === '[data-action-result="tomorrowioApiKey"]') { return result; }
+      if (sel === '[data-action-result="tomorrowioApiKey"]') { return dom.result; }
       return null;
     }
   };
@@ -32,7 +34,11 @@ function harness() {
     delete require.cache[require.resolve(p)];
   });
   require('../src/pkjs/settings/tomorrowio-key-test.js');
-  return { run: global.PConf.actions.testTomorrowioKey, field, result, xhrs };
+  return {
+    run: global.PConf.actions.testTomorrowioKey, field, xhrs,
+    get result() { return dom.result; },
+    rerender() { const old = dom.result; dom.result = { textContent: '' }; return old; }
+  };
 }
 
 test.afterEach(() => {
@@ -95,4 +101,25 @@ test('tapping Test on an emptied field also cancels the result still in flight',
   h.xhrs[0].status = 200;
   h.xhrs[0].onload();
   assert.equal(h.result.textContent, 'Enter your API key above first.');
+});
+
+test('a verdict that arrives after a page re-render shows on the re-rendered line', () => {
+  const h = harness();
+  h.field.value = 'good-key';
+  h.run();
+  const detached = h.rerender();            // e.g. a toggle flipped on the same tab mid-request
+  h.xhrs[0].status = 200;
+  h.xhrs[0].onload();
+  assert.equal(h.result.textContent, '✓ Key works.', 'the line the user can see gets the verdict');
+  assert.equal(detached.textContent, 'Testing…', 'not the node the re-render threw away');
+});
+
+test('with no result line on the page any more, a late verdict does not throw', () => {
+  const h = harness();
+  h.field.value = 'good-key';
+  h.run();
+  const detached = h.rerender();
+  global.document.querySelector = () => null;   // another tab is showing
+  h.xhrs[0].ontimeout();
+  assert.match(detached.textContent, /Timed out/);
 });
