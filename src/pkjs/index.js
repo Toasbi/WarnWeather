@@ -869,7 +869,8 @@ function fetch(provider, force) {
         authBackoff.clear();
         // Same contract for the geocode cooldown: a forced fetch is an explicit user
         // action (Force toggle, provider/key/location change), so it overrides the
-        // rate-limit backoff too. Without this the guard below silently swallowed
+        // rate-limit backoff too, and the day-long pause on an address LocationIQ
+        // could not resolve. Without this the guard below silently swallowed
         // every forced refresh for up to 30 minutes whenever a manual location's
         // geocode had 429'd — the reported "changing settings doesn't refresh".
         if (typeof provider.clearGeocodeBackoff === 'function') {

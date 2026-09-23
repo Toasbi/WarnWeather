@@ -21,6 +21,9 @@ module.exports = {
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
     GEOCODE_CACHE_KEY: 'geocodeCache',
     GEOCODE_BACKOFF_KEY: 'geocodeBackoff',
+    // An address LocationIQ could not resolve ({query, time}): it is not asked
+    // again for a day, or until the user forces a fetch (weather/location.js).
+    GEOCODE_NOT_FOUND_KEY: 'geocodeNotFound',
     // The last city name the ArcGIS reverse geocode resolved, with the
     // coordinates it was resolved for ({name, lat, lon}) — the City slot's
     // stand-in when a later lookup fails nearby (weather/location.js).

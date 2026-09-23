@@ -99,20 +99,24 @@ WeatherProvider.prototype.gpsOverride = function(location) {
 };
 
 /**
- * Drop any armed geocode rate-limit backoff. Called for a user-initiated refresh
- * (Force-fetch toggle, provider/key change) — the same contract authBackoff.clear()
- * has: an explicit user action overrides a self-healing cooldown. Without this a
- * manual location whose geocode 429'd would silently swallow every forced fetch for
- * up to the 30-minute ceiling, with only a console line to show for it.
+ * Drop any armed geocode backoff — the rate-limit/key-refusal cooldown and the
+ * remembered "not found" address. Called for a user-initiated refresh
+ * (Force-fetch toggle, provider/key/location change) — the same contract
+ * authBackoff.clear() has: an explicit user action overrides a self-healing
+ * cooldown. Without this a manual location whose geocode 429'd would silently
+ * swallow every forced fetch for up to the 30-minute ceiling, with only a
+ * console line to show for it.
  *
  * @returns {void}
  */
 WeatherProvider.prototype.clearGeocodeBackoff = function() {
     locationLib.clearGeocodeBackoff();
+    locationLib.clearGeocodeNotFound();
 };
 
 /**
- * Determine whether the provider is currently rate-limited for geocoding.
+ * Determine whether forward geocoding is paused for the manual address: in
+ * the rate-limit/key-refusal cooldown, or recently answered "not found".
  *
  * @returns {boolean} True when forward geocoding should be skipped.
  */
@@ -126,6 +130,10 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
 
     if (readGeocodeCache(locationOverride.query) !== null) {
         return false;
+    }
+
+    if (locationLib.isGeocodeNotFound(locationOverride.query)) {
+        return true;
     }
 
     backoffData = locationLib.readGeocodeBackoff();
@@ -260,8 +268,8 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback) {
 /**
  * Resolve coordinates from the location override: pass through manual lat/lon,
  * else forward-geocode a manual address via LocationIQ (cached, with a
- * 429/401/403 backoff). GPS mode is rejected here — withCoordinates routes
- * that elsewhere.
+ * 429/401/403 backoff, and a day's pause for an address it could not
+ * resolve). GPS mode is rejected here — withCoordinates routes that elsewhere.
  *
  * @param {Function} callback Receives (latitude, longitude).
  * @param {Function} onFailure Called with a failure object on error.
@@ -304,6 +312,15 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
         return;
     }
 
+    // An address LocationIQ could not resolve stays unresolvable: don't spend
+    // the shared key on it every minute (index.js skips the whole fetch while
+    // this holds; a forced fetch clears it).
+    if (locationLib.isGeocodeNotFound(locationOverride.query)) {
+        console.log('[!] Address was not found recently, skipping geocoding');
+        onFailure(failure('forward_geocode', 'not_found'));
+        return;
+    }
+
     // Check rate limit backoff: skip geocoding if we're still in cooldown from a 429
     if (this.isGeocodeBackoffActive()) {
         console.log('[!] Geocoding in backoff cooldown, skipping');
@@ -329,6 +346,7 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
 
             if (!Array.isArray(locations) || locations.length === 0) {
                 console.log('[!] No geocoding results');
+                locationLib.writeGeocodeNotFound(locationOverride.query);
                 onFailure(failure('forward_geocode', 'no_results'));
                 return;
             }
@@ -337,6 +355,7 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
             console.log('Query ' + locationOverride.query + ' geocoded to ' + closest.lat + ', ' + closest.lon);
             // Cache the successful geocode result
             writeGeocodeCache(locationOverride.query, closest.lat, closest.lon);
+            locationLib.clearGeocodeNotFound();
             callback(closest.lat, closest.lon);
         }).bind(this),
         (function(error) {
@@ -355,6 +374,11 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
             else {
                 // Clear backoff on other errors (e.g. network issues)
                 locationLib.clearGeocodeBackoff();
+                // 404 is LocationIQ's "Unable to geocode": permanent for this
+                // address. Timeouts, network errors and 5xx stay retryable.
+                if (error.code === 'status_404') {
+                    locationLib.writeGeocodeNotFound(locationOverride.query);
+                }
             }
             onFailure(failure('forward_geocode', error.code));
         }).bind(this)

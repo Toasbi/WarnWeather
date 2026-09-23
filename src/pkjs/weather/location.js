@@ -1,7 +1,8 @@
 // src/pkjs/weather/location.js — the storage-and-parse half of coordinate
-// resolution: the GPS-fix cache, the LocationIQ geocode cache and its
-// 429/401/403 backoff record, the last reverse-geocoded city (the City slot's
-// stand-in when ArcGIS fails), and the location-override parser. Extracted
+// resolution: the GPS-fix cache, the LocationIQ geocode cache, its
+// 429/401/403 backoff record and its "not found" address record, the last
+// reverse-geocoded city (the City slot's stand-in when ArcGIS fails), and the
+// location-override parser. Extracted
 // from provider.js so these are testable without instantiating a
 // WeatherProvider; the withCoordinates/withGpsCoordinates/
 // withGeocodeCoordinates ORCHESTRATION (and its usedGpsCache/gpsErrorCode/
@@ -13,6 +14,11 @@ var GPS_CACHE_KEY = 'gpsCache';
 var GPS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 var GEOCODE_CACHE_KEY = storageKeys.GEOCODE_CACHE_KEY;
 var RATE_LIMIT_BACKOFF_KEY = storageKeys.GEOCODE_BACKOFF_KEY;
+var NOT_FOUND_KEY = storageKeys.GEOCODE_NOT_FOUND_KEY;
+// How long an address LocationIQ could not resolve stays unasked. The answer
+// will not change for the same string, and every retry spends the one key all
+// installs share; a day still lets an index update through eventually.
+var GEOCODE_NOT_FOUND_TTL_MS = 24 * 60 * 60 * 1000;
 var LAST_CITY_KEY = storageKeys.LAST_CITY_KEY;
 // How far a fix may sit from the last resolved city, in degrees of latitude
 // and, separately, of longitude (about 11 km and 7 km at 50°N), for that name
@@ -113,6 +119,50 @@ function writeGeocodeBackoff() {
     }));
 
     return backoffMs;
+}
+
+/**
+ * Remember that LocationIQ could not resolve an address (HTTP 404, or an empty
+ * result list). Kept apart from the geocode cache: readGeocodeCache hands any
+ * query-matching entry back as coordinates.
+ *
+ * @param {string} location Query string.
+ * @returns {void}
+ */
+function writeGeocodeNotFound(location) {
+    localStorage.setItem(NOT_FOUND_KEY, JSON.stringify({
+        query: normalizeLocationQuery(location),
+        time: Date.now()
+    }));
+}
+
+/**
+ * Whether LocationIQ recently answered "not found" for this address. An
+ * expired record is dropped.
+ *
+ * @param {string} location Query string.
+ * @returns {boolean} True while the address should not be looked up again.
+ */
+function isGeocodeNotFound(location) {
+    var record = readStoredJson(NOT_FOUND_KEY);
+    var age;
+    if (!record || typeof record.query !== 'string' || typeof record.time !== 'number') {
+        return false;
+    }
+    age = Date.now() - record.time;
+    if (age < 0 || age >= GEOCODE_NOT_FOUND_TTL_MS) {
+        localStorage.removeItem(NOT_FOUND_KEY);
+        return false;
+    }
+    return record.query === normalizeLocationQuery(location);
+}
+
+/**
+ * Forget any "not found" address (a forced fetch or a successful geocode).
+ * @returns {void}
+ */
+function clearGeocodeNotFound() {
+    localStorage.removeItem(NOT_FOUND_KEY);
 }
 
 /**
@@ -261,6 +311,9 @@ module.exports = {
     readGeocodeBackoff: readGeocodeBackoff,
     writeGeocodeBackoff: writeGeocodeBackoff,
     clearGeocodeBackoff: clearGeocodeBackoff,
+    writeGeocodeNotFound: writeGeocodeNotFound,
+    isGeocodeNotFound: isGeocodeNotFound,
+    clearGeocodeNotFound: clearGeocodeNotFound,
     writeLastCity: writeLastCity,
     readLastCityNear: readLastCityNear,
     readGpsCache: readGpsCache,

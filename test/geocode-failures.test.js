@@ -185,3 +185,90 @@ test('the forecast is sent when ArcGIS fails and the weather provider answers', 
   assert.deepEqual(sent, ['Unknown']);
   assert.equal(p.countryCode, null);
 });
+
+// ---- An address LocationIQ cannot resolve is not re-asked every minute ----
+// A typo ('Muenchnxq') gets 404 "Unable to geocode" (or 200 []) forever, yet
+// every 60 s tick asked again — ~1440 requests a day on the key all installs
+// share, where a handful of such phones exhaust its daily quota for everyone.
+
+var NOT_FOUND_ANSWERS = {
+  '404': { status: 404, body: '{"error":"Unable to geocode"}' },
+  'empty 200': { status: 200, body: '[]' }
+};
+
+/**
+ * @returns {number} How many LocationIQ requests have gone out.
+ */
+function locationIqRequests() {
+  return requests.filter(function (u) { return u.indexOf('locationiq.com') !== -1; }).length;
+}
+
+Object.keys(NOT_FOUND_ANSWERS).forEach(function (label) {
+  test('an address LocationIQ cannot resolve (' + label + ') is not asked again', () => {
+    route = function () { return NOT_FOUND_ANSWERS[label]; };
+    var first = geocode('Muenchnxq');
+    assert.equal(first.failure.stage, 'forward_geocode');
+    assert.equal(locationIqRequests(), 1);
+
+    // index.js skips the whole scheduled fetch on this...
+    var p = new WeatherProvider();
+    p.location = ' Muenchnxq ';   // same query once trimmed
+    assert.equal(p.isGeocodeBackoffActive(), true);
+    // ...and a direct lookup fails fast without a request.
+    assert.deepEqual(geocode('Muenchnxq').failure, { stage: 'forward_geocode', code: 'not_found' });
+    assert.equal(locationIqRequests(), 1, 'no second request to the shared key');
+    // Not a provider key problem, and no rate-limit cooldown either.
+    assert.equal(authBackoff.isAuthFailure(first.failure), false);
+    assert.equal(store[storageKeys.GEOCODE_BACKOFF_KEY], undefined);
+  });
+});
+
+test('a different address, a forced fetch, or a day later asks LocationIQ again', () => {
+  route = function () { return NOT_FOUND_ANSWERS['404']; };
+  geocode('Muenchnxq');
+  assert.equal(locationIqRequests(), 1);
+
+  geocode('Muenchen');
+  assert.equal(locationIqRequests(), 2, 'a corrected address is looked up');
+
+  // (That second 404 replaced the record: it holds one address, the current one.)
+  geocode('Muenchnxq');
+  assert.equal(locationIqRequests(), 3);
+  var p = new WeatherProvider();
+  p.location = 'Muenchnxq';
+  p.clearGeocodeBackoff();                      // what a forced fetch calls
+  assert.equal(p.isGeocodeBackoffActive(), false);
+  geocode('Muenchnxq');
+  assert.equal(locationIqRequests(), 4, 'Force fetch retries');
+
+  var realNow = Date.now;
+  var later = realNow() + 24 * 60 * 60 * 1000 + 1;
+  Date.now = function () { return later; };
+  try {
+    assert.equal(p.isGeocodeBackoffActive(), false, 'the pause expires after a day');
+    geocode('Muenchnxq');
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(locationIqRequests(), 5);
+});
+
+test('a LocationIQ timeout or 5xx stays retryable', () => {
+  ['timeout', 'network', { status: 502, body: '' }].forEach(function (answer) {
+    store = {};
+    route = function () { return answer; };
+    geocode('Berlin, Germany');
+    var p = new WeatherProvider();
+    p.location = 'Berlin, Germany';
+    assert.equal(p.isGeocodeBackoffActive(), false, JSON.stringify(answer));
+  });
+});
+
+test('a successful lookup drops the stale miss', () => {
+  route = function () { return NOT_FOUND_ANSWERS['empty 200']; };
+  geocode('Muenchnxq');
+  assert.notEqual(store[storageKeys.GEOCODE_NOT_FOUND_KEY], undefined);
+  route = function () { return { status: 200, body: '[{"lat":"52.52","lon":"13.40"}]' }; };
+  assert.deepEqual(geocode('Berlin').coords, ['52.52', '13.40']);
+  assert.equal(store[storageKeys.GEOCODE_NOT_FOUND_KEY], undefined);
+});
