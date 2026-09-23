@@ -130,7 +130,10 @@ function mapResponse(json, nowEpoch) {
         windTrend.push(typeof hr.windSpeed === 'number' ? hr.windSpeed : 0);
         gustTrend.push(typeof hr.windGust === 'number' ? hr.windGust : 0);
         // Server-side °F like temperature; a missing hour falls back to the
-        // mapped temp so the series stays numeric.
+        // mapped temp so the series stays numeric. No humidityTrend on purpose
+        // (the GraphQL note in buildQuery), so the Units tab's Steadman
+        // feels-like option cannot apply here: adoptMapped ships this value
+        // under either formula.
         feelsTrend.push(typeof hr.feelsLike === 'number' ? hr.feelsLike : tempTrend[i]);
     }
 

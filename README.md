@@ -86,7 +86,11 @@ Two things that both involve rain over time, but answer different questions:
   UV drops below it, then tomorrow's shows instead, marked `»` (`4/»8`). How the pair is written
   is up to you: pick the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or
   without spaces around it (`12 / 10`), which value comes first, and how tomorrow's peak is
-  marked (`»6`, `>6`, `+6`, `6*` or no mark).
+  marked (`»6`, `>6`, `+6`, `6*` or no mark). Feels-like itself comes in two flavours, picked
+  under General → Units → *Feels-like formula*: the provider's own value (Tomorrow.io and Weather
+  Underground follow the US heat-index/wind-chill rule, so theirs equals the air temperature in
+  mild weather; DWD and Met.no publish none) or the Steadman apparent temperature computed from
+  temperature, humidity and wind, which reads the same on every provider.
 - **Rain radar** — unlike the forecast graph's model prediction, this is a short-term nowcast
   based on actual radar measurements moving toward you, refreshed often as new scans arrive.
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are

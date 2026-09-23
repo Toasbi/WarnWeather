@@ -71,7 +71,7 @@ const EXPECTED_KEYS = [
   // sleepNightStartHour / sleepNightEndHour / backlightDimMode are gone.
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
-  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','tempSlotDisplay',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','tempSlotDisplay',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
@@ -478,7 +478,7 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
   const unitsSection = general.sections.find((s) => s.title === 'Units');
   assert.ok(unitsSection, 'General tab has a titled "Units" section');
   assert.deepEqual(unitsSection.items.map((i) => i.messageKey).filter(Boolean),
-    ['temperatureUnits', 'aqiScale', 'windUnits', 'distanceUnits']);
+    ['temperatureUnits', 'aqiScale', 'windUnits', 'distanceUnits', 'feelsFormula']);
   // sections[0] is the notices panel (block-only, ahead of the main section); the
   // main section carrying theme/provider/etc. is sections[1].
   const first = general.sections[1];
@@ -920,6 +920,24 @@ test('distanceUnits is a segmented Kilometres/Miles picker defaulting to metric'
   assert.equal(d.type, 'segmented');
   assert.equal(d.defaultValue, 'metric');
   assert.deepEqual(d.options, [['Kilometres', 'metric'], ['Miles', 'imperial']]);
+});
+
+// The feels-like formula is a global Units pick (phone-side only: feels-like.js resolves
+// it, no wire bytes). Its per-option hint is the user's only explanation of WHY the two
+// differ: Provider is the service's own value (flat in mild weather on some services),
+// Steadman is one formula everywhere.
+test('feelsFormula is a segmented Provider/Steadman picker defaulting to provider, with a hint per option', () => {
+  const f = byKey('feelsFormula');
+  assert.equal(f.type, 'segmented');
+  assert.equal(f.defaultValue, 'provider');
+  assert.deepEqual(f.options, [['Provider', 'provider'], ['Steadman', 'steadman']]);
+  assert.equal(f.hint, undefined, 'no single static hint — hintByValue drives the explanation instead');
+  assert.deepEqual(Object.keys(f.hintByValue).sort(), ['provider', 'steadman'], 'one hint per option');
+  assert.match(f.hintByValue.provider, /weather service reports/, 'says Provider is the service\'s own value');
+  assert.match(f.hintByValue.provider, /mild weather/, 'explains the mild-weather gap that prompted the setting');
+  assert.match(f.hintByValue.provider, /Steadman/, 'names the Steadman fallback for services without a value');
+  assert.match(f.hintByValue.steadman, /humidity/, 'says what Steadman is computed from');
+  assert.match(f.hintByValue.steadman, /every provider/, 'says Steadman is the same on every provider');
 });
 
 test('holiday country selector: searchSelect, default DE, None first, includes US/Sweden', () => {

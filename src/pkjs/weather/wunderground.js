@@ -2,6 +2,8 @@ var WeatherProvider = require('./provider.js');
 var KEYS = require('../storage-keys');
 var mphToKmh = require('../wire-units.js').mphToKmh;
 var wuCache = require('./wu-current-hour-cache.js');
+// The Units tab's feels-like formula resolvers (WU's feels_like vs Steadman).
+var feelsLike = require('./feels-like.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
@@ -75,11 +77,19 @@ WundergroundProvider.prototype.withWundergroundCurrent = function(lat, lon, apiK
                 return;
             }
 
-            // units=e → both °F. temperatureFeelsLike may be null on some
+            // units=e → °F and mph. temperatureFeelsLike may be null on some
             // station feeds; null → FEELS_CURRENT omitted, temp slot degrades.
-            callback(weatherData.temperature,
-                typeof weatherData.temperatureFeelsLike === 'number'
-                    ? weatherData.temperatureFeelsLike : null);
+            // relativeHumidity (%) and windSpeed feed the Units tab's Steadman
+            // option; a missing reading stays null (never "calm" / "dry").
+            callback({
+                temp: weatherData.temperature,
+                feels: typeof weatherData.temperatureFeelsLike === 'number'
+                    ? weatherData.temperatureFeelsLike : null,
+                humidity: typeof weatherData.relativeHumidity === 'number'
+                    ? weatherData.relativeHumidity : null,
+                windKmh: typeof weatherData.windSpeed === 'number'
+                    ? mphToKmh(weatherData.windSpeed) : null
+            });
         }).bind(this),
         function(error) {
             onFailure(failure('provider_data', 'wu_current_' + error.code));
@@ -177,7 +187,7 @@ WundergroundProvider.prototype.withKeyedData = function(lat, lon, onSuccess, onF
             onFailure(apiFailure);
         }).bind(this);
 
-        this.withWundergroundCurrent(lat, lon, apiKey, (function(currentTemp, currentFeels) {
+        this.withWundergroundCurrent(lat, lon, apiKey, (function(current) {
             this.withWundergroundForecast(lat, lon, apiKey, (function(rawForecast) {
                 // WU's hourly feed rounds up and drops the in-progress hour;
                 // anchor it to the current wall-clock hour, reusing the real
@@ -231,16 +241,27 @@ WundergroundProvider.prototype.withKeyedData = function(lat, lon, onSuccess, onF
                     return normalizeBearing(entry.wdir);
                 });
                 // API-sourced (no extra request); gated for consistency so "no
-                // feels selection" means no feels data anywhere.
-                this.feelsTrend = this.fetchFeels ? forecast.map(function(entry) {
-                    // v1 hourly feels_like, °F (units=e); the anchored current-hour
-                    // bucket carries it too (wu-current-hour-cache picks it). Absent
-                    // on a station feed → fall back to that hour's temp.
-                    return typeof entry.feels_like === 'number' ? entry.feels_like : entry.temp;
-                }) : [];
+                // feels selection" means no feels data anywhere. The Units tab's
+                // formula may swap WU's feels_like for Steadman from the hourly
+                // rh (%) and the km/h windTrend above; a missing hour falls back
+                // to that hour's temp either way.
+                this.feelsTrend = this.fetchFeels ? feelsLike.resolveFeelsTrend(this.feelsFormula,
+                    forecast.map(function(entry) {
+                        // v1 hourly feels_like, °F (units=e); the anchored current-hour
+                        // bucket carries it too (wu-current-hour-cache picks it). Absent
+                        // on a station feed → null → that hour's temp.
+                        return typeof entry.feels_like === 'number' ? entry.feels_like : null;
+                    }),
+                    this.tempTrend,
+                    forecast.map(function(entry) {
+                        // v1 hourly rh (%), picked into the cached current-hour bucket too.
+                        return typeof entry.rh === 'number' ? entry.rh : null;
+                    }),
+                    this.windTrend) : [];
                 this.startTime = forecast[0].fcst_valid;
-                this.currentTemp = currentTemp;
-                this.currentFeels = this.fetchFeels ? currentFeels : null;
+                this.currentTemp = current.temp;
+                this.currentFeels = this.fetchFeels ? feelsLike.resolveCurrentFeels(this.feelsFormula,
+                    current.feels, current.temp, current.humidity, current.windKmh) : null;
                 onSuccess();
             }).bind(this), onApiFailure);
         }).bind(this), onApiFailure);

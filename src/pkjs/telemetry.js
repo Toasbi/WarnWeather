@@ -97,6 +97,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
         tempSlotDisplay: safe.tempSlotDisplay,
+        // The Units tab's feels-like formula ('provider' | 'steadman'), raw like
+        // tempSlotDisplay: an absent key reads as the default ('provider').
+        feelsFormula: safe.feelsFormula,
         // The UV slot's display mode ('current' | 'max' | 'both'), raw like
         // tempSlotDisplay.
         uvSlotDisplay: safe.uvSlotDisplay,

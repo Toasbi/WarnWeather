@@ -1454,6 +1454,20 @@ module.exports = {
                 defaultValue: 'metric',
                 options: [['Kilometres', 'metric'], ['Miles', 'imperial']],
                 hint: 'Unit for the "Walked distance" status item.'
+            }, {
+                // Phone-side only (feels-like.js resolvers; index.js hands it to the
+                // provider per fetch) and in renderSignature, so a flip refetches.
+                type: 'segmented',
+                messageKey: 'feelsFormula',
+                label: 'Feels-like formula',
+                defaultValue: 'provider',
+                options: [['Provider', 'provider'], ['Steadman', 'steadman']],
+                hintByValue: {
+                    provider: 'Uses the feels-like value your weather service reports. For some services it '
+                        + 'equals the air temperature in mild weather. Services without one use Steadman.',
+                    steadman: 'Calculates feels-like from air temperature, humidity and wind, the same '
+                        + 'way on every provider, so it differs from the temperature all year round.'
+                }
             }]
         }]
     }, {

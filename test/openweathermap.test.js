@@ -229,3 +229,43 @@ test('OWM withSunEvents falls back to SunCalc when its daily times make no usabl
   assert.deepEqual(got, require('../src/pkjs/weather/sun-events.js').nextSunEvents(new Date(now), 66.6, 25.7));
   assert.notEqual(got[0].type, got[1].type);
 });
+
+// --- the Units tab's feels-like formula ----------------------------------------
+// One Call carries hourly + current humidity (%) and wind (mph under units=imperial),
+// so 'steadman' recomputes from the same response; a missing humidity hour keeps the
+// API feels_like, a missing current wind stays null (never "calm").
+const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+const mphToKmh = require('../src/pkjs/wire-units.js').mphToKmh;
+
+test('OWM + steadman recomputes feels from humidity/wind, API value where humidity is missing', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify({
+      current: { temp: 59, feels_like: 57, humidity: 60, wind_speed: 6.2 },
+      daily: [{}, {}],
+      hourly: [
+        { temp: 59, feels_like: 57, humidity: 60, pop: 0, wind_speed: 6.2, wind_gust: 0, uvi: 0, dt: 1700000000 },
+        { temp: 60, feels_like: 58, pop: 0, wind_speed: 6.2, wind_gust: 0, uvi: 0, dt: 1700003600 }
+      ]
+    }));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.feelsFormula = 'steadman';
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  const expected = feelsLikeF(59, 60, mphToKmh(6.2));
+  assert.deepEqual(p.feelsTrend, [expected, 58]);
+  assert.equal(p.currentFeels, expected);
+});
+
+test('OWM + steadman degrades to the API current when the observation lacks wind', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify({
+      current: { temp: 59, feels_like: 57, humidity: 60 },
+      daily: [{}, {}],
+      hourly: [{ temp: 59, feels_like: 57, humidity: 60, pop: 0, wind_speed: 6.2, wind_gust: 0, uvi: 0, dt: 1700000000 }]
+    }));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.feelsFormula = 'steadman';
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(p.currentFeels, 57);
+});

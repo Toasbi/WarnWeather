@@ -221,10 +221,12 @@ test('buildGustUrl requests gusts + feels and avoids the derived-field-less ECMW
   // model — both derived fields ride this always-fetched best_match call.
   const url = openmeteo.buildGustUrl(52.52, 13.41);
   const fields = hourlyFields(url);
-  ['windgusts_10m', 'apparent_temperature'].forEach((f) => {
+  ['windgusts_10m', 'apparent_temperature', 'dew_point_2m'].forEach((f) => {
     assert.ok(fields.includes(f), 'the aux call must request ' + f);
   });
-  assert.match(url, /&current=apparent_temperature(&|$)/);
+  // current: the API feels plus the Steadman option's two "now" inputs — dew point
+  // (moisture) and wind; the main call already carries the current temperature.
+  assert.match(url, /&current=apparent_temperature,dew_point_2m,wind_speed_10m(&|$)/);
   assert.doesNotMatch(url, /models=ecmwf/);
   assert.match(url, /&forecast_days=2(&|$)/);
   assert.match(url, /&timeformat=unixtime(&|$)/);
@@ -533,4 +535,69 @@ test('adoptDewAndDirection adopts each series independently', () => {
   openmeteo.adoptDewAndDirection(p, { hourly: { time: [BASE], dew_point_2m: [50] } });
   assert.equal(p.dewTrend.length, 24);
   assert.deepEqual(p.windDirTrend, [], 'no bearing series -> no bearings');
+});
+
+// --- the Units tab's feels-like formula ----------------------------------------
+// Under 'steadman' the aux call's dew_point_2m (hourly, already fetched for the dew
+// slot, + current) and current wind_speed_10m feed the Steadman formula against the
+// main call's °F temps / km/h winds — dew point rather than RH because the two calls
+// run different models (pinned ECMWF vs best_match) and a dew point carries its own
+// vapour pressure whichever temperature it meets. Hours without a dew point keep
+// Open-Meteo's own apparent_temperature.
+const feelsLikeFromDewF = require('../src/pkjs/weather/feels-like.js').feelsLikeFromDewF;
+
+test('adoptFeels + steadman computes from dew point/wind, falling back to the API value per hour', () => {
+  const p = new OpenMeteoProvider();
+  p.feelsFormula = 'steadman';
+  p.startTime = BASE;
+  p.tempTrend = new Array(24).fill(59);   // 15 °C
+  p.windTrend = new Array(24).fill(10);   // km/h
+  p.currentTemp = 59;
+  const time = [], apparent_temperature = [], dew_point_2m = [];
+  for (let i = 0; i < 26; i += 1) {
+    time.push(BASE + i * 3600);
+    apparent_temperature.push(40 + i);
+    dew_point_2m.push(i === 2 ? null : 50);  // 10 °C dew point, °F like the temps
+  }
+  openmeteo.adoptFeels(p, {
+    hourly: { time, apparent_temperature, dew_point_2m },
+    current: { apparent_temperature: 41.5, dew_point_2m: 50, wind_speed_10m: 10 }
+  });
+  const expected = feelsLikeFromDewF(59, 50, 10);
+  assert.ok(Math.abs(expected - 59) > 2, 'sanity: visibly differs from the temp');
+  assert.equal(p.feelsTrend.length, 24);
+  assert.equal(p.feelsTrend[0], expected);
+  assert.equal(p.feelsTrend[2], 42, 'null dew-point bucket keeps the API apparent temperature');
+  assert.equal(p.currentFeels, expected, 'current from the aux call\'s own dew point + wind');
+});
+
+test('adoptFeels + steadman still computes when the API feels series is absent, and degrades to the API current', () => {
+  const p = new OpenMeteoProvider();
+  p.feelsFormula = 'steadman';
+  p.startTime = BASE;
+  p.tempTrend = new Array(24).fill(59);
+  p.windTrend = new Array(24).fill(10);
+  p.currentTemp = 59;
+  const time = [], dew_point_2m = [];
+  for (let i = 0; i < 26; i += 1) { time.push(BASE + i * 3600); dew_point_2m.push(50); }
+  openmeteo.adoptFeels(p, {
+    hourly: { time, dew_point_2m },
+    current: { apparent_temperature: 41.5 }   // no dew point/wind for "now"
+  });
+  assert.equal(p.feelsTrend[5], feelsLikeFromDewF(59, 50, 10));
+  assert.equal(p.currentFeels, 41.5, 'Steadman not computable for now → the API value');
+});
+
+test('adoptFeels under the default formula ignores the dew point entirely', () => {
+  const p = new OpenMeteoProvider();
+  p.startTime = BASE;
+  p.tempTrend = new Array(24).fill(59);
+  p.windTrend = new Array(24).fill(10);
+  p.currentTemp = 59;
+  const time = [], dew_point_2m = [];
+  for (let i = 0; i < 26; i += 1) { time.push(BASE + i * 3600); dew_point_2m.push(50); }
+  openmeteo.adoptFeels(p, { hourly: { time, dew_point_2m },
+    current: { dew_point_2m: 50, wind_speed_10m: 10 } });
+  assert.deepEqual(p.feelsTrend, [], 'a dew point alone never turns the line on under provider');
+  assert.equal(p.currentFeels, null);
 });

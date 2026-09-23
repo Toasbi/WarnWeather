@@ -222,8 +222,11 @@ function buildGustUrl(lat, lon) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
+        // The current dew point and wind join apparent_temperature as the Units
+        // tab's Steadman "now" inputs (the hourly dew point is already here for
+        // the dew slot); km/h and °F per the units below.
         + '&hourly=windgusts_10m,apparent_temperature,dew_point_2m,wind_direction_10m'
-        + '&current=apparent_temperature'
+        + '&current=apparent_temperature,dew_point_2m,wind_speed_10m'
         + '&temperature_unit=fahrenheit'
         + '&windspeed_unit=kmh'
         + '&timeformat=unixtime'
@@ -234,6 +237,8 @@ function buildGustUrl(lat, lon) {
 // hourly-window owns the timestamp-indexed remap (air-quality.js shares it —
 // its mapAqi used to be a byte-identical copy of this function).
 var alignHourly = hourlyWindow.alignHourly;
+// The Units tab's feels-like formula resolvers (provider value vs Steadman).
+var feelsLike = require('./feels-like.js');
 
 /**
  * Extract a FORECAST_HOURS gust window aligned to a forecast start time.
@@ -336,18 +341,32 @@ function adoptFeels(provider, json) {
     // the timestamp-indexed remap — but it keeps "no feels selection" meaning no
     // feels data on every provider, so the temp slot degrades identically.
     if (!provider.fetchFeels) { return; }
+    var steadman = provider.feelsFormula === feelsLike.FORMULA_STEADMAN;
     var feels = json ? mapFeels(json, provider.startTime) : null;
-    var h;
-    if (feels) {
-        for (h = 0; h < feels.length; h += 1) {
-            if (feels[h] === null) {
-                feels[h] = provider.tempTrend[h];
-            }
-        }
-        provider.feelsTrend = feels;
+    // The Steadman option takes its moisture from this call's dew point (the
+    // series adoptDewAndDirection maps for the dew slot), not a relative
+    // humidity: the temps are the main call's pinned ECMWF model while this call
+    // is best_match, and an RH only means something at the temperature it was
+    // computed for, whereas a dew point carries the moisture model's own vapour
+    // pressure whichever T it is paired with (feelsLikeFromDewF). Read only
+    // under Steadman: under 'provider' a response with a dew point but no
+    // apparent_temperature still leaves the line off, as before.
+    var dew = (steadman && json) ? mapDew(json, provider.startTime) : null;
+    if (feels || dew) {
+        // The resolver backfills: Steadman where computable, else the API value,
+        // else that hour's (already-°F) temp. windTrend is the main call's km/h.
+        provider.feelsTrend = feelsLike.resolveFeelsTrendFromDew(provider.feelsFormula, feels,
+            provider.tempTrend, dew, provider.windTrend);
     }
-    if (json && json.current && typeof json.current.apparent_temperature === 'number') {
-        provider.currentFeels = json.current.apparent_temperature;
+    var current = json && json.current;
+    if (current) {
+        // km/h and °F: the aux request asks for both units explicitly.
+        var currentFeels = feelsLike.resolveCurrentFeelsFromDew(provider.feelsFormula,
+            current.apparent_temperature, provider.currentTemp,
+            current.dew_point_2m, current.wind_speed_10m);
+        if (currentFeels !== null) {
+            provider.currentFeels = currentFeels;
+        }
     }
 }
 

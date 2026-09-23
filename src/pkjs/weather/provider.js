@@ -9,6 +9,7 @@ var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
 var hourlyWindow = require('./hourly-window.js');
 var uvDayRecord = require('./uv-day-record.js');
+var feelsLike = require('./feels-like.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -85,6 +86,12 @@ var WeatherProvider = function() {
     // a caller that forgets to set it wastes a few hundred multiplications,
     // where the fail-closed default would silently blank the feels curve.
     this.fetchFeels = true;
+    // Which feels-like the Units tab picked ('provider' | 'steadman', the
+    // FORMULA_* constants in feels-like.js); index.js sets it per fetch. The
+    // resolvers apply it wherever a provider sources humidity — adoptMapped for
+    // the mapped adapters, OWM/WU/Open-Meteo in their own adopt code. Phone-side
+    // only: no wire bytes, the watch just receives FEELS_TREND / FEELS_CURRENT.
+    this.feelsFormula = feelsLike.FORMULA_PROVIDER;
 };
 
 /**
@@ -904,8 +911,26 @@ WeatherProvider.prototype.adoptMapped = function(mapped) {
         }
     }
     if (Object.prototype.hasOwnProperty.call(mapped, 'feelsTrend')) {
-        this.feelsTrend = this.fetchFeels ? mapped.feelsTrend : [];
-        this.currentFeels = this.fetchFeels ? mapped.currentFeels : null;
+        if (!this.fetchFeels) {
+            this.feelsTrend = [];
+            this.currentFeels = null;
+        }
+        else if (Object.prototype.hasOwnProperty.call(mapped, 'humidityTrend')) {
+            // A mapped humidity series (tomorrow.io) lets the Units tab's
+            // feels-like formula swap the API's value for Steadman; under
+            // 'provider' the resolvers hand the mapped values straight through.
+            this.feelsTrend = feelsLike.resolveFeelsTrend(this.feelsFormula, mapped.feelsTrend,
+                mapped.tempTrend, mapped.humidityTrend, mapped.windTrend);
+            this.currentFeels = feelsLike.resolveCurrentFeels(this.feelsFormula, mapped.currentFeels,
+                mapped.currentTemp, mapped.currentHumidity, mapped.currentWindKmh);
+        }
+        else {
+            // No humidity to compute from: Met.no already maps Steadman, and
+            // Yandex's query deliberately omits humidity (its buildQuery note) —
+            // the mapped value ships under either formula.
+            this.feelsTrend = mapped.feelsTrend;
+            this.currentFeels = mapped.currentFeels;
+        }
     }
     if (this.fetchUv && Object.prototype.hasOwnProperty.call(mapped, 'uvTrend')) {
         this.uvTrend = mapped.uvTrend;

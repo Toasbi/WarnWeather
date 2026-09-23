@@ -953,6 +953,10 @@ function fetch(provider, force) {
     // feels selection forces a refetch and this gate is re-evaluated immediately;
     // watchInfo (an aplite watch never draws the feels line) is fixed per session.
     provider.fetchFeels = forecastSeries.needsFeels(app.settings, app.watchInfo);
+    // The Units tab's feels-like formula ('provider' | 'steadman'): the adapters
+    // apply it wherever humidity is sourced (feels-like.js resolveFeelsTrend). It
+    // changes the baked FEELS_* values, so it is in renderSignature too.
+    provider.feelsFormula = (app.settings && app.settings.feelsFormula) || 'provider';
     provider.aqiScale = (app.settings && app.settings.aqiScale) || 'european';
     provider.aqiSource = (app.settings && app.settings.aqiSource) || 'waqi';
     provider.aqicnToken = (pkg.waqi && pkg.waqi.token) || '';

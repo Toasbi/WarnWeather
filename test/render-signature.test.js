@@ -17,6 +17,13 @@ test('renderSignature is empty for falsy settings and stable for equal settings'
   assert.notEqual(renderSignature({ windUnits: 'mph' }), renderSignature({ windUnits: 'kph' }));
 });
 
+// The feels-like formula swaps the provider's value for Steadman in FEELS_TREND /
+// FEELS_CURRENT at bake time, so a flip must force a refetch (the force-fetch rule).
+test('feelsFormula joins the signature', () => {
+  assert.notEqual(renderSignature({ feelsFormula: 'provider' }),
+    renderSignature({ feelsFormula: 'steadman' }));
+});
+
 // tempSlotDisplay changes the phone-side temp-slot bake (formatValue), so per the
 // force-fetch rule it must be part of the signature or switching Temp/Feels like/Both
 // would not show until the next scheduled fetch.

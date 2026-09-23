@@ -10,10 +10,13 @@ var normalizeBearing = require('../wire-units.js').normalizeBearing;
 var TIMELINES_ENDPOINT = 'https://api.tomorrow.io/v4/timelines';
 // Core-layer fields only. AQI/pollen are enterprise-gated (403 on a free key)
 // and nothing in the app consumes a condition code, so no weatherCode either.
-// dewPoint and windDirection are free Core-tier fields and cost nothing extra:
-// the budget guard bills per CALL, not per field (settings/tomorrowio-budget.js
+// dewPoint, windDirection and humidity are free Core-tier fields and cost nothing
+// extra: the budget guard bills per CALL, not per field (settings/tomorrowio-budget.js
 // WEATHER_CALLS_PER_CYCLE), and this is still the same single Timelines GET.
-var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,temperatureApparent,dewPoint,windDirection';
+// humidity feeds the Units tab's Steadman feels-like option (feels-like.js):
+// temperatureApparent is the US heat-index / wind-chill value, equal to the air
+// temperature between roughly 5 °C and 27 °C.
+var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,temperatureApparent,dewPoint,windDirection,humidity';
 var MPS_TO_KMH = 3.6;
 
 /**
@@ -120,6 +123,13 @@ function mapResponse(json, nowEpoch) {
     // every provider. A null head renders '--' / draws no arrow.
     var dewTrend = [];
     var windDirTrend = [];
+    // Relative humidity (%), null where unreported — the Steadman option's
+    // moisture input (adoptMapped resolves it; a null hour keeps the API feels).
+    var humidityTrend = [];
+    // The anchor bucket's wind for the Steadman "now" value, null when the feed
+    // omits it — unlike windTrend's 0, so a missing reading degrades to the API
+    // value (the OWM/WU observation convention) instead of reading as calm.
+    var anchorWindKmh = null;
     var i;
     var values;
     for (i = 0; i < FORECAST_HOURS; i += 1) {
@@ -138,6 +148,10 @@ function mapResponse(json, nowEpoch) {
             ? celsiusToFahrenheit(values.dewPoint) : null);
         windDirTrend.push(typeof values.windDirection === 'number'
             ? normalizeBearing(values.windDirection) : null);
+        humidityTrend.push(typeof values.humidity === 'number' ? values.humidity : null);
+        if (i === 0 && typeof values.windSpeed === 'number') {
+            anchorWindKmh = values.windSpeed * MPS_TO_KMH;
+        }
         if (i === 0 && typeof values.temperatureApparent === 'number') {
             // Anchor bucket doubles as "now" (currentTemp precedent); missing →
             // null so FEELS_CURRENT is omitted rather than echoing the temp.
@@ -158,9 +172,14 @@ function mapResponse(json, nowEpoch) {
         feelsTrend: feelsTrend,
         dewTrend: dewTrend,             // °F, unrounded (formatValue rounds per unit)
         windDirTrend: windDirTrend,     // degrees 0-359, "comes from"
+        humidityTrend: humidityTrend,   // %, null where unreported
         startTime: intervalEpoch(intervals[anchor]),
         currentTemp: tempTrend[0],
-        currentFeels: currentFeels
+        currentFeels: currentFeels,
+        // The anchor bucket doubles as "now" for the Steadman inputs too, exactly
+        // as it does for currentTemp above (the wind null-preserving, see above).
+        currentHumidity: humidityTrend[0],
+        currentWindKmh: anchorWindKmh
     };
 }
 

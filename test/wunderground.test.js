@@ -408,3 +408,51 @@ test('a cached WU key is kept on a failure that is not a key refusal', () => {
   assert.equal(log.scrapes, 0, 'no scrape for a server error');
   assert.equal(out.key, 'cachedkey');
 });
+
+// --- the Units tab's feels-like formula ----------------------------------------
+// v1 hourly rh (%) + wspd (mph) and the v3 observation's relativeHumidity + windSpeed
+// feed 'steadman'; an hour without rh keeps WU's own feels_like.
+const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+const mphToKmh = require('../src/pkjs/wire-units.js').mphToKmh;
+
+test('WU + steadman recomputes feels from rh/wspd and the observation\'s humidity/wind', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/wx/observations/current') !== -1) {
+      onSuccess(JSON.stringify({ temperature: 59, temperatureFeelsLike: 57, relativeHumidity: 60, windSpeed: 6.2 }));
+      return;
+    }
+    onSuccess(JSON.stringify({ forecasts: [
+      { temp: 59, feels_like: 57, rh: 60, pop: 0, qpf: 0, wspd: 6.2, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR },
+      // no rh -> WU's own feels_like stays
+      { temp: 60, feels_like: 58, pop: 0, qpf: 0, wspd: 6.2, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR + HOUR }
+    ] }));
+  };
+  const p = new WundergroundProvider();
+  p.feelsFormula = 'steadman';
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  const expected = feelsLikeF(59, 60, mphToKmh(6.2));
+  assert.deepEqual(p.feelsTrend, [expected, 58]);
+  assert.equal(p.currentFeels, expected);
+});
+
+test('WU + steadman keeps the observation\'s temperatureFeelsLike when it lacks humidity', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/wx/observations/current') !== -1) {
+      onSuccess(JSON.stringify({ temperature: 59, temperatureFeelsLike: 57, windSpeed: 6.2 }));
+      return;
+    }
+    onSuccess(JSON.stringify({ forecasts: [
+      { temp: 59, feels_like: 57, rh: 60, pop: 0, qpf: 0, wspd: 6.2, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR }
+    ] }));
+  };
+  const p = new WundergroundProvider();
+  p.feelsFormula = 'steadman';
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.equal(p.currentFeels, 57);
+});

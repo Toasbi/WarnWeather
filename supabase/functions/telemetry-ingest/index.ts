@@ -45,6 +45,10 @@ const settingsSchema = z
   .object({
     temperatureUnits: z.string().optional(),
     tempSlotDisplay: z.string().optional(),
+    // The Units tab's feels-like formula ('provider' | 'steadman'), lockstep with
+    // buildSettingsSnapshot in src/pkjs/telemetry.js. z.string() like windUnits so an
+    // unexpected value never fails the whole payload.
+    feelsFormula: z.string().optional(),
     uvSlotDisplay: z.string().optional(),
     // The two-value slots' presentation, lockstep with buildSettingsSnapshot in
     // src/pkjs/telemetry.js. z.string() for the picks per threshPhoneBatteryBoldMode's

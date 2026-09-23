@@ -119,3 +119,64 @@ test('dew-point route: null propagation matches the humidity route, never 0', ()
   assert.equal(feelsLikeFromDewF(68, 50, NaN), null);
   assert.equal(feelsLikeFromDewF('68', 50, 10), null, 'numeric strings are rejected, not coerced');
 });
+
+// --- the Units tab's feelsFormula resolvers -----------------------------------
+// 'provider' ships the API's own series (hour gaps → that hour's temp); 'steadman'
+// computes from temp + RH + wind wherever all three are numeric and falls back to
+// the API value, then the temp, per hour. Current: never the temp (→ null → omitted).
+const feelsLike = require('../src/pkjs/weather/feels-like.js');
+const resolveFeelsTrend = feelsLike.resolveFeelsTrend;
+const resolveCurrentFeels = feelsLike.resolveCurrentFeels;
+
+test('resolveFeelsTrend: provider formula passes the API series through, temp-backfilling gaps', () => {
+  assert.deepEqual(resolveFeelsTrend('provider', [45.5, null], [50, 60], [60, 60], [10, 10]), [45.5, 60]);
+  assert.deepEqual(resolveFeelsTrend('provider', null, [50, 60], [60, 60], [10, 10]), [50, 60],
+    'no API series at all → the air temperature, hour by hour');
+  assert.deepEqual(resolveFeelsTrend(undefined, [45.5], [50], [60], [10]), [45.5],
+    'an unknown/absent formula reads as provider');
+});
+
+test('resolveFeelsTrend: steadman computes per hour and falls back to the API value, then the temp', () => {
+  const expected = feelsLikeF(50, 60, 10);
+  assert.ok(Math.abs(expected - 50) > 2, 'sanity: Steadman visibly differs from the temp at 10 °C');
+  assert.deepEqual(
+    resolveFeelsTrend('steadman', [45.5, 48, null], [50, 50, 50], [60, null, null], [10, 10, 10]),
+    [expected, 48, 50]);
+  assert.deepEqual(resolveFeelsTrend('steadman', [45.5], [50], [60], null), [45.5],
+    'no wind series → nothing computable → API value');
+  assert.deepEqual(resolveFeelsTrend('steadman', [45.5], [50], null, [10]), [45.5],
+    'humidity unsourced → same as provider');
+  assert.deepEqual(resolveFeelsTrend('steadman', [45.5, 46], [50, 50], [60, 60], [10]),
+    [expected, 46], 'a short wind series only blocks the hours it lacks');
+});
+
+test('resolveCurrentFeels: steadman when computable, else the API value, else null — never the temp', () => {
+  assert.equal(resolveCurrentFeels('steadman', 68.2, 59, 60, 10), feelsLikeF(59, 60, 10));
+  assert.equal(resolveCurrentFeels('steadman', 68.2, 59, null, 10), 68.2);
+  assert.equal(resolveCurrentFeels('steadman', 68.2, 59, 60, null), 68.2);
+  assert.equal(resolveCurrentFeels('steadman', null, 59, null, 10), null);
+  assert.equal(resolveCurrentFeels('provider', 68.2, 59, 60, 10), 68.2);
+  assert.equal(resolveCurrentFeels('provider', undefined, 59, 60, 10), null);
+  assert.equal(resolveCurrentFeels('provider', NaN, 59, 60, 10), null);
+});
+
+test('the dew-point twins follow the same ladder (Open-Meteo\'s moisture reading)', () => {
+  const feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
+  const expected = feelsLikeFromDewF(59, 50, 10);
+  assert.deepEqual(feelsLike.resolveFeelsTrendFromDew('steadman', [57, 58], [59, 59], [50, null], [10, 10]),
+    [expected, 58], 'a null dew-point hour keeps the API value');
+  assert.deepEqual(feelsLike.resolveFeelsTrendFromDew('provider', [57, 58], [59, 59], [50, 50], [10, 10]),
+    [57, 58]);
+  assert.deepEqual(feelsLike.resolveFeelsTrendFromDew('steadman', null, [59], null, [10]), [59],
+    'nothing sourced at all → the temp');
+  assert.equal(feelsLike.resolveCurrentFeelsFromDew('steadman', 57, 59, 50, 10), expected);
+  assert.equal(feelsLike.resolveCurrentFeelsFromDew('steadman', 57, 59, null, 10), 57);
+  assert.equal(feelsLike.resolveCurrentFeelsFromDew('provider', 57, 59, 50, 10), 57);
+  assert.equal(feelsLike.resolveCurrentFeelsFromDew('provider', undefined, 59, 50, 10), null);
+});
+
+test('resolveFeelsTrend: the hourly wind follows windTrend\'s 0-for-missing convention (dwd/metno), it never blocks an hour', () => {
+  // The adapters hand in windTrend, where a missing reading is already 0 km/h; the
+  // resolver does not second-guess that (only a whole series absent does — tested above).
+  assert.deepEqual(resolveFeelsTrend('steadman', [57], [59], [60], [0]), [feelsLikeF(59, 60, 0)]);
+});

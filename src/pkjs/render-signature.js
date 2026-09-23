@@ -42,6 +42,9 @@ function renderSignature(settings) {
         // ...the unit pickers (change baked/fetched values: wind & distance rebake,
         // AQI source/scale refetch)...
         settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,
+        // ...the feels-like formula (swaps the provider's value for Steadman in
+        // FEELS_TREND / FEELS_CURRENT, so it re-bakes the series AND the temp slot)...
+        settings.feelsFormula,
         // ...the per-kind wind-direction arrows (baked into the wind/gust slot text as a
         // trailing sentinel byte, so a flip only shows after a re-bake)...
         settings.windSlotDirection, settings.gustSlotDirection,

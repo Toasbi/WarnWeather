@@ -1,6 +1,8 @@
 var WeatherProvider = require('./provider.js');
 var nextSunEvents = require('./sun-events.js').nextSunEvents;
 var mphToKmh = require('../wire-units.js').mphToKmh;
+// The Units tab's feels-like formula resolvers (One Call's feels_like vs Steadman).
+var feelsLike = require('./feels-like.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
@@ -197,16 +199,24 @@ OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, on
         // arrow draws happens once, later, at bake time.
         this.windDirTrend = hourlyTrend(weatherData.hourly, 'wind_deg', normalizeBearing);
         // API-sourced (no extra request); gated for consistency so "no feels
-        // selection" means no feels data anywhere.
-        this.feelsTrend = this.fetchFeels ? weatherData.hourly.map(function(entry) {
-            // units=imperial → already °F; a missing hour falls back to the
-            // actual temp so the series stays numeric (a feels of 0 °F is real).
-            return typeof entry.feels_like === 'number' ? entry.feels_like : entry.temp;
-        }) : [];
+        // selection" means no feels data anywhere. units=imperial → feels_like is
+        // already °F. The Units tab's formula may swap it for Steadman from the
+        // same response's humidity (%) and the km/h windTrend above; either way a
+        // missing hour falls back to the actual temp so the series stays numeric
+        // (a feels of 0 °F is real).
+        this.feelsTrend = this.fetchFeels ? feelsLike.resolveFeelsTrend(this.feelsFormula,
+            hourlyTrend(weatherData.hourly, 'feels_like', null),
+            this.tempTrend,
+            hourlyTrend(weatherData.hourly, 'humidity', null),
+            this.windTrend) : [];
         this.startTime = weatherData.hourly[0].dt;
         this.currentTemp = weatherData.current.temp;
-        this.currentFeels = this.fetchFeels && typeof weatherData.current.feels_like === 'number'
-            ? weatherData.current.feels_like : null; // null → FEELS_CURRENT omitted, temp slot degrades
+        // null → FEELS_CURRENT omitted, temp slot degrades. current.wind_speed is
+        // mph like the hourly one; a missing reading stays null (never "calm").
+        this.currentFeels = this.fetchFeels ? feelsLike.resolveCurrentFeels(this.feelsFormula,
+            weatherData.current.feels_like, weatherData.current.temp, weatherData.current.humidity,
+            typeof weatherData.current.wind_speed === 'number'
+                ? mphToKmh(weatherData.current.wind_speed) : null) : null;
         onSuccess();
     }).bind(this), onFailure);
 };

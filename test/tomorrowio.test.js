@@ -327,3 +327,74 @@ test('withProviderData populates dewTrend and windDirTrend, numEntries long', ()
     global.XMLHttpRequest = prevXhr;
   }
 });
+
+// --- the Units tab's feels-like formula ----------------------------------------
+// tomorrow.io's temperatureApparent is the US heat-index / wind-chill value (equal to
+// the air temperature between roughly 5 °C and 27 °C), so the Steadman option needs the
+// Core-tier humidity field on the same single call; adoptMapped resolves it.
+const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
+
+test('tomorrow.io requests humidity and maps it (%, null where unreported) plus the anchor "now" inputs', () => {
+  assert.ok(tomorrowio.buildUrl(52.52, 13.41, 'KEY123', BASE + 1234).includes('humidity'),
+    'fields must request humidity');
+  const json = sampleResponse();
+  json.data.timelines[0].intervals.forEach((iv, i) => { if (i !== 4) { iv.values.humidity = 50 + i; } });
+  const out = tomorrowio.mapResponse(json, BASE + 3 * 3600 + 600); // anchor at bucket 3
+  assert.equal(out.humidityTrend.length, 24);
+  assert.equal(out.humidityTrend[0], 53);
+  assert.equal(out.humidityTrend[1], null, 'unreported hour → null, never 0');
+  assert.equal(out.currentHumidity, 53, 'anchor bucket doubles as "now"');
+  assert.equal(out.currentWindKmh, out.windTrend[0]);
+});
+
+test('tomorrow.io + steadman: adoptMapped recomputes feels from temp/humidity/wind, API value where humidity is missing', () => {
+  const json = sampleResponse();
+  json.data.timelines[0].intervals.forEach((iv, i) => {
+    iv.values.temperatureApparent = iv.values.temperature; // the mild-weather flat line
+    if (i !== 4) { iv.values.humidity = 60; }
+  });
+  const mapped = tomorrowio.mapResponse(json, BASE + 3 * 3600 + 600);
+  const p = new tomorrowio.TomorrowIoProvider('KEY123');
+  p.feelsFormula = 'steadman';
+  p.adoptMapped(mapped);
+  const expected0 = feelsLikeF(mapped.tempTrend[0], 60, mapped.windTrend[0]);
+  assert.equal(p.feelsTrend[0], expected0);
+  assert.notEqual(p.feelsTrend[0], mapped.tempTrend[0], 'no longer a copy of the temperature');
+  assert.equal(p.feelsTrend[1], mapped.tempTrend[1], 'humidity missing for that hour → the API value (= temp here)');
+  assert.equal(p.currentFeels, expected0, 'the "now" value follows the anchor bucket');
+  // The default formula leaves the API series exactly as mapped.
+  const q = new tomorrowio.TomorrowIoProvider('KEY123');
+  q.adoptMapped(mapped);
+  assert.deepEqual(q.feelsTrend, mapped.feelsTrend);
+  assert.equal(q.currentFeels, mapped.currentFeels);
+  // And fetchFeels off still blanks both, whichever formula.
+  const r = new tomorrowio.TomorrowIoProvider('KEY123');
+  r.feelsFormula = 'steadman';
+  r.fetchFeels = false;
+  r.adoptMapped(mapped);
+  assert.deepEqual(r.feelsTrend, []);
+  assert.equal(r.currentFeels, null);
+});
+
+test('tomorrow.io + steadman: an anchor bucket without windSpeed keeps the API "now" value, the hour follows windTrend', () => {
+  // "Now" mirrors the OWM/WU observation paths: no wind reading → the API value,
+  // never Steadman-with-calm. The HOURLY series keeps windTrend's 0-for-missing
+  // convention (the one dwd.js/metno.js compute Steadman with), so hour 0 is computed.
+  const json = sampleResponse();
+  json.data.timelines[0].intervals.forEach((iv, i) => {
+    iv.values.temperatureApparent = iv.values.temperature;
+    iv.values.humidity = 60;
+    if (i === 3) { delete iv.values.windSpeed; }   // the anchor bucket
+  });
+  const mapped = tomorrowio.mapResponse(json, BASE + 3 * 3600 + 600);
+  assert.equal(mapped.currentWindKmh, null);
+  assert.equal(mapped.windTrend[0], 0, 'the wind line still reads the hour as calm');
+  const p = new tomorrowio.TomorrowIoProvider('KEY123');
+  p.feelsFormula = 'steadman';
+  p.adoptMapped(mapped);
+  assert.equal(p.currentFeels, mapped.currentFeels, 'no wind reading → the API value');
+  assert.equal(p.feelsTrend[0], feelsLikeF(mapped.tempTrend[0], 60, 0));
+  // With the wind present, "now" and hour 0 agree again.
+  const withWind = tomorrowio.mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
+  assert.equal(withWind.currentWindKmh, withWind.windTrend[0]);
+});

@@ -194,6 +194,13 @@ test('snapshot includes windUnits and distanceUnits', () => {
   assert.equal(buildSettingsSnapshot({ distanceUnits: 'imperial' }).distanceUnits, 'imperial');
 });
 
+// The Units tab's feels-like formula, raw like tempSlotDisplay (absent = the default).
+// Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/index.ts).
+test('snapshot includes feelsFormula raw', () => {
+  assert.equal(buildSettingsSnapshot({ feelsFormula: 'steadman' }).feelsFormula, 'steadman');
+  assert.equal(buildSettingsSnapshot({}).feelsFormula, undefined);
+});
+
 test('snapshot carries the twelve status slot selections', () => {
   const snap = buildSettingsSnapshot({
     statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'sun',
@@ -638,7 +645,7 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
   // theme so all six picks report (bw would report none of them).
   const settings = {
     temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', uvSlotDisplay: 'current',
-    aqiScale: 'european',
+    feelsFormula: 'steadman', aqiScale: 'european',
     tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
     uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
     tempSlotSeparatorSpaced: true, uvSlotSeparatorSpaced: true,
