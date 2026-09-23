@@ -167,6 +167,29 @@
   }
 
   /**
+   * Resolve the settings page's "auto" highlight colour for the theme this blob is
+   * packed FOR. The page stores auto as a concrete black or white (the theme text
+   * colour it last derived, blocks.js thresholdColorIsAuto) and re-derives it on
+   * every open, but a blob nobody re-saved keeps the old one: 1.11-1.19 never
+   * converted it when Theme changed, so a light-then-dark install holds black
+   * under a dark theme, and packing that verbatim draws a black outline and fill on
+   * the black face -- invisible. So black and white are resolved here, the way the
+   * page resolves them: to the packed theme's text colour for weather kinds
+   * (settings.theme, which theme-schedule's night copy sets to the night theme),
+   * to the goal green for goal kinds. Every other colour is a pick, returned as is.
+   * @param {number} c 0xRRGGBB colour, already parsed by colorInt
+   * @param {Object} settings Clay settings blob (theme)
+   * @param {boolean} goal Whether the kind is a goal kind (the health trio)
+   * @returns {number} c, or the auto colour when c is black or white
+   */
+  function resolveAutoColor(c, settings, goal) {
+    if (c !== 0x000000 && c !== 0xFFFFFF) { return c; }
+    if (goal) { return DEFAULT_GOAL_COLOR; }
+    var theme = settings && settings.theme;
+    return (theme === 'light' || theme === 'bw-light') ? 0x000000 : 0xFFFFFF;
+  }
+
+  /**
    * @param {Object} settings Clay settings blob
    * @param {Object} k KINDS entry
    * @returns {string} the kind's stored bold mode, DEFAULT_BOLD_MODE when unset
@@ -220,7 +243,8 @@
     } else if (typeof rawWarn === 'undefined') {
       warnColor = DEFAULT_GOAL_COLOR;
     } else {
-      warnColor = colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR);
+      warnColor = resolveAutoColor(
+        colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR), settings, k.goal);
     }
     // Bold mode is deliberately NOT gated on `ordered`: 'always' bolds a slot
     // whose kind has no thresholds configured at all.
@@ -229,8 +253,9 @@
       warn: warn,
       danger: danger,
       warnColor: warnColor,
-      dangerColor: colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
-                            k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR),
+      dangerColor: resolveAutoColor(
+        colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
+                 k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR), settings, k.goal),
       boldMode: boldModeFor(settings, k)
     };
   }
