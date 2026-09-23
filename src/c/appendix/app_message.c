@@ -81,6 +81,9 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     const SeriesWire WIRE[] = {
         { SERIES_SECOND, MESSAGE_KEY_SECONDARY_LINE_TREND_UINT8 },
         { SERIES_THIRD,  MESSAGE_KEY_THIRD_LINE_TREND_UINT8     },
+#if defined(WW_FOURTH_LINE)
+        { SERIES_FOURTH, MESSAGE_KEY_FOURTH_LINE_TREND_UINT8    },
+#endif
         { SERIES_BARS,   MESSAGE_KEY_BAR_TREND_UINT8            },
     };
     // Render-ready series (trend bytes only) — table-driven.
@@ -356,6 +359,10 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 // byte — layout in persist.h. Nothing is repacked or translated on the way
 // through, which is the whole reason the night-fill-explicit bit sits in its own
 // byte [9] instead of riding byte [3]: one name, one position, both ends.
+// Second tail (optional): [10] the third-metric line colour, then bytes
+// [11..13] ARE the LINE_STYLES persist blob (per-line marker styles), byte for
+// byte — layout in persist.h. Both blocks are WW_-guarded on the consuming
+// side, so aplite stores neither and simply ignores the trailing bytes.
 //
 // CONTRACT for growing this tuple: LINE_STYLE_BYTES is a MINIMUM length, not an
 // exact one, and everything past it is an optional tail guarded by its own
@@ -370,6 +377,12 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 // every platform — only the CONSUMPTION of the tail is colour-only, since B&W
 // builds have no persist accessors for it (persist.h) and never paint it.
 #define LINE_STYLE_NIGHT_OFFSET 4
+// Second appended tail block: [10] the third-metric line colour, [11..13] the
+// LINE_STYLES blob verbatim (layout in persist.h). Offsets unguarded like the
+// night offset above; the CONSUMING arms are WW_FOURTH_LINE / WW_LINE_STYLE
+// -guarded, so aplite ignores the trailing bytes it may still receive.
+#define LINE_STYLE_FOURTH_COLOR_OFFSET 10
+#define LINE_STYLE_STYLES_OFFSET 11
 
 static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_LINE_STYLE_UINT8);
@@ -395,6 +408,18 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
     // wire's own bytes back in a single persist hit.
     if (tuple->length >= LINE_STYLE_NIGHT_OFFSET + NIGHT_COLOR_BYTES) {
         changed |= persist_set_night_colors(&b[LINE_STYLE_NIGHT_OFFSET]);
+    }
+#endif
+#if defined(WW_FOURTH_LINE)
+    // Second optional tail block, own length check per the growth contract.
+    if (tuple->length >= LINE_STYLE_FOURTH_COLOR_OFFSET + 1) {
+        changed |= persist_set_fourth_line_color(
+            (GColor){ .argb = b[LINE_STYLE_FOURTH_COLOR_OFFSET] });
+    }
+#endif
+#if defined(WW_LINE_STYLE)
+    if (tuple->length >= LINE_STYLE_STYLES_OFFSET + LINE_STYLE_STYLE_BYTES) {
+        changed |= persist_set_line_styles(&b[LINE_STYLE_STYLES_OFFSET]);
     }
 #endif
     *forecast_dirty |= changed;

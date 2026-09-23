@@ -199,6 +199,29 @@ def build(ctx):
         # are append-only on-flash IDs. Mirrors WW_THRESHOLD_HIGHLIGHT above.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_CURVE_INSET=1']
+        # The third selectable forecast metric ("Third metric" in the settings —
+        # a fourth graph line, SERIES_FOURTH) is compiled out of aplite: the
+        # frozen-lean fork keeps exactly its two fixed metric lines, and the
+        # extra Series slot alone is ~76 B of .bss against ~0 B of headroom
+        # under the 21804 B launch guard. Every other platform defines
+        # WW_FOURTH_LINE; aplite lacks it, so the guarded Series slot, wire-
+        # table entry and persist accessors drop out and --gc-sections reaps
+        # the rest. The FOURTH_LINE_TREND / FOURTH_LINE_COLOR persist key IDs
+        # stay in persist.c's enum on every platform — the slots are
+        # append-only on-flash IDs. Mirrors WW_CURVE_INSET above.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_FOURTH_LINE=1']
+        # Per-line marker styles for the forecast metric lines (thin/thick
+        # solid, square dots, little x — bytes [10..13] of
+        # CLAY_LINE_STYLE_UINT8): aplite keeps its frozen fixed styles (solid
+        # 1 px main line, dotted second line), so the style-blob persist
+        # accessors, the app_message tail arm and the x-marker renderer in
+        # chart.c are guarded away and --gc-sections reaps the rest. The
+        # LINE_STYLES persist key ID stays in persist.c's enum on every
+        # platform — the slots are append-only on-flash IDs. Mirrors
+        # WW_CURVE_INSET above.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_LINE_STYLE=1']
         # The "Dim backlight" night tint (appendix/night_light.c) drives the RGB
         # backlight LED to the user's colour inside their night window. Unlike the
         # exclusions above, this one is not an aplite budget call at all — it is

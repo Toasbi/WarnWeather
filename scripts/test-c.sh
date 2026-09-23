@@ -125,3 +125,13 @@ build/host/night_light_persist_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY -DPBL_COLOR test/c/night_light_persist_test.c src/c/appendix/persist.c \
    -o build/host/night_light_persist_test_emery
 build/host/night_light_persist_test_emery
+
+# The LINE_STYLES byte decode (per-line marker styles, wire bytes [11..13] of
+# CLAY_LINE_STYLE_UINT8): header-only static inlines in persist.h, mirrored
+# against the JS packer's pins in test/line-style.test.js so the two wire ends
+# cannot drift. Built with WW_LINE_STYLE (+ WW_FOURTH_LINE, which the same
+# non-aplite builds always carry) — the only configuration that declares the
+# helpers; aplite compiles them out together with their callers.
+cc $CFLAGS -DWW_LINE_STYLE -DWW_FOURTH_LINE test/c/line_style_decode_test.c \
+   -o build/host/line_style_decode_test
+build/host/line_style_decode_test

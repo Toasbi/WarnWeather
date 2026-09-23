@@ -84,9 +84,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     /**
-     * The forecast-graph preview block: temp curve, main metric line (optionally
-     * filled), second metric as bar-aligned squares, rain bars, night band, axis and
-     * legend — the same z-order and geometry rules forecast_layer.c draws with.
+     * The forecast-graph preview block: temp curve, up to three metric lines — each
+     * in its selected style (thin/thick line, square dots, x marks); the main one
+     * optionally filled — rain bars, night band, axis and legend — the same z-order
+     * and geometry rules forecast_layer.c draws with.
      * Adapted from index.html:231-267's forecastSVG.
      * @param {Object} state Live settings (colours as hex strings).
      * @param {Object} env Config-UI environment facts ({ color, platform, … }).
@@ -201,10 +202,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // which is exactly how they are drawn below.
         var mainColor = hexColor(gc.secondary);
         var dotColor = hexColor(gc.third);
+        var thirdColor = hexColor(gc.fourth);
         var mainFill = hexColor(gc.fill);
         var tempColor = isColor ? P.temp : ink.fg;
         var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line
         var mainW = isColor ? 1.6 : 1;
+        var boldW = isColor ? 2.8 : 3;               // the 'bold' (3 px) line style
+        // Per-line styles, resolved with the same defaults the wire packs
+        // (line-style.lineStyleValue). Previewing aplite pins the frozen look:
+        // the style pickers are hidden there and the watch ignores the style
+        // bytes (WW_LINE_STYLE undefined).
+        var apl = Boolean(env && env.platform === 'aplite');
+        var mainStyle = apl ? 'line' : lineStyle.lineStyleValue(state, 'secondaryLineStyle');
+        var secondStyle = apl ? 'dots' : lineStyle.lineStyleValue(state, 'thirdLineStyle');
+        var thirdStyle = lineStyle.lineStyleValue(state, 'fourthLineStyle');
+        // The third-metric line: never on aplite (no SERIES_FOURTH compiled
+        // there), never feels, never a duplicate — the same gates
+        // forecast-series.js bakes with, so the preview matches the watch.
+        var fourthOn = !apl && Boolean(state.fourthLine) && state.fourthLine !== 'off'
+            && state.fourthLine !== 'feels' && state.fourthLine !== state.secondaryLine
+            && state.fourthLine !== state.thirdLine;
 
         // The night colours apply only on an effectively-colour preview. The WIRE carries
         // them either way (resolveNightColors has no isColor gate, deliberately), but a
@@ -328,35 +345,61 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 + '" fill-opacity="0.25" clip-path="url(#nightclip)"></path>';
         }
         /**
-         * Main metric: one continuous line whose vertices sit on the hour ticks, so it spans the
+         * One metric as a continuous line whose vertices sit on the hour ticks, so it spans the
          * first tick to the last. The fill (if any) is drawn separately by areaFillFor() — see
          * its doc comment for why.
-         * @param {string} metric The main metric — state.secondaryLine, which is the
-         *   metric mainColor was resolved for.
+         * @param {string} metric The metric the colour was resolved for.
+         * @param {string} color Resolved stroke colour (hex).
+         * @param {number} w Stroke width (mainW for 'line', boldW for 'bold').
          * @returns {string} SVG markup
          */
-        var lineFor = function (metric) {
+        var lineFor = function (metric, color, w) {
             var pts = metricPoints(metric);
             if (!pts) { return ''; }
             var d = smooth(pts);
-            return '<path d="' + d + '" fill="none" stroke="' + mainColor + '" stroke-width="' + mainW + '"></path>';
+            return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
         };
         /**
-         * Second metric: bar-aligned squares centred in the hour column (same columns as the rain
-         * bars). For a zero-based metric (min defaults to 0) a value of 0 is genuinely "no data"
-         * and is skipped, mirroring the watch's bar-dots. Pressure is the one metric with a
-         * non-zero `min` (its band floor): a reading at or below it is real data (e.g. a deep
-         * low off the visible band), not an absent hour, so it's clamped to the baseline and
-         * drawn instead of skipped — mirrors forecast-series.pressurePermille's floor-clamp so
-         * the preview and the watch don't diverge.
-         * @param {string} metric The second metric — state.thirdLine, which is the
-         *   metric dotColor was resolved for.
+         * Shared centre-y for the bar-aligned mark styles (dots and x), in the hour
+         * column i. For a zero-based metric (min defaults to 0) a value of 0 is
+         * genuinely "no data" and is skipped (null), mirroring the watch's bar-dots.
+         * Pressure is the one metric with a non-zero `min` (its band floor): a reading
+         * at or below it is real data (e.g. a deep low off the visible band), not an
+         * absent hour, so it's clamped to the baseline and drawn instead of skipped —
+         * mirrors forecast-series.pressurePermille's floor-clamp so the preview and
+         * the watch don't diverge.
+         * @param {Object} m METRIC entry.
+         * @param {number} i Column index.
+         * @returns {?number} Centre y, or null to skip the column.
+         */
+        function markCenterY(m, i) {
+            var pm;
+            if (m.tempAxis) {
+                // Feels-like: every reading is real data on the shared temp axis
+                // (a temperature has no skippable zero), mapped through yT.
+                return yT(m.vals[i]);
+            }
+            if (m.curve) {
+                // Pressure: the piecewise absolute curve draws EVERY reading (a
+                // deep low is real data, never a skippable zero).
+                pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
+                return PB - pm * (PB - PT - 3);
+            }
+            var v = Math.min(m.vals[i], m.max);
+            if (v <= 0) { return null; }   // zero-based metric: genuine zero, skip
+            pm = v / m.max;
+            return PB - pm * (PB - PT - 3);
+        }
+        /**
+         * A metric as bar-aligned squares centred in the hour column (same columns as
+         * the rain bars) — the 'dots' style.
+         * @param {string} metric The metric the colour was resolved for.
+         * @param {string} col Resolved mark colour (hex).
          * @returns {string} SVG markup
          */
-        var barDotsFor = function (metric) {
+        var barDotsFor = function (metric, col) {
             var m = METRIC[metric];
             if (!m) { return ''; }
-            var col = dotColor;
             // Mirrors chart.c's dot cap: achromatic dots (theme foreground or either
             // gray) read heavier than a hue at the same size, so they get the short
             // cap; hued dots keep the tall one. Preview units, not watch px.
@@ -364,40 +407,87 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 ? 3 : 4;
             var out = '';
             for (var i = 0; i < n - 1; i += 1) {
-                var pm, cy;
-                if (m.tempAxis) {
-                    // Feels-like: every reading is real data on the shared temp axis
-                    // (a temperature has no skippable zero), mapped through yT.
-                    cy = yT(m.vals[i]);
-                } else if (m.curve) {
-                    // Pressure: the piecewise absolute curve draws EVERY reading (a
-                    // deep low is real data, never a skippable zero).
-                    pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
-                    cy = PB - pm * (PB - PT - 3);
-                } else {
-                    var v = Math.min(m.vals[i], m.max);
-                    if (v <= 0) { continue; }   // zero-based metric: genuine zero, skip
-                    pm = v / m.max;
-                    cy = PB - pm * (PB - PT - 3);
-                }
+                var cy = markCenterY(m, i);
+                if (cy === null) { continue; }
                 out += rect(gapCenter(i) - bw / 2, cy - dh / 2, bw, dh, col);
             }
             return out;
         };
+        /**
+         * A metric as little x marks centred in the hour column — the 'x' style
+         * (chart.c's chart_draw_bar_x). Two 1-px diagonals over an odd box.
+         * @param {string} metric The metric the colour was resolved for.
+         * @param {string} col Resolved mark colour (hex).
+         * @returns {string} SVG markup
+         */
+        var barXFor = function (metric, col) {
+            var m = METRIC[metric];
+            if (!m) { return ''; }
+            var out = '', arm = 2.4;
+            for (var i = 0; i < n - 1; i += 1) {
+                var cy = markCenterY(m, i);
+                if (cy === null) { continue; }
+                var cx = gapCenter(i);
+                out += '<line x1="' + (cx - arm) + '" y1="' + (cy - arm) + '" x2="' + (cx + arm) + '" y2="' + (cy + arm) + '" stroke="' + col + '" stroke-width="1.1"></line>'
+                    + '<line x1="' + (cx - arm) + '" y1="' + (cy + arm) + '" x2="' + (cx + arm) + '" y2="' + (cy - arm) + '" stroke="' + col + '" stroke-width="1.1"></line>';
+            }
+            return out;
+        };
+        /**
+         * One metric line in its selected style — the style dispatch chart.c's
+         * chart_render_line does on the watch.
+         * @param {string} metric The metric the colour was resolved for.
+         * @param {string} style 'line'|'bold'|'dots'|'x' (lineStyleValue output).
+         * @param {string} color Resolved colour (hex).
+         * @returns {string} SVG markup
+         */
+        function seriesFor(metric, style, color) {
+            if (style === 'dots') { return barDotsFor(metric, color); }
+            if (style === 'x') { return barXFor(metric, color); }
+            return lineFor(metric, color, style === 'bold' ? boldW : mainW);
+        }
 
         /**
-         * Legend strip below the chart. Lists only the shown series (Temp always; main metric;
-         * second metric if on; Rain if bars on). Color watch: hued glyph + label, with a 5-band
-         * gradient for Rain. B&W: white style glyphs (thick line / thin line / dots / outline box).
+         * A little legend-sized x glyph centred on (cx, cy).
+         * @param {number} cx Centre x.
+         * @param {number} cy Centre y.
+         * @param {string} col Stroke colour (hex).
+         * @returns {string} SVG markup
+         */
+        function legendX(cx, cy, col) {
+            var a = 1.8;
+            return '<line x1="' + (cx - a) + '" y1="' + (cy - a) + '" x2="' + (cx + a) + '" y2="' + (cy + a) + '" stroke="' + col + '" stroke-width="1.1"></line>'
+                + '<line x1="' + (cx - a) + '" y1="' + (cy + a) + '" x2="' + (cx + a) + '" y2="' + (cy - a) + '" stroke="' + col + '" stroke-width="1.1"></line>';
+        }
+        /**
+         * Legend strip below the chart. Lists only the shown series (Temp always; the metric
+         * lines that are on; Rain if bars on), each with a glyph in the line's own style.
+         * Color watch: hued glyph + label, with a 5-band gradient for Rain. B&W: white style
+         * glyphs (thick line / thin line / dots / x / outline box).
          * @returns {string} SVG markup
          */
         function drawLegend() {
             var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure', feels: 'Feels' };
+            /**
+             * One legend entry, glyph kind chosen by the line's style.
+             * @param {string} style 'line'|'bold'|'dots'|'x'.
+             * @param {string} color Resolved colour (hex).
+             * @param {string} label Legend label.
+             * @returns {Object} Entry for the loop below.
+             */
+            function legendEntry(style, color, label) {
+                if (style === 'dots') { return { kind: 'dots', color: color, label: label }; }
+                if (style === 'x') { return { kind: 'x', color: color, label: label }; }
+                return { kind: 'line', color: color, w: style === 'bold' ? boldW : mainW, label: label };
+            }
             var entries = [];
             entries.push({ kind: 'line', color: tempColor, w: tempW, label: 'Temp' });
-            entries.push({ kind: 'line', color: mainColor, w: mainW, label: LABEL[state.secondaryLine] || '' });
+            entries.push(legendEntry(mainStyle, mainColor, LABEL[state.secondaryLine] || ''));
             if (state.thirdLine && state.thirdLine !== 'off' && state.thirdLine !== state.secondaryLine) {
-                entries.push({ kind: 'dots', color: dotColor, label: LABEL[state.thirdLine] || '' });
+                entries.push(legendEntry(secondStyle, dotColor, LABEL[state.thirdLine] || ''));
+            }
+            if (fourthOn) {
+                entries.push(legendEntry(thirdStyle, thirdColor, LABEL[state.fourthLine] || ''));
             }
             if (state.barSource === 'rain') { entries.push({ kind: 'rain', label: 'Rain' }); }
 
@@ -408,6 +498,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                     out += '<line x1="' + x + '" y1="' + gy + '" x2="' + (x + 12) + '" y2="' + gy + '" stroke="' + en.color + '" stroke-width="' + en.w + '" stroke-linecap="round"></line>';
                 } else if (en.kind === 'dots') {
                     out += rect(x + 1, gy - 1.6, 3.2, 3.2, en.color) + rect(x + 8, gy - 1.6, 3.2, 3.2, en.color);
+                } else if (en.kind === 'x') {
+                    out += legendX(x + 2.6, gy, en.color) + legendX(x + 9.6, gy, en.color);
                 } else if (isColor && state.rainBarColor !== 'white') {
                     for (var k = 0; k < P.rainTiers.length; k += 1) {
                         out += rect(x + k * 2.4, gy - 3.5, 2.4, 7, P.rainTiers[k].color);
@@ -459,9 +551,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg);
             }
         }
-        e += lineFor(state.secondaryLine);
+        e += seriesFor(state.secondaryLine, mainStyle, mainColor);
         if (state.thirdLine && state.thirdLine !== 'off' && state.thirdLine !== state.secondaryLine) {
-            e += barDotsFor(state.thirdLine);
+            e += seriesFor(state.thirdLine, secondStyle, dotColor);
+        }
+        if (fourthOn) {
+            e += seriesFor(state.fourthLine, thirdStyle, thirdColor);
         }
         e += drawTempCurve();
         // No status chrome (location / sunset / current-temp pill): the preview doesn't model it.

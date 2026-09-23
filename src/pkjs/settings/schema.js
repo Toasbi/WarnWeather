@@ -34,11 +34,11 @@ var LINE_HINTS = {
     feels: 'Feels-like temperature each hour, drawn grey on the same scale as the temperature curve.',
     off: 'No third line — temperature and the secondary line only.'
 };
-// The second metric renders as square dots aligned to the rain bars; its picker reuses the
-// per-metric LINE_HINTS prose with a dots note appended. Separate from LINE_HINTS because
-// hintByValue REPLACES item.hint (no append), and LINE_HINTS is shared with the solid
-// main-metric picker (which must not show the dots note).
-var DOTS_NOTE = '<br>Drawn as square dots, aligned to the rain bars.';
+// The second metric renders as square dots (by default) aligned to the rain bars; its
+// picker reuses the per-metric LINE_HINTS prose with a dots note appended. Separate from
+// LINE_HINTS because hintByValue REPLACES item.hint (no append), and LINE_HINTS is shared
+// with the solid main-metric picker (which must not show the dots note).
+var DOTS_NOTE = '<br>Drawn as square dots by default, aligned to the rain bars.';
 var THIRD_LINE_HINTS = {
     precip_prob: LINE_HINTS.precip_prob + DOTS_NOTE,
     wind: LINE_HINTS.wind + DOTS_NOTE,
@@ -48,6 +48,51 @@ var THIRD_LINE_HINTS = {
     feels: LINE_HINTS.feels + DOTS_NOTE,
     off: 'No second metric — temperature and the main metric only.'
 };
+// The third metric renders as little x marks (by default). No feels entry: the
+// fourth line has no curve-inset channel, so feels is never offered on it
+// (blocks.js' forecastMetric resolver drops it for {fourth: true}).
+var X_NOTE = '<br>Drawn as little x marks by default, aligned to the rain bars.';
+var FOURTH_LINE_HINTS = {
+    precip_prob: LINE_HINTS.precip_prob + X_NOTE,
+    wind: LINE_HINTS.wind + X_NOTE,
+    gust: LINE_HINTS.gust + X_NOTE,
+    uv: LINE_HINTS.uv + X_NOTE,
+    pressure: LINE_HINTS.pressure + X_NOTE,
+    off: 'No third metric — the two metric lines above only.'
+};
+// Per-line style pickers, one under each metric picker. Hidden on aplite: the
+// frozen-lean fork keeps its fixed styles (WW_LINE_STYLE undefined on the
+// watch — the style bytes it still receives are an ignored tail), and `ne`
+// keeps the UNKNOWN platform capable. The values are line-style.js'
+// LINE_STYLE_KINDS vocabulary; the defaults are its LINE_STYLE_DEFAULTS —
+// the pre-feature look per line.
+var LINE_STYLE_HINTS = {
+    line: 'A thin 1-pixel line.',
+    bold: 'A thick 3-pixel line.',
+    dots: 'Square dots, aligned to the rain bars.',
+    x: 'Little x marks, aligned to the rain bars.'
+};
+/**
+ * One line-style picker.
+ * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+ * @param {string} defaultValue The line's built-in style.
+ * @param {string} [lineKey] Metric-picker key whose 'off' also hides this row.
+ * @returns {Object} Schema item.
+ */
+function lineStyleCopy(messageKey, defaultValue, lineKey) {
+    var when = [{env: 'platform', ne: 'aplite'}];
+    if (lineKey) { when.push({key: lineKey, ne: 'off'}); }
+    return {
+        type: 'segmented',
+        messageKey: messageKey,
+        label: 'Line style',
+        defaultValue: defaultValue,
+        joinPrevious: true,
+        hintByValue: LINE_STYLE_HINTS,
+        options: [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x']],
+        showWhen: {all: when}
+    };
+}
 // Both metric pickers resolve through blocks.js' 'forecastMetric' options resolver:
 // the third line gets Off plus the metrics the secondary line is NOT using (the
 // engine's display-snap resets thirdLine if it ever collides — see engine.js), and
@@ -83,19 +128,25 @@ function windScaleHints(windUnits, unitLabel) {
 var WIND_SCALE_HINTS_KPH = windScaleHints('kph', 'kph');
 var WIND_SCALE_HINTS_MPH = windScaleHints('mph', 'mph');
 var WIND_SCALE_HINTS_KNOTS = windScaleHints('knots', 'kn');
-// The two line-contexts each windScale copy is gated on (secondary vs. third line),
-// combined per-copy with a windUnits equality below.
+// The line-contexts each windScale copy is gated on (secondary vs. third vs.
+// fourth line), combined per-copy with a windUnits equality below. Each later
+// context yields to every earlier one so exactly one copy renders.
 var WIND_SCALE_WHEN_SECONDARY = {key: 'secondaryLine', in: ['wind', 'gust']};
 var WIND_SCALE_WHEN_THIRD = {all: [
     {key: 'thirdLine', in: ['wind', 'gust']},
     {not: {key: 'secondaryLine', in: ['wind', 'gust']}}
 ]};
+var WIND_SCALE_WHEN_FOURTH = {all: [
+    {key: 'fourthLine', in: ['wind', 'gust']},
+    {not: {key: 'secondaryLine', in: ['wind', 'gust']}},
+    {not: {key: 'thirdLine', in: ['wind', 'gust']}}
+]};
 // One windScale copy: base line-context AND the given windUnits value, with the
-// pre-rendered hint set for that unit. `context` is 'secondary' | 'third'.
+// pre-rendered hint set for that unit. `context` is 'secondary' | 'third' | 'fourth'.
 function windScaleCopy(context, unit, hints) {
     var lineWhen = context === 'secondary'
         ? [WIND_SCALE_WHEN_SECONDARY]
-        : WIND_SCALE_WHEN_THIRD.all;
+        : (context === 'third' ? WIND_SCALE_WHEN_THIRD.all : WIND_SCALE_WHEN_FOURTH.all);
     return {
         type: 'segmented',
         messageKey: 'windScale',
@@ -668,7 +719,7 @@ var PRESSURE_SCALE_HINTS = {
 /**
  * One pressureScale control for a line-context. Unlike windScaleCopy this needs no
  * per-unit duplication — pressure ships hPa only, so one copy per context is enough.
- * @param {string} context 'secondary' | 'third'.
+ * @param {string} context 'secondary' | 'third' | 'fourth'.
  * @returns {Object} Schema item.
  */
 function pressureScaleCopy(context) {
@@ -685,8 +736,12 @@ function pressureScaleCopy(context) {
         options: [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']],
         showWhen: context === 'secondary'
             ? {key: 'secondaryLine', eq: 'pressure'}
-            : {all: [{key: 'thirdLine', eq: 'pressure'},
-                     {not: {key: 'secondaryLine', eq: 'pressure'}}]}
+            : context === 'third'
+                ? {all: [{key: 'thirdLine', eq: 'pressure'},
+                         {not: {key: 'secondaryLine', eq: 'pressure'}}]}
+                : {all: [{key: 'fourthLine', eq: 'pressure'},
+                         {not: {key: 'secondaryLine', eq: 'pressure'}},
+                         {not: {key: 'thirdLine', eq: 'pressure'}}]}
     };
 }
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.
@@ -1278,7 +1333,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric (a solid line) shows one of precipitation %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, and an optional second metric (drawn as bar-aligned square dots) adds another — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, or little x marks) — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1289,7 +1344,9 @@ module.exports = {
                 onChange: 'forecastMetricFill',
                 blockBefore: 'forecastPreview',
                 blockBeforeSticky: true
-            }, {
+            },
+            lineStyleCopy('secondaryLineStyle', 'line'),
+            {
                 type: 'toggle',
                 messageKey: 'secondaryLineFill',
                 label: 'Fill area below the line',
@@ -1316,10 +1373,31 @@ module.exports = {
                 hintByValue: THIRD_LINE_HINTS,
                 optionsFrom: {resolver: 'forecastMetric', args: {third: true}}
             },
+            lineStyleCopy('thirdLineStyle', 'dots', 'thirdLine'),
             windScaleCopy('third', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('third', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('third', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('third'),
+            {
+                type: 'select',
+                messageKey: 'fourthLine',
+                label: 'Third metric',
+                defaultValue: 'off',
+                hintByValue: FOURTH_LINE_HINTS,
+                optionsFrom: {resolver: 'forecastMetric', args: {fourth: true}},
+                // Only watches with enough memory carry a third metric line:
+                // aplite is the frozen-lean fork (no SERIES_FOURTH compiled), so
+                // the row would be a silent no-op there. `ne` keeps the UNKNOWN
+                // platform capable — missing watchInfo never hides a real
+                // feature. Row-level hiding (not option-gating) so the stored
+                // value is never display-snapped away on aplite.
+                showWhen: {env: 'platform', ne: 'aplite'}
+            },
+            lineStyleCopy('fourthLineStyle', 'x', 'fourthLine'),
+            windScaleCopy('fourth', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('fourth', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('fourth', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('fourth'),
             {
                 type: 'segmented',
                 messageKey: 'barSource',

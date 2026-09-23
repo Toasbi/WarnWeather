@@ -332,9 +332,11 @@ function metricPermille(metric, raw, settings) {
 
 /**
  * Map raw provider series + settings to the render-ready forecast wire fields.
- * Secondary line is always one metric; third line is off or a different metric
- * (the config UI prevents duplicates; this also defends against a duplicate).
- * The third line is always dashed and never filled.
+ * Secondary line is always one metric; the third and fourth lines are off or a
+ * metric distinct from every other line (the config UI prevents duplicates;
+ * this also defends against them). Only the secondary line can fill; the
+ * fourth line additionally never carries feels (it has no curve-inset channel,
+ * so a feels series there could not share the temperature axis).
  *
  * Values only: the lines' COLOURS (and the fill flag) are settings-derived, so they
  * ride the Clay settings message instead — see line-style.js and clay-payload.js's
@@ -359,6 +361,16 @@ function buildForecastSeries(raw, settings) {
         ? metricPermille(thirdMetric, raw, settings) : null;
     out.THIRD_LINE_TREND_UINT8 = metricBytes(thirdMetric, thirdPm);
 
+    // Fourth line ("Third metric"): optional; off, or a metric distinct from
+    // both other lines, and never feels (see the function doc). Platform
+    // suppression happens in applyForecastSeries — the series itself is
+    // platform-independent.
+    var fourthMetric = settings.fourthLine;
+    var fourthPm = (fourthMetric && fourthMetric !== 'off' && fourthMetric !== 'feels'
+        && fourthMetric !== secMetric && fourthMetric !== thirdMetric)
+        ? metricPermille(fourthMetric, raw, settings) : null;
+    out.FOURTH_LINE_TREND_UINT8 = metricBytes(fourthMetric, fourthPm);
+
     // Rain bars: independent of the metric lines.
     out.BAR_TREND_UINT8 = settings.barSource === 'rain'
         ? (raw.rains || []).map(rainTier.rainPermille).map(permilleToByte) : [];
@@ -372,7 +384,8 @@ function buildForecastSeries(raw, settings) {
  * @param {Object} payload Weather payload with PRECIP_/RAIN_/WIND_/GUST_/UV_TREND_UINT8.
  * @param {Object} settings Clay settings.
  * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined; threaded
- *   through to the status-line bake for its platform env (the series themselves are
+ *   through to the status-line bake for its platform env, and read here only to
+ *   suppress the fourth line's key for aplite (the series values themselves are
  *   platform-independent now that the line styling rides the Clay message).
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
@@ -438,6 +451,13 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // message now (CLAY_LINE_STYLE_UINT8), so the weather send carries no styling.
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
     payload.THIRD_LINE_TREND_UINT8 = series.THIRD_LINE_TREND_UINT8;
+    // The third-metric line never ships to aplite: the frozen-lean fork has no
+    // SERIES_FOURTH and its picker is hidden there, so the key would only spend
+    // weather-bundle bytes. An unknown platform keeps the key — the config-ui
+    // convention that missing watchInfo never drops a real feature.
+    if (!watchInfo || watchInfo.platform !== 'aplite') {
+        payload.FOURTH_LINE_TREND_UINT8 = series.FOURTH_LINE_TREND_UINT8;
+    }
     payload.BAR_TREND_UINT8 = series.BAR_TREND_UINT8;
     return payload;
 }
@@ -449,7 +469,8 @@ function applyForecastSeries(payload, settings, watchInfo) {
  */
 function needsUv(settings) {
     if (!settings) { return false; }
-    if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv') { return true; }
+    if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv'
+        || settings.fourthLine === 'uv') { return true; }
     // A status-line UV slot must extend the fetch gate or it bakes empty.
     return statusCatalog.selectedCodes(settings).indexOf('uv') !== -1;
 }

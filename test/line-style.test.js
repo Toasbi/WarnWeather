@@ -7,11 +7,11 @@ const { resolveInk } = require('../src/pkjs/resolve-ink.js');
 
 const emery = { platform: 'emery' };
 
-test('packs ten bytes: three line colours, a line flag byte, five night colours, a night flag byte', () => {
+test('packs fourteen bytes: four line colours, a line flag byte, five night colours, a night flag byte, three style bytes', () => {
   const bytes = lineStyle.buildLineStyleBytes(
     { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, theme: 'dark' }, emery);
-  assert.equal(bytes.length, 10);
-  [0, 1, 2, 4, 5, 6, 7, 8].forEach(
+  assert.equal(bytes.length, 14);
+  [0, 1, 2, 4, 5, 6, 7, 8, 10].forEach(
     (i) => assert.ok(bytes[i] >= 0xC0 && bytes[i] <= 0xFF, `byte ${i} (${bytes[i]}) is not a GColor8`));
   assert.equal(bytes[3], 0, 'fill off');
   assert.equal(bytes[9], 0, 'night fill still on its built-in tint');
@@ -20,16 +20,46 @@ test('packs ten bytes: three line colours, a line flag byte, five night colours,
 // Bytes 4..9 are the watch's NIGHT_COLORS persist blob verbatim (persist.h's
 // NIGHT_COLOR_BYTES = 6), which is the whole reason the night-fill bit lives in byte
 // [9] instead of byte [3]: app_message.c stores the tail straight through, so the two
-// ends cannot pick different bits or offsets for it.
-test('the night block is a contiguous six-byte tail, flag included', () => {
+// ends cannot pick different bits or offsets for it. The bytes appended since ([10]
+// third-metric colour, [11..13] the LINE_STYLES blob, also stored straight through)
+// sit BEHIND the night block, so its offsets never moved.
+test('the night block is a contiguous six-byte block at [4..9], flag included', () => {
   const bytes = lineStyle.buildLineStyleBytes({
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark',
     gcWindNightDark: '#550055'
   }, emery);
-  assert.equal(bytes.length - 4, 6, 'NIGHT_COLOR_BYTES worth of tail after the four line bytes');
+  assert.equal(bytes.length, 14, 'night block [4..9] + ext block [10..13]');
   assert.equal(bytes[9] & lineStyle.FLAG_NIGHT_FILL_EXPLICIT, lineStyle.FLAG_NIGHT_FILL_EXPLICIT);
   assert.equal(bytes[3] & 0x01, 1, 'the line flag byte still carries only the fill bit');
   assert.equal(bytes[3], 0x01, 'and nothing else — the night flag left byte [3] entirely');
+});
+
+// Bytes [11..13] are the watch's LINE_STYLES persist blob verbatim (persist.h's
+// LINE_STYLE_STYLE_BYTES = 3): kind | (stroke_width << 2), kind bits shared with
+// chart.h's ChartLineStyle (0 solid, 1 dots, 2 x).
+test('the style bytes pack kind and width, defaults reproducing the pre-feature look', () => {
+  const bytes = lineStyle.buildLineStyleBytes(
+    { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, theme: 'dark' }, emery);
+  assert.equal(bytes[11], 0 | (1 << 2), 'main line: solid, 1 px');
+  assert.equal(bytes[12], 1, 'second line: dots');
+  assert.equal(bytes[13], 2, 'third-metric line: x');
+});
+
+test('a stored style pick moves its byte; an unknown value falls back to the default', () => {
+  const bytes = lineStyle.buildLineStyleBytes({
+    secondaryLine: 'wind', thirdLine: 'gust', theme: 'dark',
+    secondaryLineStyle: 'bold', thirdLineStyle: 'x', fourthLineStyle: 'nonsense'
+  }, emery);
+  assert.equal(bytes[11], 0 | (3 << 2), 'main line: solid, 3 px');
+  assert.equal(bytes[12], 2, 'second line: x');
+  assert.equal(bytes[13], 2, 'unknown value → the line\'s built-in (x)');
+});
+
+test('byte [10] is the third-metric line colour, resolved like the others', () => {
+  const settings = { secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', theme: 'dark' };
+  const resolved = lineStyle.resolveLineStyle(settings, emery);
+  const bytes = lineStyle.buildLineStyleBytes(settings, emery);
+  assert.equal(bytes[10], rainTier.rgbToGColor8(resolved.fourth));
 });
 
 test('the fill flag follows secondaryLineFill', () => {

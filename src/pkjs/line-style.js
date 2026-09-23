@@ -1,6 +1,7 @@
-// src/pkjs/line-style.js — ES5. The graph's colours: two metric lines, the area fill
-// and its flag, the five night colours and the night flag. All settings-derived, never
-// weather-derived, so they ride the Clay settings message.
+// src/pkjs/line-style.js — ES5. The graph's colours: three metric lines, the area fill
+// and its flag, the five night colours and the night flag, and the per-line marker
+// styles. All settings-derived, never weather-derived, so they ride the Clay settings
+// message.
 //
 // DESIGN LOG: docs/adr/0003-graph-colour-model.md — the key vocabulary, why the
 // built-ins are derived rather than listed, why the night tint cascades at resolve
@@ -346,6 +347,51 @@
 
     // Line-style flag byte (wire byte [3]), bit 0: the secondary line's area fill is on.
     var FLAG_SECONDARY_FILL = 0x01;
+
+    // --- Per-line marker styles (wire bytes [11..13]) -----------------------
+    // One setting per configurable line, four values: 'line' (thin solid),
+    // 'bold' (thick solid), 'dots' (square dots), 'x' (little x marks). The
+    // wire byte packs kind | (stroke_width << 2); the kind bits are chart.h's
+    // ChartLineStyle values (0 solid, 1 dots, 2 x — never renumber either
+    // side), and the width field only applies to solid kinds (odd widths only:
+    // the SDK rounds even stroke widths down).
+    var LINE_STYLE_KINDS = { line: 0, bold: 0, dots: 1, x: 2 };
+    var LINE_STYLE_WIDTHS = { line: 1, bold: 3 };
+    // Defaults reproduce the pre-feature look: solid 1 px main line, dotted
+    // second line — and the new third-metric line debuts as x marks.
+    var LINE_STYLE_DEFAULTS = {
+        secondaryLineStyle: 'line',
+        thirdLineStyle: 'dots',
+        fourthLineStyle: 'x'
+    };
+
+    /**
+     * The effective style value for one line-style key: the stored value when
+     * it is a known style, else the key's built-in default. OWN keys only on
+     * the kind table — a bare object literal answers truthy for every
+     * Object.prototype name.
+     * @param {Object} settings Clay settings blob.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+     * @returns {string} 'line'|'bold'|'dots'|'x'.
+     */
+    function lineStyleValue(settings, key) {
+        var v = (settings || {})[key];
+        return Object.prototype.hasOwnProperty.call(LINE_STYLE_KINDS, v)
+            ? v : LINE_STYLE_DEFAULTS[key];
+    }
+
+    /**
+     * The packed wire/persist byte for one line-style key (layout above).
+     * @param {Object} settings Clay settings blob.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+     * @returns {number} kind | (stroke_width << 2).
+     */
+    function lineStyleByte(settings, key) {
+        var v = lineStyleValue(settings, key);
+        var width = Object.prototype.hasOwnProperty.call(LINE_STYLE_WIDTHS, v)
+            ? LINE_STYLE_WIDTHS[v] : 0;
+        return LINE_STYLE_KINDS[v] | (width << 2);
+    }
     // NIGHT flag byte (wire byte [9]), bit 0: the night-area tint is an explicit user pick.
     // It was the light-polarity opt-in for the night re-shade; NO WATCH READS IT any more,
     // since light re-shades unconditionally off NIGHT_AREA_COLORS' light arm. Still sent,
@@ -572,12 +618,12 @@
      * downstream has to quantize again.
      *
      * @param {Object} settings Clay settings blob (theme, secondaryLine, thirdLine,
-     *   secondaryLineFill, rainBarColor, and the 36 gc* graph-colour keys).
+     *   fourthLine, secondaryLineFill, rainBarColor, and the 36 gc* graph-colour keys).
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
      *   (treated as colour basalt).
-     * @returns {{secondary: number, fill: number, third: number, fillOn: boolean,
-     *   night: Object}} Three 0xRRGGBB colours, the resolved fill flag, and the night
-     *   colours (see resolveNightColors).
+     * @returns {{secondary: number, fill: number, third: number, fourth: number,
+     *   fillOn: boolean, night: Object}} Four 0xRRGGBB colours, the resolved fill flag,
+     *   and the night colours (see resolveNightColors).
      */
     function resolveLineStyle(settings, watchInfo) {
         return resolveGraphColors(settings, capsForWatch(watchInfo));
@@ -591,8 +637,8 @@
      *
      * @param {Object} settings Clay settings blob — as for resolveLineStyle.
      * @param {{color: boolean, themePolarity: boolean}} caps See renderContextFor.
-     * @returns {{secondary: number, fill: number, third: number, fillOn: boolean,
-     *   night: Object}} As resolveLineStyle.
+     * @returns {{secondary: number, fill: number, third: number, fourth: number,
+     *   fillOn: boolean, night: Object}} As resolveLineStyle.
      */
     function resolveGraphColors(settings, caps) {
         var cx = renderContextFor(settings, caps);
@@ -622,6 +668,7 @@
             secondary: resolved(secMetric, 'Line'),
             fill: resolved(secMetric, 'Fill'),
             third: resolved(thirdMetric, 'Line'),
+            fourth: resolved(settings.fourthLine, 'Line'),
             night: resolveNightColors(settings, cx, secMetric),
             // THE authoritative gate on feels never filling (ADR-0003 §6) — the config UI
             // also hides and clears the toggle, but a blob stored before that landed, or
@@ -631,7 +678,7 @@
     }
 
     /**
-     * Pack the line styling for the Clay wire — TEN bytes:
+     * Pack the line styling for the Clay wire — FOURTEEN bytes:
      *
      *   [0] main-metric line colour    (GColor8 argb)
      *   [1] area fill colour           (GColor8 argb)
@@ -643,16 +690,22 @@
      *   [7] night-area hatch           (GColor8 argb)  │ blob (NIGHT_COLOR_BYTES = 6);
      *   [8] night-area boundary        (GColor8 argb)  │ app_message.c stores the tail
      *   [9] night flags — bit 0 = the tint is an explicit pick  ┘ straight through.
+     *   [10] third-metric line colour  (GColor8 argb)
+     *   [11] main-metric line style    ┐ bytes [11..13] are byte-for-byte the watch's
+     *   [12] second-metric line style  │ LINE_STYLES persist blob (kind | width << 2 —
+     *   [13] third-metric line style   ┘ see LINE_STYLE_KINDS above; persist.h).
      *
      * rgbToGColor8 matches Pebble's GColorFromHEX exactly, so the pixel is identical to
-     * sending the full 0xRRGGBB. The watch treats bytes [4..9] as an OPTIONAL tail (its
-     * length check is a minimum), so a shorter tuple from an older sender still applies in
-     * full — which is the rule for growing this: append a block plus its own length check,
-     * never widen the minimum. ADR-0003 §7.
+     * sending the full 0xRRGGBB. The watch treats everything past byte [3] as OPTIONAL
+     * tail blocks (its length checks are minimums, one per block), so a shorter tuple
+     * from an older sender still applies in full — which is the rule for growing this:
+     * append a block plus its own length check, never widen the minimum. ADR-0003 §7.
+     * Bytes [10..13] ship to every watch — aplite has no parse arm for them and simply
+     * ignores the tail, exactly as pre-feature watches ignore bytes they postdate.
      *
      * @param {Object} settings Clay settings blob.
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null.
-     * @returns {number[]} The ten bytes above.
+     * @returns {number[]} The fourteen bytes above.
      */
     function buildLineStyleBytes(settings, watchInfo) {
         var s = resolveLineStyle(settings, watchInfo);
@@ -666,7 +719,11 @@
             rainTier.rgbToGColor8(s.night.areaBase),
             rainTier.rgbToGColor8(s.night.areaHatch),
             rainTier.rgbToGColor8(s.night.areaBoundary),
-            s.night.fillExplicit ? FLAG_NIGHT_FILL_EXPLICIT : 0
+            s.night.fillExplicit ? FLAG_NIGHT_FILL_EXPLICIT : 0,
+            rainTier.rgbToGColor8(s.fourth),
+            lineStyleByte(settings, 'secondaryLineStyle'),
+            lineStyleByte(settings, 'thirdLineStyle'),
+            lineStyleByte(settings, 'fourthLineStyle')
         ];
     }
 
@@ -687,6 +744,9 @@
         graphColorIsDefault: graphColorIsDefault,
         graphNightTint: graphNightTint,
         graphColorIsPicked: graphColorIsPicked,
+        LINE_STYLE_DEFAULTS: LINE_STYLE_DEFAULTS,
+        lineStyleValue: lineStyleValue,
+        lineStyleByte: lineStyleByte,
         FLAG_NIGHT_FILL_EXPLICIT: FLAG_NIGHT_FILL_EXPLICIT,
         LINE_COLORS: LINE_COLORS,
         FILL_COLORS: FILL_COLORS,

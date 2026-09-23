@@ -20,9 +20,9 @@ const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
 // All changed payload categories ride in ONE sendAppMessage (the channel is
 // half-duplex — see outbox.js), so the watch's inbox must hold the heaviest
 // bundle the phone can emit in a single fetch. The worst realistic case is the
-// DWD provider with secondary + third metric lines both active: two 24-byte
-// trends + rain bars + radar — so forecast + status + sun + radar all bundle
-// together. (The lines' colours are settings-derived and ride the Clay message.)
+// DWD provider with all three metric lines active: three 24-byte trends + rain
+// bars + radar — so forecast + status + sun + radar all bundle together. (The
+// lines' colours and styles are settings-derived and ride the Clay message.)
 //
 // This guard caught the gust-third-line overflow: the inbox was sized for
 // bundled forecast+radar before the 24-byte gust series existed, so DWD+wind
@@ -97,6 +97,7 @@ function buildHeaviestBundle() {
     RAIN_TREND_UINT8: range.map(function() { return 50; }),
     WIND_TREND_UINT8: range.map(function() { return 60; }),
     GUST_TREND_UINT8: range.map(function() { return 90; }), // non-zero → gust line ON
+    UV_TREND_UINT8: range.map(function() { return 80; }),   // non-zero → uv fourth line ON
     FORECAST_START: 1700000000,
     NUM_ENTRIES: N,
     CURRENT_TEMP: 20,
@@ -108,9 +109,12 @@ function buildHeaviestBundle() {
   };
 
   // PKJS resolves the render-ready series; worst case = secondary line + a
-  // distinct third line (two 24-byte trends) + rain bars.
+  // distinct third line + a distinct fourth line (three 24-byte trends) + rain
+  // bars, on a platform that carries the fourth line (emery below — aplite's
+  // bundle omits the FOURTH key entirely).
   applyForecastSeries(payload, {
-    secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, barSource: 'rain', windScale: 'high',
+    secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv',
+    secondaryLineFill: false, barSource: 'rain', windScale: 'high',
     temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
     healthMode: 'all', radarProvider: 'rainbow',
     // Heaviest realistic selections: 'city' truncates payload.CITY to each
@@ -167,7 +171,9 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   // 526 -> 482 when the four settings-derived line-style tuples moved to the
   // Clay message (SECONDARY_LINE_COLOR / _FILL / _FILL_COLOR / THIRD_LINE_COLOR,
   // 4 x 11 B = 7 B tuple header + 4 B int32/bool each). Headroom 10 -> 54 B.
-  assert.equal(size, 482, 'update the recorded realistic bundle size when its wire contract changes');
+  // 482 -> 513 when the third-metric line joined (FOURTH_LINE_TREND_UINT8:
+  // 7 B tuple header + 24 B trend). Headroom 54 -> 23 B. Never sent to aplite.
+  assert.equal(size, 513, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
@@ -248,6 +254,10 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // (CLAY_NIGHT_LIGHT_UINT8: 7 B tuple header + 5 B [r, g, b, startHour, endHour]).
   // The number was recorded while the tuple was still a hand-written reservation in
   // buildHeaviestClayMessage; clay-payload.js packs it for real now, at the same size.
-  assert.equal(size, 511, 'update the recorded Clay message size when its wire contract changes');
+  // 511 -> 515 when CLAY_LINE_STYLE_UINT8 grew 10 -> 14: the third-metric line
+  // colour (byte [10]) and the three per-line marker style bytes ([11..13], the
+  // watch's LINE_STYLES persist blob — kind | width << 2). The 7 B tuple header
+  // was already paid. Headroom 25 -> 21 B.
+  assert.equal(size, 515, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

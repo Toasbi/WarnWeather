@@ -176,6 +176,54 @@ test('third line equal to secondary is treated as off (defensive: engine exclude
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, []);
 });
 
+test('fourth line ("Third metric") bakes a third distinct trend', () => {
+  const out = buildForecastSeries(RAW,
+    { secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', windScale: 'mid', barSource: 'off' });
+  assert.deepEqual(out.FOURTH_LINE_TREND_UINT8, [0, 125, 250]); // uv tenths @110
+});
+
+test('fourth line duplicates, feels and off all bake empty (defensive: the UI excludes them)', () => {
+  const dupSec = buildForecastSeries(RAW,
+    { secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'wind', windScale: 'mid', barSource: 'off' });
+  assert.deepEqual(dupSec.FOURTH_LINE_TREND_UINT8, [], 'duplicate of the main metric');
+  const dupThird = buildForecastSeries(RAW,
+    { secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'uv', windScale: 'mid', barSource: 'off' });
+  assert.deepEqual(dupThird.FOURTH_LINE_TREND_UINT8, [], 'duplicate of the second metric');
+  // feels has no curve-inset channel on the fourth line, so a stale blob
+  // naming it must degrade to line-off rather than render misaligned.
+  const feels = buildForecastSeries(Object.assign({ feels: [10, 12, 14] }, RAW),
+    { secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'feels', windScale: 'mid', barSource: 'off' });
+  assert.deepEqual(feels.FOURTH_LINE_TREND_UINT8, [], 'feels never rides the fourth line');
+  const off = buildForecastSeries(RAW,
+    { secondaryLine: 'wind', thirdLine: 'off', windScale: 'mid', barSource: 'off' });
+  assert.deepEqual(off.FOURTH_LINE_TREND_UINT8, [], 'absent fourthLine setting bakes empty');
+});
+
+test('the fourth line ships to every platform except aplite, unknown included', () => {
+  const base = () => ({
+    TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30, NUM_ENTRIES: 3,
+    PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 5, 20],
+    WIND_TREND_UINT8: [0, 25, 50], GUST_TREND_UINT8: [0, 50, 100], UV_TREND_UINT8: [0, 55, 110]
+  });
+  const settings = { secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', windScale: 'mid', barSource: 'off' };
+  const emery = applyForecastSeries(base(), settings, { platform: 'emery' });
+  assert.deepEqual(emery.FOURTH_LINE_TREND_UINT8, [0, 125, 250]);
+  // aplite has no SERIES_FOURTH compiled — the key would only spend bundle bytes.
+  const aplite = applyForecastSeries(base(), settings, { platform: 'aplite' });
+  assert.equal('FOURTH_LINE_TREND_UINT8' in aplite, false, 'never sent to aplite');
+  // Missing watchInfo never drops a real feature (config-ui convention).
+  const unknown = applyForecastSeries(base(), settings, null);
+  assert.deepEqual(unknown.FOURTH_LINE_TREND_UINT8, [0, 125, 250]);
+});
+
+test('a uv fourth line extends the UV fetch gate', () => {
+  // statusRadarLeft defaults to the uv slot, which also opens the gate — park it
+  // on 'empty' so the delta below isolates the fourthLine term.
+  const base = { secondaryLine: 'wind', thirdLine: 'gust', statusRadarLeft: 'empty' };
+  assert.equal(needsUv(Object.assign({ fourthLine: 'uv' }, base)), true);
+  assert.equal(needsUv(Object.assign({ fourthLine: 'pressure' }, base)), false);
+});
+
 test('absent metric data → that line renders off (empty), no throw (UV via DWD fallback failure)', () => {
   const out = buildForecastSeries({ precips: [0, 50], rains: [0, 0] }, { secondaryLine: 'uv', thirdLine: 'off', barSource: 'off' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []); // no uvs → off (temperature-only degrade)

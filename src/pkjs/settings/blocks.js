@@ -86,18 +86,25 @@ if (typeof require !== 'undefined') {
         ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
         ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
     ];
-    // Main/Second metric options. The third line gets Off plus the metrics the
-    // secondary line is not using (a collision is display-snapped by the engine).
+    // Main/Second/Third metric options. The third line gets Off plus the metrics
+    // the secondary line is not using; the fourth line (UI "Third metric") gets
+    // Off plus the metrics NEITHER other line is using (a collision is
+    // display-snapped by the engine — a later pick turns the fourth line off).
     // Feels-like is dropped on aplite: the temp-axis line inset is not compiled
     // there and the temp slot's Feels/Both control is threshold-gated off aplite,
-    // so the metric would render misaligned with no companion feature.
+    // so the metric would render misaligned with no companion feature. The fourth
+    // line drops feels EVERYWHERE: it has no curve-inset channel, so a feels
+    // series there could never share the temperature axis (forecast-series.js
+    // also refuses it at bake time).
     PConf.optionsResolvers.register('forecastMetric', function (S, env, args) {
         var third = Boolean(args && args.third);
-        var out = third ? [['Off', 'off']] : [];
+        var fourth = Boolean(args && args.fourth);
+        var out = (third || fourth) ? [['Off', 'off']] : [];
         for (var i = 0; i < FORECAST_METRICS.length; i += 1) {
             var opt = FORECAST_METRICS[i];
-            if (opt[1] === 'feels' && env && env.platform === 'aplite') { continue; }
+            if (opt[1] === 'feels' && (fourth || (env && env.platform === 'aplite'))) { continue; }
             if (third && S && opt[1] === S.secondaryLine) { continue; }
+            if (fourth && S && (opt[1] === S.secondaryLine || opt[1] === S.thirdLine)) { continue; }
             out.push(opt);
         }
         return out;

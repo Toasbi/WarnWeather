@@ -119,6 +119,13 @@ typedef struct {
 // it — temp/forecast values never equal INT16_MIN.
 #define CHART_ABSENT INT16_MIN
 
+// How a LINE layer strokes its series. SOLID is the polyline (width = stroke
+// px); DOTS and X are per-slot marks aligned to the bar columns (width = mark
+// box px). The X arm is compiled out of aplite (WW_LINE_STYLE, wscript) —
+// aplite's two lines only ever carry SOLID/DOTS. Values are also the wire/persist
+// encoding's kind bits (persist.h LINE_STYLE_KIND_MASK), so never renumber.
+typedef enum { CHART_LINE_SOLID = 0, CHART_LINE_DOTS = 1, CHART_LINE_X = 2 } ChartLineStyle;
+
 typedef struct {
     const int16_t *values;            // compute points from values...
     const GPoint  *points;            // ...OR consume precomputed points
@@ -132,7 +139,8 @@ typedef struct {
                                       // sleep stripe). Equal top/bottom = a symmetric inset.
     GColor         color;
     int            width;
-    bool           dotted;            // true ⇒ stroke the line as square dots (second-metric line)
+    uint8_t        style;             // ChartLineStyle — uint8_t so the layer keeps the
+                                      // 1-byte slot the old `dotted` bool sat in
 } ChartLineLayer;
 
 typedef struct {

@@ -19,7 +19,10 @@ var statusThresholds = require('./status-thresholds.js');
  */
 function renderSignature(settings) {
     if (!settings) { return ''; }
-    var parts = [settings.secondaryLine, settings.thirdLine, settings.secondaryLineFill,
+    // fourthLine changes which series the phone bakes (and fetches — UV), so it
+    // joins; the three ...LineStyle keys are Clay-delivered styling and stay out.
+    var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine,
+        settings.secondaryLineFill,
         settings.barSource, settings.windScale, settings.pressureScale, settings.theme,
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.tempSlotDisplay, settings.axisTimeFormat,
