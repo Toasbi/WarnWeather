@@ -72,15 +72,20 @@ PLATFORM_MACRO = {'basalt': 'PBL_PLATFORM_BASALT', 'emery': 'PBL_PLATFORM_EMERY'
 # design width; less is under the 2-bit alpha's half step, which the strip could not show anyway.
 # Round strokes across the vertical -- a bowl's top and bottom, the round top of a '0' -- are
 # rounded the same way and restored the same way. Round ones across the horizontal -- a bowl's
-# left and right sides -- are not fitted at all: every point where the outline turns back in x
-# that is on no straight edge keeps its design x, so a bowl's sides shade their own edges the way
-# the curve above and below them does. Snapping them only moved them: at Emery's 62 px the
+# left and right sides -- are not fitted at all: in x only the straight edges keep their fit, and
+# every other point keeps its design x, carried along by the straight edges' own fit offsets (a
+# piecewise-linear map through them, see x_warp()), so a bowl's sides shade their own edges the
+# way the curve above and below them does. Snapping them only moved them: at Emery's 62 px the
 # hinter set the right side of Roboto's '6' down from 24.67..33.39 to 24..33 -- the whole stroke
-# 0.4-0.7 px into the counter, which then read as a narrow slot beside a fat wall. A straight edge
-# no stroke claims (a bar's end, a terminal's cut) is snapped to the nearest pixel -- inward when
-# it is the glyph's own top or bottom, so no flat edge fills a row the other digits reach only with
-# overshoot -- and each glyph is placed by its ink centroid, so the gaps between digits stay the
-# design's to within half a pixel.
+# 0.4-0.7 px into the counter, which then read as a narrow slot beside a fat wall. Taking the
+# design x as is would not do either: a straight edge sits up to 3/4 px off its design x, so a
+# stroke with one side on it and the other free -- the diagonal under the bar of Bitham's '7' --
+# would change width by that much; carried by the map, it moves with its edge. A straight edge
+# no stroke claims (a bar's end, a terminal's cut) is snapped to the nearest pixel -- in x, the
+# pixel nearest where the map carries it, since the hinter drags a terminal along with the curve
+# it ends; in y, inward when it is the glyph's own top or bottom, so no flat edge fills a row the
+# other digits reach only with overshoot -- and each glyph is placed by its ink centroid, so the
+# gaps between digits stay the design's to within half a pixel.
 HINT_FLAGS = freetype.FT_LOAD_TARGET_MONO | freetype.FT_LOAD_FORCE_AUTOHINT | freetype.FT_LOAD_NO_BITMAP
 DESIGN_FLAGS = freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP
 SLIVER = 10     # 26.6 units, ~1/6 px
@@ -373,6 +378,28 @@ def interpolate(P, ends, k, delta):
     return d
 
 
+def x_warp(U, fixed):
+    """The map from design x to fitted x that the straight edges set: fixed holds each straight
+    edge point's fitted x by point index. Between two edges' design x it runs linearly from one's
+    fit offset to the other's, and beyond the outermost it keeps that edge's offset -- so a glyph
+    with one straight edge moves rigidly with it, and one with none keeps its design x."""
+    at = {}
+    for i, f in fixed.items():
+        at.setdefault(U[i][0], []).append(f - U[i][0])
+    knots = sorted((u, sum(v) / float(len(v))) for u, v in at.items())
+
+    def warp(x):
+        if not knots:
+            return x
+        if x <= knots[0][0]:
+            return x + knots[0][1]
+        for (u1, s1), (u2, s2) in zip(knots, knots[1:]):
+            if x <= u2:
+                return x + s1 + (x - u1) * (s2 - s1) / float(u2 - u1)
+        return x + knots[-1][1]
+    return warp
+
+
 def fit_glyph(face, ch):
     """Load ch grid-fitted with its thinned strokes restored into face.glyph, rendered in 8-bit
     grey. Returns the advance: the unhinted one rounded, as LIGHT gave it (the hinter's own may
@@ -398,40 +425,53 @@ def fit_glyph(face, ch):
     moves = restored_widths(U, H, strokes)
     # A straight edge no stroke claims -- a bar's end, a terminal's cut -- is a weak edge to the
     # hinter, left wherever its neighbours put it, often between pixels: snap it to the nearest
-    # pixel so it draws crisp. A horizontal one that is the glyph's own top or bottom snaps
+    # pixel so it draws crisp (a vertical one below, with the x map). A horizontal one that is the glyph's own top or bottom snaps
     # inward instead: rounding it out would fill a solid row that the other digits reach only
     # with a round's faint overshoot (Emery Roboto's '6' terminal stood a pixel above every
     # other digit in a B&W theme).
     paired = set(id(e) for _k, a, b in strokes for e in (a, b))
     ylo, yhi = min(p[1] for p in H), max(p[1] for p in H)
     for e in edges:
-        at = set(H[i][e['k']] for i in e['idx'])
-        if id(e) not in paired and len(at) == 1:
+        at = set(H[i][1] for i in e['idx'])
+        if e['k'] == 1 and id(e) not in paired and len(at) == 1:
             h = at.pop()
-            top, bottom = e['k'] == 1 and h >= yhi, e['k'] == 1 and h <= ylo
+            top, bottom = h >= yhi, h <= ylo
             snapped = h // 64 * 64 if top else -(-h // 64) * 64 if bottom else (h + 32) // 64 * 64
             moves[id(e)] = snapped - h
-    straight_x = set(i for e in edges if e['k'] == 0 for i in e['idx'])
-    for k in (0, 1):
-        # every straight edge, round extreme and corner moves by its stroke's correction (most by
-        # none): they anchor the interpolation of the points between them
-        delta = dict((i, 0) for i in extremes(U, tags, ends, k))
-        for e in edges + rounds:
-            if e['k'] == k:
+    # x: the stems, and every straight edge the hinter put on the grid, keep their fit and set the
+    # map (x_warp) that carries every other point -- a bowl's side, a curve's or a diagonal's end,
+    # and all between -- from its design x. A vertical weak edge snaps to the pixel nearest where
+    # that map carries it, not where the hinter left it: the hinter drags a terminal along with
+    # the curve it ends, and that curve no longer goes there (Emery Roboto's '6' had its top
+    # terminal at 26.2 for a design 26.73; snapped to 26, it pulled the bowl beneath it 0.7 px
+    # into the counter again).
+    fixed, weak = {}, []
+    for e in edges:
+        if e['k'] == 0:
+            if id(e) in paired or all(H[i][0] % 64 == 0 for i in e['idx']):
                 for i in e['idx']:
-                    delta[i] = moves.get(id(e), 0)
-        if k == 0:
-            # ...except that in x only the straight edges (stems, bar ends) stay fitted: every
-            # other turn -- a bowl's side, a curve's or a diagonal's end -- goes back to its design x
-            for i in delta:
-                if i not in straight_x:
-                    delta[i] = U[i][0] - H[i][0]
-        d = interpolate(H, ends, k, delta)
-        for i in range(len(H)):
-            if k == 0:
-                points[i].x = H[i][0] + int(round(d[i]))
+                    fixed[i] = H[i][0] + moves.get(id(e), 0)
             else:
-                points[i].y = H[i][1] + int(round(d[i]))
+                weak.append(e)
+    grid = x_warp(U, fixed)
+    for e in weak:
+        u = sum(U[i][0] for i in e['idx']) / float(len(e['idx']))
+        snapped = (int(round(grid(u))) + 32) // 64 * 64
+        for i in e['idx']:
+            fixed[i] = snapped
+    warp = x_warp(U, fixed)
+    for i in range(len(H)):
+        points[i].x = fixed[i] if i in fixed else int(round(warp(U[i][0])))
+    # y: every straight edge, round extreme and corner moves by its stroke's correction (most by
+    # none): they anchor the interpolation of the points between them
+    delta = dict((i, 0) for i in extremes(U, tags, ends, 1))
+    for e in edges + rounds:
+        if e['k'] == 1:
+            for i in e['idx']:
+                delta[i] = moves.get(id(e), 0)
+    d = interpolate(H, ends, 1, delta)
+    for i in range(len(H)):
+        points[i].y = H[i][1] + int(round(d[i]))
     face.glyph.render(freetype.FT_RENDER_MODE_NORMAL)
     return adv
 
