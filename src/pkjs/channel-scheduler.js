@@ -36,6 +36,14 @@ function createChannelScheduler(deps) {
     var pendingClaySend = false;
     // Watch reported no/stale forecast (replaces app.pendingStartupFetch).
     var pendingStartupFetch = false;
+    // The auto theme id the watch was last sent (or is being sent); null means
+    // unknown (fresh PKJS session, or the last send carrying it NACKed), so the
+    // next tick attempts one flip send — the content-deduping outbox turns it
+    // into a no-op unless the watch really is behind (e.g. PKJS restarted across
+    // a sunset). A startup Clay send claims it BEFORE sending (claimThemeStamp):
+    // the outbox only knows a payload once it is ACKed, so it cannot dedupe the
+    // first tick's send against one still in flight.
+    var lastEffectiveTheme = null;
 
     /**
      * Today's local-day stamp (year-month-date) for detecting a day rollover.
@@ -69,6 +77,32 @@ function createChannelScheduler(deps) {
     }
 
     /**
+     * Record the auto theme a startup Clay send carries (sendClaySettings builds
+     * from the effective settings at call time), right before that send. The
+     * first tick runs synchronously after onReady, before any ACK can arrive, so
+     * an ACK-time stamp would come too late and the flip path would push an
+     * identical Clay back-to-back with the in-flight one.
+     *
+     * @returns {void}
+     */
+    function claimThemeStamp() {
+        lastEffectiveTheme = (typeof deps.effectiveThemeId === 'function')
+            ? deps.effectiveThemeId() : null;
+    }
+
+    /**
+     * NACK side of a startup Clay send: forget the claimed theme stamp (so the
+     * flip path retries, re-delivering the settings the watch never got), then
+     * still run the startup fetch the send was holding back.
+     *
+     * @returns {void}
+     */
+    function onStartupClayNack() {
+        lastEffectiveTheme = null;
+        drainPendingStartupFetch();
+    }
+
+    /**
      * Run the weather fetch queued by the watch's startup state, if any.
      *
      * @returns {void}
@@ -94,10 +128,12 @@ function createChannelScheduler(deps) {
         }
         if (pendingClaySend) {
             pendingClaySend = false;
-            // This handshake Clay carries today's HOLIDAYS mask, so stamp the day
-            // to stop the first-tick day-change resend from colliding with it.
+            // This handshake Clay carries today's HOLIDAYS mask and the auto
+            // theme, so stamp both to stop the first tick's day-change and flip
+            // resends from colliding with it.
             markHolidayDaySent();
-            deps.sendClay(drainPendingStartupFetch, drainPendingStartupFetch);
+            claimThemeStamp();
+            deps.sendClay(drainPendingStartupFetch, onStartupClayNack);
             return;
         }
         drainPendingStartupFetch();
@@ -142,15 +178,16 @@ function createChannelScheduler(deps) {
         if (opts.migrationClayRequired) {
             // The migration Clay send covers any Clay queued by the handshake;
             // chain the startup fetch to keep the channel half-duplex. This Clay
-            // also carries today's HOLIDAYS mask, so stamp the day.
+            // also carries today's HOLIDAYS mask and the auto theme, so stamp both.
             pendingClaySend = false;
             markHolidayDaySent();
+            claimThemeStamp();
             deps.sendClay(function () {
                 if (typeof opts.onClayAck === 'function') {
                     opts.onClayAck();
                 }
                 drainPendingStartupFetch();
-            }, drainPendingStartupFetch);
+            }, onStartupClayNack);
             return;
         }
         drainPendingStartupSends();
@@ -193,12 +230,6 @@ function createChannelScheduler(deps) {
         }
         deps.sendClay(afterClay, afterClay);
     }
-
-    // The auto theme id in effect at the last flip check; null means unknown
-    // (fresh PKJS session, or the last flip send NACKed), so the next tick
-    // attempts one send — the content-deduping outbox turns it into a no-op
-    // unless the watch really is behind (e.g. PKJS restarted across a sunset).
-    var lastEffectiveTheme = null;
 
     /**
      * Resend Clay (which carries the HOLIDAYS mask) once per local-day change so

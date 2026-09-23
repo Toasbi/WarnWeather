@@ -485,3 +485,53 @@ test('holiday data: an ACKed resend keeps today stamped (no extra tick send)', f
     h.flushTimers();
     assert.equal(h.calls.sendClay.length, 1, 'no retry after an ACK');
 });
+
+// --- theme flip vs the startup Clay send ------------------------------------
+// index.js calls onReady() and then start() in the same turn, and start() runs the
+// first tick synchronously — before any ACK. The outbox commits its last-sent cache
+// only on ACK, so it cannot dedupe the first tick's flip send against a startup
+// Clay still in flight: without the startup send claiming the flip stamp, a
+// Theme-switching user gets two identical Clay messages back-to-back on the
+// half-duplex channel.
+
+test('theme flip: a migration Clay at startup is not doubled by the first tick', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.themeId.value = 'dark';
+    h.scheduler.onReady({ migrationClayRequired: true });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1, 'one Clay in flight, not two');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 1, 'and the ACK leaves nothing to flip-send');
+    h.themeId.value = 'light';
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'a real flip later still sends');
+});
+
+test('theme flip: a handshake Clay (watch has no config) is not doubled by the first tick', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.themeId.value = 'dark';
+    h.scheduler.onWatchStatus({ hasConfig: false, hasForecast: true });
+    h.scheduler.onReady({ migrationClayRequired: false });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1, 'one Clay in flight, not two');
+});
+
+test('theme flip: a NACKed startup Clay is retried by the flip path and still drains the fetch', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.themeId.value = 'dark';
+    h.scheduler.onWatchStatus({ hasConfig: true, hasForecast: false });
+    h.scheduler.onReady({ migrationClayRequired: true });
+    h.scheduler.start();
+    assert.equal(h.calls.sendClay.length, 1);
+    h.nackClay();
+    assert.deepEqual(h.calls.startFetch, [true], 'the NACK still drains the startup fetch');
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'the forgotten stamp lets the flip path resend');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 2, 'and the ACK ends it');
+});
