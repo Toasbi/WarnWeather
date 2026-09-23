@@ -46,7 +46,17 @@ function fetchRadarJson(opts, interpret, callback) {
             callback(null);
             return;
         }
-        callback(interpret(body));
+        // Radar is best-effort: an interpret throw preserves the watch's radar
+        // like any other bad response, rather than stranding the fetch chain.
+        var tuples;
+        try {
+            tuples = interpret(body);
+        }
+        catch (exInterpret) {
+            console.log('[!] ' + opts.label + ' radar: response interpret error: ' + exInterpret.message);
+            tuples = null;
+        }
+        callback(tuples);
     }, function (error) {
         if (opts.onTransportError && opts.onTransportError(error, callback)) { return; }
         console.log('[!] ' + opts.label + ' radar fetch failed: ' + JSON.stringify(error));

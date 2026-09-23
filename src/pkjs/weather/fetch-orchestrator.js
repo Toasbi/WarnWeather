@@ -15,16 +15,25 @@
  *   undefined on a coordinate failure (no radar was fetched).
  * @param {boolean} deps.force Whether to force a provider refetch.
  * @param {Function} [deps.payloadTransform] Optional payload transform.
+ * @param {function(): boolean} [deps.isCurrent] False once the caller gave up on
+ *   this cycle (its watchdog fired): the rest of the chain then stops instead of
+ *   spending requests and sending a stale payload.
  * @returns {void}
  */
 function runFetchCycle(deps) {
     deps.provider.withCoordinates(function(lat, lon) {
+        // A fix that arrives after the caller abandoned the cycle (a geolocation
+        // callback minutes late) starts no radar/geocode/provider requests.
+        if (typeof deps.isCurrent === 'function' && !deps.isCurrent()) {
+            console.log('Dropping coordinates for an abandoned weather fetch.');
+            return;
+        }
         deps.fetchRadar(lat, lon, function(radarTuples) {
             var extras = deps.buildExtras(radarTuples);
             deps.provider.fetchWithCoordinates(
                 lat, lon, deps.onSuccess,
                 function(failure) { deps.onFailure(failure, radarTuples); },
-                deps.force, extras, deps.payloadTransform
+                deps.force, extras, deps.payloadTransform, deps.isCurrent
             );
         });
     }, function(coordinateFailure) {

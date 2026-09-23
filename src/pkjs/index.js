@@ -61,6 +61,7 @@ var releaseNotificationsManifest = loadReleaseNotificationsManifest();
 /**
  * @type {{
  *     fetchInProgress: boolean,
+ *     pendingForcedFetch: boolean,
  *     lastIsSleeping?: boolean,
  *     settings?: Object,
  *     telemetry?: Object,
@@ -85,10 +86,13 @@ var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_NOTICES = storageKeys.NOTICES_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
-// How long a forced fetch waits out an in-flight fetch before retrying. Long
-// enough to clear the common case (a fetch already past its requests), short
-// enough that a settings change still feels immediate.
-var FORCED_RETRY_MS = 3000;
+// How long an in-flight weather fetch may run before it is presumed lost. A
+// healthy chain is bounded by its own timeouts — GPS 10 s, then the radar,
+// geocode, provider and UV/AQI/pollen XHRs at 5 s each, then the AppMessage
+// ACK — so one still running after this long had a callback that threw or
+// never came back, and its in-progress flag would otherwise block every later
+// fetch until PKJS restarts.
+var FETCH_WATCHDOG_MS = 2 * 60 * 1000;
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
@@ -100,6 +104,9 @@ var DEFAULT_COLOR_BLUE_MOON = pebbleColors.GColorBlueMoon;
 var DEFAULT_HOLIDAY_COLORS = { white: DEFAULT_COLOR_WHITE, folly: DEFAULT_COLOR_FOLLY, holiday: DEFAULT_COLOR_BLUE_MOON };
 
 app.fetchInProgress = false;
+// A forced fetch that arrived while another fetch was in flight; it runs once
+// that one settles (see fetch()).
+app.pendingForcedFetch = false;
 
 (function initLastIsSleeping() {
     var raw = localStorage.getItem(KEY_LAST_IS_SLEEPING);
@@ -860,9 +867,14 @@ function buildWeatherExtras(radarTuples) {
 }
 
 /**
+ * Run one weather fetch cycle unless one is already in flight (a forced fetch
+ * is then queued to run once that one settles). Each fetch completes exactly
+ * once: success, failure, or abandonment by the FETCH_WATCHDOG_MS watchdog.
+ *
  * @typedef {import("./weather/provider")} WeatherProvider
  * @param {WeatherProvider} provider
  * @param {boolean} force
+ * @returns {void}
  */
 function fetch(provider, force) {
     if (!isWatchConnected()) {
@@ -878,10 +890,12 @@ function fetch(provider, force) {
         if (force) {
             // Don't drop a forced fetch: the in-flight one closed over the PREVIOUS
             // provider, so it can't satisfy a force triggered by a provider or
-            // location change — its result would be the old provider's data. The
-            // in-flight fetch is bounded by the XHR/GPS timeouts, so retry shortly
-            // rather than leaving the change until the next scheduled fetch.
-            setTimeout(function () { fetch(app.provider, true); }, FORCED_RETRY_MS);
+            // location change — its result would be the old provider's data.
+            // Queue ONE forced refetch for when the in-flight fetch settles (or
+            // its watchdog gives up on it). This used to re-poll every 3 s, and a
+            // fetch whose callback never came back kept that loop — one per
+            // forced fetch — spinning until PKJS restarted.
+            app.pendingForcedFetch = true;
         }
         return;
     }
@@ -919,7 +933,6 @@ function fetch(provider, force) {
     }
 
     console.log('Fetching from ' + provider.name);
-    app.fetchInProgress = true;
     // Tell providers whether to spend a request on UV (DWD/Open-Meteo fallback).
     provider.fetchUv = forecastSeries.needsUv(app.settings);
     provider.fetchAqi = forecastSeries.needsAqi(app.settings);
@@ -934,18 +947,53 @@ function fetch(provider, force) {
     provider.aqiScale = (app.settings && app.settings.aqiScale) || 'european';
     provider.aqiSource = (app.settings && app.settings.aqiSource) || 'waqi';
     provider.aqicnToken = (pkg.waqi && pkg.waqi.token) || '';
+    app.fetchInProgress = true;
+    // This fetch's once-guard: set by the first of success, failure or the
+    // watchdog, after which every later completion from this fetch is a no-op.
+    var settled = false;
     var fetchStart = Date.now();
-    var attempt = incrementFetchAttemptCounter();
+    var attempt = null;
     var fetchStatus = {
         time: new Date(),
         id: provider.id,
         name: provider.name
     };
-    localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(fetchStatus));
+
+    /**
+     * Claim this fetch's single completion: clear the in-progress flag and run
+     * a forced fetch that queued up behind this one.
+     *
+     * @returns {boolean} True for the first completion, false for any later one.
+     */
+    function settle() {
+        if (settled) {
+            console.log('Ignoring a late completion from an already-finished weather fetch.');
+            return false;
+        }
+        settled = true;
+        app.fetchInProgress = false;
+        if (app.pendingForcedFetch) {
+            app.pendingForcedFetch = false;
+            // Off this callback's stack; re-reads app.provider, which a settings
+            // change may have replaced while this fetch was in flight.
+            setTimeout(function () { fetch(app.provider, true); }, 0);
+        }
+        return true;
+    }
+
+    /**
+     * Whether this fetch may still deliver: false once it settled, so a chain
+     * the watchdog abandoned never puts its stale payload on the channel.
+     *
+     * @returns {boolean} True while this fetch is the live one.
+     */
+    function isCurrent() {
+        return !settled;
+    }
 
     function onFetchSuccess() {
+        if (!settle()) { return; }
         // Success: record the fetch time and reset the attempt counter.
-        app.fetchInProgress = false;
         localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
         resetFetchAttemptCounter();
         authBackoff.clear();
@@ -967,7 +1015,7 @@ function fetch(provider, force) {
      * @returns {void}
      */
     function onFetchFailure(failure, radarTuples) {
-        app.fetchInProgress = false;
+        if (!settle()) { return; }
         console.log('[!] Provider failed to update weather: ' + JSON.stringify(failure));
         // A 401/403 won't recover on its own — set the backoff so we stop
         // re-fetching a doomed key every cycle until the user forces a retry.
@@ -1024,7 +1072,20 @@ function fetch(provider, force) {
         return forecastSeries.applyForecastSeries(payload, app.settings, app.watchInfo);
     }
 
+    // Watchdog: the chain is asynchronous, so a callback that throws — or a
+    // platform call that never answers, like a silent geolocation — escapes the
+    // try below and never reaches either completion. Give up on it after
+    // FETCH_WATCHDOG_MS and report it as a failure.
+    setTimeout(function () {
+        if (!settled) {
+            console.log('[!] Weather fetch still unfinished after ' + (FETCH_WATCHDOG_MS / 1000) + ' s, abandoning it.');
+            onFetchFailure(WeatherProvider.failure('fetch', 'watchdog_timeout'));
+        }
+    }, FETCH_WATCHDOG_MS);
+
     try {
+        attempt = incrementFetchAttemptCounter();
+        localStorage.setItem(KEY_LAST_FETCH_ATTEMPT, JSON.stringify(fetchStatus));
         runFetchCycle({
             provider: provider,
             fetchRadar: withRainRadarTuplesAt,
@@ -1032,12 +1093,14 @@ function fetch(provider, force) {
             onSuccess: onFetchSuccess,
             onFailure: onFetchFailure,
             force: force,
-            payloadTransform: toRenderPayload
+            payloadTransform: toRenderPayload,
+            isCurrent: isCurrent
         });
     }
     catch (e) {
-        app.fetchInProgress = false;
+        // Once-guarded: a throw after this fetch already completed is ignored.
         console.log('Weather fetch threw synchronously: ' + e.message);
+        onFetchFailure(WeatherProvider.failure('fetch', 'exception'));
     }
 }
 

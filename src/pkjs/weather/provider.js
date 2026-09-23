@@ -550,9 +550,11 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
  * @param {boolean} force Whether this is a forced refresh.
  * @param {Object} extraPayload Extra AppMessage tuples (radar/sleep) to merge.
  * @param {Function} [payloadTransform] Optional PKJS render transform.
+ * @param {function(): boolean} [isCurrent] False once the caller abandoned this
+ *   fetch; the composed payload is then dropped instead of sent.
  * @returns {void}
  */
-WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform) {
+WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform, isCurrent) {
     // Note: withCoordinates() already reset usedGpsCache/gpsErrorCode/locationMode/countryCode
     // for this cycle; this method relies on those resets having already happened.
     this.withCityName(lat, lon, (function(cityName, countryCode) {
@@ -581,11 +583,30 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 airQuality.fetchAqiInto(this, lat, lon, function() {
                     self.pollenToday = null;
                     pollen.fetchPollenInto(self, lat, lon, function() {
+                        // This runs inside an XHR callback: a throw here would
+                        // escape every try and leave the fetch unfinished, so it
+                        // is reported as a failure instead.
+                        var payload;
+                        try {
+                            payload = self.composeWeatherPayload(extraPayload, payloadTransform);
+                        }
+                        catch (exCompose) {
+                            console.log('[!] Composing the weather payload threw: ' + exCompose.message);
+                            onFailure(failure('compose', 'exception'));
+                            return;
+                        }
+                        // A fetch its caller already gave up on must not put its
+                        // stale payload on the half-duplex channel, where a newer
+                        // fetch may be sending.
+                        if (typeof isCurrent === 'function' && !isCurrent()) {
+                            console.log('Dropping the payload of an abandoned weather fetch.');
+                            return;
+                        }
                         // The outbox sends only the categories that changed since
                         // the last ACKed message — possibly nothing, which still
                         // counts as a successful fetch.
                         outbox.sendWeather(
-                            self.composeWeatherPayload(extraPayload, payloadTransform),
+                            payload,
                             function() {
                                 console.log('Weather info sent to Pebble successfully!');
                                 onSuccess();
@@ -790,7 +811,15 @@ WeatherProvider.requestMapped = function(opts, onMapped, onFailure) {
             onFailure(failure('provider_data', opts.id + '_parse_error'));
             return;
         }
-        mapped = opts.map(json);
+        // Mapping runs inside the XHR callback; a throw would strand the fetch.
+        try {
+            mapped = opts.map(json);
+        }
+        catch (exMap) {
+            console.log('[!] ' + (opts.label || opts.id) + ' response mapping threw: ' + exMap.message);
+            onFailure(failure('provider_data', opts.id + '_map_error'));
+            return;
+        }
         if (mapped === null) {
             onFailure(failure('provider_data', opts.id + '_missing_fields'));
             return;
