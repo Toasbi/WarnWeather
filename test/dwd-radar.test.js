@@ -85,7 +85,7 @@ test('out-of-coverage (radar: []) ships 24 zeros with slotZeroEpoch (not a failu
   assert.equal(out.RAIN_RADAR_START, SLOT0);
 });
 
-test('transient request failure (onError) -> callback(null) preserves the watch radar', () => {
+test('transient request failure (onError) -> callback(null): no radar keys in this send', () => {
   responder = function(url, type, onSuccess, onError) { onError({ code: 'status_502' }); };
   let out = 'unset';
   fetchTuples(function(t) { out = t; });

@@ -389,10 +389,14 @@ bool rain_radar_layer_tick(time_t now) {
     // PKJS fetches on an aligned grid (index.js shouldFetch): the boundary that
     // should have delivered the current frame is floor(now/interval)*interval.
     // If the persisted window already starts there the real fetch landed, and
-    // between grid boundaries no fetch was due — so we hold. The watch only
-    // stands in for a fetch PKJS *skipped* (deduped), and a skip means PKJS
-    // already validated the freshly-revealed tail slots are dry, so zero-padding
-    // them on advance is correct.
+    // between grid boundaries no fetch was due — so we hold. The watch stands in
+    // for a fetch PKJS *skipped* (deduped): a skip means PKJS validated the
+    // freshly-revealed tail slots are dry, so zero-padding them is correct.
+    // CAVEAT: a TRANSIENT radar failure (PKJS radar callback null — 429, 5xx,
+    // no mobile data) also leaves the radar keys out, and we cannot tell it
+    // from a skip, so the padded tail is unverified until the next real window.
+    // Permanent failures (no key/endpoint, rejected key) don't reach here: PKJS
+    // sends the empty-array clear instead, whose start 0 returns early above.
     const time_t grid = (now / interval_sec) * interval_sec;
     if (start >= grid) {
         return false;  // current grid fetch already applied; no boundary to cover

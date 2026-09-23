@@ -194,7 +194,8 @@ function sampleFrame(frame, xy, hasXy) {
  * Fetch 2-hour DWD rain-radar tuples for pre-resolved coordinates — the one
  * seam every radar source exports (radar-factory). Coordinates come from the
  * single per-cycle acquisition in the orchestrator. A parse/transport failure
- * or missing fields calls back null (preserves the watch's existing radar);
+ * or missing fields calls back null (transient: the watch keeps and
+ * self-advances its last window — see radar-fetch.js);
  * an out-of-coverage answer ships the flat 24-zero signal.
  *
  * @param {number} lat Latitude in decimal degrees.

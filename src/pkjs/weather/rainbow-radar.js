@@ -77,22 +77,26 @@ function resampleForecast(forecast, slotZeroEpoch) {
  * ("nearby") array is always 24 zeros — the watch renderer skips zero-area
  * runs and the dedupe comparator checks both arrays (see radar-dedupe.js).
  *
- * @param {string} endpoint Proxy URL; '' (endpoint-less build) fails soft.
+ * @param {string} endpoint Proxy URL; '' (endpoint-less build) clears the
+ *   watch's radar.
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {number} slotZeroEpoch The 5-min pinned slot-0 epoch.
- * @param {Function} callback Receives the radar tuples object, or null on
- *   failure (null preserves the watch's existing radar).
+ * @param {Function} callback Receives the radar tuples object, or null on a
+ *   transient failure (the radar keys stay out of this send; the watch keeps
+ *   and self-advances its last window).
  * @returns {void}
  */
 function fetchRadarTuplesAt(endpoint, lat, lon, slotZeroEpoch, callback) {
     if (!endpoint) {
         // Rainbow is selected but this build carries no proxy endpoint (a dev
         // build or fork without RAINBOW_PROXY_ENDPOINT; production always sets
-        // it). Warn on this fetch and fail soft — callback(null) preserves the
-        // watch's existing radar. One log per fetch is fine; no persistent latch.
-        console.log('[!] Rainbow radar selected but this build has no proxy endpoint (RAINBOW_PROXY_ENDPOINT unset) — skipping radar fetch');
-        callback(null);
+        // it). That never heals within this build, so clear the watch's radar
+        // rather than callback(null): a null would leave the watch rolling its
+        // last window forward into a made-up "No rain ahead". The outbox
+        // dedupe sends the clear once. One log per fetch is fine; no latch.
+        console.log('[!] Rainbow radar selected but this build has no proxy endpoint (RAINBOW_PROXY_ENDPOINT unset) — clearing the watch radar');
+        callback(radarWire.clearRadarTuples());
         return;
     }
     radarFetch.fetchRadarJson({

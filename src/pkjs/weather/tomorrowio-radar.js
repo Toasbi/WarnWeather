@@ -45,14 +45,32 @@ function mapFrames(intervals) {
 }
 
 /**
+ * Whether a transport error is tomorrow.io rejecting the KEY (HTTP 401/403): an
+ * invalid, revoked or unauthorised key that no retry will fix. Rate limits
+ * (429) and server errors (5xx) are transient and stay out of this.
+ *
+ * @param {Object} error Transport failure ({code: 'status_<http>', ...}).
+ * @returns {boolean} True for a 401/403 key rejection.
+ */
+function isKeyRejection(error) {
+    return Boolean(error) && (error.code === 'status_401' || error.code === 'status_403');
+}
+
+/**
  * Fetch 2-hour tomorrow.io rain-nowcast tuples for pre-resolved coordinates.
  * Single-point product, so the area ("nearby") array is always 24 zeros
  * (Rainbow/Met.no convention). tomorrow.io is global — there is no
- * out-of-coverage clear path; ANY failure (missing key, parse, HTTP error
- * incl. 429/quota, empty frames) soft-fails with callback(null), preserving
- * the watch's existing radar.
+ * out-of-coverage path. Failures split by whether they can heal on their own:
+ * - PERMANENT (no key set, or a 401/403 key rejection): clearRadarTuples(),
+ *   which takes the radar off the watch. A null would leave the watch rolling
+ *   its last window forward and zero-filling the tail, which ends in a
+ *   confident "No rain ahead" nothing ever reported. The outbox dedupe sends
+ *   the clear once; entering a key forces a fetch that sends a fresh window.
+ * - TRANSIENT (parse error, 429/quota, 5xx, network, empty frames):
+ *   callback(null) — the radar keys stay out of this send and the watch keeps
+ *   (and self-advances) its last window.
  *
- * @param {string} apiKey tomorrow.io API key ('' fails soft).
+ * @param {string} apiKey tomorrow.io API key ('' clears the watch's radar).
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {number} slotZeroEpoch The 5-min pinned slot-0 epoch.
@@ -63,13 +81,19 @@ function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
     // Paste whitespace trimmed, as the forecast provider and the Test button do.
     apiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
     if (!apiKey) {
-        console.log('[!] Tomorrow.io radar selected but no API key is set — skipping radar fetch');
-        callback(null);
+        console.log('[!] Tomorrow.io radar selected but no API key is set — clearing the watch radar');
+        callback(radarWire.clearRadarTuples());
         return;
     }
     radarFetch.fetchRadarJson({
         url: buildNowcastUrl(apiKey, lat, lon, slotZeroEpoch),
-        label: 'Tomorrow.io'
+        label: 'Tomorrow.io',
+        onTransportError: function (error, cb) {
+            if (!isKeyRejection(error)) { return false; }
+            console.log('[!] Tomorrow.io radar: key rejected (' + error.code + ') — clearing the watch radar');
+            cb(radarWire.clearRadarTuples());
+            return true;
+        }
     }, function (body) {
         var timelines = body && body.data && body.data.timelines;
         var intervals = (Array.isArray(timelines) && timelines[0] && Array.isArray(timelines[0].intervals))

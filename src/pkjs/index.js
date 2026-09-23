@@ -804,9 +804,10 @@ function isWatchConnected() {
 
 /**
  * Fetch rain-radar tuples for already-resolved coordinates (single per-cycle
- * acquisition). On any failure calls `callback(null)`; the weather payload still
- * ships without radar tuples. Out-of-coverage produces zero arrays, shipped
- * normally.
+ * acquisition). A transient failure calls `callback(null)`; the weather payload
+ * still ships without radar tuples. A permanent one (missing key/endpoint,
+ * rejected key) calls back the clearing tuples. Out-of-coverage produces zero
+ * arrays, shipped normally.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
@@ -822,8 +823,9 @@ function withRainRadarTuplesAt(lat, lon, callback) {
         // adapter; any non-off mode fetches the full trend (countdown needs it).
         (app.settings.radarMode || 'graph') === 'off' ? 'disabled' : app.settings.radarProvider,
         // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
-        // adapter then fails soft (callback(null)). tomorrowioApiKey is the
-        // user's key from settings; '' likewise fails soft in the adapter.
+        // adapter then clears the watch's radar (it can never answer).
+        // tomorrowioApiKey is the user's key from settings; '' likewise
+        // clears in the adapter.
         {
             rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || '',
             tomorrowioApiKey: (app.settings && app.settings.tomorrowioApiKey) || ''

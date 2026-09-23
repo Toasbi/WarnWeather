@@ -6,8 +6,12 @@
 //
 //   fetchRadarTuplesAt(lat, lon, slotZeroEpoch, cb)
 //
-// where cb receives radar tuples, or null to preserve the watch's existing
-// radar (a transient source failure). Per-source config (e.g. the Rainbow
+// where cb receives radar tuples, or null for a TRANSIENT source failure (the
+// radar keys stay out of the send; the watch keeps its last window and
+// self-advances it as for a dedupe skip). A failure that cannot heal on its
+// own (missing key/endpoint, rejected key) answers clearRadarTuples() instead,
+// so the watch drops the radar rather than rolling it into a made-up
+// "No rain ahead" — see radar-fetch.js. Per-source config (e.g. the Rainbow
 // proxy endpoint) is bound at construction via cfg. 'disabled' is a real
 // registered adapter that clears the watch's radar -- no special case -- and any
 // unknown/unset id falls back to it (today's default-off behavior). Adding a
@@ -69,7 +73,7 @@ function isKnownRadarSource(radarId) {
  * @param {string} radarId Clay radarProvider id ('dwd', 'metno', 'rainbow', 'tomorrowio', 'disabled').
  * @param {Object} cfg Per-source config.
  * @param {string} cfg.rainbowEndpoint Rainbow proxy URL ('' when the build carries none).
- * @param {string} cfg.tomorrowioApiKey tomorrow.io API key ('' when unset; the adapter fails soft).
+ * @param {string} cfg.tomorrowioApiKey tomorrow.io API key ('' when unset; the adapter clears the watch's radar).
  * @returns {{fetchRadarTuplesAt: Function}} Radar-source adapter satisfying the seam.
  */
 function createRadarSource(radarId, cfg) {

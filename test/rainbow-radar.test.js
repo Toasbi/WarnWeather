@@ -105,7 +105,10 @@ test('area array is always 24 zeros (a point provider has no nearby signal)', ()
   assert.deepEqual(out.RAIN_RADAR_TREND_AREA_UINT8, zeros());
 });
 
-test('empty endpoint → one warning + callback(null), no network', () => {
+test('empty endpoint → one warning + the radar CLEAR, no network', () => {
+  // An endpoint-less build can never answer. A null here would leave the watch
+  // self-advancing its last window into a made-up "No rain ahead"; the clear
+  // takes the radar off the watch instead (the outbox dedupe sends it once).
   let requested = false;
   responder = function() { requested = true; };
   const logs = [];
@@ -118,17 +121,20 @@ test('empty endpoint → one warning + callback(null), no network', () => {
   finally {
     console.log = origLog;
   }
-  assert.equal(out, null);
+  assert.deepEqual(out, { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 });
   assert.equal(requested, false);
   assert.equal(logs.length, 1, 'exactly one warning for this fetch (no persistent latch)');
   assert.ok(logs[0].indexOf('proxy endpoint') >= 0, 'warns about the missing endpoint');
 });
 
-test('HTTP failure → callback(null) (watch keeps its existing radar)', () => {
-  responder = function(url, type, onSuccess, onError) { onError({ code: 'status_502', detail: 'http_status' }); };
-  let out = 'unset';
-  fetchTuples(function(t) { out = t; });
-  assert.equal(out, null);
+test('HTTP failure → callback(null) (transient: the watch keeps its window)', () => {
+  // 403 included: a proxy 403 is not proof the service is gone for good.
+  ['status_502', 'status_403', 'status_429'].forEach(function(code) {
+    responder = function(url, type, onSuccess, onError) { onError({ code: code, detail: 'http_status' }); };
+    let out = 'unset';
+    fetchTuples(function(t) { out = t; });
+    assert.equal(out, null, code);
+  });
 });
 
 test('parse failure → callback(null)', () => {
