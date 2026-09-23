@@ -250,3 +250,126 @@ test('WU leaves currentFeels null when the observation has no temperatureFeelsLi
   });
   assert.equal(p.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
 });
+
+// ---- A revoked scraped key is re-scraped, once --------------------------
+// The key is scraped from wunderground.com and cached for good; when
+// weather.com rotated it, the 401 armed the indefinite auth backoff and the
+// default provider stopped updating, with an 'API key error' pointing at a key
+// field WU does not have — although dropping the key and scraping the current
+// one fixes it with no user action.
+
+/**
+ * Route WU traffic: wunderground.com embeds `liveKey`; api.weather.com
+ * answers `status` for any other key. Counts requests by kind.
+ * @param {string} liveKey The key the scraped page embeds.
+ * @param {number} [status] What api.weather.com answers a wrong key (401).
+ * @returns {{scrapes: number, api: string[]}} Live request log.
+ */
+function wuRouter(liveKey, status) {
+  var log = { scrapes: 0, api: [] };
+  var ok = respondWith([
+    { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR }
+  ], 71);
+  responder = function(url, onSuccess, onError) {
+    if (url.indexOf('www.wunderground.com') !== -1) {
+      log.scrapes += 1;
+      onSuccess('<script>var u="/v3/wx/observations/current?apiKey=' + liveKey + '&x";</script>');
+      return;
+    }
+    var key = /apiKey=([a-z0-9]*)/.exec(url)[1];
+    log.api.push(key);
+    if (key !== liveKey) {
+      onError({ code: 'status_' + (status || 401), detail: 'http_status' });
+      return;
+    }
+    ok(url, onSuccess);
+  };
+  return log;
+}
+
+/**
+ * Run one WU fetch cycle with `cachedKey` in storage (restoring the file's
+ * default seed after) and report the outcome.
+ * @param {?string} cachedKey Key cached before the cycle (null: none).
+ * @param {boolean} force Forced fetch.
+ * @returns {{ok: boolean, failures: Object[], key: ?string}} Outcome.
+ */
+function runWuCycle(cachedKey, force) {
+  var out = { ok: false, failures: [], key: null };
+  if (cachedKey === null) { delete store.wundergroundApiKey; }
+  else { store.wundergroundApiKey = cachedKey; }
+  try {
+    withMockedNow(NOW_HOUR + 800, function() {
+      new WundergroundProvider().withProviderData(0, 0, force,
+        function() { out.ok = true; },
+        function(f) { out.failures.push(f); });
+    });
+    out.key = Object.prototype.hasOwnProperty.call(store, 'wundergroundApiKey') ? store.wundergroundApiKey : null;
+  } finally {
+    store.wundergroundApiKey = 'k';
+  }
+  return out;
+}
+
+[401, 403].forEach(function(status) {
+  test('a cached WU key refused with ' + status + ' is re-scraped once and the fetch succeeds', () => {
+    var log = wuRouter('freshkey', status);
+    var out = runWuCycle('revokedkey', false);
+    assert.equal(out.ok, true, 'the cycle succeeds: ' + JSON.stringify(out.failures));
+    assert.deepEqual(out.failures, []);
+    assert.equal(log.scrapes, 1, 'one scrape');
+    assert.deepEqual(log.api, ['revokedkey', 'freshkey', 'freshkey'],
+      'refused once, then current + forecast with the fresh key');
+    assert.equal(out.key, 'freshkey', 'the fresh key is cached');
+  });
+});
+
+test('a freshly scraped key that is refused too fails as an auth failure, without looping', () => {
+  const authBackoff = require('../src/pkjs/auth-backoff.js');
+  // wunderground.com still embeds a key weather.com refuses.
+  var log = wuRouter('neverworks');
+  responder = (function(route) {
+    return function(url, onSuccess, onError) {
+      if (url.indexOf('api.weather.com') !== -1) {
+        log.api.push(/apiKey=([a-z0-9]*)/.exec(url)[1]);
+        onError({ code: 'status_401', detail: 'http_status' });
+        return;
+      }
+      route(url, onSuccess, onError);
+    };
+  }(responder));
+  var out = runWuCycle('revokedkey', false);
+  assert.equal(out.ok, false);
+  assert.equal(out.failures.length, 1, 'one failure reported');
+  assert.deepEqual(out.failures[0], { stage: 'provider_data', code: 'wu_current_status_401' });
+  assert.equal(authBackoff.isAuthFailure(out.failures[0]), true, 'the auth backoff still stops a real rejection');
+  assert.equal(log.scrapes, 1, 'exactly one re-scrape');
+  assert.deepEqual(log.api, ['revokedkey', 'neverworks']);
+});
+
+test('a forced fetch scrapes up front and does not scrape again on a refusal', () => {
+  var log = wuRouter('livekey');
+  responder = (function(route) {
+    return function(url, onSuccess, onError) {
+      if (url.indexOf('api.weather.com') !== -1) {
+        log.api.push('x');
+        onError({ code: 'status_403', detail: 'http_status' });
+        return;
+      }
+      route(url, onSuccess, onError);
+    };
+  }(responder));
+  var out = runWuCycle('oldkey', true);
+  assert.equal(out.failures.length, 1);
+  assert.equal(out.failures[0].code, 'wu_current_status_403');
+  assert.equal(log.scrapes, 1);
+  assert.equal(log.api.length, 1, 'no second attempt');
+});
+
+test('a cached WU key is kept on a failure that is not a key refusal', () => {
+  var log = wuRouter('freshkey', 500);
+  var out = runWuCycle('cachedkey', false);
+  assert.deepEqual(out.failures, [{ stage: 'provider_data', code: 'wu_current_status_500' }]);
+  assert.equal(log.scrapes, 0, 'no scrape for a server error');
+  assert.equal(out.key, 'cachedkey');
+});

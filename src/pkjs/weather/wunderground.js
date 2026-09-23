@@ -89,8 +89,12 @@ WundergroundProvider.prototype.clearApiKey = function() {
     console.log('Cleared API key');
 };
 
+// A 401/403 from api.weather.com: the key itself was refused.
+var KEY_REJECTED_PATTERN = /_status_(401|403)$/;
+
 WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
-    // callback(apiKey)
+    // callback(apiKey, scraped): scraped is true when the key was fetched from
+    // wunderground.com just now, false when it came from the cache.
 
     var apiKey = localStorage.getItem(KEYS.WU_API_KEY);
     var url = 'https://www.wunderground.com/';
@@ -111,7 +115,7 @@ WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
                 apiKey = match[1];
                 localStorage.setItem(KEYS.WU_API_KEY, apiKey);
                 console.log('Fetched Weather Underground API key: ' + apiKey);
-                callback(apiKey);
+                callback(apiKey, true);
             },
             function(error) {
                 onFailure(failure('provider_data', 'wu_api_key_' + error.code));
@@ -119,7 +123,7 @@ WundergroundProvider.prototype.withApiKey = function(callback, onFailure) {
         );
     }
     else {
-        callback(apiKey);
+        callback(apiKey, false);
     }
 };
 
@@ -134,7 +138,42 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
         this.clearApiKey();
     }
 
-    this.withApiKey((function(apiKey) {
+    this.withKeyedData(lat, lon, onSuccess, onFailure, false);
+};
+
+/**
+ * Fetch current conditions + the hourly forecast with the scraped API key.
+ *
+ * The key is scraped from wunderground.com and cached indefinitely, and
+ * weather.com rotates it. A 401/403 on a CACHED key therefore most likely
+ * means the key went stale, not that access is gone: drop it and run once
+ * more, which scrapes the current one. Without this the rejection armed the
+ * indefinite auth backoff (auth-backoff.js) and weather stopped until the
+ * user forced a fetch, although the fix needs no user action. Only one
+ * retry, and none for a key scraped this cycle: a freshly scraped key that is
+ * refused is a real rejection, and its failure passes through unchanged so
+ * the auth backoff still stops the doomed per-cycle scrape.
+ *
+ * @param {number} lat Latitude.
+ * @param {number} lon Longitude.
+ * @param {Function} onSuccess Called once provider data is populated.
+ * @param {Function} onFailure Called with a failure object on error.
+ * @param {boolean} rescraped True on the one retry after a stale key.
+ * @returns {void}
+ */
+WundergroundProvider.prototype.withKeyedData = function(lat, lon, onSuccess, onFailure, rescraped) {
+    this.withApiKey((function(apiKey, scraped) {
+        var onApiFailure = (function(apiFailure) {
+            if (!scraped && !rescraped && apiFailure && KEY_REJECTED_PATTERN.test(apiFailure.code)) {
+                console.log('Weather Underground refused the cached API key (' + apiFailure.code
+                    + '), fetching a fresh one');
+                this.clearApiKey();
+                this.withKeyedData(lat, lon, onSuccess, onFailure, true);
+                return;
+            }
+            onFailure(apiFailure);
+        }).bind(this);
+
         this.withWundergroundCurrent(lat, lon, apiKey, (function(currentTemp, currentFeels) {
             this.withWundergroundForecast(lat, lon, apiKey, (function(rawForecast) {
                 // WU's hourly feed rounds up and drops the in-progress hour;
@@ -198,8 +237,8 @@ WundergroundProvider.prototype.withProviderData = function(lat, lon, force, onSu
                 this.currentTemp = currentTemp;
                 this.currentFeels = this.fetchFeels ? currentFeels : null;
                 onSuccess();
-            }).bind(this), onFailure);
-        }).bind(this), onFailure);
+            }).bind(this), onApiFailure);
+        }).bind(this), onApiFailure);
     }).bind(this), onFailure);
 };
 
