@@ -97,7 +97,7 @@ checksum = "sha256:017bf39b852bb3db51db094eca85b71e3719a4513c5834489f5e7ffc6da5d
 url = "https://github.com/pypa/pipx/releases/download/1.14.0/pipx.pyz"
 
 [[tools."pipx:pebble-tool"]]
-version = "5.0.38"
+version = "5.0.40"
 backend = "pipx:pebble-tool"
 
 [[tools.python]]
