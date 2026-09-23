@@ -18,8 +18,8 @@ set -euo pipefail
 #
 # Usage:   scripts/assemble-showcase-gif.sh <version> <platform> [hold_secs] [fade_secs] [fps]
 # Example: scripts/assemble-showcase-gif.sh v1.6.0 basalt 1 0.35 15
-# Env:     MAX_SCENES=N  include only the first N captured scenes in the GIF (default 2;
-#                        0 = all captured scenes).
+# Env:     MAX_SCENES=N  include only the first N captured scenes in the GIF (default 0 =
+#                        all captured scenes — the README hero shows every scene).
 
 if [[ $# -lt 2 ]]; then
   printf 'Usage: %s <version> <platform> [hold_secs] [fade_secs] [fps]\n' "$0" >&2
@@ -32,13 +32,17 @@ hold="${3:-1}"
 fade="${4:-0.55}"
 fps="${5:-15}"
 # Cap how many of the captured scenes land in the GIF (first N by scene id). All scenes
-# are still captured by capture-showcase.sh; this only trims what the GIF shows. Set
-# MAX_SCENES=0 to include every captured scene.
-max_scenes="${MAX_SCENES:-2}"
+# are still captured by capture-showcase.sh; this only trims what the GIF shows. The
+# default 0 includes every captured scene.
+max_scenes="${MAX_SCENES:-0}"
 # Drop specific scene ids from this platform's GIF (space- or comma-separated), applied
 # before the MAX_SCENES cap. aplite has no PBL_HEALTH, so the health-graph scene (5)
-# renders degraded — exclude it there: EXCLUDE_SCENES="5" ... aplite.
-exclude_scenes="${EXCLUDE_SCENES:-}"
+# renders degraded — so aplite excludes it by default (override with EXCLUDE_SCENES="").
+if [[ "$platform" == "aplite" ]]; then
+  exclude_scenes="${EXCLUDE_SCENES-5}"
+else
+  exclude_scenes="${EXCLUDE_SCENES:-}"
+fi
 
 frames_dir="screenshot/$version/showcase/frames/$platform"
 out_dir="screenshot/$version/showcase"
