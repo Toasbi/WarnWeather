@@ -822,14 +822,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /**
      * Commit the inline scale-max field (focusout): store the raw request — the
      * range resolver clamps/grows it against the current thresholds at the next
-     * resolve — then re-render, which folds the field back into its label. No
-     * data-k on the field keeps it out of the shared text plumbing.
+     * resolve — then fold the field back into its label by rebuilding THIS
+     * slider's .rng root in place. No data-k on the field keeps it out of the
+     * shared text plumbing.
+     * Only the slider, never the whole host: on a tap, focus moves on the
+     * mousedown, before the click, so a full render() here replaced the node the
+     * user was tapping (the sheet's X, a Bold option …) and the click never
+     * arrived — every first tap after the editor was swallowed. The whole root
+     * is rebuilt, not just the label: the resolver grows or clamps the max, and
+     * the thumb, zone and chip positions all hang off it. Nothing outside the
+     * slider reads the max, so there is nothing else to refresh.
      * An UNTOUCHED field (opened, then blurred) writes nothing: the seed it was
      * opened with is the RESOLVED max, and storing that would silently pin an
-     * override where none existed. And while a thumb drag is in flight (grabbing
-     * a thumb blurs the field via th.focus()), the render is skipped — it would
-     * detach the dragged nodes mid-gesture and slam the value to the track start;
-     * endRangeDrag's render on release folds the field back instead.
+     * override where none existed — but it still folds back. And while a thumb
+     * drag is in flight (grabbing a thumb blurs the field via th.focus()), the
+     * fold-back is skipped — it would detach the dragged nodes mid-gesture and
+     * slam the value to the track start; endRangeDrag's render on release folds
+     * the field back instead.
      * @param {Event} e focusout event.
      * @returns {void}
      */
@@ -841,7 +850,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var n = s === '' ? NaN : Number(s);
         ctx.S[inp.getAttribute('data-max-input')] = (isFinite(n) && n > 0) ? String(n) : '';
       }
-      if (!drag) { ctx.render(); }
+      if (drag) { return; }
+      var root = inp.closest('.rng');
+      var item = (root && root.parentNode) ? liveRangeItem(root) : null;
+      if (!item) { ctx.render(); return; }
+      root.outerHTML = renderRange(item,
+        { value: ctx.S[item.messageKey], dangerValue: ctx.S[item.dangerKey] });
     }
     return {
       wireRangeEvents: wireRangeEvents,

@@ -713,10 +713,89 @@ test('the inline scale-max editor: open, sanitize, and untouched-blur writes not
   assert.equal(page.S.threshAqiMax, '', 'blurring the untouched field stores no override');
   page.modal.dispatch('focusout', blurWith('500'));
   assert.equal(page.S.threshAqiMax, '500', 'an edited value is stored raw');
+  // This stub field sits in no .rng root, so it takes commitMaxEdit's full-render
+  // fallback; the real in-place fold-back is pinned by the next test.
   assert.ok(page.modal.innerHTML.indexOf('data-max-current="500"') !== -1,
     'the re-render shows the grown scale');
   page.modal.dispatch('focusout', blurWith('abc'));
   assert.equal(page.S.threshAqiMax, '', 'garbage clears the override instead of storing it');
+});
+
+test('closing the scale-max field rebuilds only its slider, so the tap that closed it still lands', () => {
+  // On a tap, focus moves on the mousedown, BEFORE the click. The focusout used to
+  // re-render the whole sheet, replacing the node being tapped (the sheet's X, a Bold
+  // option …), so that click never arrived and every first tap after the editor was
+  // swallowed. Now only the slider's own .rng root is rebuilt in place.
+  const page = bootGeneratedPage();
+  page.openEditSheet('threshAqi');
+  page.clickModalToggle('threshAqiOn');
+  page.S.threshAqiWarn = '50';
+  page.S.threshAqiDanger = '100';
+  /**
+   * A focusout from the inline field, inside a .rng root whose outerHTML setter
+   * records the in-place swap.
+   * @param {string} value field text at blur
+   * @param {string} seed the max the field was opened with
+   * @returns {{ev: Object, swapped: function(): ?string}} event + recorded swap
+   */
+  function blurIn(value, seed) {
+    let swapped = null;
+    const root = {
+      parentNode: {},
+      getAttribute: n => (n === 'data-range' ? 'threshAqiWarn' : null),
+      set outerHTML(v) { swapped = v; },
+      get outerHTML() { return swapped; }
+    };
+    const inp = {
+      value,
+      getAttribute: n => (n === 'data-max-input' ? 'threshAqiMax'
+        : n === 'data-max-seed' ? seed : null),
+      closest: sel => (sel === '[data-max-input]' ? inp : sel === '.rng' ? root : null)
+    };
+    return { ev: { target: inp }, swapped: () => swapped };
+  }
+  const modalWrites = page.modal.writes, scrollWrites = page.scroll.writes;
+
+  const edited = blurIn('500', '300');
+  page.modal.dispatch('focusout', edited.ev);
+  assert.equal(page.S.threshAqiMax, '500', 'the edited max is stored');
+  assert.equal(page.modal.writes, modalWrites,
+    'no full re-render: the rest of the sheet stays attached for the pending click');
+  assert.equal(page.scroll.writes, scrollWrites, 'nor of the tab body behind it');
+  const html = edited.swapped();
+  assert.ok(html, 'the slider was rebuilt in place');
+  assert.match(html, /^<div class="rng" data-range="threshAqiWarn" data-lo="50" data-hi="100">/);
+  assert.ok(html.indexOf('data-max-current="500"') !== -1, 'the rebuilt slider shows the grown scale');
+  assert.equal(html.indexOf('data-max-input'), -1, 'the field folded back into its label');
+  assert.ok(html.indexOf('data-max-edit="threshAqiMax"') !== -1, 'and the pencil is back');
+
+  // The in-place copy is exactly what a full render draws for that slider: a grab and
+  // release of a thumb (endRangeDrag renders once) must reproduce it byte for byte.
+  const root = makeRngRoot('threshAqiWarn', 50, 100);
+  page.modal.dispatch('pointerdown', { target: thumbOn(root, 'lo'), pointerId: 3, preventDefault() {} });
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 3 });
+  assert.equal(page.modal.writes, modalWrites + 1, 'the release rendered once');
+  assert.ok(page.modal.innerHTML.indexOf(html) !== -1,
+    'the in-place slider matches the full render of the same state');
+
+  // Opened and left unchanged: nothing stored, but the field still folds back.
+  const untouched = blurIn('500', '500');
+  page.modal.dispatch('focusout', untouched.ev);
+  assert.equal(page.S.threshAqiMax, '500', 'an untouched field writes nothing');
+  assert.equal(page.modal.writes, modalWrites + 1, 'still no full re-render');
+  assert.ok(untouched.swapped() && untouched.swapped().indexOf('data-max-edit=') !== -1,
+    'the untouched field folds back too (nothing else would)');
+
+  // Blurred by grabbing a thumb: the drag owns the slider until release — no swap now,
+  // and the release's render folds the field back.
+  page.modal.dispatch('pointerdown', { target: thumbOn(root, 'hi'), pointerId: 4, preventDefault() {} });
+  const mid = blurIn('700', '500');
+  page.modal.dispatch('focusout', mid.ev);
+  assert.equal(page.S.threshAqiMax, '700', 'the value still commits mid-drag');
+  assert.equal(mid.swapped(), null, 'no swap under a live drag');
+  assert.equal(page.modal.writes, modalWrites + 1, 'and no render under it either');
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 4 });
+  assert.equal(page.modal.writes, modalWrites + 2, 'the release renders, folding the field back');
 });
 
 // The section-level platform gate has to survive into the FLAT generated page (the
