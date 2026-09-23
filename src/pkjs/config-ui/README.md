@@ -678,8 +678,9 @@ npm publish
 All library files under `lib/` and `index.js` must be authored in **ES5**:
 
 - Use `var`, `function` declarations, and string concatenation.
-- No arrow functions, `const`/`let`, template literals, `class`, `for…of`, spread, or
-  destructuring.
+- No arrow functions, `const`/`let`, template literals, `class`, `for…of`, spread,
+  destructuring, default parameters, shorthand or computed object members, `?.`/`??`, `**`,
+  or a trailing comma in a call.
 - No unpolyfilled ES6 built-ins: no `padStart`/`padEnd`, `Object.values`/`entries`,
   `Array.from`, `Promise`, `Map`, `Set`, or `String.prototype.includes`/`startsWith`.
 - `Object.assign`, `Array.prototype.find`/`findIndex`/`includes` are safe (polyfilled in the
@@ -690,7 +691,9 @@ because aplite runs the PKJS phone-side JS on a pre-ES6 JavaScriptCore. WebView-
 (`lib/show-when.js`, `lib/engine.js`) must be ES5 to protect ancient Android WebViews. The SDK
 build does not catch stray ES6 — failures are silent until runtime.
 
-An automated regex guardrail in the test suite scans all shipped ES5 files and fails on any
-detected ES6 syntax or known-unsafe built-ins.
+An automated guardrail in the test suite (`test/config-es5.test.js`) tokenizes every shipped ES5
+file and fails on ES2015+ syntax and on calls to ES2015+ built-ins that nothing polyfills. It is
+not a full parser: destructuring *assignment* (`[a, b] = c`) and `String.prototype.includes`
+(indistinguishable from the polyfilled Array one) still get past it.
 
 **Test files** run in Node and may use modern JS — the ES5 rule applies only to shipped files.

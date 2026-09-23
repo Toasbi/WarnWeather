@@ -81,8 +81,8 @@ first in `index.js`). Need another ES6 method? Add a guarded polyfill there inst
 calling it directly. No exemption for webview-only files: `src/pkjs/config-ui/`
 (the settings UI on all platforms) requires ES5 even in files that only run in the phone
 webview (e.g. `lib/show-when.js`, `lib/engine.js`) to protect ancient Android WebViews,
-enforced by an automated regex guardrail in the test suite — see its own README.md's
-"ES5 constraint" section.
+enforced by an automated guardrail in the test suite (`test/config-es5.test.js`, a
+token-level ES5 check) — see its own README.md's "ES5 constraint" section.
 
 ### Module conventions
 
