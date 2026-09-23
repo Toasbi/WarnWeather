@@ -40,7 +40,7 @@ STATUS LINES
       - pollen
       - wind
       - gusts
-      - UV index (now, the peak still ahead — today's, then tomorrow's — or both)
+      - UV index (now, today's peak until the UV drops below it, then tomorrow's, or both)
       - sunrise/sunset
    - Date and location:
       - Calender week  

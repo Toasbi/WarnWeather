@@ -44,10 +44,11 @@ var WeatherProvider = function() {
     // UV is opt-in and not every provider has it: leave it empty so getPayload
     // emits an empty UV series (→ the UV line stays off) unless a provider fills it.
     this.uvTrend = [];
-    // The UV peak of today's hours before uvTrend's entry 0 (UV index; 0 when
-    // entry 0 is today's first hour, null when unknown), from the record earlier
-    // fetches left (uv-day-record.js). Set per fetch; getPayload hands it to the
-    // UV slot's day max as UV_DAY_PEAKS' third entry.
+    // The UV peak of today's hours before uvTrend's entry 0, back to the last
+    // one that printed below today's remaining peak (UV index; 0 when none came
+    // between, null when unknown), from the record earlier fetches left
+    // (uv-day-record.js). Set per fetch; getPayload hands it to the UV slot's
+    // day max as UV_DAY_PEAKS' third entry.
     this.uvEarlierPeak = null;
     // AQI is opt-in (status slot only); empty → the slot shows '--' unless a
     // fetch fills it. Transient: consumed by formatValue, never wired.
@@ -633,8 +634,9 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
 };
 
 /**
- * Look up the UV peak of today's hours already begun (this.uvEarlierPeak, for
- * getPayload) in the record earlier fetches left, and build the record with
+ * Look up the UV peak of today's hours already begun, back to the last hour
+ * that printed below today's remaining peak (this.uvEarlierPeak, for
+ * getPayload), in the record earlier fetches left, and build the record with
  * this fetch's UV series added. The caller stores it once the fetch is known to
  * be current. Without a UV series nothing is read or built.
  *
@@ -647,10 +649,12 @@ WeatherProvider.prototype.recallUvDay = function(lat, lon) {
     if (!this.uvTrend || !this.uvTrend.length || typeof this.startTime !== 'number') {
         return null;
     }
-    var source = { id: this.id, lat: Number(lat), lon: Number(lon) };
+    // Keyed by the UV FEED, not the provider: DWD's UV is Open-Meteo's.
+    var source = { id: this.uvFeedId || this.id, lat: Number(lat), lon: Number(lon) };
     var nowEpoch = Math.floor(Date.now() / 1000);
     var record = uvDayRecord.merge(uvDayRecord.load(), source, this.uvTrend, this.startTime, nowEpoch);
-    this.uvEarlierPeak = uvDayRecord.earlierPeak(record, source, this.startTime, nowEpoch);
+    var rest = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime, nowEpoch)[0];
+    this.uvEarlierPeak = uvDayRecord.earlierPeak(record, source, this.startTime, nowEpoch, rest);
     return record;
 };
 
@@ -815,7 +819,8 @@ WeatherProvider.prototype.getPayload = function() {
     // peak of today's hours already begun] in tenths (null = unknown). The first
     // two are read off the FULL uvTrend — it reaches UV_HOURS, past the 24h
     // window UV_TREND_UINT8 is cut to; the clock picks which local day is today.
-    // The third comes from earlier fetches (recallUvDay). Emitted only alongside
+    // The third comes from earlier fetches, back to the last dip below the first
+    // (recallUvDay). Emitted only alongside
     // a sourced UV series. Transient PKJS-only: formatValue/displayValue consume
     // it, forecast-series deletes it before send.
     if (uvs.length) {

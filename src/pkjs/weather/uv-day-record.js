@@ -12,21 +12,27 @@
 // local midnight are dropped, so the record never outgrows today plus the
 // fetched series' own reach (about 3 days of bytes at worst, ~75 values).
 //
-// A record belongs to one provider at one place: a switch of provider or a
-// move starts a new one, since another source's or place's morning says
-// nothing about this one's peak. Until the new record covers the whole of
-// today's earlier hours — from the next day on, in practice — earlierPeak
-// answers "unknown" and the slot keeps the plain rule (see uvShown).
+// Only the hours back to the last dip matter: the peak the slot holds is
+// running when no hour since the reading last printed below it printed more
+// (earlierPeak's `hold`). So a second, lower peak after a cloudy noon runs as
+// its own, and a record that began mid-morning (a move, a provider switch,
+// install day) still answers as soon as it holds such a dip -- by midday on
+// any day with a peak, in practice. Before that, earlierPeak answers
+// "unknown" and the slot keeps the plain rule (see uvShown).
+//
+// A record belongs to one UV feed around one place: another feed's morning
+// says nothing about this one's peak, and a move of more than a few tens of
+// km starts a new record. A shorter one keeps it: UV is regional, and the
+// record only decides whether today's peak is running or behind.
 
 var storageKeys = require('../storage-keys.js');
 var hourlyWindow = require('./hourly-window.js');
 
 var RECORD_KEY = storageKeys.UV_DAY_RECORD_KEY;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
-// Two fetches this close (degrees, on each axis — about 5.5 km of latitude)
-// count as the same place, as for the WU current-hour cache: wide enough to
-// absorb the jitter between GPS fixes.
-var SAME_PLACE_DEGREES = 0.05;
+// Two fetches this close (degrees, on each axis — about 55 km of latitude)
+// count as the same place: a commute keeps the record, another region does not.
+var SAME_PLACE_DEGREES = 0.5;
 
 /**
  * @param {*} value A series value.
@@ -89,31 +95,41 @@ function merge(record, source, series, startEpoch, nowEpoch) {
 }
 
 /**
- * The peak of today's hours before entry 0, from the record — what the UV
- * slot needs to know whether today's peak is still ahead, running, or behind.
+ * The peak of today's hours before entry 0 since the reading last printed
+ * below `hold` — what the UV slot needs to know whether the peak it would hold
+ * is running (nothing since that dip printed more) or behind it. The walk goes
+ * back hour by hour from entry 0 and stops at the first hour that prints below
+ * `hold` (a dip: the hours before it belong to an earlier peak) or at today's
+ * midnight. Whole numbers, as the slot prints them.
  *
  * @param {*} record Stored record (before or after this fetch's merge).
  * @param {{id: string, lat: number, lon: number}} source This fetch's source.
  * @param {number} startEpoch Epoch seconds of the series' entry 0.
  * @param {number} [nowEpoch] Current time in epoch seconds.
- * @returns {?number} The peak in UV index; 0 when entry 0 is today's first
- *   hour (nothing came before it); null when unknown — the record is another
- *   source's, misses one of those hours, or has no sourced value among them.
+ * @param {?number} hold The peak the slot would hold (the rest of today's), in
+ *   UV index; null when today has none.
+ * @returns {?number} The peak in UV index; 0 when no hour came between the
+ *   last dip (or midnight) and entry 0; null when unknown — no peak to hold,
+ *   the record is another source's, or it misses an hour before a dip is found.
  */
-function earlierPeak(record, source, startEpoch, nowEpoch) {
+function earlierPeak(record, source, startEpoch, nowEpoch, hold) {
+    if (typeof hold !== 'number' || !isFinite(hold)) { return null; }
+    var holdWhole = Math.round(tenths(hold) / 10);   // as uvShown rounds the wired tenths
     var dayStart = hourlyWindow.localDayStart(startEpoch, nowEpoch);
     var count = Math.floor((startEpoch - dayStart) / HOUR_SECONDS);
     if (count <= 0) { return 0; }
     if (!sameSource(record, source, startEpoch)) { return null; }
-    var peak = null;
+    var peak = 0;
     var m, i, v;
     for (m = 1; m <= count; m += 1) {
         i = (startEpoch - m * HOUR_SECONDS - record.t) / HOUR_SECONDS;
         if (i < 0 || i >= record.v.length) { return null; }
         v = record.v[i];
-        if (typeof v === 'number' && (peak === null || v > peak)) { peak = v; }
+        if (typeof v !== 'number') { return null; }
+        if (Math.round(v / 10) < holdWhole) { break; }
+        if (v > peak) { peak = v; }
     }
-    return peak === null ? null : peak / 10;
+    return peak / 10;
 }
 
 /**

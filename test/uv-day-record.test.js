@@ -44,27 +44,37 @@ test('merge starts afresh for another provider, another place, a gap, or another
   const fresh = (source, start) => record.merge(old, source, [9], start).v;
   assert.deepEqual(fresh(SRC, at(15, 10)), [10, 20, 30, 40, 90], 'same source: kept');
   assert.deepEqual(fresh(Object.assign({}, SRC, { id: 'dwd' }), at(15, 10)), [90], 'another provider');
-  assert.deepEqual(fresh(Object.assign({}, SRC, { lat: 52.6 }), at(15, 10)), [90], 'moved 9 km north');
-  assert.deepEqual(fresh(Object.assign({}, SRC, { lat: 52.56 }), at(15, 10)).length, 5,
-    'GPS jitter (4 km) is the same place');
+  assert.deepEqual(fresh(Object.assign({}, SRC, { lat: 53.6 }), at(15, 10)), [90], 'moved 120 km north');
+  assert.deepEqual(fresh(Object.assign({}, SRC, { lat: 52.7, lon: 13.6 }), at(15, 10)).length, 5,
+    'a 25 km commute is the same place: UV is regional');
   assert.deepEqual(fresh(SRC, at(15, 14)), [90], 'the record ends at 12:00, before 13:00: a gap');
   assert.deepEqual(fresh(SRC, at(15, 10) + 1800), [90], 'a half-hour grid is another source\'s');
   assert.deepEqual(record.merge({ junk: true }, SRC, [9], at(15, 10)).v, [90], 'garbage: ignored');
 });
 
-test('earlierPeak: the peak of today\'s hours before entry 0, or unknown', () => {
+test('earlierPeak: today\'s earlier hours back to the last one below the peak held', () => {
+  // 00:00-04:00 = 0, 6, 4, 5, 5; the fetch at 05:00 holds the rest of the day's peak.
   const r = record.merge(record.merge(null, SRC, [0, 6, 4, 5, 5, 4], at(15, 0)), SRC, [3], at(15, 5));
-  assert.equal(record.earlierPeak(r, SRC, at(15, 5)), 6, '00:00-04:00 peaked at 6, at 01:00');
-  assert.equal(record.earlierPeak(r, SRC, at(15, 0)), 0, 'today\'s first hour: nothing earlier');
-  assert.equal(record.earlierPeak(null, SRC, at(15, 0)), 0, '...with or without a record');
-  assert.equal(record.earlierPeak(null, SRC, at(15, 5)), null, 'no record: unknown');
-  assert.equal(record.earlierPeak(r, Object.assign({}, SRC, { id: 'dwd' }), at(15, 5)), null,
-    'another source\'s morning says nothing');
-  const late = record.merge(null, SRC, [3, 3], at(15, 10));
-  assert.equal(record.earlierPeak(late, SRC, at(15, 11)), null,
-    'first fetched at 10:00: 00:00-09:00 are missing, so unknown rather than 3');
+  const back = (hold) => record.earlierPeak(r, SRC, at(15, 5), at(15, 5) + 60, hold);
+  assert.equal(back(5), 5, 'holding 5: 04:00 and 03:00 printed 5, 02:00 dipped to 4 — the 6 before it is another peak\'s');
+  assert.equal(back(4), 6, 'holding 4: no dip below 4 since 00:00, so the 01:00 6 counts — 4 is behind us');
+  assert.equal(back(7), 0, 'holding 7: the hour before already dipped below it — nothing came between');
+  assert.equal(back(4.45), 5, 'the peak held rounds as the slot prints it: 4.45 -> 4.5 -> 5, so like 5...');
+  assert.equal(back(4.44), 6, '...and 4.44 prints 4, so like 4');
+  assert.equal(back(null), null, 'no peak to hold: nothing to judge');
+  assert.equal(record.earlierPeak(r, SRC, at(15, 0), at(15, 0) + 60, 5), 0, 'today\'s first hour: nothing earlier');
+  assert.equal(record.earlierPeak(null, SRC, at(15, 0), at(15, 0) + 60, 5), 0, '...with or without a record');
+  assert.equal(record.earlierPeak(null, SRC, at(15, 5), at(15, 5) + 60, 5), null, 'no record: unknown');
+  assert.equal(record.earlierPeak(r, Object.assign({}, SRC, { id: 'dwd' }), at(15, 5), at(15, 5) + 60, 5), null,
+    'another feed\'s morning says nothing');
+  // First fetched at 10:00 (install day, a move): 10:00-11:00 printed 3, 3.
+  const late = record.merge(null, SRC, [3, 3, 5], at(15, 10));
+  assert.equal(record.earlierPeak(late, SRC, at(15, 12), at(15, 12) + 60, 5), 0,
+    'holding 5 at noon: 11:00 already dipped below it, so the missing morning does not matter');
+  assert.equal(record.earlierPeak(late, SRC, at(15, 12), at(15, 12) + 60, 3), null,
+    'holding 3: no dip back to 10:00, and 09:00 is missing — unknown');
   const blind = record.merge(null, SRC, [null, null, 2], at(15, 0));
-  assert.equal(record.earlierPeak(blind, SRC, at(15, 2)), null, 'no sourced earlier hour: unknown');
+  assert.equal(record.earlierPeak(blind, SRC, at(15, 2), at(15, 2) + 60, 2), null, 'an unsourced hour: unknown');
 });
 
 test('load and save: an unreadable record is cleared, an unchanged one not rewritten', () => {
@@ -105,7 +115,7 @@ function fetchAt(provider, hour, opts) {
   provider.withProviderData = function (lat, lon, force, ok) {
     Object.assign(this, { numEntries: 24, startTime: start, currentTemp: 60,
       tempTrend: new Array(24).fill(60), precipTrend: new Array(24).fill(0),
-      uvTrend: CURVE.slice(hour, hour + 49) });
+      uvTrend: (o.curve || CURVE).slice(hour, hour + 49) });
     ok();
   };
   try {
@@ -147,14 +157,55 @@ test('fetches hours apart still see the peak they skipped', () => {
   assert.equal(both(fetchAt(p, 16)), '3/»6');
 });
 
-test('without today\'s earlier hours the slot keeps the plain rule', () => {
-  // A switch of provider at 13:10 cannot use the other feed's morning: at the
-  // peak, the rest of the day never beats now, so tomorrow's shows (as before).
+test('without today\'s earlier hours back to a dip the slot keeps the plain rule', () => {
+  // A switch to another UV feed at 13:10 cannot use the old feed's morning, and
+  // the new record starts at 13:00: at the peak, the rest of the day never beats
+  // now, so tomorrow's shows (as before this change) — for that hour only.
   const p = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
   fetchAt(p, 0);
-  p.id = 'dwd';
+  p.id = 'tomorrowio';
   assert.deepEqual(fetchAt(p, 13).UV_DAY_PEAKS.slice(2), [null], 'unknown');
   assert.equal(both(fetchAt(p, 13)), '5/»6');
+  assert.equal(both(fetchAt(p, 14)), '5/»6', '14:00: 13:00 printed 5, and before it the record ends');
+});
+
+test('a switch between DWD and Open-Meteo keeps the record: both read Open-Meteo\'s UV', () => {
+  const DwdProvider = require('../src/pkjs/weather/dwd.js');
+  const Dwd = DwdProvider.DwdProvider || DwdProvider;
+  const om = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
+  fetchAt(om, 0);
+  fetchAt(om, 11);
+  const dwd = new Dwd();
+  assert.equal(both(fetchAt(dwd, 13)), '5/5');
+});
+
+test('a commute keeps the record; a move far away still judges from the last dip', () => {
+  const p = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
+  fetchAt(p, 0);
+  fetchAt(p, 7);
+  assert.equal(both(fetchAt(p, 8, { lat: SRC.lat + 0.18 })), '2/5', '08:10 at the office, 20 km away');
+  assert.equal(both(fetchAt(p, 13, { lat: SRC.lat + 0.18 })), '5/5');
+  // Across the country at 08:10: a new record from 08:00, which by 13:00 holds
+  // the dip below 5 (12:00 printed 4), so the peak still holds.
+  const q = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
+  fetchAt(q, 0);
+  [8, 9, 10, 11, 12].forEach((h) => fetchAt(q, h, { lat: SRC.lat + 3 }));
+  assert.equal(both(fetchAt(q, 13, { lat: SRC.lat + 3 })), '5/5');
+  assert.equal(both(fetchAt(q, 15, { lat: SRC.lat + 3 })), '4/»6');
+});
+
+test('a second, lower peak after a cloudy noon holds like the first', () => {
+  // 11:00 6, noon 4 (clouds), 13:00-14:00 5, then down; tomorrow 6.
+  const day = [0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 5, 6, 4, 5, 5, 3, 2, 1, 0, 0, 0, 0, 0, 0];
+  const curve = day.concat(TOMORROW, [0, 0]);
+  const p = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
+  const seen = [0, 10, 11, 12, 13, 14, 15].map((h) => both(fetchAt(p, h, { curve })));
+  assert.deepEqual(seen, ['0/6', '5/6', '6/6', '4/5', '5/5', '5/5', '3/»6']);
+  // Down from a 6 with no dip: the 5s after it are the way down, not a peak.
+  const slope = [0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 5, 6, 5, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0];
+  const q = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
+  const down = [0, 11, 12, 13].map((h) => both(fetchAt(q, h, { curve: slope.concat(TOMORROW, [0, 0]) })));
+  assert.deepEqual(down, ['0/6', '6/6', '5/»6', '5/»6']);
 });
 
 test('an abandoned fetch reads the record but never writes it', () => {
@@ -205,12 +256,13 @@ test('DST days: the earlier hours are the day\'s own, 23 or 25 of them', () => {
       const midnight = new Date(2026, m, d, 0, 0, 0).getTime() / 1000;
       const one = new Date(2026, m, d, 13, 0, 0).getTime() / 1000;
       const hours = (one - midnight) / 3600;
-      // UV 7 in the day's last hour before 13:00, 1 elsewhere: the peak is found
-      // only if every earlier hour is looked at.
-      const series = []; for (let i = 0; i < 49; i += 1) { series.push(i === hours - 1 ? 7 : 1); }
+      // UV 7 in the day's first hour, 1 after it, and a peak of 1 held: no hour
+      // dips below it, so the walk reaches midnight and finds the 7 only if it
+      // steps through exactly the day's own hours.
+      const series = []; for (let i = 0; i < 49; i += 1) { series.push(i === 0 ? 7 : 1); }
       const rec = r.merge(null, src, series, midnight, midnight + 60);
-      const next = r.merge(rec, src, [5], one, one + 60);
-      out[name] = { hours, peak: r.earlierPeak(next, src, one, one + 60), t: next.t === midnight,
+      const next = r.merge(rec, src, [1], one, one + 60);
+      out[name] = { hours, peak: r.earlierPeak(next, src, one, one + 60, 1), t: next.t === midnight,
         len: next.v.length };
     });
     process.stdout.write(JSON.stringify(out));`;

@@ -41,12 +41,15 @@ function trendHead(arr) {
  * `peak` is today's peak (the highest the rest of the local day reaches, until
  * 23:59) while it holds, and after that tomorrow's, flagged `nextDay` so the slot
  * can mark it. Today's holds while it is still ahead — it prints above `now` —
- * and while it is running: `now` prints it and no hour earlier today printed
- * more, so a peak of 5 from 13:00 to 15:00 shows through those hours ("5/5") and
- * gives way when the reading drops below it. Telling "running" from "behind us"
- * takes the day's earlier hours (the third peak); without them, today's gives way
- * as soon as nothing later prints above `now`. A day that never prints above 0
- * has no peak to hold. All comparisons are on the whole numbers the slot prints.
+ * and while it is running: `now` prints it and no hour since the reading last
+ * printed below it printed more. So a peak of 5 from 13:00 to 15:00 shows
+ * through those hours ("5/5") and gives way when the reading drops below it; a
+ * second, lower peak after a cloudy noon runs the same way, while the same 5 on
+ * the way down from a 6 is already behind us. Telling "running" from "behind us"
+ * takes today's earlier hours back to that dip (the third peak); without them,
+ * today's gives way as soon as nothing later prints above `now`. A day that
+ * never prints above 0 has no peak to hold. All comparisons are on the whole
+ * numbers the slot prints.
  * The peaks come in pre-computed (UV_DAY_PEAKS, provider.js getPayload, off the
  * longer UV_HOURS series and the UV day record), so only frozen payload inputs
  * are read — no clock — and re-baking an old snapshot reproduces the same text
@@ -54,8 +57,9 @@ function trendHead(arr) {
  *
  * @param {number[]|null|undefined} uvTrend UV_TREND_UINT8 (UV tenths, hourly).
  * @param {*} dayPeaks UV_DAY_PEAKS: [rest of today, tomorrow, today's hours
- *     already begun] in UV tenths, each null when unknown (the third 0 when the
- *     current hour is today's first); absent on a payload without UV.
+ *     already begun back to the last one below the first] in UV tenths, each
+ *     null when unknown (the third 0 when no such hour came before the current
+ *     one); absent on a payload without UV.
  * @param {*} mode Stored uvSlotDisplay: 'max' / 'both' ask for the peak; anything
  *     else (absent = 'current') does not.
  * @returns {?{now: ?number, peak: ?number, nextDay: boolean}} null when there is

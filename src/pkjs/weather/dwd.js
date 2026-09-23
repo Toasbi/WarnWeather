@@ -176,6 +176,9 @@ var DwdProvider = function() {
     this._super.call(this);
     this.name = 'Brightsky (Deutscher Wetterdienst)';
     this.id = 'dwd';
+    // Its UV is Open-Meteo's (openmeteo.fetchUvInto): the UV day record carries
+    // across a switch between the two.
+    this.uvFeedId = 'openmeteo';
 };
 
 DwdProvider.prototype = Object.create(WeatherProvider.prototype);

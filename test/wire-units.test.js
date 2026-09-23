@@ -96,10 +96,14 @@ test('uvShown: holding the peak judges the whole numbers, and a day that stays a
   assert.deepEqual(at(4, 4, 3), S(0, 6, true), 'rounding to 0 counts as 0');
 });
 
-test('uvShown: a second, lower peak later today still shows while it is ahead', () => {
-  // 6 at 11:00, 4 now at 12:00, 5 at 13:00: the highest still to come is 5.
-  assert.deepEqual(uvShown([40], [50, 60, 60], 'both'), S(4, 5, false));
-  // ...but at 13:00, 5 is running below the morning's 6: behind the day's peak.
+test('uvShown: a second, lower peak holds like the first; the same number on the way down does not', () => {
+  // 6 at 11:00, 4 at 12:00, 5 at 13:00. The third peak runs back only to the
+  // last hour below the peak held (uv-day-record's earlierPeak).
+  assert.deepEqual(uvShown([40], [50, 70, 0], 'both'), S(4, 5, false), '12:00: 5 is still to come');
+  assert.deepEqual(uvShown([50], [50, 70, 0], 'both'), S(5, 5, false),
+    '13:00: it runs — the noon dip ended the morning\'s 6');
+  // 6 at 11:00, then 5 at 12:00 and 13:00 with no dip between: the 5s are the
+  // way down from the day's peak, which is behind us.
   assert.deepEqual(uvShown([50], [50, 70, 60], 'both'), S(5, 7, true));
 });
 
