@@ -174,6 +174,21 @@ test('wunderground converts mslp from inches of mercury (units=e) to hPa in pres
     'a units=e reading lands inside the hPa plausibility window');
 });
 
+test('wunderground maps v1 hourly clds (cloud cover %) into cloudTrend', () => {
+  responder = respondWith([
+    { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, clds: 64, fcst_valid: NOW_HOUR },
+    // no clds on this feed -> 0 (clear sky)
+    { temp: 52, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR + HOUR }
+  ], 71);
+  const p = new WundergroundProvider();
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.equal(p.cloudTrend[0], 64);
+  assert.equal(p.cloudTrend[1], 0, 'missing clds zero-fills');
+});
+
 test('WU maps v1 hourly feels_like and v3 current temperatureFeelsLike (both °F, units=e)', () => {
   responder = function(url, onSuccess) {
     if (url.indexOf('/wx/observations/current') !== -1) {

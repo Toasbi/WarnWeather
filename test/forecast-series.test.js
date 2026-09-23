@@ -1105,3 +1105,27 @@ test('the outbox projection has no category for either transient', () => {
     assert.equal(wired.includes(key), false, key + ' is transient — it must not be an outbox key');
   });
 });
+
+test('cloud cover maps percent to the 0..250 wire range and never rides the wire raw', () => {
+  const payload = {
+    TEMP_RAW_TREND: [10, 20, 30, 40], TEMP_MIN: 10, TEMP_MAX: 40, NUM_ENTRIES: 4,
+    PRECIP_TREND_UINT8: [0, 0, 0, 0], RAIN_TREND_UINT8: [0, 0, 0, 0],
+    WIND_TREND_UINT8: [0, 0, 0, 0], GUST_TREND_UINT8: [0, 0, 0, 0], UV_TREND_UINT8: [],
+    CLOUD_TREND: [0, 50, 100, 140]
+  };
+  const out = applyForecastSeries(payload,
+    { secondaryLine: 'precip_prob', thirdLine: 'cloud', windScale: 'mid', barSource: 'off' },
+    { platform: 'basalt' });
+  // Zero-based like rain chance: 0 % is a real "clear sky" and stays wire byte 0.
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 125, 250, 250], 'clamped at 100 %');
+  assert.ok(!('CLOUD_TREND' in out), 'CLOUD_TREND is transient, never wired');
+});
+
+test('a provider without cloud cover leaves the cloud line off', () => {
+  const out = applyForecastSeries({
+    TEMP_RAW_TREND: [10, 20], TEMP_MIN: 10, TEMP_MAX: 20, NUM_ENTRIES: 2,
+    PRECIP_TREND_UINT8: [0, 0], RAIN_TREND_UINT8: [0, 0], WIND_TREND_UINT8: [0, 0],
+    GUST_TREND_UINT8: [0, 0], UV_TREND_UINT8: [], CLOUD_TREND: []
+  }, { secondaryLine: 'cloud', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []);
+});

@@ -213,6 +213,13 @@ test('fixture pressureHpa feeds the pressure secondary line (mid scale)', () => 
   assert.ok(!('PRESSURE_TREND' in out), 'PRESSURE_TREND is transient — consumed by forecast-series, never wired');
 });
 
+test('fixture cloudPct feeds the cloud line', () => {
+  const out = getFixtureWeatherPayload(
+    makeFixture({ cloudPct: [0, 50, 100] }), { secondaryLine: 'cloud', thirdLine: 'off', barSource: 'off' });
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
+  assert.ok(!('CLOUD_TREND' in out), 'CLOUD_TREND is transient');
+});
+
 test('fixture without pressureHpa still produces a valid (empty/off) pressure line', () => {
   const out = getFixtureWeatherPayload(
     makeFixture({}), { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid', barSource: 'off' });

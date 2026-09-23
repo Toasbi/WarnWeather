@@ -41,6 +41,9 @@ typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH)
     int     width;                      // stroke px (SOLID) / mark box px (DOTS, X)
     int     inset_y;                    // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y for FIRST, else 0
     uint8_t style;                      // ChartLineStyle — metric lines only, FIRST stays SOLID
+#if defined(WW_LINE_STYLE)
+    bool    stripe_top;                 // CHART_LINE_STRIPE only: top edge (else bottom)
+#endif
     bool    fill_on;                    // SECOND only
     GColor  fill_color;                 // SECOND only (B&W override already applied)
 } SeriesLine;

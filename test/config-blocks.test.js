@@ -1256,3 +1256,35 @@ test('resetGraphColors is a no-op without a key list, a state or a resolver', ()
   assert.equal(global.PConf.actions.resetGraphColors('graphMainColorDark', S, {}, null), false, 'no resolver');
   assert.equal(S.graphMainColorDark, '#FF0000', 'nothing was written');
 });
+
+// The stripe line style, mirrored against chart.c's chart_render_stripe. The
+// colours are the ones test/c/chart_stripe_test.c pins for black -> PictonBlue,
+// so the preview and the watch cannot shade a cell differently.
+test('forecastPreview: a stripe draws hourly cells shaded like the watch, and no line or fill', () => {
+  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+    secondaryLineStyle: 'stripeBottom', secondaryLineFill: true, thirdLine: 'off', windScale: 'mid' };
+  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
+  const cells = svg.match(/<rect [^>]*height="5" fill="#[0-9A-F]{6}"/g) || [];
+  assert.ok(cells.length >= 10, 'one cell per hour column');
+  ['#005555', '#55AAAA', '#55AAFF'].forEach((c) => {
+    assert.ok(cells.some((r) => r.indexOf(c) >= 0), c + ' (a chart_stripe_blend level) is used');
+  });
+  // Bottom edge: every cell sits on the baseline row (PB 94 - 5).
+  cells.forEach((r) => assert.match(r, /y="89"/));
+  assert.equal(svg.indexOf('fill-opacity="0.25"'), -1, 'a stripe main line never fills');
+  assert.equal(svg.indexOf('stroke="#55AAFF"'), -1, 'and draws no stroke');
+});
+
+test('forecastPreview: stripes stack per edge, top and bottom, and B&W dithers them', () => {
+  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+    secondaryLineStyle: 'stripeTop', thirdLine: 'cloud', thirdLineStyle: 'stripeTop', windScale: 'mid' };
+  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
+  assert.ok(/<rect [^>]*y="4" [^>]*height="5"/.test(svg), 'first top stripe on the plot top (PT 4)');
+  assert.ok(/<rect [^>]*y="10" [^>]*height="5"/.test(svg), 'second top stripe stacked below it');
+  const bw = FC.forecastPreview(state, { color: false, platform: 'diorite', lineStyles: true });
+  assert.ok(bw.indexOf('fill="url(#sd') >= 0, 'B&W cells use the dither patterns');
+  assert.ok(bw.indexOf('<pattern id="sd4"') >= 0, 'the four densities are defined');
+  // A watch without WW_LINE_STYLE ignores the style: the frozen look draws, no stripes.
+  const frozen = FC.forecastPreview(state, { color: true, platform: 'aplite', lineStyles: false });
+  assert.equal(/height="5" fill="#/.test(frozen), false, 'aplite previews no stripes');
+});

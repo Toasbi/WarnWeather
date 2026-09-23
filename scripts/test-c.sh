@@ -140,3 +140,8 @@ build/host/line_style_decode_test
 # segmentation pins in test/config-blocks.test.js.
 cc $CFLAGS test/c/chart_absent_test.c -o build/host/chart_absent_test
 build/host/chart_absent_test
+# The stripe line style's arithmetic (chart_stripe.h, header-only): value ->
+# level, the background->colour blend and the B&W dither. Mirrored against the
+# preview's stripe pins in test/config-blocks.test.js.
+cc $CFLAGS test/c/chart_stripe_test.c -o build/host/chart_stripe_test
+build/host/chart_stripe_test

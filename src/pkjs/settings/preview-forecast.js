@@ -78,6 +78,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return runs;
     }
 
+    /**
+     * Is this line style one of the two stripes?
+     * @param {string} style lineStyleValue output.
+     * @returns {boolean} True for 'stripeTop' / 'stripeBottom'.
+     */
+    function isStripe(style) {
+        return style === 'stripeTop' || style === 'stripeBottom';
+    }
+
     // Mirrors forecast-series.PRESSURE_SCALE_CURVE_HPA (+ curvePermille); a drift
     // test keeps the curves equal. Duplicated rather than imported because this file
     // is bundled into the config page, which has no access to the watch modules
@@ -127,7 +136,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         //                  shows the theme the user picked; the aplite light→dark fold
         //                  is a watch-render fact this preview has never modelled, and
         //                  wiring it in here would change what aplite users see.
-        var caps = { color: !(env && !env.color), themePolarity: true };
+        //   lineStyles:    the WW_LINE_STYLE mirror (stylesFrozen below), so a stored
+        //                  stripe cannot switch the fill off on a watch that ignores it.
+        var caps = { color: !(env && !env.color), themePolarity: true,
+            lineStyles: !(Boolean(env) && env.lineStyles === false) };
         var cx = lineStyle.renderContextFor(state, caps);
         var gc = lineStyle.resolveGraphColors(state, caps);
         // The EFFECTIVE colour flag: a colour display renders as colour only when the
@@ -163,6 +175,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // behavior below), then recovers as it clears — the same weather story the other
         // samples tell.
         var pressure = [1016, 1012, 1007, 1003, 984, 1004, 1007, 1010, 1012, 1013, 1014, 1015];
+        // Cloud cover (%): thickening into the shower, overcast through it, then
+        // breaking up overnight before the morning clouds return.
+        var cloud  = [35, 60, 90, 100, 95, 75, 45, 20, 10, 15, 40, 65];
 
         var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = 94;
         var plotW = PX1 - PX0, plotH = PB - PT;
@@ -212,6 +227,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // maps through yT like the temp curve instead of a 0..max scale.
         var METRIC = {
             precip_prob: { vals: precip, max: 100, fill: true },
+            cloud: { vals: cloud, max: 100 },
             wind: { vals: wind, max: windMax },
             gust: { vals: gust, max: windMax },
             uv: { vals: uv, max: 11 },
@@ -237,7 +253,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * The effective style for one line-style key: the frozen built-in on a
          * watch without WW_LINE_STYLE, else the stored pick (or its default).
          * @param {string} styleKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
-         * @returns {string} 'line'|'bold'|'dots'|'x'.
+         * @returns {string} 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
          */
         function styleFor(styleKey) {
             return stylesFrozen ? lineStyle.LINE_STYLE_DEFAULTS[styleKey]
@@ -481,15 +497,80 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             return out;
         };
+        // --- Stripes: chart.c's chart_render_stripe, mirrored -------------------
+        // Preview units for one stripe's height and the gap between two stacked on
+        // the same edge (the watch's STRIPE_H / STRIPE_GAP, scaled to this plot).
+        var STRIPE_H = 5, STRIPE_GAP = 1;
+        /**
+         * A metric value's stripe level, 0..4: the watch's chart_stripe_level on the
+         * wire byte (0..250), so a cell shades exactly where the watch's does.
+         * @param {Object} m METRIC entry.
+         * @param {number} i Sample index.
+         * @returns {number} 0 (draws nothing) .. 4 (full colour).
+         */
+        function stripeLevel(m, i) {
+            var y = metricY(m, i, true);
+            if (y === null) { return 0; }
+            var b = Math.round((PB - y) / (PB - PT - 3) * 250);
+            return b <= 0 ? 0 : Math.min(4, Math.floor((b * 4 + 249) / 250));
+        }
+        /**
+         * The stripe colour for one level: each 2-bit Pebble channel blended from
+         * the background toward the line colour in quarter steps, rounded half away
+         * from the background — chart.c's chart_stripe_blend.
+         * @param {string} bgHex Background '#RRGGBB'.
+         * @param {string} fgHex Line colour '#RRGGBB'.
+         * @param {number} level 1..4.
+         * @returns {string} '#RRGGBB'.
+         */
+        function stripeBlend(bgHex, fgHex, level) {
+            var out = '#', sh, b, c, d, v, hx;
+            for (sh = 16; sh >= 0; sh -= 8) {
+                b = (parseInt(bgHex.slice(1), 16) >> sh & 0xFF) >> 6;
+                c = (parseInt(fgHex.slice(1), 16) >> sh & 0xFF) >> 6;
+                d = (c - b) * level;
+                v = b + (d >= 0 ? Math.floor((d + 2) / 4) : -Math.floor((-d + 2) / 4));
+                hx = (v * 0x55).toString(16).toUpperCase();
+                out += hx.length < 2 ? '0' + hx : hx;
+            }
+            return out;
+        }
+        /**
+         * One metric as a stripe of hourly cells along the top or bottom plot edge.
+         * Colour: the blended ramp. B&W: the theme foreground in one of four dither
+         * densities (the `sd1`..`sd4` patterns below), as the watch dithers.
+         * @param {string} metric The metric the colour was resolved for.
+         * @param {string} color Resolved colour (hex).
+         * @param {boolean} top Top edge (else bottom).
+         * @param {number} slot 0 for the first stripe on that edge, 1 for the next...
+         * @returns {string} SVG markup
+         */
+        function stripeFor(metric, color, top, slot) {
+            var m = METRIC[metric];
+            if (!m || m.tempAxis) { return ''; }
+            var off = slot * (STRIPE_H + STRIPE_GAP);
+            var y = top ? PT + off : PB - STRIPE_H - off;
+            var out = '';
+            for (var i = 0; i < n - 1; i += 1) {
+                var level = stripeLevel(m, i);
+                if (!level) { continue; }
+                var fill = isColor ? stripeBlend(ink.bg, color, level) : 'url(#sd' + level + ')';
+                out += rect(tickX(i), y, pitch, STRIPE_H, fill);
+            }
+            return out;
+        }
+
         /**
          * One metric line in its selected style — the style dispatch chart.c's
-         * chart_render_line does on the watch.
+         * chart_render_line does on the watch. Stripes are drawn by the caller (they
+         * sit under the bars), so they are not dispatched here.
          * @param {string} metric The metric the colour was resolved for.
          * @param {string} style 'line'|'bold'|'dots'|'x' (lineStyleValue output).
          * @param {string} color Resolved colour (hex).
          * @returns {string} SVG markup
          */
         function seriesFor(metric, style, color) {
+            if (isStripe(style)) { return ''; }
             if (style === 'dots') { return barDotsFor(metric, color); }
             if (style === 'x') { return barXFor(metric, color); }
             return lineFor(metric, color, style === 'bold' ? boldW : mainW);
@@ -520,15 +601,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * @returns {{markup: string, height: number}} Legend markup + total frame height.
          */
         function drawLegend() {
-            var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure', feels: 'Feels' };
+            var LABEL = { precip_prob: 'Precip %', cloud: 'Cloud %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure', feels: 'Feels' };
             /**
              * One legend entry, glyph kind chosen by the line's style.
-             * @param {string} style 'line'|'bold'|'dots'|'x'.
+             * @param {string} style 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
              * @param {string} color Resolved colour (hex).
              * @param {string} label Legend label.
              * @returns {Object} Entry for the loops below.
              */
             function legendEntry(style, color, label) {
+                if (isStripe(style)) { return { kind: 'stripe', color: color, label: label }; }
                 if (style === 'dots') { return { kind: 'dots', color: color, label: label }; }
                 if (style === 'x') { return { kind: 'x', color: color, label: label }; }
                 return { kind: 'line', color: color, w: style === 'bold' ? boldW : mainW, label: label };
@@ -571,6 +653,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                     out += rect(ex + 1, gy - 1.6, 3.2, 3.2, en.color) + rect(ex + 8, gy - 1.6, 3.2, 3.2, en.color);
                 } else if (en.kind === 'x') {
                     out += legendX(ex + 2.6, gy, en.color) + legendX(ex + 9.6, gy, en.color);
+                } else if (en.kind === 'stripe') {
+                    // The ramp itself, weakest to strongest: what the cells mean.
+                    for (var sl = 1; sl <= 4; sl += 1) {
+                        out += rect(ex + (sl - 1) * 3, gy - 2, 3, 4,
+                            isColor ? stripeBlend(ink.bg, en.color, sl) : 'url(#sd' + sl + ')');
+                    }
                 } else if (isColor && state.rainBarColor !== 'white') {
                     for (var k = 0; k < P.rainTiers.length; k += 1) {
                         out += rect(ex + k * 2.4, gy - 3.5, 2.4, 7, P.rainTiers[k].color);
@@ -588,6 +676,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return { markup: out, height: gy0 + row * ROW_H + 6 };
         }
 
+        /**
+         * The four B&W stripe dither densities as 2x2 SVG patterns (`sd1`..`sd4`) —
+         * chart.c's chart_stripe_dither_on: one pixel in four, a checkerboard, three
+         * in four, solid. Only emitted when a B&W render actually draws a stripe.
+         * @returns {string} SVG pattern defs, or ''.
+         */
+        function stripeDitherDefs() {
+            var used = false;
+            for (var k = 0; k < LINES.length; k += 1) {
+                if (LINES[k].on && isStripe(LINES[k].style)) { used = true; }
+            }
+            if (isColor || !used) { return ''; }
+            var CELLS = [[[0, 0]], [[0, 0], [1, 1]], [[0, 0], [1, 0], [0, 1]],
+                [[0, 0], [1, 0], [0, 1], [1, 1]]];
+            var out = '', l, c;
+            for (l = 0; l < CELLS.length; l += 1) {
+                out += '<pattern id="sd' + (l + 1) + '" width="2" height="2" patternUnits="userSpaceOnUse">';
+                for (c = 0; c < CELLS[l].length; c += 1) {
+                    out += '<rect x="' + CELLS[l][c][0] + '" y="' + CELLS[l][c][1]
+                        + '" width="1" height="1" fill="' + ink.fg + '" shape-rendering="crispEdges"></rect>';
+                }
+                out += '</pattern>';
+            }
+            return out;
+        }
+
         // The night clip is the one conditional def: it exists only when there is a tint
         // to clip. The hatch pattern is unconditional — its stroke, not its presence,
         // carries the night colour.
@@ -599,6 +713,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         e += rect(0, 0, 200, legend.height, ink.bg);
         e += '<defs>'
             + '<pattern id="nh" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="' + nightHatchStroke + '" stroke-width="0.7"></line></pattern>'
+            + stripeDitherDefs()
             + '<pattern id="fillhatch" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect><rect x="1" y="1" width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect></pattern>'
             + (nightTint
                 ? '<clipPath id="nightclip"><rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '"></rect></clipPath>'
@@ -613,6 +728,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The night tint sits on top of the day fill and under the bars — the watch's
         // night-area underlay, which re-shades the filled area during the night hours.
         e += nightTint;
+        // Stripes: over the fill and night band, under the bars and the lines —
+        // forecast_layer.c's CHART_LAYER_STRIPE slot. Stacked per edge in line order.
+        var stripeSlots = { top: 0, bottom: 0 };
+        for (var si = 0; si < LINES.length; si += 1) {
+            if (LINES[si].on && isStripe(LINES[si].style)) {
+                var sTop = LINES[si].style === 'stripeTop';
+                e += stripeFor(LINES[si].metric, LINES[si].color, sTop,
+                    stripeSlots[sTop ? 'top' : 'bottom']++);
+            }
+        }
         if (state.barSource === 'rain') {
             // White (or theme-flipped) when the setting says so OR effectively-B&W. The watch
             // draws every one of these bars BAR_OUTLINED: B&W as a theme_bg()-filled

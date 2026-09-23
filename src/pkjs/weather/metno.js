@@ -119,6 +119,7 @@ function mapResponse(json, nowEpoch) {
     var windTrend = [];
     var gustTrend = [];
     var pressureTrend = [];
+    var cloudTrend = [];
     var feelsTrend = [];
     var dewTrend = [];
     var windDirTrend = [];
@@ -152,6 +153,8 @@ function mapResponse(json, nowEpoch) {
         gustTrend.push(msToKmh(followingGust(timeseries, i)));
         pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
             ? instant.air_pressure_at_sea_level : 0);
+        cloudTrend.push(typeof instant.cloud_area_fraction === 'number'
+            ? instant.cloud_area_fraction : 0);   // total cloud cover, %
         // Dew point and bearing degrade to null, not 0, and keep their slot so the
         // series stays hour-aligned: 0 is a valid bearing (due north) and 0 °F a
         // plausible dew point, so a fabricated zero would render as a lie. A null
@@ -180,6 +183,7 @@ function mapResponse(json, nowEpoch) {
         uvTrend: hourlyWindow.readHourly(timeseries, anchor, hourlyWindow.UV_HOURS,
             entryEpoch, entryUv),
         pressureTrend: pressureTrend,
+        cloudTrend: cloudTrend,
         feelsTrend: feelsTrend,
         dewTrend: dewTrend,
         windDirTrend: windDirTrend,

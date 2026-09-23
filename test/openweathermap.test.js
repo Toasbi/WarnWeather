@@ -52,6 +52,22 @@ test('OWM maps One Call hourly pressure (sea-level hPa) into pressureTrend', () 
   assert.deepEqual(p.pressureTrend, [1015, 0]);
 });
 
+test('OWM maps One Call hourly clouds (%) into cloudTrend', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify({
+      current: { temp: 71 },
+      daily: [{}, {}],
+      hourly: [
+        { temp: 50, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, clouds: 75, dt: 1700000000 },
+        { temp: 60, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, dt: 1700003600 }
+      ]
+    }));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.cloudTrend, [75, 0]);
+});
+
 test('OWM maps One Call feels_like (already °F) into feelsTrend/currentFeels', () => {
   responder = function(url, onSuccess) {
     onSuccess(JSON.stringify({

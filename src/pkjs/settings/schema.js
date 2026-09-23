@@ -31,6 +31,7 @@ var HOURS = (function () {
 // the metric maps to graph height; UV mirrors the precip-percentage phrasing.
 var LINE_HINTS = {
     precip_prob: 'Chance of rain each hour<br>— half-height = 50% rain chance<br>— full-height = 100% rain chance',
+    cloud: 'Cloud cover each hour<br>— half-height = half the sky covered<br>— full-height = overcast<br>Not available with Yandex.',
     wind: 'Wind speed each hour, scaled by the wind graph scale below.',
     gust: 'Wind gust peaks each hour, scaled by the wind graph scale below.',
     uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
@@ -80,7 +81,9 @@ var LINE_STYLE_HINTS = {
     line: 'A thin 1-pixel line.',
     bold: 'A thick 3-pixel line.',
     dots: 'Square dots, aligned to the rain bars.',
-    x: 'Little x marks, aligned to the rain bars.'
+    x: 'Little x marks, aligned to the rain bars.',
+    stripeTop: 'A thin stripe along the top of the graph, one cell per hour. The higher the value, the stronger the colour.',
+    stripeBottom: 'A thin stripe along the bottom of the graph, one cell per hour. The higher the value, the stronger the colour.'
 };
 /**
  * One line-style picker.
@@ -101,7 +104,8 @@ function lineStyleCopy(messageKey, lineKey) {
         defaultValue: lineStyle.LINE_STYLE_DEFAULTS[messageKey],
         joinPrevious: true,
         hintByValue: LINE_STYLE_HINTS,
-        options: [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x']],
+        options: [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x'],
+            ['Top', 'stripeTop'], ['Bottom', 'stripeBottom']],
         showWhen: {all: when}
     };
 }
@@ -334,7 +338,7 @@ function customViewItems(i) {
     return items;
 }
 
-// The seven rows of the Graph-colors card, each opening its own sheet. The six metrics
+// The eight rows of the Graph-colors card, each opening its own sheet. The seven metrics
 // come first, labelled and ordered exactly like the Main/Second metric pickers offer
 // them (blocks.js' FORECAST_METRICS — a user reads the two lists together), then the
 // full-height night band. `scope` is line-style.js' vocabulary: a metric id, or 'night'.
@@ -342,6 +346,7 @@ function customViewItems(i) {
 // it is picked, and the feels row simply has fewer pickers in its sheet.
 var GRAPH_COLOR_ROWS = [
     {scope: 'precip_prob', sheetId: 'gcPrecip', label: 'Precipitation %'},
+    {scope: 'cloud', sheetId: 'gcCloud', label: 'Cloud cover %'},
     {scope: 'wind', sheetId: 'gcWind', label: 'Wind speed'},
     {scope: 'gust', sheetId: 'gcGust', label: 'Wind gusts'},
     {scope: 'uv', sheetId: 'gcUv', label: 'UV Index'},
@@ -1472,7 +1477,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, or little x marks) — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, cloud cover %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, little x marks, or a shaded stripe along the top or bottom of the graph) — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1498,7 +1503,13 @@ module.exports = {
                 // floor. The row is hidden for it and the 'forecastMetricFill' hook
                 // above clears the stored value; forecast-series.js re-forces false at
                 // bake time so a settings blob written before this gate still can't fill.
-                showWhen: {key: 'secondaryLine', ne: 'feels'}
+                // A stripe has no curve to fill below either (line-style.js gates
+                // fillOn the same way) — unless this watch ignores the styles.
+                showWhen: {all: [
+                    {key: 'secondaryLine', ne: 'feels'},
+                    {any: [{not: LINE_STYLES_WHEN},
+                        {key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom']}]}
+                ]}
             },
             windScaleCopy('secondaryLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),

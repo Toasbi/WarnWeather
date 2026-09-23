@@ -455,6 +455,7 @@ Fields supported in `fixtures/<name>.json`:
 - `weather.startDayOffset` — optional day offset added to `watch.now.day` for the forecast start (default 0; pairs with `startHour`)
 - `weather.temps` — hourly Fahrenheit forecast array
 - `weather.precipPct` — hourly precipitation-probability array (0–100)
+- `weather.cloudPct` — optional hourly cloud-cover array (0–100); feeds the cloud-cover metric (omitted → that line stays off)
 - `weather.rainMm` — hourly rain-amount array (mm); drives the optional rain bars
 - `weather.windKmh` / `weather.gustKmh` — hourly wind / gust speed arrays (km/h); a non-zero gust array turns the gust line on
 - `weather.rainRadarExactMm` / `weather.rainRadarAreaMm` — radar rain per 5-minute frame (mm/h): rain at the exact location, and the strongest rain within 2 km. Supply both or radar is skipped

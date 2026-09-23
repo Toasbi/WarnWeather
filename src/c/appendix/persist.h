@@ -132,11 +132,12 @@ bool persist_set_fourth_line_color(GColor color);
 // phone resolved, copied verbatim off bytes [11..13] of CLAY_LINE_STYLE_UINT8
 // (line-style.js packs them; app_message.c stores the block straight through):
 //   [0] main-metric line   [1] second-metric line   [2] third-metric line
-// Each byte packs kind | (stroke_width << LINE_STYLE_WIDTH_SHIFT). The kind
-// bits ARE ChartLineStyle's values (chart.h — never renumber either side);
-// the width field only applies to CHART_LINE_SOLID (the phone sends 1 or 3 —
+// Each byte packs kind | (field << LINE_STYLE_WIDTH_SHIFT). The kind bits ARE
+// ChartLineStyle's values (chart.h — never renumber either side). For
+// CHART_LINE_SOLID the field is the stroke width (the phone sends 1 or 3 —
 // odd, because the SDK rounds even stroke widths down; snooze.c), and 0 means
-// "keep the built-in width". Get always fills out[], defaulting to the
+// "keep the built-in width". For CHART_LINE_STRIPE its low bit is the edge:
+// 1 = top, 0 = bottom (line_style_stripe_top). Get always fills out[], defaulting to the
 // pre-feature look — solid 1 px, dots, x — when the slot is unset/short.
 #define LINE_STYLE_STYLE_BYTES 3
 #define LINE_STYLE_KIND_MASK   0x03
@@ -147,11 +148,15 @@ void persist_get_line_styles(uint8_t out[LINE_STYLE_STYLE_BYTES]);
 
 // Decode helpers — header-only pure arithmetic (the night_light_wire_ok
 // pattern) so scripts/test-c.sh can pin the wire decode on the host.
-// An out-of-range kind (the mask admits 3) folds to SOLID rather than being
-// rejected: styles are cosmetic, and a wrong-but-drawn line beats a missing one.
+// The 2-bit mask admits exactly the four kinds, so every value decodes. (A watch
+// built before CHART_LINE_STRIPE folded kind 3 to SOLID — that is what an older
+// watch paired with a newer phone still draws.)
 static inline uint8_t line_style_kind(uint8_t b) {
-    uint8_t kind = b & LINE_STYLE_KIND_MASK;
-    return kind > CHART_LINE_X ? (uint8_t) CHART_LINE_SOLID : kind;
+    return (uint8_t)(b & LINE_STYLE_KIND_MASK);
+}
+// A stripe's edge: the field's low bit, 1 = top of the plot, 0 = bottom.
+static inline bool line_style_stripe_top(uint8_t b) {
+    return ((b >> LINE_STYLE_WIDTH_SHIFT) & 0x01) != 0;
 }
 // Stroke width for a SOLID line; `fallback` covers the 0 = "built-in" field.
 static inline int line_style_solid_width(uint8_t b, int fallback) {

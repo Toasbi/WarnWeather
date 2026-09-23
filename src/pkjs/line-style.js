@@ -38,6 +38,7 @@
     // hue, and why feels goes Black on light: ADR-0003 §6.
     var LINE_COLORS = {
         precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorDukeBlue,       bw: COLORS.GColorWhite },
+        cloud:       { color: COLORS.GColorBabyBlueEyes, light: COLORS.GColorLiberty,      bw: COLORS.GColorWhite },
         wind:        { color: COLORS.GColorYellow,     light: COLORS.GColorChromeYellow,   bw: COLORS.GColorWhite },
         uv:          { color: COLORS.GColorMagenta,    light: COLORS.GColorPurple,         bw: COLORS.GColorWhite },
         pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
@@ -49,6 +50,7 @@
     // (0x55FFFF is GColorElectricBlue — GColorCyan is 0x00FFFF.) ADR-0003 §6.
     var FILL_COLORS = {
         precip_prob: { color: COLORS.GColorCobaltBlue, light: COLORS.GColorElectricBlue, bw: COLORS.GColorLightGray },
+        cloud:       { color: COLORS.GColorLiberty,    light: COLORS.GColorBabyBlueEyes, bw: COLORS.GColorLightGray },
         wind:        { color: COLORS.GColorArmyGreen,  light: COLORS.GColorYellow,       bw: COLORS.GColorLightGray },
         uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
         gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
@@ -110,6 +112,7 @@
     // straight back, so an extra key here would ride out into a caller's triple.
     var NIGHT_AREA_COLORS = {
         precip_prob: { base: COLORS.GColorDukeBlue,       hatch: COLORS.GColorBlue,      boundary: COLORS.GColorVividCerulean },
+        cloud:       { base: COLORS.GColorOxfordBlue,     hatch: COLORS.GColorLiberty,   boundary: COLORS.GColorBabyBlueEyes },
         wind:        { base: COLORS.GColorArmyGreen,      hatch: COLORS.GColorLimerick,  boundary: COLORS.GColorLimerick },
         uv:          { base: COLORS.GColorImperialPurple, hatch: COLORS.GColorPurple,    boundary: COLORS.GColorVividViolet },
         gust:        { base: COLORS.GColorDarkGray,       hatch: COLORS.GColorLightGray, boundary: COLORS.GColorLightGray },
@@ -133,6 +136,7 @@
     // changing a colour the user approved — ask first.
     var NIGHT_AREA_LIGHT_BASE = {
         precip_prob: COLORS.GColorCyan,
+        cloud:       COLORS.GColorBabyBlueEyes,
         wind:        COLORS.GColorRajah,
         uv:          COLORS.GColorShockingPink,
         gust:        COLORS.GColorLightGray,
@@ -148,11 +152,11 @@
 
     // Main/second-line metrics, in the order the settings page lists them
     // (blocks.js' FORECAST_METRICS).
-    var GRAPH_METRICS = ['precip_prob', 'wind', 'uv', 'gust', 'pressure', 'feels'];
+    var GRAPH_METRICS = ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels'];
     // Metric id -> the CamelCase key fragment. The ids are snake_case wire values and
     // would make unreadable key names ('gcPrecip_probLineDark').
     var METRIC_SLUG = {
-        precip_prob: 'Precip', wind: 'Wind', uv: 'Uv',
+        precip_prob: 'Precip', cloud: 'Cloud', wind: 'Wind', uv: 'Uv',
         gust: 'Gust', pressure: 'Pressure', feels: 'Feels'
     };
     // 'Night' is the night FILL TINT — the base nightAreaColorsFor derives the triple from.
@@ -203,7 +207,7 @@
     }
 
     /**
-     * Every graph-colour key, in row order. 36 keys: five metrics x three roles x two
+     * Every graph-colour key, in row order. 42 keys: six metrics x three roles x two
      * polarities, feels' Line pair, and the night band's two pairs.
      *
      * Nothing in the app enumerates these — the schema builds its rows from graphColorRoles
@@ -389,14 +393,17 @@
     var FLAG_SECONDARY_FILL = 0x01;
 
     // --- Per-line marker styles (wire bytes [11..13]) -----------------------
-    // One setting per configurable line, four values: 'line' (thin solid),
-    // 'bold' (thick solid), 'dots' (square dots), 'x' (little x marks). The
-    // wire byte packs kind | (stroke_width << 2); the kind bits are chart.h's
-    // ChartLineStyle values (0 solid, 1 dots, 2 x — never renumber either
-    // side), and the width field only applies to solid kinds (odd widths only:
-    // the SDK rounds even stroke widths down).
-    var LINE_STYLE_KINDS = { line: 0, bold: 0, dots: 1, x: 2 };
-    var LINE_STYLE_WIDTHS = { line: 1, bold: 3 };
+    // One setting per configurable line, six values: 'line' (thin solid),
+    // 'bold' (thick solid), 'dots' (square dots), 'x' (little x marks), and
+    // 'stripeTop' / 'stripeBottom' (a thin band of hourly cells along that edge
+    // of the plot, shaded by value). The wire byte packs kind | (field << 2);
+    // the kind bits are chart.h's ChartLineStyle values (0 solid, 1 dots, 2 x,
+    // 3 stripe — never renumber either side). The field is the stroke width for
+    // solid kinds (odd widths only: the SDK rounds even stroke widths down) and
+    // the edge for the stripe (1 = top, 0 = bottom). A watch that predates the
+    // stripe folds kind 3 to a solid line (persist.h line_style_kind).
+    var LINE_STYLE_KINDS = { line: 0, bold: 0, dots: 1, x: 2, stripeTop: 3, stripeBottom: 3 };
+    var LINE_STYLE_WIDTHS = { line: 1, bold: 3, stripeTop: 1 };
     // Defaults reproduce the pre-feature look: solid 1 px main line, dotted
     // second line — and the new third-metric line debuts as x marks.
     var LINE_STYLE_DEFAULTS = {
@@ -412,7 +419,7 @@
      * Object.prototype name.
      * @param {Object} settings Clay settings blob.
      * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
-     * @returns {string} 'line'|'bold'|'dots'|'x'.
+     * @returns {string} 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
      */
     function lineStyleValue(settings, key) {
         var v = (settings || {})[key];
@@ -421,10 +428,20 @@
     }
 
     /**
+     * Is this line drawn as a stripe (either edge) rather than a stroke or marks?
+     * @param {Object} settings Clay settings blob.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+     * @returns {boolean} True for 'stripeTop' and 'stripeBottom'.
+     */
+    function isStripeStyle(settings, key) {
+        return LINE_STYLE_KINDS[lineStyleValue(settings, key)] === 3;
+    }
+
+    /**
      * The packed wire/persist byte for one line-style key (layout above).
      * @param {Object} settings Clay settings blob.
      * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
-     * @returns {number} kind | (stroke_width << 2).
+     * @returns {number} kind | (field << 2) — stroke width, or the stripe's edge.
      */
     function lineStyleByte(settings, key) {
         var v = lineStyleValue(settings, key);
@@ -465,13 +482,15 @@
      * which the settings-page bundle does not carry.
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
      *   (treated as colour basalt).
-     * @returns {{color: boolean, themePolarity: boolean}} Capabilities for renderContextFor.
+     * @returns {{color: boolean, themePolarity: boolean, lineStyles: boolean}} Capabilities
+     *   for renderContextFor / resolveGraphColors.
      */
     function capsForWatch(watchInfo) {
         var platform = watchInfo && watchInfo.platform ? watchInfo.platform : 'basalt';
         return {
             color: configUi.isColorPlatform(platform),
-            themePolarity: configUi.isThemePolarityPlatform(platform)
+            themePolarity: configUi.isThemePolarityPlatform(platform),
+            lineStyles: configUi.isLineStylePlatform(platform)
         };
     }
 
@@ -676,7 +695,10 @@
      * preview and the wire run the SAME resolution rather than two copies of it.
      *
      * @param {Object} settings Clay settings blob — as for resolveLineStyle.
-     * @param {{color: boolean, themePolarity: boolean}} caps See renderContextFor.
+     * @param {{color: boolean, themePolarity: boolean, lineStyles: boolean}} caps See
+     *   renderContextFor. `lineStyles` is the WW_LINE_STYLE mirror: only an explicit false
+     *   (aplite) ignores the stored styles, so a stripe picked on a colour watch paired to
+     *   the same phone cannot switch an aplite fill off.
      * @returns {{secondary: number, fill: number, third: number, fourth: number,
      *   fillOn: boolean, night: Object}} As resolveLineStyle.
      */
@@ -712,8 +734,10 @@
             night: resolveNightColors(settings, cx, secMetric),
             // THE authoritative gate on feels never filling (ADR-0003 §6) — the config UI
             // also hides and clears the toggle, but a blob stored before that landed, or
-            // any future caller, still cannot turn it on.
+            // any future caller, still cannot turn it on. A stripe-styled main line has
+            // no curve to fill below, so it never fills either.
             fillOn: Boolean(settings.secondaryLineFill) && secMetric !== 'feels'
+                && !(caps.lineStyles !== false && isStripeStyle(settings, 'secondaryLineStyle'))
         };
     }
 
@@ -789,6 +813,7 @@
         LINE_STYLE_DEFAULTS: LINE_STYLE_DEFAULTS,
         lineStyleValue: lineStyleValue,
         lineStyleByte: lineStyleByte,
+        isStripeStyle: isStripeStyle,
         FLAG_NIGHT_FILL_EXPLICIT: FLAG_NIGHT_FILL_EXPLICIT,
         LINE_COLORS: LINE_COLORS,
         FILL_COLORS: FILL_COLORS,

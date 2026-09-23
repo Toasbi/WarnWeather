@@ -110,7 +110,7 @@ var BAND_FLOOR_PERMILLE = 2;
 //
 // That splits the metrics in two:
 //
-//   ZERO-BASED  (precip_prob, wind, gust, uv) — scaled 0..max against a fixed
+//   ZERO-BASED  (precip_prob, cloud, wind, gust, uv) — scaled 0..max against a fixed
 //     ceiling. A zero is a real, meaningful zero (no rain, no wind), and skipping
 //     its dot is the DESIRED rendering. These must NOT be floored.
 //
@@ -328,7 +328,7 @@ function feelsPermille(feels, band) {
 /**
  * Permille (0..1000) series for one metric. Unknown metric → null. An absent/empty
  * raw series yields [] so the line renders as off (graceful degrade).
- * @param {string} metric One of precip_prob|wind|gust|uv|pressure|feels.
+ * @param {string} metric One of precip_prob|cloud|wind|gust|uv|pressure|feels.
  * @param {Object} raw Raw provider series (feels also reads raw.tempBand).
  * @param {Object} settings Clay settings (windScale).
  * @returns {number[]|null} Permille series, or null for an unknown metric.
@@ -336,6 +336,9 @@ function feelsPermille(feels, band) {
 function metricPermille(metric, raw, settings) {
     if (metric === 'precip_prob') {
         return (raw.precips || []).map(function(p) { return p * 10; }); // %→permille
+    }
+    if (metric === 'cloud') {
+        return scaleToPermille(raw.clouds, 100);   // cloud cover %, clamped 0..100
     }
     if (metric === 'wind' || metric === 'gust') {
         var max = WIND_SCALE_KMH[settings.windScale] || WIND_SCALE_KMH.mid;
@@ -366,7 +369,7 @@ function metricPermille(metric, raw, settings) {
  * nothing here that depends on the watch's platform, which is why this no
  * longer takes watchInfo.
  *
- * @param {{precips:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], tempBand:Object}} raw Raw series (+ the temp axis band the feels metric shares).
+ * @param {{precips:number[], clouds:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], tempBand:Object}} raw Raw series (+ the temp axis band the feels metric shares).
  * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, windScale:string, barSource:string}} settings Settings.
  * @returns {Object} Wire fields (see module interface).
  */
@@ -445,7 +448,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     }
     payload.TEMP_TREND_UINT8 = tempTrendToBytes(rawTemps, tempBand || undefined).bytes;
     var series = buildForecastSeries(
-        { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
+        { precips: payload.PRECIP_TREND_UINT8, clouds: payload.CLOUD_TREND, rains: payload.RAIN_TREND_UINT8,
           winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
           uvs: payload.UV_TREND_UINT8, pressures: payload.PRESSURE_TREND,
           feels: feels, tempBand: tempBand },
@@ -460,6 +463,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.GUST_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.UV_TREND_UINT8;    // transient PKJS-only; never over the wire
     delete payload.UV_DAY_PEAKS;      // transient PKJS-only; baked into the UV slot's text + level, never wired
+    delete payload.CLOUD_TREND;       // transient PKJS-only; cloud cover %, consumed by the cloud line above, never wired
     delete payload.PRESSURE_TREND;    // transient PKJS-only; hPa never fit a byte, never wired
     delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired

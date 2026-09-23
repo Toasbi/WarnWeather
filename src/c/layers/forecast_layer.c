@@ -112,10 +112,22 @@ typedef struct {
 // main line's built-in 1 px is a stroke width, not a mark box.
 static void apply_line_style(SeriesLine *line, uint8_t style_byte, int solid_width) {
     line->style = line_style_kind(style_byte);
+    line->stripe_top = line_style_stripe_top(style_byte);
     line->width = (line->style == CHART_LINE_SOLID)
         ? line_style_solid_width(style_byte, solid_width)
         : FORECAST_GRID_BAR_W;
 }
+
+// A stripe-styled series draws as a CHART_LAYER_STRIPE band, never as a line,
+// marks or a fill. aplite folds to false: its styles are frozen.
+#define SERIES_IS_STRIPE(s) ((s)->line.style == CHART_LINE_STRIPE)
+// Stripe geometry, derived from the plot height rather than the platform: about
+// a twelfth of it, 3..6 px, so a stripe keeps its proportion in every band
+// height. Stripes sharing an edge stack with a 1 px gap.
+#define FORECAST_STRIPE_H(plot_h) ((plot_h) / 12 < 3 ? 3 : ((plot_h) / 12 > 6 ? 6 : (plot_h) / 12))
+#define FORECAST_STRIPE_GAP 1
+#else
+#define SERIES_IS_STRIPE(s) false
 #endif
 
 static void load_dataset(ForecastDataset *ds) {
@@ -468,7 +480,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     Series *second = &ds.series[SERIES_SECOND];
     Series *bars   = &ds.series[SERIES_BARS];
 
-    const bool line_on       = second->present;
+    // A stripe main metric is not a line: no stroke, and no fill under it.
+    const bool line_on       = second->present && !SERIES_IS_STRIPE(second);
     const bool fill_on       = line_on && second->line.fill_on;
     const bool bars_on       = bars->present;
 
@@ -511,10 +524,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     static ChartLayer layers[SERIES_COUNT + 6]; // largest redraw array — must be static, not
                                   // stack (aplite's small app stack overflows otherwise).
                                   // Max reachable is SERIES_COUNT + 5: one layer per present
-                                  // series, plus the area fill, two night hatches, frame and
-                                  // axis. +6 keeps one slot of defensive headroom — 10 on
-                                  // aplite, 11 with the third-metric line, from the enum
-                                  // instead of a hand-maintained platform pair.
+                                  // series (a stripe replaces its line, never adds one), plus
+                                  // the area fill, two night hatches, frame and axis. +6
+                                  // keeps one slot of defensive headroom — 10 on aplite, 11
+                                  // with the third-metric line, from the enum instead of a
+                                  // hand-maintained platform pair.
     int n = 0;
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
@@ -558,6 +572,27 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .spacing        = night_hatch_spacing,
             .contour        = NULL } };
     }
+#if defined(WW_LINE_STYLE)
+    // Stripes: over the night shading, under the rain bars (so a bottom stripe
+    // never hides rain) and every line. Stacked per edge in line order.
+    {
+        const int stripe_h = FORECAST_STRIPE_H(axis_y);
+        int stacked_top = 0, stacked_bottom = 0;
+        for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
+            const Series *s = &ds.series[sid];
+            if (!s->present || !SERIES_IS_STRIPE(s)) continue;
+            int *stacked = s->line.stripe_top ? &stacked_top : &stacked_bottom;
+            layers[n++] = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
+                .values = s->line.values, .count = ds.num_entries,
+                .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+                .color = s->line.color,
+                .y_offset = (int16_t)(*stacked * (stripe_h + FORECAST_STRIPE_GAP)),
+                .height = (int16_t)stripe_h,
+                .top = s->line.stripe_top } };
+            ++*stacked;
+        }
+    }
+#endif
     // Attach the scaled rain-tier palette to the BARS series (computed above).
     bars->bars.stops     = scaled_bar_stops;
     bars->bars.num_stops = bar_num_stops;
@@ -579,7 +614,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // shape (not color) distinguishes them from the main-metric line.
     if (!fill_on) {
         for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
-            if (ds.series[sid].present) {
+            if (ds.series[sid].present && !SERIES_IS_STRIPE(&ds.series[sid])) {
                 layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries);
             }
         }
@@ -611,7 +646,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Fill present: marks go over the line + its opaque fill so they stay visible.
     if (fill_on) {
         for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
-            if (ds.series[sid].present) {
+            if (ds.series[sid].present && !SERIES_IS_STRIPE(&ds.series[sid])) {
                 layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries);
             }
         }

@@ -21,6 +21,9 @@ function buildQuery(lat, lon) {
     var lonNum = Number(lon);
     return '{ weatherByPoint(request: {lat: ' + latNum + ', lon: ' + lonNum + '}) {'
         + ' now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) }'
+        // No cloud cover either: its GraphQL field name can't be verified against
+        // live traffic, and a wrong one fails the whole query (see below) — the
+        // cloud line stays off on Yandex.
         // No pressure field on purpose: Yandex exposes station-level pressure only,
         // and a station reading at altitude is ~830 hPa where every other provider
         // reports ~1013 MSL. Leaving pressureTrend empty degrades to a line-off and

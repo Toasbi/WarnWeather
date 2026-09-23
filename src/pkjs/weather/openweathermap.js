@@ -190,6 +190,9 @@ OpenWeatherMapProvider.prototype.withProviderData = function(lat, lon, force, on
         this.pressureTrend = weatherData.hourly.map(function(entry) {
             return typeof entry.pressure === 'number' ? entry.pressure : 0; // One Call hourly pressure is sea-level hPa
         });
+        this.cloudTrend = weatherData.hourly.map(function(entry) {
+            return typeof entry.clouds === 'number' ? entry.clouds : 0; // One Call hourly cloudiness, %
+        });
         // Dew point rides the same cached One Call response — no extra request,
         // and already °F because the call is units=imperial, which is exactly
         // the unit the normalized field wants. No conversion.

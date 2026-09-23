@@ -253,6 +253,7 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             this.rainTrend = following.map(function(e) { return e ? e.precipitation : 0; });
             this.windTrend = slots.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
             this.gustTrend = following.map(function(e) { return (e && e.wind_gust_speed) || 0; }); // Brightsky wind_gust_speed is km/h
+            this.cloudTrend = slots.map(function(e) { return e.cloud_cover || 0; }); // Brightsky cloud_cover is total %
             this.pressureTrend = slots.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
             // Dew point rides along free: Brightsky returns the full field set, so
             // this is the same value hourFeels already reads. Ungated by fetchFeels

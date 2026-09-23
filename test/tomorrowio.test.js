@@ -205,6 +205,17 @@ test('tomorrow.io yields 0 for a missing pressureSeaLevel (forecast-series rejec
   assert.equal(out.pressureTrend[0], 0);
 });
 
+test('tomorrow.io requests and maps cloudCover, a missing hour as 0', () => {
+  assert.ok(tomorrowio.buildUrl(52.52, 13.41, 'KEY123', BASE + 1234).includes('cloudCover'),
+    'fields must request cloudCover');
+  const json = sampleResponse();
+  json.data.timelines[0].intervals.forEach((iv, i) => { if (i !== 4) { iv.values.cloudCover = i * 2; } });
+  const out = tomorrowio.mapResponse(json, BASE + 3 * 3600 + 600);
+  assert.equal(out.cloudTrend[0], 6);
+  assert.equal(out.cloudTrend[1], 0, 'missing cloudCover zero-fills');
+  assert.equal(out.cloudTrend.length, 24);
+});
+
 test('tomorrow.io requests temperatureApparent and maps it °C→°F into feelsTrend', () => {
   assert.ok(tomorrowio.buildUrl(52.52, 13.41, 'KEY123', BASE + 1234).includes('temperatureApparent'),
     'fields must request temperatureApparent');

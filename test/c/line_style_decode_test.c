@@ -24,10 +24,14 @@ int main(void) {
     // 'bold': solid, 3 px.
     assert(line_style_kind(0x0C) == CHART_LINE_SOLID);
     assert(line_style_solid_width(0x0C, 1) == 3);
-    // Robustness: kind 3 (the 2-bit mask admits it) folds to SOLID — styles
-    // are cosmetic, so a wrong-but-drawn line beats a missing one; width 0
-    // means "keep the built-in" and takes the caller's fallback.
-    assert(line_style_kind(0x03) == CHART_LINE_SOLID);
+    // 'stripeBottom' (kind 3, field 0) and 'stripeTop' (kind 3, field 1): the
+    // edge rides the field's low bit.
+    assert(line_style_kind(0x03) == CHART_LINE_STRIPE);
+    assert(!line_style_stripe_top(0x03));
+    assert(line_style_kind(0x07) == CHART_LINE_STRIPE);
+    assert(line_style_stripe_top(0x07));
+    // Robustness: width 0 means "keep the built-in" and takes the caller's
+    // fallback.
     assert(line_style_solid_width(0x00, 3) == 3);
     // High width bits stay within the 3-bit field (7 px ceiling).
     assert(line_style_solid_width(0xFF, 1) == 7);

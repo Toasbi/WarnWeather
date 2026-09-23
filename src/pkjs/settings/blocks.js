@@ -81,9 +81,9 @@ if (typeof require !== 'undefined') {
         ];
     });
 
-    // The six graph metrics in picker order — one list feeds both forecast pickers.
+    // The seven graph metrics in picker order — one list feeds every forecast picker.
     var FORECAST_METRICS = [
-        ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
+        ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
         ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
     ];
     // Metric picker options, shaped by self-describing args from the schema:

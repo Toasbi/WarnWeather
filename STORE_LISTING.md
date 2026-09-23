@@ -9,8 +9,10 @@ Highly customizable with a modern settings UI and previews.
 
 FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
-- Up to three configurable metrics such as precipitation, UV index, gusts, wind, air
-  pressure and feels-like temperature
+- Up to three configurable metrics such as precipitation, cloud cover, UV index, gusts,
+  wind, air pressure and feels-like temperature
+- Show any metric as a line, dots, x marks, or a shaded stripe along the top or bottom of
+  the graph
 - Feels-like your way: the provider's own value, or the Steadman formula
   (temperature, humidity, wind) applied the same on every provider
 - Optional day/night shading
