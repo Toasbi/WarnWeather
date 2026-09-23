@@ -188,10 +188,11 @@ function formatWind(v, settings, showUnit, cap) {
  * Convert an internal °F temperature to the display unit as a bare number.
  * Shared by the actual and feels-like halves of the temp slot and by the dew
  * point slot, so all three ride the identical conversion/rounding path.
- * Rounds LAST, in both units: the temp/feels callers already pass whole °F, but
- * DEW_TREND carries the provider's unrounded reading (kept unrounded so the °C
- * conversion rounds once rather than twice), and an unrounded °F would render as
- * "53.6" — four characters of nonsense in an 8-byte slot.
+ * Rounds LAST, in both units: CURRENT_TEMP, FEELS_CURRENT and DEW_TREND all carry
+ * the provider's unrounded reading (so the °C conversion rounds once rather than
+ * twice — a whole-°F pre-round put 0.3 °C at "1" and could show a dew point above
+ * the air temperature), and an unrounded °F would render as "53.6" — four
+ * characters of nonsense in an 8-byte slot.
  * @param {number} vF temperature in °F
  * @param {Object} settings Clay settings blob (reads temperatureUnits)
  * @returns {string} e.g. "20" or "-12"

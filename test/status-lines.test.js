@@ -148,6 +148,39 @@ test('temp slot display modes: actual, feels, and slash-separated both', () => {
     baseSettings({ tempSlotDisplay: 'both' })), '20/10', 'actual first');
 });
 
+test('°C temp and feels slots round the provider reading once, like the dew slot', () => {
+  // End to end through getPayload: a whole-°F round there, then the °C round in
+  // formatTemp, put ~16% of °C readings one degree off and could show a dew
+  // point above the air temperature (DEW_TREND was already single-rounded).
+  const WeatherProvider = require('../src/pkjs/weather/provider.js');
+  const c2f = require('../src/pkjs/wire-units.js').celsiusToFahrenheit;
+  function payloadAt(tempF) {
+    const p = new WeatherProvider();
+    p.tempTrend = new Array(24).fill(tempF);
+    p.precipTrend = new Array(24).fill(0);
+    p.startTime = 1767258000;
+    p.currentTemp = tempF;
+    p.currentFeels = tempF;
+    p.dewTrend = [tempF];
+    p.cityName = 'X';
+    p.sunEvents = [{ type: 'sunrise', date: new Date(1767258000 * 1000) }];
+    return p.getPayload();
+  }
+  const c = baseSettings({ temperatureUnits: 'c' });
+  // Open-Meteo's 0.1 °F feed in fog: T = Td = 31.46 °F (-0.3 °C).
+  const fog = payloadAt(31.46);
+  assert.equal(statusLines.formatValue('temp', fog, c), '0', 'was "-1" via whole °F 31');
+  assert.equal(statusLines.formatValue('dew', fog, c), '0');
+  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'feels' })), '0');
+  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'both' })), '0/0');
+  // °C-native providers (DWD/met.no/Tomorrow.io convert °C → °F).
+  [[0.3, '0'], [-29.7, '-30'], [20.3, '20'], [-5.3, '-5']].forEach(([celsius, shown]) => {
+    assert.equal(statusLines.formatValue('temp', payloadAt(c2f(celsius)), c), shown, celsius + ' °C');
+  });
+  // °F users see exactly what the whole-°F round gave them.
+  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ temperatureUnits: 'f' })), '31');
+});
+
 test('temp display modes convert both halves with temperatureUnits', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
   assert.equal(statusLines.formatValue('temp', p,

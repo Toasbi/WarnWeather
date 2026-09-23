@@ -695,6 +695,8 @@ WeatherProvider.prototype.getPayload = function() {
     // early encode here forced a decode-and-re-encode round trip downstream.)
     // TEMP_MIN/TEMP_MAX carry the ACTUAL air range either way: the watch reads
     // them only for the hi/lo labels; the scaling band travels in the bytes.
+    // They are whole °F int32s, so for °C the watch's f_to_c rounds them a second
+    // time — a label can sit a degree off the single-rounded temp slot.
     var tempMin = Infinity, tempMax = -Infinity, ti;
     for (ti = 0; ti < temps.length; ti += 1) {
         if (temps[ti] < tempMin) { tempMin = temps[ti]; }
@@ -715,7 +717,9 @@ WeatherProvider.prototype.getPayload = function() {
         PRESSURE_TREND: (this.pressureTrend && this.pressureTrend.length) ? this.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,
         NUM_ENTRIES: numEntries,
-        CURRENT_TEMP: Math.round(this.currentTemp),
+        // Transient PKJS-only: °F, unrounded like DEW_TREND — formatTemp rounds once,
+        // in the display unit; a whole-°F round here made °C readings round twice.
+        CURRENT_TEMP: this.currentTemp,
         CITY: this.cityName,
         // First byte flags whether the event list starts on a sunrise (0) or sunset (1).
         SUN_EVENTS: encodeSunEvents(this.sunEvents)
@@ -731,7 +735,7 @@ WeatherProvider.prototype.getPayload = function() {
         });
     }
     if (typeof this.currentFeels === 'number') {
-        payload.FEELS_CURRENT = Math.round(this.currentFeels); // °F, rounded like CURRENT_TEMP
+        payload.FEELS_CURRENT = this.currentFeels; // °F, unrounded like CURRENT_TEMP
     }
     // Dew point and wind bearing follow the same conditional-emit rule as the
     // feels-like keys: absent rather than empty, so a provider that does not

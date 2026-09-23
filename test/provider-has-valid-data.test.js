@@ -177,9 +177,12 @@ test('getPayload emits sourced feelsTrend as whole °F, trimmed to numEntries', 
   assert.equal('FEELS_CURRENT' in out, false, 'current is independent of the trend');
 });
 
-test('getPayload rounds FEELS_CURRENT like CURRENT_TEMP (0 °F is a real value)', () => {
-  const p = pressureProvider({ currentFeels: 46.6 });
-  assert.equal(p.getPayload().FEELS_CURRENT, 47);
+test('getPayload passes CURRENT_TEMP and FEELS_CURRENT through unrounded (0 °F is a real value)', () => {
+  // Transient keys formatTemp rounds once, in the display unit — a whole-°F
+  // pre-round here made every °C reading round twice.
+  const out = pressureProvider({ currentTemp: 31.46, currentFeels: 46.6 }).getPayload();
+  assert.equal(out.CURRENT_TEMP, 31.46);
+  assert.equal(out.FEELS_CURRENT, 46.6);
   assert.equal(pressureProvider({ currentFeels: 0 }).getPayload().FEELS_CURRENT, 0);
 });
 
