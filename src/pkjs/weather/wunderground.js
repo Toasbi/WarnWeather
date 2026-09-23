@@ -181,10 +181,10 @@ WundergroundProvider.prototype.withKeyedData = function(lat, lon, onSuccess, onF
             this.withWundergroundForecast(lat, lon, apiKey, (function(rawForecast) {
                 // WU's hourly feed rounds up and drops the in-progress hour;
                 // anchor it to the current wall-clock hour, reusing the real
-                // forecast for that hour captured last cycle. See
-                // wu-current-hour-cache.js.
+                // forecast for that hour captured last cycle at this location.
+                // See wu-current-hour-cache.js.
                 var hourFloor = Math.floor(Date.now() / 1000 / 3600) * 3600;
-                var forecast = wuCache.anchorForecast(rawForecast, hourFloor);
+                var forecast = wuCache.anchorForecast(rawForecast, hourFloor, lat, lon);
                 this.tempTrend = forecast.map(function(entry) {
                     return entry.temp;
                 });

@@ -126,6 +126,34 @@ test('WU reuses the cached current-hour forecast across the hour boundary', () =
   assert.equal(p.precipTrend[0], 0, 'cached real current-hour pop, not the next-hour clone (0.8)');
 });
 
+test('WU does not fill the current hour from the previous location after a location change', () => {
+  // Fetch at A during the hour before NOW_HOUR: A's NOW_HOUR bucket (50°F, 30 mph) is cached.
+  responder = respondWith([
+    { temp: 50, pop: 90, qpf: 0, wspd: 30, gust: 45, uv_index: 0, fcst_valid: NOW_HOUR },
+    { temp: 52, pop: 80, qpf: 0, wspd: 28, gust: 40, uv_index: 0, fcst_valid: NOW_HOUR + HOUR }
+  ], 49);
+  withMockedNow(NOW_HOUR - HOUR + 800, function() {
+    new WundergroundProvider().withProviderData(52.52, 13.405, false, function() {},
+      function(f) { throw new Error(JSON.stringify(f)); });
+  });
+
+  // Fetch at B during NOW_HOUR: WU rounded up to NOW_HOUR+HOUR. The current hour
+  // must come from B's own feed, not A's captured bucket.
+  responder = respondWith([
+    { temp: 85, pop: 0, qpf: 0, wspd: 2, gust: 3, uv_index: 9, fcst_valid: NOW_HOUR + HOUR },
+    { temp: 86, pop: 0, qpf: 0, wspd: 2, gust: 3, uv_index: 9, fcst_valid: NOW_HOUR + 2 * HOUR }
+  ], 84);
+  const p = new WundergroundProvider();
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData('48.137', '11.575', false, function() {},
+      function(f) { throw new Error(JSON.stringify(f)); });
+  });
+
+  assert.equal(p.startTime, NOW_HOUR, 'anchored to the current hour');
+  assert.equal(p.tempTrend[0], 85, 'B\'s soonest bucket, not A\'s captured 50');
+  assert.equal(round4(p.windTrend[0]), 3.2187, 'B\'s wind (2 mph), not A\'s 30 mph');
+});
+
 test('wunderground converts mslp from inches of mercury (units=e) to hPa in pressureTrend', () => {
   // The v1 hourly call carries no units param, so the feed is units=e and mslp
   // is inHg (~29.9). Passed through raw it failed the 800-1100 hPa plausibility
