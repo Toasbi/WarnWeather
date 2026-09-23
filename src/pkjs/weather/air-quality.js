@@ -22,8 +22,9 @@ function scaleField(scale) {
 
 /**
  * Build the keyless Open-Meteo air-quality request URL for one AQI scale,
- * mirroring the UV call's unixtime/GMT/forecast_days conventions so buckets
- * align with the forecast window by timestamp.
+ * mirroring the UV call's unixtime/GMT conventions so buckets align with the
+ * forecast window by timestamp. Two GMT days hold its FORECAST_HOURS window;
+ * only the UV call reaches further, for tomorrow's peak.
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {string} scale 'us' | 'european'.

@@ -166,8 +166,9 @@ test('mapResponse reads the last slot from the bucket after the window', () => {
 });
 
 test('mapResponse degrades the last slot, not the fetch, when that bucket is missing', () => {
-  // Anchor at bucket 24 leaves exactly 24 buckets (a response from just before
-  // GMT midnight read just after it): every instant is there, only the last
+  // Anchor at bucket 24 leaves exactly 24 buckets (a truncated response; the
+  // real 72-bucket one needs an anchor of 48, two GMT days stale): every
+  // instant is there, only the last
   // slot's preceding-hour bucket is not. That slot reads dry / no gust; the
   // fetch still succeeds, as it did before the one-bucket-ahead read.
   const out = mapResponse(sampleResponse(), BASE + 24 * 3600);

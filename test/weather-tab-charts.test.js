@@ -687,6 +687,11 @@ test('no caption word is ever sliced by the viewport edge', () => {
 test('a real DWD response reaches the caption: the word follows the modelled fields, the bars follow the rain', () => {
   // End to end through the actual parser — no hand-set flags — so the wiring
   // from Brightsky's per-field provenance to the word on screen is covered.
+  // Brightsky answers in UTC and the tab lays DWD's day out on the PHONE's
+  // clock, so the records start at the phone's midnight, not UTC's: the
+  // hour positions below then hold in any zone the suite runs in.
+  const DAY0 = new Date(2026, 8, 20).getTime();
+  const NOON = DAY0 + 12 * 3600000;
   const sources = [{ id: 1, observation_type: 'current' }, { id: 9, observation_type: 'forecast' }];
   const build = (modelledFrom, field) => {
     const weather = [];

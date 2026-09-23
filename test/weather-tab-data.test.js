@@ -12,6 +12,10 @@ const DAY0 = new Date(2026, 8, 20, 0, 0, 0).getTime();
 
 test('Open-Meteo parser: hourly series + provider daily, unixtime seconds → ms', () => {
   const hours = [NOON / 1000, NOON / 1000 + 3600];
+  // Open-Meteo stamps its days at the LOCATION's midnights (UTC+2 here), not
+  // the phone's, so the fixture's days are built on that offset: then the
+  // phone's own zone never moves "today" past its tile.
+  const locDay0 = (Math.floor((NOON / 1000 + 7200) / 86400) * 86400 - 7200);
   const fixture = {
     utc_offset_seconds: 7200,
     hourly: {
@@ -28,7 +32,7 @@ test('Open-Meteo parser: hourly series + provider daily, unixtime seconds → ms
       weather_code: [61, 3]
     },
     daily: {
-      time: [DAY0 / 1000 - 86400, DAY0 / 1000, DAY0 / 1000 + 86400],
+      time: [locDay0 - 86400, locDay0, locDay0 + 86400],
       weather_code: [3, 61, 0],
       temperature_2m_max: [20, 21, 19],
       temperature_2m_min: [12, 13, 11],

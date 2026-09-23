@@ -15,11 +15,12 @@ function anchorIndex(times, nowEpoch) {
  * A PRECEDING-HOUR series read onto the watch's slots: slot i takes the bucket
  * one after its own (anchor + 1 + i), the one stamped at the slot's END. Only
  * the last slot reaches past the instants' window, into the bucket after it;
- * when the response stops right at the window's end (a stale or skewed
- * response anchored at bucket 24 of 48), that one slot degrades to `fill`
- * instead of failing the whole fetch — the degrade DWD applies to a missing
- * trailing record and mapGusts to a missing bucket. A field array shorter than
- * `time` still comes back short, so hasValidData rejects it as before.
+ * when the response stops right at the window's end (a truncated, stale or
+ * skewed one: the 72-bucket response anchored at bucket 48), that one slot
+ * degrades to `fill` instead of failing the whole fetch — the degrade DWD
+ * applies to a missing trailing record and mapGusts to a missing bucket. A
+ * field array shorter than `time` still comes back short, so hasValidData
+ * rejects it as before.
  *
  * @param {Array} series The hourly field array.
  * @param {number} anchor Index of slot 0's bucket.
@@ -177,7 +178,9 @@ OpenMeteoProvider.prototype._super = WeatherProvider;
  * deterministic precipitation amount, so high-probability hours frequently
  * report 0.0 mm — which makes the (amount-driven) rain bars vanish. ECMWF IFS
  * is a single coherent global model whose amount tracks its probability in
- * every region tested, so the bars show wherever the watch is used.
+ * every region tested, so the bars show wherever the watch is used. (Its
+ * chance comes from the same model's ensemble, 3-hourly -- see
+ * ensembleBlockSlice.)
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.

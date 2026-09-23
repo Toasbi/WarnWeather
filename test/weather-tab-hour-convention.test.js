@@ -96,8 +96,13 @@ test('a skipped DWD record: the tab draws each hour the watch does, and loses no
 test('the tab and the watch read the same Open-Meteo hour for 14:00', () => {
   // One response, as both callers would receive it: a 2 mm shower with a 70%
   // chance and a 70 km/h gust, stamped 15:00 because Open-Meteo reports the
-  // PRECEDING hour — it fell between 14:00 and 15:00.
-  const BASE = Math.floor(DAY0 / 1000);
+  // PRECEDING hour — it fell between 14:00 and 15:00. The day starts at a
+  // GMT midnight, not the phone's: the watch reads the chance by 3-hour UTC
+  // ensemble block, and 14:00-15:00 shares its block's 15:00 boundary with
+  // the tab's one-stamp-ahead read only on a 3-hour UTC grid (the tab's
+  // best_match chance is not always 3-hourly, so it keeps the plain read).
+  const BASE = Date.UTC(2026, 8, 20) / 1000;
+  const D0 = BASE * 1000;
   const hourly = { time: [], temperature_2m: [], precipitation: [], precipitation_probability: [],
     windspeed_10m: [], windgusts_10m: [], wind_speed_10m: [], wind_gusts_10m: [], weather_code: [] };
   for (let i = 0; i < 48; i += 1) {
@@ -121,8 +126,8 @@ test('the tab and the watch read the same Open-Meteo hour for 14:00', () => {
   assert.equal(watch.rainTrend[0], 2, 'precondition: the watch puts the shower in its 14:00 slot');
 
   // The tab's row for 14:00 carries the same hour.
-  const tab = data.parsers.openmeteo(json, DAY0 + 14 * H);
-  const i14 = tab.hourly.time.indexOf(DAY0 + 14 * H);
+  const tab = data.parsers.openmeteo(json, D0 + 14 * H);
+  const i14 = tab.hourly.time.indexOf(D0 + 14 * H);
   assert.equal(tab.hourly.rain[i14], watch.rainTrend[0], 'the same rain');
   assert.equal(tab.hourly.prob[i14] / 100, watch.precipTrend[0], 'the same chance');
   assert.equal(tab.hourly.gust[i14], watch.gustTrend[0], 'the same gust');

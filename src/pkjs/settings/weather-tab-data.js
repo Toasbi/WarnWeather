@@ -13,7 +13,8 @@
 //           stamped 14:00 are 14:00-15:00's. Open-Meteo and DWD stamp those
 //           at the hour's END, so their parsers re-stamp them
 //           (model.startHourFields), as the watch's adapters do, with the
-//           icon that describes the same rain; OWM's
+//           icon that describes the same rain (the watch reads its pinned
+//           model's 3-hourly Open-Meteo chance by block); OWM's
 //           3-hourly tail totals the 3 h before its stamp, spread over them
 //           (parseOwmForecast3h).
 //           Two provenance flags, per hour. `measured` says whether the
