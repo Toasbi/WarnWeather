@@ -166,5 +166,9 @@
   "1.21.0": {
     "title": "Third metric + line styles",
     "body": "The forecast graph can now show a third metric (little x marks), and every metric line has a selectable style: thin or thick line, square dots, or x marks. Set them in the Forecast tab. (Not on Pebble Classic/Steel, which keeps its classic look.)"
+  },
+  "1.22.0": {
+    "title": "Dew point line, more day maxes",
+    "body": "The forecast graph can now draw dew point on the temperature scale. Wind, gust and air quality slots can show the day's max like UV: tap the pencil next to the slot. Feels-like can use the Steadman formula on every provider, under Units in the General tab."
   }
 }
