@@ -279,7 +279,7 @@ test('a blob seeded with every default packs the same ten bytes as a blob with n
       keys.forEach((key) => {
         const m = /^gc([A-Z][a-z]+)([A-Z][a-z]+)(Dark|Light)$/.exec(key);
         const scope = { Precip: 'precip_prob', Wind: 'wind', Uv: 'uv', Gust: 'gust',
-          Pressure: 'pressure', Feels: 'feels', Night: 'night' }[m[1]];
+          Pressure: 'pressure', Feels: 'feels', Dew: 'dew', Night: 'night' }[m[1]];
         seeded[key] = lineStyle.graphColorDefault(scope, m[2], m[3], base);
       });
       assert.deepEqual(lineStyle.buildLineStyleBytes(seeded, emery),
@@ -594,6 +594,11 @@ const EXPECTED_DEFAULTS = {
     Fill:     { Dark: 0xAAAAAA, Light: 0xAAAAAA },  // LightGray — keyless, still resolved
     Night:    { Dark: 0xAAAAAA, Light: 0xAAAAAA }   // LightGray — keyless, still resolved
   },
+  dew: {
+    Line:     { Dark: 0x55AAAA, Light: 0x005555 },  // CadetBlue / MidnightGreen
+    Fill:     { Dark: 0x55AAAA, Light: 0x55AAAA },  // CadetBlue — keyless, still resolved
+    Night:    { Dark: 0x005555, Light: 0x005555 }   // MidnightGreen — keyless, still resolved
+  },
   night: {
     Hatch:    { Dark: 0x555555, Light: 0x555555 },  // DarkGray — forecast_layer.c NIGHT_HATCH_COLOR
     Boundary: { Dark: 0x555555, Light: 0x555555 }   // DarkGray — forecast_layer.c NIGHT_BOUNDARY_COLOR
@@ -615,7 +620,7 @@ test('every built-in default is the exact colour 1.14.1 painted for that metric 
   lineStyle.graphColorKeys().forEach((key) => {
     const m = /^gc([A-Z][a-z]+)([A-Z][a-z]+)(Dark|Light)$/.exec(key);
     const scope = { Precip: 'precip_prob', Wind: 'wind', Uv: 'uv', Gust: 'gust',
-      Pressure: 'pressure', Feels: 'feels', Night: 'night' }[m[1]];
+      Pressure: 'pressure', Feels: 'feels', Dew: 'dew', Night: 'night' }[m[1]];
     assert.ok(EXPECTED_DEFAULTS[scope] && EXPECTED_DEFAULTS[scope][m[2]],
       `${key} has no pinned expectation`);
   });
@@ -652,14 +657,15 @@ test('gust/Line/Dark counts as untouched on either built-in, so white bars never
     false, 'the exemption is gust/Line/Dark alone');
 });
 
-test('graphColorKeys lists 36 unique, well-formed keys and covers every role each scope owns', () => {
+test('graphColorKeys lists 38 unique, well-formed keys and covers every role each scope owns', () => {
   const keys = lineStyle.graphColorKeys();
-  assert.equal(keys.length, 36);
-  assert.equal(new Set(keys).size, 36, 'no duplicates');
+  assert.equal(keys.length, 38);
+  assert.equal(new Set(keys).size, 38, 'no duplicates');
   keys.forEach((key) => assert.match(key, /^gc[A-Z][A-Za-z]+(Dark|Light)$/, key));
   // feels never fills, so it has no Fill or night-tint row; the night band has only its
   // own two. Both are the graphColorRoles exception the schema builds its rows from.
   assert.deepEqual(lineStyle.graphColorRoles('feels'), ['Line']);
+  assert.deepEqual(lineStyle.graphColorRoles('dew'), ['Line']);
   assert.deepEqual(lineStyle.graphColorRoles('wind'), ['Line', 'Fill', 'Night']);
   assert.deepEqual(lineStyle.graphColorRoles('night'), ['Hatch', 'Boundary']);
   assert.equal(keys.indexOf('gcFeelsFillDark'), -1);

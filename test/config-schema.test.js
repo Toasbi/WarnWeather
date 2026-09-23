@@ -201,9 +201,9 @@ test('B/W bar-scale hints actually show for bw-light (not just bw) via the show-
 
 test('COLOR-capability + showWhen wiring', () => {
   ['rainBarColor','radarColor','colorTime'].forEach((k) => assert.ok(byKey(k).capabilities.indexOf('COLOR') >= 0));
-  // Fill is available for every metric EXCEPT feels-like, which rides the temperature
-  // axis and so has no meaningful zero to fill down to.
-  assert.deepEqual(byKey('secondaryLineFill').showWhen, { key: 'secondaryLine', ne: 'feels' });
+  // Fill is available for every metric EXCEPT feels-like and dew point, which ride the
+  // temperature axis and so have no meaningful zero to fill down to.
+  assert.deepEqual(byKey('secondaryLineFill').showWhen, { key: 'secondaryLine', nin: ['feels', 'dew'] });
   assert.deepEqual(byKey('owmApiKey').showWhen, { key: 'provider', eq: 'openweathermap' });
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
 });
@@ -215,6 +215,8 @@ test('the fill toggle hides for feels-like and stays visible for every other met
   });
   assert.equal(showWhen.isVisible(fill, { secondaryLine: 'feels', env: {} }), false,
     'feels-like hides the fill row');
+  assert.equal(showWhen.isVisible(fill, { secondaryLine: 'dew', env: {} }), false,
+    'dew point hides the fill row');
   // The metric picker carries the hook that clears the stored value on the way in.
   assert.equal(byKey('secondaryLine').onChange, 'forecastMetricFill');
 });
@@ -411,12 +413,12 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
 const metricOptions = (S, env, args) =>
   global.PConf.optionsResolvers.get('forecastMetric')(S, env, args);
 
-test('secondaryLine is a 6-metric dropdown with no Off (resolver-derived)', () => {
+test('secondaryLine is a 7-metric dropdown with no Off (resolver-derived)', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
   assert.equal(sec.optionsFrom.resolver, 'forecastMetric');
   const vals = metricOptions({}, { platform: 'basalt' }).map((o) => o[1]);
-  assert.deepEqual(vals, ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels']);
+  assert.deepEqual(vals, ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew']);
   assert.equal(sec.defaultValue, 'precip_prob');
 });
 
@@ -426,13 +428,13 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
   assert.equal(third.defaultValue, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
   assert.deepEqual(third.optionsFrom.args, { off: true, exclude: ['secondaryLine'] });
-  // Every secondary metric yields Off + the OTHER five (never itself).
-  ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'].forEach((sec) => {
+  // Every secondary metric yields Off + the OTHER six (never itself).
+  ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew'].forEach((sec) => {
     const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] })
       .map((o) => o[1]);
     assert.equal(vals[0], 'off', sec + ' third options must start with off');
     assert.ok(!vals.includes(sec), sec + ' must be excluded from its own third-line options');
-    assert.equal(vals.length, 6, sec + ' → off + 5 others');
+    assert.equal(vals.length, 7, sec + ' → off + 6 others');
   });
 });
 
@@ -993,7 +995,8 @@ test('forecast line pickers use the new metric-oriented labels', () => {
 
 test('metric options are spelled out fully on both pickers', () => {
   assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
-    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
+    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
+    ['Dew point', 'dew']
   ]);
   const thirdOf = (sec) => metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
   const labelOf = (sec, val) => thirdOf(sec).find((o) => o[1] === val)[0];
@@ -1004,6 +1007,7 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.equal(labelOf('gust', 'wind'), 'Wind speed');
   assert.equal(labelOf('precip_prob', 'feels'), 'Feels-like temperature');
   assert.equal(labelOf('feels', 'pressure'), 'Air pressure (hPa)');
+  assert.equal(labelOf('precip_prob', 'dew'), 'Dew point');
 });
 
 test('Second metric picker hints note that it is drawn as bar-aligned square dots', () => {
@@ -2171,17 +2175,18 @@ test('the radar rain-horizon control is labelled "Rain countdown"', () => {
   assert.equal(byKey('rainCountdownHorizon').label, 'Rain countdown');
 });
 
-test('secondaryLine offers pressure and feels-like as the fifth and sixth metrics', () => {
+test('secondaryLine offers pressure, feels-like and dew point as the fifth to seventh metrics', () => {
   assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
     ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
-    ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
+    ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
+    ['Dew point', 'dew']
   ]);
 });
 
-test('thirdLine offers the five metrics the main line is not using, for all six', () => {
-  for (const metric of ['feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
+test('thirdLine offers the six metrics the main line is not using, for all seven', () => {
+  for (const metric of ['dew', 'feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
     const opts = metricOptions({ secondaryLine: metric }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
-    assert.equal(opts.length, 6, `${metric} should offer Off + 5 metrics`);
+    assert.equal(opts.length, 7, `${metric} should offer Off + 6 metrics`);
     assert.equal(opts[0][1], 'off');
     assert.ok(!opts.some(([, v]) => v === metric), `${metric} must not offer itself`);
   }
@@ -2196,6 +2201,7 @@ test('fourthLine offers Off + the metrics neither other line uses, never feels',
   const wide = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' },
     { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
   assert.ok(!wide.some(([, v]) => v === 'feels'), 'feels never offered on the fourth line');
+  assert.ok(!wide.some(([, v]) => v === 'dew'), 'dew never offered on the fourth line');
 });
 
 test('the Third metric row and every line-style row hide behind the lineStyles capability, fail-open for unknown platforms', () => {
@@ -2330,8 +2336,8 @@ const graphSheets = () => forecastSections().filter((s) => s.sheetOnly);
 const gcSheetById = (id) => graphSheets().find((s) => s.sheetId === id);
 // The seven rows in card order: the six metrics as the metric pickers list them, then
 // the full-height night band.
-const GRAPH_ROW_SHEETS = ['gcPrecip', 'gcWind', 'gcGust', 'gcUv', 'gcPressure', 'gcFeels', 'gcNight'];
-const GRAPH_ROW_SCOPES = ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels', 'night'];
+const GRAPH_ROW_SHEETS = ['gcPrecip', 'gcWind', 'gcGust', 'gcUv', 'gcPressure', 'gcFeels', 'gcDew', 'gcNight'];
+const GRAPH_ROW_SCOPES = ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew', 'night'];
 // Everything a live gate could read, so only the polarity gate is left to vary — the
 // point being that no graph-colour row reads any of them.
 const graphState = (over) => Object.assign({
@@ -2363,16 +2369,16 @@ test('the Forecast tab carries ONE Graph colors card, always open, under an expl
   assert.equal(showWhen.isVisible(card, { theme: 'dark', env: { color: false } }), false);
 });
 
-test('the card is seven sheet rows in metric-picker order, each identified by its badge args', () => {
+test('the card is eight sheet rows in metric-picker order, each identified by its badge args', () => {
   const rows = graphCard().items;
-  assert.equal(rows.length, 7, 'six metrics plus the night band — nothing else in the card');
+  assert.equal(rows.length, 8, 'seven metrics plus the night band — nothing else in the card');
   rows.forEach((row) => assert.equal(row.type, 'sheet'));
   assert.deepEqual(rows.map((r) => r.sheetId), GRAPH_ROW_SHEETS);
-  // The six metric rows carry the metric picker's own labels, in its own order, so the
+  // The seven metric rows carry the metric picker's own labels, in its own order, so the
   // two lists read as one vocabulary instead of drifting apart.
-  assert.deepEqual(rows.slice(0, 6).map((r) => [r.label, r.editBadgeFrom.args.scope]),
+  assert.deepEqual(rows.slice(0, 7).map((r) => [r.label, r.editBadgeFrom.args.scope]),
     metricOptions({}, { platform: 'basalt' }, {}));
-  assert.equal(rows[6].label, 'Night shading');
+  assert.equal(rows[7].label, 'Night shading');
   rows.forEach((row, i) => {
     assert.equal(row.messageKey, undefined, row.sheetId + ' stores nothing of its own');
     // resolveEditBadge merges the item's messageKey UNDER editBadgeFrom.args, and a
@@ -2385,7 +2391,7 @@ test('the card is seven sheet rows in metric-picker order, each identified by it
 });
 
 test('each row has a sheetOnly section carrying BOTH gates and no sticky preview', () => {
-  assert.equal(graphSheets().length, 7, 'seven sheets on the tab, one per row');
+  assert.equal(graphSheets().length, 8, 'eight sheets on the tab, one per row');
   GRAPH_ROW_SHEETS.forEach((id) => {
     const sec = gcSheetById(id);
     assert.ok(sec, 'missing sheet: ' + id);
@@ -2485,7 +2491,7 @@ test('feels gets a Line pair only; the night band gets Hatch + Dusk/dawn', () =>
     ['gcNightHatchDark', 'gcNightHatchLight', 'gcNightBoundaryDark', 'gcNightBoundaryLight']);
 });
 
-test('each sheet resets exactly its own keys, and the seven lists partition the key set', () => {
+test('each sheet resets exactly its own keys, and the eight lists partition the key set', () => {
   let all = [];
   GRAPH_ROW_SHEETS.forEach((id) => {
     const sec = gcSheetById(id);

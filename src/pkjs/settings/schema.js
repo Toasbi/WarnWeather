@@ -36,6 +36,7 @@ var LINE_HINTS = {
     uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
     pressure: 'Sea-level air pressure each hour, scaled by the pressure graph scale below.',
     feels: 'Feels-like temperature each hour, drawn grey on the same scale as the temperature curve.',
+    dew: 'Dew point each hour, drawn on the same scale as the temperature curve. The closer it runs to the temperature, the more humid it feels.',
     off: 'No third line — temperature and the secondary line only.'
 };
 // Rendering notes appended per picker. Pre-rendered maps, not appended hints,
@@ -64,11 +65,11 @@ function lineHintsWithNote(note, offText, omit) {
 }
 var THIRD_LINE_HINTS = lineHintsWithNote(DOTS_NOTE,
     'No second metric — temperature and the main metric only.');
-// No feels on the third metric: the fourth line has no curve-inset channel, so
-// feels could never share the temperature axis (line-style.js FORECAST_LINES
-// bans it; blocks.js' forecastMetric resolver drops it via noFeels).
+// No feels or dew on the third metric: the fourth line has no curve-inset channel,
+// so they could never share the temperature axis (line-style.js FORECAST_LINES
+// bans them; blocks.js' forecastMetric resolver drops them via noFeels).
 var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
-    'No third metric — the two metric lines above only.', ['feels']);
+    'No third metric — the two metric lines above only.', ['feels', 'dew']);
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -347,6 +348,7 @@ var GRAPH_COLOR_ROWS = [
     {scope: 'uv', sheetId: 'gcUv', label: 'UV Index'},
     {scope: 'pressure', sheetId: 'gcPressure', label: 'Air pressure (hPa)'},
     {scope: 'feels', sheetId: 'gcFeels', label: 'Feels-like temperature'},
+    {scope: 'dew', sheetId: 'gcDew', label: 'Dew point'},
     {scope: 'night', sheetId: 'gcNight', label: 'Night shading'}
 ];
 // What each role is called and explained as inside a sheet. Keyed by line-style.js'
@@ -1472,7 +1474,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, or little x marks) — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, wind speed, wind gusts, UV index, air pressure, feels-like temperature or dew point, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, or little x marks) — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1492,13 +1494,13 @@ module.exports = {
                 defaultValue: true,
                 joinPrevious: true,
                 hint: 'Fills the area beneath the line.',
-                // Feels-like rides the temperature axis rather than a 0..max scale, so
+                // Feels-like and dew point ride the temperature axis rather than a 0..max scale, so
                 // "below the line" is not the area between the curve and a meaningful
                 // zero — a fill there would flood the plot up to an arbitrary band
                 // floor. The row is hidden for it and the 'forecastMetricFill' hook
                 // above clears the stored value; forecast-series.js re-forces false at
                 // bake time so a settings blob written before this gate still can't fill.
-                showWhen: {key: 'secondaryLine', ne: 'feels'}
+                showWhen: {key: 'secondaryLine', nin: ['feels', 'dew']}
             },
             windScaleCopy('secondaryLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),

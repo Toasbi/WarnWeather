@@ -81,28 +81,29 @@ if (typeof require !== 'undefined') {
         ];
     });
 
-    // The six graph metrics in picker order — one list feeds both forecast pickers.
+    // The seven graph metrics in picker order — one list feeds every forecast picker.
     var FORECAST_METRICS = [
         ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
-        ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
+        ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
+        ['Dew point', 'dew']
     ];
     // Metric picker options, shaped by self-describing args from the schema:
     // `off` leads with an Off row, `exclude` names the sibling picker keys
     // whose CURRENT pick is withheld (a collision left in a stored value is
     // display-snapped by the engine — a later pick turns the later line off),
-    // and `noFeels` bans feels outright (the fourth line has no curve-inset
-    // channel — line-style.js FORECAST_LINES carries the same ban at bake
-    // time). Feels-like is also dropped on aplite: the temp-axis line inset is
-    // not compiled there and the temp slot's Feels/Both control is
-    // threshold-gated off aplite too, so the metric would render misaligned
-    // with no companion feature.
+    // and `noFeels` bans the temperature-axis metrics (feels, dew) outright (the
+    // fourth line has no curve-inset channel — line-style.js FORECAST_LINES
+    // carries the same ban at bake time). Both are also dropped on aplite: the
+    // temp-axis line inset is not compiled there, so they would render
+    // misaligned with the temperature curve.
     PConf.optionsResolvers.register('forecastMetric', function (S, env, args) {
         var a = args || {};
         var exclude = a.exclude || [];
         var out = a.off ? [['Off', 'off']] : [];
         for (var i = 0; i < FORECAST_METRICS.length; i += 1) {
             var opt = FORECAST_METRICS[i];
-            if (opt[1] === 'feels' && (a.noFeels || (env && env.platform === 'aplite'))) { continue; }
+            if (lineStyle.isTempAxisMetric(opt[1])
+                && (a.noFeels || (env && env.platform === 'aplite'))) { continue; }
             var taken = false;
             for (var j = 0; j < exclude.length; j += 1) {
                 if (S && opt[1] === S[exclude[j]]) { taken = true; break; }
@@ -302,15 +303,15 @@ if (typeof require !== 'undefined') {
     }
     PConf.rangeResolvers.register('thresholdRange', thresholdRangeCfg);
 
-    // Picking feels-like as the main metric clears "Fill area below the line": feels
-    // maps against the temperature axis, not a 0..max scale, so its "below the line"
+    // Picking feels-like or dew point as the main metric clears "Fill area below the
+    // line": both map against the temperature axis, not a 0..max scale, so their "below the line"
     // is the arbitrary joint-band floor rather than a zero the fill can mean anything
-    // against. The toggle's showWhen hides the row for feels; this writes the stored
+    // against. The toggle's showWhen hides the row for them; this writes the stored
     // value false so the settings blob agrees with what the watch renders (and with
     // the preview). Switching to any other metric leaves the value alone — the user
     // re-enables the fill themselves, the same as any other toggle.
     PConf.onChange.register('forecastMetricFill', function (S, oldValue, newValue) {
-        if (newValue === 'feels') { S.secondaryLineFill = false; }
+        if (lineStyle.isTempAxisMetric(newValue)) { S.secondaryLineFill = false; }
     });
 
     // The night tint follows the fill at RESOLVE time (line-style.js' graphNightTint),

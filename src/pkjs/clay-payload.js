@@ -272,7 +272,7 @@ function buildClayPayload(settings, watchInfo, now) {
     // Per-series vertical insets for the forecast graph's value-mapped lines,
     // render-ready in px: [SERIES_FIRST (temp), SERIES_SECOND (main metric),
     // SERIES_THIRD (second metric)]. The watch stays metric-agnostic — the
-    // phone decides here that feels-like shares the temp curve's configurable
+    // phone decides here that feels-like and dew point share the temp curve's configurable
     // offset (so the two land pixel-aligned on their joint band) while every
     // other metric keeps the full-height mapping. Settings-derived, so it rides
     // the Clay message. Omitted for a watch that compiles the configurable
@@ -283,8 +283,8 @@ function buildClayPayload(settings, watchInfo, now) {
     if (env.platform !== 'aplite') {
         payload.CLAY_CURVE_INSET_UINT8 = [
             CURVE_INSET_PX,
-            settings.secondaryLine === 'feels' ? CURVE_INSET_PX : 0,
-            settings.thirdLine === 'feels' ? CURVE_INSET_PX : 0
+            lineStyle.isTempAxisMetric(settings.secondaryLine) ? CURVE_INSET_PX : 0,
+            lineStyle.isTempAxisMetric(settings.thirdLine) ? CURVE_INSET_PX : 0
         ];
     }
 
