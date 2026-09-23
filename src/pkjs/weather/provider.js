@@ -240,8 +240,9 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure)
 
 /**
  * Resolve coordinates from the location override: pass through manual lat/lon,
- * else forward-geocode a manual address via LocationIQ (cached, with 429
- * backoff). GPS mode is rejected here — withCoordinates routes that elsewhere.
+ * else forward-geocode a manual address via LocationIQ (cached, with a
+ * 429/401/403 backoff). GPS mode is rejected here — withCoordinates routes
+ * that elsewhere.
  *
  * @param {Function} callback Receives (latitude, longitude).
  * @param {Function} onFailure Called with a failure object on error.
@@ -322,13 +323,18 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
         (function(error) {
             console.log('[!] Forward geocode failed: ' + JSON.stringify(error));
 
-            // Apply exponential backoff on 429 responses
-            if (error.code === 'status_429') {
+            // Apply exponential backoff on 429 responses, and on a 401/403: the
+            // shared key refused (revoked, blocked). That refusal used to ride
+            // the weather provider's indefinite auth backoff, which blamed the
+            // wrong service; auth-backoff now counts only provider_data, so
+            // this time-limited cooldown is what keeps every manual-address
+            // install from re-asking LocationIQ each minute.
+            if (error.code === 'status_429' || error.code === 'status_401' || error.code === 'status_403') {
                 backoffMs = writeGeocodeBackoff();
-                console.log('[!] LocationIQ 429, backing off for ' + (backoffMs / 1000) + 's');
+                console.log('[!] LocationIQ ' + error.code + ', backing off for ' + (backoffMs / 1000) + 's');
             }
             else {
-                // Clear backoff on non-429 errors (e.g. network issues)
+                // Clear backoff on other errors (e.g. network issues)
                 locationLib.clearGeocodeBackoff();
             }
             onFailure(failure('forward_geocode', error.code));

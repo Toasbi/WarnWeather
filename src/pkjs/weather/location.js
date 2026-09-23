@@ -1,10 +1,10 @@
 // src/pkjs/weather/location.js — the storage-and-parse half of coordinate
-// resolution: the GPS-fix cache, the LocationIQ geocode cache and its 429
-// backoff record, and the location-override parser. Extracted from provider.js
-// so these are testable without instantiating a WeatherProvider; the
-// withCoordinates/withGpsCoordinates/withGeocodeCoordinates ORCHESTRATION (and
-// its usedGpsCache/gpsErrorCode/locationMode telemetry mirrors) stays on the
-// provider, calling in here.
+// resolution: the GPS-fix cache, the LocationIQ geocode cache and its
+// 429/401/403 backoff record, and the location-override parser. Extracted
+// from provider.js so these are testable without instantiating a
+// WeatherProvider; the withCoordinates/withGpsCoordinates/
+// withGeocodeCoordinates ORCHESTRATION (and its usedGpsCache/gpsErrorCode/
+// locationMode telemetry mirrors) stays on the provider, calling in here.
 
 var storageKeys = require('../storage-keys.js');
 
@@ -88,7 +88,8 @@ function writeGeocodeCache(location, lat, lon) {
 }
 
 /**
- * Record a LocationIQ 429 backoff window.
+ * Record a LocationIQ backoff window (after a 429, or a 401/403 refusal of the
+ * shared key).
  *
  * @returns {number} Backoff duration in milliseconds.
  */
@@ -177,8 +178,8 @@ function readGpsCache() {
 }
 
 /**
- * Drop the LocationIQ 429 backoff record (a successful call, a non-429 error,
- * or the user closing the settings page all clear it).
+ * Drop the LocationIQ backoff record (a successful call, an error that arms no
+ * backoff, or the user closing the settings page all clear it).
  * @returns {void}
  */
 function clearGeocodeBackoff() {
