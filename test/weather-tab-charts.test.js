@@ -368,6 +368,30 @@ test('the hour strip ENDS at the tick ruler — that is what gets pinned', () =>
   assert.ok(noShade.main.indexOf('03:00') !== -1, 'no SunCalc → still a time axis, just unshaded');
 });
 
+// The panel draws rain on the watch's tier scale. A trace under 0.05 mm/h rounds to 0
+// tenths on the watch's wire (and in rainPermilleFromMm), so the watch draws no bar —
+// the panel must not paint a 1-unit sliver the crosshair can then light.
+test('trace rain below the watch\'s tier floor draws no bar in the temperature panel', () => {
+  const fx = fixtureData();
+  const at = (h) => fx.hourly.time.indexOf(DAY0 + h * 3600000);
+  fx.hourly.rain = fx.hourly.rain.map(() => 0);
+  fx.hourly.rain[at(15)] = 0.03;    // trace: OWM / tomorrow.io resolution
+  fx.hourly.rain[at(16)] = 0.049;
+  fx.hourly.rain[at(18)] = 0.05;    // the first reading the watch draws
+  const view = charts.prepareView(fx, NOON);
+  const i15 = view.times.indexOf(DAY0 + 15 * 3600000);
+  const i18 = view.times.indexOf(DAY0 + 18 * 3600000);
+  assert.ok(i15 > view.nowIndex && i18 > view.nowIndex, 'sanity: future hours keep their rain');
+  const spec = charts.tempPanelSvg(view, { temperatureUnits: 'c' }, charts.palette(false));
+  assert.equal(spec.main.indexOf('id="wx-bar-temp-' + i15 + '"'), -1, '0.03 mm/h: no bar');
+  assert.equal(spec.main.indexOf('id="wx-bar-temp-' + (i15 + 1) + '"'), -1, '0.049 mm/h: no bar');
+  const bar = new RegExp('id="wx-bar-temp-' + i18 + '"[^>]*height="([\\d.]+)"').exec(spec.main);
+  assert.ok(bar, '0.05 mm/h draws');
+  assert.equal(bar[1], (106 * model.rainPermilleFromMm(0.05) / 1000).toFixed(1),
+    'at the lowest tier\'s height (' + bar[1] + '), not a floor');
+  assert.equal(spec.marks.bar.tops[i15], null, 'nothing for the crosshair to light at the trace hour');
+});
+
 // A day with no sunrise and no sunset is polar: SunCalc answers Invalid Date for both,
 // so the rise/set edge rects never draw. Polar NIGHT must still read as night — one
 // full-width rect per day — while polar DAY stays unshaded.

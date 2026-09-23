@@ -1048,17 +1048,20 @@
         var y = yScale(disp(dom.min), disp(dom.max), top, bottom);
         // Rain band: contiguous per-hour columns on the watch's tier scale —
         // the same non-linear heights the rain bar draws on the watch. Each
-        // column carries its hour id so the crosshair can light it.
+        // column carries its hour id so the crosshair can light it. A trace
+        // under 0.05 mm/h rounds to 0 tenths on the watch's wire and draws no
+        // bar there, so it draws none here either (the smallest real tier is
+        // 140 ‰, well clear of any sub-unit sliver).
         var under = '';
         var tops = [];
         for (var i = 0; i < view.rain.length; i += 1) {
             var r = view.rain[i];
+            var pm = (r === null) ? 0 : model.rainPermilleFromMm(r);
             // The hour ENDING at the canvas's first tick ran before the
             // canvas begins — it is yesterday evening, which is not on
             // screen. There is nowhere to draw it, so it is not drawn.
-            if (i === 0 || r === null || r <= 0) { tops.push(null); continue; }
-            var bh = (bottom - top) * model.rainPermilleFromMm(r) / 1000;
-            if (bh < 1) { bh = 1; }
+            if (i === 0 || r === null || pm <= 0) { tops.push(null); continue; }
+            var bh = (bottom - top) * pm / 1000;
             tops.push(bottom - bh);
             under += '<rect id="wx-bar-temp-' + i + '" x="' + barX(view, i).toFixed(1)
                 + '" y="' + (bottom - bh).toFixed(1)
