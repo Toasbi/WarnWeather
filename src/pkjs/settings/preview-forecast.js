@@ -235,12 +235,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         function drawAxis() {
             // One tick per hourly slot; a big tick + hour digit every 3rd slot (mirrors the watch's
-            // big_every = 3). Hour = 12 + i (mod 24): 12, 15, 18, 21 over the noon→23:00 window.
+            // big_every = 3). Hour = 12 + i (mod 24): 12, 15, 18, 21 over the noon→23:00 window,
+            // folded to 12, 3, 6, 9 by the 12h axis setting (config.c config_axis_hour: 0 → 12).
             var out = '';
             for (var i = 0; i < n; i += 1) {
                 var big = i % 3 === 0;
                 out += '<line x1="' + tickX(i) + '" y1="' + PB + '" x2="' + tickX(i) + '" y2="' + (PB + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.32') + '" stroke-width="0.6"></line>';
-                if (big) { out += txt(tickX(i), 111, 7.5, '#7C828D', 'middle', 600, String((12 + i) % 24)); }
+                if (big) {
+                    var h = (12 + i) % 24;
+                    if (state.axisTimeFormat === '12h') { h = h % 12 || 12; }
+                    out += txt(tickX(i), 111, 7.5, '#7C828D', 'middle', 600, String(h));
+                }
             }
             return out;
         }

@@ -380,6 +380,20 @@ test('forecast grid: temp line spans the first tick to the last tick (edge to ed
   assert.equal(lastX, 197, 'temp line ends on the last tick (PX1=197); got ' + lastX);
 });
 
+// The watch prints each axis digit through config_axis_hour (config.c), which folds the
+// hour to 1..12 when CLAY_AXIS_12H is set (clay-payload: axisTimeFormat === '12h').
+test('forecast axis hour labels follow the 12h/24h axis setting', () => {
+  const axisLabels = (fmt) => {
+    const svg = FC.forecastPreview({ barSource: 'off', secondaryLine: 'off', dayNightShading: false, axisTimeFormat: fmt }, { color: true });
+    const out = [];
+    svg.replace(/<text x="[^"]+" y="111"[^>]*>([^<]*)<\/text>/g, (m, t) => { out.push(t); return m; });
+    return out;
+  };
+  assert.deepEqual(axisLabels('24h'), ['12', '15', '18', '21'], '24h: the noon→23:00 window');
+  assert.deepEqual(axisLabels(undefined), ['12', '15', '18', '21'], 'unset stays 24h');
+  assert.deepEqual(axisLabels('12h'), ['12', '3', '6', '9'], '12h: folded like config_axis_hour');
+});
+
 test('forecast grid: rain bars sit centered in the hour gaps between ticks', () => {
   const svg = FC.forecastPreview(
     { dayNightShading: false, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', windScale: 'mid' },
