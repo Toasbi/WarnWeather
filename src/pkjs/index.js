@@ -857,15 +857,16 @@ function withRainRadarTuplesAt(lat, lon, callback) {
 
 /**
  * Build the extra-payload object merged into provider.fetch: the optional radar
- * tuples plus the freshly-updated IS_SLEEPING flag. Called synchronously per
- * fetch so the sleep state is current.
+ * tuples plus the current IS_SLEEPING flag. Called synchronously per fetch so
+ * the sleep state is current. Pure: the flag is recorded as the watch's state
+ * only once the payload carrying it is delivered (see commitSleepState).
  *
  * @param {Object|null} radarTuples Radar AppMessage tuples, or null on failure.
  * @returns {Object} extraPayload for provider.fetch.
  */
 function buildWeatherExtras(radarTuples) {
     var extras = radarTuples ? Object.assign({}, radarTuples) : {};
-    extras.IS_SLEEPING = updateSleepState();
+    extras.IS_SLEEPING = isSleepingNow();
     return extras;
 }
 
@@ -961,6 +962,8 @@ function fetch(provider, force) {
         id: provider.id,
         name: provider.name
     };
+    // The IS_SLEEPING value this fetch's payload carries (null until built).
+    var sentSleeping = null;
 
     /**
      * Claim this fetch's single completion: clear the in-progress flag and run
@@ -999,6 +1002,11 @@ function fetch(provider, force) {
         // Success: record the fetch time and reset the attempt counter.
         localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
         resetFetchAttemptCounter();
+        // The payload reached the watch (ACK, or unchanged since the last ACK):
+        // only now is its IS_SLEEPING the watch's state.
+        if (typeof sentSleeping === 'boolean') {
+            commitSleepState(sentSleeping);
+        }
         authBackoff.clear();
         // A successful fetch means the provider is working: drop error notices and
         // reset the notice send-cache so a later identical error re-notifies. The
@@ -1092,7 +1100,11 @@ function fetch(provider, force) {
         runFetchCycle({
             provider: provider,
             fetchRadar: withRainRadarTuplesAt,
-            buildExtras: buildWeatherExtras,
+            buildExtras: function (radarTuples) {
+                var extras = buildWeatherExtras(radarTuples);
+                sentSleeping = extras.IS_SLEEPING;
+                return extras;
+            },
             onSuccess: onFetchSuccess,
             onFailure: onFetchFailure,
             force: force,
@@ -1153,20 +1165,21 @@ function isSleepingNow() {
 }
 
 /**
- * Compute the current sleep state, persist it (app.lastIsSleeping + localStorage)
- * for the next needRefresh() call, and return it so the caller can include it in
- * a payload. The name signals the write: this is not a pure getter.
+ * Record the sleep state the watch now holds (app.lastIsSleeping +
+ * localStorage) for needRefresh(), which pauses fetching while asleep and
+ * known asleep. Call it only once a payload carrying IS_SLEEPING was
+ * delivered, with the value that payload CARRIED — not a fresh reading, which
+ * could differ if a window edge passed in between. Committing at build time
+ * let a failed sleep-onset fetch (geocode/provider error, NACK) mark the watch
+ * asleep although IS_SLEEPING never reached it, and needRefresh() then skipped
+ * every retry until the window ended: no sleep glyph, no radar snooze.
  *
- * Call this exactly once per fetch attempt that carries IS_SLEEPING; the
- * outbox transmits it to the watch only when the value changed.
- *
- * @returns {boolean} Current sleep state.
+ * @param {boolean} sleeping The IS_SLEEPING value that was delivered.
+ * @returns {void}
  */
-function updateSleepState() {
-    var sleeping = isSleepingNow();
+function commitSleepState(sleeping) {
     app.lastIsSleeping = sleeping;
     localStorage.setItem(KEY_LAST_IS_SLEEPING, sleeping ? 'true' : 'false');
-    return sleeping;
 }
 
 /**
