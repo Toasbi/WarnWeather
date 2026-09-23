@@ -657,6 +657,64 @@ test('a pointer drag in the sheet commits both wire keys through the role mappin
   assert.equal(page.S.threshStepsWarn, '2000', 'no writes after pointerup');
 });
 
+test('a pair stacked at the track max can be pulled apart from the knob hidden underneath', () => {
+  // Steps 19750/20000 on a 300px track: the thumbs are ~4px apart and the danger (goal)
+  // knob sits on top, so every press on the visible warn knob hit the danger thumb —
+  // which can move neither right (max) nor left (one span from warn). The drag went
+  // nowhere and the pair stayed jammed. The press now goes to the hidden warn thumb.
+  const page = bootGeneratedPage();
+  page.S.threshStepsWarn = '19750';
+  page.S.threshStepsDanger = '20000';
+  /**
+   * A 300px-track root whose thumbs report their 28px boxes.
+   * @param {number} lo data-lo
+   * @param {number} hi data-hi
+   * @returns {Object} root stub with .thumbs.{lo,hi}
+   */
+  function stackRoot(lo, hi) {
+    const root = makeRngRoot('threshStepsWarn', lo, hi);
+    const px = v => (v * 300) / 20000;
+    const thumbs = { lo: thumbOn(root, 'lo'), hi: thumbOn(root, 'hi') };
+    thumbs.lo.getBoundingClientRect = () => ({ left: px(lo) - 14, right: px(lo) + 14 });
+    thumbs.hi.getBoundingClientRect = () => ({ left: px(hi) - 14, right: px(hi) + 14 });
+    const query = root.querySelector;
+    root.querySelector = sel => (sel === '[data-range-thumb=lo]' ? thumbs.lo
+      : sel === '[data-range-thumb=hi]' ? thumbs.hi
+        : sel === '.rng-track' ? { getBoundingClientRect: () => ({ left: 0, width: 300 }) }
+          : query(sel));
+    root.thumbs = thumbs;
+    return root;
+  }
+  const root = stackRoot(19750, 20000);
+  // The hit test returns the danger thumb (on top); the finger is on the warn knob's centre.
+  page.modal.dispatch('pointerdown', { target: root.thumbs.hi, pointerId: 5, clientX: 296.25, preventDefault() {} });
+  page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 5, clientX: 216.25 });
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 5 });
+  assert.equal(page.S.threshStepsWarn, '14500', 'the hidden close (warn) thumb followed the finger');
+  assert.equal(page.S.threshStepsDanger, '20000', 'the goal stayed at the max');
+
+  // Not pinned (mid-track stack): the top thumb can move, so it keeps the press.
+  page.S.threshStepsWarn = '10000';
+  page.S.threshStepsDanger = '10250';
+  const mid = stackRoot(10000, 10250);
+  page.modal.dispatch('pointerdown', { target: mid.thumbs.hi, pointerId: 6, clientX: 152, preventDefault() {} });
+  page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 6, clientX: 225 });
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 6 });
+  assert.equal(page.S.threshStepsDanger, '15000', 'a free top thumb is dragged as hit');
+  assert.equal(page.S.threshStepsWarn, '10000');
+
+  // Pinned, but the finger is on the far side of the top knob, clear of the other
+  // knob's box: that knob is not what the finger is on, so no hand-over.
+  page.S.threshStepsWarn = '19750';
+  page.S.threshStepsDanger = '20000';
+  const far = stackRoot(19750, 20000);
+  page.modal.dispatch('pointerdown', { target: far.thumbs.hi, pointerId: 7, clientX: 312, preventDefault() {} });
+  page.modal.dispatch('pointermove', { target: NO_TARGET, pointerId: 7, clientX: 216.25 });
+  page.modal.dispatch('pointerup', { target: NO_TARGET, pointerId: 7 });
+  assert.equal(page.S.threshStepsWarn, '19750', 'no hand-over outside the hidden knob');
+  assert.equal(page.S.threshStepsDanger, '20000');
+});
+
 test('keyboard nudge steps half-units and keeps the untouched decimal thumb intact', () => {
   const page = bootGeneratedPage();
   page.S.threshSleepWarn = '6.5';

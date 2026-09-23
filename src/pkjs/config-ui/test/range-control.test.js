@@ -111,3 +111,43 @@ test('the drag repaint agrees with the initial render, chip for chip', () => {
   assert.match(html, new RegExp('>' + root.chips[0].textContent + '<'));
   assert.match(html, new RegExp('>' + root.chips[1].textContent + '<'));
 });
+
+// --- a stack pinned at a track end must stay separable ----------------------
+// Both thumbs are 28px buttons and the danger one sits on top (z-index), while the
+// pair only keeps minSpan (one step) apart. On a fine-grained track that is a few
+// pixels — Steps' 250 of 20000 is ~4px on a phone — so a pair pinned at the max had
+// the warn knob hidden under the danger knob, which can move neither way: every press
+// grabbed the immovable thumb and the stack could never be pulled apart. pickThumb
+// hands such a press to the sibling.
+const RC = require('../lib/range-control.js');
+const STEPS = { min: 0, max: 20000, step: 250, minSpan: 250 };
+
+test('pickThumb: a thumb pinned at its track end hands the press to its sibling', () => {
+  assert.equal(RC.pickThumb({ lo: 19750, hi: 20000 }, 'hi', STEPS), 'lo',
+    'hi at the max with lo one span below cannot move: drag lo');
+  assert.equal(RC.pickThumb({ lo: 0, hi: 250 }, 'lo', STEPS), 'hi',
+    'lo at the min with hi one span above cannot move: drag hi');
+});
+
+test('pickThumb: a thumb that can still move keeps the press', () => {
+  assert.equal(RC.pickThumb({ lo: 19750, hi: 20000 }, 'lo', STEPS), 'lo',
+    'the sibling of a pinned thumb is itself free to move');
+  assert.equal(RC.pickThumb({ lo: 10000, hi: 10250 }, 'hi', STEPS), 'hi',
+    'a mid-track stack: the top thumb can still move right');
+  assert.equal(RC.pickThumb({ lo: 10000, hi: 10250 }, 'lo', STEPS), 'lo');
+  assert.equal(RC.pickThumb({ lo: 15000, hi: 20000 }, 'hi', STEPS), 'hi',
+    'hi at the max but well clear of lo can still move left');
+  assert.equal(RC.pickThumb({ lo: 0, hi: 5000 }, 'lo', STEPS), 'lo');
+});
+
+test('pickThumb: half-step kinds compare the span with float tolerance', () => {
+  const sleep = { min: 0, max: 12, step: 0.5, minSpan: 0.5 };
+  assert.equal(RC.pickThumb({ lo: 11.5, hi: 12 }, 'hi', sleep), 'lo');
+  const km = { min: 0, max: 20, step: 0.5, minSpan: 0.5 };
+  assert.equal(RC.pickThumb({ lo: 19.5, hi: 20 }, 'hi', km), 'lo', 'Distance pinned at 20 km');
+  // 16.1 - 15.6 is 0.5000000000000018 in doubles: a strict compare would call this
+  // pinned pair "wider than one span" and leave it stuck.
+  assert.equal(RC.pickThumb({ lo: 15.6, hi: 16.1 }, 'hi', { min: 0, max: 16.1, minSpan: 0.5 }), 'lo',
+    'float noise in the span must not hide a pinned pair');
+  assert.equal(RC.pickThumb({ lo: 11, hi: 12 }, 'hi', sleep), 'hi');
+});

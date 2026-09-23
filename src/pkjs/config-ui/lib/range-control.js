@@ -128,6 +128,28 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return { lo: range.lo, hi: v };
   }
 
+  /**
+   * Which thumb a press should drag, given the one the hit test returned. A thumb
+   * pinned against its track end with the other thumb only minSpan beside it cannot
+   * move at all — the end stops it one way, moveThumb's span the other — so the
+   * press goes to the sibling instead, which can. This is what lets a stack pinned
+   * at a track end be pulled apart: the two knobs sit one step apart, which on a
+   * fine-grained track (Steps: 250 of 20000) is a few pixels, so the top thumb (the
+   * danger knob, z-index) covers nearly all of the other one and wins every press.
+   * (The caller also requires the pointer to be over the sibling.)
+   * @param {{lo:number, hi:number}} range Current range.
+   * @param {string} which 'lo' | 'hi' — the thumb that was hit.
+   * @param {Object} item Range schema item (min/max/minSpan).
+   * @returns {string} 'lo' | 'hi' — the thumb to drag.
+   */
+  function pickThumb(range, which, item) {
+    // A hair of tolerance: half-step kinds (sleep hours, km) carry float values.
+    if (range.hi - range.lo > rangeMinSpan(item) + 1e-9) { return which; }
+    if (which === 'hi' && range.hi >= Number(item.max)) { return 'lo'; }
+    if (which === 'lo' && range.lo <= Number(item.min)) { return 'hi'; }
+    return which;
+  }
+
   // ---- rgb (three-channel colour) value helpers ----------------------------
   // An rgb item stores ALL THREE channels in ONE messageKey as "r,g,b" — the same
   // one-key-composite-string shape `range` uses for "lo-hi" and `date` for
@@ -357,11 +379,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var below = item.dir === 'below';
     var lo = below ? danger : warn, hi = below ? warn : danger;
     // Repair a legacy pair closer than the minimum span (the old text UI accepted
-    // warn == danger): stacked thumbs put the danger knob on top (z-index) and a
-    // stack pinned at a track end could never be separated again. Push the WARN
+    // warn == danger): exactly stacked thumbs could not be told apart. Push the WARN
     // thumb inward first (danger keeps its stored position), and only shift the
     // danger thumb when the pair is pinned at the warn thumb's own bound. Display/
     // interaction-only — the stored pair changes on the next drag, not before.
+    // One step apart is still mostly hidden under the danger knob (z-index) on a
+    // fine-grained track, so a pair pinned at a track end is separable only because
+    // pointerdown hands a press on the immovable thumb to its sibling (pickThumb).
     var span = rangeMinSpan(item);
     if (hi - lo < span) {
       if (below) {
@@ -743,6 +767,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var root = th.closest('.rng');
         var item = liveRangeItem(root);
         if (!item) { return; }
+        // A thumb that cannot move (pinned at a track end, the other thumb one span
+        // beside it) hands the press to that sibling — but only when the pointer is
+        // over the sibling too, i.e. it is the knob hidden under this one.
+        if (!isRgbItem(item)) {
+          var hit = th.getAttribute('data-range-thumb');
+          var want = pickThumb(rangeState(root, item), hit, item);
+          var sib = want !== hit ? root.querySelector('[data-range-thumb=' + want + ']') : null;
+          var box = (sib && sib.getBoundingClientRect) ? sib.getBoundingClientRect() : null;
+          if (box && e.clientX >= box.left && e.clientX <= box.right) { th = sib; }
+        }
         drag = { root: root, thumb: th, which: th.getAttribute('data-range-thumb'),
           item: item, pointerId: e.pointerId };
         th.setPointerCapture(e.pointerId);
@@ -871,6 +905,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     formatRange: formatRange,
     parseRange: parseRange,
     moveThumb: moveThumb,
+    pickThumb: pickThumb,
     thresholdValues: thresholdValues,
     renderThresholdRange: renderThresholdRange,
     paintThresholdRange: paintThresholdRange,
