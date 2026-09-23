@@ -199,12 +199,64 @@ test('settings that need no refetch stay OUT of the render signature', () => {
     { backlightDim: false }, { backlightDimStartHour: '22' },
     { backlightDimEndHour: '6' }, { backlightDimColor: '1,2,3' },
     { themeAuto: true }, { themeAutoMode: 'manual' }, { themeNight: 'light' },
-    { themeAutoStartHour: '20' }, { themeAutoEndHour: '7' }
+    { themeAutoStartHour: '20' }, { themeAutoEndHour: '7' },
+    // the theme and the area fill: every colour they move (line colours, the fill
+    // flag, threshold auto-colours) rides the Clay message
+    { theme: 'light' }, { theme: 'bw' }, { secondaryLineFill: true },
+    { secondaryLineFill: false }
   ].forEach((over) => {
     assert.equal(renderSignature({ sleepNightEnabled: true, sleepStartHour: '0',
       sleepEndHour: '7', ...over }), base,
     JSON.stringify(over) + ' must not force a refetch');
   });
+});
+
+// The premise behind keeping the theme and the area fill out: the weather bake reads
+// neither. Should a bake ever start reading one again, this goes red and the key has
+// to rejoin the signature (the force-fetch rule above).
+test('the weather bake is identical across themes and the area-fill toggle', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const store = {};
+  global.localStorage = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
+    const defaults = require('../src/pkjs/settings').getDefaults();
+    let compared = 0;
+    ['berlin.json', 'windy.json', 'graph-colors.json'].forEach((name) => {
+      const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
+      ['basalt', 'aplite', 'emery'].forEach((platform) => {
+        ['precip_prob', 'wind', 'uv'].forEach((secondaryLine) => {
+          let ref = null;
+          ['dark', 'light', 'bw', 'bw-light'].forEach((theme) => {
+            [true, false].forEach((secondaryLineFill) => {
+              const s = Object.assign({}, defaults, fx.claySettings || {}, {
+                secondaryLine, theme, secondaryLineFill,
+                // Weather thresholds on, with auto colours: the one bake-time reader of
+                // settings.theme (status-thresholds' resolveAutoColor) is exercised.
+                threshWindWarn: '5', threshWindDanger: '10', threshUvWarn: '1', threshUvDanger: '2'
+              });
+              const out = fixtureWeather.getFixtureWeatherPayload(
+                JSON.parse(JSON.stringify(fx)), s, { platform });
+              const ser = JSON.stringify(out, Object.keys(out).sort());
+              compared++;
+              if (ref === null) { ref = ser; }
+              assert.equal(ser, ref, [name, platform, secondaryLine, theme, secondaryLineFill].join(' '));
+            });
+          });
+        });
+      });
+    });
+    assert.ok(compared >= 200, 'the sweep ran');
+  } finally {
+    console.log = origLog;
+  }
 });
 
 // The weather kinds are evaluated phone-side at weather-bake time, so enabling one

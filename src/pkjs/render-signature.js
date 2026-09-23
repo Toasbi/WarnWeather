@@ -19,8 +19,13 @@ var statusThresholds = require('./status-thresholds.js');
  */
 function renderSignature(settings) {
     if (!settings) { return ''; }
-    var parts = [settings.secondaryLine, settings.thirdLine, settings.secondaryLineFill,
-        settings.barSource, settings.windScale, settings.pressureScale, settings.theme,
+    // Series selection and encoding. NOT the theme or the area-fill toggle: the
+    // line colours, the fill flag and the threshold auto-colours all ride the Clay
+    // message now (line-style.js, palette-wire.js, status-thresholds.js'
+    // buildSettingsBlob), and the auto theme switch already flips with a Clay-only
+    // resend...
+    var parts = [settings.secondaryLine, settings.thirdLine,
+        settings.barSource, settings.windScale, settings.pressureScale,
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.tempSlotDisplay, settings.uvSlotDisplay,
         settings.axisTimeFormat,
