@@ -98,15 +98,33 @@ test('mapResponse returns null when fewer than 24 buckets remain after the ancho
   assert.equal(mapResponse(sampleResponse(), nowEpoch), null);
 });
 
-test('mapResponse needs the bucket after the window for the last slot', () => {
-  // Anchor at bucket 24 leaves exactly 24 buckets: the last slot's
-  // preceding-hour values (stamped at the window's end) are missing, so the
-  // window is short. One more bucket (anchor 23) fits.
-  assert.equal(mapResponse(sampleResponse(), BASE + 24 * 3600), null);
+test('mapResponse reads the last slot from the bucket after the window', () => {
   const out = mapResponse(sampleResponse(), BASE + 23 * 3600);
   assert.notEqual(out, null);
   assert.equal(out.rainTrend.length, 24);
   assert.equal(out.rainTrend[23], 47, 'the last slot reads the final bucket');
+});
+
+test('mapResponse degrades the last slot, not the fetch, when that bucket is missing', () => {
+  // Anchor at bucket 24 leaves exactly 24 buckets (a response from just before
+  // GMT midnight read just after it): every instant is there, only the last
+  // slot's preceding-hour bucket is not. That slot reads dry / no gust; the
+  // fetch still succeeds, as it did before the one-bucket-ahead read.
+  const out = mapResponse(sampleResponse(), BASE + 24 * 3600);
+  assert.notEqual(out, null);
+  ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend'].forEach((key) => {
+    assert.equal(out[key].length, 24, key + ' length');
+  });
+  assert.equal(out.rainTrend[0], 25, 'slot 0 still reads one bucket ahead');
+  assert.equal(out.rainTrend[22], 47);
+  assert.equal(out.rainTrend[23], 0);
+  assert.equal(out.precipTrend[23], 0);
+  assert.equal(out.gustTrend[23], null, 'no gust → getPayload coerces to 0');
+  // A field array shorter than `time` is still short, not padded.
+  const short = sampleResponse();
+  short.hourly.precipitation_probability.pop();
+  short.hourly.precipitation_probability.pop();
+  assert.equal(mapResponse(short, BASE + 24 * 3600).precipTrend.length, 21);
 });
 
 test('mapResponse returns null on malformed input', () => {

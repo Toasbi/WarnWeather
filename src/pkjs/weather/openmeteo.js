@@ -12,6 +12,30 @@ function anchorIndex(times, nowEpoch) {
 }
 
 /**
+ * A PRECEDING-HOUR series read onto the watch's slots: slot i takes the bucket
+ * one after its own (anchor + 1 + i), the one stamped at the slot's END. Only
+ * the last slot reaches past the instants' window, into the bucket after it;
+ * when the response stops right at the window's end (a stale or skewed
+ * response anchored at bucket 24 of 48), that one slot degrades to `fill`
+ * instead of failing the whole fetch — the degrade DWD applies to a missing
+ * trailing record and mapGusts to a missing bucket. A field array shorter than
+ * `time` still comes back short, so hasValidData rejects it as before.
+ *
+ * @param {Array} series The hourly field array.
+ * @param {number} anchor Index of slot 0's bucket.
+ * @param {number} bucketCount hourly.time.length.
+ * @param {*} fill Value for a last slot whose bucket is past the response.
+ * @returns {Array} Up to FORECAST_HOURS values.
+ */
+function precedingHourSlice(series, anchor, bucketCount, fill) {
+    var out = series.slice(anchor + 1, anchor + 1 + FORECAST_HOURS);
+    if (anchor + FORECAST_HOURS === bucketCount && out.length === FORECAST_HOURS - 1) {
+        out.push(fill);
+    }
+    return out;
+}
+
+/**
  * Map an Open-Meteo forecast response into provider trend fields.
  *
  * Anchors the 24-hour window at the current wall-clock hour and slices each
@@ -35,8 +59,9 @@ function anchorIndex(times, nowEpoch) {
  * @param {number} nowEpoch Current time in epoch seconds.
  * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], startTime: number, currentTemp: number}|null}
  *   Mapped fields, or null when the response is malformed or has fewer than
- *   FORECAST_HOURS + 1 buckets at/after the current hour (the last slot's
- *   preceding-hour values sit in the bucket after the window).
+ *   FORECAST_HOURS buckets at/after the current hour. (The last slot's
+ *   preceding-hour values sit in the bucket after the window; a response
+ *   without it reads that slot as dry — see precedingHourSlice.)
  */
 function mapResponse(json, nowEpoch) {
     var hourly = json && json.hourly;
@@ -55,10 +80,7 @@ function mapResponse(json, nowEpoch) {
     }
 
     anchor = anchorIndex(times, nowEpoch);
-    // One bucket past the window: the last slot's preceding-hour values live
-    // there. forecast_days=2 at GMT is 48 buckets and the anchor is at most
-    // 23, so at least 25 remain and this never bites a well-formed response.
-    if (anchor < 0 || times.length - anchor < FORECAST_HOURS + 1) {
+    if (anchor < 0 || times.length - anchor < FORECAST_HOURS) {
         return null;
     }
 
@@ -66,12 +88,15 @@ function mapResponse(json, nowEpoch) {
     return {
         tempTrend: hourly.temperature_2m.slice(anchor, end),
         // Preceding-hour fields: one bucket ahead (see the doc comment).
-        precipTrend: hourly.precipitation_probability.slice(anchor + 1, end + 1).map(function(p) {
-            return p / 100;
-        }),
-        rainTrend: hourly.precipitation.slice(anchor + 1, end + 1),
+        // forecast_days=2 at GMT is 48 buckets and the anchor is at most 23,
+        // so the bucket after the window is there for a well-formed response.
+        precipTrend: precedingHourSlice(hourly.precipitation_probability, anchor, times.length, 0)
+            .map(function(p) {
+                return p / 100;
+            }),
+        rainTrend: precedingHourSlice(hourly.precipitation, anchor, times.length, 0),
         windTrend: hourly.windspeed_10m.slice(anchor, end),
-        gustTrend: hourly.windgusts_10m.slice(anchor + 1, end + 1),
+        gustTrend: precedingHourSlice(hourly.windgusts_10m, anchor, times.length, null),
         // Optional, unlike the guarded fields above: an absent series degrades to
         // line-off rather than failing the whole fetch. Verified 2026-08-12 that the
         // pinned ecmwf_ifs025 model does emit pressure_msl (unlike windgusts_10m,
