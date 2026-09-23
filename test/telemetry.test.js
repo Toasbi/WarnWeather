@@ -110,7 +110,7 @@ test('snapshot includes uvSlotDisplay as a string', () => {
 // The two-value slots' presentation (status-pair.js), raw like tempSlotDisplay — same
 // lockstep rule. The custom separator TEXT is typed by the user and never leaves the
 // phone: a separator of 'custom' already records the choice.
-const PAIR_FIELDS = { tempSlotSeparator: 'spaced', tempSlotOrder: 'feels',
+const PAIR_FIELDS = { tempSlotSeparator: 'brackets', tempSlotOrder: 'feels',
   uvSlotSeparator: 'custom', uvSlotOrder: 'max', uvSlotNextDayMark: 'star' };
 
 test('snapshot includes the two-value slot presentation picks as strings', () => {
@@ -118,6 +118,14 @@ test('snapshot includes the two-value slot presentation picks as strings', () =>
   Object.keys(PAIR_FIELDS).forEach((key) => {
     assert.strictEqual(snap[key], PAIR_FIELDS[key], key);
     assert.strictEqual(buildSettingsSnapshot({})[key], undefined, key + ' absent = default');
+  });
+});
+
+test('snapshot reports the pair spacing toggles as booleans, absent = off', () => {
+  ['tempSlotSeparatorSpaced', 'uvSlotSeparatorSpaced'].forEach((key) => {
+    assert.strictEqual(buildSettingsSnapshot({ [key]: true })[key], true, key);
+    assert.strictEqual(buildSettingsSnapshot({ [key]: false })[key], false, key);
+    assert.strictEqual(buildSettingsSnapshot({})[key], false, key + ' absent = the off default');
   });
 });
 
@@ -607,12 +615,14 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // send() logs the non-2xx and nothing retries it. So the heaviest realistic envelope has
 // to stay under the cap with room left to grow.
 // Ledger (MEASURED — read the byte count off this test's own console line, never
-// arithmetic): 3363 B of 4096, headroom 733. The six colours are 169 B of that, and that
+// arithmetic): 3423 B of 4096, headroom 673. The six colours are 169 B of that, and that
 // is their WORST case however they are set: '#RRGGBB' and 'default' are both seven
 // characters. This envelope was 2787 B before them, and 2956 B before the Nighttime card
 // (the eight new settings fields, the four themeAuto ones this fixture had never switched
 // on, and the emery watch the LED group needs). The five two-value slot picks added 45 B
-// (3318 before them; the custom separator text is never sent, so it cannot grow this).
+// (3318 before them; the custom separator text is never sent, so it cannot grow this),
+// and the two spacing toggles (tempSlotSeparatorSpaced / uvSlotSeparatorSpaced) 60 B
+// (3363 before them).
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -627,6 +637,7 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', aqiScale: 'european',
     tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
     uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
+    tempSlotSeparatorSpaced: true, uvSlotSeparatorSpaced: true,
     dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
     aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
     windSlotDirection: true, gustSlotDirection: true,

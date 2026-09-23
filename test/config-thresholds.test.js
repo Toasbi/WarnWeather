@@ -1054,8 +1054,8 @@ const BOLD_CODES = {
 // alone. The unit toggles exist only for the kinds the phone bakes the text for
 // (status-lines.js); the watch-formatted ones — Hr, BatteryPct — have no such row.
 const BOLD_SHEET_EXTRA_ROWS = {
-  Temp: ['tempSlotDisplay', 'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotOrder',
-    'tempSlotUnit'],
+  Temp: ['tempSlotDisplay', 'tempSlotSeparator', 'tempSlotSeparatorCustom',
+    'tempSlotSeparatorSpaced', 'tempSlotOrder', 'tempSlotUnit'],
   Pressure: ['pressureSlotUnit'],
   Countdown: ['countdownSlotUnit'],
   Date: ['dateSlotMonthFormat', 'dateSlotFullFormat']
@@ -1198,10 +1198,11 @@ test('the UV sheet puts its display-mode pills between the Bold row and the Thre
   // It configures the SLOT, not the highlight, so it sits above the group header
   // like the wind arrow — and stays live while the highlight is off. So do the rows
   // shaping how it reads (test/config-slot-pair.test.js), which follow it directly.
-  assert.deepEqual(items.slice(2, 6).map(it => it.messageKey),
-    ['uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotOrder', 'uvSlotNextDayMark'],
+  assert.deepEqual(items.slice(2, 7).map(it => it.messageKey),
+    ['uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced', 'uvSlotOrder',
+      'uvSlotNextDayMark'],
     'the pair rows and the tomorrow mark follow the display pills');
-  assert.equal(items[6].type, 'subheader', 'the Thresholds group follows them');
+  assert.equal(items[7].type, 'subheader', 'the Thresholds group follows them');
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
 });
 

@@ -105,8 +105,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // bake. The custom separator TEXT is never sent -- it is free text a user
         // typed, and a separator of 'custom' already records the choice.
         tempSlotSeparator: safe.tempSlotSeparator,
+        // The spacing toggles default OFF, so an absent key reports false --
+        // windSlotDirection's convention for a default-off toggle.
+        tempSlotSeparatorSpaced: Boolean(safe.tempSlotSeparatorSpaced),
         tempSlotOrder: safe.tempSlotOrder,
         uvSlotSeparator: safe.uvSlotSeparator,
+        uvSlotSeparatorSpaced: Boolean(safe.uvSlotSeparatorSpaced),
         uvSlotOrder: safe.uvSlotOrder,
         uvSlotNextDayMark: safe.uvSlotNextDayMark,
         // The date slot's two format picks (edit sheet), raw like tempSlotDisplay.

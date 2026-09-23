@@ -641,10 +641,12 @@ if (typeof require !== 'undefined') {
         }
         var schemaKeys = ['statusBoldAll', 'tempSlotDisplay', 'uvSlotDisplay',
             // How the two-value slots print their pair in Both mode (separator
-            // preset, custom separator text, which value leads) and the mark on
-            // tomorrow's UV peak — display options on the same two sheets.
-            'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotOrder',
-            'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotOrder', 'uvSlotNextDayMark',
+            // preset, custom separator text, spacing, which value leads) and the
+            // mark on tomorrow's UV peak — display options on the same two sheets.
+            'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
+            'tempSlotOrder',
+            'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
+            'uvSlotOrder', 'uvSlotNextDayMark',
             'dateSlotMonthFormat',
             'windSlotDirection', 'gustSlotDirection'];
         // dateSlotFullFormat is the one key here whose fresh-install value is

@@ -912,25 +912,33 @@ const EDGE_CAP = catalog.CAPS.EDGE_TEXT_MAX;
 const MID_CAP = catalog.CAPS.MID_TEXT_MAX;
 const RAQUO = '»';
 
-test('the temp pair bakes in the chosen order and separator', () => {
+test('the temp pair bakes in the chosen order, separator and spacing', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });   // 20C / 10C
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparator: 'brackets',
     tempSlotOrder: 'feels' });
-  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft', EDGE_CAP), '10 (20)');
-  assertPlainText(slotBytesFor('temp', p, s), '10 (20)', 'packed edge slot');
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft', EDGE_CAP), '10(20)');
+  assertPlainText(slotBytesFor('temp', p, s), '10(20)', 'packed edge slot');
+  const spaced = Object.assign({}, s, { tempSlotSeparatorSpaced: true });
+  assert.equal(statusLines.formatValue('temp', p, spaced, 'statusRadarLeft', EDGE_CAP),
+    '10 (20)');
+  assertPlainText(slotBytesFor('temp', p, spaced), '10 (20)', 'packed edge slot, spaced');
   assert.equal(statusLines.formatValue('temp', p,
     baseSettings({ tempSlotDisplay: 'both', tempSlotSeparator: 'custom',
       tempSlotSeparatorCustom: ', ' }), 'statusRadarLeft', EDGE_CAP), '20, 10');
 });
 
-test('a styled temp pair too wide for an edge slot bakes as the slash there only', () => {
+test('a spaced temp pair too wide for an edge slot drops its spaces there only', () => {
   const p = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });  // -12C/-10C
-  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparator: 'spaced' });
+  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparatorSpaced: true });
   // Never utf8Truncate's '-12 / -1': a clipped reading looks like a real one.
-  assertPlainText(slotBytesFor('temp', p, s), '-12/-10', 'edge: 9 B styled, slash instead');
+  assertPlainText(slotBytesFor('temp', p, s), '-12/-10', 'edge: 9 B spaced, tight instead');
   assertPlainText(midSlotBytesFor('temp', p, s), '-12 / -10', 'mid: 19 B of room');
   assertPlainText(slotBytesFor('temp', p, Object.assign({ tempSlotOrder: 'feels' }, s)),
     '-10/-12', 'the fallback keeps the order');
+  // The spaces go, the user's separator stays: '-12(-10)' is exactly 8 B.
+  const brackets = Object.assign({ tempSlotSeparator: 'brackets' }, s);
+  assertPlainText(slotBytesFor('temp', p, brackets), '-12(-10)', 'edge: brackets kept');
+  assertPlainText(midSlotBytesFor('temp', p, brackets), '-12 (-10)', 'mid: spaced');
   // No cap passed = the narrow edge slot, withUnit's convention.
   assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft'), '-12/-10');
 });
@@ -938,7 +946,7 @@ test('a styled temp pair too wide for an edge slot bakes as the slash there only
 test('a styled both-mode temp still never takes the degree', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true,
-    tempSlotSeparator: 'spaced' });
+    tempSlotSeparatorSpaced: true });
   assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP), '20 / 10');
 });
 
@@ -959,14 +967,17 @@ test('the single-value temp modes and the missing-feels fallback ignore the pair
 test('every temp pair preset fits the edge slot untruncated, across the planet\'s range', () => {
   for (let f = -80; f <= 140; f += 1) {
     for (const units of ['c', 'f']) {
-      for (const sep of ['slash', 'spaced', 'brackets', 'dot', 'bar', 'custom']) {
-        for (const order of ['actual', 'feels']) {
-          const text = statusLines.formatValue('temp', { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
-            baseSettings({ temperatureUnits: units, tempSlotDisplay: 'both',
-              tempSlotSeparator: sep, tempSlotOrder: order,
-              tempSlotSeparatorCustom: 'ÿÿ' }), 'statusRadarLeft', EDGE_CAP);
-          assert.ok(statusLines.utf8Encode(text).length <= EDGE_CAP,
-            `"${text}" exceeds EDGE_TEXT_MAX (${f}F ${units} ${sep} ${order})`);
+      for (const sep of ['slash', 'brackets', 'dot', 'bar', 'custom']) {
+        for (const spaced of [false, true]) {
+          for (const order of ['actual', 'feels']) {
+            const text = statusLines.formatValue('temp',
+              { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
+              baseSettings({ temperatureUnits: units, tempSlotDisplay: 'both',
+                tempSlotSeparator: sep, tempSlotOrder: order, tempSlotSeparatorSpaced: spaced,
+                tempSlotSeparatorCustom: 'ÿÿ' }), 'statusRadarLeft', EDGE_CAP);
+            assert.ok(statusLines.utf8Encode(text).length <= EDGE_CAP,
+              `"${text}" exceeds EDGE_TEXT_MAX (${f}F ${units} ${sep} ${spaced} ${order})`);
+          }
         }
       }
     }
@@ -995,12 +1006,17 @@ test('the next-day mark applies to the lone peak in max mode', () => {
   assert.equal(max('none'), '6');
 });
 
-test('a styled UV pair too wide for an edge slot keeps its order and mark on the slash', () => {
+test('a styled UV pair too wide for an edge slot narrows step by step, order and mark kept', () => {
   const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });   // 11/»12
   const s = baseSettings({ uvSlotDisplay: 'both', uvSlotSeparator: 'brackets',
-    uvSlotOrder: 'max' });
-  assertPlainText(slotBytesFor('uv', p, s), RAQUO + '12/11', 'edge: "»12 (11)" is 9 B');
+    uvSlotOrder: 'max', uvSlotSeparatorSpaced: true });
+  assertPlainText(slotBytesFor('uv', p, s), RAQUO + '12(11)',
+    'edge: "»12 (11)" is 9 B, so the spaces go and the brackets stay');
   assertPlainText(midSlotBytesFor('uv', p, s), RAQUO + '12 (11)', 'mid');
+  // Only a pair too wide even tight takes the slash: '»12ÿÿ11' is 10 B.
+  const custom = Object.assign({}, s, { uvSlotSeparator: 'custom', uvSlotSeparatorCustom: 'ÿÿ' });
+  assertPlainText(slotBytesFor('uv', p, custom), RAQUO + '12/11', 'edge: the slash');
+  assertPlainText(midSlotBytesFor('uv', p, custom), RAQUO + '12 ÿÿ 11', 'mid');
 });
 
 test('the current UV mode and the no-peak fallback ignore the pair settings', () => {

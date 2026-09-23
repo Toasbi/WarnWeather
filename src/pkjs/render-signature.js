@@ -25,11 +25,13 @@ function renderSignature(settings) {
         settings.temperatureUnits, settings.tempSlotDisplay, settings.uvSlotDisplay,
         settings.axisTimeFormat,
         settings.timeShowAmPm, settings.timeLeadingZero, settings.healthMode,
-        // ...the two-value slots' presentation (status-pair.js: separator, order, UV's
-        // next-day mark, and the custom separator text -- editing that re-bakes the
-        // pair while the separator itself stays 'custom')...
-        settings.tempSlotSeparator, settings.tempSlotSeparatorCustom, settings.tempSlotOrder,
-        settings.uvSlotSeparator, settings.uvSlotSeparatorCustom, settings.uvSlotOrder,
+        // ...the two-value slots' presentation (status-pair.js: separator, spacing,
+        // order, UV's next-day mark, and the custom separator text -- editing that
+        // re-bakes the pair while the separator itself stays 'custom')...
+        settings.tempSlotSeparator, settings.tempSlotSeparatorCustom,
+        settings.tempSlotSeparatorSpaced, settings.tempSlotOrder,
+        settings.uvSlotSeparator, settings.uvSlotSeparatorCustom,
+        settings.uvSlotSeparatorSpaced, settings.uvSlotOrder,
         settings.uvSlotNextDayMark,
         // ...the unit pickers (change baked/fetched values: wind & distance rebake,
         // AQI source/scale refetch)...

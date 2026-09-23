@@ -192,7 +192,7 @@ test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow
   const eve = new Date(2026, 6, 15, 20).getTime() / 1000;
   const uvE = new Array(48).fill(0); uvE[16] = 8.4;          // 12:00 tomorrow
   const styled = Object.assign({}, UV_SLOT,
-    { uvSlotOrder: 'max', uvSlotSeparator: 'spaced', uvSlotNextDayMark: 'star' });
+    { uvSlotOrder: 'max', uvSlotSeparatorSpaced: true, uvSlotNextDayMark: 'star' });
   const o = getFixtureWeatherPayload(makeFixture({ startEpoch: eve, uvIndex: uvE }), styled);
   assert.equal(decodeLine(o.STATUS_LINE_1_UINT8)[0].text, '8* / 0');
   assert.deepEqual(o.STATUS_LEVELS_UINT8, [0, 0], "tomorrow's peak still never counts");

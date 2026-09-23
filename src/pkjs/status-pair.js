@@ -2,9 +2,9 @@
 //
 // Two slot kinds can show two readings at once: Temperature in 'both' mode
 // (actual and feels-like) and UV in 'both' mode (now and the peak still ahead).
-// Which reading comes first, what stands between the two, and how UV marks a peak
-// that is tomorrow's are per-kind settings (each kind's Edit sheet); this module
-// turns them into the text status-lines.js bakes. Phone-side only: the watch
+// Which reading comes first, what stands between the two (and whether spaces flank
+// it), and how UV marks a peak that is tomorrow's are per-kind settings (each
+// kind's Edit sheet); this module turns them into the text status-lines.js bakes. Phone-side only: the watch
 // receives finished slot text, so no wire field or C change rides with it.
 //
 // An ABSENT setting means its default, and the defaults reproduce what the slot
@@ -21,14 +21,15 @@ var utf8 = require('./utf8.js');
 // '11/»12' is 7 of the edge slot's 8 bytes.
 var UV_NEXT_DAY = '»';
 
-// The separator presets: what stands between the two readings (`mid`) and what
-// closes the pair (`end` -- only the brackets need one). 'slash' is the default
-// AND the fit rule's fallback (see joinPair). U+00B7 is the middle dot: Latin-1,
-// two UTF-8 bytes. 'custom' is not a row here: its `mid` is the user's own text.
+// The separator presets, tight: what stands between the two readings (`mid`) and
+// what closes the pair (`end` -- only the brackets need one). Spacing is not a
+// preset but its own per-kind toggle over every one of them (see spaceAround):
+// '12/10' or '12 / 10', '12(10)' or '12 (10)'. 'slash' is the default AND the fit
+// rule's last resort (see joinPair). U+00B7 is the middle dot: Latin-1, two UTF-8
+// bytes. 'custom' is not a row here: its `mid` is the user's own text.
 var SEPARATORS = {
     slash: { mid: '/', end: '' },
-    spaced: { mid: ' / ', end: '' },
-    brackets: { mid: ' (', end: ')' },
+    brackets: { mid: '(', end: ')' },
     dot: { mid: '·', end: '' },
     bar: { mid: '|', end: '' }
 };
@@ -86,7 +87,7 @@ function sanitizeCustom(value) {
 /**
  * Resolve a stored separator setting to its preset. Absent, unknown, or a
  * 'custom' whose text sanitizes to nothing all read as the slash.
- * @param {*} separator stored separator setting, e.g. 'spaced'
+ * @param {*} separator stored separator setting, e.g. 'brackets'
  * @param {*} custom stored custom separator text (read only for 'custom')
  * @returns {{mid: string, end: string}}
  */
@@ -99,30 +100,50 @@ function presetFor(separator, custom) {
 }
 
 /**
- * Join two readings with the chosen separator -- or with the plain slash when
- * the styled pair would not fit the slot.
+ * The spaced form of a preset: one space before the separator and one after it,
+ * except where the preset already has one there (a custom ', ' keeps its own
+ * trailing space rather than growing a second) and after an opening bracket,
+ * whose reading sits inside it: '12 (10)', never '12 ( 10 )'.
+ * @param {{mid: string, end: string}} preset a resolved preset
+ * @returns {{mid: string, end: string}}
+ */
+function spaceAround(preset) {
+    var mid = preset.mid;
+    var lead = mid.charAt(0) === ' ' ? '' : ' ';
+    var trail = (preset.end || mid.charAt(mid.length - 1) === ' ') ? '' : ' ';
+    return { mid: lead + mid + trail, end: preset.end };
+}
+
+/**
+ * Join two readings with the chosen separator -- spaced when asked, and
+ * narrowed step by step when the styled pair would not fit the slot.
  *
- * The fit rule falls back rather than letting packLine's utf8Truncate have the
+ * The fit rule narrows rather than letting packLine's utf8Truncate have the
  * overflow, because truncation would chop the SECOND READING: '-12 / -10' on an
  * 8-byte edge slot would ship as '-12 / -1', a wrong number that looks like a
- * right one. The slash form is the narrowest there is and fits every realistic
- * pair ('-12/-10', '11/»12': 7 bytes), so a preset that cannot fit a corner
- * degrades to the default for that reading only. Order and next-day mark are
- * already in `first`/`second`, so the fallback keeps both.
+ * right one. So a pair too wide for its slot first drops the spaces (keeping the
+ * user's separator: '-12 (-10)' -> '-12(-10)'), and one still too wide takes the
+ * plain slash, the narrowest form there is, which fits every realistic pair
+ * ('-12/-10', '11/»12': 7 bytes). Each step applies to that reading only. Order
+ * and next-day mark are already in `first`/`second`, so every step keeps both.
  *
  * @param {string} first the reading shown first
  * @param {string} second the reading shown second
  * @param {*} separator stored separator setting (absent = 'slash')
  * @param {*} custom stored custom separator text
+ * @param {*} spaced stored spacing toggle (absent = tight)
  * @param {number} [cap] the slot's byte cap; defaults to the narrow edge cap
  * @returns {string} e.g. '12/10', '12 / 10', '12 (10)'
  */
-function joinPair(first, second, separator, custom, cap) {
+function joinPair(first, second, separator, custom, spaced, cap) {
     var preset = presetFor(separator, custom);
-    var text = first + preset.mid + second + preset.end;
     var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
-    return utf8.byteLength(text) <= limit
-        ? text : first + SEPARATORS.slash.mid + second;
+    var forms = Boolean(spaced) ? [spaceAround(preset), preset] : [preset];
+    for (var i = 0; i < forms.length; i++) {
+        var text = first + forms[i].mid + second + forms[i].end;
+        if (utf8.byteLength(text) <= limit) { return text; }
+    }
+    return first + SEPARATORS.slash.mid + second;
 }
 
 /**
@@ -138,32 +159,33 @@ function markNextDay(value, mark) {
 
 /**
  * The temperature slot's 'both' text: actual and feels-like in the user's order
- * (tempSlotOrder, absent = actual first), joined by the user's separator. Bare
- * numbers in and out -- 'both' never carries the degree (formatValue's gate).
+ * (tempSlotOrder, absent = actual first), joined by the user's separator, spaced
+ * or tight (tempSlotSeparatorSpaced, absent = tight). Bare numbers in and out --
+ * 'both' never carries the degree (formatValue's gate).
  * @param {string} actual the formatted actual temperature
  * @param {string} feels the formatted feels-like temperature
  * @param {Object} settings Clay settings blob (tempSlotSeparator,
- *   tempSlotSeparatorCustom, tempSlotOrder)
+ *   tempSlotSeparatorCustom, tempSlotSeparatorSpaced, tempSlotOrder)
  * @param {number} [cap] the slot's byte cap
- * @returns {string} e.g. '12/10', or '10 (12)' feels-first in brackets
+ * @returns {string} e.g. '12/10', or '10 (12)' feels-first in spaced brackets
  */
 function formatTempPair(actual, feels, settings, cap) {
     var s = settings || {};
     var feelsFirst = s.tempSlotOrder === 'feels';
     return joinPair(feelsFirst ? feels : actual, feelsFirst ? actual : feels,
-        s.tempSlotSeparator, s.tempSlotSeparatorCustom, cap);
+        s.tempSlotSeparator, s.tempSlotSeparatorCustom, s.tempSlotSeparatorSpaced, cap);
 }
 
 /**
  * The UV slot's text for the numbers wire-units' uvShown picked, in every mode.
  * The next-day mark goes on the peak wherever it shows -- alone in 'max' mode,
  * paired in 'both' -- and the pair takes the user's order (uvSlotOrder, absent =
- * now first) and separator. No peak known renders the current reading alone,
- * never '3/--'.
+ * now first), separator and spacing. No peak known renders the current reading
+ * alone, never '3/--'.
  * @param {{now: ?number, peak: ?number, nextDay: boolean}} uv uvShown's result
  *   (non-null: the caller renders '--' for no UV at all)
  * @param {Object} settings Clay settings blob (uvSlotSeparator,
- *   uvSlotSeparatorCustom, uvSlotOrder, uvSlotNextDayMark)
+ *   uvSlotSeparatorCustom, uvSlotSeparatorSpaced, uvSlotOrder, uvSlotNextDayMark)
  * @param {number} [cap] the slot's byte cap
  * @returns {string} e.g. '3', '7', '»6', '3/7', '5/»6'
  */
@@ -176,7 +198,7 @@ function formatUv(uv, settings, cap) {
     var now = String(uv.now);
     var maxFirst = s.uvSlotOrder === 'max';
     return joinPair(maxFirst ? peak : now, maxFirst ? now : peak,
-        s.uvSlotSeparator, s.uvSlotSeparatorCustom, cap);
+        s.uvSlotSeparator, s.uvSlotSeparatorCustom, s.uvSlotSeparatorSpaced, cap);
 }
 
 module.exports = {
@@ -185,6 +207,7 @@ module.exports = {
     NEXT_DAY_MARKS: NEXT_DAY_MARKS,
     CUSTOM_MAX_CHARS: CUSTOM_MAX_CHARS,
     sanitizeCustom: sanitizeCustom,
+    spaceAround: spaceAround,
     joinPair: joinPair,
     markNextDay: markNextDay,
     formatTempPair: formatTempPair,

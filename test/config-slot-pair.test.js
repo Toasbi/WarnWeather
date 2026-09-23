@@ -2,8 +2,9 @@
 //
 // Temperature and UV each print a PAIR in their "Both" mode (12/10, 3/7). How the pair
 // reads is chosen on that kind's Edit sheet, right under its display pills: a separator
-// dropdown (five presets labelled by example, plus Custom), a custom-separator field the
-// Custom pick reveals, and which value leads. UV adds the mark on a max that has rolled
+// dropdown (four presets labelled by example, plus Custom), a custom-separator field the
+// Custom pick reveals, whether spaces flank the separator (one toggle over every preset),
+// and which value leads. UV adds the mark on a max that has rolled
 // on to tomorrow's peak, which shows in Day max as well as Both. The phone bakes all of
 // it into the slot text (status-pair.js); the watch is not involved.
 //
@@ -54,14 +55,14 @@ const KINDS = [{
   prefix: 'temp', sheetId: 'threshTemp', samples: ['12', '10'],
   order: [['Temp first', 'actual'], ['Feels like first', 'feels']],
   modes: ['actual', 'feels', 'both'],
-  separators: [['12/10', 'slash'], ['12 / 10', 'spaced'], ['12 (10)', 'brackets'],
-    ['12·10', 'dot'], ['12|10', 'bar'], ['Custom', 'custom']]
+  separators: [['12/10', 'slash'], ['12(10)', 'brackets'], ['12·10', 'dot'], ['12|10', 'bar'],
+    ['Custom', 'custom']]
 }, {
   prefix: 'uv', sheetId: 'threshUv', samples: ['3', '7'],
   order: [['Now first', 'now'], ['Max first', 'max']],
   modes: ['current', 'max', 'both'],
-  separators: [['3/7', 'slash'], ['3 / 7', 'spaced'], ['3 (7)', 'brackets'],
-    ['3·7', 'dot'], ['3|7', 'bar'], ['Custom', 'custom']]
+  separators: [['3/7', 'slash'], ['3(7)', 'brackets'], ['3·7', 'dot'], ['3|7', 'bar'],
+    ['Custom', 'custom']]
 }];
 const MARKS = [['»6', 'raquo'], ['>6', 'gt'], ['+6', 'plus'], ['6*', 'star'], ['No mark', 'none']];
 
@@ -70,9 +71,10 @@ test('each two-value sheet carries its pair rows right under the display pills',
     const keys = sheet(k.sheetId).items.map(it => it.messageKey);
     const at = keys.indexOf(k.prefix + 'SlotDisplay');
     assert.ok(at > 0, k.sheetId + ' has its display pills below Bold');
-    assert.deepEqual(keys.slice(at + 1, at + 4),
-      [k.prefix + 'SlotSeparator', k.prefix + 'SlotSeparatorCustom', k.prefix + 'SlotOrder'],
-      k.sheetId + ': separator, custom separator, order — in that order');
+    assert.deepEqual(keys.slice(at + 1, at + 5),
+      [k.prefix + 'SlotSeparator', k.prefix + 'SlotSeparatorCustom',
+        k.prefix + 'SlotSeparatorSpaced', k.prefix + 'SlotOrder'],
+      k.sheetId + ': separator, custom separator, spacing, order — in that order');
   });
   // UV's tomorrow mark closes its display group, still above the Thresholds header.
   const uvKeys = sheet('threshUv').items.map(it => it.messageKey || it.type);
@@ -91,10 +93,31 @@ test('the separator is a dropdown of example-labelled presets plus Custom, slash
     assert.equal(sep.label, 'Separator');
     assert.equal(sep.defaultValue, 'slash', k.prefix + ': the slash the slot has always printed');
     assert.deepEqual(sep.options, k.separators, k.prefix + ' separator options');
-    // The fit rule is invisible otherwise: '-12 (-10)' is 9 bytes of an edge slot's 8.
+    // The fit rule is invisible otherwise: '-12 / -10' is 9 bytes of an edge slot's 8.
     assert.match(String(sep.hint), /left or right slot/, k.prefix + ' hint names the narrow slots');
+    assert.match(String(sep.hint), /drops its spaces/, k.prefix + ' hint says the spaces go first');
     assert.match(String(sep.hint), /slash/, k.prefix + ' hint says what it falls back to');
   });
+});
+
+test('spacing is one toggle over every preset, off by default, its hint on the kind\'s samples', () => {
+  const WIDE = 19;
+  KINDS.forEach((k) => {
+    const spaced = item(k.prefix + 'SlotSeparatorSpaced');
+    assert.equal(spaced.type, 'toggle');
+    assert.equal(spaced.label, 'Spaces around separator');
+    assert.equal(spaced.defaultValue, false, k.prefix + ': off keeps the 12/10 the slot always printed');
+    const [a, b] = k.samples;
+    // Two separators' spaced forms, so the hint cannot read as "switch to a spaced
+    // slash" for someone on brackets or the dot.
+    assert.equal(spaced.hint, 'Adds spaces to any separator: ' + a + ' / ' + b + ', ' +
+      a + ' (' + b + ').');
+  });
+  // The hint's promise, read back through the formatter.
+  assert.equal(statusPair.formatTempPair('12', '10', { tempSlotSeparatorSpaced: true }, WIDE),
+    '12 / 10');
+  assert.equal(statusPair.formatUv({ now: 3, peak: 7, nextDay: false },
+    { uvSlotSeparatorSpaced: true }, WIDE), '3 / 7');
 });
 
 test('every separator label is exactly what the slot prints for its sample pair', () => {
@@ -105,6 +128,8 @@ test('every separator label is exactly what the slot prints for its sample pair'
   item('tempSlotSeparator').options.filter(o => o[1] !== 'custom').forEach((o) => {
     assert.equal(statusPair.formatTempPair('12', '10', { tempSlotSeparator: o[1] }, WIDE), o[0],
       'temp ' + o[1]);
+    assert.equal(statusPair.formatTempPair('12', '10', { tempSlotSeparator: o[1],
+      tempSlotSeparatorSpaced: false }, WIDE), o[0], 'the labels are the tight forms: ' + o[1]);
   });
   item('uvSlotSeparator').options.filter(o => o[1] !== 'custom').forEach((o) => {
     assert.equal(statusPair.formatUv({ now: 3, peak: 7, nextDay: false },
@@ -156,15 +181,16 @@ test('the UV tomorrow mark is a dropdown whose default is the » the slot always
 test('the new rows carry no onChange hook and never mute', () => {
   // The formatter sanitises the custom text authoritatively, and nothing here couples
   // to another key the way Both couples to the degree (tempUnitExclusive).
-  ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotOrder', 'uvSlotSeparator',
-    'uvSlotSeparatorCustom', 'uvSlotOrder', 'uvSlotNextDayMark'].forEach((key) => {
+  ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced', 'tempSlotOrder',
+    'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced', 'uvSlotOrder',
+    'uvSlotNextDayMark'].forEach((key) => {
     assert.equal(item(key).onChange, undefined, key + ' has no hook');
     assert.equal(item(key).disabledWhen, undefined, key + ' is never muted');
   });
 });
 
 test('the pair rows show only in Both; the custom field only on a Custom pick', () => {
-  const SEPARATOR_STATES = [undefined, 'slash', 'spaced', 'brackets', 'dot', 'bar', 'custom'];
+  const SEPARATOR_STATES = [undefined, 'slash', 'brackets', 'dot', 'bar', 'custom'];
   KINDS.forEach((k) => {
     k.modes.concat([undefined]).forEach((mode) => {
       SEPARATOR_STATES.forEach((sep) => {
@@ -175,6 +201,8 @@ test('the pair rows show only in Both; the custom field only on a Custom pick', 
         const what = k.prefix + ' mode=' + mode + ' sep=' + sep;
         assert.equal(showWhen.isVisible(item(k.prefix + 'SlotSeparator'), ctx), both,
           what + ': separator');
+        assert.equal(showWhen.isVisible(item(k.prefix + 'SlotSeparatorSpaced'), ctx), both,
+          what + ': spacing, over every separator the custom one included');
         assert.equal(showWhen.isVisible(item(k.prefix + 'SlotOrder'), ctx), both,
           what + ': order');
         assert.equal(showWhen.isVisible(item(k.prefix + 'SlotSeparatorCustom'), ctx),
@@ -185,7 +213,8 @@ test('the pair rows show only in Both; the custom field only on a Custom pick', 
   // An absent display key is the default mode, which prints one value: nothing to shape.
   const S = PC.engine.hydrate(schema, {}, ENV);
   const ctx = Object.assign({}, S, { env: ENV });
-  ['tempSlotSeparator', 'tempSlotOrder', 'uvSlotSeparator', 'uvSlotOrder', 'uvSlotNextDayMark']
+  ['tempSlotSeparator', 'tempSlotSeparatorSpaced', 'tempSlotOrder', 'uvSlotSeparator',
+    'uvSlotSeparatorSpaced', 'uvSlotOrder', 'uvSlotNextDayMark']
     .forEach(key => assert.equal(showWhen.isVisible(item(key), ctx), false,
       key + ' hides on a fresh install'));
 });
@@ -208,9 +237,11 @@ test('fresh defaults ride the save blob and print exactly what an absent key pri
   const blob = PC.engine.serialize(schema, PC.engine.hydrate(schema, {}, ENV));
   assert.equal(blob.tempSlotSeparator, 'slash');
   assert.equal(blob.tempSlotSeparatorCustom, '');
+  assert.equal(blob.tempSlotSeparatorSpaced, false);
   assert.equal(blob.tempSlotOrder, 'actual');
   assert.equal(blob.uvSlotSeparator, 'slash');
   assert.equal(blob.uvSlotSeparatorCustom, '');
+  assert.equal(blob.uvSlotSeparatorSpaced, false);
   assert.equal(blob.uvSlotOrder, 'now');
   assert.equal(blob.uvSlotNextDayMark, 'raquo');
   // A blob saved before these rows existed has none of the keys; the page's defaults
@@ -267,7 +298,8 @@ function openSheet(cfg, sheetId) {
 test('Temp in Both: the pair rows join the display row tight; the degree keeps its divider', () => {
   const html = openSheet({ tempSlotDisplay: 'both' }, 'threshTemp').modal.innerHTML;
   assert.match(rowClass(html, 'tempSlotDisplay'), TIGHT, 'display row tightens onto Separator');
-  assert.match(rowClass(html, 'tempSlotSeparator'), TIGHT, 'Separator tightens onto Order');
+  assert.match(rowClass(html, 'tempSlotSeparator'), TIGHT, 'Separator tightens onto Spacing');
+  assert.match(rowClass(html, 'tempSlotSeparatorSpaced'), TIGHT, 'Spacing tightens onto Order');
   assert.doesNotMatch(rowClass(html, 'tempSlotOrder'), /\bnbl?\b/,
     'Order keeps its divider: the degree row is not part of the pair group');
   assert.equal(html.indexOf('data-k="tempSlotSeparatorCustom"'), -1, 'no custom field on a preset');
@@ -278,6 +310,7 @@ test('Temp in Both with Custom: the field sits inside the group and caps at 2', 
     tempSlotSeparatorCustom: ', ' }, 'threshTemp').modal.innerHTML;
   assert.match(rowClass(html, 'tempSlotSeparator'), TIGHT);
   assert.match(rowClass(html, 'tempSlotSeparatorCustom'), TIGHT);
+  assert.match(rowClass(html, 'tempSlotSeparatorSpaced'), TIGHT);
   assert.match(html, /data-k="tempSlotSeparatorCustom" value=", "[^>]*maxlength="2"/,
     'the stored text is shown untrimmed, capped at 2');
 });
@@ -286,7 +319,8 @@ test('Temp outside Both: no pair rows, and the sheet spaces exactly as before', 
   ['actual', 'feels'].forEach((mode) => {
     const html = openSheet({ tempSlotDisplay: mode, tempSlotSeparator: 'custom' },
       'threshTemp').modal.innerHTML;
-    ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotOrder'].forEach((key) => {
+    ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
+      'tempSlotOrder'].forEach((key) => {
       assert.equal(html.indexOf('data-k="' + key + '"'), -1, mode + ': ' + key + ' hidden');
       assert.equal(html.indexOf('data-select="' + key + '"'), -1, mode + ': ' + key + ' hidden');
     });
@@ -302,7 +336,7 @@ test('UV: the mark joins in Day max, the pair rows join in Both, the Thresholds 
   assert.match(rowClass(max, 'uvSlotNextDayMark'), LOOSE, 'the header draws its own line');
 
   const both = openSheet({ uvSlotDisplay: 'both' }, 'threshUv').modal.innerHTML;
-  ['uvSlotDisplay', 'uvSlotSeparator', 'uvSlotOrder'].forEach((key) => {
+  ['uvSlotDisplay', 'uvSlotSeparator', 'uvSlotSeparatorSpaced', 'uvSlotOrder'].forEach((key) => {
     assert.match(rowClass(both, key), TIGHT, key + ' tightens onto the next row of the group');
   });
   assert.match(rowClass(both, 'uvSlotNextDayMark'), LOOSE);
@@ -328,7 +362,7 @@ test('the separator dropdown opens inside the sheet and a Custom pick reveals th
   click('[data-select]', { 'data-select': 'tempSlotSeparator' });
   assert.ok(page.modal.innerHTML.indexOf('data-ssel-list="tempSlotSeparator"') !== -1,
     'the preset list opens');
-  assert.ok(page.modal.innerHTML.indexOf('12 (10)') !== -1, 'labelled by example');
+  assert.ok(page.modal.innerHTML.indexOf('12(10)') !== -1, 'labelled by example');
   click('[data-select-pick]', { 'data-k': 'tempSlotSeparator', 'data-select-pick': 'custom' });
   assert.equal(page.S.tempSlotSeparator, 'custom');
   assert.ok(page.modal.innerHTML.indexOf('data-k="tempSlotSeparatorCustom"') !== -1,
@@ -364,19 +398,23 @@ test('Reset status bars puts every pair row and the tomorrow mark back to its de
   })));
   const defaultOf = key => PC.engine.resolveDefaultFrom(byKey[key], ENV);
   const S = {
-    tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '~', tempSlotOrder: 'feels',
-    uvSlotSeparator: 'bar', uvSlotSeparatorCustom: 'x', uvSlotOrder: 'max',
-    uvSlotNextDayMark: 'star'
+    tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '~', tempSlotSeparatorSpaced: true,
+    tempSlotOrder: 'feels',
+    uvSlotSeparator: 'bar', uvSlotSeparatorCustom: 'x', uvSlotSeparatorSpaced: true,
+    uvSlotOrder: 'max', uvSlotNextDayMark: 'star'
   };
   assert.equal(PC.actions.resetStatusSlots(null, S, ENV, defaultOf), true);
   assert.deepEqual({
     tempSlotSeparator: S.tempSlotSeparator, tempSlotSeparatorCustom: S.tempSlotSeparatorCustom,
+    tempSlotSeparatorSpaced: S.tempSlotSeparatorSpaced,
     tempSlotOrder: S.tempSlotOrder, uvSlotSeparator: S.uvSlotSeparator,
-    uvSlotSeparatorCustom: S.uvSlotSeparatorCustom, uvSlotOrder: S.uvSlotOrder,
+    uvSlotSeparatorCustom: S.uvSlotSeparatorCustom,
+    uvSlotSeparatorSpaced: S.uvSlotSeparatorSpaced, uvSlotOrder: S.uvSlotOrder,
     uvSlotNextDayMark: S.uvSlotNextDayMark
   }, {
-    tempSlotSeparator: 'slash', tempSlotSeparatorCustom: '', tempSlotOrder: 'actual',
-    uvSlotSeparator: 'slash', uvSlotSeparatorCustom: '', uvSlotOrder: 'now',
-    uvSlotNextDayMark: 'raquo'
+    tempSlotSeparator: 'slash', tempSlotSeparatorCustom: '', tempSlotSeparatorSpaced: false,
+    tempSlotOrder: 'actual',
+    uvSlotSeparator: 'slash', uvSlotSeparatorCustom: '', uvSlotSeparatorSpaced: false,
+    uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo'
   });
 });

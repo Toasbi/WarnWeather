@@ -80,8 +80,9 @@ Two things that both involve rain over time, but answer different questions:
   status slot can also show the feels-like value, or both as `12/10`; the UV index slot can
   show today's highest UV still to come, or both as `3/7`; once today's peak is reached, it
   shows tomorrow's instead, marked `»` (`6/»8`). How the pair is written is up to you: pick
-  the separator (`12/10`, `12 / 10`, `12 (10)`, `12·10`, `12|10` or your own), which value
-  comes first, and how tomorrow's peak is marked (`»6`, `>6`, `+6`, `6*` or no mark).
+  the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or without spaces
+  around it (`12 / 10`), which value comes first, and how tomorrow's peak is marked (`»6`,
+  `>6`, `+6`, `6*` or no mark).
 - **Rain radar** — unlike the forecast graph's model prediction, this is a short-term nowcast
   based on actual radar measurements moving toward you, refreshed often as new scans arrive.
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are

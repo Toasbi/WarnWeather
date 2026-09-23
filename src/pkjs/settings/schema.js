@@ -419,12 +419,12 @@ var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the 
 // authoritatively, so the page stores what was typed and needs no hook. An absent key
 // reads as the default, so a blob saved before these rows existed keeps printing 12/10.
 //
-// The formatter's fit rule: a pair wider than its slot's byte cap prints with the plain
-// slash instead, for that reading only. Only the narrow left/right slots ever hit it
-// ('-12 (-10)' is 9 bytes of their 8), so the hint names them the way the Watch tab's
-// intro does, not as "edge slots".
+// The formatter's fit rule: a pair wider than its slot's byte cap drops its spaces, and
+// one still too wide prints with the plain slash, for that reading only. Only the
+// narrow left/right slots ever hit it ('-12 / -10' is 9 bytes of their 8), so the hint
+// names them the way the Watch tab's intro does, not as "edge slots".
 var PAIR_FALLBACK_HINT = 'In a left or right slot, a pair too wide to fit ' +
-    'falls back to the slash.';
+    'drops its spaces, then falls back to the slash.';
 // The watch draws slot text in its Gothic system fonts, which cover printable ASCII and
 // Latin-1 (the slots already print '°' and '»' from them); the formatter keeps
 // only those, then the first two. Spaces are kept, not trimmed: ', ' is a real separator.
@@ -433,21 +433,25 @@ var PAIR_CUSTOM_HINT = 'Up to ' + STATUS_PAIR.CUSTOM_MAX_CHARS + ' characters, s
     '(printable ASCII and Latin-1).';
 /**
  * Build the rows that shape a two-value slot's pair: the separator dropdown, the custom
- * separator it can reveal, and which value leads. All three show only in the kind's
- * "Both" mode — the one mode that prints a pair — and join the display row tight, the
- * way every group of rows revealed by a control joins that control (Theme switching's
- * Night theme and Enabled hours).
+ * separator it can reveal, whether spaces flank the separator, and which value leads.
+ * All four show only in the kind's "Both" mode — the one mode that prints a pair — and
+ * join the display row tight, the way every group of rows revealed by a control joins
+ * that control (Theme switching's Night theme and Enabled hours).
  *
  * The presets are labelled by EXAMPLE, built on the kind's own sample numbers from the
- * formatter's table: "12 (10)" says what a name like "Brackets" would leave the reader
- * to picture, and it cannot disagree with what the slot prints.
+ * formatter's table: "12(10)" says what a name like "Brackets" would leave the reader
+ * to picture, and it cannot disagree with what the slot prints tight. The labels show
+ * the tight forms, the table's own; spacing is the toggle below, over every preset
+ * alike, so the dropdown stays one entry per separator instead of doubling (with the
+ * toggle on, the slot prints the label's spaced form).
  *
  * @param {string} prefix Key prefix: 'temp' or 'uv' (tempSlotDisplay, tempSlotSeparator …).
  * @param {string} first Sample of the value that leads by default, e.g. '12'.
  * @param {string} second Sample of the other value, e.g. '10'.
  * @param {Array<Array<string>>} orderOptions The order pills as [label, value]; the
  *     first one is the default (the order the slot has always printed).
- * @returns {Object[]} The separator select, the custom-separator text field, the order pills.
+ * @returns {Object[]} The separator select, the custom-separator text field, the spacing
+ *     toggle, the order pills.
  */
 function pairRows(prefix, first, second, orderOptions) {
     var bothWhen = {key: prefix + 'SlotDisplay', eq: 'both'};
@@ -456,7 +460,7 @@ function pairRows(prefix, first, second, orderOptions) {
         return [first + presets[value].mid + second + presets[value].end, value];
     });
     return [{
-        // A dropdown, not pills: six choices would be a wide pill row, and the owner
+        // A dropdown, not pills: five choices would be a wide pill row, and the owner
         // asked for a drop-down of presets.
         type: 'select',
         messageKey: prefix + 'SlotSeparator',
@@ -477,6 +481,25 @@ function pairRows(prefix, first, second, orderOptions) {
         hint: PAIR_CUSTOM_HINT,
         joinPrevious: true,
         showWhen: {all: [bothWhen, {key: prefix + 'SlotSeparator', eq: 'custom'}]}
+    }, {
+        // Spacing is orthogonal to the separator — the owner asked for 8/8 or 8 / 8
+        // "for all of them" — so it is one toggle, not a spaced twin of every preset.
+        // Off by default: an absent key must keep printing the 12/10 the slot always
+        // baked. The hint shows the spaced form of two separators, built through the
+        // formatter's own spaceAround on the kind's samples, so it says plainly that
+        // the toggle covers every separator (not "switch to a spaced slash", which
+        // the removed preset was) and cannot drift from what the slot prints.
+        type: 'toggle',
+        messageKey: prefix + 'SlotSeparatorSpaced',
+        label: 'Spaces around separator',
+        defaultValue: false,
+        hint: 'Adds spaces to any separator: ' +
+            [presets.slash, presets.brackets].map(function (preset) {
+                var spaced = STATUS_PAIR.spaceAround(preset);
+                return first + spaced.mid + second + spaced.end;
+            }).join(', ') + '.',
+        joinPrevious: true,
+        showWhen: bothWhen
     }, {
         type: 'segmented',
         messageKey: prefix + 'SlotOrder',

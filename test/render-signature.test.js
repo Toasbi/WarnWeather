@@ -37,12 +37,16 @@ test('uvSlotDisplay changes the render signature (forces a rebake)', () => {
 });
 
 // The two-value slots' presentation (status-pair.js) is baked into the temp/UV slot
-// text the same way, so each of its seven keys must force the rebake as well.
-test('the temp pair separator, its custom text and the order change the render signature', () => {
+// text the same way, so each of its nine keys must force the rebake as well.
+test('the temp pair separator, its custom text, the spacing and the order change the render signature', () => {
   const base = renderSignature({});
-  assert.notEqual(renderSignature({ tempSlotSeparator: 'spaced' }), base);
+  assert.notEqual(renderSignature({ tempSlotSeparator: 'brackets' }), base);
   assert.notEqual(renderSignature({ tempSlotSeparator: 'brackets' }),
-    renderSignature({ tempSlotSeparator: 'spaced' }));
+    renderSignature({ tempSlotSeparator: 'dot' }));
+  // The spacing toggle alone: '12/10' and '12 / 10' are different slot text.
+  assert.notEqual(renderSignature({ tempSlotSeparatorSpaced: true }), base);
+  assert.notEqual(renderSignature({ tempSlotSeparatorSpaced: true }),
+    renderSignature({ tempSlotSeparatorSpaced: false }));
   // The custom text alone: editing it re-bakes while the separator stays 'custom'.
   assert.notEqual(renderSignature({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '-' }),
     renderSignature({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '~' }));
@@ -51,9 +55,12 @@ test('the temp pair separator, its custom text and the order change the render s
     renderSignature({ tempSlotOrder: 'actual' }));
 });
 
-test('the UV pair separator, its custom text, the order and the next-day mark change the render signature', () => {
+test('the UV pair separator, its custom text, the spacing, the order and the next-day mark change the render signature', () => {
   const base = renderSignature({});
   assert.notEqual(renderSignature({ uvSlotSeparator: 'dot' }), base);
+  assert.notEqual(renderSignature({ uvSlotSeparatorSpaced: true }), base);
+  assert.notEqual(renderSignature({ uvSlotSeparatorSpaced: true }),
+    renderSignature({ uvSlotSeparatorSpaced: false }));
   assert.notEqual(renderSignature({ uvSlotSeparator: 'bar' }),
     renderSignature({ uvSlotSeparator: 'dot' }));
   assert.notEqual(renderSignature({ uvSlotSeparator: 'custom', uvSlotSeparatorCustom: '-' }),
@@ -65,11 +72,12 @@ test('the UV pair separator, its custom text, the order and the next-day mark ch
     renderSignature({ uvSlotNextDayMark: 'gt' }));
 });
 
-test('the seven pair keys are independent of each other', () => {
+test('the nine pair keys are independent of each other', () => {
   // Each must occupy its own position: the temp slot's separator may not read as the
   // UV slot's (they bake different slots), nor a separator as its own custom text.
-  const keys = ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotOrder',
-    'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotOrder', 'uvSlotNextDayMark'];
+  const keys = ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
+    'tempSlotOrder', 'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
+    'uvSlotOrder', 'uvSlotNextDayMark'];
   const seen = keys.map((key) => renderSignature({ [key]: 'x' }));
   seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
     assert.notEqual(sig, other, keys[i] + ' and ' + keys[i + 1 + j] + ' share a signature slot')));
