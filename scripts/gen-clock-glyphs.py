@@ -4,9 +4,9 @@
 The watch's system fonts (and the SDK's TTF font resources) are 1-bit, so the clock
 digits on a colour screen have hard, stair-stepped edges. This script rasterises the
 digits ONCE, here, grid-fitted (see fit_glyph) and with FreeType's anti-aliasing, and
-quantises each pixel's coverage
-to the 2-bit alpha a GColor8 carries (0, 1/3, 2/3, opaque). The SDK packs each strip
-as a 2-bit palette whose four entries are those four alpha levels; the watch recolours
+quantises each pixel's coverage to the 2-bit alpha a GColor8 carries (0, 1/3, 2/3,
+opaque). The SDK packs each strip as a 2-bit palette whose four entries are those four
+alpha levels; the watch recolours
 the entries to the clock colour (keeping each one's alpha) and draws with GCompOpSet,
 which blends every pixel at its alpha — so one strip serves every clock colour and
 theme, and the blend against whatever sits underneath is the firmware's own
@@ -70,6 +70,10 @@ PLATFORM_MACRO = {'basalt': 'PBL_PLATFORM_BASALT', 'emery': 'PBL_PLATFORM_EMERY'
 # design stays on the grid and the other moves out by the lost fraction (one grey column or row
 # where LIGHT drew two). A stroke counts as thinned when the hinter took SLIVER or more off its
 # design width; less is under the 2-bit alpha's half step, which the strip could not show anyway.
+# Round strokes -- a bowl's side between its outer and inner extremes, the round top of a '0' --
+# are rounded the same way and restored the same way. A straight edge no stroke claims (a bar's
+# end, a terminal's cut) is snapped to the nearest pixel, and each glyph is placed by its ink
+# centroid, so the gaps between digits stay the design's to within half a pixel.
 HINT_FLAGS = freetype.FT_LOAD_TARGET_MONO | freetype.FT_LOAD_FORCE_AUTOHINT | freetype.FT_LOAD_NO_BITMAP
 DESIGN_FLAGS = freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP
 SLIVER = 10     # 26.6 units, ~1/6 px
@@ -91,7 +95,8 @@ def straight_edges(P, tags, ends):
 
     A run is a chain of points between on-curve ends that keeps one coordinate (k = 0: x, a
     vertical run; k = 1: y). Same-side runs within MERGE are merged into one edge: {'k', 'side',
-    'pos' (length-weighted), 'runs': [(lo, hi)], 'idx'}. side +1: ink at the larger coordinate --
+    'pos' (length-weighted), 'runs': [(lo, hi, pos)], 'idx'} (and 'last', the merge's working
+    position). side +1: ink at the larger coordinate --
     TrueType contours keep the ink on their right, so an upward run is a left edge of ink and a
     leftward run a bottom edge.
     """
@@ -213,13 +218,16 @@ def straight_strokes(edges, polys):
 
 
 def extremes(P, tags, ends, k):
-    """On-curve points where the contour turns back along axis k."""
+    """Points where the contour turns back along axis k: on-curve points, and the two level
+    control points either side of an implied one (TrueType's way of drawing a round extreme
+    without an on-curve point of its own -- the inside of Roboto's upper '8' bowl)."""
     out = set()
     for idx in contours(ends):
         n = len(idx)
         for j, i in enumerate(idx):
-            if tags[i] & 1:
-                c = P[i][k]
+            c = P[i][k]
+            level = any(not tags[idx[(j + s) % n]] & 1 and P[idx[(j + s) % n]][k] == c for s in (-1, 1))
+            if tags[i] & 1 or level:
                 prev = next((P[idx[(j - s) % n]][k] for s in range(1, n) if P[idx[(j - s) % n]][k] != c), c)
                 nxt = next((P[idx[(j + s) % n]][k] for s in range(1, n) if P[idx[(j + s) % n]][k] != c), c)
                 if (prev - c) * (nxt - c) > 0:
@@ -227,9 +235,76 @@ def extremes(P, tags, ends, k):
     return out
 
 
-def ink_columns(P):
-    xs = [p[0] for p in P]
-    return (min(xs) // 64, -(-max(xs) // 64))
+def adjacent(i, j, ends):
+    """True when points i and j are neighbours on one contour."""
+    for idx in contours(ends):
+        if i in idx and j in idx:
+            return (idx.index(i) - idx.index(j)) % len(idx) in (1, len(idx) - 1)
+    return False
+
+
+def round_edges(P, tags, ends, polys, edges):
+    """The round extremes that are no straight edge's end, as one-point edges shaped like
+    straight_edges' ({'k', 'side', 'pos', 'at', 'idx'}; 'at' is the other coordinate). Two
+    neighbouring points level at the extreme (a short flat, or an implied on-curve point's two
+    controls) are one edge, at their midpoint."""
+    out = []
+    for k in (0, 1):
+        straight = set(i for e in edges if e['k'] == k for i in e['idx'])
+        groups = []
+        for i in sorted(extremes(P, tags, ends, k) - straight):
+            g = next((g for g in groups if P[g[0]][k] == P[i][k] and any(adjacent(i, t, ends) for t in g)),
+                     None)
+            if g:
+                g.append(i)
+            else:
+                groups.append([i])
+        for g in groups:
+            c, at = P[g[0]][k], sum(P[i][1 - k] for i in g) / float(len(g))
+            ink = [inside(polys, *((c + d, at) if k == 0 else (at, c + d))) for d in (-4, 4)]
+            if ink[0] != ink[1]:
+                out.append({'k': k, 'side': 1 if ink[1] else -1, 'pos': c, 'at': at, 'idx': g})
+    return out
+
+
+def round_strokes(rounds, polys):
+    """Round stems and bars: a round extreme and the nearest one facing it across solid ink --
+    a bowl's outer and inner sides, where the auto-hinter rounds the width as it does a straight
+    stroke's."""
+    def solid(a, b):
+        k = a['k']
+        pts = [(a['pos'] + (b['pos'] - a['pos']) * t, a['at'] + (b['at'] - a['at']) * t)
+               for t in (0.1, 0.3, 0.5, 0.7, 0.9)]
+        return all(inside(polys, *(p if k == 0 else (p[1], p[0]))) for p in pts)
+
+    def facing(a, b):
+        # across the stroke, not along it: the two extremes sit within the stroke's width of
+        # each other on the other axis
+        return b['pos'] > a['pos'] and abs(b['at'] - a['at']) <= b['pos'] - a['pos'] and solid(a, b)
+
+    strokes = []
+    for k in (0, 1):
+        los = [e for e in rounds if e['k'] == k and e['side'] > 0]
+        his = [e for e in rounds if e['k'] == k and e['side'] < 0]
+        for a in los:
+            near = [b for b in his if facing(a, b)]
+            b = min(near, key=lambda b: b['pos']) if near else None
+            if b is None or max((e for e in los if facing(e, b)), key=lambda e: e['pos']) is not a:
+                continue
+            strokes.append((k, a, b))
+    return strokes
+
+
+def ink_centre(P, tags, ends):
+    """The x of the outline's ink centroid, in 26.6 units: area-weighted over its polygons, where
+    a counter's opposite winding subtracts."""
+    area = cx = 0.0
+    for poly in polygons(P, tags, ends):
+        for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]):
+            c = x0 * y1 - x1 * y0
+            area += c
+            cx += (x0 + x1) * c
+    return cx / (3.0 * area)
 
 
 def restored_widths(U, H, strokes):
@@ -247,7 +322,7 @@ def restored_widths(U, H, strokes):
         fix_a = k == 1 and abs(a['pos'] - ymin) <= MERGE
         fix_b = k == 1 and abs(b['pos'] - ymax) <= MERGE
         da = db = 0
-        if design - fitted >= SLIVER:
+        if design - fitted >= SLIVER and not (fix_a and fix_b):
             # keep on the grid the edge whose design-width partner lands the stroke's centre
             # nearest the design's; a bar's top or bottom row (fix_a/fix_b) is never the one moved
             keep_a = [] if fix_b else [(abs(ha + design / 2.0 - centre), 0, 'a')]
@@ -303,21 +378,31 @@ def fit_glyph(face, ch):
     points = face.glyph.outline._FT_Outline.points
     H = [[points[i].x, points[i].y] for i in range(len(U))]
     # The hinter shifts the outline by whole pixels to fit its own advance; undo the shift that
-    # puts the glyph's ink columns nearest the design's (ties: nearest outline).
-    L0, R0 = ink_columns(U)
-    shift = min(((abs(ink_columns([[x + 64 * s, y] for x, y in H])[0] - L0)
-                  + abs(ink_columns([[x + 64 * s, y] for x, y in H])[1] - R0),
-                  sum(abs(h[0] + 64 * s - u[0]) for u, h in zip(U, H))), s) for s in (-1, 0, 1))[1]
+    # puts the glyph's ink centroid nearest the design's, so the gaps between digits keep the
+    # design's (ties: nearest outline).
+    c0, c1 = ink_centre(U, tags, ends), ink_centre(H, tags, ends)
+    shift = min((abs(c1 + 64 * s - c0), sum(abs(h[0] + 64 * s - u[0]) for u, h in zip(U, H)), s)
+                for s in (-1, 0, 1))[2]
     H = [[x + 64 * shift, y] for x, y in H]
     edges = straight_edges(U, tags, ends)
     polys = polygons(U, tags, ends)
-    strokes = straight_strokes(edges, polys)
+    rounds = round_edges(U, tags, ends, polys, edges)
+    strokes = straight_strokes(edges, polys) + round_strokes(rounds, polys)
     moves = restored_widths(U, H, strokes)
+    # A straight edge no stroke claims -- a bar's end, a terminal's cut -- is a weak edge to the
+    # hinter, left wherever its neighbours put it, often between pixels: snap it to the nearest
+    # pixel so it draws crisp. (Nearest never reaches a new row or column: the ink box holds.)
+    paired = set(id(e) for _k, a, b in strokes for e in (a, b))
+    for e in edges:
+        at = set(H[i][e['k']] for i in e['idx'])
+        if id(e) not in paired and len(at) == 1:
+            h = at.pop()
+            moves[id(e)] = (h + 32) // 64 * 64 - h
     for k in (0, 1):
         # every straight edge, round extreme and corner moves by its stroke's correction (most by
         # none): they anchor the interpolation of the points between them
         delta = dict((i, 0) for i in extremes(U, tags, ends, k))
-        for e in edges:
+        for e in edges + rounds:
             if e['k'] == k:
                 for i in e['idx']:
                     delta[i] = moves.get(id(e), 0)
