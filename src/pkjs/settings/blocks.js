@@ -86,26 +86,28 @@ if (typeof require !== 'undefined') {
         ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
         ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
     ];
-    // Main/Second/Third metric options. The third line gets Off plus the metrics
-    // the secondary line is not using; the fourth line (UI "Third metric") gets
-    // Off plus the metrics NEITHER other line is using (a collision is
-    // display-snapped by the engine — a later pick turns the fourth line off).
-    // Feels-like is dropped on aplite: the temp-axis line inset is not compiled
-    // there and the temp slot's Feels/Both control is threshold-gated off aplite,
-    // so the metric would render misaligned with no companion feature. The fourth
-    // line drops feels EVERYWHERE: it has no curve-inset channel, so a feels
-    // series there could never share the temperature axis (forecast-series.js
-    // also refuses it at bake time).
+    // Metric picker options, shaped by self-describing args from the schema:
+    // `off` leads with an Off row, `exclude` names the sibling picker keys
+    // whose CURRENT pick is withheld (a collision left in a stored value is
+    // display-snapped by the engine — a later pick turns the later line off),
+    // and `noFeels` bans feels outright (the fourth line has no curve-inset
+    // channel — line-style.js FORECAST_LINES carries the same ban at bake
+    // time). Feels-like is also dropped on aplite: the temp-axis line inset is
+    // not compiled there and the temp slot's Feels/Both control is
+    // threshold-gated off aplite too, so the metric would render misaligned
+    // with no companion feature.
     PConf.optionsResolvers.register('forecastMetric', function (S, env, args) {
-        var third = Boolean(args && args.third);
-        var fourth = Boolean(args && args.fourth);
-        var out = (third || fourth) ? [['Off', 'off']] : [];
+        var a = args || {};
+        var exclude = a.exclude || [];
+        var out = a.off ? [['Off', 'off']] : [];
         for (var i = 0; i < FORECAST_METRICS.length; i += 1) {
             var opt = FORECAST_METRICS[i];
-            if (opt[1] === 'feels' && (fourth || (env && env.platform === 'aplite'))) { continue; }
-            if (third && S && opt[1] === S.secondaryLine) { continue; }
-            if (fourth && S && (opt[1] === S.secondaryLine || opt[1] === S.thirdLine)) { continue; }
-            out.push(opt);
+            if (opt[1] === 'feels' && (a.noFeels || (env && env.platform === 'aplite'))) { continue; }
+            var taken = false;
+            for (var j = 0; j < exclude.length; j += 1) {
+                if (S && opt[1] === S[exclude[j]]) { taken = true; break; }
+            }
+            if (!taken) { out.push(opt); }
         }
         return out;
     });

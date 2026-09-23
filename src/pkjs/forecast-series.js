@@ -1,5 +1,6 @@
 var rainTier = require('./weather/rain-tier');
 var lineStyle = require('./line-style.js');   // LINE_COLORS/FILL_COLORS + the resolved line styling
+var configUi = require('./config-ui');        // isLineStylePlatform — the WW_LINE_STYLE mirror
 var statusLines = require('./status-lines.js');
 var statusRebake = require('./status-rebake.js');
 var statusCatalog = require('./status-line-catalog.js');
@@ -332,44 +333,36 @@ function metricPermille(metric, raw, settings) {
 
 /**
  * Map raw provider series + settings to the render-ready forecast wire fields.
- * Secondary line is always one metric; the third and fourth lines are off or a
- * metric distinct from every other line (the config UI prevents duplicates;
- * this also defends against them). Only the secondary line can fill; the
- * fourth line additionally never carries feels (it has no curve-inset channel,
- * so a feels series there could not share the temperature axis).
+ * Which metric each line actually draws — off, duplicate-of-an-earlier-line
+ * and banned-metric rules included — is resolved by line-style.js'
+ * effectiveLineMetric, the one home for the rule the settings preview and the
+ * pickers share. Only the secondary line can fill.
  *
- * Values only: the lines' COLOURS (and the fill flag) are settings-derived, so they
- * ride the Clay settings message instead — see line-style.js and clay-payload.js's
- * CLAY_LINE_STYLE_UINT8. That leaves nothing here that depends on the watch's
- * platform, which is why this no longer takes watchInfo.
+ * Values only: the lines' COLOURS and styles (and the fill flag) are
+ * settings-derived, so they ride the Clay settings message instead — see
+ * line-style.js and clay-payload.js's CLAY_LINE_STYLE_UINT8. That leaves
+ * nothing here that depends on the watch's platform, which is why this no
+ * longer takes watchInfo.
  *
  * @param {{precips:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], tempBand:Object}} raw Raw series (+ the temp axis band the feels metric shares).
- * @param {{secondaryLine:string, thirdLine:string, windScale:string, barSource:string}} settings Settings.
+ * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, windScale:string, barSource:string}} settings Settings.
  * @returns {Object} Wire fields (see module interface).
  */
 function buildForecastSeries(raw, settings) {
     var out = {};
 
-    // Secondary line: always present (one of the four metrics).
-    var secMetric = settings.secondaryLine;
-    var secPm = metricPermille(secMetric, raw, settings);
-    out.SECONDARY_LINE_TREND_UINT8 = metricBytes(secMetric, secPm);
-
-    // Third line: optional; off, or a metric distinct from the secondary one.
-    var thirdMetric = settings.thirdLine;
-    var thirdPm = (thirdMetric && thirdMetric !== 'off' && thirdMetric !== secMetric)
-        ? metricPermille(thirdMetric, raw, settings) : null;
-    out.THIRD_LINE_TREND_UINT8 = metricBytes(thirdMetric, thirdPm);
-
-    // Fourth line ("Third metric"): optional; off, or a metric distinct from
-    // both other lines, and never feels (see the function doc). Platform
-    // suppression happens in applyForecastSeries — the series itself is
-    // platform-independent.
-    var fourthMetric = settings.fourthLine;
-    var fourthPm = (fourthMetric && fourthMetric !== 'off' && fourthMetric !== 'feels'
-        && fourthMetric !== secMetric && fourthMetric !== thirdMetric)
-        ? metricPermille(fourthMetric, raw, settings) : null;
-    out.FOURTH_LINE_TREND_UINT8 = metricBytes(fourthMetric, fourthPm);
+    // One symmetric block per ordered line (line-style.js FORECAST_LINES).
+    var LINE_TREND_KEYS = {
+        secondaryLine: 'SECONDARY_LINE_TREND_UINT8',
+        thirdLine: 'THIRD_LINE_TREND_UINT8',
+        fourthLine: 'FOURTH_LINE_TREND_UINT8'
+    };
+    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+        var key = lineStyle.FORECAST_LINES[i].key;
+        var metric = lineStyle.effectiveLineMetric(settings, key);
+        out[LINE_TREND_KEYS[key]] = metric
+            ? metricBytes(metric, metricPermille(metric, raw, settings)) : [];
+    }
 
     // Rain bars: independent of the metric lines.
     out.BAR_TREND_UINT8 = settings.barSource === 'rain'
@@ -385,8 +378,9 @@ function buildForecastSeries(raw, settings) {
  * @param {Object} settings Clay settings.
  * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined; threaded
  *   through to the status-line bake for its platform env, and read here only to
- *   suppress the fourth line's key for aplite (the series values themselves are
- *   platform-independent now that the line styling rides the Clay message).
+ *   suppress the fourth line's key on platforms without WW_LINE_STYLE (the
+ *   series values themselves are platform-independent now that the line
+ *   styling rides the Clay message).
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
 function applyForecastSeries(payload, settings, watchInfo) {
@@ -451,11 +445,11 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // message now (CLAY_LINE_STYLE_UINT8), so the weather send carries no styling.
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
     payload.THIRD_LINE_TREND_UINT8 = series.THIRD_LINE_TREND_UINT8;
-    // The third-metric line never ships to aplite: the frozen-lean fork has no
-    // SERIES_FOURTH and its picker is hidden there, so the key would only spend
-    // weather-bundle bytes. An unknown platform keeps the key — the config-ui
-    // convention that missing watchInfo never drops a real feature.
-    if (!watchInfo || watchInfo.platform !== 'aplite') {
+    // The third-metric line only ships to platforms that compile it
+    // (WW_LINE_STYLE — aplite has no SERIES_FOURTH, so the key would only
+    // spend weather-bundle bytes there). An unknown platform keeps the key:
+    // the capability table treats missing watchInfo as capable.
+    if (configUi.isLineStylePlatform(watchInfo && watchInfo.platform ? watchInfo.platform : '')) {
         payload.FOURTH_LINE_TREND_UINT8 = series.FOURTH_LINE_TREND_UINT8;
     }
     payload.BAR_TREND_UINT8 = series.BAR_TREND_UINT8;

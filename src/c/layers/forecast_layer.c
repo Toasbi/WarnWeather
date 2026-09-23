@@ -167,32 +167,29 @@ static void load_dataset(ForecastDataset *ds) {
         .present = persist_series_present(SERIES_THIRD),
         .line = { .color  = persist_get_third_line_color(),   // raw per-metric — SDK reduces on B&W
                   .width  = FORECAST_GRID_BAR_W,   // marks match the rain-bar columns
-                  .inset_y = curve_insets[SERIES_THIRD],
-                  .style = CHART_LINE_DOTS } };
+                  .inset_y = curve_insets[SERIES_THIRD] } };
+        // No .style here: capable platforms overwrite it from the persisted
+        // blob just below, and aplite reads the frozen constant through
+        // series_style_pick at the layer-build site instead.
 
-#if defined(WW_FOURTH_LINE)
+#if defined(WW_LINE_STYLE)
     ds->series[SERIES_FOURTH] = (Series){
         .id = SERIES_FOURTH, .kind = SERIES_KIND_LINE,
         .present = persist_series_present(SERIES_FOURTH),
         .line = { .color  = persist_get_fourth_line_color(),   // raw per-metric — SDK reduces on B&W
                   .width  = FORECAST_GRID_BAR_W,   // marks match the rain-bar columns
-                  .inset_y = 0,   // full-height mapping; feels is never offered on this line
-                  .style = CHART_LINE_X } };
-#endif
+                  .inset_y = 0 } };   // full-height mapping; feels is never offered on this line
 
-#if defined(WW_LINE_STYLE)
     // Per-line marker styles, phone-resolved (bytes [11..13] of
-    // CLAY_LINE_STYLE_UINT8 → LINE_STYLES persist blob). The defaults above
-    // already ARE the pre-feature look, so this only moves lines the user
+    // CLAY_LINE_STYLE_UINT8 → LINE_STYLES persist blob). The persisted
+    // defaults ARE the pre-feature look, so this only moves lines the user
     // restyled. A SOLID kind takes its stroke width from the byte; the mark
     // kinds keep the bar-column width their renderers expect.
     uint8_t line_styles[LINE_STYLE_STYLE_BYTES];
     persist_get_line_styles(line_styles);
     apply_line_style(&ds->series[SERIES_SECOND].line, line_styles[0], 1);
     apply_line_style(&ds->series[SERIES_THIRD].line,  line_styles[1], 1);
-#if defined(WW_FOURTH_LINE)   // the two flags always travel together (wscript), but
-    apply_line_style(&ds->series[SERIES_FOURTH].line, line_styles[2], 1);   // don't assume
-#endif
+    apply_line_style(&ds->series[SERIES_FOURTH].line, line_styles[2], 1);
 #endif
 
     ds->series[SERIES_BARS] = (Series){
@@ -208,6 +205,21 @@ static void load_dataset(ForecastDataset *ds) {
             }
         }
     }
+}
+
+/**
+ * The ChartLayer for one bar-aligned mark line (SERIES_THIRD / SERIES_FOURTH):
+ * the one place their layer literal exists, whatever z-slot the fill decides.
+ * aplite reads the frozen DOTS style through series_style_pick (series.h) —
+ * only SERIES_THIRD is reachable there, and its style is fixed.
+ */
+static ChartLayer mark_line_layer(const Series *s, int count) {
+    return (ChartLayer){ CHART_LAYER_LINE, .line = {
+        .values = s->line.values, .count = count,
+        .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+        .inset_top = s->line.inset_y, .inset_bottom = s->line.inset_y,
+        .color = s->line.color, .width = s->line.width,
+        .style = series_style_pick(s->line, CHART_LINE_DOTS) } };
 }
 
 static Layer *s_forecast_layer;
@@ -453,17 +465,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 
     Series *first  = &ds.series[SERIES_FIRST];
     Series *second = &ds.series[SERIES_SECOND];
-    Series *third  = &ds.series[SERIES_THIRD];
     Series *bars   = &ds.series[SERIES_BARS];
 
     const bool line_on       = second->present;
     const bool fill_on       = line_on && second->line.fill_on;
     const bool bars_on       = bars->present;
-    const bool third_line_on = third->present;
-#if defined(WW_FOURTH_LINE)
-    Series *fourth = &ds.series[SERIES_FOURTH];
-    const bool fourth_line_on = fourth->present;
-#endif
 
     // Night bands span slot 0..(num_entries-1) so the linear time->x map lands
     // on the same hour columns (anchor_x + i*pitch) the ticks/lines use.
@@ -501,15 +507,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Z-order = array order, bottom first. Frame after the data bands so it
     // overwrites curve/area pixels at the border columns. Line/bars are gated on
     // what PKJS sent; the fill + its night re-hatch only exist with the line.
-#if defined(WW_FOURTH_LINE)
-    static ChartLayer layers[11]; // largest redraw array — must be static, not stack.
-                                  // Max reachable is 10 with the third-metric line on;
-                                  // 11 keeps defensive headroom.
-#else
-    static ChartLayer layers[10]; // aplite: largest redraw array — must be static, not stack.
-                                  // Max reachable is 9: precip fill (+ night_under) can now
-                                  // coexist with a third metric line. 10 keeps defensive headroom.
-#endif
+    static ChartLayer layers[SERIES_COUNT + 6]; // largest redraw array — must be static, not
+                                  // stack (aplite's small app stack overflows otherwise).
+                                  // Max reachable is SERIES_COUNT + 5: one layer per present
+                                  // series, plus the area fill, two night hatches, frame and
+                                  // axis. +6 keeps one slot of defensive headroom — 10 on
+                                  // aplite, 11 with the third-metric line, from the enum
+                                  // instead of a hand-maintained platform pair.
     int n = 0;
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
@@ -563,55 +567,28 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .stops = bars->bars.stops, .num_stops = bars->bars.num_stops,
             .style = bars->bars.style } };
     }
-    // Second + third metric: bar-aligned marks (dots/x by default, styles are
-    // user-selectable off the LINE_STYLES blob on capable platforms). Z-order
+    // Mark lines (second + third metric): bar-aligned marks whose styles are
+    // user-selectable off the LINE_STYLES blob on capable platforms. The loop
+    // over [SERIES_THIRD, SERIES_BARS) is the platform-correct set straight
+    // from the enum — {THIRD} on aplite, {THIRD, FOURTH} elsewhere. Z-order
     // vs. the main-metric line depends on the fill: with an opaque area fill
     // the marks ride ABOVE the line so the fill can't hide them; with no fill
     // (a thin stroke) they sit BELOW so the main line stays the dominant
     // series. Per-metric color on color watches; white on B&W, where the mark
     // shape (not color) distinguishes them from the main-metric line.
-    ChartLayer third_line_layer = {0};
-    if (third_line_on) {
-        third_line_layer = (ChartLayer){ CHART_LAYER_LINE, .line = {
-            .values = third->line.values, .count = ds.num_entries,
-            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .inset_top = third->line.inset_y, .inset_bottom = third->line.inset_y,
-            .color = third->line.color, .width = third->line.width,
-            // aplite's style is frozen, so it loads the immediate the old
-            // `.dotted = true` compiled to — the runtime read is dead weight
-            // against its exactly-full image ceiling (check-aplite-size.sh).
-#if defined(WW_LINE_STYLE)
-            .style = third->line.style
-#else
-            .style = CHART_LINE_DOTS
-#endif
-            } };
+    if (!fill_on) {
+        for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
+            if (ds.series[sid].present) {
+                layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries);
+            }
+        }
     }
-#if defined(WW_FOURTH_LINE)
-    ChartLayer fourth_line_layer = {0};
-    if (fourth_line_on) {
-        fourth_line_layer = (ChartLayer){ CHART_LAYER_LINE, .line = {
-            .values = fourth->line.values, .count = ds.num_entries,
-            .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-            .inset_top = fourth->line.inset_y, .inset_bottom = fourth->line.inset_y,
-            .color = fourth->line.color, .width = fourth->line.width,
-            .style = fourth->line.style } };
-    }
-#endif
-    // No fill: the mark lines go under the main line.
-    if (third_line_on && !fill_on) { layers[n++] = third_line_layer; }
-#if defined(WW_FOURTH_LINE)
-    if (fourth_line_on && !fill_on) { layers[n++] = fourth_line_layer; }
-#endif
     if (line_on) {
-#if defined(WW_LINE_STYLE)
         // Only the solid polyline can consume the AREA layer's exported
         // contour; a mark-styled main line draws from values like the others.
+        // aplite folds to `fill_on` — its main line is frozen SOLID.
         const bool second_on_contour = fill_on
-            && second->line.style == CHART_LINE_SOLID;
-#else
-        const bool second_on_contour = fill_on;
-#endif
+            && series_style_pick(second->line, CHART_LINE_SOLID) == CHART_LINE_SOLID;
         layers[n++] = second_on_contour
             ? (ChartLayer){ CHART_LAYER_LINE, .line = {
                   .points = area_pts, .count = ds.num_entries,
@@ -622,18 +599,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
                   .export_points = area_pts,
                   .color = second->line.color, .width = second->line.width,
-#if defined(WW_LINE_STYLE)
-                  // aplite: omitted — the literal's zero IS CHART_LINE_SOLID,
-                  // its frozen style, and the runtime read would be dead bytes.
-                  .style = second->line.style
-#endif
-                  } };
+                  .style = series_style_pick(second->line, CHART_LINE_SOLID) } };
     }
     // Fill present: marks go over the line + its opaque fill so they stay visible.
-    if (third_line_on && fill_on) { layers[n++] = third_line_layer; }
-#if defined(WW_FOURTH_LINE)
-    if (fourth_line_on && fill_on) { layers[n++] = fourth_line_layer; }
-#endif
+    if (fill_on) {
+        for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
+            if (ds.series[sid].present) {
+                layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries);
+            }
+        }
+    }
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = first->line.values, .count = ds.num_entries,

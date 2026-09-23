@@ -681,3 +681,60 @@ test('graphColorDefault is total over the roles feels has no key for', () => {
   assert.equal(lineStyle.graphColorDefault('off', 'Line', 'Dark', {}), COLORS.GColorWhite);
   assert.equal(lineStyle.graphColorDefault('off', 'Fill', 'Light', {}), COLORS.GColorBlack);
 });
+
+// --- The C-header contract for the per-line style bytes ---------------------
+// The kind bits and width field of wire bytes [11..13] are decoded on the
+// watch by persist.h's line_style_kind / line_style_solid_width against
+// chart.h's ChartLineStyle values. Parse both headers (the
+// date-format-contract.test.js idiom) and drive the JS packer through the
+// SAME arithmetic, so a unilateral renumber or field move on either end fails
+// here mechanically instead of leaning on comment-mirrored literals.
+const fs = require('node:fs');
+const path = require('node:path');
+const chartHeader = fs.readFileSync(
+  path.join(__dirname, '..', 'src', 'c', 'appendix', 'chart.h'), 'utf8');
+const persistHeader = fs.readFileSync(
+  path.join(__dirname, '..', 'src', 'c', 'appendix', 'persist.h'), 'utf8');
+
+function cEnum(header, name, file) {
+  const m = header.match(new RegExp(name + '\\s*=\\s*(\\d+)'));
+  assert.ok(m, name + ' missing from ' + file);
+  return Number(m[1]);
+}
+function cDefine(header, name, file) {   // hex-tolerant (LINE_STYLE_KIND_MASK is 0x03)
+  const m = header.match(new RegExp('#define\\s+' + name + '\\s+(0x[0-9a-fA-F]+|\\d+)'));
+  assert.ok(m, name + ' missing from ' + file);
+  return Number(m[1]);
+}
+
+test('the style-byte encoding matches the C headers, decoded with their own constants', () => {
+  const KIND = {
+    solid: cEnum(chartHeader, 'CHART_LINE_SOLID', 'chart.h'),
+    dots: cEnum(chartHeader, 'CHART_LINE_DOTS', 'chart.h'),
+    x: cEnum(chartHeader, 'CHART_LINE_X', 'chart.h')
+  };
+  const KIND_MASK = cDefine(persistHeader, 'LINE_STYLE_KIND_MASK', 'persist.h');
+  const WIDTH_SHIFT = cDefine(persistHeader, 'LINE_STYLE_WIDTH_SHIFT', 'persist.h');
+  const WIDTH_MAX = cDefine(persistHeader, 'LINE_STYLE_WIDTH_MAX', 'persist.h');
+  const STYLE_BYTES = cDefine(persistHeader, 'LINE_STYLE_STYLE_BYTES', 'persist.h');
+  // persist.h's decode inlines, replicated from the parsed constants.
+  const decodeKind = (b) => {
+    const k = b & KIND_MASK;
+    return k > KIND.x ? KIND.solid : k;
+  };
+  const decodeWidth = (b, fallback) => {
+    const w = (b >> WIDTH_SHIFT) & WIDTH_MAX;
+    return w > 0 ? w : fallback;
+  };
+  // Each style value decodes on the C side to the rendering it names.
+  const byteFor = (v) => lineStyle.lineStyleByte({ secondaryLineStyle: v }, 'secondaryLineStyle');
+  assert.equal(decodeKind(byteFor('line')), KIND.solid);
+  assert.equal(decodeWidth(byteFor('line'), 0), 1, "'line' carries a 1 px stroke");
+  assert.equal(decodeKind(byteFor('bold')), KIND.solid);
+  assert.equal(decodeWidth(byteFor('bold'), 0), 3, "'bold' carries a 3 px stroke");
+  assert.equal(decodeKind(byteFor('dots')), KIND.dots);
+  assert.equal(decodeKind(byteFor('x')), KIND.x);
+  // The wire's style block is exactly the persist blob the watch stores.
+  const bytes = lineStyle.buildLineStyleBytes({ secondaryLine: 'wind', thirdLine: 'gust', theme: 'dark' }, { platform: 'emery' });
+  assert.equal(bytes.length - 11, STYLE_BYTES, 'bytes [11..13] are LINE_STYLE_STYLE_BYTES');
+});

@@ -113,30 +113,21 @@ void persist_get_curve_insets(uint8_t out[3]);
 #endif
 
 // The third selectable metric line ("Third metric" in the settings — the
-// fourth graph line, SERIES_FOURTH) is compiled out of aplite (WW_FOURTH_LINE,
-// wscript): the frozen-lean fork keeps its two fixed metric lines, so the
-// accessors are declared away there and any unguarded caller fails to compile
-// rather than silently re-linking the feature. The FOURTH_LINE_TREND /
-// FOURTH_LINE_COLOR key IDs stay in persist.c's append-only enum on every
-// platform.
-#if defined(WW_FOURTH_LINE)
-// Presence convention mirrors the third line: "does FOURTH_LINE_TREND exist?"
-// (an empty send deletes the key). Colour defaults to the theme foreground
+// fourth graph line, SERIES_FOURTH) and the per-line marker styles are one
+// feature set behind WW_LINE_STYLE (wscript): the frozen-lean aplite fork
+// keeps its two fixed-style metric lines, so the accessors are declared away
+// there and any unguarded caller fails to compile rather than silently
+// re-linking the feature. The FOURTH_LINE_TREND / FOURTH_LINE_COLOR /
+// LINE_STYLES key IDs stay in persist.c's append-only enum on every platform.
+#if defined(WW_LINE_STYLE)
+// The fourth line's trend is existence-keyed like the third's (an empty send
+// deletes the key) and read/written only through the persist_series_* SeriesId
+// dispatchers — no per-name accessors. Colour defaults to the theme foreground
 // when the slot is absent — the phone sends the resolved colour on byte [10]
 // of CLAY_LINE_STYLE_UINT8 whenever the line is configured.
-int  persist_get_fourth_line_trend(int16_t *buffer, const size_t buffer_size);
-bool persist_set_fourth_line_trend(uint8_t *data, const size_t size);
-bool persist_fourth_line_present(void);
 GColor persist_get_fourth_line_color(void);
 bool persist_set_fourth_line_color(GColor color);
-#endif
 
-// Per-line marker styles are compiled out of aplite (WW_LINE_STYLE, wscript):
-// it keeps the frozen fixed styles (solid 1 px main line, dotted second line),
-// so the accessors are declared away there and any unguarded caller fails to
-// compile rather than silently re-linking the feature. The LINE_STYLES key ID
-// stays in persist.c's append-only enum on every platform.
-#if defined(WW_LINE_STYLE)
 // CANONICAL layout of the LINE_STYLES blob — the per-line marker styles the
 // phone resolved, copied verbatim off bytes [11..13] of CLAY_LINE_STYLE_UINT8
 // (line-style.js packs them; app_message.c stores the block straight through):

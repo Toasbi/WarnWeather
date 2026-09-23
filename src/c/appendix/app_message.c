@@ -81,7 +81,7 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     const SeriesWire WIRE[] = {
         { SERIES_SECOND, MESSAGE_KEY_SECONDARY_LINE_TREND_UINT8 },
         { SERIES_THIRD,  MESSAGE_KEY_THIRD_LINE_TREND_UINT8     },
-#if defined(WW_FOURTH_LINE)
+#if defined(WW_LINE_STYLE)
         { SERIES_FOURTH, MESSAGE_KEY_FOURTH_LINE_TREND_UINT8    },
 #endif
         { SERIES_BARS,   MESSAGE_KEY_BAR_TREND_UINT8            },
@@ -361,8 +361,8 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 // byte [9] instead of riding byte [3]: one name, one position, both ends.
 // Second tail (optional): [10] the third-metric line colour, then bytes
 // [11..13] ARE the LINE_STYLES persist blob (per-line marker styles), byte for
-// byte — layout in persist.h. Both blocks are WW_-guarded on the consuming
-// side, so aplite stores neither and simply ignores the trailing bytes.
+// byte — layout in persist.h. The block is WW_LINE_STYLE-guarded on the
+// consuming side, so aplite stores neither and simply ignores the trailing bytes.
 //
 // CONTRACT for growing this tuple: LINE_STYLE_BYTES is a MINIMUM length, not an
 // exact one, and everything past it is an optional tail guarded by its own
@@ -377,12 +377,15 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 // every platform — only the CONSUMPTION of the tail is colour-only, since B&W
 // builds have no persist accessors for it (persist.h) and never paint it.
 #define LINE_STYLE_NIGHT_OFFSET 4
-// Second appended tail block: [10] the third-metric line colour, [11..13] the
-// LINE_STYLES blob verbatim (layout in persist.h). Offsets unguarded like the
-// night offset above; the CONSUMING arms are WW_FOURTH_LINE / WW_LINE_STYLE
-// -guarded, so aplite ignores the trailing bytes it may still receive.
-#define LINE_STYLE_FOURTH_COLOR_OFFSET 10
-#define LINE_STYLE_STYLES_OFFSET 11
+// Second appended tail block, ONE unit: [10] the third-metric line colour,
+// then bytes [11..13] ARE the LINE_STYLES persist blob (per-line marker
+// styles), byte for byte — layout in persist.h. The phone only ever appends
+// these four bytes together (line-style.js), so one length check guards the
+// block. Offsets unguarded like the night offset above; the CONSUMING arm is
+// WW_LINE_STYLE-guarded, so aplite ignores the trailing bytes it may still
+// receive.
+#define LINE_STYLE_EXT_OFFSET 10
+#define LINE_STYLE_EXT_BYTES 4
 
 static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_LINE_STYLE_UINT8);
@@ -410,16 +413,12 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
         changed |= persist_set_night_colors(&b[LINE_STYLE_NIGHT_OFFSET]);
     }
 #endif
-#if defined(WW_FOURTH_LINE)
-    // Second optional tail block, own length check per the growth contract.
-    if (tuple->length >= LINE_STYLE_FOURTH_COLOR_OFFSET + 1) {
-        changed |= persist_set_fourth_line_color(
-            (GColor){ .argb = b[LINE_STYLE_FOURTH_COLOR_OFFSET] });
-    }
-#endif
 #if defined(WW_LINE_STYLE)
-    if (tuple->length >= LINE_STYLE_STYLES_OFFSET + LINE_STYLE_STYLE_BYTES) {
-        changed |= persist_set_line_styles(&b[LINE_STYLE_STYLES_OFFSET]);
+    // Second optional tail block, own length check per the growth contract.
+    if (tuple->length >= LINE_STYLE_EXT_OFFSET + LINE_STYLE_EXT_BYTES) {
+        changed |= persist_set_fourth_line_color(
+            (GColor){ .argb = b[LINE_STYLE_EXT_OFFSET] });
+        changed |= persist_set_line_styles(&b[LINE_STYLE_EXT_OFFSET + 1]);
     }
 #endif
     *forecast_dirty |= changed;

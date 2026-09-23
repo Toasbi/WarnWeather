@@ -193,35 +193,47 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             pressure: { vals: pressure, curve: pCurve },
             feels: { vals: feels, tempAxis: true }
         };
-        // The three graph strokes, as SVG colours. Every rule that used to be restated
+        // The graph strokes, as SVG colours. Every rule that used to be restated
         // here — the effective-colour gate, the per-polarity colours, gust's coupling to
         // the rain bars and the B&W arm's exactly-white→black readability flip — lives in
         // line-style.js and reaches the preview through `gc`.
-        // mainColor is the secondary line (and its area fill), dotColor the second
-        // metric's squares; the resolver keys them off state.secondaryLine/state.thirdLine,
-        // which is exactly how they are drawn below.
-        var mainColor = hexColor(gc.secondary);
-        var dotColor = hexColor(gc.third);
-        var thirdColor = hexColor(gc.fourth);
         var mainFill = hexColor(gc.fill);
         var tempColor = isColor ? P.temp : ink.fg;
         var tempW = isColor ? 2.2 : 3;               // B&W: thick temp vs thin main line
         var mainW = isColor ? 1.6 : 1;
         var boldW = isColor ? 2.8 : 3;               // the 'bold' (3 px) line style
-        // Per-line styles, resolved with the same defaults the wire packs
-        // (line-style.lineStyleValue). Previewing aplite pins the frozen look:
-        // the style pickers are hidden there and the watch ignores the style
-        // bytes (WW_LINE_STYLE undefined).
-        var apl = Boolean(env && env.platform === 'aplite');
-        var mainStyle = apl ? 'line' : lineStyle.lineStyleValue(state, 'secondaryLineStyle');
-        var secondStyle = apl ? 'dots' : lineStyle.lineStyleValue(state, 'thirdLineStyle');
-        var thirdStyle = lineStyle.lineStyleValue(state, 'fourthLineStyle');
-        // The third-metric line: never on aplite (no SERIES_FOURTH compiled
-        // there), never feels, never a duplicate — the same gates
-        // forecast-series.js bakes with, so the preview matches the watch.
-        var fourthOn = !apl && Boolean(state.fourthLine) && state.fourthLine !== 'off'
-            && state.fourthLine !== 'feels' && state.fourthLine !== state.secondaryLine
-            && state.fourthLine !== state.thirdLine;
+        // The frozen-styles gate: env.lineStyles is the WW_LINE_STYLE mirror
+        // (platform.js). Previewing such a watch pins the pre-feature look —
+        // its style pickers are hidden and the watch ignores the style bytes —
+        // and it never draws the third-metric line. Only an explicit false
+        // freezes: a hand-built preview env without the fact stays capable.
+        var stylesFrozen = Boolean(env) && env.lineStyles === false;
+        /**
+         * The effective style for one line-style key: the frozen built-in on a
+         * watch without WW_LINE_STYLE, else the stored pick (or its default).
+         * @param {string} styleKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+         * @returns {string} 'line'|'bold'|'dots'|'x'.
+         */
+        function styleFor(styleKey) {
+            return stylesFrozen ? lineStyle.LINE_STYLE_DEFAULTS[styleKey]
+                : lineStyle.lineStyleValue(state, styleKey);
+        }
+        // The ordered metric lines, modelled ONCE for the draw pass and the
+        // legend: colours off the resolver, styles off the pickers, on-gates
+        // from line-style.js' effectiveLineMetric — the same off/duplicate/ban
+        // rules the bake applies, so the preview matches the watch by
+        // construction. Entries are named by the settings keys they read (the
+        // one frozen vocabulary); the UI ordinals ("Third metric") are labels only.
+        var LINES = [
+            { metric: state.secondaryLine, on: true,
+              style: styleFor('secondaryLineStyle'), color: hexColor(gc.secondary) },
+            { metric: state.thirdLine,
+              on: Boolean(lineStyle.effectiveLineMetric(state, 'thirdLine')),
+              style: styleFor('thirdLineStyle'), color: hexColor(gc.third) },
+            { metric: state.fourthLine,
+              on: !stylesFrozen && Boolean(lineStyle.effectiveLineMetric(state, 'fourthLine')),
+              style: styleFor('fourthLineStyle'), color: hexColor(gc.fourth) }
+        ];
 
         // The night colours apply only on an effectively-colour preview. The WIRE carries
         // them either way (resolveNightColors has no isColor gate, deliberately), but a
@@ -258,31 +270,45 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             return out;
         }
+        /**
+         * One metric value's y in column/tick i — THE value→y mapping, shared
+         * by the line vertices (skipZero false: a zero stays at the baseline,
+         * matching the watch's chart_render_line) and the bar-aligned marks
+         * (skipZero true: a zero-based metric's zero is genuinely "no data"
+         * and returns null, mirroring the watch's bar marks). Feels rides the
+         * shared temperature axis (joint band via yT — a temperature has no
+         * skippable zero, never a 0..max scale); pressure's piecewise absolute
+         * curve draws EVERY reading — a deep low off the visible band is real
+         * data clamped to the baseline, never a skippable zero, mirroring
+         * forecast-series.pressurePermille's floor-clamp so the preview and
+         * the watch don't diverge.
+         * @param {Object} m METRIC entry.
+         * @param {number} i Sample index.
+         * @param {boolean} skipZero Null out a zero-based metric's zero.
+         * @returns {?number} y, or null to skip the sample.
+         */
+        function metricY(m, i, skipZero) {
+            if (m.tempAxis) { return yT(m.vals[i]); }
+            var pm;
+            if (m.curve) {
+                pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
+            } else {
+                var v = Math.min(m.vals[i], m.max);
+                if (skipZero && v <= 0) { return null; }
+                if (v < 0) { v = 0; }
+                pm = v / m.max;
+            }
+            return PB - pm * (PB - PT - 3);
+        }
         // Shared vertex computation for the main-metric line/fill: one point per sample,
-        // vertices on the hour ticks. Zero values stay in the series at the baseline
-        // (matching the watch's chart_render_line) rather than breaking it. Returns null
-        // for an unknown metric or fewer than 2 points (nothing to draw).
+        // vertices on the hour ticks. Returns null for an unknown metric or fewer than
+        // 2 points (nothing to draw).
         function metricPoints(metric) {
             var m = METRIC[metric];
             if (!m) { return null; }
             var pts = [];
             for (var i = 0; i < m.vals.length; i += 1) {
-                var pm;
-                if (m.tempAxis) {
-                    // Feels-like: the shared temperature axis (joint band via yT),
-                    // pixel-aligned with the temp curve — never a 0..max scale.
-                    pts.push([tickX(i), yT(m.vals[i])]);
-                    continue;
-                }
-                if (m.curve) {
-                    // Pressure: the piecewise absolute curve (mirrors pressurePermille).
-                    pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
-                } else {
-                    var v = Math.min(m.vals[i], m.max);
-                    if (v < 0) { v = 0; }
-                    pm = v / m.max;
-                }
-                pts.push([tickX(i), PB - pm * (PB - PT - 3)]);
+                pts.push([tickX(i), metricY(m, i, false)]);
             }
             return pts.length >= 2 ? pts : null;
         }
@@ -360,39 +386,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"></path>';
         };
         /**
-         * Shared centre-y for the bar-aligned mark styles (dots and x), in the hour
-         * column i. For a zero-based metric (min defaults to 0) a value of 0 is
-         * genuinely "no data" and is skipped (null), mirroring the watch's bar-dots.
-         * Pressure is the one metric with a non-zero `min` (its band floor): a reading
-         * at or below it is real data (e.g. a deep low off the visible band), not an
-         * absent hour, so it's clamped to the baseline and drawn instead of skipped —
-         * mirrors forecast-series.pressurePermille's floor-clamp so the preview and
-         * the watch don't diverge.
-         * @param {Object} m METRIC entry.
-         * @param {number} i Column index.
-         * @returns {?number} Centre y, or null to skip the column.
-         */
-        function markCenterY(m, i) {
-            var pm;
-            if (m.tempAxis) {
-                // Feels-like: every reading is real data on the shared temp axis
-                // (a temperature has no skippable zero), mapped through yT.
-                return yT(m.vals[i]);
-            }
-            if (m.curve) {
-                // Pressure: the piecewise absolute curve draws EVERY reading (a
-                // deep low is real data, never a skippable zero).
-                pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;
-                return PB - pm * (PB - PT - 3);
-            }
-            var v = Math.min(m.vals[i], m.max);
-            if (v <= 0) { return null; }   // zero-based metric: genuine zero, skip
-            pm = v / m.max;
-            return PB - pm * (PB - PT - 3);
-        }
-        /**
          * A metric as bar-aligned squares centred in the hour column (same columns as
-         * the rain bars) — the 'dots' style.
+         * the rain bars) — the 'dots' style. Skips no-data samples (metricY skipZero).
          * @param {string} metric The metric the colour was resolved for.
          * @param {string} col Resolved mark colour (hex).
          * @returns {string} SVG markup
@@ -407,7 +402,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 ? 3 : 4;
             var out = '';
             for (var i = 0; i < n - 1; i += 1) {
-                var cy = markCenterY(m, i);
+                var cy = metricY(m, i, true);
                 if (cy === null) { continue; }
                 out += rect(gapCenter(i) - bw / 2, cy - dh / 2, bw, dh, col);
             }
@@ -415,7 +410,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         };
         /**
          * A metric as little x marks centred in the hour column — the 'x' style
-         * (chart.c's chart_draw_bar_x). Two 1-px diagonals over an odd box.
+         * (chart.c's x arm of chart_draw_bar_marks). Two 1-px diagonals over an odd box.
          * @param {string} metric The metric the colour was resolved for.
          * @param {string} col Resolved mark colour (hex).
          * @returns {string} SVG markup
@@ -425,7 +420,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             if (!m) { return ''; }
             var out = '', arm = 2.4;
             for (var i = 0; i < n - 1; i += 1) {
-                var cy = markCenterY(m, i);
+                var cy = metricY(m, i, true);
                 if (cy === null) { continue; }
                 var cx = gapCenter(i);
                 out += '<line x1="' + (cx - arm) + '" y1="' + (cy - arm) + '" x2="' + (cx + arm) + '" y2="' + (cy + arm) + '" stroke="' + col + '" stroke-width="1.1"></line>'
@@ -487,12 +482,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             }
             var entries = [];
             entries.push({ kind: 'line', color: tempColor, w: tempW, label: 'Temp' });
-            entries.push(legendEntry(mainStyle, mainColor, LABEL[state.secondaryLine] || ''));
-            if (state.thirdLine && state.thirdLine !== 'off' && state.thirdLine !== state.secondaryLine) {
-                entries.push(legendEntry(secondStyle, dotColor, LABEL[state.thirdLine] || ''));
-            }
-            if (fourthOn) {
-                entries.push(legendEntry(thirdStyle, thirdColor, LABEL[state.fourthLine] || ''));
+            for (var li = 0; li < LINES.length; li += 1) {
+                if (LINES[li].on) {
+                    entries.push(legendEntry(LINES[li].style, LINES[li].color,
+                        LABEL[LINES[li].metric] || ''));
+                }
             }
             if (state.barSource === 'rain') { entries.push({ kind: 'rain', label: 'Rain' }); }
 
@@ -575,12 +569,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg);
             }
         }
-        e += seriesFor(state.secondaryLine, mainStyle, mainColor);
-        if (state.thirdLine && state.thirdLine !== 'off' && state.thirdLine !== state.secondaryLine) {
-            e += seriesFor(state.thirdLine, secondStyle, dotColor);
-        }
-        if (fourthOn) {
-            e += seriesFor(state.fourthLine, thirdStyle, thirdColor);
+        for (var li = 0; li < LINES.length; li += 1) {
+            if (LINES[li].on) {
+                e += seriesFor(LINES[li].metric, LINES[li].style, LINES[li].color);
+            }
         }
         e += drawTempCurve();
         // No status chrome (location / sunset / current-temp pill): the preview doesn't model it.

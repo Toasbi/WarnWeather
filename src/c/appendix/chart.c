@@ -259,13 +259,34 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
     }
 }
 
-// Draw a metric as one little square mark per slot, column-aligned to the rain bars. The
-// width follows the line's width setting (the caller sets it to the rain-bar width); the height
-// is a hardcoded short cap (see the per-case heights below). A value of 0 lands on the x-axis
-// baseline and is skipped (a mark there reads as data where there is none), and a mark that
-// would spill past an axis is slid back inside the plot at full height (not clipped), so a
-// 100% value keeps its whole dot.
-static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
+// The one value→y mapping every LINE-layer renderer shares — the polyline
+// vertices, the square dots and the x marks all seat a value the same way:
+// lo lands at plot_bottom - inset_bottom, hi lands inner_h above it, and a
+// zero range puts the mark mid-band (the flat-series arm). AREA and BARS keep
+// their own zero-range semantics — do not funnel them through here.
+static int chart_value_y(int16_t v, int lo, int range, int inner_h,
+                         int plot_bottom, int inset_bottom) {
+    int h = inner_h / 2;                               // flat series on zero range
+    if (range > 0) {
+        h = (int)(((int32_t)(v - lo) * inner_h) / range);
+    }
+    return plot_bottom - h - inset_bottom;
+}
+
+// Draw a metric as one little mark per slot, column-aligned to the rain bars:
+// filled square caps (the dots style), or — on capable platforms — little x
+// marks. The width follows the line's width setting (the caller sets it to the
+// rain-bar width). A value of 0 lands on the x-axis baseline and is skipped (a
+// mark there reads as data where there is none), and a mark that would spill
+// past an axis is slid back inside the plot at full height (not clipped), so a
+// 100% value keeps its whole mark. aplite compile-time folds the x arms out
+// (WW_LINE_STYLE): its mark lines are frozen dots (series_style_pick).
+//
+// An x needs a center pixel to read as an x, so its box is width|1 (odd): 5x5
+// over the 4 px bar columns (1 px into the right gap, still 1 px clear of the
+// next tick at pitch 7), and exactly the 5 px column on emery. Two 1 px
+// diagonals — stroke width 1 is already odd, so no SDK round-down (snooze.c).
+static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) {
     const int   count       = chart_clamp_count(r, l->count);
     const GRect c           = r->geo.content;
     const int   plot_top    = c.origin.y;
@@ -273,8 +294,16 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     const int   inner_h     = c.size.h - l->inset_top - l->inset_bottom;
     const int   range       = l->hi - l->lo;
     const int   w           = l->width;
-    // Height is hardcoded (not derived from width), and keyed on how loud the dot's
-    // COLOR is — the watch is metric-agnostic, it only ever receives a color.
+#if defined(WW_LINE_STYLE)
+    const bool  is_x        = l->style == CHART_LINE_X;
+    const int   half        = w / 2;                   // x arm reach; box = 2*half + 1
+#else
+    const bool  is_x        = false;                   // every x arm below folds out
+    const int   half        = 0;
+#endif
+    // Dot height is hardcoded (not derived from width), and keyed on how loud
+    // the mark's COLOR is — the watch is metric-agnostic, it only ever receives
+    // a color.
     //
     // ACHROMATIC (the theme foreground, or either gray) reads heavier than a hue at
     // the same size, so it takes the short 2px cap: gust over colored bars, gust over
@@ -296,16 +325,37 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
 #else
     const int   dot_h       = 3;
 #endif
-    graphics_context_set_fill_color(r->ctx, l->color);
+    if (is_x) {
+        graphics_context_set_stroke_color(r->ctx, l->color);
+        graphics_context_set_stroke_width(r->ctx, 1);
+    } else {
+        graphics_context_set_fill_color(r->ctx, l->color);
+    }
     for (int i = 0; i < count; ++i) {
         if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip
-        int h = inner_h / 2;                           // flat mark on zero range
-        if (range > 0) {
-            h = (int)(((int32_t)(l->values[i] - l->lo) * inner_h) / range);
+        const int cy0 = chart_value_y(l->values[i], l->lo, range, inner_h,
+                                      plot_bottom, l->inset_bottom);
+        const int x   = chart_slot_bar_x(&r->geo, i);  // exact bar column
+        if (is_x) {
+            // Keep the whole x: slide it back inside the plot instead of
+            // clipping an arm (the dots' rule below).
+            int cy = cy0;
+            if (cy - half < plot_top)    { cy = plot_top + half; }
+            if (cy + half > plot_bottom) { cy = plot_bottom - half; }
+            const int cx = x + half;
+            if (theme_is_bw()) {
+                // Same bg backing as the dots: 1 px larger on every side, so the x
+                // survives over the checkerboard area fill / an fg bar segment and
+                // is a no-op everywhere else.
+                graphics_context_set_fill_color(r->ctx, theme_bg());
+                graphics_fill_rect(r->ctx, GRect(cx - half - 1, cy - half - 1,
+                                                 2 * half + 3, 2 * half + 3), 0, GCornerNone);
+            }
+            graphics_draw_line(r->ctx, GPoint(cx - half, cy - half), GPoint(cx + half, cy + half));
+            graphics_draw_line(r->ctx, GPoint(cx - half, cy + half), GPoint(cx + half, cy - half));
+            continue;
         }
-        const int cy = plot_bottom - h - l->inset_bottom;   // dot center = slot value height
-        const int x  = chart_slot_bar_x(&r->geo, i);   // exact bar column
-        int top = cy - dot_h / 2;
+        int top = cy0 - dot_h / 2;
         int bot = top + dot_h;
         // Keep the mark its full height: when it would spill past an axis, slide it
         // back inside the plot instead of clipping it. A 100% value lands cy on
@@ -331,63 +381,14 @@ static void chart_draw_bar_dots(const ChartRender *r, const ChartLineLayer *l) {
     }
 }
 
-#if defined(WW_LINE_STYLE)
-// Draw a metric as one little x per slot — the third marker style, sharing the
-// dots' column alignment, baseline skip and slide-inside rules above. An x
-// needs a center pixel to read as an x, so its box is width|1 (odd): 5x5 over
-// the 4 px bar columns (1 px into the right gap, still 1 px clear of the next
-// tick at pitch 7), and exactly the 5 px column on emery. Two 1 px diagonals —
-// stroke width 1 is already odd, so no SDK round-down (snooze.c).
-static void chart_draw_bar_x(const ChartRender *r, const ChartLineLayer *l) {
-    const int   count       = chart_clamp_count(r, l->count);
-    const GRect c           = r->geo.content;
-    const int   plot_top    = c.origin.y;
-    const int   plot_bottom = c.origin.y + c.size.h;   // baseline; value 0 lands here
-    const int   inner_h     = c.size.h - l->inset_top - l->inset_bottom;
-    const int   range       = l->hi - l->lo;
-    const int   half        = l->width / 2;            // arm reach; box = 2*half + 1
-    graphics_context_set_stroke_color(r->ctx, l->color);
-    graphics_context_set_stroke_width(r->ctx, 1);
-    for (int i = 0; i < count; ++i) {
-        if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip
-        int h = inner_h / 2;                           // flat mark on zero range
-        if (range > 0) {
-            h = (int)(((int32_t)(l->values[i] - l->lo) * inner_h) / range);
-        }
-        int cy = plot_bottom - h - l->inset_bottom;
-        // Keep the whole x: slide it back inside the plot instead of clipping
-        // an arm (the dots' rule).
-        if (cy - half < plot_top)    { cy = plot_top + half; }
-        if (cy + half > plot_bottom) { cy = plot_bottom - half; }
-        const int cx = chart_slot_bar_x(&r->geo, i) + half;
-        if (theme_is_bw()) {
-            // Same bg backing as the dots: 1 px larger on every side, so the x
-            // survives over the checkerboard area fill / an fg bar segment and
-            // is a no-op everywhere else.
-            graphics_context_set_fill_color(r->ctx, theme_bg());
-            graphics_fill_rect(r->ctx, GRect(cx - half - 1, cy - half - 1,
-                                             2 * half + 3, 2 * half + 3), 0, GCornerNone);
-        }
-        graphics_draw_line(r->ctx, GPoint(cx - half, cy - half), GPoint(cx + half, cy + half));
-        graphics_draw_line(r->ctx, GPoint(cx - half, cy + half), GPoint(cx + half, cy - half));
-    }
-}
-#endif  // WW_LINE_STYLE
-
 static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     const int count = chart_clamp_count(r, l->count);
     if (count < 2) return;
 
-    if (l->style == CHART_LINE_DOTS) {   // bar-aligned square caps, not a polyline
-        chart_draw_bar_dots(r, l);
+    if (l->style != CHART_LINE_SOLID) {   // dots or x: bar-aligned marks, not a polyline
+        chart_draw_bar_marks(r, l);
         return;
     }
-#if defined(WW_LINE_STYLE)
-    if (l->style == CHART_LINE_X) {      // bar-aligned x marks; aplite never sets this
-        chart_draw_bar_x(r, l);
-        return;
-    }
-#endif
 
     const GPoint  *pts  = l->points;
     const int16_t *vals = l->values;     // non-NULL when we compute the points here
@@ -407,12 +408,9 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
                 out[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom);
                 continue;
             }
-            int h = inner_h / 2;                        // flat line on zero range
-            if (range > 0) {
-                h = (int)(((int32_t)(vals[i] - l->lo) * inner_h) / range);
-            }
             out[i] = GPoint(chart_slot_tick_x(&r->geo, i),
-                            plot_bottom - h - l->inset_bottom);
+                            chart_value_y(vals[i], l->lo, range, inner_h,
+                                          plot_bottom, l->inset_bottom));
         }
         pts = out;
     }

@@ -345,6 +345,46 @@
         return !graphColorIsDefault(settings, scope, role, suffix);
     }
 
+    // --- The ordered forecast lines -----------------------------------------
+    // ONE home for the per-line eligibility rule its consumers used to restate
+    // by hand: a line draws iff its metric is set, not 'off', not banned on
+    // that line, and not the STORED pick of any EARLIER line (earlier wins;
+    // the settings page's display-snap resolves collisions the same way).
+    // Consumers: forecast-series.js (the bake), preview-forecast.js (the
+    // settings preview — which must match the bake pixel for pixel), and the
+    // pickers' exclusion lists via the schema's resolver args.
+    var FORECAST_LINES = [
+        { key: 'secondaryLine' },
+        { key: 'thirdLine' },
+        // feels never rides the fourth line: it has no curve-inset channel,
+        // so it could never share the temperature axis.
+        { key: 'fourthLine', bans: { feels: true } }
+    ];
+
+    /**
+     * The metric one forecast line actually draws: its stored metric, or null
+     * when the line is off, banned from that metric, or repeating an earlier
+     * line's stored pick.
+     * @param {Object} settings Clay settings blob.
+     * @param {string} key secondaryLine|thirdLine|fourthLine.
+     * @returns {string|null} The drawn metric, or null for line-off.
+     */
+    function effectiveLineMetric(settings, key) {
+        var s = settings || {};
+        for (var i = 0; i < FORECAST_LINES.length; i++) {
+            var line = FORECAST_LINES[i];
+            if (line.key !== key) { continue; }
+            var m = s[key];
+            if (!m || m === 'off') { return null; }
+            if (line.bans && Object.prototype.hasOwnProperty.call(line.bans, m)) { return null; }
+            for (var j = 0; j < i; j++) {
+                if (s[FORECAST_LINES[j].key] === m) { return null; }
+            }
+            return m;
+        }
+        return null;
+    }
+
     // Line-style flag byte (wire byte [3]), bit 0: the secondary line's area fill is on.
     var FLAG_SECONDARY_FILL = 0x01;
 
@@ -744,6 +784,8 @@
         graphColorIsDefault: graphColorIsDefault,
         graphNightTint: graphNightTint,
         graphColorIsPicked: graphColorIsPicked,
+        FORECAST_LINES: FORECAST_LINES,
+        effectiveLineMetric: effectiveLineMetric,
         LINE_STYLE_DEFAULTS: LINE_STYLE_DEFAULTS,
         lineStyleValue: lineStyleValue,
         lineStyleByte: lineStyleByte,

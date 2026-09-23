@@ -419,10 +419,10 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
   assert.equal(third.type, 'select');
   assert.equal(third.defaultValue, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
-  assert.equal(third.optionsFrom.args.third, true);
+  assert.deepEqual(third.optionsFrom.args, { off: true, exclude: ['secondaryLine'] });
   // Every secondary metric yields Off + the OTHER five (never itself).
   ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'].forEach((sec) => {
-    const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { third: true })
+    const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] })
       .map((o) => o[1]);
     assert.equal(vals[0], 'off', sec + ' third options must start with off');
     assert.ok(!vals.includes(sec), sec + ' must be excluded from its own third-line options');
@@ -433,7 +433,7 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
 test('feels-like is left out of both metric pickers on aplite', () => {
   const sec = metricOptions({}, { platform: 'aplite' }).map((o) => o[1]);
   assert.deepEqual(sec, ['precip_prob', 'wind', 'gust', 'uv', 'pressure']);
-  const third = metricOptions({ secondaryLine: 'precip_prob' }, { platform: 'aplite' }, { third: true })
+  const third = metricOptions({ secondaryLine: 'precip_prob' }, { platform: 'aplite' }, { off: true, exclude: ['secondaryLine'] })
     .map((o) => o[1]);
   assert.deepEqual(third, ['off', 'wind', 'gust', 'uv', 'pressure']);
 });
@@ -906,7 +906,7 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
     ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
   ]);
-  const thirdOf = (sec) => metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { third: true });
+  const thirdOf = (sec) => metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
   const labelOf = (sec, val) => thirdOf(sec).find((o) => o[1] === val)[0];
   assert.equal(thirdOf('precip_prob')[0][0], 'Off');
   assert.equal(labelOf('wind', 'precip_prob'), 'Precipitation %');
@@ -2054,7 +2054,7 @@ test('secondaryLine offers pressure and feels-like as the fifth and sixth metric
 
 test('thirdLine offers the five metrics the main line is not using, for all six', () => {
   for (const metric of ['feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
-    const opts = metricOptions({ secondaryLine: metric }, { platform: 'basalt' }, { third: true });
+    const opts = metricOptions({ secondaryLine: metric }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
     assert.equal(opts.length, 6, `${metric} should offer Off + 5 metrics`);
     assert.equal(opts[0][1], 'off');
     assert.ok(!opts.some(([, v]) => v === metric), `${metric} must not offer itself`);
@@ -2063,35 +2063,43 @@ test('thirdLine offers the five metrics the main line is not using, for all six'
 
 test('fourthLine offers Off + the metrics neither other line uses, never feels', () => {
   const opts = metricOptions({ secondaryLine: 'wind', thirdLine: 'uv' },
-    { platform: 'basalt' }, { fourth: true });
+    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
   assert.deepEqual(opts.map(([, v]) => v), ['off', 'precip_prob', 'gust', 'pressure'],
     'Off + the remaining metrics minus feels (no curve-inset channel on the fourth line)');
   // With the other two lines elsewhere, feels is STILL absent.
   const wide = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' },
-    { platform: 'basalt' }, { fourth: true });
+    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
   assert.ok(!wide.some(([, v]) => v === 'feels'), 'feels never offered on the fourth line');
 });
 
-test('the Third metric row and every line-style row hide on aplite (memory-gated), fail-open for unknown platforms', () => {
+test('the Third metric row and every line-style row hide behind the lineStyles capability, fail-open for unknown platforms', () => {
   // Row-level showWhen, not option-gating: a hidden row is never rendered, so
-  // the engine's display-snap can't rewrite the stored value on aplite.
-  const APLITE_GATE = { env: 'platform', ne: 'aplite' };
-  assert.deepEqual(byKey('fourthLine').showWhen, APLITE_GATE);
+  // the engine's display-snap can't rewrite the stored value on a watch that
+  // lacks the line. {env:'lineStyles'} is the WW_LINE_STYLE mirror
+  // (config-ui/lib/platform.js — false only for aplite, true for unknown).
+  const LINE_STYLES_GATE = { env: 'lineStyles' };
+  assert.deepEqual(byKey('fourthLine').showWhen, LINE_STYLES_GATE);
   assert.equal(byKey('fourthLine').defaultValue, 'off', 'the third metric debuts off');
   assert.equal(byKey('fourthLine').label, 'Third metric');
-  assert.deepEqual(byKey('secondaryLineStyle').showWhen, { all: [APLITE_GATE] });
+  assert.deepEqual(byKey('secondaryLineStyle').showWhen, { all: [LINE_STYLES_GATE] });
   assert.deepEqual(byKey('thirdLineStyle').showWhen,
-    { all: [APLITE_GATE, { key: 'thirdLine', ne: 'off' }] });
+    { all: [LINE_STYLES_GATE, { key: 'thirdLine', ne: 'off' }] });
   assert.deepEqual(byKey('fourthLineStyle').showWhen,
-    { all: [APLITE_GATE, { key: 'fourthLine', ne: 'off' }] });
-  // The fourth-context wind-scale copies carry the same gate, or a re-paired
-  // aplite (stored fourthLine preserved by the row-level hide above) would
-  // render an orphaned scale row for a line it never draws. The pressure
-  // copy's gate is pinned in its own showWhen test.
+    { all: [LINE_STYLES_GATE, { key: 'fourthLine', ne: 'off' }] });
+  // The fourth-context wind-scale copies carry the same gate (via the
+  // LINE_CONTEXTS cascade), or a re-paired incapable watch (stored fourthLine
+  // preserved by the row-level hide above) would render an orphaned scale row
+  // for a line it never draws. The pressure copy's gate is pinned in its own
+  // showWhen test.
   const fourthWinds = items.filter((i) => i.messageKey === 'windScale'
     && i.showWhen.all.some((c) => c.key === 'fourthLine'));
   assert.equal(fourthWinds.length, 3, 'one fourth-context wind-scale copy per unit');
-  fourthWinds.forEach((w) => assert.deepEqual(w.showWhen.all[0], APLITE_GATE));
+  fourthWinds.forEach((w) => assert.deepEqual(w.showWhen.all[0], LINE_STYLES_GATE));
+  // The capability itself exists in the platform SoT and folds exactly aplite.
+  const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
+  assert.equal(platformLib.computeEnv({ platform: 'aplite' }).lineStyles, false);
+  assert.equal(platformLib.computeEnv({ platform: 'basalt' }).lineStyles, true);
+  assert.equal(platformLib.computeEnv(null).lineStyles, true, 'unknown watch keeps the feature');
 });
 
 test('the line-style pickers offer thin/thick/dots/x with per-line defaults matching the wire', () => {
@@ -2128,10 +2136,11 @@ test('pressureScale shows for the main line, and for a later line only when no e
   ]});
   const fourth = scales.find((s) => s.showWhen.all
     && s.showWhen.all.some((c) => c.key === 'fourthLine'));
-  // The fourth arm also carries the aplite gate: its line is aplite-hidden with
-  // the stored value preserved, so the scale row must never orphan there.
+  // The fourth arm also carries the lineStyles capability gate: its line is
+  // hidden on incapable watches with the stored value preserved, so the scale
+  // row must never orphan there.
   assert.deepEqual(fourth.showWhen, { all: [
-    { env: 'platform', ne: 'aplite' },
+    { env: 'lineStyles' },
     { key: 'fourthLine', eq: 'pressure' },
     { not: { key: 'secondaryLine', eq: 'pressure' } },
     { not: { key: 'thirdLine', eq: 'pressure' } }

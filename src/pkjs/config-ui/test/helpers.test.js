@@ -65,12 +65,12 @@ test('isColorBacklightPlatform: emery only; colour SCREEN is not a colour backli
 });
 
 test('computeEnv from watchInfo', () => {
-  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false });
-  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false });
-  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false, hr: false, thresholds: false, colorBacklight: false });
-  assert.deepEqual(platform.computeEnv({ platform: 'emery' }), { color: true, round: false, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: true });
-  assert.deepEqual(platform.computeEnv({ platform: 'diorite' }), { color: false, round: false, platform: 'diorite', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: false });
-  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'flint' }), { color: false, round: false, platform: 'flint', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'chalk' }), { color: true, round: true, platform: 'chalk', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'aplite' }), { color: false, round: false, platform: 'aplite', health: false, radar: false, themePolarity: false, hr: false, thresholds: false, colorBacklight: false, lineStyles: false });
+  assert.deepEqual(platform.computeEnv({ platform: 'emery' }), { color: true, round: false, platform: 'emery', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: true, lineStyles: true });
+  assert.deepEqual(platform.computeEnv({ platform: 'diorite' }), { color: false, round: false, platform: 'diorite', health: true, radar: true, themePolarity: true, hr: true, thresholds: true, colorBacklight: false, lineStyles: true });
+  assert.deepEqual(platform.computeEnv(null), { color: true, round: false, platform: '', health: true, radar: true, themePolarity: true, hr: false, thresholds: true, colorBacklight: false, lineStyles: true });
 });
 
 test('deriveDefaults/deriveColorKeys are schema-driven (colors as ints)', () => {
