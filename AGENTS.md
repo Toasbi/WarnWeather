@@ -233,7 +233,7 @@ and hosted-deploy commands are in `DEV.md` / `CONTRIBUTING.md`.
   version, not the commits, so it won't ask for a toast on the release that most wants
   one — add it by hand there. Preview the copy locally with
   `forceShowReleaseNotificationOnBoot` in `dev-config.js`. See `RELEASE.md`.
-- **Every release — patches included — needs a detailed news entry in the `public.news`
+- **Every release — patches included — needs a news entry in the `public.news`
   Supabase table** (hosted news backend — the *News & Feedback* section of the settings
   screen, not the boot toast above). Unlike that toast, this one has no feature/patch
   exemption and **nothing in CI enforces it**, so it is on you at release time. Insert one row with `target_version` left **`NULL`** so every watch
@@ -241,10 +241,27 @@ and hosted-deploy commands are in `DEV.md` / `CONTRIBUTING.md`.
   (An exact version string like `'1.9.2'` limits a row to watches on that build;
   reserve that for version-specific notices, e.g. "this build broke X, update".)
   The `release-notifications.json` toast is a one-line
-  summary; the news `body_md` is the longer changelog. Match the style of the existing
-  rows: a `"What's new in <version>"` title and `body_md` using the supported markdown
-  subset (`**bold**` section headers, `- ` bullets, `*italic*`, `[text](https://…)` links —
-  see `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
+  summary; the news `body_md` is a short changelog, one step up from it. Title it
+  `"What's new in <version>"` and use only the supported markdown subset (`**bold**`
+  section headers, `- ` bullets, `*italic*`, `[text](https://…)` links — see
+  `src/pkjs/settings/news.js`). Schema in `supabase/schemas/news.sql`.
+- **News body style: say WHAT was added, not how it works.** One `**bold**` heading per
+  feature, named the way the user sees it; under it one or two short bullets: what it
+  does in a sentence, then where to find it (`Forecast tab → Graph colors.`) and any
+  platform limit (`Color watches only.`). Fixes go under a final `**Fixed**` heading,
+  one short line per watchface bug a user would have noticed, plus one grouped line for
+  polish. Leave out mechanics, defaults, edge cases and anything the settings page's own
+  hints already explain. The shape to match:
+
+  ```
+  **Graph colors**
+  - The forecast graph now has one color row per metric and a setting for the night shading.
+  - Forecast tab → Graph colors. Color watches only.
+
+  **Fixed**
+  - In 12-hour mode the AM/PM label now lines up with the top of the digits.
+  - Spacing polish and smaller fixes.
+  ```
 - **Write the changelog for users, not the diff** (both the toast and the news body). Call
   out individually only what a user can act on: a feature they can use, or a bug that
   affected the watchface itself. Group everything else — settings-screen polish, internal
