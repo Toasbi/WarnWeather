@@ -213,15 +213,17 @@ function buildForecastUrl(lat, lon) {
  * per-request, so the °F ask must repeat here (it governs dew point too, so the
  * dew mapper converts nothing). Mirrors the main request's unixtime/GMT/km-h
  * conventions so the hourly buckets line up with the main window by
- * timestamp. Three GMT days: the gust window reads on to PEAK_HOURS (to the end
- * of tomorrow, plus the one-bucket-ahead stamp) for the gust slot's day max;
- * the other three fields keep the graph's FORECAST_HOURS.
+ * timestamp. Two GMT days hold every bucket the graph's window reads (the gust's
+ * startTime + 24 h included); three while the gust slot shows its day max, whose
+ * window reads on to PEAK_HOURS (to the end of tomorrow, plus the
+ * one-bucket-ahead stamp). The other three fields keep FORECAST_HOURS.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
+ * @param {boolean} [gustPeak] Whether the gust slot shows its day max.
  * @returns {string} Fully-formed aux (gust/feels/dew/bearing) request URL.
  */
-function buildGustUrl(lat, lon) {
+function buildGustUrl(lat, lon, gustPeak) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
@@ -234,7 +236,7 @@ function buildGustUrl(lat, lon) {
         + '&windspeed_unit=kmh'
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&forecast_days=3';
+        + '&forecast_days=' + (gustPeak ? 3 : 2);
 }
 
 // hourly-window owns the timestamp-indexed remap (air-quality.js shares it —
@@ -475,7 +477,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         // call just leaves the defaults, so the gust/feels lines stay hidden,
         // the dew slot shows '--' and the wind arrow is omitted rather than
         // failing the whole forecast.
-        var gustUrl = buildGustUrl(lat, lon);
+        var gustUrl = buildGustUrl(lat, lon, this.dayPeakWanted('gust'));
         request(gustUrl, 'GET', (function(gustResponse) {
             var aux = null;
             var gusts = null;

@@ -108,22 +108,23 @@ function currentFeelsFrom(current) {
 
 /**
  * ISO 8601 forecast window starting at the current wall-clock hour and
- * covering PEAK_HOURS + 1 buckets. Brightsky returns `hourly[0]` as the
+ * covering `hours` + 1 buckets. Brightsky returns `hourly[0]` as the
  * bucket whose timestamp >= `date`, so anchoring `date` at the hour
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
- * `last_date` is inclusive, so ending it PEAK_HOURS on returns one record
- * past the day-max window: the one stamped at the last slot's END, which
- * carries that slot's preceding-hour gust (see slotRecords). The graph's
- * FORECAST_HOURS slots are the first part of it; only wind and gusts read on
- * (peakTail), for the status slots' day max.
+ * `last_date` is inclusive, so ending it `hours` on returns one record past
+ * the window: the one stamped at the last slot's END, which carries that
+ * slot's preceding-hour rain, chance and gust (see slotRecords). It is the
+ * graph's FORECAST_HOURS, or PEAK_HOURS while a wind or gust slot shows its day
+ * max: only wind and gusts read on (peakTail).
  *
+ * @param {number} hours FORECAST_HOURS or PEAK_HOURS.
  * @returns {{ start: string, end: string }} ISO timestamps.
  */
-function forecastWindow() {
+function forecastWindow(hours) {
     var startMs = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
     return {
         start: new Date(startMs).toISOString(),
-        end: new Date(startMs + PEAK_HOURS * HOUR_MS).toISOString()
+        end: new Date(startMs + hours * HOUR_MS).toISOString()
     };
 }
 
@@ -136,18 +137,14 @@ function forecastWindow() {
  * made-up hour could only invent a peak, and localDayPeaks treats a null tail
  * as the end of the feed.
  *
- * @param {Object[]} hourly Brightsky `weather` records, ascending.
+ * @param {Object} byEpoch Brightsky records by epoch second (recordsByEpoch).
  * @param {number} startEpoch Epoch seconds of slot 0.
  * @returns {{wind: Array.<(number|null)>, gust: Array.<(number|null)>}} km/h.
  */
-function peakTail(hourly, startEpoch) {
-    var byEpoch = {};
+function peakTail(byEpoch, startEpoch) {
     var wind = [];
     var gust = [];
     var i, own, next;
-    for (i = 0; i < hourly.length; i += 1) {
-        byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
-    }
     for (i = FORECAST_HOURS; i < PEAK_HOURS; i += 1) {
         own = byEpoch[startEpoch + i * HOUR_SECONDS];
         next = byEpoch[startEpoch + (i + 1) * HOUR_SECONDS];
@@ -155,6 +152,21 @@ function peakTail(hourly, startEpoch) {
         gust.push(next && typeof next.wind_gust_speed === 'number' ? next.wind_gust_speed : null);
     }
     return { wind: wind, gust: gust };
+}
+
+/**
+ * Brightsky records keyed by their timestamp's epoch second — the lookup both
+ * slotRecords and peakTail pair by, built once per fetch.
+ *
+ * @param {Object[]} hourly Brightsky `weather` records.
+ * @returns {Object} Epoch second -> record.
+ */
+function recordsByEpoch(hourly) {
+    var byEpoch = {};
+    for (var i = 0; i < hourly.length; i += 1) {
+        byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
+    }
+    return byEpoch;
 }
 
 /**
@@ -183,20 +195,17 @@ function peakTail(hourly, startEpoch) {
  * caller reads as no rain / no gust.
  *
  * @param {Object[]} hourly Brightsky `weather` records, ascending.
+ * @param {Object} byEpoch The same records by epoch second (recordsByEpoch).
  * @param {number} startEpoch Epoch seconds of slot 0 (hourly[0]'s timestamp).
  * @param {number} count Number of slots to pair.
  * @returns {{own: Object[], following: Array.<(Object|null)>}} One record per
  *   slot each (`following` entries may be null).
  */
-function slotRecords(hourly, startEpoch, count) {
-    var byEpoch = {};
+function slotRecords(hourly, byEpoch, startEpoch, count) {
     var own = [];
     var following = [];
     var i;
     var record;
-    for (i = 0; i < hourly.length; i += 1) {
-        byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
-    }
     for (i = 0; i < count; i += 1) {
         record = byEpoch[startEpoch + i * HOUR_SECONDS] || (i > 0 ? own[i - 1] : hourly[0]);
         own.push(record);
@@ -219,7 +228,8 @@ DwdProvider.prototype.constructor = DwdProvider;
 DwdProvider.prototype._super = WeatherProvider;
 
 DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) {
-    var win = forecastWindow();
+    var win = forecastWindow(this.dayPeakWanted('wind') || this.dayPeakWanted('gust')
+        ? PEAK_HOURS : FORECAST_HOURS);
     var url = BRIGHTSKY_BASE + '/weather'
         + '?lat=' + lat
         + '&lon=' + lon
@@ -278,7 +288,8 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             // Instants (temperature, wind speed, pressure, dew point, bearing)
             // read the slot's own record; the preceding-hour totals read the
             // record one hour on (slotRecords).
-            var paired = slotRecords(hourly, startEpoch, Math.min(hourly.length, FORECAST_HOURS));
+            var byEpoch = recordsByEpoch(hourly);
+            var paired = slotRecords(hourly, byEpoch, startEpoch, Math.min(hourly.length, FORECAST_HOURS));
             var slots = paired.own;
             var following = paired.following;
             this.tempTrend = slots.map(function(e) { return celsiusToFahrenheit(e.temperature); });
@@ -301,9 +312,12 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
                 this.windDirTrend[0] = currentBearing;
             }
             // The day-max series read on past the graph (hourly-window.js
-            // PEAK_HOURS); getPayload cuts them back to the graph's window.
-            if (slots.length === FORECAST_HOURS) {
-                var tail = peakTail(hourly, startEpoch);
+            // PEAK_HOURS) while a wind or gust slot shows its day max (the
+            // window reached that far, forecastWindow); getPayload cuts them
+            // back to the graph's window.
+            if (slots.length === FORECAST_HOURS
+                && (this.dayPeakWanted('wind') || this.dayPeakWanted('gust'))) {
+                var tail = peakTail(byEpoch, startEpoch);
                 this.windTrend = this.windTrend.concat(tail.wind);
                 this.gustTrend = this.gustTrend.concat(tail.gust);
             }

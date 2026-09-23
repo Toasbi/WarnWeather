@@ -946,6 +946,9 @@ function fetch(provider, force) {
     provider.fetchUv = forecastSeries.needsUv(app.settings);
     provider.fetchAqi = forecastSeries.needsAqi(app.settings);
     provider.fetchPollen = forecastSeries.needsPollen(app.settings);
+    // The day-max slots that show a peak: only they keep a day record (a flash
+    // write per fetch) and widen their provider requests to the end of tomorrow.
+    provider.dayPeakCodes = forecastSeries.dayPeakCodes(app.settings);
     // Apparent temperature: no provider spends an extra REQUEST on it (it always
     // rides a response already being fetched), but DWD and Met.no compute Steadman
     // per hour and the rest map a series — all wasted when nothing renders it.

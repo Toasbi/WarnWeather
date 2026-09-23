@@ -91,7 +91,7 @@ if (typeof require !== 'undefined') {
     // `off` leads with an Off row, `exclude` names the sibling picker keys
     // whose CURRENT pick is withheld (a collision left in a stored value is
     // display-snapped by the engine — a later pick turns the later line off),
-    // and `noFeels` bans the temperature-axis metrics (feels, dew) outright (the
+    // and `noTempAxis` bans the temperature-axis metrics (feels, dew) outright (the
     // fourth line has no curve-inset channel — line-style.js FORECAST_LINES
     // carries the same ban at bake time). Both are also dropped on aplite: the
     // temp-axis line inset is not compiled there, so they would render
@@ -103,7 +103,7 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < FORECAST_METRICS.length; i += 1) {
             var opt = FORECAST_METRICS[i];
             if (lineStyle.isTempAxisMetric(opt[1])
-                && (a.noFeels || (env && env.platform === 'aplite'))) { continue; }
+                && (a.noTempAxis || (env && env.platform === 'aplite'))) { continue; }
             var taken = false;
             for (var j = 0; j < exclude.length; j += 1) {
                 if (S && opt[1] === S[exclude[j]]) { taken = true; break; }
@@ -649,23 +649,16 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < slotKeys.length; i++) {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
-        var schemaKeys = ['statusBoldAll', 'tempSlotDisplay', 'uvSlotDisplay',
-            // How the two-value slots print their pair in Both mode (separator
-            // preset, custom separator text, spacing, which value leads) and the
-            // mark on tomorrow's UV peak — display options on the same two sheets.
+        var schemaKeys = ['statusBoldAll', 'tempSlotDisplay',
+            // How the temp slot prints its pair in Both mode (separator preset,
+            // custom separator text, spacing, which value leads).
             'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
             'tempSlotOrder',
-            'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
-            'uvSlotOrder', 'uvSlotNextDayMark',
-            // ...and the same display rows on the wind, gust and AQI sheets.
-            'windSlotDisplay', 'windSlotSeparator', 'windSlotSeparatorCustom',
-            'windSlotSeparatorSpaced', 'windSlotOrder', 'windSlotNextDayMark',
-            'gustSlotDisplay', 'gustSlotSeparator', 'gustSlotSeparatorCustom',
-            'gustSlotSeparatorSpaced', 'gustSlotOrder', 'gustSlotNextDayMark',
-            'aqiSlotDisplay', 'aqiSlotSeparator', 'aqiSlotSeparatorCustom',
-            'aqiSlotSeparatorSpaced', 'aqiSlotOrder', 'aqiSlotNextDayMark',
             'dateSlotMonthFormat',
-            'windSlotDirection', 'gustSlotDirection'];
+            'windSlotDirection', 'gustSlotDirection']
+            // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
+            // wind, gusts, AQI), from the catalog's one table.
+            .concat(statusLineCatalog.dayMaxSettingKeys());
         // dateSlotFullFormat is the one key here whose fresh-install value is
         // COUNTRY-derived, not the schema default: the wizard writes
         // mapCountry().dateSlotFullFormat ('slash' for US installs). Resetting

@@ -19,7 +19,9 @@ const KEYS = require('../src/pkjs/storage-keys.js');
 const record = require('../src/pkjs/weather/day-peak-record.js');
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const outbox = require('../src/pkjs/outbox.js');
-const { uvShown } = require('../src/pkjs/wire-units.js');
+// The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
+const uvShown = (trend, peaks, mode) => require('../src/pkjs/wire-units.js')
+  .dayMaxShown('uv', { UV_TREND_UINT8: trend, UV_DAY_PEAKS: peaks }, { uvSlotDisplay: mode });
 
 const at = (day, hour) => new Date(2026, 6, day, hour, 0, 0).getTime() / 1000;
 const SRC = { id: 'openmeteo', lat: 52.52, lon: 13.4 };
@@ -79,13 +81,13 @@ test('earlierPeak: today\'s earlier hours back to the last one below the peak he
 
 test('load and save: an unreadable record is cleared, an unchanged one not rewritten', () => {
   store[KEYS.UV_DAY_RECORD_KEY] = '{oops';
-  assert.equal(record.load(), null);
+  assert.equal(record.load(KEYS.UV_DAY_RECORD_KEY), null);
   assert.equal(store[KEYS.UV_DAY_RECORD_KEY], undefined);
   const r = record.merge(null, SRC, [1], at(15, 9));
-  record.save(r);
-  record.save(JSON.parse(JSON.stringify(r)));
+  record.save(r, KEYS.UV_DAY_RECORD_KEY);
+  record.save(JSON.parse(JSON.stringify(r)), KEYS.UV_DAY_RECORD_KEY);
   assert.equal(writes, 1, 'the second, identical save skips the flash write');
-  assert.deepEqual(record.load(), r);
+  assert.deepEqual(record.load(KEYS.UV_DAY_RECORD_KEY), r);
 });
 
 // ---------------------------------------------------------------------------
@@ -234,11 +236,11 @@ test('a UV day record that cannot be read never fails the fetch', () => {
 
 test('without UV nothing is read or stored', () => {
   const p = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
-  p.recallUvDay = WeatherProvider.prototype.recallUvDay;
   p.uvTrend = [];
   p.startTime = at(15, 9);
-  assert.equal(p.recallUvDay(SRC.lat, SRC.lon), null);
-  assert.equal(p.uvEarlierPeak, null);
+  assert.deepEqual(p.recallDayPeaks(SRC.lat, SRC.lon).map((e) => e.storageKey)
+    .filter((k) => k === KEYS.UV_DAY_RECORD_KEY), []);
+  assert.equal(p.earlierPeaks.uv == null, true, 'no earlier peak');
   assert.equal(writes, 0);
 });
 

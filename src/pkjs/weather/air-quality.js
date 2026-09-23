@@ -24,21 +24,23 @@ function scaleField(scale) {
 /**
  * Build the keyless Open-Meteo air-quality request URL for one AQI scale,
  * mirroring the UV call's unixtime/GMT conventions so buckets align with the
- * forecast window by timestamp. Four GMT days, like the UV call: the window
- * reaches PEAK_HOURS ahead (to the end of tomorrow) for the AQI slot's day max.
+ * forecast window by timestamp. Two GMT days hold its FORECAST_HOURS window; four,
+ * like the UV call, while the AQI slot shows its day max, whose window reaches
+ * PEAK_HOURS ahead (to the end of tomorrow).
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {string} scale 'us' | 'european'.
+ * @param {boolean} [dayPeak] Whether the AQI slot shows its day max.
  * @returns {string} Fully-formed air-quality request URL.
  */
-function buildAqiUrl(lat, lon, scale) {
+function buildAqiUrl(lat, lon, scale, dayPeak) {
     return AIR_QUALITY_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
         + '&hourly=' + scaleField(scale)
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&forecast_days=4';
+        + '&forecast_days=' + (dayPeak ? 4 : 2);
 }
 
 /**
@@ -94,7 +96,8 @@ function mapWaqi(json) {
  * @returns {void}
  */
 function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
-    var url = buildAqiUrl(lat, lon, scale);
+    var url = buildAqiUrl(lat, lon, scale,
+        typeof provider.dayPeakWanted !== 'function' || provider.dayPeakWanted('aqi'));
     http.request(url, 'GET', function(resp) {
         var aqi = null;
         try { aqi = mapAqi(JSON.parse(resp), provider.startTime, scale); }

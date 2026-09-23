@@ -67,9 +67,9 @@ var THIRD_LINE_HINTS = lineHintsWithNote(DOTS_NOTE,
     'No second metric — temperature and the main metric only.');
 // No feels or dew on the third metric: the fourth line has no curve-inset channel,
 // so they could never share the temperature axis (line-style.js FORECAST_LINES
-// bans them; blocks.js' forecastMetric resolver drops them via noFeels).
+// bans them; blocks.js' forecastMetric resolver drops them via noTempAxis).
 var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
-    'No third metric — the two metric lines above only.', ['feels', 'dew']);
+    'No third metric — the two metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -601,7 +601,7 @@ function pairRows(prefix, first, second, orderOptions) {
  * A day-max slot kind's display rows (UV, wind, gusts, AQI): the Now / Day max / Both
  * pills, the pair rows Both reveals (pairRows), and the mark on a max that has rolled
  * on to tomorrow's peak. Global per kind, baked phone-side (status-lines.js
- * formatValue; the numbers are wire-units' peakShown) and on renderSignature(), so a
+ * formatValue; the numbers are wire-units' dayMaxShown) and on renderSignature(), so a
  * change re-bakes without waiting for the next fetch. The highlight follows the
  * numbers, never their presentation (status-thresholds.js displayValue).
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
@@ -1537,7 +1537,7 @@ module.exports = {
                 // floor. The row is hidden for it and the 'forecastMetricFill' hook
                 // above clears the stored value; forecast-series.js re-forces false at
                 // bake time so a settings blob written before this gate still can't fill.
-                showWhen: {key: 'secondaryLine', nin: ['feels', 'dew']}
+                showWhen: {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS}
             },
             windScaleCopy('secondaryLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),
@@ -1562,7 +1562,7 @@ module.exports = {
                 label: 'Third metric',
                 defaultValue: 'off',
                 hintByValue: FOURTH_LINE_HINTS,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true}},
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true}},
                 // Only watches with enough memory carry a third metric line
                 // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
                 // an unknown platform). Row-level hiding, not option-gating,
@@ -1927,7 +1927,7 @@ module.exports = {
         // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
-        // What each mode prints is wire-units' uvShown.
+        // What each mode prints is wire-units' dayMaxShown.
         // It sits above the Thresholds group like the wind arrow: it configures the
         // slot, and the highlight follows it (the policy is status-thresholds.js
         // displayValue's). So do the rows shaping how it reads, which change the

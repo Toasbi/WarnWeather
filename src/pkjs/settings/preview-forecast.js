@@ -180,13 +180,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // feels or dew on either line every curve rescales against the union band so
         // the gaps between them are real, and the band is padded on whichever side
         // they overshoot the temperature so that curve lands clear of the plot edge
-        // instead of flat against it (FEELS_EDGE_CLEARANCE_PERMILLE = 40 ‰ there —
+        // instead of flat against it (TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40 ‰ there —
         // pad = ceil(span * 40/960)). The hi/lo LABELS are not this band: they stay
         // the actual temperature range, which is why tmin/tmax and tLabelMin/Max part
         // company here.
         var axisSeries = [];
-        if (state.secondaryLine === 'feels' || state.thirdLine === 'feels') { axisSeries = axisSeries.concat(feels); }
-        if (state.secondaryLine === 'dew' || state.thirdLine === 'dew') { axisSeries = axisSeries.concat(dew); }
+        var AXIS_SAMPLES = { feels: feels, dew: dew };
+        [state.secondaryLine, state.thirdLine].forEach(function (m) {
+            if (lineStyle.isTempAxisMetric(m)) { axisSeries = axisSeries.concat(AXIS_SAMPLES[m]); }
+        });
         var tLabelMin = Math.min.apply(null, temps), tLabelMax = Math.max.apply(null, temps);
         var tmin = tLabelMin, tmax = tLabelMax;
         if (axisSeries.length) {
@@ -196,7 +198,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             tmin = jMin < tLabelMin ? jMin - jPad : jMin;
             tmax = jMax > tLabelMax ? jMax + jPad : jMax;
         }
-        // Configurable curve offset: the temp axis (temp + feels/dew via tempAxis
+        // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric
         // below) is inset symmetrically from the shared full-height band
         // ([PT+3 .. PB], the mapping every other metric uses), mirroring the
         // watch's per-series inset_y (fixed 7 px — not a user setting). Scale:
@@ -213,17 +215,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
         // Only pressure sets `min` (a non-zero floor); every other metric defaults to 0.
-        // feels and dew have neither: they ride the shared temperature axis (tempAxis),
-        // so they map through yT like the temp curve instead of a 0..max scale.
+        // feels and dew have neither: they ride the shared temperature axis
+        // (lineStyle.isTempAxisMetric), so they map through yT like the temp curve
+        // instead of a 0..max scale.
         var METRIC = {
             precip_prob: { vals: precip, max: 100, fill: true },
             wind: { vals: wind, max: windMax },
             gust: { vals: gust, max: windMax },
             uv: { vals: uv, max: 11 },
             pressure: { vals: pressure, curve: pCurve },
-            feels: { vals: feels, tempAxis: true },
-            dew: { vals: dew, tempAxis: true }
+            feels: { vals: feels },
+            dew: { vals: dew }
         };
+        Object.keys(METRIC).forEach(function (k) { METRIC[k].tempAxis = lineStyle.isTempAxisMetric(k); });
         // The graph strokes, as SVG colours. Every rule that used to be restated
         // here — the effective-colour gate, the per-polarity colours, gust's coupling to
         // the rain bars and the B&W arm's exactly-white→black readability flip — lives in

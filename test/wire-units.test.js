@@ -1,7 +1,10 @@
 // test/wire-units.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { clampByte, mphToKmh, MPH_TO_KMH, zeroFilledArray, uvShown } = require('../src/pkjs/wire-units');
+const { clampByte, mphToKmh, MPH_TO_KMH, zeroFilledArray } = require('../src/pkjs/wire-units');
+// The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
+const uvShown = (trend, peaks, mode) => require('../src/pkjs/wire-units.js')
+  .dayMaxShown('uv', { UV_TREND_UINT8: trend, UV_DAY_PEAKS: peaks }, { uvSlotDisplay: mode });
 
 test('clampByte rounds then clamps to 0..255', () => {
   assert.equal(clampByte(0), 0);

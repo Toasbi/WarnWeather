@@ -386,13 +386,52 @@
     return false;
   }
 
+  /**
+   * The slot kinds with a day max (UV's Now / Day max / Both), and the settings
+   * each owns on its Edit sheet: kind + suffix, e.g. 'windSlotOrder'. ONE table
+   * for the keys schema.js' dayMaxRows builds, resetStatusSlots clears and
+   * renderSignature watches, so a new kind or pair setting cannot be left out of
+   * one of them.
+   */
+  var DAY_MAX_KINDS = ['uv', 'wind', 'gust', 'aqi'];
+  var DAY_MAX_SUFFIXES = ['SlotDisplay', 'SlotSeparator', 'SlotSeparatorCustom',
+    'SlotSeparatorSpaced', 'SlotOrder', 'SlotNextDayMark'];
+
+  /**
+   * @returns {string[]} Every day-max kind's Edit-sheet settings keys.
+   */
+  function dayMaxSettingKeys() {
+    var out = [];
+    for (var k = 0; k < DAY_MAX_KINDS.length; k++) {
+      for (var s = 0; s < DAY_MAX_SUFFIXES.length; s++) {
+        out.push(DAY_MAX_KINDS[k] + DAY_MAX_SUFFIXES[s]);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Whether a day-max kind actually shows a peak: it sits in a status slot and
+   * its display mode prints one. The phone keeps that kind's day record and
+   * fetches its longer series only then.
+   * @param {Object} settings Clay settings blob.
+   * @param {string} kind A DAY_MAX_KINDS entry.
+   * @returns {boolean}
+   */
+  function dayMaxInUse(settings, kind) {
+    if (!settings) { return false; }
+    var mode = settings[kind + 'SlotDisplay'];
+    return (mode === 'max' || mode === 'both') && selectedCodes(settings).indexOf(kind) !== -1;
+  }
+
   var api = {
     KINDS: KINDS, ICONS: ICONS, CAPS: CAPS, LINES: LINES,
     byCode: byCode, itemAvailable: itemAvailable, slotOptions: slotOptions,
     selectedCodes: selectedCodes, resolveSelection: resolveSelection,
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,
     lineOf: lineOf, siblingHolds: siblingHolds,
-    UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault
+    UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
+    DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/view-cycle.js.

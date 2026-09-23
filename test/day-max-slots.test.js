@@ -23,40 +23,48 @@ const KEYS = require('../src/pkjs/storage-keys.js');
 
 const RAQUO = '»';
 
+// The day-max reader in (trend, peaks, mode[, windUnits]) form, per kind.
+const TREND = { wind: 'WIND_TREND_UINT8', aqi: 'AQI_TREND' };
+const PEAKS = { wind: 'WIND_DAY_PEAKS', aqi: 'AQI_DAY_PEAKS' };
+const shownOf = (code) => (trend, peaks, mode, windUnits) => wireUnits.dayMaxShown(code,
+  { [TREND[code]]: trend, [PEAKS[code]]: peaks }, { [code + 'SlotDisplay']: mode, windUnits });
+const windShown = shownOf('wind');
+const aqiShown = shownOf('aqi');
+
 function settings(extra) {
   return Object.assign({ windUnits: 'kph', temperatureUnits: 'c' }, extra || {});
 }
 
 // ---- wire-units: the displayed numbers ------------------------------------
 
-test('windShown runs the UV rule on the km/h series, in the user\'s unit', () => {
+test('wind runs the UV rule on the km/h series, in the user\'s unit', () => {
   // 12 km/h now, 30 still to come today, 45 tomorrow.
-  assert.deepEqual(wireUnits.windShown([12], [30, 45, null], 'both', 'kph'),
+  assert.deepEqual(windShown([12], [30, 45, null], 'both', 'kph'),
     { now: 12, peak: 30, nextDay: false });
-  assert.deepEqual(wireUnits.windShown([12], [30, 45, null], 'max', 'kph'),
+  assert.deepEqual(windShown([12], [30, 45, null], 'max', 'kph'),
     { now: null, peak: 30, nextDay: false });
   // Converted BEFORE the comparison: 30 km/h = 19 mph, 45 km/h = 28 mph.
-  assert.deepEqual(wireUnits.windShown([12], [30, 45, null], 'both', 'mph'),
+  assert.deepEqual(windShown([12], [30, 45, null], 'both', 'mph'),
     { now: 7, peak: 19, nextDay: false });
   // At the day's strongest with nothing earlier known: rolls on to tomorrow's.
-  assert.deepEqual(wireUnits.windShown([30], [30, 45, null], 'both', 'kph'),
+  assert.deepEqual(windShown([30], [30, 45, null], 'both', 'kph'),
     { now: 30, peak: 45, nextDay: true });
   // ...but a peak still running (no earlier hour printed more) holds.
-  assert.deepEqual(wireUnits.windShown([30], [30, 45, 22], 'both', 'kph'),
+  assert.deepEqual(windShown([30], [30, 45, 22], 'both', 'kph'),
     { now: 30, peak: 30, nextDay: false });
   // Current mode and absent peaks both print the reading alone.
-  assert.deepEqual(wireUnits.windShown([12], [30, 45, null], 'current', 'kph'),
+  assert.deepEqual(windShown([12], [30, 45, null], 'current', 'kph'),
     { now: 12, peak: null, nextDay: false });
-  assert.deepEqual(wireUnits.windShown([12], undefined, 'max', 'kph'),
+  assert.deepEqual(windShown([12], undefined, 'max', 'kph'),
     { now: 12, peak: null, nextDay: false });
-  assert.equal(wireUnits.windShown([], [30, 45, null], 'max', 'kph'), null);
+  assert.equal(windShown([], [30, 45, null], 'max', 'kph'), null);
 });
 
-test('aqiShown runs the same rule on the AQI forecast, and a null reading is no reading', () => {
-  assert.deepEqual(wireUnits.aqiShown([42, 50], [58, 61, null], 'both'),
+test('AQI runs the same rule on the AQI forecast, and a null reading is no reading', () => {
+  assert.deepEqual(aqiShown([42, 50], [58, 61, null], 'both'),
     { now: 42, peak: 58, nextDay: false });
-  assert.equal(wireUnits.aqiShown([null], [58, 61, null], 'both'), null);
-  assert.equal(wireUnits.aqiShown([], null, 'both'), null);
+  assert.equal(aqiShown([null], [58, 61, null], 'both'), null);
+  assert.equal(aqiShown([], null, 'both'), null);
 });
 
 // ---- status-lines: the slot text -------------------------------------------
@@ -153,7 +161,7 @@ test('getPayload emits wind and gust day peaks in whole km/h off the full series
   wind[4] = 31.6;   // 13:00 today
   wind[27] = 44.4;  // 12:00 tomorrow — past the graph's 24 h
   const gust = wind.map((v) => v * 2);
-  const out = provider({ windTrend: wind, gustTrend: gust, windEarlierPeak: 12.4 }).getPayload();
+  const out = provider({ windTrend: wind, gustTrend: gust, earlierPeaks: { wind: 12.4 } }).getPayload();
   assert.equal(out.WIND_TREND_UINT8.length, 24, 'the graph keeps its window');
   assert.deepEqual(out.WIND_DAY_PEAKS, [32, 44, 12]);
   assert.deepEqual(out.GUST_DAY_PEAKS, [63, 89, null]);
@@ -202,10 +210,26 @@ test('each day-max metric keeps its own record, keyed by its own feed', () => {
     windTrend: new Array(48).fill(10), gustTrend: new Array(48).fill(20),
     uvTrend: new Array(48).fill(3), aqiTrend: [42], aqiFeedId: null });
   const records = p.recallDayPeaks(49.2, 7.0);
-  assert.deepEqual(records.map((r) => r.code), ['uv', 'wind', 'gust'], 'no AQI forecast, no AQI record');
+  assert.deepEqual(records.map((r) => r.storageKey),
+    [KEYS.UV_DAY_RECORD_KEY, KEYS.WIND_DAY_RECORD_KEY, KEYS.GUST_DAY_RECORD_KEY],
+    'no AQI forecast, no AQI record');
   records.forEach((r) => dayPeakRecord.save(r.record, r.storageKey));
   assert.equal(JSON.parse(store[KEYS.WIND_DAY_RECORD_KEY]).id, 'dwd');
   assert.equal(JSON.parse(store[KEYS.GUST_DAY_RECORD_KEY]).v[0], 200, 'tenths of km/h');
   assert.equal(JSON.parse(store[KEYS.UV_DAY_RECORD_KEY]).id, 'openmeteo', 'UV keeps its feed');
   assert.equal(store[KEYS.AQI_DAY_RECORD_KEY], undefined);
+});
+
+test('only the day-max kinds a slot shows keep a record and widen their requests', () => {
+  Object.keys(store).forEach((k) => delete store[k]);
+  const forecastSeries = require('../src/pkjs/forecast-series.js');
+  const s = { statusForecastLeft: 'wind', statusForecastMid: 'uv', statusForecastRight: 'aqi',
+    windSlotDisplay: 'both', uvSlotDisplay: 'current', aqiSlotDisplay: 'max' };
+  assert.deepEqual(forecastSeries.dayPeakCodes(s), ['wind', 'aqi'],
+    'uv in Now mode and gust in no slot keep none');
+  const p = provider({ id: 'dwd', windTrend: new Array(48).fill(10),
+    gustTrend: new Array(48).fill(20), uvTrend: new Array(48).fill(3), dayPeakCodes: ['wind'] });
+  assert.deepEqual(p.recallDayPeaks(49.2, 7.0).map((r) => r.storageKey), [KEYS.WIND_DAY_RECORD_KEY]);
+  assert.match(aq.buildAqiUrl(1, 2, 'us', false), /forecast_days=2/);
+  assert.match(aq.buildAqiUrl(1, 2, 'us', true), /forecast_days=4/);
 });

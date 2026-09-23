@@ -11,7 +11,7 @@
 //
 // An ABSENT setting means its default, and the defaults reproduce what the slot
 // baked before these settings existed, byte for byte: '12/10', '3/7', '5/»6'.
-// The numbers themselves are not decided here -- wire-units' uvShown picks them,
+// The numbers themselves are not decided here -- wire-units' dayMaxShown picks them,
 // and status-thresholds judges those same numbers, so no presentation choice can
 // move a highlight. ES5 only (aplite PKJS).
 
@@ -179,8 +179,8 @@ function formatTempPair(actual, feels, settings, cap) {
 }
 
 /**
- * A day-max slot's text for the numbers wire-units picked (uvShown, windShown,
- * aqiShown), in every mode. The next-day mark goes on the peak wherever it shows
+ * A day-max slot's text for the numbers wire-units' dayMaxShown picked, in every
+ * mode. The next-day mark goes on the peak wherever it shows
  * -- alone in 'max' mode, paired in 'both' -- and the pair takes the kind's own
  * order (<prefix>SlotOrder, absent = now first), separator and spacing. No peak
  * known renders the current reading alone, never '3/--'.
@@ -206,16 +206,6 @@ function formatPeak(prefix, shown, settings, cap) {
         s[prefix + 'SlotSeparatorSpaced'], cap);
 }
 
-/**
- * The UV slot's formatPeak.
- * @param {{now: ?number, peak: ?number, nextDay: boolean}} uv uvShown's result
- * @param {Object} settings Clay settings blob
- * @param {number} [cap] the slot's byte cap
- * @returns {string} e.g. '3', '7', '»6', '3/7', '5/»6'
- */
-function formatUv(uv, settings, cap) {
-    return formatPeak('uv', uv, settings, cap);
-}
 
 module.exports = {
     UV_NEXT_DAY: UV_NEXT_DAY,
@@ -227,6 +217,5 @@ module.exports = {
     joinPair: joinPair,
     markNextDay: markNextDay,
     formatTempPair: formatTempPair,
-    formatPeak: formatPeak,
-    formatUv: formatUv
+    formatPeak: formatPeak
 };

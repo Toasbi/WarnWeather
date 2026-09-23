@@ -277,7 +277,7 @@
   /**
    * The number the user SEES for a weather kind — thresholds compare against
    * the displayed value. The readers are SHARED with status-lines.js through
-   * wire-units (uvShown, windShown, aqiShown), so the two cannot round apart or
+   * wire-units (dayMaxShown), so the two cannot round apart or
    * disagree on which peak is shown.
    *
    * The day-max kinds (UV, wind, gusts, AQI) judge the highest of TODAY's
@@ -292,9 +292,8 @@
    */
   function displayValue(code, payload, settings) {
     var s = settings || {};
-    if (code === 'aqi') {
-      return todaysShown(wireUnits.aqiShown(payload.AQI_TREND, payload.AQI_DAY_PEAKS,
-        s.aqiSlotDisplay));
+    if (code === 'aqi' || code === 'wind' || code === 'gust' || code === 'uv') {
+      return todaysShown(wireUnits.dayMaxShown(code, payload, s));
     }
     if (code === 'pollen') {
       var pt = payload.POLLEN_TODAY;
@@ -302,17 +301,6 @@
       // POLLEN_TODAY is a DWD band string, not a number — map it to its level.
       var idx = POLLEN_BANDS.indexOf(String(pt));
       return idx < 0 ? null : idx / 2;   // 7 bands -> 0,0.5,1,1.5,2,2.5,3
-    }
-    if (code === 'wind' || code === 'gust') {
-      var isWind = code === 'wind';
-      return todaysShown(wireUnits.windShown(
-        isWind ? payload.WIND_TREND_UINT8 : payload.GUST_TREND_UINT8,
-        isWind ? payload.WIND_DAY_PEAKS : payload.GUST_DAY_PEAKS,
-        s[code + 'SlotDisplay'], s.windUnits));
-    }
-    if (code === 'uv') {
-      return todaysShown(wireUnits.uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
-        s.uvSlotDisplay));
     }
     return null;
   }

@@ -162,7 +162,13 @@
     // share with the temp curve (forecast-series.js) and at its curve inset
     // (clay-payload.js), so the gap between the curves is real. None of them fills,
     // and none rides the fourth line, which has no inset channel.
-    var TEMP_AXIS_METRICS = { feels: true, dew: true };
+    var TEMP_AXIS_METRIC_IDS = ['feels', 'dew'];
+    var TEMP_AXIS_METRICS = {};
+    (function () {
+        for (var i = 0; i < TEMP_AXIS_METRIC_IDS.length; i++) {
+            TEMP_AXIS_METRICS[TEMP_AXIS_METRIC_IDS[i]] = true;
+        }
+    })();
 
     /**
      * @param {*} metric A metric id.
@@ -803,6 +809,7 @@
         graphNightTint: graphNightTint,
         graphColorIsPicked: graphColorIsPicked,
         FORECAST_LINES: FORECAST_LINES,
+        TEMP_AXIS_METRIC_IDS: TEMP_AXIS_METRIC_IDS,
         isTempAxisMetric: isTempAxisMetric,
         effectiveLineMetric: effectiveLineMetric,
         LINE_STYLE_DEFAULTS: LINE_STYLE_DEFAULTS,

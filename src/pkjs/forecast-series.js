@@ -169,25 +169,6 @@ function scaleToPermille(arr, max) {
 }
 
 /**
- * Scale a series to permille (0..1000) against a [min, max] band, clamped at both
- * ends. Unlike scaleToPermille this has a non-zero floor, so a value at or below min
- * lands on the graph baseline rather than off-scale below it.
- * @param {number[]} arr Per-hour values.
- * @param {number} min Value mapped to permille 0.
- * @param {number} max Value mapped to permille 1000.
- * @returns {number[]} Permille values, each clamped to 0..1000.
- */
-function scaleToPermilleRange(arr, min, max) {
-    var span = max - min;
-    return (arr || []).map(function(v) {
-        var permille = Math.round((Number(v) - min) / span * 1000);
-        if (permille < 0) { permille = 0; }
-        if (permille > 1000) { permille = 1000; }
-        return permille;
-    });
-}
-
-/**
  * Permille series for the pressure metric, or [] when the data is unusable. Validates
  * the WHOLE series before scaling: a single implausible entry rejects everything rather
  * than being interpolated away, which keeps the rule simple and never invents data. An
@@ -220,18 +201,8 @@ function pressurePermille(arr, scale) {
 }
 
 /**
- * Whether a temperature-axis metric (feels, dew) occupies either inset-capable
- * forecast line channel.
- * @param {Object} settings Clay settings.
- * @param {string} metric 'feels' | 'dew'.
- * @returns {boolean} True when the secondary or third line is `metric`.
- */
-function tempAxisLineSelected(settings, metric) {
-    return settings.secondaryLine === metric || settings.thirdLine === metric;
-}
-
-/**
- * Whether a selected temperature-axis line (feels, dew) can actually be DRAWN on
+ * Whether a temperature-axis line (feels, dew) is selected on either
+ * inset-capable channel (secondary or third line) and can actually be DRAWN on
  * this watch. Not on aplite: such a curve only lines up with the temp curve when
  * both share a band AND a pixel inset, and aplite compiles the configurable inset
  * out (no WW_CURVE_INSET — its insets are frozen at 7/0/0 and clay-payload.js never
@@ -248,17 +219,17 @@ function tempAxisLineSelected(settings, metric) {
  * @returns {boolean} True when the line is selected and the watch can draw it.
  */
 function tempAxisLineDrawn(settings, watchInfo, metric) {
-    return tempAxisLineSelected(settings, metric) && !(watchInfo && watchInfo.platform === 'aplite');
+    return (settings.secondaryLine === metric || settings.thirdLine === metric)
+        && !(watchInfo && watchInfo.platform === 'aplite');
 }
 
-/**
- * @param {Object} settings Clay settings.
- * @param {Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
- * @returns {boolean} True when a feels line is selected and the watch can draw it.
- */
-function feelsLineDrawn(settings, watchInfo) {
-    return tempAxisLineDrawn(settings, watchInfo, 'feels');
-}
+// Where each temperature-axis metric's series rides: its transient payload key
+// (getPayload, already cut to the graph's window) and its key in
+// buildForecastSeries' raw input.
+var TEMP_AXIS_SERIES = {
+    feels: { payload: 'FEELS_TREND', raw: 'feels' },
+    dew: { payload: 'DEW_TREND', raw: 'dews' }
+};
 
 /**
  * Widen a temperature band to also cover a temperature-axis series (feels, dew).
@@ -269,7 +240,7 @@ function feelsLineDrawn(settings, watchInfo) {
  * @param {Array.<(number|null)>} series Feels-like or dew-point series (°F).
  * @returns {{min: number, max: number}} Joint band.
  */
-function jointTempFeelsBand(tempMin, tempMax, series) {
+function jointTempAxisBand(tempMin, tempMax, series) {
     var min = tempMin, max = tempMax, i, v;
     for (i = 0; i < series.length; i += 1) {
         if (typeof series[i] !== 'number' || !isFinite(series[i])) { continue; }
@@ -284,7 +255,7 @@ function jointTempFeelsBand(tempMin, tempMax, series) {
 
 // How far a feels or dew curve keeps clear of the plot's inset edge, in permille of the
 // plot band (40 ‰ ≈ wire byte 10), whenever it ranges beyond the temperature.
-var FEELS_EDGE_CLEARANCE_PERMILLE = 40;
+var TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40;
 
 /**
  * Widen the joint band on whichever side a temperature-axis series (feels, dew)
@@ -306,16 +277,16 @@ var FEELS_EDGE_CLEARANCE_PERMILLE = 40;
  * @param {{min: number, max: number}} jointBand Union of tempBand and the feels/dew series.
  * @returns {{min: number, max: number}} Joint band padded away from the overshot edges.
  */
-function padJointBandForFeels(tempBand, jointBand) {
+function padJointTempAxisBand(tempBand, jointBand) {
     var below = tempBand.min - jointBand.min;   // feels/dew reach below the temp low
-    var above = jointBand.max - tempBand.max;   // feels reaches above the temp high
+    var above = jointBand.max - tempBand.max;   // feels reaches above the temp high (dew never does)
     var span = jointBand.max - jointBand.min;
     if (span <= 0 || (below <= 0 && above <= 0)) { return jointBand; }
     // pad / (span + pad) = clearance  ->  pad = span * c / (1000 - c). Rounded up, and
     // at least 1 whole degree so a narrow band still visibly clears the edge. (Padding
     // both sides dilutes each to ~1000c/(1000+c) ‰ — still ~38 ‰, ~byte 10.)
     var pad = Math.max(1, Math.ceil(
-        span * FEELS_EDGE_CLEARANCE_PERMILLE / (1000 - FEELS_EDGE_CLEARANCE_PERMILLE)));
+        span * TEMP_AXIS_EDGE_CLEARANCE_PERMILLE / (1000 - TEMP_AXIS_EDGE_CLEARANCE_PERMILLE)));
     return {
         min: below > 0 ? jointBand.min - pad : jointBand.min,
         max: above > 0 ? jointBand.max + pad : jointBand.max
@@ -335,15 +306,15 @@ function padJointBandForFeels(tempBand, jointBand) {
  * @returns {Array.<(number|null)>} Permille series.
  */
 function tempAxisPermille(series, band) {
-    if (!series || !series.length) { return []; }
-    var own = jointTempFeelsBand(Infinity, -Infinity, series);
-    if (!isFinite(own.min)) { return []; }   // no hour sourced: line off
-    var joint = band ? jointTempFeelsBand(band.min, band.max, series) : own;
+    var own = jointTempAxisBand(Infinity, -Infinity, series || []);
+    if (!isFinite(own.min)) { return []; }   // empty, or no hour sourced: line off
+    var joint = band ? jointTempAxisBand(band.min, band.max, series) : own;
+    var span = joint.max - joint.min;
     return series.map(function (v) {
         if (typeof v !== 'number' || !isFinite(v)) { return null; }
-        // Flat joint band: mid of the plot, mirroring tempTrendToBytes' byte 125.
-        if (joint.max === joint.min) { return 500; }
-        return scaleToPermilleRange([v], joint.min, joint.max)[0];
+        // A flat joint band sits mid-plot, mirroring tempTrendToBytes' byte 125.
+        if (span === 0) { return 500; }
+        return Math.min(1000, Math.max(0, Math.round((v - joint.min) / span * 1000)));
     });
 }
 
@@ -369,11 +340,8 @@ function metricPermille(metric, raw, settings) {
     if (metric === 'pressure') {
         return pressurePermille(raw.pressures, settings.pressureScale);
     }
-    if (metric === 'feels') {
-        return tempAxisPermille(raw.feels, raw.tempBand);
-    }
-    if (metric === 'dew') {
-        return tempAxisPermille(raw.dews, raw.tempBand);
+    if (lineStyle.isTempAxisMetric(metric)) {
+        return tempAxisPermille(raw[TEMP_AXIS_SERIES[metric].raw], raw.tempBand);
     }
     return null;
 }
@@ -459,26 +427,27 @@ function applyForecastSeries(payload, settings, watchInfo) {
     //
     // A line the watch cannot draw (aplite, see tempAxisLineDrawn) takes the
     // empty-series path: no joint band, and its channel renders off.
-    var feels = feelsLineDrawn(settings, watchInfo) ? (payload.FEELS_TREND || []) : [];
-    var dews = tempAxisLineDrawn(settings, watchInfo, 'dew')
-        ? (payload.DEW_TREND || []).slice(0, (payload.TEMP_RAW_TREND || []).length) : [];
     var rawTemps = payload.TEMP_RAW_TREND || [];
     var tempBand = (typeof payload.TEMP_MIN === 'number' && typeof payload.TEMP_MAX === 'number')
         ? { min: payload.TEMP_MIN, max: payload.TEMP_MAX } : null;
-    if ((feels.length || dews.length) && tempBand && rawTemps.length) {
+    var raw = { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
+        winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
+        uvs: payload.UV_TREND_UINT8, pressures: payload.PRESSURE_TREND };
+    var drawnAxis = [];
+    lineStyle.TEMP_AXIS_METRIC_IDS.forEach(function (m) {
+        var series = tempAxisLineDrawn(settings, watchInfo, m)
+            ? (payload[TEMP_AXIS_SERIES[m].payload] || []) : [];
+        raw[TEMP_AXIS_SERIES[m].raw] = series;
+        drawnAxis = drawnAxis.concat(series);
+    });
+    if (drawnAxis.length && tempBand && rawTemps.length) {
         // The scaling band the metric channels must share; TEMP_MIN/TEMP_MAX stay put.
-        var joint = jointTempFeelsBand(tempBand.min, tempBand.max, feels);
-        joint = jointTempFeelsBand(joint.min, joint.max, dews);
-        tempBand = padJointBandForFeels(tempBand, joint);
+        tempBand = padJointTempAxisBand(tempBand,
+            jointTempAxisBand(tempBand.min, tempBand.max, drawnAxis));
     }
+    raw.tempBand = tempBand;
     payload.TEMP_TREND_UINT8 = tempTrendToBytes(rawTemps, tempBand || undefined).bytes;
-    var series = buildForecastSeries(
-        { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
-          winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
-          uvs: payload.UV_TREND_UINT8, pressures: payload.PRESSURE_TREND,
-          feels: feels, dews: dews, tempBand: tempBand },
-        settings
-    );
+    var series = buildForecastSeries(raw, settings);
     delete payload.TEMP_RAW_TREND; // transient PKJS-only; encoded into TEMP_TREND_UINT8 above, never wired
     delete payload.CURRENT_TEMP; // baked into the status lines; no longer a wire key
     delete payload.CITY;         // baked into the status lines; no longer a wire key
@@ -527,6 +496,20 @@ function needsUv(settings) {
 }
 
 /**
+ * The day-max slot kinds that actually show a peak (status-line-catalog's
+ * dayMaxInUse): the provider keeps a day record and fetches the longer series
+ * for these only. Every input is in renderSignature, so switching a slot to Day
+ * max forces the refetch that starts its record.
+ * @param {Object} settings Clay settings.
+ * @returns {string[]} Codes out of 'uv' | 'wind' | 'gust' | 'aqi'.
+ */
+function dayPeakCodes(settings) {
+    return statusCatalog.DAY_MAX_KINDS.filter(function (kind) {
+        return statusCatalog.dayMaxInUse(settings, kind);
+    });
+}
+
+/**
  * Whether AQI is in a status slot, so providers fetch it. AQI is status-only
  * (never a forecast line), so unlike needsUv there is no secondary/third check.
  * @param {Object} settings Clay settings.
@@ -548,7 +531,7 @@ function needsAqi(settings) {
  */
 function needsFeels(settings, watchInfo) {
     if (!settings) { return false; }
-    if (feelsLineDrawn(settings, watchInfo)) { return true; }
+    if (tempAxisLineDrawn(settings, watchInfo, 'feels')) { return true; }
     return Boolean(settings.tempSlotDisplay) && settings.tempSlotDisplay !== 'actual';
 }
 
@@ -568,6 +551,7 @@ module.exports = {
     applyForecastSeries: applyForecastSeries,
     needsUv: needsUv,
     needsAqi: needsAqi,
+    dayPeakCodes: dayPeakCodes,
     needsFeels: needsFeels,
     needsPollen: needsPollen,
     permilleToByte: permilleToByte,

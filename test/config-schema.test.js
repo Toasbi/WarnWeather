@@ -2197,12 +2197,12 @@ test('thirdLine offers the six metrics the main line is not using, for all seven
 
 test('fourthLine offers Off + the metrics neither other line uses, never feels', () => {
   const opts = metricOptions({ secondaryLine: 'wind', thirdLine: 'uv' },
-    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
+    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true });
   assert.deepEqual(opts.map(([, v]) => v), ['off', 'precip_prob', 'gust', 'pressure'],
     'Off + the remaining metrics minus feels (no curve-inset channel on the fourth line)');
   // With the other two lines elsewhere, feels is STILL absent.
   const wide = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' },
-    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
+    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true });
   assert.ok(!wide.some(([, v]) => v === 'feels'), 'feels never offered on the fourth line');
   assert.ok(!wide.some(([, v]) => v === 'dew'), 'dew never offered on the fourth line');
 });

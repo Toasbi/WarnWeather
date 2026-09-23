@@ -1,11 +1,12 @@
 // src/pkjs/weather/day-peak-record.js — the forecast for the hours of today
 // that have already begun, kept across fetches, one record per day-max metric
-// (UV, wind, gusts, AQI; RECORD_KEYS). The UV slot is the worked example below;
+// (UV, wind, gusts, AQI; provider.js DAY_PEAK_METRICS names each one's storage
+// key). The UV slot is the worked example below;
 // the others run the same rule on their own series, in their own units (km/h,
 // AQI points).
 //
 // The UV slot's day max holds today's peak until the reading drops below it
-// (wire-units' uvShown). The fetched series starts at the current hour, so on
+// (wire-units' dayMaxShown). The fetched series starts at the current hour, so on
 // its own it cannot tell "at the peak" from "past it": at 16:00 with 4 now and
 // nothing higher to come, was 5 reached at 13:00 or is 4 the day's best? The
 // answer is in earlier fetches, whose series covered those hours while they
@@ -21,23 +22,15 @@
 // its own, and a record that began mid-morning (a move, a provider switch,
 // install day) still answers as soon as it holds such a dip -- by midday on
 // any day with a peak, in practice. Before that, earlierPeak answers
-// "unknown" and the slot keeps the plain rule (see uvShown).
+// "unknown" and the slot keeps the plain rule (see dayMaxShown).
 //
 // A record belongs to one UV feed around one place: another feed's morning
 // says nothing about this one's peak, and a move of more than a few tens of
 // km starts a new record. A shorter one keeps it: UV is regional, and the
 // record only decides whether today's peak is running or behind.
 
-var storageKeys = require('../storage-keys.js');
 var hourlyWindow = require('./hourly-window.js');
 
-// The storage key per day-max metric. load/save default to UV's.
-var RECORD_KEYS = {
-    uv: storageKeys.UV_DAY_RECORD_KEY,
-    wind: storageKeys.WIND_DAY_RECORD_KEY,
-    gust: storageKeys.GUST_DAY_RECORD_KEY,
-    aqi: storageKeys.AQI_DAY_RECORD_KEY
-};
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 // Two fetches this close (degrees, on each axis — about 55 km of latitude)
 // count as the same place: a commute keeps the record, another region does not.
@@ -97,6 +90,9 @@ function merge(record, source, series, startEpoch, nowEpoch) {
             out.t = t;
         }
     }
+    // The whole series, tomorrow's hours included: they become TODAY's earlier
+    // hours after midnight, and during the night weather pause the evening's
+    // last fetch is the only one that ever saw them ahead.
     for (i = 0; i < series.length; i += 1) {
         out.v.push(tenths(series[i]));
     }
@@ -123,7 +119,7 @@ function merge(record, source, series, startEpoch, nowEpoch) {
  */
 function earlierPeak(record, source, startEpoch, nowEpoch, hold) {
     if (typeof hold !== 'number' || !isFinite(hold)) { return null; }
-    var holdWhole = Math.round(tenths(hold) / 10);   // as uvShown rounds the wired tenths
+    var holdWhole = Math.round(tenths(hold) / 10);   // as dayMaxShown rounds the wired tenths
     var dayStart = hourlyWindow.localDayStart(startEpoch, nowEpoch);
     var count = Math.floor((startEpoch - dayStart) / HOUR_SECONDS);
     if (count <= 0) { return 0; }
@@ -142,11 +138,10 @@ function earlierPeak(record, source, startEpoch, nowEpoch, hold) {
 }
 
 /**
- * @param {string} [storageKey] The metric's key (RECORD_KEYS); UV's when absent.
+ * @param {string} key The metric's storage key.
  * @returns {*} The stored record, or null when none (or unreadable: cleared).
  */
-function load(storageKey) {
-    var key = storageKey || RECORD_KEYS.uv;
+function load(key) {
     var raw = localStorage.getItem(key);
     if (raw === null) { return null; }
     try {
@@ -162,11 +157,10 @@ function load(storageKey) {
  * Store a record, skipping the flash write when it is unchanged.
  *
  * @param {Object} record The record merge() built.
- * @param {string} [storageKey] The metric's key (RECORD_KEYS); UV's when absent.
+ * @param {string} key The metric's storage key.
  * @returns {void}
  */
-function save(record, storageKey) {
-    var key = storageKey || RECORD_KEYS.uv;
+function save(record, key) {
     var raw = JSON.stringify(record);
     if (localStorage.getItem(key) !== raw) {
         localStorage.setItem(key, raw);
@@ -174,7 +168,6 @@ function save(record, storageKey) {
 }
 
 module.exports = {
-    RECORD_KEYS: RECORD_KEYS,
     merge: merge,
     earlierPeak: earlierPeak,
     load: load,
