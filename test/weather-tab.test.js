@@ -988,21 +988,39 @@ test('tip horizontal clamps: wide tips stay centered; edge hours pin inside the 
 
     // Every day's 00:00 stands exactly ON its left seam, so a tap in a
     // day's first sliver lands the crosshair px on the boundary. That hour
-    // stays VISIBLE, pulled back inside rather than hidden: the half-pixel
-    // slack in placeTipX's hide window exists for exactly this.
+    // stays VISIBLE, pulled back inside rather than hidden.
     tab._scrubTo(svg, px(0));
     assert.equal(tip.style.display, 'block', 'the seam hour is still on screen');
     assert.equal(parseInt(tip.style.left, 10), 34,
       'a crosshair px on the seam is clamped into the viewport');
 
-    // A genuinely off-window hour is a different matter: it is hidden,
-    // and placeTipX returns before touching left — so assert on display,
-    // never on a left the function no longer writes.
+    // A tap is read where the finger lifts, which can be a few px past the
+    // viewport it pressed in: it still means this screen's hours.
+    tab._scrubTo(svg, 390 + 5);
+    assert.equal(tip.style.display, 'block',
+      'a lift just past the right edge selects this day\'s last hour, whose tip shows');
+    assert.equal(parseInt(tip.style.left, 10), 390 - 34);
+    tab._scrubTo(svg, -5);
+    assert.equal(parseInt(tip.style.left, 10), 34, 'and one past the left edge its first');
+
+    // A genuinely off-window hour is a different matter: dragged a day
+    // away, it is hidden, and placeTipX returns before touching left — so
+    // assert on display, never on a left the function no longer writes.
+    tab._scrubTo(svg, px(12));
     tip.style.left = '(untouched)';
-    tab._scrubTo(svg, px(47));
+    tab._panTips(1);
     assert.equal(tip.style.display, 'none', 'an hour a day out of frame has no tip');
     assert.equal(tip.style.left, '(untouched)',
       'and a hidden tip is not repositioned at all');
+    // Mid-drag the day offset is fractional, so an hour can compute a hair
+    // past an edge: within half a px it is still on screen and keeps its
+    // tip (hiding it there would flicker it at the seam); past that it goes.
+    tab._panTips(0.5 + 0.3 / 390);
+    assert.equal(tip.style.display, 'block', 'a hair past the left edge is still shown');
+    assert.equal(parseInt(tip.style.left, 10), 34);
+    tab._panTips(0.5 + 1 / 390);
+    assert.equal(tip.style.display, 'none', 'a whole px past it is not');
+    tab._panTips(0);
     tip.style.left = '';
 
     tab._scrubTo(svg, px(1));

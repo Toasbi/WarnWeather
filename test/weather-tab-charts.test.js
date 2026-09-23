@@ -218,9 +218,8 @@ test('the precip-probability row carries its title and steps its ink with the ch
   // The middle tier (30-59%): muted ink, semibold. The fixture never lands
   // there, so plant one on a future 3h step.
   const mid = charts.prepareView(fixtureData(), NOON);
-  // Strictly PAST nowIndex: the row standing on the now line is the hour
-  // that has just ended, and a chance for it is exactly what the view
-  // settles away.
+  // A future 3-hour step, so the figure prints in the chance row (the
+  // hours before now have theirs settled away).
   const step = mid.nowIndex + 3 - (mid.nowIndex % 3);
   mid.prob[step] = 45;
   const midPanel = charts.tempPanelSvg(mid, { temperatureUnits: 'c' }, pal);
@@ -237,12 +236,12 @@ test('the precip-probability row carries its title and steps its ink with the ch
 test('the value tip renders title-over-value columns (tipHtml)', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   const s = { temperatureUnits: 'c', windUnits: 'kph' };
-  // The hour that is RUNNING — one past the now line, since a row is the
-  // hour ending at its stamp. It is the earliest hour that still has a
-  // chance to print, and the Chance column below needs one to drop: on the
-  // row at the now line it is already gone, and the assertion would pass
+  // The hour that is RUNNING — the row on the now line, since a row is the
+  // hour its tick opens. It is the earliest hour that still has a chance
+  // to print, and the Chance column below needs one to drop: on the row
+  // before it the chance is already gone, and the assertion would pass
   // without the code doing anything.
-  const i = view.nowIndex + 1;
+  const i = view.nowIndex;
   const wind = charts.tipHtml('wind', view, i, s);
   assert.equal((wind.match(/wx-tip-c/g) || []).length, 3, 'wind: three columns');
   assert.ok(wind.indexOf('<b>Wind</b>') !== -1 && wind.indexOf('<b>Gusts</b>') !== -1
@@ -467,17 +466,19 @@ test('the caption names the past by what produced it, and only DWD says Measured
     (_, d) => ({ word: 'Forecast', x: (d + 1) * charts.DAY_W + 5, end: false })
   ), 'every day ahead names itself; none of them is left blank');
 
-  // A DWD-shaped view: hours 0..8 carry station readings, the rest do not
-  // (the observation network lags, so the last hours before now are still
-  // MOSMIX even mid-Germany). Three regions, three different truths.
+  // A DWD-shaped view: hours 0..7 (00:00-08:00) carry station readings, the
+  // rest do not (the observation network lags, so the last hours before now
+  // are still MOSMIX even mid-Germany). Three regions, three different
+  // truths. A row is the hour its tick opens, so measurement ends on the
+  // 08:00 tick, where the last measured hour does.
   const view = charts.prepareView(fixtureData(), NOON);
-  view.measuredAll = view.times.map((t, i) => i <= 8);
+  view.measuredAll = view.times.map((t, i) => i <= 7);
   const foot = charts.timeFootSvg(view, pal);
-  const split = 8 * charts.HOUR_W + charts.HOUR_W / 2;
+  const split = 8 * charts.HOUR_W;
   // Guard the guard, off the RENDER: this case only says anything if what
   // was drawn puts measurement's end left of the now line. Comparing the two
   // numbers the test itself computed would be arithmetic about itself —
-  // 8.5 × HOUR_W is below 12 × HOUR_W whatever the renderer did with them.
+  // 8 × HOUR_W is below 12 × HOUR_W whatever the renderer did with them.
   assert.ok(tick(foot).x < nowLineX(foot),
     'the drawn tick stands left of the drawn now line ('
     + tick(foot).x + ' < ' + nowLineX(foot) + ')');
@@ -488,6 +489,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
     { word: 'Estimated', x: NOW_X - 5, end: true },
     { word: 'Forecast', x: NOW_X + 5, end: false }
   ]);
+  assert.equal(tick(foot).x, split, 'the tick stands on the tick that closes the last measured hour');
 
   assert.equal(nowLineX(foot), NOW_X);
 
@@ -520,11 +522,11 @@ test('the caption names the past by what produced it, and only DWD says Measured
     'one measured hour at 08:00 does not license a word spanning 00:00-08:00');
   // A span wide enough to earn it does get it, anchored on its own end.
   const span = charts.prepareView(fixtureData(), NOON);
-  span.measuredAll = span.times.map((t, i) => i >= 3 && i <= 8);
+  span.measuredAll = span.times.map((t, i) => i >= 3 && i <= 7);
   assert.deepEqual(today(charts.timeFootSvg(span, pal)).map((w) => w.word),
     ['Measured', 'Estimated', 'Forecast']);
 
-  // A sliver of readings ending AT the now line is the observation
+  // A sliver of readings ending just before the now line is the observation
   // network's normal shape late in its cycle, and it used to delete the
   // caption twice over: "Measured" too narrow to print, and "Estimated"
   // shortened to the same sliver and dropped with it — so a morning the
@@ -532,7 +534,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // "Estimated" outright had the station reported nothing at all. A word
   // that cannot be printed may not carve up the past.
   const sliver = charts.prepareView(fixtureData(), NOON);
-  sliver.measuredAll = sliver.times.map((t, i) => i === 11);
+  sliver.measuredAll = sliver.times.map((t, i) => i === 10);
   assert.deepEqual(today(charts.timeFootSvg(sliver, pal)).map((w) => w.word),
     ['Estimated', 'Forecast'],
     'one measured hour before now does not silence the eleven before it');
@@ -544,7 +546,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // The reading is not lost with the word: the tick still stands where it
   // stopped, which is the whole reason that mark exists.
   assert.deepEqual(tick(charts.timeFootSvg(sliver, pal)),
-    { x: 11 * charts.HOUR_W + charts.HOUR_W / 2, y1: 13 / 2 });
+    { x: 11 * charts.HOUR_W, y1: 13 / 2 });
 
   // A region needs room for the word AND the padding either side of it,
   // not merely for the glyphs: at 11:30 the gap between measurement ending
@@ -552,7 +554,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   // margin (42.8), but not for both (47.8). The word stands down rather
   // than crowd the boundary it hangs off.
   const tight = charts.prepareView(fixtureData(), DAY0 + 11 * 3600000 + 30 * 60000);
-  tight.measuredAll = tight.times.map((t, i) => i <= 8);
+  tight.measuredAll = tight.times.map((t, i) => i <= 7);
   assert.deepEqual(today(charts.timeFootSvg(tight, pal)).map((w) => w.word),
     ['Measured', 'Forecast']);
 
@@ -591,7 +593,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   blankPast(stale, stale.nowIndex);
   ['temp', 'wind', 'gust', 'rh', 'dew', 'pressure'].forEach((k) => { stale[k][3] = 5; });
   const staleFoot = charts.timeFootSvg(stale, pal);
-  assert.ok(NOW_X - (3 * charts.HOUR_W - charts.HOUR_W / 2) > 'Estimated'.length * 4.2 + 10,
+  assert.ok(NOW_X - 3 * charts.HOUR_W > 'Estimated'.length * 4.2 + 10,
     'the region is wide enough that only the served-hour rule can drop it');
   assert.deepEqual(today(staleFoot).map((w) => w.word), ['Forecast']);
   // Two served hours next to each other ARE a past; here it is the width
@@ -599,7 +601,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   const two = charts.prepareView(fixtureData(), NOON);
   assert.deepEqual(today(charts.timeFootSvg(blankPast(two, two.nowIndex - 2), pal))
     .map((w) => w.word), ['Forecast'],
-    'two hours is only 37.5 units — a real past, but too narrow to name');
+    'two hours is only 30 units — a real past, but too narrow to name');
 
   // The split itself is marked, not just implied. Usually the gap between
   // measurement ending and now is the observation lag — an hour or two, too
@@ -615,7 +617,7 @@ test('the caption names the past by what produced it, and only DWD says Measured
   assert.ok(tickW < 1.2, 'lighter than the now line');
   // And it marks the split even when the word between the two stands down.
   assert.deepEqual(tick(charts.timeFootSvg(late, pal)),
-    { x: 10 * charts.HOUR_W + charts.HOUR_W / 2, y1: foot.H / 2 },
+    { x: 11 * charts.HOUR_W, y1: foot.H / 2 },
     'especially then: nothing else says where measurement stopped');
   // A provider that measured nothing has no split to mark.
   assert.equal(tick(plain), null);
@@ -718,10 +720,11 @@ test('a real DWD response reaches the caption: the word follows the modelled fie
   // Stations read every drawn field for the records stamped 0..8. Brightsky
   // stamps rain and gust at the END of their hour, so the record stamped
   // 08:00 is 07:00-08:00's and the one stamped 09:00 -- a forecast -- is
-  // 08:00-09:00's: the measured stretch is hours 0..7.
+  // 08:00-09:00's: the measured stretch is hours 0..7, ending on the 08:00
+  // tick.
   const clean = read(build(null));
   assert.deepEqual(clean.words, ['Measured', 'Estimated', 'Forecast']);
-  assert.equal(clean.measuredEnd, 7 * charts.HOUR_W + charts.HOUR_W / 2 - 5);
+  assert.equal(clean.measuredEnd, 8 * charts.HOUR_W - 5);
   assert.equal(clean.bars, '########....', 'eight measured hours of rain');
 
   // EVERY field the panels draw pulls its weight: if any one of them was
@@ -733,8 +736,8 @@ test('a real DWD response reaches the caption: the word follows the modelled fie
     // Modelled from the record stamped 05:00: an instant there is hour 5's,
     // but the rain and gust stamped 05:00 are hour 4's.
     const ahead = field === 'precipitation' || field === 'wind_gust_speed';
-    assert.equal(partial.measuredEnd, (ahead ? 3 : 4) * charts.HOUR_W + charts.HOUR_W / 2 - 5,
-      'a modelled ' + field + ' ends the measured stretch at hour ' + (ahead ? 3 : 4));
+    assert.equal(partial.measuredEnd, (ahead ? 4 : 5) * charts.HOUR_W - 5,
+      'a modelled ' + field + ' ends the measured stretch at ' + (ahead ? 4 : 5) + ':00');
     // The rain is the one field that also gates the bars, so it is the one
     // case where a bar goes too.
     assert.equal(partial.bars, field === 'precipitation' ? '####........' : '########....',

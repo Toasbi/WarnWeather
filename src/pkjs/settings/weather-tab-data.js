@@ -291,20 +291,21 @@
         return Boolean(measuredIds[id]);
     }
 
-    // The fields the panels plot a PAST value from, which is what the
-    // caption above them vouches for. Brightsky's own IGNORED_MISSING_FIELDS
-    // never fills relative_humidity from MOSMIX (MOSMIX has none) nor
-    // precipitation_probability from a station, so neither can appear in a
-    // fallback map pointing the wrong way; they are listed for completeness.
-    var DRAWN_FIELDS = {
-        temperature: true, precipitation: true, wind_speed: true,
-        wind_gust_speed: true, wind_direction: true, relative_humidity: true,
-        dew_point: true, pressure_msl: true
+    // The fields the panels plot a PAST value from off an hour's OWN record,
+    // which is what the caption above them vouches for. Brightsky's own
+    // IGNORED_MISSING_FIELDS never fills relative_humidity from MOSMIX
+    // (MOSMIX has none), so it cannot appear in a fallback map pointing the
+    // wrong way; it is listed for completeness. The precipitation and the
+    // gust are not here: an hour draws them from the NEXT record (they are
+    // re-stamped), so parseBrightsky vouches for them from that record.
+    var OWN_FIELDS = {
+        temperature: true, wind_speed: true, wind_direction: true,
+        relative_humidity: true, dew_point: true, pressure_msl: true
     };
 
     /**
-     * Whether EVERY field this tab plots for a past hour was read off a
-     * station. The caption sits above all four panels, so the word has to
+     * Whether every field this tab plots for a past hour off its own record
+     * (OWN_FIELDS) was read off a station. The caption sits above all four panels, so the word has to
      * be true of all four: an observation row whose temperature was filled
      * in from MOSMIX draws a modelled line, and "Measured" must not span
      * it on the strength of the rain alone.
@@ -316,14 +317,14 @@
      * excluded here merely reads as Estimated, never the reverse.
      * @param {Object} row One `weather[]` record.
      * @param {Object} measuredIds Set-shaped map from observedSourceIds.
-     * @returns {boolean} True when the whole drawn row came from stations.
+     * @returns {boolean} True when the row's drawn fields came from stations.
      */
     function rowMeasured(row, measuredIds) {
         if (!measuredIds[row.source_id]) { return false; }
         var fb = row.fallback_source_ids;
         if (!fb) { return true; }
         for (var k in fb) {
-            if (Object.prototype.hasOwnProperty.call(fb, k) && DRAWN_FIELDS[k]
+            if (Object.prototype.hasOwnProperty.call(fb, k) && OWN_FIELDS[k]
                 && !measuredIds[fb[k]]) { return false; }
         }
         return true;
@@ -355,7 +356,12 @@
         var offsetSec = echoed ? echoed : null;
         var measuredIds = observedSourceIds(data.sources);
         var hourly = emptyHourly();
-        var gustMeasured = [];
+        // Per stamp, whether the record's own drawn fields were measured:
+        // looked up by time once the rows are re-stamped, so a row that
+        // startHourFields adds for a skipped stamp (no record of its own:
+        // its instants are interpolated) finds none.
+        var ownMeasured = {};
+        hourly.gustMeasured = [];
         for (var i = 0; i < rows.length; i += 1) {
             var r = rows[i];
             var t = Date.parse(r.timestamp);
@@ -363,10 +369,10 @@
             // One flag per question. The rain bar asks only about the rain,
             // so a station that read the rain licenses it whatever else on
             // the row fell back; the caption asks about every panel it
-            // stands over, so it takes the whole row or nothing.
+            // stands over, so it takes the whole hour or nothing.
             hourly.measured.push(fieldMeasured(r, 'precipitation', measuredIds));
-            hourly.measuredAll.push(rowMeasured(r, measuredIds));
-            gustMeasured.push(fieldMeasured(r, 'wind_gust_speed', measuredIds));
+            hourly.gustMeasured.push(fieldMeasured(r, 'wind_gust_speed', measuredIds));
+            ownMeasured[t] = rowMeasured(r, measuredIds);
             hourly.time.push(t);
             hourly.temp.push(num(r.temperature));
             hourly.rain.push(num(r.precipitation));
@@ -382,20 +388,23 @@
         }
         // Brightsky documents the precipitation, its probability, the gust
         // and the sunshine as the PRECEDING hour's ("during previous 60
-        // minutes"); the rain's provenance moves with the rain. Before the
-        // tiles are summed, so each one totals its own calendar day. Wind
-        // speed and direction stay on their own row, as the watch keeps them
-        // (dwd.js).
-        var from = model.startHourFields(hourly,
-            { rain: null, prob: null, gust: null, sunshineMin: null, measured: false });
+        // minutes"), and its icon shows rain only for that same hour's
+        // precipitation (brightsky/enhancements.py get_icon); each field's
+        // provenance moves with it. Before the tiles are summed, so each one
+        // totals its own calendar day. Wind speed and direction stay on their
+        // own row, as the watch keeps them (dwd.js).
+        model.startHourFields(hourly, { rain: null, prob: null, gust: null,
+            sunshineMin: null, icon: null, measured: false, gustMeasured: false });
         // The caption vouches for every panel over a past hour, and two of
-        // them now draw the NEXT record's rain and gust: the hour counts as
-        // measured only when its own row does and those two fields of that
-        // record do too.
-        for (i = 0; i < from.length; i += 1) {
-            hourly.measuredAll[i] = hourly.measuredAll[i] && from[i] >= 0
-                && hourly.measured[i] && gustMeasured[from[i]];
+        // them draw the NEXT record's rain and gust: the hour counts as
+        // measured only when its own record's fields do and those two of
+        // that record do too.
+        hourly.measuredAll = [];
+        for (i = 0; i < hourly.time.length; i += 1) {
+            hourly.measuredAll.push(Boolean(ownMeasured[hourly.time[i]])
+                && hourly.measured[i] && hourly.gustMeasured[i]);
         }
+        delete hourly.gustMeasured;
         return {
             hourly: hourly,
             daily: model.aggregateDaily(hourly, nowMs, DAILY_COUNT, offsetSec),

@@ -79,7 +79,9 @@ test('Brightsky parser: DWD units pass through, daily aggregates client-side', (
   const out = data.parsers.dwd({ weather: rows }, NOON);
   assert.equal(out.hourly.wind[0], 12, 'Brightsky wind is already km/h');
   assert.equal(out.hourly.rh[0], 60);
-  assert.equal(out.hourly.icon[15], 'rain');
+  assert.equal(out.hourly.icon[14], 'rain', 'the icon stamped 15:00 shows 14:00-15:00\'s rain, as the bar there does');
+  assert.equal(out.hourly.rain[14], 1.2);
+  assert.equal(out.hourly.icon[15], 'partly');
   assert.ok(out.daily.length >= 1);
   assert.equal(out.daily[0].icon, 'rain');
   assert.equal(out.daily[0].sunshineH, 6);
@@ -377,6 +379,29 @@ test('Brightsky provenance: each hour says whether a station measured it', () =>
   const gust = data.parsers.dwd({ weather: gusty, sources }, H);
   assert.equal(gust.hourly.measured[0], true, 'the rain was still read');
   assert.equal(gust.hourly.measuredAll[0], false, 'but the gust drawn for the hour was modelled');
+
+  // The hour's OWN record's rain and gust are the hour before's, drawn one
+  // hour left: a modelled rain there says nothing about this hour.
+  const ownRain = withNext({ timestamp: iso(H - 3600000), source_id: 11, temperature: 9,
+    fallback_source_ids: { precipitation: 99, wind_gust_speed: 99 } });
+  const own = data.parsers.dwd({ weather: ownRain, sources }, H);
+  assert.equal(own.hourly.measuredAll[0], true,
+    'a borrowed rain or gust on the hour\'s own record belongs to the hour before');
+
+  // A skipped record's hour gets a row of its own for the rain the next
+  // record holds, but its temperature is interpolated: not measured.
+  const skipped = data.parsers.dwd({ weather: [
+    { timestamp: iso(H - 3 * 3600000), source_id: 11, temperature: 9 },
+    { timestamp: iso(H - 3600000), source_id: 11, temperature: 11, precipitation: 0.4 },
+    { timestamp: iso(H), source_id: 11, temperature: 11 }
+  ], sources }, H).hourly;
+  assert.deepEqual(skipped.time.map((t) => (t - H) / 3600000), [-3, -2, -1, 0]);
+  assert.deepEqual(skipped.measured.slice(0, 3), [false, true, true],
+    'the added hour\'s rain is the station\'s 0.4 mm');
+  assert.equal(skipped.rain[1], 0.4);
+  assert.equal(skipped.temp[1], 10);
+  assert.deepEqual(skipped.measuredAll.slice(0, 3), [false, false, true],
+    'the added hour has no record of its own to vouch for its instants');
 
   // Fields Brightsky never cross-fills cannot drag the flag down: MOSMIX
   // carries no relative_humidity and a station carries no probability, so

@@ -503,28 +503,66 @@
      * index -- a provider can skip an hour, and a parser drops rows it
      * cannot date, so an index shift would slide every later hour -- and a
      * row with no T+1h partner takes `fills[key]` (null: unsourced).
+     *
+     * A skipped stamp S-1h would leave the values stamped S no row to land
+     * on, and the grid would fill that hour from its neighbours: the next
+     * hour's rain, drawn twice. So such an S gets a row of its own at S-1h,
+     * as the watch gives it a slot: its re-stamped fields are S's, and its
+     * other series are what the grid would have drawn there anyway (the
+     * interpolated or nearest sample, buildHourlyGrid). The first stamp gets
+     * none: its hour lies before the response, and the watch never reads it
+     * either.
+     *
      * Only Open-Meteo and DWD need this; tomorrow.io and OWM already stamp
      * the hour at its start, and shifting them would put them an hour early.
-     * @param {{time: number[]}} hourly Normalized hourly arrays (time = epoch ms); rewritten in place.
+     * @param {{time: number[]}} hourly Normalized hourly arrays (time = epoch
+     *   ms); rewritten in place, every per-row array replaced.
      * @param {Object<string, *>} fills Series key -> the value for a row with no T+1h partner.
-     * @returns {number[]} Per row, the index its values came from, or -1.
+     * @returns {number[]} Per row of the result, the index (into the arrays
+     *   passed in) its re-stamped values came from, or -1.
      */
     function startHourFields(hourly, fills) {
+        var HOUR_MS = 3600000;
+        var time = hourly.time;
+        var n = time.length;
         var at = {};
-        var i;
-        for (i = 0; i < hourly.time.length; i += 1) { at[hourly.time[i]] = i; }
+        var keys = [];
+        var out = {};
+        var times = [];
         var from = [];
-        for (i = 0; i < hourly.time.length; i += 1) {
-            var j = at[hourly.time[i] + 3600000];
-            from.push(j === undefined ? -1 : j);
-        }
-        for (var key in fills) {
-            if (!Object.prototype.hasOwnProperty.call(fills, key)) { continue; }
-            var src = hourly[key].slice();
-            for (i = 0; i < src.length; i += 1) {
-                hourly[key][i] = from[i] < 0 ? fills[key] : src[from[i]];
+        var i, k, key, gap, sample;
+        for (i = 0; i < n; i += 1) { at[time[i]] = i; }
+        for (key in hourly) {
+            if (Object.prototype.hasOwnProperty.call(hourly, key) && key !== 'time'
+                && Array.isArray(hourly[key]) && hourly[key].length === n) {
+                keys.push(key);
+                out[key] = [];
             }
         }
+        for (i = 0; i < n; i += 1) {
+            gap = time[i] - HOUR_MS;
+            if (i > 0 && at[gap] === undefined && gap > time[i - 1]) {
+                sample = buildHourlyGrid(hourly, gap, 1);
+                times.push(gap);
+                for (k = 0; k < keys.length; k += 1) {
+                    out[keys[k]].push(sample[keys[k]] ? sample[keys[k]][0] : null);
+                }
+            }
+            times.push(time[i]);
+            for (k = 0; k < keys.length; k += 1) { out[keys[k]].push(hourly[keys[k]][i]); }
+        }
+        for (i = 0; i < times.length; i += 1) {
+            var j = at[times[i] + HOUR_MS];
+            from.push(j === undefined ? -1 : j);
+        }
+        for (key in fills) {
+            if (!Object.prototype.hasOwnProperty.call(fills, key) || !out[key]) { continue; }
+            for (i = 0; i < times.length; i += 1) {
+                out[key][i] = from[i] < 0 ? fills[key] : hourly[key][from[i]];
+            }
+        }
+        hourly.time = times;
+        for (k = 0; k < keys.length; k += 1) { hourly[keys[k]] = out[keys[k]]; }
         return from;
     }
 

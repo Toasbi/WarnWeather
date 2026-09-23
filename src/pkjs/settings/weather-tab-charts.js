@@ -767,8 +767,9 @@
     }
 
     /**
-     * The x where MEASUREMENT ends on the canvas: just past the last hour
-     * the provider backed with a station reading for EVERY field the panels
+     * The x where MEASUREMENT ends on the canvas: the end of the last hour
+     * (the tick after its own: a row is the hour its tick opens) the
+     * provider backed with a station reading for EVERY field the panels
      * plot (`measuredAll`, not the rain-only `measured` the bars use — a
      * word standing over four panels cannot rest on one field), or 0 when
      * it backed none. This is NOT the now line. The observation network
@@ -784,7 +785,8 @@
         for (var i = 0; i < view.nowIndex && i < view.measuredAll.length; i += 1) {
             if (view.measuredAll[i]) { last = i; }
         }
-        return last < 0 ? 0 : xAt(view, last) + HOUR_W / 2;
+        // Only hours before now's count, so this never passes the now line.
+        return last < 0 ? 0 : xAt(view, last) + HOUR_W;
     }
 
     /**
@@ -805,8 +807,7 @@
         if (last < 0) { return -1; }
         var start = last;
         while (start > 0 && view.measuredAll[start - 1]) { start -= 1; }
-        var x = xAt(view, start) - HOUR_W / 2;
-        return x < 0 ? 0 : x;
+        return xAt(view, start);
     }
 
     // The series a past hour still draws once prepareView has settled it.
@@ -816,7 +817,8 @@
 
     /**
      * Where the provider's past actually starts on this canvas — the left
-     * edge of the earliest hour before now that came back with any value.
+     * edge (its own tick) of the earliest hour before now that came back
+     * with any value.
      * A provider that asks for no past hours (OWM) leaves the stretch from
      * local midnight to nearly now blank, and a caption drawn across it
      * would be naming empty canvas rather than data.
@@ -825,10 +827,7 @@
      */
     function servedStartX(view) {
         for (var i = 0; i < view.nowIndex; i += 1) {
-            if (servedAt(view, i)) {
-                var x = xAt(view, i) - HOUR_W / 2;
-                return x < 0 ? 0 : x;
-            }
+            if (servedAt(view, i)) { return xAt(view, i); }
         }
         return nowX(view);
     }
@@ -975,9 +974,10 @@
      * its own region cannot hold it, and that alone settles the ends. OWM
      * asks for no past hours, but the resampler's 90-minute hold still
      * back-fills the one index before now, so its "served past" is a real
-     * 22.5-unit sliver rather than an absent region; it holds no word
-     * because 22.5 units fit under three characters. A stretch too narrow
-     * to name therefore goes unlabelled rather than mislabelled.
+     * one-hour (15-unit) sliver rather than an absent region; it holds no
+     * word because 15 units less the padding fit barely one character. A
+     * stretch too narrow to name therefore goes unlabelled rather than
+     * mislabelled.
      *
      * Where measurement ends, a faint tick marks the split. The words
      * cannot: the gap between them is usually the observation lag, an hour

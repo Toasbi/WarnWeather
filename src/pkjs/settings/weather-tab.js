@@ -765,9 +765,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var boxEl = tip.parentNode;
         var vw = boxEl && boxEl.clientWidth;
         var crossPx = (charts.xAt(view, i) - dayOff * charts.DAY_W) / charts.DAY_W * (vw || 0);
-        // Half a pixel of slack at both edges: every day's 00:00 stands
-        // exactly ON its left seam, so a tap on a day's first sliver lands
-        // crossPx on the boundary — visible, not gone.
+        // Half a pixel of slack at both edges: mid-drag (panTips) the day
+        // offset is fractional, and an hour on a seam can compute a hair
+        // outside it. It is still on screen; hiding it would flicker its
+        // tip as the finger crosses.
         if (vw && (crossPx < -0.5 || crossPx > vw + 0.5)) {
             tip.style.display = 'none';
             return;
@@ -1217,12 +1218,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var rect = vp.getBoundingClientRect();
         if (!rect.width) { return; }
         var into = (clientX - rect.left) / rect.width;
-        // A tap on the viewport's own right edge is still on this screen:
-        // floored, it would name the next day's midnight, whose bar, chip
-        // and tip are a whole viewport away. It takes the last hour here.
-        // (A finger dragged well past the edge keeps reading the hours out
-        // there, and their tip hides, as it does past the left edge.)
-        if (into >= 1 && (clientX - rect.left) - rect.width < 1) { into = 1 - 0.5 / 24; }
+        // Only a tap lands here (a drag pans or scrolls instead), and a
+        // tap is read where the finger LIFTS, which may be a few px past
+        // the viewport it pressed in. It still means this screen: floored,
+        // a lift past the right edge would name the next day's midnight
+        // (its chip and bar a whole viewport away, its tip on the seam),
+        // and one past the left edge the day before's 23:00. So it is held
+        // to this day's 24 hours.
+        if (into < 0) { into = 0; }
+        if (into >= 1) { into = 1 - 0.5 / 24; }
         var vx = panDay * charts.DAY_W + into * charts.DAY_W;
         // The hour whose BAR the finger is on, not the tick it is nearest.
         // A bar fills the span that STARTS at its own tick (see
