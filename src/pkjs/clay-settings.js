@@ -54,11 +54,14 @@ function resetAll() {
     // by the save) wins over its parked predecessor.
     if (restorePreserved(keep)) { kept = true; }
     localStorage.clear();
-    // The settings blob itself must stay ABSENT: the wizard only reopens for a
-    // config with no keys at all, so putting the kept credentials straight back
-    // would silently skip the first-time setup this reset promises. They wait in
-    // their own entry instead, and seedDefaults folds them into the fresh blob on
-    // the next boot. The WU key never lived in the blob, so it just goes back.
+    // The settings blob itself must stay ABSENT: the next boot reads an absent
+    // blob as a fresh install, which is what keeps onboardingDone false through
+    // the onboarding migration (clay-migrations.js) and reopens the wizard.
+    // Putting the kept credentials straight back would make that boot read as an
+    // existing install and silently skip the first-time setup this reset
+    // promises. They wait in their own entry instead, and seedDefaults folds them
+    // into the fresh blob on the next boot. The WU key never lived in the blob,
+    // so it just goes back.
     if (kept) { localStorage.setItem(KEYS.PRESERVED_KEYS_KEY, JSON.stringify(keep)); }
     if (wuKey) { localStorage.setItem(KEYS.WU_API_KEY, wuKey); }
     return keep;

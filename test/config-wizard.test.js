@@ -102,11 +102,14 @@ test('buildSteps: health precedes the flick demo; flick and theme gated by env (
     ['welcome', 'layout', 'health', 'theme', 'done']);
 });
 
-test('shouldShow: only on fresh, un-onboarded config', () => {
-  assert.equal(W.shouldShow({}), true);
-  assert.equal(W.shouldShow({ onboardingDone: true }), false);
-  assert.equal(W.shouldShow({ provider: 'dwd' }), false);
+test('shouldShow: gated on onboardingDone, not on an empty config', () => {
+  assert.equal(W.shouldShow({}), true, 'a reset reopened in the same PKJS session');
   assert.equal(W.shouldShow(null), true);
+  assert.equal(W.shouldShow({ onboardingDone: true }), false);
+  assert.equal(W.shouldShow({ provider: 'dwd', onboardingDone: true }), false);
+  // A fresh install never reaches the page empty: PKJS seeds the full defaults blob
+  // on its first boot, onboardingDone:false included. That blob must open the wizard.
+  assert.equal(W.shouldShow({ provider: 'wunderground', holidayCountry: 'DE', onboardingDone: false }), true);
 });
 
 test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-agnostic', () => {

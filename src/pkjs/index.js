@@ -242,11 +242,13 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // fetch below still has one to fetch with instead of failing on an empty
         // key the user never actually removed.
         var preserved = claySettings.resetAll();
-        // Storage stays EMPTY on purpose: the wizard only reopens for a config with
-        // no keys at all (wizard.js shouldShow), so seeding here would silently skip
-        // the first-time setup this reset promises. The next boot's seedDefaults
-        // fills it in, and until then the page's defaultValue hydration shows the
-        // same defaults.
+        // Storage stays EMPTY on purpose: the next boot reads the absent blob as a
+        // fresh install (hadExistingInstall false), so the onboarding migration
+        // leaves onboardingDone false and the wizard reopens (wizard.js
+        // shouldShow). Seeding here would make that boot read as an existing
+        // install and silently skip the first-time setup this reset promises. The
+        // next boot's seedDefaults fills it in; until then the page hydrates the
+        // same defaults from an empty config, which opens the wizard too.
         //
         // But the IN-MEMORY copy must not keep the settings we just erased. The
         // 60-second scheduler tick is still armed, and clearing storage also cleared
@@ -351,7 +353,10 @@ Pebble.addEventListener('ready',
         var migrations = clayMigrations.runMigrations({
             platform: statusMigrationPlatform,
             colors: DEFAULT_HOLIDAY_COLORS,
-            defaultRadarProvider: 'rainbow'
+            defaultRadarProvider: 'rainbow',
+            // Read BEFORE seedDefaults above: the onboarding migration's only way
+            // to tell a fresh install (wizard auto-opens) from an existing one.
+            hadExistingInstall: hadExistingInstall
         });
         claySettings.applyDevConfig(app.devConfig);
         claySettings.applyFixtureSettings(activeFixture, pebbleColors);

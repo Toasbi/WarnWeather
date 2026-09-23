@@ -81,10 +81,13 @@ function loadForMigration(isMigrationDone, label) {
  * as the scheduler's onClayAck. Everything else marks synchronously inside its
  * migrate* function.
  *
- * @param {{platform: string, colors: Object, defaultRadarProvider: string}} opts
+ * @param {{platform: string, colors: Object, defaultRadarProvider: string,
+ *   hadExistingInstall: boolean}} opts
  *   platform: watch platform for the status-line health defaults; colors: the
  *   DEFAULT_HOLIDAY_COLORS bundle; defaultRadarProvider: radarMode migration
- *   fallback.
+ *   fallback; hadExistingInstall: whether a settings blob was stored BEFORE this
+ *   boot's seedDefaults (claySettings.hasStored()), the onboarding migration's
+ *   fresh-vs-existing signal.
  * @returns {{clayRequired: boolean, commitDeferredMarkers: Function}}
  */
 function runMigrations(opts) {
@@ -94,6 +97,9 @@ function runMigrations(opts) {
     function mark(key) {
         return function () { localStorage.setItem(key, '1'); };
     }
+    migrateExistingInstallOnboarded(Boolean(opts.hadExistingInstall),
+        isDone(KEYS.ONBOARDING_EXISTING_INSTALL_MIGRATION_KEY),
+        mark(KEYS.ONBOARDING_EXISTING_INSTALL_MIGRATION_KEY));
     var wantsClayColors = migrateWeekendHolidayColors(opts.colors,
         isDone(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY),
         mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY));
@@ -142,6 +148,49 @@ function runMigrations(opts) {
             if (wantsClayNightColors) { mark(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY)(); }
         }
     };
+}
+
+/**
+ * Mark an EXISTING install as onboarded, so the first-run wizard's auto-open
+ * (settings/wizard.js shouldShow, gated on onboardingDone) only fires for a
+ * genuinely fresh install.
+ *
+ * The wizard used to treat "the saved config has no keys at all" as fresh, but
+ * seedDefaults writes the full defaults blob on the first boot, before any
+ * settings page can open — so it never auto-opened. onboardingDone is the
+ * signal now, and it cannot be told apart by the key alone: seedDefaults'
+ * backfill has already written onboardingDone:false into every existing
+ * install's blob, so gating on it without this would push the whole installed
+ * base into the wizard (and its country re-derivation) on the next open.
+ *
+ * The fresh-vs-existing verdict is hadExistingInstall — a blob stored BEFORE
+ * this boot's seedDefaults. The marker is committed on EVERY boot that finds
+ * it absent, fresh installs included: keyed on hadExistingInstall alone, a
+ * fresh install's SECOND boot (blob present by then, settings not yet opened)
+ * would read as existing and suppress the wizard it has not seen yet.
+ *
+ * "Reset watchface" still reopens the wizard: resetAll clears every marker
+ * together with the blob, so the next boot is fresh again.
+ *
+ * No Clay resend: onboardingDone is page-only and never reaches the watch.
+ *
+ * @param {boolean} hadExistingInstall Whether a settings blob predates this boot.
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @param {Function} markDone Records the migration as complete.
+ * @returns {void}
+ */
+function migrateExistingInstallOnboarded(hadExistingInstall, isMigrationDone, markDone) {
+    var persistClay;
+    if (isMigrationDone()) { return; }
+    if (hadExistingInstall) {
+        persistClay = loadForMigration(isMigrationDone, 'onboarding existing-install migration');
+        if (persistClay !== null && persistClay.onboardingDone !== true) {
+            persistClay.onboardingDone = true;
+            save(persistClay);
+            console.log('Marked the existing install as onboarded');
+        }
+    }
+    markDone();
 }
 
 /**
@@ -609,6 +658,7 @@ function migrateRadarProviderToMode(defaultRadarProvider, isMigrationDone, markD
 
 module.exports = {
     runMigrations: runMigrations,
+    migrateExistingInstallOnboarded: migrateExistingInstallOnboarded,
     migrateWeekendHolidayColors: migrateWeekendHolidayColors,
     migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle,
     migrateHolidayRegionKeys: migrateHolidayRegionKeys,

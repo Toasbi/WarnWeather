@@ -41,7 +41,7 @@ function makeEl(id) {
 }
 
 /** Boot the real generated page in a vm sandbox with a fake DOM.
- * @param {Object} [cfg] stored settings to hydrate from
+ * @param {Object} [cfg] stored settings to hydrate from (onboardingDone defaults to true)
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
  * @returns {{S: Object, scroll: Object, modal: Object, clickTab: function,
  *   openEditSheet: function, clickModalToggle: function}}
@@ -50,7 +50,11 @@ function bootGeneratedPage(cfg, platformName) {
   const html = require('../../src/pkjs/config-ui/scripts/build-page.js').previewPage({
     appFiles: require('../../scripts/build-config-page.js').APP_FILES,
     schema, env: platformLib.computeEnv({ platform: platformName || 'basalt' }),
-    cfg: cfg || { provider: 'dwd' }, userData: {}, returnTo: '#'
+    // An installed, already-onboarded config: the real boot injects a seeded blob,
+    // and without onboardingDone the first-run wizard would auto-open over the page
+    // (wizard.js shouldShow). A caller can still pass onboardingDone: false.
+    cfg: Object.assign({ onboardingDone: true }, cfg || { provider: 'dwd' }),
+    userData: {}, returnTo: '#'
   });
   const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
     .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady

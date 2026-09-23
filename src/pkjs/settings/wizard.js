@@ -119,17 +119,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Whether the wizard should auto-open: only on a fresh install (no saved keys) that
-     * hasn't completed onboarding.
+     * Whether the wizard should auto-open: whenever onboarding hasn't been completed.
+     * Not "the config has no keys": PKJS seeds the full defaults blob on the first boot,
+     * before any settings page can open, so a fresh install never arrives empty. Existing
+     * installs are marked onboarded by a one-time phone-side migration
+     * (clay-migrations.js migrateExistingInstallOnboarded), so only a fresh install — or
+     * one just reset — still reads false here. An empty config (a reset, reopened in the
+     * same PKJS session) has no onboardingDone and opens it too.
      * @param {?Object} cfg Raw injected saved config.
      * @returns {boolean} True to auto-open.
      */
     function shouldShow(cfg) {
         cfg = cfg || {};
-        if (cfg.onboardingDone) { return false; }
-        var k;
-        for (k in cfg) { if (Object.prototype.hasOwnProperty.call(cfg, k)) { return false; } }
-        return true;
+        return !cfg.onboardingDone;
     }
 
     // ---- DOM controller (webview only; exercised via `mise preview-config`, not Node) ----
