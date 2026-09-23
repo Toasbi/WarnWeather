@@ -499,6 +499,26 @@ test('countdown glyph is tier-coloured on color, white on B&W; text stays white'
   assert.ok(color.indexOf('fill="#FFFFFF"') >= 0, 'white band text present on color');
 });
 
+// The watch colours the countdown glyph with palette_radar_color(tier) (top_status_layer.c
+// rain_glyph_color), clamped to the RADAR palette's last stop — and a Solid radar palette
+// has just the one stop. So the glyph follows the Solid bar colour, never the green tier.
+test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s single radar stop)', () => {
+  const rainTier = require('../src/pkjs/weather/rain-tier.js');
+  const colorLib = require('../src/pkjs/config-ui/lib/color.js');
+  const userData = { palette: require('../src/pkjs/settings/preview-palette.js').buildPreviewPalette() };
+  ['dark', 'light'].forEach((theme) => {
+    const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'white', radarMode: 'graph', theme },
+      { color: true, platform: 'basalt' }, userData);
+    const strokes = [];
+    svg.replace(/<line [^>]*stroke="([^"]+)" stroke-width="1\.4"/g, (m, c) => { strokes.push(c); return m; });
+    const watch = rainTier.buildPalette('basalt', 'white', theme);
+    const expected = colorLib.intToHex(watch.rgb[watch.rgb.length - 1]);
+    assert.equal(strokes.length, 3, theme + ': the three glyph strokes are drawn');
+    assert.deepEqual(strokes, [expected, expected, expected], theme + ': glyph takes the Solid stop ' + expected);
+    assert.equal(/stroke="#00FF00"/.test(svg), false, theme + ': no green tier stroke anywhere');
+  });
+});
+
 test('precip secondary line draws the cobalt fill on color and a dither on B&W', () => {
   const base = { barSource: 'off', secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'mid', dayNightShading: false };
   const color = FC.forecastPreview(base, { color: true });

@@ -121,15 +121,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         // Rain-countdown preview band: a status-strip mock ("Rain in 15'") above the
         // chart, mirroring top_status_layer.c. Hidden when the countdown is Off, and
-        // never shown on aplite (which lacks the feature). Only the glyph is coloured
-        // (green tier when effectively color, theme-fg otherwise); the text stays
-        // theme-fg and centred.
+        // never shown on aplite (which lacks the feature). Only the glyph is coloured,
+        // and it follows the radar colour the way rain_glyph_color() does: the watch
+        // reads palette_radar_color(tier), clamped to the palette's last stop, so a
+        // Multicolor palette gives the green tier while the one-stop Solid palette gives
+        // the Solid bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text
+        // stays theme-fg and centred.
         // Countdown shows for every non-off tier; the horizon no longer has an Off option.
         var isAplite = Boolean(env && env.platform === 'aplite');
         if (isAplite) {
             return svgFrame(e, 118);
         }
-        var glyphColor = isColor ? P.rainTiers[2].color : ink.fg;
+        // !isColor first: B&W / bw themes take rain_glyph_color()'s theme_fg() branch
+        // whatever the (hidden) radar colour says.
+        var glyphColor = !isColor ? ink.fg : (radarWhite ? radarBarFg : P.rainTiers[2].color);
         var bandH = 20, glyphSize = 10, label = "Rain in 15'";
         var groupW = glyphSize + 4 + labelAdvance(label, 11);
         var groupX = (200 - groupW) / 2;
