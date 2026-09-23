@@ -19,9 +19,11 @@
 // strips (clock_glyphs_ink.h), and their centre_off only places the band and its clip rect —
 // time_layer.c draws a strip's first inked row at clock_ink_top_in_band() and the band solver
 // seats with clock_seat_y(), which subtracts that same term, so centre_off cancels and the ink
-// lands where the solver asked whatever its value. (The values kept there are the old 1-bit
-// faces' measurements, so the bands did not move.) Nothing to re-measure on those rows: a row
-// scan returns whatever centre_off is set to.
+// lands where the solver asked whatever its value. (The centre_off values kept there are the
+// old 1-bit faces' measurements. Every strip's ink_h matches its old face's too except basalt
+// Roboto's, 34 rows against 35, which seats that band one row lower in compactDense and
+// compactSwap while the ink stays balanced.) Nothing to re-measure on those rows: a row scan
+// returns whatever centre_off is set to.
 //
 // This header is included by main_window.c (which passes the pair to the layout solver) and by
 // layers/time_layer.c (which seats the AM/PM label on the digits' ink row) — and by nothing else. It depends on config.h, which is exactly why windows/layout.c must not
@@ -35,8 +37,10 @@
 //    radar off. noCal is the one preset where NOTHING else paints inside the clock band — the
 //    strip's ink floor sits above it and the status row's ink top below it — so a plain row scan
 //    isolates the digits with no colour tricks and no AM/PM child in the way.
-// 2. PLATFORMS="basalt emery" scripts/capture-screenshots.sh cal-<font> clock-cal-<font>
-//    (basalt stands in for the whole 144px family: same screen, same three fonts).
+// 2. PLATFORMS="diorite emery" scripts/capture-screenshots.sh cal-<font> clock-cal-<font>
+//    (diorite stands in for the whole 144px B/W family: same screen, same three fonts. Not
+//    basalt: it draws Roboto and Bitham from the strips and shares only LECO, so a scan there
+//    measures the strip — 34 rows of Roboto, not the 1-bit face's 35).
 // 3. scripts/ink-scan style row scan of the clock band for the first and last inked row.
 //    The band is pinned by test/c/layout_test.c's `none.time` golden: (0,16,144,45) on 144px,
 //    (2,24,196,60) on emery, i.e. band centres 38 and 54.
