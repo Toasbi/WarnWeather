@@ -571,8 +571,13 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 this.sunEvents = sunEvents;
                 // Fetch AQI (keyless, shared, gated by fetchAqi) using startTime
                 // set by withProviderData, then compose + send. Non-fatal: a
-                // failed AQI call still sends the forecast.
+                // failed AQI call still sends the forecast. Reset it per
+                // cycle, like pollen below: the provider instance is reused
+                // across fetches, and a failed, no-station or '-' lookup must
+                // show '--', not the previous cycle's reading (or an
+                // Open-Meteo window aligned to the previous startTime).
                 var self = this;
+                self.aqiTrend = [];
                 airQuality.fetchAqiInto(this, lat, lon, function() {
                     self.pollenToday = null;
                     pollen.fetchPollenInto(self, lat, lon, function() {
