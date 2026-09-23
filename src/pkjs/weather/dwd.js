@@ -8,8 +8,10 @@ var feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
 
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
-var FORECAST_HOURS = require('./hourly-window.js').FORECAST_HOURS;
-var HOUR_MS = 60 * 60 * 1000;
+var hourlyWindow = require('./hourly-window.js');
+var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
+var HOUR_MS = HOUR_SECONDS * 1000;
 // Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
 var celsiusToFahrenheit = require('../wire-units.js').celsiusToFahrenheit;
 var normalizeBearing = require('../wire-units.js').normalizeBearing;
@@ -105,9 +107,12 @@ function currentFeelsFrom(current) {
 
 /**
  * ISO 8601 forecast window starting at the current wall-clock hour and
- * covering FORECAST_HOURS buckets. Brightsky returns `hourly[0]` as the
+ * covering FORECAST_HOURS + 1 buckets. Brightsky returns `hourly[0]` as the
  * bucket whose timestamp >= `date`, so anchoring `date` at the hour
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
+ * `last_date` is inclusive, so ending it FORECAST_HOURS on returns one record
+ * past the window: the one stamped at the last slot's END, which carries that
+ * slot's preceding-hour rain, chance and gust (see followingHourRecords).
  *
  * @returns {{ start: string, end: string }} ISO timestamps.
  */
@@ -115,8 +120,41 @@ function forecastWindow() {
     var startMs = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
     return {
         start: new Date(startMs).toISOString(),
-        end: new Date(startMs + (FORECAST_HOURS - 1) * HOUR_MS).toISOString()
+        end: new Date(startMs + FORECAST_HOURS * HOUR_MS).toISOString()
     };
+}
+
+/**
+ * The record carrying each forecast slot's PRECEDING-HOUR values. Brightsky
+ * reports precipitation, precipitation_probability and wind_gust_speed for
+ * the 60 minutes BEFORE a record's timestamp, but the watch draws slot i as
+ * the hour STARTING at startTime + i h (bar i sits right of tick i). So slot
+ * i's rain, chance and gust live in the record stamped startTime + (i + 1) h;
+ * read from the slot's own record, every shower landed an hour late and the
+ * current-hour bar showed the hour that had just ended. (The settings page's
+ * Weather tab keeps the raw stamps and draws each bar as the hour ENDING at
+ * its tick instead, so it needs no shift.)
+ *
+ * Paired by timestamp, not by index: a record Brightsky skips must not slide
+ * every later hour. A missing one — the end of the MOSMIX horizon, a short
+ * response — comes back null, which the caller reads as no rain / no gust.
+ *
+ * @param {Object[]} hourly Brightsky `weather` records, ascending.
+ * @param {number} startEpoch Epoch seconds of slot 0 (hourly[0]'s timestamp).
+ * @param {number} count Number of slots to pair.
+ * @returns {Array.<(Object|null)>} One record (or null) per slot.
+ */
+function followingHourRecords(hourly, startEpoch, count) {
+    var byEpoch = {};
+    var out = [];
+    var i;
+    for (i = 0; i < hourly.length; i += 1) {
+        byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
+    }
+    for (i = 0; i < count; i += 1) {
+        out.push(byEpoch[startEpoch + (i + 1) * HOUR_SECONDS] || null);
+    }
+    return out;
 }
 
 var DwdProvider = function() {
@@ -181,17 +219,26 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             return;
         }
         this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF, currentBearing) {
-            this.tempTrend = hourly.map(function(e) { return celsiusToFahrenheit(e.temperature); });
-            this.precipTrend = hourly.map(function(e) { return e.precipitation_probability / 100; });
-            this.rainTrend = hourly.map(function(e) { return e.precipitation; });
-            this.windTrend = hourly.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
-            this.gustTrend = hourly.map(function(e) { return e.wind_gust_speed || 0; }); // Brightsky wind_gust_speed is km/h
-            this.pressureTrend = hourly.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
+            var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
+            // The window asks for one record past FORECAST_HOURS (forecastWindow);
+            // the slots themselves stop at FORECAST_HOURS so every series agrees
+            // on its length.
+            var slots = hourly.slice(0, FORECAST_HOURS);
+            // Instants (temperature, wind speed, pressure, dew point, bearing)
+            // read the slot's own record; the preceding-hour totals read the
+            // record one hour on (followingHourRecords).
+            var following = followingHourRecords(hourly, startEpoch, slots.length);
+            this.tempTrend = slots.map(function(e) { return celsiusToFahrenheit(e.temperature); });
+            this.precipTrend = following.map(function(e) { return e ? e.precipitation_probability / 100 : 0; });
+            this.rainTrend = following.map(function(e) { return e ? e.precipitation : 0; });
+            this.windTrend = slots.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
+            this.gustTrend = following.map(function(e) { return (e && e.wind_gust_speed) || 0; }); // Brightsky wind_gust_speed is km/h
+            this.pressureTrend = slots.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
             // Dew point rides along free: Brightsky returns the full field set, so
             // this is the same value hourFeels already reads. Ungated by fetchFeels
             // — the dew slot is independent of the feels curve and costs no math.
-            this.dewTrend = hourly.map(hourDewF); // °F, null where unsourced
-            this.windDirTrend = hourly.map(hourBearing); // degrees 0-359, "comes from"
+            this.dewTrend = slots.map(hourDewF); // °F, null where unsourced
+            this.windDirTrend = slots.map(hourBearing); // degrees 0-359, "comes from"
             // MOSMIX can omit the bearing on the hour we are inside (it already
             // omits relative_humidity there); the live observation carries it, so
             // fill just that gap. The forecast wins whenever it has a value: the
@@ -202,8 +249,8 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             }
             // Steadman-computed (no Brightsky feels field), and the most expensive
             // feels path of any provider — an exp() per hour — so it honours the gate.
-            this.feelsTrend = this.fetchFeels ? hourly.map(hourFeels) : [];
-            this.startTime = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
+            this.feelsTrend = this.fetchFeels ? slots.map(hourFeels) : [];
+            this.startTime = startEpoch;
             this.currentTemp = currentTempF;
             this.currentFeels = this.fetchFeels ? currentFeelsF : null;
             openmeteo.fetchUvInto(this, lat, lon, onSuccess);

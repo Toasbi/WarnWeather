@@ -12,9 +12,11 @@ test('DWD maps Brightsky forecast/current with °C→°F and km/h passthrough', 
       onSuccess(JSON.stringify({ weather: { temperature: 20 } }));   // °C
       return;
     }
+    // Rain, chance and gust are "previous hour" values, so the 23:00 record's
+    // belong to the 22:00 slot; the 23:00 slot has no later record → 0.
     onSuccess(JSON.stringify({ weather: [
-      { temperature: 0, precipitation_probability: 40, precipitation: 1.2, wind_speed: 18, wind_gust_speed: 30, timestamp: '2023-11-14T22:00:00+00:00' },
-      { temperature: 10, precipitation_probability: 0, precipitation: 0, wind_speed: 0, wind_gust_speed: 0, timestamp: '2023-11-14T23:00:00+00:00' }
+      { temperature: 0, precipitation_probability: 0, precipitation: 0, wind_speed: 18, wind_gust_speed: 0, timestamp: '2023-11-14T22:00:00+00:00' },
+      { temperature: 10, precipitation_probability: 40, precipitation: 1.2, wind_speed: 0, wind_gust_speed: 30, timestamp: '2023-11-14T23:00:00+00:00' }
     ] }));
   };
   const p = new DwdProvider();   // fetchUv unset → no UV request, onSuccess fires after current
@@ -25,10 +27,118 @@ test('DWD maps Brightsky forecast/current with °C→°F and km/h passthrough', 
   assert.deepEqual(p.tempTrend, [32, 50], '°C→°F (0→32, 10→50)');
   assert.deepEqual(p.precipTrend, [0.4, 0], 'probability /100');
   assert.deepEqual(p.rainTrend, [1.2, 0], 'precipitation mm passthrough');
-  assert.deepEqual(p.windTrend, [18, 0], 'wind_speed km/h passthrough');
+  assert.deepEqual(p.windTrend, [18, 0], 'wind_speed km/h passthrough, on its own record');
   assert.deepEqual(p.gustTrend, [30, 0], 'wind_gust_speed km/h passthrough');
   assert.equal(p.currentTemp, 68, 'current 20°C → 68°F');
   assert.equal(p.startTime, Math.floor(Date.parse('2023-11-14T22:00:00+00:00') / 1000), 'startTime from hourly[0].timestamp');
+});
+
+// --- preceding-hour alignment -------------------------------------------------
+// Brightsky reports precipitation, precipitation_probability and wind_gust_speed
+// for the 60 minutes BEFORE a record's timestamp. The watch draws slot i as the
+// hour STARTING at startTime + i h, so slot i reads the record an hour later.
+
+const SLOT0 = Date.UTC(2026, 8, 23, 7); // 09:00 Berlin (CEST)
+
+/**
+ * Brightsky records stamped SLOT0 + i h for each i in `offsets`, dry and calm
+ * except for a 3 mm / 90% / 60 km/h hour stamped `wetStamp` hours on.
+ * @param {number[]} offsets Hour offsets from SLOT0 to emit a record for.
+ * @param {number} wetStamp Offset of the record carrying the shower.
+ * @returns {Object[]} Brightsky `weather` records.
+ */
+function stampedRecords(offsets, wetStamp) {
+  return offsets.map((i) => ({
+    timestamp: new Date(SLOT0 + i * 3600000).toISOString(),
+    temperature: i, wind_speed: 10, pressure_msl: 1013,
+    precipitation: i === wetStamp ? 3 : 0,
+    precipitation_probability: i === wetStamp ? 90 : 5,
+    wind_gust_speed: i === wetStamp ? 60 : 20
+  }));
+}
+
+/**
+ * Drive a DwdProvider at 09:20 Berlin over canned records.
+ * @param {Object[]} hourly Brightsky forecast records
+ * @returns {{p: Object, url: string, ok: boolean}} the settled provider, the
+ *   forecast URL it asked for, and whether onSuccess fired
+ */
+function runAt0920(hourly) {
+  var forecastUrl = null;
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: { temperature: 15 } }));
+      return;
+    }
+    forecastUrl = url;
+    onSuccess(JSON.stringify({ weather: hourly }));
+  };
+  const realNow = Date.now;
+  Date.now = function() { return SLOT0 + 20 * 60000; };
+  const p = new DwdProvider();
+  var ok = false;
+  try {
+    p.withProviderData(0, 0, false, function() { ok = true; }, function(f) {
+      throw new Error('unexpected failure ' + JSON.stringify(f));
+    });
+  } finally {
+    Date.now = realNow;
+  }
+  return { p, url: decodeURIComponent(forecastUrl), ok };
+}
+
+test('DWD puts previous-hour rain, chance and gust in the slot of the hour they cover', () => {
+  // MOSMIX forecasts rain 09:00-10:00 local and stamps it 10:00 (08Z). At
+  // 09:20 that is the hour the user is standing in: slot 0, the current bar.
+  const range = Array.from({ length: 25 }, (_, i) => i);
+  const { p, ok } = runAt0920(stampedRecords(range, 1));
+  assert.equal(ok, true);
+  assert.equal(p.startTime, SLOT0 / 1000, 'slot 0 starts at 09:00');
+  assert.deepEqual(p.rainTrend.slice(0, 2), [3, 0], 'rain drawn over 09:00-10:00, not 10:00-11:00');
+  assert.deepEqual(p.precipTrend.slice(0, 2), [0.9, 0.05]);
+  assert.deepEqual(p.gustTrend.slice(0, 2), [60, 20], 'the gust head is the current hour');
+  // Instants stay on their own stamp.
+  assert.deepEqual(p.tempTrend.slice(0, 2), [32, 33.8], '0 °C and 1 °C → °F');
+  // The 25th record only feeds the last slot's totals: every series is 24 long.
+  ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend', 'gustTrend', 'pressureTrend',
+    'dewTrend', 'windDirTrend', 'feelsTrend'].forEach((key) => {
+    assert.equal(p[key].length, 24, key + ' length');
+  });
+});
+
+test('DWD asks Brightsky for one record past the window (last_date is inclusive)', () => {
+  const { url } = runAt0920(stampedRecords(Array.from({ length: 25 }, (_, i) => i), -1));
+  assert.match(url, /[?&]date=2026-09-23T07:00:00\.000Z&/);
+  assert.match(url, /last_date=2026-09-24T07:00:00\.000Z&/, 'the record stamped at the last slot\'s end');
+});
+
+test('DWD reads the last slot\'s totals from the record after the window, and survives its absence', () => {
+  // Full response: the record stamped +24 h carries slot 23's rain.
+  const full = runAt0920(stampedRecords(Array.from({ length: 25 }, (_, i) => i), 24));
+  assert.equal(full.p.rainTrend[23], 3);
+  // Short response (end of the MOSMIX horizon): no record after slot 23. That
+  // slot degrades to dry and calm instead of throwing into the parse error path.
+  const short = runAt0920(stampedRecords(Array.from({ length: 24 }, (_, i) => i), 5));
+  assert.equal(short.ok, true, 'a missing trailing record must not fail the fetch');
+  assert.equal(short.p.rainTrend.length, 24);
+  assert.equal(short.p.rainTrend[23], 0);
+  assert.equal(short.p.precipTrend[23], 0);
+  assert.equal(short.p.gustTrend[23], 0);
+  assert.equal(short.p.rainTrend[4], 3, 'earlier slots still pair normally');
+});
+
+test('DWD pairs a slot with the record one hour later by timestamp, not by index', () => {
+  // Brightsky skips the 12:00Z record (offset 5). Index pairing would slide
+  // every later hour one slot early; timestamp pairing leaves only slot 4
+  // (whose totals were in the skipped record) without a value.
+  const offsets = Array.from({ length: 25 }, (_, i) => i).filter((i) => i !== 5);
+  const records = stampedRecords(offsets, 9);
+  records[2].precipitation = 1; // stamped 09Z: the 08Z-09Z hour, before the gap
+  const { p } = runAt0920(records);
+  assert.equal(p.rainTrend[1], 1, 'before the gap: the 08Z-09Z rain is in the 08Z slot');
+  assert.equal(p.rainTrend[4], 0, 'no record for 11Z-12Z → dry');
+  assert.equal(p.rainTrend[8], 3, 'after the gap: the 15Z-16Z rain stays in the 15Z slot');
+  assert.equal(p.rainTrend[7], 0);
 });
 
 test('DWD maps Brightsky pressure_msl into pressureTrend', () => {
