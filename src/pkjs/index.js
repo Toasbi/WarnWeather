@@ -172,7 +172,9 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // city name off the status-bake snapshot. null when no fix exists yet.
         graphsSeed: buildGraphsSeed(),
         notices: localStorage.getItem(KEY_NOTICES),
-        devStats: JSON.stringify(devStats.read()),
+        // Day totals + the newest events, never the raw 7-day log: that pushed the
+        // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).
+        devStats: devStats.summarize(),
         palette: previewPalette.buildPreviewPalette(),
         newsEndpoint: (pkg.news && pkg.news.endpoint) || '',
         appVersion: pkg.version || '',

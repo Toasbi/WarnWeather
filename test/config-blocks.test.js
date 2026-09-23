@@ -52,11 +52,52 @@ test('forecastPreview forces white rain bars on B/W even when setting says multi
   assert.ok(color.indexOf(GREEN_BAND) >= 0, 'color watch keeps multicolor rain bands');
   assert.equal(bw.indexOf(GREEN_BAND), -1, 'B/W watch draws no color rain bands');
 });
+/**
+ * The userData.devStats shape index.js injects (dev-stats.js summarize()).
+ * @param {Object[]} days Day buckets, oldest first.
+ * @param {Object[]} events Newest raw events, oldest first.
+ * @param {number} [total] Events in the whole window.
+ * @returns {Object} Summary.
+ */
+function dsSummary(days, events, total) {
+  return { days: days, events: events, total: typeof total === 'number' ? total : events.length };
+}
+/**
+ * One summarize() day bucket with no settings sends.
+ * @param {string} d 'MM-DD'.
+ * @param {Object} weather {ack, nack, skip}.
+ * @param {Object} cats Category name -> {sent, cached}.
+ * @returns {Object} Day bucket.
+ */
+function dsDay(d, weather, cats) {
+  return { d: d, weather: weather, setting: { ack: 0, nack: 0, skip: 0 }, cats: cats };
+}
 test('devStats: table only, no clear button; empty when disabled', () => {
-  const ds = DG.devStats({ devStatsEnabled: true }, {}, { devStats: JSON.stringify([{ t: Date.now(), k: 'weather', ok: 1, c: { forecast: 1 } }]) });
+  const ev = { t: Date.now(), k: 'weather', ok: 1, c: { forecast: 1 } };
+  const summary = dsSummary([dsDay('09-23', { ack: 1, nack: 0, skip: 0 }, { forecast: { sent: 1, cached: 0 } })], [ev]);
+  const ds = DG.devStats({ devStatsEnabled: true }, {}, { devStats: summary });
   assert.ok(ds.indexOf('Daily summary') >= 0);
   assert.equal(ds.indexOf('devStatsClearBtn'), -1, 'no live Clear button (now a toggle)');
-  assert.equal(DG.devStats({ devStatsEnabled: false }, {}, { devStats: '[]' }), '');
+  assert.equal(DG.devStats({ devStatsEnabled: false }, {}, { devStats: summary }), '');
+  assert.equal(DG.devStats({ devStatsEnabled: true }, {}, { devStats: dsSummary([], []) }), '', 'nothing recorded');
+  assert.equal(DG.devStats({ devStatsEnabled: true }, {}, {}), '', 'no summary handed over');
+});
+test('devStats: the daily table shows the phone-side day totals, not a count of the capped raw list', () => {
+  // The phone side hands over day totals for the whole window plus only the newest 100
+  // events (the raw 7-day log overflowed the page's data: URL). The day row must still
+  // say 150 delivered, and the footer must say how many events were left out.
+  const events = [];
+  for (let i = 0; i < 100; i += 1) { events.push({ t: Date.now() - (100 - i) * 1000, k: 'weather', ok: 1, c: { forecast: 1 } }); }
+  const summary = dsSummary([
+    dsDay('09-22', { ack: 40, nack: 2, skip: 0 }, { forecast: { sent: 40, cached: 0 } }),
+    dsDay('09-23', { ack: 150, nack: 0, skip: 3 }, { forecast: { sent: 120, cached: 33 } })
+  ], events, 195);
+  const ds = DG.devStats({ devStatsEnabled: true }, {}, { devStats: summary });
+  assert.ok(ds.indexOf('150✓<br>3c') >= 0, 'day outcome totals come from the summary');
+  assert.ok(ds.indexOf('120●<br>33–') >= 0, 'category totals come from the summary');
+  assert.ok(ds.indexOf('09-23') < ds.indexOf('09-22'), 'newest day first');
+  assert.ok(ds.indexOf('Showing last 100 of 195 events.') >= 0);
+  assert.equal((ds.match(/<tr>/g) || []).length, 2 + 2 + 100, 'two header rows, two days, 100 event rows');
 });
 test('lastFetch formats success / Never / failed-attempt-with-error', () => {
   const lf = DG.lastFetch({}, {}, { lastFetchSuccess: JSON.stringify({ time: Date.now(), name: 'Berlin' }), lastFetchAttempt: null });

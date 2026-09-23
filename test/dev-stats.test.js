@@ -106,6 +106,51 @@ test('gc() prunes expired events even while recording is disabled', () => {
   assert.deepEqual(JSON.parse(store[KEYS.DEV_STATS_KEY]), [fresh], 'no-op when nothing expired');
 });
 
+test('summarize() rolls the whole window up per local day and hands over only the newest 100 events', () => {
+  devStats.clear();
+  const now = Date.now();
+  const noon = new Date(now); noon.setHours(12, 0, 0, 0);
+  const today = noon.getTime() > now ? noon.getTime() - DAY_MS : noon.getTime();
+  const yesterday = today - DAY_MS;
+  const events = [];
+  // Yesterday: 150 delivered weather sends -- more than the raw list carries.
+  for (let i = 0; i < 150; i += 1) {
+    events.push({ k: 'weather', t: yesterday + i * 1000, c: { forecast: 1, sun: 0 }, ok: 1 });
+  }
+  // Today: a rejected send (counted as nack, never as sent/cached), a cache-skip,
+  // a notice-only send, and a settings send.
+  events.push({ k: 'weather', t: today, c: { forecast: 1 }, ok: 0 });
+  events.push({ k: 'weather', t: today + 1000, c: { forecast: 0 } });
+  events.push({ k: 'weather', t: today + 2000, c: { notice: 1 }, ok: 1 });
+  events.push({ k: 'setting', t: today + 3000, sent: 1, ok: 1 });
+  store[KEYS.DEV_STATS_KEY] = JSON.stringify(events);
+
+  const s = devStats.summarize();
+  assert.equal(s.total, 154);
+  assert.equal(s.events.length, 100, 'raw events capped');
+  assert.deepEqual(s.events[s.events.length - 1], events[events.length - 1], 'the newest are kept');
+  assert.equal(s.days.length, 2);
+  const pad = (n) => (n < 10 ? '0' : '') + n;
+  const key = (t) => { const d = new Date(t); return pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  assert.deepEqual(s.days[0], {
+    d: key(yesterday),
+    weather: { ack: 150, nack: 0, skip: 0 },
+    setting: { ack: 0, nack: 0, skip: 0 },
+    cats: { forecast: { sent: 150, cached: 0 }, sun: { sent: 0, cached: 150 } }
+  }, 'the day total counts all 150, not just the raw events the page lists');
+  assert.deepEqual(s.days[1], {
+    d: key(today),
+    weather: { ack: 1, nack: 1, skip: 1 },
+    setting: { ack: 1, nack: 0, skip: 0 },
+    cats: { forecast: { sent: 0, cached: 1 }, notice: { sent: 1, cached: 0 } }
+  });
+});
+
+test('summarize() of an empty log is an empty summary', () => {
+  devStats.clear();
+  assert.deepEqual(devStats.summarize(), { days: [], events: [], total: 0 });
+});
+
 test('gc() removes the key entirely when every event expired', () => {
   const now = Date.now();
   store[KEYS.DEV_STATS_KEY] = JSON.stringify([{ k: 'weather', t: now - 9 * DAY_MS, c: {}, ok: 1 }]);
