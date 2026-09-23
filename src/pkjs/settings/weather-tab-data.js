@@ -564,7 +564,7 @@
      * @returns {void}
      */
     function fetchOwm(lat, lon, settings, nowMs, cb) {
-        var key = (settings && settings.owmApiKey) || '';
+        var key = String((settings && settings.owmApiKey) || '').trim();  // paste whitespace
         if (!key) { cb(null, 'no_key'); return; }
         var oneUrl = 'https://api.openweathermap.org/data/3.0/onecall?lat=' + lat + '&lon=' + lon
             + '&units=metric&exclude=minutely,alerts&appid=' + encodeURIComponent(key);
@@ -612,7 +612,7 @@
      * @returns {void}
      */
     function fetchTomorrowIo(lat, lon, settings, nowMs, cb) {
-        var key = (settings && settings.tomorrowioApiKey) || '';
+        var key = String((settings && settings.tomorrowioApiKey) || '').trim();  // paste whitespace
         if (!key) { cb(null, 'no_key'); return; }
         var url = 'https://api.tomorrow.io/v4/timelines?location=' + lat + ',' + lon
             + '&fields=temperature,precipitationIntensity,precipitationProbability,windSpeed,windGust,'

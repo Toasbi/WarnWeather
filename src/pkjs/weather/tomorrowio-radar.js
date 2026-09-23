@@ -60,6 +60,8 @@ function mapFrames(intervals) {
  * @returns {void}
  */
 function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
+    // Paste whitespace trimmed, as the forecast provider and the Test button do.
+    apiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
     if (!apiKey) {
         console.log('[!] Tomorrow.io radar selected but no API key is set — skipping radar fetch');
         callback(null);

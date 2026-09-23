@@ -168,7 +168,9 @@ var TomorrowIoProvider = function(apiKey) {
     this._super.call(this);
     this.name = 'Tomorrow.io';
     this.id = 'tomorrowio';
-    this.apiKey = apiKey;
+    // Trimmed like the settings page's Test button, so a key stored with paste
+    // whitespace (saved before the page trimmed it) doesn't test fine then 401.
+    this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : apiKey;
 };
 
 TomorrowIoProvider.prototype = Object.create(WeatherProvider.prototype);

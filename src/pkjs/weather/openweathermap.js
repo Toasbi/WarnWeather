@@ -38,7 +38,9 @@ var OpenWeatherMapProvider = function(apiKey) {
     this._super.call(this);
     this.name = 'OpenWeatherMap';
     this.id = 'openweathermap';
-    this.apiKey = apiKey;
+    // Trimmed like the settings page's Test button, so a key stored with paste
+    // whitespace (saved before the page trimmed it) doesn't test fine then 401.
+    this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : apiKey;
     this.weatherDataCache = null;
     console.log('Constructed with ' + apiKey);
 };
@@ -48,7 +50,7 @@ OpenWeatherMapProvider.prototype.constructor = OpenWeatherMapProvider;
 OpenWeatherMapProvider.prototype._super = WeatherProvider;
 
 OpenWeatherMapProvider.prototype.withOwmResponse = function(lat, lon, callback, onFailure) {
-    var url = 'https://api.openweathermap.org/data/3.0/onecall?appid=' + this.apiKey + '&lat=' + lat + '&lon=' + lon + '&units=imperial&exclude=alerts,minutely';
+    var url = 'https://api.openweathermap.org/data/3.0/onecall?appid=' + encodeURIComponent(this.apiKey) + '&lat=' + lat + '&lon=' + lon + '&units=imperial&exclude=alerts,minutely';
 
     request(
         url,

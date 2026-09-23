@@ -105,7 +105,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * onSubmit: keep the location consistent with the picker, then force a re-fetch when
+     * onSubmit: keep the location consistent with the picker, trim paste whitespace off the
+     * API keys, then force a re-fetch when
      * any provider-identity field changed. GPS mode must leave location empty so the
      * watch falls back to GPS; clearing it before the change check also means flipping
      * Manual to GPS is correctly detected as a location change.
@@ -115,6 +116,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (ctx.get('locationMode') === 'gps') {
             ctx.set('location', '');
         }
+        // A pasted key often carries a trailing space. The Test buttons trim it, so
+        // the key tests fine and then 401s on the watch. Store it trimmed, and do it
+        // before the change check so a key that only lost its whitespace still refetches.
+        ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey'].forEach(function (k) {
+            var v = ctx.get(k);
+            if (typeof v === 'string' && v !== v.trim()) {
+                ctx.set(k, v.trim());
+            }
+        });
         if (
             ctx.get('provider') !== ctx.getInitial('provider') ||
             ctx.get('owmApiKey') !== ctx.getInitial('owmApiKey') ||
