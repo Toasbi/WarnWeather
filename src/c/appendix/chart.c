@@ -403,7 +403,7 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         const int  plot_bottom = c.origin.y + c.size.h;
         const int  range       = l->hi - l->lo;
         for (int i = 0; i < count; ++i) {
-            if (vals && vals[i] == CHART_ABSENT) {
+            if (vals && chart_sample_absent(vals[i], l->lo, l->zero_absent)) {
                 // Placeholder for an absent bucket; never drawn (skipped below).
                 out[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom);
                 continue;
@@ -419,14 +419,15 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
     graphics_context_set_stroke_width(r->ctx, l->width);
 
     // Break the polyline across absent buckets: each contiguous run of non-absent
-    // points is its own open path. A line without a values[] array (precomputed
+    // points is its own open path (chart_next_run, chart_runs.h — host-pinned by
+    // test/c/chart_absent_test.c). A line without a values[] array (precomputed
     // points) carries no sentinel, so it draws as a single run — unchanged.
     int i = 0;
     while (i < count) {
-        while (i < count && vals && vals[i] == CHART_ABSENT) { i++; }      // skip gap
-        const int start = i;
-        while (i < count && !(vals && vals[i] == CHART_ABSENT)) { i++; }   // collect run
-        const int run = i - start;
+        int start;
+        const int run = chart_next_run(vals, count, l->lo, l->zero_absent, i, &start);
+        if (run == 0) { break; }
+        i = start + run;
         if (run >= 2) {
 #ifdef PBL_PLATFORM_APLITE
             // aplite: stroke the open polyline segment-by-segment instead of via a

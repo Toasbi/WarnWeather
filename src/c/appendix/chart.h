@@ -113,12 +113,10 @@ typedef struct {
     ChartBarStyle         style;
 } ChartBarsLayer;
 
-// Sentinel marking "no value for this bucket" in a LINE layer's values[]. The
-// solid line BREAKS across it (the polyline is drawn as separate segments)
-// instead of plunging through it; the dotted path and BARS/AREA layers ignore
-// it. Only emitters that can have genuine gaps (the health HR line) ever store
-// it — temp/forecast values never equal INT16_MIN.
-#define CHART_ABSENT INT16_MIN
+// CHART_ABSENT and the solid line's gap/run kernel live in chart_runs.h — an
+// SDK-free header so the host suite can pin them (chart.h itself pulls in
+// pebble.h and cannot host-compile; the hr_scale.h param-passing precedent).
+#include "c/appendix/chart_runs.h"
 
 // How a LINE layer strokes its series. SOLID is the polyline (width = stroke
 // px); DOTS and X are per-slot marks aligned to the bar columns (width = mark
@@ -142,6 +140,13 @@ typedef struct {
     int            width;
     uint8_t        style;             // ChartLineStyle — uint8_t so the layer keeps the
                                       // 1-byte slot the old `dotted` bool sat in
+    uint8_t        zero_absent;       // nonzero: a value at or below `lo` draws nothing —
+                                      // the SOLID path breaks into runs there, matching the
+                                      // skip the mark styles have always applied. Set on the
+                                      // metric lines, whose wire invariant reserves byte 0
+                                      // for "nothing" (forecast-series.js metricBytes);
+                                      // temp/feels leave it 0 — their byte 0 is the band
+                                      // floor, real data. Sits in the struct's tail padding.
 } ChartLineLayer;
 
 typedef struct {
