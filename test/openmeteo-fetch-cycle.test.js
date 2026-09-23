@@ -80,3 +80,31 @@ test('aux failure on a reused instance drops feels instead of shipping the stale
   assert.deepEqual(p.feelsTrend, [], 'stale feels dropped when the aux call fails');
   assert.equal(p.currentFeels, null);
 });
+
+test('the aux gusts land in the same slot as the main call\'s rain for the same hour', () => {
+  // Both calls stamp preceding-hour values at the END of the hour they cover.
+  // A squall between 18:00 and 19:00 is stamped 19:00 in both, and at 18:10
+  // the watch's slot 0 IS 18:00-19:00 — the rain bar and the gust head must
+  // both show it there, not in the 19:00-20:00 slot.
+  const p = new OpenMeteoProvider();
+  p.fetchUv = false;
+  responder = function(url, onSuccess) {
+    if (url.indexOf('current=apparent_temperature') !== -1) {
+      const aux = auxResponse();
+      aux.hourly.windgusts_10m = aux.hourly.time.map((t) => (t === BASE + 19 * HOUR ? 70 : 20));
+      onSuccess(JSON.stringify(aux));
+      return;
+    }
+    const main = mainResponse();
+    main.hourly.precipitation = main.hourly.time.map((t) => (t === BASE + 19 * HOUR ? 4 : 0));
+    onSuccess(JSON.stringify(main));
+  };
+  withMockedNow(BASE + 18 * HOUR + 600, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('fetch failed: ' + JSON.stringify(f)); });
+  });
+  assert.equal(p.startTime, BASE + 18 * HOUR);
+  assert.deepEqual(p.rainTrend.slice(0, 2), [4, 0], 'rain in the 18:00-19:00 slot');
+  assert.deepEqual(p.gustTrend.slice(0, 2), [70, 20], 'gust in the 18:00-19:00 slot');
+  assert.equal(p.gustTrend.length, 24);
+});

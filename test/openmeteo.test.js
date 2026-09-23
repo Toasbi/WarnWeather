@@ -55,20 +55,58 @@ test('mapResponse anchors at the current hour and returns 24-length trends', () 
   assert.equal(out.startTime, BASE + 18 * 3600);
   assert.equal(out.tempTrend[0], 68);   // 50 + 18
   assert.equal(out.tempTrend[23], 91);  // 50 + 41
-  assert.equal(out.precipTrend[0], 18 / 100); // probability 18% -> 0.18 fraction
-  assert.equal(out.rainTrend[0], 18);   // mm passthrough
-  assert.equal(out.windTrend[0], 18);   // km/h passthrough
-  assert.equal(out.gustTrend[0], 23);   // (18 + 5) km/h passthrough
+  assert.equal(out.windTrend[0], 18);   // km/h passthrough, an instant: read at the anchor
   assert.equal(out.currentTemp, 71.5);
+  // The preceding-hour fields read one bucket ahead (bucket 19 for slot 0).
+  assert.equal(out.precipTrend[0], 19 / 100); // probability 19% -> 0.19 fraction
+  assert.equal(out.rainTrend[0], 19);   // mm passthrough
+  assert.equal(out.gustTrend[0], 24);   // (19 + 5) km/h passthrough
+  assert.equal(out.rainTrend[23], 42);  // the last slot reads the bucket after the window
   // Element [1] proves the per-element transform applies across the whole slice.
   assert.equal(out.tempTrend[1], 69);          // 50 + 19
-  assert.equal(out.precipTrend[1], 19 / 100);  // probability 19% at bucket 19
+  assert.equal(out.precipTrend[1], 20 / 100);  // probability 20% at bucket 20
+});
+
+test('mapResponse puts a preceding-hour value in the slot of the hour it covers', () => {
+  // Open-Meteo stamps precipitation, precipitation_probability and
+  // windgusts_10m at the END of the hour they cover: 5 mm / 90% / 60 km/h
+  // stamped 16:00 fell between 15:00 and 16:00. The watch draws slot i as the
+  // hour STARTING at startTime + i h, so at 15:10 that hour is slot 0 — the
+  // current-hour bar — not slot 1.
+  const json = sampleResponse();
+  json.hourly.precipitation = json.hourly.time.map(() => 0);
+  json.hourly.precipitation_probability = json.hourly.time.map(() => 0);
+  json.hourly.windgusts_10m = json.hourly.time.map(() => 15);
+  json.hourly.precipitation[16] = 5;
+  json.hourly.precipitation_probability[16] = 90;
+  json.hourly.windgusts_10m[16] = 60;
+  const out = mapResponse(json, BASE + 15 * 3600 + 600);
+  assert.equal(out.startTime, BASE + 15 * 3600, 'slot 0 starts at 15:00');
+  assert.equal(out.rainTrend[0], 5, 'the 15:00-16:00 rain fills the 15:00-16:00 slot');
+  assert.equal(out.precipTrend[0], 0.9);
+  assert.equal(out.gustTrend[0], 60);
+  assert.equal(out.rainTrend[1], 0, 'and does not leak into 16:00-17:00');
+  assert.equal(out.precipTrend[1], 0);
+  assert.equal(out.gustTrend[1], 15);
+  // Instants are untouched: temperature stays on its own stamp.
+  assert.equal(out.tempTrend[0], 50 + 15);
 });
 
 test('mapResponse returns null when fewer than 24 buckets remain after the anchor', () => {
   // Anchor at bucket 30 -> only 18 buckets left in a 48-bucket response.
   const nowEpoch = BASE + 30 * 3600;
   assert.equal(mapResponse(sampleResponse(), nowEpoch), null);
+});
+
+test('mapResponse needs the bucket after the window for the last slot', () => {
+  // Anchor at bucket 24 leaves exactly 24 buckets: the last slot's
+  // preceding-hour values (stamped at the window's end) are missing, so the
+  // window is short. One more bucket (anchor 23) fits.
+  assert.equal(mapResponse(sampleResponse(), BASE + 24 * 3600), null);
+  const out = mapResponse(sampleResponse(), BASE + 23 * 3600);
+  assert.notEqual(out, null);
+  assert.equal(out.rainTrend.length, 24);
+  assert.equal(out.rainTrend[23], 47, 'the last slot reads the final bucket');
 });
 
 test('mapResponse returns null on malformed input', () => {
@@ -116,7 +154,9 @@ test('buildGustUrl requests gusts + feels and avoids the derived-field-less ECMW
   assert.match(url, /&temperature_unit=fahrenheit(&|$)/);
 });
 
-test('mapGusts aligns gusts to the forecast start time by timestamp', () => {
+test('mapGusts aligns gusts to the forecast start time by timestamp, one hour ahead', () => {
+  // windgusts_10m is the max of the PRECEDING hour, so slot i (the hour
+  // starting at startTime + i h) reads the bucket stamped an hour later.
   const time = [];
   const windgusts_10m = [];
   for (let i = 0; i < 48; i += 1) {
@@ -126,8 +166,8 @@ test('mapGusts aligns gusts to the forecast start time by timestamp', () => {
   const startTime = BASE + 18 * 3600;
   const out = openmeteo.mapGusts({ hourly: { time, windgusts_10m } }, startTime);
   assert.equal(out.length, 24);
-  assert.equal(out[0], 118);  // bucket 18
-  assert.equal(out[23], 141); // bucket 41 (spans into tomorrow)
+  assert.equal(out[0], 119);  // bucket 19: the 18:00-19:00 max
+  assert.equal(out[23], 142); // bucket 42 (spans into tomorrow)
 });
 
 test('mapGusts aligns even when the gust feed array is offset from the main forecast', () => {
@@ -139,14 +179,16 @@ test('mapGusts aligns even when the gust feed array is offset from the main fore
     time.push(BASE + (i + 6) * 3600); // feed starts 6h after BASE
     windgusts_10m.push(i);
   }
-  const startTime = BASE + 18 * 3600; // sits at feed index 12
+  const startTime = BASE + 18 * 3600; // sits at feed index 12; its hour ends at index 13
   const out = openmeteo.mapGusts({ hourly: { time, windgusts_10m } }, startTime);
   assert.equal(out.length, 24);
-  assert.equal(out[0], 12);
+  assert.equal(out[0], 13);
 });
 
 test('mapGusts yields null for missing or non-numeric buckets (rendered as no gust)', () => {
-  const out = openmeteo.mapGusts({ hourly: { time: [BASE, BASE + 3600], windgusts_10m: [null, 5] } }, BASE);
+  // Window starts an hour before the feed: slot 0 reads the BASE bucket.
+  const out = openmeteo.mapGusts(
+    { hourly: { time: [BASE, BASE + 3600], windgusts_10m: [null, 5] } }, BASE - 3600);
   assert.equal(out.length, 24);
   assert.equal(out[0], null); // explicit null in the feed
   assert.equal(out[1], 5);

@@ -19,11 +19,24 @@ function anchorIndex(times, nowEpoch) {
  * day). Units pass through unconverted: the request asks Open-Meteo for °F,
  * km/h and mm directly, matching the provider unit convention.
  *
+ * Two kinds of field, two offsets. Temperature, wind speed and pressure are
+ * instants, read at the anchor. precipitation, precipitation_probability and
+ * windgusts_10m are PRECEDING-HOUR values (Open-Meteo documents a sum, a
+ * probability and a max "of the preceding hour"): the bucket stamped 16:00 is
+ * the 15:00-16:00 hour. The watch draws slot i as the hour STARTING at
+ * startTime + i h (bar i sits right of tick i), so those three read one bucket
+ * ahead — slot i takes the bucket stamped startTime + (i + 1) h. Read at the
+ * anchor, the current-hour bar showed the hour that had just ended and every
+ * shower landed an hour late. (The settings page's Weather tab keeps the raw
+ * stamps and draws each bar as the hour ENDING at its tick instead, so it
+ * needs no shift.)
+ *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.
  * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], startTime: number, currentTemp: number}|null}
  *   Mapped fields, or null when the response is malformed or has fewer than
- *   FORECAST_HOURS buckets at/after the current hour.
+ *   FORECAST_HOURS + 1 buckets at/after the current hour (the last slot's
+ *   preceding-hour values sit in the bucket after the window).
  */
 function mapResponse(json, nowEpoch) {
     var hourly = json && json.hourly;
@@ -42,19 +55,23 @@ function mapResponse(json, nowEpoch) {
     }
 
     anchor = anchorIndex(times, nowEpoch);
-    if (anchor < 0 || times.length - anchor < FORECAST_HOURS) {
+    // One bucket past the window: the last slot's preceding-hour values live
+    // there. forecast_days=2 at GMT is 48 buckets and the anchor is at most
+    // 23, so at least 25 remain and this never bites a well-formed response.
+    if (anchor < 0 || times.length - anchor < FORECAST_HOURS + 1) {
         return null;
     }
 
     var end = anchor + FORECAST_HOURS;
     return {
         tempTrend: hourly.temperature_2m.slice(anchor, end),
-        precipTrend: hourly.precipitation_probability.slice(anchor, end).map(function(p) {
+        // Preceding-hour fields: one bucket ahead (see the doc comment).
+        precipTrend: hourly.precipitation_probability.slice(anchor + 1, end + 1).map(function(p) {
             return p / 100;
         }),
-        rainTrend: hourly.precipitation.slice(anchor, end),
+        rainTrend: hourly.precipitation.slice(anchor + 1, end + 1),
         windTrend: hourly.windspeed_10m.slice(anchor, end),
-        gustTrend: hourly.windgusts_10m.slice(anchor, end),
+        gustTrend: hourly.windgusts_10m.slice(anchor + 1, end + 1),
         // Optional, unlike the guarded fields above: an absent series degrades to
         // line-off rather than failing the whole fetch. Verified 2026-08-12 that the
         // pinned ecmwf_ifs025 model does emit pressure_msl (unlike windgusts_10m,
@@ -144,8 +161,12 @@ var alignHourly = hourlyWindow.alignHourly;
 
 /**
  * Extract a FORECAST_HOURS gust window aligned to a forecast start time.
- * Missing or non-numeric buckets become null, which getPayload coerces to 0 —
- * i.e. rendered as no gust for that hour.
+ * windgusts_10m is the max "of the preceding hour", so slot i (the hour
+ * starting at startTime + i h) reads the bucket stamped one hour later — the
+ * same one-bucket-ahead rule mapResponse applies. The aux call's 48 GMT
+ * buckets always hold the startTime + 24 h stamp this needs. Missing or
+ * non-numeric buckets become null, which getPayload coerces to 0 — i.e.
+ * rendered as no gust for that hour.
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response carrying windgusts_10m.
  * @param {number} startTime Window start in epoch seconds (the main forecast's startTime).
@@ -153,7 +174,7 @@ var alignHourly = hourlyWindow.alignHourly;
  *   absent), or null when the response is malformed.
  */
 function mapGusts(json, startTime) {
-    return alignHourly(json, 'windgusts_10m', startTime);
+    return alignHourly(json, 'windgusts_10m', startTime + HOUR_SECONDS);
 }
 
 /**
