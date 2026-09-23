@@ -643,20 +643,24 @@
      * provider + location. A cache hit answers on the SAME tick — callers that
      * repaint from the callback must handle the synchronous case (weather-tab.js
      * skips its render() then, because it is already inside one).
+     * `force` (the manual refresh) skips the cache hit but still stores a fresh
+     * answer — so a refresh that fails leaves this key's entry, and every other
+     * location's, exactly as they were.
      * @param {string} providerId A GRAPH_PROVIDERS id.
      * @param {number} lat Latitude.
      * @param {number} lon Longitude.
      * @param {Object} settings Live settings state.
      * @param {function(?Object, ?string):void} cb Normalized result callback.
+     * @param {boolean} [force] Go to the network even when a fresh entry is cached.
      * @returns {void}
      */
-    function fetchWeather(providerId, lat, lon, settings, cb) {
+    function fetchWeather(providerId, lat, lon, settings, cb, force) {
         var adapter = ADAPTERS[providerId];
         if (!adapter) { cb(null, 'unknown_provider'); return; }
         var key = providerId + '|' + lat.toFixed(3) + '|' + lon.toFixed(3);
         var nowMs = Date.now();
         var hit = cache[key];
-        if (hit && (nowMs - hit.at) < CACHE_TTL_MS) {
+        if (!force && hit && (nowMs - hit.at) < CACHE_TTL_MS) {
             cb(hit.data, null);
             return;
         }

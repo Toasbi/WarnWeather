@@ -40,6 +40,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var ctx = null;                 // engine context from onReady
     var fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
     var inFlight = null;            // key currently being fetched
+    var forceNext = false;          // the next fetch is a manual refresh: skip the cache
     var scrubIndex = null;          // crosshair index shared by all panels
     var panDay = 0;                 // day currently in the viewport (0-based)
     var editingSlot = null;         // overlay target: 1..3
@@ -98,6 +99,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Refetch keeps the frame: hold the previous view (dimmed by the
         // renderer) instead of flashing a skeleton.
         fetchState = { key: key, status: 'loading', data: fetchState.data, error: null, view: fetchState.view };
+        var force = forceNext;
+        forceNext = false;
         // A cache hit answers on the SAME tick, while this very call sits
         // inside an engine render — repainting then would re-enter render().
         // The synchronous flag skips it; the block reads the updated state
@@ -106,7 +109,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         data.fetchWeather(provider, loc.lat, loc.lon, state, function (result, err) {
             if (inFlight !== key) { return; }  // superseded by a newer pick
             inFlight = null;
-            if (err) {
+            if (err && !isNewKey && fetchState.view) {
+                // A refresh of the place already on screen failed: the charts
+                // it was refreshing are still this key's, and still the best
+                // there is — keep them and say the update failed. 'ok', not
+                // 'idle': a same-key 'ok' never refetches from a render.
+                // (A NEW key must not keep them: the held frame is another
+                // place's charts.)
+                fetchState = { key: key, status: 'ok', data: fetchState.data, error: null, view: fetchState.view, refreshError: err };
+            } else if (err) {
                 fetchState = { key: key, status: 'error', data: null, error: err, view: null };
             } else {
                 var view = charts.prepareView(result, Date.now());
@@ -117,7 +128,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 if (isNewKey) { panDay = 0; }
             }
             if (ctx && !sync) { ctx.render(); }
-        });
+        }, force);
         sync = false;
     }
 
@@ -292,9 +303,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Neither the location nor the provider is repeated here — the chip
         // row and the Provider card each already name theirs.
         var meta = fetchState.data && fetchState.data.meta;
+        // A failed refresh keeps the charts it was refreshing; the note rides
+        // beside the age (never inside #wx-age, whose ticker rewrites it).
+        var refreshFailed = !refetching && Boolean(fetchState.refreshError);
         h += '<div class="wx-panel"><div class="wx-panel-head">'
             + '<span class="wx-panel-title">5-day forecast</span>'
             + '<span class="wx-fresh">'
+            + (refreshFailed ? '<span class="wx-stale">Update failed</span>' : '')
             + '<span class="wx-age" id="wx-age">'
             + (refetching ? 'updating…' : (meta ? charts.agoText(meta.fetchedAt, Date.now()) : ''))
             + '</span>'
@@ -653,7 +668,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * (per page open), when the pick changes, and through this (the Refresh
      * button beside the 5-day title, and pull-to-refresh). Keeps fetchState.key and .view, so
      * ensureFetch refires for the same key and the charts stay up (dimmed)
-     * on the day the user was viewing.
+     * on the day the user was viewing. That fetch bypasses the page cache
+     * rather than clearing it: a refresh that fails (offline) keeps the
+     * charts on screen with an "Update failed" note, and the other saved
+     * locations stay served from their cached data either way.
      *
      * When the Current chip is the active location, the refresh first re-reads
      * the phone's GPS so the charts follow the user, not the fix from page
@@ -665,7 +683,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function refreshWeather() {
         if (fetchState.status === 'loading') { return false; }
-        data.clearCache();
+        forceNext = true;
         var active = ctx && ctx.S ? model.activeLocation(ctx.S, seedOf(ctx.USERDATA)) : null;
         if (active && active.key === 'current') {
             fetchState.status = 'loading';
@@ -1315,6 +1333,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 ctx = null;
                 fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
                 inFlight = null;
+                forceNext = false;
                 scrubIndex = null;
                 panDay = 0;
                 gpsSeed = null;

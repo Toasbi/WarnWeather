@@ -993,6 +993,95 @@ test('refreshWeather refetches the same key manually, keeping the charts and the
   }
 });
 
+/**
+ * A raw Open-Meteo body over the same 49 hours fixture() normalizes, so the
+ * REAL data module (fetchJson, parser, page cache) can stand behind the tab.
+ * @returns {Object} Response body.
+ */
+function openMeteoBody() {
+  const time = [];
+  for (let h = 0; h <= 48; h += 1) { time.push((DAY0 + h * 3600000) / 1000); }
+  const fill = (v) => time.map(() => v);
+  return {
+    utc_offset_seconds: 0,
+    hourly: {
+      time, temperature_2m: fill(15), precipitation: fill(0), precipitation_probability: fill(10),
+      wind_speed_10m: fill(10), wind_gusts_10m: fill(18), wind_direction_10m: fill(200),
+      relative_humidity_2m: fill(60), dew_point_2m: fill(8), pressure_msl: fill(1013), weather_code: fill(0)
+    },
+    daily: { time: [DAY0 / 1000], weather_code: [0], temperature_2m_max: [20], temperature_2m_min: [10],
+      precipitation_sum: [0], precipitation_probability_max: [5], sunshine_duration: [28800] }
+  };
+}
+
+test('a refresh that fails offline keeps the charts, and the other locations stay cached', () => {
+  tab._resetState();
+  data.clearCache();
+  let online = true;
+  const urls = [];
+  class FakeXhr {
+    open(method, url) { urls.push(url); }
+    send() {
+      if (!online) { this.ontimeout(); return; }
+      this.status = 200;
+      this.responseText = JSON.stringify(openMeteoBody());
+      this.onload();
+    }
+  }
+  const realXhr = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = FakeXhr;
+  const CHARTS = 'Temperature &amp; precipitation';
+  try {
+    const state = {
+      graphsProvider: 'openmeteo', graphsLocation: '1',
+      savedLocation1: model.serializeSlot({ name: 'Oslo', lat: 59.9, lon: 10.7 })
+    };
+    tab._setCtx({ S: state, USERDATA: SEED, render: () => {} });
+    assert.ok(tab.weatherGraphsBlock(state, {}, SEED).indexOf(CHARTS) !== -1, 'Oslo loads');
+    state.graphsLocation = 'current';
+    assert.ok(tab.weatherGraphsBlock(state, {}, SEED).indexOf(CHARTS) !== -1, 'Berlin loads');
+    state.graphsLocation = '1';
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(urls.length, 2, 'back on Oslo: served from the page cache');
+
+    // A successful refresh goes to the network even though the entry is fresh…
+    assert.equal(tab.refreshWeather(), true);
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(urls.length, 3, 'the refresh bypasses the cache');
+    // …and leaves every other location's cached forecast alone.
+    state.graphsLocation = 'current';
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(urls.length, 3, 'Berlin is still cached after Oslo refreshed');
+
+    // Offline: the refresh times out.
+    state.graphsLocation = '1';
+    tab.weatherGraphsBlock(state, {}, SEED);
+    online = false;
+    assert.equal(tab.refreshWeather(), true);
+    const html = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(urls.length, 4, 'the refresh did try');
+    assert.ok(html.indexOf(CHARTS) !== -1, 'the charts it was refreshing stay up');
+    assert.equal(html.indexOf('Couldn’t load weather'), -1, 'not replaced by the error line');
+    assert.ok(html.indexOf('Update failed') !== -1, 'the failure is said beside the age');
+    assert.ok(html.indexOf('wxRefreshWeather') !== -1, 'and Refresh stays on offer');
+    assert.equal(html.indexOf('opacity:0.55'), -1, 'no longer dimmed as updating');
+    assert.equal(tab._fetchState().status, 'ok', 'a same-key ok state: no render-driven refetch loop');
+    tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(urls.length, 4, 'a re-render does not retry on its own');
+
+    // Still offline, the other saved location answers from its cache.
+    state.graphsLocation = 'current';
+    const berlin = tab.weatherGraphsBlock(state, {}, SEED);
+    assert.equal(urls.length, 4, 'no request for Berlin');
+    assert.ok(berlin.indexOf(CHARTS) !== -1, 'Berlin still shows its charts offline');
+    assert.equal(berlin.indexOf('Update failed'), -1, 'the note belongs to the failed refresh only');
+  } finally {
+    if (realXhr === undefined) { delete globalThis.XMLHttpRequest; } else { globalThis.XMLHttpRequest = realXhr; }
+    data.clearCache();
+    tab._resetState();
+  }
+});
+
 test('a manual refresh with Current active re-reads the phone GPS and follows it', () => {
   tab._resetState();
   const fetchCalls = [];

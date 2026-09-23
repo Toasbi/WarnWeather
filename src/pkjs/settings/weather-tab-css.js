@@ -185,6 +185,7 @@
         + '.wx-fresh{display:inline-flex;align-items:center;gap:8px;'
         + 'font-size:11px;color:var(--hint);}'
         + '.wx-age{white-space:nowrap;}'
+        + '.wx-stale{white-space:nowrap;color:var(--fg);}'
         + '.wx-refresh{background:none;border:none;padding:0;font:inherit;font-size:11px;'
         + 'color:var(--link);cursor:pointer;}'
         // Pull-to-refresh pill: fixed under the tab bar, shown only while a
