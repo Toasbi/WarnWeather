@@ -616,8 +616,9 @@ if (typeof require !== 'undefined') {
     // unit" defaults only ever escaped the same fate because a test pinned them.
     // Covered alongside the slots: the master Bold row, each kind's Bold mode
     // (their sheets carry no reset of their own), the per-kind display options
-    // (the temp slot's Temp/Feels/Both and the UV slot's Now/Day max/Both pills,
-    // the wind/gust direction arrows), the date formats and the Show-unit toggles
+    // (the temp slot's Temp/Feels/Both and the UV slot's Now/Day max/Both pills
+    // with the rows shaping their pair and UV's tomorrow mark, the wind/gust
+    // direction arrows), the date formats and the Show-unit toggles
     // (the threshold sheets' own reset deliberately covers only the thresholds).
     // Deliberately untouched:
     // thresholds, colors, outline toggles and scale maxes (every sheet has its own
@@ -639,6 +640,11 @@ if (typeof require !== 'undefined') {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
         var schemaKeys = ['statusBoldAll', 'tempSlotDisplay', 'uvSlotDisplay',
+            // How the two-value slots print their pair in Both mode (separator
+            // preset, custom separator text, which value leads) and the mark on
+            // tomorrow's UV peak — display options on the same two sheets.
+            'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotOrder',
+            'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotOrder', 'uvSlotNextDayMark',
             'dateSlotMonthFormat',
             'windSlotDirection', 'gustSlotDirection'];
         // dateSlotFullFormat is the one key here whose fresh-install value is

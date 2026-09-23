@@ -107,6 +107,30 @@ test('snapshot includes uvSlotDisplay as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).uvSlotDisplay, undefined);
 });
 
+// The two-value slots' presentation (status-pair.js), raw like tempSlotDisplay — same
+// lockstep rule. The custom separator TEXT is typed by the user and never leaves the
+// phone: a separator of 'custom' already records the choice.
+const PAIR_FIELDS = { tempSlotSeparator: 'spaced', tempSlotOrder: 'feels',
+  uvSlotSeparator: 'custom', uvSlotOrder: 'max', uvSlotNextDayMark: 'star' };
+
+test('snapshot includes the two-value slot presentation picks as strings', () => {
+  const snap = buildSettingsSnapshot(PAIR_FIELDS);
+  Object.keys(PAIR_FIELDS).forEach((key) => {
+    assert.strictEqual(snap[key], PAIR_FIELDS[key], key);
+    assert.strictEqual(buildSettingsSnapshot({})[key], undefined, key + ' absent = default');
+  });
+});
+
+test('snapshot never carries the custom separator text', () => {
+  const snap = buildSettingsSnapshot(Object.assign({
+    tempSlotSeparator: 'custom', tempSlotSeparatorCustom: 'Hi!',
+    uvSlotSeparatorCustom: ' ~ '
+  }, PAIR_FIELDS));
+  assert.ok(!('tempSlotSeparatorCustom' in snap));
+  assert.ok(!('uvSlotSeparatorCustom' in snap));
+  assert.equal(JSON.stringify(snap).indexOf('Hi!'), -1);
+});
+
 // The date slot's two format picks, raw like tempSlotDisplay above — same lockstep
 // rule (watch-side snapshot AND the Deno .strip() schema, or ingest drops them).
 test('snapshot includes the two date-slot format picks as strings', () => {
@@ -583,11 +607,12 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // send() logs the non-2xx and nothing retries it. So the heaviest realistic envelope has
 // to stay under the cap with room left to grow.
 // Ledger (MEASURED — read the byte count off this test's own console line, never
-// arithmetic): 3318 B of 4096, headroom 778. The six colours are 169 B of that, and that
+// arithmetic): 3363 B of 4096, headroom 733. The six colours are 169 B of that, and that
 // is their WORST case however they are set: '#RRGGBB' and 'default' are both seven
 // characters. This envelope was 2787 B before them, and 2956 B before the Nighttime card
 // (the eight new settings fields, the four themeAuto ones this fixture had never switched
-// on, and the emery watch the LED group needs).
+// on, and the emery watch the LED group needs). The five two-value slot picks added 45 B
+// (3318 before them; the custom separator text is never sent, so it cannot grow this).
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -600,6 +625,8 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
   // theme so all six picks report (bw would report none of them).
   const settings = {
     temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', aqiScale: 'european',
+    tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
+    uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
     dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
     aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
     windSlotDirection: true, gustSlotDirection: true,

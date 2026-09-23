@@ -100,6 +100,15 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // The UV slot's display mode ('current' | 'max' | 'both'), raw like
         // tempSlotDisplay.
         uvSlotDisplay: safe.uvSlotDisplay,
+        // The two-value slots' presentation (status-pair.js), raw like
+        // tempSlotDisplay: an absent key reads as the default, as it does in the
+        // bake. The custom separator TEXT is never sent -- it is free text a user
+        // typed, and a separator of 'custom' already records the choice.
+        tempSlotSeparator: safe.tempSlotSeparator,
+        tempSlotOrder: safe.tempSlotOrder,
+        uvSlotSeparator: safe.uvSlotSeparator,
+        uvSlotOrder: safe.uvSlotOrder,
+        uvSlotNextDayMark: safe.uvSlotNextDayMark,
         // The date slot's two format picks (edit sheet), raw like tempSlotDisplay.
         // dateSlotFullFormat is wizard-seeded per country ('slash' for US installs,
         // 'auto' elsewhere), so a present value does NOT mean the user opened the

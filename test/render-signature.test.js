@@ -36,6 +36,45 @@ test('uvSlotDisplay changes the render signature (forces a rebake)', () => {
     renderSignature({ uvSlotDisplay: 'max' }));
 });
 
+// The two-value slots' presentation (status-pair.js) is baked into the temp/UV slot
+// text the same way, so each of its seven keys must force the rebake as well.
+test('the temp pair separator, its custom text and the order change the render signature', () => {
+  const base = renderSignature({});
+  assert.notEqual(renderSignature({ tempSlotSeparator: 'spaced' }), base);
+  assert.notEqual(renderSignature({ tempSlotSeparator: 'brackets' }),
+    renderSignature({ tempSlotSeparator: 'spaced' }));
+  // The custom text alone: editing it re-bakes while the separator stays 'custom'.
+  assert.notEqual(renderSignature({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '-' }),
+    renderSignature({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '~' }));
+  assert.notEqual(renderSignature({ tempSlotOrder: 'feels' }), base);
+  assert.notEqual(renderSignature({ tempSlotOrder: 'feels' }),
+    renderSignature({ tempSlotOrder: 'actual' }));
+});
+
+test('the UV pair separator, its custom text, the order and the next-day mark change the render signature', () => {
+  const base = renderSignature({});
+  assert.notEqual(renderSignature({ uvSlotSeparator: 'dot' }), base);
+  assert.notEqual(renderSignature({ uvSlotSeparator: 'bar' }),
+    renderSignature({ uvSlotSeparator: 'dot' }));
+  assert.notEqual(renderSignature({ uvSlotSeparator: 'custom', uvSlotSeparatorCustom: '-' }),
+    renderSignature({ uvSlotSeparator: 'custom', uvSlotSeparatorCustom: '~' }));
+  assert.notEqual(renderSignature({ uvSlotOrder: 'max' }), base);
+  assert.notEqual(renderSignature({ uvSlotOrder: 'max' }), renderSignature({ uvSlotOrder: 'now' }));
+  assert.notEqual(renderSignature({ uvSlotNextDayMark: 'star' }), base);
+  assert.notEqual(renderSignature({ uvSlotNextDayMark: 'star' }),
+    renderSignature({ uvSlotNextDayMark: 'gt' }));
+});
+
+test('the seven pair keys are independent of each other', () => {
+  // Each must occupy its own position: the temp slot's separator may not read as the
+  // UV slot's (they bake different slots), nor a separator as its own custom text.
+  const keys = ['tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotOrder',
+    'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotOrder', 'uvSlotNextDayMark'];
+  const seen = keys.map((key) => renderSignature({ [key]: 'x' }));
+  seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
+    assert.notEqual(sig, other, keys[i] + ' and ' + keys[i + 1 + j] + ' share a signature slot')));
+});
+
 // The wind/gust direction arrows are baked phone-side into the slot text (a trailing
 // sentinel byte appended in status-lines.js), so per the force-fetch rule both toggles
 // must be part of the signature — otherwise the arrow appears only after the next

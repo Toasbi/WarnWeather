@@ -7,6 +7,7 @@ var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var thresholds = require('./status-thresholds.js');
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
+var statusPair = require('./status-pair.js');
 var wireUnits = require('./wire-units.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
@@ -107,9 +108,6 @@ function isoWeek(d) {
 // these are the two units that cost TWO UTF-8 bytes instead of one, which is what
 // makes the edge-slot cap a real constraint (see withUnit).
 var DEGREE = '°';
-// Marks the UV slot's peak as tomorrow's (Latin-1, like DEGREE: the watch's
-// system fonts carry it). Worst case '11/»12' is 7 of the edge slot's 8 bytes.
-var UV_NEXT_DAY = '\u00BB';
 
 /**
  * Whether one slot's per-kind "Show unit" toggle is on.
@@ -294,8 +292,9 @@ function phoneBatterySupported() {
  * @param {Object} settings Clay settings blob
  * @param {string} slotKey Owning status-slot settings key.
  * @param {number} [cap] The slot's byte cap; defaults to the narrow edge cap.
- *   Only the per-kind unit consults it -- the value itself is still truncated by
- *   the caller, which owns the wire.
+ *   Only the per-kind unit and the two-value pairs' fit rule (status-pair.js)
+ *   consult it -- the value itself is still truncated by the caller, which owns
+ *   the wire.
  * @returns {string} display text, '--' when the value is unavailable
  */
 function formatValue(code, payload, settings, slotKey, cap) {
@@ -325,9 +324,12 @@ function formatValue(code, payload, settings, slotKey, cap) {
       // every mode falls back to the actual temp alone -- never '--/--' or '12/--'.
       if (typeof payload.FEELS_CURRENT === 'number') {
         var feels = formatTemp(payload.FEELS_CURRENT, settings);
-        // 'both' is slash-separated, actual first. It carries no degree at all
-        // (see above); 'feels' takes one like the plain reading does.
-        return withUnit(mode === 'feels' ? feels : actual + '/' + feels, degree, cap);
+        // 'both' joins the two in the user's order and separator (status-pair.js;
+        // absent = actual first, slash: '12/10'), falling back to the slash when
+        // a styled pair would overflow the slot. It carries no degree at all (see
+        // above); 'feels' takes one like the plain reading does.
+        return withUnit(mode === 'feels' ? feels
+          : statusPair.formatTempPair(actual, feels, settings, cap), degree, cap);
       }
     }
     return withUnit(actual, degree, cap);
@@ -340,16 +342,14 @@ function formatValue(code, payload, settings, slotKey, cap) {
   if (code === 'uv') {
     // Global per-kind display mode (UV slot's Edit sheet), the temp slot's pattern:
     // absent = 'current'. 'max' is the peak still ahead (wire-units' uvShown):
-    // today's, then tomorrow's once today's is reached, marked with UV_NEXT_DAY;
-    // 'both' is slash-separated, current first: 3/7, 5/»6. No peak ahead known
-    // falls back to the current reading alone, never '3/--'.
+    // today's, then tomorrow's once today's is reached, carrying the user's
+    // next-day mark; 'both' pairs the two in the user's order and separator. The
+    // text is status-pair's -- absent settings = current first, slash, '»' mark:
+    // 3/7, 5/»6. No peak ahead known falls back to the current reading alone,
+    // never '3/--'.
     var uv = wireUnits.uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
       settings.uvSlotDisplay);
-    if (!uv) { return '--'; }
-    var uvParts = [];
-    if (uv.now !== null) { uvParts.push(String(uv.now)); }
-    if (uv.peak !== null) { uvParts.push((uv.nextDay ? UV_NEXT_DAY : '') + uv.peak); }
-    return uvParts.join('/');
+    return uv ? statusPair.formatUv(uv, settings, cap) : '--';
   }
   if (code === 'wind') {
     v = trendHead(payload.WIND_TREND_UINT8);

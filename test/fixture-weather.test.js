@@ -186,6 +186,18 @@ test('a 48 h fixture uvIndex bakes the day peaks into the UV slot text and level
   assert.deepEqual(o2.STATUS_LEVELS_UINT8, [0, 2]);
 });
 
+// The pair's presentation (status-pair.js) rides the same bake: one non-default style
+// end to end, in the 8-byte edge slot. The level is the numbers', not the text's.
+test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow\'s', () => {
+  const eve = new Date(2026, 6, 15, 20).getTime() / 1000;
+  const uvE = new Array(48).fill(0); uvE[16] = 8.4;          // 12:00 tomorrow
+  const styled = Object.assign({}, UV_SLOT,
+    { uvSlotOrder: 'max', uvSlotSeparator: 'spaced', uvSlotNextDayMark: 'star' });
+  const o = getFixtureWeatherPayload(makeFixture({ startEpoch: eve, uvIndex: uvE }), styled);
+  assert.equal(decodeLine(o.STATUS_LINE_1_UINT8)[0].text, '8* / 0');
+  assert.deepEqual(o.STATUS_LEVELS_UINT8, [0, 0], "tomorrow's peak still never counts");
+});
+
 // fixture-weather.js reads currentTemp/precipPct/windKmh/etc from the fixture's weather
 // block onto the corresponding provider.*Trend field, but pressureHpa was never wired to
 // provider.pressureTrend — so PRESSURE_TREND stayed permanently empty on the fixture/dev

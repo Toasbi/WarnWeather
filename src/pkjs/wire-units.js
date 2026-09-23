@@ -35,8 +35,8 @@ function trendHead(arr) {
  * The numbers the UV slot prints, in WHOLE UV (rounded once, here) — THE one reader
  * both display paths share, like kmhToDisplay: status-lines' slot text and
  * status-thresholds' displayValue, so the highlight can never judge a number the
- * slot does not show. Display numbers only: the text (slash, » marker) is
- * formatValue's, and the highlight policy is displayValue's.
+ * slot does not show. Display numbers only: the text (order, separator, next-day
+ * mark) is status-pair.js's, and the highlight policy is displayValue's.
  *
  * `peak` is the peak still ahead: today's (the rest of the local day, until 23:59)
  * while it prints above `now`, and once it no longer would — today's peak is

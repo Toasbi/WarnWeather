@@ -57,6 +57,8 @@ STATUS LINES
       - watch battery percentage
       - phone battery
 - Bold status values to make them stand out or to make it easier to read
+- Two-value slots (temperature/feels like, UV now/max) in your style: separator (12/10,
+  12 / 10, 12 (10), 12·10, 12|10 or your own), order, and the mark for tomorrow's UV peak
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
 - Threshold highlighting: bold, outline, or fill a status slot when a status slot crosses a
   warn or danger level you set

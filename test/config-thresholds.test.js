@@ -1041,7 +1041,8 @@ test('the slot button is labelled Edit for every kind', () => {
 // (wire ids 8..16 in status-thresholds.js; the battery GLYPH item deliberately
 // absent — its slot draws a glyph, not text, so a Bold option would be a no-op
 // lie. The battery PERCENTAGE kind renders text, so it gets a normal sheet.
-// Temp's sheet additionally carries the tempSlotDisplay row — see below.)
+// Temp's sheet additionally carries the tempSlotDisplay row and the rows shaping
+// its Both pair — see below and test/config-slot-pair.test.js.)
 
 const BOLD_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct'];
 const BOLD_CODES = {
@@ -1053,7 +1054,8 @@ const BOLD_CODES = {
 // alone. The unit toggles exist only for the kinds the phone bakes the text for
 // (status-lines.js); the watch-formatted ones — Hr, BatteryPct — have no such row.
 const BOLD_SHEET_EXTRA_ROWS = {
-  Temp: ['tempSlotDisplay', 'tempSlotUnit'],
+  Temp: ['tempSlotDisplay', 'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotOrder',
+    'tempSlotUnit'],
   Pressure: ['pressureSlotUnit'],
   Countdown: ['countdownSlotUnit'],
   Date: ['dateSlotMonthFormat', 'dateSlotFullFormat']
@@ -1165,6 +1167,11 @@ test('the Temp sheet puts its display-mode pills below the Bold row', () => {
     [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]);
   assert.match(String(disp.hint), /both/i, 'hint explains the Both mode');
   assert.match(String(disp.hint), /feels/i, 'hint names the feels-like value');
+  // The pair's shape is a choice now, so the hint points at the rows below instead of
+  // promising one fixed "actual/feels-like" rendering.
+  assert.doesNotMatch(String(disp.hint), /actual\/feels/, 'hint no longer hard-codes the slash pair');
+  assert.match(String(disp.hint), /separator/i, 'hint points at the separator row');
+  assert.match(String(disp.hint), /order/i, 'hint points at the order row');
   // No gate of its own: it inherits the sheet's THRESHOLD_WHEN, so aplite (which
   // has no Edit sheets) deliberately never reaches it — feels-like is left out
   // there entirely (slot mode AND graph metric, see the forecastMetric resolver).
@@ -1182,11 +1189,19 @@ test('the UV sheet puts its display-mode pills between the Bold row and the Thre
   assert.equal(disp.defaultValue, 'current', 'shipped behaviour: the current index');
   assert.deepEqual(disp.options, [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]);
   assert.match(String(disp.hint), /tomorrow/i, 'hint says the max rolls on to tomorrow');
-  assert.ok(String(disp.hint).indexOf('\u00BB') >= 0, 'hint shows the marker the slot prints');
+  // The mark is a choice now (uvSlotNextDayMark), so the hint points at it instead of
+  // quoting one glyph that may not be the one on screen.
+  assert.equal(String(disp.hint).indexOf('\u00BB'), -1, 'hint no longer hard-codes the \u00BB mark');
+  assert.match(String(disp.hint), /mark/i, 'hint says tomorrow\'s max is marked');
+  assert.match(String(disp.hint), /below/i, 'hint points at the rows that shape the reading');
   assert.match(String(disp.hint), /highlight/i, 'hint says which value the highlight judges');
   // It configures the SLOT, not the highlight, so it sits above the group header
-  // like the wind arrow — and stays live while the highlight is off.
-  assert.equal(items[2].type, 'subheader', 'the Thresholds group follows it');
+  // like the wind arrow — and stays live while the highlight is off. So do the rows
+  // shaping how it reads (test/config-slot-pair.test.js), which follow it directly.
+  assert.deepEqual(items.slice(2, 6).map(it => it.messageKey),
+    ['uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotOrder', 'uvSlotNextDayMark'],
+    'the pair rows and the tomorrow mark follow the display pills');
+  assert.equal(items[6].type, 'subheader', 'the Thresholds group follows them');
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
 });
 

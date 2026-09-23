@@ -1370,6 +1370,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var lastSelectKey = null;
     // Same, for an edit sheet: the sheetId whose pencil trigger regains focus on close.
     var lastEditSheet = null;
+    // A `select` row inside an edit sheet opens its options in the same dialog, on top
+    // of the sheet (openSelect set while openEdit stays set); every close path then
+    // returns to the sheet instead of dismissing both (closeModal). This holds the
+    // sheet's scroll offset across that detour — null when no detour is pending.
+    var sheetScrollTop = null;
     // Optional one-shot callback fired after the sheet closes, set by openSheet() so an external
     // caller (the onboarding wizard, which lives in its own overlay) can react to a pick/dismiss.
     var onSheetClose = null;
@@ -1409,7 +1414,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (opening) { dlg.showModal(); }
         var ttl = dlg.querySelector('.ssel-modal-ttl');
         if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
-        if (openEdit) { dlg.classList.add('edit'); } else { dlg.classList.remove('edit'); }
+        // A select nested over an edit sheet is dressed as a select: the sheet is not
+        // what the dialog shows until the select closes.
+        var editShown = Boolean(openEdit && !openSelect);
+        if (editShown) { dlg.classList.add('edit'); } else { dlg.classList.remove('edit'); }
         // An expanded palette needs more room than the 80dvh cap allows (.picking raises it
         // to 94dvh). syncDialog runs on EVERY render, not just the open edge, so this tracks
         // the palette opening and closing inside an already-open sheet. add/remove, never the
@@ -1417,7 +1425,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // openColor is shared with the tab body, and only the EDIT sheet ever renders a
         // palette; without the openEdit half, a palette left expanded in the body would
         // also grow (and un-peek) an unrelated select sheet opened from the same card.
-        if (openEdit && openColor) { dlg.classList.add('picking'); } else { dlg.classList.remove('picking'); }
+        if (editShown && openColor) { dlg.classList.add('picking'); } else { dlg.classList.remove('picking'); }
         if (openDate) {
           dlg.classList.remove('search');
           dlg.classList.add('date');
@@ -1498,6 +1506,26 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var selectKey = lastSelectKey;
       var dateKey = openDate;
       var editKey = lastEditSheet;
+      // A select nested over an edit sheet closes back to the sheet — a pick, the X,
+      // the backdrop, Escape and the swipe-down all land here — and focus returns to
+      // its trigger row inside the sheet. The sheet itself stays open.
+      if (openSelect && openEdit) {
+        openSelect = null;
+        selectQuery = '';
+        lastSelectKey = null;
+        var modal = document.getElementById('modal');
+        // A swipe-down leaves the drag offset inline on the dialog, and only the
+        // full-close branch of syncDialog clears it — the sheet would come back
+        // pushed down by the swipe distance with its bottom rows off-screen.
+        modal.style.transform = '';
+        modal.style.transition = '';
+        render();
+        var back = (selectKey && modal.querySelector)
+          ? modal.querySelector('[data-select="' + selectKey + '"]') : null;
+        if (back) { back.focus(); }
+        return;
+      }
+      sheetScrollTop = null;
       dateWiring.flushPending();
       openSelect = null;
       openDate = null;
@@ -1560,16 +1588,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var modalEl = document.getElementById('modal');
       var prevList = modalEl.querySelector ? modalEl.querySelector('.ssel-list') : null;
       var keepTop = prevList ? prevList.scrollTop : 0;
+      // A select opened FROM an edit sheet takes the dialog over; the sheet comes back
+      // when it closes (closeModal).
+      var editShown = Boolean(openEdit && !openSelect);
       modalEl.innerHTML = openDate
         ? renderDateModal(SCHEMA, cx)
-        : openEdit ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
+        : editShown ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
       // The edit sheet's scroll container is a NEW node after every render, so a swatch
       // click would otherwise snap the sheet back to the top. Restore the offset, then
       // nudge a freshly opened palette into view. Rect math, not offsetTop (.ssel-list is
       // not positioned, so it is not the offsetParent) and not scrollIntoView({block:…})
       // (the options-object form is unsafe in old Android WebViews).
-      var list = (openEdit && modalEl.querySelector) ? modalEl.querySelector('.ssel-list') : null;
+      var list = (editShown && modalEl.querySelector) ? modalEl.querySelector('.ssel-list') : null;
       if (list) {
+        // Back from a nested select: the list just replaced was the select's, so the
+        // offset to restore is the one the sheet had when the select opened.
+        if (sheetScrollTop !== null) { keepTop = sheetScrollTop; sheetScrollTop = null; }
         list.scrollTop = keepTop;
         var sw = openColor ? list.querySelector('[data-color="' + openColor + '"]') : null;
         var row = (sw && sw.closest) ? sw.closest('.row') : null;
@@ -1779,7 +1813,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // render() repaints the dialog's innerHTML in place (openEdit is
         // unchanged), so the sheet stays open throughout. The openEdit gate keeps
         // clicks inside date/select sheets out of the control cases.
-        if (openEdit && e.target.closest && controlClick(e)) { return; }
+        // A select row in the sheet opens its options over the sheet (see
+        // sheetScrollTop); closeModal brings the sheet back.
+        if (openEdit && !openSelect && e.target.closest && (t = e.target.closest('[data-select]'))) {
+          var list = modal.querySelector ? modal.querySelector('.ssel-list') : null;
+          sheetScrollTop = list ? list.scrollTop : 0;
+          openColor = null;
+          openSelect = t.getAttribute('data-select');
+          selectQuery = '';
+          lastSelectKey = openSelect;
+          render();
+          focusModal();
+          return;
+        }
+        if (openEdit && !openSelect && e.target.closest && controlClick(e)) { return; }
         if (e.target.closest && (t = e.target.closest('.date-opt')) && openDate) {
           var wheel = t.closest('[data-date-wheel]');
           if (!wheel) { return; }

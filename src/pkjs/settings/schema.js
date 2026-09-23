@@ -8,6 +8,10 @@ var STATUS_THRESHOLDS = require('../status-thresholds.js');
 // The per-kind "Show unit" defaults come from the catalog's UNIT_TOGGLES
 // table (shared with the baker, the reset, and renderSignature).
 var STATUS_LINE_CATALOG = require('../status-line-catalog.js');
+// The two-value slots' presentation vocabulary: the separator presets, the UV next-day
+// marks and the custom separator's length, from the module that PRINTS them into the
+// slot text — so every option label is exactly what the watch will show.
+var STATUS_PAIR = require('../status-pair.js');
 var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_CURVE_HPA;
 // The graph-colour vocabulary: the storage key behind every picker, the roles each
 // metric actually owns, and the built-in colour each one defaults to. All of it comes
@@ -408,6 +412,94 @@ var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to '
 // the readers will read it backwards. Shared by both slots: one arrow, two kinds.
 var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
     'wind is blowing.';
+// The two-value slots — Temperature and UV in their "Both" mode — print a pair in one
+// slot (12/10, 3/7). How the pair reads is chosen per kind, on the rows pairRows()
+// builds below that kind's display pills. The phone bakes the text (status-pair.js,
+// through status-lines.js formatValue) and sanitises the custom separator there,
+// authoritatively, so the page stores what was typed and needs no hook. An absent key
+// reads as the default, so a blob saved before these rows existed keeps printing 12/10.
+//
+// The formatter's fit rule: a pair wider than its slot's byte cap prints with the plain
+// slash instead, for that reading only. Only the narrow left/right slots ever hit it
+// ('-12 (-10)' is 9 bytes of their 8), so the hint names them the way the Watch tab's
+// intro does, not as "edge slots".
+var PAIR_FALLBACK_HINT = 'In a left or right slot, a pair too wide to fit ' +
+    'falls back to the slash.';
+// The watch draws slot text in its Gothic system fonts, which cover printable ASCII and
+// Latin-1 (the slots already print '°' and '»' from them); the formatter keeps
+// only those, then the first two. Spaces are kept, not trimmed: ', ' is a real separator.
+var PAIR_CUSTOM_HINT = 'Up to ' + STATUS_PAIR.CUSTOM_MAX_CHARS + ' characters, spaces ' +
+    'included; empty uses the slash. Only characters the watch font can draw are kept ' +
+    '(printable ASCII and Latin-1).';
+/**
+ * Build the rows that shape a two-value slot's pair: the separator dropdown, the custom
+ * separator it can reveal, and which value leads. All three show only in the kind's
+ * "Both" mode — the one mode that prints a pair — and join the display row tight, the
+ * way every group of rows revealed by a control joins that control (Theme switching's
+ * Night theme and Enabled hours).
+ *
+ * The presets are labelled by EXAMPLE, built on the kind's own sample numbers from the
+ * formatter's table: "12 (10)" says what a name like "Brackets" would leave the reader
+ * to picture, and it cannot disagree with what the slot prints.
+ *
+ * @param {string} prefix Key prefix: 'temp' or 'uv' (tempSlotDisplay, tempSlotSeparator …).
+ * @param {string} first Sample of the value that leads by default, e.g. '12'.
+ * @param {string} second Sample of the other value, e.g. '10'.
+ * @param {Array<Array<string>>} orderOptions The order pills as [label, value]; the
+ *     first one is the default (the order the slot has always printed).
+ * @returns {Object[]} The separator select, the custom-separator text field, the order pills.
+ */
+function pairRows(prefix, first, second, orderOptions) {
+    var bothWhen = {key: prefix + 'SlotDisplay', eq: 'both'};
+    var presets = STATUS_PAIR.SEPARATORS;
+    var separators = Object.keys(presets).map(function (value) {
+        return [first + presets[value].mid + second + presets[value].end, value];
+    });
+    return [{
+        // A dropdown, not pills: six choices would be a wide pill row, and the owner
+        // asked for a drop-down of presets.
+        type: 'select',
+        messageKey: prefix + 'SlotSeparator',
+        label: 'Separator',
+        defaultValue: 'slash',
+        hint: PAIR_FALLBACK_HINT,
+        options: separators.concat([['Custom', 'custom']]),
+        joinPrevious: true,
+        showWhen: bothWhen
+    }, {
+        // maxlength is the soft UI cap (the browser counts UTF-16 units); the formatter
+        // re-applies the limit after dropping what the font can't draw.
+        type: 'text',
+        messageKey: prefix + 'SlotSeparatorCustom',
+        label: 'Custom separator',
+        defaultValue: '',
+        attributes: {maxlength: STATUS_PAIR.CUSTOM_MAX_CHARS},
+        hint: PAIR_CUSTOM_HINT,
+        joinPrevious: true,
+        showWhen: {all: [bothWhen, {key: prefix + 'SlotSeparator', eq: 'custom'}]}
+    }, {
+        type: 'segmented',
+        messageKey: prefix + 'SlotOrder',
+        label: 'Order',
+        defaultValue: orderOptions[0][1],
+        options: orderOptions,
+        joinPrevious: true,
+        showWhen: bothWhen
+    }];
+}
+/**
+ * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
+ * formatter's own table, so each label shows where its mark lands (three lead the
+ * number, the star trails it). 'none' would print a bare 6, which reads as no choice
+ * at all, so it is spelled out.
+ * @returns {Array<Array<string>>} [label, value] pairs, the formatter's order.
+ */
+function nextDayMarkOptions() {
+    var marks = STATUS_PAIR.NEXT_DAY_MARKS;
+    return Object.keys(marks).map(function (value) {
+        return [value === 'none' ? 'No mark' : marks[value].pre + '6' + marks[value].post, value];
+    });
+}
 /**
  * Build a slot kind's "Show unit" row — whether its status slot prints the unit after
  * the number. Only the kinds the PHONE bakes can offer it (status-lines.js formats the
@@ -1646,15 +1738,27 @@ module.exports = {
         // What each mode prints is wire-units' uvShown.
         // It sits above the Thresholds group like the wind arrow: it configures the
         // slot, and the highlight follows it (the policy is status-thresholds.js
-        // displayValue's).
+        // displayValue's). So do the rows shaping how it reads, which change the
+        // text only — the highlight judges the numbers, never their presentation.
         thresholdSection('UV index', 'Uv', '', null, [{
             type: 'segmented',
             messageKey: 'uvSlotDisplay',
             label: 'UV selection',
-            hint: 'Show the UV index now, the highest it still gets today, or both as now/max. Once today\'s peak is reached, the max shows tomorrow\'s, marked \u00BB (e.g. 6/\u00BB8). Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.',
+            hint: 'Show the UV index now, the highest it still gets today, or both. Once today\'s peak is reached, the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.',
             defaultValue: 'current',
             options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
-        }]),
+        }].concat(pairRows('uv', '3', '7', [['Now first', 'now'], ['Max first', 'max']]), [{
+            // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
+            // Both, the two modes that print a max. 'raquo' is the '»' the slot
+            // printed before this row existed, so it stays the default.
+            type: 'select',
+            messageKey: 'uvSlotNextDayMark',
+            label: 'Tomorrow\'s peak mark',
+            defaultValue: 'raquo',
+            options: nextDayMarkOptions(),
+            joinPrevious: true,
+            showWhen: {key: 'uvSlotDisplay', in: ['max', 'both']}
+        }])),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
         thresholdSection('Sleep', 'Sleep',
@@ -1662,7 +1766,8 @@ module.exports = {
         thresholdSection('Walked distance', 'Distance',
             'Distance walked per day.', HEALTH_SLOT_WHEN),
         // Bold-only sheets for the level-less slot kinds (same pencil, one row —
-        // plus Temp's display-mode row). Order and labels mirror the contract's
+        // plus the display rows a few kinds add below it: Temp's mode and pair,
+        // the units, the date formats). Order and labels mirror the contract's
         // KINDS appendix (wire ids 8..19); the battery GLYPH item is deliberately
         // absent — see boldSection (the battery PERCENTAGE kind sits near the end).
         // "Temperature slot", not the catalog's "Temperature (actual/feels like)":
@@ -1672,28 +1777,30 @@ module.exports = {
             // Global per-kind, like the bold modes: one choice covers every slot
             // showing temp. The phone bakes the slot text from it (status-lines.js
             // formatValue) and it rides renderSignature(), so a change re-bakes
-            // without waiting for the next fetch. 'both' renders slash-separated,
-            // actual first: 12/10; a missing feels-like value falls back to the
-            // actual temp alone.
+            // without waiting for the next fetch. 'both' prints the pair the rows
+            // below shape — 12/10, actual first, until someone picks otherwise; a
+            // missing feels-like value falls back to the actual temp alone.
             type: 'segmented',
             messageKey: 'tempSlotDisplay',
             label: 'Temperature selection',
-            hint: 'Show the measured temperature, what it feels like, or both as actual/feels-like.',
+            hint: 'Show the measured temperature, what it feels like, or both. For both, choose the separator and order below.',
             defaultValue: 'actual',
             options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']],
             // Picking Both clears the degree: "-12/-10" is already 7 of an edge
             // slot's 8 bytes and the sign is two more, so the pair cannot fit.
             // Clearing it here is the fill-vs-feels pattern (forecastMetricFill).
             onChange: 'tempUnitExclusive'
+        }].concat(pairRows('temp', '12', '10',
+            [['Temp first', 'actual'], ['Feels like first', 'feels']]), [
             // The degree sign alone, never °C/°F: the unit is already the Units tab's
             // temperatureUnits choice, and restating it in a three-character slot
             // spends the width on something the user picked once. Off by default —
             // temp slots have never printed a degree sign. Turning it ON while the
             // mode is Both drops the mode back to Temp, the mirror of the hook above;
             // status-lines.js holds the authoritative gate for a blob that predates
-            // either.
-        }, Object.assign(unitRow('tempSlotUnit', '12°', '12'),
-            { onChange: 'tempUnitExclusive' })]),
+            // either. No join: it answers to every mode, not to Both's pair rows.
+            Object.assign(unitRow('tempSlotUnit', '12°', '12'),
+                { onChange: 'tempUnitExclusive' })])),
         boldSection('Air pressure (hPa)', 'Pressure', null,
             [unitRow('pressureSlotUnit', '1013hPa', '1013')]),
         boldSection('Sunrise/sunset', 'Sun'),

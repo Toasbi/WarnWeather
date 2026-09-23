@@ -44,6 +44,16 @@ const settingsSchema = z
     temperatureUnits: z.string().optional(),
     tempSlotDisplay: z.string().optional(),
     uvSlotDisplay: z.string().optional(),
+    // The two-value slots' presentation, lockstep with buildSettingsSnapshot in
+    // src/pkjs/telemetry.js. z.string() per threshPhoneBatteryBoldMode's rule below.
+    // The custom separator text is deliberately NOT a field: the phone never sends it.
+    // DEPLOY-ORDERING: ship this function before the app release that sends these,
+    // or the strip step drops them silently.
+    tempSlotSeparator: z.string().optional(),
+    tempSlotOrder: z.string().optional(),
+    uvSlotSeparator: z.string().optional(),
+    uvSlotOrder: z.string().optional(),
+    uvSlotNextDayMark: z.string().optional(),
     dateSlotMonthFormat: z.string().optional(),
     dateSlotFullFormat: z.string().optional(),
     aqiScale: z.enum(['european', 'us']).optional(),

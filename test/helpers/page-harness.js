@@ -30,6 +30,7 @@ function makeEl(id) {
     querySelector() { return null; },
     querySelectorAll() { return []; },
     classList: { add() {}, remove() {} },
+    style: {},
     focus() {}, getAttribute() { return null; }, setAttribute() {}
   };
   Object.defineProperty(el, 'innerHTML', {

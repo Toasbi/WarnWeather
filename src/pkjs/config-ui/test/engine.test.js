@@ -808,7 +808,10 @@ test('onChange registry: register/get; unknown id -> undefined', () => {
 // statictext-showwhen.test.js) so wireInputs()'s and wireModal()'s real click/input
 // listeners run. scroll/modal.addEventListener here CAPTURE the listener (instead of
 // no-op'ing it) so the test can invoke it directly, simulating a real browser event.
-function bootWithCapturedListeners(schema, env) {
+// `opts.modalQuery(sel)` (optional) answers #modal.querySelector — the edit-sheet
+// tests hand it a scroll-list stub and a focusable trigger; without it every
+// in-dialog query misses, as before.
+function bootWithCapturedListeners(schema, env, opts) {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = fs.readFileSync(path.join(LIB, 'schema-walk.js'), 'utf8')
     + '\n' + fs.readFileSync(path.join(LIB, 'color.js'), 'utf8')
@@ -830,7 +833,7 @@ function bootWithCapturedListeners(schema, env) {
     innerHTML: '',
     style: {},
     addEventListener: (type, fn) => { modalListeners[type] = fn; },
-    querySelector: () => null
+    querySelector: (sel) => ((opts && opts.modalQuery) ? opts.modalQuery(sel) : null)
   };
   const sselList = { innerHTML: '', focus: () => {} };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
@@ -1238,6 +1241,108 @@ test('boot(): closing an edit sheet collapses a palette expanded inside it', () 
   clickMatching(r.modalListeners.click, '[data-select-close]', {});
   clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
   assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'the sheet reopens collapsed');
+});
+
+// A `select` row INSIDE an edit sheet: its options open in the same dialog, over the
+// sheet, and every way of closing them lands back on the sheet — only the sheet's own
+// close dismisses the dialog. The sheet also reveals a row on the picked value, so a
+// test can see the pick reached the re-rendered sheet.
+const SHEET_SELECT_SCHEMA = {
+  appName: 'X', versionLabel: 'v0',
+  tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [{ type: 'sheet', sheetId: 'fmt', label: 'Format' }] },
+    { sheetOnly: true, sheetId: 'fmt', title: 'Format', items: [
+      { type: 'toggle', messageKey: 'flag', label: 'Flag', defaultValue: false },
+      { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
+        onChange: 'sepPicked', options: [['12/10', 'slash'], ['Custom', 'custom']] },
+      { type: 'text', messageKey: 'sepText', label: 'Custom separator', defaultValue: '',
+        showWhen: { key: 'sep', eq: 'custom' } }
+    ] }
+  ] }]
+};
+
+/**
+ * Boot SHEET_SELECT_SCHEMA and open its edit sheet.
+ * @param {Object} [opts] Passed through to bootWithCapturedListeners.
+ * @returns {Object} The harness.
+ */
+function bootWithFormatSheet(opts) {
+  const r = bootWithCapturedListeners(SHEET_SELECT_SCHEMA, {}, opts);
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
+  assert.ok(r.modal.innerHTML.indexOf('data-select="sep"') >= 0, 'the sheet renders its select row');
+  return r;
+}
+
+test('boot(): a select inside an edit sheet opens its options over the sheet', () => {
+  const r = bootWithFormatSheet();
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  assert.ok(r.modal.innerHTML.indexOf('data-ssel-list="sep"') >= 0, 'the option list renders');
+  assert.ok(r.modal.innerHTML.indexOf('data-select-pick="custom"') >= 0, 'with its options');
+  assert.equal(r.modal.innerHTML.indexOf('data-k="flag"'), -1,
+    'the list takes the dialog over; the sheet is not drawn under it');
+});
+
+test('boot(): a pick in a sheet\'s select returns to the sheet, stored and hooked', () => {
+  const r = bootWithFormatSheet();
+  const calls = [];
+  r.onChange.register('sepPicked', (S, oldV, newV, env, key) => { calls.push([key, oldV, newV]); });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  clickMatching(r.modalListeners.click, '[data-select-pick]',
+    { 'data-k': 'sep', 'data-select-pick': 'custom' });
+  assert.equal(r.getValue('sep'), 'custom', 'the pick is stored');
+  assert.deepEqual(calls, [['sep', 'slash', 'custom']], 'the row\'s onChange fired once');
+  assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, 'back on the sheet');
+  assert.ok(r.modal.innerHTML.indexOf('data-k="sepText"') >= 0,
+    'the sheet re-rendered with the pick: the row it reveals is there');
+  assert.equal(r.modal.innerHTML.indexOf('data-ssel-list="sep"'), -1, 'the list is gone');
+});
+
+test('boot(): every close of a sheet\'s select returns to the sheet; the sheet\'s own close dismisses', () => {
+  const closes = {
+    'the close button': (r) => clickMatching(r.modalListeners.click, '[data-select-close]', {}),
+    'Escape': (r) => r.modalListeners.cancel({ preventDefault: () => {} }),
+    'the backdrop': (r) => r.modalListeners.click({ target: r.modal }),
+    // Drag the list (scrolled to its top) down past the 90 px threshold. The drag
+    // writes an inline translateY on the dialog as the finger moves.
+    'a swipe-down': (r) => {
+      r.modalListeners.touchstart({ target: { closest: () => null }, touches: [{ clientY: 100 }] });
+      r.modalListeners.touchmove({ touches: [{ clientY: 250 }], preventDefault: () => {} });
+      r.modalListeners.touchend({ changedTouches: [{ clientY: 250 }] });
+    }
+  };
+  Object.keys(closes).forEach((how) => {
+    // The swipe arms only on a .ssel-list at scrollTop 0; the other closes ignore it.
+    const list = { scrollTop: 0, querySelector: () => null };
+    const r = bootWithFormatSheet({ modalQuery: (sel) => (sel === '.ssel-list' ? list : null) });
+    clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+    closes[how](r);
+    assert.ok(r.modal.innerHTML.indexOf('data-select="sep"') >= 0, how + ': back on the sheet');
+    assert.equal(r.getValue('sep'), 'slash', how + ': nothing picked');
+    assert.ok(!r.modal.style.transform,
+      how + ': the sheet comes back in place, not pushed down by a drag offset');
+    closes[how](r);
+    assert.equal(r.modal.innerHTML, '', how + ': a second close dismisses the sheet itself');
+  });
+});
+
+test('boot(): back from a sheet\'s select, the sheet keeps its scroll offset and focuses the row', () => {
+  // One stub stands in for whichever .ssel-list the dialog holds — the sheet's, then
+  // the option list's — the way a real render swaps the node under the same query.
+  const list = { scrollTop: 0, querySelector: () => null };
+  let triggerFocus = 0;
+  const r = bootWithFormatSheet({ modalQuery: (sel) => {
+    if (sel === '.ssel-list') { return list; }
+    if (sel === '[data-select="sep"]') { return { focus: () => { triggerFocus++; } }; }
+    return null;
+  } });
+  list.scrollTop = 120;                    // the user scrolled the sheet down to the row
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  list.scrollTop = 30;                     // ... then scrolled the option list
+  clickMatching(r.modalListeners.click, '[data-select-pick]',
+    { 'data-k': 'sep', 'data-select-pick': 'custom' });
+  assert.equal(list.scrollTop, 120, 'the sheet comes back where it was, not at the list\'s offset');
+  assert.equal(triggerFocus, 1, 'focus returns to the select row inside the sheet');
+  assert.equal(r.focusCounts.select.sep || 0, 0, 'not to a trigger in the tab body');
 });
 
 test('boot(): a color swatch goes through setValue, so it fires the item\'s onChange', () => {

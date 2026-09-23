@@ -27,7 +27,8 @@ const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
 // The bold-only slot kinds (wire ids 8..19 in status-thresholds.js) add ONE key
 // each: a Bold row is their whole sheet (Temp additionally carries the
-// tempSlotDisplay row — listed with the plain keys below). The battery GLYPH item
+// tempSlotDisplay row and the rows shaping its Both pair — listed with the plain
+// keys below). The battery GLYPH item
 // is deliberately absent — its slot draws a glyph, not text, so it has no sheet
 // and no key; the battery PERCENTAGE kind (BatteryPct) renders text and has both.
 // PhoneBattery is ONE stem for TWO wire kinds (18 phoneBattery, 19 phoneBatteryPlain):
@@ -39,11 +40,13 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Dang
   .concat(THRESH_COLOR_KEYS)
   .concat(BOLD_ONLY_KEYS)
   // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows,
-  // their "Show unit" toggles and the UV slot's display mode (Temp's tempSlotDisplay is
-  // listed with the plain keys below, next to the other three "Show unit" keys on
-  // bold-only sheets).
+  // their "Show unit" toggles, the UV slot's display mode with the rows shaping its
+  // Both pair and its tomorrow mark (Temp's tempSlotDisplay and pair rows are listed
+  // with the plain keys below, next to the other three "Show unit" keys on bold-only
+  // sheets).
   .concat(['windSlotDirection', 'gustSlotDirection', 'windSlotUnit', 'gustSlotUnit',
-    'uvSlotDisplay']);
+    'uvSlotDisplay', 'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotOrder',
+    'uvSlotNextDayMark']);
 // The "Show unit" toggles on the BOLD-ONLY sheets. Six kinds have one — the six whose
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.
@@ -69,6 +72,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','windScale','pressureScale','thirdLine','tempSlotDisplay',
+  'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',

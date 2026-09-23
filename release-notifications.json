@@ -161,6 +161,6 @@
   },
   "1.20.0": {
     "title": "Smoother clock, UV day max",
-    "body": "On color watches the Roboto and Bitham clock digits now have smooth, anti-aliased edges. The UV status slot can also show today's highest UV, or now/max: tap the pencil next to UV in the Status slots tab."
+    "body": "On color watches the Roboto and Bitham clock digits now have smooth, anti-aliased edges. The UV status slot can also show today's highest UV, or now/max, and you choose how two-value slots are written: tap the pencil next to UV or Temperature in the Status slots tab."
   }
 }

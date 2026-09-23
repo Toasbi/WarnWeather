@@ -269,6 +269,11 @@ entry sets `ring` and filled otherwise, for a row previewing several colours at 
 several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
 actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
 
+Rows inside an open sheet behave as they do in a card. A `select` or `searchSelect` row there
+opens its option list in the same dialog, over the sheet; a pick, the close button, the
+backdrop, Escape or a swipe-down all return to the sheet at the scroll offset it had, with
+focus back on the row's trigger. Only closing the sheet itself dismisses the dialog.
+
 The fifteen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
 app code.

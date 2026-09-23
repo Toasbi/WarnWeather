@@ -902,6 +902,117 @@ test('the other two temp modes still take the degree when it is switched on', ()
     '10' + DEG);
 });
 
+// --- the two-value slots' presentation (status-pair.js) ---------------------
+// Temp 'both' and UV 'both' take a per-kind separator and order, UV a next-day
+// mark too. test/status-pair.test.js covers the full matrix; these pin the BAKE:
+// formatValue hands the slot's own cap down (so a styled pair too wide for a
+// corner falls back to the slash there and nowhere else), packLine ships the
+// result, and every mode that shows ONE value ignores the pair settings.
+const EDGE_CAP = catalog.CAPS.EDGE_TEXT_MAX;
+const MID_CAP = catalog.CAPS.MID_TEXT_MAX;
+const RAQUO = '»';
+
+test('the temp pair bakes in the chosen order and separator', () => {
+  const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });   // 20C / 10C
+  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparator: 'brackets',
+    tempSlotOrder: 'feels' });
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft', EDGE_CAP), '10 (20)');
+  assertPlainText(slotBytesFor('temp', p, s), '10 (20)', 'packed edge slot');
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings({ tempSlotDisplay: 'both', tempSlotSeparator: 'custom',
+      tempSlotSeparatorCustom: ', ' }), 'statusRadarLeft', EDGE_CAP), '20, 10');
+});
+
+test('a styled temp pair too wide for an edge slot bakes as the slash there only', () => {
+  const p = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });  // -12C/-10C
+  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparator: 'spaced' });
+  // Never utf8Truncate's '-12 / -1': a clipped reading looks like a real one.
+  assertPlainText(slotBytesFor('temp', p, s), '-12/-10', 'edge: 9 B styled, slash instead');
+  assertPlainText(midSlotBytesFor('temp', p, s), '-12 / -10', 'mid: 19 B of room');
+  assertPlainText(slotBytesFor('temp', p, Object.assign({ tempSlotOrder: 'feels' }, s)),
+    '-10/-12', 'the fallback keeps the order');
+  // No cap passed = the narrow edge slot, withUnit's convention.
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft'), '-12/-10');
+});
+
+test('a styled both-mode temp still never takes the degree', () => {
+  const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
+  const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true,
+    tempSlotSeparator: 'spaced' });
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP), '20 / 10');
+});
+
+test('the single-value temp modes and the missing-feels fallback ignore the pair settings', () => {
+  const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
+  const style = { tempSlotSeparator: 'brackets', tempSlotOrder: 'feels', tempSlotUnit: true };
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings(Object.assign({ tempSlotDisplay: 'actual' }, style)), 'statusRadarLeft'),
+    '20' + DEG);
+  assert.equal(statusLines.formatValue('temp', p,
+    baseSettings(Object.assign({ tempSlotDisplay: 'feels' }, style)), 'statusRadarLeft'),
+    '10' + DEG);
+  // FEELS_CURRENT missing: 'both' is the actual temp alone, never '(20)' or '20 ('.
+  assert.equal(statusLines.formatValue('temp', basePayload(),
+    baseSettings(Object.assign({ tempSlotDisplay: 'both' }, style)), 'statusRadarLeft'), '20');
+});
+
+test('every temp pair preset fits the edge slot untruncated, across the planet\'s range', () => {
+  for (let f = -80; f <= 140; f += 1) {
+    for (const units of ['c', 'f']) {
+      for (const sep of ['slash', 'spaced', 'brackets', 'dot', 'bar', 'custom']) {
+        for (const order of ['actual', 'feels']) {
+          const text = statusLines.formatValue('temp', { CURRENT_TEMP: f, FEELS_CURRENT: f - 8 },
+            baseSettings({ temperatureUnits: units, tempSlotDisplay: 'both',
+              tempSlotSeparator: sep, tempSlotOrder: order,
+              tempSlotSeparatorCustom: 'ÿÿ' }), 'statusRadarLeft', EDGE_CAP);
+          assert.ok(statusLines.utf8Encode(text).length <= EDGE_CAP,
+            `"${text}" exceeds EDGE_TEXT_MAX (${f}F ${units} ${sep} ${order})`);
+        }
+      }
+    }
+  }
+});
+
+test('the UV pair bakes in the chosen order, separator and next-day mark', () => {
+  const late = uvDayPayload({ UV_TREND_UINT8: [0, 0], UV_DAY_PEAKS: [0, 60] });   // 0/»6
+  const s = baseSettings({ uvSlotDisplay: 'both', uvSlotOrder: 'max', uvSlotSeparator: 'bar',
+    uvSlotNextDayMark: 'star' });
+  assert.equal(statusLines.formatValue('uv', late, s, 'statusRadarLeft', EDGE_CAP), '6*|0');
+  assertPlainText(slotBytesFor('uv', late, s), '6*|0', 'packed edge slot');
+  // Today's peak is never marked, whatever the setting.
+  assert.equal(statusLines.formatValue('uv', uvDayPayload(), s, 'statusRadarLeft', EDGE_CAP),
+    '7|2');
+});
+
+test('the next-day mark applies to the lone peak in max mode', () => {
+  const late = uvDayPayload({ UV_TREND_UINT8: [0, 0], UV_DAY_PEAKS: [0, 60] });
+  const max = (mark) => statusLines.formatValue('uv', late,
+    baseSettings({ uvSlotDisplay: 'max', uvSlotNextDayMark: mark }), 'statusRadarLeft', EDGE_CAP);
+  assert.equal(max(undefined), RAQUO + '6', 'absent: today\'s »');
+  assert.equal(max('gt'), '>6');
+  assert.equal(max('plus'), '+6');
+  assert.equal(max('star'), '6*');
+  assert.equal(max('none'), '6');
+});
+
+test('a styled UV pair too wide for an edge slot keeps its order and mark on the slash', () => {
+  const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });   // 11/»12
+  const s = baseSettings({ uvSlotDisplay: 'both', uvSlotSeparator: 'brackets',
+    uvSlotOrder: 'max' });
+  assertPlainText(slotBytesFor('uv', p, s), RAQUO + '12/11', 'edge: "»12 (11)" is 9 B');
+  assertPlainText(midSlotBytesFor('uv', p, s), RAQUO + '12 (11)', 'mid');
+});
+
+test('the current UV mode and the no-peak fallback ignore the pair settings', () => {
+  const style = { uvSlotSeparator: 'brackets', uvSlotOrder: 'max', uvSlotNextDayMark: 'star' };
+  assert.equal(statusLines.formatValue('uv', uvDayPayload(),
+    baseSettings(Object.assign({ uvSlotDisplay: 'current' }, style)), 'statusRadarLeft'), '2');
+  const noPeaks = uvDayPayload(); delete noPeaks.UV_DAY_PEAKS;
+  assert.equal(statusLines.formatValue('uv', noPeaks,
+    baseSettings(Object.assign({ uvSlotDisplay: 'both' }, style)), 'statusRadarLeft'), '2',
+    'never "(2)" or "2 ()"');
+});
+
 test('no unit ever pushes a slot past its 8-byte edge cap', () => {
   const fits = (text, what) => assert.ok(
     statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
@@ -1094,8 +1205,10 @@ test('buildStatusLines derives env.phoneBattery from the persisted detector verd
 // charging event can re-bake after a PKJS restart. If a new slot starts reading a
 // payload key that is not on the list, the key is absent from the restored blob
 // and that slot silently re-bakes as '--' -- no throw, no failing assertion, just
-// a wrong watchface after every relaunch. So pin the list to the code: scan both
+// a wrong watchface after every relaunch. So pin the list to the code: scan the
 // baking modules for payload.<KEY> accesses and require the list to match.
+// status-pair.js formats numbers it is handed and reads no payload today; it is
+// scanned so that a read added there later cannot slip past the list.
 //
 // Deliberately an exact set equality, not a subset check: an EXTRA key on the list
 // is dead weight persisted to flash on every fetch, which is worth catching too.
@@ -1109,7 +1222,7 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
   const WRITTEN = new Set(['STATUS_LEVELS_UINT8']);
 
   const seen = new Set();
-  for (const file of ['status-lines.js', 'status-thresholds.js']) {
+  for (const file of ['status-lines.js', 'status-thresholds.js', 'status-pair.js']) {
     for (const m of read(file).matchAll(/payload\.([A-Z][A-Z_0-9]*)/g)) {
       if (!WRITTEN.has(m[1])) { seen.add(m[1]); }
     }
