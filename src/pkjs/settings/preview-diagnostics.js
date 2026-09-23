@@ -26,6 +26,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         try { return JSON.parse(v); } catch (e) { return null; }
     }
 
+    // The weather-message categories, in outbox.js WEATHER_CATEGORIES order (a test
+    // pins the two lists together; requiring outbox.js here would drag its storage
+    // and Pebble dependencies into the page). 'notice' rides alone -- an auth-failure
+    // overlay or its dismissal -- so without its column such a send read as an empty one.
+    var CATEGORIES = ['forecast', 'status', 'sun', 'radar', 'sleep', 'notice'];
+    // Header text where the name is too wide for a ninth column on a phone.
+    var CATEGORY_LABELS = { notice: 'ntc' };
+
+    /**
+     * Header label for a category column.
+     * @param {string} name Category name.
+     * @returns {string} Its (possibly shortened) label.
+     */
+    function categoryLabel(name) {
+        return CATEGORY_LABELS[name] || name;
+    }
+
     /**
      * The dev-stats panel: a per-day AppMessage rollup table plus the newest raw
      * events. Empty unless the dev-stats toggle is on AND events exist.
@@ -42,7 +59,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var summary = userData && userData.devStats;
         if (!state.devStatsEnabled || !summary || !(summary.total > 0)) { return ''; }
 
-        var CATEGORIES = ['forecast', 'status', 'sun', 'radar', 'sleep'];
         var TABLE_STYLE = 'border-collapse:collapse;font-size:0.72em;margin:2px 0 6px;width:100%;text-align:center;';
         var CELL_STYLE = 'border:1px solid #555;padding:1px 3px;';
         var TITLE_STYLE = 'font-size:0.8em;font-weight:bold;margin:8px 0 0;padding:0 16px;';
@@ -97,9 +113,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         html = '<div style="' + TITLE_STYLE + '">Daily summary</div>';
         html += '<div style="' + LEGEND_STYLE + '">'
             + '✓ delivered · ✗ rejected · c cache-skip (nothing sent)<br>'
-            + 'per category: count● sent · count– cached</div>';
+            + 'per category: count● sent · count– cached · ntc watch notice</div>';
         html += '<table class="dsTable" style="' + TABLE_STYLE + '">';
-        html += headerRow(['Day', 'weather'].concat(CATEGORIES).concat(['setting']));
+        html += headerRow(['Day', 'weather'].concat(CATEGORIES.map(categoryLabel)).concat(['setting']));
         days.forEach(function (bucket) {
             html += '<tr>' + cell(bucket.d) + cell(outcomeCell(bucket.weather));
             CATEGORIES.forEach(function (name) {
@@ -117,7 +133,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             + 'ok: ✓ delivered · ✗ rejected · blank nothing sent<br>'
             + 'category/setting: ● sent · – cached · blank not in payload</div>';
         html += '<table class="dsTable" style="' + TABLE_STYLE + '">';
-        html += headerRow(['Time', 'ok'].concat(CATEGORIES).concat(['setting']));
+        html += headerRow(['Time', 'ok'].concat(CATEGORIES.map(categoryLabel)).concat(['setting']));
         raw.forEach(function (ev) {
             var okMark = ev.ok === 1 ? '✓' : (ev.ok === 0 ? '✗' : '');
             html += '<tr>' + cell(timeOf(ev.t)) + cell(okMark);
@@ -188,6 +204,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     PConf.blocks.register('lastFetch', lastFetch);
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { devStats: devStats, lastFetch: lastFetch };
+        module.exports = { devStats: devStats, lastFetch: lastFetch, CATEGORIES: CATEGORIES };
     }
 })();

@@ -82,6 +82,25 @@ test('devStats: table only, no clear button; empty when disabled', () => {
   assert.equal(DG.devStats({ devStatsEnabled: true }, {}, { devStats: dsSummary([], []) }), '', 'nothing recorded');
   assert.equal(DG.devStats({ devStatsEnabled: true }, {}, {}), '', 'no summary handed over');
 });
+test('devStats: a notice-only weather send shows in its own column, not as an empty send', () => {
+  // NOTICE_TEXT rides alone (an auth-failure overlay, or its dismissal). Without a
+  // notice column the row read "delivered, nothing in the payload".
+  const ev = { t: Date.now(), k: 'weather', ok: 1, c: { notice: 1 } };
+  const summary = dsSummary([dsDay('09-23', { ack: 1, nack: 0, skip: 0 }, { notice: { sent: 1, cached: 0 } })], [ev]);
+  const ds = DG.devStats({ devStatsEnabled: true }, {}, { devStats: summary });
+  const headers = (ds.match(/<tr><th[\s\S]*?<\/tr>/g) || [])
+    .map((row) => (row.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map((th) => th.replace(/<[^>]*>/g, '')));
+  assert.equal(headers.length, 2);
+  headers.forEach((h) => assert.equal(h[h.length - 2], 'ntc', 'notice column sits before setting'));
+  const eventRow = ds.slice(ds.lastIndexOf('<tr>'));
+  const cells = (eventRow.match(/<td[^>]*>([^<]*)<\/td>/g) || []).map((td) => td.replace(/<[^>]*>/g, ''));
+  assert.equal(cells[cells.length - 2], '●', 'the notice was sent');
+  assert.ok(ds.indexOf('1●<br>0–</td><td') >= 0, 'the day row counts it too');
+});
+test('devStats: the panel shows every weather category the outbox sends', () => {
+  const outbox = require('../src/pkjs/outbox.js');
+  assert.deepEqual(DG.CATEGORIES, outbox.WEATHER_CATEGORIES.map((c) => c.name));
+});
 test('devStats: the daily table shows the phone-side day totals, not a count of the capped raw list', () => {
   // The phone side hands over day totals for the whole window plus only the newest 100
   // events (the raw 7-day log overflowed the page's data: URL). The day row must still
