@@ -191,6 +191,11 @@ configUi.hexToInt(h)                 // '#FFFFFF' → 16777215
 // Schema introspection
 configUi.deriveDefaults(schema)      // { messageKey: defaultValue, … } — colors as ints
 configUi.deriveColorKeys(schema)     // ['key', …] — all type:'color' messageKeys
+
+// Page injection
+configUi.inlineScriptJson(value)     // JSON.stringify with '<', U+2028/2029 escaped — safe to
+                                     // splice into the page's inline <script> (generateUrl and
+                                     // scripts/build-page.js previewPage both use it)
 ```
 
 ---

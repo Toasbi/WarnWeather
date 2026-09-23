@@ -1,8 +1,9 @@
 // src/pkjs/settings/preview-diagnostics.js — ES5, WebView. The two HTML
 // diagnostic panels on the settings page: the dev-stats AppMessage tables and the
-// last-fetch summary. Both read their data out of `userData` (JSON the phone side
-// stashed there), draw no SVG, and share nothing with the chart previews but the
-// block-renderer signature.
+// last-fetch summary. Both read their data out of `userData` (lastFetch the JSON
+// strings the phone side stashed there, devStats the bounded summary object
+// dev-stats.js summarize() builds), draw no SVG, and share nothing with the chart
+// previews but the block-renderer signature.
 /* global PConf */
 // The `.blocks` test is not redundant. config-ui's lib/color.js and lib/schema-walk.js
 // each do `global.PConf = global.PConf || {}` to attach their own shard, and
