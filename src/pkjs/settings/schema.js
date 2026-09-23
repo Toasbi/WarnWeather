@@ -137,6 +137,11 @@ var WIND_SCALE_WHEN_THIRD = {all: [
     {not: {key: 'secondaryLine', in: ['wind', 'gust']}}
 ]};
 var WIND_SCALE_WHEN_FOURTH = {all: [
+    // The fourth-line context is also aplite-gated: the Third-metric row is
+    // hidden there with its stored value preserved (see the fourthLine item),
+    // so without this leaf a re-paired aplite would show an orphaned scale row
+    // for a line it never draws.
+    {env: 'platform', ne: 'aplite'},
     {key: 'fourthLine', in: ['wind', 'gust']},
     {not: {key: 'secondaryLine', in: ['wind', 'gust']}},
     {not: {key: 'thirdLine', in: ['wind', 'gust']}}
@@ -739,7 +744,10 @@ function pressureScaleCopy(context) {
             : context === 'third'
                 ? {all: [{key: 'thirdLine', eq: 'pressure'},
                          {not: {key: 'secondaryLine', eq: 'pressure'}}]}
-                : {all: [{key: 'fourthLine', eq: 'pressure'},
+                // The aplite leaf mirrors WIND_SCALE_WHEN_FOURTH: no orphaned
+                // scale row for the line aplite never draws.
+                : {all: [{env: 'platform', ne: 'aplite'},
+                         {key: 'fourthLine', eq: 'pressure'},
                          {not: {key: 'secondaryLine', eq: 'pressure'}},
                          {not: {key: 'thirdLine', eq: 'pressure'}}]}
     };

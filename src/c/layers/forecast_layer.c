@@ -577,7 +577,15 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .inset_top = third->line.inset_y, .inset_bottom = third->line.inset_y,
             .color = third->line.color, .width = third->line.width,
-            .style = third->line.style } };
+            // aplite's style is frozen, so it loads the immediate the old
+            // `.dotted = true` compiled to — the runtime read is dead weight
+            // against its exactly-full image ceiling (check-aplite-size.sh).
+#if defined(WW_LINE_STYLE)
+            .style = third->line.style
+#else
+            .style = CHART_LINE_DOTS
+#endif
+            } };
     }
 #if defined(WW_FOURTH_LINE)
     ChartLayer fourth_line_layer = {0};
@@ -614,7 +622,12 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
                   .export_points = area_pts,
                   .color = second->line.color, .width = second->line.width,
-                  .style = second->line.style } };
+#if defined(WW_LINE_STYLE)
+                  // aplite: omitted — the literal's zero IS CHART_LINE_SOLID,
+                  // its frozen style, and the runtime read would be dead bytes.
+                  .style = second->line.style
+#endif
+                  } };
     }
     // Fill present: marks go over the line + its opaque fill so they stay visible.
     if (third_line_on && fill_on) { layers[n++] = third_line_layer; }

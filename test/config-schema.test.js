@@ -2084,6 +2084,14 @@ test('the Third metric row and every line-style row hide on aplite (memory-gated
     { all: [APLITE_GATE, { key: 'thirdLine', ne: 'off' }] });
   assert.deepEqual(byKey('fourthLineStyle').showWhen,
     { all: [APLITE_GATE, { key: 'fourthLine', ne: 'off' }] });
+  // The fourth-context wind-scale copies carry the same gate, or a re-paired
+  // aplite (stored fourthLine preserved by the row-level hide above) would
+  // render an orphaned scale row for a line it never draws. The pressure
+  // copy's gate is pinned in its own showWhen test.
+  const fourthWinds = items.filter((i) => i.messageKey === 'windScale'
+    && i.showWhen.all.some((c) => c.key === 'fourthLine'));
+  assert.equal(fourthWinds.length, 3, 'one fourth-context wind-scale copy per unit');
+  fourthWinds.forEach((w) => assert.deepEqual(w.showWhen.all[0], APLITE_GATE));
 });
 
 test('the line-style pickers offer thin/thick/dots/x with per-line defaults matching the wire', () => {
@@ -2120,7 +2128,10 @@ test('pressureScale shows for the main line, and for a later line only when no e
   ]});
   const fourth = scales.find((s) => s.showWhen.all
     && s.showWhen.all.some((c) => c.key === 'fourthLine'));
+  // The fourth arm also carries the aplite gate: its line is aplite-hidden with
+  // the stored value preserved, so the scale row must never orphan there.
   assert.deepEqual(fourth.showWhen, { all: [
+    { env: 'platform', ne: 'aplite' },
     { key: 'fourthLine', eq: 'pressure' },
     { not: { key: 'secondaryLine', eq: 'pressure' } },
     { not: { key: 'thirdLine', eq: 'pressure' } }
