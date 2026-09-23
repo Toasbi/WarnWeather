@@ -142,6 +142,34 @@ function restorePreserved(target) {
 }
 
 /**
+ * A copy of a settings blob fit for console.log: each user API key
+ * (PRESERVED_SETTING_KEYS, the one list of credential keys) becomes '<set>' or
+ * ''. PKJS logs end up in bug reports and pasted issues, so they must not carry a
+ * key someone may have paid for. Logging only -- the copy must never be saved or
+ * sent, and the blob itself is left untouched (the page and providers need the
+ * real keys).
+ *
+ * @param {?Object} blob Settings blob (may be null).
+ * @returns {?Object} Shallow copy with the keys redacted, or the input when not an object.
+ */
+function redactForLog(blob) {
+    var out;
+    var i;
+    var k;
+    if (!blob || typeof blob !== 'object') {
+        return blob;
+    }
+    out = Object.assign({}, blob);
+    for (i = 0; i < PRESERVED_SETTING_KEYS.length; i++) {
+        k = PRESERVED_SETTING_KEYS[i];
+        if (Object.prototype.hasOwnProperty.call(out, k)) {
+            out[k] = out[k] ? '<set>' : '';
+        }
+    }
+    return out;
+}
+
+/**
  * Whether a saved-settings response should trigger a full reset. The one-shot
  * "Reset watchface" toggle wipes on Save; the blunt on-Save/undo-warning in its
  * hint is the safeguard, and onbuild.js re-zeroes it each open so it never
@@ -376,6 +404,7 @@ module.exports = {
     resetAll: resetAll,
     fillFromPreserved: fillFromPreserved,
     shouldReset: shouldReset,
+    redactForLog: redactForLog,
     hasStored: hasStored,
     getDefaults: getDefaults,
     seedDefaults: seedDefaults,

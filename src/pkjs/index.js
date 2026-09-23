@@ -202,7 +202,7 @@ Pebble.addEventListener('showConfiguration', function(e) {
         env: { phoneBattery: phoneBatteryEnv },
         userData: userData
     }));
-    console.log('Showing clay: ' + JSON.stringify(values));
+    console.log('Showing clay: ' + JSON.stringify(claySettings.redactForLog(values)));
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
@@ -304,7 +304,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     });
     refreshHolidays();
     // app.settings was just reloaded from storage above; log it rather than re-reading.
-    console.log('Closing clay: ' + JSON.stringify(app.settings));
+    console.log('Closing clay: ' + JSON.stringify(claySettings.redactForLog(app.settings)));
 });
 
 /**

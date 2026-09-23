@@ -42,7 +42,7 @@ var OpenWeatherMapProvider = function(apiKey) {
     // whitespace (saved before the page trimmed it) doesn't test fine then 401.
     this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : apiKey;
     this.weatherDataCache = null;
-    console.log('Constructed with ' + apiKey);
+    console.log('Constructed (key ' + (this.apiKey ? 'set' : 'missing') + ')');
 };
 
 OpenWeatherMapProvider.prototype = Object.create(WeatherProvider.prototype);
