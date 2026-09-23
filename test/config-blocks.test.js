@@ -890,6 +890,38 @@ test('forecastPreview: rainBarColor=Solid in the light theme uses DarkGray, not 
 });
 
 
+// chart.c draws BAR_OUTLINED (the forecast rain bars and the radar bars alike) with a
+// theme_fg() top+side silhouette in every theme except colour-dark. So the light COLOUR
+// theme outlines its bars in black too — over the palette interior, not instead of it.
+const EDGE_MARK = /<path d="M[^"]+" fill="none" stroke="#000000" stroke-width="1"><\/path>/g;
+function countMatches(svg, re) { return (svg.match(re) || []).length; }
+test('light colour theme: rain and radar bars carry the watch\'s black silhouette over their colour', () => {
+  const env = { color: true, platform: 'basalt' };
+  const fcBase = { barSource: 'rain', secondaryLine: 'off', windScale: 'mid', dayNightShading: false };
+  const rdBase = { radarProvider: 'dwd', radarMode: 'graph' };
+  // Every drawn bar is outlined: the same bar count bw-light (the B&W silhouette) draws.
+  const fcBars = countMatches(FC.forecastPreview(Object.assign({}, fcBase, { rainBarColor: 'multicolor', theme: 'bw-light' }), env), new RegExp(OUTLINE_MARK, 'g'));
+  const rdBars = countMatches(RD.radarPreview(Object.assign({}, rdBase, { radarColor: 'multicolor', theme: 'bw-light' }), env), new RegExp(OUTLINE_MARK, 'g'));
+  assert.ok(fcBars > 0 && rdBars > 0, 'sanity: both previews draw bars');
+  ['multicolor', 'white'].forEach((mode) => {
+    const fc = FC.forecastPreview(Object.assign({}, fcBase, { rainBarColor: mode, theme: 'light' }), env);
+    const rd = RD.radarPreview(Object.assign({}, rdBase, { radarColor: mode, theme: 'light' }), env);
+    assert.equal(countMatches(fc, EDGE_MARK), fcBars, 'forecast ' + mode + ': every rain bar outlined');
+    assert.equal(countMatches(rd, EDGE_MARK), rdBars, 'radar ' + mode + ': every exact bar outlined');
+    const interior = mode === 'white' ? /width="9"[^>]*fill="#555555"/ : /fill="#00FF00"/;
+    assert.ok(interior.test(fc), 'forecast ' + mode + ': the colour interior is kept under the outline');
+    // (The radar's countdown band prints its text in theme-fg black, so only shapes count.)
+    assert.equal(/<(rect|path)[^>]*fill="#000000"/.test(fc), false, 'forecast ' + mode + ': the outline is a stroke, never a black fill');
+    assert.equal(/<(rect|path)[^>]*fill="#000000"/.test(rd), false, 'radar ' + mode + ': the outline is a stroke, never a black fill');
+    // Colour-dark opts out of the silhouette on the watch, so it stays unoutlined here.
+    const fcDark = FC.forecastPreview(Object.assign({}, fcBase, { rainBarColor: mode, theme: 'dark' }), env);
+    const rdDark = RD.radarPreview(Object.assign({}, rdBase, { radarColor: mode, theme: 'dark' }), env);
+    const anyEdge = /<path d="M[^"]+" fill="none" stroke="[^"]+" stroke-width="1"><\/path>/g;
+    assert.equal(countMatches(fcDark, anyEdge), 0, 'forecast ' + mode + ' dark: no outline');
+    assert.equal(countMatches(rdDark, anyEdge), 0, 'radar ' + mode + ' dark: no outline');
+  });
+});
+
 test('radarPreview (metno): point provider renders like rainbow — no nearby bars or legend', () => {
   const metno = RD.radarPreview({ radarProvider: 'metno', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
   const rainbow = RD.radarPreview({ radarProvider: 'rainbow', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });

@@ -120,6 +120,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // (see rainBars' `outline` param below) using ink.fg as the stroke color, which
         // this variable also equals there — same value, different role.
         var barFg = isColor ? (isLightPolarity(cx.theme) ? '#555555' : '#FFFFFF') : ink.fg;
+        // The light colour theme keeps that interior and adds chart.c's theme_fg()
+        // silhouette on top (BAR_OUTLINED is drawn in every theme but colour-dark).
+        var barEdge = (isColor && isLightPolarity(cx.theme)) ? ink.fg : null;
 
         // One coherent 12-point scenario starting at noon (slot 0 = 12:00): an afternoon
         // shower that suppresses UV, UV gone overnight, temp dipping then rising toward dawn.
@@ -451,12 +454,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // night-area underlay, which re-shades the filled area during the night hours.
         e += nightTint;
         if (state.barSource === 'rain') {
-            // White (or theme-flipped) when the setting says so OR effectively-B&W. B&W draws
-            // the outlined silhouette (BAR_OUTLINED); colour-white draws a solid bar
-            // (BAR_SOLID) — matching the watch.
+            // White (or theme-flipped) when the setting says so OR effectively-B&W. The watch
+            // draws every one of these bars BAR_OUTLINED: B&W as a theme_bg()-filled
+            // silhouette, colour-light as the palette/Solid interior with the theme_fg()
+            // silhouette over it (barEdge), colour-dark with no outline at all.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
             for (var i = 0; i < n - 1; i += 1) {
-                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg);
+                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg, barEdge);
             }
         }
         e += lineFor(state.secondaryLine);
