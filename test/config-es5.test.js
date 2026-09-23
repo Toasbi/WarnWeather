@@ -3,17 +3,21 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { es5Violations } = require('./helpers/es5-lint.js');
+const { es5Violations, inlineScripts } = require('./helpers/es5-lint.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const PKJS = path.join(ROOT, 'src', 'pkjs');
 
-// Every hand-authored watch-runtime PKJS file must be ES5: the aplite
-// JavaScriptCore runtime is pre-ES6, the SDK does no babel transpilation, and
-// failures are invisible on other platforms (the v1.1.0 Object.assign crash).
-// Walk src/pkjs/** so new files are covered automatically — the previous
-// hardcoded 12-file list silently left forecast-series/outbox/weather/* etc.
-// unguarded. Exclusions:
+// Every hand-authored shipped file must be ES5: the aplite JavaScriptCore that
+// runs PKJS is pre-ES6, the SDK does no babel transpilation, and failures are
+// invisible on other platforms (the v1.1.0 Object.assign crash) — and the
+// settings page's webview code (config-ui/lib, settings/) is held to the same
+// rule for ancient Android WebViews. Walk src/pkjs/** so new files are covered
+// automatically — the previous hardcoded 12-file list silently left
+// forecast-series/outbox/weather/* etc. unguarded. The walk also collects every
+// .html file, whose inline <script> bodies are scanned: shell.html's is the
+// first code the settings page runs, and it opens the page-wide "use strict"
+// <script> every lib/app file is concatenated into. Exclusions:
 //  - *.test.js            : run on Node, not shipped
 //  - *.generated.js       : machine-generated; page.generated.js is an HTML/JS
 //                           STRING (webview code, never parsed by the watch) and
@@ -30,7 +34,7 @@ function walk(dir) {
       out = out.concat(walk(full));
       return;
     }
-    if (!ent.name.endsWith('.js')) return;
+    if (!ent.name.endsWith('.js') && !ent.name.endsWith('.html')) return;
     if (ent.name.endsWith('.test.js')) return;
     if (ent.name.endsWith('.generated.js')) return;
     if (ent.name === 'dev-config.js') return;
@@ -39,7 +43,13 @@ function walk(dir) {
   return out;
 }
 
-const FILES = walk(PKJS);
+const SHIPPED = walk(PKJS);
+const FILES = SHIPPED.filter((f) => f.endsWith('.js'));
+const HTML_FILES = SHIPPED.filter((f) => f.endsWith('.html'));
+// suncalc is the one npm dependency webpack bundles into PKJS (require('suncalc')
+// in index.js and weather/provider.js). package-lock.json pins it, so this is a
+// tripwire for a lockfile bump, scanned only where `npm install` has run.
+const SUNCALC = path.join(ROOT, 'node_modules', 'suncalc', 'suncalc.js');
 
 /**
  * One violation as a readable line for the failure diff.
@@ -59,6 +69,26 @@ test('shipped pkjs files contain no ES6 syntax or unpolyfilled built-ins', () =>
     const found = es5Violations(fs.readFileSync(file, 'utf8')).map(fmt);
     assert.deepEqual(found, [], path.relative(ROOT, file) + ' is not ES5');
   });
+});
+
+test('the settings shell is scanned: shell.html carries an inline <script>', () => {
+  const shell = HTML_FILES.find((f) => f.endsWith(path.join('config-ui', 'lib', 'shell.html')));
+  assert.ok(shell, 'walk must collect src/pkjs/config-ui/lib/shell.html');
+  assert.ok(inlineScripts(fs.readFileSync(shell, 'utf8')).length >= 1,
+    'shell.html has no inline <script> to scan — did the markers move?');
+});
+
+test('inline <script> bodies of shipped .html files are ES5', () => {
+  HTML_FILES.forEach((file) => {
+    inlineScripts(fs.readFileSync(file, 'utf8')).forEach((body, i) => {
+      assert.deepEqual(es5Violations(body).map(fmt), [],
+        path.relative(ROOT, file) + ' <script> #' + (i + 1) + ' is not ES5 (script-relative lines)');
+    });
+  });
+});
+
+test('the bundled suncalc dependency is ES5', { skip: !fs.existsSync(SUNCALC) && 'suncalc not installed' }, () => {
+  assert.deepEqual(es5Violations(fs.readFileSync(SUNCALC, 'utf8')).map(fmt), []);
 });
 
 // The guard's own contract, so a regression in the linter cannot turn it into a
