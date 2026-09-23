@@ -388,8 +388,8 @@
      * Magnus saturation vapour pressures at the two, with the constants the
      * watch's feels-like uses (weather/feels-like.js), so the two sides
      * agree on what a dew point means. DWD's MOSMIX forecast carries a dew
-     * point on every hour but no humidity at all, and Brightsky never fills
-     * one in, so this is where a DWD forecast hour's humidity comes from.
+     * point on every hour but no humidity at all, so this is where a DWD
+     * forecast hour's humidity comes from.
      * @param {?number} tempC Air temperature in °C.
      * @param {?number} dewC Dew point in °C.
      * @returns {?number} Relative humidity in % (0..100), or null when
@@ -400,6 +400,23 @@
             || typeof dewC !== 'number' || !isFinite(dewC)) { return null; }
         var rh = 100 * Math.exp(17.27 * dewC / (237.7 + dewC) - 17.27 * tempC / (237.7 + tempC));
         return rh > 100 ? 100 : rh;
+    }
+
+    /**
+     * Dew point from air temperature and relative humidity: the inverse of
+     * humidityFromDewPoint, same constants. OWM's 3-hourly forecast serves a
+     * humidity but no dew point, so this is where the dew line past One
+     * Call's 48 hourlies comes from.
+     * @param {?number} tempC Air temperature in °C.
+     * @param {?number} rh Relative humidity in %.
+     * @returns {?number} Dew point in °C, or null when either input is
+     *   missing or the air is bone dry (0 %: no dew point exists).
+     */
+    function dewPointFromHumidity(tempC, rh) {
+        if (typeof tempC !== 'number' || !isFinite(tempC)
+            || typeof rh !== 'number' || !isFinite(rh) || rh <= 0) { return null; }
+        var g = Math.log((rh > 100 ? 100 : rh) / 100) + 17.27 * tempC / (237.7 + tempC);
+        return 237.7 * g / (17.27 - g);
     }
 
     // --- condition-code → icon normalization ---------------------------------
@@ -665,6 +682,7 @@
         displayWind: displayWind,
         windUnitLabel: windUnitLabel,
         humidityFromDewPoint: humidityFromDewPoint,
+        dewPointFromHumidity: dewPointFromHumidity,
         wmoIcon: wmoIcon,
         brightskyIcon: brightskyIcon,
         owmIcon: owmIcon,

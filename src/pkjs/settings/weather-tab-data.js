@@ -388,13 +388,21 @@
             hourly.wind.push(num(r.wind_speed));
             hourly.gust.push(num(r.wind_gust_speed));
             hourly.dir.push(num(r.wind_direction));
-            // MOSMIX has no humidity, so every forecast hour arrives without
-            // one (Brightsky's IGNORED_MISSING_FIELDS) and the bars stopped
-            // at the now line. Its dew point is always there, and with the
-            // temperature it gives the humidity exactly.
-            var rh = num(r.relative_humidity);
-            hourly.rh.push(rh !== null ? rh
-                : model.humidityFromDewPoint(num(r.temperature), num(r.dew_point)));
+            // MOSMIX has no humidity, so a forecast hour arrives without one
+            // and the bars stopped at the now line -- or, in the hours the
+            // observations lag behind, with one Brightsky borrowed from
+            // another station (fallback_source_ids), which need not agree
+            // with the temperature and dew point this panel draws beside it.
+            // Those two are always there and give the humidity exactly; only
+            // a reading of the row's own stands in their place.
+            var fbIds = r.fallback_source_ids;
+            var borrowed = Boolean(fbIds) && fbIds.relative_humidity !== null
+                && fbIds.relative_humidity !== undefined;
+            var rh = model.humidityFromDewPoint(num(r.temperature), num(r.dew_point));
+            if (rh === null || (!borrowed && num(r.relative_humidity) !== null)) {
+                rh = num(r.relative_humidity);
+            }
+            hourly.rh.push(rh);
             hourly.dew.push(num(r.dew_point));
             hourly.pressure.push(num(r.pressure_msl));
             hourly.icon.push(r.icon ? model.brightskyIcon(r.icon) : null);
@@ -476,7 +484,8 @@
     /**
      * OWM 5-day/3-hour forecast (2.5/forecast, metric) → normalized hourly
      * rows: the series that extends the timeline past One Call's 48 h of
-     * hourlies. No dew point in this endpoint.
+     * hourlies. No dew point in this endpoint: it is derived from the
+     * temperature and humidity, so the dew line runs on with the others.
      *
      * A record's rain['3h'] + snow['3h'] total and its pop are the 3 hours
      * that END at its dt ("Rain volume for last 3 hours"), so they fill the
@@ -511,7 +520,7 @@
             at.gust.push(num(wind.gust) === null ? null : wind.gust * MPS_TO_KMH);
             at.dir.push(num(wind.deg));
             at.rh.push(num(main.humidity));
-            at.dew.push(null);
+            at.dew.push(model.dewPointFromHumidity(num(main.temp), num(main.humidity)));
             at.pressure.push(num(main.pressure));
             at.icon.push(r.weather && r.weather[0] ? model.owmIcon(r.weather[0].id) : null);
         }
@@ -534,7 +543,7 @@
             hourly.gust.push(grid.gust[g]);
             hourly.dir.push(grid.dir[g]);
             hourly.rh.push(grid.rh[g]);
-            hourly.dew.push(null);
+            hourly.dew.push(grid.dew[g]);
             hourly.pressure.push(grid.pressure[g]);
             hourly.icon.push(inPeriod ? at.icon[k] : null);
         }

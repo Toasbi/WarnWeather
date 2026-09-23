@@ -101,6 +101,22 @@ test('Brightsky parser: DWD units pass through, daily aggregates client-side', (
   assert.equal(Math.round(derived.rh[0]), 53, 'humidity from temperature and dew point');
   assert.ok(derived.rh.slice(0, 29).every((v, i) => i === 3 ? v === null : v > 52 && v < 53),
     'every forecast hour gets one; the hour with no dew point stays unsourced');
+  // In the hours the observations lag, Brightsky can hand a MOSMIX row a
+  // humidity borrowed from another station (fallback_source_ids), which need
+  // not match the temperature and dew point drawn beside it: those win. A
+  // station's own reading -- 0 % included -- is kept as it came, and a
+  // borrowed one still beats nothing.
+  const lag = [
+    Object.assign({}, rows[0], { relative_humidity: 90, temperature: 20, dew_point: 10, fallback_source_ids: { relative_humidity: 7 } }),
+    Object.assign({}, rows[1], { relative_humidity: 0, temperature: 20, dew_point: 10 }),
+    Object.assign({}, rows[2], { relative_humidity: 90, temperature: 20, dew_point: null, fallback_source_ids: { relative_humidity: 7 } }),
+    Object.assign({}, rows[3], { relative_humidity: 40, temperature: 20, dew_point: 10, fallback_source_ids: { pressure_msl: 7 } })
+  ];
+  const lagRh = data.parsers.dwd({ weather: lag }, NOON).hourly.rh;
+  assert.equal(Math.round(lagRh[0] * 10) / 10, 52.6, 'a borrowed humidity gives way to the row\'s own temperature and dew point');
+  assert.equal(lagRh[1], 0, 'the row\'s own 0 % reading is kept');
+  assert.equal(lagRh[2], 90, 'with no dew point to derive from, the borrowed reading is better than none');
+  assert.equal(lagRh[3], 40, 'a fallback on another field leaves the row\'s own humidity alone');
   assert.equal(data.parsers.dwd({ weather: [] }, NOON), null);
 
   // Brightsky answers in the timezone we ASKED in — it adopts the `date`
@@ -207,7 +223,12 @@ test('OWM 3-hourly forecast parser + tail merge extend the timeline hour by hour
   assert.equal(parsed.hourly.temp[at(NOON)], 17);
   assert.equal(parsed.hourly.temp[at(NOON + 3 * H)], 16);
   assert.ok(Math.abs(parsed.hourly.temp[at(NOON + H)] - (17 - 1 / 3)) < 1e-9);
-  assert.equal(parsed.hourly.dew[at(NOON)], null, '2.5/forecast has no dew point');
+  // 2.5/forecast has no dew point: it comes from the temperature and the
+  // humidity (17 °C at 58 % -> 8.67 °C; 16 °C at 62 % -> 8.72 °C), and the
+  // rows between two records are resampled like every other instant.
+  assert.equal(Math.round(parsed.hourly.dew[at(NOON)] * 100) / 100, 8.67, 'the dew line runs on past the hourlies');
+  assert.equal(Math.round(parsed.hourly.dew[at(NOON + 3 * H)] * 100) / 100, 8.72);
+  assert.ok(parsed.hourly.dew[at(NOON + H)] > 8.67 && parsed.hourly.dew[at(NOON + H)] < 8.72, 'interpolated between records');
   assert.equal(parsed.utcOffsetSec, 3600);
   assert.equal(data.parsers.owmForecast3h({ list: [] }), null);
 

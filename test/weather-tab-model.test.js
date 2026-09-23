@@ -75,6 +75,23 @@ test('humidityFromDewPoint: Magnus ratio, saturated at the dew point, null witho
   assert.equal(model.humidityFromDewPoint(15, null), null);
   assert.equal(model.humidityFromDewPoint(15, undefined), null);
   assert.equal(model.humidityFromDewPoint(NaN, 8), null);
+  assert.equal(model.humidityFromDewPoint(20, NaN), null);
+});
+
+test('dewPointFromHumidity inverts humidityFromDewPoint', () => {
+  // 17 °C at 58 %, computed independently: 8.67 °C.
+  assert.equal(Math.round(model.dewPointFromHumidity(17, 58) * 100) / 100, 8.67);
+  assert.ok(Math.abs(model.dewPointFromHumidity(12, 100) - 12) < 1e-9, 'saturated air is at its dew point');
+  assert.ok(Math.abs(model.dewPointFromHumidity(12, 104) - 12) < 1e-9, 'a humidity above 100 (rounding in the feed) caps there');
+  for (const [t, td] of [[20, 10], [-5, -10], [30, 25]]) {
+    const back = model.dewPointFromHumidity(t, model.humidityFromDewPoint(t, td));
+    assert.ok(Math.abs(back - td) < 1e-9, 'round trip at ' + t + '/' + td);
+  }
+  assert.equal(model.dewPointFromHumidity(15, 0), null, 'bone-dry air has no dew point');
+  assert.equal(model.dewPointFromHumidity(15, -3), null);
+  assert.equal(model.dewPointFromHumidity(null, 50), null);
+  assert.equal(model.dewPointFromHumidity(15, null), null);
+  assert.equal(model.dewPointFromHumidity(15, NaN), null);
 });
 
 test('icon normalization: WMO, Brightsky, OWM, tomorrow.io spot checks', () => {
