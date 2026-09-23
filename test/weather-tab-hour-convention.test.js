@@ -3,8 +3,9 @@
 // 14:00 reads the rain still to fall between 14:00 and 15:00, and the watch's
 // 14:00 bar shows the same figure from the same provider. Open-Meteo and DWD
 // stamp rain, chance and gust at the END of their hour, so their parsers
-// re-stamp those fields; tomorrow.io and OWM stamp the hour at its start and
-// must not be touched, or they land an hour early.
+// re-stamp those fields. tomorrow.io and OWM One Call report an instant at
+// the stamp, held for the hour starting there, and must not be touched, or
+// they land an hour early.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 // The DWD adapter keeps the request function it finds at load: stub it first.
@@ -128,7 +129,7 @@ test('the tab and the watch read the same Open-Meteo hour for 14:00', () => {
   assert.equal(tab.hourly.temp[i14], watch.tempTrend[0], 'instants stay on their own stamp');
 });
 
-test('tomorrow.io and OWM already stamp the hour at its start: no re-stamping', () => {
+test('tomorrow.io and OWM One Call report the hour starting at the stamp: no re-stamping', () => {
   const intervals = [];
   for (let h = 0; h < 26; h += 1) {
     intervals.push({ startTime: new Date(DAY0 + h * H).toISOString(),

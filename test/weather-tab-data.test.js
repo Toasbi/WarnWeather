@@ -5,6 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const data = require('../src/pkjs/settings/weather-tab-data.js');
+const charts = require('../src/pkjs/settings/weather-tab-charts.js');
 
 const NOON = new Date(2026, 8, 20, 12, 0, 0).getTime();
 const DAY0 = new Date(2026, 8, 20, 0, 0, 0).getTime();
@@ -146,11 +147,14 @@ test('OWM parsers count snow as precipitation (hourly, daily and the 3-hourly ta
     { dt: NOON / 1000, main: { temp: -3 }, snow: { '3h': 4.5 }, weather: [{ id: 601 }] },
     { dt: NOON / 1000 + 3 * 3600, main: { temp: -3 }, rain: { '3h': 0.3 }, snow: { '3h': 0.6 }, weather: [{ id: 616 }] }
   ] });
+  // Rows run hourly from 3 h before the first stamp; each record fills the
+  // three hours before its own.
   assert.equal(tail.hourly.rain[0], 1.5, "snow['3h'] becomes a mm/h rate too");
-  assert.ok(Math.abs(tail.hourly.rain[1] - 0.3) < 1e-9, "rain['3h'] + snow['3h'] over 3 h");
+  assert.ok(Math.abs(tail.hourly.rain[3] - 0.3) < 1e-9, "rain['3h'] + snow['3h'] over 3 h");
 });
 
-test('OWM 3-hourly forecast parser + tail merge extend the timeline coarsely', () => {
+test('OWM 3-hourly forecast parser + tail merge extend the timeline hour by hour', () => {
+  const H = 3600000;
   const tail = {
     city: { timezone: 3600 },
     list: [
@@ -169,8 +173,26 @@ test('OWM 3-hourly forecast parser + tail merge extend the timeline coarsely', (
     ]
   };
   const parsed = data.parsers.owmForecast3h(tail);
-  assert.equal(parsed.hourly.rain[0], 0.3, "rain['3h'] totals become mm/h rates");
-  assert.equal(parsed.hourly.dew[0], null, '2.5/forecast has no dew point');
+  const at = (t) => parsed.hourly.time.indexOf(t);
+  assert.deepEqual(parsed.hourly.time, [-3, -2, -1, 0, 1, 2, 3].map((h) => NOON + h * H), 'hourly rows');
+  // rain['3h'] is the 3 hours ENDING at dt: the bars right of the three
+  // ticks before it, as an even mm/h rate — and the pop and the condition
+  // are that period's too.
+  assert.deepEqual([-3, -2, -1].map((h) => parsed.hourly.rain[at(NOON + h * H)]), [0.3, 0.3, 0.3],
+    "rain['3h'] fills the three hours before its stamp");
+  assert.deepEqual([-3, -2, -1].map((h) => parsed.hourly.prob[at(NOON + h * H)]), [20, 20, 20]);
+  assert.deepEqual([0, 1, 2].map((h) => parsed.hourly.rain[at(NOON + h * H)]), [0, 0, 0],
+    'the hours after it take the next record\'s period: dry');
+  assert.deepEqual([0, 1, 2].map((h) => parsed.hourly.prob[at(NOON + h * H)]), [50, 50, 50]);
+  assert.equal(parsed.hourly.icon[at(NOON - H)], 'rain');
+  assert.equal(parsed.hourly.icon[at(NOON)], 'partly');
+  assert.equal(parsed.hourly.rain[at(NOON + 3 * H)], null, 'the last stamp opens a period nobody forecast');
+  // Instants stay on their stamp and are interpolated between, as the grid
+  // drew them before the rows were hourly.
+  assert.equal(parsed.hourly.temp[at(NOON)], 17);
+  assert.equal(parsed.hourly.temp[at(NOON + 3 * H)], 16);
+  assert.ok(Math.abs(parsed.hourly.temp[at(NOON + H)] - (17 - 1 / 3)) < 1e-9);
+  assert.equal(parsed.hourly.dew[at(NOON)], null, '2.5/forecast has no dew point');
   assert.equal(parsed.utcOffsetSec, 3600);
   assert.equal(data.parsers.owmForecast3h({ list: [] }), null);
 
@@ -184,10 +206,27 @@ test('OWM 3-hourly forecast parser + tail merge extend the timeline coarsely', (
     daily: []
   }, NOON);
   data.mergeOwmTail(base, parsed);
-  assert.equal(base.hourly.time.length, 2, 'only rows past the last hourly stamp merge');
-  assert.equal(base.hourly.temp[1], 16);
+  assert.deepEqual(base.hourly.time, [0, 1, 2, 3].map((h) => NOON + h * H),
+    'only rows past the last hourly stamp merge');
+  assert.equal(base.hourly.temp[3], 16);
+  assert.equal(base.hourly.prob[1], 50);
   assert.equal(base.hourly.temp[0], 18, 'One Call stays authoritative where they overlap');
+  assert.equal(base.hourly.rain[0], 0.6);
   assert.equal(base.utcOffsetSec, 3600, 'the tail offset fills in when One Call has none');
+});
+
+test('an OWM 3-hour total draws over the three hours it fell in', () => {
+  const H = 3600000;
+  const list = [];
+  for (let h = 48; h <= 78; h += 3) {
+    list.push({ dt: (DAY0 + h * H) / 1000, main: { temp: 10, humidity: 70, pressure: 1010 },
+      wind: { speed: 3, deg: 200 }, pop: h === 72 ? 0.9 : 0.1,
+      rain: h === 72 ? { '3h': 3 } : undefined, weather: [{ id: h === 72 ? 501 : 800 }] });
+  }
+  const view = charts.prepareView(data.parsers.owmForecast3h({ list }), DAY0 + 12 * H);
+  const rainAt = (h) => view.rain[view.times.indexOf(DAY0 + h * H)];
+  assert.deepEqual([68, 69, 70, 71, 72, 73].map(rainAt), [0, 1, 1, 1, 0, 0],
+    'a record at 72:00 with 3 mm fills 69:00-72:00 with 1 mm/h, and 72:00 on is dry');
 });
 
 test('tomorrow.io parser: m/s → km/h, weatherCode mapping, aggregated daily', () => {

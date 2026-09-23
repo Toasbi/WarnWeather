@@ -513,8 +513,12 @@
      * none: its hour lies before the response, and the watch never reads it
      * either.
      *
-     * Only Open-Meteo and DWD need this; tomorrow.io and OWM already stamp
-     * the hour at its start, and shifting them would put them an hour early.
+     * Only Open-Meteo and DWD need this. tomorrow.io and OWM One Call report
+     * an INSTANT at the stamp (a rate, a chance, a gust), which holds for
+     * the hour starting there, as their own daily sums treat it; shifting
+     * them would put them an hour early. (OWM's 3-hourly tail totals the
+     * hours before its stamp too, but in 3 h blocks: parseOwmForecast3h
+     * spreads those itself.)
      * @param {{time: number[]}} hourly Normalized hourly arrays (time = epoch
      *   ms); rewritten in place, every per-row array replaced.
      * @param {Object<string, *>} fills Series key -> the value for a row with no T+1h partner.

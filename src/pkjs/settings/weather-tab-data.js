@@ -12,7 +12,9 @@
 //           A row is the hour STARTING at its stamp: rain, chance and gust
 //           stamped 14:00 are 14:00-15:00's. Open-Meteo and DWD stamp those
 //           at the hour's END, so their parsers re-stamp them
-//           (model.startHourFields), as the watch's adapters do.
+//           (model.startHourFields), as the watch's adapters do; OWM's
+//           3-hourly tail totals the 3 h before its stamp, spread over them
+//           (parseOwmForecast3h).
 //           Two provenance flags, per hour. `measured` says whether the
 //           RAIN was read off a station rather than modelled — it gates
 //           the rain bar, so it follows that one field exactly.
@@ -461,10 +463,18 @@
 
     /**
      * OWM 5-day/3-hour forecast (2.5/forecast, metric) → normalized hourly
-     * arrays at 3 h steps: the COARSER series that extends the timeline past
-     * One Call's 48 h of hourlies (the grid resampler interpolates it back
-     * onto hour marks). No dew point in this endpoint; the rain['3h'] +
-     * snow['3h'] totals become mm/h rates.
+     * rows: the series that extends the timeline past One Call's 48 h of
+     * hourlies. No dew point in this endpoint.
+     *
+     * A record's rain['3h'] + snow['3h'] total and its pop are the 3 hours
+     * that END at its dt ("Rain volume for last 3 hours"), so they fill the
+     * three hourly rows before it, T-3h to T-1h, as an even mm/h rate: the
+     * bars right of those ticks, where the rain fell. Its condition (the
+     * icon) is that period's too. Its temperature, wind, humidity and
+     * pressure are the instant at dt; the rows between two records take
+     * the resampled values the grid would draw there anyway
+     * (model.buildHourlyGrid). The last record's own row has no period
+     * after it, so its rain and chance are unsourced.
      * @param {Object} data Raw response body.
      * @returns {?{hourly: Object, utcOffsetSec: ?number}} Parsed tail, or null.
      */
@@ -472,26 +482,50 @@
         var rows = data && data.list;
         if (!rows || !rows.length) { return null; }
         var MPS_TO_KMH = 3.6;
-        var hourly = emptyHourly();
+        var HOUR_MS = 3600000;
+        var PERIOD_MS = 3 * HOUR_MS;
+        var at = emptyHourly();
         for (var i = 0; i < rows.length; i += 1) {
             var r = rows[i];
             if (!r || typeof r.dt !== 'number') { continue; }
             var main = r.main || {};
             var wind = r.wind || {};
             var precip3 = (num(r.rain && r.rain['3h']) || 0) + (num(r.snow && r.snow['3h']) || 0);
-            hourly.time.push(r.dt * 1000);
-            hourly.temp.push(num(main.temp));
-            hourly.rain.push(precip3 / 3);
-            hourly.prob.push(num(r.pop) === null ? null : r.pop * 100);
-            hourly.wind.push(num(wind.speed) === null ? null : wind.speed * MPS_TO_KMH);
-            hourly.gust.push(num(wind.gust) === null ? null : wind.gust * MPS_TO_KMH);
-            hourly.dir.push(num(wind.deg));
-            hourly.rh.push(num(main.humidity));
-            hourly.dew.push(null);
-            hourly.pressure.push(num(main.pressure));
-            hourly.icon.push(r.weather && r.weather[0] ? model.owmIcon(r.weather[0].id) : null);
+            at.time.push(r.dt * 1000);
+            at.temp.push(num(main.temp));
+            at.rain.push(precip3 / 3);
+            at.prob.push(num(r.pop) === null ? null : r.pop * 100);
+            at.wind.push(num(wind.speed) === null ? null : wind.speed * MPS_TO_KMH);
+            at.gust.push(num(wind.gust) === null ? null : wind.gust * MPS_TO_KMH);
+            at.dir.push(num(wind.deg));
+            at.rh.push(num(main.humidity));
+            at.dew.push(null);
+            at.pressure.push(num(main.pressure));
+            at.icon.push(r.weather && r.weather[0] ? model.owmIcon(r.weather[0].id) : null);
         }
-        if (!hourly.time.length) { return null; }
+        var n = at.time.length;
+        if (!n) { return null; }
+        var first = at.time[0] - PERIOD_MS;
+        var count = Math.floor((at.time[n - 1] - first) / HOUR_MS) + 1;
+        var grid = model.buildHourlyGrid(at, first, count);
+        var hourly = emptyHourly();
+        var k = 0;   // the first record stamped after the row: the period holding it
+        for (var g = 0; g < count; g += 1) {
+            var t = first + g * HOUR_MS;
+            while (k < n && at.time[k] <= t) { k += 1; }
+            var inPeriod = k < n && at.time[k] - t <= PERIOD_MS;
+            hourly.time.push(t);
+            hourly.temp.push(grid.temp[g]);
+            hourly.rain.push(inPeriod ? at.rain[k] : null);
+            hourly.prob.push(inPeriod ? at.prob[k] : null);
+            hourly.wind.push(grid.wind[g]);
+            hourly.gust.push(grid.gust[g]);
+            hourly.dir.push(grid.dir[g]);
+            hourly.rh.push(grid.rh[g]);
+            hourly.dew.push(null);
+            hourly.pressure.push(grid.pressure[g]);
+            hourly.icon.push(inPeriod ? at.icon[k] : null);
+        }
         return { hourly: hourly, utcOffsetSec: num(data.city && data.city.timezone) };
     }
 
