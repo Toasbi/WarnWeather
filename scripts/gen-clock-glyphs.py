@@ -70,12 +70,17 @@ PLATFORM_MACRO = {'basalt': 'PBL_PLATFORM_BASALT', 'emery': 'PBL_PLATFORM_EMERY'
 # design stays on the grid and the other moves out by the lost fraction (one grey column or row
 # where LIGHT drew two). A stroke counts as thinned when the hinter took SLIVER or more off its
 # design width; less is under the 2-bit alpha's half step, which the strip could not show anyway.
-# Round strokes -- a bowl's side between its outer and inner extremes, the round top of a '0' --
-# are rounded the same way and restored the same way. A straight edge no stroke claims (a bar's
-# end, a terminal's cut) is snapped to the nearest pixel -- inward when it is the glyph's own top
-# or bottom, so no flat edge fills a row the other digits reach only with overshoot -- and each
-# glyph is placed by its ink centroid, so the gaps between digits stay the design's to within
-# half a pixel.
+# Round strokes across the vertical -- a bowl's top and bottom, the round top of a '0' -- are
+# rounded the same way and restored the same way. Round ones across the horizontal -- a bowl's
+# left and right sides -- are not fitted at all: every point where the outline turns back in x
+# that is on no straight edge keeps its design x, so a bowl's sides shade their own edges the way
+# the curve above and below them does. Snapping them only moved them: at Emery's 62 px the
+# hinter set the right side of Roboto's '6' down from 24.67..33.39 to 24..33 -- the whole stroke
+# 0.4-0.7 px into the counter, which then read as a narrow slot beside a fat wall. A straight edge
+# no stroke claims (a bar's end, a terminal's cut) is snapped to the nearest pixel -- inward when
+# it is the glyph's own top or bottom, so no flat edge fills a row the other digits reach only with
+# overshoot -- and each glyph is placed by its ink centroid, so the gaps between digits stay the
+# design's to within half a pixel.
 HINT_FLAGS = freetype.FT_LOAD_TARGET_MONO | freetype.FT_LOAD_FORCE_AUTOHINT | freetype.FT_LOAD_NO_BITMAP
 DESIGN_FLAGS = freetype.FT_LOAD_NO_HINTING | freetype.FT_LOAD_NO_BITMAP
 SLIVER = 10     # 26.6 units, ~1/6 px
@@ -406,6 +411,7 @@ def fit_glyph(face, ch):
             top, bottom = e['k'] == 1 and h >= yhi, e['k'] == 1 and h <= ylo
             snapped = h // 64 * 64 if top else -(-h // 64) * 64 if bottom else (h + 32) // 64 * 64
             moves[id(e)] = snapped - h
+    straight_x = set(i for e in edges if e['k'] == 0 for i in e['idx'])
     for k in (0, 1):
         # every straight edge, round extreme and corner moves by its stroke's correction (most by
         # none): they anchor the interpolation of the points between them
@@ -414,6 +420,12 @@ def fit_glyph(face, ch):
             if e['k'] == k:
                 for i in e['idx']:
                     delta[i] = moves.get(id(e), 0)
+        if k == 0:
+            # ...except that in x only the straight edges (stems, bar ends) stay fitted: every
+            # other turn -- a bowl's side, a curve's or a diagonal's end -- goes back to its design x
+            for i in delta:
+                if i not in straight_x:
+                    delta[i] = U[i][0] - H[i][0]
         d = interpolate(H, ends, k, delta)
         for i in range(len(H)):
             if k == 0:
