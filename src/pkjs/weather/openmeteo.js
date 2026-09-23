@@ -338,8 +338,10 @@ function mapUv(json, startTime) {
 
 /**
  * Fetch UV from Open-Meteo into provider.uvTrend, but only when provider.fetchUv
- * is set (UV is on a line). Non-fatal: a failed/empty UV call just leaves uvTrend
- * untouched, so the UV line stays off rather than failing the whole forecast.
+ * is set (UV is on a line). Non-fatal: uvTrend is reset to [] before the call, so
+ * a failed/empty UV call leaves the UV line off and the slot at '--' rather than
+ * failing the whole forecast — or, on a reused provider instance, shipping the
+ * previous cycle's window against the new startTime.
  * Shared by the Open-Meteo provider and the DWD fallback.
  * @param {Object} provider Active provider (reads .fetchUv/.startTime, writes .uvTrend).
  * @param {number} lat Latitude.
@@ -349,6 +351,7 @@ function mapUv(json, startTime) {
  */
 function fetchUvInto(provider, lat, lon, done) {
     if (!provider.fetchUv) { done(); return; }
+    provider.uvTrend = []; // this fetch owns the field (see adoptMapped)
     var uvUrl = buildUvUrl(lat, lon);
     request(uvUrl, 'GET', function(resp) {
         var uvs = null;

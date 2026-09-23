@@ -360,3 +360,40 @@ test('DWD leaves currentFeels null when current_weather lacks the Steadman input
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.equal(p.currentFeels, null, 'null → FEELS_CURRENT omitted, temp slot degrades');
 });
+
+test('DWD drops the previous UV window when the shared UV fetch fails on a reused instance', () => {
+  // DWD borrows Open-Meteo's UV fetch; index.js re-fetches on one provider
+  // instance, so a failed UV call must not leave cycle 1's window in place.
+  const HOUR = 3600;
+  const START = Math.floor(Date.parse('2023-11-14T08:00:00+00:00') / 1000);
+  function respond(startEpoch, uvFails) {
+    return function(url, onSuccess, onError) {
+      if (url.indexOf('hourly=uv_index') !== -1) {
+        if (uvFails) { onError({ code: 0, message: 'timeout' }); return; }
+        const time = [], uv_index = [];
+        for (let i = 0; i < 72; i += 1) { time.push(START + i * HOUR); uv_index.push(i); }
+        onSuccess(JSON.stringify({ hourly: { time, uv_index } }));
+        return;
+      }
+      if (url.indexOf('/current_weather') !== -1) {
+        onSuccess(JSON.stringify({ weather: { temperature: 20 } }));
+        return;
+      }
+      onSuccess(JSON.stringify({ weather: [
+        { temperature: 0, precipitation_probability: 0, precipitation: 0, wind_speed: 0, wind_gust_speed: 0,
+          timestamp: new Date(startEpoch * 1000).toISOString() }
+      ] }));
+    };
+  }
+  const p = new DwdProvider();
+  p.fetchUv = true;
+  responder = respond(START, false);
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('cycle 1 failed: ' + JSON.stringify(f)); });
+  assert.equal(p.uvTrend[0], 0, 'cycle 1 adopted the UV window aligned to 08:00');
+  assert.ok(p.uvTrend.length > 0);
+
+  responder = respond(START + HOUR, true);
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('cycle 2 failed: ' + JSON.stringify(f)); });
+  assert.equal(p.startTime, START + HOUR);
+  assert.deepEqual(p.uvTrend, [], 'stale UV dropped when the UV call fails');
+});
