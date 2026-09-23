@@ -12,7 +12,8 @@
 // Async shape: block renderers are synchronous string-returners re-run on
 // every settings change, so the weather data lives in module state; a fetch
 // completion patches state and asks the engine for a repaint via the ctx
-// captured at onReady (the news.js/view-editor.js pattern).
+// captured at onReady (the news.js/view-editor.js pattern) — only while this
+// tab is the one showing (repaintIfShown).
 //
 // Gesture shape (the app's): a horizontal drag on any chart pans EVERY
 // panel together, one day per viewport, snapping to day boundaries on
@@ -40,6 +41,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var ctx = null;                 // engine context from onReady
     var fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
     var inFlight = null;            // key currently being fetched
+    var forceNext = false;          // the next fetch is a manual refresh: skip the cache
     var scrubIndex = null;          // crosshair index shared by all panels
     var panDay = 0;                 // day currently in the viewport (0-based)
     var editingSlot = null;         // overlay target: 1..3
@@ -56,22 +58,43 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // seconds of the minute turning; coarse enough to be free.
     var AGE_TICK_MS = 15000;
     var PANEL_IDS = ['temp', 'wind', 'hum', 'press'];
+    var WEATHER_TAB = 'weather';    // this tab's schema id
+
+    /**
+     * Repaint for an async completion (weather data, a GPS fix, a city name)
+     * — but only while the Weather tab is the one on screen. render() rebuilds
+     * the ACTIVE tab wholesale, so a completion landing after the user moved
+     * on would tear down whatever they are doing there: a focused text field
+     * loses its node, its focus and the soft keyboard. Skipping is safe:
+     * every render reads this module's state, so the render that switches
+     * back to Weather paints what landed meanwhile (and fires any fetch a
+     * GPS answer left due). A ctx without activeTab (tests) always repaints.
+     * @returns {void}
+     */
+    function repaintIfShown() {
+        if (!ctx) { return; }
+        if (typeof ctx.activeTab === 'function' && ctx.activeTab() !== WEATHER_TAB) { return; }
+        ctx.render();
+    }
 
     /**
      * The effective current-location seed: a fix this page acquired itself
      * (manual refresh re-reads the phone GPS, so the Current chip follows
      * the user around after the page has been open a while), else the seed
-     * the phone injected at page open, else null.
+     * the phone injected at page open, else null. `gps` carries whether the
+     * watch follows the phone's position (the injected seed's flag; a
+     * page-acquired fix only exists because it did) — a manual watch
+     * location is never swapped for the phone's.
      * @param {Object} userData Injected userData.
-     * @returns {?{lat: number, lon: number, name: string}} Seed or null.
+     * @returns {?{lat: number, lon: number, name: string, gps: boolean}} Seed or null.
      */
     function seedOf(userData) {
         var s = userData && userData.graphsSeed;
         var base = (!s || !isFinite(Number(s.lat)) || !isFinite(Number(s.lon)))
             ? null
-            : { lat: Number(s.lat), lon: Number(s.lon), name: s.name || 'Current location' };
+            : { lat: Number(s.lat), lon: Number(s.lon), name: s.name || 'Current location', gps: s.gps === true };
         if (gpsSeed) {
-            return { lat: gpsSeed.lat, lon: gpsSeed.lon, name: gpsSeed.name || (base && base.name) || 'Current location' };
+            return { lat: gpsSeed.lat, lon: gpsSeed.lon, name: gpsSeed.name || (base && base.name) || 'Current location', gps: true };
         }
         return base;
     }
@@ -98,6 +121,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Refetch keeps the frame: hold the previous view (dimmed by the
         // renderer) instead of flashing a skeleton.
         fetchState = { key: key, status: 'loading', data: fetchState.data, error: null, view: fetchState.view };
+        var force = forceNext;
+        forceNext = false;
         // A cache hit answers on the SAME tick, while this very call sits
         // inside an engine render — repainting then would re-enter render().
         // The synchronous flag skips it; the block reads the updated state
@@ -106,7 +131,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         data.fetchWeather(provider, loc.lat, loc.lon, state, function (result, err) {
             if (inFlight !== key) { return; }  // superseded by a newer pick
             inFlight = null;
-            if (err) {
+            if (err && !isNewKey && fetchState.view) {
+                // A refresh of the place already on screen failed: the charts
+                // it was refreshing are still this key's, and still the best
+                // there is — keep them and say the update failed. 'ok', not
+                // 'idle': a same-key 'ok' never refetches from a render.
+                // (A NEW key must not keep them: the held frame is another
+                // place's charts.)
+                fetchState = { key: key, status: 'ok', data: fetchState.data, error: null, view: fetchState.view, refreshError: err };
+            } else if (err) {
                 fetchState = { key: key, status: 'error', data: null, error: err, view: null };
             } else {
                 var view = charts.prepareView(result, Date.now());
@@ -116,8 +149,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 // panDay by itself, so there is nothing else to reset.
                 if (isNewKey) { panDay = 0; }
             }
-            if (ctx && !sync) { ctx.render(); }
-        });
+            if (!sync) { repaintIfShown(); }
+        }, force);
         sync = false;
     }
 
@@ -292,9 +325,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // Neither the location nor the provider is repeated here — the chip
         // row and the Provider card each already name theirs.
         var meta = fetchState.data && fetchState.data.meta;
+        // A failed refresh keeps the charts it was refreshing; the note rides
+        // beside the age (never inside #wx-age, whose ticker rewrites it).
+        var refreshFailed = !refetching && Boolean(fetchState.refreshError);
         h += '<div class="wx-panel"><div class="wx-panel-head">'
             + '<span class="wx-panel-title">5-day forecast</span>'
             + '<span class="wx-fresh">'
+            + (refreshFailed ? '<span class="wx-stale">Update failed</span>' : '')
             + '<span class="wx-age" id="wx-age">'
             + (refetching ? 'updating…' : (meta ? charts.agoText(meta.fetchedAt, Date.now()) : ''))
             + '</span>'
@@ -308,8 +345,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // (the card wrapper uses overflow:clip precisely so descendant
         // sticky survives; engines that only know overflow:hidden degrade
         // to normal scrolling).
+        // Today is the FETCH's today (view.nowMs), the clock the panels, the
+        // now line and the settled past were built on: a re-render past the
+        // location's midnight without a refetch must not move the label onto
+        // tile 1 while every chart still stands on day 0. The age line says
+        // how old that frame is; Refresh moves all of it forward together.
         h += '<div class="wx-sticky">'
-            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, Date.now(), panDay, view.days)
+            + charts.dailyStripHtml(view.daily, settings, pal, view.offsetSec, view.nowMs, panDay, view.days)
             + vp('strip', charts.timeStripSvg(view, loc, pal, sunCalcLib, idx)) + '</div>';
         // The Measured|Forecast caption sits OUTSIDE the pinned block: the
         // pin ends at the hourly ticks, so the caption scrolls away with
@@ -617,7 +659,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (revFor === seed) { revFor = null; }
             if (city && gpsSeed === seed) {
                 seed.name = city;
-                if (ctx) { ctx.render(); }
+                repaintIfShown();
             }
         });
     }
@@ -653,28 +695,35 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * (per page open), when the pick changes, and through this (the Refresh
      * button beside the 5-day title, and pull-to-refresh). Keeps fetchState.key and .view, so
      * ensureFetch refires for the same key and the charts stay up (dimmed)
-     * on the day the user was viewing.
+     * on the day the user was viewing. That fetch bypasses the page cache
+     * rather than clearing it: a refresh that fails (offline) keeps the
+     * charts on screen with an "Update failed" note, and the other saved
+     * locations stay served from their cached data either way.
      *
-     * When the Current chip is the active location, the refresh first re-reads
-     * the phone's GPS so the charts follow the user, not the fix from page
-     * open: fetchState holds 'loading' (dimmed charts, ensureFetch off) until
-     * the fix answers — one fetch, at the right place — then goes idle so the
+     * When the Current chip is the active location AND the watch follows the
+     * phone's GPS (the seed's `gps` flag), the refresh first re-reads the
+     * phone's GPS so the charts follow the user, not the fix from page open:
+     * fetchState holds 'loading' (dimmed charts, ensureFetch off) until the
+     * fix answers — one fetch, at the right place — then goes idle so the
      * next render fetches. Every failure shape (no API, denied, timeout)
-     * degrades to a plain refresh of the previous coordinates.
+     * degrades to a plain refresh of the previous coordinates. A manual
+     * watch location is the Current chip's place whatever the phone's
+     * position, so it refreshes in place like a saved slot.
      * @returns {boolean} True when a refetch was kicked off (re-render due).
      */
     function refreshWeather() {
         if (fetchState.status === 'loading') { return false; }
-        data.clearCache();
-        var active = ctx && ctx.S ? model.activeLocation(ctx.S, seedOf(ctx.USERDATA)) : null;
-        if (active && active.key === 'current') {
+        forceNext = true;
+        var seed = ctx ? seedOf(ctx.USERDATA) : null;
+        var active = ctx && ctx.S ? model.activeLocation(ctx.S, seed) : null;
+        if (active && active.key === 'current' && seed && seed.gps) {
             fetchState.status = 'loading';
             data.getGpsFix(function (fix) {
                 if (fix) { applyGpsFix(fix); }
                 // Release only the hold WE placed: a pick switched mid-wait
                 // already has its own fetch in flight — leave it alone.
                 if (!inFlight && fetchState.status === 'loading') { fetchState.status = 'idle'; }
-                if (ctx) { ctx.render(); }
+                repaintIfShown();
             });
         } else {
             fetchState.status = 'idle';
@@ -716,10 +765,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var boxEl = tip.parentNode;
         var vw = boxEl && boxEl.clientWidth;
         var crossPx = (charts.xAt(view, i) - dayOff * charts.DAY_W) / charts.DAY_W * (vw || 0);
-        // Half a pixel of slack at both edges: a tap's release slop can
-        // round to the hour sitting exactly ON the day seam (scrubTo
-        // clamps i to the timeline, not the day), which lands crossPx on
-        // the boundary — visible, not gone.
+        // Half a pixel of slack at both edges: mid-drag (panTips) the day
+        // offset is fractional, and an hour on a seam can compute a hair
+        // outside it. It is still on screen; hiding it would flicker its
+        // tip as the finger crosses.
         if (vw && (crossPx < -0.5 || crossPx > vw + 0.5)) {
             tip.style.display = 'none';
             return;
@@ -1168,15 +1217,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (!vp) { return; }
         var rect = vp.getBoundingClientRect();
         if (!rect.width) { return; }
-        var vx = panDay * charts.DAY_W
-            + (clientX - rect.left) / rect.width * charts.DAY_W;
+        var into = (clientX - rect.left) / rect.width;
+        // Only a tap lands here (a drag pans or scrolls instead), and a
+        // tap is read where the finger LIFTS, which may be a few px past
+        // the viewport it pressed in. It still means this screen: floored,
+        // a lift past the right edge would name the next day's midnight
+        // (its chip and bar a whole viewport away, its tip on the seam),
+        // and one past the left edge the day before's 23:00. So it is held
+        // to this day's 24 hours.
+        if (into < 0) { into = 0; }
+        if (into >= 1) { into = 1 - 0.5 / 24; }
+        var vx = panDay * charts.DAY_W + into * charts.DAY_W;
         // The hour whose BAR the finger is on, not the tick it is nearest.
-        // A bar fills the span that ENDS at its own tick (see charts.barX),
-        // so the span between tick 15 and tick 16 belongs to hour 16 — one
-        // past the tick the finger has just cleared. Rounding to the nearest
-        // tick, or flooring to the one behind, both light a bar the finger
-        // is not on.
-        var i = Math.floor(vx / charts.HOUR_W) + 1;
+        // A bar fills the span that STARTS at its own tick (see
+        // charts.barX), so the span between tick 15 and tick 16 is hour 15 —
+        // the tick the finger has just cleared. Rounding to the nearest tick
+        // lights a bar the finger is not on half the time.
+        var i = Math.floor(vx / charts.HOUR_W);
         if (i < 0) { i = 0; }
         if (i > view.times.length - 1) { i = view.times.length - 1; }
         // Tapping the hour that is already selected puts it down again.
@@ -1315,6 +1372,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 ctx = null;
                 fetchState = { key: null, status: 'idle', data: null, error: null, view: null };
                 inFlight = null;
+                forceNext = false;
                 scrubIndex = null;
                 panDay = 0;
                 gpsSeed = null;

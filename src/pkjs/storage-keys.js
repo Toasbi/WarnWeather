@@ -16,11 +16,23 @@ module.exports = {
     CARRIED_GRAPH_NIGHT_TINT_MIGRATION_KEY: 'v1.15.1_carried_graph_night_tint_migration',
     LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY: 'v1.16.0_light_graph_color_retune_migration',
     LIGHT_SOLID_BARS_MIGRATION_KEY: 'v1.16.0_light_solid_bars_migration',
+    ONBOARDING_EXISTING_INSTALL_MIGRATION_KEY: 'v1.20.0_onboarding_existing_install_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
+    // The last GPS fix ({lat, lon, time}) — the fallback location.js serves for
+    // up to 24 h when a fresh fix fails. Must stay exactly 'gpsCache': installs
+    // already persist it under that name.
+    GPS_CACHE_KEY: 'gpsCache',
     GEOCODE_CACHE_KEY: 'geocodeCache',
     GEOCODE_BACKOFF_KEY: 'geocodeBackoff',
+    // An address LocationIQ could not resolve ({query, time}): it is not asked
+    // again for a day, or until the user forces a fetch (weather/location.js).
+    GEOCODE_NOT_FOUND_KEY: 'geocodeNotFound',
+    // The last city name the ArcGIS reverse geocode resolved, with the
+    // coordinates it was resolved for ({name, lat, lon}) — the City slot's
+    // stand-in when a later lookup fails nearby (weather/location.js).
+    LAST_CITY_KEY: 'lastCity',
     AUTH_BACKOFF_KEY: 'authBackoff',
     LAST_IS_SLEEPING_KEY: 'lastIsSleeping',
     LAST_HOLIDAY_DAY_KEY: 'last_holiday_day',
@@ -36,6 +48,10 @@ module.exports = {
     UPDATE_NOTIFIED_VERSION_KEY: 'update_notified_version',
     LAST_UPDATE_CHECK_KEY: 'last_update_check',
     WU_HOURLY_CACHE_KEY: 'wuHourlyCache',
+    // The UV forecast for today's hours already begun, kept across fetches, so the
+    // UV slot's day max knows whether today's peak is still ahead, running or
+    // behind (weather/uv-day-record.js).
+    UV_DAY_RECORD_KEY: 'uvDayRecord',
     NEWS_CACHE_KEY: 'newsCache',
     NOTICES_KEY: 'notices',
     LAST_SENT_NOTICE_KEY: 'lastSentNotice',

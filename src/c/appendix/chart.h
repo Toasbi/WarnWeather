@@ -101,8 +101,9 @@ typedef struct {
 } ChartAxisLayer;
 
 typedef struct { int16_t from; GColor color; } ChartColorStop; // value-space threshold
-typedef enum   { BAR_SOLID, BAR_OUTLINED } ChartBarStyle;      // OUTLINED: +1px white
-                                                               // silhouette (B&W)
+typedef enum   { BAR_SOLID, BAR_OUTLINED } ChartBarStyle;      // OUTLINED: +1px theme_fg()
+                                                               // silhouette, every theme
+                                                               // but colour-dark
 typedef struct {
     const int16_t        *values;
     int                   count;      // clamped to def->num_slots

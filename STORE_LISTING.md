@@ -43,7 +43,7 @@ STATUS LINES
       - pollen
       - wind
       - gusts
-      - UV index
+      - UV index (now, today's peak until the UV drops below it, then tomorrow's, or both)
       - sunrise/sunset
    - Date and location:
       - Calender week  
@@ -60,6 +60,9 @@ STATUS LINES
       - watch battery percentage
       - phone battery
 - Bold status values to make them stand out or to make it easier to read
+- Two-value slots (temperature/feels like, UV now/max) in your style: separator (12/10,
+  12(10), 12·10, 12|10 or your own), with or without spaces (12 / 10), order, and the mark
+  for tomorrow's UV peak
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
 - Threshold highlighting: bold, outline, or fill a status slot when a status slot crosses a
   warn or danger level you set
@@ -70,6 +73,7 @@ WATCHFACE THEMES
 
 WATCH
 - Custom color, 12h/24h, optional AM/PM
+- Smooth, anti-aliased clock digits on color watches (Roboto and Bitham fonts)
 - Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
 - Battery saver (pause updates to the watch between hours you set, to save battery)
 - Dim backlight on Pebble Time 2 - when the backlight comes on between hours you set it glows a color you pick instead of white; it never switches the backlight on by itself

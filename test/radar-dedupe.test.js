@@ -102,3 +102,24 @@ test('DWD-shaped tail rain (exact and area both set) still → changed (no behav
   const area = zeros(); area[N - 1] = 7;   // DWD invariant: area >= exact
   assert.equal(radarComparator(subset(exact, area, SLOT), cached), true);
 });
+
+// The radar CLEAR (radarWire.clearRadarTuples: empty arrays, start 0) is what a
+// permanently failing source sends (no key/endpoint, rejected key). It must go
+// out exactly once, and a real window after it must never be deduped away.
+const CLEAR = subset([], [], 0);
+const REAL_START = 1790000100;   // a real 5-min-aligned epoch
+
+test('real window → CLEAR → changed (the clear goes out once)', () => {
+  const area = zeros(); area[3] = 5;
+  assert.equal(radarComparator(CLEAR, subset(zeros(), area, REAL_START)), true);
+});
+
+test('CLEAR → CLEAR → unchanged (later identical clears are skipped)', () => {
+  assert.equal(radarComparator(CLEAR, CLEAR), false);
+});
+
+test('REGRESSION: CLEAR → an all-dry real window → changed (the watch holds no window to self-advance)', () => {
+  // Aligned against the epoch-0 clear this reads as "fully rolled, dry tail"
+  // and was skipped — stranding the watch with no radar once the key healed.
+  assert.equal(radarComparator(subset(zeros(), zeros(), REAL_START), CLEAR), true);
+});

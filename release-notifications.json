@@ -154,12 +154,16 @@
   "1.18.0": {
     "title": "Dim backlight at night",
     "body": "On Pebble Time 2 the backlight now glows a dim color instead of white during the hours you set, so it is easier on your eyes. Pick the color, or switch it off, under Nighttime settings in the General tab."
-  }, 
+  },
   "1.19.0": {
     "title": "5 day weather forecast",
     "body": "See a detailed 5 day forecast in the new settings Weather Tab. For now only in the settings, but planed for the watch as well."
   },
   "1.20.0": {
+    "title": "Smoother clock, UV day max",
+    "body": "On color watches the Roboto and Bitham clock digits now have smooth, anti-aliased edges. The UV status slot can also show today's highest UV, or now/max, and you choose how two-value slots are written: tap the pencil next to UV or Temperature in the Status slots tab."
+  },
+  "1.21.0": {
     "title": "Third metric + line styles",
     "body": "The forecast graph can now show a third metric (little x marks), and every metric line has a selectable style: thin or thick line, square dots, or x marks. Set them in the Forecast tab. (Not on Pebble Classic/Steel, which keeps its classic look.)"
   }

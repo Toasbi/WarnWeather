@@ -122,14 +122,18 @@ function httpLabel(code) {
 
 /**
  * Build a notice for a fetch failure, or null when the failure is not
- * notice-worthy (network/GPS/timeout/parse raise nothing).
- * @param {{code: string}|*} failure Normalized fetch failure.
+ * notice-worthy (network/GPS/timeout/parse raise nothing). Both notices name
+ * the weather provider, so only its own `provider_data` stage raises them: a
+ * geocoder's 401/403/429 (stages reverse_geocode / forward_geocode) is neither
+ * the provider refusing nor a key the user can fix.
+ * @param {{stage: string, code: string}|*} failure Normalized fetch failure.
  * @param {string} providerName Active provider display name.
  * @param {number} now Timestamp (Date.now()).
  * @returns {?{key: string, type: string, html: string, watch?: string, since: number}}
  */
 function noticeForFailure(failure, providerName, now) {
-    var code = (failure && typeof failure.code === 'string') ? failure.code : '';
+    if (!failure || failure.stage !== 'provider_data') { return null; }
+    var code = typeof failure.code === 'string' ? failure.code : '';
     var name = providerName || 'The weather provider';
     if (/(^|_)status_(401|403)$/.test(code)) {
         return {

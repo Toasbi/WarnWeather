@@ -117,15 +117,23 @@ function acknowledgedBases(base) {
 }
 
 function main() {
-  const base = process.env.APLITE_TWINS_BASE || 'origin/main';
+  const explicitBase = process.env.APLITE_TWINS_BASE;
+  const base = explicitBase || 'origin/main';
   const files = listFiles(SRC_ROOT);
 
   const violations = invariantViolations(files);
-  // The drift guard needs a git base ref; skip it gracefully when unavailable
-  // (e.g. a shallow local checkout) — the invariant check always runs.
+  // The drift guard needs a git base ref. With the default base it skips
+  // gracefully when that ref is unusable (e.g. a shallow local checkout) — the
+  // invariant check always runs. An EXPLICIT APLITE_TWINS_BASE (set by CI, or
+  // opted into locally) fails closed instead: skipping there would let an
+  // unported base change through the required check with only a warning.
   try {
     violations.push(...driftViolations(files, changedFiles(base), acknowledgedBases(base)));
   } catch (error) {
+    if (explicitBase) {
+      console.error(`Drift check could not run against APLITE_TWINS_BASE=${base}: ${error.message}`);
+      process.exit(1);
+    }
     console.warn(`Skipping drift check (no base ref ${base}): ${error.message}`);
   }
 

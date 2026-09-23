@@ -36,6 +36,18 @@ function clearRadarTuples() {
 }
 
 /**
+ * Whether a radar answer is the CLEAR above (empty trend array): radar switched
+ * off, or a source that can never answer (no key/endpoint, rejected key).
+ *
+ * @param {?Object} tuples Radar tuples, or null/undefined (no answer).
+ * @returns {boolean} True for the clearing tuples.
+ */
+function isClearRadarTuples(tuples) {
+    return Boolean(tuples) && Array.isArray(tuples.RAIN_RADAR_TREND_UINT8)
+        && tuples.RAIN_RADAR_TREND_UINT8.length === 0;
+}
+
+/**
  * Wire tuples for a POINT-SOURCE product (Met.no, Rainbow, Tomorrow.io): the
  * mapped trend bytes plus an always-zero area array — single-point nowcasts
  * have no "nearby" composite. DWD is the one source with a real area array
@@ -72,6 +84,7 @@ module.exports = {
     SLOT_SECONDS: SLOT_SECONDS,
     slotZeroEpochFor: slotZeroEpochFor,
     clearRadarTuples: clearRadarTuples,
+    isClearRadarTuples: isClearRadarTuples,
     pointRadarTuples: pointRadarTuples,
     flatRadarTuples: flatRadarTuples
 };

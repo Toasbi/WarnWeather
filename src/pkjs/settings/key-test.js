@@ -41,7 +41,33 @@
             return { ok: false, message: '\u2717 Unexpected response (' + status + ').' };
         }
 
+        // The latest runTest's ticket. Every tap takes a new one, and a response writes its
+        // verdict only while its ticket is still the latest: an earlier request still in
+        // flight (a hung one, or one for the mistyped key the user has since fixed) would
+        // otherwise land after the newer verdict and overwrite "Key works" with its own
+        // stale timeout or 401. Shared by every field wired to this action (the settings
+        // page and the wizard upsell test the same key).
+        var seq = 0;
+
+        /**
+         * Write a verdict, but only for the latest test, and into the result line that is
+         * on the page NOW. A re-render while the request is in flight (a toggle flipped on
+         * the same tab, an edit sheet opening) replaces the line runTest found, and a
+         * verdict written to that detached node would never show. When no line is on the
+         * page any more (another tab is showing) the write lands on the old node, unseen.
+         * @param {number} mine The ticket the request took.
+         * @param {Object} fallbackEl The result line found when the request started.
+         * @param {string} text Verdict text.
+         * @returns {void}
+         */
+        function showResult(mine, fallbackEl, text) {
+            if (mine !== seq) { return; }
+            var el = document.querySelector('[data-action-result="' + config.dataKey + '"]') || fallbackEl;
+            el.textContent = text;
+        }
+
         function runTest() {
+            var mine = ++seq;   // taken before any early return, so it cancels in-flight results too
             var input = document.querySelector('input[data-k="' + config.dataKey + '"]');
             var resultEl = document.querySelector('[data-action-result="' + config.dataKey + '"]');
             var key = input ? input.value : '';
@@ -54,9 +80,11 @@
             var xhr = new XMLHttpRequest();
             xhr.open('GET', config.buildTestUrl(key));
             xhr.timeout = 8000;
-            xhr.onload = function () { resultEl.textContent = interpretStatus(xhr.status).message; };
-            xhr.onerror = function () { resultEl.textContent = interpretStatus(0).message; };
-            xhr.ontimeout = function () { resultEl.textContent = '\u2717 Timed out reaching ' + config.host + '.'; };
+            xhr.onload = function () { showResult(mine, resultEl, interpretStatus(xhr.status).message); };
+            xhr.onerror = function () { showResult(mine, resultEl, interpretStatus(0).message); };
+            xhr.ontimeout = function () {
+                showResult(mine, resultEl, '\u2717 Timed out reaching ' + config.host + '.');
+            };
             if (config.headers) {
                 var headers = config.headers(key);
                 for (var name in headers) {

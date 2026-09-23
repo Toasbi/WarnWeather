@@ -40,6 +40,14 @@ function radarComparator(newSubset, cachedSubset) {
         || typeof newStart !== 'number' || typeof oldStart !== 'number') {
         return true;  // malformed cache/candidate — resend to be safe
     }
+    // The last send was a CLEAR (radarWire.clearRadarTuples: empty arrays,
+    // start 0), so the watch holds no window and never self-advances one: a
+    // real window must always go out, even an all-dry one. Without this, a
+    // dry window after a clear aligns against the epoch-0 cache as "fully
+    // rolled, dry tail" and is skipped, stranding the watch with no radar.
+    if (oldExact.length === 0 && newExact.length > 0) {
+        return true;
+    }
 
     var deltaSec = newStart - oldStart;
     if (deltaSec < 0 || deltaSec % SLOT_SECONDS !== 0) {

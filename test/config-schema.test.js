@@ -27,7 +27,8 @@ const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
 // The bold-only slot kinds (wire ids 8..19 in status-thresholds.js) add ONE key
 // each: a Bold row is their whole sheet (Temp additionally carries the
-// tempSlotDisplay row — listed with the plain keys below). The battery GLYPH item
+// tempSlotDisplay row and the rows shaping its Both pair — listed with the plain
+// keys below). The battery GLYPH item
 // is deliberately absent — its slot draws a glyph, not text, so it has no sheet
 // and no key; the battery PERCENTAGE kind (BatteryPct) renders text and has both.
 // PhoneBattery is ONE stem for TWO wire kinds (18 phoneBattery, 19 phoneBatteryPlain):
@@ -38,10 +39,14 @@ const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode
 const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
   .concat(BOLD_ONLY_KEYS)
-  // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows
-  // and their "Show unit" toggles (Temp's tempSlotDisplay is listed with the plain keys
-  // below, next to the other three "Show unit" keys on bold-only sheets).
-  .concat(['windSlotDirection', 'gustSlotDirection', 'windSlotUnit', 'gustSlotUnit']);
+  // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows,
+  // their "Show unit" toggles, the UV slot's display mode with the rows shaping its
+  // Both pair and its tomorrow mark (Temp's tempSlotDisplay and pair rows are listed
+  // with the plain keys below, next to the other three "Show unit" keys on bold-only
+  // sheets).
+  .concat(['windSlotDirection', 'gustSlotDirection', 'windSlotUnit', 'gustSlotUnit',
+    'uvSlotDisplay', 'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
+    'uvSlotOrder', 'uvSlotNextDayMark']);
 // The "Show unit" toggles on the BOLD-ONLY sheets. Six kinds have one — the six whose
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.
@@ -67,6 +72,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','tempSlotDisplay',
+  'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
@@ -529,19 +535,19 @@ test('the Nighttime card sits between the top General card and Provider settings
 });
 
 test('the Nighttime card groups dim backlight, theme switching and the battery saver, in that order', () => {
-  // A sub-header maps to '#<text>'; the dim colour's row maps to '>' + its sheetId,
-  // since a `sheet` row stores nothing of its own — the rgb key it opens lives in the
-  // sheetOnly section below the card (see test/config-night-color-sheet.test.js).
-  // Each group is a sub-header, its hosted toggle, then its own hours: no card-level
-  // window heads the card and only theme switching carries a mode row, because only it
-  // has a non-clock alternative (the sun) to choose.
+  // The dim colour's row maps to '>' + its sheetId, since a `sheet` row stores nothing
+  // of its own — the rgb key it opens lives in the sheetOnly section below the card (see
+  // test/config-night-color-sheet.test.js). Anything else without a key (a sub-header)
+  // would show up as '#<text>'.
+  // Each group is its switch, then its own hours: no card-level window heads the card
+  // and only theme switching carries a mode row, because only it has a non-clock
+  // alternative (the sun) to choose.
   assert.deepEqual(nightSection().items.map(
     (i) => i.messageKey || (i.sheetId ? '>' + i.sheetId : '#' + i.text)), [
-    '#Dim backlight', 'backlightDim',
-    'backlightDimStartHour', 'backlightDimEndHour', '>backlightColor',
-    '#Theme switching', 'themeAuto', 'themeNight', 'themeNight', 'themeAutoMode',
+    'backlightDim', 'backlightDimStartHour', 'backlightDimEndHour', '>backlightColor',
+    'themeAuto', 'themeNight', 'themeNight', 'themeAutoMode',
     'themeAutoStartHour', 'themeAutoEndHour',
-    '#Battery saver', 'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'
+    'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'
   ]);
 });
 
@@ -555,32 +561,34 @@ test('themeAutoMode is the only mode key left in the Nighttime card', () => {
     .forEach((k) => assert.equal(byKey(k), undefined, k + ' is gone from the schema'));
 });
 
-// Each group's master switch rides its own sub-header, and the engine suppresses a
-// hosted toggle's own ROW — so the header and the toggle must carry the SAME gate (a
-// hidden header stops hosting and the row comes back), and the group's copy has to
-// live on the header, where a suppressed row's hint would never render.
-test('every Nighttime group hosts its toggle on its sub-header, gated alike and explained there', () => {
+// Each group opens on its own switch: a plain toggle row whose hint carries the group's
+// copy — label, hint under it, switch beside it, like every other toggle row on the
+// General tab. No sub-header heads a group: the heading + intro shape belongs to the
+// threshold sheets, and its taller standoffs step a card out of the tab's row rhythm
+// (the v1.18 regression the rhythm test below pins shut).
+const GROUP_KEYS = ['backlightDim', 'themeAuto', 'sleepNightEnabled'];
+test('each Nighttime group opens on its own switch row, which carries the copy', () => {
   const night = nightSection();
-  const headers = night.items.filter((i) => i.type === 'subheader' && i.toggleKey);
-  assert.deepEqual(headers.map((h) => h.text), ['Dim backlight', 'Theme switching', 'Battery saver']);
-  headers.forEach((header) => {
-    const toggle = night.items.find((i) => i.messageKey === header.toggleKey);
-    assert.ok(toggle && toggle.type === 'toggle', header.text + ' hosts a real toggle in the same section');
-    assert.equal(toggle.label, header.text, header.text + ': the switch is named after its group');
-    assert.deepEqual(header.showWhen, toggle.showWhen, header.text + ': header and toggle share one gate');
-    assert.ok(header.intro, header.text + ' explains itself on the header');
-    assert.equal(toggle.hint, undefined, header.text + ': a hosted row renders no hint');
+  assert.ok(!night.items.some((i) => i.type === 'subheader'), 'no sub-header in the Nighttime card');
+  GROUP_KEYS.forEach((k) => {
+    const toggle = byKey(k);
+    assert.ok(night.items.indexOf(toggle) !== -1, k + ' lives in the Nighttime card');
+    assert.equal(toggle.type, 'toggle', k + ' is the group\'s switch');
+    assert.ok(toggle.hint, k + ' explains its group in its own hint');
   });
 });
 
 // --- the card's divider rule (owner review of the rendered page) ---
 // BETWEEN groups: a line, there whether or not the group above it expanded. WITHIN a
-// group: none — the rows a switch reveals belong to that switch and read as one block.
-// Both fall out of one invariant, which these tests drive the real renderer to check:
-// the Nighttime card emits NO row dividers at all, so every line in it is a group
-// sub-header's own border-top (shell.html) and therefore introduces a group.
-// Rendered, not read off the schema: the dividers are a look-ahead over what is
+// group: none — the rows a switch reveals belong to that switch (joinPrevious) and read
+// as one block. These tests drive the real renderer to check it: every line in the card
+// sits directly above a group's switch row, and every group but the first has one.
+// Rendered, not read off the schema: which row draws a divider depends on what is
 // actually VISIBLE, which no amount of schema-reading would show.
+//
+// A group OPENER is the row holding one of the GROUP_KEYS switches (found by its
+// data-k), so the outline names each group without relying on how the row is classed.
+const OPENER_RE = new RegExp('data-k="(?:' + GROUP_KEYS.join('|') + ')"');
 const nightOutline = (state, env) => {
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
   const S = Object.assign(eng.hydrate(schema, {}), state || {});
@@ -593,17 +601,26 @@ const nightOutline = (state, env) => {
   // The Nighttime card only: from its header to wherever the next card starts.
   const at = body.indexOf('>Nighttime settings<');
   const card = body.slice(at, (body.indexOf('<div class="card', at) + 1) || undefined);
-  // Its chrome elements in order — rows, sub-headers, intros and blocks — as
-  // "<class>" or "subhdr grp:<title>", ignoring everything nested inside them.
+  // Its chrome elements in order — rows, sub-headers, intros and blocks — as "<class>",
+  // or "<class>:<title>" for a group opener (its .lbl), ignoring everything nested inside
+  // them. ` wrap` is dropped: it only says the hint is long enough to wrap under the
+  // label, which is copy, not a join or a line.
   const out = [];
   const re = /<div class="((?:row|static|subhdr|intro|blockrow)(?:\s[^"]*)?)"/g;
   let m;
   while ((m = re.exec(card))) {
-    const title = /^subhdr/.test(m[1]) ? ':' + /<span>([^<]*)</.exec(card.slice(m.index))[1] : '';
-    out.push(m[1] + title);
+    const own = card.slice(m.index + 1).split('<div class="row')[0];
+    const lbl = OPENER_RE.test(own) && /class="lbl">([^<]*)</.exec(own);
+    out.push(m[1].replace(/ wrap\b/, '') + (lbl ? ':' + lbl[1] : ''));
   }
   return out;
 };
+// An outline entry's class list, without the ":<title>" a group opener carries.
+const clsOf = (entry) => entry.split(':')[0];
+const titleOf = (entry) => entry.slice(entry.indexOf(':') + 1);
+const isGroupOpener = (entry) => entry.indexOf(':') !== -1;
+// A row with neither join class keeps its bottom border: it draws a line.
+const drawsLine = (entry) => /^row\b/.test(entry) && !/\bnbl?\b/.test(clsOf(entry));
 // Dim backlight and the battery saver have no mode row left, so their hours are on
 // screen whenever their switch is: the only state left to vary is theme switching's
 // mode, which is the one place a non-clock alternative still has to be chosen.
@@ -618,52 +635,61 @@ const NIGHT_STATES = {
 test('Nighttime: every line in the card introduces a group, in every expansion state', () => {
   Object.keys(NIGHT_STATES).forEach((name) => {
     const outline = nightOutline(NIGHT_STATES[name]);
-    const headers = outline.filter((e) => e.indexOf('subhdr grp:') === 0);
-    assert.deepEqual(headers, ['subhdr grp:Dim backlight',
-      'subhdr grp:Theme switching', 'subhdr grp:Battery saver'], name + ': three groups');
-    // Every row draws no divider (nb/nbl) — except one that ENDS the card, whose
-    // divider .card .row:last-child removes anyway. So no line in the card is a row's.
-    outline.forEach((cls, i) => {
-      if (!/^row/.test(cls) || i === outline.length - 1) { return; }
-      assert.match(cls, /\bnbl?\b/,
-        name + ': element ' + i + ' ("' + cls + '") must not draw a divider');
+    assert.deepEqual(outline.filter(isGroupOpener).map(titleOf),
+      ['Dim backlight', 'Theme switching', 'Battery saver'], name + ': three groups');
+    // A row that keeps its divider (no nb/nbl) either ENDS the card — whose divider
+    // .card .row:last-child removes anyway — or sits directly above a group's switch
+    // row, where its line separates the two groups. So no line falls inside a group...
+    outline.forEach((entry, i) => {
+      if (!drawsLine(entry)) { return; }
+      assert.ok(i === outline.length - 1 || isGroupOpener(outline[i + 1]),
+        name + ': element ' + i + ' ("' + entry + '") draws a line inside a group');
+    });
+    // ...and every group but the first has one above it.
+    outline.filter(isGroupOpener).slice(1).forEach((opener) => {
+      const i = outline.indexOf(opener);
+      assert.ok(drawsLine(outline[i - 1]),
+        name + ': "' + outline[i - 1] + '" draws no line above ' + titleOf(opener));
     });
   });
 });
 
 test('Nighttime: a group is separated from the one above even when it is collapsed', () => {
   // The regression this rule exists for: with its switch off a group renders NOTHING
-  // but its sub-header and intro, so there is no last-row divider for the NEXT group to
-  // borrow and the two ran together. Pin that shape so the sub-header's own line stays
-  // load-bearing (see the .subhdr.grp border-top test in config-ui/test/theme-shell).
+  // but its switch row, and a join from the group below must not take that row's line
+  // away — or the two groups run together. Each collapsed switch row keeps its own
+  // divider, and that divider is the line into the next group.
   const outline = nightOutline(NIGHT_STATES['everything off']);
   assert.deepEqual(outline, [
-    'subhdr grp:Dim backlight', 'intro',
-    'subhdr grp:Theme switching', 'intro',
-    'subhdr grp:Battery saver', 'intro',
-  ], 'three collapsed groups back to back, with no row between them to carry a line');
+    'row:Dim backlight',
+    'row:Theme switching',
+    'row:Battery saver',
+  ], 'three collapsed groups back to back, each only its switch row, each drawing its line');
 
-  // ...and with every switch on, each group's rows sit between its own header and the
-  // next one, all divider-less, so the group reads as one block under its switch. Dim
+  // ...and with every switch on, each group's rows sit between its own switch row and
+  // the next one, joined tight, so the group reads as one block under its switch. Dim
   // backlight and the battery saver open straight onto their From/To pair — no mode row
-  // stands between the switch and the hours it governs.
+  // stands between the switch and the hours it governs. Each switch row is `nb` (tight):
+  // the first row it reveals joins it, as the saver's From/To always has. Only a group's
+  // LAST row keeps its divider, and that is the line into the next group.
   assert.deepEqual(nightOutline(NIGHT_STATES['everything on, theme on custom hours']), [
     // The colour is one compact row — a swatch of the current value plus Edit — since
-    // its three channel sliders moved into a bottom sheet. `nb` (tight), matching the
-    // theme group's seams below, so the card steps evenly (see the spacing test).
-    'subhdr grp:Dim backlight', 'intro', 'row inline nb', 'row nbl',
-    'subhdr grp:Theme switching', 'intro', 'row nb', 'row nb', 'row inline nbl',
-    'subhdr grp:Battery saver', 'intro', 'row inline',
+    // its three channel sliders moved into a bottom sheet. It joins the From/To above it
+    // tight, matching the theme group's seams below, so the card steps evenly (see the
+    // spacing test).
+    'row nb:Dim backlight', 'row inline nb', 'row',
+    'row nb:Theme switching', 'row nb', 'row nb', 'row inline',
+    'row nb:Battery saver', 'row inline',
   ]);
 });
 
 test('Nighttime: a group the watch cannot offer takes its line with it', () => {
   // basalt has a colour screen but a white backlight, so the whole Dim backlight group
-  // is gated away — header, switch and rows. The card simply opens on THEME switching,
-  // with no stray line or empty header left where the dim group used to be.
+  // is gated away — switch and rows. The card simply opens on THEME switching, with no
+  // stray line or empty row left where the dim group used to be.
   assert.deepEqual(nightOutline({}, basaltEnv), [
-    'subhdr grp:Theme switching', 'intro',
-    'subhdr grp:Battery saver', 'intro', 'row inline',
+    'row:Theme switching',
+    'row nb:Battery saver', 'row inline',
   ]);
 });
 
@@ -674,7 +700,8 @@ test('Nighttime: a group the watch cannot offer takes its line with it', () => {
 // a LOOSE one (joinPrevious: 'loose') drops only the line and leaves the standard 14px —
 // so a group mixing them renders one gap at 10px and the next at 28px. That was the
 // report: "Enabled hours, from and the color are not evenly spaced". Every join INSIDE a
-// Nighttime group is tight, so the whole card keeps one rhythm.
+// Nighttime group is tight — the switch row's own seam to the first row it reveals
+// included — so the whole card keeps one rhythm.
 //
 // The two numbers are read out of shell.html rather than written here: change the CSS and
 // this test re-derives the gap instead of quietly pinning a stale one.
@@ -708,13 +735,16 @@ test('Nighttime: consecutive rows inside a group are evenly spaced, in every exp
     // .row.slot would bring a third padding (8px) into the card and break the two-number
     // model above; nothing in this card uses it.
     outline.forEach((cls) => assert.ok(!/\bslot\b/.test(cls), name + ': no compact slot rows here'));
-    // Split into groups at the sub-headers; inside a group, measure every row-to-row seam.
+    // Split into groups at the switch rows; inside a group, measure every row-to-row seam,
+    // starting with the switch row's own seam to the first row it reveals.
     let group = null;
-    outline.forEach((cls, i) => {
-      if (cls.indexOf('subhdr grp:') === 0) { group = cls.slice(11); return; }
-      if (!/^row/.test(cls)) { return; }
+    outline.forEach((entry, i) => {
+      if (!/^row/.test(entry)) { return; }
+      if (isGroupOpener(entry)) { group = titleOf(entry); }
       const next = outline[i + 1];
-      if (!next || !/^row/.test(next)) { return; }   // last row of its group
+      // last row of its group: the card ends, or the next group's switch row follows
+      if (!next || !/^row/.test(next) || isGroupOpener(next)) { return; }
+      const cls = clsOf(entry);
       const gap = rowGap(cls);
       seen.push({ state: name, group: group, gap: gap, cls: cls });
     });
@@ -736,15 +766,57 @@ test('Nighttime: consecutive rows inside a group are evenly spaced, in every exp
     + TIGHT_GAP + 'px — every join inside a Nighttime group is tight'));
 });
 
+// --- the card's RHYTHM against the rest of the General tab (the v1.18 regression) ---
+// Even steps inside a group are not enough: the card also has to step like the cards
+// around it. v1.18 opened every group with the threshold sheets' heading + intro chrome,
+// whose own standoffs knocked every seam touching them off the tab's row rhythm. The
+// invariant: the card is rows only, so every seam is a row seam sized by the same .row
+// paddings as the rest of the tab (ROW_PAD / NB_*, read from shell.html above) — tight
+// inside a group, one plain row divider between groups.
+test('Nighttime: the card steps in the General tab\'s row rhythm, on every watch and in every state', () => {
+  // Every platform, not a sample: the Night theme row has a colour copy and a B/W one
+  // (diorite/flint), and only rendering both pins each copy's own join.
+  const envs = {};
+  ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint', 'gabbro'].forEach((p) => {
+    envs[p] = platform.computeEnv({ platform: p });
+  });
+  let seams = 0;
+  Object.keys(envs).forEach((envName) => {
+    Object.keys(NIGHT_STATES).forEach((state) => {
+      const name = envName + ' / ' + state;
+      const outline = nightOutline(NIGHT_STATES[state], envs[envName]);
+      // Rows only: no heading bar and no intro block anywhere in the card.
+      outline.forEach((e) => assert.match(e, /^row\b/, name + ': "' + e + '" is not a row'));
+      // It opens on a group's switch row, so the card title stands off it by one
+      // ROW_PAD, like every other card's first row.
+      assert.ok(isGroupOpener(outline[0]), name + ': the card opens on its first group\'s switch row');
+      for (let i = 1; i < outline.length; i++) {
+        const above = clsOf(outline[i - 1]);
+        seams++;
+        if (isGroupOpener(outline[i])) {
+          // Into the next group: ROW_PAD, the row above's own 1px divider, ROW_PAD —
+          // exactly two unjoined rows, like any other divider on the tab.
+          assert.doesNotMatch(above, /\bnbl?\b/,
+            name + ': "' + above + '" must draw the line into the group below');
+          assert.equal(rowGap(above), LOOSE_GAP, name + ': groups sit a divider apart');
+        } else {
+          assert.equal(rowGap(above), TIGHT_GAP, name + ': "' + above + '" -> "' + outline[i]
+            + '" steps ' + rowGap(above) + 'px, not a tight join\'s ' + TIGHT_GAP + 'px');
+        }
+      }
+    });
+  });
+  assert.ok(seams >= 20, 'the watches and states above really do exercise the card\'s seams');
+});
+
 // There is no card-level window any more: nothing sits above the first group, and no
 // item in the card is reachable without going through a group's switch.
 test('the Nighttime card opens straight on its first group, with no shared window above it', () => {
   const night = nightSection();
   assert.equal(night.intro, undefined, 'the card carries no intro of its own');
-  assert.equal(night.items[0].type, 'subheader');
-  assert.equal(night.items[0].text, 'Dim backlight', 'the first group heads the card');
-  assert.ok(!night.items.some((i) => i.type === 'subheader' && !i.toggleKey),
-    'every sub-header in the card hosts a group switch — none introduces a shared window');
+  assert.equal(night.items[0].messageKey, 'backlightDim', 'the first group\'s switch heads the card');
+  assert.ok(!night.items.some((i) => i.type === 'subheader'),
+    'no sub-header in the card — nothing introduces a shared window');
   // No user-facing string in the card offers the removed shared window as a choice.
   assert.equal(JSON.stringify(night).indexOf('Night hours'), -1,
     'the phrase "Night hours" is gone from the Nighttime card');
@@ -754,19 +826,18 @@ test('the Nighttime card opens straight on its first group, with no shared windo
 // suppresses the status micro-send (level changes and charging transitions alike), so
 // the copy has to describe sending rather than fetching or it under-promises what the
 // toggle now turns off. The wording was dictated by the design
-// (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md §3), not derived; it
-// moved from the toggle's hint to its sub-header's intro when the toggle became hosted,
-// and says "between the hours below" again now that the saver's own From/To sits there.
+// (docs/superpowers/specs/2026-08-20-phone-battery-slot-design.md §3), not derived. It
+// is the toggle's hint, and says "between the hours below" because the saver's own
+// From/To sits right under it.
 //
 // sleepStartHour/sleepEndHour are the saver's original keys and never meant anything
 // else: same keys, same options, same defaults, same gate. Nothing stored on any install
 // changes meaning, so the restructure needs no migration.
 test('the battery saver owns its hours outright and still talks about SENDING', () => {
-  const night = nightSection();
   const on = byKey('sleepNightEnabled');
   assert.equal(on.label, 'Battery saver', 'the word "Night" moved up to the card title');
   assert.equal(on.defaultValue, true);
-  assert.equal(night.items.find((i) => i.type === 'subheader' && i.toggleKey === 'sleepNightEnabled').intro,
+  assert.equal(on.hint,
     'Stop sending updates to your watch between the hours below to save battery.');
 
   const from = byKey('sleepStartHour'), to = byKey('sleepEndHour');
@@ -826,7 +897,7 @@ test('Dim backlight is emery-only, on by default, and carries a dim-red RGB colo
   assert.equal(vis(from, { backlightDim: true }), true, 'switched on, the hours are right there');
   assert.equal(vis(to, { backlightDim: true }), true);
   assert.equal(vis(from, { backlightDim: false }), false,
-    'switched off, only the header switch is left');
+    'switched off, only the switch row is left');
   assert.equal(vis(to, { backlightDim: false }), false);
 });
 
@@ -1038,8 +1109,9 @@ test('layoutPreset offers the four adaptive presets', () => {
 // while neither health nor radar shows a status row displays the compactCal fallback but
 // leaves the stored choice untouched, so briefly disabling health+radar and saving does
 // not lose the dense preset — it comes back when a status row re-enables it. (The wire
-// compiles stored-dense-with-nothing-enabled to the identical compactCal cycle, so the
-// watch always matches what the radio shows.) A truly invalid value still hard-snaps.
+// compiles stored-dense-with-nothing-enabled to the identical compactCal cycle, swap
+// included, so the watch always matches what the radio shows — pinned in the swap test
+// below.) A truly invalid value still hard-snaps.
 test('hidden compactDense renders the compactCal fallback but stays in state', () => {
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
   const ENV = platform.computeEnv({ platform: 'basalt' });
@@ -1085,7 +1157,6 @@ test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on
   // so this only ever moves a NEW install (deliberately no migration).
   assert.equal(it.defaultValue, true);
   assert.match(it.hint, /status row below the clock/);
-  assert.deepEqual(it.showWhen, { key: 'layoutPreset', eq: 'compactCal' });
   // aplite supports the forecast-only swap too (its lean twin carries a single lower band), so
   // the toggle is offered on every platform for the compactCal preset — and hidden otherwise.
   const aplite = { env: platform.computeEnv({ platform: 'aplite' }), layoutPreset: 'compactCal' };
@@ -1094,6 +1165,43 @@ test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on
   assert.equal(showWhen.isVisible(it, aplite), true, 'shown on aplite when preset is compactCal');
   assert.equal(showWhen.isVisible(it, basalt), true, 'shown on basalt when preset is compactCal');
   assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden for other presets');
+});
+
+// The swap toggle follows the preset the radio DISPLAYS, and the wire follows the toggle.
+// A dormant compactDense (no status row makes it dense) shows as Compact calendar; so does
+// a stored 'custom' on aplite. Both must offer the swap AND apply it, or the display and
+// the watch disagree — the toggle hidden while the watch shows the swapped layout, or a
+// displayed Compact calendar that silently ignores its swap.
+test('swapClockStatus is offered and applied exactly where the radio shows Compact calendar', () => {
+  const vc = require('../src/pkjs/view-cycle.js');
+  const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
+  const swap = byKey('swapClockStatus');
+  ['basalt', 'aplite'].forEach((p) => {
+    const env = platform.computeEnv({ platform: p });
+    ['off', 'slot', 'status', 'all'].forEach((healthMode) => {
+      ['off', 'countdown', 'status', 'graph'].forEach((radarMode) => {
+        ['compactCal', 'compactDense', 'custom', 'fullCal', 'noCal'].forEach((layoutPreset) => {
+          const S = { layoutPreset, healthMode, radarMode };
+          const offered = resolver(S, env).map((o) => o[1]);
+          // What the radio shows: the stored value when offered, else the dormant fallback.
+          const shown = offered.indexOf(layoutPreset) !== -1 ? layoutPreset : 'compactCal';
+          const label = [p, layoutPreset, healthMode, radarMode].join('/');
+          assert.equal(showWhen.isVisible(swap, Object.assign({ env }, S)), shown === 'compactCal',
+            label + ': toggle visible iff the radio shows Compact calendar');
+          if (layoutPreset === 'custom' && p !== 'aplite') { return; }   // compiles the custom keys
+          const on = vc.buildViewCycle(vc.resolvePresetKey(S), healthMode, radarMode, true);
+          const off = vc.buildViewCycle(vc.resolvePresetKey(S), healthMode, radarMode, false);
+          const applied = JSON.stringify(on) !== JSON.stringify(off);
+          if (shown !== 'compactCal') {
+            assert.equal(applied, false, label + ': a hidden toggle changes nothing on the watch');
+          } else {
+            assert.deepEqual(on, vc.buildViewCycle('compactCal', healthMode, radarMode, true),
+              label + ': shown as Compact calendar, compiled as Compact calendar, swap included');
+          }
+        });
+      });
+    });
+  });
 });
 
 test('Layout tab leads with the arrangement section: combined preview above the preset radio, then the editor button, font toggle, swap toggle and reset segmented below', () => {

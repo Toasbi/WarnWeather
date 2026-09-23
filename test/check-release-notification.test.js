@@ -69,3 +69,66 @@ test('every entry in the shipped manifest is complete', () => {
     assert.equal(hasValidNotification(notifications, version), true, `${version} entry is complete`);
   });
 });
+
+// The CI gate itself (release-notification-required.yml runs ONLY the script, not
+// this test file), run as CI runs it: `node scripts/check-release-notification.js`
+// in a scratch checkout holding just the two files it reads.
+const os = require('os');
+const { spawnSync } = require('child_process');
+const { brokenNotificationKeys } = require('../scripts/check-release-notification.js');
+
+/**
+ * Run the check script against a scratch package.template.json + manifest.
+ * @param {string} version package.template.json version.
+ * @param {*} manifest release-notifications.json content (JSON-serialised).
+ * @returns {{status: number, output: string}} Exit status and stdout+stderr.
+ */
+function runCheck(version, manifest) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-check-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'package.template.json'), JSON.stringify({ version }));
+    fs.writeFileSync(path.join(dir, 'release-notifications.json'), JSON.stringify(manifest));
+    const r = spawnSync(process.execPath,
+      [path.resolve(__dirname, '..', 'scripts', 'check-release-notification.js')],
+      { cwd: dir, encoding: 'utf8' });
+    return { status: r.status, output: r.stdout + r.stderr };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const GOOD = { title: 'New', body: 'Stuff' };
+
+test('the gate fails on a broken OLDER entry, not just the current one', () => {
+  // prepare-package.sh normalizes every entry at or below the built version and
+  // throws on a half-filled one — after release-please has cut the tag, so the
+  // release shipped with no .pbw.
+  const r = runCheck('1.21.0', { '1.20.1': { title: 'x', body: '' }, '1.21.0': GOOD });
+  assert.equal(r.status, 1, r.output);
+  assert.match(r.output, /release-notifications\.json\["1\.20\.1"\]/);
+});
+
+test('the gate fails on a broken entry even on a patch release that owes no toast', () => {
+  const r = runCheck('1.21.1', { '1.21.0': GOOD, '1.20.0': 'just a string' });
+  assert.equal(r.status, 1, r.output);
+  assert.match(r.output, /"1\.20\.0"/);
+});
+
+test('the gate fails on a manifest that is not a JSON object', () => {
+  // prepare-package.sh throws 'must be a JSON object' on an array or null.
+  [[], null].forEach((manifest) => {
+    const r = runCheck('1.21.1', manifest);
+    assert.equal(r.status, 1, JSON.stringify(manifest) + ': ' + r.output);
+  });
+});
+
+test('the gate still passes a complete manifest (feature and patch)', () => {
+  assert.equal(runCheck('1.21.0', { '1.20.0': GOOD, '1.21.0': GOOD }).status, 0);
+  assert.equal(runCheck('1.21.1', { '1.21.0': GOOD }).status, 0);
+});
+
+test('brokenNotificationKeys lists every incomplete or non-object entry', () => {
+  assert.deepEqual(brokenNotificationKeys({
+    '1.0.0': GOOD, '1.1.0': { title: ' ', body: 'b' }, next: { title: 't' }, '1.2.0': ['t', 'b'],
+  }), ['1.1.0', 'next', '1.2.0']);
+});

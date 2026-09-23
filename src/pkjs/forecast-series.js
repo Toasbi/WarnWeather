@@ -223,6 +223,25 @@ function feelsLineSelected(settings) {
 }
 
 /**
+ * Whether a selected feels-like line can actually be DRAWN on this watch. Not on
+ * aplite: the feels curve only lines up with the temp curve when both share a band
+ * AND a pixel inset, and aplite compiles the configurable inset out (no
+ * WW_CURVE_INSET — its insets are frozen at 7/0/0 and clay-payload.js never sends
+ * it CLAY_CURVE_INSET_UINT8), so feels would map full-height against a 7 px-inset
+ * temp curve squashed into the joint band. The settings page never offers feels
+ * there, but a stored blob can still carry it (picked on a colour watch paired to
+ * the same phone), so this is the bake-time gate — the line degrades to off and the
+ * temps keep their own band. Gates on exactly 'aplite': an unknown platform (no
+ * watchInfo) stays capable, as in computeEnv and clay-payload.js.
+ * @param {Object} settings Clay settings.
+ * @param {Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
+ * @returns {boolean} True when a feels line is selected and the watch can draw it.
+ */
+function feelsLineDrawn(settings, watchInfo) {
+    return feelsLineSelected(settings) && !(watchInfo && watchInfo.platform === 'aplite');
+}
+
+/**
  * Widen a temperature band to also cover a feels-like series. Idempotent: feeding
  * back an already-joint band returns it unchanged.
  * @param {number} tempMin Band floor (°F).
@@ -377,10 +396,10 @@ function buildForecastSeries(raw, settings) {
  * @param {Object} payload Weather payload with PRECIP_/RAIN_/WIND_/GUST_/UV_TREND_UINT8.
  * @param {Object} settings Clay settings.
  * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined; threaded
- *   through to the status-line bake for its platform env, and read here only to
- *   suppress the fourth line's key on platforms without WW_LINE_STYLE (the
- *   series values themselves are platform-independent now that the line
- *   styling rides the Clay message).
+ *   through to the status-line bake for its platform env. The series themselves are
+ *   platform-independent now that the line styling rides the Clay message, save two
+ *   gates: a feels line is dropped on aplite, which cannot draw it (feelsLineDrawn),
+ *   and the fourth line's key is suppressed on platforms without WW_LINE_STYLE.
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
 function applyForecastSeries(payload, settings, watchInfo) {
@@ -409,7 +428,10 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // dropped below 60 would be a plain lie, however honest it is about the
     // plot's floor. The feels curve's own extremes are unlabelled, which is
     // what the grey shadow line means.
-    var feels = feelsLineSelected(settings) ? (payload.FEELS_TREND || []) : [];
+    //
+    // A feels line the watch cannot draw (aplite, see feelsLineDrawn) takes the
+    // empty-series path: no joint band, and the feels channel renders off.
+    var feels = feelsLineDrawn(settings, watchInfo) ? (payload.FEELS_TREND || []) : [];
     var rawTemps = payload.TEMP_RAW_TREND || [];
     var tempBand = (typeof payload.TEMP_MIN === 'number' && typeof payload.TEMP_MAX === 'number')
         ? { min: payload.TEMP_MIN, max: payload.TEMP_MAX } : null;
@@ -434,6 +456,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     delete payload.WIND_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.GUST_TREND_UINT8;  // transient PKJS-only; never over the wire
     delete payload.UV_TREND_UINT8;    // transient PKJS-only; never over the wire
+    delete payload.UV_DAY_PEAKS;      // transient PKJS-only; baked into the UV slot's text + level, never wired
     delete payload.PRESSURE_TREND;    // transient PKJS-only; hPa never fit a byte, never wired
     delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
@@ -481,15 +504,17 @@ function needsAqi(settings) {
 }
 
 /**
- * Whether feels-like data is needed: on a forecast line, or because the temp slot's
- * display mode shows the feels value ('feels'/'both'). Providers gate the (sometimes
- * Steadman-computed) apparent-temperature work on this so non-users pay nothing.
+ * Whether feels-like data is needed: on a forecast line the watch can draw, or because
+ * the temp slot's display mode shows the feels value ('feels'/'both'). Providers gate
+ * the (sometimes Steadman-computed) apparent-temperature work on this so non-users
+ * pay nothing — including an aplite watch whose stored feels line is never drawn.
  * @param {Object} settings Clay settings.
+ * @param {Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @returns {boolean} True when any rendered selection needs feels-like data.
  */
-function needsFeels(settings) {
+function needsFeels(settings, watchInfo) {
     if (!settings) { return false; }
-    if (feelsLineSelected(settings)) { return true; }
+    if (feelsLineDrawn(settings, watchInfo)) { return true; }
     return Boolean(settings.tempSlotDisplay) && settings.tempSlotDisplay !== 'actual';
 }
 

@@ -19,14 +19,26 @@ var statusThresholds = require('./status-thresholds.js');
  */
 function renderSignature(settings) {
     if (!settings) { return ''; }
-    // fourthLine changes which series the phone bakes (and fetches — UV), so it
-    // joins; the three ...LineStyle keys are Clay-delivered styling and stay out.
+    // Series selection and encoding — fourthLine changes which series the phone
+    // bakes (and fetches — UV), so it joins. NOT the theme or the area-fill toggle:
+    // the line colours, the fill flag, the three ...LineStyle keys and the
+    // threshold auto-colours all ride the Clay message now (line-style.js,
+    // palette-wire.js, status-thresholds.js' buildSettingsBlob), and the auto theme
+    // switch already flips with a Clay-only resend...
     var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine,
-        settings.secondaryLineFill,
-        settings.barSource, settings.windScale, settings.pressureScale, settings.theme,
+        settings.barSource, settings.windScale, settings.pressureScale,
         // Status-line bake inputs: value formatting...
-        settings.temperatureUnits, settings.tempSlotDisplay, settings.axisTimeFormat,
+        settings.temperatureUnits, settings.tempSlotDisplay, settings.uvSlotDisplay,
+        settings.axisTimeFormat,
         settings.timeShowAmPm, settings.timeLeadingZero, settings.healthMode,
+        // ...the two-value slots' presentation (status-pair.js: separator, spacing,
+        // order, UV's next-day mark, and the custom separator text -- editing that
+        // re-bakes the pair while the separator itself stays 'custom')...
+        settings.tempSlotSeparator, settings.tempSlotSeparatorCustom,
+        settings.tempSlotSeparatorSpaced, settings.tempSlotOrder,
+        settings.uvSlotSeparator, settings.uvSlotSeparatorCustom,
+        settings.uvSlotSeparatorSpaced, settings.uvSlotOrder,
+        settings.uvSlotNextDayMark,
         // ...the unit pickers (change baked/fetched values: wind & distance rebake,
         // AQI source/scale refetch)...
         settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,
@@ -49,10 +61,17 @@ function renderSignature(settings) {
     for (var u = 0; u < unitToggles.length; u++) {
         parts.push(settings[unitToggles[u].key]);
     }
-    // ...and the twelve slot selections themselves.
+    // ...and the twelve slot selections themselves, each followed by its countdown
+    // target date (status-lines.js bakes the day count from '<slot>Countdown') —
+    // but only while that slot shows the countdown. The page hydrates every slot's
+    // date to today whether it is used or not, so signing the inert ones would force
+    // a needless fetch on the first save that writes them. The '' keeps the
+    // position fixed, so no two keys can ever share a signature slot.
     var slotKeys = statusCatalog.allSlotKeys();
     for (var i = 0; i < slotKeys.length; i++) {
-        parts.push(settings[slotKeys[i]]);
+        var slotKey = slotKeys[i];
+        parts.push(settings[slotKey],
+            settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
     }
     // The WEATHER threshold kinds are evaluated phone-side at weather-bake
     // time (STATUS_LEVELS_UINT8), so enabling one only shows up after a refetch —

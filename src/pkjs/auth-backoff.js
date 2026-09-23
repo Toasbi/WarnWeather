@@ -14,15 +14,22 @@ var storageKeys = require('./storage-keys.js');
 var AUTH_BACKOFF_KEY = storageKeys.AUTH_BACKOFF_KEY;
 
 /**
- * Whether a normalized fetch failure is a permanent auth rejection (HTTP
- * 401/403). Failure codes are encoded as `<provider>_status_<httpCode>` (see
- * weather/http.js `failure()` and openweathermap.js), so we match a 401/403 suffix.
+ * Whether a normalized fetch failure is the WEATHER PROVIDER's permanent auth
+ * rejection (HTTP 401/403). Provider failure codes are encoded as
+ * `<provider>_status_<httpCode>` (see weather/http.js `failure()` and
+ * openweathermap.js), so we match a 401/403 suffix.
+ *
+ * Only the `provider_data` stage counts: every provider request reports under
+ * it, while the auxiliary geocoders (the keyless ArcGIS city lookup, the app's
+ * shared LocationIQ key) report under their own stages. A geocoder refusal is
+ * not the user's key to fix, and must not stop fetching indefinitely — the
+ * LocationIQ path arms its own time-limited backoff (weather/provider.js).
  *
  * @param {{stage: string, code: string}|*} failure Normalized failure payload.
- * @returns {boolean} True when the failure is an auth rejection.
+ * @returns {boolean} True when the failure is a provider auth rejection.
  */
 function isAuthFailure(failure) {
-    if (!failure || typeof failure.code !== 'string') {
+    if (!failure || failure.stage !== 'provider_data' || typeof failure.code !== 'string') {
         return false;
     }
     return /(^|_)status_(401|403)$/.test(failure.code);

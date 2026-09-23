@@ -63,20 +63,43 @@ test('saturates at 255 (25.5 mm/h and up)', () => {
   assert.equal(out.RAIN_RADAR_TREND_UINT8[0], 255);
 });
 
-test('missing key, parse error, HTTP error, and empty intervals all soft-fail with null', () => {
-  let out = 'unset';
-  tomorrowioRadar.fetchRadarTuplesAt('', 52.5, 13.4, SLOT0, (t) => { out = t; });
-  assert.equal(out, null, 'missing key');
+const CLEAR = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 };
 
+test('transient failures (parse, 429, 5xx, network, empty intervals) soft-fail with null', () => {
+  let out;
   responder = (url, type, onSuccess) => onSuccess('not json');
   out = 'unset'; fetchTuples((t) => { out = t; });
   assert.equal(out, null, 'parse error');
 
-  responder = (url, type, onSuccess, onError) => onError({ code: 'status_429', detail: 'http_status' });
-  out = 'unset'; fetchTuples((t) => { out = t; });
-  assert.equal(out, null, 'HTTP 429');
+  ['status_429', 'status_500', 'status_503', 'network_error', 'timeout'].forEach((code) => {
+    responder = (url, type, onSuccess, onError) => onError({ code: code, detail: 'http_status' });
+    out = 'unset'; fetchTuples((t) => { out = t; });
+    assert.equal(out, null, code);
+  });
 
   responder = (url, type, onSuccess) => onSuccess(JSON.stringify({ data: { timelines: [{ intervals: [] }] } }));
   out = 'unset'; fetchTuples((t) => { out = t; });
   assert.equal(out, null, 'empty intervals');
+});
+
+// A null leaves the radar keys out of the send, and the watch then rolls its last
+// window forward with a zero-filled tail at every fetch boundary — ending in a
+// confident "No rain ahead" nothing ever reported. A failure that can never heal
+// on its own must take the radar OFF the watch instead.
+test('missing key clears the watch radar, with no request', () => {
+  let requested = false;
+  responder = () => { requested = true; };
+  let out = 'unset';
+  tomorrowioRadar.fetchRadarTuplesAt('', 52.5, 13.4, SLOT0, (t) => { out = t; });
+  assert.deepEqual(out, CLEAR);
+  assert.equal(requested, false);
+});
+
+test('a 401/403 key rejection clears the watch radar', () => {
+  ['status_401', 'status_403'].forEach((code) => {
+    responder = (url, type, onSuccess, onError) => onError({ code: code, detail: 'http_status' });
+    let out = 'unset';
+    fetchTuples((t) => { out = t; });
+    assert.deepEqual(out, CLEAR, code);
+  });
 });

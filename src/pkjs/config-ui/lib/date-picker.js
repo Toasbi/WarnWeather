@@ -165,7 +165,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    *   {Object} ctx.S Live settings state.
    *   {function(): ?string} ctx.getOpenDateKey The open date sheet's messageKey.
    *   {function(): void} ctx.render Full re-render.
-   * @returns {{flushPending: Function, scheduleAlign: Function, onModalScroll: Function}}
+   * @returns {{flushPending: Function, scheduleAlign: Function, onModalScroll: Function,
+   *   onModalTouch: Function}}
    */
   function createDateWiring(ctx) {
     var S = ctx.S;
@@ -178,6 +179,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // flicker loop. The handler bails while this is set; alignDateWheels clears it once the scroll
     // events its writes emit have flushed.
     var suppressWheelScroll = false;
+    // True while a finger is down on the sheet. A pause mid-drag emits no scroll events, so the
+    // 120 ms settle would fire under the held finger: its render() replaces the wheel node the
+    // browser's scroll gesture is latched to, freezing the rest of the drag and committing the
+    // value at the pause point. The settle waits for the release instead (onModalTouch re-arms it).
+    // Touch events, not pointer events: once the browser takes a native pan it sends
+    // pointercancel and never pointerup, while touchend still arrives.
+    var touchHeld = false;
     
     /**
      * Center each date wheel on its selected option.
@@ -296,18 +304,55 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if (previous) { clearTimeout(previous.timer); }
       var pending = { dateKey: dateKey, wheel: wheel, timer: null };
       pendingDateScrolls[part] = pending;
+      armSettle(part, pending);
+    }
+
+    /**
+     * (Re)start one wheel's 120 ms settle. While a finger is still down the settle keeps its
+     * pending entry and does nothing; the release re-arms it (onModalTouch).
+     *
+     * @param {string} part Wheel part: 'day' | 'month' | 'year'.
+     * @param {Object} pending That part's pendingDateScrolls entry.
+     * @returns {void}
+     */
+    function armSettle(part, pending) {
+      clearTimeout(pending.timer);
       pending.timer = setTimeout(function () {
         if (pendingDateScrolls[part] !== pending
             || ctx.getOpenDateKey() !== pending.dateKey) { return; }
+        if (touchHeld) { return; }
         flushPendingDateScrolls();
         ctx.render();
       }, 120);
     }
 
+    /**
+     * The #modal touchstart/touchend/touchcancel hook: track whether a finger is down, and on
+     * the last finger's release re-arm every pending settle. A finger held still and then lifted
+     * with no fling emits no further scroll, so nothing else would commit the value; a fling
+     * keeps re-arming through onModalScroll as before. (If a render detaches the touched node
+     * mid-hold, its touchend never bubbles here; the next touch resets the flag, and closing the
+     * sheet flushes regardless.)
+     *
+     * @param {Event} e Touch event; e.touches lists the fingers still down.
+     * @returns {void}
+     */
+    function onModalTouch(e) {
+      var held = Boolean(e.touches && e.touches.length);
+      var released = touchHeld && !held;
+      touchHeld = held;
+      if (!released) { return; }
+      var names = ['day', 'month', 'year'];
+      for (var i = 0; i < names.length; i++) {
+        if (pendingDateScrolls[names[i]]) { armSettle(names[i], pendingDateScrolls[names[i]]); }
+      }
+    }
+
     return {
       flushPending: flushPendingDateScrolls,
       scheduleAlign: scheduleDateWheelAlign,
-      onModalScroll: onModalScroll
+      onModalScroll: onModalScroll,
+      onModalTouch: onModalTouch
     };
   }
 

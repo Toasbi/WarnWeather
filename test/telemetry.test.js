@@ -102,6 +102,43 @@ test('snapshot includes tempSlotDisplay as a string', () => {
   assert.strictEqual(buildSettingsSnapshot({}).tempSlotDisplay, undefined);
 });
 
+test('snapshot includes uvSlotDisplay as a string', () => {
+  assert.strictEqual(buildSettingsSnapshot({ uvSlotDisplay: 'both' }).uvSlotDisplay, 'both');
+  assert.strictEqual(buildSettingsSnapshot({}).uvSlotDisplay, undefined);
+});
+
+// The two-value slots' presentation (status-pair.js), raw like tempSlotDisplay — same
+// lockstep rule. The custom separator TEXT is typed by the user and never leaves the
+// phone: a separator of 'custom' already records the choice.
+const PAIR_FIELDS = { tempSlotSeparator: 'brackets', tempSlotOrder: 'feels',
+  uvSlotSeparator: 'custom', uvSlotOrder: 'max', uvSlotNextDayMark: 'star' };
+
+test('snapshot includes the two-value slot presentation picks as strings', () => {
+  const snap = buildSettingsSnapshot(PAIR_FIELDS);
+  Object.keys(PAIR_FIELDS).forEach((key) => {
+    assert.strictEqual(snap[key], PAIR_FIELDS[key], key);
+    assert.strictEqual(buildSettingsSnapshot({})[key], undefined, key + ' absent = default');
+  });
+});
+
+test('snapshot reports the pair spacing toggles as booleans, absent = off', () => {
+  ['tempSlotSeparatorSpaced', 'uvSlotSeparatorSpaced'].forEach((key) => {
+    assert.strictEqual(buildSettingsSnapshot({ [key]: true })[key], true, key);
+    assert.strictEqual(buildSettingsSnapshot({ [key]: false })[key], false, key);
+    assert.strictEqual(buildSettingsSnapshot({})[key], false, key + ' absent = the off default');
+  });
+});
+
+test('snapshot never carries the custom separator text', () => {
+  const snap = buildSettingsSnapshot(Object.assign({
+    tempSlotSeparator: 'custom', tempSlotSeparatorCustom: 'Hi!',
+    uvSlotSeparatorCustom: ' ~ '
+  }, PAIR_FIELDS));
+  assert.ok(!('tempSlotSeparatorCustom' in snap));
+  assert.ok(!('uvSlotSeparatorCustom' in snap));
+  assert.equal(JSON.stringify(snap).indexOf('Hi!'), -1);
+});
+
 // The date slot's two format picks, raw like tempSlotDisplay above — same lockstep
 // rule (watch-side snapshot AND the Deno .strip() schema, or ingest drops them).
 test('snapshot includes the two date-slot format picks as strings', () => {
@@ -555,8 +592,8 @@ test('reporting default agrees with the wire painting the built-in', () => {
 
 // Targeted half of the lockstep for the six colour fields, per threshPhoneBatteryBoldMode
 // above — and the ONLY automated guard on their TYPE: the set-equality test catches a
-// missing key but not a wrong type, and `mise test-deno` never loads telemetry-ingest
-// (it runs rainbow-nowcast and news only). A z.number() here would make every 'default'
+// missing key but not a wrong type, and `mise test-deno`'s telemetry-ingest suite checks
+// durationMs only. A z.number() here would make every 'default'
 // fail safeParse and 400 the whole event fleet-wide, taking the fetch outcome with it.
 // These six names and types are what the per-metric redesign deliberately did NOT move:
 // the storage changed, the reporting contract did not.
@@ -578,11 +615,17 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // send() logs the non-2xx and nothing retries it. So the heaviest realistic envelope has
 // to stay under the cap with room left to grow.
 // Ledger (MEASURED — read the byte count off this test's own console line, never
-// arithmetic): 3318 B of 4096, headroom 778. The six colours are 169 B of that, and that
+// arithmetic): 3449 B of 4096, headroom 647. The six colours are 169 B of that, and that
 // is their WORST case however they are set: '#RRGGBB' and 'default' are both seven
 // characters. This envelope was 2787 B before them, and 2956 B before the Nighttime card
 // (the eight new settings fields, the four themeAuto ones this fixture had never switched
-// on, and the emery watch the LED group needs).
+// on, and the emery watch the LED group needs). The five two-value slot picks added 45 B
+// (3318 before them; the custom separator text is never sent, so it cannot grow this),
+// and the two spacing toggles (tempSlotSeparatorSpaced / uvSlotSeparatorSpaced) 60 B
+// (3363 before them). uvSlotDisplay, reported all along but left out of this fixture
+// until the unset-field check below was added, is 26 B (3423 before it). The third
+// metric line's fields (fourthLine, the three per-line styles and graphThirdColor)
+// are 125 B (3449 before them).
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -594,7 +637,11 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
   // Every reported setting on its longest realistic option, on a light-polarity colour
   // theme so all six picks report (bw would report none of them).
   const settings = {
-    temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', aqiScale: 'european',
+    temperatureUnits: 'fahrenheit', tempSlotDisplay: 'both', uvSlotDisplay: 'current',
+    aqiScale: 'european',
+    tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
+    uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
+    tempSlotSeparatorSpaced: true, uvSlotSeparatorSpaced: true,
     dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
     aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
     windSlotDirection: true, gustSlotDirection: true,
@@ -616,6 +663,10 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
     secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
     pressureScale: 'high', thirdLine: 'pressure', barSource: 'precip_prob',
+    // The third metric line on its longest realistic option (the UI resolver
+    // excludes the two metrics already picked above), with the longest of the
+    // per-line styles stored (the other two lines' built-ins are already 4 chars).
+    fourthLine: 'gust', fourthLineStyle: 'dots',
     rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
     radarColor: 'multicolor', devStatsEnabled: true, theme: 'light',
     statusForecastLeft: 'phone_battery', statusForecastMid: 'phone_battery',
@@ -626,11 +677,12 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     statusHealthMid: 'phone_battery', statusHealthRight: 'phone_battery',
     colorTime: 0xFFFFFF, colorToday: 0xFF0000, colorSunday: 0xFF0000,
     colorSaturday: 0xFF0000, colorUSFederal: 0xFF0000,
-    // The light-polarity colours for the two metrics selected above (precip_prob as the
-    // secondary line, pressure as the third), each moved off its built-in so all six
-    // fields report the seven-character form.
+    // The light-polarity colours for the three metrics selected above (precip_prob as
+    // the secondary line, pressure as the third, gust as the fourth), each moved off
+    // its built-in so all seven fields report the seven-character form.
     gcPrecipLineLight: 0xFF00FF, gcPrecipFillLight: 0xAAFF55,
-    gcPressureLineLight: 0x00AAFF, gcPrecipNightLight: 0xAA5500,
+    gcPressureLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00,
+    gcPrecipNightLight: 0xAA5500,
     gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000
   };
   const payload = {
@@ -655,6 +707,12 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     durationMs: 999999,
     attempt: 99
   };
+  // "Every reported setting" is checked, not claimed: a field left out of the fixture
+  // serialises as undefined and drops out of the byte count. The customView trio
+  // reports only under layoutPreset 'custom', which this fixture does not pick.
+  const unset = Object.keys(payload.settings).filter((key) => payload.settings[key] === undefined);
+  assert.deepEqual(unset, ['customView0', 'customView1', 'customView2'],
+    'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
   const bytes = Buffer.byteLength(JSON.stringify(payload));
   console.log('heaviest telemetry envelope: ' + bytes + ' B of ' + cap
     + ' B (headroom ' + (cap - bytes) + ')');
@@ -691,6 +749,8 @@ function batchHarness() {
     xhr.send = (body) => { xhr.body = JSON.parse(body); };
     xhr.respond = (status) => { xhr.status = status; xhr.onload(); };
     xhr.fail = () => xhr.onerror();
+    // What the runtime does once xhr.timeout elapses with no response.
+    xhr.expire = () => xhr.ontimeout();
   };
   const client = createTelemetryClient({
     endpoint: 'https://example.test/ingest', appVersion: '9.9.9', buildProfile: 'test',
@@ -926,6 +986,29 @@ test('creating a disabled client purges any parked queue', () => {
     'the user turned telemetry off — pending events are purged, not parked');
 });
 
+test('a POST that never answers times out, releases the latch and backs off', () => {
+  // A stalled network (no response, no error) used to hold the flush latch for
+  // the whole PKJS session: no XHR timeout, and only onload/onerror cleared it.
+  const h = batchHarness();
+  for (let i = 0; i < TELEMETRY_BATCH.FLUSH_AT_EVENTS; i++) { h.track(); }
+  assert.equal(h.requests.length, 1);
+  const xhr = h.requests[0];
+  assert.equal(xhr.timeout, TELEMETRY_BATCH.XHR_TIMEOUT_MS, 'the batch POST carries a timeout');
+  assert.ok(xhr.timeout >= 20 * 1000,
+    'generous enough for an edge-function cold start — a premature timeout re-POSTs a stored batch');
+  assert.equal(typeof xhr.ontimeout, 'function', 'and a handler for it');
+  xhr.expire();
+  assert.equal(h.store[TELEMETRY_SENDING_KEY], undefined, 'the mark clears on the timeout');
+  assert.equal(h.queue().length, TELEMETRY_BATCH.FLUSH_AT_EVENTS, 'nothing is dropped — it retries');
+  h.track();
+  assert.equal(h.requests.length, 1, 'a timeout backs off like onerror — no per-fetch retry');
+  createTelemetryClient._resetBatchStateForTests();   // the backoff window elapses
+  h.track();
+  assert.equal(h.requests.length, 2, 'the latch is free — the next window flushes again');
+  h.requests[1].respond(202);
+  assert.equal(h.queue().length, 0);
+});
+
 test('a synchronous XHR throw releases the latch and backs off instead of wedging the session', () => {
   const h = batchHarness();
   const RealXhr = global.XMLHttpRequest;
@@ -941,4 +1024,18 @@ test('a synchronous XHR throw releases the latch and backs off instead of wedgin
   h.track();
   assert.equal(h.requests.length, 1, 'the latch is free — the next window flushes normally');
   h.requests[0].respond(202);
+});
+
+test('a clock-step durationMs queues as null; a real one as-is', () => {
+  // durationMs is wall-clock (Date.now() - fetchStart), so a clock step inside a
+  // fetch makes it huge or negative. Queued raw, a forward step past int4
+  // (~1.7e12 after an RTC reset + network-time sync) 500'd the ingest insert and
+  // wedged the queue head for 72 h; a backward step 400'd the whole batch.
+  const h = batchHarness();
+  const max = TELEMETRY_BATCH.MAX_DURATION_MS;
+  [2300, 1700000000000, -8000, max + 1, max, 1234.9, NaN, Infinity, '1500', undefined]
+    .forEach((durationMs) => h.track({ durationMs }));
+  assert.deepEqual(h.queue().map((r) => r.durationMs),
+    [2300, null, null, null, max, 1234, null, null, null, null]);
+  assert.ok(max <= 2147483647, 'the phone-side bound sits inside the int4 column');
 });

@@ -28,6 +28,16 @@ test('isAuthFailure: false for non-auth failures', () => {
   assert.equal(authBackoff.isAuthFailure({ code: 'owm_parse_error' }), false);
 });
 
+test('isAuthFailure: false for a geocoder 401/403 (not the provider\'s key)', () => {
+  // The keyless ArcGIS city lookup and the app's shared LocationIQ key report
+  // under their own stages; a refusal there must not stop weather fetching
+  // indefinitely behind an 'API key error' the user cannot fix.
+  assert.equal(authBackoff.isAuthFailure({ stage: 'reverse_geocode', code: 'status_403' }), false);
+  assert.equal(authBackoff.isAuthFailure({ stage: 'forward_geocode', code: 'status_401' }), false);
+  assert.equal(authBackoff.isAuthFailure({ stage: 'forward_geocode', code: 'status_403' }), false);
+  assert.equal(authBackoff.isAuthFailure({ code: 'owm_status_401' }), false, 'no stage → not a provider failure');
+});
+
 test('isAuthFailure: false for malformed input', () => {
   assert.equal(authBackoff.isAuthFailure(null), false);
   assert.equal(authBackoff.isAuthFailure(undefined), false);

@@ -67,3 +67,46 @@ test('driftViolations: ignores base files that have no twin', () => {
   );
   assert.deepStrictEqual(v, []);
 });
+
+// main()'s handling of an unusable base ref, run as CI runs it: a child process
+// in a scratch dir that has a src/c tree but is no git repo, so every git call
+// throws (as `git diff origin/main...HEAD` does after a shallow checkout or a
+// base fetched under another ref name).
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawnSync } = require('child_process');
+
+const SCRIPT = path.resolve(__dirname, '..', 'scripts', 'check-aplite-twins.js');
+
+/**
+ * Run the check script in a non-git scratch dir.
+ * @param {string|undefined} base APLITE_TWINS_BASE, or undefined to leave it unset.
+ * @returns {{status: number, stderr: string}} Exit status and stderr.
+ */
+function runOutsideGit(base) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aplite-twins-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'src', 'c'), { recursive: true });
+    const env = Object.assign({}, process.env, { GIT_CEILING_DIRECTORIES: path.dirname(dir) });
+    delete env.APLITE_TWINS_BASE;
+    delete env.GIT_DIR;
+    if (base !== undefined) env.APLITE_TWINS_BASE = base;
+    const r = spawnSync(process.execPath, [SCRIPT], { cwd: dir, env: env, encoding: 'utf8' });
+    return { status: r.status, stderr: r.stderr };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('main: an explicit APLITE_TWINS_BASE that git cannot use FAILS the check (CI must not fail open)', () => {
+  const r = runOutsideGit('origin/main');
+  assert.strictEqual(r.status, 1, 'the required check must not pass with the drift guard skipped');
+  assert.match(r.stderr, /Drift check could not run against APLITE_TWINS_BASE=origin\/main/);
+});
+
+test('main: the default base still skips the drift check gracefully (shallow local checkout)', () => {
+  const r = runOutsideGit(undefined);
+  assert.strictEqual(r.status, 0);
+  assert.match(r.stderr, /Skipping drift check/);
+});

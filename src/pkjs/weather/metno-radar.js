@@ -34,8 +34,9 @@ function mapFrames(timeseries) {
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {number} slotZeroEpoch The 5-min pinned slot-0 epoch.
- * @param {Function} callback Receives the radar tuples object, or null on
- *   failure (null preserves the watch's existing radar).
+ * @param {Function} callback Receives the radar tuples object, or null on a
+ *   transient failure (the radar keys stay out of this send; the watch keeps
+ *   and self-advances its last window — see radar-fetch.js).
  * @returns {void}
  */
 function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
@@ -57,7 +58,7 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
         var timeseries = (props && Array.isArray(props.timeseries))
             ? props.timeseries : [];
         if (coverage === 'temporarily unavailable') {
-            // Radar outage is transient — preserve the watch's existing radar.
+            // Radar outage is transient — null leaves the watch's window in place.
             console.log('[!] Met.no radar temporarily unavailable');
             return null;
         }

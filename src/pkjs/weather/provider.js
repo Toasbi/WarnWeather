@@ -1,11 +1,14 @@
-var SunCalc = require('suncalc');
-var pickNext24hSunEvents = require('./sun-events.js').pickNext24hSunEvents;
+var sunEventsLib = require('./sun-events.js');
+var nextSunEvents = sunEventsLib.nextSunEvents;
+var isValidSunEvent = sunEventsLib.isValidSunEvent;
 var outbox = require('../outbox.js');
 var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
+var hourlyWindow = require('./hourly-window.js');
+var uvDayRecord = require('./uv-day-record.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -41,6 +44,12 @@ var WeatherProvider = function() {
     // UV is opt-in and not every provider has it: leave it empty so getPayload
     // emits an empty UV series (→ the UV line stays off) unless a provider fills it.
     this.uvTrend = [];
+    // The UV peak of today's hours before uvTrend's entry 0, back to the last
+    // one that printed below today's remaining peak (UV index; 0 when none came
+    // between, null when unknown), from the record earlier fetches left
+    // (uv-day-record.js). Set per fetch; getPayload hands it to the UV slot's
+    // day max as UV_DAY_PEAKS' third entry.
+    this.uvEarlierPeak = null;
     // AQI is opt-in (status slot only); empty → the slot shows '--' unless a
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.aqiTrend = [];
@@ -98,20 +107,24 @@ WeatherProvider.prototype.gpsOverride = function(location) {
 };
 
 /**
- * Drop any armed geocode rate-limit backoff. Called for a user-initiated refresh
- * (Force-fetch toggle, provider/key change) — the same contract authBackoff.clear()
- * has: an explicit user action overrides a self-healing cooldown. Without this a
- * manual location whose geocode 429'd would silently swallow every forced fetch for
- * up to the 30-minute ceiling, with only a console line to show for it.
+ * Drop any armed geocode backoff — the rate-limit/key-refusal cooldown and the
+ * remembered "not found" address. Called for a user-initiated refresh
+ * (Force-fetch toggle, provider/key/location change) — the same contract
+ * authBackoff.clear() has: an explicit user action overrides a self-healing
+ * cooldown. Without this a manual location whose geocode 429'd would silently
+ * swallow every forced fetch for up to the 30-minute ceiling, with only a
+ * console line to show for it.
  *
  * @returns {void}
  */
 WeatherProvider.prototype.clearGeocodeBackoff = function() {
     locationLib.clearGeocodeBackoff();
+    locationLib.clearGeocodeNotFound();
 };
 
 /**
- * Determine whether the provider is currently rate-limited for geocoding.
+ * Determine whether forward geocoding is paused for the manual address: in
+ * the rate-limit/key-refusal cooldown, or recently answered "not found".
  *
  * @returns {boolean} True when forward geocoding should be skipped.
  */
@@ -127,6 +140,10 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
         return false;
     }
 
+    if (locationLib.isGeocodeNotFound(locationOverride.query)) {
+        return true;
+    }
+
     backoffData = locationLib.readGeocodeBackoff();
     if (!backoffData) {
         return false;
@@ -136,75 +153,70 @@ WeatherProvider.prototype.isGeocodeBackoffActive = function() {
         return true;
     }
 
-    locationLib.clearGeocodeBackoff();
+    // Expired: let the lookup through, but keep the record. Its attempt count
+    // is what makes the next 429/401/403 wait longer (writeGeocodeBackoff);
+    // clearing it here restarted every cooldown at 60 s, so a dead or
+    // rate-limited key was asked again on every minute tick. A 2xx answer,
+    // any other error, or a forced fetch drops it.
     return false;
 };
 
 /**
- * Compute the next ~24h of sun events from local SunCalc (synchronous). The
- * callback receives an array of up to two events, each `{ type: 'sunrise' |
- * 'sunset', date: Date }`. Subclasses may override with a network-based source
- * (see OpenWeatherMapProvider).
+ * Compute the next sun events from local SunCalc (synchronous). The callback
+ * receives exactly two events, each `{ type: 'sunrise' | 'sunset', date:
+ * Date }`, including during polar day and night (see nextSunEvents).
+ * Subclasses may override with a network-based source (see
+ * OpenWeatherMapProvider).
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
- * @param {Function} callback Receives the next-24h sun-events array.
+ * @param {Function} callback Receives the two-event sun-events array.
  * @param {Function} onFailure Called with a failure object on error.
  * @returns {void}
  */
 WeatherProvider.prototype.withSunEvents = function(lat, lon, callback, onFailure) {
-    var dateNow = new Date();
-    var dateTomorrow = new Date().setDate(dateNow.getDate() + 1);
-
-    var resultsToday;
-    var resultsTomorrow;
+    var sunEvents;
 
     try {
-        resultsToday = SunCalc.getTimes(dateNow, lat, lon);
-        resultsTomorrow = SunCalc.getTimes(dateTomorrow, lat, lon);
+        sunEvents = nextSunEvents(new Date(), lat, lon);
     }
     catch (ex) {
         onFailure(failure('sun_events', 'calc_error'));
         return;
     }
 
-    /**
-     * @param {SunCalc.GetTimesResult} results
-     * @returns {{ type: 'sunrise'|'sunset', date: Date }[]}
-     */
-    var processResults = function(results) {
-        return [
-            {
-                type: 'sunrise',
-                date: results.sunrise
-            },
-            {
-                type: 'sunset',
-                date: results.sunset
-            }
-        ];
-    };
-
-    var sunEvents = processResults(resultsToday).concat(processResults(resultsTomorrow));
-    var next24HourSunEvents = pickNext24hSunEvents(sunEvents, dateNow);
     console.log('The next ' + sunEvents[0].type + ' is at ' + sunEvents[0].date.toTimeString());
     console.log('The next ' + sunEvents[1].type + ' is at ' + sunEvents[1].date.toTimeString());
-    callback(next24HourSunEvents);
+    callback(sunEvents);
 };
 
 
 /**
  * Reverse-geocode coordinates to a display city name + country code via ArcGIS.
+ * Never fails: the city is only the City slot's display string, so a slow,
+ * down or refusing ArcGIS must not cost the forecast. A failed lookup carries
+ * on with the last name resolved near these coordinates, else 'Unknown' (what
+ * a response without an address already gives), and a null country code.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {Function} callback Receives (cityName, countryCode).
- * @param {Function} onFailure Called with a failure object on error.
  * @returns {void}
  */
-WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure) {
+WeatherProvider.prototype.withCityName = function(lat, lon, callback) {
     var url = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?f=json&langCode=EN&location='
         + lon + ',' + lat;
+
+    /**
+     * Continue the fetch with a stand-in name after a failed lookup.
+     * @param {string} reason Failure code, for the log only.
+     * @returns {void}
+     */
+    function fallBack(reason) {
+        var name = locationLib.readLastCityNear(lat, lon) || 'Unknown';
+        console.log('[!] Reverse geocode failed (' + reason + '), using city: ' + name);
+        callback(name, null);
+    }
 
     request(
         url,
@@ -218,19 +230,24 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure)
                 body = JSON.parse(response);
             }
             catch (ex) {
-                onFailure(failure('reverse_geocode', 'parse_error'));
+                fallBack('parse_error');
                 return;
             }
 
-            address = body.address || {};
-            name = address.District || address.City || address.Region || 'Unknown';
+            address = (body && body.address) || {};
+            name = address.District || address.City || address.Region;
+            if (name) {
+                locationLib.writeLastCity(name, lat, lon);
+            }
+            else {
+                name = 'Unknown';
+            }
             countryCode = address.CountryCode || null;
             console.log('Running callback with city: ' + name + ', countryCode=' + countryCode);
             callback(name, countryCode);
         },
         function(error) {
-            console.log('[!] Reverse geocode failed: ' + JSON.stringify(error));
-            onFailure(failure('reverse_geocode', error.code));
+            fallBack(error.code);
         }
     );
 };
@@ -239,8 +256,9 @@ WeatherProvider.prototype.withCityName = function(lat, lon, callback, onFailure)
 
 /**
  * Resolve coordinates from the location override: pass through manual lat/lon,
- * else forward-geocode a manual address via LocationIQ (cached, with 429
- * backoff). GPS mode is rejected here — withCoordinates routes that elsewhere.
+ * else forward-geocode a manual address via LocationIQ (cached, with a
+ * 429/401/403 backoff, and a day's pause for an address it could not
+ * resolve). GPS mode is rejected here — withCoordinates routes that elsewhere.
  *
  * @param {Function} callback Receives (latitude, longitude).
  * @param {Function} onFailure Called with a failure object on error.
@@ -283,6 +301,15 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
         return;
     }
 
+    // An address LocationIQ could not resolve stays unresolvable: don't spend
+    // the shared key on it every minute (index.js skips the whole fetch while
+    // this holds; a forced fetch clears it).
+    if (locationLib.isGeocodeNotFound(locationOverride.query)) {
+        console.log('[!] Address was not found recently, skipping geocoding');
+        onFailure(failure('forward_geocode', 'not_found'));
+        return;
+    }
+
     // Check rate limit backoff: skip geocoding if we're still in cooldown from a 429
     if (this.isGeocodeBackoffActive()) {
         console.log('[!] Geocoding in backoff cooldown, skipping');
@@ -298,6 +325,9 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
         (function(response) {
             var locations;
             var closest;
+            // A 2xx answer: the key is accepted and not rate-limited, so the
+            // cooldown's escalation starts over.
+            locationLib.clearGeocodeBackoff();
             try {
                 locations = JSON.parse(response);
             }
@@ -308,6 +338,7 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
 
             if (!Array.isArray(locations) || locations.length === 0) {
                 console.log('[!] No geocoding results');
+                locationLib.writeGeocodeNotFound(locationOverride.query);
                 onFailure(failure('forward_geocode', 'no_results'));
                 return;
             }
@@ -316,19 +347,30 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
             console.log('Query ' + locationOverride.query + ' geocoded to ' + closest.lat + ', ' + closest.lon);
             // Cache the successful geocode result
             writeGeocodeCache(locationOverride.query, closest.lat, closest.lon);
+            locationLib.clearGeocodeNotFound();
             callback(closest.lat, closest.lon);
         }).bind(this),
         (function(error) {
             console.log('[!] Forward geocode failed: ' + JSON.stringify(error));
 
-            // Apply exponential backoff on 429 responses
-            if (error.code === 'status_429') {
+            // Apply exponential backoff on 429 responses, and on a 401/403: the
+            // shared key refused (revoked, blocked). That refusal used to ride
+            // the weather provider's indefinite auth backoff, which blamed the
+            // wrong service; auth-backoff now counts only provider_data, so
+            // this time-limited cooldown is what keeps every manual-address
+            // install from re-asking LocationIQ each minute.
+            if (error.code === 'status_429' || error.code === 'status_401' || error.code === 'status_403') {
                 backoffMs = writeGeocodeBackoff();
-                console.log('[!] LocationIQ 429, backing off for ' + (backoffMs / 1000) + 's');
+                console.log('[!] LocationIQ ' + error.code + ', backing off for ' + (backoffMs / 1000) + 's');
             }
             else {
-                // Clear backoff on non-429 errors (e.g. network issues)
+                // Clear backoff on other errors (e.g. network issues)
                 locationLib.clearGeocodeBackoff();
+                // 404 is LocationIQ's "Unable to geocode": permanent for this
+                // address. Timeouts, network errors and 5xx stay retryable.
+                if (error.code === 'status_404') {
+                    locationLib.writeGeocodeNotFound(locationOverride.query);
+                }
             }
             onFailure(failure('forward_geocode', error.code));
         }).bind(this)
@@ -481,10 +523,10 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
 
 /**
  * Run the weather-fetch chain for already-resolved coordinates: reverse-geocode
- * the city, compute sun events, fetch provider data, then send the composed
- * payload via the deduping outbox. Callers MUST resolve coordinates via
- * withCoordinates() first — it owns the usedGpsCache/gpsErrorCode/locationMode
- * resets this method relies on.
+ * the city (never fatal — see withCityName), compute sun events, fetch provider
+ * data, then send the composed payload via the deduping outbox. Callers MUST
+ * resolve coordinates via withCoordinates() first — it owns the
+ * usedGpsCache/gpsErrorCode/locationMode resets this method relies on.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -493,9 +535,11 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
  * @param {boolean} force Whether this is a forced refresh.
  * @param {Object} extraPayload Extra AppMessage tuples (radar/sleep) to merge.
  * @param {Function} [payloadTransform] Optional PKJS render transform.
+ * @param {function(): boolean} [isCurrent] False once the caller abandoned this
+ *   fetch; the composed payload is then dropped instead of sent.
  * @returns {void}
  */
-WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform) {
+WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, onFailure, force, extraPayload, payloadTransform, isCurrent) {
     // Note: withCoordinates() already reset usedGpsCache/gpsErrorCode/locationMode/countryCode
     // for this cycle; this method relies on those resets having already happened.
     this.withCityName(lat, lon, (function(cityName, countryCode) {
@@ -514,16 +558,61 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 this.sunEvents = sunEvents;
                 // Fetch AQI (keyless, shared, gated by fetchAqi) using startTime
                 // set by withProviderData, then compose + send. Non-fatal: a
-                // failed AQI call still sends the forecast.
+                // failed AQI call still sends the forecast. Reset it per
+                // cycle, like pollen below: the provider instance is reused
+                // across fetches, and a failed, no-station or '-' lookup must
+                // show '--', not the previous cycle's reading (or an
+                // Open-Meteo window aligned to the previous startTime).
                 var self = this;
+                self.aqiTrend = [];
                 airQuality.fetchAqiInto(this, lat, lon, function() {
                     self.pollenToday = null;
                     pollen.fetchPollenInto(self, lat, lon, function() {
+                        // The UV day record only refines the UV slot's day max: a
+                        // storage failure leaves that on its plain rule, never the
+                        // fetch failed.
+                        var uvRecord = null;
+                        try {
+                            uvRecord = self.recallUvDay(lat, lon);
+                        }
+                        catch (exUvRecall) {
+                            self.uvEarlierPeak = null;
+                            console.log('[!] Reading the UV day record failed: ' + exUvRecall.message);
+                        }
+                        // This runs inside an XHR callback: a throw here would
+                        // escape every try and leave the fetch unfinished, so it
+                        // is reported as a failure instead.
+                        var payload;
+                        try {
+                            payload = self.composeWeatherPayload(extraPayload, payloadTransform);
+                        }
+                        catch (exCompose) {
+                            console.log('[!] Composing the weather payload threw: ' + exCompose.message);
+                            onFailure(failure('compose', 'exception'));
+                            return;
+                        }
+                        // A fetch its caller already gave up on must not put its
+                        // stale payload on the half-duplex channel, where a newer
+                        // fetch may be sending.
+                        if (typeof isCurrent === 'function' && !isCurrent()) {
+                            console.log('Dropping the payload of an abandoned weather fetch.');
+                            return;
+                        }
+                        // Only a current fetch's UV series joins the record: an
+                        // abandoned one's is older than what a newer fetch stores.
+                        if (uvRecord) {
+                            try {
+                                uvDayRecord.save(uvRecord);
+                            }
+                            catch (exUvSave) {
+                                console.log('[!] Storing the UV day record failed: ' + exUvSave.message);
+                            }
+                        }
                         // The outbox sends only the categories that changed since
                         // the last ACKed message — possibly nothing, which still
                         // counts as a successful fetch.
                         outbox.sendWeather(
-                            self.composeWeatherPayload(extraPayload, payloadTransform),
+                            payload,
                             function() {
                                 console.log('Weather info sent to Pebble successfully!');
                                 onSuccess();
@@ -541,9 +630,32 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
         }).bind(this), function(sunFailure) {
             onFailure(sunFailure || failure('sun_events', 'unknown_error'));
         });
-    }).bind(this), function(cityFailure) {
-        onFailure(cityFailure || failure('reverse_geocode', 'unknown_error'));
-    });
+    }).bind(this));
+};
+
+/**
+ * Look up the UV peak of today's hours already begun, back to the last hour
+ * that printed below today's remaining peak (this.uvEarlierPeak, for
+ * getPayload), in the record earlier fetches left, and build the record with
+ * this fetch's UV series added. The caller stores it once the fetch is known to
+ * be current. Without a UV series nothing is read or built.
+ *
+ * @param {number|string} lat Latitude of this fetch (manual ones arrive as strings).
+ * @param {number|string} lon Longitude of this fetch.
+ * @returns {?Object} The record to store, or null when there is no UV series.
+ */
+WeatherProvider.prototype.recallUvDay = function(lat, lon) {
+    this.uvEarlierPeak = null;
+    if (!this.uvTrend || !this.uvTrend.length || typeof this.startTime !== 'number') {
+        return null;
+    }
+    // Keyed by the UV FEED, not the provider: DWD's UV is Open-Meteo's.
+    var source = { id: this.uvFeedId || this.id, lat: Number(lat), lon: Number(lon) };
+    var nowEpoch = Math.floor(Date.now() / 1000);
+    var record = uvDayRecord.merge(uvDayRecord.load(), source, this.uvTrend, this.startTime, nowEpoch);
+    var rest = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime, nowEpoch)[0];
+    this.uvEarlierPeak = uvDayRecord.earlierPeak(record, source, this.startTime, nowEpoch, rest);
+    return record;
 };
 
 /**
@@ -597,10 +709,20 @@ function scaleTrendToBytes(trend, numEntries, scale) {
  * series starts on a sunrise, else 1) followed by each event's epoch-seconds
  * reinterpreted as little-endian Int32 bytes.
  *
+ * Null when fewer than two events carry a real date, and getPayload then
+ * leaves the key out. The watch needs the start byte plus two epochs
+ * (handle_sun_events ignores anything shorter), and an Invalid Date would pack
+ * as epoch 0, which the watch persists over its last good pair before
+ * get_valid_sun_events rejects it.
+ *
  * @param {{type: string, date: Date}[]} sunEvents Ordered sun events.
- * @returns {number[]} SUN_EVENTS wire bytes.
+ * @returns {?number[]} SUN_EVENTS wire bytes, or null when there is no pair.
  */
 function encodeSunEvents(sunEvents) {
+    sunEvents = Array.isArray(sunEvents) ? sunEvents.filter(isValidSunEvent) : [];
+    if (sunEvents.length < 2) {
+        return null;
+    }
     var intView = new Int32Array(sunEvents.map(function(sunEvent) {
         return sunEvent.date.getTime() / 1000; // Seconds since epoch
     }));
@@ -635,6 +757,8 @@ WeatherProvider.prototype.getPayload = function() {
     // early encode here forced a decode-and-re-encode round trip downstream.)
     // TEMP_MIN/TEMP_MAX carry the ACTUAL air range either way: the watch reads
     // them only for the hi/lo labels; the scaling band travels in the bytes.
+    // They are whole °F int32s, so for °C the watch's f_to_c rounds them a second
+    // time — a label can sit a degree off the single-rounded temp slot.
     var tempMin = Infinity, tempMax = -Infinity, ti;
     for (ti = 0; ti < temps.length; ti += 1) {
         if (temps[ti] < tempMin) { tempMin = temps[ti]; }
@@ -655,11 +779,19 @@ WeatherProvider.prototype.getPayload = function() {
         PRESSURE_TREND: (this.pressureTrend && this.pressureTrend.length) ? this.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,
         NUM_ENTRIES: numEntries,
-        CURRENT_TEMP: Math.round(this.currentTemp),
-        CITY: this.cityName,
-        // First byte flags whether the event list starts on a sunrise (0) or sunset (1).
-        SUN_EVENTS: encodeSunEvents(this.sunEvents)
+        // Transient PKJS-only: °F, unrounded like DEW_TREND — formatTemp rounds once,
+        // in the display unit; a whole-°F round here made °C readings round twice.
+        CURRENT_TEMP: this.currentTemp,
+        CITY: this.cityName
     };
+    // First byte flags whether the event list starts on a sunrise (0) or sunset (1).
+    // Absent rather than empty with no pair to send: the outbox skips the
+    // absent 'sun' category, the watch keeps its last pair, and the sun status
+    // slot reads '--'.
+    var sunEventBytes = encodeSunEvents(this.sunEvents);
+    if (sunEventBytes) {
+        payload.SUN_EVENTS = sunEventBytes;
+    }
     // Feels-like keys are emitted only when sourced (unlike PRESSURE_TREND's
     // always-present empty array) so a feels-less payload has no keys to strip.
     // Transient PKJS-only: forecast-series/formatValue consume + delete before send.
@@ -671,7 +803,7 @@ WeatherProvider.prototype.getPayload = function() {
         });
     }
     if (typeof this.currentFeels === 'number') {
-        payload.FEELS_CURRENT = Math.round(this.currentFeels); // °F, rounded like CURRENT_TEMP
+        payload.FEELS_CURRENT = this.currentFeels; // °F, unrounded like CURRENT_TEMP
     }
     // Dew point and wind bearing follow the same conditional-emit rule as the
     // feels-like keys: absent rather than empty, so a provider that does not
@@ -682,6 +814,20 @@ WeatherProvider.prototype.getPayload = function() {
     }
     if (this.windDirTrend && this.windDirTrend.length) {
         payload.WIND_DIR_TREND = this.windDirTrend.slice(0, numEntries); // degrees 0-359, "comes from"
+    }
+    // The UV slot's day-max modes: [rest of today's peak, tomorrow's peak, the
+    // peak of today's hours already begun] in tenths (null = unknown). The first
+    // two are read off the FULL uvTrend — it reaches UV_HOURS, past the 24h
+    // window UV_TREND_UINT8 is cut to; the clock picks which local day is today.
+    // The third comes from earlier fetches, back to the last dip below the first
+    // (recallUvDay). Emitted only alongside
+    // a sourced UV series. Transient PKJS-only: formatValue/displayValue consume
+    // it, forecast-series deletes it before send.
+    if (uvs.length) {
+        payload.UV_DAY_PEAKS = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime,
+            Math.floor(Date.now() / 1000))
+            .concat([typeof this.uvEarlierPeak === 'number' ? this.uvEarlierPeak : null])
+            .map(function (peak) { return peak === null ? null : clampByte(peak * 10); });
     }
     return payload;
 };
@@ -715,7 +861,15 @@ WeatherProvider.requestMapped = function(opts, onMapped, onFailure) {
             onFailure(failure('provider_data', opts.id + '_parse_error'));
             return;
         }
-        mapped = opts.map(json);
+        // Mapping runs inside the XHR callback; a throw would strand the fetch.
+        try {
+            mapped = opts.map(json);
+        }
+        catch (exMap) {
+            console.log('[!] ' + (opts.label || opts.id) + ' response mapping threw: ' + exMap.message);
+            onFailure(failure('provider_data', opts.id + '_map_error'));
+            return;
+        }
         if (mapped === null) {
             onFailure(failure('provider_data', opts.id + '_missing_fields'));
             return;

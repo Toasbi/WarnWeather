@@ -50,6 +50,22 @@ function isFeatureRelease(version) {
   return parts ? Number(parts[3]) === 0 : true;
 }
 
+/**
+ * Every manifest key whose entry prepare-package.sh would throw on.
+ *
+ * prepare-package.sh normalizes EVERY entry at or below the built version, not
+ * just the current one, so a half-filled older entry aborts the release build
+ * after the tag is cut. All keys are checked — a stricter bar than "at or
+ * below", which would have to mirror prepare-package's semver parsing exactly
+ * (a non-numeric key like "next" sorts as 0.0.0 there and IS normalized).
+ *
+ * @param {Object} notifications release-notifications.json object.
+ * @returns {string[]} The broken keys, in manifest order.
+ */
+function brokenNotificationKeys(notifications) {
+  return Object.keys(notifications).filter((key) => !hasValidNotification(notifications, key));
+}
+
 function main() {
   const pkg = readJson('package.template.json');
   const notifications = readJson('release-notifications.json');
@@ -59,18 +75,24 @@ function main() {
     throw new Error('package.template.json must contain a non-empty "version"');
   }
 
-  const present = Boolean(notifications)
-    && Object.prototype.hasOwnProperty.call(notifications, version);
+  // prepare-package.sh throws on a manifest that is not a plain object.
+  if (notifications === null || typeof notifications !== 'object' || Array.isArray(notifications)) {
+    throw new Error('release-notifications.json must be a JSON object keyed by version');
+  }
 
-  // A present-but-broken entry fails whatever the version shape:
-  // prepare-package.sh throws on one, so waving it through here would only move
-  // the same failure to the build.
-  if (present && !hasValidNotification(notifications, version)) {
+  // A present-but-broken entry fails whatever the version shape — and whatever
+  // the version it is keyed by: prepare-package.sh throws on one, so waving it
+  // through here would only move the same failure to the build.
+  const broken = brokenNotificationKeys(notifications);
+  if (broken.length) {
     throw new Error(
-      `release-notifications.json["${version}"] exists but is invalid. ` +
-      `"title" and "body" must both be non-empty — fill it in, or drop the entry.`
+      broken.map((key) => `release-notifications.json["${key}"]`).join(', ') +
+      ` ${broken.length === 1 ? 'is' : 'are'} invalid. Each entry must be an object whose ` +
+      `"title" and "body" are both non-empty — fill it in, or drop the entry.`
     );
   }
+
+  const present = Object.prototype.hasOwnProperty.call(notifications, version);
 
   if (!present) {
     if (isFeatureRelease(version)) {
@@ -98,4 +120,10 @@ if (require.main === module) {
   }
 }
 
-module.exports = { hasValidNotification: hasValidNotification, isFeatureRelease: isFeatureRelease, readJson: readJson, main: main };
+module.exports = {
+  hasValidNotification: hasValidNotification,
+  isFeatureRelease: isFeatureRelease,
+  brokenNotificationKeys: brokenNotificationKeys,
+  readJson: readJson,
+  main: main
+};

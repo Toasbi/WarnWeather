@@ -1,7 +1,7 @@
 {
   "name": "warnweather",
   "author": "Toasbi",
-  "version": "1.19.0",
+  "version": "1.20.0",
   "buildProfile": "{{buildProfile}}",
   "keywords": [
     "pebble-app",
@@ -291,20 +291,24 @@
           ]
         },
         {
-          "type": "font",
-          "name": "FONT_ROBOTO_BOLD_62",
-          "file": "fonts/Roboto-Bold.ttf",
-          "characterRegex": "[0-9:]",
+          "type": "bitmap",
+          "name": "CLOCK_STRIP_ROBOTO",
+          "file": "img/clock-roboto.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
           "targetPlatforms": [
+            "basalt",
             "emery"
           ]
         },
         {
-          "type": "font",
-          "name": "FONT_MONTSERRAT_MEDIUM_62",
-          "file": "fonts/Montserrat-Medium.ttf",
-          "characterRegex": "[0-9:]",
+          "type": "bitmap",
+          "name": "CLOCK_STRIP_BITHAM",
+          "file": "img/clock-bitham.png",
+          "memoryFormat": "2BitPalette",
+          "storageFormat": "pbi",
           "targetPlatforms": [
+            "basalt",
             "emery"
           ]
         }

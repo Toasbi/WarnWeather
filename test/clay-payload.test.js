@@ -148,6 +148,90 @@ test('compact top view anchors the holiday window to the current week (prevWeek 
   assert.notStrictEqual(got, prevAnchor);        // the override actually changed the anchor
 });
 
+// The watch draws the previous week on top of EVERY 3-row view (config_n_today), not
+// only the default one, and cell_is_holiday can never light a cell before the anchor.
+// A custom layout may put the 3-row calendar (or a radar top, drawn as the 3-row
+// calendar until radar data arrives) on a flick view, so the window has to anchor
+// there too, or that view's top row never shows a holiday.
+test('a 3-row calendar on a flick view anchors the holiday window on the previous week', () => {
+  const anchorOf = (b) => (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
+  const MON_OCT_5 = new Date(2026, 9, 5, 12, 0, 0);
+  const windowAt = (prevWeek) => holidayMask.build({ startMon: true, prevWeek: prevWeek,
+    country: 'none', region: 'all', enabled: true }, MON_OCT_5).anchor;
+  const custom = (top1, extra) => Object.assign(baseSettings(), {
+    layoutPreset: 'custom', viewCount: '2', viewTop0: 'cal2', viewTop1: top1,
+    firstWeek: 'prev', weekStartDay: 'mon', holidayCountry: 'DE'
+  }, extra);
+  const BASALT = { platform: 'basalt' };
+
+  const flickCal3 = buildClayPayload(custom('cal3'), BASALT, MON_OCT_5);
+  assert.equal(anchorOf(flickCal3.HOLIDAYS), windowAt(true),
+    'the 3-row flick view starts on Mon 28 Sep, so the window must too');
+  assert.equal(flickCal3.CLAY_TOP_VIEW_MODE, 1, 'the boot hint stays the default slot (compact)');
+
+  const flickRadar = buildClayPayload(custom('radar', { radarMode: 'graph' }), BASALT, MON_OCT_5);
+  assert.equal(anchorOf(flickRadar.HOLIDAYS), windowAt(true),
+    'a radar top is FULL-tier: the watch draws it as the 3-row calendar without radar data');
+
+  const firstWeekCurr = buildClayPayload(custom('cal3', { firstWeek: 'curr' }), BASALT, MON_OCT_5);
+  assert.equal(anchorOf(firstWeekCurr.HOLIDAYS), windowAt(false), 'curr keeps the current week');
+
+  const noFull = buildClayPayload(custom('cal2'), BASALT, MON_OCT_5);
+  assert.equal(anchorOf(noFull.HOLIDAYS), windowAt(false),
+    'with no 3-row view the window keeps its two weeks of headroom');
+});
+
+// index.js's holiday prefetch hands holidayWindowOpts to holidayMask.windowYears and
+// nagerSource.ensure prunes every year outside that list, so the helper must describe
+// exactly the window the HOLIDAYS tuple scans — for every layout shape, the aplite
+// custom fold and the unknown-platform (null watchInfo) case included.
+test('holidayWindowOpts is the window the HOLIDAYS tuple anchors on, for every layout shape', () => {
+  const { holidayWindowOpts } = require('../src/pkjs/clay-payload');
+  const daysFromCivil = require('../src/pkjs/holidays/serial-day');
+  const anchorOf = (b) => (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
+  const serialOf = (d) => daysFromCivil(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  const BASALT = { platform: 'basalt' };
+  const APLITE = { platform: 'aplite' };
+  const cal3Custom = { layoutPreset: 'custom', viewCount: '1', viewTop0: 'cal3' };
+  const shapes = [
+    ['compactCal', { layoutPreset: 'compactCal' }, BASALT],
+    ['fullCal', { layoutPreset: 'fullCal' }, BASALT],
+    ['noCal', { layoutPreset: 'noCal' }, BASALT],
+    ['legacy topViewMode full on a compact preset', { layoutPreset: 'compactCal', topViewMode: 'full' }, BASALT],
+    ['custom with a 3-row default view', cal3Custom, BASALT],
+    ['custom with a 3-row flick view',
+      { layoutPreset: 'custom', viewCount: '2', viewTop0: 'cal2', viewTop1: 'cal3' }, BASALT],
+    ['custom, unknown platform', cal3Custom, null],
+    ['aplite folds a dormant custom layout', cal3Custom, APLITE],
+  ];
+  // Around a year boundary, where a drifted window starts fetching the wrong year.
+  const days = [new Date(2028, 11, 25), new Date(2029, 0, 1), new Date(2029, 0, 2),
+    new Date(2029, 0, 7), new Date(2027, 0, 4), new Date(2026, 11, 29)];
+  shapes.forEach(([label, over, wi]) => {
+    ['prev', 'curr'].forEach((firstWeek) => {
+      ['mon', 'sun'].forEach((weekStartDay) => {
+        const s = Object.assign(baseSettings(), over, { firstWeek, weekStartDay });
+        days.forEach((now) => {
+          const opts = holidayWindowOpts(s, wi);
+          const anchor = anchorOf(buildClayPayload(s, wi, now).HOLIDAYS);
+          const cell0 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 21);
+          let first = null;
+          for (let i = 0; i < 49 && first === null; i++) {
+            const d = new Date(cell0.getFullYear(), cell0.getMonth(), cell0.getDate() + i);
+            if (serialOf(d) === anchor) { first = d; }
+          }
+          const tag = label + ' ' + firstWeek + '/' + weekStartDay + ' ' + now.toDateString();
+          assert.ok(first, tag + ': anchor not found');
+          const last = new Date(first.getFullYear(), first.getMonth(), first.getDate() + 27);
+          const want = first.getFullYear() === last.getFullYear()
+            ? [first.getFullYear()] : [first.getFullYear(), last.getFullYear()];
+          assert.deepStrictEqual(holidayMask.windowYears(opts, now), want, tag);
+        });
+      });
+    });
+  });
+});
+
 test('maps theme to CLAY_THEME', () => {
   assert.strictEqual(buildClayPayload({ theme: 'light' }, null, NOW).CLAY_THEME, 1);
   assert.strictEqual(buildClayPayload({ theme: 'bw' }, null, NOW).CLAY_THEME, 2);
@@ -482,3 +566,48 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
   assert.deepStrictEqual(p.CLAY_VIEW_0,
     viewCycle.buildCustomCycle(s).map(viewCycle.packSpec)[0]);
 });
+
+// --- the auto theme switch, end to end over the blob the phone really stores -------
+// index.js builds the Clay payload from themeSchedule.effectiveSettings(app.settings,
+// isNight); app.settings holds colour keys as 0xRRGGBB ints (parseResponse /
+// seedDefaults). A colour platform: on B&W hardware theme_pick() ignores the colour and
+// would hide the bug.
+{
+  const themeSchedule = require('../src/pkjs/theme-schedule');
+  const settingsLib = require('../src/pkjs/settings');
+  const claySettings = require('../src/pkjs/clay-settings');
+  const pebbleColors = require('../src/pkjs/pebble-colors');
+  const statusThresholds = require('../src/pkjs/status-thresholds');
+  const BASALT = { platform: 'basalt', model: 'pebble_time_black' };
+  const savedBlob = (pageState) =>
+    settingsLib.parseResponse(encodeURIComponent(JSON.stringify(pageState)));
+
+  test('auto theme, light day / dark night: CLAY_COLOR_TIME is white (an int) at night', () => {
+    const blob = savedBlob({ themeAuto: true, theme: 'light', themeNight: 'dark', colorTime: '#000000' });
+    const day = buildClayPayload(themeSchedule.effectiveSettings(blob, false), BASALT, NOW);
+    const night = buildClayPayload(themeSchedule.effectiveSettings(blob, true), BASALT, NOW);
+    assert.strictEqual(day.CLAY_THEME, 1);
+    assert.strictEqual(day.CLAY_COLOR_TIME, 0x000000);
+    assert.strictEqual(night.CLAY_THEME, 0);
+    assert.strictEqual(night.CLAY_COLOR_TIME, 0xFFFFFF);
+  });
+
+  test('auto theme, seeded dark day / light night: CLAY_COLOR_TIME is black at night', () => {
+    const blob = claySettings.getDefaults({ white: pebbleColors.GColorWhite,
+      folly: pebbleColors.GColorFolly, holiday: pebbleColors.GColorBlueMoon });
+    blob.themeAuto = true; blob.themeNight = 'light';
+    const night = buildClayPayload(themeSchedule.effectiveSettings(blob, true), BASALT, NOW);
+    assert.strictEqual(night.CLAY_THEME, 1);
+    assert.strictEqual(night.CLAY_COLOR_TIME, 0x000000);
+  });
+
+  test('auto theme, light day / dark night: an auto threshold danger colour packs white', () => {
+    const blob = savedBlob({ themeAuto: true, theme: 'light', themeNight: 'dark',
+      threshWindWarn: '20', threshWindDanger: '40', threshWindDangerColor: '#000000' });
+    const night = buildClayPayload(themeSchedule.effectiveSettings(blob, true), BASALT, NOW);
+    const wind = statusThresholds.KINDS.map((k) => k.key).indexOf('Wind');
+    assert.strictEqual(
+      night.CLAY_THRESHOLDS_UINT8[statusThresholds.COLORS_OFFSET + 2 * wind + 1], 0xFF,
+      'GColorWhite (argb 0xFF), not the day face\'s black (0xC0)');
+  });
+}

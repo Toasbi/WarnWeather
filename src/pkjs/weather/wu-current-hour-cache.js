@@ -2,6 +2,11 @@ var storageKeys = require('../storage-keys.js');
 
 var CACHE_KEY = storageKeys.WU_HOURLY_CACHE_KEY;
 
+// Two fetches this close (degrees, on each axis — about 5.5 km of latitude)
+// count as the same place: wide enough to absorb the jitter between GPS fixes,
+// tight enough that another location's forecast hour is never reused.
+var SAME_PLACE_DEGREES = 0.05;
+
 /**
  * Read the persisted bucket cache. Returns a fresh {} on missing/corrupt data
  * (clearing the corrupt value), so callers never see a parse error.
@@ -74,6 +79,26 @@ function pickBucket(entry) {
 }
 
 /**
+ * Whether a cached bucket was captured at (about) the given coordinates. An
+ * entry without numeric coordinates (captured before they were stored) never
+ * matches, so it falls back to the cold-start clone rather than risk borrowing
+ * another location's hour.
+ * @param {Object} stored Cached bucket carrying its capture lat/lon.
+ * @param {number} lat Current latitude.
+ * @param {number} lon Current longitude.
+ * @returns {boolean} True when both axes are within SAME_PLACE_DEGREES.
+ */
+function capturedNear(stored, lat, lon) {
+    if (typeof stored.lat !== 'number' || typeof stored.lon !== 'number') {
+        return false;
+    }
+    var dLat = Math.abs(stored.lat - lat);
+    var dLon = Math.abs(stored.lon - lon);
+    // NaN (unknown current coordinates) fails both comparisons → no reuse.
+    return dLat <= SAME_PLACE_DEGREES && dLon <= SAME_PLACE_DEGREES;
+}
+
+/**
  * Build a current-hour bucket: the consumed fields of `source`, stamped
  * with the current hour.
  * @param {Object} source Bucket to clone.
@@ -89,12 +114,18 @@ function currentHourBucket(source, hourFloor) {
 /**
  * Anchor a Wunderground hourly forecast to the current wall-clock hour. Drops
  * past buckets; when WU's rounded-up feed has dropped the in-progress hour, a
- * current-hour bucket cloned from the soonest available bucket is prepended.
+ * current-hour bucket is prepended: the real forecast captured for that hour
+ * last cycle when it was captured at this location, else a clone of the
+ * soonest available bucket.
  * @param {Object[]} rawForecast WU `forecasts` array, ascending by fcst_valid.
  * @param {number} hourFloor Current wall-clock hour floored to epoch seconds.
+ * @param {number|string} lat Latitude of this fetch (manual/geocoded ones arrive as strings).
+ * @param {number|string} lon Longitude of this fetch.
  * @returns {Object[]} Forecast anchored at the current hour (index 0).
  */
-function anchorForecast(rawForecast, hourFloor) {
+function anchorForecast(rawForecast, hourFloor, lat, lon) {
+    var latNum = Number(lat);
+    var lonNum = Number(lon);
     var cache = readCache();
     prunePast(cache, hourFloor);
 
@@ -109,10 +140,14 @@ function anchorForecast(rawForecast, hourFloor) {
     var corrected;
     if (filtered.length === 0 || filtered[0].fcst_valid > hourFloor) {
         // WU dropped the in-progress hour: reuse the real forecast captured for
-        // it last cycle, else clone the soonest bucket as a cold-start fallback.
+        // it last cycle — only at the same place, or a location change would
+        // show the old location's hour — else clone the soonest bucket as a
+        // cold-start fallback.
         var cachedKey = String(hourFloor);
-        var source = Object.prototype.hasOwnProperty.call(cache, cachedKey)
-            ? cache[cachedKey]
+        var cached = Object.prototype.hasOwnProperty.call(cache, cachedKey)
+            ? cache[cachedKey] : null;
+        var source = (cached && capturedNear(cached, latNum, lonNum))
+            ? cached
             : (filtered[0] || rawForecast[0]);
         corrected = [currentHourBucket(source, hourFloor)].concat(filtered);
     }
@@ -121,10 +156,15 @@ function anchorForecast(rawForecast, hourFloor) {
     }
 
     // Capture the soonest upcoming bucket so it is the cached real forecast for
-    // the in-progress hour on a fetch during the next hour.
+    // the in-progress hour on a fetch during the next hour, stamped with where
+    // it was fetched (currentHourBucket re-picks the fields, so the stamp never
+    // reaches the trends).
     for (i = 0; i < rawForecast.length; i += 1) {
         if (rawForecast[i].fcst_valid > hourFloor) {
-            cache[String(rawForecast[i].fcst_valid)] = pickBucket(rawForecast[i]);
+            var captured = pickBucket(rawForecast[i]);
+            captured.lat = latNum;
+            captured.lon = lonNum;
+            cache[String(rawForecast[i].fcst_valid)] = captured;
             break;
         }
     }

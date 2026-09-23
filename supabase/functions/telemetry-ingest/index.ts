@@ -12,6 +12,8 @@ const MAX_BATCH_EVENTS = 50;
 // skew or forgery — clamped, not rejected, like every other soft field.
 const MAX_BATCH_EVENT_AGE_MS = 72 * 60 * 60 * 1000;
 const MAX_EVENTS_PER_HOUR = 60;
+// The duration_ms column is int4 (supabase/schemas/telemetry.sql).
+const INT4_MAX = 2147483647;
 
 const providerSchema = z.enum([
   "wunderground",
@@ -43,6 +45,20 @@ const settingsSchema = z
   .object({
     temperatureUnits: z.string().optional(),
     tempSlotDisplay: z.string().optional(),
+    uvSlotDisplay: z.string().optional(),
+    // The two-value slots' presentation, lockstep with buildSettingsSnapshot in
+    // src/pkjs/telemetry.js. z.string() for the picks per threshPhoneBatteryBoldMode's
+    // rule below; the two spacing toggles are z.boolean(), like windSlotDirection.
+    // The custom separator text is deliberately NOT a field: the phone never sends it.
+    // DEPLOY-ORDERING: ship this function before the app release that sends these,
+    // or the strip step drops them silently.
+    tempSlotSeparator: z.string().optional(),
+    tempSlotSeparatorSpaced: z.boolean().optional(),
+    tempSlotOrder: z.string().optional(),
+    uvSlotSeparator: z.string().optional(),
+    uvSlotSeparatorSpaced: z.boolean().optional(),
+    uvSlotOrder: z.string().optional(),
+    uvSlotNextDayMark: z.string().optional(),
     dateSlotMonthFormat: z.string().optional(),
     dateSlotFullFormat: z.string().optional(),
     aqiScale: z.enum(['european', 'us']).optional(),
@@ -167,7 +183,19 @@ const settingsSchema = z
   })
   .strip();
 
-const telemetryPayloadSchema = z.object({
+// A fetch's wall-clock duration — a SOFT field: out of range means null, never a
+// rejected event. The phone measures Date.now() - fetchStart, so a clock step
+// mid-fetch yields a negative or huge value. Rejecting a negative one 400'd the
+// whole batch (the phone drops a 400, taking up to 49 good neighbours with it);
+// accepting a huge one overflowed the int4 column, and that insert_failed 500 is
+// retried hourly, wedging the phone's queue head for the full 72 h window. The
+// phone now nulls it too (telemetry.js normalizeDurationMs); this covers the
+// builds already in the field.
+export const durationMsSchema = z.number().nullable().optional().transform((v) =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= INT4_MAX ? v : null
+);
+
+export const telemetryPayloadSchema = z.object({
   eventType: z.literal("weather_fetch"),
   accountToken: z.string().trim().min(1, {
     message: "invalid_account_token",
@@ -186,7 +214,7 @@ const telemetryPayloadSchema = z.object({
   usedGpsCache: z.boolean().default(false),
   gpsErrorCode: z.number().int().nonnegative().nullable().optional(),
   locationMode: locationModeSchema.nullable().optional(),
-  durationMs: z.number().int().nonnegative().nullable().optional(),
+  durationMs: durationMsSchema,
   attempt: z.number().int().positive().nullable().optional(),
 }).superRefine((payload, ctx) => {
   if (payload.success && payload.error !== null) {
@@ -211,7 +239,7 @@ type TelemetryPayload = z.infer<typeof telemetryPayloadSchema>;
 // One slim record of a batch — the per-event half of the legacy payload, with a
 // client timestamp `t` (epoch ms) standing in for the server-side received_at.
 // The success/error contract is per event, exactly as on the legacy shape.
-const batchEventSchema = z.object({
+export const batchEventSchema = z.object({
   t: z.number().int().positive(),
   provider: providerSchema,
   success: z.boolean(),
@@ -220,7 +248,7 @@ const batchEventSchema = z.object({
   usedGpsCache: z.boolean().default(false),
   gpsErrorCode: z.number().int().nonnegative().nullable().optional(),
   locationMode: locationModeSchema.nullable().optional(),
-  durationMs: z.number().int().nonnegative().nullable().optional(),
+  durationMs: durationMsSchema,
   attempt: z.number().int().positive().nullable().optional(),
 }).superRefine((ev, ctx) => {
   if (ev.success && ev.error !== null) {

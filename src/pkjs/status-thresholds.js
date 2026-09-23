@@ -167,6 +167,29 @@
   }
 
   /**
+   * Resolve the settings page's "auto" highlight colour for the theme this blob is
+   * packed FOR. The page stores auto as a concrete black or white (the theme text
+   * colour it last derived, blocks.js thresholdColorIsAuto) and re-derives it on
+   * every open, but a blob nobody re-saved keeps the old one: 1.11-1.19 never
+   * converted it when Theme changed, so a light-then-dark install holds black
+   * under a dark theme, and packing that verbatim draws a black outline and fill on
+   * the black face -- invisible. So black and white are resolved here, the way the
+   * page resolves them: to the packed theme's text colour for weather kinds
+   * (settings.theme, which theme-schedule's night copy sets to the night theme),
+   * to the goal green for goal kinds. Every other colour is a pick, returned as is.
+   * @param {number} c 0xRRGGBB colour, already parsed by colorInt
+   * @param {Object} settings Clay settings blob (theme)
+   * @param {boolean} goal Whether the kind is a goal kind (the health trio)
+   * @returns {number} c, or the auto colour when c is black or white
+   */
+  function resolveAutoColor(c, settings, goal) {
+    if (c !== 0x000000 && c !== 0xFFFFFF) { return c; }
+    if (goal) { return DEFAULT_GOAL_COLOR; }
+    var theme = settings && settings.theme;
+    return (theme === 'light' || theme === 'bw-light') ? 0x000000 : 0xFFFFFF;
+  }
+
+  /**
    * @param {Object} settings Clay settings blob
    * @param {Object} k KINDS entry
    * @returns {string} the kind's stored bold mode, DEFAULT_BOLD_MODE when unset
@@ -220,7 +243,8 @@
     } else if (typeof rawWarn === 'undefined') {
       warnColor = DEFAULT_GOAL_COLOR;
     } else {
-      warnColor = colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR);
+      warnColor = resolveAutoColor(
+        colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR), settings, k.goal);
     }
     // Bold mode is deliberately NOT gated on `ordered`: 'always' bolds a slot
     // whose kind has no thresholds configured at all.
@@ -229,8 +253,9 @@
       warn: warn,
       danger: danger,
       warnColor: warnColor,
-      dangerColor: colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
-                            k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR),
+      dangerColor: resolveAutoColor(
+        colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
+                 k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR), settings, k.goal),
       boldMode: boldModeFor(settings, k)
     };
   }
@@ -255,12 +280,12 @@
   /**
    * The number the user SEES for a weather kind — thresholds compare against
    * the displayed value. The wind conversion and trend read are SHARED with
-   * status-lines.js through wire-units, so the two cannot round apart; the
-   * AQI/UV rounding here still mirrors formatValue() by contract (pinned by
-   * test).
-   * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust'
+   * status-lines.js through wire-units (as is the UV reader), so the two cannot
+   * round apart; the AQI rounding here still mirrors formatValue() by contract
+   * (pinned by test).
+   * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
    * @param {Object} payload weather payload (pre-transform, trends present)
-   * @param {Object} settings Clay settings blob (windUnits)
+   * @param {Object} settings Clay settings blob (windUnits, uvSlotDisplay)
    * @returns {number|null} displayed number, or null when unavailable
    */
   function displayValue(code, payload, settings) {
@@ -285,10 +310,16 @@
       return wireUnits.kmhToDisplay(v, settings && settings.windUnits);
     }
     if (code === 'uv') {
-      // UV_TREND_UINT8 carries tenths; the slot displays the rounded index
-      // (status-lines.js) and thresholds compare the DISPLAYED number.
-      v = trendHead(payload.UV_TREND_UINT8);
-      return v === null ? null : Math.round(v / 10);
+      // Thresholds compare the DISPLAYED numbers — the slot text's own reader
+      // (wireUnits.uvShown, whole UV), so the two agree on the peak, the rounding
+      // and every fallback. The policy is here: judge the highest of TODAY's
+      // numbers shown. An unmarked peak is never below now by construction, so
+      // "2/8" is highlighted for the 8 (and "5/5", a peak still running, for 5); tomorrow's marked peak never counts until it is
+      // today's, so "8/»6" is judged on the 8 and a lone "»9" not at all (null).
+      var uv = wireUnits.uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
+        settings && settings.uvSlotDisplay);
+      if (!uv) { return null; }
+      return (uv.peak === null || uv.nextDay) ? uv.now : uv.peak;
     }
     return null;
   }

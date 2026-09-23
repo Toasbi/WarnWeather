@@ -127,12 +127,19 @@
         return maxActiveHours >= 24 ? 0 : 24 - maxActiveHours;
     }
 
+    // Every settings key the math above reads. A caller holding only a get(key)
+    // accessor (the onSubmit hook) builds its state object from exactly these;
+    // test/tomorrowio-budget.test.js pins the list against what the math reads.
+    var STATE_KEYS = ['provider', 'radarProvider', 'radarMode',
+        'sleepNightEnabled', 'sleepStartHour', 'sleepEndHour'];
+
     var api = {
         LIMIT_DAY: LIMIT_DAY,
         LIMIT_HOUR: LIMIT_HOUR,
         WEATHER_CALLS_PER_CYCLE: WEATHER_CALLS_PER_CYCLE,
         RADAR_CALLS_PER_CYCLE: RADAR_CALLS_PER_CYCLE,
         INTERVAL_LADDER: INTERVAL_LADDER,
+        STATE_KEYS: STATE_KEYS,
         sleepHours: sleepHours,
         callsPerCycle: callsPerCycle,
         dailyCalls: dailyCalls,

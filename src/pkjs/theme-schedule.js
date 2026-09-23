@@ -14,7 +14,8 @@
 //
 // The stored settings blob is never mutated: `theme` stays the day theme the
 // user picked, and the polarity-tracking defaults (time colour, weekend
-// colours, bar colour modes) convert on the scratch copy through the same
+// colours, auto threshold highlight colours, bar colour modes — in the ints the
+// stored blob holds) convert on the scratch copy through the same
 // applyThemeConvert a manual theme flip runs in the settings page.
 
 var themeFlip = require('./theme-flip.js');

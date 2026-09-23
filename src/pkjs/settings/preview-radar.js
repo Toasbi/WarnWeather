@@ -83,6 +83,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // (see the `outline` param below) using ink.fg as the stroke color, which this
         // also equals there — same value, different role.
         var radarBarFg = isColor ? (isLightPolarity(state.theme) ? '#555555' : '#FFFFFF') : ink.fg;
+        // rain_radar_layer.c draws BAR_OUTLINED, which chart.c strokes in theme_fg() in
+        // every theme but colour-dark: the light colour theme outlines its bars too.
+        var radarBarEdge = (isColor && isLightPolarity(state.theme)) ? ink.fg : null;
         // Only DWD carries a 2 km-area signal; Met.no and Rainbow are
         // single-point nowcasts → omit the hollow "nearby" outline bars and
         // their legend entry entirely.
@@ -93,10 +96,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             if (showNearby && nH > 0) {
                 e += '<rect x="' + x + '" y="' + (PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="' + ink.rgba('0.30') + '" stroke-width="0.7"></rect>';
             }
-            // outline (B&W/bw: unfilled — the transparent interior shows the canvas
-            // background through, i.e. theme_bg(), matching the watch's polarity-aware
-            // palette fill) vs. solid (effectively-color Solid mode: radarBarFg).
-            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg);
+            // outline (B&W/bw: a theme_bg()-filled silhouette, matching the watch's
+            // polarity-aware palette fill) vs. the colour interior (tier bands, or the
+            // Solid radarBarFg), with a theme-fg silhouette over it in the light theme.
+            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg, radarBarEdge);
         }
         // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
         // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby
@@ -121,15 +124,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         // Rain-countdown preview band: a status-strip mock ("Rain in 15'") above the
         // chart, mirroring top_status_layer.c. Hidden when the countdown is Off, and
-        // never shown on aplite (which lacks the feature). Only the glyph is coloured
-        // (green tier when effectively color, theme-fg otherwise); the text stays
-        // theme-fg and centred.
+        // never shown on aplite (which lacks the feature). Only the glyph is coloured,
+        // and it follows the radar colour the way rain_glyph_color() does: the watch
+        // reads palette_radar_color(tier), clamped to the palette's last stop, so a
+        // Multicolor palette gives the green tier while the one-stop Solid palette gives
+        // the Solid bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text
+        // stays theme-fg and centred.
         // Countdown shows for every non-off tier; the horizon no longer has an Off option.
         var isAplite = Boolean(env && env.platform === 'aplite');
         if (isAplite) {
             return svgFrame(e, 118);
         }
-        var glyphColor = isColor ? P.rainTiers[2].color : ink.fg;
+        // !isColor first: B&W / bw themes take rain_glyph_color()'s theme_fg() branch
+        // whatever the (hidden) radar colour says.
+        var glyphColor = !isColor ? ink.fg : (radarWhite ? radarBarFg : P.rainTiers[2].color);
         var bandH = 20, glyphSize = 10, label = "Rain in 15'";
         var groupW = glyphSize + 4 + labelAdvance(label, 11);
         var groupX = (200 - groupW) / 2;

@@ -171,9 +171,61 @@ test('packWeatherLevels: UV rides byte 1 bits 0-1 (kind 7 -> shift 8)', () => {
     'UV 8.5 -> displayed 9 crosses danger 8');
 });
 
+test('packWeatherLevels: a UV slot showing a peak is judged on the highest value it shows', () => {
+  const settings = { threshUvWarn: '6', threshUvDanger: '8' };
+  // Now 2, today's peak 8 still ahead.
+  const payload = { UV_TREND_UINT8: [20, 45, 70, 80], UV_DAY_PEAKS: [80, 100] };
+  assert.deepEqual(th.packWeatherLevels(payload, settings), [0, 0],
+    'current mode (absent): the 2 on screen is below warn');
+  assert.deepEqual(th.packWeatherLevels(payload,
+    Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 2], 'max: the 8 on screen is danger');
+  assert.deepEqual(th.packWeatherLevels(payload,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 2], 'both: "2/8" is highlighted for its 8');
+  const noPeaks = { UV_TREND_UINT8: payload.UV_TREND_UINT8 };
+  assert.deepEqual(th.packWeatherLevels(noPeaks,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 0],
+    'no day peaks: the slot falls back to the current value, and so does its level');
+});
+
+test('packWeatherLevels: tomorrow\'s marked peak never counts until it is today\'s', () => {
+  const settings = { threshUvWarn: '6', threshUvDanger: '8' };
+  // Evening, today spent: "0/»9" is judged on today's 0, not tomorrow's 9.
+  const evening = { UV_TREND_UINT8: [0], UV_DAY_PEAKS: [0, 90] };
+  assert.deepEqual(th.packWeatherLevels(evening,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 0]);
+  assert.deepEqual(th.packWeatherLevels(evening,
+    Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 0],
+    'a lone "»9" is not highlighted');
+  // At today's peak 7 with a milder tomorrow: "7/»5" is judged on the 7 (warn);
+  // max mode shows only "»5", which is tomorrow's, so it stays normal.
+  const atPeak = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 50] };
+  assert.deepEqual(th.packWeatherLevels(atPeak,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 1]);
+  assert.deepEqual(th.packWeatherLevels(atPeak,
+    Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 0]);
+  // Next morning the same peak is TODAY's (unmarked) and counts: "2/9" is danger.
+  const morning = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [90, 60] };
+  assert.deepEqual(th.packWeatherLevels(morning,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 2]);
+});
+
 test('packWeatherLevels: missing data or disabled kinds emit normal', () => {
   assert.deepEqual(th.packWeatherLevels({}, { threshAqiWarn: '1', threshAqiDanger: '2' }), [0, 0]);
   assert.deepEqual(th.packWeatherLevels({ AQI_TREND: [500] }, {}), [0, 0]);
+});
+
+test('packWeatherLevels: UV thresholds with no UV series emit normal in every display mode', () => {
+  // Bright Sky, a failed UV fetch or no UV slot: wireUnits.uvShown answers null, and
+  // the level must stay Normal rather than throw on its peak. Warn '0' also catches a
+  // missing value read as 0 (0 >= 0 would be warn).
+  const payloads = [{}, { UV_TREND_UINT8: [] }, { UV_TREND_UINT8: [], UV_DAY_PEAKS: [90, 90] }];
+  [undefined, 'current', 'max', 'both'].forEach((uvSlotDisplay) => {
+    const settings = { threshUvWarn: '0', threshUvDanger: '8', uvSlotDisplay: uvSlotDisplay };
+    payloads.forEach((payload) => {
+      assert.deepEqual(th.packWeatherLevels(payload, settings), [0, 0],
+        String(uvSlotDisplay) + ' ' + JSON.stringify(payload));
+    });
+  });
 });
 
 test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health thresholds', () => {
@@ -196,6 +248,78 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
   assert.deepEqual(blob.slice(17, 21), [0xA0, 0x0F, 0x40, 0x1F]); // steps 4000/8000 LE
   assert.deepEqual(blob.slice(21, 25), [300 & 0xFF, 300 >> 8, 450 & 0xFF, 450 >> 8]); // sleep h -> min
   assert.deepEqual(blob.slice(25, 29), [20, 0, 50, 0]);           // km -> 100 m units
+});
+
+// The settings page stores an "auto" highlight colour as the theme's concrete text
+// colour (black or white) and re-derives it on every open. 1.11-1.19 never converted it
+// when Theme changed, so a blob saved light-then-dark and never re-saved holds BLACK
+// under a dark theme -- packed verbatim, that is a black outline and a black fill on
+// the black face. The packer resolves black/white for the theme it packs for.
+const AQI_ON = { threshAqiWarn: '100', threshAqiDanger: '200' };
+const aqiBytes = (settings) => {
+  const blob = th.buildSettingsBlob(Object.assign({}, AQI_ON, settings));
+  return [blob[1], blob[2]];   // Aqi warn, danger (kind 0)
+};
+
+test('buildSettingsBlob: a stale black auto colour under a dark theme packs white', () => {
+  for (const theme of ['dark', 'bw', undefined]) {
+    assert.deepEqual(aqiBytes({ theme, threshAqiWarnColor: 0, threshAqiDangerColor: 0 }),
+      [0xFF, 0xFF], String(theme) + ': int 0 (the phone\'s stored encoding)');
+    assert.deepEqual(aqiBytes({ theme, threshAqiWarnColor: '#000000',
+      threshAqiDangerColor: '#000000' }), [0xFF, 0xFF], String(theme) + ': the page\'s hex');
+  }
+});
+
+test('buildSettingsBlob: a stale white auto colour under a light theme packs black', () => {
+  for (const theme of ['light', 'bw-light']) {
+    assert.deepEqual(aqiBytes({ theme, threshAqiWarnColor: 0xFFFFFF,
+      threshAqiDangerColor: 0xFFFFFF }), [0xC0, 0xC0], theme);
+    assert.deepEqual(aqiBytes({ theme, threshAqiWarnColor: '#ffffff',
+      threshAqiDangerColor: '#FFFFFF' }), [0xC0, 0xC0], theme + ': any hex case');
+  }
+});
+
+test('buildSettingsBlob: consistent auto colours, picks and the no-outline marker are unchanged', () => {
+  assert.deepEqual(aqiBytes({ theme: 'light', threshAqiWarnColor: 0, threshAqiDangerColor: 0 }),
+    [0xC0, 0xC0], 'black on light stays black');
+  assert.deepEqual(aqiBytes({ theme: 'dark', threshAqiWarnColor: 0xFFFFFF,
+    threshAqiDangerColor: 0xFFFFFF }), [0xFF, 0xFF], 'white on dark stays white');
+  for (const theme of ['dark', 'light']) {
+    assert.deepEqual(aqiBytes({ theme, threshAqiWarnColor: 0xFFAA00,
+      threshAqiDangerColor: 0xFF0000 }), [0xF8, 0xF0], theme + ': picks are never touched');
+    assert.equal(aqiBytes({ theme, threshAqiWarnColor: '', threshAqiDangerColor: 0 })[0], 0x00,
+      theme + ': a blank warn is still the no-outline marker');
+  }
+  // Absent danger on a weather kind is still the contract's red fallback.
+  assert.equal(aqiBytes({ theme: 'dark' })[1], 0xF0);
+});
+
+test('buildSettingsBlob: the night copy resolves the auto colour for the night theme', () => {
+  const themeSchedule = require('../src/pkjs/theme-schedule.js');
+  // B&W by day hides a stale black (the watch paints theme_fg on bw); bw -> dark is no
+  // polarity flip, so theme-flip leaves the 0 alone and only the packer can fix it.
+  const stored = Object.assign({ theme: 'bw', themeAuto: true, themeNight: 'dark',
+    threshAqiWarnColor: 0, threshAqiDangerColor: 0 }, AQI_ON);
+  const night = themeSchedule.effectiveSettings(stored, true);
+  assert.equal(night.theme, 'dark');
+  const blob = th.buildSettingsBlob(night);
+  assert.deepEqual([blob[1], blob[2]], [0xFF, 0xFF]);
+});
+
+test('buildSettingsBlob: goal kinds resolve a stale black/white to the goal green, as the page does', () => {
+  const goalBytes = (settings) => {
+    const blob = th.buildSettingsBlob(Object.assign({
+      threshStepsWarn: '4000', threshStepsDanger: '8000' }, settings));
+    return [blob[1 + 2 * 4], blob[2 + 2 * 4]];
+  };
+  for (const theme of ['dark', 'light']) {
+    for (const c of [0, 0xFFFFFF]) {
+      assert.deepEqual(goalBytes({ theme, threshStepsWarnColor: c, threshStepsDangerColor: c }),
+        [0xDC, 0xDC], theme + ' ' + c.toString(16));
+    }
+    assert.deepEqual(goalBytes({ theme, threshStepsWarnColor: 0xFFAA00,
+      threshStepsDangerColor: 0xFF0000 }), [0xF8, 0xF0], theme + ': goal picks are kept');
+  }
 });
 
 test('buildSettingsBlob: imperial distance thresholds convert mi -> 100 m units', () => {

@@ -22,8 +22,9 @@ function scaleField(scale) {
 
 /**
  * Build the keyless Open-Meteo air-quality request URL for one AQI scale,
- * mirroring the UV call's unixtime/GMT/forecast_days conventions so buckets
- * align with the forecast window by timestamp.
+ * mirroring the UV call's unixtime/GMT conventions so buckets align with the
+ * forecast window by timestamp. Two GMT days hold its FORECAST_HOURS window;
+ * only the UV call reaches further, for tomorrow's peak.
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {string} scale 'us' | 'european'.
@@ -133,7 +134,8 @@ function fetchWaqiInto(provider, lat, lon, done, notFound) {
 /**
  * Fetch AQI into provider.aqiTrend, dispatching on provider.aqiSource:
  *   'openmeteo' -> Open-Meteo using the aqiScale toggle.
- *   'waqi'      -> WAQI; no station leaves aqiTrend untouched ('--').
+ *   'waqi'      -> WAQI; no station leaves aqiTrend untouched (the caller
+ *                  resets it to [] each cycle, so the slot shows '--').
  *   'auto'      -> WAQI, falling back to Open-Meteo (US) on no station.
  * An empty token degrades 'waqi'/'auto' to Open-Meteo (US) so token-less dev
  * builds still show AQI. Only runs when provider.fetchAqi is set. Non-fatal;

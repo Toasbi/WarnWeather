@@ -624,9 +624,12 @@ if (typeof require !== 'undefined') {
     // false outlived the schema flipping it to true, and the non-uniform "Show
     // unit" defaults only ever escaped the same fate because a test pinned them.
     // Covered alongside the slots: the master Bold row, each kind's Bold mode
-    // (their sheets carry no reset of their own), the temp slot's Temp/Feels/Both
-    // pills, and the wind/gust direction arrows (the threshold sheets' own reset
-    // deliberately covers only the thresholds). Deliberately untouched:
+    // (their sheets carry no reset of their own), the per-kind display options
+    // (the temp slot's Temp/Feels/Both and the UV slot's Now/Day max/Both pills
+    // with the rows shaping their pair and UV's tomorrow mark, the wind/gust
+    // direction arrows), the date formats and the Show-unit toggles
+    // (the threshold sheets' own reset deliberately covers only the thresholds).
+    // Deliberately untouched:
     // thresholds, colors, outline toggles and scale maxes (every sheet has its own
     // reset button), and the countdown companion dates (inert once a slot leaves
     // 'countdown'). Silent beyond the re-render, like resetThresholds above — the
@@ -645,7 +648,14 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < slotKeys.length; i++) {
             S[slotKeys[i]] = statusLineCatalog.slotDefault(slotKeys[i], env);
         }
-        var schemaKeys = ['statusBoldAll', 'tempSlotDisplay',
+        var schemaKeys = ['statusBoldAll', 'tempSlotDisplay', 'uvSlotDisplay',
+            // How the two-value slots print their pair in Both mode (separator
+            // preset, custom separator text, spacing, which value leads) and the
+            // mark on tomorrow's UV peak — display options on the same two sheets.
+            'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
+            'tempSlotOrder',
+            'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
+            'uvSlotOrder', 'uvSlotNextDayMark',
             'dateSlotMonthFormat',
             'windSlotDirection', 'gustSlotDirection'];
         // dateSlotFullFormat is the one key here whose fresh-install value is
@@ -822,7 +832,9 @@ if (typeof require !== 'undefined') {
     // tomorrow.io budget affords (full ladder when no tomorrow.io is selected);
     // guard off -> full ladder (the info block shows the red warning instead).
     // If the stored interval drops out, the engine's resolveRowItem snaps it to
-    // the item default ('15').
+    // the item default ('15') — but only while the row renders (General tab), so
+    // onbuild.js's onSubmit applies the same fit at save time for a change made
+    // on another tab (the radar provider/mode, on the Radar tab).
     PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env, args) {
         if (!S || S.tomorrowioFitBudget === false) { return tomorrowioBudget.INTERVAL_LADDER.slice(); }
         return tomorrowioBudget.fittingOptions(S);

@@ -32,6 +32,63 @@ function trendHead(arr) {
 }
 
 /**
+ * The numbers the UV slot prints, in WHOLE UV (rounded once, here) — THE one reader
+ * both display paths share, like kmhToDisplay: status-lines' slot text and
+ * status-thresholds' displayValue, so the highlight can never judge a number the
+ * slot does not show. Display numbers only: the text (order, separator, next-day
+ * mark) is status-pair.js's, and the highlight policy is displayValue's.
+ *
+ * `peak` is today's peak (the highest the rest of the local day reaches, until
+ * 23:59) while it holds, and after that tomorrow's, flagged `nextDay` so the slot
+ * can mark it. Today's holds while it is still ahead — it prints above `now` —
+ * and while it is running: `now` prints it and no hour since the reading last
+ * printed below it printed more. So a peak of 5 from 13:00 to 15:00 shows
+ * through those hours ("5/5") and gives way when the reading drops below it; a
+ * second, lower peak after a cloudy noon runs the same way, while the same 5 on
+ * the way down from a 6 is already behind us. Telling "running" from "behind us"
+ * takes today's earlier hours back to that dip (the third peak); without them,
+ * today's gives way as soon as nothing later prints above `now`. A day that
+ * never prints above 0 has no peak to hold. All comparisons are on the whole
+ * numbers the slot prints.
+ * The peaks come in pre-computed (UV_DAY_PEAKS, provider.js getPayload, off the
+ * longer UV_HOURS series and the UV day record), so only frozen payload inputs
+ * are read — no clock — and re-baking an old snapshot reproduces the same text
+ * (status-rebake.js; one stored before the third peak existed reads it as unknown).
+ *
+ * @param {number[]|null|undefined} uvTrend UV_TREND_UINT8 (UV tenths, hourly).
+ * @param {*} dayPeaks UV_DAY_PEAKS: [rest of today, tomorrow, today's hours
+ *     already begun back to the last one below the first] in UV tenths, each
+ *     null when unknown (the third 0 when no such hour came before the current
+ *     one); absent on a payload without UV.
+ * @param {*} mode Stored uvSlotDisplay: 'max' / 'both' ask for the peak; anything
+ *     else (absent = 'current') does not.
+ * @returns {?{now: ?number, peak: ?number, nextDay: boolean}} null when there is
+ *     no UV at all. `peak` is null when the mode does not show one or no peak is
+ *     known (today's behind us, tomorrow's not covered), and every mode then falls
+ *     back to `now` alone; `now` is null only in 'max' mode when a peak is shown.
+ */
+function uvShown(uvTrend, dayPeaks, mode) {
+    var head = trendHead(uvTrend);
+    if (head === null) { return null; }
+    var shown = { now: Math.round(head / 10), peak: null, nextDay: false };
+    if ((mode !== 'max' && mode !== 'both') || !dayPeaks) { return shown; }
+    var today = typeof dayPeaks[0] === 'number' ? Math.round(dayPeaks[0] / 10) : null;
+    var next = typeof dayPeaks[1] === 'number' ? Math.round(dayPeaks[1] / 10) : null;
+    var earlier = typeof dayPeaks[2] === 'number' ? Math.round(dayPeaks[2] / 10) : null;
+    var running = earlier !== null && today !== null && today > 0 && today >= earlier;
+    if (today !== null && (today > shown.now || running)) {
+        shown.peak = today;
+    } else if (next !== null) {
+        shown.peak = next;
+        shown.nextDay = true;
+    } else {
+        return shown;
+    }
+    if (mode === 'max') { shown.now = null; }
+    return shown;
+}
+
+/**
  * @param {number} celsius Temperature in degrees Celsius.
  * @returns {number} Temperature in degrees Fahrenheit.
  */
@@ -103,6 +160,7 @@ module.exports = {
     mphToKmh: mphToKmh,
     kmhToDisplay: kmhToDisplay,
     trendHead: trendHead,
+    uvShown: uvShown,
     celsiusToFahrenheit: celsiusToFahrenheit,
     normalizeBearing: normalizeBearing,
     zeroFilledArray: zeroFilledArray
