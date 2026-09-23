@@ -120,6 +120,47 @@ test('the Show unit toggles are independent of each other', () => {
       UNIT_KEYS[i] + ' and ' + UNIT_KEYS[i + 1 + j] + ' share a signature slot')));
 });
 
+// The countdown slot's day count is baked phone-side from '<slot>Countdown' (the Clay
+// message never carries the date), so a date-only edit must force the rebake or the
+// watch keeps the old count until the next scheduled fetch. Signed only while the slot
+// shows the countdown: the page hydrates every slot's date to today, so signing the
+// unused ones would buy a needless fetch on the first save that writes them.
+const SLOT_KEYS = require('../src/pkjs/status-line-catalog.js').allSlotKeys();
+
+test('a countdown slot\'s target date changes the render signature', () => {
+  assert.equal(SLOT_KEYS.length, 12);
+  SLOT_KEYS.forEach((key) => {
+    assert.notEqual(
+      renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2026-12-25' }),
+      renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2027-06-01' }),
+      key + 'Countdown must be signed while ' + key + ' shows the countdown');
+  });
+});
+
+test('the target date of a slot NOT showing the countdown stays out of the signature', () => {
+  SLOT_KEYS.forEach((key) => {
+    assert.equal(
+      renderSignature({ [key]: 'temp', [key + 'Countdown']: '2026-12-25' }),
+      renderSignature({ [key]: 'temp' }),
+      key + 'Countdown is inert while ' + key + ' shows something else');
+  });
+});
+
+test('each countdown date keeps its own signature slot', () => {
+  // A fixed position per slot: one slot's date may never read as another's, nor as a
+  // slot selection.
+  const seen = SLOT_KEYS.map((key) =>
+    renderSignature({ [key]: 'countdown', [key + 'Countdown']: '2026-12-25' }));
+  seen.forEach((sig, i) => seen.slice(i + 1).forEach((other, j) =>
+    assert.notEqual(sig, other, SLOT_KEYS[i] + ' and ' + SLOT_KEYS[i + 1 + j] + ' collide')));
+  const a = SLOT_KEYS[0];
+  const b = SLOT_KEYS[1];
+  assert.notEqual(
+    renderSignature({ [a]: 'countdown', [a + 'Countdown']: 'x', [b]: 'temp' }),
+    renderSignature({ [a]: 'countdown', [b]: 'x' }),
+    'a date may not shift into the next slot selection');
+});
+
 // The night pause decides whether fetching happens at all (and which IS_SLEEPING glyph
 // the forced fetch pushes), so every key that moves the window has to force the refetch.
 // That is exactly the three keys sleep-window.js reads, no more: the Nighttime card's

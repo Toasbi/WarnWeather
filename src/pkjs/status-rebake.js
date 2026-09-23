@@ -61,9 +61,10 @@
 //     would have pushed anyway, a correction and never stale text.
 //   * Settings are deliberately NOT part of the stored blob. The restored
 //     payload is paired with the LIVE settings (deps.getSettings) at re-bake
-//     time, which is both smaller and more correct: saving settings forces a
-//     fetch, so in the steady state the two agree, and in the brief window where
-//     they don't, the live blob is what the next fetch would bake with.
+//     time, which is both smaller and more correct: a save that changes anything
+//     the bake reads forces a fetch (render-signature.js), so in the steady state
+//     the two agree, and in the brief window where they don't, the live blob is
+//     what the next fetch would bake with.
 //
 // The blob is version-stamped and shape-checked on the way back in, so one
 // written by an older build (different key set) degrades to "no snapshot"
@@ -299,7 +300,8 @@ function bakeInputs() {
  *
  * The payload is cloned because it is about to be mutated and pruned; settings
  * and watchInfo are held by reference — the bake only reads them, and every
- * settings change forces a fetch, which refreshes this snapshot anyway. The
+ * change to a setting the bake reads forces a fetch (render-signature.js),
+ * which refreshes this snapshot anyway. The
  * same inputs also go to flash (minus the settings) so a trigger that lands
  * after the next PKJS restart still has something to re-bake.
  *

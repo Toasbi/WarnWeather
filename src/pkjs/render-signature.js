@@ -55,10 +55,17 @@ function renderSignature(settings) {
     for (var u = 0; u < unitToggles.length; u++) {
         parts.push(settings[unitToggles[u].key]);
     }
-    // ...and the twelve slot selections themselves.
+    // ...and the twelve slot selections themselves, each followed by its countdown
+    // target date (status-lines.js bakes the day count from '<slot>Countdown') —
+    // but only while that slot shows the countdown. The page hydrates every slot's
+    // date to today whether it is used or not, so signing the inert ones would force
+    // a needless fetch on the first save that writes them. The '' keeps the
+    // position fixed, so no two keys can ever share a signature slot.
     var slotKeys = statusCatalog.allSlotKeys();
     for (var i = 0; i < slotKeys.length; i++) {
-        parts.push(settings[slotKeys[i]]);
+        var slotKey = slotKeys[i];
+        parts.push(settings[slotKey],
+            settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
     }
     // The WEATHER threshold kinds are evaluated phone-side at weather-bake
     // time (STATUS_LEVELS_UINT8), so enabling one only shows up after a refetch —
