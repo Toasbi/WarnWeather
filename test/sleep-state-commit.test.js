@@ -35,21 +35,25 @@ function sleepSends(h, delivered) {
   return delivered.filter((d) => 'IS_SLEEPING' in d && Boolean(d.IS_SLEEPING)).length;
 }
 
-test('a sleep-onset fetch whose reverse geocode fails is retried until IS_SLEEPING lands', (t) => {
-  let geocoderUp = false;
+// A reverse-geocode failure no longer fails the fetch (it falls back to a placeholder
+// city), so the forecast request is the failure this drives.
+test('a sleep-onset fetch whose forecast request fails is retried until IS_SLEEPING lands', (t) => {
+  let providerUp = false;
   const h = bootIndex(t, {
     now: ONSET, settings: SAVER, store: awakeWithStaleForecast(ONSET),
-    network: (url) => (/geocode\.arcgis\.com/.test(url) && !geocoderUp ? 'error' : healthyNetwork(url)),
+    network: (url) => (/^https:\/\/api\.open-meteo\.com\/v1\/forecast/.test(url) && !providerUp
+      ? 'error' : healthyNetwork(url)),
   });
   h.ready();
   h.advance(5 * 1000);
-  assert.equal(h.count(/"stage":"reverse_geocode"/), 1, 'the onset fetch failed at the geocode');
+  assert.equal(h.count(/"stage":"provider_data","code":"openmeteo_network_error"/), 1,
+    'the onset fetch failed at the forecast request');
   assert.equal(h.store.lastIsSleeping, 'false', 'the watch is NOT recorded asleep: it was never told');
 
   h.minutes(3);
   assert.ok(h.count(FETCHING) >= 2, 'the failed onset fetch is retried inside the window');
 
-  geocoderUp = true;
+  providerUp = true;
   h.minutes(10);
   assert.equal(sleepSends(h, h.weatherSends()), 1, 'IS_SLEEPING reached the watch once the network was back');
   assert.equal(h.store.lastIsSleeping, 'true', 'and only then is the watch recorded asleep');

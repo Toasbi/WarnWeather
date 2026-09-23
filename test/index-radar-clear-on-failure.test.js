@@ -23,14 +23,28 @@ function probe(platform, opts) {
     { encoding: 'utf8' }).trim());
 }
 
-const CLEARED = [{ start: 0, len: 0 }];
+const CLEAR = { start: 0, len: 0 };
+
+/**
+ * The boot handshake (WATCH_HAS_FORECAST_DATA: 0) queues a forced refetch behind the
+ * startup fetch, and a forced fetch drops the outbox cache on purpose -- so within the
+ * probe's window every failing cycle sends its clear. What must hold is that the
+ * watch got a clear and never anything but one.
+ * @param {Array<{start: number, len: number}>} sends The probe's radar sends.
+ * @param {string} msg Assertion message.
+ * @returns {void}
+ */
+function assertOnlyClears(sends, msg) {
+  assert.ok(sends.length >= 1, msg + ': a clear went out');
+  sends.forEach((s) => assert.deepEqual(s, CLEAR, msg + ': every radar send is the clear'));
+}
 
 test('REGRESSION: tomorrow.io as forecast AND radar source with no key still clears the watch radar', () => {
   const out = probe('basalt', {
     settings: { provider: 'tomorrowio', radarProvider: 'tomorrowio', tomorrowioApiKey: '' },
     answerXhr: true
   });
-  assert.deepEqual(out.radarSends, CLEARED, 'the clear reaches the watch though the forecast failed');
+  assertOnlyClears(out.radarSends, 'the clear reaches the watch though the forecast failed');
   assert.equal(out.radarRequests, 0);
 });
 
@@ -39,7 +53,7 @@ test('radar switched off with a failing forecast: the clear still goes out', () 
     settings: { provider: 'tomorrowio', radarMode: 'off', tomorrowioApiKey: '' },
     answerXhr: true
   });
-  assert.deepEqual(out.radarSends, CLEARED);
+  assertOnlyClears(out.radarSends, 'radar off');
 });
 
 test('control: a failing forecast does not forward a real radar window, only the clear', () => {
@@ -48,6 +62,6 @@ test('control: a failing forecast does not forward a real radar window, only the
     settings: { provider: 'tomorrowio', radarProvider: 'rainbow', tomorrowioApiKey: '' },
     answerXhr: true
   });
-  assert.equal(out.radarRequests, 1, 'the radar half did run');
-  assert.deepEqual(out.radarSends, []);
+  assert.ok(out.radarRequests >= 1, 'the radar half did run');
+  assert.deepEqual(out.radarSends, [], 'no radar window rides a failed forecast');
 });

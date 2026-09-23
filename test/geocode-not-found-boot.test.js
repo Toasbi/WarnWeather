@@ -99,13 +99,14 @@ test('an address LocationIQ answers 404 for is asked once, not every minute', (t
 
 test('a LocationIQ key refusal (401) is asked again after a growing pause, not every minute', (t) => {
   const run = bootWithUnresolvableAddress(t, { status: 401, body: '{"error":"Invalid key"}' }, 60);
-  // The ticks on which a new request went out: the cooldown doubles each
-  // time (60 s, 60 s, 2, 4, 8, 16 min ... up to 30 min), where resetting it
-  // on every expiry asked the shared key once a minute.
+  // The ticks on which a new request went out, where resetting the cooldown on
+  // every expiry asked the shared key once a minute. Two backoffs stack and the
+  // longer one wins: the geocode cooldown (60 s, 60 s, 2, 4, 8, 16 min ... up to
+  // 30) and the failed-fetch backoff (1, 2, 4, 8 min, then the 15 min interval).
   const askedAt = run.perTick.reduce((acc, n, i) => {
     if (n > (i === 0 ? 0 : run.perTick[i - 1])) { acc.push(i); }
     return acc;
   }, []);
-  assert.deepEqual(askedAt, [0, 1, 2, 4, 8, 16, 32]);
+  assert.deepEqual(askedAt, [0, 1, 3, 7, 15, 30, 46]);
   assert.equal(run.store.authBackoff, undefined, 'the shared key is not the provider\'s');
 });
