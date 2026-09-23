@@ -226,3 +226,42 @@ test('a storage throw in the attempt bookkeeping neither wedges the fetch nor st
   assert.equal(h.count(/^Tick from PKJS/) - ticks, 2, 'the tick loop is still alive');
   assert.equal(h.count(SKIP_IN_PROGRESS), 0, 'and the in-progress flag did not wedge');
 });
+
+['ack', 'nack'].forEach((answer) => {
+  test('a late ' + answer.toUpperCase() + ' for an abandoned fetch is ignored and leaves the live fetch in charge', (t) => {
+    let holdFirst = true;
+    const h = bootIndex(t, {
+      store: staleSuccess(),
+      latencyMs: 1000,
+      // The boot fetch's weather send gets no answer until the test gives one,
+      // long after the watchdog gave up on it.
+      onSend: (dict) => {
+        if (holdFirst && 'FORECAST_START' in dict) { holdFirst = false; return 'hold'; }
+        return 'ack';
+      },
+    });
+    h.ready();
+    // The watchdog and the next tick fall due together: the boot fetch is
+    // abandoned, then the tick starts a fresh one (its first reply is 1 s out).
+    h.advance(WATCHDOG_MS);
+    assert.equal(h.held.length, 1, 'the boot fetch sent and is still waiting on the watch');
+    assert.equal(h.count(/"stage":"fetch","code":"watchdog_timeout"/), 1, 'the watchdog gave up on it');
+    assert.equal(h.count(FETCHING), 2, 'a live fetch is in flight');
+    const failures = h.count(/Provider failed to update weather/);
+
+    if (answer === 'ack') { h.held[0].ack({}); } else { h.held[0].nack({}); }
+    assert.equal(h.count(/Successfully fetched weather/), 0, 'the late answer records no success');
+    assert.equal(h.count(/Provider failed to update weather/), failures, 'nor a second failure');
+
+    h.saveSettings({ fetch: true });
+    h.advance(0);
+    assert.ok(h.count(SKIP_IN_PROGRESS) >= 1,
+      'the live fetch still holds the in-progress flag: the late answer did not clear it');
+    assert.equal(h.count(FETCHING), 2, 'so no third fetch overlaps it');
+
+    h.advance(30 * 1000);
+    assert.equal(h.count(/Successfully fetched weather/), 2,
+      'the live fetch and the forced one queued behind it both complete');
+    assert.equal(h.uncaught.length, 0);
+  });
+});

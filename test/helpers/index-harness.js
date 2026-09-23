@@ -107,7 +107,8 @@ function isWeatherMessage(dict) {
  * @param {function(string): (Object|string)} [opts.network] URL -> response
  *   {status, body}, or 'error' (onerror), 'timeout' (ontimeout), 'hang' (never).
  * @param {function(Object): string} [opts.onSend] AppMessage dict -> 'ack' |
- *   'nack' | 'throw'. Default ack.
+ *   'nack' | 'throw' | 'hold' (no callback yet: the send lands in `held`, as
+ *   {dict, ack, nack}, for the test to answer later). Default ack.
  * @param {function(Function, Function): void} [opts.geolocate] Receives each
  *   getCurrentPosition's (success, error); default never answers.
  * @param {number} [opts.latencyMs] Network latency (default 100 ms).
@@ -172,6 +173,7 @@ function bootIndex(t, opts) {
 
   const listeners = {};
   const sends = [];
+  const held = [];
   global.Pebble = {
     addEventListener: (name, fn) => { listeners[name] = fn; },
     getActiveWatchInfo: () => ({ platform: 'basalt', model: 'qemu_platform_basalt', language: 'en' }),
@@ -182,6 +184,7 @@ function bootIndex(t, opts) {
       const verdict = opts.onSend ? opts.onSend(dict) : 'ack';
       if (verdict === 'throw') { throw new Error('sendAppMessage threw'); }
       if (verdict === 'nack') { if (nack) { nack({}); } return; }
+      if (verdict === 'hold') { held.push({ dict, ack, nack }); return; }
       if (ack) { ack({}); }
     },
     showSimpleNotificationOnPebble: () => {},
@@ -215,7 +218,7 @@ function bootIndex(t, opts) {
   require(PKJS_DIR + 'index.js');
 
   const h = {
-    store, xhrs, sends, logs, listeners, geoRequests, uncaught,
+    store, xhrs, sends, held, logs, listeners, geoRequests, uncaught,
     /** Boot: PebbleKit 'ready' (runs the first scheduler tick synchronously). */
     ready() { listeners.ready({}); },
     /**
