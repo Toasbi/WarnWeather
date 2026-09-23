@@ -14,10 +14,15 @@
 //     function*, new.target) outside property-name position;
 //   - object literals member by member (shorthand properties and methods,
 //     computed keys and generator methods are ES6; get/set accessors are ES5);
-//   - parameter lists (defaults, destructuring) and trailing commas in calls;
-//   - call-shaped uses of ES2015+ built-ins that polyfills.js does NOT supply.
-// It is not a parser: a construct it cannot see (destructuring ASSIGNMENT,
-// `[a, b] = c`) passes, and String#includes stays allowed because a token stream
+//   - parameter lists (defaults, destructuring), trailing commas in calls,
+//     destructuring assignment and optional catch binding (`catch {`);
+//   - call-shaped uses of ES2015+ built-ins that polyfills.js does NOT supply;
+//   - the ES5 strict-mode early errors ES2015 relaxed, which Node therefore never
+//     reports: duplicate object keys and function declarations inside a block.
+//     They matter because the settings page is ONE "use strict" script (shell.html
+//     opens it and every lib/app file is concatenated in), so a duplicate key in
+//     any page file stops the whole page on a pre-ES2015 WebView.
+// It is not a parser: String#includes stays allowed because a token stream
 // cannot tell a string receiver from a polyfilled Array one. The self-test in
 // config-es5.test.js pins what it catches and what ES5 it must leave alone.
 'use strict';
@@ -132,6 +137,7 @@ function tokenize(src, report) {
           continue;
         }
         if (src[j] === '\n') { report(i, 'unterminated string'); break; }
+        if (src[j] === '\u2028' || src[j] === '\u2029') report(j, 'raw U+2028/U+2029 in a string literal');
         j += 1;
       }
       tokens.push({ type: 'str', value: src.slice(i, j + 1), pos: i });
@@ -234,7 +240,7 @@ function es5Violations(src) {
     if (t.type === 'name' && (isName(k - 1, 'function') || isName(k - 1, 'var'))) declared.add(t.value);
   });
 
-  const stack = [{ kind: 'block', ternary: 0 }];
+  const stack = [{ kind: 'block', ternary: 0, fnBody: true }];
   const top = () => stack[stack.length - 1];
 
   /**
@@ -259,6 +265,60 @@ function es5Violations(src) {
     return 'object';
   };
 
+  /**
+   * An object member key as the property name it defines ('a', "a" and 'a' are
+   * one key; 1 and 1.0 are one key).
+   * @param {{type: string, value: string}} keyTok Key token.
+   * @returns {string} Property name.
+   */
+  const keyName = (keyTok) => {
+    if (keyTok.type === 'str') return keyTok.value.slice(1, -1);
+    if (keyTok.type === 'num') {
+      const num = Number(keyTok.value);
+      return isNaN(num) ? keyTok.value : String(num);
+    }
+    return keyTok.value;
+  };
+
+  /**
+   * Record an object member; a repeat is an ES5 early error (always for a data
+   * key next to an accessor or a doubled get/set, and in strict mode for two data
+   * keys) that ES2015 dropped, so Node accepts it. A get + set pair is fine.
+   * @param {Object} frame The object literal's frame.
+   * @param {{value: string, pos: number}} keyTok Key token.
+   * @param {string} kind 'data' | 'get' | 'set'.
+   */
+  const noteKey = (frame, keyTok, kind) => {
+    const name = keyName(keyTok);
+    const kinds = frame.keys.get(name) || new Set();
+    if (kinds.size && (kind === 'data' || kinds.has('data') || kinds.has(kind))) {
+      report(keyTok.pos, 'duplicate object key ' + JSON.stringify(name) +
+        ' (a SyntaxError in ES5 strict mode)');
+    }
+    kinds.add(kind);
+    frame.keys.set(name, kinds);
+  };
+
+  /**
+   * Whether a `function` at token k is a DECLARATION outside a function's own
+   * top level — the body of an if/else/loop, or directly in a nested block or
+   * case clause. ES5 strict mode rejects it (ES2015 made it legal, so Node does
+   * not); an expression (`= function`, `(function`, `return function`) is fine.
+   * @param {number} k Token index of the `function` keyword.
+   * @param {Object} frame The enclosing frame.
+   * @returns {boolean} True for a block-level function declaration.
+   */
+  const inBlockStatementPosition = (k, frame) => {
+    const prev = tok(k - 1);
+    // The body of `if (…)` / `for (…)` / `while (…)`, or of `else` / `do`. (Any
+    // other `)` — `f(x)` then a newline — may be an ASI statement end.)
+    if (prev.closesControl || isName(k - 1, 'else') || isName(k - 1, 'do')) return true;
+    if (frame.kind !== 'block' || frame.fnBody) return false;
+    if (prev.type !== 'punct') return false;
+    return prev.value === '{' || prev.value === '}' || prev.value === ';' ||
+      (prev.value === ':' && prev.colonKind === 'statement');
+  };
+
   for (let k = 0; k < tokens.length; k += 1) {
     const t = tokens[k];
     const frame = top();
@@ -280,9 +340,10 @@ function es5Violations(src) {
         if ((t.value === 'get' || t.value === 'set') && t.type === 'name' &&
             isKey(k + 1) && isPunct(k + 2, '(')) {
           frame.accessor = true;   // ES5 accessor: its '(' opens a parameter list
+          noteKey(frame, tok(k + 1), t.value);
           continue;
         }
-        if (isPunct(k + 1, ':')) { k += 1; continue; }
+        if (isPunct(k + 1, ':')) { noteKey(frame, t, 'data'); k += 1; continue; }
         if (isPunct(k + 1, '(')) report(t.pos, 'shorthand method');
         else if (isPunct(k + 1, ',') || isPunct(k + 1, '}')) report(t.pos, 'shorthand property');
         else if (isPunct(k + 1, '=')) report(t.pos, 'shorthand property with default');
@@ -297,16 +358,27 @@ function es5Violations(src) {
       switch (t.value) {
         case '{': {
           let kind;
+          let destructured = false;
           if (frame.kind === 'params') {
             report(t.pos, 'destructuring parameter');
             kind = 'object';
+            destructured = true;
           } else if (isName(k - 1, 'var')) {
             report(t.pos, 'destructuring declaration');
             kind = 'object';
+            destructured = true;
           } else {
             kind = braceKind(k);
           }
-          stack.push({ kind: kind, ternary: 0, expectKey: kind === 'object' });
+          stack.push({
+            kind: kind,
+            ternary: 0,
+            expectKey: kind === 'object',
+            keys: new Map(),
+            destructured: destructured,
+            // A function's own body: a function declaration directly in it is ES5.
+            fnBody: kind === 'block' && Boolean(tok(k - 1).closesParams),
+          });
           break;
         }
         case '(': {
@@ -319,18 +391,40 @@ function es5Violations(src) {
           } else if (isName(k - 1, 'for')) {
             kind = 'for';
           }
-          stack.push({ kind: kind, ternary: 0 });
+          // The head of a statement whose body follows the `)`. A `while` right
+          // after a `}` may close a do-while, whose `)` ends the statement.
+          const control = kind === 'for' || isName(k - 1, 'if') || isName(k - 1, 'with') ||
+            (isName(k - 1, 'while') && !isPunct(k - 2, '}'));
+          stack.push({ kind: kind, ternary: 0, control: control });
           break;
         }
         case '[': {
+          const prev = tok(k - 1);
+          const destructured = frame.kind === 'params' || isName(k - 1, 'var');
           if (frame.kind === 'params') report(t.pos, 'destructuring parameter');
           if (isName(k - 1, 'var')) report(t.pos, 'destructuring declaration');
-          stack.push({ kind: 'array', ternary: 0 });
+          // An array LITERAL (not a `x[i]` member access) starts where an
+          // expression can: after an operator/opening punctuator or an
+          // expression keyword, never after a name, literal, `)` or `]`.
+          const literal = prev.type === 'eof' ||
+            (prev.type === 'punct' && prev.value !== ')' && prev.value !== ']') ||
+            (prev.type === 'name' && REGEX_AFTER_NAME.has(prev.value));
+          stack.push({ kind: 'array', ternary: 0, literal: literal, destructured: destructured });
           break;
         }
-        case '}': case ')': case ']':
-          if (stack.length > 1) stack.pop();
+        case '}': case ')': case ']': {
+          const closed = stack.length > 1 ? stack.pop() : null;
+          if (!closed) break;
+          if (closed.kind === 'params') t.closesParams = true;
+          if (closed.control) t.closesControl = true;
+          // `[a, b] = c` / `({a: x} = o)`: an object or array literal is never an
+          // ES5 assignment target, so one followed by `=` is a destructuring.
+          if (isPunct(k + 1, '=') && !closed.destructured &&
+              (closed.kind === 'object' || (closed.kind === 'array' && closed.literal))) {
+            report(t.pos, 'destructuring assignment');
+          }
           break;
+        }
         case ',':
           if (isPunct(k + 1, ')')) report(t.pos, 'trailing comma in call or parameter list');
           if (frame.kind === 'object') frame.expectKey = true;
@@ -371,6 +465,10 @@ function es5Violations(src) {
       report(t.pos, 'let');
     } else if (v === 'async' && isName(k + 1, 'function')) {
       report(t.pos, 'async function');
+    } else if (v === 'catch' && isPunct(k + 1, '{')) {
+      report(t.pos, 'optional catch binding');
+    } else if (v === 'function' && inBlockStatementPosition(k, frame)) {
+      report(t.pos, 'function declaration inside a block (a SyntaxError in ES5 strict mode)');
     } else if (v === 'of' && frame.kind === 'for' &&
                (isName(k - 1) || isPunct(k - 1, ']') || isPunct(k - 1, '}'))) {
       report(t.pos, 'for…of');

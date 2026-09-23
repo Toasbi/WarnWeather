@@ -146,6 +146,24 @@ const ES6_FORMS = [
   ['fetch(url);', 'fetch()'],
   ['var q = new URLSearchParams(s);', 'new URLSearchParams'],
   ['xs.keys();', '.keys()'],
+  ['try { a(); } catch { b(); }', 'optional catch binding'],
+  ['[a, b] = [b, a];', 'destructuring assignment'],
+  ['({a: x} = o);', 'destructuring assignment'],
+  ['var s = "a\u2028b";', 'U+2028'],
+  // ES5 STRICT-mode early errors that ES2015 dropped, so Node never reports them.
+  // The settings page is one "use strict" script (shell.html opens it and every
+  // lib/app file is concatenated in), so one of these anywhere in page code stops
+  // the whole page on a pre-ES2015 WebView.
+  ['var o = {a: 1, a: 2};', 'duplicate object key'],
+  ['var o = {a: 1, "a": 2};', 'duplicate object key'],
+  ['var o = {a: 1, get a() { return 1; }};', 'duplicate object key'],
+  ['var o = {get a() { return 1; }, get a() { return 2; }};', 'duplicate object key'],
+  ['if (a) { function f() {} }', 'function declaration inside a block'],
+  ['if (a) function f() {}', 'function declaration inside a block'],
+  ['if (a) {} else function f() {}', 'function declaration inside a block'],
+  ['for (;;) { function f() {} }', 'function declaration inside a block'],
+  ['switch (x) { case 1: function f() {} }', 'function declaration inside a block'],
+  ['function g() { if (a) { function f() {} } }', 'function declaration inside a block'],
   // ...and the set the regex list already caught, kept caught.
   ['var f = function (x) { return x => x; };', 'arrow function'],
   ['const a = 1;', 'const'],
@@ -199,6 +217,16 @@ const ES5_IDIOMS = [
   'var s2 = x.replace(/\\{(\\w+)\\}/g, fn); var n = 0x1F + 1e3 + .5 + 1.5e-3;',
   'function f() { return { a: 1, b: function () { return [{ c: 2 }]; } }; }',
   'var p = (function () { return 1; }()); var q = !{ a: 1 }.a;',
+  // array/object literals vs member access and comparison (destructuring assignment)
+  'xs[0] = 3; a[b][c] = 1; f()[0] = 1; x = [a] == b; a = b = [1]; y = {} === z; x = y\n[0] = 1;',
+  // function declarations at a function's own top level, and function EXPRESSIONS in blocks
+  'function outer() { function inner() {} if (x) { return function () {}; } }',
+  'if (a) { var f = function g() {}; (function () { function h() {} }()); }',
+  'var o = { get x() { function inner() {} return 1; }, set x(v) {}, a: { a: 1 }, b: { a: 2 } };',
+  // ASI: a statement ending in `)` (or a do-while) right before a declaration
+  'foo(bar)\nfunction baz() {}',
+  'do { x++; } while (x < 3)\nfunction f() {}',
+  'p.catch(function (e) {}); var o = { catch: 1, function: 2 };',
 ];
 
 test('the guard leaves valid ES5 alone', () => {

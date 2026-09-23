@@ -695,8 +695,10 @@ because aplite runs the PKJS phone-side JS on a pre-ES6 JavaScriptCore. WebView-
 build does not catch stray ES6 — failures are silent until runtime.
 
 An automated guardrail in the test suite (`test/config-es5.test.js`) tokenizes every shipped ES5
-file and fails on ES2015+ syntax and on calls to ES2015+ built-ins that nothing polyfills. It is
-not a full parser: destructuring *assignment* (`[a, b] = c`) and `String.prototype.includes`
-(indistinguishable from the polyfilled Array one) still get past it.
+file and fails on ES2015+ syntax and on calls to ES2015+ built-ins that nothing polyfills. It also
+fails on the ES5 strict-mode errors ES2015 dropped (so Node never reports them): duplicate object
+keys and function declarations inside a block. The whole page is one `"use strict"` script, so
+either one in any page file stops the page on an old WebView. It is not a full parser:
+`String.prototype.includes` (indistinguishable from the polyfilled Array one) still gets past it.
 
 **Test files** run in Node and may use modern JS — the ES5 rule applies only to shipped files.
