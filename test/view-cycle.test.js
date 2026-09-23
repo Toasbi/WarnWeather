@@ -102,6 +102,20 @@ test('compactCal single forecast: default upper; swapClockStatus moves it to low
   assert.equal(lo(swapped[0]), vc.STATUS_SRC_FORECAST);
 });
 
+test('a dormant compactDense (no status row makes it dense) compiles as compactCal, swap included', () => {
+  // The settings page shows it as Compact calendar with the swap toggle; the watch must agree.
+  [['off', 'off'], ['slot', 'countdown'], ['off', 'countdown'], ['slot', 'off']].forEach(([h, r]) => {
+    assert.deepEqual(vc.buildViewCycle('compactDense', h, r, true), vc.buildViewCycle('compactCal', h, r, true), h + '/' + r);
+  });
+  const swapped = vc.buildViewCycle('compactDense', 'off', 'off', true);
+  assert.equal(lo(swapped[0]), vc.STATUS_SRC_FORECAST, 'the forecast row moved below the clock');
+  // An ACTIVE dense preset has no single row to swap and ignores the toggle, as before.
+  assert.deepEqual(vc.buildViewCycle('compactDense', 'status', 'off', true),
+    vc.buildViewCycle('compactDense', 'status', 'off', false));
+  assert.deepEqual(vc.buildViewCycle('compactDense', 'off', 'graph', true),
+    vc.buildViewCycle('compactDense', 'off', 'graph', false));
+});
+
 test('no view maps two sources to the same band, and no source repeats across bands', () => {
   ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) =>
     ['off', 'slot', 'status', 'all'].forEach((h) =>

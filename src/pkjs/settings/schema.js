@@ -1959,7 +1959,19 @@ module.exports = {
                 // view-cycle.js's bake); the other presets ignore it.
                 defaultValue: true,
                 hint: 'Move the status row below the clock, next to the forecast.',
-                showWhen: {key: 'layoutPreset', eq: 'compactCal'}
+                // Gated on the preset the radio SHOWS, not merely the stored one: a DORMANT
+                // value displays as compactCal (layoutPreset's dormantValues) and compiles
+                // as compactCal, swap included (view-cycle.js buildViewCycle, resolvePresetKey).
+                // That is a compactDense no status row makes dense — the complement of
+                // blocks.js layoutPresetOptions' dense predicate; keep the two in step — and
+                // a 'custom' on aplite, which never offers Custom.
+                showWhen: {any: [
+                    {key: 'layoutPreset', eq: 'compactCal'},
+                    {all: [{key: 'layoutPreset', eq: 'compactDense'},
+                           {key: 'healthMode', in: ['off', 'slot']},
+                           {key: 'radarMode', in: ['off', 'countdown']}]},
+                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]}
+                ]}
             }, {
                 // Last in the section deliberately: the rows above shape what the layout
                 // LOOKS like, this one is about when it snaps back. It is also the one row

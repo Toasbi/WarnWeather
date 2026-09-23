@@ -1098,8 +1098,9 @@ test('layoutPreset offers the four adaptive presets', () => {
 // while neither health nor radar shows a status row displays the compactCal fallback but
 // leaves the stored choice untouched, so briefly disabling health+radar and saving does
 // not lose the dense preset — it comes back when a status row re-enables it. (The wire
-// compiles stored-dense-with-nothing-enabled to the identical compactCal cycle, so the
-// watch always matches what the radio shows.) A truly invalid value still hard-snaps.
+// compiles stored-dense-with-nothing-enabled to the identical compactCal cycle, swap
+// included, so the watch always matches what the radio shows — pinned in the swap test
+// below.) A truly invalid value still hard-snaps.
 test('hidden compactDense renders the compactCal fallback but stays in state', () => {
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
   const ENV = platform.computeEnv({ platform: 'basalt' });
@@ -1145,7 +1146,6 @@ test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on
   // so this only ever moves a NEW install (deliberately no migration).
   assert.equal(it.defaultValue, true);
   assert.match(it.hint, /status row below the clock/);
-  assert.deepEqual(it.showWhen, { key: 'layoutPreset', eq: 'compactCal' });
   // aplite supports the forecast-only swap too (its lean twin carries a single lower band), so
   // the toggle is offered on every platform for the compactCal preset — and hidden otherwise.
   const aplite = { env: platform.computeEnv({ platform: 'aplite' }), layoutPreset: 'compactCal' };
@@ -1154,6 +1154,43 @@ test('swapClockStatus toggle exists, defaults ON, and is shown for compactCal on
   assert.equal(showWhen.isVisible(it, aplite), true, 'shown on aplite when preset is compactCal');
   assert.equal(showWhen.isVisible(it, basalt), true, 'shown on basalt when preset is compactCal');
   assert.equal(showWhen.isVisible(it, basaltOtherPreset), false, 'hidden for other presets');
+});
+
+// The swap toggle follows the preset the radio DISPLAYS, and the wire follows the toggle.
+// A dormant compactDense (no status row makes it dense) shows as Compact calendar; so does
+// a stored 'custom' on aplite. Both must offer the swap AND apply it, or the display and
+// the watch disagree — the toggle hidden while the watch shows the swapped layout, or a
+// displayed Compact calendar that silently ignores its swap.
+test('swapClockStatus is offered and applied exactly where the radio shows Compact calendar', () => {
+  const vc = require('../src/pkjs/view-cycle.js');
+  const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
+  const swap = byKey('swapClockStatus');
+  ['basalt', 'aplite'].forEach((p) => {
+    const env = platform.computeEnv({ platform: p });
+    ['off', 'slot', 'status', 'all'].forEach((healthMode) => {
+      ['off', 'countdown', 'status', 'graph'].forEach((radarMode) => {
+        ['compactCal', 'compactDense', 'custom', 'fullCal', 'noCal'].forEach((layoutPreset) => {
+          const S = { layoutPreset, healthMode, radarMode };
+          const offered = resolver(S, env).map((o) => o[1]);
+          // What the radio shows: the stored value when offered, else the dormant fallback.
+          const shown = offered.indexOf(layoutPreset) !== -1 ? layoutPreset : 'compactCal';
+          const label = [p, layoutPreset, healthMode, radarMode].join('/');
+          assert.equal(showWhen.isVisible(swap, Object.assign({ env }, S)), shown === 'compactCal',
+            label + ': toggle visible iff the radio shows Compact calendar');
+          if (layoutPreset === 'custom' && p !== 'aplite') { return; }   // compiles the custom keys
+          const on = vc.buildViewCycle(vc.resolvePresetKey(S), healthMode, radarMode, true);
+          const off = vc.buildViewCycle(vc.resolvePresetKey(S), healthMode, radarMode, false);
+          const applied = JSON.stringify(on) !== JSON.stringify(off);
+          if (shown !== 'compactCal') {
+            assert.equal(applied, false, label + ': a hidden toggle changes nothing on the watch');
+          } else {
+            assert.deepEqual(on, vc.buildViewCycle('compactCal', healthMode, radarMode, true),
+              label + ': shown as Compact calendar, compiled as Compact calendar, swap included');
+          }
+        });
+      });
+    });
+  });
 });
 
 test('Layout tab leads with the arrangement section: combined preview above the preset radio, then the editor button, font toggle, swap toggle and reset segmented below', () => {
