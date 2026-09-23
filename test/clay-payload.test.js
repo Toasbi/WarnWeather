@@ -148,6 +148,55 @@ test('compact top view anchors the holiday window to the current week (prevWeek 
   assert.notStrictEqual(got, prevAnchor);        // the override actually changed the anchor
 });
 
+// index.js's holiday prefetch hands holidayWindowOpts to holidayMask.windowYears and
+// nagerSource.ensure prunes every year outside that list, so the helper must describe
+// exactly the window the HOLIDAYS tuple scans — for every layout shape, the aplite
+// custom fold and the unknown-platform (null watchInfo) case included.
+test('holidayWindowOpts is the window the HOLIDAYS tuple anchors on, for every layout shape', () => {
+  const { holidayWindowOpts } = require('../src/pkjs/clay-payload');
+  const daysFromCivil = require('../src/pkjs/holidays/serial-day');
+  const anchorOf = (b) => (b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
+  const serialOf = (d) => daysFromCivil(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  const BASALT = { platform: 'basalt' };
+  const APLITE = { platform: 'aplite' };
+  const cal3Custom = { layoutPreset: 'custom', viewCount: '1', viewTop0: 'cal3' };
+  const shapes = [
+    ['compactCal', { layoutPreset: 'compactCal' }, BASALT],
+    ['fullCal', { layoutPreset: 'fullCal' }, BASALT],
+    ['noCal', { layoutPreset: 'noCal' }, BASALT],
+    ['legacy topViewMode full on a compact preset', { layoutPreset: 'compactCal', topViewMode: 'full' }, BASALT],
+    ['custom with a 3-row default view', cal3Custom, BASALT],
+    ['custom, unknown platform', cal3Custom, null],
+    ['aplite folds a dormant custom layout', cal3Custom, APLITE],
+  ];
+  // Around a year boundary, where a drifted window starts fetching the wrong year.
+  const days = [new Date(2028, 11, 25), new Date(2029, 0, 1), new Date(2029, 0, 2),
+    new Date(2029, 0, 7), new Date(2027, 0, 4), new Date(2026, 11, 29)];
+  shapes.forEach(([label, over, wi]) => {
+    ['prev', 'curr'].forEach((firstWeek) => {
+      ['mon', 'sun'].forEach((weekStartDay) => {
+        const s = Object.assign(baseSettings(), over, { firstWeek, weekStartDay });
+        days.forEach((now) => {
+          const opts = holidayWindowOpts(s, wi);
+          const anchor = anchorOf(buildClayPayload(s, wi, now).HOLIDAYS);
+          const cell0 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 21);
+          let first = null;
+          for (let i = 0; i < 49 && first === null; i++) {
+            const d = new Date(cell0.getFullYear(), cell0.getMonth(), cell0.getDate() + i);
+            if (serialOf(d) === anchor) { first = d; }
+          }
+          const tag = label + ' ' + firstWeek + '/' + weekStartDay + ' ' + now.toDateString();
+          assert.ok(first, tag + ': anchor not found');
+          const last = new Date(first.getFullYear(), first.getMonth(), first.getDate() + 27);
+          const want = first.getFullYear() === last.getFullYear()
+            ? [first.getFullYear()] : [first.getFullYear(), last.getFullYear()];
+          assert.deepStrictEqual(holidayMask.windowYears(opts, now), want, tag);
+        });
+      });
+    });
+  });
+});
+
 test('maps theme to CLAY_THEME', () => {
   assert.strictEqual(buildClayPayload({ theme: 'light' }, null, NOW).CLAY_THEME, 1);
   assert.strictEqual(buildClayPayload({ theme: 'bw' }, null, NOW).CLAY_THEME, 2);

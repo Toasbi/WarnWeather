@@ -31,6 +31,7 @@ var holidayMask = require('./holidays/holiday-mask.js');
 var nagerSource = require('./holidays/nager-source.js');
 var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 var effectiveHolidayCountry = require('./clay-payload.js').effectiveHolidayCountry;
+var holidayWindowOpts = require('./clay-payload.js').holidayWindowOpts;
 var providerFactory = require('./provider-factory.js');
 var previewPalette = require('./settings/preview-palette.js');
 var newsCache = require('./news-cache.js');
@@ -609,11 +610,10 @@ function refreshHolidays() {
     // guard of its own (the deleted registry's null used to shield it).
     if (!country || country === 'none') { return; }
     if (app.settings.holidaysEnabled === false) { return; }
-    var compact = (app.settings.topViewMode || 'compact') !== 'full';
-    var years = holidayMask.windowYears({
-        startMon: app.settings.weekStartDay === 'mon',
-        prevWeek: compact ? false : (app.settings.firstWeek === 'prev')
-    }, new Date());
+    // The SAME window the HOLIDAYS tuple scans (clay-payload's holidayWindowOpts):
+    // ensure() prunes every cached year outside `years`, so a narrower window here
+    // deletes data the mask still reads.
+    var years = holidayMask.windowYears(holidayWindowOpts(app.settings, app.watchInfo), new Date());
     nagerSource.ensure(country, years, function () {
         sendClaySettings(function () {}, function () {});
     });

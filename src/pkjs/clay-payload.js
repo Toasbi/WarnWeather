@@ -50,6 +50,61 @@ function effectiveHolidayCountry(settings) {
         ? settings.holidayCountry : 'US';
 }
 
+/**
+ * Resolve preset + health + radar to the packed view cycle the watch runs.
+ * layoutPreset 'custom' compiles the per-view keys instead (buildCustomCycle);
+ * an APLITE watch folds custom to the explicit compactCal preset — aplite is
+ * frozen-lean, its settings screen never offers Custom, and resolvePresetKey
+ * pins the fold so a legacy topViewMode value can't redirect it. An unknown
+ * platform ('' when watchInfo is missing) is treated as custom-capable.
+ *
+ * @param {Object} settings Clay settings.
+ * @param {{platform: string}} env platformLib.computeEnv(watchInfo).
+ * @returns {Array<Object>} The view cycle (slot 0 is the default view).
+ */
+function resolveViewCycle(settings, env) {
+    if (settings.layoutPreset === 'custom' && env.platform !== 'aplite') {
+        return viewCycle.buildCustomCycle(settings);
+    }
+    return viewCycle.buildViewCycle(viewCycle.resolvePresetKey(settings),
+        settings.healthMode || 'off', settings.radarMode || 'graph',
+        Boolean(settings.swapClockStatus));
+}
+
+/**
+ * The holiday window's calendar layout for an already-resolved cycle: the mask
+ * anchors on the previous week only when the default (slot 0) view is the
+ * 3-row calendar — the one the watch draws with the previous week on top.
+ *
+ * @param {Object} settings Clay settings.
+ * @param {Array<Object>} cycle resolveViewCycle() result.
+ * @returns {{startMon: boolean, prevWeek: boolean}} holidayMask window options.
+ */
+function holidayWindowOptsForCycle(settings, cycle) {
+    return {
+        startMon: settings.weekStartDay === 'mon',
+        prevWeek: cycle[0].tier === viewCycle.TIER_FULL && settings.firstWeek === 'prev'
+    };
+}
+
+/**
+ * The holiday window's calendar layout — THE one derivation, shared by the
+ * HOLIDAYS tuple below and index.js's holiday prefetch (refreshHolidays →
+ * holidayMask.windowYears). holiday-mask.js keeps build() and windowYears() on
+ * one anchor only when both are handed the same options; the prefetch once
+ * re-derived them from the retired topViewMode key, so on the 3-row calendar it
+ * fetched the wrong years in early January and its cache prune deleted the
+ * previous year the top row still showed.
+ *
+ * @param {Object} settings Clay settings (the layout keys; the theme is irrelevant).
+ * @param {Object|null} watchInfo Active watch info (null = unknown platform, custom-capable).
+ * @returns {{startMon: boolean, prevWeek: boolean}} holidayMask window options.
+ */
+function holidayWindowOpts(settings, watchInfo) {
+    return holidayWindowOptsForCycle(settings,
+        resolveViewCycle(settings, platformLib.computeEnv(watchInfo)));
+}
+
 // Fixed vertical inset for the temperature axis (px) — the watch's
 // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y. Deliberately NOT a user setting; the wire
 // stays a per-series triple so feels-like inherits it only where selected.
@@ -72,21 +127,10 @@ function buildClayPayload(settings, watchInfo, now) {
     // aplite watch is protected by its own wire masking either way.
     var env = platformLib.computeEnv(watchInfo);
 
-    // Resolve preset + health + radar to the packed view cycle up front — the holiday
-    // mask below needs to know whether the DEFAULT (slot 0) view is the 3-row full
-    // calendar, to anchor prevWeek the same way the watch draws it.
-    // layoutPreset 'custom' compiles the per-view keys instead (buildCustomCycle);
-    // an APLITE watch folds custom to the explicit compactCal preset — aplite is
-    // frozen-lean, its settings screen never offers Custom, and resolvePresetKey
-    // pins the fold so a legacy topViewMode value can't redirect it.
-    var presetKey = viewCycle.resolvePresetKey(settings);
-    var healthMode = settings.healthMode || 'off';
-    var radarMode = settings.radarMode || 'graph';
-    var cycle = (settings.layoutPreset === 'custom' && env.platform !== 'aplite')
-        ? viewCycle.buildCustomCycle(settings)
-        : viewCycle.buildViewCycle(presetKey, healthMode, radarMode, Boolean(settings.swapClockStatus));
+    // Resolve the packed view cycle up front — the holiday mask below anchors on it
+    // (holidayWindowOptsForCycle, the same rule index.js's prefetch uses).
+    var cycle = resolveViewCycle(settings, env);
     var defaultIsFull = cycle[0].tier === viewCycle.TIER_FULL;   // slot 0 is the 3-row calendar
-    var compact = !defaultIsFull;
     // CLAY_TOP_VIEW_MODE (TopViewMode enum: 0=full,1=compact,2=none) is a boot-time hint the
     // watch overwrites per active view; derive it from the default slot's tier for correctness.
     var topViewIdx = defaultIsFull ? 0 : (cycle[0].tier === viewCycle.TIER_NONE ? 2 : 1);
@@ -114,13 +158,12 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_COLOR_SATURDAY": settings.hasOwnProperty('colorSaturday') ? settings.colorSaturday : DEFAULT_COLOR_FOLLY,
         "CLAY_COLOR_US_FEDERAL": settings.hasOwnProperty('colorUSFederal') ? settings.colorUSFederal : DEFAULT_COLOR_BLUE_MOON,
         "HOLIDAYS": (function() {
-            var country = effectiveHolidayCountry(settings);
-            var region = settings.holidayRegion || 'all';
+            var windowOpts = holidayWindowOptsForCycle(settings, cycle);
             var built = holidayMask.build({
-                startMon: settings.weekStartDay === 'mon',
-                prevWeek: compact ? false : (settings.firstWeek === 'prev'),
-                country: country,
-                region: region,
+                startMon: windowOpts.startMon,
+                prevWeek: windowOpts.prevWeek,
+                country: effectiveHolidayCountry(settings),
+                region: settings.holidayRegion || 'all',
                 enabled: settings.holidaysEnabled !== false
             }, now);
             return holidayMask.pack(built.anchor, built.mask);
@@ -258,6 +301,7 @@ function buildClayPayload(settings, watchInfo, now) {
 
 module.exports = {
     effectiveHolidayCountry: effectiveHolidayCountry,
+    holidayWindowOpts: holidayWindowOpts,
     buildClayPayload: buildClayPayload,
     // Exported for tests (multi-byte boundary cases); production callers go
     // through buildClayPayload.
