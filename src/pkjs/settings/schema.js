@@ -1767,7 +1767,7 @@ module.exports = {
             type: 'segmented',
             messageKey: 'uvSlotDisplay',
             label: 'UV selection',
-            hint: 'Show the UV index now, the highest it still gets today, or both. Once today\'s peak is reached, the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.',
+            hint: 'Show the UV index now, the highest it still gets today, or both. Today\'s peak shows until the UV drops below it, then the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.',
             defaultValue: 'current',
             options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
         }].concat(pairRows('uv', '3', '7', [['Now first', 'now'], ['Max first', 'max']]), [{

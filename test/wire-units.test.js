@@ -43,7 +43,7 @@ test('zeroFilledArray clamps non-positive lengths to an empty array', () => {
 
 // uvShown — the UV slot's shared reader (status-lines text AND status-thresholds
 // level): the WHOLE numbers the slot prints. dayPeaks is UV_DAY_PEAKS: [rest of
-// today, tomorrow] in tenths, null = unknown.
+// today, tomorrow, today's hours already begun] in tenths, null = unknown.
 const S = (now, peak, nextDay) => ({ now, peak, nextDay });
 
 test('uvShown: the peak only for the modes that show it, in whole UV', () => {
@@ -59,12 +59,48 @@ test('uvShown: the peak only for the modes that show it, in whole UV', () => {
     'the current reading alone');
 });
 
-test('uvShown: once today\'s peak is reached, the peak rolls to tomorrow\'s, flagged', () => {
-  // At today's peak — the rest of the day never rounds above now.
+test('uvShown: without today\'s earlier hours, today\'s peak gives way once nothing later beats now', () => {
+  // A payload with no third peak (the day's first fetch at a new place, or a
+  // snapshot stored before it existed): at the peak, the rest of the day never
+  // rounds above now, and "running" cannot be told from "behind us".
   assert.deepEqual(uvShown([80, 76], [80, 60], 'both'), S(8, 6, true), 'both: "8/»6"');
   assert.deepEqual(uvShown([80, 76], [80, 60], 'max'), S(null, 6, true), 'max: a lone "»6"');
+  assert.deepEqual(uvShown([80, 76], [80, 60, null], 'max'), S(null, 6, true), 'null = unknown too');
   // Evening: today is spent (0 ahead), tomorrow's midday is next.
   assert.deepEqual(uvShown([0, 0], [0, 95], 'both'), S(0, 10, true));
+});
+
+test('uvShown: today\'s peak holds until the reading drops below it', () => {
+  // The owner's day: UV 5 from 13:00 to 15:00, 6 tomorrow. dayPeaks' third entry
+  // is the peak of today's hours before the current one (the UV day record).
+  const at = (now, rest, earlier, mode) => uvShown([now], [rest, 60, earlier], mode);
+  assert.deepEqual(at(30, 50, 20, 'both'), S(3, 5, false), '11:00: the peak is ahead');
+  assert.deepEqual(at(50, 50, 40, 'both'), S(5, 5, false), '13:00: it has begun — "5/5", not "5/»6"');
+  assert.deepEqual(at(50, 50, 40, 'max'), S(null, 5, false), '13:00 in Day max: "5"');
+  assert.deepEqual(at(50, 50, 50, 'both'), S(5, 5, false), '14:00: still running');
+  assert.deepEqual(at(40, 40, 50, 'both'), S(4, 6, true), '15:00: below it — tomorrow\'s takes over');
+  assert.deepEqual(at(40, 40, 50, 'max'), S(null, 6, true));
+  assert.deepEqual(at(0, 0, 50, 'both'), S(0, 6, true), 'evening');
+  assert.deepEqual(at(0, 50, 0, 'both'), S(0, 5, false),
+    '00:xx: nothing came earlier (0), the peak is ahead');
+});
+
+test('uvShown: holding the peak judges the whole numbers, and a day that stays at 0 has none', () => {
+  const at = (now, rest, earlier) => uvShown([now], [rest, 60, earlier], 'both');
+  // 5.4 earlier, 4.6 now: both print 5, so the reading has not dropped below it.
+  assert.deepEqual(at(46, 46, 54), S(5, 5, false));
+  // 5.4 now after 5.6 earlier: prints 5 below an earlier 6 — behind us.
+  assert.deepEqual(at(54, 54, 56), S(5, 6, true));
+  // A 0 day (polar night, deep winter) has no peak to hold: tomorrow's.
+  assert.deepEqual(at(0, 0, 0), S(0, 6, true));
+  assert.deepEqual(at(4, 4, 3), S(0, 6, true), 'rounding to 0 counts as 0');
+});
+
+test('uvShown: a second, lower peak later today still shows while it is ahead', () => {
+  // 6 at 11:00, 4 now at 12:00, 5 at 13:00: the highest still to come is 5.
+  assert.deepEqual(uvShown([40], [50, 60, 60], 'both'), S(4, 5, false));
+  // ...but at 13:00, 5 is running below the morning's 6: behind the day's peak.
+  assert.deepEqual(uvShown([50], [50, 70, 60], 'both'), S(5, 7, true));
 });
 
 test('uvShown: the rollover compares the whole numbers the slot prints', () => {

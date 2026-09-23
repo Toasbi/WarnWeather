@@ -8,6 +8,7 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
 var hourlyWindow = require('./hourly-window.js');
+var uvDayRecord = require('./uv-day-record.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -43,6 +44,11 @@ var WeatherProvider = function() {
     // UV is opt-in and not every provider has it: leave it empty so getPayload
     // emits an empty UV series (→ the UV line stays off) unless a provider fills it.
     this.uvTrend = [];
+    // The UV peak of today's hours before uvTrend's entry 0 (UV index; 0 when
+    // entry 0 is today's first hour, null when unknown), from the record earlier
+    // fetches left (uv-day-record.js). Set per fetch; getPayload hands it to the
+    // UV slot's day max as UV_DAY_PEAKS' third entry.
+    this.uvEarlierPeak = null;
     // AQI is opt-in (status slot only); empty → the slot shows '--' unless a
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.aqiTrend = [];
@@ -561,6 +567,17 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 airQuality.fetchAqiInto(this, lat, lon, function() {
                     self.pollenToday = null;
                     pollen.fetchPollenInto(self, lat, lon, function() {
+                        // The UV day record only refines the UV slot's day max: a
+                        // storage failure leaves that on its plain rule, never the
+                        // fetch failed.
+                        var uvRecord = null;
+                        try {
+                            uvRecord = self.recallUvDay(lat, lon);
+                        }
+                        catch (exUvRecall) {
+                            self.uvEarlierPeak = null;
+                            console.log('[!] Reading the UV day record failed: ' + exUvRecall.message);
+                        }
                         // This runs inside an XHR callback: a throw here would
                         // escape every try and leave the fetch unfinished, so it
                         // is reported as a failure instead.
@@ -579,6 +596,16 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                         if (typeof isCurrent === 'function' && !isCurrent()) {
                             console.log('Dropping the payload of an abandoned weather fetch.');
                             return;
+                        }
+                        // Only a current fetch's UV series joins the record: an
+                        // abandoned one's is older than what a newer fetch stores.
+                        if (uvRecord) {
+                            try {
+                                uvDayRecord.save(uvRecord);
+                            }
+                            catch (exUvSave) {
+                                console.log('[!] Storing the UV day record failed: ' + exUvSave.message);
+                            }
                         }
                         // The outbox sends only the categories that changed since
                         // the last ACKed message — possibly nothing, which still
@@ -603,6 +630,28 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
             onFailure(sunFailure || failure('sun_events', 'unknown_error'));
         });
     }).bind(this));
+};
+
+/**
+ * Look up the UV peak of today's hours already begun (this.uvEarlierPeak, for
+ * getPayload) in the record earlier fetches left, and build the record with
+ * this fetch's UV series added. The caller stores it once the fetch is known to
+ * be current. Without a UV series nothing is read or built.
+ *
+ * @param {number|string} lat Latitude of this fetch (manual ones arrive as strings).
+ * @param {number|string} lon Longitude of this fetch.
+ * @returns {?Object} The record to store, or null when there is no UV series.
+ */
+WeatherProvider.prototype.recallUvDay = function(lat, lon) {
+    this.uvEarlierPeak = null;
+    if (!this.uvTrend || !this.uvTrend.length || typeof this.startTime !== 'number') {
+        return null;
+    }
+    var source = { id: this.id, lat: Number(lat), lon: Number(lon) };
+    var nowEpoch = Math.floor(Date.now() / 1000);
+    var record = uvDayRecord.merge(uvDayRecord.load(), source, this.uvTrend, this.startTime, nowEpoch);
+    this.uvEarlierPeak = uvDayRecord.earlierPeak(record, source, this.startTime, nowEpoch);
+    return record;
 };
 
 /**
@@ -762,15 +811,17 @@ WeatherProvider.prototype.getPayload = function() {
     if (this.windDirTrend && this.windDirTrend.length) {
         payload.WIND_DIR_TREND = this.windDirTrend.slice(0, numEntries); // degrees 0-359, "comes from"
     }
-    // The UV slot's day-max modes: [rest of today's peak, tomorrow's peak] in
-    // tenths (null = unknown), read off the FULL uvTrend — it reaches UV_HOURS,
-    // past the 24h window UV_TREND_UINT8 is cut to; the clock picks which local
-    // day is today. Emitted only alongside a sourced UV series. Transient
-    // PKJS-only: formatValue/displayValue consume it, forecast-series deletes it
-    // before send.
+    // The UV slot's day-max modes: [rest of today's peak, tomorrow's peak, the
+    // peak of today's hours already begun] in tenths (null = unknown). The first
+    // two are read off the FULL uvTrend — it reaches UV_HOURS, past the 24h
+    // window UV_TREND_UINT8 is cut to; the clock picks which local day is today.
+    // The third comes from earlier fetches (recallUvDay). Emitted only alongside
+    // a sourced UV series. Transient PKJS-only: formatValue/displayValue consume
+    // it, forecast-series deletes it before send.
     if (uvs.length) {
         payload.UV_DAY_PEAKS = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime,
             Math.floor(Date.now() / 1000))
+            .concat([typeof this.uvEarlierPeak === 'number' ? this.uvEarlierPeak : null])
             .map(function (peak) { return peak === null ? null : clampByte(peak * 10); });
     }
     return payload;

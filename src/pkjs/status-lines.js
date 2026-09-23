@@ -347,9 +347,9 @@ function formatValue(code, payload, settings, slotKey, cap) {
   }
   if (code === 'uv') {
     // Global per-kind display mode (UV slot's Edit sheet), the temp slot's pattern:
-    // absent = 'current'. 'max' is the peak still ahead (wire-units' uvShown):
-    // today's, then tomorrow's once today's is reached, carrying the user's
-    // next-day mark; 'both' pairs the two in the user's order and separator. The
+    // absent = 'current'. 'max' is the day's peak (wire-units' uvShown): today's
+    // while it is ahead or running, then tomorrow's once the UV drops below it,
+    // carrying the user's next-day mark; 'both' pairs the two in the user's order and separator. The
     // text is status-pair's -- absent settings = current first, slash, '»' mark:
     // 3/7, 5/»6. No peak ahead known falls back to the current reading alone,
     // never '3/--'.

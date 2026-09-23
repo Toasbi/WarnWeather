@@ -313,8 +313,8 @@
       // Thresholds compare the DISPLAYED numbers — the slot text's own reader
       // (wireUnits.uvShown, whole UV), so the two agree on the peak, the rounding
       // and every fallback. The policy is here: judge the highest of TODAY's
-      // numbers shown. An unmarked peak is above now by construction, so "2/8" is
-      // highlighted for the 8; tomorrow's marked peak never counts until it is
+      // numbers shown. An unmarked peak is never below now by construction, so
+      // "2/8" is highlighted for the 8 (and "5/5", a peak still running, for 5); tomorrow's marked peak never counts until it is
       // today's, so "8/»6" is judged on the 8 and a lone "»9" not at all (null).
       var uv = wireUnits.uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
         settings && settings.uvSlotDisplay);

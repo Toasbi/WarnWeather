@@ -187,7 +187,8 @@ test('getPayload passes CURRENT_TEMP and FEELS_CURRENT through unrounded (0 °F 
 });
 
 // UV_DAY_PEAKS: the UV slot's [rest of today, tomorrow] peaks, read off the FULL
-// uvTrend (UV_HOURS deep) that UV_TREND_UINT8 is cut short of. Local-time start so
+// uvTrend (UV_HOURS deep) that UV_TREND_UINT8 is cut short of, then the peak of
+// today's hours already begun (uvEarlierPeak, set per fetch from the UV day record). Local-time start so
 // the day boundary is host-timezone-proof (see test/hourly-window.test.js).
 const LOCAL_9AM = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
 
@@ -197,14 +198,18 @@ test('getPayload emits UV_DAY_PEAKS in tenths from the full 48 h uvTrend', () =>
   uv[27] = 9.46;  // 12:00 tomorrow — beyond the 24 h UV_TREND_UINT8 window
   const payload = pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM }).getPayload();
   assert.equal(payload.UV_TREND_UINT8.length, 24, 'the graph series keeps the 24 h window');
-  assert.deepEqual(payload.UV_DAY_PEAKS, [71, 95]);
+  assert.deepEqual(payload.UV_DAY_PEAKS, [71, 95, null], 'no fetch recalled earlier hours: unknown');
+  const recalled = pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM, uvEarlierPeak: 4.26 }).getPayload();
+  assert.deepEqual(recalled.UV_DAY_PEAKS, [71, 95, 43], 'the earlier hours\' peak, in tenths');
+  const first = pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM, uvEarlierPeak: 0 }).getPayload();
+  assert.deepEqual(first.UV_DAY_PEAKS, [71, 95, 0], 'none earlier (today\'s first hour) is 0, not unknown');
 });
 
 test('getPayload reports an uncovered tomorrow as null, and omits UV_DAY_PEAKS without UV', () => {
   const uv = new Array(24).fill(0);
   uv[2] = 3;
   assert.deepEqual(pressureProvider({ uvTrend: uv, startTime: LOCAL_9AM }).getPayload().UV_DAY_PEAKS,
-    [30, null]);
+    [30, null, null]);
   assert.equal('UV_DAY_PEAKS' in pressureProvider({ uvTrend: [], startTime: LOCAL_9AM }).getPayload(), false,
     'no UV sourced: no key to strip, like the feels keys');
 });

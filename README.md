@@ -78,8 +78,8 @@ Two things that both involve rain over time, but answer different questions:
   metric (solid line) and an optional second metric (drawn as bar-aligned square dots; the same
   metric can't appear on both), plus optional bars for the hourly rain amount. The temperature
   status slot can also show the feels-like value, or both as `12/10`; the UV index slot can
-  show today's highest UV still to come, or both as `3/7`; once today's peak is reached, it
-  shows tomorrow's instead, marked `»` (`6/»8`). How the pair is written is up to you: pick
+  show today's highest UV still to come, or both as `3/7`; today's peak stays until the UV
+  drops below it, then tomorrow's shows instead, marked `»` (`4/»8`). How the pair is written is up to you: pick
   the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or without spaces
   around it (`12 / 10`), which value comes first, and how tomorrow's peak is marked (`»6`,
   `>6`, `+6`, `6*` or no mark).

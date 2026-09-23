@@ -106,6 +106,24 @@ function readHourly(items, anchor, hours, epochOf, valueOf) {
 }
 
 /**
+ * The local midnight that opens "today" — or, with `days`, the day that many
+ * after it — for a series whose entry 0 starts at startEpoch. "Today" is the day
+ * of nowEpoch clamped into entry 0's hour (see localDayPeaks for why), and the
+ * edges come from the phone's own calendar, so a 23 or 25 h DST day needs no
+ * special case.
+ *
+ * @param {number} startEpoch Epoch seconds of entry 0.
+ * @param {number} [nowEpoch] Current time in epoch seconds; defaults to startEpoch.
+ * @param {number} [days] Days after today; 0 when absent.
+ * @returns {number} That day's local midnight, in epoch seconds.
+ */
+function localDayStart(startEpoch, nowEpoch, days) {
+    var ref = Math.min(Math.max(nowEpoch || startEpoch, startEpoch), startEpoch + HOUR_SECONDS - 1);
+    var today = new Date(ref * 1000);
+    return new Date(today.getFullYear(), today.getMonth(), today.getDate() + (days || 0)).getTime() / 1000;
+}
+
+/**
  * The peaks of an hourly series per LOCAL calendar day: [the rest of today,
  * the whole next day]. Entry i is the hour starting at
  * startEpoch + i h; unsourced (non-numeric) hours are skipped, and a day with no
@@ -134,11 +152,8 @@ function localDayPeaks(series, startEpoch, nowEpoch) {
     if (!series || !series.length || typeof startEpoch !== 'number' || !isFinite(startEpoch)) {
         return peaks;
     }
-    var ref = Math.min(Math.max(nowEpoch || startEpoch, startEpoch), startEpoch + HOUR_SECONDS - 1);
-    var today = new Date(ref * 1000);
-    var y = today.getFullYear(), m = today.getMonth(), d = today.getDate();
-    var tomorrowStart = new Date(y, m, d + 1).getTime() / 1000;
-    var dayAfterStart = new Date(y, m, d + 2).getTime() / 1000;
+    var tomorrowStart = localDayStart(startEpoch, nowEpoch, 1);
+    var dayAfterStart = localDayStart(startEpoch, nowEpoch, 2);
     var i, t, v, day;
     var lastSourced = -1;
     for (i = 0; i < series.length; i += 1) {
@@ -161,5 +176,6 @@ module.exports = {
     anchorIndex: anchorIndex,
     alignHourly: alignHourly,
     readHourly: readHourly,
+    localDayStart: localDayStart,
     localDayPeaks: localDayPeaks
 };

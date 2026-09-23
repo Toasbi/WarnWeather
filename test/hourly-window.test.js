@@ -164,7 +164,8 @@ test('localDayPeaks: in a :30-offset zone the clock, not the bucket start, names
   assert.deepEqual(out.staleStart, [8, 6],
     'a clock far past the start (a fixture replay) clamps into the bucket: deterministic');
   assert.deepEqual(out.futureStart, [0, 8], '...and a clock behind it clamps up to its start');
-  assert.deepEqual(out.payload, [80, 60], 'getPayload judges the day by the phone\'s clock');
+  assert.deepEqual(out.payload, [80, 60, null],
+    'getPayload judges the day by the phone\'s clock (no UV day record: the earlier hours unknown)');
 });
 
 /** @returns {Object[]} n hourly buckets {t, v: index} from an hour-aligned base. */
