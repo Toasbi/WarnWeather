@@ -8,6 +8,9 @@ var failure = WeatherProvider.failure;
 // Shared bearing fold (wire-units.js): null-tolerant, [0, 360).
 var normalizeBearing = require('../wire-units.js').normalizeBearing;
 
+// Inches of mercury → hPa (1 inHg = 33.8639 hPa): the units=e feed reports mslp in inHg.
+var INHG_TO_HPA = 33.8639;
+
 var WundergroundProvider = function() {
     this._super.call(this);
     this.name = 'Weather Underground';
@@ -207,11 +210,13 @@ WundergroundProvider.prototype.withKeyedData = function(lat, lon, onSuccess, onF
                     return typeof entry.uv_index === 'number' ? entry.uv_index : 0;
                 });
                 this.pressureTrend = forecast.map(function(entry) {
-                    // WU reports mean sea level pressure in millibars, numerically
-                    // identical to hPa. Absent on some station feeds → 0, which
+                    // v1 hourly mslp follows the feed's unit system: the forecast
+                    // call carries no units param, so it defaults to units=e and
+                    // mslp arrives in inches of mercury (~29.9), not millibars —
+                    // convert to hPa. Absent on some station feeds → 0, which
                     // forecast-series rejects, so the line stays off rather than
                     // drawing a spike to the graph floor.
-                    return typeof entry.mslp === 'number' ? entry.mslp : 0;
+                    return typeof entry.mslp === 'number' ? entry.mslp * INHG_TO_HPA : 0;
                 });
                 this.dewTrend = forecast.map(function(entry) {
                     // v1 hourly dewpt, already °F (the forecast call carries no

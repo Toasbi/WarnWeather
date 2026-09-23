@@ -16,6 +16,7 @@ const WeatherProvider = require('../src/pkjs/weather/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
 const WundergroundProvider = require('../src/pkjs/weather/wunderground.js');
+const isPlausiblePressure = require('../src/pkjs/weather/pressure-plausibility.js').isPlausiblePressure;
 
 function round4(n) { return Math.round(n * 10000) / 10000; }
 
@@ -125,9 +126,12 @@ test('WU reuses the cached current-hour forecast across the hour boundary', () =
   assert.equal(p.precipTrend[0], 0, 'cached real current-hour pop, not the next-hour clone (0.8)');
 });
 
-test('wunderground maps mslp (mean sea level pressure, mb == hPa) into pressureTrend', () => {
+test('wunderground converts mslp from inches of mercury (units=e) to hPa in pressureTrend', () => {
+  // The v1 hourly call carries no units param, so the feed is units=e and mslp
+  // is inHg (~29.9). Passed through raw it failed the 800-1100 hPa plausibility
+  // window, so the pressure line and slot were always off for the default provider.
   responder = respondWith([
-    { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, mslp: 1019, fcst_valid: NOW_HOUR },
+    { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, mslp: 30.09, fcst_valid: NOW_HOUR },
     // no mslp on this station feed -> 0, which forecast-series rejects (line off)
     { temp: 52, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR + HOUR }
   ], 71);
@@ -136,7 +140,10 @@ test('wunderground maps mslp (mean sea level pressure, mb == hPa) into pressureT
     p.withProviderData(0, 0, false, function() {},
       function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   });
-  assert.deepEqual(p.pressureTrend, [1019, 0]);
+  assert.equal(Math.round(p.pressureTrend[0] * 10) / 10, 1019.0, '30.09 inHg ≈ 1019.0 hPa');
+  assert.equal(p.pressureTrend[1], 0, 'missing mslp still zero-fills');
+  assert.equal(isPlausiblePressure(p.pressureTrend[0]), true,
+    'a units=e reading lands inside the hPa plausibility window');
 });
 
 test('WU maps v1 hourly feels_like and v3 current temperatureFeelsLike (both °F, units=e)', () => {
