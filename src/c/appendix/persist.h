@@ -315,9 +315,10 @@ int  persist_get_notice_text(char *buffer, size_t buffer_size);
 //
 // Storage cap: 24 bytes of UTF-8 + NUL. The phone pack (clay-payload.js)
 // truncates to the same 24-byte budget UTF-8-safely; size read buffers with
-// this. Set: empty/NULL deletes the slot (watch falls back to its built-in
-// string); returns whether the stored value actually changed. Get: returns
-// the text length in bytes, 0 when unset.
+// this. Set: stores the text, empty included (an empty text = the user cleared
+// the message: no line is drawn); returns whether the stored value actually
+// changed. Get: returns the text length in bytes (0 = cleared), or -1 when the
+// slot was never set (the radar draws its built-in string).
 #define NORAIN_TEXT_BUF_BYTES 25
 bool persist_set_norain_text(const char *text);
 int  persist_get_norain_text(char *buffer, size_t buffer_size);

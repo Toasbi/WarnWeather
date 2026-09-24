@@ -1700,8 +1700,9 @@ module.exports = {
                 // finds no rain in the whole window. Ships visibly with the watch's
                 // built-in default so users override the actual message. The UI
                 // maxlength is a soft character cap; the phone re-truncates to 24
-                // UTF-8 BYTES at pack time, and empty/whitespace-only text makes the
-                // watch fall back to its built-in string. Only rain_radar_layer.c
+                // UTF-8 BYTES at pack time. Empty/whitespace-only text shows no line
+                // (a 1.23.0 migration turned older empty values back into the
+                // default, which is what "empty" meant before). Only rain_radar_layer.c
                 // draws it, so the field follows the graph ('graph'), not the radar
                 // as a whole — in 'status'/'countdown' there is no plot to write on.
                 type: 'text',
@@ -1709,7 +1710,7 @@ module.exports = {
                 label: 'No-rain message',
                 defaultValue: 'No rain ahead',
                 attributes: {maxlength: 24},
-                hint: 'Shown in the radar graph when no rain is coming. Up to 24 characters; clear the field to use the default.',
+                hint: 'Shown in the radar graph when no rain is coming. Up to 24 characters; leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 type: 'select',

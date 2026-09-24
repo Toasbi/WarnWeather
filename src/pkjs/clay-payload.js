@@ -14,6 +14,10 @@ var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
 var nightLight = require('./night-light.js');
 
+// The radar's built-in no-rain text — the schema's radarNoRainText default and the
+// watch's fallback string (rain_radar_layer.c). test/clay-payload.test.js pins all three.
+var DEFAULT_NORAIN_TEXT = 'No rain ahead';
+
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
 // Holiday highlight defaults to Blue Moon (weekends stay Folly/red).
@@ -270,15 +274,17 @@ function buildClayPayload(settings, watchInfo, now) {
 
     // Custom radar empty-state text — settings-derived, so it rides the Clay
     // message. Trimmed, then truncated to 24 UTF-8 BYTES (the watch persists it
-    // in a 25 B buffer incl. NUL). An empty result still rides the wire: the
-    // watch clears its stored text and falls back to the built-in string.
+    // in a 25 B buffer incl. NUL). An empty text rides the wire as such: the user
+    // cleared the message and the watch draws no line. A blob without the key
+    // (never seeded) sends the built-in text, as the page shows it.
     // Omitted for a watch that compiles the radar out (aplite): its inbox
     // handler for this tuple is gone (WW_RAIN_RADAR), so the bytes stay out of
     // its Clay bundle. An unknown platform is treated as radar-capable
     // (computeEnv), so a missing watchInfo never drops it.
     if (env.radar) {
-        payload.CLAY_NORAIN_TEXT = truncateUtf8Bytes(
-            String(settings.radarNoRainText || '').trim(), 24);
+        var noRainText = settings.radarNoRainText;
+        if (noRainText === undefined || noRainText === null) { noRainText = DEFAULT_NORAIN_TEXT; }
+        payload.CLAY_NORAIN_TEXT = truncateUtf8Bytes(String(noRainText).trim(), 24);
     }
 
     // Per-series vertical insets for the forecast graph's value-mapped lines,
@@ -337,5 +343,6 @@ module.exports = {
     buildClayPayload: buildClayPayload,
     // Exported for tests (multi-byte boundary cases); production callers go
     // through buildClayPayload.
-    truncateUtf8Bytes: truncateUtf8Bytes
+    truncateUtf8Bytes: truncateUtf8Bytes,
+    DEFAULT_NORAIN_TEXT: DEFAULT_NORAIN_TEXT
 };

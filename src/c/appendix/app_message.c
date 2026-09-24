@@ -300,9 +300,9 @@ static bool handle_radar_sky(DictionaryIterator *iterator, bool *radar_dirty) {
 }
 
 // Custom radar empty-state text — settings-derived, so it rides the Clay
-// message (see clay-payload.js). Empty clears the stored text and the radar
-// falls back to its built-in string; persist_set_norain_text also bounds the
-// bytes to its 25 B buffer, so a skewed sender can't overrun it.
+// message (see clay-payload.js). An empty text is stored as such: the user
+// cleared the message and the radar draws no line. persist_set_norain_text also
+// bounds the bytes to its 25 B buffer, so a skewed sender can't overrun it.
 static bool handle_norain_text(DictionaryIterator *iterator, bool *radar_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_NORAIN_TEXT);
     if (!tuple) {

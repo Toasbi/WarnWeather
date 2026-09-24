@@ -456,44 +456,48 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
 #endif
         }
         // A configured text (CLAY_NORAIN_TEXT, Radar settings) replaces the
-        // built-in line; persist absent (never set, or cleared) = the default.
+        // built-in line; an empty one (the user cleared the message) draws no
+        // line at all; a slot never set (-1) keeps the built-in default.
         char custom[NORAIN_TEXT_BUF_BYTES];
-        const char *text = (persist_get_norain_text(custom, sizeof(custom)) > 0)
-            ? custom : "No rain ahead";
-        // A custom text can run to 24 UTF-8 bytes — wider than a 144 px plot at
-        // this font — so the box grows to TWO lines when the plot affords them
-        // (the dense/none radar bands; the compact top band's plot is exactly
-        // one 18 px line tall, so it keeps the old single-line box).
-        // TrailingEllipsis word-wraps inside the box and ellipsizes only the
-        // last visible line: short text renders exactly as before, a long one
-        // wraps, an overlong second line still ellipsizes. The box centres on
-        // the MEASURED height so one line keeps its old seat; -text_h/4
-        // optically lifts over Gothic's blank top padding, clamped so a full
-        // two-line block never rises into the axis strip.
-        int content_h = text_h;
-        if (outer.size.h >= 2 * text_h) {
-            content_h = graphics_text_layout_get_content_size(text, font,
-                GRect(0, 0, outer.size.w, 2 * text_h + 4),
-                GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter).h;
-            if (content_h < text_h)     { content_h = text_h; }
-            if (content_h > 2 * text_h) { content_h = 2 * text_h; }
+        const int custom_len = persist_get_norain_text(custom, sizeof(custom));
+        const char *text = (custom_len > 0) ? custom
+                         : (custom_len < 0) ? "No rain ahead" : NULL;
+        if (text) {
+            // A custom text can run to 24 UTF-8 bytes — wider than a 144 px plot at
+            // this font — so the box grows to TWO lines when the plot affords them
+            // (the dense/none radar bands; the compact top band's plot is exactly
+            // one 18 px line tall, so it keeps the old single-line box).
+            // TrailingEllipsis word-wraps inside the box and ellipsizes only the
+            // last visible line: short text renders exactly as before, a long one
+            // wraps, an overlong second line still ellipsizes. The box centres on
+            // the MEASURED height so one line keeps its old seat; -text_h/4
+            // optically lifts over Gothic's blank top padding, clamped so a full
+            // two-line block never rises into the axis strip.
+            int content_h = text_h;
+            if (outer.size.h >= 2 * text_h) {
+                content_h = graphics_text_layout_get_content_size(text, font,
+                    GRect(0, 0, outer.size.w, 2 * text_h + 4),
+                    GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter).h;
+                if (content_h < text_h)     { content_h = text_h; }
+                if (content_h > 2 * text_h) { content_h = 2 * text_h; }
+            }
+            int text_y = outer.origin.y + (outer.size.h - content_h) / 2 - text_h / 4;
+            if (content_h > text_h && text_y < outer.origin.y) {
+                text_y = outer.origin.y;   // keep a wrapped block below the axis strip
+            }
+            // Under the sky band only the line's blank top rows may rise above the
+            // bars: its first ink row stays on or below outer's first row. Those rows
+            // are status_ink_top(text_h) — 5 / 7 / 10 at Gothic 14 / 18 / 24, MEASURED
+            // on this line's caps and ascenders too, not just digits (-text_h/4 above
+            // is the looser optical lift).
+            if (sky_band > 0 && text_y < outer.origin.y - status_ink_top(text_h)) {
+                text_y = outer.origin.y - status_ink_top(text_h);
+            }
+            graphics_context_set_text_color(ctx, theme_fg());
+            graphics_draw_text(ctx, text, font,
+                GRect(outer.origin.x, text_y, outer.size.w, content_h + 4),
+                GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
         }
-        int text_y = outer.origin.y + (outer.size.h - content_h) / 2 - text_h / 4;
-        if (content_h > text_h && text_y < outer.origin.y) {
-            text_y = outer.origin.y;   // keep a wrapped block below the axis strip
-        }
-        // Under the sky band only the line's blank top rows may rise above the
-        // bars: its first ink row stays on or below outer's first row. Those rows
-        // are status_ink_top(text_h) — 5 / 7 / 10 at Gothic 14 / 18 / 24, MEASURED
-        // on this line's caps and ascenders too, not just digits (-text_h/4 above
-        // is the looser optical lift).
-        if (sky_band > 0 && text_y < outer.origin.y - status_ink_top(text_h)) {
-            text_y = outer.origin.y - status_ink_top(text_h);
-        }
-        graphics_context_set_text_color(ctx, theme_fg());
-        graphics_draw_text(ctx, text, font,
-            GRect(outer.origin.x, text_y, outer.size.w, content_h + 4),
-            GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
     }
 
     MEMORY_LOG_HEAP("radar_update:exit");

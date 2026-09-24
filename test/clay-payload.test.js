@@ -288,13 +288,37 @@ test('CLAY_NORAIN_TEXT packs the trimmed radarNoRainText', function() {
   assert.equal(p.CLAY_NORAIN_TEXT, 'Dry skies today');
 });
 
-test('CLAY_NORAIN_TEXT sends an empty string for unset or whitespace-only text (watch falls back to its built-in)', function() {
-  // Unset (pre-seed upgrade blob): the key must still ride so the watch can
-  // clear a previously-stored custom text.
-  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, '');
+test('CLAY_NORAIN_TEXT: unset sends the built-in text, empty or whitespace sends "" (no line)', function() {
+  // Unset (pre-seed upgrade blob): the key still rides, with the built-in text, so a
+  // watch holding an old custom text is set back to the default.
+  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, 'No rain ahead');
+  // Cleared by the user: an empty text, which the watch stores and draws as no line.
   const s = baseSettings();
   s.radarNoRainText = '   ';
   assert.equal(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, '');
+  s.radarNoRainText = '';
+  assert.equal(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, '');
+});
+
+test('the built-in no-rain text is one string: payload default, schema default, watch fallback', function() {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { DEFAULT_NORAIN_TEXT } = require('../src/pkjs/clay-payload.js');
+  const schema = require('../src/pkjs/settings/schema.js');
+  const tabs = Array.isArray(schema) ? schema : (schema.schema || schema.SCHEMA || schema.tabs);
+  let item = null;
+  (function walk(list) {
+    (list || []).forEach((it) => {
+      if (it.messageKey === 'radarNoRainText') { item = it; }
+      if (it.items) { walk(it.items); }
+      if (it.sections) { it.sections.forEach((sc) => walk(sc.items)); }
+    });
+  })(tabs);
+  assert.equal(item.defaultValue, DEFAULT_NORAIN_TEXT);
+  const c = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'layers', 'rain_radar_layer.c'), 'utf8');
+  assert.ok(c.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'the watch falls back to the same text');
+  const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'clay-migrations.js'), 'utf8');
+  assert.ok(migrations.indexOf("'" + DEFAULT_NORAIN_TEXT + "'") !== -1, 'and the 1.23.0 migration restores it');
 });
 
 test('CLAY_NORAIN_TEXT truncates to 24 UTF-8 bytes, not 24 chars', function() {

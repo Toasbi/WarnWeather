@@ -796,3 +796,38 @@ test('runMigrations has exactly one home', () => {
   assert.equal(typeof claySettings.STORAGE_KEY, 'string',
     'the ledger reads the raw blob string through this');
 });
+
+// 1.23.0: an empty no-rain text now means "show no message"; before, it meant "use the
+// default" (the field's hint said so). A stored empty value goes back to the default once.
+test('migrateEmptyNoRainText: a stored empty or blank text becomes the default once', () => {
+  ['', '   '].forEach((stored) => {
+    installFakeStorage();
+    ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
+      delete require.cache[require.resolve(p)];
+    });
+    const clayMigrations = require('../src/pkjs/clay-migrations');
+    localStorage.setItem('clay-settings', JSON.stringify({ radarNoRainText: stored }));
+    let done = false;
+    clayMigrations.migrateEmptyNoRainText(() => done, () => { done = true; });
+    assert.equal(JSON.parse(localStorage.getItem('clay-settings')).radarNoRainText, 'No rain ahead');
+    assert.equal(done, true, 'marker set');
+    // Once marked, a later empty value (cleared on purpose) is left alone.
+    localStorage.setItem('clay-settings', JSON.stringify({ radarNoRainText: '' }));
+    clayMigrations.migrateEmptyNoRainText(() => done, () => {});
+    assert.equal(JSON.parse(localStorage.getItem('clay-settings')).radarNoRainText, '');
+  });
+});
+
+test('migrateEmptyNoRainText: a custom or absent text is untouched', () => {
+  installFakeStorage();
+  ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
+    delete require.cache[require.resolve(p)];
+  });
+  const clayMigrations = require('../src/pkjs/clay-migrations');
+  localStorage.setItem('clay-settings', JSON.stringify({ radarNoRainText: 'Dry skies' }));
+  clayMigrations.migrateEmptyNoRainText(() => false, () => {});
+  assert.equal(JSON.parse(localStorage.getItem('clay-settings')).radarNoRainText, 'Dry skies');
+  localStorage.setItem('clay-settings', JSON.stringify({ theme: 'dark' }));
+  clayMigrations.migrateEmptyNoRainText(() => false, () => {});
+  assert.equal(JSON.parse(localStorage.getItem('clay-settings')).radarNoRainText, undefined);
+});

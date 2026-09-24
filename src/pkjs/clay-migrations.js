@@ -120,6 +120,9 @@ function runMigrations(opts) {
     migrateRadarProviderToMode(opts.defaultRadarProvider,
         isDone(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY),
         mark(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY));
+    migrateEmptyNoRainText(
+        isDone(KEYS.NORAIN_EMPTY_TO_DEFAULT_MIGRATION_KEY),
+        mark(KEYS.NORAIN_EMPTY_TO_DEFAULT_MIGRATION_KEY));
     // Ahead of the resend below, so a 1.14 -> now jump (which fires both) sends
     // the healed blob rather than the carried one.
     migrateCarriedGraphNightTints(
@@ -630,6 +633,29 @@ function migrateStatusTopRightBattery(isMigrationDone, markDone) {
 }
 
 /**
+ * One-time 1.23.0 migration: an empty radar no-rain text used to mean "use the
+ * built-in default" (the field's hint said "clear the field to use the default");
+ * from 1.23.0 on it means "show no message". A stored empty value is turned back
+ * into the default text so nobody's radar loses its line on upgrade. No Clay
+ * resend is needed: the watch already draws the default for that install, and the
+ * next settings send carries the rewritten text.
+ * @param {function(): boolean} isMigrationDone marker probe
+ * @param {function()} markDone marker setter
+ * @returns {void}
+ */
+function migrateEmptyNoRainText(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'empty no-rain text');
+    if (persistClay === null) { return; }
+    var text = persistClay.radarNoRainText;
+    if (typeof text === 'string' && text.trim() === '') {
+        persistClay.radarNoRainText = 'No rain ahead';
+        save(persistClay);
+        console.log('Migrated empty no-rain text -> default');
+    }
+    markDone();
+}
+
+/**
  * One-time migration onto the radarMode tiered setting. Existing installs that
  * disabled radar via radarProvider:'disabled' map to radarMode:'off' and get
  * their now-invalid provider rewritten to a real default (the Off option was
@@ -667,6 +693,7 @@ module.exports = {
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
     migrateRadarProviderToMode: migrateRadarProviderToMode,
+    migrateEmptyNoRainText: migrateEmptyNoRainText,
     migrateGraphNightColorsResend: migrateGraphNightColorsResend,
     migrateCarriedGraphNightTints: migrateCarriedGraphNightTints,
     migrateLightGraphColorRetune: migrateLightGraphColorRetune,

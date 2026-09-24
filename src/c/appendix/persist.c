@@ -469,26 +469,20 @@ bool persist_set_norain_text(const char *text) {
             len--;
         }
     }
-    if (len == 0) {
-        // Empty = use the built-in default. Delete the slot; report a change
-        // only when it existed (mirrors persist_set_notice_text).
-        if (persist_exists(NORAIN_TEXT)) {
-            persist_delete(NORAIN_TEXT);
-            return true;
-        }
-        return false;
-    }
-    memcpy(bounded, text, len);
+    // Empty is stored too (a lone NUL): the user cleared the message, so the
+    // radar draws no line. Only an ABSENT slot (never configured) falls back to
+    // the built-in default.
+    if (len > 0) { memcpy(bounded, text, len); }
     bounded[len] = '\0';
     return write_sized_data_if_changed(NORAIN_TEXT, bounded, len + 1); // include NUL
 }
 
 int persist_get_norain_text(char *buffer, size_t buffer_size) {
-    if (buffer_size == 0) { return 0; }
+    if (buffer_size == 0) { return -1; }
     buffer[0] = '\0';
-    if (!persist_exists(NORAIN_TEXT)) { return 0; }
+    if (!persist_exists(NORAIN_TEXT)) { return -1; }
     int n = persist_read_data(NORAIN_TEXT, buffer, buffer_size);
-    if (n <= 0) { buffer[0] = '\0'; return 0; }
+    if (n <= 0) { buffer[0] = '\0'; return -1; }
     buffer[buffer_size - 1] = '\0';  // guarantee termination
     return (int) strlen(buffer);
 }
