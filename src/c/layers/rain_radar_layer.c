@@ -12,6 +12,7 @@
 #include "c/appendix/theme.h"
 #include "c/appendix/chart_stripe.h"
 #include "c/appendix/radar_sky.h"
+#include "c/layers/status_metrics.h"
 
 // Layout constants. The axis area sits above the bar plot. Hour labels
 // share a single vertical strip with the tick row: at hour-aligned slot
@@ -275,16 +276,17 @@ static void radar_area_bars_layer(const ChartRender *r, void *user) {
 #define RADAR_SKY_SUN_COLOR   theme_pick(theme_is_light() ? GColorChromeYellow : GColorYellow, theme_fg())
 #define RADAR_SKY_BOLT_COLOR  theme_pick(theme_is_light() ? GColorOrange : GColorYellow, theme_fg())
 
-// Stripe height for the sky rows: 4 px on a roomy plot, 3 px otherwise (the
-// compact top band's plot is only ~18 px, and the bars must keep most of it).
+// Stripe height for the sky rows: 4 px on a roomy plot, 3 px on a short one (the
+// 144 px radar top band's ~33 px plot, or a body under a 3-row calendar and both
+// status rows, down to ~19 px), where the bars must keep most of it.
 static inline int radar_sky_stripe_h(int plot_h) {
     return plot_h >= 40 ? 4 : 3;
 }
 
 // The sky band under the axis: cloud row, 1 px gap, sun row, then a 1 px gap
 // before the bars. Zero when there is no sky to draw.
-static inline int radar_sky_band_h(int sky_n, int plot_h) {
-    return sky_n > 0 ? 2 * radar_sky_stripe_h(plot_h) + 2 : 0;
+static inline int radar_sky_band_h(bool shown, int plot_h) {
+    return shown ? 2 * radar_sky_stripe_h(plot_h) + 2 : 0;
 }
 
 // Draw the sky rows into `band` (x from the radar's slot grid, placed by time
@@ -312,9 +314,13 @@ static void draw_radar_sky(GContext *ctx, GRect band, int plot_h, const uint8_t 
     }
     // Bolts over both rows, centred on their 15-min slot (and vertically on the
     // two rows): a 1 px background halo first, so the bolt reads over a sunny
-    // or cloudy row alike, then the glyph.
+    // or cloudy row alike, then the glyph. Every cell is clipped to the band and
+    // the slot grid: on the 3 px stripes the glyph fills the rows exactly, and
+    // an unclipped halo would notch the axis tick row just above the band.
     const int rows_h = 2 * h + 1;
     const int by = band.origin.y + (rows_h - RADAR_BOLT_H) / 2;
+    const int y_min = band.origin.y;
+    const int y_max = band.origin.y + band.size.h;
     for (int k = 0; k < sky_n; ++k) {
         if (!radar_sky_lightning(sky, k)) { continue; }
         const int32_t t0 = start + k * RADAR_SKY_SLOT_SECONDS;
@@ -324,13 +330,17 @@ static void draw_radar_sky(GContext *ctx, GRect band, int plot_h, const uint8_t 
         const int bx = (xa + xb) / 2 - RADAR_BOLT_W / 2;
         if (bx < x_min || bx + RADAR_BOLT_W > x_max) { continue; }
         for (int pass = 0; pass < 2; ++pass) {
+            const int grow = pass == 0 ? 1 : 0;   // halo: a 3x3 cell per inked px
             graphics_context_set_fill_color(ctx, pass == 0 ? theme_bg() : RADAR_SKY_BOLT_COLOR);
             for (int y = 0; y < RADAR_BOLT_H; ++y) {
                 for (int x = 0; x < RADAR_BOLT_W; ++x) {
                     if (!radar_bolt_on(x, y)) { continue; }
-                    graphics_fill_rect(ctx, pass == 0
-                        ? GRect(bx + x - 1, by + y - 1, 3, 3)
-                        : GRect(bx + x, by + y, 1, 1), 0, GCornerNone);
+                    int cx = bx + x - grow, cw = 1 + 2 * grow;
+                    int cy = by + y - grow, ch = 1 + 2 * grow;
+                    if (radar_sky_clip_span(&cx, &cw, x_min, x_max)
+                            && radar_sky_clip_span(&cy, &ch, y_min, y_max)) {
+                        graphics_fill_rect(ctx, GRect(cx, cy, cw, ch), 0, GCornerNone);
+                    }
                 }
             }
         }
@@ -353,12 +363,19 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
                                    bounds.origin.y + axis_h,
                                    bounds.size.w,
                                    bounds.size.h - axis_h);
+    // Read once: the axis, the sky rows and the empty state all key off it.
+    const time_t radar_start = persist_get_rain_radar_start();
     // The sky rows (radar_sky.h) take a band straight under the axis; the bars
-    // keep the rest of the plot. No sky persisted = no band, the plain radar.
+    // keep the rest of the plot. Only while a sky slot overlaps the received
+    // radar window: no sky, a cleared radar (start 0) or a sky the window has
+    // slid past = no band, the plain radar (outer == axis_outer).
 #if defined(WW_RAIN_RADAR)
     static uint8_t sky[RADAR_SKY_MAX_BYTES];
     const int sky_n = radar_sky_count(sky, persist_get_radar_sky(sky, sizeof(sky)));
-    const int sky_band = radar_sky_band_h(sky_n, axis_outer.size.h);
+    const int sky_band = radar_sky_band_h(
+        radar_sky_in_window(sky, sky_n, (int32_t)radar_start,
+                            RADAR_NUM_SLOTS * RADAR_SLOT_SECONDS),
+        axis_outer.size.h);
 #else
     const int sky_band = 0;
 #endif
@@ -371,7 +388,7 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     static int16_t exact_pm[RADAR_NUM_SLOTS];
     rain_tier_fill_permille(exact_tenths, exact_pm, RADAR_NUM_SLOTS);
     static ChartAxisSlot axis_slots[RADAR_NUM_SLOTS];
-    radar_fill_axis_slots(axis_slots, persist_get_rain_radar_start());
+    radar_fill_axis_slots(axis_slots, radar_start);
     RadarAreaCtx area_ctx = {
         .exact_tenths = exact_tenths,
         .area_tenths  = area_tenths,
@@ -390,10 +407,10 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     };
     chart_draw(ctx, &RADAR_DEF, axis_outer, axis_layers, 1);
 #if defined(WW_RAIN_RADAR)
-    if (sky_band > 0 && persist_get_rain_radar_start() > 0) {
+    if (sky_band > 0) {
         draw_radar_sky(ctx, GRect(axis_outer.origin.x, axis_outer.origin.y,
                                   axis_outer.size.w, sky_band),
-                       axis_outer.size.h, sky, sky_n, persist_get_rain_radar_start(),
+                       axis_outer.size.h, sky, sky_n, radar_start,
                        axis_outer.origin.x, chart_def_pitch(&RADAR_DEF));
     }
 #endif
@@ -415,15 +432,29 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     for (int i = 0; i < RADAR_NUM_SLOTS; i++) {
         if (exact_tenths[i] > 0 || area_tenths[i] > 0) { any_rain = true; break; }
     }
-    if (!any_rain && persist_get_rain_radar_start() > 0) {
+    if (!any_rain && radar_start > 0) {
 #ifdef PBL_PLATFORM_EMERY
         // emery: the taller plot swallows 18px text — step up a font tier.
         GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_24);
-        const int text_h = 24;
+        int text_h = 24;
 #else
         GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
-        const int text_h = 18;
+        int text_h = 18;
 #endif
+        // Under the sky band, bars shorter than one line of that font take the
+        // next tier down (on the 144 px watches a quick-view peek, or a body under
+        // a 3-row calendar and both status rows: ~11 px): the smaller line fits
+        // there with a margin and room for descenders.
+        if (sky_band > 0 && outer.size.h < text_h) {
+#ifdef PBL_PLATFORM_EMERY
+            // emery: one tier down from its step-up is the 18 px default.
+            font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
+            text_h = 18;
+#else
+            font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+            text_h = 14;
+#endif
+        }
         // A configured text (CLAY_NORAIN_TEXT, Radar settings) replaces the
         // built-in line; persist absent (never set, or cleared) = the default.
         char custom[NORAIN_TEXT_BUF_BYTES];
@@ -450,6 +481,14 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         int text_y = outer.origin.y + (outer.size.h - content_h) / 2 - text_h / 4;
         if (content_h > text_h && text_y < outer.origin.y) {
             text_y = outer.origin.y;   // keep a wrapped block below the axis strip
+        }
+        // Under the sky band only the line's blank top rows may rise above the
+        // bars: its first ink row stays on or below outer's first row. Those rows
+        // are status_ink_top(text_h) — 5 / 7 / 10 at Gothic 14 / 18 / 24, MEASURED
+        // on this line's caps and ascenders too, not just digits (-text_h/4 above
+        // is the looser optical lift).
+        if (sky_band > 0 && text_y < outer.origin.y - status_ink_top(text_h)) {
+            text_y = outer.origin.y - status_ink_top(text_h);
         }
         graphics_context_set_text_color(ctx, theme_fg());
         graphics_draw_text(ctx, text, font,

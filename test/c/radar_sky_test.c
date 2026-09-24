@@ -40,6 +40,45 @@ int main(void) {
     assert(radar_sky_x(1000 + 900, 1000, 10, 6, 300) == 28);
     assert(radar_sky_x(1000 - 300, 1000, 10, 6, 300) == 4);   // before the window: left of anchor
 
+    // Window overlap: the band shows only while a sky slot overlaps the radar
+    // window [radar_start, radar_start + 7200). S is a quarter-hour epoch (the
+    // phone's skyStartFor grid); N = 3 covers [S, S + 2700).
+    const int32_t S = 1799086500;   // 1998985 * 900
+    const uint8_t on_grid[] = {
+        0xA4, 0xE1, 0x3B, 0x6B,     // S as LE uint32
+        3, 0, 0, 0, 0, 0, 0, 0x00, 0x00
+    };
+    assert(radar_sky_count(on_grid, (int)sizeof(on_grid)) == 3);
+    assert(radar_sky_start(on_grid) == S);
+    const int32_t W = 24 * 300;
+    assert(radar_sky_in_window(on_grid, 3, S, W));                   // fully inside
+    assert(radar_sky_in_window(on_grid, 3, S + 2400, W));            // last slot at the left edge
+    assert(!radar_sky_in_window(on_grid, 3, S + 2700, W));           // slid out: all left of it
+    assert(radar_sky_in_window(on_grid, 3, S - W + 300, W));         // first slot at the right edge
+    assert(!radar_sky_in_window(on_grid, 3, S - W, W));              // all right of the window
+    // The guards, each on a start the overlap alone would accept: a cleared
+    // sky (n = 0) leaves the layer's static buffer holding the old start, and
+    // a zero-start blob sits inside a radar window that starts at 0.
+    assert(!radar_sky_in_window(on_grid, 0, S - 300, W));            // no (or a malformed) sky
+    const uint8_t zero_start[] = { 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0x00, 0x00 };
+    assert(radar_sky_count(zero_start, (int)sizeof(zero_start)) == 3);
+    assert(!radar_sky_in_window(zero_start, 3, 0, W));               // radar cleared (start 0)
+    // ...and the smallest overlap, 300 s, is one whole pitch on screen.
+    assert(radar_sky_x(S + 2700, S + 2400, 0, 6, 300)
+           - radar_sky_x(S + 2400, S + 2400, 0, 6, 300) == 6);
+
+    // Span clip: the bolt halo's 3 px cells stay inside the band / slot grid.
+    int a = 9, span = 3;                // halo row 9..11, band 10..17
+    assert(radar_sky_clip_span(&a, &span, 10, 18) && a == 10 && span == 2);
+    a = 16; span = 3;                   // 16..18 against band end 18
+    assert(radar_sky_clip_span(&a, &span, 10, 18) && a == 16 && span == 2);
+    a = 12; span = 3;                   // inside: untouched
+    assert(radar_sky_clip_span(&a, &span, 10, 18) && a == 12 && span == 3);
+    a = 7; span = 3;                    // 7..9: wholly above
+    assert(!radar_sky_clip_span(&a, &span, 10, 18));
+    a = 18; span = 1;                   // wholly past the end
+    assert(!radar_sky_clip_span(&a, &span, 10, 18));
+
     // The bolt glyph: a zig-zag, every row inked, top-right to bottom-left.
     int inked = 0;
     for (int y = 0; y < RADAR_BOLT_H; ++y) {

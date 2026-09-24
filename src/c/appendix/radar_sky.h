@@ -59,6 +59,31 @@ static inline int radar_sky_x(int32_t t, int32_t radar_start, int anchor, int pi
     return anchor + (int)((t - radar_start) * pitch / radar_slot_seconds);
 }
 
+// Whether any of the blob's `n` slots (radar_sky_count) overlaps the received
+// radar window [radar_start, radar_start + window_seconds). The layer reserves
+// and draws the sky band only then: a cleared radar (start 0) or a sky the
+// self-advancing window has left behind keeps the plain radar. A time overlap
+// is exact here: sky slots sit on the 900 s grid and the radar start on the
+// 300 s one, so any overlap is >= 300 s — at least one pitch of pixels.
+static inline bool radar_sky_in_window(const uint8_t *b, int n, int32_t radar_start,
+                                       int32_t window_seconds) {
+    if (n <= 0 || radar_start <= 0) { return false; }
+    const int32_t start = radar_sky_start(b);
+    return start < radar_start + window_seconds
+        && start + n * RADAR_SKY_SLOT_SECONDS > radar_start;
+}
+
+// Clip the span [*a, *a + *len) to [lo, hi) in place; false when nothing is
+// left. The bolt's halo reaches one px past the glyph on every side, which on
+// the 3 px stripes is one row above the band, into the axis tick row.
+static inline bool radar_sky_clip_span(int *a, int *len, int lo, int hi) {
+    int end = *a + *len;
+    if (*a < lo) { *a = lo; }
+    if (end > hi) { end = hi; }
+    *len = end - *a;
+    return *len > 0;
+}
+
 // The lightning bolt glyph, 5 px wide x 7 tall: one row mask per row, bit 4 =
 // the leftmost column. A zig-zag from top-right to bottom-left.
 #define RADAR_BOLT_W 5
