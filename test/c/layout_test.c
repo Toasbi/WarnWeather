@@ -1077,6 +1077,240 @@ static void golden_rects_top_graph(void) {
 #endif
 }
 
+// ── Band sizes (custom layout v2, Phase 2b) ─────────────────────────────────
+// Rows of the calendar row unit (15 | 20 px) or FILL. Default: a radar/graph top 3 rows,
+// the body FILL. A forecast seat never takes 2 rows (clamped to 3). Spec example D is
+// the 4-row forecast top over a filling health body.
+#define W(tier, top, body, su, sl, order) \
+    ((uint16_t)(((tier) << 8) | ((top) << 6) | ((body) << 4) | ((su) << 2) | (sl) | ((order) << 12)))
+static const struct { uint16_t wire; uint16_t ext; } SZ[11] = {
+    // 0: forecast top asked for 2 rows → 3 (clamp) + clock + health body fill (TCAB)
+    { W(1, 3, 1, 0, 0, 1), 0 },
+    // 1: health top 2 rows + clock + forecast body fill
+    { W(1, 3, 0, 0, 0, 1), 0 },
+    // 2: health top 4 rows + clock + weather row + forecast body fill
+    { W(1, 3, 0, 1, 0, 1), 0 },
+    // 3: forecast top FILL + clock + health body 3 rows
+    { W(1, 3, 1, 0, 0, 1), 0 },
+    // 4: radar top 4 rows + clock + forecast body fill (radar tops compile at tier FULL)
+    { W(3, 2, 0, 0, 0, 1), 0 },
+    // 5: example D — forecast top 4 rows, clock, health body fill (TCB)
+    { W(1, 3, 1, 0, 0, 1), 0 },
+    // 6: example D graphless — forecast top 4 rows, clock, no body, Clock alignment
+    { W(1, 3, 3, 0, 0, 1), 0 },
+    // 7: sized body — cal2 + weather row + forecast body 3 rows (TACB), Clock alignment
+    { W(2, 1, 0, 1, 0, 0), 0 },
+    // 8: the same at Bottom alignment
+    { W(2, 1, 0, 1, 0, 0), 0 },
+    // 9: both fill → the body fills, the radar top takes its 3-row default
+    { W(3, 2, 0, 0, 0, 1), 0 },
+    // 10: overflow — 4-row forecast top + clock + two large rows + 4-row health body
+    { W(1, 3, 1, 1, 2, 1), 0 },
+};
+static uint16_t sz_ext(int c) {
+    switch (c) {
+        case 0:  return ext_word(0, BAND_SIZE_2, 0, 0);
+        case 1:  return ext_word(0, BAND_SIZE_2, 1, 0);
+        case 2:  return ext_word(0, BAND_SIZE_4, 1, 0);
+        case 3:  return ext_word(BAND_SIZE_3, BAND_SIZE_FILL, 0, 0);
+        case 4:  return ext_word(0, BAND_SIZE_4, 0, 0);
+        case 5:  return ext_word(0, BAND_SIZE_4, 0, 0);
+        case 6:  return ext_word(0, BAND_SIZE_4, 0, ALIGN_CLOCK);
+        case 7:  return ext_word(BAND_SIZE_3, 0, 0, ALIGN_CLOCK);
+        case 8:  return ext_word(BAND_SIZE_3, 0, 0, ALIGN_BOTTOM);
+        case 9:  return ext_word(0, BAND_SIZE_FILL, 0, 0);
+        default: return ext_word(BAND_SIZE_4, BAND_SIZE_4, 0, 0);
+    }
+}
+
+static void golden_rects_sized(void) {
+    MainLayout L;
+#ifndef PBL_PLATFORM_EMERY
+    // sz5 = example D: forecast top 13..73 (4 rows), clock band 76..121 (solved 74), health
+    // body 121..168 (47). sz6: its graphless variant clamps Clock to 0 (top-anchored).
+    // sz10 = the overflow clamp: 13+60+3+45+17+3+17+3 = 161 → the 4-row body gets 7 px.
+    L = compute_ext(SZ[0].wire, sz_ext(0));
+    if (s_dump) printf("  SIZED 0\n");
+    check("sz0.top", L.top, 0, 13, 144, 45);
+    check("sz0.time", L.time, 0, 59, 144, 45);
+    check("sz0.status", L.status, 0, 106, 144, 0);
+    check("sz0.status_lower", L.status_lower, 0, 106, 144, 0);
+    check("sz0.bottom", L.bottom, 0, 106, 144, 62);
+    check("sz0.loading", L.loading, 0, 17, 144, 41);
+    L = compute_ext(SZ[1].wire, sz_ext(1));
+    if (s_dump) printf("  SIZED 1\n");
+    check("sz1.top", L.top, 0, 13, 144, 30);
+    check("sz1.time", L.time, 0, 44, 144, 45);
+    check("sz1.status", L.status, 0, 91, 144, 0);
+    check("sz1.status_lower", L.status_lower, 0, 91, 144, 0);
+    check("sz1.bottom", L.bottom, 0, 91, 144, 77);
+    check("sz1.loading", L.loading, 0, 91, 144, 77);
+    L = compute_ext(SZ[2].wire, sz_ext(2));
+    if (s_dump) printf("  SIZED 2\n");
+    check("sz2.top", L.top, 0, 13, 144, 60);
+    check("sz2.time", L.time, 0, 76, 144, 45);
+    check("sz2.status", L.status, 0, 121, 144, 17);
+    check("sz2.status_lower", L.status_lower, 0, 121, 144, 17);
+    check("sz2.bottom", L.bottom, 0, 141, 144, 27);
+    check("sz2.loading", L.loading, 0, 141, 144, 27);
+    L = compute_ext(SZ[3].wire, sz_ext(3));
+    if (s_dump) printf("  SIZED 3\n");
+    check("sz3.top", L.top, 0, 13, 144, 62);
+    check("sz3.time", L.time, 0, 76, 144, 45);
+    check("sz3.status", L.status, 0, 123, 144, 0);
+    check("sz3.status_lower", L.status_lower, 0, 123, 144, 0);
+    check("sz3.bottom", L.bottom, 0, 123, 144, 45);
+    check("sz3.loading", L.loading, 0, 17, 144, 58);
+    L = compute_ext(SZ[4].wire, sz_ext(4));
+    if (s_dump) printf("  SIZED 4\n");
+    check("sz4.top", L.top, 0, 13, 144, 60);
+    check("sz4.time", L.time, 0, 74, 144, 45);
+    check("sz4.status", L.status, 0, 121, 144, 0);
+    check("sz4.status_lower", L.status_lower, 0, 121, 144, 0);
+    check("sz4.bottom", L.bottom, 0, 121, 144, 47);
+    check("sz4.loading", L.loading, 0, 121, 144, 47);
+    L = compute_ext(SZ[5].wire, sz_ext(5));
+    if (s_dump) printf("  SIZED 5\n");
+    check("sz5.top", L.top, 0, 13, 144, 60);
+    check("sz5.time", L.time, 0, 74, 144, 45);
+    check("sz5.status", L.status, 0, 121, 144, 0);
+    check("sz5.status_lower", L.status_lower, 0, 121, 144, 0);
+    check("sz5.bottom", L.bottom, 0, 121, 144, 47);
+    check("sz5.loading", L.loading, 0, 17, 144, 56);
+    L = compute_ext(SZ[6].wire, sz_ext(6));
+    if (s_dump) printf("  SIZED 6\n");
+    check("sz6.top", L.top, 0, 13, 144, 60);
+    check("sz6.time", L.time, 0, 74, 144, 45);
+    check("sz6.status", L.status, 0, 121, 144, 0);
+    check("sz6.status_lower", L.status_lower, 0, 121, 144, 0);
+    check("sz6.bottom", L.bottom, 0, 121, 144, 0);
+    check("sz6.loading", L.loading, 0, 17, 144, 56);
+    L = compute_ext(SZ[7].wire, sz_ext(7));
+    if (s_dump) printf("  SIZED 7\n");
+    check("sz7.top", L.top, 0, 15, 144, 30);
+    check("sz7.time", L.time, 0, 63, 144, 45);
+    check("sz7.status", L.status, 0, 46, 144, 17);
+    check("sz7.status_lower", L.status_lower, 0, 46, 144, 17);
+    check("sz7.bottom", L.bottom, 0, 111, 144, 45);
+    check("sz7.loading", L.loading, 0, 111, 144, 45);
+    L = compute_ext(SZ[8].wire, sz_ext(8));
+    if (s_dump) printf("  SIZED 8\n");
+    check("sz8.top", L.top, 0, 27, 144, 30);
+    check("sz8.time", L.time, 0, 75, 144, 45);
+    check("sz8.status", L.status, 0, 58, 144, 17);
+    check("sz8.status_lower", L.status_lower, 0, 58, 144, 17);
+    check("sz8.bottom", L.bottom, 0, 123, 144, 45);
+    check("sz8.loading", L.loading, 0, 123, 144, 45);
+    L = compute_ext(SZ[9].wire, sz_ext(9));
+    if (s_dump) printf("  SIZED 9\n");
+    check("sz9.top", L.top, 0, 13, 144, 45);
+    check("sz9.time", L.time, 0, 59, 144, 45);
+    check("sz9.status", L.status, 0, 106, 144, 0);
+    check("sz9.status_lower", L.status_lower, 0, 106, 144, 0);
+    check("sz9.bottom", L.bottom, 0, 106, 144, 62);
+    check("sz9.loading", L.loading, 0, 106, 144, 62);
+    L = compute_ext(SZ[10].wire, sz_ext(10));
+    if (s_dump) printf("  SIZED 10\n");
+    check("sz10.top", L.top, 0, 13, 144, 60);
+    check("sz10.time", L.time, 0, 76, 144, 45);
+    check("sz10.status", L.status, 0, 121, 144, 17);
+    check("sz10.status_lower", L.status_lower, 0, 141, 144, 17);
+    check("sz10.bottom", L.bottom, 0, 161, 144, 7);
+    check("sz10.loading", L.loading, 0, 17, 144, 56);
+#else
+    // sz5 = example D on emery: forecast top 22..112 (80 + the 10-row tail), clock 110,
+    // health body 173..224 (51).
+    L = compute_ext(SZ[0].wire, sz_ext(0));
+    if (s_dump) printf("  SIZED 0\n");
+    check("sz0.top", L.top, 2, 22, 198, 70);
+    check("sz0.time", L.time, 2, 90, 196, 60);
+    check("sz0.status", L.status, 2, 153, 196, 0);
+    check("sz0.status_lower", L.status_lower, 2, 153, 196, 0);
+    check("sz0.bottom", L.bottom, 2, 153, 198, 71);
+    check("sz0.loading", L.loading, 2, 23, 198, 69);
+    L = compute_ext(SZ[1].wire, sz_ext(1));
+    if (s_dump) printf("  SIZED 1\n");
+    check("sz1.top", L.top, 2, 22, 198, 50);
+    check("sz1.time", L.time, 2, 70, 196, 60);
+    check("sz1.status", L.status, 2, 133, 196, 0);
+    check("sz1.status_lower", L.status_lower, 2, 133, 196, 0);
+    check("sz1.bottom", L.bottom, 2, 133, 198, 91);
+    check("sz1.loading", L.loading, 2, 133, 198, 91);
+    L = compute_ext(SZ[2].wire, sz_ext(2));
+    if (s_dump) printf("  SIZED 2\n");
+    check("sz2.top", L.top, 2, 22, 198, 90);
+    check("sz2.time", L.time, 2, 112, 196, 60);
+    check("sz2.status", L.status, 2, 173, 196, 21);
+    check("sz2.status_lower", L.status_lower, 2, 173, 196, 21);
+    check("sz2.bottom", L.bottom, 2, 195, 198, 29);
+    check("sz2.loading", L.loading, 2, 195, 198, 29);
+    L = compute_ext(SZ[3].wire, sz_ext(3));
+    if (s_dump) printf("  SIZED 3\n");
+    check("sz3.top", L.top, 2, 22, 198, 71);
+    check("sz3.time", L.time, 2, 91, 196, 60);
+    check("sz3.status", L.status, 2, 154, 196, 0);
+    check("sz3.status_lower", L.status_lower, 2, 154, 196, 0);
+    check("sz3.bottom", L.bottom, 2, 154, 198, 70);
+    check("sz3.loading", L.loading, 2, 23, 198, 70);
+    L = compute_ext(SZ[4].wire, sz_ext(4));
+    if (s_dump) printf("  SIZED 4\n");
+    check("sz4.top", L.top, 2, 22, 196, 80);
+    check("sz4.time", L.time, 2, 100, 196, 60);
+    check("sz4.status", L.status, 2, 163, 196, 0);
+    check("sz4.status_lower", L.status_lower, 2, 163, 196, 0);
+    check("sz4.bottom", L.bottom, 2, 163, 198, 61);
+    check("sz4.loading", L.loading, 2, 163, 198, 61);
+    L = compute_ext(SZ[5].wire, sz_ext(5));
+    if (s_dump) printf("  SIZED 5\n");
+    check("sz5.top", L.top, 2, 22, 198, 90);
+    check("sz5.time", L.time, 2, 110, 196, 60);
+    check("sz5.status", L.status, 2, 173, 196, 0);
+    check("sz5.status_lower", L.status_lower, 2, 173, 196, 0);
+    check("sz5.bottom", L.bottom, 2, 173, 198, 51);
+    check("sz5.loading", L.loading, 2, 23, 198, 89);
+    L = compute_ext(SZ[6].wire, sz_ext(6));
+    if (s_dump) printf("  SIZED 6\n");
+    check("sz6.top", L.top, 2, 22, 198, 90);
+    check("sz6.time", L.time, 2, 110, 196, 60);
+    check("sz6.status", L.status, 2, 173, 196, 0);
+    check("sz6.status_lower", L.status_lower, 2, 173, 196, 0);
+    check("sz6.bottom", L.bottom, 2, 173, 198, 0);
+    check("sz6.loading", L.loading, 2, 23, 198, 89);
+    L = compute_ext(SZ[7].wire, sz_ext(7));
+    if (s_dump) printf("  SIZED 7\n");
+    check("sz7.top", L.top, 2, 25, 196, 40);
+    check("sz7.time", L.time, 2, 82, 196, 60);
+    check("sz7.status", L.status, 2, 65, 196, 21);
+    check("sz7.status_lower", L.status_lower, 2, 65, 196, 21);
+    check("sz7.bottom", L.bottom, 2, 147, 198, 70);
+    check("sz7.loading", L.loading, 2, 147, 198, 70);
+    L = compute_ext(SZ[8].wire, sz_ext(8));
+    if (s_dump) printf("  SIZED 8\n");
+    check("sz8.top", L.top, 2, 32, 196, 40);
+    check("sz8.time", L.time, 2, 89, 196, 60);
+    check("sz8.status", L.status, 2, 72, 196, 21);
+    check("sz8.status_lower", L.status_lower, 2, 72, 196, 21);
+    check("sz8.bottom", L.bottom, 2, 154, 198, 70);
+    check("sz8.loading", L.loading, 2, 154, 198, 70);
+    L = compute_ext(SZ[9].wire, sz_ext(9));
+    if (s_dump) printf("  SIZED 9\n");
+    check("sz9.top", L.top, 2, 22, 196, 60);
+    check("sz9.time", L.time, 2, 80, 196, 60);
+    check("sz9.status", L.status, 2, 143, 196, 0);
+    check("sz9.status_lower", L.status_lower, 2, 143, 196, 0);
+    check("sz9.bottom", L.bottom, 2, 143, 198, 81);
+    check("sz9.loading", L.loading, 2, 143, 198, 81);
+    L = compute_ext(SZ[10].wire, sz_ext(10));
+    if (s_dump) printf("  SIZED 10\n");
+    check("sz10.top", L.top, 2, 22, 198, 90);
+    check("sz10.time", L.time, 2, 112, 196, 60);
+    check("sz10.status", L.status, 2, 173, 196, 21);
+    check("sz10.status_lower", L.status_lower, 2, 195, 196, 21);
+    check("sz10.bottom", L.bottom, 2, 217, 198, 7);
+    check("sz10.loading", L.loading, 2, 23, 198, 89);
+#endif
+}
+
 // Invariants for every graphless shape, order and Position (no golden numbers):
 //   - every band stays inside [cursor start, floor] (the clock's RECT is solver-seated
 //     into its neighbours' blank margins, so only its bottom is bounded), heights >= 0;
@@ -1259,6 +1493,100 @@ static void top_graph_resolve_tests(void) {
                           pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE) };
     expect("tgr.cursor_skips_health_top", view_cursor_next(0, cycle, true, false) == 2, true);
     printf("top_graph_resolve OK\n");
+}
+
+// Sizing invariants over every order × occupancy × top size × body size × Position:
+//   - no rect is negative or passes the floor; graph bands stay clear of the status bars;
+//   - a FILL band takes exactly the remainder (the block ends on the floor);
+//   - a sized radar/health band is exactly rows × row_h (+ the tail for a graph), a sized
+//     forecast is never under 3 rows, and 2 / 3 rows equal cal2 / cal3 (30|40, 45|60);
+//   - without a fill band the block moves rigidly within [0, slack].
+#ifdef PBL_PLATFORM_EMERY
+#define SZ_ROW 20
+#define SZ_TAIL 10
+#else
+#define SZ_ROW 15
+#define SZ_TAIL 0
+#endif
+static void sized_property_tests(void) {
+    const struct { int top, kind, body, su, sl, clock_off, strip_off; } occ[] = {
+        { 3, 0, BODY_HEALTH_GRAPH, STATUS_SRC_FORECAST, STATUS_SRC_NONE, 0, 0 },
+        { 3, 1, BODY_FORECAST,     STATUS_SRC_FORECAST, STATUS_SRC_RADAR, 0, 0 },
+        { 3, 1, BODY_NONE,         STATUS_SRC_NONE,     STATUS_SRC_NONE, 0, 1 },
+        { 2, 0, BODY_FORECAST,     STATUS_SRC_FORECAST, STATUS_SRC_NONE, 1, 0 },
+        { 2, 0, BODY_HEALTH_GRAPH, STATUS_SRC_NONE,     STATUS_SRC_NONE, 0, 0 },
+        { 1, 0, BODY_RADAR,        STATUS_SRC_FORECAST, STATUS_SRC_NONE, 0, 0 },
+    };
+    const int rows_of[5] = { 0, 2, 3, 4, 0 };
+    for (unsigned o = 0; o < sizeof(occ) / sizeof(occ[0]); o++) {
+        int tier = (occ[o].top == 2) ? 3 : (occ[o].top == 1) ? 2 : 1;
+        for (int code = 0; code <= 11; code++) {
+            for (int ts = 0; ts <= BAND_SIZE_FILL; ts++) {
+                for (int bs = 0; bs <= BAND_SIZE_FILL; bs++) {
+                    for (int a = ALIGN_CLOCK; a <= ALIGN_BOTTOM; a++) {
+                        uint16_t wire = pack_custom(pack(tier, occ[o].top, occ[o].body, occ[o].su, occ[o].sl),
+                                                    occ[o].clock_off, occ[o].strip_off, code);
+                        ViewSpec sp = view_spec_resolve(unpack_ext(wire, ext_word(bs, ts, occ[o].kind, a)),
+                                                        true, true);
+                        MainLayout L = layout_compute_spec(BOUNDS, &sp, MET(FC_BAND_H, INK));
+                        GRect all[6] = { L.top, L.time, L.status, L.status_lower, L.bottom, L.loading };
+                        for (int k = 0; k < 6; k++) {
+                            expect("sz.h_nonneg", all[k].size.h >= 0, true);
+                            expect("sz.within_floor", all[k].origin.y + all[k].size.h <= GL_FLOOR
+                                   || (k == 1 && all[k].size.h > 0), true);   // clock: solver-seated
+                        }
+                        GRect bars[2] = { L.status, sp.status_lower != STATUS_SRC_NONE ? L.status_lower : GRect(0, 0, 0, 0) };
+                        GRect graphs[2] = { sp.top == TOP_BAND_GRAPH || sp.top == TOP_BAND_RADAR ? L.top : GRect(0, 0, 0, 0), L.bottom };
+                        for (int g = 0; g < 2; g++) {
+                            for (int r = 0; r < 2; r++) {
+                                expect("sz.graph_clear_of_bars", rects_disjoint(graphs[g], bars[r]), true);
+                            }
+                        }
+                        bool body_fills = sp.body != BODY_NONE && sp.body_size == 0;
+                        bool top_fills = sp.top_size == BAND_SIZE_FILL;
+                        expect("sz.one_fill", !(body_fills && top_fills), true);
+                        if (body_fills) {
+                            expect("sz.body_fill_to_floor", L.bottom.origin.y + L.bottom.size.h == GL_FLOOR, true);
+                        } else if (sp.body != BODY_NONE && L.bottom.size.h > 0
+                                   && L.bottom.origin.y + L.bottom.size.h < GL_FLOOR) {
+                            // an unclamped sized body: exact rows (+ tail), forecast >= 3 rows
+                            int r = rows_of[sp.body_size];
+                            if (sp.body == BODY_FORECAST && r == 2) { r = 3; }
+                            int want = r * SZ_ROW + (sp.body == BODY_RADAR ? 0 : SZ_TAIL);
+                            expect("sz.body_rows", L.bottom.size.h == want, true);
+                        }
+                        if ((sp.top == TOP_BAND_RADAR || sp.top == TOP_BAND_GRAPH) && !top_fills
+                                && L.top.origin.y + L.top.size.h < GL_FLOOR) {
+                            int r = sp.top_size ? rows_of[sp.top_size] : 3;
+                            if (sp.top == TOP_BAND_GRAPH && sp.top_kind == 0 && r == 2) { r = 3; }
+                            int want = r * SZ_ROW + (sp.top == TOP_BAND_GRAPH ? SZ_TAIL : 0);
+                            expect("sz.top_rows", L.top.size.h == want, true);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // 2 / 3 rows of a radar top equal the 2- / 3-row calendar (the row unit is shared).
+    ViewSpec r2 = unpack_ext(pack_custom(pack(3, 2, 0, 0, 0), 0, 0, 1), ext_word(0, BAND_SIZE_2, 0, 0));
+    ViewSpec r3 = unpack_ext(pack_custom(pack(3, 2, 0, 0, 0), 0, 0, 1), ext_word(0, BAND_SIZE_3, 0, 0));
+    ViewSpec c2 = view_spec_unpack(pack_custom(pack(2, 1, 0, 0, 0), 0, 0, 1));
+    ViewSpec c3 = view_spec_unpack(pack_custom(pack(3, 1, 0, 0, 0), 0, 0, 1));
+    expect("sz.two_rows_is_cal2", layout_compute_spec(BOUNDS, &r2, MET(FC_BAND_H, INK)).top.size.h
+           == layout_compute_spec(BOUNDS, &c2, MET(FC_BAND_H, INK)).top.size.h, true);
+    expect("sz.three_rows_is_cal3", layout_compute_spec(BOUNDS, &r3, MET(FC_BAND_H, INK)).top.size.h
+           == layout_compute_spec(BOUNDS, &c3, MET(FC_BAND_H, INK)).top.size.h, true);
+    // Resolve re-normalises after its folds: a FILL health top over no body, without
+    // health, empties — and leaves no size or alignment behind (the stored alignment was
+    // already moot at decode, when the top filled; the phone never sends it then either).
+    ViewSpec hf = view_spec_resolve(unpack_ext(pack(1, 3, 3, 0, 0), ext_word(0, BAND_SIZE_FILL, 1, ALIGN_TOP)),
+                                    true, false);
+    expect("sz.renormalise", hf.top == TOP_BAND_EMPTY && hf.top_size == 0 && hf.align == 0, true);
+    ViewSpec hf2 = view_spec_resolve(unpack_ext(pack(1, 3, 3, 0, 0), ext_word(0, BAND_SIZE_FILL, 1, 0)),
+                                     true, true);
+    expect("sz.fill_top_kept_with_health", hf2.top == TOP_BAND_GRAPH && hf2.top_size == BAND_SIZE_FILL
+           && hf2.align == 0, true);
+    printf("sized_properties OK\n");
 }
 
 // Dispatch: an order-0 spec with an omission bit rides compute_stacked, not the legacy
@@ -3054,6 +3382,7 @@ int main(int argc, char **argv) {
     golden_rects_stacked();
     golden_rects_graphless();
     golden_rects_top_graph();
+    golden_rects_sized();
     if (!s_dump) clockless_property_tests();
     if (!s_dump) dispatch_order0_omission_stacked();
     if (!s_dump) full_dual_fix_tests();
@@ -3063,6 +3392,7 @@ int main(int argc, char **argv) {
     if (!s_dump) top_graph_property_tests();
     if (!s_dump) top_graph_resolve_tests();
     if (!s_dump) graph_frame_tests();
+    if (!s_dump) sized_property_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) ext_decode_tests();

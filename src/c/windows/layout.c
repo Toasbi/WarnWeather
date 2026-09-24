@@ -747,6 +747,17 @@ static int stack_gap_after(uint8_t b, bool full_rows) {
     return inks_to_edge ? STATUS_FORECAST_CLEARANCE : 0;
 }
 
+// Rows a sized seat takes: 2 / 3 / 4 for BAND_SIZE_2 / _3 / _4, 0 for FILL, and the
+// seat's own default for BAND_SIZE_DEFAULT (3 rows for a radar/graph top, FILL — 0 — for
+// the body). A FORECAST seat never takes fewer than 3 rows: at 2 its high and low labels
+// collide and there is no smaller font to fall back to (forecast_layer.c). The phone
+// compiles the same clamp, so its fit check and the watch agree.
+static int band_rows(uint8_t code, int seat_default, bool forecast) {
+    int r = (code == BAND_SIZE_2) ? 2 : (code == BAND_SIZE_3) ? 3 : (code == BAND_SIZE_4) ? 4
+          : (code == BAND_SIZE_FILL) ? 0 : seat_default;
+    return (forecast && r == 2) ? 3 : r;
+}
+
 static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
     int fc_band_h = m.fc_band_h;
     ClockInk ink = m.clock;
@@ -788,21 +799,54 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     uint8_t rows = spec->calendar_rows;
     int cal_h = (rows == 3) ? calendar_h : (rows == 2) ? (calendar_h - calendar_h / 3) : 0;
     // The row unit every sized band speaks: a 3-row calendar's row (15 | 20 px). A radar
-    // top is 3 rows; a graph top is 3 rows of plot plus the graph tail.
+    // or graph top and the graph body take 2 · 3 · 4 rows of it, or FILL — the space the
+    // other bands leave (band_rows; the spec is normalised, so at most one band fills).
+    // A graph band (forecast / health, either seat) adds the graph tail under its plot.
     int row_h = calendar_h / 3;
     bool graph_top = (spec->top == TOP_BAND_GRAPH);
-    int top_h = (spec->top == TOP_BAND_RADAR) ? calendar_h
-              : graph_top ? (3 * row_h + LAYOUT_GRAPH_TAIL)
+    bool sized_top = graph_top || (spec->top == TOP_BAND_RADAR);
+    int top_rows = sized_top ? band_rows(spec->top_size, 3,
+                                         graph_top && spec->top_kind == TOP_GRAPH_FORECAST) : 0;
+    bool top_fill = sized_top && top_rows == 0;
+    int top_h = sized_top ? (top_rows * row_h + (graph_top ? LAYOUT_GRAPH_TAIL : 0))
               : (spec->top == TOP_BAND_CALENDAR && rows > 0) ? cal_h : 0;
+    int body_rows = body ? band_rows(spec->body_size, 0, spec->body == BODY_FORECAST) : 0;
+    bool body_fill = body && body_rows == 0;
+    bool present[5];
+    present[STK_TOP] = sized_top || top_h > 0;
+    present[STK_CLOCK] = clock;
+    present[STK_A] = upper;
+    present[STK_B] = lower;
+    present[STK_BODY] = body;
     int heights[5];
     heights[STK_TOP] = top_h;
     heights[STK_CLOCK] = clock ? time_h : 0;
     heights[STK_A] = upper ? status_band_h : 0;
     heights[STK_B] = lower ? status_band_h : 0;
-    heights[STK_BODY] = 0;                   // the fill band: whatever is left (below)
+    // A sized body: its rows (+ the graph tail unless it is the radar); a filling body
+    // takes whatever is left when it is placed (below).
+    heights[STK_BODY] = body_rows * row_h + ((spec->body == BODY_RADAR) ? 0 : LAYOUT_GRAPH_TAIL);
 
     L.top_status = GRect(content_x, content_y, content_w, strip ? strip_h : 0);
     int cursor_start = strip ? (content_y + CALENDAR_STATUS_HEIGHT) : content_y;
+    const uint8_t *ord = STACK_ORDER[spec->order];   // unpack clamps the field to 0-11
+
+    // A FILLING top band is not last, so its height is known only once the bands after
+    // it are: sum every other present band and the clearances between consecutive
+    // present bands (a gap counts only when a band follows), and give the top the rest.
+    if (top_fill) {
+        int fixed = 0;
+        uint8_t pp = STK_NONE;
+        for (int i = 0; i < 5; i++) {
+            uint8_t b = (i < 4) ? ord[i] : STK_BODY;
+            if (!present[b]) { continue; }
+            if (pp != STK_NONE) { fixed += stack_gap_after(pp, full_rows); }
+            if (b != STK_TOP) { fixed += heights[b]; }
+            pp = b;
+        }
+        int fill_h = floor - cursor_start - fixed;
+        heights[STK_TOP] = (fill_h > 0) ? fill_h : 0;
+    }
 
     // Walk the movable bands in the coded order (absent ones park a zero-height rect at
     // the cursor), then the body when present. Each band's clearance (stack_gap_after)
@@ -817,22 +861,21 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     uint8_t prev = STK_NONE;                         // nothing placed yet (strip or top edge)
     uint8_t prev_of[5] = { STK_NONE, STK_NONE, STK_NONE, STK_NONE, STK_NONE };
     uint8_t next_of[5] = { STK_NONE, STK_NONE, STK_NONE, STK_NONE, STK_NONE };
-    const uint8_t *ord = STACK_ORDER[spec->order];   // unpack clamps the field to 0-11
     for (int i = 0; i < 5; i++) {
         uint8_t b = (i < 4) ? ord[i] : STK_BODY;
         if (b == STK_BODY && !body) { break; }
         // The clearance owed to the band placed last, paid before whatever comes next.
         int gy = y + ((prev != STK_NONE) ? stack_gap_after(prev, full_rows) : 0);
         if (gy > floor) { gy = floor; }
-        if (b != STK_BODY && heights[b] == 0) {
+        if (!present[b]) {
             // Absent: a zero-height rect parked where the band would start (after the
             // pending clearance — the pre-v2 stacker's cursor, which the goldens pin).
             rect[b] = GRect(content_x, gy, content_w, 0);
             continue;
         }
         y = gy;
-        // The body FILLS: everything from the cursor to the floor.
-        int bh = (b == STK_BODY) ? (floor - y) : heights[b];
+        // A filling body takes everything from the cursor to the floor.
+        int bh = (b == STK_BODY && body_fill) ? (floor - y) : heights[b];
         int room = floor - y;
         if (bh > room) { bh = room; }
         if (bh < 0) { bh = 0; }
@@ -911,7 +954,7 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     // the offset is 0 and the geometry is the top-anchored stack above, bit for bit.
     // The strip (L.top_status) is pinned and never moves.
     int off = 0;
-    if (!body) {
+    if (!body_fill && !top_fill) {
         int slack = floor - block_end;
         if (slack < 0) { slack = 0; }
         int clock_target = bounds.origin.y + h / 2 - time_h / 2 - ink.centre_off;
