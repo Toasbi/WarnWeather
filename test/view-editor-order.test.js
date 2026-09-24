@@ -1,6 +1,6 @@
 // test/view-editor-order.test.js — the Custom-layout editor must LIST a view's bands in
 // the order the watch renders them. The legacy order code 0 ('TACB', what every preset
-// seeds) is not literal: the watch's legacy engine seats the status row above the clock
+// seeds) is not literal: the watch's legacy order seats the status row above the clock
 // only under the 2-row calendar, and below it under a 3-row calendar, radar or no top.
 // The editor used to list the stored letters, so a view seeded from Full calendar or
 // No calendar showed its status bar above the clock while the preview and the watch
@@ -76,9 +76,9 @@ function state(over) {
 
 test('the editor lists every top, row count, order and omission the way the watch draws it', () => {
   // The stripOff axis is the case the clockOff one hides: removing the clock drops the
-  // very band whose position the legacy/stacked engines disagree on, so a clockless view
-  // lists the same bands either way — but a STRIPLESS view keeps its clock, and the
-  // stacker draws it TACB (status above the clock) where the legacy engine would not.
+  // very band whose position the legacy and literal orders disagree on, so a clockless
+  // view lists the same bands either way — but a STRIPLESS view keeps its clock, and the
+  // literal code 0 draws it TACB (status above the clock) where the legacy order would not.
   ['cal2', 'cal3', 'radar', 'none', 'forecast', 'health'].forEach((top) => {
     [['weather', 'off'], ['weather', 'radar']].forEach(([upper, lower]) => {
       vc.STACK_ORDERS.forEach((order) => {
@@ -179,7 +179,7 @@ function wire(S) {
 test('moving a lone status bar past its absent sibling and back is byte-identical', () => {
   // One status bar under a 3-row calendar: up above the clock, then back down. The
   // absent second bar's slot is stepped over; that must not turn the lone UPPER row into
-  // a lone LOWER row (which the legacy engine draws 14 px lower over a shorter graph).
+  // a lone LOWER row (which the watch draws 14 px lower over a shorter graph).
   ['cal3', 'radar', 'none'].forEach((top) => {
     const S = state({ viewTop0: top });
     const before = wire(S);
@@ -252,10 +252,10 @@ test('the last element keeps no ✕', () => {
   assert.match(html, /data-ve-del="topbar"/, 'the top bar is not an element');
 });
 
-// An edit that switches a view between the watch's two engines — the legacy engine
-// (order code 0 with full chrome and a filling graph) and the stacker — must not move
-// the bands the user did not touch. Under a 3-row calendar, a radar top or no top the
-// legacy engine draws the status bar BELOW the clock, the stacker's code 0 above it.
+// An edit that switches a view between the watch's two order rules — the tier's legacy
+// order (order code 0 with full chrome and a filling graph) and the literal order code —
+// must not move the bands the user did not touch. Under a 3-row calendar, a radar top or
+// no top the legacy order draws the status bar BELOW the clock, the literal code 0 above it.
 test('removing and re-adding the graph keeps the drawn order, and comes back byte-identical', () => {
   ['cal3', 'radar', 'none', 'cal2'].forEach((top) => {
     [['weather', 'off'], ['weather', 'radar']].forEach(([upper, lower]) => {
@@ -285,7 +285,7 @@ test('removing and re-adding the top bar keeps the drawn order, and comes back b
   });
 });
 
-test('a sheet pick that switches engines keeps the drawn order (keepOrder)', () => {
+test('a sheet pick that switches the order rule keeps the drawn order (keepOrder)', () => {
   // Simulates the overlay's sheet flow: capture before the sheet opens, the engine
   // writes the key, then normalizeAfterPick and keepOrder run in the close callback.
   const S = state({ viewTop1: 'cal3', viewBody1: 'none' });
@@ -313,7 +313,7 @@ test('removing and re-adding the graph keeps a stacked order code byte-identical
   assert.deepEqual(wire(S), before, 'the stored code survives the round trip');
 });
 
-test('picking a graph for the top area keeps the drawn order (the sheet flow switches engines)', () => {
+test('picking a graph for the top area keeps the drawn order (the sheet flow switches the order rule)', () => {
   // cal3 + weather row, legacy code 0: drawn T C A. Picking the forecast graph for the top
   // area makes the view stacked (and moves the forecast up); the bands must stay put.
   const S = state({ viewTop1: 'cal3', healthMode: 'all' });
@@ -400,7 +400,7 @@ test('setSize keeps one fill per view, and a size change that switches the order
   assert.equal(ve.setSize(S, 1, 'BodySize', 'fill'), true);
   assert.equal(S.viewTopSize1, '3');
   assert.equal(ve.setSize(S, 1, 'BodySize', '7'), false);
-  // cal3 + weather, legacy engine (T C A): sizing the graph makes the view stacked —
+  // cal3 + weather, legacy order (T C A): sizing the graph makes the view stacked —
   // the bands stay where they were drawn, and sizing it back restores the view exactly.
   const C = state({ viewTop1: 'cal3', healthMode: 'all' });
   const drawn = watchKinds(C, 1);
@@ -416,9 +416,9 @@ test('setSize keeps one fill per view, and a size change that switches the order
 });
 
 test('a size tap that would move a band across the clock is refused', () => {
-  // emery: radar top + two status bars (legacy: T C A B). Size the radar to 2 rows (the
-  // stacker, order kept), then move the weather bar above the clock (T A C B). Going back
-  // to 3 rows would hand the view back to the legacy engine, which cannot draw T A C B —
+  // emery: radar top + two status bars (legacy: T C A B). Size the radar to 2 rows (a
+  // literal order code, order kept), then move the weather bar above the clock (T A C B).
+  // Going back to 3 rows would hand the view back to the legacy order, which cannot draw T A C B —
   // the bar would jump below the clock — so '3' is inert.
   const S = state({ viewTop1: 'radar', viewLower1: 'health', healthMode: 'all' });
   let snap = ve.orderSnapshot(S, 1);
@@ -458,7 +458,7 @@ test('＋ Add element offers the top area by its seat name, not its first conten
 });
 
 test('the calendar size: 2 · 3 rows; a size change never moves the other bands', () => {
-  // Legacy engine, one status bar: a 2-row calendar draws it above the clock, a 3-row one
+  // Legacy order, one status bar: a 2-row calendar draws it above the clock, a 3-row one
   // below. Changing the calendar's SIZE keeps the bar where the user sees it (a stacked
   // code), and changing it back restores the view byte for byte.
   const S = state({ viewTop1: 'cal', viewTopSize1: '2' });
