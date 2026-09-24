@@ -1,4 +1,4 @@
-// test/day-peak-record.test.js — the UV forecast of today's hours already begun,
+// test/day-peaks.test.js — the UV forecast of today's hours already begun,
 // kept across fetches so the UV slot's day max can hold today's peak while it
 // runs (a peak of 5 from 13:00 to 15:00 shows until the reading drops below it)
 // and give way to tomorrow's once it is behind us. Times are LOCAL clock times so
@@ -16,7 +16,7 @@ global.localStorage = {
 };
 
 const KEYS = require('../src/pkjs/storage-keys.js');
-const record = require('../src/pkjs/weather/day-peak-record.js');
+const record = require('../src/pkjs/weather/day-peaks.js');
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const outbox = require('../src/pkjs/outbox.js');
 // The UV slot's reader, in the (trend, peaks, mode) shape these tests grew up on.
@@ -238,9 +238,10 @@ test('without UV nothing is read or stored', () => {
   const p = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
   p.uvTrend = [];
   p.startTime = at(15, 9);
-  assert.deepEqual(p.recallDayPeaks(SRC.lat, SRC.lon).map((e) => e.storageKey)
+  const recalled = record.recall(p, SRC.lat, SRC.lon);
+  assert.deepEqual(recalled.records.map((e) => e.storageKey)
     .filter((k) => k === KEYS.UV_DAY_RECORD_KEY), []);
-  assert.equal(p.earlierPeaks.uv == null, true, 'no earlier peak');
+  assert.equal(recalled.earlier.uv == null, true, 'no earlier peak');
   assert.equal(writes, 0);
 });
 
@@ -251,7 +252,7 @@ test('DST days: the earlier hours are the day\'s own, 23 or 25 of them', () => {
   // peak among them must be found by time, not by a 24-hour count.
   const { execFileSync } = require('child_process');
   const body = `
-    const r = require(${JSON.stringify(require.resolve('../src/pkjs/weather/day-peak-record.js'))});
+    const r = require(${JSON.stringify(require.resolve('../src/pkjs/weather/day-peaks.js'))});
     const src = { id: 'openmeteo', lat: 52.5, lon: 13.4 };
     const out = {};
     [['spring', 2, 29], ['autumn', 9, 25]].forEach(([name, m, d]) => {

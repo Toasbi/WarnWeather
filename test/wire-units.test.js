@@ -101,7 +101,7 @@ test('uvShown: holding the peak judges the whole numbers, and a day that stays a
 
 test('uvShown: a second, lower peak holds like the first; the same number on the way down does not', () => {
   // 6 at 11:00, 4 at 12:00, 5 at 13:00. The third peak runs back only to the
-  // last hour below the peak held (day-peak-record's earlierPeak).
+  // last hour below the peak held (day-peaks's earlierPeak).
   assert.deepEqual(uvShown([40], [50, 70, 0], 'both'), S(4, 5, false), '12:00: 5 is still to come');
   assert.deepEqual(uvShown([50], [50, 70, 0], 'both'), S(5, 5, false),
     '13:00: it runs — the noon dip ended the morning\'s 6');

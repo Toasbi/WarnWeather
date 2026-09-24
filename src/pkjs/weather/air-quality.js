@@ -11,6 +11,7 @@ var http = require('./http.js');
 var AIR_QUALITY_BASE = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 var WAQI_BASE = 'https://api.waqi.info';
 var hourlyWindow = require('./hourly-window.js');
+var dayPeaks = require('./day-peaks.js');
 var alignHourly = hourlyWindow.alignHourly;
 
 /**
@@ -96,8 +97,7 @@ function mapWaqi(json) {
  * @returns {void}
  */
 function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
-    var url = buildAqiUrl(lat, lon, scale,
-        typeof provider.dayPeakWanted !== 'function' || provider.dayPeakWanted('aqi'));
+    var url = buildAqiUrl(lat, lon, scale, dayPeaks.wanted(provider, 'aqi'));
     http.request(url, 'GET', function(resp) {
         var aqi = null;
         try { aqi = mapAqi(JSON.parse(resp), provider.startTime, scale); }

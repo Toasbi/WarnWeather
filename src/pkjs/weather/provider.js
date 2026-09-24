@@ -7,9 +7,7 @@ var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
-var hourlyWindow = require('./hourly-window.js');
-var dayPeakRecord = require('./day-peak-record.js');
-var storageKeys = require('../storage-keys.js');
+var dayPeaks = require('./day-peaks.js');
 var feelsLike = require('./feels-like.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
@@ -31,30 +29,6 @@ var readGpsCache = locationLib.readGpsCache;
 var GPS_CACHE_MAX_AGE_MS = locationLib.GPS_CACHE_MAX_AGE_MS;
 
 
-// The status slots with a day max (Edit sheet: Now / Day max / Both), one row
-// per metric: the provider series it reads (the day-max ones reach
-// hourly-window's PEAK_HOURS, past the graph's window), the scale its peaks are
-// encoded in (UV in tenths, the rest whole; the payload key is wire-units'
-// dayMaxPeaksKey), the day record's storage key, the provider field naming its
-// feed (the record is keyed by feed: DWD's UV is Open-Meteo's), and its
-// same-place radius (`degrees`; UV is regional, wind/gusts/air quality change
-// over a few km). A metric with `feedRequired` has no peaks at all without a
-// feed — AQI from WAQI is the current reading alone, not a forecast. A `wind`
-// metric compares its hours in the user's wind unit (windUnits). getPayload emits [rest of today's peak, tomorrow's,
-// today's hours already begun back to the last dip] per metric; wire-units'
-// dayMaxShown reads them. Every key is transient PKJS-only: the status bake
-// consumes it and forecast-series deletes it before send.
-var DAY_PEAK_METRICS = [
-    { code: 'uv', series: 'uvTrend', scale: 10, degrees: 0.5,
-        storageKey: storageKeys.UV_DAY_RECORD_KEY, feedField: 'uvFeedId' },
-    { code: 'wind', series: 'windTrend', scale: 1, degrees: 0.1, wind: true,
-        storageKey: storageKeys.WIND_DAY_RECORD_KEY },
-    { code: 'gust', series: 'gustTrend', scale: 1, degrees: 0.1, wind: true,
-        storageKey: storageKeys.GUST_DAY_RECORD_KEY },
-    { code: 'aqi', series: 'aqiTrend', scale: 1, degrees: 0.1,
-        storageKey: storageKeys.AQI_DAY_RECORD_KEY, feedField: 'aqiFeedId', feedRequired: true }
-];
-
 var WeatherProvider = function() {
     this.numEntries = 24;
     this.name = 'Template';
@@ -70,22 +44,15 @@ var WeatherProvider = function() {
     // UV is opt-in and not every provider has it: leave it empty so getPayload
     // emits an empty UV series (→ the UV line stays off) unless a provider fills it.
     this.uvTrend = [];
-    // Per day-max metric code (DAY_PEAK_METRICS), the peak of today's hours
-    // before its series' entry 0, back to the last one that printed below
-    // today's remaining peak (the metric's unit; 0 when none came between;
-    // absent/null when unknown), from the record earlier fetches left
-    // (day-peak-record.js). Set per fetch; getPayload hands it to the slot's day
-    // max as the *_DAY_PEAKS third entry.
-    this.earlierPeaks = {};
-    // Which day-max metric codes a slot actually shows a peak for (index.js sets
-    // it per fetch from status-line-catalog's dayMaxInUse): only those keep a day
-    // record and fetch their longer series. null = all of them — the fail-safe
-    // direction, like fetchFeels: a caller that forgets costs a few bytes of
-    // storage, where the fail-closed default would quietly blank a day max.
+    // The status slots' day max (day-peaks.js), all set per fetch: which
+    // metric codes a slot shows a peak for (index.js, from status-line-catalog's
+    // dayMaxInUse; null = all, the fail-safe direction like fetchFeels), the
+    // user's wind unit the wind/gust records judge a dip in (index.js), and each
+    // metric's peak of today's hours already begun (day-peaks' recall, in
+    // fetchWithCoordinates; getPayload hands it on as the triples' third entry).
     this.dayPeakCodes = null;
-    // The user's wind unit (index.js sets it per fetch): the wind and gust day
-    // records judge a dip on the numbers the slot prints, in this unit.
     this.windUnits = 'kph';
+    this.earlierPeaks = {};
     // AQI is opt-in (status slot only); empty → the slot shows '--' unless a
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.aqiTrend = [];
@@ -619,7 +586,8 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                         // The day records only refine the slots' day max: a storage
                         // failure leaves that on its plain rule, never the fetch
                         // failed.
-                        var dayRecords = self.recallDayPeaks(lat, lon);
+                        var recalled = dayPeaks.recall(self, lat, lon);
+                        self.earlierPeaks = recalled.earlier;
                         // This runs inside an XHR callback: a throw here would
                         // escape every try and leave the fetch unfinished, so it
                         // is reported as a failure instead.
@@ -641,14 +609,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                         }
                         // Only a current fetch's series join the records: an
                         // abandoned one's are older than what a newer fetch stores.
-                        dayRecords.forEach(function (entry) {
-                            try {
-                                dayPeakRecord.save(entry.record, entry.storageKey);
-                            }
-                            catch (exSave) {
-                                console.log('[!] Storing the ' + entry.storageKey + ' failed: ' + exSave.message);
-                            }
-                        });
+                        dayPeaks.saveAll(recalled.records);
                         // The outbox sends only the categories that changed since
                         // the last ACKed message — possibly nothing, which still
                         // counts as a successful fetch.
@@ -672,98 +633,6 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
             onFailure(sunFailure || failure('sun_events', 'unknown_error'));
         });
     }).bind(this));
-};
-
-/**
- * Whether a slot shows this day-max metric's peak (dayPeakCodes; all of them
- * when unset) — the gate on its day record and its longer fetches.
- *
- * @param {string} code A DAY_PEAK_METRICS code.
- * @returns {boolean}
- */
-WeatherProvider.prototype.dayPeakWanted = function(code) {
-    return !this.dayPeakCodes || this.dayPeakCodes.indexOf(code) !== -1;
-};
-
-/**
- * The feed a day-max metric's series comes from — what its day record is keyed
- * by, since another feed's morning says nothing about this one's peak. Null
- * when a metric that needs a feed has none (AQI from WAQI), which leaves that
- * slot's day max off.
- *
- * @param {Object} metric A DAY_PEAK_METRICS row.
- * @returns {?string} The feed id, or null.
- */
-WeatherProvider.prototype.dayPeakFeedId = function(metric) {
-    var feed = metric.feedField ? this[metric.feedField] : null;
-    if (metric.feedRequired) { return feed || null; }
-    return feed || this.id;
-};
-
-/**
- * Look up one day-max metric's peak of today's hours already begun, back to
- * the last hour that printed below today's remaining peak (earlierPeaks, for
- * getPayload), in the record earlier fetches left, and build the record with
- * this fetch's series added. The caller stores it once the fetch is known to
- * be current. Without a series (or a feed) nothing is read or built.
- *
- * @param {Object} metric A DAY_PEAK_METRICS row.
- * @param {number|string} lat Latitude of this fetch (manual ones arrive as strings).
- * @param {number|string} lon Longitude of this fetch.
- * @returns {?Object} The record to store, or null when there is no series.
- */
-WeatherProvider.prototype.recallDayPeak = function(metric, lat, lon) {
-    this.earlierPeaks[metric.code] = null;
-    var series = this[metric.series];
-    var feedId = this.dayPeakFeedId(metric);
-    if (!series || !series.length || !feedId || typeof this.startTime !== 'number') {
-        return null;
-    }
-    var source = { id: feedId, lat: Number(lat), lon: Number(lon), degrees: metric.degrees };
-    var nowEpoch = Math.floor(Date.now() / 1000);
-    var record = dayPeakRecord.merge(dayPeakRecord.load(metric.storageKey), source, series,
-        this.startTime, nowEpoch);
-    var rest = hourlyWindow.localDayPeaks(series, this.startTime, nowEpoch)[0];
-    var windUnits = this.windUnits;
-    // As dayMaxShown prints them: a wind peak is whole km/h, then the user's unit.
-    var toShown = metric.wind
-        ? function (kmh) { return wireUnits.kmhToDisplay(Math.round(kmh), windUnits); } : null;
-    this.earlierPeaks[metric.code] = dayPeakRecord.earlierPeak(record, source, this.startTime,
-        nowEpoch, rest, toShown);
-    return record;
-};
-
-/**
- * recallDayPeak for every day-max metric a slot shows (dayPeakWanted), each on
- * its own: one metric's storage failure leaves that slot on its plain rule and
- * the others untouched. A metric not in use keeps no record, so no fetch spends
- * a flash write on it.
- *
- * @param {number|string} lat Latitude of this fetch.
- * @param {number|string} lon Longitude of this fetch.
- * @returns {Array.<{storageKey: string, record: Object}>} The records to store
- *   once the fetch is known to be current.
- */
-WeatherProvider.prototype.recallDayPeaks = function(lat, lon) {
-    this.earlierPeaks = {};
-    var out = [];
-    var i, metric, record;
-    for (i = 0; i < DAY_PEAK_METRICS.length; i += 1) {
-        metric = DAY_PEAK_METRICS[i];
-        if (!this.dayPeakWanted(metric.code)) { continue; }
-        try {
-            record = this.recallDayPeak(metric, lat, lon);
-        }
-        catch (exRecall) {
-            this.earlierPeaks[metric.code] = null;
-            record = null;
-            console.log('[!] Reading the ' + metric.code + ' day record failed: ' + exRecall.message);
-        }
-        if (record) {
-            out.push({ storageKey: metric.storageKey, record: record });
-        }
-    }
-    return out;
 };
 
 /**
@@ -810,19 +679,6 @@ function scaleTrendToBytes(trend, numEntries, scale) {
     return trend.slice(0, numEntries).map(function(value) {
         return clampByte((value || 0) * scale);
     });
-}
-
-/**
- * One *_DAY_PEAKS entry, whole in its payload scale. UV's tenths stay a byte
- * (clampByte, like UV_TREND_UINT8); the whole-unit peaks only round — a US AQI
- * reaches 500, past any byte.
- *
- * @param {number} scaled The peak times its metric's scale.
- * @param {number} scale The metric's scale (10 for UV, else 1).
- * @returns {number} The encoded peak.
- */
-function clampPeak(scaled, scale) {
-    return scale === 1 ? Math.round(scaled) : clampByte(scaled);
 }
 
 /**
@@ -936,31 +792,9 @@ WeatherProvider.prototype.getPayload = function() {
     if (this.windDirTrend && this.windDirTrend.length) {
         payload.WIND_DIR_TREND = this.windDirTrend.slice(0, numEntries); // degrees 0-359, "comes from"
     }
-    // The day-max modes of the UV, wind, gust and AQI slots: [rest of today's
-    // peak, tomorrow's peak, the peak of today's hours already begun] per metric
-    // (null = unknown) — UV in tenths, wind and gusts in whole km/h, AQI in whole
-    // points. The first two are read off the FULL series — it reaches
-    // PEAK_HOURS, past the 24h window the graph keys are cut to; the clock picks
-    // which local day is today. The third comes from earlier fetches, back to the
-    // last dip below the first (recallDayPeak). Emitted only alongside a sourced
-    // series (AQI: a sourced FORECAST, dayPeakFeedId) of a kind a slot shows
-    // (dayPeakWanted: nothing reads the others). Transient PKJS-only:
-    // formatValue/displayValue consume them, forecast-series deletes them.
-    var nowEpoch = Math.floor(Date.now() / 1000);
-    var i, j, metric, series, earlier, peaks;
-    for (i = 0; i < DAY_PEAK_METRICS.length; i += 1) {
-        metric = DAY_PEAK_METRICS[i];
-        series = this[metric.series];
-        if (!series || !series.length || !this.dayPeakFeedId(metric)
-            || !this.dayPeakWanted(metric.code)) { continue; }
-        earlier = this.earlierPeaks[metric.code];
-        peaks = hourlyWindow.localDayPeaks(series, this.startTime, nowEpoch)
-            .concat([typeof earlier === 'number' ? earlier : null]);
-        for (j = 0; j < peaks.length; j += 1) {
-            if (peaks[j] !== null) { peaks[j] = clampPeak(peaks[j] * metric.scale, metric.scale); }
-        }
-        payload[wireUnits.dayMaxPeaksKey(metric.code)] = peaks;
-    }
+    // The day-max slots' *_DAY_PEAKS triples (day-peaks.js), with the earlier
+    // peaks this fetch recalled.
+    dayPeaks.addToPayload(payload, this, this.earlierPeaks);
     return payload;
 };
 

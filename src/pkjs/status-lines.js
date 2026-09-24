@@ -158,6 +158,20 @@ function withUnit(value, unit, cap) {
 }
 
 /**
+ * The unit a day-max slot appends: wind and gusts their wind-unit label while
+ * their "Show unit" toggle is on; UV and AQI none (their icon carries it).
+ * @param {string} code a day-max kind
+ * @param {Object} settings Clay settings blob
+ * @returns {string} e.g. 'kph', or ''
+ */
+function dayMaxUnit(code, settings) {
+  var label = DAY_MAX_UNIT_LABELS[code];
+  return label && unitEnabled(settings, code + 'SlotUnit') ? label(settings) : '';
+}
+// Per day-max kind, its unit label (the kinds absent here print none).
+var DAY_MAX_UNIT_LABELS = { wind: windUnitLabel, gust: windUnitLabel };
+
+/**
  * The label of the user's wind unit. The number itself is wire-units' (dayMaxShown,
  * via kmhToDisplay), which the thresholds read too, so the two can never round apart.
  * @param {Object} settings Clay settings blob (reads windUnits)
@@ -338,10 +352,8 @@ function formatValue(code, payload, settings, slotKey, cap) {
     // gusts append their unit label when the whole text still fits ('12/30kph').
     var shown = wireUnits.dayMaxShown(code, payload, settings);
     if (!shown) { return '--'; }
-    var text = statusPair.formatPeak(code, shown, settings, cap);
-    return (code === 'wind' || code === 'gust')
-      ? withUnit(text, unitEnabled(settings, code + 'SlotUnit') ? windUnitLabel(settings) : '', cap)
-      : text;
+    return withUnit(statusPair.formatPeak(code, shown, settings, cap),
+      dayMaxUnit(code, settings), cap);
   }
   if (code === 'pressure') {
     v = trendHead(payload.PRESSURE_TREND);

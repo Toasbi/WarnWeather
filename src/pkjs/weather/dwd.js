@@ -9,6 +9,7 @@ var feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
 var hourlyWindow = require('./hourly-window.js');
+var dayPeaks = require('./day-peaks.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var PEAK_HOURS = hourlyWindow.PEAK_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
@@ -155,6 +156,17 @@ function peakTail(byEpoch, startEpoch) {
 }
 
 /**
+ * Whether a wind or gust slot shows its day max — the only reason to read
+ * Brightsky past the graph's window.
+ *
+ * @param {Object} provider The DWD provider.
+ * @returns {boolean}
+ */
+function windPeaksWanted(provider) {
+    return dayPeaks.wanted(provider, 'wind') || dayPeaks.wanted(provider, 'gust');
+}
+
+/**
  * Brightsky records keyed by their timestamp's epoch second — the lookup both
  * slotRecords and peakTail pair by, built once per fetch.
  *
@@ -228,8 +240,7 @@ DwdProvider.prototype.constructor = DwdProvider;
 DwdProvider.prototype._super = WeatherProvider;
 
 DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) {
-    var win = forecastWindow(this.dayPeakWanted('wind') || this.dayPeakWanted('gust')
-        ? PEAK_HOURS : FORECAST_HOURS);
+    var win = forecastWindow(windPeaksWanted(this) ? PEAK_HOURS : FORECAST_HOURS);
     var url = BRIGHTSKY_BASE + '/weather'
         + '?lat=' + lat
         + '&lon=' + lon
@@ -316,7 +327,7 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             // window reached that far, forecastWindow); getPayload cuts them
             // back to the graph's window.
             if (slots.length === FORECAST_HOURS
-                && (this.dayPeakWanted('wind') || this.dayPeakWanted('gust'))) {
+                && windPeaksWanted(this)) {
                 var tail = peakTail(byEpoch, startEpoch);
                 this.windTrend = this.windTrend.concat(tail.wind);
                 this.gustTrend = this.gustTrend.concat(tail.gust);

@@ -3,6 +3,7 @@ var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('./hourly-window.js');
+var dayPeaks = require('./day-peaks.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 
@@ -479,7 +480,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         // call just leaves the defaults, so the gust/feels lines stay hidden,
         // the dew slot shows '--' and the wind arrow is omitted rather than
         // failing the whole forecast.
-        var gustUrl = buildGustUrl(lat, lon, this.dayPeakWanted('gust'));
+        var gustUrl = buildGustUrl(lat, lon, dayPeaks.wanted(this, 'gust'));
         request(gustUrl, 'GET', (function(gustResponse) {
             var aux = null;
             var gusts = null;
