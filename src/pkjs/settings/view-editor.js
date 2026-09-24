@@ -619,10 +619,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + 'color:var(--fg);font:600 13.5px Inter,sans-serif;cursor:pointer}'
         + '#viewEditor .ve-remove{display:block;width:100%;margin-top:14px;padding:11px;border:none;'
         + 'border-radius:10px;background:none;color:#FA4A35;font:700 13.5px Inter,sans-serif;cursor:pointer}'
-        // The Alignment band: label, a one-line why, then the page's segmented control
-        // (.seg, shell.html) on its own line; tighter buttons fit four on a 320 px phone.
-        + '#viewEditor .ve-band.ve-pos{flex-wrap:wrap;row-gap:6px}'
-        + '#viewEditor .ve-pos .ve-note{flex-basis:100%;color:var(--muted);'
+        // The Alignment section: a view setting below the element list, not an element —
+        // divider, a heading in the page's .subhdr style, a one-line why, then the page's
+        // segmented control (.seg, shell.html); tighter buttons fit four on a 320 px phone.
+        + '#viewEditor .ve-align{margin:16px 0 4px;padding-top:14px;border-top:1px solid var(--screen-line)}'
+        + '#viewEditor .ve-align-hd{font:800 11.5px Inter,sans-serif;letter-spacing:.1em;'
+        + 'text-transform:uppercase;color:var(--ttl);margin-bottom:5px}'
+        + '#viewEditor .ve-align .ve-note{margin:0 0 10px;color:var(--muted);'
         + 'font:500 12.5px/1.35 Inter,sans-serif}'
         + '#viewEditor .ve-seg button{padding:6px 9px}'
         // The live preview of the tab's view, centred above its element list.
@@ -687,9 +690,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var why = pres.G ? 'The graph doesn\u2019t fill this view, so the elements sit together in the free space.'
                          : 'No graph, so the elements sit together in the free space.';
         if (pres.C) { why += ' Clock mid keeps the clock in the middle of the screen.'; }
-        return '<div class="ve-row"><div class="ve-band ve-pos"><span class="lbl">Alignment</span>'
-            + '<span class="ve-note">' + esc(why) + '</span>'
-            + '<div class="seg ve-seg">' + btns + '</div></div></div>';
+        // A view SETTING, not a band: its own section under the element list (heading in
+        // the page's .subhdr style, a divider above), never a card like the element rows.
+        return '<div class="ve-align"><div class="ve-align-hd">Alignment</div>'
+            + '<p class="ve-note">' + esc(why) + '</p>'
+            + '<div class="seg ve-seg">' + btns + '</div></div>';
     }
 
     /**
@@ -761,7 +766,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 selectKey: k('Body', i), del: removalEmpties(S, i, 'G') ? null : 'G'
             });
         }
-        if (!viewHasFill(S, i)) { body += alignmentHtml(S, i, pres); }
 
         var addable = addableElements(S, i);
         if (addable.length) {
@@ -775,6 +779,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 body += '</div>';
             }
         }
+        if (!viewHasFill(S, i)) { body += alignmentHtml(S, i, pres); }
         if (i > 0) {
             body += '<button type="button" class="ve-remove" data-ve-removeview>Remove this view</button>';
         }

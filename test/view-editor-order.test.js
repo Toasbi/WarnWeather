@@ -212,7 +212,11 @@ test('the Graph row carries a ✕ on every tab; the Alignment row shows only wit
   S.viewBody0 = 'none'; S.viewAlign0 = 'bottom';
   html = editorHtml(S, 0);
   assert.doesNotMatch(html, /data-ve-del="G"/, 'no Graph row once removed');
-  assert.match(html, /<span class="lbl">Alignment<\/span>/);
+  assert.match(html, /<div class="ve-align"><div class="ve-align-hd">Alignment<\/div>/,
+    'a section of its own, not an element row');
+  assert.doesNotMatch(html, /ve-pos/, 'never styled as an element band');
+  assert.ok(html.indexOf('ve-align') > html.indexOf('data-ve-addtoggle'),
+    'below the element list and its ＋ button');
   assert.match(html, /No graph, so the elements sit together in the free space\./,
     'the row says what it aligns and why it is there');
   assert.match(html, /Clock mid keeps the clock in the middle of the screen/);
