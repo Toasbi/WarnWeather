@@ -120,7 +120,7 @@ function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
  * provider.aqiTrend with a one-element window — a current reading, not a
  * forecast, so aqiFeedId stays null and the slot's day max stays off. On no-data/failure calls
  * notFound() (so Auto can fall back) instead of done().
- * @param {Object} provider Active provider (reads .aqicnToken, writes .aqiTrend).
+ * @param {Object} provider Active provider (reads .options.aqicnToken, writes .aqiTrend).
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {Function} done Continuation on success (called exactly once).
@@ -128,7 +128,7 @@ function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
  * @returns {void}
  */
 function fetchWaqiInto(provider, lat, lon, done, notFound) {
-    var url = buildWaqiUrl(lat, lon, provider.aqicnToken);
+    var url = buildWaqiUrl(lat, lon, provider.options.aqicnToken);
     http.request(url, 'GET', function(resp) {
         var aqi = null;
         try { aqi = mapWaqi(JSON.parse(resp)); }
@@ -142,27 +142,31 @@ function fetchWaqiInto(provider, lat, lon, done, notFound) {
 }
 
 /**
- * Fetch AQI into provider.aqiTrend, dispatching on provider.aqiSource:
- *   'openmeteo' -> Open-Meteo using the aqiScale toggle.
+ * Fetch AQI into provider.aqiTrend, dispatching on provider.options.aqiSource
+ * (its default, like every knob's, lives in fetch-options.js):
+ *   'openmeteo' -> Open-Meteo using the options.aqiScale toggle.
  *   'waqi'      -> WAQI; no station leaves aqiTrend untouched (the caller
  *                  resets it to [] each cycle, so the slot shows '--').
  *   'auto'      -> WAQI, falling back to Open-Meteo (US) on no station.
  * An empty token degrades 'waqi'/'auto' to Open-Meteo (US) so token-less dev
- * builds still show AQI. Only runs when provider.fetchAqi is set. Non-fatal;
- * always calls done() exactly once.
- * @param {Object} provider Active provider.
+ * builds still show AQI — a policy, not a default. Only runs when
+ * provider.options.fetchAqi is set. Non-fatal; always calls done() exactly once.
+ * @param {Object} provider Active provider (reads .options.fetchAqi/aqiSource/
+ *   aqiScale/aqicnToken).
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {Function} done Continuation (always called exactly once).
  * @returns {void}
  */
 function fetchAqiInto(provider, lat, lon, done) {
-    if (!provider.fetchAqi) { done(); return; }
-    var source = provider.aqiSource || 'waqi';
-    var hasToken = Boolean(provider.aqicnToken);
+    var options = provider.options;
+    // A provider without options skips the request (fail-safe, like day-peaks' wanted/recall).
+    if (!(options && options.fetchAqi)) { done(); return; }
+    var source = options.aqiSource;
+    var hasToken = Boolean(options.aqicnToken);
 
     if (source === 'openmeteo') {
-        fetchOpenMeteoInto(provider, lat, lon, provider.aqiScale || 'european', done);
+        fetchOpenMeteoInto(provider, lat, lon, options.aqiScale, done);
         return;
     }
     if (!hasToken) {

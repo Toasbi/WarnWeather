@@ -170,5 +170,9 @@
   "1.22.0": {
     "title": "Dew point line, more day maxes",
     "body": "The forecast graph can now draw dew point on the temperature scale. Wind, gust and air quality slots can show the day's max like UV: tap Edit next to the slot. Feels-like can use the Steadman formula on every provider, under Units in the General tab."
+  },
+  "1.23.0": {
+    "title": "Cloud cover, stripes, radar sky",
+    "body": "The forecast graph can show cloud cover and a fourth metric, and any metric can be a shaded stripe along the top or below the zero line. The radar can add clouds, sun and lightning for the next two hours (Radar tab). (Not on Pebble Classic/Steel.)"
   }
 }

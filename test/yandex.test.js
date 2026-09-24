@@ -61,6 +61,13 @@ test('mapResponse flattens days, anchors at the current hour, returns 24-length 
   assert.equal(out.currentTemp, 71);
 });
 
+test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
+  const mapped = mapResponse(sampleResponse(), BASE + 600);
+  const keys = require('../src/pkjs/weather/provider.js').MAPPED_KEYS;
+  Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
+  keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
+});
+
 test('mapResponse carries the UV series PEAK_HOURS deep when the days allow', () => {
   const out = mapResponse(sampleResponse(), BASE + 600); // anchor at bucket 0
   assert.equal(out.uvTrend.length, PEAK_HOURS);

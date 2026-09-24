@@ -15,7 +15,8 @@
 // proxy endpoint) is bound at construction via cfg. 'disabled' is a real
 // registered adapter that clears the watch's radar -- no special case -- and any
 // unknown/unset id falls back to it (today's default-off behavior). Adding a
-// radar source is a new table entry; index.js never learns source names.
+// radar source is a new table entry; the fetch cycle (fetch-cycle.js) never
+// learns source names.
 
 var radar = require('./dwd-radar.js');
 var metnoRadar = require('./metno-radar.js');
@@ -66,6 +67,26 @@ function isKnownRadarSource(radarId) {
 }
 
 /**
+ * Can this radar source ever answer with this config? False for the sources that
+ * clear the watch's radar on every fetch: the 'disabled' clear (and any unknown id),
+ * Rainbow without its proxy endpoint, tomorrow.io without a key — the same checks the
+ * adapters make (rainbow-radar.js, tomorrowio-radar.js). A rejected key is found out
+ * per fetch and is not covered here.
+ * @param {string} radarId Clay radarProvider id.
+ * @param {Object} cfg Per-source config, as for createRadarSource.
+ * @returns {boolean} True when a fetch can bring radar frames.
+ */
+function canAnswer(radarId, cfg) {
+    if (!isKnownRadarSource(radarId) || radarId === DEFAULT_RADAR_ID) { return false; }
+    if (radarId === 'rainbow') { return Boolean(cfg && cfg.rainbowEndpoint); }
+    if (radarId === 'tomorrowio') {
+        var key = cfg && cfg.tomorrowioApiKey;
+        return typeof key === 'string' && key.trim() !== '';
+    }
+    return true;
+}
+
+/**
  * Construct the radar source for a Clay radarProvider id. Unknown or unset ids
  * fall back to the 'disabled' source (clears the watch's radar), matching the
  * legacy default-off behavior.
@@ -85,5 +106,6 @@ module.exports = {
     DEFAULT_RADAR_ID: DEFAULT_RADAR_ID,
     RADAR_FACTORIES: RADAR_FACTORIES,
     isKnownRadarSource: isKnownRadarSource,
+    canAnswer: canAnswer,
     createRadarSource: createRadarSource
 };

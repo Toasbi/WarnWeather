@@ -215,7 +215,7 @@ function save(record, key) {
 // its same-place radius (`degrees`: UV is regional, wind/gusts/air quality
 // change over a few km). A `feedRequired` metric has no peaks without a feed —
 // AQI from WAQI is the current reading, not a forecast. A `wind` metric judges
-// its hours in the user's wind unit (provider.windUnits).
+// its hours in the user's wind unit (provider.options.windUnits).
 var METRICS = [
     { code: 'uv', series: 'uvTrend', scale: 10, degrees: 0.5,
         storageKey: storageKeys.UV_DAY_RECORD_KEY, feedField: 'uvFeedId' },
@@ -228,17 +228,17 @@ var METRICS = [
 ];
 
 /**
- * Whether a slot shows this metric's peak (provider.dayPeakCodes, which index.js
- * sets per fetch; all of them when unset — the fail-safe direction, like
- * fetchFeels) — the gate on its record, its payload triple and its providers'
- * longer requests.
+ * Whether a slot shows this metric's peak (provider.options.dayPeakCodes, built
+ * per fetch by fetch-options.js; all of them when unset, or when the provider
+ * carries no options — the fail-safe direction, like fetchFeels) — the gate on
+ * its record, its payload triple and its providers' longer requests.
  *
- * @param {Object} provider The fetching provider (reads .dayPeakCodes).
+ * @param {Object} provider The fetching provider (reads .options.dayPeakCodes).
  * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi'.
  * @returns {boolean}
  */
 function wanted(provider, code) {
-    var codes = provider && provider.dayPeakCodes;
+    var codes = provider && provider.options && provider.options.dayPeakCodes;
     return !codes || codes.indexOf(code) !== -1;
 }
 
@@ -278,7 +278,8 @@ function active(provider) {
  * is known to be current). Each metric on its own: a storage failure leaves that
  * slot on its plain rule and the others untouched.
  *
- * @param {Object} provider The fetching provider (series, startTime, feeds, windUnits).
+ * @param {Object} provider The fetching provider (series, startTime, feeds,
+ *   options.windUnits).
  * @param {number|string} lat Latitude of this fetch (manual ones arrive as strings).
  * @param {number|string} lon Longitude of this fetch.
  * @returns {{earlier: Object, records: Array.<{storageKey: string, record: Object}>}}
@@ -287,13 +288,15 @@ function active(provider) {
 function recall(provider, lat, lon) {
     var out = { earlier: {}, records: [] };
     var nowEpoch = Math.floor(Date.now() / 1000);
+    // A provider without options judges wind in km/h, the fetch-options default.
+    var windUnits = provider.options && provider.options.windUnits;
     active(provider).forEach(function (metric) {
         var series = provider[metric.series];
         var source = { id: feedOf(provider, metric), lat: Number(lat), lon: Number(lon),
             degrees: metric.degrees, scale: metric.scale };
         // As dayMaxShown prints them: a wind peak is whole km/h, then the user's unit.
         var toShown = metric.wind ? function (kmh) {
-            return wireUnits.kmhToDisplay(Math.round(kmh), provider.windUnits);
+            return wireUnits.kmhToDisplay(Math.round(kmh), windUnits);
         } : null;
         try {
             var record = merge(load(metric.storageKey), source, series, provider.startTime, nowEpoch);

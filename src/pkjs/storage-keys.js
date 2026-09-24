@@ -17,6 +17,9 @@ module.exports = {
     LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY: 'v1.16.0_light_graph_color_retune_migration',
     LIGHT_SOLID_BARS_MIGRATION_KEY: 'v1.16.0_light_solid_bars_migration',
     ONBOARDING_EXISTING_INSTALL_MIGRATION_KEY: 'v1.20.0_onboarding_existing_install_migration',
+    // Replaced, never released: 'v1.23.0_norain_empty_to_default_migration' only ran on
+    // dev builds of 1.23.0, which then learnt to move the old default text too.
+    NORAIN_DEFAULT_TEXT_MIGRATION_KEY: 'v1.23.0_norain_default_text_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
@@ -40,6 +43,7 @@ module.exports = {
     LAST_SENT_STATUS_KEY: 'lastSentStatus',
     LAST_SENT_SUN_KEY: 'lastSentSun',
     LAST_SENT_RADAR_KEY: 'lastSentRadar',
+    LAST_SENT_SKY_KEY: 'lastSentSky',
     LAST_SENT_SLEEP_KEY: 'lastSentSleep',
     LAST_SENT_CLAY_KEY: 'lastSentClaySettings',
     DEV_STATS_KEY: 'devStats',
@@ -94,5 +98,8 @@ module.exports = {
     // ACK — outcome unknown — and those records are dropped instead of resent:
     // at-most-once, because a duplicate batch inflates fetch_count server-side
     // (no idempotency key) while a lost one costs a few telemetry rows.
-    TELEMETRY_SENDING_KEY: 'telemetrySending'
+    TELEMETRY_SENDING_KEY: 'telemetrySending',
+    // The settings page Weather tab's data for the place it opens on ({v, data}),
+    // refreshed at most once a day on settings open (weather-tab-cache.js).
+    WEATHER_TAB_CACHE_KEY: 'weatherTabCache'
 };

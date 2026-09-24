@@ -98,6 +98,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         var pk = VC.resolvePresetKey(state);
         if (pk === 'compactDense') { pk = 'compactCal'; } // no captured shot for compactDense; compactCal is the nearest (same 2-row calendar)
+        if (pk === 'weatherOnly') { pk = 'noCal'; }       // no captured shot for Weather only; No calendar is the nearest (no calendar, big forecast)
         return { label: 'Default', caption: FLICK_CAPTION_DEFAULT, shotGroup: 'layoutPreset', shotVal: pk };
     }
 

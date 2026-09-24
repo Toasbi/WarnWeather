@@ -89,4 +89,25 @@ test('ready boots and the 60 s tick loop survives its first ticks', (t) => {
   t.mock.timers.tick(60 * 1000);
   t.mock.timers.tick(60 * 1000);
   assert.equal(refreshChecks - before, 2, 'tick loop re-armed and kept ticking');
+
+  // Settings open: the Weather tab's stored copy is looked up for the page and
+  // refreshed afterwards, for the same settings and Current-chip seed.
+  const weatherTabCache = require('../src/pkjs/weather-tab-cache.js');
+  const calls = [];
+  const realForPage = weatherTabCache.forPage;
+  const realRefresh = weatherTabCache.refreshIfStale;
+  weatherTabCache.forPage = (values, seed) => { calls.push(['forPage', values, seed]); return null; };
+  weatherTabCache.refreshIfStale = (values, seed) => { calls.push(['refresh', values, seed]); return false; };
+  let opened = 0;
+  global.Pebble.openURL = () => { opened++; };
+  try {
+    listeners.showConfiguration({});
+  } finally {
+    weatherTabCache.forPage = realForPage;
+    weatherTabCache.refreshIfStale = realRefresh;
+  }
+  assert.equal(opened, 1, 'the settings page opened');
+  assert.deepEqual(calls.map((c) => c[0]), ['forPage', 'refresh'], 'looked up for the page, then refreshed');
+  assert.equal(calls[0][1], calls[1][1], 'the same settings blob');
+  assert.equal(calls[0][2], calls[1][2], 'the same seed');
 });

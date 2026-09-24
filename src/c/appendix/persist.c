@@ -60,11 +60,13 @@ enum key {
     // append-only because the numbers are the on-flash slots.
     NORAIN_TEXT,                  // 45 — radar no-rain text, <= 24 B UTF-8 + NUL
     // Appended: per-series forecast curve insets (CLAY_CURVE_INSET_UINT8 tuple,
-    // [FIRST, SECOND, THIRD] px). aplite never reads or writes it
+    // [FIRST, SECOND, THIRD, FOURTH, FIFTH] px; installs from before the
+    // fourth/fifth channels hold a 3-byte blob until the next Clay save
+    // rewrites it). aplite never reads or writes it
     // (WW_CURVE_INSET is undefined there and the accessors below compile out),
     // but the ID stays listed on every platform: the enum is append-only
     // because the numbers are the on-flash slots.
-    CURVE_INSETS,                 // 46 — 3 render-ready inset bytes, absent = {7, 0, 0}
+    CURVE_INSETS,                 // 46 — 5 render-ready inset bytes (legacy 3), absent = {7, 0, 0, 0, 0}
     // Appended: the user-selectable night colours (layout in persist.h). B&W
     // builds never read or write it (the accessors are PBL_COLOR-guarded and
     // theme_pick discards the colour arm there), but the ID stays listed on
@@ -86,7 +88,19 @@ enum key {
     // THIRD_LINE_TREND convention, not the count-keyed LINE_/BAR_ one.
     FOURTH_LINE_TREND,            // 49 — uint8 trend bytes, absent = line off
     FOURTH_LINE_COLOR,            // 50 — GColor8 argb byte, absent = theme foreground
-    LINE_STYLES                   // 51 — 3 style bytes (layout in persist.h), absent = the frozen look
+    LINE_STYLES,                  // 51 — 3 style bytes (layout in persist.h), absent = the frozen look
+    // Appended: the fourth selectable metric line (SERIES_FIFTH, "Fourth
+    // metric" in the settings) — the same WW_LINE_STYLE feature set and the
+    // same existence-keyed presence as FOURTH_LINE_TREND. Its style byte has a
+    // slot of its own rather than widening LINE_STYLES, whose fixed 3-byte
+    // length is what existing installs have on flash.
+    FIFTH_LINE_TREND,             // 52 — uint8 trend bytes, absent = line off
+    FIFTH_LINE_COLOR,             // 53 — GColor8 argb byte, absent = theme foreground
+    FIFTH_LINE_STYLE,             // 54 — 1 style byte (persist.h layout), absent = top stripe
+    // Appended: the radar's sky rows (RADAR_SKY_UINT8, layout in radar_sky.h),
+    // stored verbatim. Radar-only (WW_RAIN_RADAR), so aplite never reads or
+    // writes it, but the ID stays listed on every platform (append-only enum).
+    RADAR_SKY                     // 55 — <= RADAR_SKY_MAX_BYTES, absent = no sky rows
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -194,6 +208,7 @@ bool persist_series_present(SeriesId id) {
         case SERIES_THIRD:  return persist_third_line_present();
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return persist_exists(FOURTH_LINE_TREND);
+        case SERIES_FIFTH:  return persist_exists(FIFTH_LINE_TREND);
 #endif
         case SERIES_BARS:   return persist_get_bar_count() > 0;
         default:            return false;  // FIRST: caller uses num_entries > 0
@@ -207,6 +222,7 @@ int persist_series_trend(SeriesId id, int16_t *out, size_t n) {
         case SERIES_THIRD:  return persist_get_third_line_trend(out, n);
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return read_trend_widened(FOURTH_LINE_TREND, out, n);
+        case SERIES_FIFTH:  return read_trend_widened(FIFTH_LINE_TREND, out, n);
 #endif
         case SERIES_BARS:   return persist_get_bar_trend(out, n);
         default:            return 0;
@@ -219,6 +235,7 @@ bool persist_series_set_trend(SeriesId id, uint8_t *data, size_t size) {
         case SERIES_THIRD:  return persist_set_third_line_trend(data, size);
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return set_existence_keyed_trend(FOURTH_LINE_TREND, data, size);
+        case SERIES_FIFTH:  return set_existence_keyed_trend(FIFTH_LINE_TREND, data, size);
 #endif
         case SERIES_BARS:   return persist_set_bar_trend(data, size);
         default:            return false;  // FIRST/temp is handled bespoke
@@ -231,6 +248,7 @@ bool persist_series_set_color(SeriesId id, GColor c) {
         case SERIES_THIRD:  return persist_set_third_line_color(c);
 #if defined(WW_LINE_STYLE)
         case SERIES_FOURTH: return persist_set_fourth_line_color(c);
+        case SERIES_FIFTH:  return persist_set_fifth_line_color(c);
 #endif
         default:            return false;  // BARS has a palette, not a single color
     }
@@ -327,6 +345,28 @@ GColor persist_get_fourth_line_color(void) {
 
 bool persist_set_fourth_line_color(GColor color) {
     return write_int_if_changed(FOURTH_LINE_COLOR, color.argb);
+}
+
+GColor persist_get_fifth_line_color(void) {
+    if (!persist_exists(FIFTH_LINE_COLOR)) { return theme_fg(); }
+    return (GColor){ .argb = (uint8_t) persist_read_int(FIFTH_LINE_COLOR) };
+}
+
+bool persist_set_fifth_line_color(GColor color) {
+    return write_int_if_changed(FIFTH_LINE_COLOR, color.argb);
+}
+
+uint8_t persist_get_fifth_line_style(void) {
+    if (!persist_exists(FIFTH_LINE_STYLE)) {
+        // Unset: the line's built-in, a top stripe (line-style.js
+        // LINE_STYLE_DEFAULTS.fifthLineStyle).
+        return (uint8_t) (CHART_LINE_STRIPE | (1 << LINE_STYLE_WIDTH_SHIFT));
+    }
+    return (uint8_t) persist_read_int(FIFTH_LINE_STYLE);
+}
+
+bool persist_set_fifth_line_style(uint8_t style) {
+    return write_int_if_changed(FIFTH_LINE_STYLE, style);
 }
 
 bool persist_set_line_styles(const uint8_t styles[LINE_STYLE_STYLE_BYTES]) {
@@ -429,29 +469,40 @@ bool persist_set_norain_text(const char *text) {
             len--;
         }
     }
-    if (len == 0) {
-        // Empty = use the built-in default. Delete the slot; report a change
-        // only when it existed (mirrors persist_set_notice_text).
-        if (persist_exists(NORAIN_TEXT)) {
-            persist_delete(NORAIN_TEXT);
-            return true;
-        }
-        return false;
-    }
-    memcpy(bounded, text, len);
+    // Empty is stored too (a lone NUL): the user cleared the message, so the
+    // radar draws no line. Only an ABSENT slot (never configured) falls back to
+    // the built-in default.
+    if (len > 0) { memcpy(bounded, text, len); }
     bounded[len] = '\0';
     return write_sized_data_if_changed(NORAIN_TEXT, bounded, len + 1); // include NUL
 }
 
 int persist_get_norain_text(char *buffer, size_t buffer_size) {
-    if (buffer_size == 0) { return 0; }
+    if (buffer_size == 0) { return -1; }
     buffer[0] = '\0';
-    if (!persist_exists(NORAIN_TEXT)) { return 0; }
+    if (!persist_exists(NORAIN_TEXT)) { return -1; }
     int n = persist_read_data(NORAIN_TEXT, buffer, buffer_size);
-    if (n <= 0) { buffer[0] = '\0'; return 0; }
+    if (n <= 0) { buffer[0] = '\0'; return -1; }
     buffer[buffer_size - 1] = '\0';  // guarantee termination
     return (int) strlen(buffer);
 }
+
+#if defined(WW_RAIN_RADAR)
+int persist_get_radar_sky(uint8_t *buffer, size_t buffer_size) {
+    if (!persist_exists(RADAR_SKY)) { return 0; }
+    const int n = persist_read_data(RADAR_SKY, buffer, buffer_size);
+    return n > 0 ? n : 0;
+}
+
+bool persist_set_radar_sky(const uint8_t *data, size_t size) {
+    if (size == 0) {
+        if (!persist_exists(RADAR_SKY)) { return false; }
+        persist_delete(RADAR_SKY);
+        return true;
+    }
+    return write_sized_data_if_changed(RADAR_SKY, data, size);
+}
+#endif
 
 time_t persist_get_rain_radar_start() {
     return (time_t) persist_read_int(RAIN_RADAR_START);
@@ -630,24 +681,39 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
 #endif  // WW_THRESHOLD_HIGHLIGHT
 
 #if defined(WW_CURVE_INSET)
-bool persist_set_curve_insets(const uint8_t insets[3]) {
+// The blob's size before the tuple grew the FOURTH/FIFTH channels.
+#define CURVE_INSET_LEGACY_BYTES 3
+
+bool persist_set_curve_insets(const uint8_t insets[CURVE_INSET_BYTES]) {
+    // write_data_if_changed reads back only CURVE_INSET_BYTES, so a legacy
+    // 3-byte blob reads short, mismatches and is rewritten at the full size:
+    // the first Clay message after an upgrade self-heals the slot.
     return write_data_if_changed(CURVE_INSETS, insets, CURVE_INSET_BYTES);
 }
 
-void persist_get_curve_insets(uint8_t out[3]) {
+void persist_get_curve_insets(uint8_t out[CURVE_INSET_BYTES]) {
     // Default = the pre-feature look: the temp curve keeps its fixed inset and
     // the metric channels map full-height.
     out[0] = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y;
-    out[1] = 0;
-    out[2] = 0;
-    if (!persist_exists(CURVE_INSETS)) { return; }
+    for (int i = 1; i < CURVE_INSET_BYTES; i++) {
+        out[i] = 0;
+    }
+    // Branch on the stored size (absent reads as E_DOES_NOT_EXIST, < 0). An
+    // install upgraded from the 3-byte tuple still holds that blob until the
+    // next Clay send; honour its [FIRST, SECOND, THIRD] bytes over the defaults
+    // rather than discarding them — otherwise a Main/Second line showing
+    // feels-like or dew point would draw full-height, misaligned with the
+    // temperature curve, from the upgrade until the startup Clay message
+    // arrives. Any other size is corrupt: keep the defaults.
+    const int size = persist_get_size(CURVE_INSETS);
+    if (size != CURVE_INSET_BYTES && size != CURVE_INSET_LEGACY_BYTES) { return; }
     // Read into a scratch first: a short read must not scribble on the
     // already-defaulted out[] bytes.
     uint8_t stored[CURVE_INSET_BYTES];
-    if (persist_read_data(CURVE_INSETS, stored, sizeof(stored)) < (int) sizeof(stored)) {
+    if (persist_read_data(CURVE_INSETS, stored, (size_t) size) != size) {
         return;  // short/corrupt — keep the defaults
     }
-    memcpy(out, stored, sizeof(stored));
+    memcpy(out, stored, (size_t) size);
 }
 #endif  // WW_CURVE_INSET
 

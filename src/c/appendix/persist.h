@@ -70,6 +70,14 @@ bool persist_set_rain_radar_trend_area(uint8_t *data, const size_t size);
 
 bool persist_set_rain_radar_start(time_t val);
 
+#if defined(WW_RAIN_RADAR)
+// The radar's sky rows: the RADAR_SKY_UINT8 blob verbatim (layout in
+// radar_sky.h). Get returns the byte count (0 = no sky); set with size 0
+// deletes the slot. Radar-only, so aplite declares them away.
+int  persist_get_radar_sky(uint8_t *buffer, size_t buffer_size);
+bool persist_set_radar_sky(const uint8_t *data, size_t size);
+#endif
+
 int  persist_get_bar_palette(uint8_t *buffer, const size_t buffer_size);
 bool persist_set_bar_palette(uint8_t *data, const size_t size);
 int  persist_get_radar_palette(uint8_t *buffer, const size_t buffer_size);
@@ -103,13 +111,16 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len);
 // stays in persist.c's append-only enum on every platform.
 #if defined(WW_CURVE_INSET)
 // Render-ready per-series vertical insets for the forecast graph's value-mapped
-// lines (CLAY_CURVE_INSET_UINT8 tuple: [FIRST, SECOND, THIRD] px — the phone
-// computes them; the watch stays metric-agnostic). Get always fills out[],
-// defaulting to {7, 0, 0} — exactly the pre-feature look — when unset/short.
-#define CURVE_INSET_BYTES 3
+// lines (CLAY_CURVE_INSET_UINT8 tuple: [FIRST, SECOND, THIRD, FOURTH, FIFTH] px,
+// in SeriesId order — SERIES_FIRST..SERIES_FIFTH = 0..4 under WW_LINE_STYLE,
+// series.h — so load_dataset indexes it by series id; the phone computes them
+// and the watch stays metric-agnostic). Get always fills out[], defaulting to
+// {7, 0, 0, 0, 0} — exactly the pre-feature look — when unset/unreadable; a
+// legacy 3-byte blob from before the fourth/fifth channels fills the first three.
+#define CURVE_INSET_BYTES 5
 #define CURVE_INSET_MAX  14
-bool persist_set_curve_insets(const uint8_t insets[3]);
-void persist_get_curve_insets(uint8_t out[3]);
+bool persist_set_curve_insets(const uint8_t insets[CURVE_INSET_BYTES]);
+void persist_get_curve_insets(uint8_t out[CURVE_INSET_BYTES]);
 #endif
 
 // The third selectable metric line ("Third metric" in the settings — the
@@ -127,16 +138,25 @@ void persist_get_curve_insets(uint8_t out[3]);
 // of CLAY_LINE_STYLE_UINT8 whenever the line is configured.
 GColor persist_get_fourth_line_color(void);
 bool persist_set_fourth_line_color(GColor color);
+// The fourth selectable metric line (SERIES_FIFTH): colour + its own style
+// byte (same kind | field layout as a LINE_STYLES byte, below), both off the
+// third tail block of CLAY_LINE_STYLE_UINT8 (bytes [14..15]). The style
+// defaults to a top stripe when unset.
+GColor persist_get_fifth_line_color(void);
+bool persist_set_fifth_line_color(GColor color);
+uint8_t persist_get_fifth_line_style(void);
+bool persist_set_fifth_line_style(uint8_t style);
 
 // CANONICAL layout of the LINE_STYLES blob — the per-line marker styles the
 // phone resolved, copied verbatim off bytes [11..13] of CLAY_LINE_STYLE_UINT8
 // (line-style.js packs them; app_message.c stores the block straight through):
 //   [0] main-metric line   [1] second-metric line   [2] third-metric line
-// Each byte packs kind | (stroke_width << LINE_STYLE_WIDTH_SHIFT). The kind
-// bits ARE ChartLineStyle's values (chart.h — never renumber either side);
-// the width field only applies to CHART_LINE_SOLID (the phone sends 1 or 3 —
+// Each byte packs kind | (field << LINE_STYLE_WIDTH_SHIFT). The kind bits ARE
+// ChartLineStyle's values (chart.h — never renumber either side). For
+// CHART_LINE_SOLID the field is the stroke width (the phone sends 1 or 3 —
 // odd, because the SDK rounds even stroke widths down; snooze.c), and 0 means
-// "keep the built-in width". Get always fills out[], defaulting to the
+// "keep the built-in width". For CHART_LINE_STRIPE its low bit is the edge:
+// 1 = top, 0 = bottom (line_style_stripe_top). Get always fills out[], defaulting to the
 // pre-feature look — solid 1 px, dots, x — when the slot is unset/short.
 #define LINE_STYLE_STYLE_BYTES 3
 #define LINE_STYLE_KIND_MASK   0x03
@@ -147,11 +167,15 @@ void persist_get_line_styles(uint8_t out[LINE_STYLE_STYLE_BYTES]);
 
 // Decode helpers — header-only pure arithmetic (the night_light_wire_ok
 // pattern) so scripts/test-c.sh can pin the wire decode on the host.
-// An out-of-range kind (the mask admits 3) folds to SOLID rather than being
-// rejected: styles are cosmetic, and a wrong-but-drawn line beats a missing one.
+// The 2-bit mask admits exactly the four kinds, so every value decodes. (A watch
+// built before CHART_LINE_STRIPE folded kind 3 to SOLID — that is what an older
+// watch paired with a newer phone still draws.)
 static inline uint8_t line_style_kind(uint8_t b) {
-    uint8_t kind = b & LINE_STYLE_KIND_MASK;
-    return kind > CHART_LINE_X ? (uint8_t) CHART_LINE_SOLID : kind;
+    return (uint8_t)(b & LINE_STYLE_KIND_MASK);
+}
+// A stripe's edge: the field's low bit, 1 = top of the plot, 0 = bottom.
+static inline bool line_style_stripe_top(uint8_t b) {
+    return ((b >> LINE_STYLE_WIDTH_SHIFT) & 0x01) != 0;
 }
 // Stroke width for a SOLID line; `fallback` covers the 0 = "built-in" field.
 static inline int line_style_solid_width(uint8_t b, int fallback) {
@@ -291,9 +315,10 @@ int  persist_get_notice_text(char *buffer, size_t buffer_size);
 //
 // Storage cap: 24 bytes of UTF-8 + NUL. The phone pack (clay-payload.js)
 // truncates to the same 24-byte budget UTF-8-safely; size read buffers with
-// this. Set: empty/NULL deletes the slot (watch falls back to its built-in
-// string); returns whether the stored value actually changed. Get: returns
-// the text length in bytes, 0 when unset.
+// this. Set: stores the text, empty included (an empty text = the user cleared
+// the message: no line is drawn); returns whether the stored value actually
+// changed. Get: returns the text length in bytes (0 = cleared), or -1 when the
+// slot was never set (the radar draws its built-in string).
 #define NORAIN_TEXT_BUF_BYTES 25
 bool persist_set_norain_text(const char *text);
 int  persist_get_norain_text(char *buffer, size_t buffer_size);

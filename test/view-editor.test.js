@@ -18,10 +18,11 @@ function baseView(over) {
 
 test('presence derives from the per-view keys; slot 0 always has a clock', () => {
   const S = baseView();
-  assert.deepEqual(ve.presence(S, 0), { T: true, C: true, A: true, B: false });
+  assert.deepEqual(ve.presence(S, 0), { T: true, C: true, A: true, B: false, G: true });
   S.viewClockOff1 = true;
   S.viewTop1 = 'none';
-  assert.deepEqual(ve.presence(S, 1), { T: false, C: false, A: true, B: false });
+  S.viewBody1 = 'none';
+  assert.deepEqual(ve.presence(S, 1), { T: false, C: false, A: true, B: false, G: false });
   // A hostile clock-off flag on slot 0 is ignored by presence (no slot-0 key exists;
   // the compiler and the watch belt both enforce it too).
   S.viewClockOff0 = true;
@@ -64,10 +65,15 @@ test('remove/add element round-trips; re-added elements land above the graph', (
   // duplicate and fold away).
   assert.deepEqual(ve.addableElements(S, 1).map((a) => a[1]).sort(),
     ['clock', 'top', 'topbar'].sort());
-  // Re-add the clock: it lands at the END of the order (directly above the graph).
+  // Re-add the clock: it lands at the END of the drawn order (directly above the graph).
+  // This view has no top bar, so the watch stacks even the legacy code literally (T A C B
+  // minus the absent bands = A, C) — the legacy code already draws the clock last, and
+  // storedOrderFor prefers it (byte-identical to the seed).
   assert.equal(ve.addElement(S, 1, 'clock'), true);
   assert.equal(S.viewClockOff1, false);
-  assert.equal(S.viewOrder1[3], 'C', 'clock re-added above the graph');
+  const drawn = ve.displayOrder(S, 1).filter((b) => ve.presence(S, 1)[b]);
+  assert.deepEqual(drawn, ['A', 'C'], 'clock re-added above the graph');
+  assert.equal(S.viewOrder1, 'TACB', 'the legacy code already draws it there');
   // With radar capable, the second status bar becomes addable and fills the free
   // slot with the first NON-DUPLICATE capable source (radar — weather is taken).
   S.radarMode = 'graph';
@@ -75,9 +81,15 @@ test('remove/add element round-trips; re-added elements land above the graph', (
   assert.equal(ve.freeStatusSource(S, 1), 'radar');
   assert.equal(ve.addElement(S, 1, 'status'), true);
   assert.equal(S.viewLower1, 'radar');
-  // Slot 0 can never remove clock or top bar.
+  // Slot 0 can never remove its clock, but may drop its top bar and add it back.
   assert.equal(ve.removeElement(S, 0, 'C'), false);
-  assert.equal(ve.removeElement(S, 0, 'topbar'), false);
+  assert.equal(ve.addableElements(S, 0).map((a) => a[1]).indexOf('topbar'), -1);
+  assert.equal(ve.removeElement(S, 0, 'topbar'), true);
+  assert.equal(S.viewStripOff0, true);
+  assert.ok(ve.addableElements(S, 0).map((a) => a[1]).indexOf('topbar') >= 0, 'offered back');
+  assert.equal(ve.addableElements(S, 0).map((a) => a[1]).indexOf('clock'), -1, 'the clock never left');
+  assert.equal(ve.addElement(S, 0, 'topbar'), true);
+  assert.equal(S.viewStripOff0, false);
 });
 
 test('normalizeAfterPick: sibling source dedupe and the single radar layer', () => {
@@ -86,35 +98,139 @@ test('normalizeAfterPick: sibling source dedupe and the single radar layer', () 
   assert.equal(S.viewLower0, 'off', 'fresh pick wins; sibling clears');
   S.viewTop0 = 'radar'; S.viewBody0 = 'radar';
   ve.normalizeAfterPick(S, 0, 'viewBody0');
-  assert.equal(S.viewTop0, 'cal2', 'one radar layer: the fresh body pick wins');
+  assert.equal(S.viewTop0, 'cal', 'one radar layer: the fresh body pick wins');
+  assert.equal(S.viewTopSize0, '2', 'the top area goes back to a 2-row calendar');
 });
 
 test('snapshot/restore covers every custom key (the ✕ draft-discard path)', () => {
-  const S = baseView();
+  const S = baseView({ viewTopSize0: '3', viewBodySize0: 'fill', viewAlign0: 'clock',
+    viewTopSize1: '3', viewBodySize1: 'fill', viewAlign1: 'clock', viewStripOff0: false });
   const snap = ve.takeSnapshot(S);
   S.viewTop0 = 'none'; S.viewOrder1 = 'ABCT'; S.viewClockOff1 = true; S.viewCount = '3';
+  S.viewStripOff0 = true;   // the Default's top bar removed, then the draft discarded
+  S.viewBody0 = 'none'; S.viewAlign0 = 'bottom'; S.viewTopSize1 = '4'; S.viewBodySize1 = '2';
   ve.restoreSnapshot(S, snap);
   assert.equal(S.viewTop0, 'cal2');
   assert.equal(S.viewOrder1, 'TACB');
   assert.equal(S.viewClockOff1, false);
   assert.equal(S.viewCount, '2');
+  assert.equal(S.viewBody0, 'forecast');
+  assert.equal(S.viewAlign0, 'clock');
+  assert.equal(S.viewTopSize1, '3');
+  assert.equal(S.viewBodySize1, 'fill');
+  assert.equal(S.viewStripOff0, false, 'the Default gets its top bar back');
+});
+
+// ── Graph removal, the last-element guard, Position ─────────────────────────
+
+test('the Graph is removable on every view, the Default included, and comes back', () => {
+  const S = baseView({ healthMode: 'off', radarMode: 'graph' });
+  assert.equal(ve.removeElement(S, 0, 'G'), true, 'the Default may drop its graph (decided)');
+  assert.equal(S.viewBody0, 'none');
+  assert.equal(vc.buildCustomCycle(S)[0].body, vc.BODY_NONE);
+  assert.equal(ve.removeElement(S, 0, 'G'), false, 'already gone');
+  assert.ok(ve.addableElements(S, 0).map((a) => a[1]).indexOf('graph') >= 0, '＋ offers the Graph');
+  assert.equal(ve.addElement(S, 0, 'graph'), true);
+  assert.equal(S.viewBody0, 'forecast', 'the first free graph kind');
+  assert.equal(S.viewBodySize0, 'fill', 'a re-added graph fills again');
+  assert.equal(vc.buildCustomCycle(S)[0].body, vc.BODY_FC);
+});
+
+test('freeBodyContent skips the Top area\'s content and incapable kinds', () => {
+  const S = baseView({ healthMode: 'off', radarMode: 'graph' });
+  assert.equal(ve.freeBodyContent(S, 0), 'forecast');
+  S.viewTop0 = 'forecast';                       // (Phase 2a: a forecast graph up top)
+  assert.equal(ve.freeBodyContent(S, 0), 'radar', 'health needs healthMode all');
+  S.healthMode = 'all';
+  assert.equal(ve.freeBodyContent(S, 0), 'health');
+  S.viewTop0 = 'radar'; S.healthMode = 'off';
+  assert.equal(ve.freeBodyContent(S, 0), 'forecast');
+  S.viewTop0 = 'forecast'; S.radarMode = 'off';
+  assert.equal(ve.freeBodyContent(S, 0), null, 'nothing left to add');
+  S.viewBody0 = 'none';
+  assert.ok(ve.addableElements(S, 0).every((a) => a[1] !== 'graph'), 'no Graph offered then');
+});
+
+test('a re-added graph takes the fill back from a filling top area', () => {
+  const S = baseView({ viewBody0: 'none', viewTop0: 'radar', viewTopSize0: 'fill', radarMode: 'graph' });
+  assert.equal(ve.addElement(S, 0, 'graph'), true);
+  assert.equal(S.viewTopSize0, '3');
+  assert.equal(S.viewBodySize0, 'fill');
+});
+
+test('the last element of a view keeps its ✕ withheld', () => {
+  const S = baseView({ viewTop1: 'none', viewUpper1: 'off', viewBody1: 'none' });
+  assert.equal(ve.elementCount(S, 1), 1, 'only the clock is left');
+  assert.equal(ve.removeElement(S, 1, 'C'), false);
+  assert.equal(S.viewClockOff1, false);
+  S.viewClockOff1 = true; S.viewBody1 = 'forecast';
+  assert.equal(ve.elementCount(S, 1), 1, 'only the graph is left');
+  assert.equal(ve.removeElement(S, 1, 'G'), false);
+  assert.equal(ve.removeElement(S, 1, 'topbar'), true, 'the top bar is not an element');
+});
+
+test('setAlign writes a known Position only', () => {
+  const S = baseView({ viewAlign0: 'clock' });
+  assert.equal(ve.setAlign(S, 0, 'bottom'), true);
+  assert.equal(S.viewAlign0, 'bottom');
+  assert.equal(ve.setAlign(S, 0, 'bottom'), false, 'unchanged');
+  assert.equal(ve.setAlign(S, 0, 'sideways'), false);
+  assert.equal(S.viewAlign0, 'bottom');
+  assert.equal(ve.viewHasFill(S, 0), true, 'the graph fills: Position moot');
+  S.viewBody0 = 'none';
+  assert.equal(ve.viewHasFill(S, 0), false);
+  assert.equal(vc.buildCustomCycle(S)[0].align, vc.ALIGN_BOTTOM);
 });
 
 test('addView copies the Default; removeView compacts so the last slot frees', () => {
-  const S = baseView({ viewTop0: 'cal3', viewOrder0: 'TCAB' });
+  const S = baseView({ viewTop0: 'cal3', viewOrder0: 'TCAB', viewBody0: 'none', viewAlign0: 'top' });
   assert.equal(ve.addView(S), 2, 'new view is slot 2');
   assert.equal(S.viewCount, '3');
   assert.equal(S.viewTop2, 'cal3', 'copied from the Default');
   assert.equal(S.viewOrder2, 'TCAB');
+  assert.equal(S.viewBody2, S.viewBody0);
+  assert.equal(S.viewAlign2, S.viewAlign0, 'the v2 keys are copied too');
   assert.equal(S.viewClockOff2, false, 'fresh flick keeps its clock');
   assert.equal(ve.addView(S), -1, 'full at 3');
   // Remove Flick 1: Flick 2 compacts down into its slot.
-  S.viewTop1 = 'none'; S.viewTop2 = 'radar';
+  S.viewTop1 = 'none'; S.viewTop2 = 'radar'; S.viewAlign2 = 'bottom';
   assert.equal(ve.removeView(S, 1), true);
   assert.equal(S.viewCount, '2');
   assert.equal(S.viewTop1, 'radar', 'former Flick 2 took the slot');
+  assert.equal(S.viewAlign1, 'bottom', 'with its Position');
   assert.equal(ve.removeView(S, 0), false, 'the Default is not removable');
   // The freed slot no longer compiles: the cycle really shrinks on the wire.
   const cycle = vc.buildCustomCycle(Object.assign({ healthMode: 'off', radarMode: 'graph' }, S));
   assert.equal(cycle.length, 2);
+});
+
+test('a removal that would leave nothing on screen is refused, judged on the compiled view', () => {
+  // Flick 1 keeps a Graph and a Radar status bar whose source is switched off: the bar
+  // compiles away, so removing the Graph would leave the view blank.
+  const S = baseView({ radarMode: 'off', viewTop1: 'none', viewClockOff1: true,
+    viewUpper1: 'radar', viewBody1: 'forecast' });
+  assert.equal(ve.removalEmpties(S, 1, 'G'), true);
+  assert.equal(ve.removeElement(S, 1, 'G'), false);
+  assert.equal(S.viewBody1, 'forecast');
+  S.radarMode = 'status';                       // the bar shows again
+  assert.equal(ve.removeElement(S, 1, 'G'), true);
+  assert.equal(ve.removeElement(S, 1, 'A'), false, 'the bar is now the last element');
+});
+
+test('normalizeAfterPick moves a graph between the top area and the graph row', () => {
+  const S = baseView({ healthMode: 'all', viewBody0: 'forecast' });
+  S.viewTop0 = 'forecast';
+  ve.normalizeAfterPick(S, 0, 'viewTop0');
+  assert.equal(S.viewBody0, 'none', 'the forecast moved up: the graph row empties');
+  S.viewBody0 = 'health';                       // a different graph below is fine
+  ve.normalizeAfterPick(S, 0, 'viewBody0');
+  assert.equal(S.viewTop0, 'forecast');
+  S.viewBody0 = 'forecast';                     // picking the top's graph below moves it down
+  ve.normalizeAfterPick(S, 0, 'viewBody0');
+  assert.equal(S.viewTop0, 'cal');
+  assert.equal(S.viewTopSize0, '2');
+  S.viewTop0 = 'radar'; S.viewTopSize0 = '4';
+  S.viewTop0 = 'cal3';
+  ve.normalizeAfterPick(S, 0, 'viewTop0');
+  assert.equal(S.viewTopSize0, '3', 'a calendar top drops a stale size');
 });

@@ -127,7 +127,10 @@ const settingsSchema = z
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
-    layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal', 'custom']).optional(),
+    // DEPLOY ORDERING: a value missing from this enum fails the WHOLE batch (400), so a
+    // new preset (1.23.0: 'weatherOnly') must be deployed here BEFORE the watch build
+    // that can send it ships.
+    layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal', 'weatherOnly', 'custom']).optional(),
     // Custom-layout usage: the three packed per-view wire values (uint16; elements,
     // seats, order, clock/top-bar omissions). Present only while layoutPreset is
     // 'custom'. DEPLOY-ORDERING: this function must ship BEFORE the app release
@@ -135,6 +138,12 @@ const settingsSchema = z
     customView0: z.number().int().min(0).max(0xFFFF).optional(),
     customView1: z.number().int().min(0).max(0xFFFF).optional(),
     customView2: z.number().int().min(0).max(0xFFFF).optional(),
+    // Custom layout v2: each view's ext word (graph size, top-area size, top-graph kind,
+    // Position; bit 15 always clear). ADDITIVE on purpose — widening customView* would
+    // make an older deploy reject the whole batch. Same deploy-ordering rule as above.
+    customViewExt0: z.number().int().min(0).max(0x7FFF).optional(),
+    customViewExt1: z.number().int().min(0).max(0x7FFF).optional(),
+    customViewExt2: z.number().int().min(0).max(0x7FFF).optional(),
     viewResetMin: z.number().int().min(0).optional(),
     largeGraphFont: z.boolean().optional(),
     vibe: z.boolean().optional(),
@@ -145,14 +154,17 @@ const settingsSchema = z
     pressureScale: z.string().optional(),
     thirdLine: z.string().optional(),
     fourthLine: z.string().optional(),
+    fifthLine: z.string().optional(),
     secondaryLineStyle: z.string().optional(),
     thirdLineStyle: z.string().optional(),
     fourthLineStyle: z.string().optional(),
+    fifthLineStyle: z.string().optional(),
     barSource: z.string().optional(),
     rainBarColor: z.string().optional(),
     radarProvider: z.string().optional(),
     radarMode: z.enum(['off', 'countdown', 'status', 'graph']).optional(),
     radarColor: z.string().optional(),
+    radarSky: z.boolean().optional(),
     devStatsEnabled: z.boolean().optional(),
     theme: z.string().optional(),
     statusForecastLeft: z.string().optional(),
@@ -187,6 +199,7 @@ const settingsSchema = z
     graphFillColor: z.string().optional(),
     graphSecondColor: z.string().optional(),
     graphThirdColor: z.string().optional(),
+    graphFourthColor: z.string().optional(),
     nightHatchColor: z.string().optional(),
     nightBoundaryColor: z.string().optional(),
     nightFillColor: z.string().optional(),

@@ -32,11 +32,11 @@ node "$here/scripts/gen-showcase-fixtures.js"
 # FIRST, then capture in a separate loop: running capture-screenshots.sh inside
 # `while read < <(node …)` let its pebble/mise children drain the process-substitution fd,
 # so the loop ran only once.
-ids=(); flickss=(); variantss=()
-while IFS='|' read -r id flicks variants; do
+ids=(); flickss=(); variantss=(); platss=()
+while IFS='|' read -r id flicks variants plats; do
   [[ -n "$id" ]] || continue
-  ids+=("$id"); flickss+=("$flicks"); variantss+=("$variants")
-done < <(node -e "require('$here/scripts/gen-showcase-fixtures.js').SCENES.forEach(function(s){console.log(s.id + '|' + s.flicks + '|' + Object.keys(s.variants || {}).join(' '));})")
+  ids+=("$id"); flickss+=("$flicks"); variantss+=("$variants"); platss+=("$plats")
+done < <(node -e "var g=require('$here/scripts/gen-showcase-fixtures.js');g.SCENES.forEach(function(s){console.log(s.id + '|' + s.flicks + '|' + Object.keys(s.variants || {}).join(' ') + '|' + g.scenePlatforms(s).join(' '));})")
 
 # file_scene <id> <platform...> — copy each platform's raw/<platform>.png (from the capture
 # just run) into its scene_<id>.png frame.
@@ -51,7 +51,11 @@ file_scene() {
 }
 
 for i in "${!ids[@]}"; do
-  id="${ids[$i]}"; flicks="${flickss[$i]}"; variants="${variantss[$i]}"
+  id="${ids[$i]}"; flicks="${flickss[$i]}"; variants="${variantss[$i]}"; plats="${platss[$i]}"
+  # SCENE_IDS="10 11 12" captures only those scenes (the rest keep their frames).
+  if [[ -n "${SCENE_IDS:-}" ]]; then
+    case " $SCENE_IDS " in *" $id "*) ;; *) continue ;; esac
+  fi
 
   # A scene with per-platform variants (emery pinning HR, aplite falling back off health
   # slots) shoots each variant platform from its own fixture; every other platform in
@@ -59,6 +63,8 @@ for i in "${!ids[@]}"; do
   # PLATFORMS are simply skipped.
   base_plats=""
   for p in $PLATFORMS; do
+    # A scene limited to some platforms (the table's `platforms`) skips the rest.
+    case " $plats " in *" $p "*) ;; *) continue ;; esac
     case " $variants " in *" $p "*) ;; *) base_plats+="$p " ;; esac
   done
   base_plats="${base_plats% }"
@@ -70,6 +76,7 @@ for i in "${!ids[@]}"; do
   fi
   for plat in $variants; do
     case " $PLATFORMS " in *" $plat "*) ;; *) continue ;; esac
+    case " $plats " in *" $plat "*) ;; *) continue ;; esac
     printf '\n######## showcase scene %s (flicks=%s, %s variant) ########\n' "$id" "$flicks" "$plat"
     FLICKS="$flicks" PLATFORMS="$plat" "$here/scripts/capture-screenshots.sh" "$version" "showcase-$id-$plat" </dev/null
     file_scene "$id" "$plat"

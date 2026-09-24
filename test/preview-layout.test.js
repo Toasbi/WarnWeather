@@ -123,8 +123,63 @@ test('contentBands: the body band is the flex element, all others fixed', () => 
         const bands = LY.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, body, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
         const last = bands[bands.length - 1];
         assert.equal(last.flex, true, 'the last (body) band is marked flex');
+        assert.equal(last.kind, 'body');
         bands.slice(0, -1).forEach((b) => assert.ok(!b.flex, b.label + ' is fixed-height'));
     });
+});
+
+// ── Graphless views (custom layout v2) ──────────────────────────────────────
+
+/**
+ * The y of each labelled band in a rendered column, top to bottom.
+ * @param {string} svgPart renderBandColumn markup
+ * @returns {Object<string, number>} label → the band rect's y
+ */
+function bandYs(svgPart) {
+    const rects = [...svgPart.matchAll(/<rect x="[^"]*" y="([^"]*)"[^>]*height="([^"]*)"/g)]
+        .map((m) => Number(m[1]));
+    const labels = [...svgPart.matchAll(/<text[^>]*>([^<]+)<\/text>/g)].map((m) => m[1]).slice(1);
+    const out = {};
+    labels.forEach((l, i) => { out[l] = rects[i]; });
+    return out;
+}
+
+test('contentBands: a graphless view has no body band and no flex band; every band has a kind', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const s = Object.assign(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_NONE, vc.STATUS_SRC_FORECAST,
+        vc.STATUS_SRC_NONE), { order: 1 });
+    const bands = LY.contentBands(s);
+    assert.deepEqual(bands.map((b) => b.kind), ['strip', 'top', 'clock', 'status']);
+    assert.ok(bands.every((b) => !b.flex), 'nothing fills');
+});
+
+test('renderBandColumn: the Position shifts the stack under a pinned Watch Status strip', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const s = Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_NONE, vc.STATUS_SRC_NONE,
+        vc.STATUS_SRC_NONE), {});
+    const bands = LY.contentBands(s);           // Watch Status 12 + Clock 30
+    const col = (a) => bandYs(LY.renderBandColumn(bands, 0, 60, 'Flick', null, false, 'dark', a));
+    const top = col(vc.ALIGN_TOP), mid = col(vc.ALIGN_CENTER), bot = col(vc.ALIGN_BOTTOM);
+    const clk = col(vc.ALIGN_CLOCK);
+    [top, mid, bot, clk].forEach((c) => assert.equal(c['Watch Status'], 16, 'the strip is pinned'));
+    assert.equal(top.Clock, 30, 'Top: right under the strip (16 + 12 + gap 2)');
+    const slack = 104 - (12 + 2 + 30);
+    assert.equal(bot.Clock, 30 + slack, 'Bottom: the stack ends on the column floor');
+    assert.equal(mid.Clock, 30 + Math.floor(slack / 2));
+    assert.equal(clk.Clock + 15, 68, 'Clock: the clock band is centred on the column midline');
+});
+
+test('renderBandColumn: Clock without a clock reads as Middle; a filled column ignores the Position', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const lone = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_NONE,
+        vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE), { clockOff: true }));
+    const c = bandYs(LY.renderBandColumn(lone, 0, 60, 'F', null, false, 'dark', vc.ALIGN_CLOCK));
+    const m = bandYs(LY.renderBandColumn(lone, 0, 60, 'F', null, false, 'dark', vc.ALIGN_CENTER));
+    assert.equal(c['Forecast Status'], m['Forecast Status']);
+    const filled = LY.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+        vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
+    assert.deepEqual(bandYs(LY.renderBandColumn(filled, 0, 60, 'D', null, false, 'dark', vc.ALIGN_BOTTOM)),
+        bandYs(LY.renderBandColumn(filled, 0, 60, 'D', null, false, 'dark', vc.ALIGN_TOP)));
 });
 
 test('presetContents: compactDense + radar=status folds radar into the single default (no flick)', () => {
@@ -264,4 +319,100 @@ test('contentBands: a stacked order renders the movable bands in STACK_ORDERS se
   const labels = LY.contentBands(s).map((b) => b.label);
   assert.deepEqual(labels, ['Watch Status', 'Clock', 'Calendar (2 rows)',
     'Forecast Status', 'Health Status', 'Forecast']);
+});
+
+// The watch dispatches ANY custom view with clockOff/stripOff OR order 1-11 through
+// its generic stacker (band sequence = STACK_ORDERS[order], order 0 = 'TACB', absent
+// bands skipped); only pure order-0 full-chrome specs take the legacy tier branches.
+// contentBands mirrors that rule exactly — pin both flag paths at order 0.
+test('contentBands: an order-0 spec with clockOff stacks TACB minus the clock', () => {
+  const s = vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_HEALTH);
+  s.clockOff = true;   // order stays 0 (legacy) — the flag alone must pick the stacker
+  const labels = LY.contentBands(s).map((b) => b.label);
+  assert.deepEqual(labels, ['Watch Status', 'Calendar (3 rows)',
+    'Forecast Status', 'Health Status', 'Forecast'],
+    'TACB with C absent: top, upper, lower, body — no Clock band');
+});
+
+test('contentBands: an order-0 spec with stripOff stacks TACB, not the legacy full order', () => {
+  // Discriminating case: the legacy full/none branch puts the Clock BEFORE the
+  // status rows (T C A B); the stacker's TACB puts the upper row above the clock.
+  const s = vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_HEALTH);
+  s.stripOff = true;
+  const labels = LY.contentBands(s).map((b) => b.label);
+  assert.deepEqual(labels, ['Calendar (3 rows)', 'Forecast Status', 'Clock',
+    'Health Status', 'Forecast'],
+    'stacker TACB (A above C), Watch Status dropped — the watch\'s rendering');
+});
+
+test('contentBands: a graph in the top area is a labelled 3-row top band', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const f = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH,
+        vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1 }));
+    assert.deepEqual(f.map((b) => b.label), ['Watch Status', 'Forecast', 'Clock', 'Health graph']);
+    assert.equal(f[1].kind, 'top');
+    const h = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_FC,
+        vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1, topKind: vc.TOP_KIND_HEALTH }));
+    assert.equal(h[1].label, 'Health graph');
+    assert.equal(h[1].h, f[1].h, 'both 3 rows (sizes are Phase 2b)');
+});
+
+// ── Sizes (Phase 2b) ─────────────────────────────────────────────────────────
+
+test('contentBands: sized bands take 2 / 3 / 4 schematic rows; at most one band is flex', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const radar = (topSize, extra) => LY.contentBands(Object.assign(vc.spec(vc.TIER_FULL, vc.TOP_RADAR,
+        vc.BODY_FC, vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1, topSize }, extra || {}));
+    assert.equal(radar(vc.SIZE_2)[1].h, 22);
+    assert.equal(radar(vc.SIZE_3)[1].h, 34);
+    assert.equal(radar(vc.SIZE_4)[1].h, 46);
+    // a filling top with a sized body: the top is the one flex band
+    const ft = radar(vc.SIZE_FILL, { bodySize: vc.SIZE_3 });
+    assert.equal(ft[1].flex, true);
+    assert.equal(ft[ft.length - 1].flex, false);
+    assert.equal(ft[ft.length - 1].h, 34);
+    // a forecast body never shows 2 rows (the watch clamp)
+    const fc2 = LY.contentBands(Object.assign(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+        vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1, bodySize: vc.SIZE_2 }));
+    assert.equal(fc2[fc2.length - 1].h, 34);
+    // every compiled shape has at most one flex band
+    [vc.SIZE_2, vc.SIZE_3, vc.SIZE_4, vc.SIZE_FILL, undefined].forEach((ts) =>
+        [vc.SIZE_2, vc.SIZE_4, undefined].forEach((bs) => {
+            const s = vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE);
+            if (ts) { s.topSize = ts; }
+            if (bs) { s.bodySize = bs; }
+            const canonical = vc.unpackWire(vc.packWire(s));
+            assert.ok(LY.contentBands(canonical).filter((b) => b.flex).length <= 1, ts + '/' + bs);
+        }));
+});
+
+test('renderBandColumn: only a view the WATCH cannot fit is clipped and flagged; others squeeze', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const tall = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH,
+        vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_RADAR), { order: 1, topSize: vc.SIZE_4, bodySize: vc.SIZE_4 }));
+    assert.match(LY.renderBandColumn(tall, 0, 60, 'F', null, false, 'dark', 0, true), />cut off</);
+    const squeezed = LY.renderBandColumn(tall, 0, 60, 'F', null, false, 'dark', 0, false);
+    assert.doesNotMatch(squeezed, />cut off</);
+    const bottoms = [...squeezed.matchAll(/<rect x="[^"]*" y="([^"]*)"[^>]*height="([^"]*)"/g)]
+        .map((m) => Number(m[1]) + Number(m[2]));
+    assert.ok(Math.max(...bottoms) <= 120, 'squeezed into the column');
+});
+
+test('the previews never flag a view the watch shows whole (spec example D, golden sz7)', () => {
+    const base = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph', viewCount: '2',
+        viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off',
+        viewOrder0: 'TACB', viewBodySize0: '3',                                    // sz7
+        viewTop1: 'forecast', viewTopSize1: '4', viewBody1: 'health', viewUpper1: 'off',
+        viewLower1: 'off', viewOrder1: 'TCAB', viewClockOff1: false, viewStripOff1: false };  // D
+    ['basalt', 'emery', ''].forEach((platform) => {
+        assert.doesNotMatch(LY.layoutPreviewCombined(base, { platform }), />cut off</, platform);
+        [0, 1].forEach((i) =>
+            assert.doesNotMatch(LY.viewPreviewSvg(base, { platform }, i), />cut off</, platform + ' ' + i));
+    });
+    // ...but a view too tall for the 144 px watch is flagged there, and not on emery's.
+    const tall = Object.assign({}, base, { viewUpper1: 'weather', viewOrder1: 'CTAB' });
+    assert.match(LY.viewPreviewSvg(tall, { platform: 'basalt' }, 1), />cut off</);
+    assert.doesNotMatch(LY.viewPreviewSvg(tall, { platform: 'emery' }, 1), />cut off</);
 });

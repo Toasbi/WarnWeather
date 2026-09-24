@@ -38,6 +38,7 @@
     // hue, and why feels goes Black on light: ADR-0003 §6.
     var LINE_COLORS = {
         precip_prob: { color: COLORS.GColorPictonBlue, light: COLORS.GColorDukeBlue,       bw: COLORS.GColorWhite },
+        cloud:       { color: COLORS.GColorBabyBlueEyes, light: COLORS.GColorLiberty,      bw: COLORS.GColorWhite },
         wind:        { color: COLORS.GColorYellow,     light: COLORS.GColorChromeYellow,   bw: COLORS.GColorWhite },
         uv:          { color: COLORS.GColorMagenta,    light: COLORS.GColorPurple,         bw: COLORS.GColorWhite },
         pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
@@ -50,6 +51,7 @@
     // (0x55FFFF is GColorElectricBlue — GColorCyan is 0x00FFFF.) ADR-0003 §6.
     var FILL_COLORS = {
         precip_prob: { color: COLORS.GColorCobaltBlue, light: COLORS.GColorElectricBlue, bw: COLORS.GColorLightGray },
+        cloud:       { color: COLORS.GColorLiberty,    light: COLORS.GColorBabyBlueEyes, bw: COLORS.GColorLightGray },
         wind:        { color: COLORS.GColorArmyGreen,  light: COLORS.GColorYellow,       bw: COLORS.GColorLightGray },
         uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
         gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
@@ -112,6 +114,7 @@
     // straight back, so an extra key here would ride out into a caller's triple.
     var NIGHT_AREA_COLORS = {
         precip_prob: { base: COLORS.GColorDukeBlue,       hatch: COLORS.GColorBlue,      boundary: COLORS.GColorVividCerulean },
+        cloud:       { base: COLORS.GColorOxfordBlue,     hatch: COLORS.GColorLiberty,   boundary: COLORS.GColorBabyBlueEyes },
         wind:        { base: COLORS.GColorArmyGreen,      hatch: COLORS.GColorLimerick,  boundary: COLORS.GColorLimerick },
         uv:          { base: COLORS.GColorImperialPurple, hatch: COLORS.GColorPurple,    boundary: COLORS.GColorVividViolet },
         gust:        { base: COLORS.GColorDarkGray,       hatch: COLORS.GColorLightGray, boundary: COLORS.GColorLightGray },
@@ -136,6 +139,7 @@
     // changing a colour the user approved — ask first.
     var NIGHT_AREA_LIGHT_BASE = {
         precip_prob: COLORS.GColorCyan,
+        cloud:       COLORS.GColorBabyBlueEyes,
         wind:        COLORS.GColorRajah,
         uv:          COLORS.GColorShockingPink,
         gust:        COLORS.GColorLightGray,
@@ -151,17 +155,17 @@
 
     // Main/second-line metrics, in the order the settings page lists them
     // (blocks.js' FORECAST_METRICS).
-    var GRAPH_METRICS = ['precip_prob', 'wind', 'uv', 'gust', 'pressure', 'feels', 'dew'];
+    var GRAPH_METRICS = ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels', 'dew'];
     // Metric id -> the CamelCase key fragment. The ids are snake_case wire values and
     // would make unreadable key names ('gcPrecip_probLineDark').
     var METRIC_SLUG = {
-        precip_prob: 'Precip', wind: 'Wind', uv: 'Uv',
+        precip_prob: 'Precip', cloud: 'Cloud', wind: 'Wind', uv: 'Uv',
         gust: 'Gust', pressure: 'Pressure', feels: 'Feels', dew: 'Dew'
     };
     // The metrics drawn on the TEMPERATURE axis: scaled against the joint band they
     // share with the temp curve (forecast-series.js) and at its curve inset
-    // (clay-payload.js), so the gap between the curves is real. None of them fills,
-    // and none rides the fourth line, which has no inset channel.
+    // (clay-payload.js), so the gap between the curves is real. None of them fills.
+    // Any forecast line may carry one: every line has its own inset byte.
     var TEMP_AXIS_METRIC_IDS = ['feels', 'dew'];
     var TEMP_AXIS_METRICS = {};
     (function () {
@@ -227,7 +231,7 @@
     }
 
     /**
-     * Every graph-colour key, in row order. 38 keys: five metrics x three roles x two
+     * Every graph-colour key, in row order. 44 keys: six metrics x three roles x two
      * polarities, the Line pairs of feels and dew, and the night band's two pairs.
      *
      * Nothing in the app enumerates these — the schema builds its rows from graphColorRoles
@@ -371,26 +375,24 @@
 
     // --- The ordered forecast lines -----------------------------------------
     // ONE home for the per-line eligibility rule its consumers used to restate
-    // by hand: a line draws iff its metric is set, not 'off', not banned on
-    // that line, and not the STORED pick of any EARLIER line (earlier wins;
-    // the settings page's display-snap resolves collisions the same way).
+    // by hand: a line draws iff its metric is set, not 'off', and not the
+    // STORED pick of any EARLIER line (earlier wins; the settings page's
+    // display-snap resolves collisions the same way).
     // Consumers: forecast-series.js (the bake), preview-forecast.js (the
     // settings preview — which must match the bake pixel for pixel), and the
     // pickers' exclusion lists via the schema's resolver args.
     var FORECAST_LINES = [
         { key: 'secondaryLine' },
         { key: 'thirdLine' },
-        // feels and dew never ride the fourth line: it has no curve-inset
-        // channel, so they could never share the temperature axis.
-        { key: 'fourthLine', bans: TEMP_AXIS_METRICS }
+        { key: 'fourthLine' },
+        { key: 'fifthLine' }
     ];
 
     /**
      * The metric one forecast line actually draws: its stored metric, or null
-     * when the line is off, banned from that metric, or repeating an earlier
-     * line's stored pick.
+     * when the line is off or repeating an earlier line's stored pick.
      * @param {Object} settings Clay settings blob.
-     * @param {string} key secondaryLine|thirdLine|fourthLine.
+     * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
      * @returns {string|null} The drawn metric, or null for line-off.
      */
     function effectiveLineMetric(settings, key) {
@@ -400,7 +402,6 @@
             if (line.key !== key) { continue; }
             var m = s[key];
             if (!m || m === 'off') { return null; }
-            if (line.bans && Object.prototype.hasOwnProperty.call(line.bans, m)) { return null; }
             for (var j = 0; j < i; j++) {
                 if (s[FORECAST_LINES[j].key] === m) { return null; }
             }
@@ -413,20 +414,25 @@
     var FLAG_SECONDARY_FILL = 0x01;
 
     // --- Per-line marker styles (wire bytes [11..13]) -----------------------
-    // One setting per configurable line, four values: 'line' (thin solid),
-    // 'bold' (thick solid), 'dots' (square dots), 'x' (little x marks). The
-    // wire byte packs kind | (stroke_width << 2); the kind bits are chart.h's
-    // ChartLineStyle values (0 solid, 1 dots, 2 x — never renumber either
-    // side), and the width field only applies to solid kinds (odd widths only:
-    // the SDK rounds even stroke widths down).
-    var LINE_STYLE_KINDS = { line: 0, bold: 0, dots: 1, x: 2 };
-    var LINE_STYLE_WIDTHS = { line: 1, bold: 3 };
+    // One setting per configurable line, six values: 'line' (thin solid),
+    // 'bold' (thick solid), 'dots' (square dots), 'x' (little x marks), and
+    // 'stripeTop' / 'stripeBottom' (a thin band of hourly cells along that edge
+    // of the plot, shaded by value). The wire byte packs kind | (field << 2);
+    // the kind bits are chart.h's ChartLineStyle values (0 solid, 1 dots, 2 x,
+    // 3 stripe — never renumber either side). The field is the stroke width for
+    // solid kinds (odd widths only: the SDK rounds even stroke widths down) and
+    // the edge for the stripe (1 = top, 0 = bottom). A watch that predates the
+    // stripe folds kind 3 to a solid line (persist.h line_style_kind).
+    var LINE_STYLE_KINDS = { line: 0, bold: 0, dots: 1, x: 2, stripeTop: 3, stripeBottom: 3 };
+    var LINE_STYLE_WIDTHS = { line: 1, bold: 3, stripeTop: 1 };
     // Defaults reproduce the pre-feature look: solid 1 px main line, dotted
-    // second line — and the new third-metric line debuts as x marks.
+    // second line — the third-metric line debuted as x marks, and the fourth
+    // debuts as a stripe along the top (where cloud cover reads naturally).
     var LINE_STYLE_DEFAULTS = {
         secondaryLineStyle: 'line',
         thirdLineStyle: 'dots',
-        fourthLineStyle: 'x'
+        fourthLineStyle: 'x',
+        fifthLineStyle: 'stripeTop'
     };
 
     /**
@@ -435,8 +441,8 @@
      * the kind table — a bare object literal answers truthy for every
      * Object.prototype name.
      * @param {Object} settings Clay settings blob.
-     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
-     * @returns {string} 'line'|'bold'|'dots'|'x'.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
+     * @returns {string} 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
      */
     function lineStyleValue(settings, key) {
         var v = (settings || {})[key];
@@ -445,10 +451,20 @@
     }
 
     /**
+     * Is this line drawn as a stripe (either edge) rather than a stroke or marks?
+     * @param {Object} settings Clay settings blob.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
+     * @returns {boolean} True for 'stripeTop' and 'stripeBottom'.
+     */
+    function isStripeStyle(settings, key) {
+        return LINE_STYLE_KINDS[lineStyleValue(settings, key)] === 3;
+    }
+
+    /**
      * The packed wire/persist byte for one line-style key (layout above).
      * @param {Object} settings Clay settings blob.
-     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle.
-     * @returns {number} kind | (stroke_width << 2).
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
+     * @returns {number} kind | (field << 2) — stroke width, or the stripe's edge.
      */
     function lineStyleByte(settings, key) {
         var v = lineStyleValue(settings, key);
@@ -489,13 +505,15 @@
      * which the settings-page bundle does not carry.
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
      *   (treated as colour basalt).
-     * @returns {{color: boolean, themePolarity: boolean}} Capabilities for renderContextFor.
+     * @returns {{color: boolean, themePolarity: boolean, lineStyles: boolean}} Capabilities
+     *   for renderContextFor / resolveGraphColors.
      */
     function capsForWatch(watchInfo) {
         var platform = watchInfo && watchInfo.platform ? watchInfo.platform : 'basalt';
         return {
             color: configUi.isColorPlatform(platform),
-            themePolarity: configUi.isThemePolarityPlatform(platform)
+            themePolarity: configUi.isThemePolarityPlatform(platform),
+            lineStyles: configUi.isLineStylePlatform(platform)
         };
     }
 
@@ -686,7 +704,7 @@
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null/undefined
      *   (treated as colour basalt).
      * @returns {{secondary: number, fill: number, third: number, fourth: number,
-     *   fillOn: boolean, night: Object}} Four 0xRRGGBB colours, the resolved fill flag,
+     *   fifth: number, fillOn: boolean, night: Object}} Four 0xRRGGBB colours, the resolved fill flag,
      *   and the night colours (see resolveNightColors).
      */
     function resolveLineStyle(settings, watchInfo) {
@@ -700,9 +718,12 @@
      * preview and the wire run the SAME resolution rather than two copies of it.
      *
      * @param {Object} settings Clay settings blob — as for resolveLineStyle.
-     * @param {{color: boolean, themePolarity: boolean}} caps See renderContextFor.
+     * @param {{color: boolean, themePolarity: boolean, lineStyles: boolean}} caps See
+     *   renderContextFor. `lineStyles` is the WW_LINE_STYLE mirror: only an explicit false
+     *   (aplite) ignores the stored styles, so a stripe picked on a colour watch paired to
+     *   the same phone cannot switch an aplite fill off.
      * @returns {{secondary: number, fill: number, third: number, fourth: number,
-     *   fillOn: boolean, night: Object}} As resolveLineStyle.
+     *   fifth: number, fillOn: boolean, night: Object}} As resolveLineStyle.
      */
     function resolveGraphColors(settings, caps) {
         var cx = renderContextFor(settings, caps);
@@ -733,16 +754,19 @@
             fill: resolved(secMetric, 'Fill'),
             third: resolved(thirdMetric, 'Line'),
             fourth: resolved(settings.fourthLine, 'Line'),
+            fifth: resolved(settings.fifthLine, 'Line'),
             night: resolveNightColors(settings, cx, secMetric),
             // THE authoritative gate on feels/dew never filling (ADR-0003 §6) — the config
             // UI also hides and clears the toggle, but a blob stored before that landed, or
-            // any future caller, still cannot turn it on.
+            // any future caller, still cannot turn it on. A stripe-styled main line has
+            // no curve to fill below, so it never fills either.
             fillOn: Boolean(settings.secondaryLineFill) && !isTempAxisMetric(secMetric)
+                && !(caps.lineStyles !== false && isStripeStyle(settings, 'secondaryLineStyle'))
         };
     }
 
     /**
-     * Pack the line styling for the Clay wire — FOURTEEN bytes:
+     * Pack the line styling for the Clay wire — SIXTEEN bytes:
      *
      *   [0] main-metric line colour    (GColor8 argb)
      *   [1] area fill colour           (GColor8 argb)
@@ -758,18 +782,20 @@
      *   [11] main-metric line style    ┐ bytes [11..13] are byte-for-byte the watch's
      *   [12] second-metric line style  │ LINE_STYLES persist blob (kind | width << 2 —
      *   [13] third-metric line style   ┘ see LINE_STYLE_KINDS above; persist.h).
+     *   [14] fourth-metric line colour (GColor8 argb)  ┐ the third tail block:
+     *   [15] fourth-metric line style  (kind | field)  ┘ FIFTH_LINE_COLOR / _STYLE.
      *
      * rgbToGColor8 matches Pebble's GColorFromHEX exactly, so the pixel is identical to
      * sending the full 0xRRGGBB. The watch treats everything past byte [3] as OPTIONAL
      * tail blocks (its length checks are minimums, one per block), so a shorter tuple
      * from an older sender still applies in full — which is the rule for growing this:
      * append a block plus its own length check, never widen the minimum. ADR-0003 §7.
-     * Bytes [10..13] ship to every watch — aplite has no parse arm for them and simply
+     * Bytes [10..15] ship to every watch — aplite has no parse arm for them and simply
      * ignores the tail, exactly as pre-feature watches ignore bytes they postdate.
      *
      * @param {Object} settings Clay settings blob.
      * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result, or null.
-     * @returns {number[]} The fourteen bytes above.
+     * @returns {number[]} The sixteen bytes above.
      */
     function buildLineStyleBytes(settings, watchInfo) {
         var s = resolveLineStyle(settings, watchInfo);
@@ -787,7 +813,9 @@
             rainTier.rgbToGColor8(s.fourth),
             lineStyleByte(settings, 'secondaryLineStyle'),
             lineStyleByte(settings, 'thirdLineStyle'),
-            lineStyleByte(settings, 'fourthLineStyle')
+            lineStyleByte(settings, 'fourthLineStyle'),
+            rainTier.rgbToGColor8(s.fifth),
+            lineStyleByte(settings, 'fifthLineStyle')
         ];
     }
 
@@ -815,6 +843,7 @@
         LINE_STYLE_DEFAULTS: LINE_STYLE_DEFAULTS,
         lineStyleValue: lineStyleValue,
         lineStyleByte: lineStyleByte,
+        isStripeStyle: isStripeStyle,
         FLAG_NIGHT_FILL_EXPLICIT: FLAG_NIGHT_FILL_EXPLICIT,
         LINE_COLORS: LINE_COLORS,
         FILL_COLORS: FILL_COLORS,

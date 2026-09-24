@@ -156,11 +156,17 @@ static inline int clock_label_x(int band_w, int after_digits, int gap, int label
 // (today: the preset compiler + flick state in main_window; later: the à-la-carte
 // user layout). See CONTEXT.md "View spec".
 
-typedef enum { TOP_BAND_CALENDAR = 0, TOP_BAND_RADAR = 1, TOP_BAND_EMPTY = 2 } TopBand;
+// TOP_BAND_GRAPH (custom layouts only): a forecast or health graph in the top band —
+// which one is ViewSpec.top_kind. Wire top code 3 (TOP_GRAPH in view-cycle.js).
+typedef enum {
+    TOP_BAND_CALENDAR = 0, TOP_BAND_RADAR = 1, TOP_BAND_EMPTY = 2, TOP_BAND_GRAPH = 3
+} TopBand;
 // Unlike TopBand above (deliberately renumbered vs. the wire `top` field and translated
-// by view_spec_unpack()), BodyContent must stay bit-for-bit identical to BODY_FC/GRAPH/RADAR
+// by view_spec_unpack()), BodyContent must stay bit-for-bit identical to BODY_FC/GRAPH/RADAR/NONE
 // in src/pkjs/view-cycle.js — the packed wire value passes it through untranslated.
-typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2 } BodyContent;
+// BODY_NONE (custom layouts only): the view has no graph band at all; layout_visibility
+// shows no graph layer for it by construction.
+typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3 } BodyContent;
 // Which content feeds a status row. Positional: each of the upper/lower status bands
 // carries one source. Values match STATUS_SRC_* in src/pkjs/view-cycle.js (wire contract).
 typedef enum {
@@ -185,10 +191,38 @@ typedef struct {
     // twin never reads these bits, so the guard keeps aplite's struct — and every byte of its
     // copy/codegen — identical to pre-custom builds.
     uint8_t clock_off;      // 1 = this view omits the clock band (flick views only)
-    uint8_t strip_off;      // 1 = this view omits the top status strip (flick views only)
+    uint8_t strip_off;      // 1 = this view omits the top status strip (any view)
     uint8_t order;          // canonical band-order code; 0 = the legacy fixed order
+    // Custom layout v2 — decoded from the EXT word (the high half of the CLAY_VIEW_n
+    // int32, persisted as Config.view_ext) by view_spec_apply_ext, always normalised:
+    // 0 means "as before v2" in every field, so a preset is untouched by construction.
+    uint8_t top_kind;       // TopGraphKind — read only when top == TOP_BAND_GRAPH
+    uint8_t top_size;       // BandSize of a radar/graph top (0 = its 3-row default)
+    uint8_t body_size;      // BandSize of the graph body (0 = fill, today's graph)
+    uint8_t align;          // BandAlign of a stack nothing fills (0 = clock centred)
+    // Which band ORDER this view renders — STACK_ORDER[order] literally (1) or its
+    // tier's legacy order (0) — decided from the CONFIGURED spec (unpack + apply_ext)
+    // and never cleared by view_spec_resolve: a missing radar/health feed folds a sized
+    // radar top or a top graph away, and re-deciding on the folded spec would flip an
+    // order-0 view to the legacy order — a different band order for code 0, so the
+    // status bar would cross the clock with the data.
+    uint8_t stacked;
 #endif
 } ViewSpec;
+
+#if defined(WW_VIEW_CYCLE)
+// The ext-word vocabularies (view-cycle.js TOP_KIND_* / SIZE_* / ALIGN_* mirror them).
+typedef enum { TOP_GRAPH_FORECAST = 0, TOP_GRAPH_HEALTH = 1 } TopGraphKind;
+// One size vocabulary for both seats: rows of the 3-row calendar's row unit
+// (calendar_h / 3 — 15 px here, 20 px on emery) or FILL, the space the stack leaves.
+// DEFAULT is the seat's own default: 3 rows for a radar/graph top, FILL for the body.
+typedef enum {
+    BAND_SIZE_DEFAULT = 0, BAND_SIZE_2 = 1, BAND_SIZE_3 = 2, BAND_SIZE_4 = 3, BAND_SIZE_FILL = 4
+} BandSize;
+// Where a stack that nothing fills sits between the strip and the bottom pad. CLOCK
+// centres the clock's INK on the screen midline (CENTRE when the view has no clock).
+typedef enum { ALIGN_CLOCK = 0, ALIGN_TOP = 1, ALIGN_CENTRE = 2, ALIGN_BOTTOM = 3 } BandAlign;
+#endif
 
 typedef struct {
     bool calendar;
@@ -267,12 +301,29 @@ static inline bool layout_status_visible(const ViewSpec *spec, uint8_t src) {
 // the frame a bar is seated in IS the geometry its row lays out against, so
 // layer_set_frame() owns dirtying every geometric change — a full-mode flip included
 // — and no caller needs to track applied bounds by hand.
+#if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
+// Is the top area three (or more) rows tall — the fullCal shape — whatever it shows? A
+// calendar by its rows; a radar/graph top by its size (the default is 3 rows, a 2-row
+// forecast graph renders 3). The row tier follows the same rule (layout.c), so the health
+// row's dense drop below keys on the view's SHAPE, not on the calendar alone.
+static inline bool layout_top_three_rows(const ViewSpec *s) {
+    if (s->top == TOP_BAND_CALENDAR) { return s->calendar_rows == 3; }
+    if (s->top != TOP_BAND_RADAR && s->top != TOP_BAND_GRAPH) { return false; }
+    return s->top_size != BAND_SIZE_2
+        || (s->top == TOP_BAND_GRAPH && s->top_kind == TOP_GRAPH_FORECAST);
+}
+#endif
+
 static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L, uint8_t src) {
     GRect band = (spec->status_lower == src) ? L->status_lower : L->status;
 #if defined(PBL_HEALTH)
     if (src == STATUS_SRC_HEALTH
             && spec->status_tier == LAYOUT_TIER_FULL
+#if defined(WW_VIEW_CYCLE)
+            && !layout_top_three_rows(spec)
+#else
             && spec->calendar_rows != 3
+#endif
             && band.size.h > HEALTH_TALL_BAND_MIN) {
         band.origin.y += HEALTH_SECTION_DROP;
         band.size.h -= HEALTH_SECTION_DROP;
@@ -281,13 +332,41 @@ static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L
     return band;
 }
 
+#if defined(WW_VIEW_CYCLE)
+// The frame of the forecast / health graph LAYER for a view: the top band when the
+// custom layout placed that graph there (TOP_BAND_GRAPH + top_kind), else the body band.
+// Static inline for the unforked main_window.c (the tier-predicate idiom above); aplite
+// never calls them — it frames both layers to L.bottom directly.
+static inline GRect layout_forecast_frame(const ViewSpec *spec, const MainLayout *L) {
+    if (spec->top == TOP_BAND_GRAPH && spec->top_kind == TOP_GRAPH_FORECAST) { return L->top; }
+    return L->bottom;
+}
+
+static inline GRect layout_health_frame(const ViewSpec *spec, const MainLayout *L) {
+    if (spec->top == TOP_BAND_GRAPH && spec->top_kind == TOP_GRAPH_HEALTH) { return L->top; }
+    return L->bottom;
+}
+#endif
+
 // Decode a packed wire value (statusLower | statusUpper<<2 | body<<4 | top<<6 |
 // tier<<8 | clockOff<<10 | stripOff<<11 | order<<12) to a ViewSpec. Pure — the
 // producer (main_window) supplies the value; availability is resolved separately by
 // view_spec_resolve. Value 0 decodes to a zeroed spec. Bits 10-15 exist only on the
 // custom-layout wire; every preset value keeps them clear, and the aplite twin never
-// reads them.
+// reads them. Garbage order codes (12-15 — no compiler emits them) are clamped to 0
+// (the legacy order) here at the decode boundary, so spec.order is a valid 0-11
+// everywhere downstream.
 ViewSpec view_spec_unpack(uint16_t v);
+
+#if defined(WW_VIEW_CYCLE)
+// Decode a view's 16-bit EXT word (bodySize 0-2 | topSize 3-5 | topKind 6 | align 7-8 —
+// view-cycle.js packExt) into the spec, NORMALISED: a seat default reads 0 (fill for the
+// body, 3 rows for a top), sizes survive only on a radar/graph top and a present body,
+// top_kind only on a graph top, one band fills at most (both → the body), and align only
+// while nothing fills. Call after view_spec_unpack, before view_spec_resolve. ext 0 is
+// the identity, so a preset (or a pre-v2 phone) renders exactly as before.
+void view_spec_apply_ext(ViewSpec *s, uint16_t ext);
+#endif
 
 // Data-availability downgrades, pure. Each status source is downgraded to NONE when its
 // capability is missing (radar row without radar data, health row without health data);
@@ -298,14 +377,58 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 
 LayerVisibility layout_visibility(const ViewSpec *spec);
 
+// Does the top strip (and any status row) print the FULL date for this view? Only
+// while no calendar is on screen: the calendar's rows carry the day numbers, so
+// beside them the date slot shows the month. On colour watches the calendar is
+// visible only when the top band holds it — a radar or graph top can carry a
+// calendar row count (radar tops compile at the full tier) without drawing one.
+// aplite's top band only ever holds the calendar (radar is compiled out and
+// resolves to it), so the row count alone decides there, byte-for-byte as before.
+static inline bool layout_full_date(const ViewSpec *spec) {
+#if defined(WW_VIEW_CYCLE)
+    return !(spec->calendar_rows > 0 && spec->top == TOP_BAND_CALENDAR);
+#else
+    return spec->calendar_rows == 0;
+#endif
+}
+
 // Pure vertical band geometry for the main window. fc_band_h is the font-derived height
 // of the forecast-abutting status band (status_forecast_band_h(status_full_tier_font())
 // on the watch; a fixed representative value in host tests). m.clock describes the active time
-// font and moves ONLY the clock — see clock_seat_y above and the seating at the end of
-// compute_with_weights: every other rect is byte-identical whatever `ink` says.
+// font and moves ONLY the clock — see clock_seat_y above and the clock seating in
+// layout.c's compute_layout: every other rect is byte-identical whatever `ink` says.
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
 
 #if defined(WW_QUICK_VIEW)
+// The spec a Quick View peek renders for the active view `s` (in place): no calendar, the
+// status rows at the full-tier font (the peek bands are fc_band_h tall) and — for a
+// custom view that dropped them — the clock and strip back on, since the time is the peek's most useful
+// content and the strip its anchor. The v2 sizes and Position do not apply to peek's own
+// geometry and are cleared; a graphless view keeps BODY_NONE, so its peek body is blank
+// (decided). Static inline so main_window (unforked) and the host tests run one copy.
+static inline void layout_peek_spec(ViewSpec *s) {
+#if defined(WW_VIEW_CYCLE)
+    // A graph that sits alone in the top band moves into the peek body — the top band
+    // is dropped below, and the graph is the view's content (a view with a body graph
+    // keeps that one; one with no graph at all peeks blank). resolve has already folded
+    // an unrenderable health top away, so nothing unrenderable is promoted.
+    if (s->body == BODY_NONE && s->top == TOP_BAND_GRAPH) {
+        s->body = (s->top_kind == TOP_GRAPH_HEALTH) ? BODY_HEALTH_GRAPH : BODY_FORECAST;
+    }
+#endif
+    s->top = TOP_BAND_EMPTY;
+    s->calendar_rows = 0;
+    s->status_tier = LAYOUT_TIER_FULL;   // status band is full-tier-sized (fc_band)
+#if defined(WW_VIEW_CYCLE)
+    s->clock_off = 0;
+    s->strip_off = 0;
+    s->top_kind = 0;
+    s->top_size = 0;
+    s->body_size = 0;
+    s->align = 0;
+#endif
+}
+
 // "Peek" geometry for the Timeline Quick View overlay: the active view minus its calendar,
 // fit into `bounds` (the unobstructed area above the overlay) — the date strip stays at the
 // top, then the clock, the status row(s), and the body (forecast/graph/radar) below. Clock
@@ -321,23 +444,29 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics
 // cursor state and resolves availability from the SDK (radar data present? health
 // renderable?); these helpers keep the navigation rules pure and host-testable.
 
-// Is a configured slot value renderable right now? Disabled (wire tier 0) never; a
-// radar band needs radar data; a health band/row needs health. Availability is
-// caller-supplied. The slot is the full 16-bit packed value (see view_spec_unpack).
-bool view_slot_available(uint16_t value, bool has_radar, bool has_health);
+// A view WORD is the full 32-bit wire value: the 16-bit packed spec (view_spec_unpack)
+// in the low half, the custom-layout v2 ext word (view_spec_apply_ext) in the high half
+// — Config.view_spec2[i] | Config.view_ext[i] << 16.
+
+// Is a configured slot renderable right now? Disabled (wire tier 0) never; a radar band
+// needs radar data; a health band/row/graph needs health. Availability is
+// caller-supplied. Decodes the whole word (unpack + apply_ext), so a graph the ext
+// word places — e.g. a health graph in the top band — gates the slot too.
+bool view_slot_available(uint32_t word, bool has_radar, bool has_health);
 
 // Next enabled + available slot after `from`, wrapping. Index 0 (the default view) is
 // always a valid stop, so the cycle can never get stuck.
-uint8_t view_cursor_next(uint8_t from, const uint16_t spec[3], bool has_radar, bool has_health);
+uint8_t view_cursor_next(uint8_t from, const uint32_t word[3], bool has_radar, bool has_health);
 
 // The cursor to keep after a settings apply. A settings change can redefine the cycle
 // (each slot may now hold a different view), which makes the old cursor position
 // meaningless — snap back to the default view (0). An unchanged cycle keeps the cursor
 // (a radar/health availability re-apply must not yank the user off their chosen view).
-// Slots are compared as full 16-bit values, so a change confined to the tier/top or
-// custom bits (8-9 / 6-7 / 10-15) still reads as a redefined cycle.
-uint8_t view_cursor_after_config(uint8_t cursor, const uint16_t old_spec[3],
-                                 const uint16_t new_spec[3]);
+// Slots are compared as full 32-bit words, so a change confined to the tier/top or
+// custom bits (8-9 / 6-7 / 10-15) — or to the ext word alone (a size or Position) —
+// still reads as a redefined cycle.
+uint8_t view_cursor_after_config(uint8_t cursor, const uint32_t old_word[3],
+                                 const uint32_t new_word[3]);
 
 // Whether the auto-return-to-default timer is due. `now` and `flick_since` are epoch
 // seconds; reset_min is the configured window in minutes (0 = auto-return disabled).

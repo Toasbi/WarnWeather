@@ -111,7 +111,7 @@ var BAND_FLOOR_PERMILLE = 2;
 //
 // That splits the metrics in two:
 //
-//   ZERO-BASED  (precip_prob, wind, gust, uv) — scaled 0..max against a fixed
+//   ZERO-BASED  (precip_prob, cloud, wind, gust, uv) — scaled 0..max against a fixed
 //     ceiling. A zero is a real, meaningful zero (no rain, no wind), and skipping
 //     its dot is the DESIRED rendering. These must NOT be floored.
 //
@@ -202,26 +202,60 @@ function pressurePermille(arr, scale) {
 }
 
 /**
- * Whether a temperature-axis line (feels, dew) is selected on either
- * inset-capable channel (secondary or third line) and can actually be DRAWN on
- * this watch. Not on aplite: such a curve only lines up with the temp curve when
- * both share a band AND a pixel inset, and aplite compiles the configurable inset
- * out (no WW_CURVE_INSET — its insets are frozen at 7/0/0 and clay-payload.js never
- * sends it CLAY_CURVE_INSET_UINT8), so the line would map full-height against a
- * 7 px-inset temp curve squashed into the joint band. The settings page never
- * offers these there, but a stored blob can still carry one (picked on a colour
- * watch paired to the same phone), so this is the bake-time gate — the line
- * degrades to off and the temps keep their own band. Gates on exactly 'aplite':
- * an unknown platform (no watchInfo) stays capable, as in computeEnv and
- * clay-payload.js.
+ * Whether a temperature-axis line (feels, dew) is the effective metric of a
+ * forecast line this watch actually DRAWS. Every line carries its own curve-inset
+ * byte (clay-payload.js' CLAY_CURVE_INSET_UINT8), so any of them can share the
+ * temperature axis: the Main and Second metric lines (secondaryLine/thirdLine) on
+ * every non-aplite watch, the Third and Fourth metric lines (fourthLine/fifthLine)
+ * only where the watch compiles them (configUi.isLineStylePlatform — the same gate
+ * applyForecastSeries puts on their wire keys). "Effective" is line-style.js'
+ * effectiveLineMetric: an off line, or one repeating an earlier line's pick, draws
+ * nothing and so widens nothing.
+ *
+ * Never on aplite: such a curve only lines up with the temp curve when both share
+ * a band AND a pixel inset, and aplite compiles the configurable inset out (no
+ * WW_CURVE_INSET — its insets are frozen at 7/0/0 and clay-payload.js never sends
+ * it CLAY_CURVE_INSET_UINT8), so the line would map full-height against a 7 px-inset
+ * temp curve squashed into the joint band. The settings page never offers these
+ * there, but a stored blob can still carry one (picked on a colour watch paired to
+ * the same phone), so this is the bake-time gate — the line degrades to off and the
+ * temps keep their own band. Gates on exactly 'aplite': an unknown platform (no
+ * watchInfo) stays capable, as in computeEnv and clay-payload.js.
  * @param {Object} settings Clay settings.
  * @param {Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @param {string} metric 'feels' | 'dew'.
  * @returns {boolean} True when the line is selected and the watch can draw it.
  */
+/**
+ * Does the watch draw a stripe along the graph's top edge? Only watches that draw the
+ * line styles at all (not aplite) draw stripes; a line that is off draws nothing.
+ * @param {Object} settings Clay settings blob.
+ * @param {?{platform: string}} watchInfo The watch.
+ * @returns {boolean} True when some drawn line is styled 'stripeTop'.
+ */
+function topStripeDrawn(settings, watchInfo) {
+    var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
+    if (platform === 'aplite' || !configUi.isLineStylePlatform(platform)) { return false; }
+    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+        var key = lineStyle.FORECAST_LINES[i].key;
+        if (lineStyle.effectiveLineMetric(settings, key)
+                && lineStyle.lineStyleValue(settings, key + 'Style') === 'stripeTop') {
+            return true;
+        }
+    }
+    return false;
+}
+
 function tempAxisLineDrawn(settings, watchInfo, metric) {
-    return (settings.secondaryLine === metric || settings.thirdLine === metric)
-        && !(watchInfo && watchInfo.platform === 'aplite');
+    var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
+    if (platform === 'aplite') { return false; }
+    var lineStylePlatform = configUi.isLineStylePlatform(platform);
+    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+        var key = lineStyle.FORECAST_LINES[i].key;
+        var drawnHere = (key === 'secondaryLine' || key === 'thirdLine') || lineStylePlatform;
+        if (drawnHere && lineStyle.effectiveLineMetric(settings, key) === metric) { return true; }
+    }
+    return false;
 }
 
 // Where each temperature-axis metric's series rides: its transient payload key
@@ -277,13 +311,19 @@ var TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40;
  * its curve is supposed to reach the inset edge — that edge is what the hi/lo labels
  * name, and the temp curve is a solid line, which the watch never skips.
  *
+ * With a stripe along the graph's top edge the watch draws the plot below the stripe
+ * band, which already keeps every curve clear of the stripes: the top is not padded
+ * then (`noTopPad`), so the feels-like curve runs right up to the band.
+ *
  * @param {{min: number, max: number}} tempBand Actual temperature band.
  * @param {{min: number, max: number}} jointBand Union of tempBand and the feels/dew series.
+ * @param {boolean} [noTopPad] A top stripe is drawn: leave the top edge unpadded.
  * @returns {{min: number, max: number}} Joint band padded away from the overshot edges.
  */
-function padJointTempAxisBand(tempBand, jointBand) {
+function padJointTempAxisBand(tempBand, jointBand, noTopPad) {
     var below = tempBand.min - jointBand.min;   // feels/dew reach below the temp low
-    var above = jointBand.max - tempBand.max;   // feels reaches above the temp high (dew is capped at it)
+    // feels reaches above the temp high (dew is capped at it)
+    var above = noTopPad ? 0 : jointBand.max - tempBand.max;
     var span = jointBand.max - jointBand.min;
     if (span <= 0 || (below <= 0 && above <= 0)) { return jointBand; }
     // pad / (span + pad) = clearance  ->  pad = span * c / (1000 - c). Rounded up, and
@@ -325,7 +365,7 @@ function tempAxisPermille(series, band) {
 /**
  * Permille (0..1000) series for one metric. Unknown metric → null. An absent/empty
  * raw series yields [] so the line renders as off (graceful degrade).
- * @param {string} metric One of precip_prob|wind|gust|uv|pressure|feels|dew.
+ * @param {string} metric One of precip_prob|cloud|wind|gust|uv|pressure|feels|dew.
  * @param {Object} raw Raw provider series (feels and dew also read raw.tempBand).
  * @param {Object} settings Clay settings (windScale).
  * @returns {Array.<(number|null)>|null} Permille series, or null for an unknown metric.
@@ -333,6 +373,9 @@ function tempAxisPermille(series, band) {
 function metricPermille(metric, raw, settings) {
     if (metric === 'precip_prob') {
         return (raw.precips || []).map(function(p) { return p * 10; }); // %→permille
+    }
+    if (metric === 'cloud') {
+        return scaleToPermille(raw.clouds, 100);   // cloud cover %, clamped 0..100
     }
     if (metric === 'wind' || metric === 'gust') {
         var max = WIND_SCALE_KMH[settings.windScale] || WIND_SCALE_KMH.mid;
@@ -352,10 +395,10 @@ function metricPermille(metric, raw, settings) {
 
 /**
  * Map raw provider series + settings to the render-ready forecast wire fields.
- * Which metric each line actually draws — off, duplicate-of-an-earlier-line
- * and banned-metric rules included — is resolved by line-style.js'
- * effectiveLineMetric, the one home for the rule the settings preview and the
- * pickers share. Only the secondary line can fill.
+ * Which metric each line actually draws — off and duplicate-of-an-earlier-line
+ * rules included — is resolved by line-style.js' effectiveLineMetric, the one
+ * home for the rule the settings preview and the pickers share. Only the
+ * secondary line can fill.
  *
  * Values only: the lines' COLOURS and styles (and the fill flag) are
  * settings-derived, so they ride the Clay settings message instead — see
@@ -363,8 +406,8 @@ function metricPermille(metric, raw, settings) {
  * nothing here that depends on the watch's platform, which is why this no
  * longer takes watchInfo.
  *
- * @param {{precips:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], dews:Array, tempBand:Object}} raw Raw series (+ the temp axis band the feels and dew metrics share).
- * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, windScale:string, barSource:string}} settings Settings.
+ * @param {{precips:number[], clouds:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], dews:Array, tempBand:Object}} raw Raw series (+ the temp axis band the feels and dew metrics share).
+ * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, fifthLine:string, windScale:string, barSource:string}} settings Settings.
  * @returns {Object} Wire fields (see module interface).
  */
 function buildForecastSeries(raw, settings) {
@@ -374,7 +417,8 @@ function buildForecastSeries(raw, settings) {
     var LINE_TREND_KEYS = {
         secondaryLine: 'SECONDARY_LINE_TREND_UINT8',
         thirdLine: 'THIRD_LINE_TREND_UINT8',
-        fourthLine: 'FOURTH_LINE_TREND_UINT8'
+        fourthLine: 'FOURTH_LINE_TREND_UINT8',
+        fifthLine: 'FIFTH_LINE_TREND_UINT8'
     };
     for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
         var key = lineStyle.FORECAST_LINES[i].key;
@@ -434,7 +478,8 @@ function applyForecastSeries(payload, settings, watchInfo) {
     var rawTemps = payload.TEMP_RAW_TREND || [];
     var tempBand = (typeof payload.TEMP_MIN === 'number' && typeof payload.TEMP_MAX === 'number')
         ? { min: payload.TEMP_MIN, max: payload.TEMP_MAX } : null;
-    var raw = { precips: payload.PRECIP_TREND_UINT8, rains: payload.RAIN_TREND_UINT8,
+    var raw = { precips: payload.PRECIP_TREND_UINT8, clouds: payload.CLOUD_TREND,
+        rains: payload.RAIN_TREND_UINT8,
         winds: payload.WIND_TREND_UINT8, gusts: payload.GUST_TREND_UINT8,
         uvs: payload.UV_TREND_UINT8, pressures: payload.PRESSURE_TREND };
     var drawnAxis = [];
@@ -453,7 +498,8 @@ function applyForecastSeries(payload, settings, watchInfo) {
     if (drawnAxis.length && tempBand && rawTemps.length) {
         // The scaling band the metric channels must share; TEMP_MIN/TEMP_MAX stay put.
         tempBand = padJointTempAxisBand(tempBand,
-            jointTempAxisBand(tempBand.min, tempBand.max, drawnAxis));
+            jointTempAxisBand(tempBand.min, tempBand.max, drawnAxis),
+            topStripeDrawn(settings, watchInfo));
     }
     raw.tempBand = tempBand;
     payload.TEMP_TREND_UINT8 = tempTrendToBytes(rawTemps, tempBand || undefined).bytes;
@@ -469,6 +515,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // The day-max kinds' *_DAY_PEAKS (and trends, deleted above too): transient
     // PKJS-only, baked into their slots' text + level, never wired.
     wireUnits.dayMaxPayloadKeys().forEach(function (key) { delete payload[key]; });
+    delete payload.CLOUD_TREND;       // transient PKJS-only; cloud cover %, consumed by the cloud line above, never wired
     delete payload.PRESSURE_TREND;    // transient PKJS-only; hPa never fit a byte, never wired
     delete payload.AQI_TREND;         // transient PKJS-only; baked into status text, never wired
     delete payload.POLLEN_TODAY;      // transient PKJS-only; baked into status text, never wired
@@ -480,12 +527,13 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // message now (CLAY_LINE_STYLE_UINT8), so the weather send carries no styling.
     payload.SECONDARY_LINE_TREND_UINT8 = series.SECONDARY_LINE_TREND_UINT8;
     payload.THIRD_LINE_TREND_UINT8 = series.THIRD_LINE_TREND_UINT8;
-    // The third-metric line only ships to platforms that compile it
-    // (WW_LINE_STYLE — aplite has no SERIES_FOURTH, so the key would only
+    // The third- and fourth-metric lines only ship to platforms that compile them
+    // (WW_LINE_STYLE — aplite has no SERIES_FOURTH/FIFTH, so the keys would only
     // spend weather-bundle bytes there). An unknown platform keeps the key:
     // the capability table treats missing watchInfo as capable.
     if (configUi.isLineStylePlatform(watchInfo && watchInfo.platform ? watchInfo.platform : '')) {
         payload.FOURTH_LINE_TREND_UINT8 = series.FOURTH_LINE_TREND_UINT8;
+        payload.FIFTH_LINE_TREND_UINT8 = series.FIFTH_LINE_TREND_UINT8;
     }
     payload.BAR_TREND_UINT8 = series.BAR_TREND_UINT8;
     return payload;
@@ -499,7 +547,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
 function needsUv(settings) {
     if (!settings) { return false; }
     if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv'
-        || settings.fourthLine === 'uv') { return true; }
+        || settings.fourthLine === 'uv' || settings.fifthLine === 'uv') { return true; }
     // A status-line UV slot must extend the fetch gate or it bakes empty.
     return statusCatalog.selectedCodes(settings).indexOf('uv') !== -1;
 }

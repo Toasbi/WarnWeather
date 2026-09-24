@@ -288,13 +288,37 @@ test('CLAY_NORAIN_TEXT packs the trimmed radarNoRainText', function() {
   assert.equal(p.CLAY_NORAIN_TEXT, 'Dry skies today');
 });
 
-test('CLAY_NORAIN_TEXT sends an empty string for unset or whitespace-only text (watch falls back to its built-in)', function() {
-  // Unset (pre-seed upgrade blob): the key must still ride so the watch can
-  // clear a previously-stored custom text.
-  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, '');
+test('CLAY_NORAIN_TEXT: unset sends the built-in text, empty or whitespace sends "" (no line)', function() {
+  // Unset (pre-seed upgrade blob): the key still rides, with the built-in text, so a
+  // watch holding an old custom text is set back to the default.
+  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, "You're good :)");
+  // Cleared by the user: an empty text, which the watch stores and draws as no line.
   const s = baseSettings();
   s.radarNoRainText = '   ';
   assert.equal(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, '');
+  s.radarNoRainText = '';
+  assert.equal(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, '');
+});
+
+test('the built-in no-rain text is one string: payload default, schema default, watch fallback', function() {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { DEFAULT_NORAIN_TEXT } = require('../src/pkjs/clay-payload.js');
+  const schema = require('../src/pkjs/settings/schema.js');
+  const tabs = Array.isArray(schema) ? schema : (schema.schema || schema.SCHEMA || schema.tabs);
+  let item = null;
+  (function walk(list) {
+    (list || []).forEach((it) => {
+      if (it.messageKey === 'radarNoRainText') { item = it; }
+      if (it.items) { walk(it.items); }
+      if (it.sections) { it.sections.forEach((sc) => walk(sc.items)); }
+    });
+  })(tabs);
+  assert.equal(item.defaultValue, DEFAULT_NORAIN_TEXT);
+  const c = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'layers', 'rain_radar_layer.c'), 'utf8');
+  assert.ok(c.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'the watch falls back to the same text');
+  const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'clay-migrations.js'), 'utf8');
+  assert.ok(migrations.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'and the 1.23.0 migration moves to it');
 });
 
 test('CLAY_NORAIN_TEXT truncates to 24 UTF-8 bytes, not 24 chars', function() {
@@ -341,12 +365,13 @@ test('truncateUtf8Bytes passes short strings through untouched', function() {
   assert.equal(truncateUtf8Bytes('', 24), '');
 });
 
-test('CLAY_CURVE_INSET_UINT8 sends the fixed [7,0,0] when feels is not selected', function() {
+test('CLAY_CURVE_INSET_UINT8 sends the fixed [7,0,0,0,0] when feels is not selected', function() {
   // The inset is deliberately NOT a user setting — a fixed 7 px (the watch's
-  // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), with the per-series triple only marking
-  // which metric channel carries feels-like.
+  // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), with the five per-series bytes (Series id
+  // order: temp, main, second, third, fourth metric) only marking which metric
+  // channel carries a temperature-axis metric.
   const p = buildClayPayload(baseSettings(), { platform: 'emery' }, NOW);
-  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 0]);
+  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 0, 0, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8: feels on the secondary line shares the temp inset', function() {
@@ -354,7 +379,7 @@ test('CLAY_CURVE_INSET_UINT8: feels on the secondary line shares the temp inset'
   s.secondaryLine = 'feels';
   s.thirdLine = 'uv';
   const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
-  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 7, 0]);
+  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 7, 0, 0, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8: feels on the third line shares the temp inset', function() {
@@ -362,26 +387,46 @@ test('CLAY_CURVE_INSET_UINT8: feels on the third line shares the temp inset', fu
   s.secondaryLine = 'precip_prob';
   s.thirdLine = 'feels';
   const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
-  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 7]);
+  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 7, 0, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8: dew point shares the temp inset on either line', function() {
   const s = baseSettings();
   s.secondaryLine = 'dew';
   s.thirdLine = 'feels';
-  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 7, 7]);
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 7, 7, 0, 0]);
   s.secondaryLine = 'wind';
   s.thirdLine = 'dew';
-  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 7]);
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 7, 0, 0]);
+});
+
+test('CLAY_CURVE_INSET_UINT8: the third- and fourth-metric lines get an inset byte of their own', function() {
+  const s = Object.assign(baseSettings(), { secondaryLine: 'feels', thirdLine: 'wind', fourthLine: 'dew' });
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 7, 0, 7, 0]);
+  const fifth = Object.assign(baseSettings(), { secondaryLine: 'precip_prob', thirdLine: 'uv', fifthLine: 'feels' });
+  assert.deepEqual(buildClayPayload(fifth, { platform: 'emery' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 0, 0, 7]);
+});
+
+test('CLAY_CURVE_INSET_UINT8 reads the RAW settings: a duplicate pick still gets its byte', function() {
+  // feels on the third AND the third-metric line: effectiveLineMetric turns the
+  // later one off, so the watch never draws that series and never reads its byte.
+  // The tuple does not resolve effective metrics — a byte nobody reads is harmless.
+  const s = Object.assign(baseSettings(), { secondaryLine: 'wind', thirdLine: 'feels', fourthLine: 'feels' });
+  assert.equal(lineStyle.effectiveLineMetric(s, 'fourthLine'), null, 'the duplicate line is not drawn');
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 7, 7, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8 is omitted for aplite (WW_CURVE_INSET compiled out) but kept for unknown platforms', function() {
   const s = baseSettings();
   const aplite = buildClayPayload(s, { platform: 'aplite' }, NOW);
   assert.equal(Object.prototype.hasOwnProperty.call(aplite, 'CLAY_CURVE_INSET_UINT8'), false);
+  // Even with every line on a temperature-axis metric, aplite never gets the tuple.
+  const apliteAxis = buildClayPayload(Object.assign(baseSettings(),
+    { secondaryLine: 'feels', thirdLine: 'dew', fourthLine: 'feels', fifthLine: 'dew' }), { platform: 'aplite' }, NOW);
+  assert.equal(Object.prototype.hasOwnProperty.call(apliteAxis, 'CLAY_CURVE_INSET_UINT8'), false);
   // Unknown watchInfo must never drop a real feature (computeEnv convention).
   const unknown = buildClayPayload(s, null, NOW);
-  assert.deepEqual(unknown.CLAY_CURVE_INSET_UINT8, [7, 0, 0]);
+  assert.deepEqual(unknown.CLAY_CURVE_INSET_UINT8, [7, 0, 0, 0, 0]);
 });
 
 test('the Clay message carries the graph line styling', function() {
@@ -390,7 +435,7 @@ test('the Clay message carries the graph line styling', function() {
   });
   const p = buildClayPayload(s, { platform: 'emery' }, NOW);
   assert.ok(Array.isArray(p.CLAY_LINE_STYLE_UINT8));
-  assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 14);
+  assert.equal(p.CLAY_LINE_STYLE_UINT8.length, 16);
   // Packed by the one resolver both the wire and the render read (line-style.js),
   // so the Clay tuple can't drift from what the graph builder assumes.
   assert.deepEqual(p.CLAY_LINE_STYLE_UINT8,
@@ -400,16 +445,16 @@ test('the Clay message carries the graph line styling', function() {
 test('aplite gets the line styling too (it has the forecast graph)', function() {
   // Unlike the threshold blob / no-rain text / curve insets, nothing about the
   // graph's line colours is compiled out on aplite — it draws the same two metric
-  // lines — so this tuple is NOT platform-gated. The full 14 bytes ship there too:
+  // lines — so this tuple is NOT platform-gated. The full 16 bytes ship there too:
   // aplite parses [0..3] and ignores the tail blocks it has no arms for (the same
   // way pre-feature watches ignore bytes they postdate), which is cheaper than a
   // per-platform pack.
   const s = Object.assign(baseSettings(), {
     secondaryLine: 'wind', thirdLine: 'off', theme: 'dark'
   });
-  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_LINE_STYLE_UINT8.length, 14);
+  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_LINE_STYLE_UINT8.length, 16);
   // ... and an unknown watchInfo never drops it either.
-  assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 14);
+  assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 16);
 });
 
 test('CLAY_HR_SCALE falls back to 40-150 when unset or malformed', function() {
@@ -546,10 +591,28 @@ test('layoutPreset custom compiles the per-view keys onto CLAY_VIEW_*', () => {
     viewClockOff1: true, viewStripOff1: true,
   });
   const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
-  const want = viewCycle.buildCustomCycle(s).map(viewCycle.packSpec);
+  const want = viewCycle.buildCustomCycle(s).map(viewCycle.packWire);
   assert.deepStrictEqual([p.CLAY_VIEW_0, p.CLAY_VIEW_1, p.CLAY_VIEW_2], [want[0], want[1], 0]);
   assert.equal(p.CLAY_VIEW_1 & 0xC00, 0xC00, 'flick carries clockOff+stripOff');
-  assert.equal(p.CLAY_VIEW_1 >> 12, viewCycle.orderCode('CTAB'), 'order code rides bits 12-15');
+  assert.equal((p.CLAY_VIEW_1 >> 12) & 15, viewCycle.orderCode('CTAB'), 'order code rides bits 12-15');
+});
+
+test('a graphless custom view sends its Position in the high half of CLAY_VIEW_n', () => {
+  const s = Object.assign(baseSettings(), {
+    layoutPreset: 'custom', healthMode: 'off', radarMode: 'off',
+    viewCount: '2',
+    viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
+    viewTop1: 'cal2', viewBody1: 'none', viewUpper1: 'weather', viewLower1: 'off', viewOrder1: 'TACB',
+    viewClockOff1: false, viewStripOff1: false, viewAlign1: 'bottom',
+  });
+  const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  assert.equal(p.CLAY_VIEW_0 >>> 16, 0, 'the Default keeps its graph: no ext');
+  assert.equal((p.CLAY_VIEW_1 >> 4) & 3, viewCycle.BODY_NONE, 'body code 3 = no graph');
+  assert.equal((p.CLAY_VIEW_1 >>> 16) >> 7, viewCycle.ALIGN_BOTTOM, 'align in ext bits 7-8');
+  [p.CLAY_VIEW_0, p.CLAY_VIEW_1, p.CLAY_VIEW_2].forEach((v) => {
+    assert.ok(Number.isInteger(v) && v >= 0, 'a non-negative integer');
+    assert.equal(v >>> 31, 0, 'bit 31 clear: every phone packs it as a positive int32');
+  });
 });
 
 test('an aplite watch folds custom to the EXPLICIT compactCal preset cycle', () => {
@@ -563,7 +626,7 @@ test('an aplite watch folds custom to the EXPLICIT compactCal preset cycle', () 
   const compact = viewCycle.buildViewCycle('compactCal', 'off', 'off', false).map(viewCycle.packSpec);
   assert.deepStrictEqual([p.CLAY_VIEW_0, p.CLAY_VIEW_1, p.CLAY_VIEW_2],
     [compact[0], compact[1] || 0, compact[2] || 0]);
-  assert.equal(p.CLAY_VIEW_0 & 0xFC00, 0, 'no custom bits reach an aplite watch');
+  assert.equal(p.CLAY_VIEW_0 >>> 10, 0, 'no custom bits and no ext word reach an aplite watch');
 });
 
 test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never folds)', () => {
@@ -574,7 +637,7 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
   });
   const p = buildClayPayload(s, null, NOW);
   assert.deepStrictEqual(p.CLAY_VIEW_0,
-    viewCycle.buildCustomCycle(s).map(viewCycle.packSpec)[0]);
+    viewCycle.buildCustomCycle(s).map(viewCycle.packWire)[0]);
 });
 
 // --- the auto theme switch, end to end over the blob the phone really stores -------
@@ -621,3 +684,29 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
       'GColorWhite (argb 0xFF), not the day face\'s black (0xC0)');
   });
 }
+
+test('Weather only folds to Compact calendar on aplite, the preset its radio shows there', function() {
+  const s = baseSettings();
+  s.layoutPreset = 'weatherOnly';
+  s.radarMode = 'graph';
+  const colour = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  const aplite = buildClayPayload(s, { platform: 'aplite' }, NOW);
+  const compact = buildClayPayload(Object.assign({}, s, { layoutPreset: 'compactCal' }), { platform: 'aplite' }, NOW);
+  assert.equal(colour.CLAY_VIEW_0 & 0x800, 0x800, 'colour: the Default view has no top bar');
+  assert.equal(aplite.CLAY_VIEW_0, compact.CLAY_VIEW_0, 'aplite: exactly Compact calendar');
+});
+
+test('radar sky rows are on by default: a missing key sends them', function() {
+  const radarSky = require('../src/pkjs/weather/radar-sky.js');
+  assert.equal(radarSky.skySourceIdFor({ radarMode: 'graph' }), 'openmeteo');
+  const schema = require('../src/pkjs/settings/schema.js');
+  let item = null;
+  (function walk(list) {
+    (list || []).forEach((it) => {
+      if (it.messageKey === 'radarSky') { item = it; }
+      if (it.items) { walk(it.items); }
+      if (it.sections) { it.sections.forEach((sc) => walk(sc.items)); }
+    });
+  })(schema.tabs || schema);
+  assert.equal(item.defaultValue, true);
+});

@@ -4,8 +4,9 @@
 
 void top_status_layer_create(Layer* parent_layer, GRect frame);
 
-// The active view has no calendar (none tier / quick-view peek) -> the strip's
-// date slot renders the full date. Pushed by the window (tier push). Pre-create
+// No calendar is on screen (layout_full_date in windows/layout.h: a none-tier view,
+// a radar or graph top, or a quick-view peek) -> the strip's date slot renders the
+// full date. Pushed by the window (tier push). Pre-create
 // calls store it for the first paint; changes forward into the row and refresh.
 void top_status_layer_set_full_date(bool full_date);
 

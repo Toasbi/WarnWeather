@@ -37,6 +37,17 @@ function precedingHourSlice(series, anchor, bucketCount, fill) {
     return out;
 }
 
+/**
+ * One cloud-cover bucket as a number: a null hour (a gap in the model output)
+ * reads as 0 %, the same zero-fill the other providers apply, so the series stays
+ * numeric and hour-aligned.
+ * @param {*} v Raw bucket value.
+ * @returns {number} Cloud cover percent, 0 when absent.
+ */
+function percentOrZero(v) {
+    return typeof v === 'number' ? v : 0;
+}
+
 // The ECMWF IFS 0.25° ensemble's forecast step: its buckets fall on 00, 03,
 // 06 … UTC.
 var ENSEMBLE_STEP_SECONDS = 3 * HOUR_SECONDS;
@@ -103,7 +114,7 @@ function ensembleBlockSlice(series, times, anchor) {
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.
- * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], startTime: number, currentTemp: number}|null}
+ * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], cloudTrend: number[], startTime: number, currentTemp: number}|null}
  *   Mapped fields, or null when the response is malformed or has fewer than
  *   FORECAST_HOURS buckets at/after the current hour. (The last slot's
  *   preceding-hour values sit in the bucket after the window; a response
@@ -152,6 +163,10 @@ function mapResponse(json, nowEpoch) {
         // which it returns all-null — hence the separate gust call below).
         pressureTrend: Array.isArray(hourly.pressure_msl)
             ? hourly.pressure_msl.slice(anchor, end) : [],
+        // Optional like pressure: total cloud cover (%) is an ECMWF IFS output, so it
+        // rides the pinned main request. Absent → [] → the cloud line stays off.
+        cloudTrend: Array.isArray(hourly.cloud_cover)
+            ? hourly.cloud_cover.slice(anchor, end).map(percentOrZero) : [],
         startTime: times[anchor],
         currentTemp: current.temperature_2m
     };
@@ -193,7 +208,7 @@ function buildForecastUrl(lat, lon) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
-        + '&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl'
+        + '&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover'
         + '&current=temperature_2m'
         + '&temperature_unit=fahrenheit'
         + '&windspeed_unit=kmh'
@@ -318,7 +333,7 @@ function mapWindDirection(json, startTime) {
  * Adopt dew point and wind bearing from the parsed aux (gust/feels) response.
  * Both ride that always-fetched call, so neither costs a request and neither
  * has a fetch gate — the work is one timestamp remap each. A malformed or absent
- * series leaves the provider's empty defaults, so the dew slot degrades to '--'
+ * series leaves the [] adoptMapped set, so the dew slot degrades to '--'
  * and the wind/gust slots simply draw no arrow. The two series are adopted
  * independently: a feed carrying only one must not block the other.
  *
@@ -339,9 +354,11 @@ function adoptDewAndDirection(provider, json) {
  * provider.feelsTrend/currentFeels. Always parsed, no fetch gate: the call runs
  * for gusts anyway, so feels is free. Missing hourly buckets fall back to the
  * provider's (already-°F) tempTrend so the series stays numeric; a malformed
- * series or missing current leaves the defaults (line off, slot degrades).
+ * series or missing current leaves what adoptMapped set — []/null, as the main
+ * response carries no feels (line off, slot degrades).
  *
- * @param {Object} provider Active provider (reads .startTime/.tempTrend, writes .feelsTrend/.currentFeels).
+ * @param {Object} provider Active provider (reads .options.fetchFeels/feelsFormula,
+ *   .startTime/.tempTrend, writes .feelsTrend/.currentFeels).
  * @param {Object|null} json Parsed gust-call response, or null on parse failure.
  * @returns {void}
  */
@@ -349,8 +366,9 @@ function adoptFeels(provider, json) {
     // The request happens regardless (it carries the gusts), so the gate saves only
     // the timestamp-indexed remap — but it keeps "no feels selection" meaning no
     // feels data on every provider, so the temp slot degrades identically.
-    if (!provider.fetchFeels) { return; }
-    var steadman = provider.feelsFormula === feelsLike.FORMULA_STEADMAN;
+    var formula = provider.options.feelsFormula;
+    if (!provider.options.fetchFeels) { return; }
+    var steadman = formula === feelsLike.FORMULA_STEADMAN;
     var feels = json ? mapFeels(json, provider.startTime) : null;
     // The Steadman option takes its moisture from this call's dew point (the
     // series adoptDewAndDirection maps for the dew slot), not a relative
@@ -364,13 +382,13 @@ function adoptFeels(provider, json) {
     if (feels || dew) {
         // The resolver backfills: Steadman where computable, else the API value,
         // else that hour's (already-°F) temp. windTrend is the main call's km/h.
-        provider.feelsTrend = feelsLike.resolveFeelsTrendFromDew(provider.feelsFormula, feels,
+        provider.feelsTrend = feelsLike.resolveFeelsTrendFromDew(formula, feels,
             provider.tempTrend, dew, provider.windTrend);
     }
     var current = json && json.current;
     if (current) {
         // km/h and °F: the aux request asks for both units explicitly.
-        var currentFeels = feelsLike.resolveCurrentFeelsFromDew(provider.feelsFormula,
+        var currentFeels = feelsLike.resolveCurrentFeelsFromDew(formula,
             current.apparent_temperature, provider.currentTemp,
             current.dew_point_2m, current.wind_speed_10m);
         if (currentFeels !== null) {
@@ -429,21 +447,22 @@ function mapUv(json, startTime) {
 }
 
 /**
- * Fetch UV from Open-Meteo into provider.uvTrend, but only when provider.fetchUv
- * is set (UV is on a line). Non-fatal: uvTrend is reset to [] before the call, so
- * a failed/empty UV call leaves the UV line off and the slot at '--' rather than
- * failing the whole forecast — or, on a reused provider instance, shipping the
- * previous cycle's window against the new startTime.
+ * Fetch UV from Open-Meteo into provider.uvTrend, but only when
+ * provider.options.fetchUv is set (UV is on a line or in a slot). Runs after the
+ * caller's adoptMapped, which already left uvTrend at [] (the main response
+ * carries no UV) — so a failed/empty UV call leaves the UV line off and the slot
+ * at '--' rather than failing the whole forecast, or, on a reused provider
+ * instance, shipping the previous cycle's window against the new startTime.
  * Shared by the Open-Meteo provider and the DWD fallback.
- * @param {Object} provider Active provider (reads .fetchUv/.startTime, writes .uvTrend).
+ * @param {Object} provider Active provider (reads .options.fetchUv/.startTime, writes .uvTrend).
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {Function} done Continuation (always called exactly once).
  * @returns {void}
  */
 function fetchUvInto(provider, lat, lon, done) {
-    if (!provider.fetchUv) { done(); return; }
-    provider.uvTrend = []; // this fetch owns the field (see adoptMapped)
+    // A provider without options skips the request (fail-safe, like day-peaks' wanted/recall).
+    if (!(provider.options && provider.options.fetchUv)) { done(); return; }
     var uvUrl = buildUvUrl(lat, lon, dayPeaks.wanted(provider, 'uv'));
     request(uvUrl, 'GET', function(resp) {
         var uvs = null;
@@ -465,20 +484,17 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         url: buildForecastUrl(lat, lon), id: 'openmeteo', label: 'Open-Meteo',
         map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000)); }
     }, (function(mapped) {
+        // Total: feels, dew point, the wind bearing and UV ride the aux calls
+        // below, so the mapped shape lacks their keys and adoptMapped leaves them
+        // []/null — on a reused provider instance an aux failure degrades to
+        // line-off / '--' / no arrow instead of shipping the previous window's
+        // values against the new startTime.
         this.adoptMapped(mapped);
-        // Feels, dew point and the wind bearing ride the aux call below — the
-        // mapped shape lacks their keys, so reset them per cycle here: on a
-        // reused provider instance an aux failure must degrade to line-off /
-        // '--' / no arrow instead of shipping the previous window's values
-        // against the new startTime.
-        this.feelsTrend = [];
-        this.currentFeels = null;
-        this.dewTrend = [];
-        this.windDirTrend = [];
         // ECMWF IFS (pinned for the rain bars) doesn't output 10m gusts,
         // apparent temperature, dew point or the wind bearing, so fetch them all
         // from best_match and align by timestamp. Non-fatal: a failed or empty
-        // call just leaves the defaults, so the gust/feels lines stay hidden,
+        // call just leaves what adoptMapped set (the main response's gusts,
+        // []/null feels, dew and bearing), so the gust/feels lines stay hidden,
         // the dew slot shows '--' and the wind arrow is omitted rather than
         // failing the whole forecast.
         var gustUrl = buildGustUrl(lat, lon, dayPeaks.wanted(this, 'gust'));

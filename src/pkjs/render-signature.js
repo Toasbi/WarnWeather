@@ -19,13 +19,13 @@ var statusThresholds = require('./status-thresholds.js');
  */
 function renderSignature(settings) {
     if (!settings) { return ''; }
-    // Series selection and encoding — fourthLine changes which series the phone
+    // Series selection and encoding — fourthLine/fifthLine change which series the phone
     // bakes (and fetches — UV), so it joins. NOT the theme or the area-fill toggle:
     // the line colours, the fill flag, the three ...LineStyle keys and the
     // threshold auto-colours all ride the Clay message now (line-style.js,
     // palette-wire.js, status-thresholds.js' buildSettingsBlob), and the auto theme
     // switch already flips with a Clay-only resend...
-    var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine,
+    var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine, settings.fifthLine,
         settings.barSource, settings.windScale, settings.pressureScale,
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.tempSlotDisplay,

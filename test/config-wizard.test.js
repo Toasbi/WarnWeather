@@ -619,3 +619,9 @@ test('a detected, listed country still drives the fresh-install defaults', () =>
   assert.equal(us.holidayCountry, 'US');
   assert.equal(us.temperatureUnits, 'f');
 });
+
+test('flickStops: a stored Weather only shows the No calendar shot (no shot of its own)', () => {
+  const stops = W.flickStops({ layoutPreset: 'weatherOnly', healthMode: 'off', radarMode: 'graph' });
+  assert.equal(stops[0].shotGroup, 'layoutPreset');
+  assert.equal(stops[0].shotVal, 'noCal');
+});

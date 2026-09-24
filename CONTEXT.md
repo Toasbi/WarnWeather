@@ -85,6 +85,34 @@ config-close chaining, day-change resend, minute tick). The outbox decides
 *what* rides it (dedupe, one-message bundling, ACK-gated cache commit).
 _Avoid_: send queue.
 
+**Fetch cycle**:
+The module that runs *one* weather fetch from trigger to record
+(`src/pkjs/fetch-cycle.js`): the refresh gates (marker, slot, sleep pause,
+failure backoff), the single-flight rule and its queued force, the watchdog and
+late-completion guard, the attempt counter, the sleep commit and the
+success/failure records. The scheduler asks it two things — `shouldFetchNow`
+and `start(force)` — and everything it depends on (clock, timer, provider,
+settings, outbox) is injected.
+_Avoid_: fetch orchestrator, refresh loop.
+
+## Weather
+
+**Fetch options**:
+The one per-fetch value of knobs every adapter and auxiliary fetch reads
+(`provider.options`, built by `weather/fetch-options.js` from the settings):
+which optional series are wanted (UV, AQI, pollen, feels), the feels formula,
+the day-max codes, the wind unit, the AQI scale/source/token. Every default
+lives there; nothing downstream carries its own fallback.
+_Avoid_: provider flags, per-fetch knobs.
+
+**Mapped forecast**:
+The plain object an adapter's `withProviderData` produces from its API
+response(s) — the series, scalars and feels inputs named by
+`WeatherProvider.MAPPED_KEYS` — and hands to `adoptMapped`, which applies the
+fetch options' gates and the one missing-value convention per field and writes
+the instance. An adapter maps; only adopt decides.
+_Avoid_: normalized provider fields, provider instance shape.
+
 ## Radar
 
 **Radar source**:

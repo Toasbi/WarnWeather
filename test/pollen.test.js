@@ -5,6 +5,7 @@ const http = require('../src/pkjs/weather/http.js');
 const assert = require('node:assert/strict');
 
 const pollen = require('../src/pkjs/weather/pollen.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 
 function feature(date, pollenInt, species) {
   return {
@@ -110,7 +111,7 @@ test('fetchPollenInto skips the request when pollen fetching is disabled', () =>
   let doneCalls = 0;
   http.request = function() { requests += 1; };
   try {
-    pollen.fetchPollenInto({ fetchPollen: false }, 52.52, 13.405, function() { doneCalls += 1; });
+    pollen.fetchPollenInto({ options: fetchOptions.defaults({ fetchPollen: false }) }, 52.52, 13.405, function() { doneCalls += 1; });
   } finally {
     http.request = originalRequest;
   }
@@ -122,7 +123,7 @@ test('fetchPollenInto writes valid today data and calls done exactly once', () =
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date());
-  const provider = { fetchPollen: true, pollenToday: null };
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
   let requestedUrl;
   let requestedMethod;
   let doneCalls = 0;
@@ -145,7 +146,7 @@ test('fetchPollenInto writes valid today data and calls done exactly once', () =
 test('fetchPollenInto leaves pollen unchanged when the response has no today data', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
   const originalRequest = http.request;
-  const provider = { fetchPollen: true, pollenToday: 'existing' };
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess) {
     onSuccess(JSON.stringify({ features: [feature('1999-01-01', 6)] }));
@@ -162,7 +163,7 @@ test('fetchPollenInto leaves pollen unchanged when the response has no today dat
 test('fetchPollenInto treats parse failures as non-fatal and calls done once', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
   const originalRequest = http.request;
-  const provider = { fetchPollen: true, pollenToday: 'existing' };
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess) { onSuccess('{invalid'); };
   try {
@@ -177,7 +178,7 @@ test('fetchPollenInto treats parse failures as non-fatal and calls done once', (
 test('fetchPollenInto treats transport failures as non-fatal and calls done once', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
   const originalRequest = http.request;
-  const provider = { fetchPollen: true, pollenToday: 'existing' };
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess, onError) {
     onError({ code: 500 });
@@ -195,7 +196,7 @@ test('fetchPollenInto ignores duplicate success callbacks after completing once'
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
-  const provider = { fetchPollen: true, pollenToday: null };
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess) {
     onSuccess(JSON.stringify({ features: [feature(today, 2)] }));
@@ -214,7 +215,7 @@ test('fetchPollenInto ignores an error callback after success', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
   const originalRequest = http.request;
   const today = pollen.localDateKey(new Date()) + 'T00:00:00Z';
-  const provider = { fetchPollen: true, pollenToday: null };
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: null };
   let doneCalls = 0;
   http.request = function(url, method, onSuccess, onError) {
     onSuccess(JSON.stringify({ features: [feature(today, 4)] }));
@@ -232,7 +233,7 @@ test('fetchPollenInto ignores an error callback after success', () => {
 test('fetchPollenInto treats a synchronous request throw as non-fatal', () => {
   const WeatherProvider = require('../src/pkjs/weather/provider.js');
   const originalRequest = http.request;
-  const provider = { fetchPollen: true, pollenToday: 'existing' };
+  const provider = { options: fetchOptions.defaults({ fetchPollen: true }), pollenToday: 'existing' };
   let doneCalls = 0;
   http.request = function() { throw new Error('open failed'); };
   try {

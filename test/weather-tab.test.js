@@ -747,6 +747,11 @@ test('the chip IS the selection: a second tap puts it down, and a day change tak
   const realFetch = data.fetchWeather;
   let respond = null;
   data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  // Pin the clock to mid-morning of the fixture's day: the steps below pick hours
+  // a few after now, which near midnight would fall off the end of the day and
+  // make the result depend on when the suite happens to run.
+  const realNow = Date.now;
+  Date.now = () => DAY0 + 9 * 3600000 + 20 * 60000;
   const el = {};
   const nodeFor = (id) => {
     if (!el[id]) { el[id] = { attrs: {}, style: {}, innerHTML: '', offsetWidth: 60, offsetHeight: 44,
@@ -814,6 +819,7 @@ test('the chip IS the selection: a second tap puts it down, and a day change tak
     tab._commitDay(0);
     assert.equal(chip(), 'inline', 'today gets its now-chip back');
   } finally {
+    Date.now = realNow;
     delete global.document;
     data.fetchWeather = realFetch;
     tab._resetState();
@@ -1144,6 +1150,68 @@ test('a refresh that fails offline keeps the charts, and the other locations sta
     assert.equal(urls.length, 4, 'no request for Berlin');
     assert.ok(berlin.indexOf(CHARTS) !== -1, 'Berlin still shows its charts offline');
     assert.equal(berlin.indexOf('Update failed'), -1, 'the note belongs to the failed refresh only');
+  } finally {
+    if (realXhr === undefined) { delete globalThis.XMLHttpRequest; } else { globalThis.XMLHttpRequest = realXhr; }
+    data.clearCache();
+    tab._resetState();
+  }
+});
+
+// The phone keeps the day's data for the place the tab opens on and injects it at
+// every page open (src/pkjs/weather-tab-cache.js): the tab fetches on its own at most
+// once a day, and after that only when the user refreshes.
+test('the phone\'s copy from today shows without a request; a stale or foreign one does not', () => {
+  const urls = [];
+  class FakeXhr {
+    open(method, url) { urls.push(url); }
+    send() {
+      this.status = 200;
+      this.responseText = JSON.stringify(openMeteoBody());
+      this.onload();
+    }
+  }
+  const realXhr = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = FakeXhr;
+  const CHARTS = 'Temperature &amp; precipitation';
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  // Earlier today, whatever time the suite runs: halfway between midnight and now.
+  const earlierToday = dayStart.getTime() + Math.floor((Date.now() - dayStart.getTime()) / 2);
+  const stored = (over) => {
+    const d = data.parsers.openmeteo(openMeteoBody(), Date.now());
+    d.meta = Object.assign({ provider: 'openmeteo', fetchedAt: earlierToday, lat: 52.521, lon: 13.406 }, over);
+    return Object.assign({}, SEED, { weatherTabCache: d });
+  };
+  const open = (userData, state) => {
+    tab._resetState();
+    data.clearCache();
+    tab._setCtx({ S: state, USERDATA: userData, render: () => {} });
+    return tab.weatherGraphsBlock(state, {}, userData);
+  };
+  try {
+    const state = { graphsProvider: 'openmeteo', graphsLocation: 'current' };
+    const fresh = stored({});
+    let html = open(fresh, state);
+    assert.ok(html.indexOf(CHARTS) !== -1, 'today\'s copy renders the charts at once');
+    assert.ok(state.weatherTabSeenAt > 0 && Date.now() - state.weatherTabSeenAt < 60000,
+      'the render stamps the tab as seen, for the phone (carried back by a Save)');
+    assert.equal(urls.length, 0, 'no request');
+    assert.equal(tab._fetchState().data.meta.fetchedAt, earlierToday, 'the age says when the phone fetched');
+    // A manual refresh still goes to the network, and its answer wins over the copy.
+    assert.equal(tab.refreshWeather(), true);
+    html = tab.weatherGraphsBlock(state, {}, fresh);
+    assert.equal(urls.length, 1, 'Refresh fetches');
+    assert.ok(tab._fetchState().data.meta.fetchedAt > earlierToday, 'the refreshed data is shown');
+    tab.weatherGraphsBlock(state, {}, fresh);
+    assert.equal(urls.length, 1, 'and is not replaced by the older copy on a re-render');
+
+    const yesterday = dayStart.getTime() - 3600000;
+    open(stored({ fetchedAt: yesterday }), state);
+    assert.equal(urls.length, 2, 'yesterday\'s copy: the day\'s first look fetches');
+    open(stored({ provider: 'dwd' }), state);
+    assert.equal(urls.length, 3, 'another provider\'s copy: fetch');
+    open(stored({ lat: 59.9, lon: 10.7 }), state);
+    assert.equal(urls.length, 4, 'another place\'s copy: fetch');
   } finally {
     if (realXhr === undefined) { delete globalThis.XMLHttpRequest; } else { globalThis.XMLHttpRequest = realXhr; }
     data.clearCache();
@@ -1840,6 +1908,11 @@ test('on the current hour the crosshair stands down and lets the now line speak'
   const realFetch = data.fetchWeather;
   let respond = null;
   data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  // Pin the clock to mid-morning of the fixture's day: the steps below pick hours
+  // a few after now, which near midnight would fall off the end of the day and
+  // make the result depend on when the suite happens to run.
+  const realNow = Date.now;
+  Date.now = () => DAY0 + 9 * 3600000 + 20 * 60000;
   const lines = {};
   const lineFor = (id) => {
     if (!lines[id]) { lines[id] = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } }; }
@@ -1891,6 +1964,7 @@ test('on the current hour the crosshair stands down and lets the now line speak'
     tab._scrubTo(svg, at(now + 1));
     assert.equal(x(), String(charts.xAt(view, now + 1)), 'one hour on, it is back');
   } finally {
+    Date.now = realNow;
     delete global.document;
     data.fetchWeather = realFetch;
     tab._resetState();

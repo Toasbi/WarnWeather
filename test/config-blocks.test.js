@@ -316,7 +316,7 @@ test('layoutPresetOptions resolver: compactDense offered once health OR radar sh
   const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
   assert.equal(typeof resolver, 'function', 'resolver registered');
   const codes = (S) => resolver(S).map((o) => o[1]);
-  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'custom'],
+  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'weatherOnly', 'custom'],
     'compactDense hidden when neither health nor radar shows a status row; custom always last');
   // Custom is a colour-platform feature: aplite (frozen-lean) never offers it, and an
   // UNKNOWN platform is treated as capable, matching the payload's own gate.
@@ -331,6 +331,30 @@ test('layoutPresetOptions resolver: compactDense offered once health OR radar sh
   // so the option must be reachable from it — it was not, and that hid the preset
   // for health-off + radar="Status + Graph" users (reported on-watch).
   assert.ok(codes({ healthMode: 'off', radarMode: 'graph' }).indexOf('compactDense') >= 0, 'radar=graph offers compactDense');
+});
+
+// Picking Custom must ONLY seed the per-view keys (seedCustomKeys); the editor is
+// opened solely through the dedicated Edit row's data-action. The hook used to call
+// PConf.actions.openViewEditor() itself — removed on maintainer request.
+test('layoutPresetChanged seeds the custom keys and does NOT auto-open the editor', () => {
+  const hook = global.PConf.onChange.get('layoutPresetChanged');
+  assert.equal(typeof hook, 'function', 'hook registered');
+  let opened = 0;
+  global.PConf.actions = global.PConf.actions || {};
+  const prev = global.PConf.actions.openViewEditor;
+  global.PConf.actions.openViewEditor = () => { opened += 1; };   // spy action
+  try {
+    const S = { healthMode: 'off', radarMode: 'off', swapClockStatus: false, layoutPreset: 'custom' };
+    hook(S, 'compactCal', 'custom');
+    assert.equal(S.customLayoutSeeded, true, 'seeding still latches');
+    assert.equal(S.viewCount, '1', 'per-view keys seeded from the preset being left');
+    assert.equal(S.viewTop0, 'cal', 'a seeded key holds the compactCal shape:');
+    assert.equal(S.viewTopSize0, '2', 'a 2-row calendar');
+    assert.equal(opened, 0, 'the Edit row is the sole way to open the editor');
+  } finally {
+    if (prev === undefined) { delete global.PConf.actions.openViewEditor; }
+    else { global.PConf.actions.openViewEditor = prev; }
+  }
 });
 
 test('preview-rain barPermille matches rain-tier.rainPermille byte-for-byte', () => {
@@ -515,7 +539,7 @@ test('legend stays on one row for the default-sized selections', () => {
 });
 
 // The legend lives in a 200-wide viewBox (the page clips past it). Walk every
-// main / second / third metric / bars / bar colour combination, colour and B&W, and hold
+// main / second / third / fourth metric / bars / bar colour combination, colour and B&W, and hold
 // each label's estimated extent (the layout's own 4.3 units per char at font 7.5) inside
 // it. Rows wrap instead of shrinking, so within each row (text baselines 115, 125, …)
 // entries must stay ordered and end inside the frame at full label size.
@@ -529,27 +553,32 @@ test('legend never runs past the 200-wide frame, for any metric combination', ()
     return out;
   };
   let worst = 0;
+  // The third- and fourth-metric lines take feels and dew too (each line has its
+  // own curve-inset byte), so both dimensions walk them — plus the long labels
+  // (Pressure), since rows wrap in order and the fourth metric's entry comes last.
   METRICS.forEach((main) => {
     ['off'].concat(METRICS).forEach((third) => {
-      ['off', 'gust', 'pressure'].forEach((fourth) => {
-        ['rain', 'off'].forEach((bars) => {
-          ['multicolor', 'white'].forEach((barColor) => {
-            [true, false].forEach((color) => {
-              const svg = FC.forecastPreview({ secondaryLine: main, thirdLine: third, fourthLine: fourth, barSource: bars, rainBarColor: barColor, windScale: 'mid', pressureScale: 'mid', dayNightShading: false }, { color });
-              const texts = legendTexts(svg);
-              assert.ok(texts.length >= 2, 'the legend rendered');
-              const tag = main + '/' + third + '/' + fourth + '/' + bars + '/' + barColor + '/' + (color ? 'color' : 'bw');
-              const rowEnds = {};
-              texts.forEach((tx) => {
-                assert.ok(tx.fs === 7.5, tag + ': labels never shrink (font ' + tx.fs + ')');
-                const end = tx.x + tx.t.length * 4.3;
-                const prevEnd = rowEnds[tx.y] === undefined ? -Infinity : rowEnds[tx.y];
-                assert.ok(tx.x > prevEnd, tag + ': "' + tx.t + '" does not overlap the entry before it');
-                assert.ok(end <= 200, tag + ': "' + tx.t + '" ends at ' + end.toFixed(1) + ' (> 200)');
-                rowEnds[tx.y] = end;
-                worst = Math.max(worst, end);
+      ['off', 'gust', 'pressure', 'feels', 'dew'].forEach((fourth) => {
+        ['off', 'gust', 'pressure', 'feels', 'dew'].forEach((fifth) => {
+          ['rain', 'off'].forEach((bars) => {
+            ['multicolor', 'white'].forEach((barColor) => {
+              [true, false].forEach((color) => {
+                const svg = FC.forecastPreview({ secondaryLine: main, thirdLine: third, fourthLine: fourth, fifthLine: fifth, barSource: bars, rainBarColor: barColor, windScale: 'mid', pressureScale: 'mid', dayNightShading: false }, { color });
+                const texts = legendTexts(svg);
+                assert.ok(texts.length >= 2, 'the legend rendered');
+                const tag = main + '/' + third + '/' + fourth + '/' + fifth + '/' + bars + '/' + barColor + '/' + (color ? 'color' : 'bw');
+                const rowEnds = {};
+                texts.forEach((tx) => {
+                  assert.ok(tx.fs === 7.5, tag + ': labels never shrink (font ' + tx.fs + ')');
+                  const end = tx.x + tx.t.length * 4.3;
+                  const prevEnd = rowEnds[tx.y] === undefined ? -Infinity : rowEnds[tx.y];
+                  assert.ok(tx.x > prevEnd, tag + ': "' + tx.t + '" does not overlap the entry before it');
+                  assert.ok(end <= 200, tag + ': "' + tx.t + '" ends at ' + end.toFixed(1) + ' (> 200)');
+                  rowEnds[tx.y] = end;
+                  worst = Math.max(worst, end);
+                });
+                assert.ok(Object.keys(rowEnds).length <= 2, tag + ': at most two legend rows');
               });
-              assert.ok(Object.keys(rowEnds).length <= 2, tag + ': at most two legend rows');
             });
           });
         });
@@ -1255,4 +1284,261 @@ test('resetGraphColors is a no-op without a key list, a state or a resolver', ()
   assert.equal(global.PConf.actions.resetGraphColors('graphMainColorDark', null, {}, graphDefaultOf), false, 'no state');
   assert.equal(global.PConf.actions.resetGraphColors('graphMainColorDark', S, {}, null), false, 'no resolver');
   assert.equal(S.graphMainColorDark, '#FF0000', 'nothing was written');
+});
+
+// The stripe line style, mirrored against chart.c's chart_render_stripe. The
+// tints are the ones test/c/chart_stripe_test.c pins for black -> PictonBlue,
+// so the preview and the watch cannot shade a cell differently. A cell is its
+// full-pitch tint rect plus 2-unit full-colour line rects (one watch column each).
+// Split on width: a tint cell spans the whole pitch (~16 units), a line rect at
+// most 2 (a line clipped at the cell's right edge is narrower still).
+const stripeRects = (svg) => (svg.match(/<rect [^>]*width="[0-9.]+" height="5" fill="#[0-9A-F]{6}"/g) || []);
+const rectWidth = (r) => Number(/width="([0-9.]+)"/.exec(r)[1]);
+const stripeCells = (svg) => stripeRects(svg).filter((r) => rectWidth(r) > 3);
+const stripeLines = (svg) => stripeRects(svg).filter((r) => rectWidth(r) <= 2);
+test('forecastPreview: a stripe draws hourly cells shaded like the watch, and no line or fill', () => {
+  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+    secondaryLineStyle: 'stripeBottom', secondaryLineFill: true, thirdLine: 'off', windScale: 'mid' };
+  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
+  const cells = stripeCells(svg);
+  assert.ok(cells.length >= 10, 'one cell per hour column');
+  // Tints: level 1 -> none (the background), level 2 -> blend 1, level 3 -> blend 2,
+  // level 4 -> the solid line colour.
+  ['#000000', '#005555', '#5555AA', '#55AAFF'].forEach((c) => {
+    assert.ok(cells.some((r) => r.indexOf(c) >= 0), c + ' (a chart_stripe_blend tint) is used');
+  });
+  // The full-colour vertical lines over the tints (levels 1-3).
+  const lines = stripeLines(svg);
+  assert.ok(lines.length > 0 && lines.every((r) => r.indexOf('#55AAFF') >= 0),
+    'the pattern lines are drawn in the full line colour');
+  // Bottom stripes live BELOW the zero line: the plot's baseline lifts from the
+  // axis row (94) by the band (1 stripe: 5 + 1 free row = 6) to 88, and every
+  // cell hangs flush under it — nothing in the plot can paint over them.
+  cells.forEach((r) => assert.match(r, /y="88.35"/));
+  assert.ok(svg.indexOf('y1="88" x2="197" y2="88"') >= 0, 'the zero line moved up to 88');
+  assert.ok(/<line x1="20" y1="94" x2="20" y2="98"/.test(svg), 'the hour ticks still hang from 94');
+  assert.equal(svg.indexOf('fill-opacity="0.25"'), -1, 'a stripe main line never fills');
+  assert.equal(svg.indexOf('stroke="#55AAFF"'), -1, 'and draws no stroke');
+});
+
+test('forecastPreview: stripes stack per edge, top and bottom, and B&W dithers them', () => {
+  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+    secondaryLineStyle: 'stripeTop', thirdLine: 'cloud', thirdLineStyle: 'stripeTop', windScale: 'mid' };
+  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
+  assert.ok(/<rect [^>]*y="4" [^>]*height="5"/.test(svg), 'first top stripe on the plot top (PT 4)');
+  assert.ok(/<rect [^>]*y="10" [^>]*height="5"/.test(svg), 'second top stripe stacked below it');
+  const bw = FC.forecastPreview(state, { color: false, platform: 'diorite', lineStyles: true });
+  assert.ok(bw.indexOf('fill="url(#sd') >= 0, 'B&W cells use the dither patterns');
+  assert.ok(bw.indexOf('<pattern id="sd4"') >= 0, 'the four densities are defined');
+  // A watch without WW_LINE_STYLE ignores the style: the frozen look draws, no stripes.
+  const frozen = FC.forecastPreview(state, { color: true, platform: 'aplite', lineStyles: false });
+  assert.equal(/height="5" fill="#/.test(frozen), false, 'aplite previews no stripes');
+});
+
+test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
+  // The sample UV series is [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3]: of the 11 hour
+  // columns, the five UV-0 hours draw nothing (chart_stripe_level(0) == 0 on the
+  // watch, pinned by test/c/chart_stripe_test.c), so the background shows through.
+  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'uv',
+    secondaryLineStyle: 'stripeTop', thirdLine: 'off', windScale: 'mid' };
+  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
+  assert.equal(stripeCells(svg).length, 6, 'only the six non-zero hours get a cell');
+});
+
+test('forecastPreview: a dew stripe on the fourth metric line shades every hour by its place on the joint temperature band', () => {
+  // This used to render nothing (the preview skipped temperature-axis stripes)
+  // while the watch painted one. Temps 14..24 and the dew sample
+  // [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, (13)] widen the band to [12, 24],
+  // padded below by max(1, ceil(12 * 40/960)) = 1 -> [11, 24]. Per hour column:
+  // permille round((v - 11)/13 * 1000) -> byte round(pm/4) -> level ceil(b*4/250)
+  // = [1, 1, 2, 3, 2, 1, 1, 1, 1, 1, 1] — the bake's bytes and the watch's
+  // chart_stripe_level. Never 0: the band floor keeps every sourced hour visible.
+  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+    secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'dew',
+    fifthLineStyle: 'stripeTop', windScale: 'mid' };
+  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
+  const cells = stripeCells(svg);
+  assert.equal(cells.length, 11, 'one cell for every hour column');
+  cells.forEach((r) => assert.match(r, /y="4"/, 'a top stripe on the plot top'));
+  const fills = cells.map((r) => /fill="(#[0-9A-F]{6})"/.exec(r)[1]);
+  assert.equal(fills[0], '#000000', 'level 1 is the bare background tint (dark theme)');
+  [1, 5, 6, 7, 8, 9, 10].forEach((i) => assert.equal(fills[i], fills[0], 'level 1 at hour ' + i));
+  assert.equal(fills[2], fills[4], 'hours 2 and 4 share level 2');
+  assert.notEqual(fills[2], fills[0], 'level 2 is tinted');
+  assert.ok(fills[3] !== fills[2] && fills[3] !== fills[0], 'hour 3 alone reaches level 3');
+  // B&W: the same levels as dither densities.
+  const bw = FC.forecastPreview(state, { color: false, platform: 'diorite', lineStyles: true });
+  assert.equal((bw.match(/height="5" fill="url\(#sd[1-4]\)"/g) || []).length, 11, 'B&W dithers every hour');
+});
+
+// The temp curve's path (the only #FF0000 stroke in the colour preview) — it moves
+// exactly when the joint temperature band does.
+const tempCurvePath = (svg) => /<path d="([^"]+)" fill="none" stroke="#FF0000"/.exec(svg)[1];
+test('forecastPreview: feels on the third or fourth metric line widens the joint band like on the second', () => {
+  const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob',
+    secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
+  const env = { color: true, platform: 'basalt', lineStyles: true };
+  const plain = tempCurvePath(FC.forecastPreview(base, env));
+  const onSecond = tempCurvePath(FC.forecastPreview(Object.assign({}, base, { thirdLine: 'feels' }), env));
+  assert.notEqual(onSecond, plain, 'premise: feels widens the band');
+  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels' }), env)),
+    onSecond, 'feels on the third metric line: same joint band');
+  // Feels on the fourth metric line widens the band too (as marks here: a top stripe
+  // would also move the plot below its band — pinned in the next test).
+  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base,
+    { fifthLine: 'feels', fifthLineStyle: 'dots' }), env)),
+    onSecond, 'feels on the fourth metric line: same joint band');
+  // A watch without WW_LINE_STYLE draws neither line, so a stored pick widens nothing.
+  const frozenEnv = { color: true, platform: 'aplite', lineStyles: false };
+  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels', fifthLine: 'dew' }), frozenEnv)),
+    tempCurvePath(FC.forecastPreview(base, frozenEnv)), 'aplite preview: the band stays the temperature\'s');
+});
+
+// Top stripes get their own band above the plot (forecast_layer.c's top_band): every
+// curve is drawn below it, and the temperature curve runs up to the band instead of
+// keeping its top inset.
+test('forecastPreview: a top stripe puts the plot below its band, the curves up against it', () => {
+  const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob',
+    secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
+  const env = { color: true, platform: 'basalt', lineStyles: true };
+  // The curve's vertices (the smoothing's control points overshoot them): the M point
+  // and the last point of every C segment.
+  const topY = (svg) => Math.min.apply(null, tempCurvePath(svg).split(' C').map((seg) => {
+    const pairs = seg.replace(/^M/, '').trim().split(' ');
+    return Number(pairs[pairs.length - 1].split(',')[1]);
+  }));
+  const plain = topY(FC.forecastPreview(base, env));
+  const striped = topY(FC.forecastPreview(Object.assign({}, base, { fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }), env));
+  const bandBottom = 4 + 5 + 2;   // PT + one stripe + the 2-unit gap
+  assert.ok(striped >= bandBottom, 'the temperature curve stays below the stripe band (' + striped + ')');
+  assert.ok(striped < plain, 'and, without its top inset, runs closer to the top than without a stripe');
+});
+
+// The radar's sky rows (Radar tab -> Clouds, sun & lightning): the preview draws
+// rain_radar_layer.c's band — the cloud and sun rows as stripe cells, the bolts
+// over them — only when the toggle is on and the radar GRAPH is shown.
+test('radarPreview: the sky rows show with the toggle in graph mode, never on aplite', () => {
+  const base = { radarProvider: 'dwd', radarColor: 'multicolor', radarMode: 'graph', theme: 'dark' };
+  const env = { color: true, platform: 'basalt' };
+  const on = RD.radarPreview(Object.assign({ radarSky: true }, base), env);
+  const off = RD.radarPreview(Object.assign({ radarSky: false }, base), env);
+  // The cloud colour (BabyBlueEyes) and the sun colour (Yellow) as full-level cells.
+  assert.ok(on.indexOf('fill="#AAAAFF"') >= 0, 'cloud row');
+  assert.ok(on.indexOf('fill="#FFFF00"') >= 0, 'sun row and bolts');
+  assert.equal(off.indexOf('fill="#AAAAFF"'), -1, 'no rows with the toggle off');
+  assert.equal(RD.radarPreview(Object.assign({ radarSky: true }, base, { radarMode: 'countdown' }), env)
+    .indexOf('fill="#AAAAFF"'), -1, 'only the graph draws the rows');
+  assert.equal(RD.radarPreview(Object.assign({ radarSky: true }, base), { color: true, platform: 'aplite' })
+    .indexOf('fill="#AAAAFF"'), -1, 'aplite has no radar sky');
+  // B&W dithers both rows.
+  const bw = RD.radarPreview(Object.assign({ radarSky: true }, base), { color: false, platform: 'diorite' });
+  assert.ok(bw.indexOf('<pattern id="rsd4"') >= 0 && bw.indexOf('url(#rsd') >= 0);
+});
+
+// The stripe lines key off WATCH pixel columns (chart_stripe_line_on), so each
+// preview hands preview-stripe.js its own grid: preview units per watch column and
+// the preview x of column 0. The radar's 24 slots span x 11..196, one RADAR_DEF
+// pitch each (6 px on the 144 px platforms, 8 on emery), column 0 at the plot's left.
+const PS = require('../src/pkjs/settings/preview-stripe.js');
+const RADAR_PX0 = 11;
+const RADAR_STEP = (196 - 11) / 24;
+const svgRects = (svg) => [...svg.matchAll(
+  /<rect x="([-0-9.e]+)" y="([-0-9.e]+)" width="([-0-9.e]+)" height="([-0-9.e]+)" fill="([^"]+)"><\/rect>/g)]
+  .map((m) => ({ x: +m[1], y: +m[2], w: +m[3], h: +m[4], fill: m[5] }));
+const near = (a, b) => Math.abs(a - b) < 1e-6;
+
+[['basalt', 6], ['emery', 8]].forEach(([platform, pitch]) => {
+  test(`radarPreview (${platform}): the sky rows sit on the watch's pixel grid`, () => {
+    const u = RADAR_STEP / pitch;
+    const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', radarMode: 'graph',
+      theme: 'dark', radarSky: true }, { color: true, platform });
+    const rects = svgRects(svg);
+    // (a) A cell spans its quarter hour (three radar slots) and is 4 watch px tall
+    // (radar_sky_stripe_h on a roomy plot); the sun row sits 1 px under the cloud row.
+    const cells = rects.filter((r) => near(r.w, 3 * RADAR_STEP));
+    assert.ok(cells.length >= 10, 'the cloud and sun cells');
+    cells.forEach((c) => assert.ok(near(c.h, 4 * u), `cell height ${c.h} is 4 watch px (${4 * u})`));
+    const cloudY = Math.min(...cells.map((c) => c.y));
+    const sunY = Math.max(...cells.map((c) => c.y));
+    assert.ok(near(sunY - cloudY, 5 * u), 'cloud row, 1 px gap, sun row');
+    // (b) The lines inside each cell, by level (the tint tells it: level 1 has none,
+    // level 2 the first blend step): every 5th watch column at level 1, every 3rd at
+    // level 2, counted from watch x 0 — the plot's left edge.
+    const rows = [{ y: cloudY, color: '#AAAAFF', tints: { '#000000': 1, '#555555': 2 } },
+      { y: sunY, color: '#FFFF00', tints: { '#000000': 1, '#555500': 2 } }];
+    const seen = { 1: 0, 2: 0 };
+    rows.forEach((row) => {
+      cells.filter((c) => near(c.y, row.y) && row.tints[c.fill]).forEach((c) => {
+        const level = row.tints[c.fill];
+        const every = level === 1 ? 5 : 3;
+        const cols = rects.filter((r) => near(r.y, row.y) && r.fill === row.color && r.w <= u + 1e-6
+          && r.x >= c.x - 1e-6 && r.x < c.x + c.w - 1e-6).map((r) => (r.x - RADAR_PX0) / u);
+        const first = Math.round((c.x - RADAR_PX0) / u);
+        const expected = [];
+        for (let px = first; px < first + 3 * pitch; px += 1) { if (px % every === 0) { expected.push(px); } }
+        assert.equal(cols.length, expected.length, `level ${level}: one line per ${every}th column`);
+        cols.forEach((col, i) => assert.ok(near(col, expected[i]), `line at watch column ${expected[i]}`));
+        seen[level] += 1;
+      });
+    });
+    assert.ok(seen[1] > 0 && seen[2] > 0, 'the sample has level-1 and level-2 cells');
+  });
+});
+
+test('radarPreview: the bolts are drawn at watch scale where draw_radar_sky puts them', () => {
+  // Light theme: the bolt (Orange) differs from the sun (ChromeYellow) there.
+  [['basalt', 6], ['emery', 8]].forEach(([platform, pitch]) => {
+    const u = RADAR_STEP / pitch;
+    const rects = svgRects(RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
+      radarMode: 'graph', theme: 'light', radarSky: true }, { color: true, platform }));
+    const cloudY = Math.min(...rects.filter((r) => near(r.w, 3 * RADAR_STEP)).map((r) => r.y));
+    const ink = rects.filter((r) => r.fill === '#FF5500' && near(r.w, u));
+    assert.equal(ink.length, 2 * 17, 'two 17-pixel bolts, one watch px per glyph pixel');
+    // The first (quarter hour 3): centred on its slot, (xa + xb) / 2 - 5 / 2 in C.
+    const bx = Math.floor((9 * pitch + 12 * pitch) / 2) - 2;
+    assert.ok(near(Math.min(...ink.map((r) => r.x)), RADAR_PX0 + bx * u), 'bolt x');
+    // Vertically centred on the two 4 px rows: glyph rows 1..7 of the 10-row band.
+    assert.ok(near(Math.min(...ink.map((r) => r.y)), cloudY + u), 'bolt top');
+    assert.ok(near(Math.max(...ink.map((r) => r.y + r.h)), cloudY + 8 * u), 'bolt bottom');
+    // The halo (theme background, 3 x 3 watch px per glyph pixel) stays in the band.
+    const halo = rects.filter((r) => r.fill === '#FFFFFF' && r.w <= 3 * u + 1e-6 && r.y < cloudY + 10 * u);
+    assert.ok(halo.length > 0, 'the halo is drawn');
+    halo.forEach((r) => assert.ok(r.y >= cloudY - 1e-6 && r.y + r.h <= cloudY + 10 * u + 1e-6, 'halo in the band'));
+  });
+});
+
+test('preview-stripe cell: 2 units per watch column from x 0 draws what the forecast always drew', () => {
+  // The pre-grid cell (one watch pixel column = 2 preview units, hard-coded), kept
+  // here as the reference: the forecast preview passes unit 2 / origin 0.
+  const legacyCell = (isColor, x, y, w, h, color, level, bgHex, prefix) => {
+    if (level <= 0) { return ''; }
+    if (!isColor) { return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${prefix}${level})"></rect>`; }
+    let out = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${PS.blend(bgHex, color, [0, 0, 1, 2, 4][level])}"></rect>`;
+    if (level >= 4) { return out; }
+    for (let px = Math.ceil(x / 2); px * 2 < x + w; px += 1) {
+      if (PS.lineOn(level, px)) {
+        out += `<rect x="${px * 2}" y="${y}" width="${Math.min(2, x + w - px * 2)}" height="${h}" fill="${color}"></rect>`;
+      }
+    }
+    return out;
+  };
+  // The forecast's hour cells (x 20 + i * 177 / 11) and its legend ramp (3 units wide).
+  const pitch = 177 / 11;
+  for (let level = 0; level <= 4; level += 1) {
+    for (let i = 0; i < 11; i += 1) {
+      [true, false].forEach((isColor) => {
+        assert.equal(PS.cell(isColor, 20 + i * pitch, 88.35, pitch, 5, '#55AAFF', level, '#000000', 'sd', 2, 0),
+          legacyCell(isColor, 20 + i * pitch, 88.35, pitch, 5, '#55AAFF', level, '#000000', 'sd'));
+      });
+      assert.equal(PS.cell(true, 40 + i * 3, 50, 3, 4, '#FF0000', level, '#FFFFFF', 'sd', 2, 0),
+        legacyCell(true, 40 + i * 3, 50, 3, 4, '#FF0000', level, '#FFFFFF', 'sd'));
+    }
+  }
+  // Spelled out once: a level-2 cell over watch columns 10..18 lines columns 12, 15 and
+  // 18, the last clipped at the cell's right edge.
+  assert.equal(PS.cell(true, 20, 4, 17, 5, '#55AAFF', 2, '#000000', 'sd', 2, 0),
+    '<rect x="20" y="4" width="17" height="5" fill="#005555"></rect>'
+    + '<rect x="24" y="4" width="2" height="5" fill="#55AAFF"></rect>'
+    + '<rect x="30" y="4" width="2" height="5" fill="#55AAFF"></rect>'
+    + '<rect x="36" y="4" width="1" height="5" fill="#55AAFF"></rect>');
 });

@@ -1869,7 +1869,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (list) {
           var item = resolveRowItem(findItem(sk), { value: S[sk] }, { S: S, ENV: ENV });
           list.innerHTML = renderSelectOptions(item, S[sk], selectQuery, resolveRecommended(item, S, ENV),
-            disabledOptionValues(item, Object.assign({}, S, { env: ENV })));
+            disabledOptionValues(item, evalCtx()));
         }
       });
       // The wheel settle/commit lives with the date picker (createDateWiring).

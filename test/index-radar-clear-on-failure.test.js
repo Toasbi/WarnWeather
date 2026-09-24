@@ -65,3 +65,64 @@ test('control: a failing forecast does not forward a real radar window, only the
   assert.ok(out.radarRequests >= 1, 'the radar half did run');
   assert.deepEqual(out.radarSends, [], 'no radar window rides a failed forecast');
 });
+
+// The radar's sky rows (radar-sky.js) ride the same merged answer, so their CLEAR
+// died with a failed forecast too: turn 'Clouds, sun & lightning' off, let the
+// forced fetch's forecast fail, and the watch kept drawing the rows.
+
+/**
+ * Every sky send is the clear (an empty RADAR_SKY_UINT8), and at least one went out.
+ * @param {Array<{len: number}>} sends The probe's sky sends.
+ * @param {string} msg Assertion message.
+ * @returns {void}
+ */
+function assertOnlySkyClears(sends, msg) {
+  assert.ok(sends.length >= 1, msg + ': a sky clear went out');
+  sends.forEach((s) => assert.deepEqual(s, { len: 0 }, msg + ': every sky send is the clear'));
+}
+
+test('REGRESSION: the sky toggle off with a failing forecast still clears the watch\'s sky rows', () => {
+  // Rainbow answers a real (dry) window, so the radar half is no clear to carry it.
+  const out = probe('basalt', {
+    settings: { provider: 'tomorrowio', radarProvider: 'rainbow', radarSky: false, tomorrowioApiKey: '' },
+    answerXhr: true
+  });
+  assert.ok(out.radarRequests >= 1, 'the radar half did run');
+  assertOnlySkyClears(out.skySends, 'sky off');
+  assert.deepEqual(out.radarSends, [], 'still no radar window rides a failed forecast');
+});
+
+test('sky on with a failing forecast: no fresh sky rides it, with a real radar window or a radar clear', () => {
+  ['rainbow', 'tomorrowio'].forEach((radarProvider) => {
+    const out = probe('basalt', {
+      settings: { provider: 'tomorrowio', radarProvider, radarSky: true, tomorrowioApiKey: '' },
+      answerXhr: true
+    });
+    if (radarProvider === 'tomorrowio') {
+      // A keyless tomorrow.io radar can never answer: no sky request goes out for rows
+      // it could never draw (radarFactory.canAnswer), only the sky clear.
+      assert.equal(out.skyRequests, 0, 'tomorrowio: no sky request for a radar that can never answer');
+      assertOnlySkyClears(out.skySends, 'keyless radar');
+    } else {
+      assert.ok(out.skyRequests >= 1, radarProvider + ': the sky half did run');
+      assert.deepEqual(out.skySends, [], radarProvider + ': no sky data rides a failed forecast');
+    }
+    if (radarProvider === 'tomorrowio') {
+      // The keyless radar answers a clear, merged with this cycle's fresh sky:
+      // only the three radar keys go out.
+      assertOnlyClears(out.radarSends, 'radar clear beside a fresh sky');
+    } else {
+      assert.deepEqual(out.radarSends, [], 'no radar window rides a failed forecast');
+    }
+  });
+});
+
+test('radar switched off with a failing forecast: the radar clear and the sky clear both go out', () => {
+  const out = probe('basalt', {
+    settings: { provider: 'tomorrowio', radarMode: 'off', radarSky: true, tomorrowioApiKey: '' },
+    answerXhr: true
+  });
+  assertOnlyClears(out.radarSends, 'radar off');
+  assertOnlySkyClears(out.skySends, 'radar off');
+  assert.equal(out.skyRequests, 0, 'the sky is not fetched without the radar graph');
+});

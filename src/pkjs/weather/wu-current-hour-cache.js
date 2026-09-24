@@ -58,7 +58,7 @@ function prunePast(cache, hourFloor) {
 /**
  * Copy only the fields the trend mapping consumes, so cached buckets stay small.
  * @param {Object} entry A WU hourly forecast entry.
- * @returns {{fcst_valid: number, temp: *, pop: *, qpf: *, wspd: *, gust: *, uv_index: *, feels_like: *, rh: *, mslp: *, dewpt: *, wdir: *}} Picked bucket.
+ * @returns {{fcst_valid: number, temp: *, pop: *, qpf: *, wspd: *, gust: *, uv_index: *, feels_like: *, rh: *, mslp: *, clds: *, dewpt: *, wdir: *}} Picked bucket.
  */
 function pickBucket(entry) {
     return {
@@ -74,6 +74,7 @@ function pickBucket(entry) {
         // reconstructed current hour (feels-like.js resolveFeelsTrend).
         rh: entry.rh,
         mslp: entry.mslp,
+        clds: entry.clds,
         // Whitelist, so anything missing here vanishes from the reconstructed
         // current hour: dewpt feeds the dew slot, wdir the wind-direction arrow.
         dewpt: entry.dewpt,

@@ -14,6 +14,10 @@ var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
 var nightLight = require('./night-light.js');
 
+// The radar's built-in no-rain text — the schema's radarNoRainText default and the
+// watch's fallback string (rain_radar_layer.c). test/clay-payload.test.js pins all three.
+var DEFAULT_NORAIN_TEXT = "You're good :)";
+
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;
 // Holiday highlight defaults to Blue Moon (weekends stay Folly/red).
@@ -66,7 +70,9 @@ function resolveViewCycle(settings, env) {
     if (settings.layoutPreset === 'custom' && env.platform !== 'aplite') {
         return viewCycle.buildCustomCycle(settings);
     }
-    return viewCycle.buildViewCycle(viewCycle.resolvePresetKey(settings),
+    // A preset the watch can't draw (Weather only on aplite) runs as the one the
+    // settings radio shows (presetKeyFor, shared with the Layout preview).
+    return viewCycle.buildViewCycle(viewCycle.presetKeyFor(settings, env),
         settings.healthMode || 'off', settings.radarMode || 'graph',
         Boolean(settings.swapClockStatus));
 }
@@ -117,8 +123,20 @@ function holidayWindowOpts(settings, watchInfo) {
 
 // Fixed vertical inset for the temperature axis (px) — the watch's
 // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y. Deliberately NOT a user setting; the wire
-// stays a per-series triple so feels-like inherits it only where selected.
+// carries one byte per series (five) so feels-like and dew point inherit it only
+// on the lines where they are selected.
 var CURVE_INSET_PX = 7;
+
+/**
+ * One forecast line's curve-inset byte: the temp curve's inset for a
+ * temperature-axis metric (feels, dew), 0 (full-height) for every other metric.
+ * @param {Object} settings Clay settings (raw — see CLAY_CURVE_INSET_UINT8).
+ * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @returns {number} Inset in px.
+ */
+function lineCurveInset(settings, key) {
+    return lineStyle.isTempAxisMetric(settings[key]) ? CURVE_INSET_PX : 0;
+}
 
 /**
  * Build the Clay settings AppMessage payload.
@@ -258,40 +276,52 @@ function buildClayPayload(settings, watchInfo, now) {
 
     // Custom radar empty-state text — settings-derived, so it rides the Clay
     // message. Trimmed, then truncated to 24 UTF-8 BYTES (the watch persists it
-    // in a 25 B buffer incl. NUL). An empty result still rides the wire: the
-    // watch clears its stored text and falls back to the built-in string.
+    // in a 25 B buffer incl. NUL). An empty text rides the wire as such: the user
+    // cleared the message and the watch draws no line. A blob without the key
+    // (never seeded) sends the built-in text, as the page shows it.
     // Omitted for a watch that compiles the radar out (aplite): its inbox
     // handler for this tuple is gone (WW_RAIN_RADAR), so the bytes stay out of
     // its Clay bundle. An unknown platform is treated as radar-capable
     // (computeEnv), so a missing watchInfo never drops it.
     if (env.radar) {
-        payload.CLAY_NORAIN_TEXT = truncateUtf8Bytes(
-            String(settings.radarNoRainText || '').trim(), 24);
+        var noRainText = settings.radarNoRainText;
+        if (noRainText === undefined || noRainText === null) { noRainText = DEFAULT_NORAIN_TEXT; }
+        payload.CLAY_NORAIN_TEXT = truncateUtf8Bytes(String(noRainText).trim(), 24);
     }
 
     // Per-series vertical insets for the forecast graph's value-mapped lines,
-    // render-ready in px: [SERIES_FIRST (temp), SERIES_SECOND (main metric),
-    // SERIES_THIRD (second metric)]. The watch stays metric-agnostic — the
-    // phone decides here that feels-like and dew point share the temp curve's configurable
-    // offset (so the two land pixel-aligned on their joint band) while every
-    // other metric keeps the full-height mapping. Settings-derived, so it rides
-    // the Clay message. Omitted for a watch that compiles the configurable
-    // inset out (aplite, no WW_CURVE_INSET): its inbox handler for this tuple
-    // is gone and it keeps the frozen 7/0/0 constants, so the 10 B stay out of
-    // its Clay bundle. An unknown platform is treated as capable (computeEnv's
-    // platform is '' then), so a missing watchInfo never drops it.
+    // render-ready in px, five bytes in the watch's Series id order:
+    // [SERIES_FIRST (temp), SERIES_SECOND (main metric), SERIES_THIRD (second
+    // metric), SERIES_FOURTH (third metric), SERIES_FIFTH (fourth metric)]. The
+    // watch stays metric-agnostic — the phone decides here that feels-like and
+    // dew point share the temp curve's configurable offset (so the two land
+    // pixel-aligned on their joint band) while every other metric keeps the
+    // full-height mapping. Read from the RAW settings: a line that is off or
+    // repeats an earlier line's pick is not drawn on the watch, so its byte is
+    // never read and needs no effective-metric resolution. Settings-derived, so
+    // it rides the Clay message. Omitted for a watch that compiles the
+    // configurable inset out (aplite, no WW_CURVE_INSET): its inbox handler for
+    // this tuple is gone and it keeps the frozen 7/0/0 constants, so the 12 B
+    // stay out of its Clay bundle. An unknown platform is treated as capable
+    // (computeEnv's platform is '' then), so a missing watchInfo never drops it.
     if (env.platform !== 'aplite') {
         payload.CLAY_CURVE_INSET_UINT8 = [
             CURVE_INSET_PX,
-            lineStyle.isTempAxisMetric(settings.secondaryLine) ? CURVE_INSET_PX : 0,
-            lineStyle.isTempAxisMetric(settings.thirdLine) ? CURVE_INSET_PX : 0
+            lineCurveInset(settings, 'secondaryLine'),
+            lineCurveInset(settings, 'thirdLine'),
+            lineCurveInset(settings, 'fourthLine'),
+            lineCurveInset(settings, 'fifthLine')
         ];
     }
 
-    // Pack the cycle into the three wire bytes (unused slots → 0 = disabled).
-    payload.CLAY_VIEW_0 = viewCycle.packSpec(cycle[0] || null);
-    payload.CLAY_VIEW_1 = viewCycle.packSpec(cycle[1] || null);
-    payload.CLAY_VIEW_2 = viewCycle.packSpec(cycle[2] || null);
+    // Pack the cycle into the three view words (unused slots → 0 = disabled). Each is
+    // a 32-bit int: packSpec in the low half, the custom ext word (sizes, top-graph
+    // kind, Position) in the high half — PKJS sends every number as 4 bytes anyway, so
+    // the ext costs no Clay bytes. It is 0 for every preset and for an aplite watch
+    // (folded to compactCal above), whose config_wire.c keeps reading only the int16.
+    payload.CLAY_VIEW_0 = viewCycle.packWire(cycle[0] || null);
+    payload.CLAY_VIEW_1 = viewCycle.packWire(cycle[1] || null);
+    payload.CLAY_VIEW_2 = viewCycle.packWire(cycle[2] || null);
     payload.CLAY_VIEW_RESET_MIN = parseInt(settings.viewResetMin, 10) || 0;
 
     // emery-only axis-font step-up (Layout tab). The simple Boolean() is provably safe
@@ -315,5 +345,6 @@ module.exports = {
     buildClayPayload: buildClayPayload,
     // Exported for tests (multi-byte boundary cases); production callers go
     // through buildClayPayload.
-    truncateUtf8Bytes: truncateUtf8Bytes
+    truncateUtf8Bytes: truncateUtf8Bytes,
+    DEFAULT_NORAIN_TEXT: DEFAULT_NORAIN_TEXT
 };

@@ -390,6 +390,31 @@ test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => 
     'buildSettingsSnapshot (telemetry.js) and the Deno settingsSchema must declare the same fields');
 });
 
+test('custom layouts report customViewExt0-2 = packExt per view; presets report none', () => {
+  const vc = require('../src/pkjs/view-cycle.js');
+  const custom = {
+    layoutPreset: 'custom', healthMode: 'off', radarMode: 'graph', viewCount: '2',
+    viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
+    viewTop1: 'cal2', viewBody1: 'none', viewUpper1: 'weather', viewLower1: 'off', viewOrder1: 'TACB',
+    viewClockOff1: false, viewStripOff1: false, viewAlign1: 'bottom'
+  };
+  const snap = buildSettingsSnapshot(custom);
+  const cycle = vc.buildCustomCycle(custom);
+  assert.equal(snap.customViewExt0, 0, 'the Default keeps its graph');
+  assert.equal(snap.customViewExt1, vc.packExt(cycle[1]));
+  assert.equal(snap.customViewExt1, 3 << 7, 'Position bottom');
+  assert.equal(snap.customViewExt2, 0, 'an absent view reports 0, like customView2');
+  assert.equal(snap.customView1, vc.packSpec(cycle[1]), 'customView stays the 16-bit word');
+  [0, 1, 2].forEach((i) => {
+    const v = snap['customViewExt' + i];
+    assert.ok(Number.isInteger(v) && v >= 0 && v <= 0x7FFF, 'within the ingest schema range');
+  });
+  const preset = buildSettingsSnapshot({ layoutPreset: 'compactCal' });
+  assert.equal(preset.customViewExt0, undefined);
+  assert.equal(preset.customViewExt1, undefined);
+  assert.equal(preset.customViewExt2, undefined);
+});
+
 test('snapshot includes largeGraphFont as a real boolean', () => {
   assert.strictEqual(buildSettingsSnapshot({ largeGraphFont: true }).largeGraphFont, true);
   assert.strictEqual(buildSettingsSnapshot({}).largeGraphFont, false);
@@ -672,10 +697,12 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
     secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
     pressureScale: 'high', thirdLine: 'pressure', barSource: 'precip_prob',
-    // The third metric line on its longest realistic option (the UI resolver
-    // excludes the two metrics already picked above), with the longest of the
-    // per-line styles stored (the other two lines' built-ins are already 4 chars).
-    fourthLine: 'gust', fourthLineStyle: 'dots',
+    // The third and fourth metric lines on their longest realistic options (the UI
+    // resolver excludes the metrics already picked above), and every line on the
+    // longest per-line style, 'stripeBottom'.
+    fourthLine: 'gust', fifthLine: 'cloud',
+    secondaryLineStyle: 'stripeBottom', thirdLineStyle: 'stripeBottom',
+    fourthLineStyle: 'stripeBottom', fifthLineStyle: 'stripeBottom',
     rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
     radarColor: 'multicolor', devStatsEnabled: true, theme: 'light',
     statusForecastLeft: 'phone_battery', statusForecastMid: 'phone_battery',
@@ -686,11 +713,12 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     statusHealthMid: 'phone_battery', statusHealthRight: 'phone_battery',
     colorTime: 0xFFFFFF, colorToday: 0xFF0000, colorSunday: 0xFF0000,
     colorSaturday: 0xFF0000, colorUSFederal: 0xFF0000,
-    // The light-polarity colours for the three metrics selected above (precip_prob as
-    // the secondary line, pressure as the third, gust as the fourth), each moved off
-    // its built-in so all seven fields report the seven-character form.
+    // The light-polarity colours for the four metrics selected above (precip_prob as
+    // the secondary line, pressure as the third, gust as the fourth, cloud as the
+    // fifth), each moved off its built-in so all eight fields report the
+    // seven-character form.
     gcPrecipLineLight: 0xFF00FF, gcPrecipFillLight: 0xAAFF55,
-    gcPressureLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00,
+    gcPressureLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00, gcCloudLineLight: 0x00FF55,
     gcPrecipNightLight: 0xAA5500,
     gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000
   };
@@ -717,15 +745,39 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     attempt: 99
   };
   // "Every reported setting" is checked, not claimed: a field left out of the fixture
-  // serialises as undefined and drops out of the byte count. The customView trio
-  // reports only under layoutPreset 'custom', which this fixture does not pick.
+  // serialises as undefined and drops out of the byte count. The customView and
+  // customViewExt trios report only under layoutPreset 'custom', which this fixture
+  // does not pick (the custom envelope is measured separately below).
   const unset = Object.keys(payload.settings).filter((key) => payload.settings[key] === undefined);
-  assert.deepEqual(unset, ['customView0', 'customView1', 'customView2'],
+  assert.deepEqual(unset, ['customView0', 'customView1', 'customView2',
+    'customViewExt0', 'customViewExt1', 'customViewExt2'],
     'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
   const bytes = Buffer.byteLength(JSON.stringify(payload));
   console.log('heaviest telemetry envelope: ' + bytes + ' B of ' + cap
     + ' B (headroom ' + (cap - bytes) + ')');
   assert.ok(bytes < cap, 'heaviest envelope ' + bytes + ' B must stay under ' + cap + ' B');
+
+  // The same watch on a custom layout: all six custom fields report, each on its widest
+  // realistic number (three views, every one with a stacked order and a non-zero ext).
+  const custom = Object.assign({}, settings, {
+    layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph', viewCount: '3',
+    viewTop0: 'cal3', viewBody0: 'none', viewUpper0: 'weather', viewLower0: 'radar',
+    viewOrder0: 'ABCT', viewAlign0: 'bottom',
+    viewTop1: 'radar', viewBody1: 'none', viewUpper1: 'health', viewLower1: 'weather',
+    viewOrder1: 'ABCT', viewClockOff1: true, viewStripOff1: true, viewAlign1: 'bottom',
+    viewTop2: 'cal2', viewBody2: 'none', viewUpper2: 'radar', viewLower2: 'health',
+    viewOrder2: 'ACBT', viewClockOff2: false, viewStripOff2: true, viewAlign2: 'center'
+  });
+  const customPayload = Object.assign({}, payload,
+    { settings: buildSettingsSnapshot(custom, { platform: 'emery' }) });
+  [0, 1, 2].forEach((i) => {
+    assert.ok(customPayload.settings['customView' + i] > 0, 'customView' + i + ' reports');
+    assert.ok(customPayload.settings['customViewExt' + i] > 0, 'customViewExt' + i + ' reports');
+  });
+  const customBytes = Buffer.byteLength(JSON.stringify(customPayload));
+  console.log('heaviest custom-layout telemetry envelope: ' + customBytes + ' B of ' + cap
+    + ' B (headroom ' + (cap - customBytes) + ')');
+  assert.ok(customBytes < cap, 'custom envelope ' + customBytes + ' B must stay under ' + cap + ' B');
 });
 
 // --- batching ----------------------------------------------------------------

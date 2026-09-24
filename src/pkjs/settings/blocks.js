@@ -81,21 +81,20 @@ if (typeof require !== 'undefined') {
         ];
     });
 
-    // The seven graph metrics in picker order — one list feeds every forecast picker.
+    // The eight graph metrics in picker order — one list feeds every forecast picker.
     var FORECAST_METRICS = [
-        ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
+        ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
         ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
         ['Dew point', 'dew']
     ];
     // Metric picker options, shaped by self-describing args from the schema:
     // `off` leads with an Off row, `exclude` names the sibling picker keys
     // whose CURRENT pick is withheld (a collision left in a stored value is
-    // display-snapped by the engine — a later pick turns the later line off),
-    // and `noTempAxis` bans the temperature-axis metrics (feels, dew) outright (the
-    // fourth line has no curve-inset channel — line-style.js FORECAST_LINES
-    // carries the same ban at bake time). Both are also dropped on aplite: the
-    // temp-axis line inset is not compiled there, so they would render
-    // misaligned with the temperature curve.
+    // display-snapped by the engine — a later pick turns the later line off).
+    // Every picker offers the temperature-axis metrics (feels, dew) — each line
+    // has its own curve-inset byte — except on aplite: the temp-axis line inset
+    // is not compiled there, so they would render misaligned with the
+    // temperature curve.
     PConf.optionsResolvers.register('forecastMetric', function (S, env, args) {
         var a = args || {};
         var exclude = a.exclude || [];
@@ -103,7 +102,7 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < FORECAST_METRICS.length; i += 1) {
             var opt = FORECAST_METRICS[i];
             if (lineStyle.isTempAxisMetric(opt[1])
-                && (a.noTempAxis || (env && env.platform === 'aplite'))) { continue; }
+                && env && env.platform === 'aplite') { continue; }
             var taken = false;
             for (var j = 0; j < exclude.length; j += 1) {
                 if (S && opt[1] === S[exclude[j]]) { taken = true; break; }
@@ -730,20 +729,30 @@ if (typeof require !== 'undefined') {
         return null;
     });
 
-    // layoutPreset options resolver: compactDense is offered once EITHER health shows a
-    // status row (status/all) OR radar shows ANY radar view (radarMode status OR graph —
-    // both build dense radar cycles since the CAL2_RF_D/CAL2_HR_D fold). Custom is
-    // offered on every non-aplite platform (aplite is frozen-lean and folds custom to
-    // compactCal on the wire; a stored 'custom' lies dormant there — dormantValues).
-    // Unknown platform ('' when watchInfo is missing) is treated as capable, matching
-    // the payload's own gate.
+    var viewCycleLib = (typeof require !== 'undefined')
+        ? require('../view-cycle.js') : window.VIEW_CYCLE;
+
+    // layoutPreset options resolver: compactDense is offered once EITHER a health
+    // status row OR any radar view is capable — the same radarRow/healthRow gates the
+    // compiler, the editor and the sheet gates fold by (view-cycle.js capabilities;
+    // both radar modes build dense radar cycles since the CAL2_RF_D/CAL2_HR_D fold).
+    // Custom is offered on every non-aplite platform (aplite is frozen-lean and folds
+    // custom to compactCal on the wire; a stored 'custom' lies dormant there —
+    // dormantValues). Unknown platform ('' when watchInfo is missing) is treated as
+    // capable, matching the payload's own gate.
     PConf.optionsResolvers.register('layoutPresetOptions', function (S, env) {
         var base = [['Full calendar', 'fullCal'], ['Compact calendar', 'compactCal']];
-        var dense = (S.radarMode === 'status' || S.radarMode === 'graph'
-            || S.healthMode === 'status' || S.healthMode === 'all');
-        if (dense) { base.push(['Compact calendar (dense)', 'compactDense']); }
+        var caps = viewCycleLib.capabilities(S);
+        if (caps.radarRow || caps.healthRow) {
+            base.push(['Compact calendar (dense)', 'compactDense']);
+        }
         base.push(['No calendar', 'noCal']);
-        if (!env || env.platform !== 'aplite') { base.push(['Custom (Beta)', 'custom']); }
+        // Weather only and Custom need a view without top bar (and Weather only the
+        // radar): not on aplite, where a stored value lies dormant (dormantValues).
+        if (!env || env.platform !== 'aplite') {
+            base.push(['Weather only', 'weatherOnly']);
+            base.push(['Custom (Beta)', 'custom']);
+        }
         return base;
     });
 
@@ -751,14 +760,11 @@ if (typeof require !== 'undefined') {
     // editor opens showing exactly what the watch shows and an untouched session
     // compiles back byte-identical (nothing transmits). Re-picking a preset later
     // leaves the keys stored (dormant) — re-entering Custom restores the user's work.
-    var viewCycleLib = (typeof require !== 'undefined')
-        ? require('../view-cycle.js') : window.VIEW_CYCLE;
+    // Seeding is ALL the pick does: the editor opens only through the dedicated Edit
+    // row (the schema's data-action="openViewEditor" button), never automatically.
     PConf.onChange.register('layoutPresetChanged', function (S, oldValue, newValue) {
         if (newValue !== 'custom') { return; }
         viewCycleLib.seedCustomKeys(S, oldValue);
-        // Picking Custom opens the editor right away (view-editor.js registers the
-        // action; absent under Node, where there is no DOM to open into).
-        if (PConf.actions && PConf.actions.openViewEditor) { PConf.actions.openViewEditor(); }
     });
 
     // Platform-aware slot default (Approach A single-source): a status slot's fresh-install

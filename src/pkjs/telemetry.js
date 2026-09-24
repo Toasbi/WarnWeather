@@ -81,8 +81,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // Custom-layout usage: the three packed CLAY_VIEW values fully describe what a
     // custom user built (elements, seats, order, clock/strip omissions) in 3 ints.
     // null (-> absent fields) unless custom is active, so preset rows stay unchanged.
-    var customPacked = safe.layoutPreset === 'custom'
-        ? viewCycle.buildCustomCycle(safe).map(viewCycle.packSpec) : null;
+    var customCycle = safe.layoutPreset === 'custom' ? viewCycle.buildCustomCycle(safe) : null;
+    var customPacked = customCycle ? customCycle.map(viewCycle.packSpec) : null;
+    // The v2 fields (sizes, top-graph kind, Position) ride their own ADDITIVE fields
+    // (packExt, 0..0x7FFF) rather than widening customView*: an ingest that predates
+    // them strips unknown keys, but a known field failing validation 400s the batch.
+    var customExt = customCycle ? customCycle.map(viewCycle.packExt) : null;
     // --- the Nighttime card's gates, resolved once for the fields below ---------
     // Dim backlight is HARDWARE-gated, not only setting-gated: the red tint is
     // light_set_color_rgb888() and emery is the only watch with the LED
@@ -194,6 +198,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
         customView0: customPacked ? customPacked[0] : undefined,
         customView1: customPacked ? (customPacked[1] || 0) : undefined,
         customView2: customPacked ? (customPacked[2] || 0) : undefined,
+        customViewExt0: customExt ? customExt[0] : undefined,
+        customViewExt1: customExt ? (customExt[1] || 0) : undefined,
+        customViewExt2: customExt ? (customExt[2] || 0) : undefined,
         viewResetMin: toIntOrUndefined(safe.viewResetMin),
         largeGraphFont: Boolean(safe.largeGraphFont),
         vibe: !!safe.vibe,
@@ -204,17 +211,20 @@ function buildSettingsSnapshot(settings, watchInfo) {
         pressureScale: safe.pressureScale,
         thirdLine: safe.thirdLine,
         fourthLine: safe.fourthLine,
+        fifthLine: safe.fifthLine,
         // Styles report the value IN EFFECT (the stored value or the line's
         // built-in — lineStyleValue is the same resolution the wire packs), the
         // radarMode || 'graph' precedent.
         secondaryLineStyle: lineStyle.lineStyleValue(safe, 'secondaryLineStyle'),
         thirdLineStyle: lineStyle.lineStyleValue(safe, 'thirdLineStyle'),
         fourthLineStyle: lineStyle.lineStyleValue(safe, 'fourthLineStyle'),
+        fifthLineStyle: lineStyle.lineStyleValue(safe, 'fifthLineStyle'),
         barSource: safe.barSource,
         rainBarColor: safe.rainBarColor,
         radarProvider: safe.radarProvider,
         radarMode: safe.radarMode || 'graph',
         radarColor: safe.radarColor,
+        radarSky: safe.radarSky !== false,   // on by default: a missing key is on
         devStatsEnabled: Boolean(safe.devStatsEnabled),
         theme: safe.theme,
         statusForecastLeft: safe.statusForecastLeft,
@@ -286,6 +296,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // by default and absent on aplite installs.
     snapshot.graphThirdColor = (cx.isColor && Boolean(safe.fourthLine) && safe.fourthLine !== 'off')
         ? graphColorReport(safe, safe.fourthLine, 'Line', cx.suffix) : undefined;
+    // And the fourth-metric line (settings.fifthLine), likewise 'off' by default.
+    snapshot.graphFourthColor = (cx.isColor && Boolean(safe.fifthLine) && safe.fifthLine !== 'off')
+        ? graphColorReport(safe, safe.fifthLine, 'Line', cx.suffix) : undefined;
     // The night tint belongs to the secondary metric (it is the base of that metric's night
     // area); the hatch and the dusk/dawn line are the band's own, under the 'night' scope.
     snapshot.nightFillColor = cx.isColor
@@ -327,7 +340,7 @@ function normalizeLocationMode(mode) {
     return null;
 }
 
-// durationMs is wall-clock (Date.now() - fetchStart in index.js), so a clock
+// durationMs is wall-clock (now - fetchStart in fetch-cycle.js), so a clock
 // step during a fetch turns it negative or huge: a phone that boots at its
 // build-time floor and syncs network time mid-fetch reports ~1.7e12 ms, which
 // overflowed the ingest's int4 column — a 500 that is retried, so it wedged the

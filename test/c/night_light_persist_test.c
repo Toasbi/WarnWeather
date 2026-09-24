@@ -273,6 +273,26 @@ static void set_stores_exactly_five_bytes(void) {
     expect_bytes("oversize.first_five", out, SAMPLE);
 }
 
+// --- The radar no-rain text (same harness: persist.c's NORAIN accessors) --------
+// 1.23.0: an EMPTY text is stored (the user cleared the message: no line), and only
+// a slot never written reads -1 (the radar draws its built-in no-rain text).
+static void norain_empty_is_stored_not_deleted(void) {
+    char buf[NORAIN_TEXT_BUF_BYTES];
+    flash_reset();
+    expect("norain.absent_reads_minus_one", persist_get_norain_text(buf, sizeof(buf)), -1);
+    expect("norain.set_custom", persist_set_norain_text("Dry skies"), 1);
+    expect("norain.reads_custom", persist_get_norain_text(buf, sizeof(buf)), 9);
+    expect("norain.custom_text", strcmp(buf, "Dry skies") == 0, 1);
+    expect("norain.clear_is_a_change", persist_set_norain_text(""), 1);
+    expect("norain.cleared_reads_zero", persist_get_norain_text(buf, sizeof(buf)), 0);
+    expect("norain.cleared_text_empty", buf[0] == '\0', 1);
+    const int writes = s_data_writes;
+    expect("norain.clear_again_no_change", persist_set_norain_text(""), 0);
+    expect("norain.clear_again_no_write", s_data_writes, writes);
+    expect("norain.null_is_empty", persist_set_norain_text(NULL), 0);
+    expect("norain.zero_buffer", persist_get_norain_text(buf, 0), -1);
+}
+
 int main(void) {
     absent_slot_reads_as_never();
     round_trips_verbatim();
@@ -282,6 +302,7 @@ int main(void) {
     short_slot_keeps_the_default();
     longer_slot_reads_its_first_five();
     set_stores_exactly_five_bytes();
+    norain_empty_is_stored_not_deleted();
 
     if (s_failures) {
         printf("night_light_persist_test: %d failure(s)\n", s_failures);

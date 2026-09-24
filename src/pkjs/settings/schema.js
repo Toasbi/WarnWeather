@@ -19,6 +19,10 @@ var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_C
 // wire — so the settings page cannot offer a colour the renderer doesn't know, miss one
 // it does, or carry a transcribed default hex that drifts away from what the graph paints.
 var lineStyle = require('../line-style.js');
+// The Custom-layout block (the per-view storage items, their sheetOnly section and
+// the Edit-button row) lives in its own module so its capability gates are BUILT
+// from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
+var customLayout = require('./custom-layout-schema.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -27,49 +31,25 @@ var HOURS = (function () {
     }
     return o;
 })();
-// Per-metric hints, shared by the secondary + third line pickers. Each explains how
-// the metric maps to graph height; UV mirrors the precip-percentage phrasing.
+// Per-metric hints, one map shared by all four metric pickers. Each says only
+// what the picker's own label can't: how the metric maps to graph height (UV
+// mirrors the precip-percentage phrasing), or what the line means (dew point). No
+// hint restates the metric's name, its default look (the style and colour rows
+// set that) or 'Off'. The wind scale is named, not placed ("below"): with wind and
+// gusts both picked, its row sits under the first of them only. Every picker
+// carries the full metric set, feels and dew included: each line has its own
+// curve-inset byte (CLAY_CURVE_INSET_UINT8), so any of them can share the
+// temperature axis with the temperature curve.
 var LINE_HINTS = {
-    precip_prob: 'Chance of rain each hour<br>— half-height = 50% rain chance<br>— full-height = 100% rain chance',
-    wind: 'Wind speed each hour, scaled by the wind graph scale below.',
-    gust: 'Wind gust peaks each hour, scaled by the wind graph scale below.',
-    uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
-    pressure: 'Sea-level air pressure each hour, scaled by the pressure graph scale below.',
-    feels: 'Feels-like temperature each hour, drawn grey on the same scale as the temperature curve.',
-    dew: 'Dew point each hour, drawn on the same scale as the temperature curve. The closer it runs to the temperature, the more humid it feels.',
-    off: 'No third line — temperature and the secondary line only.'
+    precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
+    cloud: 'Half height = half the sky covered, full height = overcast. Not available with Yandex.',
+    wind: 'Scaled by the Wind graph scale setting.',
+    gust: 'The hourly peak, scaled by the Wind graph scale setting.',
+    uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
+    pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
+    feels: 'Drawn on the same scale as the temperature curve.',
+    dew: 'Drawn on the same scale as the temperature curve. The closer it runs to the temperature, the more humid it feels.'
 };
-// Rendering notes appended per picker. Pre-rendered maps, not appended hints,
-// because hintByValue REPLACES item.hint (no append) and LINE_HINTS is shared
-// with the main-metric picker (which must not show a note).
-var DOTS_NOTE = '<br>Drawn as square dots by default, aligned to the rain bars.';
-var X_NOTE = '<br>Drawn as little x marks by default, aligned to the rain bars.';
-/**
- * A metric picker's hint map: the shared per-metric LINE_HINTS with a
- * rendering note appended, an 'off' row of its own, and any banned metrics
- * left out.
- * @param {string} note Appended to every metric's hint.
- * @param {string} offText Hint for the 'off' row.
- * @param {Array.<string>} [omit] Metric ids left out of the map.
- * @returns {Object} Picker-value -> hint map.
- */
-function lineHintsWithNote(note, offText, omit) {
-    var out = {}, k;
-    for (k in LINE_HINTS) {
-        if (!Object.prototype.hasOwnProperty.call(LINE_HINTS, k)) { continue; }
-        if (k === 'off' || (omit && omit.indexOf(k) >= 0)) { continue; }
-        out[k] = LINE_HINTS[k] + note;
-    }
-    out.off = offText;
-    return out;
-}
-var THIRD_LINE_HINTS = lineHintsWithNote(DOTS_NOTE,
-    'No second metric — temperature and the main metric only.');
-// No feels or dew on the third metric: the fourth line has no curve-inset channel,
-// so they could never share the temperature axis (line-style.js FORECAST_LINES
-// bans them; blocks.js' forecastMetric resolver drops them via noTempAxis).
-var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
-    'No third metric — the two metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -77,23 +57,30 @@ var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
 var LINE_STYLES_WHEN = {env: 'lineStyles'};
 // Per-line style pickers, one under each metric picker. The values are
 // line-style.js' LINE_STYLE_KINDS vocabulary.
+// Thin and Thick say it all; the marker and stripe styles add where they sit and
+// how a stripe reads.
 var LINE_STYLE_HINTS = {
-    line: 'A thin 1-pixel line.',
-    bold: 'A thick 3-pixel line.',
-    dots: 'Square dots, aligned to the rain bars.',
-    x: 'Little x marks, aligned to the rain bars.'
+    dots: 'Aligned to the rain bars.',
+    x: 'Aligned to the rain bars.',
+    stripeTop: 'One cell per hour: the higher the value, the stronger the colour.',
+    stripeBottom: 'Below the zero line, where bars and lines never cover it. One cell per hour: the higher the value, the stronger the colour.'
 };
+var LINE_STYLE_OPTIONS = [
+    ['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'], ['× marks', 'x'],
+    ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']
+];
 /**
  * One line-style picker.
- * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+ * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
  * @param {string} [lineKey] Metric-picker key whose 'off' also hides this row.
  * @returns {Object} Schema item.
  */
 function lineStyleCopy(messageKey, lineKey) {
     var when = [LINE_STYLES_WHEN];
     if (lineKey) { when.push({key: lineKey, ne: 'off'}); }
+    // A dropdown, not a segmented row: six styles no longer fit one row on a phone.
     return {
-        type: 'segmented',
+        type: 'select',
         messageKey: messageKey,
         label: 'Line style',
         // The one source of the built-ins (the pre-feature look per line) —
@@ -102,7 +89,7 @@ function lineStyleCopy(messageKey, lineKey) {
         defaultValue: lineStyle.LINE_STYLE_DEFAULTS[messageKey],
         joinPrevious: true,
         hintByValue: LINE_STYLE_HINTS,
-        options: [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x']],
+        options: LINE_STYLE_OPTIONS,
         showWhen: {all: when}
     };
 }
@@ -150,11 +137,12 @@ var WIND_SCALE_HINTS_KNOTS = windScaleHints('knots', 'kn');
 var LINE_CONTEXTS = [
     {key: 'secondaryLine'},
     {key: 'thirdLine'},
-    {key: 'fourthLine', gates: [LINE_STYLES_WHEN]}
+    {key: 'fourthLine', gates: [LINE_STYLES_WHEN]},
+    {key: 'fifthLine', gates: [LINE_STYLES_WHEN]}
 ];
 /**
  * Index of one picker key in LINE_CONTEXTS.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @returns {number} Its position.
  */
 function lineContextIndex(pickerKey) {
@@ -167,7 +155,7 @@ function lineContextIndex(pickerKey) {
  * The showWhen conditions ARRAY for one line-context's scale row: the
  * context's gates, then the matcher on its own picker, then a {not: ...} of
  * the matcher on every earlier picker.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {function(string): Object} matchOf Picker key -> matcher leaf.
  * @returns {Array.<Object>} Conditions, for {all: ...} (or bare when single).
  */
@@ -270,72 +258,7 @@ function sheetOf(keyStem, title, items) {
     };
 }
 
-// ── Custom layout: per-view keys (the editor's storage contract) ────────────
-// One item per element choice per view slot (0 = Default, 1-2 = flicks). They live
-// in a sheetOnly section so the tab renderer skips them while hydrate/serialize
-// keep them in the settings blob; the Custom-layout editor (view-editor.js)
-// renders its own reorderable rows from these keys and opens the engine's select
-// sheets on them. Key names + string values are the compiler contract — see
-// buildCustomCycle in src/pkjs/view-cycle.js. Capability gating is
-// visible-but-inert (optionDisabledWhen), mirroring the compiler's folds: chart
-// seats need radarMode 'graph'; the radar status source needs status|graph; a
-// health graph body needs healthMode 'all'; health rows need status|all.
-var VIEW_RADAR_CHART_WHEN = {key: 'radarMode', eq: 'graph'};
-var VIEW_RADAR_ROW_WHEN = {key: 'radarMode', in: ['status', 'graph']};
-var VIEW_HEALTH_ROW_WHEN = {key: 'healthMode', in: ['status', 'all']};
-var VIEW_HEALTH_BODY_WHEN = {key: 'healthMode', eq: 'all'};
-// No 'Off' entry: removal is the editor row's ✕ button — a duplicate Off pick in
-// the sheet would be a second way to do the same thing. 'off' stays a legal STORED
-// value (what ✕ writes); the sheet is only openable while the row is present.
-var VIEW_SRC_OPTIONS = [['Weather', 'weather'],
-                        ['Radar', 'radar'], ['Health', 'health']];
-var VIEW_SRC_GATES = {
-    radar: {not: VIEW_RADAR_ROW_WHEN},
-    health: {not: VIEW_HEALTH_ROW_WHEN}
-};
-
-/**
- * The per-view custom-layout items for view slot `i`.
- * @param {number} i View slot (0 = Default, 1-2 = flicks).
- * @returns {Object[]} Schema items.
- */
-function customViewItems(i) {
-    var items = [{
-        type: 'radio', messageKey: 'viewTop' + i, label: 'Calendar / top area',
-        defaultValue: 'cal2',
-        // No 'Nothing' entry: removal is the editor row's ✕ button; 'none' stays a
-        // legal STORED value (what ✕ writes).
-        options: [['Calendar — 3 rows', 'cal3'], ['Calendar — 2 rows', 'cal2'],
-                  ['Rain radar', 'radar']],
-        optionDisabledWhen: {radar: {not: VIEW_RADAR_CHART_WHEN}}
-    }, {
-        type: 'radio', messageKey: 'viewBody' + i, label: 'Graph',
-        defaultValue: 'forecast',
-        options: [['Forecast graph', 'forecast'], ['Health graph', 'health'],
-                  ['Rain radar', 'radar']],
-        optionDisabledWhen: {health: {not: VIEW_HEALTH_BODY_WHEN},
-                             radar: {not: VIEW_RADAR_CHART_WHEN}}
-    }, {
-        type: 'radio', messageKey: 'viewUpper' + i, label: 'Status bar',
-        defaultValue: i === 0 ? 'weather' : 'off',
-        options: VIEW_SRC_OPTIONS, optionDisabledWhen: VIEW_SRC_GATES
-    }, {
-        type: 'radio', messageKey: 'viewLower' + i, label: 'Second status bar',
-        defaultValue: 'off',
-        options: VIEW_SRC_OPTIONS, optionDisabledWhen: VIEW_SRC_GATES
-    }, {
-        // Machine value the editor's ▲▼ buttons write (a STACK_ORDERS sequence
-        // string, e.g. 'CTAB'); never opened as a sheet.
-        type: 'hidden', messageKey: 'viewOrder' + i, defaultValue: 'TACB'
-    }];
-    if (i > 0) {   // the Default view always keeps its clock and top bar
-        items.push({type: 'hidden', messageKey: 'viewClockOff' + i, defaultValue: false});
-        items.push({type: 'hidden', messageKey: 'viewStripOff' + i, defaultValue: false});
-    }
-    return items;
-}
-
-// The seven rows of the Graph-colors card, each opening its own sheet. The six metrics
+// The nine rows of the Graph-colors card, each opening its own sheet. The eight metrics
 // come first, labelled and ordered exactly like the Main/Second metric pickers offer
 // them (blocks.js' FORECAST_METRICS — a user reads the two lists together), then the
 // full-height night band. `scope` is line-style.js' vocabulary: a metric id, or 'night'.
@@ -343,6 +266,7 @@ function customViewItems(i) {
 // it is picked, and the feels row simply has fewer pickers in its sheet.
 var GRAPH_COLOR_ROWS = [
     {scope: 'precip_prob', sheetId: 'gcPrecip', label: 'Precipitation %'},
+    {scope: 'cloud', sheetId: 'gcCloud', label: 'Cloud cover %'},
     {scope: 'wind', sheetId: 'gcWind', label: 'Wind speed'},
     {scope: 'gust', sheetId: 'gcGust', label: 'Wind gusts'},
     {scope: 'uv', sheetId: 'gcUv', label: 'UV Index'},
@@ -361,10 +285,10 @@ var GRAPH_ROLE_LABELS = {
     Boundary: 'Dusk / dawn line'
 };
 var GRAPH_ROLE_HINTS = {
-    Fill: 'Only drawn while “Fill area below the line” is on.',
+    Fill: 'Only drawn while this is the Main metric and “Fill area below the line” is on.',
     Night: 'Re-shades the filled area under the night hours. Follows the fill colour until you pick one here.',
-    Hatch: 'The hatch drawn over the night hours.',
-    Boundary: 'The vertical lines at sunset and sunrise.'
+    Hatch: 'Only drawn while “Day / night shading” is on.',
+    Boundary: 'Only drawn while “Day / night shading” is on.'
 };
 
 /**
@@ -908,7 +832,7 @@ var PRESSURE_SCALE_HINTS = {
 /**
  * One pressureScale control for a line-context. Unlike windScaleCopy this needs no
  * per-unit duplication — pressure ships hPa only, so one copy per context is enough.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @returns {Object} Schema item.
  */
 function pressureScaleCopy(pickerKey) {
@@ -1109,7 +1033,12 @@ module.exports = {
         }, {
             groupCard: 'weatherMain',
             block: 'weatherGraphs',
-            items: []
+            items: [{
+                // Blob-only: stamped by the graphs block whenever it renders and
+                // carried back by the next Save, so the phone knows the tab is in
+                // use and keeps its data for the day (weather-tab-cache.js).
+                type: 'hidden', messageKey: 'weatherTabSeenAt', defaultValue: 0
+            }]
         }]
     }, {
         id: 'general', label: 'General', openDefault: true, sections: [{
@@ -1495,8 +1424,8 @@ module.exports = {
                 options: [['Kilometres', 'metric'], ['Miles', 'imperial']],
                 hint: 'Unit for the "Walked distance" status item.'
             }, {
-                // Phone-side only (feels-like.js resolvers; index.js hands it to the
-                // provider per fetch) and in renderSignature, so a flip refetches.
+                // Phone-side only (feels-like.js resolvers; fetch-cycle.js hands it to
+                // the provider per fetch) and in renderSignature, so a flip refetches.
                 type: 'segmented',
                 messageKey: 'feelsFormula',
                 label: 'Feels-like formula',
@@ -1512,7 +1441,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, wind speed, wind gusts, UV index, air pressure, feels-like temperature or dew point, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, or little x marks) — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics and rain bars you pick below join it.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1531,14 +1460,19 @@ module.exports = {
                 label: 'Fill area below the line',
                 defaultValue: true,
                 joinPrevious: true,
-                hint: 'Fills the area beneath the line.',
                 // Feels-like and dew point ride the temperature axis rather than a 0..max scale, so
                 // "below the line" is not the area between the curve and a meaningful
                 // zero — a fill there would flood the plot up to an arbitrary band
                 // floor. The row is hidden for it and the 'forecastMetricFill' hook
                 // above clears the stored value; forecast-series.js re-forces false at
                 // bake time so a settings blob written before this gate still can't fill.
-                showWhen: {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS}
+                // A stripe has no curve to fill below either (line-style.js gates
+                // fillOn the same way) — unless this watch ignores the styles.
+                showWhen: {all: [
+                    {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS},
+                    {any: [{not: LINE_STYLES_WHEN},
+                        {key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom']}]}
+                ]}
             },
             windScaleCopy('secondaryLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),
@@ -1549,7 +1483,7 @@ module.exports = {
                 messageKey: 'thirdLine',
                 label: 'Second metric',
                 defaultValue: 'uv',
-                hintByValue: THIRD_LINE_HINTS,
+                hintByValue: LINE_HINTS,
                 optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
             },
             lineStyleCopy('thirdLineStyle', 'thirdLine'),
@@ -1562,8 +1496,8 @@ module.exports = {
                 messageKey: 'fourthLine',
                 label: 'Third metric',
                 defaultValue: 'off',
-                hintByValue: FOURTH_LINE_HINTS,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true}},
+                hintByValue: LINE_HINTS,
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine']}},
                 // Only watches with enough memory carry a third metric line
                 // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
                 // an unknown platform). Row-level hiding, not option-gating,
@@ -1576,6 +1510,21 @@ module.exports = {
             windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('fourthLine'),
+            {
+                type: 'select',
+                messageKey: 'fifthLine',
+                label: 'Fourth metric',
+                defaultValue: 'off',
+                hintByValue: LINE_HINTS,
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
+                // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
+                showWhen: LINE_STYLES_WHEN
+            },
+            lineStyleCopy('fifthLineStyle', 'fifthLine'),
+            windScaleCopy('fifthLine', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('fifthLine'),
             {
                 type: 'segmented',
                 messageKey: 'barSource',
@@ -1621,7 +1570,7 @@ module.exports = {
                 messageKey: 'dayNightShading',
                 label: 'Day / night shading',
                 defaultValue: true,
-                hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
+                hint: 'Hatches the hours between sunset and sunrise.'
             }]
         }, {
             // One card holding one row per graph metric, plus the night band. Deliberately
@@ -1737,20 +1686,33 @@ module.exports = {
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
                 showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
             }, {
+                // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
+                // fetch, on by default (a missing key reads as on everywhere: radar-sky.js
+                // skySourceIdFor, index.js, telemetry.js). Only the radar GRAPH draws them,
+                // like the no-rain text below; fetch-cycle.js (radarSky.skySourceIdFor) clears
+                // them whenever the graph is not shown.
+                type: 'toggle',
+                messageKey: 'radarSky',
+                label: 'Clouds, sun & lightning',
+                defaultValue: true,
+                hint: 'Adds two thin stripes under the radar\'s time axis: cloud cover and sunshine for the next two hours, with a lightning bolt where thunderstorms are expected. Uses Open-Meteo, whatever the radar source.',
+                showWhen: {key: 'radarMode', eq: 'graph'}
+            }, {
                 // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
                 // finds no rain in the whole window. Ships visibly with the watch's
                 // built-in default so users override the actual message. The UI
                 // maxlength is a soft character cap; the phone re-truncates to 24
-                // UTF-8 BYTES at pack time, and empty/whitespace-only text makes the
-                // watch fall back to its built-in string. Only rain_radar_layer.c
+                // UTF-8 BYTES at pack time. Empty/whitespace-only text shows no line.
+                // A 1.23.0 migration moved older empty values (which meant "default")
+                // and the untouched old default "No rain ahead" to "You're good :)". Only rain_radar_layer.c
                 // draws it, so the field follows the graph ('graph'), not the radar
                 // as a whole — in 'status'/'countdown' there is no plot to write on.
                 type: 'text',
                 messageKey: 'radarNoRainText',
                 label: 'No-rain message',
-                defaultValue: 'No rain ahead',
+                defaultValue: "You're good :)",
                 attributes: {maxlength: 24},
-                hint: 'Shown in the radar graph when no rain is coming. Up to 24 characters; clear the field to use the default.',
+                hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 type: 'select',
@@ -2045,7 +2007,8 @@ module.exports = {
                     compactCal: '2-row calendar. Flick to radar and health as you enable them.',
                     compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
                     noCal: 'No calendar — a big forecast. Flick to radar and health.',
-                    custom: 'Build each view yourself — pick, remove and reorder its elements.'
+                    weatherOnly: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast. Flick to health.',
+                    custom: 'Build each view yourself — pick its elements and graphs, then order, size and align them.'
                 },
                 // Compact-dense only differs from Compact when a health status row OR the
                 // radar status row is shown; with both off the two produce identical cycles,
@@ -2060,31 +2023,14 @@ module.exports = {
                 // there; the payload folds it to compactCal, matching the display).
                 // Picking custom seeds the per-view keys once (layoutPresetChanged).
                 optionsFrom: { resolver: 'layoutPresetOptions' },
-                dormantValues: ['compactDense', 'custom'],
+                dormantValues: ['compactDense', 'weatherOnly', 'custom'],
                 onChange: 'layoutPresetChanged',
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
-            }, {
-                // A standard settings row with the outlined Edit button on the right
-                // (the per-slot edit-sheet look), not a full-width button. staticText
-                // + [data-action] is the shipped idiom for an action inside a row
-                // (the "Reset status bars" row); the engine dispatches it globally.
-                type: 'staticText',
-                // hint copy rides inside the row: staticText items don't render `hint`.
-                text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">'
-                    + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Custom layout'
-                    + '<span style="display:block;font-size:12px;font-weight:400;color:var(--hint);margin-top:2px;">'
-                    + 'Choose what each view shows, and where.</span></span>'
-                    + '<button type="button" class="thr-btn" data-action="openViewEditor"'
-                    + ' aria-label="Edit the custom layout">Edit</button></div>',
-                // Platform-gated like the option itself: a DORMANT stored 'custom'
-                // (set on a colour watch, then the phone pairs an aplite) displays
-                // the compactCal fallback — the editor row must not leak in
-                // beside it. ne keeps the unknown-platform case capable, matching
-                // layoutPresetOptions and the clay-payload gate.
-                showWhen: {all: [{key: 'layoutPreset', eq: 'custom'},
-                                 {env: 'platform', ne: 'aplite'}]}
-            }, {
+            },
+            // The Custom-layout Edit-button row — custom-layout-schema.js.
+            customLayout.editRow,
+            {
                 type: 'toggle',
                 messageKey: 'largeGraphFont',
                 label: 'Larger graph fonts',
@@ -2118,13 +2064,14 @@ module.exports = {
                 // as compactCal, swap included (view-cycle.js buildViewCycle, resolvePresetKey).
                 // That is a compactDense no status row makes dense — the complement of
                 // blocks.js layoutPresetOptions' dense predicate; keep the two in step — and
-                // a 'custom' on aplite, which never offers Custom.
+                // a 'custom' or 'weatherOnly' on aplite, which offers neither.
                 showWhen: {any: [
                     {key: 'layoutPreset', eq: 'compactCal'},
                     {all: [{key: 'layoutPreset', eq: 'compactDense'},
                            {key: 'healthMode', in: ['off', 'slot']},
                            {key: 'radarMode', in: ['off', 'countdown']}]},
-                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]}
+                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]},
+                    {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {env: 'platform', eq: 'aplite'}]}
                 ]}
             }, {
                 // Last in the section deliberately: the rows above shape what the layout
@@ -2140,19 +2087,10 @@ module.exports = {
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
                 showWhen: {env: 'platform', ne: 'aplite'}
             }]
-        }, {
-            // Custom-layout storage (see customViewItems above): sheetOnly keeps the
-            // items out of the tab while their sheets stay openable and their values
-            // hydrate/serialize with the blob. viewCount = how many views exist;
-            // customLayoutSeeded latches the one-time preset copy.
-            sheetOnly: true,
-            sheetId: 'viewEditKeys',
-            title: 'Custom layout',
-            items: [
-                {type: 'hidden', messageKey: 'viewCount', defaultValue: '1'},
-                {type: 'hidden', messageKey: 'customLayoutSeeded', defaultValue: false}
-            ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
-        }, {
+        },
+        // Custom-layout storage (sheetOnly per-view keys) — custom-layout-schema.js.
+        customLayout.storageSection,
+        {
             // Time and Calendar moved here from the Watch tab (now 'Status slots'):
             // they shape fixed watchface areas, so they read as layout concerns.
             // Items are verbatim — gates and hooks unchanged by the move.

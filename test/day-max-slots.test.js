@@ -18,6 +18,7 @@ const th = require('../src/pkjs/status-thresholds.js');
 const http = require('../src/pkjs/weather/http.js');
 const aq = require('../src/pkjs/weather/air-quality.js');
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 const dayPeaks = require('../src/pkjs/weather/day-peaks.js');
 const KEYS = require('../src/pkjs/storage-keys.js');
 
@@ -146,13 +147,21 @@ test('wind, gust and AQI highlights judge the highest of today\'s numbers shown'
 
 const LOCAL_9AM = new Date(2026, 6, 15, 9, 0, 0).getTime() / 1000;
 
+// `over` mixes series fields and per-fetch knobs: the knobs (the fetch-options
+// keys, e.g. dayPeakCodes/windUnits) go to p.options, everything else onto p.
 function provider(over) {
   const p = new WeatherProvider();
+  const fields = {};
+  const knobs = {};
+  Object.keys(over || {}).forEach((k) => {
+    (Object.prototype.hasOwnProperty.call(fetchOptions.DEFAULTS, k) ? knobs : fields)[k] = over[k];
+  });
   Object.assign(p, {
     tempTrend: new Array(24).fill(50), precipTrend: new Array(24).fill(0),
     rainTrend: new Array(24).fill(0), startTime: LOCAL_9AM, currentTemp: 60,
     cityName: 'Testville', sunEvents: []
-  }, over);
+  }, fields);
+  p.options = fetchOptions.defaults(knobs);
   return p;
 }
 
@@ -190,12 +199,14 @@ test('the Open-Meteo AQI fetch reads PEAK_HOURS and names its feed; WAQI names n
       ? { status: 'ok', data: { aqi: 42 } } : { hourly: { time, european_aqi } }));
   };
   try {
-    const om = { fetchAqi: true, aqiSource: 'openmeteo', aqiScale: 'european', startTime: LOCAL_9AM, aqiFeedId: null };
+    const om = { options: fetchOptions.defaults({ fetchAqi: true, aqiSource: 'openmeteo', aqiScale: 'european' }),
+      startTime: LOCAL_9AM, aqiFeedId: null };
     aq.fetchAqiInto(om, 1, 2, () => {});
     assert.equal(om.aqiTrend.length, 49);
     assert.equal(om.aqiFeedId, 'openmeteo-aqi-european');
     assert.match(urls[0], /forecast_days=4/);
-    const waqi = { fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T', startTime: LOCAL_9AM, aqiFeedId: null };
+    const waqi = { options: fetchOptions.defaults({ fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T' }),
+      startTime: LOCAL_9AM, aqiFeedId: null };
     aq.fetchAqiInto(waqi, 1, 2, () => {});
     assert.deepEqual(waqi.aqiTrend, [42]);
     assert.equal(waqi.aqiFeedId, null);

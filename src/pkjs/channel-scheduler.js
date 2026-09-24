@@ -403,49 +403,4 @@ function createChannelScheduler(deps) {
     };
 }
 
-// --- fetch cadence ----------------------------------------------------------
-// Moved from sleep-window.js, where it sat by historical accident: this is
-// when-do-we-fetch vocabulary (index.js's needRefresh reads it), and this
-// module is the extracted, requireable home of fetch scheduling. Static on
-// the factory: the cadence probe is stateless and shared.
-/**
- * Slot-boundary check: true when `nowMs` sits in a later interval slot than
- * `lastTimeMs`. Slots are UTC-aligned chunks of `intervalMs` since the epoch.
- *
- * @param {number} lastTimeMs Last successful fetch epoch ms.
- * @param {number} nowMs Current epoch ms.
- * @param {number} intervalMs Refresh interval in ms.
- * @returns {boolean} True when a new slot has begun.
- */
-function isPastRefreshSlot(lastTimeMs, nowMs, intervalMs) {
-    return Math.floor(nowMs / intervalMs) > Math.floor(lastTimeMs / intervalMs);
-}
-
-// The first retry after a failed fetch waits one scheduler tick.
-var FAILURE_BACKOFF_BASE_MS = 60 * 1000;
-
-/**
- * How long a scheduled (non-forced) refresh waits after a failed attempt: one
- * tick after the first failure, doubling with each consecutive one, capped at
- * the refresh interval so a transient blip never costs more than one normal
- * refresh. A rate limit (HTTP 429) waits the whole interval at once — an
- * earlier retry only spends quota against the limit it is waiting out.
- *
- * @param {number} failures Consecutive failed attempts (the attempt counter).
- * @param {?{code: string}} failure The last attempt's failure.
- * @param {number} intervalMs Refresh interval in ms.
- * @returns {number} Backoff in ms.
- */
-function failureBackoffMs(failures, failure, intervalMs) {
-    var code = (failure && typeof failure.code === 'string') ? failure.code : '';
-    if (/(^|_)status_429$/.test(code)) {
-        return intervalMs;
-    }
-    var n = Math.min(Math.max(Math.floor(failures) || 1, 1), 20);
-    return Math.min(FAILURE_BACKOFF_BASE_MS * Math.pow(2, n - 1), intervalMs);
-}
-
-createChannelScheduler.isPastRefreshSlot = isPastRefreshSlot;
-createChannelScheduler.failureBackoffMs = failureBackoffMs;
-
 module.exports = createChannelScheduler;

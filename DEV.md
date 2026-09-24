@@ -340,10 +340,16 @@ mise composite v1.4.1
 #### Showcase GIF (README hero)
 
 The README's animated hero is a **showcase GIF**: a handful of curated scenes (different
-layouts + functions, all Berlin) captured per platform and cross-faded into one looping
-GIF. Scenes live in `scripts/gen-showcase-fixtures.js` (regenerated into
-`fixtures/showcase-N.json` on every capture) and are guarded by
-`test/showcase-fixtures.test.js`.
+layouts + functions) captured per platform and cross-faded into one looping GIF. Scenes
+live in `scripts/gen-showcase-fixtures.js` (regenerated into `fixtures/showcase-N.json`
+on every capture) and are guarded by `test/showcase-fixtures.test.js`. Most are built on
+the Berlin base; a scene with `fixture` copies a fixture of its own (the Miami scenes).
+The table's ROW ORDER is the GIF and reel order — ids only name the frames
+(`scene_<id>.png`), so moving a scene never renames its frame. A scene with `platforms`
+is captured, shown and put in the reel intro only there. A scene with `inShowcase: false` is
+captured with the rest but left out of the GIF and the reel intro (the Light-theme Miami
+scenes 10-12, for the store); a fixture-backed scene's `clay` layers on its fixture's
+settings (their `theme: 'light'`).
 
 Health readings and the rain-countdown strip are read live on the watch and don't
 reproduce in a static compile-time fixture, so screenshot builds swap in two canned twins
@@ -353,10 +359,12 @@ reproduce in a static compile-time fixture, so screenshot builds swap in two can
 - a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the exact
   "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" strip.
 
-Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`:
+Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`,
+and only some scenes via `SCENE_IDS` (the other frames stay as they are):
 ```bash
 scripts/capture-showcase.sh <version>                    # aplite basalt flint emery
 PLATFORMS=basalt scripts/capture-showcase.sh <version>   # one platform
+SCENE_IDS="10 11 12" scripts/capture-showcase.sh <version>   # just those scenes
 ```
 It's a thin wrapper over `capture-screenshots.sh` (same pattern as `capture-store-shots.sh`):
 per scene it exports `WW_HEALTH_FIXTURE=1` + `FLICKS=<scene flicks>`, shoots the platforms,
@@ -381,12 +389,9 @@ scripts/assemble-showcase-gif.sh <version> <platform> [hold_secs] [fade_secs] [f
 # MAX_SCENES=N  keep only the first N scenes (default 2; 0 = all captured scenes)
 # EXCLUDE_SCENES="2 3 4"  drop specific scene ids (applied before the MAX_SCENES cap)
 ```
-aplite has no `PBL_HEALTH`, so scene 5 (the health graph, reached by a flick that lands on a
-view aplite doesn't have) is broken there — exclude it. The other scenes keep their weather
-layouts (health slots fall back via aplite variants), so aplite ships scenes 1, 2, 3, 4, 6:
-```bash
-EXCLUDE_SCENES="5" MAX_SCENES=0 scripts/assemble-showcase-gif.sh <version> aplite
-```
+The health-graph scene (5) and the Miami scenes (7-9: stripes, radar, custom layout) are
+limited to the colour platforms in the table, so aplite captures and shows only its own
+scenes (1, 2, 4, 6) with no flags. `EXCLUDE_SCENES` still drops further ids by hand.
 
 #### Promo reel (Pebble-store asset)
 
@@ -455,9 +460,11 @@ Fields supported in `fixtures/<name>.json`:
 - `weather.startDayOffset` — optional day offset added to `watch.now.day` for the forecast start (default 0; pairs with `startHour`)
 - `weather.temps` — hourly Fahrenheit forecast array
 - `weather.precipPct` — hourly precipitation-probability array (0–100)
+- `weather.cloudPct` — optional hourly cloud-cover array (0–100); feeds the cloud-cover metric (omitted → that line stays off)
 - `weather.rainMm` — hourly rain-amount array (mm); drives the optional rain bars
 - `weather.windKmh` / `weather.gustKmh` — hourly wind / gust speed arrays (km/h); a non-zero gust array turns the gust line on
 - `weather.rainRadarExactMm` / `weather.rainRadarAreaMm` — radar rain per 5-minute frame (mm/h): rain at the exact location, and the strongest rain within 2 km. Supply both or radar is skipped
+- `weather.sky` — optional radar sky rows: `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start (percent, percent, 0/1); sent as `RADAR_SKY_UINT8` with the radar
 - `weather.radarStartEpoch` — optional Unix-seconds anchor for the radar window (defaults to the forecast start; the time-lapse uses it to scroll radar independently of the forecast)
 - `weather.sunEvents` — next two sun events, authored as local fields `{ type, dayOffset, hour, minute }` and normalized to `{ type, epoch }`
 

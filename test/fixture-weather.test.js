@@ -1,7 +1,12 @@
 // test/fixture-weather.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getFixtureWeatherPayload, getFixtureRadarTuples, sendFixtureWeather } = require('../src/pkjs/fixture-weather');
+const fs = require('node:fs');
+const path = require('node:path');
+const {
+  getFixtureWeatherPayload, getFixtureRadarTuples, mapFixtureWeather, sendFixtureWeather
+} = require('../src/pkjs/fixture-weather');
+const WeatherProvider = require('../src/pkjs/weather/provider.js');
 
 // A minimal-but-valid 3-hour fixture: temps/precipPct present, 2 sun events.
 function makeFixture(over) {
@@ -47,7 +52,7 @@ test('the fixture send bundles the line styling, threaded with watchInfo', () =>
   }
   assert.equal(sent.length, 1);
   const style = sent[0].CLAY_LINE_STYLE_UINT8;
-  assert.equal(style.length, 14);
+  assert.equal(style.length, 16);
   assert.equal(style[0], 0xFF);   // GColorWhite line on B&W — proves watchInfo reached the resolver
   assert.equal(style[1], 0xEA);   // GColorLightGray fill on B&W
   assert.equal(style[3] & 0x01, 1, 'secondaryLineFill rides the line flag byte');
@@ -213,6 +218,13 @@ test('fixture pressureHpa feeds the pressure secondary line (mid scale)', () => 
   assert.ok(!('PRESSURE_TREND' in out), 'PRESSURE_TREND is transient — consumed by forecast-series, never wired');
 });
 
+test('fixture cloudPct feeds the cloud line', () => {
+  const out = getFixtureWeatherPayload(
+    makeFixture({ cloudPct: [0, 50, 100] }), { secondaryLine: 'cloud', thirdLine: 'off', barSource: 'off' });
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
+  assert.ok(!('CLOUD_TREND' in out), 'CLOUD_TREND is transient');
+});
+
 test('fixture without pressureHpa still produces a valid (empty/off) pressure line', () => {
   const out = getFixtureWeatherPayload(
     makeFixture({}), { secondaryLine: 'pressure', thirdLine: 'off', pressureScale: 'mid', barSource: 'off' });
@@ -229,9 +241,10 @@ test('fixture without pressureHpa still produces a valid (empty/off) pressure li
  * Run a fixture through getFixtureWeatherPayload and capture the raw provider
  * payload as it enters applyForecastSeries, before the transients are deleted.
  * @param {Object} fixture Fixture object, as makeFixture builds one.
+ * @param {Object} [settings] Clay settings; defaults to every line and bar off.
  * @returns {Object} The pre-transform weather payload.
  */
-function capturePreTransform(fixture) {
+function capturePreTransform(fixture, settings) {
   const forecastSeries = require('../src/pkjs/forecast-series.js');
   const orig = forecastSeries.applyForecastSeries;
   let raw;
@@ -240,7 +253,8 @@ function capturePreTransform(fixture) {
     return orig.apply(this, arguments);
   };
   try {
-    getFixtureWeatherPayload(fixture, { secondaryLine: 'off', thirdLine: 'off', barSource: 'off' });
+    getFixtureWeatherPayload(fixture,
+      settings || { secondaryLine: 'off', thirdLine: 'off', barSource: 'off' });
   } finally {
     forecastSeries.applyForecastSeries = orig;
   }
@@ -268,4 +282,86 @@ test('the transients never survive into the fixture payload', () => {
     { secondaryLine: 'off', thirdLine: 'off', barSource: 'off' });
   assert.ok(!('DEW_TREND' in out), 'DEW_TREND is transient — baked into status text, never wired');
   assert.ok(!('WIND_DIR_TREND' in out), 'WIND_DIR_TREND is transient — baked into status text, never wired');
+});
+
+// The fixture is an adapter of the provider seam: mapFixtureWeather builds a
+// `mapped` object and WeatherProvider#adoptMapped owns the empty-value
+// conventions. adoptMapped DELETES an absent core key, and the committed
+// fixtures/*.json carry no startEpoch (only prepare-fixture adds one) — so the
+// mapper must keep the core keys PRESENT even when undefined, or hasValidData
+// rejects every raw fixture (test/wizard-fixtures-health and
+// test/render-signature feed them raw).
+test('a raw fixtures/berlin.json (no startEpoch) still yields a payload', () => {
+  const fx = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'fixtures', 'berlin.json'), 'utf8'));
+  assert.equal('startEpoch' in fx.weather, false, 'premise: the committed fixture has no startEpoch');
+  const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform: 'basalt' });
+  assert.ok(out, 'payload built despite the undefined startTime');
+  assert.equal(out.TEMP_TREND_UINT8.length, fx.weather.temps.length);
+});
+
+test('mapFixtureWeather speaks the adapter vocabulary: keys within MAPPED_KEYS.all, core included', () => {
+  const KEYS = WeatherProvider.MAPPED_KEYS;
+  const mapped = mapFixtureWeather(makeFixture({
+    rainMm: [0, 1, 2], windKmh: [5, 6, 7], gustKmh: [8, 9, 10], uvIndex: [1, 2, 3],
+    pressureHpa: [1010, 1011, 1012], feelsTemps: [48, 49, 50], currentFeels: 58,
+    dewPoint: [40, 41, 42], windDirection: [90, 180, 270]
+  }).weather);
+  Object.keys(mapped).forEach(function(key) {
+    assert.ok(KEYS.all.includes(key), key + ' is in MAPPED_KEYS.all');
+  });
+  KEYS.core.forEach(function(key) {
+    assert.ok(Object.prototype.hasOwnProperty.call(mapped, key), 'core key ' + key + ' present');
+  });
+  assert.equal('humidityTrend' in mapped, false,
+    'no humidity: the fixture feels ship verbatim, never through the formula resolvers');
+});
+
+test('a bare fixture maps the core and feels keys only — core present even when undefined', () => {
+  const weather = makeFixture({}).weather;
+  delete weather.startEpoch;
+  const mapped = mapFixtureWeather(weather);
+  assert.deepEqual(Object.keys(mapped).sort(),
+    ['currentFeels', 'currentTemp', 'feelsTrend', 'precipTrend', 'startTime', 'tempTrend']);
+  assert.equal(mapped.startTime, undefined, 'present, value undefined');
+  assert.deepEqual(mapped.feelsTrend, [], 'always present: [] without feelsTemps');
+  assert.equal(mapped.currentFeels, null);
+  // Optional series are OMITTED (never undefined), so adopt applies its own
+  // empty value; an undefined rain/wind/gust would reach getPayload's slice.
+  ['rainTrend', 'windTrend', 'gustTrend', 'uvTrend', 'pressureTrend', 'dewTrend', 'windDirTrend']
+    .forEach(function(key) { assert.equal(key in mapped, false, key + ' omitted'); });
+});
+
+test('absent rain/wind/gust are zero-filled to numEntries by adopt; present ones pass through', () => {
+  const bare = capturePreTransform(makeFixture({}));
+  assert.deepEqual(bare.RAIN_TREND_UINT8, [0, 0, 0]);
+  assert.deepEqual(bare.WIND_TREND_UINT8, [0, 0, 0]);
+  assert.deepEqual(bare.GUST_TREND_UINT8, [0, 0, 0]);
+  const full = capturePreTransform(makeFixture({ rainMm: [0.5, 1, 2], windKmh: [5, 6, 7], gustKmh: [8, 9, 10] }));
+  assert.deepEqual(full.RAIN_TREND_UINT8, [5, 10, 20], 'mm/h tenths');
+  assert.deepEqual(full.WIND_TREND_UINT8, [5, 6, 7]);
+  assert.deepEqual(full.GUST_TREND_UINT8, [8, 9, 10]);
+});
+
+test('a scalar currentFeels ships without an hourly feelsTemps series', () => {
+  const raw = capturePreTransform(makeFixture({ currentFeels: 71 }));
+  assert.equal(raw.FEELS_CURRENT, 71);
+  assert.equal('FEELS_TREND' in raw, false, 'no hourly series, no key');
+});
+
+// The fixture's options are its own (fetchUv + fetchFeels on), not built from the
+// settings: a fixture sources every series it carries, and its feels ship
+// verbatim, so neither the slot selection nor the feels-like formula filters them.
+test('the fixture adopts its UV and feels whatever the settings select or the formula says', () => {
+  const forecastSeries = require('../src/pkjs/forecast-series.js');
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const settings = { secondaryLine: 'off', thirdLine: 'off', barSource: 'off', feelsFormula: 'steadman' };
+  catalog.allSlotKeys().forEach(function(key) { settings[key] = 'empty'; });
+  assert.equal(forecastSeries.needsUv(settings), false, 'premise: a live fetch would not adopt UV');
+  assert.equal(forecastSeries.needsFeels(settings, null), false, 'premise: nor feels');
+  const raw = capturePreTransform(
+    makeFixture({ uvIndex: [1, 2, 3], feelsTemps: [40.4, 41, 42], currentFeels: 39.5 }), settings);
+  assert.deepEqual(raw.UV_TREND_UINT8, [10, 20, 30], 'UV tenths, with no UV line or slot selected');
+  assert.deepEqual(raw.FEELS_TREND, [40, 41, 42], 'the fixture values, not Steadman');
+  assert.equal(raw.FEELS_CURRENT, 39.5);
 });

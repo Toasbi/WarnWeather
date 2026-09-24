@@ -13,6 +13,7 @@ WeatherProvider.request = function(url, type, onSuccess, onError, headers) {
   responder(url, type, onSuccess, onError, headers);
 };
 const metno = require('../src/pkjs/weather/metno.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 const { PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 
 const HOUR = 3600;
@@ -136,6 +137,13 @@ test('mapResponse returns null on malformed input', () => {
   assert.equal(metno.mapResponse({ properties: { timeseries: 'nope' } }, NOW), null);
 });
 
+test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
+  const mapped = metno.mapResponse(forecastBody(26, HOUR0), NOW);
+  const keys = WeatherProvider.MAPPED_KEYS;
+  Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
+  keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
+});
+
 test('withProviderData populates the provider and passes the Met.no headers', () => {
   let seenHeaders;
   responder = function(url, type, onSuccess, onError, headers) {
@@ -158,7 +166,7 @@ test('withProviderData populates the provider and passes the Met.no headers', ()
 test('withProviderData fills uvTrend only when fetchUv is set', () => {
   responder = function(url, type, onSuccess) { onSuccess(JSON.stringify(forecastBody(26, HOUR0))); };
   const p = new metno.MetnoProvider();
-  p.fetchUv = true;
+  p.options = fetchOptions.defaults({ fetchUv: true });
   withMockedNow(NOW, () => {
     p.withProviderData(59.91, 10.75, true, () => {}, () => { throw new Error('must not fail'); });
   });
@@ -238,6 +246,14 @@ test('metno maps air_pressure_at_sea_level into pressureTrend', () => {
   // The fixture's other hours omit the field -> 0, which forecast-series rejects.
   assert.equal(mapped.pressureTrend[1], 0);
   assert.equal(mapped.pressureTrend.length, 24);
+});
+
+test('metno maps cloud_area_fraction into cloudTrend', () => {
+  const body = forecastBody(26, HOUR0, { 0: { instant: { cloud_area_fraction: 62.5 } } });
+  const mapped = metno.mapResponse(body, NOW);
+  assert.equal(mapped.cloudTrend[0], 62.5);
+  assert.equal(mapped.cloudTrend[1], 0, 'an hour without the field reads as clear sky');
+  assert.equal(mapped.cloudTrend.length, 24);
 });
 
 // Dew point and wind bearing both come from instant.details on the /complete

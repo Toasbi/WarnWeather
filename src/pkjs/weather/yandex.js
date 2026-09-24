@@ -21,6 +21,9 @@ function buildQuery(lat, lon) {
     var lonNum = Number(lon);
     return '{ weatherByPoint(request: {lat: ' + latNum + ', lon: ' + lonNum + '}) {'
         + ' now { temperature(unit: FAHRENHEIT) feelsLike(unit: FAHRENHEIT) }'
+        // No cloud cover either: its GraphQL field name can't be verified against
+        // live traffic, and a wrong one fails the whole query (see below) — the
+        // cloud line stays off on Yandex.
         // No pressure field on purpose: Yandex exposes station-level pressure only,
         // and a station reading at altitude is ~830 hPa where every other provider
         // reports ~1013 MSL. Leaving pressureTrend empty degrades to a line-off and
@@ -180,8 +183,8 @@ YandexProvider.prototype._super = WeatherProvider;
 
 /**
  * Fetch the Yandex forecast via a GraphQL POST and populate provider fields.
- * UV is only adopted when this.fetchUv is set (parity with the Open-Meteo
- * provider), but costs no extra call — it rides the same response.
+ * UV is only adopted when this.options.fetchUv is set (adoptMapped's gate, the
+ * same on every provider), but costs no extra call — it rides the same response.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -198,7 +201,7 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
     // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
     // owns the field adoption and the feels/uv gates. The GraphQL response has no
     // pressure, dew or bearing series — mapped simply lacks those keys, and
-    // adoptMapped assigns only what is present.
+    // adoptMapped sets each absent one to its documented empty value ([]).
     WeatherProvider.requestMapped({
         url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',
         headers: {

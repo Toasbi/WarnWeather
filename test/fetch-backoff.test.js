@@ -7,13 +7,13 @@
 // capped at the refresh interval; a 429 waits the whole interval.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const createChannelScheduler = require('../src/pkjs/channel-scheduler.js');
+const createFetchCycle = require('../src/pkjs/fetch-cycle.js');
 const { HARNESS_NOW, bootIndex, healthyNetwork } = require('./helpers/index-harness.js');
 
 const MIN = 60 * 1000;
 const HOUR_MS = 60 * MIN;
 const FETCHING = /^Fetching from /;
-const { failureBackoffMs } = createChannelScheduler;
+const { failureBackoffMs } = createFetchCycle;
 
 /** A last-success marker two hours old, so a refresh is due from the start. */
 function staleSuccess() {

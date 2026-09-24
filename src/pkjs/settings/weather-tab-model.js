@@ -46,6 +46,45 @@
     }
 
     /**
+     * Do two instants fall on the same calendar day of the PHONE's clock? The
+     * Weather tab's "once a day" rule: data fetched earlier today is served
+     * without a network call; the first look on a new day fetches again.
+     * @param {number} aMs Epoch ms.
+     * @param {number} bMs Epoch ms.
+     * @returns {boolean} True on the same local day.
+     */
+    function sameLocalDay(aMs, bMs) {
+        if (!isFinite(aMs) || !isFinite(bMs)) { return false; }
+        var a = new Date(aMs);
+        var b = new Date(bMs);
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
+            && a.getDate() === b.getDate();
+    }
+
+    /**
+     * Distance between two coordinates in km — an equirectangular
+     * approximation, exact enough at the few-km scale it judges ("is this the
+     * same place?"), and wrap-safe across the antimeridian.
+     * @param {number} aLat Latitude A.
+     * @param {number} aLon Longitude A.
+     * @param {number} bLat Latitude B.
+     * @param {number} bLon Longitude B.
+     * @returns {number} Kilometres.
+     */
+    function distanceKm(aLat, aLon, bLat, bLon) {
+        var dLonDeg = bLon - aLon;
+        if (dLonDeg > 180) { dLonDeg -= 360; }
+        if (dLonDeg < -180) { dLonDeg += 360; }
+        var dLat = (bLat - aLat) * 111.32;
+        var dLon = dLonDeg * 111.32 * Math.cos((aLat + bLat) * Math.PI / 360);
+        return Math.sqrt(dLat * dLat + dLon * dLon);
+    }
+
+    // Two coordinates within this distance show the same forecast: a stored day's
+    // data still serves a Current chip whose fix has drifted by GPS jitter.
+    var SAME_PLACE_KM = 2;
+
+    /**
      * The UTC instant of the location-local midnight containing `ms`.
      * @param {number} ms Epoch ms.
      * @param {number} offsetSec Location UTC offset (seconds).
@@ -669,6 +708,9 @@
         buildHourlyGrid: buildHourlyGrid,
         ICONS: ICONS,
         phoneUtcOffsetSec: phoneUtcOffsetSec,
+        sameLocalDay: sameLocalDay,
+        distanceKm: distanceKm,
+        SAME_PLACE_KM: SAME_PLACE_KM,
         localDayStart: localDayStart,
         localHour: localHour,
         localWeekday: localWeekday,

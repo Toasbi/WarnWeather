@@ -120,10 +120,13 @@ typedef struct {
 
 // How a LINE layer strokes its series. SOLID is the polyline (width = stroke
 // px); DOTS and X are per-slot marks aligned to the bar columns (width = mark
-// box px). The X arm is compiled out of aplite (WW_LINE_STYLE, wscript) —
-// aplite's two lines only ever carry SOLID/DOTS. Values are also the wire/persist
-// encoding's kind bits (persist.h LINE_STYLE_KIND_MASK), so never renumber.
-typedef enum { CHART_LINE_SOLID = 0, CHART_LINE_DOTS = 1, CHART_LINE_X = 2 } ChartLineStyle;
+// box px). STRIPE is not drawn by a LINE layer at all: the caller turns such a
+// series into a CHART_LAYER_STRIPE (forecast_layer.c). The X and STRIPE arms
+// are compiled out of aplite (WW_LINE_STYLE, wscript) — aplite's two lines only
+// ever carry SOLID/DOTS. Values are also the wire/persist encoding's kind bits
+// (persist.h LINE_STYLE_KIND_MASK), so never renumber.
+typedef enum { CHART_LINE_SOLID = 0, CHART_LINE_DOTS = 1, CHART_LINE_X = 2,
+               CHART_LINE_STRIPE = 3 } ChartLineStyle;
 
 typedef struct {
     const int16_t *values;            // compute points from values...
@@ -188,9 +191,25 @@ typedef struct {
     void  *user;
 } ChartCustomLayer;
 
+#if defined(WW_LINE_STYLE)
+// A metric as a thin band of per-slot cells along the top or bottom edge of the
+// plot, each shaded by its value (chart_stripe.h): a colour ramp from the
+// background toward `color`, or a B&W dither density. aplite compiles it out
+// (WW_LINE_STYLE) — its lines have no selectable styles.
+typedef struct {
+    const int16_t *values;
+    int            count;
+    int            lo, hi;
+    GColor         color;             // the line colour; level 4 paints exactly this
+    int16_t        y_offset;          // px in from the edge — stacks stripes sharing one
+    int16_t        height;            // px
+    bool           top;               // top edge (else bottom, over the baseline)
+} ChartStripeLayer;
+#endif
+
 typedef enum { CHART_LAYER_FRAME, CHART_LAYER_AXIS, CHART_LAYER_BARS,
                CHART_LAYER_LINE, CHART_LAYER_AREA, CHART_LAYER_HATCH,
-               CHART_LAYER_CUSTOM } ChartLayerType;
+               CHART_LAYER_CUSTOM, CHART_LAYER_STRIPE } ChartLayerType;
 
 typedef struct {
     ChartLayerType type;
@@ -202,8 +221,17 @@ typedef struct {
         ChartAreaLayer   area;
         ChartHatchLayer  hatch;
         ChartCustomLayer custom;
+#if defined(WW_LINE_STYLE)
+        ChartStripeLayer stripe;
+#endif
     };
 } ChartLayer;
 
 void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
                 const ChartLayer *layers, int num_layers);
+
+#if defined(WW_LINE_STYLE) || defined(WW_RAIN_RADAR)
+// One stripe cell at `level` (0..4, chart_stripe.h — 0 draws nothing): the
+// shared look of the forecast's stripe style and the radar's sky rows.
+void chart_stripe_fill_cell(GContext *ctx, GRect cell, GColor color, int level);
+#endif
