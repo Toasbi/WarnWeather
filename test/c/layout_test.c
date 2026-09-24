@@ -934,6 +934,149 @@ static void golden_rects_graphless(void) {
 #endif
 }
 
+// ── Graphs in the top band (custom layout v2, Phase 2a) ──────────────────────
+// A forecast or health graph in the top band: wire top 3 (tier NONE — no calendar
+// rows, so the strip shows the full date and the rows keep the large font) with the
+// kind in the ext word. Default height 3 rows of the calendar row unit + the graph tail
+// (45 | 60+10), full graph width. Example C of the spec is the health-top TCAB view.
+static const uint16_t TG_WIRES[6] = {
+    // example C: health top, clock, weather row, forecast body (TCAB)
+    (uint16_t)((1 << 8) | (3 << 6) | (0 << 4) | (STATUS_SRC_FORECAST << 2) | 0 | (1 << 12)),
+    // forecast top, clock, health body (TCAB)
+    (uint16_t)((1 << 8) | (3 << 6) | (1 << 4) | (1 << 12)),
+    // forecast top below the clock, weather row, health body (CTAB)
+    (uint16_t)((1 << 8) | (3 << 6) | (1 << 4) | (STATUS_SRC_FORECAST << 2) | (3 << 12)),
+    // health top last, above the forecast body (ABCT: rows, clock, graph top)
+    (uint16_t)((1 << 8) | (3 << 6) | (0 << 4) | (STATUS_SRC_FORECAST << 2) | (11 << 12)),
+    // forecast top first under the strip, graphless (TACB, clock only): Clock alignment
+    (uint16_t)((1 << 8) | (3 << 6) | (3 << 4)),
+    // forecast top, weather row, clock, no body, stripless (TACB): Bottom alignment
+    (uint16_t)((1 << 8) | (3 << 6) | (3 << 4) | (STATUS_SRC_FORECAST << 2) | (1 << 11)),
+};
+static const int TG_KIND[6] = { 1, 0, 0, 1, 0, 0 };
+static const int TG_ALIGN[6] = { 0, 0, 0, 0, ALIGN_CLOCK, ALIGN_BOTTOM };
+
+static void golden_rects_top_graph(void) {
+    MainLayout L;
+#ifndef PBL_PLATFORM_EMERY
+    // tg0 = example C: health graph 13..58, clock band 61..106 (ink between 57 and the row's
+    // cap), weather row 106..123 at the large font (tier NONE), forecast body 126..168 (42).
+    // tg1: the forecast top's loading overlay starts at 17, under the strip band — not 13.
+    // tg4: graphless forecast top, Clock alignment: off 3 seats the ink on the midline.
+    L = compute_ext(TG_WIRES[0], ext_word(0, 0, TG_KIND[0], TG_ALIGN[0]));
+    if (s_dump) printf("  TOPGRAPH 0\n");
+    check("tg0.top_status", L.top_status, 0, 0, 144, 17);
+    check("tg0.top", L.top, 0, 13, 144, 45);
+    check("tg0.time", L.time, 0, 61, 144, 45);
+    check("tg0.status", L.status, 0, 106, 144, 17);
+    check("tg0.bottom", L.bottom, 0, 126, 144, 42);
+    check("tg0.loading", L.loading, 0, 126, 144, 42);
+    check("tg0.radar", L.radar, 0, 126, 144, 42);
+    L = compute_ext(TG_WIRES[1], ext_word(0, 0, TG_KIND[1], TG_ALIGN[1]));
+    if (s_dump) printf("  TOPGRAPH 1\n");
+    check("tg1.top_status", L.top_status, 0, 0, 144, 17);
+    check("tg1.top", L.top, 0, 13, 144, 45);
+    check("tg1.time", L.time, 0, 59, 144, 45);
+    check("tg1.status", L.status, 0, 106, 144, 0);
+    check("tg1.bottom", L.bottom, 0, 106, 144, 62);
+    check("tg1.loading", L.loading, 0, 17, 144, 41);
+    check("tg1.radar", L.radar, 0, 106, 144, 62);
+    L = compute_ext(TG_WIRES[2], ext_word(0, 0, TG_KIND[2], TG_ALIGN[2]));
+    if (s_dump) printf("  TOPGRAPH 2\n");
+    check("tg2.top_status", L.top_status, 0, 0, 144, 17);
+    check("tg2.top", L.top, 0, 58, 144, 45);
+    check("tg2.time", L.time, 0, 12, 144, 45);
+    check("tg2.status", L.status, 0, 106, 144, 17);
+    check("tg2.bottom", L.bottom, 0, 126, 144, 42);
+    check("tg2.loading", L.loading, 0, 58, 144, 45);
+    check("tg2.radar", L.radar, 0, 126, 144, 42);
+    L = compute_ext(TG_WIRES[3], ext_word(0, 0, TG_KIND[3], TG_ALIGN[3]));
+    if (s_dump) printf("  TOPGRAPH 3\n");
+    check("tg3.top_status", L.top_status, 0, 0, 144, 17);
+    check("tg3.top", L.top, 0, 78, 144, 45);
+    check("tg3.time", L.time, 0, 30, 144, 45);
+    check("tg3.status", L.status, 0, 13, 144, 17);
+    check("tg3.bottom", L.bottom, 0, 126, 144, 42);
+    check("tg3.loading", L.loading, 0, 126, 144, 42);
+    check("tg3.radar", L.radar, 0, 126, 144, 42);
+    L = compute_ext(TG_WIRES[4], ext_word(0, 0, TG_KIND[4], TG_ALIGN[4]));
+    if (s_dump) printf("  TOPGRAPH 4\n");
+    check("tg4.top_status", L.top_status, 0, 0, 144, 17);
+    check("tg4.top", L.top, 0, 16, 144, 45);
+    check("tg4.time", L.time, 0, 62, 144, 45);
+    check("tg4.status", L.status, 0, 64, 144, 0);
+    check("tg4.bottom", L.bottom, 0, 109, 144, 0);
+    check("tg4.loading", L.loading, 0, 17, 144, 44);
+    check("tg4.radar", L.radar, 0, 109, 144, 0);
+    L = compute_ext(TG_WIRES[5], ext_word(0, 0, TG_KIND[5], TG_ALIGN[5]));
+    if (s_dump) printf("  TOPGRAPH 5\n");
+    check("tg5.top_status", L.top_status, 0, 0, 144, 0);
+    check("tg5.top", L.top, 0, 55, 144, 45);
+    check("tg5.time", L.time, 0, 120, 144, 45);
+    check("tg5.status", L.status, 0, 103, 144, 17);
+    check("tg5.bottom", L.bottom, 0, 168, 144, 0);
+    check("tg5.loading", L.loading, 0, 55, 144, 45);
+    check("tg5.radar", L.radar, 0, 168, 144, 0);
+#else
+    // tg0 = example C on emery: graph 22..92 (60 + the 10-row tail), clock 92, row 153..174,
+    // body 175..224 (49). tg4: the bands above push the clock past the midline → off 0.
+    L = compute_ext(TG_WIRES[0], ext_word(0, 0, TG_KIND[0], TG_ALIGN[0]));
+    if (s_dump) printf("  TOPGRAPH 0\n");
+    check("tg0.top_status", L.top_status, 2, 2, 196, 21);
+    check("tg0.top", L.top, 2, 22, 198, 70);
+    check("tg0.time", L.time, 2, 92, 196, 60);
+    check("tg0.status", L.status, 2, 153, 196, 21);
+    check("tg0.bottom", L.bottom, 2, 175, 198, 49);
+    check("tg0.loading", L.loading, 2, 175, 198, 49);
+    check("tg0.radar", L.radar, 2, 175, 198, 49);
+    L = compute_ext(TG_WIRES[1], ext_word(0, 0, TG_KIND[1], TG_ALIGN[1]));
+    if (s_dump) printf("  TOPGRAPH 1\n");
+    check("tg1.top_status", L.top_status, 2, 2, 196, 21);
+    check("tg1.top", L.top, 2, 22, 198, 70);
+    check("tg1.time", L.time, 2, 90, 196, 60);
+    check("tg1.status", L.status, 2, 153, 196, 0);
+    check("tg1.bottom", L.bottom, 2, 153, 198, 71);
+    check("tg1.loading", L.loading, 2, 23, 198, 69);
+    check("tg1.radar", L.radar, 2, 153, 198, 71);
+    L = compute_ext(TG_WIRES[2], ext_word(0, 0, TG_KIND[2], TG_ALIGN[2]));
+    if (s_dump) printf("  TOPGRAPH 2\n");
+    check("tg2.top_status", L.top_status, 2, 2, 196, 21);
+    check("tg2.top", L.top, 2, 82, 198, 70);
+    check("tg2.time", L.time, 2, 17, 196, 60);
+    check("tg2.status", L.status, 2, 153, 196, 21);
+    check("tg2.bottom", L.bottom, 2, 175, 198, 49);
+    check("tg2.loading", L.loading, 2, 82, 198, 70);
+    check("tg2.radar", L.radar, 2, 175, 198, 49);
+    L = compute_ext(TG_WIRES[3], ext_word(0, 0, TG_KIND[3], TG_ALIGN[3]));
+    if (s_dump) printf("  TOPGRAPH 3\n");
+    check("tg3.top_status", L.top_status, 2, 2, 196, 21);
+    check("tg3.top", L.top, 2, 104, 198, 70);
+    check("tg3.time", L.time, 2, 39, 196, 60);
+    check("tg3.status", L.status, 2, 22, 196, 21);
+    check("tg3.bottom", L.bottom, 2, 175, 198, 49);
+    check("tg3.loading", L.loading, 2, 175, 198, 49);
+    check("tg3.radar", L.radar, 2, 175, 198, 49);
+    L = compute_ext(TG_WIRES[4], ext_word(0, 0, TG_KIND[4], TG_ALIGN[4]));
+    if (s_dump) printf("  TOPGRAPH 4\n");
+    check("tg4.top_status", L.top_status, 2, 2, 196, 21);
+    check("tg4.top", L.top, 2, 22, 198, 70);
+    check("tg4.time", L.time, 2, 90, 196, 60);
+    check("tg4.status", L.status, 2, 93, 196, 0);
+    check("tg4.bottom", L.bottom, 2, 153, 198, 0);
+    check("tg4.loading", L.loading, 2, 23, 198, 69);
+    check("tg4.radar", L.radar, 2, 153, 198, 0);
+    L = compute_ext(TG_WIRES[5], ext_word(0, 0, TG_KIND[5], TG_ALIGN[5]));
+    if (s_dump) printf("  TOPGRAPH 5\n");
+    check("tg5.top_status", L.top_status, 2, 2, 196, 0);
+    check("tg5.top", L.top, 2, 71, 198, 70);
+    check("tg5.time", L.time, 2, 159, 196, 60);
+    check("tg5.status", L.status, 2, 142, 196, 21);
+    check("tg5.bottom", L.bottom, 2, 224, 198, 0);
+    check("tg5.loading", L.loading, 2, 71, 198, 70);
+    check("tg5.radar", L.radar, 2, 224, 198, 0);
+#endif
+}
+
 // Invariants for every graphless shape, order and Position (no golden numbers):
 //   - every band stays inside [cursor start, floor] (the clock's RECT is solver-seated
 //     into its neighbours' blank margins, so only its bottom is bounded), heights >= 0;
@@ -948,12 +1091,14 @@ static void golden_rects_graphless(void) {
 #define GL_START_STRIP 22     // content_y 2 + the strip reserve 20
 #define GL_START_NOSTRIP 2
 #define GL_LOADING_MIN 42     // 2 x STATUS_LARGE_BAND_H (21)
+#define LAYOUT_PAD_X_T 2      // mirrors LAYOUT_PAD_X (graphs run to the right edge)
 #else
 #define GL_FLOOR 168
 #define GL_MID 84
 #define GL_START_STRIP 13
 #define GL_START_NOSTRIP 0
 #define GL_LOADING_MIN 34     // 2 x STATUS_LARGE_BAND_H (17)
+#define LAYOUT_PAD_X_T 0
 #endif
 static void graphless_property_tests(void) {
     const struct { int tier, top, su, sl, clock_off, strip_off; } occ[] = {
@@ -1018,6 +1163,102 @@ static void graphless_property_tests(void) {
         }
     }
     printf("graphless_properties OK\n");
+}
+
+// Top-graph invariants over every order × occupancy × body × Position:
+//   - graph bands (the top graph and the body) are disjoint from the A/B status bands
+//     and from each other — the unchanged z-order (graphs created first, bars over them)
+//     is safe only because the stacker never overlaps a graph with a bar;
+//   - both graph rects run the full graph width and stay within [strip reserve, floor];
+//   - visibility shows exactly the graphs placed, never the same kind twice.
+static bool rects_disjoint(GRect a, GRect b) {
+    if (a.size.h == 0 || b.size.h == 0) { return true; }
+    return a.origin.y + a.size.h <= b.origin.y || b.origin.y + b.size.h <= a.origin.y;
+}
+
+static void top_graph_property_tests(void) {
+    const struct { int su, sl, clock_off, strip_off; } occ[] = {
+        { STATUS_SRC_FORECAST, STATUS_SRC_NONE,   0, 0 },
+        { STATUS_SRC_FORECAST, STATUS_SRC_RADAR,  0, 0 },
+        { STATUS_SRC_NONE,     STATUS_SRC_NONE,   0, 0 },
+        { STATUS_SRC_HEALTH,   STATUS_SRC_FORECAST, 1, 0 },
+        { STATUS_SRC_FORECAST, STATUS_SRC_NONE,   0, 1 },
+    };
+    const int bodies[3] = { BODY_FORECAST, BODY_HEALTH_GRAPH, BODY_NONE };
+    for (int kind = 0; kind <= 1; kind++) {
+        for (int bi = 0; bi < 3; bi++) {
+            int body = bodies[bi];
+            // one seat per graph kind: skip the pair resolve would fold (covered below)
+            if ((kind == 0 && body == BODY_FORECAST) || (kind == 1 && body == BODY_HEALTH_GRAPH)) { continue; }
+            for (int code = 0; code <= 11; code++) {
+                for (unsigned o = 0; o < sizeof(occ) / sizeof(occ[0]); o++) {
+                    for (int a = ALIGN_CLOCK; a <= ALIGN_BOTTOM; a++) {
+                        uint16_t wire = pack_custom(pack(1, 3, body, occ[o].su, occ[o].sl),
+                                                    occ[o].clock_off, occ[o].strip_off, code);
+                        ViewSpec sp = view_spec_resolve(unpack_ext(wire, ext_word(0, 0, kind, a)),
+                                                        true, true);
+                        MainLayout L = layout_compute_spec(BOUNDS, &sp, MET(FC_BAND_H, INK));
+                        GRect graphs[2] = { L.top, L.bottom };
+                        GRect bars[2] = { L.status, sp.status_lower != STATUS_SRC_NONE
+                                                    ? L.status_lower : GRect(0, 0, 0, 0) };
+                        for (int g = 0; g < 2; g++) {
+                            for (int r = 0; r < 2; r++) {
+                                expect("tg.graph_clear_of_bars", rects_disjoint(graphs[g], bars[r]), true);
+                            }
+                            if (graphs[g].size.h > 0) {
+                                expect("tg.graph_full_width", graphs[g].size.w == BOUNDS.size.w - LAYOUT_PAD_X_T, true);
+                                expect("tg.graph_within_floor",
+                                       graphs[g].origin.y + graphs[g].size.h <= GL_FLOOR, true);
+                            }
+                        }
+                        expect("tg.graphs_disjoint", rects_disjoint(L.top, L.bottom), true);
+                        LayerVisibility v = layout_visibility(&sp);
+                        expect("tg.top_kind_shown", kind == 0 ? v.forecast : v.health_graph, true);
+                        expect("tg.body_kind_shown",
+                               body == BODY_FORECAST ? v.forecast
+                               : body == BODY_HEALTH_GRAPH ? v.health_graph : true, true);
+                        expect("tg.no_calendar", v.calendar, false);
+                    }
+                }
+            }
+        }
+    }
+    printf("top_graph_properties OK\n");
+}
+
+// Resolve folds for a graph in the top band (units), and the flick cursor.
+static void top_graph_resolve_tests(void) {
+    const uint16_t health_top_fc = pack(1, 3, BODY_FORECAST, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
+    // #1 a health top without health data empties the band (no calendar conjured)
+    ViewSpec r = view_spec_resolve(unpack_ext(health_top_fc, ext_word(0, 0, 1, 0)), true, false);
+    expect("tgr.health_top_empties", r.top == TOP_BAND_EMPTY && r.top_kind == 0, true);
+    expect("tgr.health_top_keeps_body", r.body == BODY_FORECAST, true);
+    expect("tgr.health_top_stays_stacked", r.stacked, true);
+    // #2 a health BODY without health under a forecast top goes empty, not a 2nd forecast
+    const uint16_t fc_top_health = pack(1, 3, BODY_HEALTH_GRAPH, STATUS_SRC_NONE, STATUS_SRC_NONE);
+    r = view_spec_resolve(unpack_ext(fc_top_health, ext_word(0, 0, 0, 0)), true, false);
+    expect("tgr.health_body_to_none", r.top == TOP_BAND_GRAPH && r.body == BODY_NONE, true);
+    // ...and a radar body without radar data likewise
+    const uint16_t fc_top_radar = pack(1, 3, BODY_RADAR, STATUS_SRC_NONE, STATUS_SRC_NONE);
+    r = view_spec_resolve(unpack_ext(fc_top_radar, ext_word(0, 0, 0, 0)), false, true);
+    expect("tgr.radar_body_to_none", r.body == BODY_NONE, true);
+    // #3 dedupe: the same kind in both seats → the top keeps it
+    r = view_spec_resolve(unpack_ext(pack(1, 3, BODY_FORECAST, 0, 0), ext_word(0, 0, 0, 0)), true, true);
+    expect("tgr.dedupe_forecast", r.top == TOP_BAND_GRAPH && r.body == BODY_NONE, true);
+    r = view_spec_resolve(unpack_ext(pack(1, 3, BODY_HEALTH_GRAPH, 0, 0), ext_word(0, 0, 1, 0)), true, true);
+    expect("tgr.dedupe_health", r.body == BODY_NONE, true);
+    // Visibility ORs: the top graph's layer shows, the calendar never does.
+    r = view_spec_resolve(unpack_ext(fc_top_health, ext_word(0, 0, 0, 0)), true, true);
+    LayerVisibility v = layout_visibility(&r);
+    expect("tgr.vis_both_graphs", v.forecast && v.health_graph && !v.calendar && !v.radar, true);
+    // The flick cursor skips a health-top slot without health (the ext word decides it).
+    uint32_t health_top_word = (uint32_t) health_top_fc | ((uint32_t) ext_word(0, 0, 1, 0) << 16);
+    expect("tgr.slot_needs_health", view_slot_available(health_top_word, true, false), false);
+    expect("tgr.slot_ok_with_health", view_slot_available(health_top_word, true, true), true);
+    uint32_t cycle[3] = { pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), health_top_word,
+                          pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE) };
+    expect("tgr.cursor_skips_health_top", view_cursor_next(0, cycle, true, false) == 2, true);
+    printf("top_graph_resolve OK\n");
 }
 
 // Dispatch: an order-0 spec with an omission bit rides compute_stacked, not the legacy
@@ -2779,12 +3020,15 @@ int main(int argc, char **argv) {
     golden_rects_stripless();
     golden_rects_stacked();
     golden_rects_graphless();
+    golden_rects_top_graph();
     if (!s_dump) clockless_property_tests();
     if (!s_dump) dispatch_order0_omission_stacked();
     if (!s_dump) full_dual_fix_tests();
     if (!s_dump) stacked_order_parity();
     if (!s_dump) stacked_property_tests();
     if (!s_dump) graphless_property_tests();
+    if (!s_dump) top_graph_property_tests();
+    if (!s_dump) top_graph_resolve_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) ext_decode_tests();

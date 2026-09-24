@@ -446,10 +446,12 @@ ViewSpec view_spec_unpack(uint16_t v) {
     ViewSpec spec;
     uint8_t rows = layout_rows_for_wire_tier(tier);
     spec.calendar_rows = rows;
-    // Wire `top` uses EMPTY=0, CALENDAR=1, RADAR=2 (see src/pkjs/view-cycle.js);
+    // Wire `top` uses EMPTY=0, CALENDAR=1, RADAR=2, GRAPH=3 (see src/pkjs/view-cycle.js);
     // translate to the C TopBand enum (which numbers them differently). body/status
-    // fields share the wire's numbering, so they pass through directly.
-    spec.top = (top == 1) ? TOP_BAND_CALENDAR : (top == 2) ? TOP_BAND_RADAR : TOP_BAND_EMPTY;
+    // fields share the wire's numbering, so they pass through directly. Which graph a
+    // GRAPH top holds rides the ext word (top_kind, view_spec_apply_ext).
+    spec.top = (top == 1) ? TOP_BAND_CALENDAR : (top == 2) ? TOP_BAND_RADAR
+             : (top == 3) ? TOP_BAND_GRAPH : TOP_BAND_EMPTY;
     spec.body = body;
     spec.status_upper = su;
     spec.status_lower = sl;
@@ -535,11 +537,24 @@ static uint8_t resolve_source(uint8_t src, bool has_radar, bool has_health) {
 }
 
 ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
+    // A health graph in the top band without health data: the band empties (the user
+    // placed a graph, not a calendar — the tier is NONE, so there are no rows to show).
+    if (spec.top == TOP_BAND_GRAPH && spec.top_kind == TOP_GRAPH_HEALTH && !has_health) {
+        spec.top = TOP_BAND_EMPTY;
+    }
     if (!has_health && spec.body == BODY_HEALTH_GRAPH) { spec.body = BODY_FORECAST; }
     if (spec.top == TOP_BAND_RADAR && !has_radar) {
         spec.top = TOP_BAND_CALENDAR;   // radar-in-top implies full tier → 3-row calendar
     }
     if (spec.body == BODY_RADAR && !has_radar) { spec.body = BODY_FORECAST; }
+    // One seat per graph kind: each graph layer is a single instance. A body that shows
+    // (or just fell back to) the top band's graph goes empty — the top keeps it. Covers
+    // both folds above landing on a forecast top; the phone never emits the pair.
+    if (spec.top == TOP_BAND_GRAPH
+            && ((spec.top_kind == TOP_GRAPH_FORECAST && spec.body == BODY_FORECAST)
+                || (spec.top_kind == TOP_GRAPH_HEALTH && spec.body == BODY_HEALTH_GRAPH))) {
+        spec.body = BODY_NONE;
+    }
     uint8_t upper_before = spec.status_upper;
     spec.status_upper = resolve_source(spec.status_upper, has_radar, has_health);
     spec.status_lower = resolve_source(spec.status_lower, has_radar, has_health);
@@ -577,8 +592,13 @@ LayerVisibility layout_visibility(const ViewSpec *spec) {
     LayerVisibility v;
     v.calendar = (spec->calendar_rows > 0) && (spec->top == TOP_BAND_CALENDAR);
     v.radar = (spec->top == TOP_BAND_RADAR) || (spec->body == BODY_RADAR);
-    v.forecast = (spec->body == BODY_FORECAST);
-    v.health_graph = (spec->body == BODY_HEALTH_GRAPH);
+    // A graph shows in the body OR in the top band (custom layouts: TOP_BAND_GRAPH with
+    // top_kind); never both — resolve keeps one seat per graph kind.
+    bool top_graph = (spec->top == TOP_BAND_GRAPH);
+    v.forecast = (spec->body == BODY_FORECAST)
+              || (top_graph && spec->top_kind == TOP_GRAPH_FORECAST);
+    v.health_graph = (spec->body == BODY_HEALTH_GRAPH)
+                  || (top_graph && spec->top_kind == TOP_GRAPH_HEALTH);
     // A status source is on screen if EITHER band carries it — the bands are positional,
     // so which one it landed in is the renderer's question (layout_status_band), not
     // visibility's.
@@ -702,6 +722,18 @@ static int stack_align_offset(uint8_t align, int slack, bool clock,
     }
 }
 
+// The extra rows a forecast/health graph band carries below its plot: both layers pad
+// their frame bottom by BOTTOM_VIEW_BOTTOM_PAD (bottom_view.h — an SDK-bound header this
+// pure module cannot include), and their hour labels ink into that pad. A graph in the
+// top band adds the same tail so its plot keeps rows × row_h; radar and calendar bands
+// take none. Pinned equal to BOTTOM_VIEW_BOTTOM_PAD by test/graph-tail-lockstep.test.js.
+#ifdef PBL_PLATFORM_EMERY
+// emery: the larger hour labels and ticks need a 10-row pad under the plot.
+#define LAYOUT_GRAPH_TAIL 10
+#else
+#define LAYOUT_GRAPH_TAIL 0
+#endif
+
 // The shortest remainder a graphless view's loading / "No data" overlay is given: two
 // large status bands (34 | 42 rows) hold loading_layer's Gothic-18 line seated at a
 // third of the height with its tails; anything shorter would clip it to a sliver.
@@ -755,7 +787,12 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     int status_ch = full_rows ? full_tier_h : STATUS_LARGE_FONT_H;
     uint8_t rows = spec->calendar_rows;
     int cal_h = (rows == 3) ? calendar_h : (rows == 2) ? (calendar_h - calendar_h / 3) : 0;
+    // The row unit every sized band speaks: a 3-row calendar's row (15 | 20 px). A radar
+    // top is 3 rows; a graph top is 3 rows of plot plus the graph tail.
+    int row_h = calendar_h / 3;
+    bool graph_top = (spec->top == TOP_BAND_GRAPH);
     int top_h = (spec->top == TOP_BAND_RADAR) ? calendar_h
+              : graph_top ? (3 * row_h + LAYOUT_GRAPH_TAIL)
               : (spec->top == TOP_BAND_CALENDAR && rows > 0) ? cal_h : 0;
     int heights[5];
     heights[STK_TOP] = top_h;
@@ -806,7 +843,10 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
             // the reserve chain (the cursor) is unaffected.
             by = strip_calendar_seat(content_y, strip_h);
         }
-        rect[b] = GRect(content_x, by, (b == STK_BODY) ? bottom_w : content_w, bh);
+        // A graph runs to the right edge wherever it sits (body or top band), so it is
+        // pixel-identical in either seat; everything else keeps the content width.
+        bool full_w = (b == STK_BODY) || (b == STK_TOP && graph_top);
+        rect[b] = GRect(content_x, by, full_w ? bottom_w : content_w, bh);
         if (prev != STK_NONE) { next_of[prev] = b; }
         prev_of[b] = prev;
         prev = b;
@@ -884,10 +924,18 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
         L.bottom.origin.y += off;
     }
 
-    // The loading / "No data" overlay covers the graph it stands in for; a graphless
-    // view gets the remainder below its (shifted) block — 0 rows under Bottom, where
-    // the settings page's notice panel stays the authoritative seat.
-    if (body) {
+    // The loading / "No data" overlay covers the forecast it stands in for — in the top
+    // band when the forecast sits there (clipped below the strip: the overlay fills its
+    // frame and sits topmost, so it must not paint over the date's lowest rows), else the
+    // body; a graphless view gets the remainder below its (shifted) block — 0 rows under
+    // Bottom, where the settings page's notice panel stays the authoritative seat.
+    if (graph_top && spec->top_kind == TOP_GRAPH_FORECAST) {
+        int ly = L.top.origin.y;
+        int strip_end = L.top_status.origin.y + L.top_status.size.h;
+        if (ly < strip_end) { ly = strip_end; }
+        int lh = L.top.origin.y + L.top.size.h - ly;
+        L.loading = GRect(L.top.origin.x, ly, L.top.size.w, (lh > 0) ? lh : 0);
+    } else if (body) {
         L.loading = L.bottom;
     } else {
         // Too short for its line of text (loading_layer seats Gothic 18 at a third of its
