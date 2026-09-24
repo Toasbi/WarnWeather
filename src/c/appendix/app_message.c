@@ -308,7 +308,7 @@ static bool handle_norain_text(DictionaryIterator *iterator, bool *radar_dirty) 
     if (!tuple) {
         return false;
     }
-    // A CSTRING tuple; anything else clears back to the built-in default.
+    // A CSTRING tuple; anything else is stored as empty text, so the radar draws no line.
     const char *text = (tuple->type == TUPLE_CSTRING) ? tuple->value->cstring : "";
     *radar_dirty |= persist_set_norain_text(text);
     return true;

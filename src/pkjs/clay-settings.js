@@ -64,6 +64,11 @@ function resetAll() {
     // so it just goes back.
     if (kept) { localStorage.setItem(KEYS.PRESERVED_KEYS_KEY, JSON.stringify(keep)); }
     if (wuKey) { localStorage.setItem(KEYS.WU_API_KEY, wuKey); }
+    // The 1.23.0 empty-no-rain migration turns a stored '' back into the default,
+    // because '' used to mean "default". After a reset the next blob is seeded with
+    // the default, so any '' saved from here on is a deliberate clear: mark the
+    // migration done, or a clear saved before the next boot would be undone by it.
+    localStorage.setItem(KEYS.NORAIN_EMPTY_TO_DEFAULT_MIGRATION_KEY, '1');
     return keep;
 }
 

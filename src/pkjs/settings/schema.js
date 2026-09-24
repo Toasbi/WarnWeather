@@ -1710,7 +1710,7 @@ module.exports = {
                 label: 'No-rain message',
                 defaultValue: 'No rain ahead',
                 attributes: {maxlength: 24},
-                hint: 'Shown in the radar graph when no rain is coming. Up to 24 characters; leave it empty to show nothing.',
+                hint: 'Shown in the radar graph when no rain is coming (default: No rain ahead). Up to 24 characters; leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 type: 'select',
