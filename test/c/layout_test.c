@@ -54,6 +54,25 @@ static uint16_t pack_custom(uint16_t base, int clock_off, int strip_off, int ord
                     | ((order & 15) << 12));
 }
 
+// Custom layout v2: the ext word (view_spec_apply_ext).
+// ext bits: bodySize 0-2 | topSize 3-5 | topKind 6 | align 7-8 (view-cycle.js packExt).
+static uint16_t ext_word(int body_size, int top_size, int top_kind, int align) {
+    return (uint16_t)((body_size & 7) | ((top_size & 7) << 3) | ((top_kind & 1) << 6)
+                    | ((align & 3) << 7));
+}
+
+// The body fills (BODY present at its default size) — the one-fill rule's winner.
+static bool spec_fills_body(const ViewSpec *s) {
+    return s->body != BODY_NONE && s->body_size == BAND_SIZE_DEFAULT;
+}
+
+// unpack + apply_ext, the order main_window runs them in.
+static ViewSpec unpack_ext(uint16_t wire, uint16_t ext) {
+    ViewSpec s = view_spec_unpack(wire);
+    view_spec_apply_ext(&s, ext);
+    return s;
+}
+
 // Golden-test shim for the retired layout_compute() production wrapper: geometry for a
 // plain calendar+forecast view at the given tier. `two_rows` picks a single upper forecast
 // row (default views) or the dual health-upper + forecast-lower stack, matching the named
@@ -691,6 +710,309 @@ static void golden_rects_stacked(void) {
 #endif
 }
 
+// ── Graphless views + Position (custom layout v2) ───────────────────────────
+// Three shapes × the four Positions, both platforms. The shapes are the spec's worked
+// examples (docs spec §4.5): A = strip + clock only; B = TCAB cal2 + one weather row;
+// and a CTAB cal3 + one weather row whose clock sits at the top. With no graph the
+// stack ends at its last band (no trailing clearance) and the block moves rigidly by
+// the Position's offset; the strip never moves. The "today" rows (Top) are the pre-v2
+// stacker's top-anchored output — nothing above the slack changes.
+static MainLayout compute_ext(uint16_t wire, uint16_t ext) {
+    ViewSpec spec = unpack_ext(wire, ext);
+    return layout_compute_spec(BOUNDS, &spec, MET(FC_BAND_H, INK));
+}
+
+static void golden_rects_graphless(void) {
+    MainLayout L;
+    const uint16_t clk = pack(1, 0, 3, STATUS_SRC_NONE, STATUS_SRC_NONE);
+    const uint16_t tcab = pack_custom(pack(2, 1, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 0, 1);
+    const uint16_t ctab = pack_custom(pack(3, 1, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 0, 3);
+#ifndef PBL_PLATFORM_EMERY
+    // Example A (clock only): block 13..58, time solved at 12 (ink 17..51); slack 110.
+    // Clock: off 50 → time 62, ink 67..101, centre 84 = the midline. Middle: off 55.
+    // Example B (TCAB cal2 + A): block ends 108 (A's clearance is not counted — nothing
+    // follows it); slack 60. Clock: off 16 → time 62. The loading overlay is the
+    // remainder under the shifted block (0 rows under Bottom).
+    // CTAB cal3 + A: the bands under the clock need 110 of the 155 rows, so Clock clamps
+    // at the full slack (45) — the clock stops short of the midline by the overflow.
+    L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_CLOCK));
+    if (s_dump) printf("  GRAPHLESS clk clock\n");
+    check("gl_clk_clock.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_clk_clock.top", L.top, 0, 63, 144, 0);
+    check("gl_clk_clock.time", L.time, 0, 62, 144, 45);
+    check("gl_clk_clock.status", L.status, 0, 63, 144, 0);
+    check("gl_clk_clock.bottom", L.bottom, 0, 108, 144, 0);
+    check("gl_clk_clock.loading", L.loading, 0, 108, 144, 60);
+    L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_TOP));
+    if (s_dump) printf("  GRAPHLESS clk top\n");
+    check("gl_clk_top.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_clk_top.top", L.top, 0, 13, 144, 0);
+    check("gl_clk_top.time", L.time, 0, 12, 144, 45);
+    check("gl_clk_top.status", L.status, 0, 13, 144, 0);
+    check("gl_clk_top.bottom", L.bottom, 0, 58, 144, 0);
+    check("gl_clk_top.loading", L.loading, 0, 58, 144, 110);
+    L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_CENTRE));
+    if (s_dump) printf("  GRAPHLESS clk centre\n");
+    check("gl_clk_centre.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_clk_centre.top", L.top, 0, 68, 144, 0);
+    check("gl_clk_centre.time", L.time, 0, 67, 144, 45);
+    check("gl_clk_centre.status", L.status, 0, 68, 144, 0);
+    check("gl_clk_centre.bottom", L.bottom, 0, 113, 144, 0);
+    check("gl_clk_centre.loading", L.loading, 0, 113, 144, 55);
+    L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_BOTTOM));
+    if (s_dump) printf("  GRAPHLESS clk bottom\n");
+    check("gl_clk_bottom.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_clk_bottom.top", L.top, 0, 123, 144, 0);
+    check("gl_clk_bottom.time", L.time, 0, 122, 144, 45);
+    check("gl_clk_bottom.status", L.status, 0, 123, 144, 0);
+    check("gl_clk_bottom.bottom", L.bottom, 0, 168, 144, 0);
+    check("gl_clk_bottom.loading", L.loading, 0, 168, 144, 0);
+    L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_CLOCK));
+    if (s_dump) printf("  GRAPHLESS tcab clock\n");
+    check("gl_tcab_clock.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_tcab_clock.top", L.top, 0, 31, 144, 30);
+    check("gl_tcab_clock.time", L.time, 0, 62, 144, 45);
+    check("gl_tcab_clock.status", L.status, 0, 107, 144, 17);
+    check("gl_tcab_clock.bottom", L.bottom, 0, 124, 144, 0);
+    check("gl_tcab_clock.loading", L.loading, 0, 124, 144, 44);
+    L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_TOP));
+    if (s_dump) printf("  GRAPHLESS tcab top\n");
+    check("gl_tcab_top.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_tcab_top.top", L.top, 0, 15, 144, 30);
+    check("gl_tcab_top.time", L.time, 0, 46, 144, 45);
+    check("gl_tcab_top.status", L.status, 0, 91, 144, 17);
+    check("gl_tcab_top.bottom", L.bottom, 0, 108, 144, 0);
+    check("gl_tcab_top.loading", L.loading, 0, 108, 144, 60);
+    L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_CENTRE));
+    if (s_dump) printf("  GRAPHLESS tcab centre\n");
+    check("gl_tcab_centre.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_tcab_centre.top", L.top, 0, 45, 144, 30);
+    check("gl_tcab_centre.time", L.time, 0, 76, 144, 45);
+    check("gl_tcab_centre.status", L.status, 0, 121, 144, 17);
+    check("gl_tcab_centre.bottom", L.bottom, 0, 138, 144, 0);
+    check("gl_tcab_centre.loading", L.loading, 0, 138, 144, 30);
+    L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_BOTTOM));
+    if (s_dump) printf("  GRAPHLESS tcab bottom\n");
+    check("gl_tcab_bottom.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_tcab_bottom.top", L.top, 0, 75, 144, 30);
+    check("gl_tcab_bottom.time", L.time, 0, 106, 144, 45);
+    check("gl_tcab_bottom.status", L.status, 0, 151, 144, 17);
+    check("gl_tcab_bottom.bottom", L.bottom, 0, 168, 144, 0);
+    check("gl_tcab_bottom.loading", L.loading, 0, 168, 144, 0);
+    L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_CLOCK));
+    if (s_dump) printf("  GRAPHLESS ctab clock\n");
+    check("gl_ctab_clock.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_ctab_clock.top", L.top, 0, 103, 144, 45);
+    check("gl_ctab_clock.time", L.time, 0, 58, 144, 45);
+    check("gl_ctab_clock.status", L.status, 0, 151, 144, 17);
+    check("gl_ctab_clock.bottom", L.bottom, 0, 168, 144, 0);
+    check("gl_ctab_clock.loading", L.loading, 0, 168, 144, 0);
+    L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_TOP));
+    if (s_dump) printf("  GRAPHLESS ctab top\n");
+    check("gl_ctab_top.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_ctab_top.top", L.top, 0, 58, 144, 45);
+    check("gl_ctab_top.time", L.time, 0, 13, 144, 45);
+    check("gl_ctab_top.status", L.status, 0, 106, 144, 17);
+    check("gl_ctab_top.bottom", L.bottom, 0, 123, 144, 0);
+    check("gl_ctab_top.loading", L.loading, 0, 123, 144, 45);
+    L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_CENTRE));
+    if (s_dump) printf("  GRAPHLESS ctab centre\n");
+    check("gl_ctab_centre.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_ctab_centre.top", L.top, 0, 80, 144, 45);
+    check("gl_ctab_centre.time", L.time, 0, 35, 144, 45);
+    check("gl_ctab_centre.status", L.status, 0, 128, 144, 17);
+    check("gl_ctab_centre.bottom", L.bottom, 0, 145, 144, 0);
+    check("gl_ctab_centre.loading", L.loading, 0, 145, 144, 23);
+    L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_BOTTOM));
+    if (s_dump) printf("  GRAPHLESS ctab bottom\n");
+    check("gl_ctab_bottom.top_status", L.top_status, 0, 0, 144, 17);
+    check("gl_ctab_bottom.top", L.top, 0, 103, 144, 45);
+    check("gl_ctab_bottom.time", L.time, 0, 58, 144, 45);
+    check("gl_ctab_bottom.status", L.status, 0, 151, 144, 17);
+    check("gl_ctab_bottom.bottom", L.bottom, 0, 168, 144, 0);
+    check("gl_ctab_bottom.loading", L.loading, 0, 168, 144, 0);
+#else
+    // Example A (emery): block 22..82, time 17 (ink 26..71); slack 142. Clock: off 65 →
+    // time 82, ink 91..136 on the 114 midline. Example B: block ends 144, slack 80,
+    // Clock off 21 → cal 44..84, time 82, A 144..165, loading 165..224.
+    L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_CLOCK));
+    if (s_dump) printf("  GRAPHLESS clk clock\n");
+    check("gl_clk_clock.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_clk_clock.top", L.top, 2, 87, 196, 0);
+    check("gl_clk_clock.time", L.time, 2, 82, 196, 60);
+    check("gl_clk_clock.status", L.status, 2, 87, 196, 0);
+    check("gl_clk_clock.bottom", L.bottom, 2, 147, 198, 0);
+    check("gl_clk_clock.loading", L.loading, 2, 147, 198, 77);
+    L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_TOP));
+    if (s_dump) printf("  GRAPHLESS clk top\n");
+    check("gl_clk_top.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_clk_top.top", L.top, 2, 22, 196, 0);
+    check("gl_clk_top.time", L.time, 2, 17, 196, 60);
+    check("gl_clk_top.status", L.status, 2, 22, 196, 0);
+    check("gl_clk_top.bottom", L.bottom, 2, 82, 198, 0);
+    check("gl_clk_top.loading", L.loading, 2, 82, 198, 142);
+    L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_CENTRE));
+    if (s_dump) printf("  GRAPHLESS clk centre\n");
+    check("gl_clk_centre.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_clk_centre.top", L.top, 2, 93, 196, 0);
+    check("gl_clk_centre.time", L.time, 2, 88, 196, 60);
+    check("gl_clk_centre.status", L.status, 2, 93, 196, 0);
+    check("gl_clk_centre.bottom", L.bottom, 2, 153, 198, 0);
+    check("gl_clk_centre.loading", L.loading, 2, 153, 198, 71);
+    L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_BOTTOM));
+    if (s_dump) printf("  GRAPHLESS clk bottom\n");
+    check("gl_clk_bottom.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_clk_bottom.top", L.top, 2, 164, 196, 0);
+    check("gl_clk_bottom.time", L.time, 2, 159, 196, 60);
+    check("gl_clk_bottom.status", L.status, 2, 164, 196, 0);
+    check("gl_clk_bottom.bottom", L.bottom, 2, 224, 198, 0);
+    check("gl_clk_bottom.loading", L.loading, 2, 224, 198, 0);
+    L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_CLOCK));
+    if (s_dump) printf("  GRAPHLESS tcab clock\n");
+    check("gl_tcab_clock.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_tcab_clock.top", L.top, 2, 44, 196, 40);
+    check("gl_tcab_clock.time", L.time, 2, 82, 196, 60);
+    check("gl_tcab_clock.status", L.status, 2, 144, 196, 21);
+    check("gl_tcab_clock.bottom", L.bottom, 2, 165, 198, 0);
+    check("gl_tcab_clock.loading", L.loading, 2, 165, 198, 59);
+    L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_TOP));
+    if (s_dump) printf("  GRAPHLESS tcab top\n");
+    check("gl_tcab_top.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_tcab_top.top", L.top, 2, 23, 196, 40);
+    check("gl_tcab_top.time", L.time, 2, 61, 196, 60);
+    check("gl_tcab_top.status", L.status, 2, 123, 196, 21);
+    check("gl_tcab_top.bottom", L.bottom, 2, 144, 198, 0);
+    check("gl_tcab_top.loading", L.loading, 2, 144, 198, 80);
+    L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_CENTRE));
+    if (s_dump) printf("  GRAPHLESS tcab centre\n");
+    check("gl_tcab_centre.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_tcab_centre.top", L.top, 2, 63, 196, 40);
+    check("gl_tcab_centre.time", L.time, 2, 101, 196, 60);
+    check("gl_tcab_centre.status", L.status, 2, 163, 196, 21);
+    check("gl_tcab_centre.bottom", L.bottom, 2, 184, 198, 0);
+    check("gl_tcab_centre.loading", L.loading, 2, 184, 198, 40);
+    L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_BOTTOM));
+    if (s_dump) printf("  GRAPHLESS tcab bottom\n");
+    check("gl_tcab_bottom.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_tcab_bottom.top", L.top, 2, 103, 196, 40);
+    check("gl_tcab_bottom.time", L.time, 2, 141, 196, 60);
+    check("gl_tcab_bottom.status", L.status, 2, 203, 196, 21);
+    check("gl_tcab_bottom.bottom", L.bottom, 2, 224, 198, 0);
+    check("gl_tcab_bottom.loading", L.loading, 2, 224, 198, 0);
+    L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_CLOCK));
+    if (s_dump) printf("  GRAPHLESS ctab clock\n");
+    check("gl_ctab_clock.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_ctab_clock.top", L.top, 2, 142, 196, 60);
+    check("gl_ctab_clock.time", L.time, 2, 79, 196, 60);
+    check("gl_ctab_clock.status", L.status, 2, 203, 196, 21);
+    check("gl_ctab_clock.bottom", L.bottom, 2, 224, 198, 0);
+    check("gl_ctab_clock.loading", L.loading, 2, 224, 198, 0);
+    L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_TOP));
+    if (s_dump) printf("  GRAPHLESS ctab top\n");
+    check("gl_ctab_top.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_ctab_top.top", L.top, 2, 82, 196, 60);
+    check("gl_ctab_top.time", L.time, 2, 19, 196, 60);
+    check("gl_ctab_top.status", L.status, 2, 143, 196, 21);
+    check("gl_ctab_top.bottom", L.bottom, 2, 164, 198, 0);
+    check("gl_ctab_top.loading", L.loading, 2, 164, 198, 60);
+    L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_CENTRE));
+    if (s_dump) printf("  GRAPHLESS ctab centre\n");
+    check("gl_ctab_centre.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_ctab_centre.top", L.top, 2, 112, 196, 60);
+    check("gl_ctab_centre.time", L.time, 2, 49, 196, 60);
+    check("gl_ctab_centre.status", L.status, 2, 173, 196, 21);
+    check("gl_ctab_centre.bottom", L.bottom, 2, 194, 198, 0);
+    check("gl_ctab_centre.loading", L.loading, 2, 194, 198, 30);
+    L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_BOTTOM));
+    if (s_dump) printf("  GRAPHLESS ctab bottom\n");
+    check("gl_ctab_bottom.top_status", L.top_status, 2, 2, 196, 21);
+    check("gl_ctab_bottom.top", L.top, 2, 142, 196, 60);
+    check("gl_ctab_bottom.time", L.time, 2, 79, 196, 60);
+    check("gl_ctab_bottom.status", L.status, 2, 203, 196, 21);
+    check("gl_ctab_bottom.bottom", L.bottom, 2, 224, 198, 0);
+    check("gl_ctab_bottom.loading", L.loading, 2, 224, 198, 0);
+#endif
+}
+
+// Invariants for every graphless shape, order and Position (no golden numbers):
+//   - every band stays inside [cursor start, floor] (the clock's RECT is solver-seated
+//     into its neighbours' blank margins, so only its bottom is bounded), heights >= 0;
+//   - the Position moves the block RIGIDLY by one offset in [0, slack], measured
+//     against the Top (top-anchored) render, and never moves the strip;
+//   - the loading overlay is exactly the remainder under the shifted block;
+//   - under Clock, whenever the offset is not clamped, the clock's ink centre sits on
+//     the screen midline (±1 for the half-row of an even ink height).
+#ifdef PBL_PLATFORM_EMERY
+#define GL_FLOOR 224
+#define GL_MID 114
+#define GL_START_STRIP 22     // content_y 2 + the strip reserve 20
+#define GL_START_NOSTRIP 2
+#else
+#define GL_FLOOR 168
+#define GL_MID 84
+#define GL_START_STRIP 13
+#define GL_START_NOSTRIP 0
+#endif
+static void graphless_property_tests(void) {
+    const struct { int tier, top, su, sl, clock_off, strip_off; } occ[] = {
+        { 2, 1, STATUS_SRC_FORECAST, STATUS_SRC_NONE,   0, 0 },   // cal2 + A
+        { 3, 1, STATUS_SRC_HEALTH,   STATUS_SRC_FORECAST, 0, 0 }, // cal3 dual
+        { 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE,   0, 0 },   // no top + A
+        { 3, 2, STATUS_SRC_RADAR,    STATUS_SRC_NONE,   0, 0 },   // radar top + A
+        { 1, 0, STATUS_SRC_NONE,     STATUS_SRC_NONE,   0, 0 },   // clock only
+        { 2, 1, STATUS_SRC_FORECAST, STATUS_SRC_NONE,   1, 0 },   // clockless cal2 + A
+        { 2, 1, STATUS_SRC_HEALTH,   STATUS_SRC_FORECAST, 0, 1 }, // stripless cal2 dual
+        { 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE,   1, 1 },   // lone status row
+    };
+    for (int code = 0; code <= 11; code++) {
+        for (unsigned o = 0; o < sizeof(occ) / sizeof(occ[0]); o++) {
+            uint16_t wire = pack_custom(pack(occ[o].tier, occ[o].top, 3, occ[o].su, occ[o].sl),
+                                        occ[o].clock_off, occ[o].strip_off, code);
+            MainLayout T = compute_ext(wire, ext_word(0, 0, 0, ALIGN_TOP));
+            int cursor_start = occ[o].strip_off ? GL_START_NOSTRIP : GL_START_STRIP;
+            int block_end = T.bottom.origin.y;
+            int slack = GL_FLOOR - block_end;
+            expect("gl.no_body_band", T.bottom.size.h == 0, true);
+            expect("gl.block_fits", slack >= 0, true);
+            for (int a = ALIGN_CLOCK; a <= ALIGN_BOTTOM; a++) {
+                ViewSpec sp = unpack_ext(wire, ext_word(0, 0, 0, a));
+                MainLayout L = layout_compute_spec(BOUNDS, &sp, MET(FC_BAND_H, INK));
+                int off = L.bottom.origin.y - T.bottom.origin.y;
+                expect("gl.off_in_range", off >= 0 && off <= slack, true);
+                expect("gl.strip_pinned", memcmp(&L.top_status, &T.top_status, sizeof(GRect)) == 0, true);
+                expect("gl.rigid_top", L.top.origin.y == T.top.origin.y + off
+                       && L.top.size.h == T.top.size.h, true);
+                expect("gl.rigid_time", L.time.origin.y == T.time.origin.y + off, true);
+                expect("gl.rigid_status", L.status.origin.y == T.status.origin.y + off, true);
+                expect("gl.rigid_lower", L.status_lower.origin.y == T.status_lower.origin.y + off, true);
+                expect("gl.loading_is_remainder",
+                       L.loading.origin.y == L.bottom.origin.y
+                       && L.loading.origin.y + L.loading.size.h == GL_FLOOR, true);
+                GRect bands[4] = { L.top, L.status, L.status_lower, L.bottom };
+                for (int k = 0; k < 4; k++) {
+                    expect("gl.h_nonneg", bands[k].size.h >= 0, true);
+                    expect("gl.within_floor", bands[k].origin.y + bands[k].size.h <= GL_FLOOR, true);
+                    expect("gl.below_start", bands[k].origin.y >= cursor_start, true);
+                }
+                expect("gl.clock_within_floor", L.time.origin.y + L.time.size.h <= GL_FLOOR, true);
+                if (a == ALIGN_TOP) { expect("gl.top_is_zero_off", off == 0, true); }
+                if (a == ALIGN_BOTTOM) { expect("gl.bottom_is_full_slack", off == slack, true); }
+                if (a == ALIGN_CENTRE) { expect("gl.centre_is_half_slack", off == slack / 2, true); }
+                if (a == ALIGN_CLOCK && !occ[o].clock_off && off > 0 && off < slack) {
+                    int ink_top = L.time.origin.y + clock_ink_top_in_band(L.time.size.h, INK);
+                    int centre2 = 2 * ink_top + INK.ink_h - 1;     // twice the ink centre
+                    int d = centre2 - 2 * GL_MID;
+                    expect("gl.clock_on_midline", d >= -2 && d <= 2, true);
+                }
+                if (a == ALIGN_CLOCK && occ[o].clock_off) {
+                    expect("gl.clockless_clock_is_centre", off == slack / 2, true);
+                }
+            }
+        }
+    }
+    printf("graphless_properties OK\n");
+}
+
 // Dispatch: an order-0 spec with an omission bit rides compute_stacked, not the legacy
 // engine. Observable without reaching into the dispatcher: the rendered band order is
 // exactly TACB minus the absent band — which the goldens above pin pixel-exactly, and
@@ -933,24 +1255,6 @@ static void test_unpack_custom_bits(void) {
 }
 
 // ── Custom layout v2: the ext word (view_spec_apply_ext) ────────────────────
-// ext bits: bodySize 0-2 | topSize 3-5 | topKind 6 | align 7-8 (view-cycle.js packExt).
-static uint16_t ext_word(int body_size, int top_size, int top_kind, int align) {
-    return (uint16_t)((body_size & 7) | ((top_size & 7) << 3) | ((top_kind & 1) << 6)
-                    | ((align & 3) << 7));
-}
-
-// The body fills (BODY present at its default size) — the one-fill rule's winner.
-static bool spec_fills_body(const ViewSpec *s) {
-    return s->body != BODY_NONE && s->body_size == BAND_SIZE_DEFAULT;
-}
-
-// unpack + apply_ext, the order main_window runs them in.
-static ViewSpec unpack_ext(uint16_t wire, uint16_t ext) {
-    ViewSpec s = view_spec_unpack(wire);
-    view_spec_apply_ext(&s, ext);
-    return s;
-}
-
 static void ext_decode_tests(void) {
     // ext 0 is the IDENTITY for every shape the goldens pin (presets and every custom
     // omission/order shape): no field moves, so no pre-v2 pixel can.
@@ -2407,11 +2711,13 @@ int main(int argc, char **argv) {
     golden_rects_clockless();
     golden_rects_stripless();
     golden_rects_stacked();
+    golden_rects_graphless();
     if (!s_dump) clockless_property_tests();
     if (!s_dump) dispatch_order0_omission_stacked();
     if (!s_dump) full_dual_fix_tests();
     if (!s_dump) stacked_order_parity();
     if (!s_dump) stacked_property_tests();
+    if (!s_dump) graphless_property_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) ext_decode_tests();

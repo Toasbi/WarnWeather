@@ -639,25 +639,27 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics
 #endif
 
 // ── Stacked geometry (every custom shape) ───────────────────────────────────
-// A custom view — a non-legacy band order, OR the legacy order with a chrome omission
-// (clock_off / strip_off) — is a plain vertical stack: the strip (when present) pinned
-// first, then the movable bands — top band (calendar/radar), clock, status A, status B
-// — in the coded order, then the body absorbing the remainder to the bottom pad.
+// A custom view — a non-legacy band order, a chrome omission (clock_off / strip_off),
+// no graph, or (v2) a graph in the top band / a sized band — is a plain vertical stack:
+// the strip (when present) pinned first, then the movable bands — top band, clock,
+// status A, status B — in the coded order, then the graph body (when present) last.
 // Absent bands keep their place in the stored order and are skipped.
 // Band ids for STACK_ORDER below; A renders above B by canonicalization (the phone
-// compiler assigns the visually-upper source to the wire's upper slot).
-enum { STK_TOP = 0, STK_CLOCK = 1, STK_A = 2, STK_B = 3 };
+// compiler assigns the visually-upper source to the wire's upper slot). STK_BODY is
+// never in the order table — the body is pinned last — and STK_NONE is the "no
+// neighbour" sentinel (the strip or the top edge above, nothing below).
+enum { STK_TOP = 0, STK_CLOCK = 1, STK_A = 2, STK_B = 3, STK_BODY = 4, STK_NONE = 5 };
 
 // The 12 canonical orderings of {top, clock, A, B} with A before B. Code 0 is the
-// legacy order (top, A, clock, B): with full chrome it is DISPATCHED TO
-// compute_with_weights, but an order-0 view that removed the clock or the strip stacks
-// HERE through this row — which is exactly the band list the phone editor displays for
-// order 0. Codes 1-11 are the remaining orderings in lexicographic id order. MIRRORED
-// in src/pkjs/view-cycle.js STACK_ORDERS — both sides pin the same documented list in
+// legacy order (top, A, clock, B): with full chrome and a filling graph it is
+// DISPATCHED TO compute_with_weights, but any other order-0 view stacks HERE through
+// this row — which is exactly the band list the phone editor displays for order 0.
+// Codes 1-11 are the remaining orderings in lexicographic id order. MIRRORED in
+// src/pkjs/view-cycle.js STACK_ORDERS — both sides pin the same documented list in
 // their tests; edit in lockstep or the phone previews one order and the watch
 // renders another.
 static const uint8_t STACK_ORDER[12][4] = {
-    { STK_TOP,   STK_A,     STK_CLOCK, STK_B     },   //  0: TACB (omission views only)
+    { STK_TOP,   STK_A,     STK_CLOCK, STK_B     },   //  0: TACB (stacked views only)
     { STK_TOP,   STK_CLOCK, STK_A,     STK_B     },   //  1: TCAB
     { STK_TOP,   STK_A,     STK_B,     STK_CLOCK },   //  2: TABC
     { STK_CLOCK, STK_TOP,   STK_A,     STK_B     },   //  3: CTAB
@@ -671,6 +673,36 @@ static const uint8_t STACK_ORDER[12][4] = {
     { STK_A,     STK_B,     STK_CLOCK, STK_TOP   },   // 11: ABCT
 };
 
+// Where the stack's block moves when nothing fills the view: `slack` rows are free
+// between the block's last band and the bottom pad. CLOCK seats the clock's ink centre
+// on the screen midline — `clock_target` is the band row that does it, `clock_y` where
+// the solver seated the clock on the top-anchored stack — clamped into [0, slack], so
+// bands above the clock that already push it past the midline leave the view
+// top-anchored, and bands below that would overflow stop it short by exactly the
+// overflow. Without a clock, CLOCK reads as CENTRE. The block moves RIGIDLY: every gap
+// the solver balanced survives the shift.
+static int stack_align_offset(uint8_t align, int slack, bool clock,
+                              int clock_y, int clock_target) {
+    switch (align) {
+        case ALIGN_TOP:    return 0;
+        case ALIGN_BOTTOM: return slack;
+        case ALIGN_CENTRE: return slack / 2;
+        default: {
+            if (!clock) { return slack / 2; }
+            int off = clock_target - clock_y;
+            return (off < 0) ? 0 : (off > slack) ? slack : off;
+        }
+    }
+}
+
+// The clearance the NEXT band keeps below band `b` (the audited gap-after rule): a
+// calendar/radar top and a large-font status band ink to their band edge; the clock and
+// a squeezed fc_band_h status band carry their own blank margins.
+static int stack_gap_after(uint8_t b, bool full_rows) {
+    bool inks_to_edge = (b == STK_TOP) || ((b == STK_A || b == STK_B) && !full_rows);
+    return inks_to_edge ? STATUS_FORECAST_CLEARANCE : 0;
+}
+
 static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
     int fc_band_h = m.fc_band_h;
     ClockInk ink = m.clock;
@@ -678,6 +710,7 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     bool lower = (spec->status_lower != STATUS_SRC_NONE);
     bool clock = (spec->clock_off == 0);
     bool strip = (spec->strip_off == 0);
+    bool body = (spec->body != BODY_NONE);
     int w = bounds.size.w;
     int h = bounds.size.h;
     MainLayout L;
@@ -687,10 +720,11 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     int content_w = w - 2 * LAYOUT_PAD_X;
     int bottom_w = w - content_x;
     int strip_h = STATUS_LARGE_BAND_H;
+    int floor = h - LAYOUT_PAD_BOTTOM;
     // Same split arithmetic as the legacy engine — band HEIGHTS are shared vocabulary;
     // only their order is custom. The strip reserve stays in the subtraction whatever
     // `strip` says, so removing the strip moves bands without resizing them (the freed
-    // rows land in the body via the fill-to-pad below).
+    // rows land in the fill band, or in the slack a Position places).
     int content_h = h - LAYOUT_PAD_TOP - LAYOUT_PAD_BOTTOM
                     - CALENDAR_STATUS_HEIGHT - WEATHER_STATUS_HEIGHT;
     int calendar_h, time_h, bottom_h;
@@ -702,7 +736,8 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     // FULL-tier rows (a cal2/cal3 dual) take the squeezed fc_band_h band; everything
     // else takes the clamp-free large-font band. The top band is the 3-row calendar
     // height for radar (radar-in-top is a full-tier band), the tiered calendar height
-    // for a calendar, zero when empty.
+    // for a calendar, zero when empty. The body is the one FILL band: its height is
+    // whatever the fixed bands leave (pass 1 below).
     bool full_rows = (spec->status_tier == LAYOUT_TIER_FULL);
     int status_band_h = full_rows ? fc_band_h : STATUS_LARGE_BAND_H;
     int status_ch = full_rows ? full_tier_h : STATUS_LARGE_FONT_H;
@@ -710,86 +745,139 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     int cal_h = (rows == 3) ? calendar_h : (rows == 2) ? (calendar_h - calendar_h / 3) : 0;
     int top_h = (spec->top == TOP_BAND_RADAR) ? calendar_h
               : (spec->top == TOP_BAND_CALENDAR && rows > 0) ? cal_h : 0;
-    int heights[4];
+    int heights[5];
     heights[STK_TOP] = top_h;
     heights[STK_CLOCK] = clock ? time_h : 0;
     heights[STK_A] = upper ? status_band_h : 0;
     heights[STK_B] = lower ? status_band_h : 0;
+    heights[STK_BODY] = 0;                   // the fill band: whatever is left (below)
 
     L.top_status = GRect(content_x, content_y, content_w, strip ? strip_h : 0);
-    int y = strip ? (content_y + CALENDAR_STATUS_HEIGHT) : content_y;
+    int cursor_start = strip ? (content_y + CALENDAR_STATUS_HEIGHT) : content_y;
 
-    // Place the movable bands. Gap-after rule reuses the audited clearances: a
-    // calendar/radar band and a large-font status band ink to their band edge, so the
-    // next band clears them by STATUS_FORECAST_CLEARANCE; an fc_band_h status band
-    // and the clock carry their own blank margins, so nothing is added.
-    GRect rect[4];
+    // Walk the movable bands in the coded order (absent ones park a zero-height rect at
+    // the cursor), then the body when present. Each band's clearance (stack_gap_after)
+    // is paid when the NEXT present band is placed — so a gap counts only when another
+    // band follows: with a body every gap is followed (the body is last), exactly the
+    // pre-v2 stacker; on a graphless view the last band's gap simply vanishes. Every
+    // band is clamped to the floor, so a stack too tall for the screen truncates its
+    // LAST bands and never emits a negative rect.
+    GRect rect[5];
+    int y = cursor_start;
+    uint8_t prev = STK_NONE;                         // nothing placed yet (strip or top edge)
+    uint8_t prev_of[5] = { STK_NONE, STK_NONE, STK_NONE, STK_NONE, STK_NONE };
+    uint8_t next_of[5] = { STK_NONE, STK_NONE, STK_NONE, STK_NONE, STK_NONE };
     const uint8_t *ord = STACK_ORDER[spec->order];   // unpack clamps the field to 0-11
-    uint8_t prev = 4;                       // 4 = nothing placed yet (strip or top edge)
-    uint8_t prev_of[4] = { 4, 4, 4, 4 };    // rendered predecessor of each PLACED band
-    uint8_t next_of[4] = { 4, 4, 4, 4 };    // rendered successor (4 = the body)
-    for (int i = 0; i < 4; i++) {
-        uint8_t b = ord[i];
-        int bh = heights[b];
-        if (bh == 0) {                       // absent: zero-height rect at the cursor
-            rect[b] = GRect(content_x, y, content_w, 0);
+    for (int i = 0; i < 5; i++) {
+        uint8_t b = (i < 4) ? ord[i] : STK_BODY;
+        if (b == STK_BODY && !body) { break; }
+        // The clearance owed to the band placed last, paid before whatever comes next.
+        int gy = y + ((prev != STK_NONE) ? stack_gap_after(prev, full_rows) : 0);
+        if (gy > floor) { gy = floor; }
+        if (b != STK_BODY && heights[b] == 0) {
+            // Absent: a zero-height rect parked where the band would start (after the
+            // pending clearance — the pre-v2 stacker's cursor, which the goldens pin).
+            rect[b] = GRect(content_x, gy, content_w, 0);
             continue;
         }
+        y = gy;
+        // The body FILLS: everything from the cursor to the floor.
+        int bh = (b == STK_BODY) ? (floor - y) : heights[b];
+        int room = floor - y;
+        if (bh > room) { bh = room; }
+        if (bh < 0) { bh = 0; }
         int by = y;
-        if (b == STK_TOP && spec->top == TOP_BAND_CALENDAR && strip && prev == 4) {
+        if (b == STK_TOP && spec->top == TOP_BAND_CALENDAR && strip && prev == STK_NONE) {
             // The calendar directly under the strip keeps the legacy ink-slide
             // (strip_calendar_seat — same seat as calendar_y in compute_with_weights);
             // the reserve chain (the cursor) is unaffected.
             by = strip_calendar_seat(content_y, strip_h);
         }
-        rect[b] = GRect(content_x, by, content_w, bh);
-        if (prev != 4) { next_of[prev] = b; }
+        rect[b] = GRect(content_x, by, (b == STK_BODY) ? bottom_w : content_w, bh);
+        if (prev != STK_NONE) { next_of[prev] = b; }
         prev_of[b] = prev;
         prev = b;
         y += bh;
-        bool inks_to_edge = (b == STK_TOP)
-                            || ((b == STK_A || b == STK_B) && !full_rows);
-        if (inks_to_edge) { y += STATUS_FORECAST_CLEARANCE; }
+    }
+    int block_end = y;                        // the last band's bottom — no trailing gap
+    // An absent band AFTER the last present one parked past its clearance, which only a
+    // following band pays: pull it back to the block's end (a no-op with a body, whose
+    // block ends on the floor — the pre-v2 rects stay byte-identical).
+    for (int b = 0; b < 4; b++) {
+        if (rect[b].size.h == 0 && rect[b].origin.y > block_end) { rect[b].origin.y = block_end; }
     }
 
     L.top = rect[STK_TOP];
     L.time = rect[STK_CLOCK];
     L.status = rect[STK_A];
     L.status_lower = lower ? rect[STK_B] : L.status;   // alias contract (layout.h)
-    L.bottom = GRect(content_x, y, bottom_w, h - LAYOUT_PAD_BOTTOM - y);
-    L.loading = L.bottom;
-    L.radar = L.bottom;                                 // layout_compute_spec re-aliases
+    // No body: a zero-height bottom band parked at the block's end, so every consumer
+    // of L.bottom (the graph layers — hidden — and the loading rule) stays well-defined.
+    L.bottom = body ? rect[STK_BODY] : GRect(content_x, block_end, bottom_w, 0);
 
     // Clock ink centring against its ACTUAL stack neighbours — same solver, same ink
-    // primitives as the legacy engine, just resolved from the rendered order.
+    // primitives as the legacy engine, just resolved from the rendered order. Solved on
+    // the TOP-ANCHORED stack: the "nothing above" edge is the strip's fixed cap floor,
+    // which the alignment shift below never moves, so solving after the shift would
+    // float a Bottom-aligned lone clock off its band.
     if (clock && heights[STK_CLOCK] > 0) {
         uint8_t above = prev_of[STK_CLOCK];
         uint8_t below = next_of[STK_CLOCK];
         int above_ink;
-        if (above == 4) {
+        if (above == STK_NONE) {
             above_ink = strip_cap_floor(strip, content_y, strip_h);
         } else if (above == STK_TOP) {
-            above_ink = (spec->top == TOP_BAND_RADAR)
-                ? (rect[STK_TOP].origin.y + rect[STK_TOP].size.h - 1)   // radar paints edge-to-edge
-                : calendar_last_row_ink_bottom(rect[STK_TOP].origin.y, top_h, rows,
-                                               STATUS_LARGE_FONT_H);
+            above_ink = (spec->top == TOP_BAND_CALENDAR)
+                ? calendar_last_row_ink_bottom(rect[STK_TOP].origin.y, top_h, rows,
+                                               STATUS_LARGE_FONT_H)
+                : (rect[STK_TOP].origin.y + rect[STK_TOP].size.h - 1);   // radar: edge to edge
         } else {
             above_ink = status_band_ink_top(rect[above].origin.y, rect[above].size.h, status_ch)
                         + status_cap_h(status_ch) - 1;
         }
         int below_ink;
-        if (below == 4) {
+        if (below == STK_BODY || below == STK_NONE) {
+            // The graph paints from its very first row; with no body this is the block's
+            // end, i.e. the clock's own band bottom when it is the last band.
             below_ink = L.bottom.origin.y;
         } else if (below == STK_TOP) {
-            below_ink = (spec->top == TOP_BAND_RADAR)
-                ? rect[STK_TOP].origin.y
-                : calendar_first_row_ink_top(rect[STK_TOP].origin.y, top_h, rows,
-                                             STATUS_LARGE_FONT_H);
+            below_ink = (spec->top == TOP_BAND_CALENDAR)
+                ? calendar_first_row_ink_top(rect[STK_TOP].origin.y, top_h, rows,
+                                             STATUS_LARGE_FONT_H)
+                : rect[STK_TOP].origin.y;
         } else {
             below_ink = status_band_ink_top(rect[below].origin.y, rect[below].size.h, status_ch);
         }
         L.time.origin.y = clock_seat_y(L.time.size.h, ink, above_ink, below_ink);
     }
+
+    // Position: only a stack that nothing fills has slack to place; with a fill band
+    // the offset is 0 and the geometry is the top-anchored stack above, bit for bit.
+    // The strip (L.top_status) is pinned and never moves.
+    int off = 0;
+    if (!body) {
+        int slack = floor - block_end;
+        if (slack < 0) { slack = 0; }
+        int clock_target = bounds.origin.y + h / 2 - time_h / 2 - ink.centre_off;
+        off = stack_align_offset(spec->align, slack, clock && heights[STK_CLOCK] > 0,
+                                 L.time.origin.y, clock_target);
+        L.top.origin.y += off;
+        L.time.origin.y += off;
+        L.status.origin.y += off;
+        L.status_lower.origin.y += off;
+        L.bottom.origin.y += off;
+    }
+
+    // The loading / "No data" overlay covers the graph it stands in for; a graphless
+    // view gets the remainder below its (shifted) block — 0 rows under Bottom, where
+    // the settings page's notice panel stays the authoritative seat.
+    if (body) {
+        L.loading = L.bottom;
+    } else {
+        int loading_y = block_end + off;
+        L.loading = GRect(content_x, loading_y, bottom_w, floor - loading_y);
+    }
+    L.radar = L.bottom;                                 // layout_compute_spec re-aliases
     return L;
 }
 
