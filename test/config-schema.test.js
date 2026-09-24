@@ -455,7 +455,7 @@ test('feels-like is left out of both metric pickers on aplite', () => {
 test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', () => {
   const hint = byKey('secondaryLine').hintByValue.uv;
   assert.match(hint, /UV 11/);
-  assert.match(hint, /half-height/i);
+  assert.match(hint, /half.height/i);
 });
 
 test('windScale has nine contextual slots: three line-contexts × three wind units', () => {
@@ -1025,9 +1025,15 @@ test('metric hints add only the scale or meaning: no default line style, no Off,
       assert.ok(!/each hour/i.test(hints[m]), key + '.' + m + ' repeats the hourly resolution: ' + hints[m]);
     });
   });
-  // The three pickers share one hint per metric, so switching lines never rewords one.
-  assert.equal(byKey('thirdLine').hintByValue.wind, byKey('secondaryLine').hintByValue.wind);
-  assert.equal(byKey('fourthLine').hintByValue.uv, byKey('secondaryLine').hintByValue.uv);
+  // The three pickers share one hint map, so switching lines never rewords one.
+  assert.equal(byKey('thirdLine').hintByValue, byKey('secondaryLine').hintByValue);
+  assert.equal(byKey('fourthLine').hintByValue, byKey('secondaryLine').hintByValue);
+  // With wind and gusts both picked, the one scale row sits under the first of them:
+  // the hint names the setting instead of pointing "below".
+  assert.ok(!/below/.test(byKey('thirdLine').hintByValue.gust), 'gust hint must not point below');
+  assert.ok(!/below/.test(byKey('secondaryLine').hintByValue.wind), 'wind hint must not point below');
+  // A colour note would be wrong on Light, B/W and after a custom pick.
+  assert.ok(!/grey|gray/i.test(byKey('secondaryLine').hintByValue.feels), 'feels hint names no colour');
 });
 
 test('feels-like hint says it shares the temperature scale, on both pickers', () => {

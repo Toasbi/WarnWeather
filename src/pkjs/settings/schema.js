@@ -31,39 +31,23 @@ var HOURS = (function () {
     }
     return o;
 })();
-// Per-metric hints, shared by the three metric pickers. Each says only what the
-// picker's own label can't: how the metric maps to graph height (UV mirrors the
-// precip-percentage phrasing), or what the line means (dew point). No hint restates
-// the metric's name, the line style (its own row sits right below) or 'Off'.
+// Per-metric hints, one map shared by all three metric pickers. Each says only
+// what the picker's own label can't: how the metric maps to graph height (UV
+// mirrors the precip-percentage phrasing), or what the line means (dew point). No
+// hint restates the metric's name, its default look (the style and colour rows
+// set that) or 'Off'. The wind scale is named, not placed ("below"): with wind and
+// gusts both picked, its row sits under the first of them only. The third
+// metric's picker never offers feels or dew (blocks.js' forecastMetric resolver,
+// noTempAxis), so their entries simply go unused there.
 var LINE_HINTS = {
-    precip_prob: 'Half-height = 50% chance of rain, full height = 100%.',
-    wind: 'Scaled by the wind graph scale below.',
-    gust: 'The hourly peak, scaled by the wind graph scale below.',
-    uv: 'Half-height = UV 5.5, full height = UV 11 (extreme).',
+    precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
+    wind: 'Scaled by the Wind graph scale setting.',
+    gust: 'The hourly peak, scaled by the Wind graph scale setting.',
+    uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
     pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
-    feels: 'Drawn grey on the same scale as the temperature curve.',
+    feels: 'Drawn on the same scale as the temperature curve.',
     dew: 'Drawn on the same scale as the temperature curve. The closer it runs to the temperature, the more humid it feels.'
 };
-/**
- * A metric picker's hint map: the shared per-metric LINE_HINTS with any
- * banned metrics left out.
- * @param {Array.<string>} [omit] Metric ids left out of the map.
- * @returns {Object} Picker-value -> hint map.
- */
-function lineHintsWithout(omit) {
-    var out = {}, k;
-    for (k in LINE_HINTS) {
-        if (!Object.prototype.hasOwnProperty.call(LINE_HINTS, k)) { continue; }
-        if (omit && omit.indexOf(k) >= 0) { continue; }
-        out[k] = LINE_HINTS[k];
-    }
-    return out;
-}
-var THIRD_LINE_HINTS = lineHintsWithout();
-// No feels or dew on the third metric: the fourth line has no curve-inset channel,
-// so they could never share the temperature axis (line-style.js FORECAST_LINES
-// bans them; blocks.js' forecastMetric resolver drops them via noTempAxis).
-var FOURTH_LINE_HINTS = lineHintsWithout(lineStyle.TEMP_AXIS_METRIC_IDS);
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -289,9 +273,10 @@ var GRAPH_ROLE_LABELS = {
     Boundary: 'Dusk / dawn line'
 };
 var GRAPH_ROLE_HINTS = {
-    Fill: 'Only drawn while “Fill area below the line” is on.',
+    Fill: 'Only drawn while this is the Main metric and “Fill area below the line” is on.',
     Night: 'Re-shades the filled area under the night hours. Follows the fill colour until you pick one here.',
-    Boundary: 'The vertical lines at sunset and sunrise.'
+    Hatch: 'Only drawn while “Day / night shading” is on.',
+    Boundary: 'Only drawn while “Day / night shading” is on.'
 };
 
 /**
@@ -1439,7 +1424,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics you pick below and the hourly rain bars are drawn on top of it.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics and rain bars you pick below join it.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1475,7 +1460,7 @@ module.exports = {
                 messageKey: 'thirdLine',
                 label: 'Second metric',
                 defaultValue: 'uv',
-                hintByValue: THIRD_LINE_HINTS,
+                hintByValue: LINE_HINTS,
                 optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
             },
             lineStyleCopy('thirdLineStyle', 'thirdLine'),
@@ -1488,7 +1473,7 @@ module.exports = {
                 messageKey: 'fourthLine',
                 label: 'Third metric',
                 defaultValue: 'off',
-                hintByValue: FOURTH_LINE_HINTS,
+                hintByValue: LINE_HINTS,
                 optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true}},
                 // Only watches with enough memory carry a third metric line
                 // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
