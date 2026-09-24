@@ -126,6 +126,8 @@ static void apply_line_style(SeriesLine *line, uint8_t style_byte, int solid_wid
 // height. Stripes sharing an edge stack with a 1 px gap.
 #define FORECAST_STRIPE_H(plot_h) ((plot_h) / 12 < 3 ? 3 : ((plot_h) / 12 > 6 ? 6 : (plot_h) / 12))
 #define FORECAST_STRIPE_GAP 1
+// The clear rows between the top stripe band and the plot below it.
+#define FORECAST_TOP_BAND_GAP 2
 #else
 #define SERIES_IS_STRIPE(s) false
 #endif
@@ -245,27 +247,12 @@ static void load_dataset(ForecastDataset *ds) {
  * aplite reads the frozen DOTS style through series_style_pick (series.h) —
  * only SERIES_THIRD is reachable there, and its style is fixed.
  */
-// Top stripes along the graph's top edge (s_top_pad = their band height + a 1 px gap,
-// set per redraw in forecast_update_proc; 0 without top stripes). The temperature line
-// keeps its own top inset, measured from below that band (TEMP_TOP). A metric line on
-// the temperature axis (feels-like, dew point: the phone gives it a non-zero inset)
-// may sit just 1 px under the stripes (METRIC_TOP); full-height metric lines and the
-// fill keep their inset. aplite has no stripes: both are the plain inset there, so its
-// code is byte-for-byte what it was.
-#if defined(WW_LINE_STYLE)
-static int16_t s_top_pad;
-#define TEMP_TOP(inset) ((int16_t)((inset) + s_top_pad))
-#define METRIC_TOP(inset) ((int16_t)((s_top_pad && (inset)) ? s_top_pad : (inset)))
-#else
-#define TEMP_TOP(inset) (inset)
-#define METRIC_TOP(inset) (inset)
-#endif
 
 static ChartLayer mark_line_layer(const Series *s, int count) {
     return (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = s->line.values, .count = count,
         .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-        .inset_top = METRIC_TOP(s->line.inset_y), .inset_bottom = s->line.inset_y,
+        .inset_top = s->line.inset_y, .inset_bottom = s->line.inset_y,
         .color = s->line.color, .width = s->line.width,
         .style = series_style_pick(s->line, CHART_LINE_DOTS),
         .zero_absent = true } };  // metric line: wire byte 0 means "nothing", every style
@@ -514,11 +501,15 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const int16_t stripe_band = bottom_stripes
         ? (int16_t)(bottom_stripes * stripe_h + (bottom_stripes - 1) * FORECAST_STRIPE_GAP + 1)
         : 0;
-    // Top stripes stack along the plot's top edge: their band plus a 1 px gap. The
-    // temperature line starts its own inset below it, temperature-axis metric lines
-    // (feels-like, dew point) 1 px below it (TEMP_TOP / METRIC_TOP).
-    s_top_pad = top_stripes
-        ? (int16_t)(top_stripes * stripe_h + (top_stripes - 1) * FORECAST_STRIPE_GAP + 1)
+    // Top stripes get a band of their own ABOVE the plot, as bottom stripes get one
+    // below it: stacked from the top edge with a 1 px gap between them, and a 2 px gap
+    // under the last so even a full rain bar never touches them. The plot starts below
+    // the band, so nothing else — fill, bars, night shading, any line — draws into it,
+    // and every line maps its values (with its own inset) as if the graph began there:
+    // a UV 11 or the hottest hour ends just under the stripes.
+    const int16_t top_band = top_stripes
+        ? (int16_t)(top_stripes * stripe_h + (top_stripes - 1) * FORECAST_STRIPE_GAP
+                    + FORECAST_TOP_BAND_GAP)
         : 0;
 #else
     const int16_t stripe_band = 0;
@@ -527,6 +518,13 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     const GRect outer = GRect(graph_bounds.origin.x, 0,
                               grid_right - graph_bounds.origin.x + 1,
                               plot_axis_y + 1);
+#if defined(WW_LINE_STYLE)
+    const GRect plot = GRect(outer.origin.x, top_band, outer.size.w, outer.size.h - top_band);
+#else
+// aplite: no stripes, the plot is the whole graph. A name for `outer`, not a copy: a
+// GRect copy changes aplite's code generation (its image is frozen at 21700 B).
+#define plot outer
+#endif
 
     // Per-redraw data prep + layer list. The scratch arrays are module-static
     // (not stack): aplite's small app stack overflows otherwise (PC=0/LR=0).
@@ -604,7 +602,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             // and the night re-hatch reuse these exported points, so all three
             // follow. aplite: insets are compile-time constants there and the
             // area engine skips the inset math, so nothing to pass.
-            .inset_top = METRIC_TOP(second->line.inset_y), .inset_bottom = second->line.inset_y,
+            .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
 #endif
             .fill_color = second->line.fill_color } };
     }
@@ -637,19 +635,20 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .contour        = NULL } };
     }
 #if defined(WW_LINE_STYLE)
-    // Top stripes: along the plot's top edge, over the night shading and under
-    // the bars and every line; stacked downward in line order. Bottom stripes
-    // go to the band below the zero line (band_layers, drawn after the plot).
+    // Top stripes go to the band above the plot (top_layers), bottom stripes to the
+    // band below the zero line (band_layers); both are drawn after the plot, stacked
+    // in line order.
     static ChartLayer band_layers[SERIES_COUNT + 1];   // stripes + frame + axis; aplite never reaches here
-    int nb = 0;
+    static ChartLayer top_layers[SERIES_COUNT];        // stripes + frame
+    int nb = 0, nt = 0;
     {
         int stacked_top = 0, stacked_bottom = 0;
         for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
             const Series *s = &ds.series[sid];
             if (!s->present || !SERIES_IS_STRIPE(s)) continue;
-            // Every stripe is laid out from the top of its own rect: the plot
-            // for a top stripe, the band (flush under the zero line) for a
-            // bottom one; a 1 px gap separates stripes sharing an edge.
+            // Every stripe is laid out from the top of its own band: the top band
+            // above the plot, or the band flush under the zero line; a 1 px gap
+            // separates stripes sharing an edge.
             int *stacked = s->line.stripe_top ? &stacked_top : &stacked_bottom;
             const int16_t y_offset = (int16_t)((*stacked)++ * (stripe_h + FORECAST_STRIPE_GAP));
             const ChartLayer stripe = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
@@ -660,7 +659,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                 .height = (int16_t)stripe_h,
                 .top = true } };
             if (s->line.stripe_top) {
-                layers[n++] = stripe;
+                top_layers[nt++] = stripe;
             } else {
                 band_layers[nb++] = stripe;
             }
@@ -711,7 +710,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             : (ChartLayer){ CHART_LAYER_LINE, .line = {
                   .values = second->line.values, .count = ds.num_entries,
                   .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-                  .inset_top = METRIC_TOP(second->line.inset_y), .inset_bottom = second->line.inset_y,
+                  .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
                   .export_points = area_pts,
                   .color = second->line.color, .width = second->line.width,
                   .style = series_style_pick(second->line, CHART_LINE_SOLID),
@@ -729,7 +728,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = first->line.values, .count = ds.num_entries,
         .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-        .inset_top = TEMP_TOP(first->line.inset_y), .inset_bottom = first->line.inset_y,
+        .inset_top = first->line.inset_y, .inset_bottom = first->line.inset_y,
         .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, axis_color },
@@ -741,8 +740,17 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (stripe_band == 0) {
         layers[n++] = axis_layer;
     }
-    chart_draw(ctx, &FORECAST_GRID_DEF, outer, layers, n);
+    chart_draw(ctx, &FORECAST_GRID_DEF, plot, layers, n);
 #if defined(WW_LINE_STYLE)
+    if (top_band > 0) {
+        // The top band's own chart: same columns, the stripes laid out from its top
+        // edge, and the left axis line carried up through it so the graph's axis has
+        // no break at the plot's top.
+        top_layers[nt++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
+            .left = { 1, axis_color } } } };
+        chart_draw(ctx, &FORECAST_GRID_DEF, GRect(outer.origin.x, 0, outer.size.w, top_band),
+                   top_layers, nt);
+    }
     if (stripe_band > 0) {
         // The band's own chart: same columns (anchor + pitch), and its last row
         // is the original axis row, so the hour ticks and labels land exactly
@@ -759,6 +767,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #endif
 
     draw_left_axis(ctx, h, plot_axis_y);   // hi/lo temp strip: chart-adjacent chrome, not a chart layer
+#if !defined(WW_LINE_STYLE)
+#undef plot
+#endif
     MEMORY_HEAP_PROBE_LOG_MIN(&redraw_probe);
     MEMORY_LOG_HEAP("forecast_update:exit");
 }
