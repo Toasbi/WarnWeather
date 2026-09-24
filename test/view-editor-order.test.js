@@ -228,3 +228,48 @@ test('the last element keeps no ✕', () => {
   assert.doesNotMatch(html, /data-ve-del="C"/, 'the clock is the only element left');
   assert.match(html, /data-ve-del="topbar"/, 'the top bar is not an element');
 });
+
+// An edit that switches a view between the watch's two engines — the legacy engine
+// (order code 0 with full chrome and a filling graph) and the stacker — must not move
+// the bands the user did not touch. Under a 3-row calendar, a radar top or no top the
+// legacy engine draws the status bar BELOW the clock, the stacker's code 0 above it.
+test('removing and re-adding the graph keeps the drawn order, and comes back byte-identical', () => {
+  ['cal3', 'radar', 'none', 'cal2'].forEach((top) => {
+    [['weather', 'off'], ['weather', 'radar']].forEach(([upper, lower]) => {
+      const S = state({ viewTop1: top, viewUpper1: upper, viewLower1: lower });
+      const label = top + ' ' + upper + '/' + lower;
+      const drawn = watchKinds(S, 1);
+      const before = wire(S);
+      assert.equal(ve.removeElement(S, 1, 'G'), true, label);
+      assert.deepEqual(watchKinds(S, 1), drawn, label + ': nothing moved on the watch');
+      assert.deepEqual(editorKinds(S, 1), drawn, label + ': nor in the list');
+      assert.equal(ve.addElement(S, 1, 'graph'), true, label);
+      assert.deepEqual(wire(S), before, label + ': the graph back = the view as it was');
+    });
+  });
+});
+
+test('removing and re-adding the top bar keeps the drawn order, and comes back byte-identical', () => {
+  ['cal3', 'radar', 'none', 'cal2'].forEach((top) => {
+    const S = state({ viewTop1: top });
+    const drawn = watchKinds(S, 1);
+    const before = wire(S);
+    assert.equal(ve.removeElement(S, 1, 'topbar'), true, top);
+    assert.deepEqual(watchKinds(S, 1), drawn, top + ': nothing moved');
+    assert.deepEqual(editorKinds(S, 1), drawn, top);
+    assert.equal(ve.addElement(S, 1, 'topbar'), true, top);
+    assert.deepEqual(wire(S), before, top + ': byte-identical again');
+  });
+});
+
+test('a sheet pick that switches engines keeps the drawn order (keepOrder)', () => {
+  // Simulates the overlay's sheet flow: capture before the sheet opens, the engine
+  // writes the key, then normalizeAfterPick and keepOrder run in the close callback.
+  const S = state({ viewTop1: 'cal3', viewBody1: 'none' });
+  const drawn = watchKinds(S, 1);
+  const snap = ve.orderSnapshot(S, 1);
+  S.viewBody1 = 'forecast';
+  ve.normalizeAfterPick(S, 1, 'viewBody1');
+  ve.keepOrder(S, 1, snap);
+  assert.deepEqual(watchKinds(S, 1), drawn);
+});

@@ -108,10 +108,51 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function legacyOrder(S, i) {
         var compiled = viewCycleLib.buildCustomCycle(S)[i];
         if (!compiled) { return 'TCAB'; }
+        if (stackedAtCode0(compiled)) { return 'TACB'; }
+        return (compiled.tier === viewCycleLib.TIER_COMPACT) ? 'TACB' : 'TCAB';
+    }
+
+    /**
+     * Would this compiled view render through the watch's STACKED engine if it stored
+     * the legacy order code 0? (viewCycleLib.isStacked with the order code stripped.)
+     * @param {!Object} compiled spec from buildCustomCycle
+     * @returns {boolean}
+     */
+    function stackedAtCode0(compiled) {
         var s = viewCycleLib.cloneSpec(compiled);
         delete s.order;
-        if (viewCycleLib.isStacked(s)) { return 'TACB'; }
-        return (s.tier === viewCycleLib.TIER_COMPACT) ? 'TACB' : 'TCAB';
+        return viewCycleLib.isStacked(s);
+    }
+
+    /**
+     * What an edit must not disturb: the order view `i` is drawn in now, and which
+     * engine draws its code 0. Take it BEFORE an edit that can switch engines (the
+     * graph, the top bar, a Top-area or Graph pick, a size); hand it to keepOrder after.
+     * @param {Object} S @param {number} i
+     * @returns {{shown: string[], stacked: boolean}}
+     */
+    function orderSnapshot(S, i) {
+        var compiled = viewCycleLib.buildCustomCycle(S)[i];
+        return { shown: displayOrder(S, i), stacked: Boolean(compiled) && stackedAtCode0(compiled) };
+    }
+
+    /**
+     * After an edit: if it switched the engine that draws view `i`'s legacy code — the
+     * legacy engine draws a 3-row calendar, radar or no-top view clock-first (T C A),
+     * the stacker literally (T A C) — store the order the view was drawn in before, so
+     * the bands the user did not touch stay where they were. storedOrderFor prefers the
+     * legacy code whenever it draws that order, so undoing the edit restores the view
+     * byte for byte. A no-op when the engine did not change.
+     * @param {Object} S settings state (mutated)
+     * @param {number} i view slot
+     * @param {{shown: string[], stacked: boolean}} snap orderSnapshot() before the edit
+     * @returns {void}
+     */
+    function keepOrder(S, i, snap) {
+        var compiled = viewCycleLib.buildCustomCycle(S)[i];
+        var now = Boolean(compiled) && stackedAtCode0(compiled);
+        if (now === snap.stacked) { return; }
+        storeOrder(S, i, snap.shown.slice());
     }
 
     /**
@@ -234,14 +275,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {boolean} whether anything changed
      */
     function removeElement(S, i, el) {
+        var snap;
         if (el === 'topbar') {
             if (i === 0 || S[k('StripOff', i)]) { return false; }
-            S[k('StripOff', i)] = true; return true;
+            snap = orderSnapshot(S, i);
+            S[k('StripOff', i)] = true;
+            keepOrder(S, i, snap);
+            return true;
         }
         if (elementCount(S, i) <= 1) { return false; }
         if (el === 'G') {
             if (!presence(S, i).G) { return false; }
-            S[k('Body', i)] = 'none'; return true;
+            snap = orderSnapshot(S, i);
+            S[k('Body', i)] = 'none';
+            keepOrder(S, i, snap);
+            return true;
         }
         if (el === 'C') {
             if (i === 0 || S[k('ClockOff', i)]) { return false; }
@@ -340,10 +388,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addElement(S, i, kind) {
         // The order as shown before the element appears: re-adding the top area turns a
         // no-top view into a 2-row one, which changes how a legacy order displays.
-        var shown = displayOrder(S, i);
+        var snap = orderSnapshot(S, i);
+        var shown = snap.shown;
         if (kind === 'topbar') {
             if (i === 0 || !S[k('StripOff', i)]) { return false; }
-            S[k('StripOff', i)] = false; return true;
+            S[k('StripOff', i)] = false;
+            keepOrder(S, i, snap);
+            return true;
         }
         if (kind === 'clock') {
             if (i === 0 || !S[k('ClockOff', i)]) { return false; }
@@ -362,6 +413,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             S[k('BodySize', i)] = 'fill';
             // One fill per view: a fresh graph takes the space, a filling top reverts.
             if (S[k('TopSize', i)] === 'fill') { S[k('TopSize', i)] = '3'; }
+            keepOrder(S, i, snap);
             return true;
         }
         if (kind === 'status') {
@@ -738,8 +790,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if ((t = e.target.closest('[data-select]'))) {
             var sk = t.getAttribute('data-select');
+            // Before the sheet writes: a pick can switch engines (keepOrder).
+            var snap = orderSnapshot(S, i);
             VE.ctx.openSheet(sk, function () {
                 normalizeAfterPick(S, i, sk);
+                keepOrder(S, i, snap);
                 renderEditor();
             });
             return;
@@ -794,6 +849,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             addableElements: addableElements, freeStatusSource: freeStatusSource,
             freeBodyContent: freeBodyContent, elementCount: elementCount,
             setAlign: setAlign, viewHasFill: viewHasFill,
+            orderSnapshot: orderSnapshot, keepOrder: keepOrder,
             normalizeAfterPick: normalizeAfterPick,
             takeSnapshot: takeSnapshot, restoreSnapshot: restoreSnapshot,
             addView: addView, removeView: removeView, viewCount: viewCount,
