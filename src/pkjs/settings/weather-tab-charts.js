@@ -192,6 +192,25 @@
     }
 
     /**
+     * The day tiles from the location's current day on. The parsers start them
+     * on the day of the FETCH; data served later the same phone day (the day-long
+     * cache) can cross the location's midnight first when it sits in another time
+     * zone, and a leftover yesterday tile would put tile i one day off panel i.
+     * The hour of slack matches the parsers' own (a DST day's midnight).
+     * @param {?Array} daily Parsed daily entries ({date: local-day start ms, ...}).
+     * @param {number} dayStartMs The view's day 0 start.
+     * @returns {Array} Entries from day 0 on.
+     */
+    function dailyFrom(daily, dayStartMs) {
+        var out = [];
+        var list = daily || [];
+        for (var i = 0; i < list.length; i += 1) {
+            if (list[i] && list[i].date >= dayStartMs - 3600000) { out.push(list[i]); }
+        }
+        return out;
+    }
+
+    /**
      * A view precomputes everything the panels share: the complete hourly
      * grid over the timeline (today 00:00 → up to DAY_COUNT location-local
      * days, trailing dataless days trimmed), the day count, and the now
@@ -270,7 +289,7 @@
             // beside it. Settling only today's chance was worse still — it
             // paired a whole-day amount with a rest-of-day chance in one
             // column, printing "4 mm" over "5%" for a morning that rained.
-            daily: data.daily || []
+            daily: dailyFrom(data.daily, dayStartMs)
         };
     }
 

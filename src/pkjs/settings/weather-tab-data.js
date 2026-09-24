@@ -45,10 +45,10 @@
 //
 // Results are cached per provider+coords for the lifetime of the page open
 // (module var — page storage doesn't persist, news-cache.js:3-5) and served for
-// the rest of the phone's calendar day: the tab fetches on its own at most once
-// a day per place, and after that only when the user refreshes. The phone keeps
-// the day's data for the open-default place across page opens
-// (src/pkjs/weather-tab-cache.js) and the page primes this cache from it.
+// the rest of the phone's calendar day, so switching places never refetches one
+// already shown today. Across opens only the place the tab opens on is kept: the
+// phone stores the day's data for it (src/pkjs/weather-tab-cache.js) and the page
+// primes this cache from it. Refresh and pull-to-refresh always fetch.
 /* global WeatherTabModel */
 (function () {
     'use strict';

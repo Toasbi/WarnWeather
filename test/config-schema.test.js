@@ -64,7 +64,7 @@ const GRAPH_COLOR_KEYS = lineStyle.graphColorKeys();
 
 const EXPECTED_KEYS = [
   'theme','themeAuto','themeNight','themeAutoMode','themeAutoStartHour','themeAutoEndHour',
-  'graphsProvider','graphsLocation','savedLocation1','savedLocation2','savedLocation3',
+  'graphsProvider','graphsLocation','savedLocation1','savedLocation2','savedLocation3','weatherTabSeenAt',
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
@@ -1075,7 +1075,15 @@ test('startOnWeatherTab is a page-only toggle that defaults to General', () => {
   const path = require('node:path');
   const pkjs = path.join(__dirname, '..', 'src', 'pkjs');
   const watchSide = fs.readdirSync(pkjs).filter((f) => f.slice(-3) === '.js');
-  watchSide.forEach((f) => {
+  // Phone-side support for the settings page itself, which may read the page's own
+  // keys: weather-tab-cache.js keeps the Weather tab's data only while the tab is in
+  // use. It must never reach the watch — no AppMessage, no outbox.
+  const PAGE_SUPPORT = ['weather-tab-cache.js'];
+  PAGE_SUPPORT.forEach((f) => {
+    const src = fs.readFileSync(path.join(pkjs, f), 'utf8');
+    assert.ok(!/sendAppMessage|outbox|clay-payload/.test(src), f + ' must not talk to the watch');
+  });
+  watchSide.filter((f) => PAGE_SUPPORT.indexOf(f) === -1).forEach((f) => {
     const src = fs.readFileSync(path.join(pkjs, f), 'utf8');
     assert.equal(src.indexOf('startOnWeatherTab'), -1,
       'watch-side ' + f + ' must not read a page-only key');

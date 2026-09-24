@@ -1021,7 +1021,12 @@ module.exports = {
         }, {
             groupCard: 'weatherMain',
             block: 'weatherGraphs',
-            items: []
+            items: [{
+                // Blob-only: stamped by the graphs block whenever it renders and
+                // carried back by the next Save, so the phone knows the tab is in
+                // use and keeps its data for the day (weather-tab-cache.js).
+                type: 'hidden', messageKey: 'weatherTabSeenAt', defaultValue: 0
+            }]
         }]
     }, {
         id: 'general', label: 'General', openDefault: true, sections: [{

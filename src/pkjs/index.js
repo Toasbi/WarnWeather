@@ -223,8 +223,8 @@ Pebble.addEventListener('showConfiguration', function(e) {
         userData: userData
     }));
     console.log('Showing clay: ' + JSON.stringify(claySettings.redactForLog(values)));
-    // After the page is open: fetch the Weather tab's data for the next opens when
-    // the phone holds nothing from today (at most once a day per place).
+    // After the page is open: when the Weather tab is in use and the phone holds
+    // nothing from today for the place it opens on, fetch it for the next opens.
     weatherTabCache.refreshIfStale(values, graphsSeed, nowMs);
 });
 

@@ -17,7 +17,8 @@ const data = require('../src/pkjs/settings/weather-tab-data.js');
 
 const DAY0 = Math.floor(Date.now() / 86400000) * 86400000;
 const SEED = { lat: 52.52, lon: 13.405, name: 'Berlin', gps: true };
-const SETTINGS = { graphsProvider: 'openmeteo', graphsLocation: 'current' };
+// startOnWeatherTab: the tab is in use, so the phone keeps its data.
+const SETTINGS = { graphsProvider: 'openmeteo', graphsLocation: 'current', startOnWeatherTab: true };
 
 /** @returns {Object} a minimal Open-Meteo response the adapter accepts */
 function openMeteoBody() {
@@ -115,7 +116,8 @@ test('the stored copy serves only today, this provider and this place', () => {
     const fetchedAt = cache.read().meta.fetchedAt;
     assert.ok(cache.forPage(SETTINGS, { lat: 52.53, lon: 13.41 }, fetchedAt), 'GPS jitter (~1 km) keeps it');
     assert.equal(cache.forPage(SETTINGS, { lat: 52.6, lon: 13.405 }, fetchedAt), null, '9 km away: another place');
-    assert.equal(cache.forPage({ graphsProvider: 'dwd' }, SEED, fetchedAt), null, 'another provider');
+    assert.equal(cache.forPage({ graphsProvider: 'dwd', startOnWeatherTab: true }, SEED, fetchedAt), null,
+      'another provider');
     assert.equal(cache.forPage(SETTINGS, SEED, fetchedAt + 36 * 3600000), null, 'tomorrow: stale');
     assert.equal(cache.refreshIfStale(SETTINGS, SEED, fetchedAt + 36 * 3600000), true, 'tomorrow\'s first open refreshes');
   } finally {
@@ -134,15 +136,19 @@ test('one request at a time, and a failure keeps the old copy', () => {
   } finally {
     hold.restore();
   }
-  const before = store[storageKeys.WEATHER_TAB_CACHE_KEY];
+  const before = cache.read();
   const fail = fakeXhr('fail');
   try {
-    const tomorrow = Date.now() + 86400000;
+    const tomorrow = Date.now() + 36 * 3600000;
     let ok = null;
     assert.equal(cache.refreshIfStale(SETTINGS, SEED, tomorrow, (r) => { ok = r; }), true);
     assert.equal(ok, false);
-    assert.equal(store[storageKeys.WEATHER_TAB_CACHE_KEY], before, 'the old copy stays');
-    assert.equal(cache.refreshIfStale(SETTINGS, SEED, tomorrow), true, 'and the next open tries again');
+    assert.deepEqual(cache.read(), before, 'the old copy stays');
+    assert.equal(cache.refreshIfStale(SETTINGS, SEED, tomorrow), false, 'no retry the same day');
+    assert.equal(fail.urls.length, 1);
+    assert.equal(cache.refreshIfStale({ graphsProvider: 'dwd', startOnWeatherTab: true }, SEED, tomorrow), true,
+      'another provider is another target');
+    assert.equal(cache.refreshIfStale(SETTINGS, SEED, tomorrow + 36 * 3600000), true, 'the next day tries again');
   } finally {
     fail.restore();
   }
@@ -157,4 +163,38 @@ test('a corrupt or foreign stored value reads as empty', () => {
   store[storageKeys.WEATHER_TAB_CACHE_KEY] = JSON.stringify({ v: 1, data: { hourly: {}, meta: { provider: 'openmeteo' } } });
   assert.equal(cache.read(), null, 'no fetch time or place');
   assert.equal(cache.forPage(SETTINGS, SEED, todayNoon()), null);
+});
+
+test('only a tab in use costs a request: the start tab, or a recent seen stamp', () => {
+  reset();
+  const xhr = fakeXhr('ok');
+  try {
+    const now = Date.now();
+    const plain = { graphsProvider: 'openmeteo', graphsLocation: 'current' };
+    assert.equal(cache.refreshIfStale(plain, SEED, now), false, 'never looked at: no request');
+    assert.equal(cache.refreshIfStale(Object.assign({ weatherTabSeenAt: now - 40 * 86400000 }, plain), SEED, now),
+      false, 'seen 40 days ago: no longer in use');
+    assert.equal(xhr.urls.length, 0);
+    assert.equal(cache.refreshIfStale(Object.assign({ weatherTabSeenAt: now - 3 * 86400000 }, plain), SEED, now),
+      true, 'seen 3 days ago (carried back by a Save): refresh');
+    assert.equal(xhr.urls.length, 1);
+    assert.ok(cache.forPage(plain, SEED, now), 'a stored copy is served whatever the stamp says');
+  } finally {
+    xhr.restore();
+  }
+});
+
+test('the phone keeps no second copy in the data module\'s memory', () => {
+  reset();
+  const xhr = fakeXhr('ok');
+  try {
+    cache.refreshIfStale(SETTINGS, SEED, Date.now());
+    assert.equal(xhr.urls.length, 1);
+    let answered = false;
+    data.fetchWeather('openmeteo', SEED.lat, SEED.lon, {}, () => { answered = true; });
+    assert.ok(answered);
+    assert.equal(xhr.urls.length, 2, 'the module cache was dropped after the refresh');
+  } finally {
+    xhr.restore();
+  }
 });

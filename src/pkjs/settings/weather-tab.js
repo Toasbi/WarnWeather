@@ -122,9 +122,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Kick (or reuse) the fetch for the active provider+location. Never
      * fetches twice for the same key; repaints through ctx when data lands.
-     * Data from the phone's current day is served from the cache (primed from
-     * the phone's copy), so the tab fetches on its own at most once a day per
-     * place; the Refresh button and pull-to-refresh always go to the network.
+     * Data from the phone's current day is served from the cache: within a page
+     * open for every place, and across opens for the place the tab opens on
+     * (primed from the phone's copy). Other places fetch once per page open. The
+     * Refresh button and pull-to-refresh always go to the network.
      * @param {Object} state Live settings state.
      * @param {Object} userData Injected userData.
      * @returns {void}
@@ -302,6 +303,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var seed = seedOf(userData);
         var loc = model.activeLocation(state, seed);
         if (!loc) { return ''; }
+        // Tell the phone the tab is in use (a blob-only key; it arrives with the
+        // next Save), so it keeps the day's data for the next opens
+        // (weather-tab-cache.js tabInUse).
+        state.weatherTabSeenAt = Date.now();
         ensureFetch(state, userData);
         var isLight = pageIsLight(state);
         var pal = charts.palette(isLight);
@@ -710,8 +715,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Force a refetch of the CURRENT provider+location. Manual only — this
      * tab never refetches on a timer; data updates the first time a place is
-     * shown on a new day (earlier data from today is served from the cache,
-     * across page opens via the phone's copy), and through this (the Refresh
+     * shown on a new day or in a new page open (the place the tab opens on is
+     * served across opens from the phone's copy), and through this (the Refresh
      * button beside the 5-day title, and pull-to-refresh). Keeps fetchState.key and .view, so
      * ensureFetch refires for the same key and the charts stay up (dimmed)
      * on the day the user was viewing. That fetch bypasses the page cache

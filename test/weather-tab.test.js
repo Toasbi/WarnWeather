@@ -1187,6 +1187,8 @@ test('the phone\'s copy from today shows without a request; a stale or foreign o
     const fresh = stored({});
     let html = open(fresh, state);
     assert.ok(html.indexOf(CHARTS) !== -1, 'today\'s copy renders the charts at once');
+    assert.ok(state.weatherTabSeenAt > 0 && Date.now() - state.weatherTabSeenAt < 60000,
+      'the render stamps the tab as seen, for the phone (carried back by a Save)');
     assert.equal(urls.length, 0, 'no request');
     assert.equal(tab._fetchState().data.meta.fetchedAt, earlierToday, 'the age says when the phone fetched');
     // A manual refresh still goes to the network, and its answer wins over the copy.
