@@ -1518,6 +1518,7 @@ static void sized_property_tests(void) {
         { 1, 0, BODY_RADAR,        STATUS_SRC_FORECAST, STATUS_SRC_NONE, 0, 0 },
     };
     const int rows_of[5] = { 0, 2, 3, 4, 0 };
+    const ClockInk ink = INK;
     for (unsigned o = 0; o < sizeof(occ) / sizeof(occ[0]); o++) {
         int tier = (occ[o].top == 2) ? 3 : (occ[o].top == 1) ? 2 : 1;
         for (int code = 0; code <= 11; code++) {
@@ -1545,6 +1546,42 @@ static void sized_property_tests(void) {
                         bool body_fills = sp.body != BODY_NONE && sp.body_size == 0;
                         bool top_fills = sp.top_size == BAND_SIZE_FILL;
                         expect("sz.one_fill", !(body_fills && top_fills), true);
+                        // The alignment stage on sized stacks (nothing fills): one rigid offset
+                        // in [0, slack] against the Top render, the strip pinned, every band
+                        // at or below the cursor start, the clock on the midline when unclamped.
+                        ViewSpec tp = view_spec_resolve(unpack_ext(wire, ext_word(bs, ts, occ[o].kind, ALIGN_TOP)),
+                                                        true, true);
+                        MainLayout T = layout_compute_spec(BOUNDS, &tp, MET(FC_BAND_H, INK));
+                        int start = occ[o].strip_off ? GL_START_NOSTRIP : GL_START_STRIP;
+                        expect("sz.strip_pinned", memcmp(&L.top_status, &T.top_status, sizeof(GRect)) == 0, true);
+                        GRect placed[4] = { L.top, L.status, L.status_lower, L.bottom };
+                        for (int k = 0; k < 4; k++) {
+                            expect("sz.below_start", placed[k].size.h == 0 || placed[k].origin.y >= start, true);
+                        }
+                        if (!body_fills && !top_fills) {
+                            int block_end = T.bottom.origin.y + T.bottom.size.h;   // body, or 0-h at block end
+                            int slack = GL_FLOOR - block_end;
+                            int off = L.bottom.origin.y - T.bottom.origin.y;
+                            expect("sz.off_in_range", off >= 0 && off <= (slack > 0 ? slack : 0), true);
+                            expect("sz.rigid", L.top.origin.y == T.top.origin.y + off
+                                   && L.time.origin.y == T.time.origin.y + off
+                                   && L.status.origin.y == T.status.origin.y + off
+                                   && L.status_lower.origin.y == T.status_lower.origin.y + off, true);
+                            if (a == ALIGN_CLOCK && !occ[o].clock_off && off > 0 && off < slack) {
+                                int ink_top = L.time.origin.y + clock_ink_top_in_band(L.time.size.h, ink);
+                                int d = 2 * ink_top + ink.ink_h - 1 - 2 * GL_MID;
+                                expect("sz.clock_on_midline", d >= -2 && d <= 2, true);
+                            }
+                        } else {
+                            // Something fills: alignment is moot — every rect equals the Top render.
+                            expect("sz.fill_ignores_align", memcmp(&L, &T, sizeof(L)) == 0, true);
+                            if (top_fills && sp.body != BODY_NONE) {
+                                // a filling top takes exactly the remainder: the (sized, last)
+                                // body then ends on the floor
+                                expect("sz.fill_top_remainder",
+                                       L.bottom.origin.y + L.bottom.size.h == GL_FLOOR, true);
+                            }
+                        }
                         if (body_fills) {
                             expect("sz.body_fill_to_floor", L.bottom.origin.y + L.bottom.size.h == GL_FLOOR, true);
                         } else if (sp.body != BODY_NONE && L.bottom.size.h > 0
@@ -1586,6 +1623,23 @@ static void sized_property_tests(void) {
                                      true, true);
     expect("sz.fill_top_kept_with_health", hf2.top == TOP_BAND_GRAPH && hf2.top_size == BAND_SIZE_FILL
            && hf2.align == 0, true);
+    // A 2-row radar top without radar data falls back to the 2-row calendar — the same
+    // height — so nothing below it moves and the fit the editor promised holds.
+    const uint16_t r2w = pack_custom(pack(3, 2, BODY_HEALTH_GRAPH, STATUS_SRC_FORECAST, STATUS_SRC_HEALTH), 0, 0, 1);
+    ViewSpec with = view_spec_resolve(unpack_ext(r2w, ext_word(BAND_SIZE_2, BAND_SIZE_2, 0, 0)), true, true);
+    ViewSpec without = view_spec_resolve(unpack_ext(r2w, ext_word(BAND_SIZE_2, BAND_SIZE_2, 0, 0)), false, true);
+    MainLayout Lw = layout_compute_spec(BOUNDS, &with, MET(FC_BAND_H, INK));
+    MainLayout Lo = layout_compute_spec(BOUNDS, &without, MET(FC_BAND_H, INK));
+    expect("sz.radar2_folds_to_cal2", without.top == TOP_BAND_CALENDAR && without.calendar_rows == 2, true);
+    expect("sz.radar2_same_body", Lw.bottom.origin.y == Lo.bottom.origin.y
+           && Lw.bottom.size.h == Lo.bottom.size.h, true);
+    ViewSpec r4 = view_spec_resolve(unpack_ext(r2w, ext_word(0, BAND_SIZE_4, 0, 0)), false, true);
+    expect("sz.radar4_folds_to_cal3", r4.calendar_rows == 3, true);
+    // The loading overlay never paints over the strip, whichever seat the forecast is in.
+    ViewSpec lone = unpack_ext(pack_custom(pack(1, 0, BODY_FORECAST, 0, 0), 1, 0, 0), 0);
+    MainLayout Ll = layout_compute_spec(BOUNDS, &lone, MET(FC_BAND_H, INK));
+    expect("sz.loading_under_strip", Ll.loading.origin.y == Ll.top_status.origin.y + Ll.top_status.size.h
+           && Ll.loading.origin.y + Ll.loading.size.h == GL_FLOOR && Ll.bottom.origin.y < Ll.loading.origin.y, true);
     printf("sized_properties OK\n");
 }
 

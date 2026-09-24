@@ -545,6 +545,12 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     if (!has_health && spec.body == BODY_HEALTH_GRAPH) { spec.body = BODY_FORECAST; }
     if (spec.top == TOP_BAND_RADAR && !has_radar) {
         spec.top = TOP_BAND_CALENDAR;   // radar-in-top implies full tier → 3-row calendar
+        // ...except a 2-row radar top: it falls back to the 2-row calendar, the same
+        // height, so a view sized to fit keeps fitting while radar data is missing (a
+        // 3-row calendar would push its last band past the floor). Taller and filling
+        // radar tops fold to the 3-row calendar, which is never taller; the phone's fit
+        // check budgets the fill case at that height.
+        if (spec.top_size == BAND_SIZE_2) { spec.calendar_rows = 2; }
     }
     if (spec.body == BODY_RADAR && !has_radar) { spec.body = BODY_FORECAST; }
     // One seat per graph kind: each graph layer is a single instance. A body that shows
@@ -968,18 +974,18 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     }
 
     // The loading / "No data" overlay covers the forecast it stands in for — in the top
-    // band when the forecast sits there (clipped below the strip: the overlay fills its
-    // frame and sits topmost, so it must not paint over the date's lowest rows), else the
-    // body; a graphless view gets the remainder below its (shifted) block — 0 rows under
-    // Bottom, where the settings page's notice panel stays the authoritative seat.
-    if (graph_top && spec->top_kind == TOP_GRAPH_FORECAST) {
-        int ly = L.top.origin.y;
+    // band when the forecast sits there, else the body — clipped below the strip either
+    // way (the overlay fills its frame and sits topmost, so a graph seated right under
+    // the strip must not have the date's lowest rows painted over). A graphless view gets
+    // the remainder below its (shifted) block — 0 rows under Bottom, where the settings
+    // page's notice panel stays the authoritative seat.
+    if ((graph_top && spec->top_kind == TOP_GRAPH_FORECAST) || body) {
+        GRect cover = (graph_top && spec->top_kind == TOP_GRAPH_FORECAST) ? L.top : L.bottom;
+        int ly = cover.origin.y;
         int strip_end = L.top_status.origin.y + L.top_status.size.h;
         if (ly < strip_end) { ly = strip_end; }
-        int lh = L.top.origin.y + L.top.size.h - ly;
-        L.loading = GRect(L.top.origin.x, ly, L.top.size.w, (lh > 0) ? lh : 0);
-    } else if (body) {
-        L.loading = L.bottom;
+        int lh = cover.origin.y + cover.size.h - ly;
+        L.loading = GRect(cover.origin.x, ly, cover.size.w, (lh > 0) ? lh : 0);
     } else {
         // Too short for its line of text (loading_layer seats Gothic 18 at a third of its
         // height) → 0 rows, as under Bottom: a sliver would show only the glyph tops.
