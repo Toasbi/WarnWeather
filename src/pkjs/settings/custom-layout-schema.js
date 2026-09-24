@@ -41,13 +41,16 @@ var VIEW_SRC_GATES = {
  */
 function customViewItems(i) {
     var items = [{
-        type: 'radio', messageKey: 'viewTop' + i, label: 'Calendar / top area',
+        type: 'radio', messageKey: 'viewTop' + i, label: 'Top area',
         defaultValue: 'cal2',
         // No 'Nothing' entry: removal is the editor row's ✕ button; 'none' stays a
-        // legal STORED value (what ✕ writes).
+        // legal STORED value (what ✕ writes). A graph here (custom layout v2) is the
+        // same graph as the Graph row's — one seat per kind; the editor moves it.
         options: [['Calendar — 3 rows', 'cal3'], ['Calendar — 2 rows', 'cal2'],
-                  ['Rain radar', 'radar']],
-        optionDisabledWhen: {radar: {not: VIEW_RADAR_CHART_WHEN}}
+                  ['Rain radar', 'radar'], ['Forecast graph', 'forecast'],
+                  ['Health graph', 'health']],
+        optionDisabledWhen: {radar: {not: VIEW_RADAR_CHART_WHEN},
+                             health: {not: VIEW_HEALTH_BODY_WHEN}}
     }, {
         type: 'radio', messageKey: 'viewBody' + i, label: 'Graph',
         defaultValue: 'forecast',

@@ -531,6 +531,52 @@ test('a blob that predates the new keys compiles to ext 0 (the upgrade path)', (
   });
 });
 
+// ── Graphs in the top area (Phase 2a) ───────────────────────────────────────
+
+test('a forecast or health graph in the top area compiles to top code 3 at tier NONE, kind in the ext', () => {
+  const f = vc.buildCustomCycle(customState({ viewTop0: 'forecast', viewBody0: 'health', healthMode: 'all' }))[0];
+  assert.equal(f.top, vc.TOP_GRAPH);
+  assert.equal(f.tier, vc.TIER_NONE, 'no calendar rows: full date, large-font rows');
+  assert.ok(!('topKind' in f), 'forecast is kind 0 → absent (canonical)');
+  assert.equal(f.body, vc.BODY_GRAPH);
+  assert.equal((vc.packWire(f) >> 6) & 3, 3, 'wire top code 3');
+  assert.equal(vc.isStacked(f), true);
+  const h = vc.buildCustomCycle(customState({ viewTop0: 'health', healthMode: 'all' }))[0];
+  assert.equal(h.topKind, vc.TOP_KIND_HEALTH);
+  assert.equal((vc.packExt(h) >> 6) & 1, 1, 'ext bit 6 = health');
+});
+
+test('top graphs fold by capability and never duplicate the body\'s graph', () => {
+  // health top without healthMode 'all' → the top area empties (not a calendar)
+  const h = vc.buildCustomCycle(customState({ viewTop0: 'health', healthMode: 'status' }))[0];
+  assert.equal(h.top, vc.TOP_EMPTY);
+  assert.equal(h.tier, vc.TIER_NONE);
+  // the same kind in both seats: the top keeps it
+  assert.equal(vc.buildCustomCycle(customState({ viewTop0: 'forecast', viewBody0: 'forecast' }))[0].body,
+    vc.BODY_NONE);
+  // a body that FOLDS to the forecast under a forecast top goes empty, not a 2nd forecast
+  assert.equal(vc.buildCustomCycle(customState({ viewTop0: 'forecast', viewBody0: 'health',
+    healthMode: 'off' }))[0].body, vc.BODY_NONE);
+  assert.equal(vc.buildCustomCycle(customState({ viewTop0: 'forecast', viewBody0: 'radar',
+    radarMode: 'status' }))[0].body, vc.BODY_NONE);
+  // a health top with a forecast body is the two-graph view
+  const two = vc.buildCustomCycle(customState({ viewTop0: 'health', viewBody0: 'forecast', healthMode: 'all' }))[0];
+  assert.equal(two.top, vc.TOP_GRAPH);
+  assert.equal(two.body, vc.BODY_FC);
+});
+
+test('keys → spec → keys round-trips both top graphs', () => {
+  ['forecast', 'health'].forEach((top) => {
+    const S = customState({ viewTop0: top, viewBody0: top === 'forecast' ? 'health' : 'forecast',
+      healthMode: 'all' });
+    const cycle = vc.buildCustomCycle(S);
+    const keys = vc.specToKeys(cycle);
+    assert.equal(keys.viewTop0, top);
+    assert.deepStrictEqual(vc.buildCustomCycle(Object.assign({}, S, keys)).map(vc.packWire),
+      cycle.map(vc.packWire));
+  });
+});
+
 // ── The ext word (high half of CLAY_VIEW_n) ──────────────────────────────────
 
 /**

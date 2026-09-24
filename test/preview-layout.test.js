@@ -346,3 +346,15 @@ test('contentBands: an order-0 spec with stripOff stacks TACB, not the legacy fu
     'Health Status', 'Forecast'],
     'stacker TACB (A above C), Watch Status dropped — the watch\'s rendering');
 });
+
+test('contentBands: a graph in the top area is a labelled 3-row top band', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const f = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH,
+        vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1 }));
+    assert.deepEqual(f.map((b) => b.label), ['Watch Status', 'Forecast', 'Clock', 'Health graph']);
+    assert.equal(f[1].kind, 'top');
+    const h = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_FC,
+        vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1, topKind: vc.TOP_KIND_HEALTH }));
+    assert.equal(h[1].label, 'Health graph');
+    assert.equal(h[1].h, f[1].h, 'both 3 rows (sizes are Phase 2b)');
+});

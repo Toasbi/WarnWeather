@@ -79,7 +79,7 @@ test('the editor lists every top, row count, order and omission the way the watc
   // very band whose position the legacy/stacked engines disagree on, so a clockless view
   // lists the same bands either way — but a STRIPLESS view keeps its clock, and the
   // stacker draws it TACB (status above the clock) where the legacy engine would not.
-  ['cal2', 'cal3', 'radar', 'none'].forEach((top) => {
+  ['cal2', 'cal3', 'radar', 'none', 'forecast', 'health'].forEach((top) => {
     [['weather', 'off'], ['weather', 'radar']].forEach(([upper, lower]) => {
       vc.STACK_ORDERS.forEach((order) => {
         [false, true].forEach((clockOff) => {
@@ -87,7 +87,7 @@ test('the editor lists every top, row count, order and omission the way the watc
             ['forecast', 'none'].forEach((body) => {
               const S = state({ viewTop1: top, viewUpper1: upper, viewLower1: lower,
                 viewOrder1: order, viewClockOff1: clockOff, viewStripOff1: stripOff,
-                viewBody1: body });
+                viewBody1: body, healthMode: 'all' });
               const label = [top, upper + '/' + lower, order, clockOff ? 'no clock' : 'clock',
                 stripOff ? 'no top bar' : 'top bar', 'graph ' + body].join(' ');
               assert.deepEqual(editorKinds(S, 1), watchKinds(S, 1), label);
@@ -311,4 +311,25 @@ test('removing and re-adding the graph keeps a stacked order code byte-identical
   assert.deepEqual(watchKinds(S, 0), drawn);
   assert.equal(ve.addElement(S, 0, 'graph'), true);
   assert.deepEqual(wire(S), before, 'the stored code survives the round trip');
+});
+
+test('picking a graph for the top area keeps the drawn order (the sheet flow switches engines)', () => {
+  // cal3 + weather row, legacy code 0: drawn T C A. Picking the forecast graph for the top
+  // area makes the view stacked (and moves the forecast up); the bands must stay put.
+  const S = state({ viewTop1: 'cal3', healthMode: 'all' });
+  const drawn = watchKinds(S, 1);
+  const before = wire(S);
+  let snap = ve.orderSnapshot(S, 1);
+  S.viewTop1 = 'forecast';
+  ve.normalizeAfterPick(S, 1, 'viewTop1');
+  ve.keepOrder(S, 1, snap);
+  assert.equal(S.viewBody1, 'none', 'the forecast moved up');
+  assert.deepEqual(watchKinds(S, 1), drawn, 'nothing else moved');
+  // ...and picking the calendar back (then re-adding the graph) restores the view
+  snap = ve.orderSnapshot(S, 1);
+  S.viewTop1 = 'cal3';
+  ve.normalizeAfterPick(S, 1, 'viewTop1');
+  ve.keepOrder(S, 1, snap);
+  assert.equal(ve.addElement(S, 1, 'graph'), true);
+  assert.deepEqual(wire(S), before);
 });

@@ -367,11 +367,15 @@ function orderCode(seq) {
 // The key vocabulary is the editor's contract — settings/custom-layout-schema.js
 // and settings/view-editor.js speak these exact strings.
 
+// A graph in the top band compiles at tier NONE: no calendar rows, so the watch shows
+// the strip's full date and keeps the status rows at the large font with no re-keying.
 var CUSTOM_TOP = {
-  cal3:  { tier: TIER_FULL,    top: TOP_CAL },
-  cal2:  { tier: TIER_COMPACT, top: TOP_CAL },
-  radar: { tier: TIER_FULL,    top: TOP_RADAR },
-  none:  { tier: TIER_NONE,    top: TOP_EMPTY }
+  cal3:     { tier: TIER_FULL,    top: TOP_CAL },
+  cal2:     { tier: TIER_COMPACT, top: TOP_CAL },
+  radar:    { tier: TIER_FULL,    top: TOP_RADAR },
+  forecast: { tier: TIER_NONE,    top: TOP_GRAPH, kind: TOP_KIND_FORECAST },
+  health:   { tier: TIER_NONE,    top: TOP_GRAPH, kind: TOP_KIND_HEALTH },
+  none:     { tier: TIER_NONE,    top: TOP_EMPTY }
 };
 var CUSTOM_BODY = { forecast: BODY_FC, health: BODY_GRAPH, radar: BODY_RADAR, none: BODY_NONE };
 var CUSTOM_SRC = {
@@ -436,8 +440,16 @@ function buildCustomCycle(S) {
     if (slRaw === undefined) { slRaw = STATUS_SRC_NONE; }
 
     if (t.top === TOP_RADAR && !cap.radarChart) { t = CUSTOM_TOP.cal3; }
+    if (t.top === TOP_GRAPH && t.kind === TOP_KIND_HEALTH && !cap.healthBody) { t = CUSTOM_TOP.none; }
     if (body === BODY_RADAR && !cap.radarChart) { body = BODY_FC; }
     if (body === BODY_GRAPH && !cap.healthBody) { body = BODY_FC; }
+    // One seat per graph kind (each graph layer is a single instance): a body showing —
+    // or just folded to — the top band's graph goes empty; the top keeps it. Mirrors the
+    // watch's view_spec_resolve dedupe.
+    if (t.top === TOP_GRAPH && ((t.kind === TOP_KIND_FORECAST && body === BODY_FC)
+                                || (t.kind === TOP_KIND_HEALTH && body === BODY_GRAPH))) {
+      body = BODY_NONE;
+    }
     var su = suRaw, sl = slRaw;
     if (su === STATUS_SRC_RADAR && !cap.radarRow) { su = STATUS_SRC_NONE; }
     if (su === STATUS_SRC_HEALTH && !cap.healthRow) { su = STATUS_SRC_NONE; }
@@ -452,6 +464,7 @@ function buildCustomCycle(S) {
     }
 
     var s = spec(t.tier, t.top, body, su, sl);
+    if (t.kind) { s.topKind = t.kind; }
     if (i > 0) {   // the Default view always keeps its clock and top bar
       if (S['viewClockOff' + i]) { s.clockOff = true; }
       if (S['viewStripOff' + i]) { s.stripOff = true; }
@@ -510,6 +523,7 @@ function specToKeys(cycle) {
     var s = cycle[i];
     keys['viewTop' + i] = (s.top === TOP_RADAR) ? 'radar'
       : (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? 'cal3' : 'cal2')
+      : (s.top === TOP_GRAPH) ? ((s.topKind === TOP_KIND_HEALTH) ? 'health' : 'forecast')
       : 'none';
     keys['viewBody' + i] = (s.body === BODY_GRAPH) ? 'health'
       : (s.body === BODY_RADAR) ? 'radar'

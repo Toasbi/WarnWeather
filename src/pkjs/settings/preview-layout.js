@@ -108,6 +108,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;
         if (spec.top === VC.TOP_RADAR) { topBand = { label: 'Radar', h: CAL3_H, kind: 'top' }; }
+        else if (spec.top === VC.TOP_GRAPH) {
+            // A graph in the top band: 3 rows like a radar top (the size is Phase-2b data).
+            topBand = { label: spec.topKind === VC.TOP_KIND_HEALTH ? 'Health graph' : 'Forecast',
+                        h: CAL3_H, kind: 'top' };
+        }
         else if (!isNone) {
             topBand = { label: isFull ? 'Calendar (3 rows)' : 'Calendar (2 rows)',
                         h: isFull ? CAL3_H : CAL2_H, kind: 'top' };

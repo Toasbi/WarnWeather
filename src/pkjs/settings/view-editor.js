@@ -18,7 +18,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ? require('../view-cycle.js') : window.VIEW_CYCLE;
 
     // ── Pure core ───────────────────────────────────────────────────────────
-    // Band letters match view-cycle.js STACK_ORDERS: T = top band (calendar/radar),
+    // Band letters match view-cycle.js STACK_ORDERS: T = top band (calendar/radar/graph),
     // C = clock, A = upper status slot, B = lower status slot. The GRAPH (G) is not an
     // order letter — it is pinned below the stack, and removable (viewBody 'none');
     // the TOP BAR is not a letter either — it is pinned above the stack
@@ -472,21 +472,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Normalize after a sheet pick: no source repeats across the two status rows
-     * (the fresh pick wins, the sibling clears), and the single radar layer means
-     * radar-in-top and radar-in-body are mutually exclusive (the fresh pick wins).
+     * (the fresh pick wins, the sibling clears), and each graph layer is a single
+     * instance, so radar, the forecast and the health graph each take the top area OR
+     * the graph row — the fresh pick wins.
      * @param {Object} S @param {number} i @param {string} key the key just edited
      * @returns {void}
      */
     function normalizeAfterPick(S, i, key) {
-        var up = k('Upper', i), lo = k('Lower', i);
+        var up = k('Upper', i), lo = k('Lower', i), top = k('Top', i), bodyK = k('Body', i);
         if (key === up && S[up] !== 'off' && S[up] === S[lo]) { S[lo] = 'off'; }
         if (key === lo && S[lo] !== 'off' && S[lo] === S[up]) { S[up] = 'off'; }
-        if (key === k('Top', i) && S[key] === 'radar' && S[k('Body', i)] === 'radar') {
-            S[k('Body', i)] = 'forecast';
+        if (key === top && S[key] === 'radar' && S[bodyK] === 'radar') {
+            S[bodyK] = 'forecast';
         }
-        if (key === k('Body', i) && S[key] === 'radar' && S[k('Top', i)] === 'radar') {
-            S[k('Top', i)] = 'cal2';
+        if (key === bodyK && S[key] === 'radar' && S[top] === 'radar') {
+            S[top] = 'cal2';
         }
+        // One seat per graph: picking the Graph row's graph for the Top area MOVES it up
+        // (the graph row empties); picking the top's graph for the Graph row moves it down
+        // (the top area goes back to a 2-row calendar).
+        var graph = { forecast: true, health: true };
+        if (key === top && graph[S[top]] && S[bodyK] === S[top]) { S[bodyK] = 'none'; }
+        if (key === bodyK && graph[S[bodyK]] && S[top] === S[bodyK]) { S[top] = 'cal2'; }
+        // Sizes apply only to a radar/graph top: a calendar pick drops a stale size.
+        if (key === top && !(S[top] === 'radar' || graph[S[top]])) { S[k('TopSize', i)] = '3'; }
     }
 
     /**

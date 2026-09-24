@@ -207,3 +207,20 @@ test('a removal that would leave nothing on screen is refused, judged on the com
   assert.equal(ve.removeElement(S, 1, 'G'), true);
   assert.equal(ve.removeElement(S, 1, 'A'), false, 'the bar is now the last element');
 });
+
+test('normalizeAfterPick moves a graph between the top area and the graph row', () => {
+  const S = baseView({ healthMode: 'all', viewBody0: 'forecast' });
+  S.viewTop0 = 'forecast';
+  ve.normalizeAfterPick(S, 0, 'viewTop0');
+  assert.equal(S.viewBody0, 'none', 'the forecast moved up: the graph row empties');
+  S.viewBody0 = 'health';                       // a different graph below is fine
+  ve.normalizeAfterPick(S, 0, 'viewBody0');
+  assert.equal(S.viewTop0, 'forecast');
+  S.viewBody0 = 'forecast';                     // picking the top's graph below moves it down
+  ve.normalizeAfterPick(S, 0, 'viewBody0');
+  assert.equal(S.viewTop0, 'cal2');
+  S.viewTop0 = 'radar'; S.viewTopSize0 = '4';
+  S.viewTop0 = 'cal3';
+  ve.normalizeAfterPick(S, 0, 'viewTop0');
+  assert.equal(S.viewTopSize0, '3', 'a calendar top drops a stale size');
+});
