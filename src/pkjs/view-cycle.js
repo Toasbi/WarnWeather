@@ -202,74 +202,99 @@ function hasFill(s) {
 }
 
 // ── Fit check (the editor's size pickers) ───────────────────────────────────
-// The watch's stacked-band arithmetic in pixels, per screen family (index 0: the 144 px
-// watches, 1: emery) — the constants src/c/windows/layout.c compute_stacked uses, as the
+// The watch's band arithmetic in pixels, per screen family (index 0: the 144 px watches,
+// 1: emery) — the SEATS src/c/windows/layout.c compute_layout gives each band, as the
 // device renders them (the emery FULL-squeezed status band is 20 px on the watch; the C
-// host goldens use a 24 px stand-in). Pinned against the C goldens by
-// test/view-cycle.test.js. `avail*` = floor minus the cursor start (with / without the
-// top bar). A FILL band is counted at its 2-row floor.
+// host goldens use a 24 px stand-in). Kept in lockstep with the C engine by
+// scripts/check-fit-lockstep.js (run from scripts/test-c.sh). `avail*` = floor minus the
+// cursor start (with / without the top bar). A FILL band is counted at its 2-row floor.
 var FIT_PX = {
   row: [15, 20], clock: [45, 60], statusLarge: [17, 21], statusFull: [20, 20], gap: [3, 1],
-  cal2: [30, 40], cal3: [45, 60], tail: [0, 10], availStrip: [155, 202], availNoStrip: [168, 222]
+  reserve: [14, 14], noneRow: [22, 30], slide: [2, 1],
+  cal2: [30, 40], cal3: [45, 60], availStrip: [155, 202], availNoStrip: [168, 222]
 };
 
 /**
  * Pixels a stack needs on one screen family, in the watch's walk order: the bands the
- * compiled spec shows (STACK_ORDERS[order] + the body) with the clearance after every
- * edge-inking band that another band follows.
+ * compiled spec shows (STACK_ORDERS[order] + the body), each on its SEAT (compute_layout's
+ * row_seat rules), plus the clearance a band owes the next one. The status rows' tier
+ * follows the top area's row count, like the watch (layout.c status_tier_for).
  * @param {!Object} s compiled view spec
  * @param {number} f family index (0 = 144 px, 1 = emery)
+ * @param {boolean} [noFallbacks] measure only the configured shape (the lockstep); by
+ *   default the budget also covers the watch's no-data fallbacks (see stackFits)
  * @returns {{need: number, avail: number}}
  */
-function stackNeed(s, f) {
+function stackNeed(s, f, noFallbacks) {
   var e = extFields(s);
-  var rows = (s.tier === TIER_FULL) ? 3 : (s.tier === TIER_COMPACT) ? 2 : 0;
-  var dual = s.statusUpper !== STATUS_SRC_NONE && s.statusLower !== STATUS_SRC_NONE;
-  var bodyOn = s.body !== BODY_NONE;
-  // FULL-squeezed rows: layout_status_tier (a 3-row calendar, or a 2-row one with two
-  // rows) with every chrome band and the graph present (status_tier_for's exemptions).
-  var fullRows = (rows === 3 || (rows === 2 && dual)) && !s.clockOff && !s.stripOff && bodyOn;
+  var row = FIT_PX.row[f];
+  var fcTop = s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST;
   /** @param {number} code @param {number} dflt @param {boolean} fc @returns {number} rows, 0 = fill */
   function sizeRows(code, dflt, fc) {
     var r = code === SIZE_2 ? 2 : code === SIZE_3 ? 3 : code === SIZE_4 ? 4 : code === SIZE_FILL ? 0 : dflt;
     return (fc && r === 2) ? 3 : r;
   }
-  var fill = 2 * FIT_PX.row[f];
-  var h = {}, gapAfter = {};
-  var fcTop = s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST;
-  if (s.top === TOP_CAL && rows) {
-    h.T = rows === 3 ? FIT_PX.cal3[f] : FIT_PX.cal2[f];
+  // The top area's rows (spec_top_rows): a calendar by its tier, a radar/graph by its size.
+  var topRows = 0, topFill = false;
+  if (s.top === TOP_CAL) {
+    topRows = s.tier === TIER_FULL ? 3 : s.tier === TIER_COMPACT ? 2 : 0;
   } else if (s.top === TOP_RADAR || s.top === TOP_GRAPH) {
-    var tr = sizeRows(e.topSize, 3, fcTop);
-    h.T = tr ? tr * FIT_PX.row[f] + (s.top === TOP_GRAPH ? FIT_PX.tail[f] : 0) : fill;
-    // Without radar data the watch folds a radar top to a calendar: a filling one to the
-    // 3-row calendar, which is taller than the fill floor — budget that shape.
-    if (s.top === TOP_RADAR && !tr) { h.T = FIT_PX.cal3[f]; }
+    topRows = sizeRows(e.topSize, 3, fcTop);
+    if (!topRows) { topFill = true; topRows = 3; }
   }
-  gapAfter.T = FIT_PX.gap[f];
-  if (!s.clockOff) { h.C = FIT_PX.clock[f]; }
-  gapAfter.C = 0;
-  var rowH = fullRows ? FIT_PX.statusFull[f] : FIT_PX.statusLarge[f];
-  if (s.statusUpper !== STATUS_SRC_NONE) { h.A = rowH; }
-  if (s.statusLower !== STATUS_SRC_NONE) { h.B = rowH; }
-  gapAfter.A = gapAfter.B = fullRows ? 0 : FIT_PX.gap[f];
-  if (bodyOn) {
-    var br = sizeRows(e.bodySize, 0, s.body === BODY_FC);
-    // A sized radar or health body falls back to the FORECAST when its data is missing
-    // (radar not fetched yet, health unavailable) — at least 3 rows, with the graph tail —
-    // unless the top already shows the forecast (then it empties). Budget the taller one.
-    if (br === 2 && s.body !== BODY_FC && !fcTop) { br = 3; }
-    var tail = (s.body === BODY_RADAR && fcTop) ? 0 : FIT_PX.tail[f];
-    h.G = br ? br * FIT_PX.row[f] + tail : fill;
-  }
-  var seq = (STACK_ORDERS[s.order || 0] || 'TACB') + 'G';
-  var need = 0, prev = null, j, b;
-  for (j = 0; j < seq.length; j++) {
-    b = seq.charAt(j);
-    if (h[b] === undefined) { continue; }
-    if (prev !== null) { need += gapAfter[prev] || 0; }
-    need += h[b];
-    prev = b;
+  // The rows' tier (status_tier_for): 3+ rows FULL, 2 COMPACT (a dual squeezes to FULL),
+  // none NONE; a removed clock, top bar or graph keeps the large font.
+  var dual = s.statusUpper !== STATUS_SRC_NONE && s.statusLower !== STATUS_SRC_NONE;
+  var bodyOn = s.body !== BODY_NONE;
+  var tier = topRows >= 3 ? TIER_FULL : topRows === 2 ? (dual ? TIER_FULL : TIER_COMPACT) : TIER_NONE;
+  if (tier === TIER_FULL && (s.clockOff || s.stripOff || !bodyOn)) { tier = TIER_COMPACT; }
+  var full = tier === TIER_FULL, gap = FIT_PX.gap[f];
+  var bandH = full ? FIT_PX.statusFull[f] : FIT_PX.statusLarge[f];
+  // Present bands in the watch's walk order.
+  var seq = (STACK_ORDERS[s.order || 0] || 'TACB') + 'G', list = [], j, b;
+  var present = { T: s.top !== TOP_EMPTY && topRows > 0, C: !s.clockOff,
+                  A: s.statusUpper !== STATUS_SRC_NONE, B: s.statusLower !== STATUS_SRC_NONE, G: bodyOn };
+  for (j = 0; j < seq.length; j++) { if (present[seq.charAt(j)]) { list.push(seq.charAt(j)); } }
+  var fill = 2 * row;
+  var need = 0, under = {};
+  var isRow = { A: true, B: true };
+  for (j = 0; j < list.length; j++) {
+    b = list[j];
+    var prev = j > 0 ? list[j - 1] : null, next = j + 1 < list.length ? list[j + 1] : null;
+    var pitch = 0, g = 0;
+    if (b === 'T') {
+      pitch = topFill ? fill : topRows * row;
+      // Without radar data a filling radar top folds to the 3-row calendar (budgeted).
+      if (topFill && s.top === TOP_RADAR && !noFallbacks) { pitch = FIT_PX.cal3[f]; }
+      var freedNext = Boolean(isRow[next]) && list[j + 2] === 'C';
+      g = (next === 'C' || freedNext) ? 0 : gap;
+      // A calendar leading under the top bar is seated on the bar's ink, 2 | 1 rows below
+      // its slot; when nothing follows, that overhang is the block's end.
+      if (!next && !s.stripOff && j === 0) { pitch += FIT_PX.slide[f]; }
+    } else if (b === 'C') {
+      pitch = FIT_PX.clock[f] + ((j === 0 && !s.stripOff) ? 1 : 0);
+    } else if (b === 'G') {
+      var br = sizeRows(e.bodySize, 0, s.body === BODY_FC);
+      // A sized radar/health body falls back to the forecast (never under 3 rows) when
+      // its data is missing — unless the top shows the forecast (then it empties).
+      if (br === 2 && s.body !== BODY_FC && !fcTop && !noFallbacks) { br = 3; }
+      pitch = br ? br * row : fill;
+    } else {
+      // row_seat: the freed row above the clock, the reserve under it, else a plain band.
+      if (prev === 'T' && next === 'C') {
+        pitch = row;
+      } else if (prev === 'C' || (isRow[prev] && under[prev])) {
+        under[b] = true;
+        var h = tier === TIER_NONE ? FIT_PX.noneRow[f] : bandH;
+        pitch = (prev === 'C' && tier !== TIER_NONE) ? (full ? FIT_PX.reserve[f] : row) : h;
+        g = (next === 'T' && tier === TIER_COMPACT) ? gap : 0;
+      } else {
+        pitch = bandH;
+        g = full ? 0 : gap;
+      }
+    }
+    need += pitch;
+    if (next) { need += g; }
   }
   return { need: need, avail: s.stripOff ? FIT_PX.availNoStrip[f] : FIT_PX.availStrip[f] };
 }
@@ -285,8 +310,8 @@ function stackNeed(s, f) {
  * @returns {{fits: boolean, over: number}}
  */
 function stackFits(s, family) {
-  // A disabled slot, or a view the watch draws with its LEGACY engine (the preset engine:
-  // fixed seats, the graph takes what is left, nothing is ever cut), always fits.
+  // A disabled slot, or a preset-shaped view (legacy order, full chrome, a filling graph:
+  // the presets' own seats, the graph takes what is left, nothing is ever cut), always fits.
   if (!s || !isStacked(s)) { return { fits: true, over: 0 }; }
   var fams = family === 'emery' ? [1] : family ? [0] : [0, 1];
   var over = 0, j, n;
@@ -433,8 +458,8 @@ function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
 // The 12 canonical band orderings of {T=top band, C=clock, A=status upper, B=status
 // lower} with A rendered above B (the compiler assigns the visually-upper source to
 // the wire's upper slot). Index == the wire order code (spec bits 12-15). Code 0 is
-// the legacy order the presets ride (dispatched to the legacy watch engine); 1-11 go
-// to the stacked engine. MIRRORS STACK_ORDER in src/c/windows/layout.c — keep in
+// the legacy order the presets ride (a preset-shaped view renders its tier's order);
+// 1-11 are drawn literally. MIRRORS STACK_ORDER in src/c/windows/layout.c — keep in
 // lockstep (both sides pin this exact list in their tests).
 var STACK_ORDERS = [
   'TACB', 'TCAB', 'TABC', 'CTAB', 'CATB', 'CABT',
@@ -442,14 +467,13 @@ var STACK_ORDERS = [
 ];
 
 /**
- * Does the watch render this spec through its STACKED engine (compute_stacked) rather
- * than the legacy preset engine? THE one copy of the watch's dispatch rule
- * (layout.c spec_is_stacked): an explicit band order (1-11), a removed chrome band
- * (clock / top strip), no graph body, a graph in the top band, or a non-default band
- * size (read normalised, as the watch does). The stacked engine draws the bands literally in
- * STACK_ORDERS[order] ('TACB' for code 0) minus the absent ones; the legacy engine
- * seats them per tier. The settings preview and the editor's band list both read it,
- * so neither can drift from the watch. Presets never carry these fields → false.
+ * Does the watch draw this spec's bands LITERALLY in STACK_ORDERS[order] ('TACB' for code
+ * 0) rather than in its tier's legacy order (compact: T A C B; full / none: T C A B)? THE
+ * one copy of the watch's order rule (layout.c spec_is_stacked): an explicit band order
+ * (1-11), a removed chrome band (clock / top strip), no graph body, a graph in the top
+ * band, or a non-default band size (read normalised, as the watch does). One layout engine
+ * draws both; this decides only the ORDER. The settings preview and the editor's band
+ * list both read it, so neither can drift from the watch. Presets never carry these → false.
  * @param {?Object} s view spec (packSpec's shape)
  * @returns {boolean}
  */
@@ -723,7 +747,7 @@ var VIEW_CYCLE = {
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   packExt: packExt, packWire: packWire, unpackWire: unpackWire, hasFill: hasFill,
-  stackFits: stackFits, FIT_PX: FIT_PX,
+  stackFits: stackFits, stackNeed: stackNeed, FIT_PX: FIT_PX,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   STACK_ORDERS: STACK_ORDERS, orderCode: orderCode, isStacked: isStacked,
   RADAR_CHART_MODES: RADAR_CHART_MODES, RADAR_ROW_MODES: RADAR_ROW_MODES,

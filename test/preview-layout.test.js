@@ -411,7 +411,8 @@ test('the previews never flag a view the watch shows whole (spec example D, gold
         [0, 1].forEach((i) =>
             assert.doesNotMatch(LY.viewPreviewSvg(base, { platform }, i), />cut off</, platform + ' ' + i));
     });
-    // ...but a view too tall for the 144 px watch is flagged there (and fits emery's).
-    const tall = Object.assign({}, base, { viewTop1: 'forecast', viewTopSize1: '4', viewUpper1: 'weather' });
+    // ...but a view too tall for the 144 px watch is flagged there, and not on emery's.
+    const tall = Object.assign({}, base, { viewUpper1: 'weather', viewOrder1: 'CTAB' });
     assert.match(LY.viewPreviewSvg(tall, { platform: 'basalt' }, 1), />cut off</);
+    assert.doesNotMatch(LY.viewPreviewSvg(tall, { platform: 'emery' }, 1), />cut off</);
 });

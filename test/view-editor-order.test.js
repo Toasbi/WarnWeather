@@ -378,22 +378,22 @@ test('size lines: on the graph row and every top area — a calendar takes 2 or 
 });
 
 test('sizes that make the view too tall for the edited watch are inert (never the current one)', () => {
-  // Forecast top + clock + weather row + health body: a 4-row top fits emery with the
-  // body filling, but the 144 px watch runs out (see stackFits' D + row case).
-  const S = state({ viewTop1: 'forecast', viewBody1: 'health', viewOrder1: 'TCAB', healthMode: 'all' });
+  // Clock, forecast top, weather row, health body (C T A B): a 4-row top fits emery with
+  // the body filling, but the 144 px watch runs out by 4 px.
+  const S = state({ viewTop1: 'forecast', viewBody1: 'health', viewOrder1: 'CTAB', healthMode: 'all' });
   assert.equal(sizeButtons(editorHtmlOn(S, 1, 'basalt'), 'TopSize')['4'], 'off');
-  assert.equal(sizeButtons(editorHtmlOn(S, 1, 'emery'), 'TopSize')['4'], 'off', '213 of 202 on emery too');
+  assert.equal(sizeButtons(editorHtmlOn(S, 1, 'emery'), 'TopSize')['4'], 'ok', 'emery has the room');
   assert.equal(sizeButtons(editorHtmlOn(S, 1, 'basalt'), 'TopSize')['2'], 'off', 'forecast: never 2');
   // an ENV-less ctx (the unknown watch) checks both screens and keeps rendering
   assert.equal(sizeButtons(editorHtml(S, 1), 'TopSize')['4'], 'off');
   // a stored layout that does not fit shows the note, and its value stays selectable
   S.viewTopSize1 = '4';
   const html = editorHtmlOn(S, 1, 'basalt');
-  assert.match(html, /Too tall for your watch by 3 px/);
+  assert.match(html, /Too tall for your watch by 4 px/);
   assert.equal(sizeButtons(html, 'TopSize')['4'], 'on');
 });
 
-test('setSize keeps one fill per view, and a size change that switches engines keeps the order', () => {
+test('setSize keeps one fill per view, and a size change that switches the order rule keeps the order', () => {
   const S = state({ viewTop1: 'radar', viewBody1: 'forecast', healthMode: 'all' });
   assert.equal(ve.setSize(S, 1, 'TopSize', 'fill'), true);
   assert.equal(S.viewBodySize1, '3', 'the filling graph gives the fill up');

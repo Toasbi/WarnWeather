@@ -81,7 +81,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * sources. With one row absent its letter only marks a free slot, so that letter
      * moves instead (B to just after A, or A to just before B) and the present row
      * keeps its own slot — swapping sources there would turn a lone upper row into a
-     * lone LOWER row, which the legacy engine draws elsewhere (the swap layout).
+     * lone LOWER row, which the legacy order draws elsewhere (the swap layout).
      * @param {string[]} ord 4-letter order array (mutated)
      * @param {Object} S settings state (sources swapped when needed)
      * @param {number} i view slot
@@ -114,12 +114,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * The band order view `i` renders in when it STORES the legacy order code 0
-     * ('TACB' — what every preset seeds). A view the watch stacks even at code 0 (a
-     * removed clock or top bar — viewCycleLib.isStacked, the watch's own dispatch
-     * rule) is drawn literally as 'TACB'. Otherwise the legacy engine seats the upper
-     * status row above the clock only under the 2-row (COMPACT) calendar; a 3-row
-     * calendar, a radar top and no top at all put the clock first and the status
-     * row(s) below it (layout.c compute_with_weights). Read off the COMPILED spec, which
+     * ('TACB' — what every preset seeds). A view drawn literally even at code 0 (a
+     * removed clock or top bar — viewCycleLib.isStacked, the watch's own order rule)
+     * shows 'TACB'. Otherwise the legacy order seats the upper status row above the
+     * clock only under a 2-row top area (COMPACT); a 3-row calendar, a radar top and no
+     * top at all put the clock first and the status row(s) below it (layout.c
+     * compute_layout). Read off the COMPILED spec, which
      * already folds a radar top the watch can't draw — with its order code stripped:
      * the question is what code 0 renders, and storedOrderFor asks it while the view
      * still holds a stacked code (which would otherwise always answer 'TACB').
@@ -133,7 +133,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Would this compiled view render through the watch's STACKED engine if it stored
+     * Would this compiled view be drawn in its LITERAL band order if it stored
      * the legacy order code 0? (viewCycleLib.isStacked with the order code stripped.)
      * @param {!Object} compiled spec from buildCustomCycle
      * @returns {boolean}
@@ -146,7 +146,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * What an edit must not disturb: the order view `i` is drawn in now, and which
-     * engine draws its code 0. Take it BEFORE an edit that can switch engines (the
+     * order rule draws its code 0. Take it BEFORE an edit that can switch the rule (the
      * graph, the top bar, a Top-area or Graph pick, a size); hand it to keepOrder after.
      * @param {Object} S @param {number} i
      * @returns {{shown: string[], stacked: boolean}}
@@ -157,17 +157,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * After an edit: if it switched the engine that draws view `i`'s legacy code — the
-     * legacy engine draws a 3-row calendar, radar or no-top view clock-first (T C A),
-     * the stacker literally (T A C) — store the order the view was drawn in before, so
+     * After an edit: if it switched the rule that draws view `i`'s legacy code — the
+     * legacy order draws a 3-row calendar, radar or no-top view clock-first (T C A), the
+     * literal order as T A C — store the order the view was drawn in before, so
      * the bands the user did not touch stay where they were. storedOrderFor prefers the
      * legacy code whenever it draws that order, so undoing the edit restores the view
-     * byte for byte. A no-op when the engine did not change.
+     * byte for byte. A no-op when nothing moved.
      * @param {Object} S settings state (mutated)
      * @param {number} i view slot
      * @param {{shown: string[], stacked: boolean}} snap orderSnapshot() before the edit
-     * @returns {boolean} false when the engine switched and no stored order can draw the
-     *   bands where they were (the view then shows them in the new engine's order)
+     * @returns {boolean} false when no stored order can draw the bands where they were
+     *   (the view then shows them in the new rule's order)
      */
     function keepOrder(S, i, snap) {
         var compiled = viewCycleLib.buildCustomCycle(S)[i];
@@ -175,7 +175,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var pres = presence(S, i);
         var want = visibleBands(snap.shown.join(''), pres);
         if (now === snap.stacked) {
-            // Same engine — but the legacy engine's own order depends on the calendar's
+            // Same rule — but the legacy order itself depends on the top area's
             // rows (2 rows: status above the clock; 3 rows: below), so a calendar size
             // change can still move a band: put it back where it was drawn. When the
             // legacy code draws it, prefer that code (storedOrderFor's rule), so sizing
@@ -188,13 +188,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (visibleBands(displayOrder(S, i).join(''), pres) === want) { return true; }
             return storeOrder(S, i, snap.shown.slice());
         }
-        // Back on the legacy engine and its code 0 draws the same bands: store the legacy
+        // Back on the legacy order and its code 0 draws the same bands: store the legacy
         // code, so a view that started as a preset seed returns to it byte for byte.
         if (!now && visibleBands(legacyOrder(S, i), pres) === want) {
             S[k('Order', i)] = 'TACB';
             return true;
         }
-        // The stored order still draws what the user saw under the new engine: keep it,
+        // The stored order still draws what the user saw under the new rule: keep it,
         // so a view that started on a stacked code keeps that exact code.
         if (visibleBands(displayOrder(S, i).join(''), pres) === want) { return true; }
         return storeOrder(S, i, snap.shown.slice());
@@ -227,7 +227,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * present bands in the same order (an absent band's slot is free). null when no wire
      * order renders it: a status bar above the clock with a second one below it, over a
      * 3-row calendar or radar, is only the legacy slot's order, which that top renders
-     * differently — and the stacked engine has no code for it.
+     * differently — and no literal order code spells it.
      * @param {Object} S @param {number} i @param {string[]} ord canonical display order
      * @returns {?string} the order to store, or null when unrepresentable
      */
@@ -600,7 +600,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Can view `i` take `stem` = `v`? A trial of the edit (setSize's one-fill rule and
      * keepOrder included): the view must fit the edited watch (view-cycle.js stackFits)
-     * and keep every band where it is drawn — a size that switches the view's engine
+     * and keep every band where it is drawn — a size that switches the view's order rule
      * while no stored order can hold the bands in place would move one across the clock.
      * @param {Object} S @param {number} i @param {string} stem @param {string} v
      * @returns {boolean}
@@ -1029,7 +1029,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if ((t = e.target.closest('[data-ve-size]'))) {
             if (t.disabled) { return; }
             var sz = t.getAttribute('data-ve-size').split(':');
-            var sizeSnap = orderSnapshot(S, i);   // a size can switch engines (keepOrder)
+            var sizeSnap = orderSnapshot(S, i);   // a size can switch the order rule (keepOrder)
             if (setSize(S, i, sz[0], sz[1])) { keepOrder(S, i, sizeSnap); }
             renderEditor();
             return;
@@ -1041,7 +1041,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if ((t = e.target.closest('[data-select]'))) {
             var sk = t.getAttribute('data-select');
-            // Before the sheet writes: a pick can switch engines (keepOrder).
+            // Before the sheet writes: a pick can switch the order rule (keepOrder).
             var snap = orderSnapshot(S, i);
             VE.ctx.openSheet(sk, function () {
                 normalizeAfterPick(S, i, sk);

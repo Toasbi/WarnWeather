@@ -615,12 +615,18 @@ test('stackFits mirrors the watch arithmetic (spec cases, both screen families)'
     assert.deepEqual(vc.stackFits(s, 'emery'), { fits: true, over: 0 });
     assert.equal(vc.stackFits(s, '').fits, true);
   });
-  assert.deepEqual(vc.stackFits(D, 'basalt'), { fits: false, over: 3 }, 'D + a row: 158 of 155');
-  assert.deepEqual(vc.stackFits(D, 'emery'), { fits: false, over: 11 }, '213 of 202');
-  assert.deepEqual(vc.stackFits(D, ''), { fits: false, over: 11 }, 'unknown watch: the worse family');
+  // D + a row fits on the fullCal seats: 60 + 45 + 14 (the row rests on the graph in the
+  // reserve) + a 2-row fill floor = 149 of 155 (emery 194 of 202).
+  assert.deepEqual(vc.stackFits(D, 'basalt'), { fits: true, over: 0 });
+  assert.deepEqual(vc.stackFits(D, 'emery'), { fits: true, over: 0 });
+  // ...a second row does not: 169 of 155, 214 of 202; an unknown watch takes the worse.
+  const D2 = view({ viewTop0: 'forecast', viewTopSize0: '4', viewBody0: 'health', viewLower0: 'radar' });
+  assert.deepEqual(vc.stackFits(D2, 'basalt'), { fits: false, over: 14 });
+  assert.deepEqual(vc.stackFits(D2, 'emery'), { fits: false, over: 12 });
+  assert.deepEqual(vc.stackFits(D2, ''), { fits: false, over: 14 });
   // The C golden's overflow clamp (sz10): 4-row top + clock + two rows + 4-row body →
-  // the body gets 7 of its 60 px on the 144 px watch = 53 px too tall.
-  assert.equal(vc.stackFits(over, 'basalt').over, 53);
+  // the body gets 16 of its 60 px on the 144 px watch = 44 px too tall.
+  assert.equal(vc.stackFits(over, 'basalt').over, 44);
   assert.deepEqual(vc.stackFits(null, 'emery'), { fits: true, over: 0 });
 });
 
@@ -632,16 +638,18 @@ test('stackFits: the legacy engine always fits; the watch\'s no-data fallbacks a
   const legacy = view({ viewTop0: 'cal3', viewLower0: 'health' });
   assert.equal(vc.isStacked(legacy), false);
   ['basalt', 'emery', ''].forEach((p) => assert.deepEqual(vc.stackFits(legacy, p), { fits: true, over: 0 }));
-  // A 2-row health body falls back to a 3-row forecast without health data: budgeted.
+  // A 2-row health body falls back to a 3-row forecast without health data: budgeted —
+  // it fits as configured (148 of 155) but not in the fallback (163).
   const h2 = view({ viewTop0: 'radar', viewTopSize0: '2', viewBody0: 'health', viewBodySize0: '2',
-    viewLower0: 'health', viewOrder0: 'TCAB' });
+    viewLower0: 'radar', viewOrder0: 'TABC' });
+  assert.equal(vc.stackNeed(h2, 0, true).need, 148);
   assert.equal(vc.stackFits(h2, 'basalt').fits, false, 'the forecast fallback would be cut');
-  // A filling radar top folds to the 3-row calendar without radar data: budgeted as cal3.
-  const rf = view({ viewTop0: 'radar', viewTopSize0: 'fill', viewBodySize0: '4', viewLower0: 'health',
-    viewOrder0: 'TCAB' });
-  const rs = view({ viewTop0: 'radar', viewTopSize0: '2', viewBodySize0: '4', viewLower0: 'health',
-    viewOrder0: 'TCAB' });
-  assert.ok(vc.stackFits(rf, 'basalt').over > vc.stackFits(rs, 'basalt').over, 'fill radar counts 45, not 30');
+  // A filling radar top folds to the 3-row calendar without radar data: budgeted as cal3
+  // (149 at its 2-row fill floor, 164 as the calendar).
+  const rf = view({ viewTop0: 'radar', viewTopSize0: 'fill', viewBodySize0: '4', viewUpper0: 'off',
+    viewLower0: 'radar', viewOrder0: 'TCAB' });
+  assert.equal(vc.stackNeed(rf, 0, true).need, 149);
+  assert.equal(vc.stackFits(rf, 'basalt').fits, false, 'the calendar fallback would be cut');
 });
 
 test('a 2-row radar top without the radar chart compiles to the 2-row calendar (same height)', () => {
@@ -661,9 +669,14 @@ test('the fit table is the C engine\'s geometry', () => {
   });
   assert.deepEqual([P.availStrip[0], P.availNoStrip[0]], [168 - 13, 168 - 0], '144: floor - cursor start');
   assert.deepEqual([P.availStrip[1], P.availNoStrip[1]], [224 - 22, 224 - 2], 'emery: floor - cursor start');
-  assert.deepEqual(P.tail, [0, 10], 'LAYOUT_GRAPH_TAIL');
+  assert.equal(P.tail, undefined, 'N-row bands carry the graph tail inside their rows');
   assert.deepEqual(P.statusLarge, [17, 21], 'STATUS_LARGE_BAND_H');
   assert.deepEqual(P.gap, [3, 1], 'STATUS_FORECAST_CLEARANCE');
+  assert.deepEqual(P.reserve, [14, 14], 'WEATHER_STATUS_HEIGHT (fullCal row slot)');
+  assert.deepEqual(P.noneRow, [22, 30], 'NONE_STATUS_HEIGHT');
+  assert.deepEqual(P.slide, [2, 1], 'the calendar seat on the strip ink, minus the reserve');
+  // Every number is also checked shape by shape against the C engine:
+  // scripts/check-fit-lockstep.js (run by scripts/test-c.sh).
 });
 
 // ── The ext word (high half of CLAY_VIEW_n) ──────────────────────────────────
