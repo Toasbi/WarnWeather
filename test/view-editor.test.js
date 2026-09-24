@@ -104,9 +104,10 @@ test('normalizeAfterPick: sibling source dedupe and the single radar layer', () 
 
 test('snapshot/restore covers every custom key (the ✕ draft-discard path)', () => {
   const S = baseView({ viewTopSize0: '3', viewBodySize0: 'fill', viewAlign0: 'clock',
-    viewTopSize1: '3', viewBodySize1: 'fill', viewAlign1: 'clock' });
+    viewTopSize1: '3', viewBodySize1: 'fill', viewAlign1: 'clock', viewStripOff0: false });
   const snap = ve.takeSnapshot(S);
   S.viewTop0 = 'none'; S.viewOrder1 = 'ABCT'; S.viewClockOff1 = true; S.viewCount = '3';
+  S.viewStripOff0 = true;   // the Default's top bar removed, then the draft discarded
   S.viewBody0 = 'none'; S.viewAlign0 = 'bottom'; S.viewTopSize1 = '4'; S.viewBodySize1 = '2';
   ve.restoreSnapshot(S, snap);
   assert.equal(S.viewTop0, 'cal2');
@@ -117,6 +118,7 @@ test('snapshot/restore covers every custom key (the ✕ draft-discard path)', ()
   assert.equal(S.viewAlign0, 'clock');
   assert.equal(S.viewTopSize1, '3');
   assert.equal(S.viewBodySize1, 'fill');
+  assert.equal(S.viewStripOff0, false, 'the Default gets its top bar back');
 });
 
 // ── Graph removal, the last-element guard, Position ─────────────────────────

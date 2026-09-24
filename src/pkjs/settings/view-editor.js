@@ -22,7 +22,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // C = clock, A = upper status slot, B = lower status slot. The GRAPH (G) is not an
     // order letter — it is pinned below the stack, and removable (viewBody 'none');
     // the TOP BAR is not a letter either — it is pinned above the stack
-    // (presence-only, flicks).
+    // (presence-only, removable on every view; only the Default's clock is fixed).
 
     /** Per-view key name. @param {string} stem @param {number} i @returns {string} */
     function k(stem, i) { return 'view' + stem + i; }
@@ -436,7 +436,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addableElements(S, i) {
         var out = [];
         var pres = presence(S, i);
-        if (S[k('StripOff', i)]) { out.push(['Top bar (battery & date)', 'topbar']); }
+        if (S[k('StripOff', i)]) { out.push(['Top bar (battery, date & alerts)', 'topbar']); }
         // 'Top area', not 'Calendar': it lands as a calendar, but it is the seat — its
         // content is picked (calendar, radar, a graph) on the row once it is added.
         if (!pres.T) { out.push(['Top area', 'top']); }
@@ -679,6 +679,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addView(S) {
         var n = viewCount(S);
         if (n >= 3) { return -1; }
+        // The Default as drawn: a copy that gets its top bar back can switch order
+        // rules (a stripless view draws its code literally), so keep the bands where
+        // the Default shows them.
+        var snap = orderSnapshot(S, 0);
         var s;
         for (s = 0; s < VIEW_KEY_STEMS.length; s++) {
             S[k(VIEW_KEY_STEMS[s], n)] = S[k(VIEW_KEY_STEMS[s], 0)];
@@ -686,6 +690,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         S[k('ClockOff', n)] = false;
         S[k('StripOff', n)] = false;
         S.viewCount = String(n + 1);
+        keepOrder(S, n, snap);
         return n;
     }
 
@@ -901,7 +906,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // Every view may drop its top bar — the Default view too; only its clock
             // is fixed.
             body += rowHtml({
-                label: 'Top bar', value: 'battery · date', fixed: true, del: 'topbar'
+                label: 'Top bar', value: 'battery · date · alerts', fixed: true, del: 'topbar'
             });
         }
         var j;

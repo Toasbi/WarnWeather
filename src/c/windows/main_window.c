@@ -249,16 +249,17 @@ static void render_active_view(void) {
     layer_set_hidden(health_graph_layer_get_root(), !v.health_graph);
 #endif
 #if defined(WW_VIEW_CYCLE)
-    // Custom per-view omissions (flick views only; slot 0 is belted above, peek forces
-    // both back on). Hidden, never destroyed — ticks/refreshes on a hidden layer only
+    // Custom per-view omissions (any view may drop its top bar, flick views also the
+    // clock; slot 0's clock is belted above, peek forces both back on). Hidden, never destroyed — ticks/refreshes on a hidden layer only
     // set text and frames. Deliberately not routed through LayerVisibility: a field
     // there would oblige the aplite twin's layout_visibility to populate a flag aplite
     // can never raise.
     //
     // The strip must be REFRAMED here too, not just toggled: it is created once at
     // window load from the BOOT view's L.top_status, which is 0-height for a stripless
-    // view — a relaunch-restore onto a custom strip_off flick slot would otherwise
-    // bake that 0-height frame for the whole session (un-hiding a 0-height layer
+    // view — a boot onto a Default view without its top bar, or a relaunch-restore
+    // onto a stripless flick, would otherwise bake that 0-height frame for the whole
+    // session (un-hiding a 0-height layer
     // paints nothing; found by review). An identical-rect write on every preset path.
     layer_set_frame(top_status_layer_get_root(), L.top_status);
     layer_set_hidden(time_layer_get_root(), spec.clock_off != 0);
@@ -518,7 +519,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     LayerVisibility av = layout_visibility(&aspec);
     bool health_on_screen = av.health_status || av.health_graph;
     // Status rows may carry LIVE health slots on any line — but only VISIBLE rows
-    // (plus the always-on top strip) gate the minute work. The hidden health bar's
+    // (plus the top strip, visible on most views) gate the minute work. The hidden health bar's
     // default line is all live-health slots, so an any-bar scan would be ~always
     // true and spend 4-5 HealthService reads on every tick with no health content
     // on screen; a bar that unhides is re-resolved by that path's refresh_all.

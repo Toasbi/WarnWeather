@@ -402,7 +402,7 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics
 #if defined(WW_QUICK_VIEW)
 // The spec a Quick View peek renders for the active view `s` (in place): no calendar, the
 // status rows at the full-tier font (the peek bands are fc_band_h tall) and — for a
-// custom flick — the clock and strip back on, since the time is the peek's most useful
+// custom view that dropped them — the clock and strip back on, since the time is the peek's most useful
 // content and the strip its anchor. The v2 sizes and Position do not apply to peek's own
 // geometry and are cleared; a graphless view keeps BODY_NONE, so its peek body is blank
 // (decided). Static inline so main_window (unforked) and the host tests run one copy.

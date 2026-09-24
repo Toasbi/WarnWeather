@@ -491,3 +491,18 @@ test('the Alignment note names what does not fill, a top-area graph included', (
   S.viewTop1 = 'cal2';
   assert.match(editorHtml(S, 1), /No graph, so the elements sit together/);
 });
+
+// ＋ view copies the Default. A Default without its top bar draws its order code
+// literally; the copy gets its top bar back, which can switch it to the legacy order
+// rule — the bands must still appear where the Default shows them.
+test('a new view copied from a Default without its top bar keeps its drawn order', () => {
+  const S = state({ viewCount: '1', viewTop0: 'cal', viewTopSize0: '2' });
+  assert.equal(ve.removeElement(S, 0, 'topbar'), true);
+  const snap = ve.orderSnapshot(S, 0);
+  ve.setSize(S, 0, 'TopSize', '3');
+  ve.keepOrder(S, 0, snap);
+  const n = ve.addView(S);
+  assert.equal(n, 1);
+  assert.equal(S.viewStripOff1, false, 'the copy has its top bar');
+  assert.deepEqual(watchKinds(S, n), watchKinds(S, 0), 'the same bands in the same order');
+});
