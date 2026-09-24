@@ -100,8 +100,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Hand the phone's stored copy (userData.weatherTabCache, injected at page
+     * open) to the data module's cache when it is this provider and place
+     * (within SAME_PLACE_KM) and from today — so every open after the day's
+     * first shows it without a request. The page's own copy of a newer fetch
+     * is never replaced (primeCache keeps the newer entry).
+     * @param {string} provider Resolved graphs provider.
+     * @param {{lat: number, lon: number}} loc Active location.
+     * @param {Object} userData Injected userData.
+     * @returns {void}
+     */
+    function primeFromPhone(provider, loc, userData) {
+        var stored = userData && userData.weatherTabCache;
+        var meta = stored && stored.meta;
+        if (!meta || meta.provider !== provider) { return; }
+        if (!model.sameLocalDay(Number(meta.fetchedAt), Date.now())) { return; }
+        if (!(model.distanceKm(Number(meta.lat), Number(meta.lon), loc.lat, loc.lon) <= model.SAME_PLACE_KM)) { return; }
+        data.primeCache(provider, loc.lat, loc.lon, stored);
+    }
+
+    /**
      * Kick (or reuse) the fetch for the active provider+location. Never
      * fetches twice for the same key; repaints through ctx when data lands.
+     * Data from the phone's current day is served from the cache (primed from
+     * the phone's copy), so the tab fetches on its own at most once a day per
+     * place; the Refresh button and pull-to-refresh always go to the network.
      * @param {Object} state Live settings state.
      * @param {Object} userData Injected userData.
      * @returns {void}
@@ -123,6 +146,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         fetchState = { key: key, status: 'loading', data: fetchState.data, error: null, view: fetchState.view };
         var force = forceNext;
         forceNext = false;
+        if (!force) { primeFromPhone(provider, loc, userData); }
         // A cache hit answers on the SAME tick, while this very call sits
         // inside an engine render — repainting then would re-enter render().
         // The synchronous flag skips it; the block reads the updated state
@@ -620,9 +644,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Straight-line distance between two coordinates, equirectangular with
-     * the longitude difference wrapped across the antimeridian — plenty at
-     * the "did the phone leave town?" scale this gates.
+     * Straight-line distance between two coordinates (the model's shared
+     * distanceKm) — plenty at the "did the phone leave town?" scale this gates.
      * @param {number} aLat First latitude.
      * @param {number} aLon First longitude.
      * @param {number} bLat Second latitude.
@@ -630,12 +653,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {number} Kilometres.
      */
     function moveKm(aLat, aLon, bLat, bLon) {
-        var dLonDeg = bLon - aLon;
-        if (dLonDeg > 180) { dLonDeg -= 360; }
-        if (dLonDeg < -180) { dLonDeg += 360; }
-        var dLat = (bLat - aLat) * 111.32;
-        var dLon = dLonDeg * 111.32 * Math.cos((aLat + bLat) * Math.PI / 360);
-        return Math.sqrt(dLat * dLat + dLon * dLon);
+        return model.distanceKm(aLat, aLon, bLat, bLon);
     }
 
     // Beyond this, the seed's city name is presumed stale along with its coords.
@@ -691,8 +709,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Force a refetch of the CURRENT provider+location. Manual only — this
-     * tab never refetches on a timer; data updates when the tab first opens
-     * (per page open), when the pick changes, and through this (the Refresh
+     * tab never refetches on a timer; data updates the first time a place is
+     * shown on a new day (earlier data from today is served from the cache,
+     * across page opens via the phone's copy), and through this (the Refresh
      * button beside the 5-day title, and pull-to-refresh). Keeps fetchState.key and .view, so
      * ensureFetch refires for the same key and the charts stay up (dimmed)
      * on the day the user was viewing. That fetch bypasses the page cache

@@ -94,5 +94,8 @@ module.exports = {
     // ACK — outcome unknown — and those records are dropped instead of resent:
     // at-most-once, because a duplicate batch inflates fetch_count server-side
     // (no idempotency key) while a lost one costs a few telemetry rows.
-    TELEMETRY_SENDING_KEY: 'telemetrySending'
+    TELEMETRY_SENDING_KEY: 'telemetrySending',
+    // The settings page Weather tab's data for the place it opens on ({v, data}),
+    // refreshed at most once a day on settings open (weather-tab-cache.js).
+    WEATHER_TAB_CACHE_KEY: 'weatherTabCache'
 };

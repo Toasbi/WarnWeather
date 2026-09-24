@@ -35,6 +35,7 @@ var holidayWindowOpts = require('./clay-payload.js').holidayWindowOpts;
 var providerFactory = require('./provider-factory.js');
 var previewPalette = require('./settings/preview-palette.js');
 var newsCache = require('./news-cache.js');
+var weatherTabCache = require('./weather-tab-cache.js');
 var createChannelScheduler = require('./channel-scheduler.js');
 // The render-affecting-settings signature (the force-fetch rule) lives in its own
 // module so the invariant is testable; see the header there.
@@ -176,13 +177,19 @@ Pebble.addEventListener('showConfiguration', function(e) {
     } catch (err) {
         console.log('news: getAccountToken failed: ' + err.message);
     }
+    var graphsSeed = buildGraphsSeed();
+    var values = claySettings.read();
+    var nowMs = Date.now();
     var userData = {
         lastFetchSuccess: localStorage.getItem(KEY_LAST_FETCH_SUCCESS),
         lastFetchAttempt: localStorage.getItem(KEY_LAST_FETCH_ATTEMPT),
         // The Weather tab's "Current" chip: last-known coordinates (same
         // precedence as the fetch path — themeCoords) plus the last resolved
         // city name off the status-bake snapshot. null when no fix exists yet.
-        graphsSeed: buildGraphsSeed(),
+        graphsSeed: graphsSeed,
+        // The Weather tab's data for the place it opens on, when the phone holds
+        // it from today: the page shows it without a request (weather-tab-cache.js).
+        weatherTabCache: weatherTabCache.forPage(values, graphsSeed, nowMs),
         notices: localStorage.getItem(KEY_NOTICES),
         // Day totals + the newest events, never the raw 7-day log: that pushed the
         // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).
@@ -195,7 +202,6 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // renders the news pill from this instead of fetching the list itself.
         newsCache: newsCache.readBody() || ''
     };
-    var values = claySettings.read();
     // Logged, not just passed: false here silently OMITS both phone-battery slot
     // items from all twelve slot dropdowns, and nothing on the page says why. This
     // is the only place that verdict is read, so it is the only place it can be
@@ -217,6 +223,9 @@ Pebble.addEventListener('showConfiguration', function(e) {
         userData: userData
     }));
     console.log('Showing clay: ' + JSON.stringify(claySettings.redactForLog(values)));
+    // After the page is open: fetch the Weather tab's data for the next opens when
+    // the phone holds nothing from today (at most once a day per place).
+    weatherTabCache.refreshIfStale(values, graphsSeed, nowMs);
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
