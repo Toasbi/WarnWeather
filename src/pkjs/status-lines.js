@@ -356,13 +356,8 @@ function formatValue(code, payload, settings, slotKey, cap) {
     // text, only into a free byte): '12/30' + arrow, never '12/30kph' without one.
     var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
     var arrowByte = (settings[code + 'SlotDirection'] && shown.now !== null) ? 1 : 0;
-    var text = statusPair.formatPeak(code, shown, settings, cap);
-    // A trailing next-day mark closes the whole reading, unit included: '45kph*'
-    // and '7/28mph*', never '45*kph'. (Max first puts it mid-text, '28*/7mph'.)
-    var suffix = shown.nextDay ? statusPair.nextDaySuffix(code, settings) : '';
-    var tail = (suffix && text.slice(-suffix.length) === suffix) ? suffix : '';
-    return withUnit(tail ? text.slice(0, -tail.length) : text, dayMaxUnit(code, settings),
-      limit - arrowByte - utf8.byteLength(tail)) + tail;
+    return withUnit(statusPair.formatPeak(code, shown, settings, cap),
+      dayMaxUnit(code, settings), limit - arrowByte);
   }
   if (code === 'pressure') {
     v = trendHead(payload.PRESSURE_TREND);

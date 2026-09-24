@@ -149,19 +149,6 @@ function joinPair(first, second, separator, custom, spaced, cap) {
 }
 
 /**
- * The part of a kind's next-day mark that trails the number ('*' for 'star',
- * '' for the prefix marks). A trailing mark closes the whole reading, so a slot
- * that appends a unit puts it before the mark: '45kph*', not '45*kph'.
- * @param {string} prefix the kind's settings prefix, e.g. 'wind'
- * @param {Object} settings Clay settings blob (<prefix>SlotNextDayMark)
- * @returns {string}
- */
-function nextDaySuffix(prefix, settings) {
-    var mark = (settings || {})[prefix + 'SlotNextDayMark'];
-    return (has(NEXT_DAY_MARKS, mark) ? NEXT_DAY_MARKS[mark] : NEXT_DAY_MARKS.raquo).post;
-}
-
-/**
  * Mark a UV peak as tomorrow's. Absent or unknown = the default '»' prefix.
  * @param {string} value the formatted peak
  * @param {*} mark stored uvSlotNextDayMark
@@ -235,7 +222,6 @@ module.exports = {
     spaceAround: spaceAround,
     joinPair: joinPair,
     markNextDay: markNextDay,
-    nextDaySuffix: nextDaySuffix,
     formatTempPair: formatTempPair,
     formatPeak: formatPeak
 };

@@ -354,15 +354,3 @@ test('wind peaks stay a byte, like the trend they are compared with', () => {
   dayPeaks.addToPayload(payload, provider({ windTrend: wind, dayPeakCodes: ['wind'] }), {});
   assert.equal(payload.WIND_DAY_PEAKS[0], 255);
 });
-
-test('a trailing next-day mark goes after the unit', () => {
-  const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [12, 45, null] };
-  const f = (extra) => statusLines.formatValue('wind', p,
-    settings(Object.assign({ windSlotNextDayMark: 'star' }, extra)));
-  assert.equal(f({ windSlotDisplay: 'max' }), '45kph*');
-  assert.equal(f({ windSlotDisplay: 'both', windUnits: 'mph' }), '7/28mph*');
-  assert.equal(f({ windSlotDisplay: 'both', windSlotOrder: 'max' }), '45*/12', 'mid-text: no room for the unit');
-  assert.equal(f({ windSlotDisplay: 'max', windSlotUnit: false }), '45*');
-  assert.equal(statusLines.formatValue('wind', p, settings({ windSlotDisplay: 'max' })), '»45kph',
-    'a leading mark is untouched');
-});
