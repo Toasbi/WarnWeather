@@ -202,7 +202,7 @@ static void render_active_view(void) {
     // "Tier push"). Sits after the peek fork above, so the pushed facts track
     // quick-view peek too.
     calendar_layer_set_rows(spec.calendar_rows);
-    top_status_layer_set_full_date(spec.calendar_rows == 0);
+    top_status_layer_set_full_date(layout_full_date(&spec));
 #if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
     // "Full mode" = the health graph sits in a short fixed band (a tighter HR/sleep
     // gap): under a 3-row calendar, as a top-band graph that does not fill, or as a
@@ -400,7 +400,7 @@ static void main_window_load(Window *window) {
     // Boot tier push: the strip resolves its slots inside create(), and the date
     // slot needs the BOOT view's density — not the Clay hint. Also fixes the stale
     // date after a relaunch-restore onto a none-tier view.
-    top_status_layer_set_full_date(spec.calendar_rows == 0);
+    top_status_layer_set_full_date(layout_full_date(&spec));
     top_status_layer_create(window_layer, L.top_status); // +1 height already in L.top_status
     loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();

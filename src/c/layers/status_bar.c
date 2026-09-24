@@ -139,7 +139,7 @@ void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout
     // Seed the per-view facts BEFORE creating, so each row's first layout already
     // uses the boot view's tier and date density rather than a default.
     const uint8_t tier = spec->status_tier;
-    const bool full_date = (spec->calendar_rows == 0);
+    const bool full_date = layout_full_date(spec);
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];
         b->tier = tier;
@@ -155,7 +155,7 @@ void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout
 
 void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
     const uint8_t tier = spec->status_tier;
-    const bool full_date = (spec->calendar_rows == 0);
+    const bool full_date = layout_full_date(spec);
 
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];

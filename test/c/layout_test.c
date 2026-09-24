@@ -3498,6 +3498,26 @@ static void clock_label_gap_yields(void) {
 // shape's cap line, in whatever font the view renders its rows). The graph body keeps the
 // preset's rect exactly, on both platforms: a view's rows take their tier from the top area's
 // ROW count (3+ rows → the full tier, like fullCal), so the row renders in the preset's font.
+// The top strip prints the FULL date only while no calendar is on screen. A radar top
+// compiles at the full tier (calendar_rows 3) but draws no calendar: it used to get the
+// month ("Sep 2026") as if the calendar were there.
+static void full_date_tests(void) {
+    ViewSpec s = view_spec_unpack(pack(3, 1, BODY_FORECAST, STATUS_SRC_FORECAST, 0));
+    expect("full_date.cal3", layout_full_date(&s), false);
+    s = view_spec_unpack(pack(2, 1, BODY_FORECAST, STATUS_SRC_FORECAST, 0));
+    expect("full_date.cal2", layout_full_date(&s), false);
+    s = view_spec_unpack(pack_custom(pack(3, 2, BODY_FORECAST, STATUS_SRC_FORECAST, 0), 0, 0, 1));
+    expect("full_date.radar_top", layout_full_date(&s), true);
+    // Without radar data the radar top folds to the calendar: the month again.
+    ViewSpec r = view_spec_resolve(s, false, true);
+    expect("full_date.radar_top_folded", layout_full_date(&r), false);
+    s = view_spec_unpack(pack_custom(pack(1, 3, BODY_HEALTH_GRAPH, STATUS_SRC_FORECAST, 0), 0, 0, 1));
+    view_spec_apply_ext(&s, ext_word(0, 0, TOP_GRAPH_FORECAST, 0));
+    expect("full_date.graph_top", layout_full_date(&s), true);
+    s = view_spec_unpack(pack(1, 0, BODY_FORECAST, STATUS_SRC_FORECAST, 0));
+    expect("full_date.no_top", layout_full_date(&s), true);
+}
+
 static void decision4_same_shape_tests(void) {
     const uint16_t full_cal = pack(3, 1, BODY_FORECAST, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
     const uint16_t swap = pack(2, 1, BODY_FORECAST, STATUS_SRC_NONE, STATUS_SRC_FORECAST);
@@ -3620,6 +3640,7 @@ int main(int argc, char **argv) {
     if (!s_dump) clock_digits_centring();
     if (!s_dump) clock_label_gap_yields();
     if (!s_dump) decision4_same_shape_tests();
+    if (!s_dump) full_date_tests();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }
     printf("layout golden rects OK%s\n",

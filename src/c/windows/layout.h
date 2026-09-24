@@ -377,6 +377,21 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health);
 
 LayerVisibility layout_visibility(const ViewSpec *spec);
 
+// Does the top strip (and any status row) print the FULL date for this view? Only
+// while no calendar is on screen: the calendar's rows carry the day numbers, so
+// beside them the date slot shows the month. On colour watches the calendar is
+// visible only when the top band holds it — a radar or graph top can carry a
+// calendar row count (radar tops compile at the full tier) without drawing one.
+// aplite's top band only ever holds the calendar (radar is compiled out and
+// resolves to it), so the row count alone decides there, byte-for-byte as before.
+static inline bool layout_full_date(const ViewSpec *spec) {
+#if defined(WW_VIEW_CYCLE)
+    return !(spec->calendar_rows > 0 && spec->top == TOP_BAND_CALENDAR);
+#else
+    return spec->calendar_rows == 0;
+#endif
+}
+
 // Pure vertical band geometry for the main window. fc_band_h is the font-derived height
 // of the forecast-abutting status band (status_forecast_band_h(status_full_tier_font())
 // on the watch; a fixed representative value in host tests). m.clock describes the active time
