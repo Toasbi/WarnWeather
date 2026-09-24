@@ -200,6 +200,12 @@ typedef struct {
     uint8_t top_size;       // BandSize of a radar/graph top (0 = its 3-row default)
     uint8_t body_size;      // BandSize of the graph body (0 = fill, today's graph)
     uint8_t align;          // BandAlign of a stack nothing fills (0 = clock centred)
+    // Which ENGINE renders this view, decided from the CONFIGURED spec (unpack +
+    // apply_ext) and never cleared by view_spec_resolve: a missing radar/health feed
+    // folds a sized radar top or a top graph away, and re-deciding on the folded spec
+    // would move a legacy-order view to the other engine — which draws order code 0 in
+    // a different band order, so the status bar would cross the clock with the data.
+    uint8_t stacked;
 #endif
 } ViewSpec;
 

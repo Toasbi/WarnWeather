@@ -790,7 +790,7 @@ static void golden_rects_graphless(void) {
     check("gl_tcab_centre.time", L.time, 0, 76, 144, 45);
     check("gl_tcab_centre.status", L.status, 0, 121, 144, 17);
     check("gl_tcab_centre.bottom", L.bottom, 0, 138, 144, 0);
-    check("gl_tcab_centre.loading", L.loading, 0, 138, 144, 30);
+    check("gl_tcab_centre.loading", L.loading, 0, 138, 144, 0);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_BOTTOM));
     if (s_dump) printf("  GRAPHLESS tcab bottom\n");
     check("gl_tcab_bottom.top_status", L.top_status, 0, 0, 144, 17);
@@ -822,7 +822,7 @@ static void golden_rects_graphless(void) {
     check("gl_ctab_centre.time", L.time, 0, 35, 144, 45);
     check("gl_ctab_centre.status", L.status, 0, 128, 144, 17);
     check("gl_ctab_centre.bottom", L.bottom, 0, 145, 144, 0);
-    check("gl_ctab_centre.loading", L.loading, 0, 145, 144, 23);
+    check("gl_ctab_centre.loading", L.loading, 0, 145, 144, 0);
     L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_BOTTOM));
     if (s_dump) printf("  GRAPHLESS ctab bottom\n");
     check("gl_ctab_bottom.top_status", L.top_status, 0, 0, 144, 17);
@@ -890,7 +890,7 @@ static void golden_rects_graphless(void) {
     check("gl_tcab_centre.time", L.time, 2, 101, 196, 60);
     check("gl_tcab_centre.status", L.status, 2, 163, 196, 21);
     check("gl_tcab_centre.bottom", L.bottom, 2, 184, 198, 0);
-    check("gl_tcab_centre.loading", L.loading, 2, 184, 198, 40);
+    check("gl_tcab_centre.loading", L.loading, 2, 184, 198, 0);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_BOTTOM));
     if (s_dump) printf("  GRAPHLESS tcab bottom\n");
     check("gl_tcab_bottom.top_status", L.top_status, 2, 2, 196, 21);
@@ -922,7 +922,7 @@ static void golden_rects_graphless(void) {
     check("gl_ctab_centre.time", L.time, 2, 49, 196, 60);
     check("gl_ctab_centre.status", L.status, 2, 173, 196, 21);
     check("gl_ctab_centre.bottom", L.bottom, 2, 194, 198, 0);
-    check("gl_ctab_centre.loading", L.loading, 2, 194, 198, 30);
+    check("gl_ctab_centre.loading", L.loading, 2, 194, 198, 0);
     L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_BOTTOM));
     if (s_dump) printf("  GRAPHLESS ctab bottom\n");
     check("gl_ctab_bottom.top_status", L.top_status, 2, 2, 196, 21);
@@ -947,11 +947,13 @@ static void golden_rects_graphless(void) {
 #define GL_MID 114
 #define GL_START_STRIP 22     // content_y 2 + the strip reserve 20
 #define GL_START_NOSTRIP 2
+#define GL_LOADING_MIN 42     // 2 x STATUS_LARGE_BAND_H (21)
 #else
 #define GL_FLOOR 168
 #define GL_MID 84
 #define GL_START_STRIP 13
 #define GL_START_NOSTRIP 0
+#define GL_LOADING_MIN 34     // 2 x STATUS_LARGE_BAND_H (17)
 #endif
 static void graphless_property_tests(void) {
     const struct { int tier, top, su, sl, clock_off, strip_off; } occ[] = {
@@ -963,6 +965,8 @@ static void graphless_property_tests(void) {
         { 2, 1, STATUS_SRC_FORECAST, STATUS_SRC_NONE,   1, 0 },   // clockless cal2 + A
         { 2, 1, STATUS_SRC_HEALTH,   STATUS_SRC_FORECAST, 0, 1 }, // stripless cal2 dual
         { 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE,   1, 1 },   // lone status row
+        { 2, 1, STATUS_SRC_NONE,     STATUS_SRC_NONE,   1, 0 },   // calendar only (ink-slid
+        { 3, 1, STATUS_SRC_NONE,     STATUS_SRC_NONE,   1, 0 },   //  under the strip)
     };
     for (int code = 0; code <= 11; code++) {
         for (unsigned o = 0; o < sizeof(occ) / sizeof(occ[0]); o++) {
@@ -985,9 +989,12 @@ static void graphless_property_tests(void) {
                 expect("gl.rigid_time", L.time.origin.y == T.time.origin.y + off, true);
                 expect("gl.rigid_status", L.status.origin.y == T.status.origin.y + off, true);
                 expect("gl.rigid_lower", L.status_lower.origin.y == T.status_lower.origin.y + off, true);
+                // The remainder under the block — or nothing, when it is too short for
+                // the overlay's line of text (a sliver would clip it to glyph tops).
+                int rem = GL_FLOOR - L.bottom.origin.y;
                 expect("gl.loading_is_remainder",
                        L.loading.origin.y == L.bottom.origin.y
-                       && L.loading.origin.y + L.loading.size.h == GL_FLOOR, true);
+                       && L.loading.size.h == (rem >= GL_LOADING_MIN ? rem : 0), true);
                 GRect bands[4] = { L.top, L.status, L.status_lower, L.bottom };
                 for (int k = 0; k < 4; k++) {
                     expect("gl.h_nonneg", bands[k].size.h >= 0, true);
@@ -1341,6 +1348,31 @@ static void ext_decode_tests(void) {
     // No graph layer is visible for BODY_NONE.
     LayerVisibility v = layout_visibility(&gd);
     expect("ext.graphless_no_graph", v.forecast || v.health_graph || v.radar, false);
+
+    // The ENGINE is decided on the configured spec and survives resolve's folds: a
+    // legacy-order view stacked only by a sized radar top keeps the stacker's T A C when
+    // radar data is missing (the top folds to a calendar and loses its size), instead of
+    // falling back to the legacy engine's T C A — the status row must not cross the
+    // clock with the data.
+    const uint16_t sized_radar = pack(3, 2, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
+    for (int has_radar = 0; has_radar <= 1; has_radar++) {
+        ViewSpec sr = view_spec_resolve(unpack_ext(sized_radar, ext_word(0, BAND_SIZE_4, 0, 0)),
+                                        has_radar, true);
+        expect("ext.sticky_engine_flag", sr.stacked, true);
+        MainLayout L = layout_compute_spec(BOUNDS, &sr, MET(FC_BAND_H, INK));
+        expect("ext.sticky_engine_order", L.status.origin.y < L.time.origin.y, true);
+    }
+    // ...while a preset (nothing stacked configured) stays on the legacy engine.
+    expect("ext.preset_not_stacked",
+           view_spec_resolve(view_spec_unpack(sized_radar), false, true).stacked, false);
+
+    // A custom view with NOTHING on it (every source folded away) is never a flick stop.
+    const uint32_t empty = pack_custom(pack(1, 0, 3, STATUS_SRC_NONE, STATUS_SRC_NONE), 1, 1, 0);
+    expect("ext.empty_view_not_a_stop", view_slot_available(empty, true, true), false);
+    const uint32_t lone_row = pack_custom(pack(1, 0, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 1, 1, 0);
+    expect("ext.lone_row_is_a_stop", view_slot_available(lone_row, true, true), true);
+    const uint32_t lone_clock = pack(1, 0, 3, STATUS_SRC_NONE, STATUS_SRC_NONE);
+    expect("ext.lone_clock_is_a_stop", view_slot_available(lone_clock, true, true), true);
     printf("ext_decode OK\n");
 }
 

@@ -435,6 +435,8 @@ static uint8_t status_tier_for(uint8_t rows, bool two_rows,
     return (uint8_t) t;
 }
 
+static bool spec_is_stacked(const ViewSpec *s);
+
 ViewSpec view_spec_unpack(uint16_t v) {
     uint8_t tier = (v >> 8) & 3;   // 0=off,1=none,2=compact,3=full
     uint8_t top  = (v >> 6) & 3;   // wire TopBand
@@ -477,6 +479,8 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
     spec.weights[2] = WEIGHT_BOTTOM;
+    spec.stacked = 0;
+    spec.stacked = spec_is_stacked(&spec);
     return spec;
 }
 
@@ -518,6 +522,9 @@ void view_spec_apply_ext(ViewSpec *s, uint16_t ext) {
     s->top_kind  = (uint8_t)((ext >> 6) & 1);
     s->align     = (uint8_t)((ext >> 7) & 3);
     spec_normalise_ext(s);
+    // The engine decision, on the configured spec (see ViewSpec.stacked): resolve's
+    // capability folds run after this and must not move the view to the other engine.
+    s->stacked = spec_is_stacked(s);
 }
 
 // Downgrade one status source to NONE when its capability is missing.
@@ -695,6 +702,11 @@ static int stack_align_offset(uint8_t align, int slack, bool clock,
     }
 }
 
+// The shortest remainder a graphless view's loading / "No data" overlay is given: two
+// large status bands (34 | 42 rows) hold loading_layer's Gothic-18 line seated at a
+// third of the height with its tails; anything shorter would clip it to a sliver.
+#define STACK_LOADING_MIN_H (2 * STATUS_LARGE_BAND_H)
+
 // The clearance the NEXT band keeps below band `b` (the audited gap-after rule): a
 // calendar/radar top and a large-font status band ink to their band edge; the clock and
 // a squeezed fc_band_h status band carry their own blank margins.
@@ -764,6 +776,7 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     // LAST bands and never emits a negative rect.
     GRect rect[5];
     int y = cursor_start;
+    int ink_end = cursor_start;
     uint8_t prev = STK_NONE;                         // nothing placed yet (strip or top edge)
     uint8_t prev_of[5] = { STK_NONE, STK_NONE, STK_NONE, STK_NONE, STK_NONE };
     uint8_t next_of[5] = { STK_NONE, STK_NONE, STK_NONE, STK_NONE, STK_NONE };
@@ -798,8 +811,11 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
         prev_of[b] = prev;
         prev = b;
         y += bh;
+        // The block ends at its lowest rect: the cursor, or a calendar that slid 2 | 1
+        // rows under the strip past it (the ink-slide above).
+        if (by + bh > ink_end) { ink_end = by + bh; }
     }
-    int block_end = y;                        // the last band's bottom — no trailing gap
+    int block_end = (ink_end > y) ? ink_end : y;   // the last band's bottom — no trailing gap
     // An absent band AFTER the last present one parked past its clearance, which only a
     // following band pays: pull it back to the block's end (a no-op with a body, whose
     // block ends on the floor — the pre-v2 rects stay byte-identical).
@@ -874,15 +890,21 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     if (body) {
         L.loading = L.bottom;
     } else {
+        // Too short for its line of text (loading_layer seats Gothic 18 at a third of its
+        // height) → 0 rows, as under Bottom: a sliver would show only the glyph tops.
         int loading_y = block_end + off;
-        L.loading = GRect(content_x, loading_y, bottom_w, floor - loading_y);
+        int loading_h = floor - loading_y;
+        if (loading_h < STACK_LOADING_MIN_H) { loading_h = 0; }
+        L.loading = GRect(content_x, loading_y, bottom_w, loading_h);
     }
     L.radar = L.bottom;                                 // layout_compute_spec re-aliases
     return L;
 }
 
-// Does this spec render through compute_stacked? Presets and order-0 full-chrome custom
-// views with a filling graph ride the legacy engine bit-identically; ANY other custom
+// Does this spec render through compute_stacked? (Sticky: ViewSpec.stacked records the
+// answer for the configured spec, so resolve's folds never flip it back.) Presets and
+// order-0 full-chrome custom views with a filling graph ride the legacy engine
+// bit-identically; ANY other custom
 // shape — a reorder (order >= 1; unpack clamps garbage to 0), a chrome omission, no
 // graph, a graph in the top band, or a non-default band size — rides the generic
 // stacker, which reflows it as its stored order (TACB for 0) minus the absent bands.
@@ -891,7 +913,7 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
 // isStacked, which the phone's preview and editor read: the band list they display is
 // what the watch renders.
 static bool spec_is_stacked(const ViewSpec *s) {
-    return s->order >= 1 || s->clock_off || s->strip_off
+    return s->stacked || s->order >= 1 || s->clock_off || s->strip_off
         || s->body == BODY_NONE || s->top == TOP_BAND_GRAPH
         || s->top_size != BAND_SIZE_DEFAULT || s->body_size != BAND_SIZE_DEFAULT;
 }
@@ -932,6 +954,13 @@ bool view_slot_available(uint32_t word, bool has_radar, bool has_health) {
     LayerVisibility v = layout_visibility(&spec);
     if ((v.radar || v.radar_status) && !has_radar) { return false; }
     if ((v.health_graph || v.health_status) && !has_health) { return false; }
+    // A custom view with nothing on it (no clock, top band, graph or status row — e.g.
+    // its only row's source was switched off in settings) is never a flick stop: the
+    // phone disables such a slot, and this belts a stale or hand-made wire value.
+    if (spec.clock_off && !(v.calendar || v.radar || v.forecast || v.health_graph
+                            || v.weather_status || v.radar_status || v.health_status)) {
+        return false;
+    }
     return true;
 }
 
