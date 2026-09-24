@@ -4,14 +4,28 @@
 // Also read by settings/preview-layout.js (config-UI preview) and the node tests.
 
 var TIER_OFF = 0, TIER_NONE = 1, TIER_COMPACT = 2, TIER_FULL = 3;
-var TOP_EMPTY = 0, TOP_CAL = 1, TOP_RADAR = 2;
+// TOP_GRAPH (custom layouts only): a forecast or health graph in the top band; which
+// one rides the ext word's topKind (packExt). The watch decodes it to TOP_BAND_GRAPH.
+var TOP_EMPTY = 0, TOP_CAL = 1, TOP_RADAR = 2, TOP_GRAPH = 3;
+var TOP_KIND_FORECAST = 0, TOP_KIND_HEALTH = 1;
 // Unlike `top` above (deliberately renumbered and translated by view_spec_unpack()),
 // these numberings must stay bit-for-bit identical to BodyContent/StatusRowContent in
 // src/c/windows/layout.h — the packed wire byte passes them through untranslated.
 // RADAR_STATUS retired — radar flavor now lives in a status row (statusUpper/statusLower).
-var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2;
+// BODY_NONE (custom layouts only): the view has no graph band at all.
+var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3;
 // Positional status sources: which content feeds the upper/lower status row.
 var STATUS_SRC_NONE = 0, STATUS_SRC_FORECAST = 1, STATUS_SRC_RADAR = 2, STATUS_SRC_HEALTH = 3;
+
+// Band size codes (the ext word's topSize / bodySize fields — one vocabulary for both
+// seats, mirroring BandSize in src/c/windows/layout.h). 0 = the seat's default: 3 rows
+// for a radar/graph top, fill for the graph body. The settings keys store '2'|'3'|'4'|'fill'.
+var SIZE_DEFAULT = 0, SIZE_2 = 1, SIZE_3 = 2, SIZE_4 = 3, SIZE_FILL = 4;
+var SIZE_CODE = { '2': SIZE_2, '3': SIZE_3, '4': SIZE_4, fill: SIZE_FILL };
+// Position of a stack that nothing fills (the ext word's align field; BandAlign in C).
+// 0 = the clock's ink centred on the screen midline (Middle when the view has no clock).
+var ALIGN_CLOCK = 0, ALIGN_TOP = 1, ALIGN_CENTER = 2, ALIGN_BOTTOM = 3;
+var ALIGN_CODE = { clock: ALIGN_CLOCK, top: ALIGN_TOP, center: ALIGN_CENTER, bottom: ALIGN_BOTTOM };
 
 /**
  * Build a view spec object.
@@ -28,13 +42,16 @@ function spec(tier, top, body, statusUpper, statusLower) {
 }
 
 /**
- * Clone a spec, preserving the custom-layout fields (clockOff/stripOff/order) that
- * the 5-arg spec() builder does not carry. Every cycle transform MUST clone through
- * this helper — cloning via spec() silently drops the flags (pinned by a test).
+ * Clone a spec, preserving the custom-layout fields (clockOff/stripOff/order and the
+ * ext word's topKind/topSize/bodySize/align) that the 5-arg spec() builder does not
+ * carry. Every cycle transform MUST clone through this helper — cloning via spec()
+ * silently drops them (pinned by a test).
  * Canonical form: the fields are attached only when set (absent === off/0), so
  * preset constants stay flag-free and pack byte-identically to pre-custom builds.
  * @param {{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
- *          clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined)}} s
+ *          clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined),
+ *          topKind:(number|undefined),topSize:(number|undefined),bodySize:(number|undefined),
+ *          align:(number|undefined)}} s
  * @returns {!Object} an independent copy with the same canonical fields
  */
 function cloneSpec(s) {
@@ -42,6 +59,10 @@ function cloneSpec(s) {
   if (s.clockOff) { out.clockOff = true; }
   if (s.stripOff) { out.stripOff = true; }
   if (s.order) { out.order = s.order; }
+  if (s.topKind) { out.topKind = s.topKind; }
+  if (s.topSize) { out.topSize = s.topSize; }
+  if (s.bodySize) { out.bodySize = s.bodySize; }
+  if (s.align) { out.align = s.align; }
   return out;
 }
 
@@ -79,6 +100,88 @@ function unpackSpec(v) {
   if ((v >> 11) & 1) { s.stripOff = true; }
   if ((v >> 12) & 15) { s.order = (v >> 12) & 15; }
   return s;
+}
+
+/**
+ * The ext fields of a spec in the watch's NORMALISED form — the exact rules
+ * view_spec_apply_ext + view_spec_resolve apply in src/c/windows/layout.c, so the phone
+ * packs, previews and dispatches on the same values the watch renders: out-of-range
+ * sizes → 0; explicit fill on the body and 3 rows on the top → 0 (their seat defaults);
+ * sizes only on a radar/graph top and on a present body; topKind only on a graph top;
+ * one fill per view (both → the body fills, the top takes its 3-row default); align only
+ * while no band fills.
+ * @param {!Object} s view spec
+ * @returns {{topKind:number,topSize:number,bodySize:number,align:number,fill:boolean}}
+ */
+function extFields(s) {
+  var topKind = (s.topKind || 0) & 1;
+  var topSize = s.topSize || 0;
+  var bodySize = s.bodySize || 0;
+  var align = (s.align || 0) & 3;
+  var sizedTop = (s.top === TOP_RADAR || s.top === TOP_GRAPH);
+  if (topSize > SIZE_FILL || topSize === SIZE_3 || !sizedTop) { topSize = SIZE_DEFAULT; }
+  if (bodySize > SIZE_FILL || bodySize === SIZE_FILL || s.body === BODY_NONE) { bodySize = SIZE_DEFAULT; }
+  if (s.top !== TOP_GRAPH) { topKind = TOP_KIND_FORECAST; }
+  var bodyFills = (s.body !== BODY_NONE && bodySize === SIZE_DEFAULT);
+  if (bodyFills && topSize === SIZE_FILL) { topSize = SIZE_DEFAULT; }
+  var fill = bodyFills || topSize === SIZE_FILL;
+  if (fill) { align = ALIGN_CLOCK; }
+  return { topKind: topKind, topSize: topSize, bodySize: bodySize, align: align, fill: fill };
+}
+
+/**
+ * Pack a spec's ext fields into the 16-bit ext word — the HIGH half of the 32-bit
+ * CLAY_VIEW_n tuple (the watch's config_wire.c reads it off the int32; aplite ignores
+ * it). Bit layout (LSB→MSB): bodySize(0-2) | topSize(3-5) | topKind(6) | align(7-8);
+ * 9-15 reserved (bit 15 stays clear so the whole wire word stays a positive int32).
+ * Every field is 0 in its seat's default, so a preset (no fields) packs to 0.
+ * @param {?Object} s view spec (null = disabled slot)
+ * @returns {number} 0..0x1FF
+ */
+function packExt(s) {
+  if (!s) { return 0; }
+  var e = extFields(s);
+  return (e.bodySize & 7) | ((e.topSize & 7) << 3) | ((e.topKind & 1) << 6) | ((e.align & 3) << 7);
+}
+
+/**
+ * Pack a spec into the full 32-bit wire word the CLAY_VIEW_n tuples carry:
+ * packSpec in the low 16 bits, packExt in the high 16. packExt is 0 for every preset,
+ * so a preset's wire word is exactly its 16-bit packSpec (the upgrade no-op).
+ * @param {?Object} s view spec (null = disabled slot → 0)
+ * @returns {number} non-negative integer below 2^31
+ */
+function packWire(s) {
+  return packSpec(s) + packExt(s) * 65536;
+}
+
+/**
+ * Decode a 32-bit wire word (packWire's inverse, in canonical form). A zero low half
+ * is a disabled slot → null, whatever the high half says (the watch keys slot
+ * availability on the wire tier the same way).
+ * @param {number} v wire word
+ * @returns {?Object} view spec
+ */
+function unpackWire(v) {
+  var s = unpackSpec(v & 0xFFFF);
+  if (!s) { return null; }
+  var ext = Math.floor(v / 65536) & 0x7FFF;
+  if (ext & 7) { s.bodySize = ext & 7; }
+  if ((ext >> 3) & 7) { s.topSize = (ext >> 3) & 7; }
+  if ((ext >> 6) & 1) { s.topKind = 1; }
+  if ((ext >> 7) & 3) { s.align = (ext >> 7) & 3; }
+  return s;
+}
+
+/**
+ * Does a band of this view fill the space left over (the graph body at its default
+ * size, or a radar/graph top sized 'fill')? Without one, the stack is shorter than the
+ * screen and the view's Position (align) places it.
+ * @param {!Object} s view spec
+ * @returns {boolean}
+ */
+function hasFill(s) {
+  return extFields(s).fill;
 }
 
 // Named views (see the design doc's view vocabulary). Positional status:
@@ -228,8 +331,9 @@ var STACK_ORDERS = [
 /**
  * Does the watch render this spec through its STACKED engine (compute_stacked) rather
  * than the legacy preset engine? THE one copy of the watch's dispatch rule
- * (layout.c layout_compute_spec): an explicit band order (1-11) or a removed chrome
- * band (clock / top strip). The stacked engine draws the bands literally in
+ * (layout.c spec_is_stacked): an explicit band order (1-11), a removed chrome band
+ * (clock / top strip), no graph body, a graph in the top band, or a non-default band
+ * size (read normalised, as the watch does). The stacked engine draws the bands literally in
  * STACK_ORDERS[order] ('TACB' for code 0) minus the absent ones; the legacy engine
  * seats them per tier. The settings preview and the editor's band list both read it,
  * so neither can drift from the watch. Presets never carry these fields → false.
@@ -238,7 +342,10 @@ var STACK_ORDERS = [
  */
 function isStacked(s) {
   if (!s) { return false; }
-  return (s.order >= 1) || Boolean(s.clockOff) || Boolean(s.stripOff);
+  if ((s.order >= 1) || Boolean(s.clockOff) || Boolean(s.stripOff)) { return true; }
+  if (s.body === BODY_NONE || s.top === TOP_GRAPH) { return true; }
+  var e = extFields(s);
+  return e.topSize !== SIZE_DEFAULT || e.bodySize !== SIZE_DEFAULT;
 }
 
 /**
@@ -434,11 +541,17 @@ function resolvePresetKey(state) {
 // rather than require()-ing it — one export list, no hand-copied duplicate to drift.
 var VIEW_CYCLE = {
   TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
-  TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
-  BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
+  TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR, TOP_GRAPH: TOP_GRAPH,
+  TOP_KIND_FORECAST: TOP_KIND_FORECAST, TOP_KIND_HEALTH: TOP_KIND_HEALTH,
+  BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR, BODY_NONE: BODY_NONE,
+  SIZE_DEFAULT: SIZE_DEFAULT, SIZE_2: SIZE_2, SIZE_3: SIZE_3, SIZE_4: SIZE_4, SIZE_FILL: SIZE_FILL,
+  SIZE_CODE: SIZE_CODE,
+  ALIGN_CLOCK: ALIGN_CLOCK, ALIGN_TOP: ALIGN_TOP, ALIGN_CENTER: ALIGN_CENTER,
+  ALIGN_BOTTOM: ALIGN_BOTTOM, ALIGN_CODE: ALIGN_CODE,
   STATUS_SRC_NONE: STATUS_SRC_NONE, STATUS_SRC_FORECAST: STATUS_SRC_FORECAST,
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
+  packExt: packExt, packWire: packWire, unpackWire: unpackWire, hasFill: hasFill,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   STACK_ORDERS: STACK_ORDERS, orderCode: orderCode, isStacked: isStacked,
   RADAR_CHART_MODES: RADAR_CHART_MODES, RADAR_ROW_MODES: RADAR_ROW_MODES,

@@ -266,16 +266,19 @@ test('bit-15 orders pack above 0x7FFF (negative int16 on the wire) without corru
 });
 
 // The upgrade no-op guarantee: NO preset compile, under ANY mode combination or
-// transform, may ever set bits 10-15 — presets must pack byte-identically to
+// transform, may ever set bits 10-31 of the wire word (the custom bits of the low
+// half, or anything in the ext half) — presets must pack byte-identically to
 // pre-custom builds so upgrades transmit nothing.
-test('presets never carry the custom bits (full matrix sweep)', () => {
+test('presets never carry the custom bits or an ext word (full matrix sweep)', () => {
   ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) =>
     ['off', 'slot', 'status', 'all'].forEach((h) =>
       ['off', 'countdown', 'status', 'graph'].forEach((r) =>
         [false, true].forEach((sw) => {
-          bytes(p, h, r, sw).forEach((v) => {
-            assert.equal(v & 0xFC00, 0,
-              p + '/' + h + '/' + r + '/' + sw + ' leaked custom bits: 0x' + v.toString(16));
+          vc.buildViewCycle(p, h, r, sw).forEach((s) => {
+            const w = vc.packWire(s);
+            assert.equal(w >>> 10, 0,
+              p + '/' + h + '/' + r + '/' + sw + ' leaked custom bits: 0x' + w.toString(16));
+            assert.equal(w, vc.packSpec(s), 'a preset wire word is its 16-bit packSpec');
           });
         }))));
 });
@@ -430,6 +433,102 @@ test('transforms preserve clockOff/stripOff/order through their clones', () => {
   const cloned = vc.cloneSpec(radar);
   assert.notStrictEqual(cloned, radar);
   assert.deepEqual(cloned, radar);
+
+  // ...and the ext word's fields ride every clone too.
+  const ext = Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_RADAR,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE), { topKind: 1, topSize: 3, bodySize: 1, align: 2 });
+  assert.deepEqual(vc.cloneSpec(ext), ext);
+  const extDemoted = vc.demoteRadarBody(ext);
+  assert.deepEqual([extDemoted.topKind, extDemoted.topSize, extDemoted.bodySize, extDemoted.align],
+    [1, 3, 1, 2]);
+});
+
+// ── The ext word (high half of CLAY_VIEW_n) ──────────────────────────────────
+
+/**
+ * A custom spec with the given ext fields on a stripless compact base.
+ * @param {Object} over spec overrides
+ * @returns {Object} spec
+ */
+function extSpec(over) {
+  return Object.assign(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE), over);
+}
+
+test('packExt bit layout: bodySize 0-2, topSize 3-5, topKind 6, align 7-8', () => {
+  assert.equal(vc.packExt(null), 0);
+  assert.equal(vc.packExt(extSpec({})), 0, 'no fields → 0');
+  assert.equal(vc.packExt(extSpec({ bodySize: vc.SIZE_4 })), 3);
+  assert.equal(vc.packExt(extSpec({ body: vc.BODY_NONE, align: vc.ALIGN_BOTTOM })), 3 << 7);
+  const g = extSpec({ tier: vc.TIER_NONE, top: vc.TOP_GRAPH, topKind: 1, topSize: vc.SIZE_4,
+    bodySize: vc.SIZE_2 });
+  assert.equal(vc.packExt(g), 1 | (3 << 3) | (1 << 6));
+  const all = extSpec({ tier: vc.TIER_NONE, top: vc.TOP_GRAPH, topKind: 1, topSize: vc.SIZE_2,
+    body: vc.BODY_NONE, align: vc.ALIGN_CENTER });
+  assert.equal(vc.packExt(all), (1 << 3) | (1 << 6) | (2 << 7));
+  assert.ok(vc.packExt(all) < 0x8000, 'bit 15 of the ext stays clear');
+});
+
+test('packWire = packSpec in the low half + packExt in the high half; unpackWire inverts it', () => {
+  const cases = [
+    extSpec({}),
+    extSpec({ body: vc.BODY_NONE, align: vc.ALIGN_TOP, stripOff: true, order: 11 }),
+    extSpec({ tier: vc.TIER_NONE, top: vc.TOP_GRAPH, topKind: 1, topSize: vc.SIZE_FILL,
+      body: vc.BODY_NONE, clockOff: true, order: 8 }),
+    extSpec({ tier: vc.TIER_FULL, top: vc.TOP_RADAR, topSize: vc.SIZE_2, bodySize: vc.SIZE_4,
+      align: vc.ALIGN_BOTTOM }),
+  ];
+  cases.forEach((s) => {
+    const w = vc.packWire(s);
+    assert.equal(w & 0xFFFF, vc.packSpec(s));
+    assert.equal(Math.floor(w / 65536), vc.packExt(s));
+    assert.ok(w >= 0 && w < 0x80000000, 'a positive int32 (bit 31 clear)');
+    assert.equal(w >>> 31, 0);
+    assert.equal(vc.packWire(vc.unpackWire(w)), w, 'round trip');
+  });
+  assert.equal(vc.unpackWire(0), null);
+  assert.equal(vc.unpackWire(5 << 16), null, 'a zero low half is a disabled slot whatever the ext says');
+});
+
+test('the ext packs NORMALISED, exactly as the watch applies it', () => {
+  // explicit fill on the body / 3 rows on a top are the seat defaults → 0
+  assert.equal(vc.packExt(extSpec({ bodySize: vc.SIZE_FILL })), 0);
+  assert.equal(vc.packExt(extSpec({ tier: vc.TIER_FULL, top: vc.TOP_RADAR, topSize: vc.SIZE_3 })), 0);
+  // sizes on a calendar top, on an absent body; topKind on a non-graph top → dropped
+  assert.equal(vc.packExt(extSpec({ topSize: vc.SIZE_4 })), 0, 'calendar tops take no size');
+  assert.equal(vc.packExt(extSpec({ body: vc.BODY_NONE, bodySize: vc.SIZE_4 })) & 7, 0);
+  assert.equal(vc.packExt(extSpec({ topKind: 1 })), 0, 'topKind only on a graph top');
+  // out-of-range sizes → 0
+  assert.equal(vc.packExt(extSpec({ bodySize: 6 })), 0);
+  // one fill per view: a fill top under a filling body → the body fills
+  const both = extSpec({ tier: vc.TIER_NONE, top: vc.TOP_GRAPH, topSize: vc.SIZE_FILL });
+  assert.equal((vc.packExt(both) >> 3) & 7, 0, 'both-fill → the top takes its default');
+  // align only while nothing fills
+  assert.equal(vc.packExt(extSpec({ align: vc.ALIGN_BOTTOM })), 0, 'the body fills → no align');
+  assert.equal(vc.packExt(extSpec({ bodySize: vc.SIZE_2, align: vc.ALIGN_BOTTOM })) >> 7, 3,
+    'a sized body leaves slack → align kept');
+});
+
+test('hasFill: the default body fills; a sized body or none leaves slack unless the top fills', () => {
+  assert.equal(vc.hasFill(extSpec({})), true);
+  assert.equal(vc.hasFill(extSpec({ bodySize: vc.SIZE_3 })), false);
+  assert.equal(vc.hasFill(extSpec({ body: vc.BODY_NONE })), false);
+  assert.equal(vc.hasFill(extSpec({ body: vc.BODY_NONE, tier: vc.TIER_FULL, top: vc.TOP_RADAR,
+    topSize: vc.SIZE_FILL })), true);
+  assert.equal(vc.hasFill(extSpec({ body: vc.BODY_NONE, topSize: vc.SIZE_FILL })), false,
+    'a calendar top never fills');
+});
+
+test('isStacked covers the new shapes: no body, a top graph, a non-default size', () => {
+  assert.equal(vc.isStacked(extSpec({ body: vc.BODY_NONE })), true);
+  assert.equal(vc.isStacked(extSpec({ tier: vc.TIER_NONE, top: vc.TOP_GRAPH })), true);
+  assert.equal(vc.isStacked(extSpec({ bodySize: vc.SIZE_2 })), true);
+  assert.equal(vc.isStacked(extSpec({ tier: vc.TIER_FULL, top: vc.TOP_RADAR, topSize: vc.SIZE_4 })), true);
+  // defaults that normalise away do NOT dispatch (the watch applies the same rule)
+  assert.equal(vc.isStacked(extSpec({ bodySize: vc.SIZE_FILL })), false);
+  assert.equal(vc.isStacked(extSpec({ tier: vc.TIER_FULL, top: vc.TOP_RADAR, topSize: vc.SIZE_3 })), false);
+  assert.equal(vc.isStacked(extSpec({ topSize: vc.SIZE_4 })), false, 'a calendar top takes no size');
+  assert.equal(vc.isStacked(extSpec({ align: vc.ALIGN_BOTTOM })), false, 'align alone never dispatches');
 });
 
 // The capability gate table — THE single source: buildCustomCycle folds by it,
