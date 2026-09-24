@@ -240,8 +240,8 @@ function orderCode(seq) {
 // The second producer beside the preset MATRIX: compiles the per-view settings keys
 // (viewCount, viewTop{i}, viewBody{i}, viewUpper{i}, viewLower{i}, viewOrder{i},
 // viewClockOff{i}, viewStripOff{i}) into the same spec objects packSpec ships.
-// The key vocabulary is the editor's contract — schema.js and view-editor.js speak
-// these exact strings.
+// The key vocabulary is the editor's contract — settings/custom-layout-schema.js
+// and settings/view-editor.js speak these exact strings.
 
 var CUSTOM_TOP = {
   cal3:  { tier: TIER_FULL,    top: TOP_CAL },
@@ -255,25 +255,49 @@ var CUSTOM_SRC = {
   radar: STATUS_SRC_RADAR, health: STATUS_SRC_HEALTH
 };
 
+// Capability gates, single-sourced: which radarMode/healthMode values unlock each
+// seat kind. THE one copy — buildCustomCycle folds by them, view-editor.js's
+// freeStatusSource offers by them, and settings/custom-layout-schema.js builds its
+// declarative optionDisabledWhen gates from these very arrays, so the compiler,
+// the editor and the sheets can never disagree. Mirrors the watch's
+// view_spec_resolve: radar CHART seats (top strip / body) need radarMode 'graph';
+// the radar status SOURCE needs 'status'|'graph'; a health graph body needs
+// healthMode 'all'; a health status source needs 'status'|'all' ('slot' shows
+// health only in the regular slot system, same as the preset MATRIX's bucket rule).
+var RADAR_CHART_MODES = ['graph'];
+var RADAR_ROW_MODES = ['status', 'graph'];
+var HEALTH_ROW_MODES = ['status', 'all'];
+var HEALTH_BODY_MODES = ['all'];
+
 /**
- * Compile the custom per-view keys into a 1-3 slot cycle. Mirrors the watch's
- * view_spec_resolve capability semantics so the previews and the wire agree:
- * radar CHART seats (top strip / body) need radarMode 'graph'; the radar status
- * SOURCE needs 'status' or 'graph'; a health graph body needs healthMode 'all';
- * a health status source needs 'status' or 'all' ('slot' shows health only in the
- * regular slot system, same as the preset MATRIX's bucket rule). Under the legacy
- * order a folded-away upper promotes the surviving lower (dense degradation, the
- * watch's rule); explicit stacked orders keep user-placed seats.
+ * The capability booleans for a settings state — one per seat kind, derived
+ * from the mode lists above (reads S.radarMode / S.healthMode).
+ * @param {Object} S settings state
+ * @returns {{radarChart:boolean,radarRow:boolean,healthRow:boolean,healthBody:boolean}}
+ */
+function capabilities(S) {
+  S = S || {};
+  return {
+    radarChart: RADAR_CHART_MODES.indexOf(S.radarMode) >= 0,
+    radarRow: RADAR_ROW_MODES.indexOf(S.radarMode) >= 0,
+    healthRow: HEALTH_ROW_MODES.indexOf(S.healthMode) >= 0,
+    healthBody: HEALTH_BODY_MODES.indexOf(S.healthMode) >= 0
+  };
+}
+
+/**
+ * Compile the custom per-view keys into a 1-3 slot cycle. Seats fold by
+ * capabilities(S) — the shared gate table above — so the previews and the wire
+ * agree with the watch's view_spec_resolve. Under the legacy order a folded-away
+ * upper promotes the surviving lower (dense degradation, the watch's rule);
+ * explicit stacked orders keep user-placed seats.
  * @param {Object} S settings state
  * @returns {Array<Object>} specs for packSpec (length == viewCount, 1-3)
  */
 function buildCustomCycle(S) {
   var count = parseInt(S.viewCount, 10);
   if (!(count >= 1 && count <= 3)) { count = 1; }
-  var radarChartOk = S.radarMode === 'graph';
-  var radarRowOk = S.radarMode === 'status' || S.radarMode === 'graph';
-  var healthRowOk = S.healthMode === 'status' || S.healthMode === 'all';
-  var healthBodyOk = S.healthMode === 'all';
+  var cap = capabilities(S);
   var cycle = [];
   for (var i = 0; i < count; i++) {
     var t = CUSTOM_TOP[S['viewTop' + i]] || CUSTOM_TOP.cal2;
@@ -284,14 +308,14 @@ function buildCustomCycle(S) {
     var slRaw = CUSTOM_SRC[S['viewLower' + i]];
     if (slRaw === undefined) { slRaw = STATUS_SRC_NONE; }
 
-    if (t.top === TOP_RADAR && !radarChartOk) { t = CUSTOM_TOP.cal3; }
-    if (body === BODY_RADAR && !radarChartOk) { body = BODY_FC; }
-    if (body === BODY_GRAPH && !healthBodyOk) { body = BODY_FC; }
+    if (t.top === TOP_RADAR && !cap.radarChart) { t = CUSTOM_TOP.cal3; }
+    if (body === BODY_RADAR && !cap.radarChart) { body = BODY_FC; }
+    if (body === BODY_GRAPH && !cap.healthBody) { body = BODY_FC; }
     var su = suRaw, sl = slRaw;
-    if (su === STATUS_SRC_RADAR && !radarRowOk) { su = STATUS_SRC_NONE; }
-    if (su === STATUS_SRC_HEALTH && !healthRowOk) { su = STATUS_SRC_NONE; }
-    if (sl === STATUS_SRC_RADAR && !radarRowOk) { sl = STATUS_SRC_NONE; }
-    if (sl === STATUS_SRC_HEALTH && !healthRowOk) { sl = STATUS_SRC_NONE; }
+    if (su === STATUS_SRC_RADAR && !cap.radarRow) { su = STATUS_SRC_NONE; }
+    if (su === STATUS_SRC_HEALTH && !cap.healthRow) { su = STATUS_SRC_NONE; }
+    if (sl === STATUS_SRC_RADAR && !cap.radarRow) { sl = STATUS_SRC_NONE; }
+    if (sl === STATUS_SRC_HEALTH && !cap.healthRow) { sl = STATUS_SRC_NONE; }
 
     var code = orderCode(S['viewOrder' + i] || 'TACB');
     if (code === 0 && suRaw !== STATUS_SRC_NONE && su === STATUS_SRC_NONE
@@ -401,6 +425,9 @@ var VIEW_CYCLE = {
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   STACK_ORDERS: STACK_ORDERS, orderCode: orderCode,
+  RADAR_CHART_MODES: RADAR_CHART_MODES, RADAR_ROW_MODES: RADAR_ROW_MODES,
+  HEALTH_ROW_MODES: HEALTH_ROW_MODES, HEALTH_BODY_MODES: HEALTH_BODY_MODES,
+  capabilities: capabilities,
   buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
   seedCustomKeys: seedCustomKeys,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey

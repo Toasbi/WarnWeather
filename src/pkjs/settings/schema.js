@@ -19,6 +19,10 @@ var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_C
 // wire — so the settings page cannot offer a colour the renderer doesn't know, miss one
 // it does, or carry a transcribed default hex that drifts away from what the graph paints.
 var lineStyle = require('../line-style.js');
+// The Custom-layout block (the per-view storage items, their sheetOnly section and
+// the Edit-button row) lives in its own module so its capability gates are BUILT
+// from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
+var customLayout = require('./custom-layout-schema.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -267,71 +271,6 @@ function sheetOf(keyStem, title, items) {
         title: title + ' slot',
         items: items
     };
-}
-
-// ── Custom layout: per-view keys (the editor's storage contract) ────────────
-// One item per element choice per view slot (0 = Default, 1-2 = flicks). They live
-// in a sheetOnly section so the tab renderer skips them while hydrate/serialize
-// keep them in the settings blob; the Custom-layout editor (view-editor.js)
-// renders its own reorderable rows from these keys and opens the engine's select
-// sheets on them. Key names + string values are the compiler contract — see
-// buildCustomCycle in src/pkjs/view-cycle.js. Capability gating is
-// visible-but-inert (optionDisabledWhen), mirroring the compiler's folds: chart
-// seats need radarMode 'graph'; the radar status source needs status|graph; a
-// health graph body needs healthMode 'all'; health rows need status|all.
-var VIEW_RADAR_CHART_WHEN = {key: 'radarMode', eq: 'graph'};
-var VIEW_RADAR_ROW_WHEN = {key: 'radarMode', in: ['status', 'graph']};
-var VIEW_HEALTH_ROW_WHEN = {key: 'healthMode', in: ['status', 'all']};
-var VIEW_HEALTH_BODY_WHEN = {key: 'healthMode', eq: 'all'};
-// No 'Off' entry: removal is the editor row's ✕ button — a duplicate Off pick in
-// the sheet would be a second way to do the same thing. 'off' stays a legal STORED
-// value (what ✕ writes); the sheet is only openable while the row is present.
-var VIEW_SRC_OPTIONS = [['Weather', 'weather'],
-                        ['Radar', 'radar'], ['Health', 'health']];
-var VIEW_SRC_GATES = {
-    radar: {not: VIEW_RADAR_ROW_WHEN},
-    health: {not: VIEW_HEALTH_ROW_WHEN}
-};
-
-/**
- * The per-view custom-layout items for view slot `i`.
- * @param {number} i View slot (0 = Default, 1-2 = flicks).
- * @returns {Object[]} Schema items.
- */
-function customViewItems(i) {
-    var items = [{
-        type: 'radio', messageKey: 'viewTop' + i, label: 'Calendar / top area',
-        defaultValue: 'cal2',
-        // No 'Nothing' entry: removal is the editor row's ✕ button; 'none' stays a
-        // legal STORED value (what ✕ writes).
-        options: [['Calendar — 3 rows', 'cal3'], ['Calendar — 2 rows', 'cal2'],
-                  ['Rain radar', 'radar']],
-        optionDisabledWhen: {radar: {not: VIEW_RADAR_CHART_WHEN}}
-    }, {
-        type: 'radio', messageKey: 'viewBody' + i, label: 'Graph',
-        defaultValue: 'forecast',
-        options: [['Forecast graph', 'forecast'], ['Health graph', 'health'],
-                  ['Rain radar', 'radar']],
-        optionDisabledWhen: {health: {not: VIEW_HEALTH_BODY_WHEN},
-                             radar: {not: VIEW_RADAR_CHART_WHEN}}
-    }, {
-        type: 'radio', messageKey: 'viewUpper' + i, label: 'Status bar',
-        defaultValue: i === 0 ? 'weather' : 'off',
-        options: VIEW_SRC_OPTIONS, optionDisabledWhen: VIEW_SRC_GATES
-    }, {
-        type: 'radio', messageKey: 'viewLower' + i, label: 'Second status bar',
-        defaultValue: 'off',
-        options: VIEW_SRC_OPTIONS, optionDisabledWhen: VIEW_SRC_GATES
-    }, {
-        // Machine value the editor's ▲▼ buttons write (a STACK_ORDERS sequence
-        // string, e.g. 'CTAB'); never opened as a sheet.
-        type: 'hidden', messageKey: 'viewOrder' + i, defaultValue: 'TACB'
-    }];
-    if (i > 0) {   // the Default view always keeps its clock and top bar
-        items.push({type: 'hidden', messageKey: 'viewClockOff' + i, defaultValue: false});
-        items.push({type: 'hidden', messageKey: 'viewStripOff' + i, defaultValue: false});
-    }
-    return items;
 }
 
 // The seven rows of the Graph-colors card, each opening its own sheet. The six metrics
@@ -2031,27 +1970,10 @@ module.exports = {
                 onChange: 'layoutPresetChanged',
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true
-            }, {
-                // A standard settings row with the outlined Edit button on the right
-                // (the per-slot edit-sheet look), not a full-width button. staticText
-                // + [data-action] is the shipped idiom for an action inside a row
-                // (the "Reset status bars" row); the engine dispatches it globally.
-                type: 'staticText',
-                // hint copy rides inside the row: staticText items don't render `hint`.
-                text: '<div style="display:flex;justify-content:space-between;align-items:center;gap:18px;">'
-                    + '<span style="font-size:14.5px;font-weight:600;color:var(--lbl);">Custom layout'
-                    + '<span style="display:block;font-size:12px;font-weight:400;color:var(--hint);margin-top:2px;">'
-                    + 'Choose what each view shows, and where.</span></span>'
-                    + '<button type="button" class="thr-btn" data-action="openViewEditor"'
-                    + ' aria-label="Edit the custom layout">Edit</button></div>',
-                // Platform-gated like the option itself: a DORMANT stored 'custom'
-                // (set on a colour watch, then the phone pairs an aplite) displays
-                // the compactCal fallback — the editor row must not leak in
-                // beside it. ne keeps the unknown-platform case capable, matching
-                // layoutPresetOptions and the clay-payload gate.
-                showWhen: {all: [{key: 'layoutPreset', eq: 'custom'},
-                                 {env: 'platform', ne: 'aplite'}]}
-            }, {
+            },
+            // The Custom-layout Edit-button row — custom-layout-schema.js.
+            customLayout.editRow,
+            {
                 type: 'toggle',
                 messageKey: 'largeGraphFont',
                 label: 'Larger graph fonts',
@@ -2107,19 +2029,10 @@ module.exports = {
                 options: [['Never', '0'], ['1m', '1'], ['2m', '2'], ['5m', '5'], ['10m', '10']],
                 showWhen: {env: 'platform', ne: 'aplite'}
             }]
-        }, {
-            // Custom-layout storage (see customViewItems above): sheetOnly keeps the
-            // items out of the tab while their sheets stay openable and their values
-            // hydrate/serialize with the blob. viewCount = how many views exist;
-            // customLayoutSeeded latches the one-time preset copy.
-            sheetOnly: true,
-            sheetId: 'viewEditKeys',
-            title: 'Custom layout',
-            items: [
-                {type: 'hidden', messageKey: 'viewCount', defaultValue: '1'},
-                {type: 'hidden', messageKey: 'customLayoutSeeded', defaultValue: false}
-            ].concat(customViewItems(0), customViewItems(1), customViewItems(2))
-        }, {
+        },
+        // Custom-layout storage (sheetOnly per-view keys) — custom-layout-schema.js.
+        customLayout.storageSection,
+        {
             // Time and Calendar moved here from the Watch tab (now 'Status slots'):
             // they shape fixed watchface areas, so they read as layout concerns.
             // Items are verbatim — gates and hooks unchanged by the move.

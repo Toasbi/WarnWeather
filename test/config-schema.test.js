@@ -76,7 +76,7 @@ const EXPECTED_KEYS = [
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
-  // Custom-layout storage (sheetOnly section; see customViewItems in schema.js).
+  // Custom-layout storage (sheetOnly section; see customViewItems in custom-layout-schema.js).
   'viewCount','customLayoutSeeded',
   'viewTop0','viewBody0','viewUpper0','viewLower0','viewOrder0',
   'viewTop1','viewBody1','viewUpper1','viewLower1','viewOrder1','viewClockOff1','viewStripOff1',
@@ -1249,6 +1249,29 @@ test('Layout tab leads with the arrangement section: combined preview above the 
   const storage = layout.sections.find((s) => s.sheetId === 'viewEditKeys');
   assert.ok(storage, 'custom-layout storage section exists');
   assert.equal(storage.sheetOnly, true);
+});
+
+// The custom-layout capability gates are BUILT from view-cycle.js's mode lists
+// (custom-layout-schema.js) — assert the very same array instances, not equal
+// copies, so a re-typed literal can never silently drift from buildCustomCycle.
+test('custom-layout gates reference view-cycle.js\'s mode lists (single source)', () => {
+  const vc = require('../src/pkjs/view-cycle.js');
+  [0, 1, 2].forEach((i) => {
+    const top = byKey('viewTop' + i);
+    assert.strictEqual(top.optionDisabledWhen.radar.not.in, vc.RADAR_CHART_MODES,
+      'viewTop' + i + ': the radar chart seat gates on RADAR_CHART_MODES');
+    const body = byKey('viewBody' + i);
+    assert.strictEqual(body.optionDisabledWhen.radar.not.in, vc.RADAR_CHART_MODES,
+      'viewBody' + i + ': the radar body gates on RADAR_CHART_MODES');
+    assert.strictEqual(body.optionDisabledWhen.health.not.in, vc.HEALTH_BODY_MODES,
+      'viewBody' + i + ': the health body gates on HEALTH_BODY_MODES');
+    [byKey('viewUpper' + i), byKey('viewLower' + i)].forEach((row) => {
+      assert.strictEqual(row.optionDisabledWhen.radar.not.in, vc.RADAR_ROW_MODES,
+        row.messageKey + ': the radar source gates on RADAR_ROW_MODES');
+      assert.strictEqual(row.optionDisabledWhen.health.not.in, vc.HEALTH_ROW_MODES,
+        row.messageKey + ': the health source gates on HEALTH_ROW_MODES');
+    });
+  });
 });
 
 test('largeGraphFont is offered on emery only, and hidden when watchInfo is unavailable', () => {

@@ -1,8 +1,8 @@
 // src/pkjs/settings/view-editor.js — ES5, WebView. The Custom-layout editor: a
 // full-screen overlay (wizard pattern — NOT the engine's #modal, whose edit sheets
 // cannot host select triggers) with one tab per view, each tab a reorderable element
-// list over the per-view keys (schema.js customViewItems / view-cycle.js
-// buildCustomCycle — the storage contract). Select rows open the engine's sheets via
+// list over the per-view keys (custom-layout-schema.js customViewItems /
+// view-cycle.js buildCustomCycle — the storage contract). Select rows open the engine's sheets via
 // the onReady ctx's openSheet, which showModal()s ABOVE this overlay; edits write S
 // live like every engine control, and the header's ✕ restores a snapshot taken on
 // open while "Save layout" keeps S and closes — draft semantics without touching the
@@ -231,21 +231,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * The source a fresh status row should carry in view `i`: the first of
      * weather/radar/health that (a) is not already on the sibling row (the C
      * invariant — no source repeats across bands) and (b) passes the same
-     * capability gates buildCustomCycle folds by, so the fresh row never
-     * compiles straight to NONE. null when no distinct capable source exists.
+     * capability gates buildCustomCycle folds by (viewCycleLib.capabilities —
+     * the shared table), so the fresh row never compiles straight to NONE.
+     * null when no distinct capable source exists.
      * @param {Object} S @param {number} i @returns {?string}
      */
     function freeStatusSource(S, i) {
         var sibling = (S[k('Upper', i)] || 'off') !== 'off' ? S[k('Upper', i)]
                     : (S[k('Lower', i)] || 'off') !== 'off' ? S[k('Lower', i)] : null;
-        var radarOk = S.radarMode === 'status' || S.radarMode === 'graph';
-        var healthOk = S.healthMode === 'status' || S.healthMode === 'all';
+        var cap = viewCycleLib.capabilities(S);
         var candidates = ['weather', 'radar', 'health'], j, c;
         for (j = 0; j < candidates.length; j++) {
             c = candidates[j];
             if (c === sibling) { continue; }
-            if (c === 'radar' && !radarOk) { continue; }
-            if (c === 'health' && !healthOk) { continue; }
+            if (c === 'radar' && !cap.radarRow) { continue; }
+            if (c === 'health' && !cap.healthRow) { continue; }
             return c;
         }
         return null;
