@@ -455,7 +455,7 @@ test('feels-like is left out of both metric pickers on aplite', () => {
 test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', () => {
   const hint = byKey('secondaryLine').hintByValue.uv;
   assert.match(hint, /UV 11/);
-  assert.match(hint, /half-height/);
+  assert.match(hint, /half-height/i);
 });
 
 test('windScale has nine contextual slots: three line-contexts × three wind units', () => {
@@ -1016,12 +1016,18 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.equal(labelOf('precip_prob', 'dew'), 'Dew point');
 });
 
-test('Second metric picker hints note that it is drawn as bar-aligned square dots', () => {
-  const hints = byKey('thirdLine').hintByValue;
-  ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'].forEach((m) => {
-    assert.match(hints[m], /square dots.*rain bars/i, m + ' hint should mention bar-aligned square dots');
+test('metric hints add only the scale or meaning: no default line style, no Off, no repeated name', () => {
+  ['secondaryLine', 'thirdLine', 'fourthLine'].forEach((key) => {
+    const hints = byKey(key).hintByValue;
+    assert.equal(hints.off, undefined, key + ': Off explains itself');
+    Object.keys(hints).forEach((m) => {
+      assert.ok(!/by default|square dots|x marks/i.test(hints[m]), key + '.' + m + ' repeats the line style: ' + hints[m]);
+      assert.ok(!/each hour/i.test(hints[m]), key + '.' + m + ' repeats the hourly resolution: ' + hints[m]);
+    });
   });
-  assert.match(hints.off, /No second metric/i);
+  // The three pickers share one hint per metric, so switching lines never rewords one.
+  assert.equal(byKey('thirdLine').hintByValue.wind, byKey('secondaryLine').hintByValue.wind);
+  assert.equal(byKey('fourthLine').hintByValue.uv, byKey('secondaryLine').hintByValue.uv);
 });
 
 test('feels-like hint says it shares the temperature scale, on both pickers', () => {

@@ -31,49 +31,39 @@ var HOURS = (function () {
     }
     return o;
 })();
-// Per-metric hints, shared by the secondary + third line pickers. Each explains how
-// the metric maps to graph height; UV mirrors the precip-percentage phrasing.
+// Per-metric hints, shared by the three metric pickers. Each says only what the
+// picker's own label can't: how the metric maps to graph height (UV mirrors the
+// precip-percentage phrasing), or what the line means (dew point). No hint restates
+// the metric's name, the line style (its own row sits right below) or 'Off'.
 var LINE_HINTS = {
-    precip_prob: 'Chance of rain each hour<br>— half-height = 50% rain chance<br>— full-height = 100% rain chance',
-    wind: 'Wind speed each hour, scaled by the wind graph scale below.',
-    gust: 'Wind gust peaks each hour, scaled by the wind graph scale below.',
-    uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
-    pressure: 'Sea-level air pressure each hour, scaled by the pressure graph scale below.',
-    feels: 'Feels-like temperature each hour, drawn grey on the same scale as the temperature curve.',
-    dew: 'Dew point each hour, drawn on the same scale as the temperature curve. The closer it runs to the temperature, the more humid it feels.',
-    off: 'No third line — temperature and the secondary line only.'
+    precip_prob: 'Half-height = 50% chance of rain, full height = 100%.',
+    wind: 'Scaled by the wind graph scale below.',
+    gust: 'The hourly peak, scaled by the wind graph scale below.',
+    uv: 'Half-height = UV 5.5, full height = UV 11 (extreme).',
+    pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
+    feels: 'Drawn grey on the same scale as the temperature curve.',
+    dew: 'Drawn on the same scale as the temperature curve. The closer it runs to the temperature, the more humid it feels.'
 };
-// Rendering notes appended per picker. Pre-rendered maps, not appended hints,
-// because hintByValue REPLACES item.hint (no append) and LINE_HINTS is shared
-// with the main-metric picker (which must not show a note).
-var DOTS_NOTE = '<br>Drawn as square dots by default, aligned to the rain bars.';
-var X_NOTE = '<br>Drawn as little x marks by default, aligned to the rain bars.';
 /**
- * A metric picker's hint map: the shared per-metric LINE_HINTS with a
- * rendering note appended, an 'off' row of its own, and any banned metrics
- * left out.
- * @param {string} note Appended to every metric's hint.
- * @param {string} offText Hint for the 'off' row.
+ * A metric picker's hint map: the shared per-metric LINE_HINTS with any
+ * banned metrics left out.
  * @param {Array.<string>} [omit] Metric ids left out of the map.
  * @returns {Object} Picker-value -> hint map.
  */
-function lineHintsWithNote(note, offText, omit) {
+function lineHintsWithout(omit) {
     var out = {}, k;
     for (k in LINE_HINTS) {
         if (!Object.prototype.hasOwnProperty.call(LINE_HINTS, k)) { continue; }
-        if (k === 'off' || (omit && omit.indexOf(k) >= 0)) { continue; }
-        out[k] = LINE_HINTS[k] + note;
+        if (omit && omit.indexOf(k) >= 0) { continue; }
+        out[k] = LINE_HINTS[k];
     }
-    out.off = offText;
     return out;
 }
-var THIRD_LINE_HINTS = lineHintsWithNote(DOTS_NOTE,
-    'No second metric — temperature and the main metric only.');
+var THIRD_LINE_HINTS = lineHintsWithout();
 // No feels or dew on the third metric: the fourth line has no curve-inset channel,
 // so they could never share the temperature axis (line-style.js FORECAST_LINES
 // bans them; blocks.js' forecastMetric resolver drops them via noTempAxis).
-var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
-    'No third metric — the two metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
+var FOURTH_LINE_HINTS = lineHintsWithout(lineStyle.TEMP_AXIS_METRIC_IDS);
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -81,11 +71,10 @@ var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
 var LINE_STYLES_WHEN = {env: 'lineStyles'};
 // Per-line style pickers, one under each metric picker. The values are
 // line-style.js' LINE_STYLE_KINDS vocabulary.
+// Thin and Thick say it all; the marker styles add where the marks sit.
 var LINE_STYLE_HINTS = {
-    line: 'A thin 1-pixel line.',
-    bold: 'A thick 3-pixel line.',
-    dots: 'Square dots, aligned to the rain bars.',
-    x: 'Little x marks, aligned to the rain bars.'
+    dots: 'Aligned to the rain bars.',
+    x: 'Aligned to the rain bars.'
 };
 /**
  * One line-style picker.
@@ -302,7 +291,6 @@ var GRAPH_ROLE_LABELS = {
 var GRAPH_ROLE_HINTS = {
     Fill: 'Only drawn while “Fill area below the line” is on.',
     Night: 'Re-shades the filled area under the night hours. Follows the fill colour until you pick one here.',
-    Hatch: 'The hatch drawn over the night hours.',
     Boundary: 'The vertical lines at sunset and sunrise.'
 };
 
@@ -1451,7 +1439,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, wind speed, wind gusts, UV index, air pressure, feels-like temperature or dew point, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, or little x marks) — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics you pick below and the hourly rain bars are drawn on top of it.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1470,7 +1458,6 @@ module.exports = {
                 label: 'Fill area below the line',
                 defaultValue: true,
                 joinPrevious: true,
-                hint: 'Fills the area beneath the line.',
                 // Feels-like and dew point ride the temperature axis rather than a 0..max scale, so
                 // "below the line" is not the area between the curve and a meaningful
                 // zero — a fill there would flood the plot up to an arbitrary band
@@ -1560,7 +1547,7 @@ module.exports = {
                 messageKey: 'dayNightShading',
                 label: 'Day / night shading',
                 defaultValue: true,
-                hint: 'Show hatch shading between sunset and sunrise to distinguish day and night on the forecast graph.'
+                hint: 'Hatches the hours between sunset and sunrise.'
             }]
         }, {
             // One card holding one row per graph metric, plus the night band. Deliberately
