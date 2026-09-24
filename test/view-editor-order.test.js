@@ -154,3 +154,40 @@ test('a second status bar added under a 3-row calendar lands as low as the watch
   assert.deepEqual(watchKinds(S, 0), ['top', 'status', 'status', 'clock'],
     'right below the first: below the clock would need the unrenderable T A C B');
 });
+
+/**
+ * The packed wire words of every view — what the watch receives.
+ * @param {Object} S settings state
+ * @returns {number[]} packWire per view
+ */
+function wire(S) {
+  return vc.buildCustomCycle(S).map(vc.packWire);
+}
+
+test('moving a lone status bar past its absent sibling and back is byte-identical', () => {
+  // One status bar under a 3-row calendar: up above the clock, then back down. The
+  // absent second bar's slot is stepped over; that must not turn the lone UPPER row into
+  // a lone LOWER row (which the legacy engine draws 14 px lower over a shorter graph).
+  ['cal3', 'radar', 'none'].forEach((top) => {
+    const S = state({ viewTop0: top });
+    const before = wire(S);
+    assert.equal(ve.moveBand(S, 0, 'A', -1), true, top + ': up');
+    assert.equal(ve.moveBand(S, 0, 'A', 1), true, top + ': back down');
+    assert.equal(S.viewOrder0, 'TACB', top);
+    assert.equal(S.viewUpper0, 'weather', top + ': still the upper row');
+    assert.equal(S.viewLower0, 'off', top);
+    assert.deepEqual(wire(S), before, top + ': the watch receives exactly what it had');
+  });
+});
+
+test('moving the top area down and back up is byte-identical, one or two status bars', () => {
+  [['weather', 'off'], ['weather', 'radar']].forEach(([upper, lower]) => {
+    const S = state({ viewTop0: 'cal3', viewUpper0: upper, viewLower0: lower });
+    const before = wire(S);
+    assert.equal(ve.moveBand(S, 0, 'T', 1), true);
+    assert.deepEqual(editorKinds(S, 0), watchKinds(S, 0));
+    assert.equal(ve.moveBand(S, 0, 'T', -1), true);
+    assert.equal(S.viewOrder0, 'TACB', upper + '/' + lower);
+    assert.deepEqual(wire(S), before, upper + '/' + lower);
+  });
+});

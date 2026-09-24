@@ -43,24 +43,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Canonicalize an order array in place: A renders above B by contract (the
-     * compiler assigns the visually-upper source to the wire's upper slot), so a
-     * B-before-A ordering swaps the letters AND the two views' sources.
+     * compiler assigns the visually-upper source to the wire's upper slot). A
+     * B-before-A ordering with BOTH rows present swaps the letters AND the two rows'
+     * sources. With one row absent its letter only marks a free slot, so that letter
+     * moves instead (B to just after A, or A to just before B) and the present row
+     * keeps its own slot — swapping sources there would turn a lone upper row into a
+     * lone LOWER row, which the legacy engine draws elsewhere (the swap layout).
      * @param {string[]} ord 4-letter order array (mutated)
      * @param {Object} S settings state (sources swapped when needed)
      * @param {number} i view slot
      * @returns {void}
      */
     function canonicalize(ord, S, i) {
-        var ai = -1, bi = -1, j;
-        for (j = 0; j < 4; j++) {
-            if (ord[j] === 'A') { ai = j; }
-            if (ord[j] === 'B') { bi = j; }
-        }
-        if (bi < ai) {
+        var ai = ord.indexOf('A'), bi = ord.indexOf('B');
+        if (bi > ai) { return; }
+        var pres = presence(S, i);
+        if (pres.A && pres.B) {
             ord[ai] = 'B'; ord[bi] = 'A';
             var tmp = S[k('Upper', i)];
             S[k('Upper', i)] = S[k('Lower', i)];
             S[k('Lower', i)] = tmp;
+        } else if (!pres.B) {
+            ord.splice(bi, 1);
+            ord.splice(ord.indexOf('A') + 1, 0, 'B');
+        } else {
+            ord.splice(ai, 1);
+            ord.splice(ord.indexOf('B'), 0, 'A');
         }
     }
 
