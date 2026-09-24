@@ -156,11 +156,17 @@ static inline int clock_label_x(int band_w, int after_digits, int gap, int label
 // (today: the preset compiler + flick state in main_window; later: the à-la-carte
 // user layout). See CONTEXT.md "View spec".
 
-typedef enum { TOP_BAND_CALENDAR = 0, TOP_BAND_RADAR = 1, TOP_BAND_EMPTY = 2 } TopBand;
+// TOP_BAND_GRAPH (custom layouts only): a forecast or health graph in the top band —
+// which one is ViewSpec.top_kind. Wire top code 3 (TOP_GRAPH in view-cycle.js).
+typedef enum {
+    TOP_BAND_CALENDAR = 0, TOP_BAND_RADAR = 1, TOP_BAND_EMPTY = 2, TOP_BAND_GRAPH = 3
+} TopBand;
 // Unlike TopBand above (deliberately renumbered vs. the wire `top` field and translated
-// by view_spec_unpack()), BodyContent must stay bit-for-bit identical to BODY_FC/GRAPH/RADAR
+// by view_spec_unpack()), BodyContent must stay bit-for-bit identical to BODY_FC/GRAPH/RADAR/NONE
 // in src/pkjs/view-cycle.js — the packed wire value passes it through untranslated.
-typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2 } BodyContent;
+// BODY_NONE (custom layouts only): the view has no graph band at all; layout_visibility
+// shows no graph layer for it by construction.
+typedef enum { BODY_FORECAST = 0, BODY_HEALTH_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3 } BodyContent;
 // Which content feeds a status row. Positional: each of the upper/lower status bands
 // carries one source. Values match STATUS_SRC_* in src/pkjs/view-cycle.js (wire contract).
 typedef enum {
@@ -187,8 +193,29 @@ typedef struct {
     uint8_t clock_off;      // 1 = this view omits the clock band (flick views only)
     uint8_t strip_off;      // 1 = this view omits the top status strip (flick views only)
     uint8_t order;          // canonical band-order code; 0 = the legacy fixed order
+    // Custom layout v2 — decoded from the EXT word (the high half of the CLAY_VIEW_n
+    // int32, persisted as Config.view_ext) by view_spec_apply_ext, always normalised:
+    // 0 means "as before v2" in every field, so a preset is untouched by construction.
+    uint8_t top_kind;       // TopGraphKind — read only when top == TOP_BAND_GRAPH
+    uint8_t top_size;       // BandSize of a radar/graph top (0 = its 3-row default)
+    uint8_t body_size;      // BandSize of the graph body (0 = fill, today's graph)
+    uint8_t align;          // BandAlign of a stack nothing fills (0 = clock centred)
 #endif
 } ViewSpec;
+
+#if defined(WW_VIEW_CYCLE)
+// The ext-word vocabularies (view-cycle.js TOP_KIND_* / SIZE_* / ALIGN_* mirror them).
+typedef enum { TOP_GRAPH_FORECAST = 0, TOP_GRAPH_HEALTH = 1 } TopGraphKind;
+// One size vocabulary for both seats: rows of the 3-row calendar's row unit
+// (calendar_h / 3 — 15 px here, 20 px on emery) or FILL, the space the stack leaves.
+// DEFAULT is the seat's own default: 3 rows for a radar/graph top, FILL for the body.
+typedef enum {
+    BAND_SIZE_DEFAULT = 0, BAND_SIZE_2 = 1, BAND_SIZE_3 = 2, BAND_SIZE_4 = 3, BAND_SIZE_FILL = 4
+} BandSize;
+// Where a stack that nothing fills sits between the strip and the bottom pad. CLOCK
+// centres the clock's INK on the screen midline (CENTRE when the view has no clock).
+typedef enum { ALIGN_CLOCK = 0, ALIGN_TOP = 1, ALIGN_CENTRE = 2, ALIGN_BOTTOM = 3 } BandAlign;
+#endif
 
 typedef struct {
     bool calendar;
@@ -290,6 +317,16 @@ static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L
 // (the legacy order) here at the decode boundary, so spec.order is a valid 0-11
 // everywhere downstream.
 ViewSpec view_spec_unpack(uint16_t v);
+
+#if defined(WW_VIEW_CYCLE)
+// Decode a view's 16-bit EXT word (bodySize 0-2 | topSize 3-5 | topKind 6 | align 7-8 —
+// view-cycle.js packExt) into the spec, NORMALISED: a seat default reads 0 (fill for the
+// body, 3 rows for a top), sizes survive only on a radar/graph top and a present body,
+// top_kind only on a graph top, one band fills at most (both → the body), and align only
+// while nothing fills. Call after view_spec_unpack, before view_spec_resolve. ext 0 is
+// the identity, so a preset (or a pre-v2 phone) renders exactly as before.
+void view_spec_apply_ext(ViewSpec *s, uint16_t ext);
+#endif
 
 // Data-availability downgrades, pure. Each status source is downgraded to NONE when its
 // capability is missing (radar row without radar data, health row without health data);

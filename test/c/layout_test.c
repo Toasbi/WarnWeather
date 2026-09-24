@@ -932,6 +932,114 @@ static void test_unpack_custom_bits(void) {
     printf("unpack_custom_bits OK\n");
 }
 
+// ── Custom layout v2: the ext word (view_spec_apply_ext) ────────────────────
+// ext bits: bodySize 0-2 | topSize 3-5 | topKind 6 | align 7-8 (view-cycle.js packExt).
+static uint16_t ext_word(int body_size, int top_size, int top_kind, int align) {
+    return (uint16_t)((body_size & 7) | ((top_size & 7) << 3) | ((top_kind & 1) << 6)
+                    | ((align & 3) << 7));
+}
+
+// The body fills (BODY present at its default size) — the one-fill rule's winner.
+static bool spec_fills_body(const ViewSpec *s) {
+    return s->body != BODY_NONE && s->body_size == BAND_SIZE_DEFAULT;
+}
+
+// unpack + apply_ext, the order main_window runs them in.
+static ViewSpec unpack_ext(uint16_t wire, uint16_t ext) {
+    ViewSpec s = view_spec_unpack(wire);
+    view_spec_apply_ext(&s, ext);
+    return s;
+}
+
+static void ext_decode_tests(void) {
+    // ext 0 is the IDENTITY for every shape the goldens pin (presets and every custom
+    // omission/order shape): no field moves, so no pre-v2 pixel can.
+    const uint16_t wires[] = {
+        pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),
+        pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),
+        pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST),
+        pack(1, 0, 1, STATUS_SRC_HEALTH, STATUS_SRC_NONE),
+        pack(1, 0, 2, STATUS_SRC_RADAR, STATUS_SRC_NONE),
+        pack(3, 2, 0, STATUS_SRC_NONE, STATUS_SRC_NONE),
+        pack(2, 1, 2, STATUS_SRC_RADAR, STATUS_SRC_FORECAST),
+        pack_custom(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 1, 1, 11),
+        pack_custom(pack(3, 2, 0, STATUS_SRC_RADAR, STATUS_SRC_NONE), 0, 0, 5),
+        pack_custom(pack(1, 0, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 1, 0),
+    };
+    for (unsigned i = 0; i < sizeof(wires) / sizeof(wires[0]); i++) {
+        ViewSpec a = view_spec_unpack(wires[i]);
+        ViewSpec b = a;
+        view_spec_apply_ext(&b, 0);
+        expect("ext.identity", memcmp(&a, &b, sizeof(a)) == 0, true);
+    }
+
+    // Decode: every field lands where packExt put it.
+    const uint16_t graphless = pack(2, 1, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
+    ViewSpec s = unpack_ext(graphless, ext_word(0, 0, 0, ALIGN_BOTTOM));
+    expect("ext.body_none_decodes", s.body == BODY_NONE, true);
+    expect("ext.align_decodes", s.align == ALIGN_BOTTOM, true);
+    ViewSpec r = unpack_ext(pack(3, 2, 0, STATUS_SRC_NONE, STATUS_SRC_NONE),
+                            ext_word(BAND_SIZE_2, BAND_SIZE_4, 0, 0));
+    expect("ext.sizes_decode", r.body_size == BAND_SIZE_2 && r.top_size == BAND_SIZE_4, true);
+
+    // Normalisation (the phone's extFields applies the same rules):
+    // seat defaults read 0 — an explicit fill body, a 3-row top.
+    expect("ext.body_fill_is_default",
+           unpack_ext(pack(2, 1, 0, 1, 0), ext_word(BAND_SIZE_FILL, 0, 0, 0)).body_size == 0, true);
+    expect("ext.top_3_is_default",
+           unpack_ext(pack(3, 2, 0, 0, 0), ext_word(0, BAND_SIZE_3, 0, 0)).top_size == 0, true);
+    // sizes only where a seat takes them: never on a calendar/empty top, never on no body
+    expect("ext.calendar_top_takes_no_size",
+           unpack_ext(pack(3, 1, 0, 1, 0), ext_word(0, BAND_SIZE_4, 0, 0)).top_size == 0, true);
+    expect("ext.empty_top_takes_no_size",
+           unpack_ext(pack(1, 0, 0, 1, 0), ext_word(0, BAND_SIZE_FILL, 0, 0)).top_size == 0, true);
+    expect("ext.no_body_takes_no_size",
+           unpack_ext(graphless, ext_word(BAND_SIZE_4, 0, 0, 0)).body_size == 0, true);
+    // top_kind only on a graph top; out-of-range size codes 5-7 → 0
+    expect("ext.kind_needs_graph_top",
+           unpack_ext(pack(3, 2, 0, 0, 0), ext_word(0, 0, 1, 0)).top_kind == 0, true);
+    ViewSpec junk = unpack_ext(pack(3, 2, 0, 0, 0), ext_word(6, 7, 0, 0));
+    expect("ext.out_of_range_sizes", junk.body_size == 0 && junk.top_size == 0, true);
+    // one fill per view: a FILL radar top under a filling body → the body fills
+    ViewSpec both = unpack_ext(pack(3, 2, 0, 0, 0), ext_word(0, BAND_SIZE_FILL, 0, 0));
+    expect("ext.both_fill_body_wins", both.top_size == 0 && spec_fills_body(&both), true);
+    // align survives only while nothing fills
+    expect("ext.align_moot_with_fill",
+           unpack_ext(pack(2, 1, 0, 1, 0), ext_word(0, 0, 0, ALIGN_BOTTOM)).align == 0, true);
+    expect("ext.align_kept_sized_body",
+           unpack_ext(pack(2, 1, 0, 1, 0), ext_word(BAND_SIZE_2, 0, 0, ALIGN_TOP)).align
+           == ALIGN_TOP, true);
+    expect("ext.align_moot_with_fill_top",
+           unpack_ext(pack(3, 2, 3, 0, 0), ext_word(0, BAND_SIZE_FILL, 0, ALIGN_TOP)).align
+           == 0, true);
+
+    // Resolve re-normalises after its folds: a sized radar top without radar data folds
+    // back to a calendar, which takes no size — the stale size must not survive.
+    ViewSpec rt = unpack_ext(pack(3, 2, 3, STATUS_SRC_NONE, STATUS_SRC_NONE),
+                             ext_word(0, BAND_SIZE_4, 0, ALIGN_TOP));
+    ViewSpec rr = view_spec_resolve(rt, /*has_radar*/false, true);
+    expect("ext.resolve_folded_top_drops_size",
+           rr.top == TOP_BAND_CALENDAR && rr.top_size == 0, true);
+    expect("ext.resolve_keeps_align_graphless", rr.align == ALIGN_TOP, true);
+
+    // The status-tier body exemption (decided): a graphless view un-squeezes like a
+    // clockless/stripless one — the removed graph frees the rows the large type wants.
+    ViewSpec gd = view_spec_unpack(pack(2, 1, 3, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST));
+    expect("ext.graphless_dual_large", gd.status_tier == LAYOUT_TIER_COMPACT, true);
+    ViewSpec g3 = view_spec_unpack(pack(3, 1, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE));
+    expect("ext.graphless_cal3_large", g3.status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("ext.resolve_keeps_graphless_tier",
+           view_spec_resolve(gd, true, true).status_tier == LAYOUT_TIER_COMPACT, true);
+    expect("ext.graphed_dual_still_squeezed",
+           view_spec_unpack(pack(2, 1, 0, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST)).status_tier
+           == LAYOUT_TIER_FULL, true);
+
+    // No graph layer is visible for BODY_NONE.
+    LayerVisibility v = layout_visibility(&gd);
+    expect("ext.graphless_no_graph", v.forecast || v.health_graph || v.radar, false);
+    printf("ext_decode OK\n");
+}
+
 // Brief Task 3: per-band availability downgrades. A stripped UPPER promotes the surviving
 // lower row into the upper slot (see test_resolve_strip_promotes_upper) — the forecast row
 // lands where a lone row normally sits, not in the swap layout's lower band.
@@ -2306,6 +2414,7 @@ int main(int argc, char **argv) {
     if (!s_dump) stacked_property_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
+    if (!s_dump) ext_decode_tests();
     if (!s_dump) test_resolve_no_health_no_radar();
     if (!s_dump) viewspec_tests();
     if (!s_dump) peek_tests();

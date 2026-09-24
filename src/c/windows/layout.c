@@ -422,16 +422,16 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
 
 // The status tier a view's rows render at. layout_status_tier owns the base rule
 // (only a DUAL squeezes to the smaller full-tier font); on top of it, a custom view
-// that removed a chrome band — the clock OR the top strip — keeps the LARGE font
+// that removed a band — the clock, the top strip OR the graph — keeps the LARGE font
 // whatever its shape: the squeeze exists to fit rows into a screen that carries all
-// its chrome, and either removal frees at least the rows the bigger type wants.
-// Presets always carry both, so their tiers (and pixels) are untouched. Shared by
-// unpack and resolve so the two can never disagree; the aplite twin keeps calling
-// layout_status_tier directly (it has no custom views to exempt).
+// its chrome and a graph, and any of those removals frees at least the rows the bigger
+// type wants. Presets always carry all three, so their tiers (and pixels) are
+// untouched. Shared by unpack and resolve so the two can never disagree; the aplite
+// twin keeps calling layout_status_tier directly (it has no custom views to exempt).
 static uint8_t status_tier_for(uint8_t rows, bool two_rows,
-                               uint8_t clock_off, uint8_t strip_off) {
+                               uint8_t clock_off, uint8_t strip_off, bool body_off) {
     LayoutTier t = layout_status_tier(layout_tier_for_rows(rows), two_rows);
-    if ((clock_off || strip_off) && t == LAYOUT_TIER_FULL) { t = LAYOUT_TIER_COMPACT; }
+    if ((clock_off || strip_off || body_off) && t == LAYOUT_TIER_FULL) { t = LAYOUT_TIER_COMPACT; }
     return (uint8_t) t;
 }
 
@@ -462,15 +462,62 @@ ViewSpec view_spec_unpack(uint16_t v) {
     // this decode boundary, so spec.order is a trustworthy 0-11 everywhere downstream:
     // the engine dispatch and the STACK_ORDER indexing both read it unchecked.
     if (spec.order > 11) { spec.order = 0; }
+    // The v2 fields live in the EXT word, not in this 16-bit value: zero here (= "as
+    // before v2"), filled in by view_spec_apply_ext when the caller has an ext word.
+    spec.top_kind = 0;
+    spec.top_size = 0;
+    spec.body_size = 0;
+    spec.align = 0;
     // Via `rows`, not the wire tier, so the field and the tier can never disagree —
     // and through status_tier_for, the one rule unpack and resolve share (base
-    // squeeze rule in layout.h's layout_status_tier; clockless exemption above).
+    // squeeze rule in layout.h's layout_status_tier; omission exemptions above).
     bool two_rows = (su != STATUS_SRC_NONE) && (sl != STATUS_SRC_NONE);
-    spec.status_tier = status_tier_for(rows, two_rows, spec.clock_off, spec.strip_off);
+    spec.status_tier = status_tier_for(rows, two_rows, spec.clock_off, spec.strip_off,
+                                       body == BODY_NONE);
     spec.weights[0] = WEIGHT_CALENDAR;
     spec.weights[1] = WEIGHT_TIME;
     spec.weights[2] = WEIGHT_BOTTOM;
     return spec;
+}
+
+// Does a band of this (normalised) spec fill the space the stack leaves: the graph body
+// at its default size, or a radar/graph top sized FILL? Without one the stack is shorter
+// than the screen and `align` places it.
+static bool spec_has_fill(const ViewSpec *s) {
+    bool sized_top = (s->top == TOP_BAND_RADAR || s->top == TOP_BAND_GRAPH);
+    return (s->body != BODY_NONE && s->body_size == BAND_SIZE_DEFAULT)
+        || (sized_top && s->top_size == BAND_SIZE_FILL);
+}
+
+// Re-derive the ext fields' canonical form from the spec's content — the rules
+// view_spec_apply_ext documents in layout.h, and the ones view-cycle.js extFields
+// applies on the phone. Idempotent, so resolve re-runs it after its folds (which can
+// strip a seat and leave its size/kind/align behind).
+static void spec_normalise_ext(ViewSpec *s) {
+    bool sized_top = (s->top == TOP_BAND_RADAR || s->top == TOP_BAND_GRAPH);
+    if (s->top_size > BAND_SIZE_FILL || s->top_size == BAND_SIZE_3 || !sized_top) {
+        s->top_size = BAND_SIZE_DEFAULT;
+    }
+    if (s->body_size > BAND_SIZE_FILL || s->body_size == BAND_SIZE_FILL
+            || s->body == BODY_NONE) {
+        s->body_size = BAND_SIZE_DEFAULT;
+    }
+    if (s->top != TOP_BAND_GRAPH) { s->top_kind = TOP_GRAPH_FORECAST; }
+    // One fill per view: a FILL top under a filling body takes its 3-row default (the
+    // editor never emits this; a stale value must still render deterministically).
+    if (s->body != BODY_NONE && s->body_size == BAND_SIZE_DEFAULT
+            && s->top_size == BAND_SIZE_FILL) {
+        s->top_size = BAND_SIZE_DEFAULT;
+    }
+    if (spec_has_fill(s)) { s->align = ALIGN_CLOCK; }
+}
+
+void view_spec_apply_ext(ViewSpec *s, uint16_t ext) {
+    s->body_size = (uint8_t)(ext & 7);
+    s->top_size  = (uint8_t)((ext >> 3) & 7);
+    s->top_kind  = (uint8_t)((ext >> 6) & 1);
+    s->align     = (uint8_t)((ext >> 7) & 3);
+    spec_normalise_ext(s);
 }
 
 // Downgrade one status source to NONE when its capability is missing.
@@ -511,7 +558,11 @@ ViewSpec view_spec_resolve(ViewSpec spec, bool has_radar, bool has_health) {
     // a clockless view stays on the large font whatever survives.
     bool two_rows = (spec.status_upper != STATUS_SRC_NONE) && (spec.status_lower != STATUS_SRC_NONE);
     spec.status_tier = status_tier_for(spec.calendar_rows, two_rows,
-                                       spec.clock_off, spec.strip_off);
+                                       spec.clock_off, spec.strip_off,
+                                       spec.body == BODY_NONE);
+    // The folds above can strip a seat (a radar top back to a calendar, …) and leave its
+    // size behind; re-derive the canonical ext fields from what survived.
+    spec_normalise_ext(&spec);
     return spec;
 }
 
@@ -742,15 +793,24 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     return L;
 }
 
+// Does this spec render through compute_stacked? Presets and order-0 full-chrome custom
+// views with a filling graph ride the legacy engine bit-identically; ANY other custom
+// shape — a reorder (order >= 1; unpack clamps garbage to 0), a chrome omission, no
+// graph, a graph in the top band, or a non-default band size — rides the generic
+// stacker, which reflows it as its stored order (TACB for 0) minus the absent bands.
+// Read on the NORMALISED spec (a default size is 0 by then), so align alone — 0 whenever
+// something fills — never dispatches. THE one rule, mirrored by view-cycle.js
+// isStacked, which the phone's preview and editor read: the band list they display is
+// what the watch renders.
+static bool spec_is_stacked(const ViewSpec *s) {
+    return s->order >= 1 || s->clock_off || s->strip_off
+        || s->body == BODY_NONE || s->top == TOP_BAND_GRAPH
+        || s->top_size != BAND_SIZE_DEFAULT || s->body_size != BAND_SIZE_DEFAULT;
+}
+
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
-    // Presets and order-0 full-chrome custom views ride the legacy engine
-    // bit-identically; ANY other custom shape — a reorder (order >= 1; unpack clamps
-    // garbage to 0) OR a chrome omission under wire order 0 — rides the generic
-    // stacker, which reflows it as its stored order (TACB for 0) minus the absent
-    // bands. One rule, so the band list the phone editor displays (always TACB at
-    // order 0) is what the watch actually renders. Both engines share one signature,
-    // so this is a pure dispatch.
-    MainLayout L = (spec->order >= 1 || spec->clock_off || spec->strip_off)
+    // Both engines share one signature, so this is a pure dispatch.
+    MainLayout L = spec_is_stacked(spec)
         ? compute_stacked(bounds, spec, m)
         : compute_with_weights(bounds, spec, m);
     // Radar rides wherever it's placed: the top band when it replaces the calendar,
