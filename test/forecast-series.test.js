@@ -798,6 +798,23 @@ test('the feels curve keeps clear of both plot edges when it overshoots the temp
   assert.equal(out.TEMP_MAX, 30);
 });
 
+test('under a top stripe the feels curve reaches the top: the band keeps it clear, not a pad', () => {
+  // Feels overshoots above only (temps 10..30, feels up to 38). With a top stripe drawn,
+  // the watch lays the plot out below the stripe band, so the top is not padded.
+  const settings = { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' };
+  const padded = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
+    settings, { platform: 'basalt' });
+  assert.ok(Math.max.apply(null, padded.SECONDARY_LINE_TREND_UINT8) < 250, 'premise: padded without a stripe');
+  const striped = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
+    Object.assign({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, settings), { platform: 'basalt' });
+  assert.equal(Math.max.apply(null, striped.SECONDARY_LINE_TREND_UINT8), 250, 'up to the top of the plot');
+  // aplite draws no stripes: its band keeps the pad.
+  const aplite = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
+    Object.assign({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, settings), { platform: 'aplite' });
+  assert.deepEqual(aplite.TEMP_TREND_UINT8, applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
+    settings, { platform: 'aplite' }).TEMP_TREND_UINT8);
+});
+
 test('no padding when feels stays inside the temp band — the temp curve still spans the plot', () => {
   // The temperature defines both extremes here, so its curve is supposed to reach the
   // inset edges: that edge is exactly what the hi/lo labels name.

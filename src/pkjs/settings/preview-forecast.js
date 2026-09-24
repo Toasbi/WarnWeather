@@ -231,8 +231,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var AXIS_Y = 94;
         var stripeBand = bottomStripes
             ? bottomStripes * STRIPE_H + (bottomStripes - 1) * STRIPE_GAP + 1 : 0;
+        // Top stripes get a band of their own ABOVE the plot (forecast_layer.c's top_band):
+        // stacked from the top edge, 2 free rows under the last. The plot — lines, fill,
+        // bars, night shading — starts below it (PTL), and the lines drop their own top
+        // inset there, as the watch does.
+        var topStripes = 0;
+        for (var ts = 0; ts < LINES.length; ts += 1) {
+            if (LINES[ts].on && LINES[ts].style === 'stripeTop') { topStripes += 1; }
+        }
+        var TOP_BAND_GAP = 2;
+        var topBand = topStripes
+            ? topStripes * STRIPE_H + (topStripes - 1) * STRIPE_GAP + TOP_BAND_GAP : 0;
         var n = temps.length, PX0 = 20, PX1 = 197, PT = 4, PB = AXIS_Y - stripeBand;
-        var plotW = PX1 - PX0, plotH = PB - PT;
+        var PTL = PT + topBand;
+        var MT = topBand ? PTL : PT + 3;   // where a full-height metric value lands
+        var plotW = PX1 - PX0, plotH = PB - PTL;
         // One watch-faithful slot grid (chart.c): N hourly slots, one tick per slot. Slot 0 is
         // 12:00; hour = 12 + i. Line vertices sit ON the ticks (so a line spans the first tick to
         // the last), and rain bars / second-metric dots sit centred in the hour COLUMN between two
@@ -266,7 +279,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var jMax = Math.max(tmax, Math.max.apply(null, axisSeries));
             var jPad = Math.max(1, Math.ceil((jMax - jMin) * 40 / 960));
             tmin = jMin < tLabelMin ? jMin - jPad : jMin;
-            tmax = jMax > tLabelMax ? jMax + jPad : jMax;
+            // No top padding under a top stripe: its band keeps the curve clear already.
+            tmax = (jMax > tLabelMax && !topStripes) ? jMax + jPad : jMax;
         }
         // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric
         // below) is inset symmetrically from the shared full-height band
@@ -276,7 +290,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // = the preview's long-standing 12-unit bottom clearance over the axis
         // row (the top gains the same symmetric margin the watch actually draws).
         var curveInsetPrev = 12;
-        var ytop = PT + 3 + curveInsetPrev, ybot = PB - curveInsetPrev;
+        var ytop = topBand ? PTL : PT + 3 + curveInsetPrev, ybot = PB - curveInsetPrev;
         var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
         var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
         var bw = 9;                                  // rain-bar / dot width
@@ -325,9 +339,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         function drawNightShading() {
             if (!state.dayNightShading) { return ''; }
             var boundary = nightPicksApply ? hexColor(gc.night.boundary) : ink.rgba('0.45');
-            return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>'
-                + '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>'
-                + '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>';
+            return '<rect x="' + n0 + '" y="' + PTL + '" width="' + (n1 - n0) + '" height="' + (PB - PTL) + '" fill="url(#nh)"></rect>'
+                + '<line x1="' + n0 + '" y1="' + PTL + '" x2="' + n0 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>'
+                + '<line x1="' + n1 + '" y1="' + PTL + '" x2="' + n1 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>';
         }
         function drawTempCurve() {
             return '<path d="' + smooth(temps.map(function (t, i) { return [tickX(i), yT(t)]; }))
@@ -378,7 +392,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 if (v < 0) { v = 0; }
                 pm = v / m.max;
             }
-            return PB - pm * (PB - PT - 3);
+            return PB - pm * (PB - MT);
         }
         // Vertex computation for the main-metric FILL contour (the stroke gaps its
         // zeros in lineFor instead): one point per sample, vertices on the hour
@@ -571,7 +585,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             if (m.tempAxis) { return previewStripe.levelOfByte(tempAxisStripeByte(m.vals[i])); }
             var y = metricY(m, i, true);
             if (y === null) { return 0; }
-            var b = Math.round((PB - y) / (PB - PT - 3) * 250);
+            var b = Math.round((PB - y) / (PB - MT) * 250);
             return previewStripe.levelOfByte(b);
         }
         // The cell look itself (tint + lines on colour, dither on B&W) is shared with
@@ -748,7 +762,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             + stripeDitherDefs()
             + '<pattern id="fillhatch" width="2" height="2" patternUnits="userSpaceOnUse"><rect width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect><rect x="1" y="1" width="1" height="1" fill="' + ink.rgba('0.55') + '" shape-rendering="crispEdges"></rect></pattern>'
             + (nightTint
-                ? '<clipPath id="nightclip"><rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '"></rect></clipPath>'
+                ? '<clipPath id="nightclip"><rect x="' + n0 + '" y="' + PTL + '" width="' + (n1 - n0) + '" height="' + (PB - PTL) + '"></rect></clipPath>'
                 : '')
             + '</defs>';
         e += drawNightShading();

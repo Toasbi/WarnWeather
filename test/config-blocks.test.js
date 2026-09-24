@@ -1383,13 +1383,35 @@ test('forecastPreview: feels on the third or fourth metric line widens the joint
   assert.notEqual(onSecond, plain, 'premise: feels widens the band');
   assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels' }), env)),
     onSecond, 'feels on the third metric line: same joint band');
-  // The fourth metric line's default style is a top stripe — it still widens the band.
-  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fifthLine: 'feels' }), env)),
-    onSecond, 'feels on the fourth metric line (a stripe): same joint band');
+  // Feels on the fourth metric line widens the band too (as marks here: a top stripe
+  // would also move the plot below its band — pinned in the next test).
+  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base,
+    { fifthLine: 'feels', fifthLineStyle: 'dots' }), env)),
+    onSecond, 'feels on the fourth metric line: same joint band');
   // A watch without WW_LINE_STYLE draws neither line, so a stored pick widens nothing.
   const frozenEnv = { color: true, platform: 'aplite', lineStyles: false };
   assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels', fifthLine: 'dew' }), frozenEnv)),
     tempCurvePath(FC.forecastPreview(base, frozenEnv)), 'aplite preview: the band stays the temperature\'s');
+});
+
+// Top stripes get their own band above the plot (forecast_layer.c's top_band): every
+// curve is drawn below it, and the temperature curve runs up to the band instead of
+// keeping its top inset.
+test('forecastPreview: a top stripe puts the plot below its band, the curves up against it', () => {
+  const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob',
+    secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
+  const env = { color: true, platform: 'basalt', lineStyles: true };
+  // The curve's vertices (the smoothing's control points overshoot them): the M point
+  // and the last point of every C segment.
+  const topY = (svg) => Math.min.apply(null, tempCurvePath(svg).split(' C').map((seg) => {
+    const pairs = seg.replace(/^M/, '').trim().split(' ');
+    return Number(pairs[pairs.length - 1].split(',')[1]);
+  }));
+  const plain = topY(FC.forecastPreview(base, env));
+  const striped = topY(FC.forecastPreview(Object.assign({}, base, { fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }), env));
+  const bandBottom = 4 + 5 + 2;   // PT + one stripe + the 2-unit gap
+  assert.ok(striped >= bandBottom, 'the temperature curve stays below the stripe band (' + striped + ')');
+  assert.ok(striped < plain, 'and, without its top inset, runs closer to the top than without a stripe');
 });
 
 // The radar's sky rows (Radar tab -> Clouds, sun & lightning): the preview draws

@@ -248,11 +248,23 @@ static void load_dataset(ForecastDataset *ds) {
  * only SERIES_THIRD is reachable there, and its style is fixed.
  */
 
+// With top stripes, the band above the plot already keeps the lines clear of the
+// stripes (its 2 px gap), so the lines drop their own top inset and may run right up
+// to it; all of them alike, so a feels-like or dew line stays aligned with the
+// temperature curve. s_top_band is set per redraw (0 without top stripes). aplite has
+// no stripes: LINE_TOP is the plain inset there, byte-for-byte as before.
+#if defined(WW_LINE_STYLE)
+static int16_t s_top_band;
+#define LINE_TOP(inset) ((int16_t)(s_top_band ? 0 : (inset)))
+#else
+#define LINE_TOP(inset) (inset)
+#endif
+
 static ChartLayer mark_line_layer(const Series *s, int count) {
     return (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = s->line.values, .count = count,
         .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-        .inset_top = s->line.inset_y, .inset_bottom = s->line.inset_y,
+        .inset_top = LINE_TOP(s->line.inset_y), .inset_bottom = s->line.inset_y,
         .color = s->line.color, .width = s->line.width,
         .style = series_style_pick(s->line, CHART_LINE_DOTS),
         .zero_absent = true } };  // metric line: wire byte 0 means "nothing", every style
@@ -505,8 +517,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // below it: stacked from the top edge with a 1 px gap between them, and a 2 px gap
     // under the last so even a full rain bar never touches them. The plot starts below
     // the band, so nothing else — fill, bars, night shading, any line — draws into it,
-    // and every line maps its values (with its own inset) as if the graph began there:
-    // a UV 11 or the hottest hour ends just under the stripes.
+    // and every line maps its values as if the graph began there, without its own top
+    // inset (LINE_TOP): a UV 11, the hottest hour or a full rain bar ends just under
+    // the stripes.
     const int16_t top_band = top_stripes
         ? (int16_t)(top_stripes * stripe_h + (top_stripes - 1) * FORECAST_STRIPE_GAP
                     + FORECAST_TOP_BAND_GAP)
@@ -519,6 +532,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                               grid_right - graph_bounds.origin.x + 1,
                               plot_axis_y + 1);
 #if defined(WW_LINE_STYLE)
+    s_top_band = top_band;
     const GRect plot = GRect(outer.origin.x, top_band, outer.size.w, outer.size.h - top_band);
 #else
 // aplite: no stripes, the plot is the whole graph. A name for `outer`, not a copy: a
@@ -602,7 +616,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             // and the night re-hatch reuse these exported points, so all three
             // follow. aplite: insets are compile-time constants there and the
             // area engine skips the inset math, so nothing to pass.
-            .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
+            .inset_top = LINE_TOP(second->line.inset_y), .inset_bottom = second->line.inset_y,
 #endif
             .fill_color = second->line.fill_color } };
     }
@@ -710,7 +724,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             : (ChartLayer){ CHART_LAYER_LINE, .line = {
                   .values = second->line.values, .count = ds.num_entries,
                   .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-                  .inset_top = second->line.inset_y, .inset_bottom = second->line.inset_y,
+                  .inset_top = LINE_TOP(second->line.inset_y), .inset_bottom = second->line.inset_y,
                   .export_points = area_pts,
                   .color = second->line.color, .width = second->line.width,
                   .style = series_style_pick(second->line, CHART_LINE_SOLID),
@@ -728,7 +742,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = first->line.values, .count = ds.num_entries,
         .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
-        .inset_top = first->line.inset_y, .inset_bottom = first->line.inset_y,
+        .inset_top = LINE_TOP(first->line.inset_y), .inset_bottom = first->line.inset_y,
         .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, axis_color },
