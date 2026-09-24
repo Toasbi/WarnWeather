@@ -28,6 +28,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function k(stem, i) { return 'view' + stem + i; }
 
     /**
+     * Is this Top-area value the calendar — 'cal' (rows in viewTopSize) or one of the
+     * older 'cal2' / 'cal3' spellings?
+     * @param {?string} v @returns {boolean}
+     */
+    function isCal(v) { return v === 'cal' || v === 'cal2' || v === 'cal3'; }
+
+    /**
+     * Rewrite view `i`'s older calendar spelling ('cal2' / 'cal3') to 'cal' + its rows in
+     * viewTopSize — the same compiled view, so nothing on the wire changes.
+     * @param {Object} S @param {number} i @returns {void}
+     */
+    function modernizeCal(S, i) {
+        var v = S[k('Top', i)];
+        if (v === 'cal2' || v === 'cal3') {
+            S[k('Top', i)] = 'cal';
+            S[k('TopSize', i)] = v === 'cal2' ? '2' : '3';
+        }
+    }
+
+    /**
      * Which bands are on screen for view `i`: the four movable ones and the graph.
      * @param {Object} S settings state
      * @param {number} i view slot
@@ -152,9 +172,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function keepOrder(S, i, snap) {
         var compiled = viewCycleLib.buildCustomCycle(S)[i];
         var now = Boolean(compiled) && stackedAtCode0(compiled);
-        if (now === snap.stacked) { return true; }
         var pres = presence(S, i);
         var want = visibleBands(snap.shown.join(''), pres);
+        if (now === snap.stacked) {
+            // Same engine — but the legacy engine's own order depends on the calendar's
+            // rows (2 rows: status above the clock; 3 rows: below), so a calendar size
+            // change can still move a band: put it back where it was drawn. When the
+            // legacy code draws it, prefer that code (storedOrderFor's rule), so sizing
+            // the calendar and sizing it back is byte-identical.
+            if (!now && viewCycleLib.orderCode(orderArr(S, i).join('')) !== 0
+                    && visibleBands(legacyOrder(S, i), pres) === want) {
+                S[k('Order', i)] = 'TACB';
+                return true;
+            }
+            if (visibleBands(displayOrder(S, i).join(''), pres) === want) { return true; }
+            return storeOrder(S, i, snap.shown.slice());
+        }
         // Back on the legacy engine and its code 0 draws the same bands: store the legacy
         // code, so a view that started as a preset seed returns to it byte for byte.
         if (!now && visibleBands(legacyOrder(S, i), pres) === want) {
@@ -404,7 +437,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var out = [];
         var pres = presence(S, i);
         if (i > 0 && S[k('StripOff', i)]) { out.push(['Top bar (battery & date)', 'topbar']); }
-        if (!pres.T) { out.push(['Calendar', 'top']); }
+        // 'Top area', not 'Calendar': it lands as a calendar, but it is the seat — its
+        // content is picked (calendar, radar, a graph) on the row once it is added.
+        if (!pres.T) { out.push(['Top area', 'top']); }
         if (i > 0 && S[k('ClockOff', i)]) { out.push(['Clock', 'clock']); }
         // Source-aware, not just slot-aware: with no distinct capable source left
         // (e.g. weather already shown, radar and health off) a second row would
@@ -443,8 +478,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (kind === 'top') {
             if ((S[k('Top', i)] || 'cal2') !== 'none') { return false; }
-            S[k('Top', i)] = 'cal2';
-            S[k('TopSize', i)] = '3';
+            S[k('Top', i)] = 'cal';
+            S[k('TopSize', i)] = '2';   // a 2-row calendar, as a fresh top area always was
             bandToEnd(S, i, 'T', shown); return true;
         }
         if (kind === 'graph') {
@@ -490,19 +525,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             S[bodyK] = 'forecast';
         }
         if (key === bodyK && S[key] === 'radar' && S[top] === 'radar') {
-            S[top] = 'cal2';
+            S[top] = 'cal';
+            S[k('TopSize', i)] = '2';
         }
         // One seat per graph: picking the Graph row's graph for the Top area MOVES it up
         // (the graph row empties); picking the top's graph for the Graph row moves it down
         // (the top area goes back to a 2-row calendar).
         var graph = { forecast: true, health: true };
         if (key === top && graph[S[top]] && S[bodyK] === S[top]) { S[bodyK] = 'none'; }
-        if (key === bodyK && graph[S[bodyK]] && S[top] === S[bodyK]) { S[top] = 'cal2'; }
-        // Sizes apply only to a radar/graph top: once the top area holds anything else
-        // (a calendar pick, or a graph moved down to the graph row), drop a stale size.
-        if (!(S[top] === 'radar' || graph[S[top]])) { S[k('TopSize', i)] = '3'; }
-        // A forecast never takes 2 rows: lift a stale '2' on the seat it just moved into.
-        if (key === top && S[top] === 'forecast' && S[k('TopSize', i)] === '2') { S[k('TopSize', i)] = '3'; }
+        if (key === bodyK && graph[S[bodyK]] && S[top] === S[bodyK]) {
+            S[top] = 'cal';
+            S[k('TopSize', i)] = '2';
+        }
+        modernizeCal(S, i);
+        // The top area's size follows it to its new content, within what that content
+        // takes: a calendar has 2 or 3 rows (4 / Fill → 3), a forecast never 2 (→ 3).
+        var ts = S[k('TopSize', i)] || '3';
+        if (S[top] === 'cal' && ts !== '2' && ts !== '3') { S[k('TopSize', i)] = '3'; }
+        if (S[top] === 'forecast' && ts === '2') { S[k('TopSize', i)] = '3'; }
         if (key === bodyK && S[bodyK] === 'forecast' && S[k('BodySize', i)] === '2') { S[k('BodySize', i)] = '3'; }
     }
 
@@ -517,6 +557,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function setSize(S, i, stem, v) {
         if ((stem !== 'TopSize' && stem !== 'BodySize') || SIZE_VALUES.indexOf(v) < 0) { return false; }
+        if (stem === 'TopSize' && isCal(S[k('Top', i)])) {
+            // A calendar's size is its rows: 2 or 3 (there is no 4th row, and it never fills).
+            if (v !== '2' && v !== '3') { return false; }
+            var before = shownSize(S, i, 'TopSize');
+            modernizeCal(S, i);
+            S[k('TopSize', i)] = v;
+            return before !== v;
+        }
         if (S[k(stem, i)] === v) { return false; }
         S[k(stem, i)] = v;
         if (v === 'fill') {
@@ -536,6 +584,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function shownSize(S, i, stem) {
         var v = S[k(stem, i)] || (stem === 'TopSize' ? '3' : 'fill');
         var content = S[k(stem === 'TopSize' ? 'Top' : 'Body', i)];
+        if (stem === 'TopSize' && isCal(content)) {
+            if (content === 'cal2') { return '2'; }
+            if (content === 'cal3') { return '3'; }
+            return v === '2' ? '2' : '3';
+        }
         return (content === 'forecast' && v === '2') ? '3' : v;
     }
 
@@ -763,10 +816,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      */
     function sizeHtml(S, i, stem) {
         var cur = shownSize(S, i, stem);
-        var forecast = S[k(stem === 'TopSize' ? 'Top' : 'Body', i)] === 'forecast';
+        var content = S[k(stem === 'TopSize' ? 'Top' : 'Body', i)];
+        var forecast = content === 'forecast';
+        var values = (stem === 'TopSize' && isCal(content)) ? ['2', '3'] : SIZE_VALUES;
         var btns = '', j, v, off;
-        for (j = 0; j < SIZE_VALUES.length; j++) {
-            v = SIZE_VALUES[j];
+        for (j = 0; j < values.length; j++) {
+            v = values[j];
             off = v !== cur && ((forecast && v === '2') || !sizeFits(S, i, stem, v));
             btns += '<button type="button"' + (v === cur ? ' class="on"' : '')
                 + ' data-ve-size="' + stem + ':' + v + '"' + (off ? ' disabled' : '') + '>'
@@ -854,9 +909,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             // Every ✕ is withheld where the removal would leave nothing on screen.
             if (b === 'T') {
                 var topVal = S[k('Top', i)] || 'cal2';
-                var sizedTop = topVal === 'radar' || topVal === 'forecast' || topVal === 'health';
+                var sizedTop = isCal(topVal) || topVal === 'radar' || topVal === 'forecast'
+                    || topVal === 'health';
                 body += rowHtml({
-                    label: 'Top area', value: optionLabel(k('Top', i), topVal),
+                    label: 'Top area', value: optionLabel(k('Top', i), isCal(topVal) ? 'cal' : topVal),
                     selectKey: k('Top', i), del: removalEmpties(S, i, 'T') ? null : 'T', band: 'T',
                     size: sizedTop ? sizeHtml(S, i, 'TopSize') : null
                 });
@@ -1010,6 +1066,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (VE.overlay || !VE.ctx || typeof document === 'undefined') { return; }
         ensureStyle();
         VE.snapshot = takeSnapshot(VE.ctx.S);
+        // Older builds stored the calendar as 'cal2' / 'cal3': show it as the one
+        // Calendar choice with its rows as the size (✕ restores the snapshot above).
+        var mv;
+        for (mv = 0; mv < 3; mv++) { modernizeCal(VE.ctx.S, mv); }
         VE.tab = 0;
         VE.addOpen = false;
         var overlay = document.createElement('div');

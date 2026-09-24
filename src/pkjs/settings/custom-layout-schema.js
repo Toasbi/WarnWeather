@@ -42,13 +42,14 @@ var VIEW_SRC_GATES = {
 function customViewItems(i) {
     var items = [{
         type: 'radio', messageKey: 'viewTop' + i, label: 'Top area',
-        defaultValue: 'cal2',
+        defaultValue: 'cal',
         // No 'Nothing' entry: removal is the editor row's ✕ button; 'none' stays a
         // legal STORED value (what ✕ writes). A graph here (custom layout v2) is the
-        // same graph as the Graph row's — one seat per kind; the editor moves it.
-        options: [['Calendar — 3 rows', 'cal3'], ['Calendar — 2 rows', 'cal2'],
-                  ['Rain radar', 'radar'], ['Forecast graph', 'forecast'],
-                  ['Health graph', 'health']],
+        // same graph as the Graph row's — one seat per kind; the editor moves it. The
+        // calendar is ONE choice: its 2 or 3 rows are the row's size (viewTopSize), like
+        // the graph's. 'cal2' / 'cal3' remain legal stored values from older builds.
+        options: [['Calendar', 'cal'], ['Rain radar', 'radar'],
+                  ['Forecast graph', 'forecast'], ['Health graph', 'health']],
         optionDisabledWhen: {radar: {not: VIEW_RADAR_CHART_WHEN},
                              health: {not: VIEW_HEALTH_BODY_WHEN}}
     }, {

@@ -92,7 +92,8 @@ test('normalizeAfterPick: sibling source dedupe and the single radar layer', () 
   assert.equal(S.viewLower0, 'off', 'fresh pick wins; sibling clears');
   S.viewTop0 = 'radar'; S.viewBody0 = 'radar';
   ve.normalizeAfterPick(S, 0, 'viewBody0');
-  assert.equal(S.viewTop0, 'cal2', 'one radar layer: the fresh body pick wins');
+  assert.equal(S.viewTop0, 'cal', 'one radar layer: the fresh body pick wins');
+  assert.equal(S.viewTopSize0, '2', 'the top area goes back to a 2-row calendar');
 });
 
 test('snapshot/restore covers every custom key (the ✕ draft-discard path)', () => {
@@ -218,7 +219,8 @@ test('normalizeAfterPick moves a graph between the top area and the graph row', 
   assert.equal(S.viewTop0, 'forecast');
   S.viewBody0 = 'forecast';                     // picking the top's graph below moves it down
   ve.normalizeAfterPick(S, 0, 'viewBody0');
-  assert.equal(S.viewTop0, 'cal2');
+  assert.equal(S.viewTop0, 'cal');
+  assert.equal(S.viewTopSize0, '2');
   S.viewTop0 = 'radar'; S.viewTopSize0 = '4';
   S.viewTop0 = 'cal3';
   ve.normalizeAfterPick(S, 0, 'viewTop0');

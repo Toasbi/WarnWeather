@@ -544,7 +544,13 @@ function buildCustomCycle(S) {
   var cap = capabilities(S);
   var cycle = [];
   for (var i = 0; i < count; i++) {
-    var t = CUSTOM_TOP[S['viewTop' + i]] || CUSTOM_TOP.cal2;
+    // 'cal' is the calendar with its rows in viewTopSize ('2' → 2 rows, else 3); the
+    // older 'cal2' / 'cal3' spellings (stored before the calendar took a size) still
+    // compile — the editor rewrites them to 'cal' + a size when it opens.
+    var topKey = S['viewTop' + i];
+    var t = (topKey === 'cal')
+      ? ((S['viewTopSize' + i] === '2') ? CUSTOM_TOP.cal2 : CUSTOM_TOP.cal3)
+      : (CUSTOM_TOP[topKey] || CUSTOM_TOP.cal2);
     var body = CUSTOM_BODY[S['viewBody' + i]];
     if (body === undefined) { body = BODY_FC; }
     var suRaw = CUSTOM_SRC[S['viewUpper' + i]];
@@ -592,7 +598,7 @@ function buildCustomCycle(S) {
     // watch's band_rows clamp, so the fit check and the watch agree. Read with defaults,
     // so a blob that predates the keys compiles to ext 0.
     var fcTop = (t.top === TOP_GRAPH && t.kind === TOP_KIND_FORECAST);
-    var ts = S['viewTopSize' + i] || '3', bs = S['viewBodySize' + i] || 'fill';
+    var ts = S['viewTopSize' + i] || '3', bs = S['viewBodySize' + i] || 'fill';   // (calendar rows: above)
     if (fcTop && ts === '2') { ts = '3'; }
     if (body === BODY_FC && bs === '2') { bs = '3'; }
     if (SIZE_CODE[ts]) { s.topSize = SIZE_CODE[ts]; }
@@ -650,7 +656,7 @@ function specToKeys(cycle) {
   for (var i = 0; i < cycle.length; i++) {
     var s = cycle[i];
     keys['viewTop' + i] = (s.top === TOP_RADAR) ? 'radar'
-      : (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? 'cal3' : 'cal2')
+      : (s.top === TOP_CAL) ? 'cal'
       : (s.top === TOP_GRAPH) ? ((s.topKind === TOP_KIND_HEALTH) ? 'health' : 'forecast')
       : 'none';
     keys['viewBody' + i] = (s.body === BODY_GRAPH) ? 'health'
@@ -663,7 +669,9 @@ function specToKeys(cycle) {
       keys['viewClockOff' + i] = Boolean(s.clockOff);
       keys['viewStripOff' + i] = Boolean(s.stripOff);
     }
-    keys['viewTopSize' + i] = topSizeName[s.topSize || 0] || '3';
+    // A calendar's size is its rows (the tier); a radar/graph top's is its ext code.
+    keys['viewTopSize' + i] = (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? '3' : '2')
+      : (topSizeName[s.topSize || 0] || '3');
     keys['viewBodySize' + i] = bodySizeName[s.bodySize || 0] || 'fill';
     keys['viewAlign' + i] = alignName[s.align || 0] || 'clock';
   }

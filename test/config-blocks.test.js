@@ -348,7 +348,8 @@ test('layoutPresetChanged seeds the custom keys and does NOT auto-open the edito
     hook(S, 'compactCal', 'custom');
     assert.equal(S.customLayoutSeeded, true, 'seeding still latches');
     assert.equal(S.viewCount, '1', 'per-view keys seeded from the preset being left');
-    assert.equal(S.viewTop0, 'cal2', 'a seeded key holds the compactCal shape');
+    assert.equal(S.viewTop0, 'cal', 'a seeded key holds the compactCal shape:');
+    assert.equal(S.viewTopSize0, '2', 'a 2-row calendar');
     assert.equal(opened, 0, 'the Edit row is the sole way to open the editor');
   } finally {
     if (prev === undefined) { delete global.PConf.actions.openViewEditor; }

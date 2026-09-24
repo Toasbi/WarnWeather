@@ -192,7 +192,8 @@ test('seedCustomKeys copies the leaving preset once and latches; preset re-picks
   vc.seedCustomKeys(S, 'fullCal');
   assert.equal(S.customLayoutSeeded, true);
   assert.equal(S.viewCount, '3', 'fullCal+status+graph compiles a 3-view cycle');
-  assert.equal(S.viewTop0, 'cal3');
+  assert.equal(S.viewTop0, 'cal', 'the calendar is one choice...');
+  assert.equal(S.viewTopSize0, '3', '...its rows are the size');
   // Seeded keys compile back byte-identical to the preset cycle (zero-transmit).
   const preset = vc.buildViewCycle('fullCal', 'status', 'graph', false).map(vc.packSpec);
   assert.deepStrictEqual(vc.buildCustomCycle(S).map(vc.packSpec), preset);

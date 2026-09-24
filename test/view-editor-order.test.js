@@ -361,11 +361,13 @@ function sizeButtons(html, stem) {
   return out;
 }
 
-test('size lines: on the graph row and a radar/graph top area, never on a calendar', () => {
+test('size lines: on the graph row and every top area — a calendar takes 2 or 3 rows', () => {
   const S = state({ viewTop1: 'cal3', healthMode: 'all' });
   let html = editorHtml(S, 1);
   assert.match(html, /data-ve-size="BodySize:fill"/);
-  assert.doesNotMatch(html, /data-ve-size="TopSize/);
+  assert.deepEqual(sizeButtons(html, 'TopSize'), { 2: 'ok', 3: 'on' },
+    'the older cal3 spelling shows as a 3-row calendar; no 4 or Fill');
+  assert.match(html, />Calendar</, 'one Calendar choice in the row');
   S.viewTop1 = 'health'; S.viewBody1 = 'forecast';
   html = editorHtml(S, 1);
   assert.match(html, /Size · rows/);
@@ -435,13 +437,50 @@ test('a top-area size never outlives the content it was set for', () => {
   assert.equal(S.viewTopSize1, '3', '✕ Top area drops its size');
   S.viewTopSize1 = '2';                              // a stale value from an older build
   assert.equal(ve.addElement(S, 1, 'top'), true);
-  assert.equal(S.viewTopSize1, '3', '＋ Calendar starts clean');
-  // a forecast top at Fill moved down to the graph row: the calendar left behind has no size
+  assert.equal(S.viewTop1, 'cal');
+  assert.equal(S.viewTopSize1, '2', '＋ Top area starts as a clean 2-row calendar');
+  // a forecast top at Fill moved down to the graph row: the calendar left behind is 2 rows
   S.viewTop1 = 'forecast'; S.viewTopSize1 = 'fill'; S.viewBody1 = 'health'; S.viewBodySize1 = '3';
   S.viewBody1 = 'forecast';
   ve.normalizeAfterPick(S, 1, 'viewBody1');
-  assert.equal(S.viewTop1, 'cal2');
+  assert.equal(S.viewTop1, 'cal');
+  assert.equal(S.viewTopSize1, '2');
+  // a radar at Fill switched to the calendar: the size follows, within 2 or 3 rows
+  S.viewTop1 = 'radar'; S.viewTopSize1 = 'fill';
+  S.viewTop1 = 'cal';
+  ve.normalizeAfterPick(S, 1, 'viewTop1');
   assert.equal(S.viewTopSize1, '3');
+});
+
+test('＋ Add element offers the top area by its seat name, not its first content', () => {
+  const S = state({ viewTop1: 'none' });
+  assert.deepEqual(ve.addableElements(S, 1).filter((a) => a[1] === 'top'), [['Top area', 'top']]);
+});
+
+test('the calendar size: 2 · 3 rows; a size change never moves the other bands', () => {
+  // Legacy engine, one status bar: a 2-row calendar draws it above the clock, a 3-row one
+  // below. Changing the calendar's SIZE keeps the bar where the user sees it (a stacked
+  // code), and changing it back restores the view byte for byte.
+  const S = state({ viewTop1: 'cal', viewTopSize1: '2' });
+  const drawn = watchKinds(S, 1);
+  const before = wire(S);
+  assert.deepEqual(drawn, ['top', 'status', 'clock']);
+  let snap = ve.orderSnapshot(S, 1);
+  assert.equal(ve.setSize(S, 1, 'TopSize', '3'), true);
+  ve.keepOrder(S, 1, snap);
+  assert.equal(vc.buildCustomCycle(S)[1].tier, vc.TIER_FULL, 'a 3-row calendar now');
+  assert.deepEqual(watchKinds(S, 1), drawn, 'the status bar stayed above the clock');
+  snap = ve.orderSnapshot(S, 1);
+  assert.equal(ve.setSize(S, 1, 'TopSize', '2'), true);
+  ve.keepOrder(S, 1, snap);
+  assert.deepEqual(wire(S), before);
+  assert.equal(ve.setSize(S, 1, 'TopSize', '4'), false, 'a calendar has no 4th row');
+  assert.equal(ve.setSize(S, 1, 'TopSize', 'fill'), false);
+  // the older spellings are sized the same way (and rewritten to 'cal')
+  const L = state({ viewTop1: 'cal3' });
+  assert.equal(ve.setSize(L, 1, 'TopSize', '2'), true);
+  assert.equal(L.viewTop1, 'cal');
+  assert.equal(L.viewTopSize1, '2');
 });
 
 test('the Alignment note names what does not fill, a top-area graph included', () => {
