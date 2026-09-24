@@ -272,11 +272,14 @@ test('scene 5 tightens the heart-rate scale; scene 6 adds wind + gust as x marks
 test('the table order is the showcase order; the Miami scenes follow scene 2 on colour watches', () => {
   // 10-12 (the Light-theme Miami scenes) are captured but never shown.
   assert.deepStrictEqual(SCENES.map((s) => s.id), [1, 2, 7, 8, 9, 4, 5, 6, 10, 11, 12]);
+  // Shown (1.23.0): scene 1, the three Miami scenes, scene 6. 2, 4 and 5 are captured
+  // only, like the Light-theme Miami scenes.
   for (const p of ['basalt', 'flint', 'emery']) {
-    assert.deepStrictEqual(sceneIdsFor(p), [1, 2, 7, 8, 9, 4, 5, 6], p);
+    assert.deepStrictEqual(sceneIdsFor(p), [1, 7, 8, 9, 6], p);
   }
   // aplite has no stripes, fourth line, radar, custom layout or health graph.
-  assert.deepStrictEqual(sceneIdsFor('aplite'), [1, 2, 4, 6]);
+  assert.deepStrictEqual(sceneIdsFor('aplite'), [1, 6]);
+  assert.deepStrictEqual(SCENES.filter((s) => s.inShowcase === false).map((s) => s.id), [2, 4, 5, 10, 11, 12]);
 });
 
 test('the Miami scenes copy their fixtures verbatim; the radar flick needs one flick', () => {

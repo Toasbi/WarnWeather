@@ -153,7 +153,9 @@ const SCENES = [
     // match the dense status rows.
     // No threshold highlighting here (user call: too busy for the intro scenes);
     // the left slot stays wind to match the scene's wind+gust graph.
-    id: 2, flicks: 0, variants: { emery: HR_EMERY },
+    // Captured only (inShowcase: false): out of the GIF and the reel since 1.23.0, which
+    // show 1, the Miami scenes and 6 (user call: too many pictures).
+    id: 2, flicks: 0, variants: { emery: HR_EMERY }, inShowcase: false,
     clay: {
       layoutPreset: 'compactDense', healthMode: 'status',
       secondaryLine: 'wind', secondaryLineFill: true, thirdLine: 'gust', barSource: 'off',
@@ -180,7 +182,8 @@ const SCENES = [
     // temp slot shows actual|feels-like ("24|21", tempSlotDisplay 'both'; the feels
     // numbers come from feelsFrom). The radar series feeds the graph's rain bar, but
     // the rain countdown stays off (horizon '0') so the top strip shows its slots.
-    id: 4, flicks: 0,
+    // Captured only (inShowcase: false) since 1.23.0 — see scene 2.
+    id: 4, flicks: 0, inShowcase: false,
     clay: {
       layoutPreset: 'compactCal', healthMode: 'status',
       secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
@@ -216,7 +219,9 @@ const SCENES = [
     // reelIntro: false — the reel intro reuses the showcase scenes in THIS table's
     // order (gen-reel-fixtures.js derives its INTRO_SCENES from here); this one is
     // skipped there (flick-gated). Not on aplite, which has no health graph.
+    // Captured only (inShowcase: false) since 1.23.0 — see scene 2.
     id: 5, flicks: 1, reelIntro: false, variants: { emery: HR_EMERY }, platforms: COLOUR_PLATFORMS,
+    inShowcase: false,
     clay: {
       layoutPreset: 'noCal', healthMode: 'all',
       secondaryLine: 'precip_prob', barSource: 'off',
