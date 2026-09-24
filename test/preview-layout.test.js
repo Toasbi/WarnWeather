@@ -123,8 +123,63 @@ test('contentBands: the body band is the flex element, all others fixed', () => 
         const bands = LY.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, body, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
         const last = bands[bands.length - 1];
         assert.equal(last.flex, true, 'the last (body) band is marked flex');
+        assert.equal(last.kind, 'body');
         bands.slice(0, -1).forEach((b) => assert.ok(!b.flex, b.label + ' is fixed-height'));
     });
+});
+
+// ── Graphless views (custom layout v2) ──────────────────────────────────────
+
+/**
+ * The y of each labelled band in a rendered column, top to bottom.
+ * @param {string} svgPart renderBandColumn markup
+ * @returns {Object<string, number>} label → the band rect's y
+ */
+function bandYs(svgPart) {
+    const rects = [...svgPart.matchAll(/<rect x="[^"]*" y="([^"]*)"[^>]*height="([^"]*)"/g)]
+        .map((m) => Number(m[1]));
+    const labels = [...svgPart.matchAll(/<text[^>]*>([^<]+)<\/text>/g)].map((m) => m[1]).slice(1);
+    const out = {};
+    labels.forEach((l, i) => { out[l] = rects[i]; });
+    return out;
+}
+
+test('contentBands: a graphless view has no body band and no flex band; every band has a kind', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const s = Object.assign(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_NONE, vc.STATUS_SRC_FORECAST,
+        vc.STATUS_SRC_NONE), { order: 1 });
+    const bands = LY.contentBands(s);
+    assert.deepEqual(bands.map((b) => b.kind), ['strip', 'top', 'clock', 'status']);
+    assert.ok(bands.every((b) => !b.flex), 'nothing fills');
+});
+
+test('renderBandColumn: the Position shifts the stack under a pinned Watch Status strip', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const s = Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_NONE, vc.STATUS_SRC_NONE,
+        vc.STATUS_SRC_NONE), {});
+    const bands = LY.contentBands(s);           // Watch Status 12 + Clock 30
+    const col = (a) => bandYs(LY.renderBandColumn(bands, 0, 60, 'Flick', null, false, 'dark', a));
+    const top = col(vc.ALIGN_TOP), mid = col(vc.ALIGN_CENTER), bot = col(vc.ALIGN_BOTTOM);
+    const clk = col(vc.ALIGN_CLOCK);
+    [top, mid, bot, clk].forEach((c) => assert.equal(c['Watch Status'], 16, 'the strip is pinned'));
+    assert.equal(top.Clock, 30, 'Top: right under the strip (16 + 12 + gap 2)');
+    const slack = 104 - (12 + 2 + 30);
+    assert.equal(bot.Clock, 30 + slack, 'Bottom: the stack ends on the column floor');
+    assert.equal(mid.Clock, 30 + Math.floor(slack / 2));
+    assert.equal(clk.Clock + 15, 68, 'Clock: the clock band is centred on the column midline');
+});
+
+test('renderBandColumn: Clock without a clock reads as Middle; a filled column ignores the Position', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const lone = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_EMPTY, vc.BODY_NONE,
+        vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE), { clockOff: true }));
+    const c = bandYs(LY.renderBandColumn(lone, 0, 60, 'F', null, false, 'dark', vc.ALIGN_CLOCK));
+    const m = bandYs(LY.renderBandColumn(lone, 0, 60, 'F', null, false, 'dark', vc.ALIGN_CENTER));
+    assert.equal(c['Forecast Status'], m['Forecast Status']);
+    const filled = LY.contentBands(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+        vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE));
+    assert.deepEqual(bandYs(LY.renderBandColumn(filled, 0, 60, 'D', null, false, 'dark', vc.ALIGN_BOTTOM)),
+        bandYs(LY.renderBandColumn(filled, 0, 60, 'D', null, false, 'dark', vc.ALIGN_TOP)));
 });
 
 test('presetContents: compactDense + radar=status folds radar into the single default (no flick)', () => {

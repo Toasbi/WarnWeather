@@ -99,23 +99,30 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     function contentBands(spec) {
         if (!spec) { return null; }
         // Custom omissions: a stripless view drops the Watch Status band, a clockless
-        // one drops the Clock band — the flex body absorbs both, like the watch.
-        var bands = spec.stripOff ? [] : [{ label: 'Watch Status', h: 12 }];
+        // one drops the Clock band, a graphless one the body — a present flex body
+        // absorbs the freed space, like the watch; without one the column's Position
+        // (renderBandColumn's align) places the shorter stack.
+        // Every band carries its `kind` ('strip'|'top'|'clock'|'status'|'body').
+        var bands = spec.stripOff ? [] : [{ label: 'Watch Status', h: 12, kind: 'strip' }];
         var isNone = spec.tier === VC.TIER_NONE;
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;
-        if (spec.top === VC.TOP_RADAR) { topBand = { label: 'Radar', h: CAL3_H }; }
-        else if (!isNone) { topBand = { label: isFull ? 'Calendar (3 rows)' : 'Calendar (2 rows)', h: isFull ? CAL3_H : CAL2_H }; }
+        if (spec.top === VC.TOP_RADAR) { topBand = { label: 'Radar', h: CAL3_H, kind: 'top' }; }
+        else if (!isNone) {
+            topBand = { label: isFull ? 'Calendar (3 rows)' : 'Calendar (2 rows)',
+                        h: isFull ? CAL3_H : CAL2_H, kind: 'top' };
+        }
         var bodyLabel = spec.body === VC.BODY_GRAPH ? 'Health graph'
                       : spec.body === VC.BODY_RADAR ? 'Radar' : 'Forecast';
-        // The body always takes the remaining space (flex); the fallback h only matters to a
-        // consumer that doesn't resolve flex bands.
-        var bodyBand = { label: bodyLabel, h: 20, flex: true };
+        // The body takes the remaining space (flex); the fallback h only matters to a
+        // consumer that doesn't resolve flex bands. A graphless view has none.
+        var bodyBand = spec.body === VC.BODY_NONE ? null
+            : { label: bodyLabel, h: 20, flex: true, kind: 'body' };
         var upperLabel = STATUS_LABEL[spec.statusUpper];
         var lowerLabel = STATUS_LABEL[spec.statusLower];
-        var upperRow = upperLabel ? { label: upperLabel, h: STATUS_H } : null;
-        var lowerRow = lowerLabel ? { label: lowerLabel, h: STATUS_H } : null;
-        var clock = spec.clockOff ? null : { label: 'Clock', h: isNone ? 30 : 22 };
+        var upperRow = upperLabel ? { label: upperLabel, h: STATUS_H, kind: 'status' } : null;
+        var lowerRow = lowerLabel ? { label: lowerLabel, h: STATUS_H, kind: 'status' } : null;
+        var clock = spec.clockOff ? null : { label: 'Clock', h: isNone ? 30 : 22, kind: 'clock' };
         var code = spec.order || 0;
         if (VC.isStacked(spec)) {
             // Generic stacker — the watch's dispatch rule, shared (view-cycle.js
@@ -140,8 +147,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             if (upperRow) { bands.push(upperRow); }
             if (lowerRow) { bands.push(lowerRow); }
         }
-        bands.push(bodyBand);
+        if (bodyBand) { bands.push(bodyBand); }
         return bands;
+    }
+
+    /**
+     * Where the band column's stack sits when nothing fills it (spec.align — the watch's
+     * Position; see stack_align_offset in src/c/windows/layout.c): 0 Clock centres the
+     * clock band on the column's midline (Middle without a clock), clamped to the slack;
+     * 1 Top, 2 Middle, 3 Bottom. Schematic like the rest of the preview: the column's
+     * midline stands in for the screen's.
+     * @param {number} align ALIGN_* code
+     * @param {number} slack free rows under the top-anchored stack
+     * @param {?{y: number, h: number}} clock the clock band in the top-anchored column
+     * @param {number} midY the column's midline
+     * @returns {number} offset in [0, slack]
+     */
+    function alignOffset(align, slack, clock, midY) {
+        if (align === VC.ALIGN_TOP) { return 0; }
+        if (align === VC.ALIGN_BOTTOM) { return slack; }
+        if (align === VC.ALIGN_CENTER || !clock) { return Math.floor(slack / 2); }
+        var off = Math.round(midY - (clock.y + clock.h / 2));
+        return off < 0 ? 0 : (off > slack ? slack : off);
     }
 
     // One column of a side-by-side layout preview: a header label over a band stack that
@@ -151,7 +178,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // Card/placeholder fills are theme-relative washes (previewInk's rgba helper), so
     // this — the block wired into the Layout tab via layoutPreviewCombined — follows
     // the theme too, not just its outer canvas.
-    function renderBandColumn(bands, x, w, header, note, dim, theme) {
+    function renderBandColumn(bands, x, w, header, note, dim, theme, align) {
         var ink = previewInk(theme);
         var headerColor = dim ? '#5A6270' : '#8A92A0';
         var bandFill = ink.rgba(dim ? '0.08' : '0.12');
@@ -165,10 +192,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // Bands + gaps span y=16..120, matching the empty-column placeholder's 104px box, so
         // the flex (body) band always fills down to the same bottom across all columns.
         var heights = resolveBandHeights(bands, 104, BAND_GAP);
+        var ys = [], total = 0, clock = null, flex = false;
         for (i = 0; i < bands.length; i++) {
-            e += rect(x, y, w, heights[i], bandFill);
-            e += txt(x + w / 2, y + heights[i] / 2 + 3, 7.5, labelColor, 'middle', 600, bands[i].label);
+            ys.push(y);
+            if (bands[i].kind === 'clock') { clock = { y: y, h: heights[i] }; }
+            if (bands[i].flex) { flex = true; }
             y += heights[i] + BAND_GAP;
+            total += heights[i] + (i > 0 ? BAND_GAP : 0);
+        }
+        // No flex band: the stack is shorter than the column and the view's Position
+        // places it. The Watch Status strip is pinned (the watch never moves it).
+        var off = flex ? 0 : alignOffset(align || 0, Math.max(0, 104 - total), clock, 16 + 52);
+        for (i = 0; i < bands.length; i++) {
+            var by = ys[i] + (bands[i].kind === 'strip' ? 0 : off);
+            e += rect(x, by, w, heights[i], bandFill);
+            e += txt(x + w / 2, by + heights[i] / 2 + 3, 7.5, labelColor, 'middle', 600, bands[i].label);
         }
         if (note) {
             e += txt(x + w / 2, y + 8, 7, '#7C828D', 'middle', 600, note);
@@ -193,7 +231,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var e = rect(0, 0, W, 128, previewInk(state.theme).bg), i;
         for (i = 0; i < contents.length; i += 1) {
             e += renderBandColumn(contentBands(contents[i]), i * (colW + GAP), colW,
-                HEADERS[i], null, false, state.theme);
+                HEADERS[i], null, false, state.theme, contents[i] ? (contents[i].align || 0) : 0);
         }
         return svgFrame(e, 128);
     }
@@ -205,7 +243,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             layoutPreviewCombined: layoutPreviewCombined,
             presetContents: presetContents,
             contentBands: contentBands,
-            resolveBandHeights: resolveBandHeights
+            resolveBandHeights: resolveBandHeights,
+            renderBandColumn: renderBandColumn,
+            alignOffset: alignOffset
         };
     }
 })();

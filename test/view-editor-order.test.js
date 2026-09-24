@@ -57,9 +57,7 @@ function editorKinds(S, i) {
  */
 function watchKinds(S, i) {
   const bands = PL.contentBands(vc.buildCustomCycle(S)[i]);
-  return bands.slice(0, -1).map((b) => (b.label === 'Clock' ? 'clock'
-    : b.label === 'Watch Status' ? null
-      : /Status$/.test(b.label) ? 'status' : 'top')).filter(Boolean);
+  return bands.filter((b) => b.kind !== 'strip' && b.kind !== 'body').map((b) => b.kind);
 }
 
 /**
@@ -86,11 +84,14 @@ test('the editor lists every top, row count, order and omission the way the watc
       vc.STACK_ORDERS.forEach((order) => {
         [false, true].forEach((clockOff) => {
           [false, true].forEach((stripOff) => {
-            const S = state({ viewTop1: top, viewUpper1: upper, viewLower1: lower,
-              viewOrder1: order, viewClockOff1: clockOff, viewStripOff1: stripOff });
-            const label = [top, upper + '/' + lower, order, clockOff ? 'no clock' : 'clock',
-              stripOff ? 'no top bar' : 'top bar'].join(' ');
-            assert.deepEqual(editorKinds(S, 1), watchKinds(S, 1), label);
+            ['forecast', 'none'].forEach((body) => {
+              const S = state({ viewTop1: top, viewUpper1: upper, viewLower1: lower,
+                viewOrder1: order, viewClockOff1: clockOff, viewStripOff1: stripOff,
+                viewBody1: body });
+              const label = [top, upper + '/' + lower, order, clockOff ? 'no clock' : 'clock',
+                stripOff ? 'no top bar' : 'top bar', 'graph ' + body].join(' ');
+              assert.deepEqual(editorKinds(S, 1), watchKinds(S, 1), label);
+            });
           });
         });
       });
