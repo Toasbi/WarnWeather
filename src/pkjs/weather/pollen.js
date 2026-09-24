@@ -71,14 +71,15 @@ function worstToday(json, dateKey) {
 /**
  * Fetch today's worst native DWD pollen severity into a weather provider.
  * Failures and no-data responses are non-fatal; done is always called once.
- * @param {Object} provider Active provider (reads .fetchPollen, writes .pollenToday).
+ * @param {Object} provider Active provider (reads .options.fetchPollen, writes .pollenToday).
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {Function} done Continuation called exactly once.
  * @returns {void}
  */
 function fetchPollenInto(provider, lat, lon, done) {
-    if (!provider.fetchPollen) { done(); return; }
+    // A provider without options skips the request (fail-safe, like day-peaks' wanted/recall).
+    if (!(provider.options && provider.options.fetchPollen)) { done(); return; }
 
     var completed = false;
     function complete() {

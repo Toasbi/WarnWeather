@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const openmeteo = require('../src/pkjs/weather/openmeteo.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 const { PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 const mapResponse = openmeteo.mapResponse;
 
@@ -70,6 +71,13 @@ test('mapResponse anchors at the current hour and returns 24-length trends', () 
   assert.equal(out.tempTrend[1], 69);          // 50 + 19
   assert.equal(out.precipTrend[1], 21 / 100);  // same block, same chance
   assert.equal(out.precipTrend[3], 24 / 100);  // 21:00-22:00 opens the next block
+});
+
+test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
+  const mapped = mapResponse(sampleResponse(), BASE + 18 * 3600 + 600);
+  const keys = require('../src/pkjs/weather/provider.js').MAPPED_KEYS;
+  Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
+  keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
 });
 
 test('mapResponse puts a preceding-hour value in the slot of the hour it covers', () => {
@@ -558,7 +566,7 @@ const feelsLikeFromDewF = require('../src/pkjs/weather/feels-like.js').feelsLike
 
 test('adoptFeels + steadman computes from dew point/wind, falling back to the API value per hour', () => {
   const p = new OpenMeteoProvider();
-  p.feelsFormula = 'steadman';
+  p.options = fetchOptions.defaults({ feelsFormula: 'steadman' });
   p.startTime = BASE;
   p.tempTrend = new Array(24).fill(59);   // 15 °C
   p.windTrend = new Array(24).fill(10);   // km/h
@@ -583,7 +591,7 @@ test('adoptFeels + steadman computes from dew point/wind, falling back to the AP
 
 test('adoptFeels + steadman still computes when the API feels series is absent, and degrades to the API current', () => {
   const p = new OpenMeteoProvider();
-  p.feelsFormula = 'steadman';
+  p.options = fetchOptions.defaults({ feelsFormula: 'steadman' });
   p.startTime = BASE;
   p.tempTrend = new Array(24).fill(59);
   p.windTrend = new Array(24).fill(10);

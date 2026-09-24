@@ -2,8 +2,6 @@ var WeatherProvider = require('./provider.js');
 var KEYS = require('../storage-keys');
 var mphToKmh = require('../wire-units.js').mphToKmh;
 var wuCache = require('./wu-current-hour-cache.js');
-// The Units tab's feels-like formula resolvers (WU's feels_like vs Steadman).
-var feelsLike = require('./feels-like.js');
 var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
@@ -12,6 +10,93 @@ var normalizeBearing = require('../wire-units.js').normalizeBearing;
 
 // Inches of mercury → hPa (1 inHg = 33.8639 hPa): the units=e feed reports mslp in inHg.
 var INHG_TO_HPA = 33.8639;
+
+/**
+ * Map the anchored v1 hourly forecast and the v3 current observation into the
+ * provider's mapped forecast (keys from WeatherProvider.MAPPED_KEYS), for
+ * adoptMapped. Both feeds are units=e: temp, feels_like and dewpt pass through as
+ * °F; pop % → [0, 1]; qpf inches → mm; wspd/gust mph → km/h. The forecast carries
+ * API feels_like AND humidity (hourly rh, the observation's relativeHumidity), so
+ * feelsTrend/currentFeels are WU's raw values (null per missing reading) beside
+ * humidityTrend/currentHumidity/currentWindKmh: adoptMapped applies the fetchFeels
+ * gate and the Units tab's formula to them, and the fetchUv gate to uvTrend.
+ *
+ * @param {Object[]} forecast Anchored v1 hourly buckets (wuCache.anchorForecast); non-empty.
+ * @param {{temp: number, feels: ?number, humidity: ?number, windKmh: ?number}} current
+ *   The parsed v3 observation (withWundergroundCurrent's callback value).
+ * @returns {Object} The mapped forecast.
+ */
+function mapForecast(forecast, current) {
+    return {
+        tempTrend: forecast.map(function(entry) {
+            return entry.temp;
+        }),
+        precipTrend: forecast.map(function(entry) {
+            return entry.pop / 100.0;
+        }),
+        rainTrend: forecast.map(function(entry) {
+            var qpfInches = typeof entry.qpf === 'number' ? entry.qpf : 0;
+            return qpfInches * 25.4;
+        }),
+        windTrend: forecast.map(function(entry) {
+            var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
+            return mphToKmh(wspdMph); // imperial feed → mph; normalize to km/h
+        }),
+        gustTrend: forecast.map(function(entry) {
+            // WU reports gust=null on calm hours; fall back to wind speed so the
+            // gust line never dips below wind (gust ≥ wind physically). mph → km/h.
+            var gustMph = typeof entry.gust === 'number' ? entry.gust : 0;
+            var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
+            return mphToKmh(Math.max(gustMph, wspdMph));
+        }),
+        // Rides the forecast response (no extra request); adoptMapped lands it
+        // only when options.fetchUv is set, and resets it to [] otherwise.
+        uvTrend: forecast.map(function(entry) {
+            return typeof entry.uv_index === 'number' ? entry.uv_index : 0;
+        }),
+        pressureTrend: forecast.map(function(entry) {
+            // v1 hourly mslp follows the feed's unit system: the forecast
+            // call carries no units param, so it defaults to units=e and
+            // mslp arrives in inches of mercury (~29.9), not millibars —
+            // convert to hPa. Absent on some station feeds → 0, which
+            // forecast-series rejects, so the line stays off rather than
+            // drawing a spike to the graph floor.
+            return typeof entry.mslp === 'number' ? entry.mslp * INHG_TO_HPA : 0;
+        }),
+        dewTrend: forecast.map(function(entry) {
+            // v1 hourly dewpt, already °F (the forecast call carries no
+            // units param, so it defaults to units=e, same as temp).
+            // Absent on a station feed → null, not 0: 0 °F is a real
+            // reading, and the dew slot degrades to '--' on null.
+            return typeof entry.dewpt === 'number' ? entry.dewpt : null;
+        }),
+        windDirTrend: forecast.map(function(entry) {
+            // v1 hourly wdir, degrees the wind comes FROM. null on calm
+            // hours → no arrow for that hour, rather than a bogus north.
+            return normalizeBearing(entry.wdir);
+        }),
+        // API-sourced (no extra request). adoptMapped gates it on
+        // options.fetchFeels, so "no feels selection" means no feels data
+        // anywhere, and its formula may swap WU's feels_like for Steadman from
+        // the hourly rh (%) and the km/h windTrend above; a missing hour falls
+        // back to that hour's temp either way.
+        feelsTrend: forecast.map(function(entry) {
+            // v1 hourly feels_like, °F (units=e); the anchored current-hour
+            // bucket carries it too (wu-current-hour-cache picks it). Absent
+            // on a station feed → null → that hour's temp.
+            return typeof entry.feels_like === 'number' ? entry.feels_like : null;
+        }),
+        humidityTrend: forecast.map(function(entry) {
+            // v1 hourly rh (%), picked into the cached current-hour bucket too.
+            return typeof entry.rh === 'number' ? entry.rh : null;
+        }),
+        startTime: forecast[0].fcst_valid,
+        currentTemp: current.temp,
+        currentFeels: current.feels,
+        currentHumidity: current.humidity,
+        currentWindKmh: current.windKmh
+    };
+}
 
 var WundergroundProvider = function() {
     this._super.call(this);
@@ -195,77 +280,17 @@ WundergroundProvider.prototype.withKeyedData = function(lat, lon, onSuccess, onF
                 // See wu-current-hour-cache.js.
                 var hourFloor = Math.floor(Date.now() / 1000 / 3600) * 3600;
                 var forecast = wuCache.anchorForecast(rawForecast, hourFloor, lat, lon);
-                this.tempTrend = forecast.map(function(entry) {
-                    return entry.temp;
-                });
-                this.precipTrend = forecast.map(function(entry) {
-                    return entry.pop / 100.0;
-                });
-                this.rainTrend = forecast.map(function(entry) {
-                    var qpfInches = typeof entry.qpf === 'number' ? entry.qpf : 0;
-                    return qpfInches * 25.4;
-                });
-                this.windTrend = forecast.map(function(entry) {
-                    var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
-                    return mphToKmh(wspdMph); // imperial feed → mph; normalize to km/h
-                });
-                this.gustTrend = forecast.map(function(entry) {
-                    // WU reports gust=null on calm hours; fall back to wind speed so the
-                    // gust line never dips below wind (gust ≥ wind physically). mph → km/h.
-                    var gustMph = typeof entry.gust === 'number' ? entry.gust : 0;
-                    var wspdMph = typeof entry.wspd === 'number' ? entry.wspd : 0;
-                    return mphToKmh(Math.max(gustMph, wspdMph));
-                });
-                this.uvTrend = forecast.map(function(entry) {
-                    return typeof entry.uv_index === 'number' ? entry.uv_index : 0;
-                });
-                this.pressureTrend = forecast.map(function(entry) {
-                    // v1 hourly mslp follows the feed's unit system: the forecast
-                    // call carries no units param, so it defaults to units=e and
-                    // mslp arrives in inches of mercury (~29.9), not millibars —
-                    // convert to hPa. Absent on some station feeds → 0, which
-                    // forecast-series rejects, so the line stays off rather than
-                    // drawing a spike to the graph floor.
-                    return typeof entry.mslp === 'number' ? entry.mslp * INHG_TO_HPA : 0;
-                });
-                this.dewTrend = forecast.map(function(entry) {
-                    // v1 hourly dewpt, already °F (the forecast call carries no
-                    // units param, so it defaults to units=e, same as temp).
-                    // Absent on a station feed → null, not 0: 0 °F is a real
-                    // reading, and the dew slot degrades to '--' on null.
-                    return typeof entry.dewpt === 'number' ? entry.dewpt : null;
-                });
-                this.windDirTrend = forecast.map(function(entry) {
-                    // v1 hourly wdir, degrees the wind comes FROM. null on calm
-                    // hours → no arrow for that hour, rather than a bogus north.
-                    return normalizeBearing(entry.wdir);
-                });
-                // API-sourced (no extra request); gated for consistency so "no
-                // feels selection" means no feels data anywhere. The Units tab's
-                // formula may swap WU's feels_like for Steadman from the hourly
-                // rh (%) and the km/h windTrend above; a missing hour falls back
-                // to that hour's temp either way.
-                this.feelsTrend = this.fetchFeels ? feelsLike.resolveFeelsTrend(this.feelsFormula,
-                    forecast.map(function(entry) {
-                        // v1 hourly feels_like, °F (units=e); the anchored current-hour
-                        // bucket carries it too (wu-current-hour-cache picks it). Absent
-                        // on a station feed → null → that hour's temp.
-                        return typeof entry.feels_like === 'number' ? entry.feels_like : null;
-                    }),
-                    this.tempTrend,
-                    forecast.map(function(entry) {
-                        // v1 hourly rh (%), picked into the cached current-hour bucket too.
-                        return typeof entry.rh === 'number' ? entry.rh : null;
-                    }),
-                    this.windTrend) : [];
-                this.startTime = forecast[0].fcst_valid;
-                this.currentTemp = current.temp;
-                this.currentFeels = this.fetchFeels ? feelsLike.resolveCurrentFeels(this.feelsFormula,
-                    current.feels, current.temp, current.humidity, current.windKmh) : null;
+                // Mapped once per cycle, only after both requests succeeded (a
+                // refused key fails before this callback runs). adoptMapped owns
+                // the fetchFeels/fetchUv gates and the feels-like formula.
+                this.adoptMapped(mapForecast(forecast, current));
                 onSuccess();
             }).bind(this), onApiFailure);
         }).bind(this), onApiFailure);
     }).bind(this), onFailure);
 };
+
+// The pure mapper, exposed for the adapter-shape test (the MAPPED_KEYS vocabulary).
+WundergroundProvider.mapForecast = mapForecast;
 
 module.exports = WundergroundProvider;

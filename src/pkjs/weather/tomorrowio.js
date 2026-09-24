@@ -216,11 +216,11 @@ TomorrowIoProvider.prototype._super = WeatherProvider;
 
 /**
  * Fetch the tomorrow.io forecast (one Timelines GET) and populate provider
- * fields. UV is adopted only when this.fetchUv is set (openmeteo/yandex
- * parity) but costs no extra call. Failure codes: tomorrowio_status_401/403
- * engage the shared auth backoff; 429 is an ordinary transient failure —
- * NO retrying here, the next scheduled tick is the retry (OWM runaway-retry
- * lesson).
+ * fields. UV is adopted only when this.options.fetchUv is set (adoptMapped's
+ * gate, the same on every provider) but costs no extra call. Failure codes:
+ * tomorrowio_status_401/403 engage the shared auth backoff; 429 is an ordinary
+ * transient failure — NO retrying here, the next scheduled tick is the retry
+ * (OWM runaway-retry lesson).
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.

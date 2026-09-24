@@ -309,41 +309,55 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             var paired = slotRecords(hourly, byEpoch, startEpoch, Math.min(hourly.length, FORECAST_HOURS));
             var slots = paired.own;
             var following = paired.following;
-            this.tempTrend = slots.map(function(e) { return celsiusToFahrenheit(e.temperature); });
-            this.precipTrend = following.map(function(e) { return e ? e.precipitation_probability / 100 : 0; });
-            this.rainTrend = following.map(function(e) { return e ? e.precipitation : 0; });
-            this.windTrend = slots.map(function(e) { return e.wind_speed || 0; }); // Brightsky wind_speed is km/h
-            this.gustTrend = following.map(function(e) { return (e && e.wind_gust_speed) || 0; }); // Brightsky wind_gust_speed is km/h
-            this.pressureTrend = slots.map(function(e) { return e.pressure_msl || 0; }); // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
-            // Dew point rides along free: Brightsky returns the full field set, so
-            // this is the same value hourFeels already reads. Ungated by fetchFeels
-            // — the dew slot is independent of the feels curve and costs no math.
-            this.dewTrend = slots.map(hourDewF); // °F, null where unsourced
-            this.windDirTrend = slots.map(hourBearing); // degrees 0-359, "comes from"
+            // Steadman-computed (no Brightsky feels field): the most expensive
+            // feels path of any provider — an exp() per hour — so the arithmetic
+            // is skipped when options.fetchFeels is off. That is only a
+            // compute-skip; adoptMapped applies the semantic fetchFeels gate on
+            // top. No humidityTrend key, so adoptMapped ships this series
+            // verbatim under either feelsFormula (the humidity branch would
+            // back-fill temp under 'provider' and change DWD's numbers).
+            var fetchFeels = this.options.fetchFeels;
+            var mapped = {
+                tempTrend: slots.map(function(e) { return celsiusToFahrenheit(e.temperature); }),
+                precipTrend: following.map(function(e) { return e ? e.precipitation_probability / 100 : 0; }),
+                rainTrend: following.map(function(e) { return e ? e.precipitation : 0; }),
+                windTrend: slots.map(function(e) { return e.wind_speed || 0; }), // Brightsky wind_speed is km/h
+                gustTrend: following.map(function(e) { return (e && e.wind_gust_speed) || 0; }), // Brightsky wind_gust_speed is km/h
+                pressureTrend: slots.map(function(e) { return e.pressure_msl || 0; }), // Brightsky pressure_msl is sea-level hPa; 0 → forecast-series rejects the series
+                // Dew point rides along free: Brightsky returns the full field set, so
+                // this is the same value hourFeels already reads. Ungated by fetchFeels
+                // — the dew slot is independent of the feels curve and costs no math.
+                dewTrend: slots.map(hourDewF), // °F, null where unsourced
+                windDirTrend: slots.map(hourBearing), // degrees 0-359, "comes from"
+                feelsTrend: fetchFeels ? slots.map(hourFeels) : [],
+                currentFeels: fetchFeels ? currentFeelsF : null,
+                startTime: startEpoch,
+                currentTemp: currentTempF
+            };
             // MOSMIX can omit the bearing on the hour we are inside (it already
             // omits relative_humidity there); the live observation carries it, so
             // fill just that gap. The forecast wins whenever it has a value: the
             // arrow annotates windTrend[0], which is the forecast, so the speed and
             // the direction it points must come from the same record.
-            if (this.windDirTrend[0] === null && typeof currentBearing === 'number') {
-                this.windDirTrend[0] = currentBearing;
+            if (mapped.windDirTrend[0] === null && typeof currentBearing === 'number') {
+                mapped.windDirTrend[0] = currentBearing;
             }
             // The day-max series read on past the graph (hourly-window.js
             // PEAK_HOURS) while a wind or gust slot shows its day max (the
             // window reached that far, forecastWindow); getPayload cuts them
-            // back to the graph's window.
+            // back to the graph's window. Built on `mapped`, so adoptMapped
+            // takes the full series in one step.
             if (slots.length === FORECAST_HOURS
                 && windPeaksWanted(this)) {
                 var tail = peakTail(byEpoch, startEpoch);
-                this.windTrend = this.windTrend.concat(tail.wind);
-                this.gustTrend = this.gustTrend.concat(tail.gust);
+                mapped.windTrend = mapped.windTrend.concat(tail.wind);
+                mapped.gustTrend = mapped.gustTrend.concat(tail.gust);
             }
-            // Steadman-computed (no Brightsky feels field), and the most expensive
-            // feels path of any provider — an exp() per hour — so it honours the gate.
-            this.feelsTrend = this.fetchFeels ? slots.map(hourFeels) : [];
-            this.startTime = startEpoch;
-            this.currentTemp = currentTempF;
-            this.currentFeels = this.fetchFeels ? currentFeelsF : null;
+            // Total: no uvTrend key, so adoptMapped leaves uvTrend at [] and the
+            // Open-Meteo UV fetch below fills it in when options.fetchUv is on —
+            // a failed UV call on a reused instance cannot ship the previous
+            // cycle's window against the new startTime.
+            this.adoptMapped(mapped);
             openmeteo.fetchUvInto(this, lat, lon, onSuccess);
         }).bind(this), onFailure);
     }).bind(this), onFailure);

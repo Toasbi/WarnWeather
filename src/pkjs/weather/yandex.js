@@ -180,8 +180,8 @@ YandexProvider.prototype._super = WeatherProvider;
 
 /**
  * Fetch the Yandex forecast via a GraphQL POST and populate provider fields.
- * UV is only adopted when this.fetchUv is set (parity with the Open-Meteo
- * provider), but costs no extra call — it rides the same response.
+ * UV is only adopted when this.options.fetchUv is set (adoptMapped's gate, the
+ * same on every provider), but costs no extra call — it rides the same response.
  *
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
@@ -198,7 +198,7 @@ YandexProvider.prototype.withProviderData = function(lat, lon, force, onSuccess,
     // requestMapped owns the parse/missing-fields/error-code grammar; adoptMapped
     // owns the field adoption and the feels/uv gates. The GraphQL response has no
     // pressure, dew or bearing series — mapped simply lacks those keys, and
-    // adoptMapped assigns only what is present.
+    // adoptMapped sets each absent one to its documented empty value ([]).
     WeatherProvider.requestMapped({
         url: YANDEX_ENDPOINT, method: 'POST', id: 'yandex', label: 'Yandex',
         headers: {

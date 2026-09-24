@@ -6,6 +6,7 @@ require('./polyfills.js');
 var radarFactory = require('./weather/radar-factory.js');
 var radarWire = require('./weather/radar-wire.js');
 var runFetchCycle = require('./weather/fetch-orchestrator.js').runFetchCycle;
+var fetchOptions = require('./weather/fetch-options.js');
 var notices = require('./notices.js');
 var forecastSeries = require('./forecast-series.js');
 var WeatherProvider = require('./weather/provider.js');
@@ -942,28 +943,9 @@ function fetch(provider, force) {
     }
 
     console.log('Fetching from ' + provider.name);
-    // Tell providers whether to spend a request on UV (DWD/Open-Meteo fallback).
-    provider.fetchUv = forecastSeries.needsUv(app.settings);
-    provider.fetchAqi = forecastSeries.needsAqi(app.settings);
-    provider.fetchPollen = forecastSeries.needsPollen(app.settings);
-    // The day-max slots that show a peak: only they keep a day record (a flash
-    // write per fetch) and widen their provider requests to the end of tomorrow.
-    provider.dayPeakCodes = forecastSeries.dayPeakCodes(app.settings);
-    provider.windUnits = (app.settings && app.settings.windUnits) || 'kph';
-    // Apparent temperature: no provider spends an extra REQUEST on it (it always
-    // rides a response already being fetched), but DWD and Met.no compute Steadman
-    // per hour and the rest map a series — all wasted when nothing renders it.
-    // Every settings input of needsFeels is in renderSignature, so flipping a
-    // feels selection forces a refetch and this gate is re-evaluated immediately;
-    // watchInfo (an aplite watch never draws the feels line) is fixed per session.
-    provider.fetchFeels = forecastSeries.needsFeels(app.settings, app.watchInfo);
-    // The Units tab's feels-like formula ('provider' | 'steadman'): the adapters
-    // apply it wherever humidity is sourced (feels-like.js resolveFeelsTrend). It
-    // changes the baked FEELS_* values, so it is in renderSignature too.
-    provider.feelsFormula = (app.settings && app.settings.feelsFormula) || 'provider';
-    provider.aqiScale = (app.settings && app.settings.aqiScale) || 'european';
-    provider.aqiSource = (app.settings && app.settings.aqiSource) || 'waqi';
-    provider.aqicnToken = (pkg.waqi && pkg.waqi.token) || '';
+    // This fetch's knobs (UV/AQI/pollen requests, feels work + formula, day-max
+    // codes, units, the WAQI token) as one value — set before any request is built.
+    provider.options = fetchOptions.build(app.settings, app.watchInfo, { waqiToken: pkg.waqi && pkg.waqi.token });
     app.fetchInProgress = true;
     // This fetch's once-guard: set by the first of success, failure or the
     // watchdog, after which every later completion from this fetch is a no-op.

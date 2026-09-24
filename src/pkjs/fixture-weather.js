@@ -6,10 +6,75 @@
 // orchestrator stays focused on event wiring and live fetch.
 
 var WeatherProvider = require('./weather/provider.js');
+var fetchOptions = require('./weather/fetch-options.js');
 var forecastSeries = require('./forecast-series.js');
 var wireUnits = require('./wire-units.js');
 var paletteWire = require('./weather/palette-wire.js');
 var lineStyle = require('./line-style.js');
+
+/**
+ * Put a copy of `source` on `mapped[key]` when it is an array; otherwise leave
+ * the key off, so adoptMapped applies that field's documented empty value.
+ *
+ * @param {Object} mapped The mapped forecast being built.
+ * @param {string} key Mapped key (from WeatherProvider.MAPPED_KEYS).
+ * @param {*} source The fixture's value for it.
+ * @returns {void}
+ */
+function mapArrayIfPresent(mapped, key, source) {
+    if (Array.isArray(source)) {
+        mapped[key] = source.slice(0);
+    }
+}
+
+/**
+ * Map a fixture's weather block onto the adapter seam's vocabulary
+ * (WeatherProvider.MAPPED_KEYS), for WeatherProvider#adoptMapped — the fixture
+ * is an adapter like any live provider. Key PRESENCE is part of the contract:
+ *
+ *  - The four core keys are ALWAYS set, even when the value is undefined. The
+ *    committed fixtures/*.json carry no startEpoch (only prepare-fixture adds
+ *    one), and hasValidData checks presence, not value — a missing key would
+ *    make adopt delete it and the payload come back null.
+ *  - feelsTrend is always set ([] without feelsTemps) and currentFeels is set
+ *    on its own, so adopt's verbatim branch ships the scalar current feels-like
+ *    even for a fixture with no hourly series.
+ *  - rain/wind/gust and uv/pressure/dew/wind-direction are set only when the
+ *    fixture has them; adopt zero-fills or empties the rest. Never undefined:
+ *    getPayload slices those series.
+ *
+ * @param {Object} weather The fixture's weather block.
+ * @returns {Object} The mapped forecast.
+ */
+function mapFixtureWeather(weather) {
+    var mapped = {
+        startTime: weather.startEpoch,
+        currentTemp: weather.currentTemp,
+        tempTrend: Array.isArray(weather.temps) ? weather.temps.slice(0) : [],
+        precipTrend: Array.isArray(weather.precipPct) ? weather.precipPct.map(function(probabilityPercent) {
+            return probabilityPercent / 100.0;
+        }) : [],
+        // Feels-like (°F, same internal unit as temps) is a forecast-line metric AND
+        // the temp slot's feels/both display source: an hourly array + scalar
+        // current, each defaulting to empty ([] / null) so the line stays off and
+        // the temp slot renders the actual temp alone (a live provider gap's shape).
+        feelsTrend: Array.isArray(weather.feelsTemps) ? weather.feelsTemps.slice(0) : [],
+        currentFeels: (typeof weather.currentFeels === 'number') ? weather.currentFeels : null
+    };
+    mapArrayIfPresent(mapped, 'rainTrend', weather.rainMm);
+    mapArrayIfPresent(mapped, 'windTrend', weather.windKmh);
+    mapArrayIfPresent(mapped, 'gustTrend', weather.gustKmh);
+    mapArrayIfPresent(mapped, 'uvTrend', weather.uvIndex);
+    // Sea-level pressure (hPa) is a status-slot value AND a forecast-line metric;
+    // absent → [] so the line/slot render as off/'--'.
+    mapArrayIfPresent(mapped, 'pressureTrend', weather.pressureHpa);
+    // Dew point (°F) and the wind bearing (degrees the wind comes FROM) are
+    // status-slot values: absent → [] so the dew slot renders '--' and the
+    // wind/gust slots draw no arrow (a provider that does not source them).
+    mapArrayIfPresent(mapped, 'dewTrend', weather.dewPoint);
+    mapArrayIfPresent(mapped, 'windDirTrend', weather.windDirection);
+    return mapped;
+}
 
 /**
  * Convert a fixture weather object into the real watch weather AppMessage payload.
@@ -44,35 +109,17 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     provider = new WeatherProvider();
     provider.name = 'Fixture';
     provider.id = 'fixture';
+    // Before adopting: adoptMapped zero-fills an absent rain/wind/gust series to
+    // numEntries.
     provider.numEntries = Array.isArray(weather.temps) ? weather.temps.length : 0;
+    // A fixture sources every series it carries, whatever the settings select:
+    // UV and feels-like always adopt (the fixture's feels ship verbatim, so the
+    // feels-like formula never applies).
+    provider.options = fetchOptions.defaults({ fetchUv: true, fetchFeels: true });
+    provider.adoptMapped(mapFixtureWeather(weather));
+    // The chain-stage fields a live fetch fills after the adapter (city lookup,
+    // sun events, the AQI and pollen aux fetches) are faked directly.
     provider.cityName = weather.city || 'Fixture City';
-    provider.currentTemp = weather.currentTemp;
-    provider.startTime = weather.startEpoch;
-    provider.tempTrend = Array.isArray(weather.temps) ? weather.temps.slice(0) : [];
-    provider.precipTrend = Array.isArray(weather.precipPct) ? weather.precipPct.map(function(probabilityPercent) {
-        return probabilityPercent / 100.0;
-    }) : [];
-    provider.rainTrend = Array.isArray(weather.rainMm) ? weather.rainMm.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
-    provider.windTrend = Array.isArray(weather.windKmh) ? weather.windKmh.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
-    provider.gustTrend = Array.isArray(weather.gustKmh) ? weather.gustKmh.slice(0) : wireUnits.zeroFilledArray(provider.numEntries);
-    provider.uvTrend = Array.isArray(weather.uvIndex) ? weather.uvIndex.slice(0) : [];
-    // Sea-level pressure (hPa) is a status-slot value AND a forecast-line metric, not a
-    // scalar like AQI: accept the fixture's hourly array, or leave [] so the line/slot
-    // render as off/'--' (same graceful-degrade as the other transient trends above).
-    provider.pressureTrend = Array.isArray(weather.pressureHpa) ? weather.pressureHpa.slice(0) : [];
-    // Feels-like (°F, same internal unit as temps) is a forecast-line metric AND the
-    // temp slot's feels/both display source: accept an hourly array + scalar current,
-    // or leave the provider defaults ([] / null) so the line stays off and the temp
-    // slot renders the actual temp alone (same graceful-degrade as a live provider gap).
-    provider.feelsTrend = Array.isArray(weather.feelsTemps) ? weather.feelsTemps.slice(0) : [];
-    provider.currentFeels = (typeof weather.currentFeels === 'number') ? weather.currentFeels : null;
-    // Dew point (°F, same internal unit as temps) and the wind bearing (degrees the
-    // wind comes FROM) are status-slot values, not forecast lines: accept an hourly
-    // array each, or leave the provider defaults ([]) so the dew slot renders '--'
-    // and the wind/gust slots draw no arrow (the same graceful-degrade a provider
-    // that does not source them gets).
-    provider.dewTrend = Array.isArray(weather.dewPoint) ? weather.dewPoint.slice(0) : [];
-    provider.windDirTrend = Array.isArray(weather.windDirection) ? weather.windDirection.slice(0) : [];
     // AQI is a status-slot value, not a forecast line: accept a scalar current
     // index (weather.aqi) — wrapped as a one-element trend, like the WAQI source —
     // or an explicit array. Absent -> [] and the slot renders '--'.
@@ -195,5 +242,6 @@ function sendFixtureWeather(fixture, deps) {
 module.exports = {
     getFixtureRadarTuples: getFixtureRadarTuples,
     getFixtureWeatherPayload: getFixtureWeatherPayload,
+    mapFixtureWeather: mapFixtureWeather,
     sendFixtureWeather: sendFixtureWeather
 };

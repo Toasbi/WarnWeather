@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const tomorrowio = require('../src/pkjs/weather/tomorrowio.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 const { PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 const mapResponse = tomorrowio.mapResponse;
 
@@ -44,6 +45,13 @@ test('mapResponse anchors at the current hour and converts units', () => {
   assert.equal(out.gustTrend[0], 5 * 3.6);
   assert.equal(out.uvTrend[0], 3);
   assert.equal(out.tempTrend[23], (13 + 23) * 9 / 5 + 32);
+});
+
+test('mapResponse emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
+  const mapped = mapResponse(sampleResponse(), BASE + 3 * 3600 + 600);
+  const keys = require('../src/pkjs/weather/provider.js').MAPPED_KEYS;
+  Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
+  keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
 });
 
 test('mapResponse carries the UV series on to PEAK_HOURS; every other trend keeps 24', () => {
@@ -355,7 +363,7 @@ test('tomorrow.io + steadman: adoptMapped recomputes feels from temp/humidity/wi
   });
   const mapped = tomorrowio.mapResponse(json, BASE + 3 * 3600 + 600);
   const p = new tomorrowio.TomorrowIoProvider('KEY123');
-  p.feelsFormula = 'steadman';
+  p.options = fetchOptions.defaults({ feelsFormula: 'steadman' });
   p.adoptMapped(mapped);
   const expected0 = feelsLikeF(mapped.tempTrend[0], 60, mapped.windTrend[0]);
   assert.equal(p.feelsTrend[0], expected0);
@@ -369,8 +377,7 @@ test('tomorrow.io + steadman: adoptMapped recomputes feels from temp/humidity/wi
   assert.equal(q.currentFeels, mapped.currentFeels);
   // And fetchFeels off still blanks both, whichever formula.
   const r = new tomorrowio.TomorrowIoProvider('KEY123');
-  r.feelsFormula = 'steadman';
-  r.fetchFeels = false;
+  r.options = fetchOptions.defaults({ feelsFormula: 'steadman', fetchFeels: false });
   r.adoptMapped(mapped);
   assert.deepEqual(r.feelsTrend, []);
   assert.equal(r.currentFeels, null);
@@ -390,7 +397,7 @@ test('tomorrow.io + steadman: an anchor bucket without windSpeed keeps the API "
   assert.equal(mapped.currentWindKmh, null);
   assert.equal(mapped.windTrend[0], 0, 'the wind line still reads the hour as calm');
   const p = new tomorrowio.TomorrowIoProvider('KEY123');
-  p.feelsFormula = 'steadman';
+  p.options = fetchOptions.defaults({ feelsFormula: 'steadman' });
   p.adoptMapped(mapped);
   assert.equal(p.currentFeels, mapped.currentFeels, 'no wind reading → the API value');
   assert.equal(p.feelsTrend[0], feelsLikeF(mapped.tempTrend[0], 60, 0));

@@ -9,6 +9,7 @@ var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
 var dayPeaks = require('./day-peaks.js');
 var feelsLike = require('./feels-like.js');
+var fetchOptions = require('./fetch-options.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
 // fetches can require them without the old provider-cycle lazy-require hack);
@@ -44,14 +45,16 @@ var WeatherProvider = function() {
     // UV is opt-in and not every provider has it: leave it empty so getPayload
     // emits an empty UV series (→ the UV line stays off) unless a provider fills it.
     this.uvTrend = [];
-    // The status slots' day max (day-peaks.js), all set per fetch: which
-    // metric codes a slot shows a peak for (index.js, from status-line-catalog's
-    // dayMaxInUse; null = all, the fail-safe direction like fetchFeels), the
-    // user's wind unit the wind/gust records judge a dip in (index.js), and each
-    // metric's peak of today's hours already begun (day-peaks' recall, in
-    // fetchWithCoordinates; getPayload hands it on as the triples' third entry).
-    this.dayPeakCodes = null;
-    this.windUnits = 'kph';
+    // The per-fetch knobs (fetchUv/fetchAqi/fetchPollen/fetchFeels/feelsFormula/
+    // dayPeakCodes/windUnits/aqiScale/aqiSource/aqicnToken) as ONE value, every
+    // default in fetch-options.js. index.js replaces it with
+    // fetchOptions.build(settings, ...) before each fetch; a provider that is
+    // never handed one runs on the defaults.
+    this.options = fetchOptions.defaults();
+    // The status slots' day max (day-peaks.js): each metric's peak of today's
+    // hours already begun (day-peaks' recall, in fetchWithCoordinates; getPayload
+    // hands it on as the triples' third entry). Which metrics keep a record and
+    // the wind unit a dip is judged in are options.dayPeakCodes/windUnits.
     this.earlierPeaks = {};
     // AQI is opt-in (status slot only); empty → the slot shows '--' unless a
     // fetch fills it. Transient: consumed by formatValue, never wired.
@@ -86,19 +89,6 @@ var WeatherProvider = function() {
     // the wind and gust slots simply draw no arrow. Transient: consumed by
     // formatValue/packLine, never wired.
     this.windDirTrend = [];
-    // Whether to do the apparent-temperature work at all (index.js sets it from
-    // forecastSeries.needsFeels before each fetch). Unlike fetchUv/fetchAqi/
-    // fetchPollen this defaults to TRUE, because it gates no request — only
-    // per-hour arithmetic on a response already in hand. Fail-safe direction:
-    // a caller that forgets to set it wastes a few hundred multiplications,
-    // where the fail-closed default would silently blank the feels curve.
-    this.fetchFeels = true;
-    // Which feels-like the Units tab picked ('provider' | 'steadman', the
-    // FORMULA_* constants in feels-like.js); index.js sets it per fetch. The
-    // resolvers apply it wherever a provider sources humidity — adoptMapped for
-    // the mapped adapters, OWM/WU/Open-Meteo in their own adopt code. Phone-side
-    // only: no wire bytes, the watch just receives FEELS_TREND / FEELS_CURRENT.
-    this.feelsFormula = feelsLike.FORMULA_PROVIDER;
 };
 
 /**
@@ -570,7 +560,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 console.log('Lets get the payload for ' + cityName);
                 this.cityName = cityName;
                 this.sunEvents = sunEvents;
-                // Fetch AQI (keyless, shared, gated by fetchAqi) using startTime
+                // Fetch AQI (keyless, shared, gated by options.fetchAqi) using startTime
                 // set by withProviderData, then compose + send. Non-fatal: a
                 // failed AQI call still sends the forecast. Reset it per
                 // cycle, like pollen below: the provider instance is reused
@@ -848,52 +838,126 @@ WeatherProvider.requestMapped = function(opts, onMapped, onFailure) {
 };
 
 /**
- * Adopt a mapped forecast onto the provider: assigns only the keys PRESENT on
- * `mapped` (providers differ in which optional series their API carries), and
- * applies the two aux gates in ONE place — with two deliberately different
- * semantics. feels RESETS to []/null when fetchFeels is off: the value is
- * parsed from the main response, and on a reused provider instance a stale
- * window must never ship against a new startTime. uv is adopted only when
- * fetchUv is on and left UNTOUCHED otherwise: for providers whose uv rides a
- * separate aux fetch (Open-Meteo), that fetch owns the field.
+ * The mapped-forecast vocabulary: every key an adapter's `mapped` object may
+ * carry, grouped by the convention adoptMapped applies when the key is absent.
+ * Written down once, here; adoptMapped iterates these lists and the adapter
+ * tests assert their mappers' output against `all`.
  *
- * @param {Object} mapped mapResponse result.
+ *   core   — required for a payload (hasValidData checks their presence).
+ *   zeroed — per-hour series whose "no data" reads as 0 (rain mm/h, wind/gust
+ *            km/h): zero-filled to numEntries, the constructor's shape.
+ *   empty  — per-hour series a provider may not source: [] (the pressure line
+ *            stays off, the dew slot shows '--', the wind slots draw no arrow).
+ *   feels  — apparent temperature plus the inputs the feelsFormula resolvers
+ *            need (humidity + wind); only feelsTrend/currentFeels are stored.
+ *   uv     — the UV series, adopted only when options.fetchUv is on.
+ */
+WeatherProvider.MAPPED_KEYS = {
+    core: ['tempTrend', 'precipTrend', 'startTime', 'currentTemp'],
+    zeroed: ['rainTrend', 'windTrend', 'gustTrend'],
+    empty: ['pressureTrend', 'dewTrend', 'windDirTrend'],
+    feels: ['feelsTrend', 'currentFeels', 'humidityTrend', 'currentHumidity', 'currentWindKmh'],
+    uv: ['uvTrend']
+};
+WeatherProvider.MAPPED_KEYS.all = [].concat(
+    WeatherProvider.MAPPED_KEYS.core,
+    WeatherProvider.MAPPED_KEYS.zeroed,
+    WeatherProvider.MAPPED_KEYS.empty,
+    WeatherProvider.MAPPED_KEYS.feels,
+    WeatherProvider.MAPPED_KEYS.uv
+);
+
+/**
+ * Own-key presence on a mapped object (a key set to undefined still counts:
+ * hasValidData's core check is presence, not value).
+ *
+ * @param {Object} obj The mapped object.
+ * @param {string} key Key to test.
+ * @returns {boolean} True when `key` is an own property of `obj`.
+ */
+function hasKey(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+/**
+ * Adopt a mapped forecast onto the provider — TOTAL: every forecast field in
+ * MAPPED_KEYS is (re)assigned on every call, so a reused provider instance can
+ * never carry a previous cycle's series into a new startTime. Per group:
+ *
+ *   core   — present → copied (even when the value is undefined); ABSENT →
+ *            deleted from the instance, so hasValidData rejects it.
+ *   zeroed — present → copied; absent → zero-filled to this.numEntries.
+ *   empty  — present → copied; absent → [].
+ *   feels  — options.fetchFeels off → feelsTrend [], currentFeels null.
+ *            Else, with a mapped humidityTrend, the feelsFormula resolvers pick
+ *            per hour between the mapped (API) feels-like and Steadman from
+ *            temp + humidity + wind (this branch needs mapped.tempTrend).
+ *            Else a mapped feelsTrend ships verbatim under either formula (the
+ *            adapter computed Steadman itself, or its API sources no humidity),
+ *            with currentFeels copied when present, null when not.
+ *            Else feelsTrend [], currentFeels null.
+ *   uv     — options.fetchUv on and uvTrend present → copied; else [].
+ *
+ * These are the semantic feels/uv gates, in ONE place for every adapter. An
+ * adapter may still skip computing a feels series when options.fetchFeels is
+ * off (a pure compute-skip), and Open-Meteo's aux writers (adoptFeels,
+ * adoptDewAndDirection, fetchUvInto) run after this and fill in what its main
+ * response lacks. humidityTrend/currentHumidity/currentWindKmh are resolver
+ * inputs only and are never stored on the instance.
+ *
+ * @param {Object} mapped An adapter's mapped forecast (keys from MAPPED_KEYS.all).
  * @returns {void}
  */
 WeatherProvider.prototype.adoptMapped = function(mapped) {
-    var direct = ['tempTrend', 'precipTrend', 'rainTrend', 'windTrend',
-        'gustTrend', 'pressureTrend', 'dewTrend', 'windDirTrend',
-        'startTime', 'currentTemp'];
-    for (var i = 0; i < direct.length; i++) {
-        if (Object.prototype.hasOwnProperty.call(mapped, direct[i])) {
-            this[direct[i]] = mapped[direct[i]];
-        }
-    }
-    if (Object.prototype.hasOwnProperty.call(mapped, 'feelsTrend')) {
-        if (!this.fetchFeels) {
-            this.feelsTrend = [];
-            this.currentFeels = null;
-        }
-        else if (Object.prototype.hasOwnProperty.call(mapped, 'humidityTrend')) {
-            // A mapped humidity series (tomorrow.io) lets the Units tab's
-            // feels-like formula swap the API's value for Steadman; under
-            // 'provider' the resolvers hand the mapped values straight through.
-            this.feelsTrend = feelsLike.resolveFeelsTrend(this.feelsFormula, mapped.feelsTrend,
-                mapped.tempTrend, mapped.humidityTrend, mapped.windTrend);
-            this.currentFeels = feelsLike.resolveCurrentFeels(this.feelsFormula, mapped.currentFeels,
-                mapped.currentTemp, mapped.currentHumidity, mapped.currentWindKmh);
+    var keys = WeatherProvider.MAPPED_KEYS;
+    var options = this.options;
+    var formula = options.feelsFormula;
+    var i;
+    var key;
+    for (i = 0; i < keys.core.length; i++) {
+        key = keys.core[i];
+        if (hasKey(mapped, key)) {
+            this[key] = mapped[key];
         }
         else {
-            // No humidity to compute from: Met.no already maps Steadman, and
-            // Yandex's query deliberately omits humidity (its buildQuery note) —
-            // the mapped value ships under either formula.
-            this.feelsTrend = mapped.feelsTrend;
-            this.currentFeels = mapped.currentFeels;
+            delete this[key];
         }
     }
-    if (this.fetchUv && Object.prototype.hasOwnProperty.call(mapped, 'uvTrend')) {
-        this.uvTrend = mapped.uvTrend;
+    for (i = 0; i < keys.zeroed.length; i++) {
+        key = keys.zeroed[i];
+        this[key] = hasKey(mapped, key) ? mapped[key] : zeroFilledArray(this.numEntries);
     }
+    for (i = 0; i < keys.empty.length; i++) {
+        key = keys.empty[i];
+        this[key] = hasKey(mapped, key) ? mapped[key] : [];
+    }
+    if (!options.fetchFeels) {
+        this.feelsTrend = [];
+        this.currentFeels = null;
+    }
+    else if (hasKey(mapped, 'humidityTrend')) {
+        // A mapped humidity series (OWM, WU, tomorrow.io) lets the Units tab's
+        // feels-like formula swap the API's value for Steadman; under
+        // 'provider' the resolvers hand the mapped values straight through.
+        this.feelsTrend = feelsLike.resolveFeelsTrend(formula,
+            hasKey(mapped, 'feelsTrend') ? mapped.feelsTrend : null,
+            mapped.tempTrend, mapped.humidityTrend, mapped.windTrend);
+        this.currentFeels = feelsLike.resolveCurrentFeels(formula,
+            hasKey(mapped, 'currentFeels') ? mapped.currentFeels : null,
+            mapped.currentTemp, mapped.currentHumidity, mapped.currentWindKmh);
+    }
+    else if (hasKey(mapped, 'feelsTrend')) {
+        // No humidity to compute from: DWD and Met.no already map Steadman, and
+        // Yandex's query deliberately omits humidity (its buildQuery note) —
+        // the mapped value ships under either formula.
+        this.feelsTrend = mapped.feelsTrend;
+        this.currentFeels = hasKey(mapped, 'currentFeels') ? mapped.currentFeels : null;
+    }
+    else {
+        this.feelsTrend = [];
+        this.currentFeels = null;
+    }
+    this.uvTrend = (options.fetchUv && hasKey(mapped, 'uvTrend')) ? mapped.uvTrend : [];
 };
 
 /**

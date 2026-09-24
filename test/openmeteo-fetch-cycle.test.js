@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
 const openmeteo = require('../src/pkjs/weather/openmeteo.js');
@@ -54,7 +55,7 @@ function withMockedNow(epochSeconds, fn) {
 
 test('aux failure on a reused instance drops feels instead of shipping the stale window', () => {
   const p = new OpenMeteoProvider();
-  p.fetchUv = false;
+  p.options = fetchOptions.defaults({ fetchUv: false });
 
   // Cycle 1: main + aux succeed — feels adopted.
   responder = function(url, onSuccess) {
@@ -87,7 +88,7 @@ test('the aux gusts land in the same slot as the main call\'s rain for the same 
   // the watch's slot 0 IS 18:00-19:00 — the rain bar and the gust head must
   // both show it there, not in the 19:00-20:00 slot.
   const p = new OpenMeteoProvider();
-  p.fetchUv = false;
+  p.options = fetchOptions.defaults({ fetchUv: false });
   responder = function(url, onSuccess) {
     if (url.indexOf('current=apparent_temperature') !== -1) {
       const aux = auxResponse();
@@ -121,7 +122,7 @@ function uvResponse() {
 
 test('UV failure on a reused instance drops UV instead of shipping the previous window', () => {
   const p = new OpenMeteoProvider();
-  p.fetchUv = true;
+  p.options = fetchOptions.defaults({ fetchUv: true });
   function respond(uvFails) {
     return function(url, onSuccess, onError) {
       if (url.indexOf('hourly=uv_index') !== -1) {

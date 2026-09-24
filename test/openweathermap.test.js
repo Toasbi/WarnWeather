@@ -5,21 +5,31 @@ const WeatherProvider = require('../src/pkjs/weather/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
 const OpenWeatherMapProvider = require('../src/pkjs/weather/openweathermap.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 
 function round4(n) { return Math.round(n * 10000) / 10000; }
 
+/**
+ * A two-hour One Call response with rain+snow, wind/gust and a UV reading.
+ * @returns {Object} Parsed One Call response.
+ */
+function twoHourResponse() {
+  return {
+    current: { temp: 71 },
+    daily: [{}, {}],
+    hourly: [
+      { temp: 50, pop: 0.4, rain: { '1h': 1.5 }, snow: { '1h': 0.5 }, wind_speed: 10, wind_gust: 20, uvi: 3, dt: 1700000000 },
+      { temp: 60, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, dt: 1700003600 }
+    ]
+  };
+}
+
 test('OWM maps One Call hourly into trends with imperial→metric conversions', () => {
   responder = function(url, onSuccess) {
-    onSuccess(JSON.stringify({
-      current: { temp: 71 },
-      daily: [{}, {}],
-      hourly: [
-        { temp: 50, pop: 0.4, rain: { '1h': 1.5 }, snow: { '1h': 0.5 }, wind_speed: 10, wind_gust: 20, uvi: 3, dt: 1700000000 },
-        { temp: 60, pop: 0, wind_speed: 0, wind_gust: 0, uvi: 0, dt: 1700003600 }
-      ]
-    }));
+    onSuccess(JSON.stringify(twoHourResponse()));
   };
   const p = new OpenWeatherMapProvider('test-key');
+  p.options = fetchOptions.defaults({ fetchUv: true });
   var ok = false;
   p.withProviderData(0, 0, false, function() { ok = true; }, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
 
@@ -33,6 +43,45 @@ test('OWM maps One Call hourly into trends with imperial→metric conversions', 
   assert.deepEqual(p.uvTrend, [3, 0], 'uvi passthrough');
   assert.equal(p.startTime, 1700000000, 'startTime = hourly[0].dt');
   assert.equal(p.currentTemp, 71, 'currentTemp = current.temp');
+});
+
+// UV rides the one cached response (no extra request), but "no UV selection"
+// means no UV data — adoptMapped's fetchUv gate, the same on every provider.
+test('OWM leaves uvTrend empty when options.fetchUv is off', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify(twoHourResponse()));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.options = fetchOptions.defaults({ fetchUv: false });
+  var ok = false;
+  p.withProviderData(0, 0, false, function() { ok = true; }, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.equal(ok, true, 'onSuccess fires');
+  assert.deepEqual(p.uvTrend, [], 'the uvi series is not adopted');
+  assert.deepEqual(p.tempTrend, [50, 60], 'the rest of the forecast still lands');
+});
+
+test('OWM clears a reused instance\'s previous uvTrend when fetchUv turns off', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify(twoHourResponse()));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.options = fetchOptions.defaults({ fetchUv: true });
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.uvTrend, [3, 0]);
+  p.options = fetchOptions.defaults({ fetchUv: false });
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.uvTrend, [], 'no stale UV series carried into the new cycle');
+});
+
+test('OWM mapOneCall emits only the mapped vocabulary (WeatherProvider.MAPPED_KEYS), core keys included', () => {
+  const response = twoHourResponse();
+  response.current.feels_like = 68;
+  response.current.humidity = 55;
+  response.current.wind_speed = 4;
+  const mapped = OpenWeatherMapProvider.mapOneCall(response);
+  const keys = WeatherProvider.MAPPED_KEYS;
+  Object.keys(mapped).forEach((k) => assert.ok(keys.all.indexOf(k) !== -1, 'not a mapped key: ' + k));
+  keys.core.forEach((k) => assert.ok(Object.prototype.hasOwnProperty.call(mapped, k), 'core key missing: ' + k));
 });
 
 test('OWM maps One Call hourly pressure (sea-level hPa) into pressureTrend', () => {
@@ -68,6 +117,22 @@ test('OWM maps One Call feels_like (already °F) into feelsTrend/currentFeels', 
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.deepEqual(p.feelsTrend, [45.5, 60]);
   assert.equal(p.currentFeels, 68.2);
+});
+
+test('OWM ships no feels data when options.fetchFeels is off', () => {
+  responder = function(url, onSuccess) {
+    onSuccess(JSON.stringify({
+      current: { temp: 71, feels_like: 68.2, humidity: 60, wind_speed: 5 },
+      daily: [{}, {}],
+      hourly: [{ temp: 50, feels_like: 45.5, humidity: 60, pop: 0, wind_speed: 5, wind_gust: 0, uvi: 0, dt: 1700000000 }]
+    }));
+  };
+  const p = new OpenWeatherMapProvider('test-key');
+  p.options = fetchOptions.defaults({ fetchFeels: false });
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.feelsTrend, []);
+  assert.equal(p.currentFeels, null);
+  assert.equal(Object.prototype.hasOwnProperty.call(p, 'humidityTrend'), false, 'resolver input, never stored');
 });
 
 // --- dew point + wind bearing -------------------------------------------------
@@ -249,7 +314,7 @@ test('OWM + steadman recomputes feels from humidity/wind, API value where humidi
     }));
   };
   const p = new OpenWeatherMapProvider('test-key');
-  p.feelsFormula = 'steadman';
+  p.options = fetchOptions.defaults({ feelsFormula: 'steadman' });
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   const expected = feelsLikeF(59, 60, mphToKmh(6.2));
   assert.deepEqual(p.feelsTrend, [expected, 58]);
@@ -265,7 +330,7 @@ test('OWM + steadman degrades to the API current when the observation lacks wind
     }));
   };
   const p = new OpenWeatherMapProvider('test-key');
-  p.feelsFormula = 'steadman';
+  p.options = fetchOptions.defaults({ feelsFormula: 'steadman' });
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   assert.equal(p.currentFeels, 57);
 });

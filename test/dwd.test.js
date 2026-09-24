@@ -5,6 +5,7 @@ const WeatherProvider = require('../src/pkjs/weather/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
 const DwdProvider = require('../src/pkjs/weather/dwd.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 
 test('DWD maps Brightsky forecast/current with °C→°F and km/h passthrough', () => {
   responder = function(url, onSuccess) {
@@ -19,7 +20,7 @@ test('DWD maps Brightsky forecast/current with °C→°F and km/h passthrough', 
       { temperature: 10, precipitation_probability: 40, precipitation: 1.2, wind_speed: 0, wind_gust_speed: 30, timestamp: '2023-11-14T23:00:00+00:00' }
     ] }));
   };
-  const p = new DwdProvider();   // fetchUv unset → no UV request, onSuccess fires after current
+  const p = new DwdProvider();   // options.fetchUv defaults off → no UV request, onSuccess fires after current
   var ok = false;
   p.withProviderData(0, 0, false, function() { ok = true; }, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
 
@@ -314,7 +315,7 @@ test('DWD sources dew point even when the feels-like gate is off', () => {
     onSuccess(JSON.stringify({ weather: hours24(() => ({ dew_point: 5 })) }));
   };
   const p = new DwdProvider();
-  p.fetchFeels = false;
+  p.options = fetchOptions.defaults({ fetchFeels: false });
   p.withProviderData(0, 0, false, function() {}, function(f) {
     throw new Error('unexpected failure ' + JSON.stringify(f));
   });
@@ -409,7 +410,7 @@ test('DWD drops the previous UV window when the shared UV fetch fails on a reuse
     };
   }
   const p = new DwdProvider();
-  p.fetchUv = true;
+  p.options = fetchOptions.defaults({ fetchUv: true });
   responder = respond(START, false);
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('cycle 1 failed: ' + JSON.stringify(f)); });
   // Entry 0 is the 08:00-09:00 hour, whose GFS mean is stamped 09:00 (value 1).
@@ -420,4 +421,170 @@ test('DWD drops the previous UV window when the shared UV fetch fails on a reuse
   p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('cycle 2 failed: ' + JSON.stringify(f)); });
   assert.equal(p.startTime, START + HOUR);
   assert.deepEqual(p.uvTrend, [], 'stale UV dropped when the UV call fails');
+});
+
+// --- the adoptMapped seam -----------------------------------------------------
+// DWD keeps its two-request flow but builds one `mapped` forecast and hands it
+// to WeatherProvider#adoptMapped, which owns the missing-value conventions and
+// the semantic fetchFeels/fetchUv gates.
+
+/**
+ * Drive a DwdProvider at 09:20 Berlin and capture every `mapped` object it hands
+ * to adoptMapped, plus the order of the adopt and the Open-Meteo UV request.
+ * @param {Object[]} hourly Brightsky forecast records
+ * @param {Object} [opts]
+ * @param {Object} [opts.provider] reuse this instance instead of a fresh one
+ * @param {Object} [opts.options] fetchOptions.defaults() overrides
+ * @param {Object} [opts.current] Brightsky current_weather record
+ * @param {boolean} [opts.uvFails] fail the UV request
+ * @returns {{p: Object, mapped: Object[], events: string[], ok: boolean}}
+ */
+function runSeam(hourly, opts) {
+  opts = opts || {};
+  const events = [];
+  const mapped = [];
+  responder = function(url, onSuccess, onError) {
+    if (url.indexOf('hourly=uv_index') !== -1) {
+      events.push('uv');
+      if (opts.uvFails) { onError({ code: 0, message: 'timeout' }); return; }
+      const time = [], uv_index = [];
+      for (let i = 0; i < 72; i += 1) { time.push(SLOT0 / 1000 + i * 3600); uv_index.push(i % 11); }
+      onSuccess(JSON.stringify({ hourly: { time, uv_index } }));
+      return;
+    }
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: opts.current || { temperature: 15 } }));
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: hourly }));
+  };
+  const p = opts.provider || new DwdProvider();
+  p.options = fetchOptions.defaults(opts.options || {});
+  p.adoptMapped = function(m) {
+    events.push('adopt');
+    mapped.push(m);
+    WeatherProvider.prototype.adoptMapped.call(this, m);
+  };
+  const realNow = Date.now;
+  Date.now = function() { return SLOT0 + 20 * 60000; };
+  var ok = false;
+  try {
+    p.withProviderData(0, 0, false, function() { ok = true; }, function(f) {
+      throw new Error('unexpected failure ' + JSON.stringify(f));
+    });
+  } finally {
+    Date.now = realNow;
+    delete p.adoptMapped;
+  }
+  return { p, mapped, events, ok };
+}
+
+/**
+ * 25 hourly records from SLOT0 with every field the mapping reads, humid and
+ * breezy enough that Steadman differs from the plain temperature.
+ * @returns {Object[]} Brightsky `weather` records
+ */
+function fullRecords() {
+  return stampedRecords(Array.from({ length: 25 }, (_, i) => i), 3).map((r, i) => Object.assign(r, {
+    temperature: 20 + (i % 5), relative_humidity: 60, dew_point: 12, wind_direction: 90
+  }));
+}
+
+test('DWD hands adoptMapped one mapped forecast: MAPPED_KEYS only, core present, no humidity or UV key', () => {
+  const { mapped, events, ok } = runSeam(fullRecords(), { options: { fetchUv: true } });
+  assert.equal(ok, true);
+  assert.equal(mapped.length, 1, 'adopted exactly once per cycle');
+  const keys = Object.keys(mapped[0]);
+  const all = WeatherProvider.MAPPED_KEYS.all;
+  keys.forEach((k) => assert.ok(all.indexOf(k) !== -1, k + ' is not in MAPPED_KEYS.all'));
+  WeatherProvider.MAPPED_KEYS.core.forEach((k) => assert.ok(keys.indexOf(k) !== -1, 'core key ' + k + ' missing'));
+  assert.equal(keys.indexOf('humidityTrend'), -1,
+    'no humidityTrend: the Steadman series must not route through the formula resolvers');
+  assert.equal(keys.indexOf('uvTrend'), -1, 'UV is Open-Meteo\'s, fetched after the adopt');
+  assert.deepEqual(events, ['adopt', 'uv'], 'adopt first, then the shared UV fetch, last');
+});
+
+test('DWD builds the 49-long day-max wind/gust series on mapped, before adopting', () => {
+  const recs = stampedRecords(Array.from({ length: 50 }, (_, i) => i), -1);
+  recs.forEach((r, i) => { r.wind_speed = 100 + i; r.wind_gust_speed = 200 + i; });
+  const { p, mapped } = runSeam(recs);
+  assert.equal(mapped[0].windTrend.length, 49);
+  assert.equal(mapped[0].gustTrend.length, 49);
+  assert.equal(mapped[0].windTrend[30], 130);
+  assert.equal(mapped[0].gustTrend[48], 249);
+  assert.strictEqual(p.windTrend, mapped[0].windTrend, 'the instance holds the adopted series, not a concat after it');
+  assert.equal(mapped[0].tempTrend.length, 24, 'only wind and gusts read on');
+});
+
+test('DWD stops the wind/gust series at the graph when no slot shows their day max', () => {
+  const recs = stampedRecords(Array.from({ length: 50 }, (_, i) => i), -1);
+  const { p, mapped } = runSeam(recs, { options: { dayPeakCodes: ['uv'] } });
+  assert.equal(mapped[0].windTrend.length, 24);
+  assert.equal(p.windTrend.length, 24);
+  assert.equal(p.gustTrend.length, 24);
+});
+
+test('DWD backfills windDirTrend[0] from the observation on mapped, before adopting', () => {
+  const recs = fullRecords();
+  delete recs[0].wind_direction;
+  const { p, mapped } = runSeam(recs, { current: { temperature: 15, wind_direction_10: 45 } });
+  assert.equal(mapped[0].windDirTrend[0], 45);
+  assert.equal(p.windDirTrend[0], 45);
+  assert.equal(p.windDirTrend[1], 90);
+});
+
+test('DWD feels ship verbatim under either feels-like formula', () => {
+  const current = { temperature: 20, relative_humidity: 57, wind_speed_10: 8.3 };
+  const provider = runSeam(fullRecords(), { current, options: { feelsFormula: 'provider' } }).p;
+  const steadman = runSeam(fullRecords(), { current, options: { feelsFormula: 'steadman' } }).p;
+  assert.deepEqual(provider.feelsTrend, steadman.feelsTrend);
+  assert.equal(provider.currentFeels, steadman.currentFeels);
+  assert.equal(provider.feelsTrend[0], feelsLikeF(68, 60, 10), 'the Steadman value, not the plain temp');
+  assert.notEqual(provider.feelsTrend[0], 68);
+  assert.equal(provider.currentFeels, feelsLikeF(68, 57, 8.3));
+});
+
+test('DWD skips the per-hour Steadman when fetchFeels is off, and adopt blanks the feels', () => {
+  const { p, mapped } = runSeam(fullRecords(), {
+    current: { temperature: 20, relative_humidity: 57, wind_speed_10: 8.3 },
+    options: { fetchFeels: false }
+  });
+  assert.deepEqual(mapped[0].feelsTrend, [], 'compute-skip: no series built');
+  assert.equal(mapped[0].currentFeels, null);
+  assert.deepEqual(p.feelsTrend, []);
+  assert.equal(p.currentFeels, null);
+  assert.equal(p.dewTrend.length, 24, 'dew is ungated');
+});
+
+test('DWD on a reused instance: turning fetchFeels off drops the previous feels', () => {
+  const current = { temperature: 20, relative_humidity: 57, wind_speed_10: 8.3 };
+  const first = runSeam(fullRecords(), { current });
+  assert.equal(first.p.feelsTrend.length, 24);
+  assert.equal(typeof first.p.currentFeels, 'number');
+  const second = runSeam(fullRecords(), { current, provider: first.p, options: { fetchFeels: false } });
+  assert.deepEqual(second.p.feelsTrend, []);
+  assert.equal(second.p.currentFeels, null);
+});
+
+test('DWD on a reused instance: UV turned off leaves uvTrend [] (declared change: was left stale)', () => {
+  const first = runSeam(fullRecords(), { options: { fetchUv: true } });
+  assert.ok(first.p.uvTrend.length > 0, 'cycle 1 adopted Open-Meteo UV');
+  const second = runSeam(fullRecords(), { provider: first.p, options: { fetchUv: false } });
+  assert.deepEqual(second.events, ['adopt'], 'no UV request with fetchUv off');
+  assert.equal(second.ok, true);
+  assert.deepEqual(second.p.uvTrend, []);
+});
+
+test('DWD on a reused instance: a failed UV call after adopt leaves uvTrend []', () => {
+  const first = runSeam(fullRecords(), { options: { fetchUv: true } });
+  assert.ok(first.p.uvTrend.length > 0);
+  const second = runSeam(fullRecords(), { provider: first.p, options: { fetchUv: true }, uvFails: true });
+  assert.equal(second.ok, true, 'the UV failure is non-fatal');
+  assert.deepEqual(second.p.uvTrend, []);
+});
+
+test('DWD keeps uvFeedId on the instance, off the mapped forecast', () => {
+  const { p, mapped } = runSeam(fullRecords());
+  assert.equal(p.uvFeedId, 'openmeteo');
+  assert.equal(Object.prototype.hasOwnProperty.call(mapped[0], 'uvFeedId'), false);
 });

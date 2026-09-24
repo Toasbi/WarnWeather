@@ -16,6 +16,7 @@ const test = require('node:test');
 const http = require('../src/pkjs/weather/http.js');
 const assert = require('node:assert/strict');
 const aq = require('../src/pkjs/weather/air-quality.js');
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 
 const START = 1767258000;
 const H = 3600;
@@ -47,9 +48,9 @@ test('mapAqi returns null on malformed input', () => {
   assert.equal(aq.mapAqi({ hourly: { time: 5 } }, 0, 'european'), null);
 });
 
-test('fetchAqiInto is a no-op when provider.fetchAqi is false', () => {
+test('fetchAqiInto is a no-op when provider.options.fetchAqi is false', () => {
   let called = false;
-  const provider = { fetchAqi: false };
+  const provider = { options: fetchOptions.defaults({ fetchAqi: false }) };
   aq.fetchAqiInto(provider, 1, 2, () => { called = true; });
   assert.equal(called, true);
   assert.equal(provider.aqiTrend, undefined);
@@ -60,7 +61,7 @@ test('fetchAqiInto populates aqiTrend on success', () => {
   const orig = http.request;
   http.request = (url, method, onSuccess) =>
     onSuccess(JSON.stringify({ hourly: { time: [START], european_aqi: [42] } }));
-  const provider = { fetchAqi: true, aqiSource: 'openmeteo', aqiScale: 'european', startTime: START };
+  const provider = { options: fetchOptions.defaults({ fetchAqi: true, aqiSource: 'openmeteo', aqiScale: 'european' }), startTime: START };
   let done = false;
   aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
   http.request = orig;
@@ -73,7 +74,7 @@ test('waqi source populates a one-element aqiTrend on success', () => {
   const orig = http.request;
   http.request = (url, method, onSuccess) =>
     onSuccess(JSON.stringify({ status: 'ok', data: { aqi: 42 } }));
-  const provider = { fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T', startTime: START };
+  const provider = { options: fetchOptions.defaults({ fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T' }), startTime: START };
   let done = false;
   aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
   http.request = orig;
@@ -86,7 +87,7 @@ test('strict waqi leaves aqiTrend untouched when no station (slot shows --)', ()
   const orig = http.request;
   http.request = (url, method, onSuccess) =>
     onSuccess(JSON.stringify({ status: 'error', data: 'Unknown station' }));
-  const provider = { fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T', startTime: START };
+  const provider = { options: fetchOptions.defaults({ fetchAqi: true, aqiSource: 'waqi', aqicnToken: 'T' }), startTime: START };
   let done = false;
   aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
   http.request = orig;
@@ -106,7 +107,7 @@ test('auto falls back to Open-Meteo US field when WAQI has no station', () => {
       onSuccess(JSON.stringify({ hourly: { time: [START], us_aqi: [77] } }));
     }
   };
-  const provider = { fetchAqi: true, aqiSource: 'auto', aqicnToken: 'T', startTime: START };
+  const provider = { options: fetchOptions.defaults({ fetchAqi: true, aqiSource: 'auto', aqicnToken: 'T' }), startTime: START };
   let done = false;
   aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
   http.request = orig;
@@ -123,7 +124,7 @@ test('empty token degrades a waqi source to Open-Meteo US (dev builds)', () => {
     if (url.indexOf('api.waqi.info') !== -1) { waqiCalled = true; }
     onSuccess(JSON.stringify({ hourly: { time: [START], us_aqi: [55] } }));
   };
-  const provider = { fetchAqi: true, aqiSource: 'waqi', aqicnToken: '', startTime: START };
+  const provider = { options: fetchOptions.defaults({ fetchAqi: true, aqiSource: 'waqi', aqicnToken: '' }), startTime: START };
   let done = false;
   aq.fetchAqiInto(provider, 1, 2, () => { done = true; });
   http.request = orig;
@@ -192,7 +193,7 @@ function fetchCyclesOnOneProvider(aqiSettings, responders) {
   const origSend = outbox.sendWeather;
   const sent = [];
   const provider = new WeatherProvider();
-  Object.assign(provider, aqiSettings);
+  provider.options = fetchOptions.defaults(aqiSettings);
   let cycleStart = START;
   provider.withCityName = (lat, lon, done) => done('Town', 'DE');
   provider.withSunEvents = (lat, lon, done) => done([{ type: 'sunrise', date: new Date(START * 1000) }]);

@@ -17,6 +17,7 @@ var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, onSuccess, onError); };
 const WundergroundProvider = require('../src/pkjs/weather/wunderground.js');
 const isPlausiblePressure = require('../src/pkjs/weather/pressure-plausibility.js').isPlausiblePressure;
+const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 
 function round4(n) { return Math.round(n * 10000) / 10000; }
 
@@ -428,7 +429,7 @@ test('WU + steadman recomputes feels from rh/wspd and the observation\'s humidit
     ] }));
   };
   const p = new WundergroundProvider();
-  p.feelsFormula = 'steadman';
+  p.options = fetchOptions.defaults({ feelsFormula: 'steadman' });
   withMockedNow(NOW_HOUR + 800, function() {
     p.withProviderData(0, 0, false, function() {},
       function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
@@ -449,10 +450,91 @@ test('WU + steadman keeps the observation\'s temperatureFeelsLike when it lacks 
     ] }));
   };
   const p = new WundergroundProvider();
-  p.feelsFormula = 'steadman';
+  p.options = fetchOptions.defaults({ feelsFormula: 'steadman' });
   withMockedNow(NOW_HOUR + 800, function() {
     p.withProviderData(0, 0, false, function() {},
       function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
   });
   assert.equal(p.currentFeels, 57);
+});
+
+// --- the provider seam: mapped forecast + adoptMapped's gates ------------------
+
+test('WU lands the feed\'s UV when options.fetchUv is on', () => {
+  responder = respondWith([
+    { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 3, fcst_valid: NOW_HOUR },
+    // a missing uv_index reads as 0, as before
+    { temp: 60, pop: 0, qpf: 0, wspd: 0, gust: 0, fcst_valid: NOW_HOUR + HOUR }
+  ], 71);
+  const p = new WundergroundProvider();
+  p.options = fetchOptions.defaults({ fetchUv: true });
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.deepEqual(p.uvTrend, [3, 0]);
+});
+
+test('WU leaves uvTrend empty when options.fetchUv is off, also on a reused instance', () => {
+  responder = respondWith([
+    { temp: 50, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 3, fcst_valid: NOW_HOUR },
+    { temp: 60, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 5, fcst_valid: NOW_HOUR + HOUR }
+  ], 71);
+  const p = new WundergroundProvider();
+  p.options = fetchOptions.defaults({ fetchUv: true });
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.deepEqual(p.uvTrend, [3, 5], 'precondition: the first cycle adopted UV');
+
+  // The UV selection went away: the next cycle's options turn fetchUv off.
+  p.options = fetchOptions.defaults({ fetchUv: false });
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.deepEqual(p.uvTrend, [], 'no stale UV from the previous cycle');
+  assert.deepEqual(p.tempTrend, [50, 60], 'the rest of the forecast still lands');
+});
+
+test('WU drops feels-like when options.fetchFeels is off', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/wx/observations/current') !== -1) {
+      onSuccess(JSON.stringify({ temperature: 71, temperatureFeelsLike: 66.4, relativeHumidity: 60, windSpeed: 5 }));
+      return;
+    }
+    onSuccess(JSON.stringify({ forecasts: [
+      { temp: 50, feels_like: 44, rh: 60, pop: 0, qpf: 0, wspd: 0, gust: 0, uv_index: 0, fcst_valid: NOW_HOUR }
+    ] }));
+  };
+  const p = new WundergroundProvider();
+  p.options = fetchOptions.defaults({ fetchFeels: false });
+  withMockedNow(NOW_HOUR + 800, function() {
+    p.withProviderData(0, 0, false, function() {},
+      function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  });
+  assert.deepEqual(p.feelsTrend, []);
+  assert.equal(p.currentFeels, null);
+});
+
+test('WU mapForecast emits only MAPPED_KEYS, including every core key', () => {
+  const MAPPED_KEYS = WeatherProvider.MAPPED_KEYS;
+  const mapped = WundergroundProvider.mapForecast([
+    { temp: 50, feels_like: 44, rh: 60, pop: 40, qpf: 0.1, wspd: 10, gust: 20, uv_index: 3,
+      mslp: 30.09, dewpt: 44, wdir: 270, fcst_valid: NOW_HOUR }
+  ], { temp: 71, feels: 66.4, humidity: 55, windKmh: 8 });
+  Object.keys(mapped).forEach(function(key) {
+    assert.ok(MAPPED_KEYS.all.indexOf(key) !== -1, key + ' is in MAPPED_KEYS.all');
+  });
+  MAPPED_KEYS.core.forEach(function(key) {
+    assert.ok(Object.prototype.hasOwnProperty.call(mapped, key), 'core key ' + key + ' is mapped');
+  });
+  // WU sources an API feels-like AND humidity: the resolver inputs ride along
+  // raw, so adoptMapped (not the adapter) applies the formula.
+  assert.deepEqual(mapped.feelsTrend, [44]);
+  assert.deepEqual(mapped.humidityTrend, [60]);
+  assert.equal(mapped.currentFeels, 66.4);
+  assert.equal(mapped.currentHumidity, 55);
+  assert.equal(mapped.currentWindKmh, 8);
 });
