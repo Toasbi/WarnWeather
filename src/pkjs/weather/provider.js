@@ -7,8 +7,7 @@ var clampByte = wireUnits.clampByte;
 var zeroFilledArray = wireUnits.zeroFilledArray;
 var airQuality = require('./air-quality.js');
 var pollen = require('./pollen.js');
-var hourlyWindow = require('./hourly-window.js');
-var uvDayRecord = require('./uv-day-record.js');
+var dayPeaks = require('./day-peaks.js');
 var feelsLike = require('./feels-like.js');
 
 // The XHR helper + failure shape live in http.js (a leaf, so the auxiliary
@@ -45,15 +44,23 @@ var WeatherProvider = function() {
     // UV is opt-in and not every provider has it: leave it empty so getPayload
     // emits an empty UV series (→ the UV line stays off) unless a provider fills it.
     this.uvTrend = [];
-    // The UV peak of today's hours before uvTrend's entry 0, back to the last
-    // one that printed below today's remaining peak (UV index; 0 when none came
-    // between, null when unknown), from the record earlier fetches left
-    // (uv-day-record.js). Set per fetch; getPayload hands it to the UV slot's
-    // day max as UV_DAY_PEAKS' third entry.
-    this.uvEarlierPeak = null;
+    // The status slots' day max (day-peaks.js), all set per fetch: which
+    // metric codes a slot shows a peak for (index.js, from status-line-catalog's
+    // dayMaxInUse; null = all, the fail-safe direction like fetchFeels), the
+    // user's wind unit the wind/gust records judge a dip in (index.js), and each
+    // metric's peak of today's hours already begun (day-peaks' recall, in
+    // fetchWithCoordinates; getPayload hands it on as the triples' third entry).
+    this.dayPeakCodes = null;
+    this.windUnits = 'kph';
+    this.earlierPeaks = {};
     // AQI is opt-in (status slot only); empty → the slot shows '--' unless a
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.aqiTrend = [];
+    // Which hourly AQI FORECAST aqiTrend holds (air-quality.js sets it, per
+    // scale), or null when it holds no forecast: WAQI reports the current
+    // reading alone, which says nothing about the day's peak, so the AQI slot's
+    // day max only runs on the Open-Meteo forecast.
+    this.aqiFeedId = null;
     // Pollen is opt-in and DWD-only; null renders as '--' unless the auxiliary
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.pollenToday = null;
@@ -572,20 +579,15 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 // Open-Meteo window aligned to the previous startTime).
                 var self = this;
                 self.aqiTrend = [];
+                self.aqiFeedId = null;
                 airQuality.fetchAqiInto(this, lat, lon, function() {
                     self.pollenToday = null;
                     pollen.fetchPollenInto(self, lat, lon, function() {
-                        // The UV day record only refines the UV slot's day max: a
-                        // storage failure leaves that on its plain rule, never the
-                        // fetch failed.
-                        var uvRecord = null;
-                        try {
-                            uvRecord = self.recallUvDay(lat, lon);
-                        }
-                        catch (exUvRecall) {
-                            self.uvEarlierPeak = null;
-                            console.log('[!] Reading the UV day record failed: ' + exUvRecall.message);
-                        }
+                        // The day records only refine the slots' day max: a storage
+                        // failure leaves that on its plain rule, never the fetch
+                        // failed.
+                        var recalled = dayPeaks.recall(self, lat, lon);
+                        self.earlierPeaks = recalled.earlier;
                         // This runs inside an XHR callback: a throw here would
                         // escape every try and leave the fetch unfinished, so it
                         // is reported as a failure instead.
@@ -605,16 +607,9 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                             console.log('Dropping the payload of an abandoned weather fetch.');
                             return;
                         }
-                        // Only a current fetch's UV series joins the record: an
-                        // abandoned one's is older than what a newer fetch stores.
-                        if (uvRecord) {
-                            try {
-                                uvDayRecord.save(uvRecord);
-                            }
-                            catch (exUvSave) {
-                                console.log('[!] Storing the UV day record failed: ' + exUvSave.message);
-                            }
-                        }
+                        // Only a current fetch's series join the records: an
+                        // abandoned one's are older than what a newer fetch stores.
+                        dayPeaks.saveAll(recalled.records);
                         // The outbox sends only the categories that changed since
                         // the last ACKed message — possibly nothing, which still
                         // counts as a successful fetch.
@@ -638,31 +633,6 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
             onFailure(sunFailure || failure('sun_events', 'unknown_error'));
         });
     }).bind(this));
-};
-
-/**
- * Look up the UV peak of today's hours already begun, back to the last hour
- * that printed below today's remaining peak (this.uvEarlierPeak, for
- * getPayload), in the record earlier fetches left, and build the record with
- * this fetch's UV series added. The caller stores it once the fetch is known to
- * be current. Without a UV series nothing is read or built.
- *
- * @param {number|string} lat Latitude of this fetch (manual ones arrive as strings).
- * @param {number|string} lon Longitude of this fetch.
- * @returns {?Object} The record to store, or null when there is no UV series.
- */
-WeatherProvider.prototype.recallUvDay = function(lat, lon) {
-    this.uvEarlierPeak = null;
-    if (!this.uvTrend || !this.uvTrend.length || typeof this.startTime !== 'number') {
-        return null;
-    }
-    // Keyed by the UV FEED, not the provider: DWD's UV is Open-Meteo's.
-    var source = { id: this.uvFeedId || this.id, lat: Number(lat), lon: Number(lon) };
-    var nowEpoch = Math.floor(Date.now() / 1000);
-    var record = uvDayRecord.merge(uvDayRecord.load(), source, this.uvTrend, this.startTime, nowEpoch);
-    var rest = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime, nowEpoch)[0];
-    this.uvEarlierPeak = uvDayRecord.earlierPeak(record, source, this.startTime, nowEpoch, rest);
-    return record;
 };
 
 /**
@@ -822,20 +792,9 @@ WeatherProvider.prototype.getPayload = function() {
     if (this.windDirTrend && this.windDirTrend.length) {
         payload.WIND_DIR_TREND = this.windDirTrend.slice(0, numEntries); // degrees 0-359, "comes from"
     }
-    // The UV slot's day-max modes: [rest of today's peak, tomorrow's peak, the
-    // peak of today's hours already begun] in tenths (null = unknown). The first
-    // two are read off the FULL uvTrend — it reaches UV_HOURS, past the 24h
-    // window UV_TREND_UINT8 is cut to; the clock picks which local day is today.
-    // The third comes from earlier fetches, back to the last dip below the first
-    // (recallUvDay). Emitted only alongside
-    // a sourced UV series. Transient PKJS-only: formatValue/displayValue consume
-    // it, forecast-series deletes it before send.
-    if (uvs.length) {
-        payload.UV_DAY_PEAKS = hourlyWindow.localDayPeaks(this.uvTrend, this.startTime,
-            Math.floor(Date.now() / 1000))
-            .concat([typeof this.uvEarlierPeak === 'number' ? this.uvEarlierPeak : null])
-            .map(function (peak) { return peak === null ? null : clampByte(peak * 10); });
-    }
+    // The day-max slots' *_DAY_PEAKS triples (day-peaks.js), with the earlier
+    // peaks this fetch recalled.
+    dayPeaks.addToPayload(payload, this, this.earlierPeaks);
     return payload;
 };
 

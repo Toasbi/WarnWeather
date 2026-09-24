@@ -28,17 +28,15 @@ function renderSignature(settings) {
     var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine,
         settings.barSource, settings.windScale, settings.pressureScale,
         // Status-line bake inputs: value formatting...
-        settings.temperatureUnits, settings.tempSlotDisplay, settings.uvSlotDisplay,
+        settings.temperatureUnits, settings.tempSlotDisplay,
         settings.axisTimeFormat,
         settings.timeShowAmPm, settings.timeLeadingZero, settings.healthMode,
-        // ...the two-value slots' presentation (status-pair.js: separator, spacing,
-        // order, UV's next-day mark, and the custom separator text -- editing that
-        // re-bakes the pair while the separator itself stays 'custom')...
+        // ...the temp slot's two-value presentation (status-pair.js: separator,
+        // spacing, order, and the custom separator text -- editing that re-bakes the
+        // pair while the separator itself stays 'custom'; the day-max kinds' own
+        // mode and pair settings join from the catalog's table below)...
         settings.tempSlotSeparator, settings.tempSlotSeparatorCustom,
         settings.tempSlotSeparatorSpaced, settings.tempSlotOrder,
-        settings.uvSlotSeparator, settings.uvSlotSeparatorCustom,
-        settings.uvSlotSeparatorSpaced, settings.uvSlotOrder,
-        settings.uvSlotNextDayMark,
         // ...the unit pickers (change baked/fetched values: wind & distance rebake,
         // AQI source/scale refetch)...
         settings.windUnits, settings.distanceUnits, settings.aqiScale, settings.aqiSource,
@@ -63,6 +61,12 @@ function renderSignature(settings) {
     var unitToggles = statusCatalog.UNIT_TOGGLES;
     for (var u = 0; u < unitToggles.length; u++) {
         parts.push(settings[unitToggles[u].key]);
+    }
+    // ...the day-max slots' display modes and pair presentation (UV, wind, gusts,
+    // AQI — status-pair.js), from the catalog's table for the same reason...
+    var dayMaxKeys = statusCatalog.dayMaxSettingKeys();
+    for (var d = 0; d < dayMaxKeys.length; d++) {
+        parts.push(settings[dayMaxKeys[d]]);
     }
     // ...and the twelve slot selections themselves, each followed by its countdown
     // target date (status-lines.js bakes the day count from '<slot>Countdown') —

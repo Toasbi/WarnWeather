@@ -158,6 +158,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // Tracks temps a few degrees under (wind chill through the shower + the
         // breezy night) — the gap between the two curves is the story it tells.
         var feels  = [21, 21, 19, 17, 15, 13, 12, 11, 11, 12, 15, 17];
+        // Climbs toward the temperature through the shower (the air saturates), then
+        // settles a few degrees under the cool night temps.
+        var dew    = [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, 13];
         // Falls into the shower (slots 2-4), dips to a below-floor low at slot 4 (984 hPa,
         // below the 'low' band's 990 floor — exercises the floor-clamp-not-skip dot
         // behavior below), then recovers as it clears — the same weather story the other
@@ -173,25 +176,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var pitch = plotW / (n - 1);
         var tickX = function (i) { return PX0 + i * pitch; };              // line vertex / hour tick x
         var gapCenter = function (i) { return PX0 + (i + 0.5) * pitch; };  // bar / dot column centre
-        // Joint temp∪feels axis (mirrors forecast-series.applyForecastSeries): with
-        // feels on either line both curves rescale against the union band so the gap
-        // between them is real, and the band is padded on whichever side feels
-        // overshoots the temperature so that curve lands clear of the plot edge
-        // instead of flat against it (FEELS_EDGE_CLEARANCE_PERMILLE = 40 ‰ there —
+        // Joint temperature axis (mirrors forecast-series.applyForecastSeries): with
+        // feels or dew on either line every curve rescales against the union band so
+        // the gaps between them are real, and the band is padded on whichever side
+        // they overshoot the temperature so that curve lands clear of the plot edge
+        // instead of flat against it (TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40 ‰ there —
         // pad = ceil(span * 40/960)). The hi/lo LABELS are not this band: they stay
         // the actual temperature range, which is why tmin/tmax and tLabelMin/Max part
         // company here.
-        var feelsOn = state.secondaryLine === 'feels' || state.thirdLine === 'feels';
+        var axisSeries = [];
+        var AXIS_SAMPLES = { feels: feels, dew: dew };
+        [state.secondaryLine, state.thirdLine].forEach(function (m) {
+            if (lineStyle.isTempAxisMetric(m)) { axisSeries = axisSeries.concat(AXIS_SAMPLES[m]); }
+        });
         var tLabelMin = Math.min.apply(null, temps), tLabelMax = Math.max.apply(null, temps);
         var tmin = tLabelMin, tmax = tLabelMax;
-        if (feelsOn) {
-            var jMin = Math.min(tmin, Math.min.apply(null, feels));
-            var jMax = Math.max(tmax, Math.max.apply(null, feels));
+        if (axisSeries.length) {
+            var jMin = Math.min(tmin, Math.min.apply(null, axisSeries));
+            var jMax = Math.max(tmax, Math.max.apply(null, axisSeries));
             var jPad = Math.max(1, Math.ceil((jMax - jMin) * 40 / 960));
             tmin = jMin < tLabelMin ? jMin - jPad : jMin;
             tmax = jMax > tLabelMax ? jMax + jPad : jMax;
         }
-        // Configurable curve offset: the temp axis (temp + feels via tempAxis
+        // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric
         // below) is inset symmetrically from the shared full-height band
         // ([PT+3 .. PB], the mapping every other metric uses), mirroring the
         // watch's per-series inset_y (fixed 7 px — not a user setting). Scale:
@@ -208,16 +215,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
         // Only pressure sets `min` (a non-zero floor); every other metric defaults to 0.
-        // feels has neither: it rides the shared temperature axis (tempAxis), so it
-        // maps through yT like the temp curve instead of a 0..max scale.
+        // feels and dew have neither: they ride the shared temperature axis
+        // (lineStyle.isTempAxisMetric), so they map through yT like the temp curve
+        // instead of a 0..max scale.
         var METRIC = {
             precip_prob: { vals: precip, max: 100, fill: true },
             wind: { vals: wind, max: windMax },
             gust: { vals: gust, max: windMax },
             uv: { vals: uv, max: 11 },
             pressure: { vals: pressure, curve: pCurve },
-            feels: { vals: feels, tempAxis: true }
+            feels: { vals: feels },
+            dew: { vals: dew }
         };
+        Object.keys(METRIC).forEach(function (k) { METRIC[k].tempAxis = lineStyle.isTempAxisMetric(k); });
         // The graph strokes, as SVG colours. Every rule that used to be restated
         // here — the effective-colour gate, the per-polarity colours, gust's coupling to
         // the rain bars and the B&W arm's exactly-white→black readability flip — lives in
@@ -348,7 +358,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * The closed area path under a metric's curve — the `d` string both the day fill
          * and the night tint paint. Factored out so the tint re-draws the SAME geometry
          * rather than a second, drifting copy of it.
-         * @param {string} metric precip_prob|wind|gust|uv|pressure|feels
+         * @param {string} metric precip_prob|wind|gust|uv|pressure|feels|dew
          * @returns {?string} SVG path data, or null when the metric has no curve.
          */
         function areaPathFor(metric) {
@@ -408,7 +418,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * zero_absent flag in chart.c), so the stroke breaks into one path per
          * contiguous run of non-zero samples; a lone sample between gaps becomes a
          * small stroke-width square, mirroring chart_render_line's run == 1 arm.
-         * Band-scaled metrics (pressure, feels) never null, so they stay one path.
+         * Band-scaled metrics (pressure, feels, dew) never null, so they stay one path.
          * The fill (if any) is drawn separately by areaFillFor() — see its doc
          * comment for why.
          * @param {string} metric The metric the colour was resolved for.
@@ -520,7 +530,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * @returns {{markup: string, height: number}} Legend markup + total frame height.
          */
         function drawLegend() {
-            var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure', feels: 'Feels' };
+            var LABEL = { precip_prob: 'Precip %', wind: 'Wind', gust: 'Gust', uv: 'UV', pressure: 'Pressure', feels: 'Feels', dew: 'Dew' };
             /**
              * One legend entry, glyph kind chosen by the line's style.
              * @param {string} style 'line'|'bold'|'dots'|'x'.
@@ -633,7 +643,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // Hi/lo labels are the ACTUAL temperature range (TEMP_MIN/TEMP_MAX on the
         // wire), never the padded scaling band — the watch prints them as text
         // (forecast_layer.c text_labels_refresh) and a low the air never reached
-        // would be a lie. With feels off the two are identical.
+        // would be a lie. With feels and dew off the two are identical.
         e += txt(3, PT + 11, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
         e += drawAxis();
         e += legend.markup;

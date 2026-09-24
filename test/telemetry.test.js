@@ -622,7 +622,7 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // send() logs the non-2xx and nothing retries it. So the heaviest realistic envelope has
 // to stay under the cap with room left to grow.
 // Ledger (MEASURED — read the byte count off this test's own console line, never
-// arithmetic): 3449 B of 4096, headroom 647. The six colours are 169 B of that, and that
+// arithmetic): 3683 B of 4096, headroom 413. The six colours are 169 B of that, and that
 // is their WORST case however they are set: '#RRGGBB' and 'default' are both seven
 // characters. This envelope was 2787 B before them, and 2956 B before the Nighttime card
 // (the eight new settings fields, the four themeAuto ones this fixture had never switched
@@ -632,7 +632,8 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // (3363 before them). uvSlotDisplay, reported all along but left out of this fixture
 // until the unset-field check below was added, is 26 B (3423 before it). The third
 // metric line's fields (fourthLine, the three per-line styles and graphThirdColor)
-// are 125 B (3449 before them).
+// are 125 B (3449 before them). The wind/gust/AQI day-max display modes are 83 B
+// (3600 before them; their pair presentation is deliberately not reported).
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -649,6 +650,7 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     tempSlotSeparator: 'brackets', tempSlotOrder: 'actual', uvSlotSeparator: 'brackets',
     uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo',
     tempSlotSeparatorSpaced: true, uvSlotSeparatorSpaced: true,
+    windSlotDisplay: 'current', gustSlotDisplay: 'current', aqiSlotDisplay: 'current',
     dateSlotMonthFormat: 'name', dateSlotFullFormat: 'textyear',
     aqiSource: 'openmeteo', windUnits: 'beaufort', distanceUnits: 'imperial',
     windSlotDirection: true, gustSlotDirection: true,

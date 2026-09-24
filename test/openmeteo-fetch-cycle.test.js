@@ -106,7 +106,7 @@ test('the aux gusts land in the same slot as the main call\'s rain for the same 
   assert.equal(p.startTime, BASE + 18 * HOUR);
   assert.deepEqual(p.rainTrend.slice(0, 2), [4, 0], 'rain in the 18:00-19:00 slot');
   assert.deepEqual(p.gustTrend.slice(0, 2), [70, 20], 'gust in the 18:00-19:00 slot');
-  assert.equal(p.gustTrend.length, 24);
+  assert.equal(p.gustTrend.length, 49, 'PEAK_HOURS deep for the gust slot\'s day max');
 });
 
 /** @returns {Object} UV response; the value at each hour is its GMT hour, so misalignment shows. */

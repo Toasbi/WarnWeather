@@ -3,6 +3,7 @@ var request = WeatherProvider.request;
 var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('./hourly-window.js');
+var dayPeaks = require('./day-peaks.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 
@@ -141,7 +142,9 @@ function mapResponse(json, nowEpoch) {
                 return p / 100;
             }),
         rainTrend: precedingHourSlice(hourly.precipitation, anchor, times.length, 0),
-        windTrend: hourly.windspeed_10m.slice(anchor, end),
+        // Wind reads on to PEAK_HOURS for the wind slot's day max (the 72
+        // buckets always hold it); getPayload cuts it back to the graph's window.
+        windTrend: hourly.windspeed_10m.slice(anchor, anchor + hourlyWindow.PEAK_HOURS),
         gustTrend: precedingHourSlice(hourly.windgusts_10m, anchor, times.length, null),
         // Optional, unlike the guarded fields above: an absent series degrades to
         // line-off rather than failing the whole fetch. Verified 2026-08-12 that the
@@ -211,14 +214,19 @@ function buildForecastUrl(lat, lon) {
  * per-request, so the °F ask must repeat here (it governs dew point too, so the
  * dew mapper converts nothing). Mirrors the main request's unixtime/GMT/km-h
  * conventions so the hourly buckets line up with the main window by
- * timestamp; two GMT days already hold every bucket its window reads (the
- * gust's startTime + 24 h included), so it stays at forecast_days=2.
+ * timestamp. Two GMT days hold every bucket the graph's window reads (the gust's
+ * startTime + 24 h included); four while the gust slot shows its day max, whose
+ * window reads on to PEAK_HOURS (to the end of tomorrow, plus the
+ * one-bucket-ahead stamp — in a zone ahead of GMT on a 25 h fall-back day that
+ * lands on a fourth GMT day, as it does for UV). The other three fields keep
+ * FORECAST_HOURS.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
+ * @param {boolean} [gustPeak] Whether the gust slot shows its day max.
  * @returns {string} Fully-formed aux (gust/feels/dew/bearing) request URL.
  */
-function buildGustUrl(lat, lon) {
+function buildGustUrl(lat, lon, gustPeak) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
@@ -231,7 +239,7 @@ function buildGustUrl(lat, lon) {
         + '&windspeed_unit=kmh'
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&forecast_days=2';
+        + '&forecast_days=' + (gustPeak ? 4 : 2);
 }
 
 // hourly-window owns the timestamp-indexed remap (air-quality.js shares it —
@@ -241,21 +249,22 @@ var alignHourly = hourlyWindow.alignHourly;
 var feelsLike = require('./feels-like.js');
 
 /**
- * Extract a FORECAST_HOURS gust window aligned to a forecast start time.
- * windgusts_10m is the max "of the preceding hour", so slot i (the hour
- * starting at startTime + i h) reads the bucket stamped one hour later — the
- * same one-bucket-ahead rule mapResponse applies. The aux call's 48 GMT
- * buckets always hold the startTime + 24 h stamp this needs. Missing or
+ * Extract a PEAK_HOURS gust window aligned to a forecast start time — the
+ * graph's FORECAST_HOURS plus the rest the gust slot's day max reads (getPayload
+ * cuts the graph's part back out). windgusts_10m is the max "of the preceding
+ * hour", so slot i (the hour starting at startTime + i h) reads the bucket
+ * stamped one hour later — the same one-bucket-ahead rule mapResponse applies.
+ * With the gust day max on, the aux call's four GMT days hold every stamp this needs. Missing or
  * non-numeric buckets become null, which getPayload coerces to 0 — i.e.
  * rendered as no gust for that hour.
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response carrying windgusts_10m.
  * @param {number} startTime Window start in epoch seconds (the main forecast's startTime).
- * @returns {Array.<(number|null)>|null} FORECAST_HOURS gust values in km/h (null where
+ * @returns {Array.<(number|null)>|null} PEAK_HOURS gust values in km/h (null where
  *   absent), or null when the response is malformed.
  */
 function mapGusts(json, startTime) {
-    return alignHourly(json, 'windgusts_10m', startTime + HOUR_SECONDS);
+    return alignHourly(json, 'windgusts_10m', startTime + HOUR_SECONDS, hourlyWindow.PEAK_HOURS);
 }
 
 /**
@@ -380,15 +389,16 @@ function adoptFeels(provider, json) {
  * Ireland to the Met Office UKV model, whose UV is an instant at the stamp, so
  * the same stamp meant two different hours depending on where the watch was.
  * With GFS everywhere, mapUv reads one bucket ahead for every location. Four
- * GMT days, not two: the UV window reaches UV_HOURS ahead so the UV slot can
- * name TOMORROW's peak, the end of the phone's local tomorrow can fall on the
+ * GMT days while the UV slot shows its day max (two hold the graph's window):
+ * the UV window reaches PEAK_HOURS ahead so the UV slot can name TOMORROW's peak, the end of the phone's local tomorrow can fall on the
  * third GMT day (far-east zones early in their morning), and the one-bucket-
  * ahead read reaches an hour past that.
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
+ * @param {boolean} [dayPeak] Whether the UV slot shows its day max.
  * @returns {string} Fully-formed UV request URL.
  */
-function buildUvUrl(lat, lon) {
+function buildUvUrl(lat, lon, dayPeak) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
@@ -396,11 +406,11 @@ function buildUvUrl(lat, lon) {
         + '&timeformat=unixtime'
         + '&timezone=GMT'
         + '&models=ncep_gfs_global'
-        + '&forecast_days=4';
+        + '&forecast_days=' + (dayPeak ? 4 : 2);
 }
 
 /**
- * Extract a UV_HOURS UV window aligned to a forecast start time — longer than the
+ * Extract a PEAK_HOURS UV window aligned to a forecast start time — longer than the
  * forecast window, so the UV slot can place tomorrow's peak (the graph still takes
  * only the first FORECAST_HOURS; getPayload slices) — indexing the
  * response's hourly uv_index by timestamp (so a feed whose offset differs still
@@ -415,7 +425,7 @@ function buildUvUrl(lat, lon) {
  * @returns {Array.<(number|null)>|null} UV values, or null when malformed.
  */
 function mapUv(json, startTime) {
-    return alignHourly(json, 'uv_index', startTime + HOUR_SECONDS, hourlyWindow.UV_HOURS);
+    return alignHourly(json, 'uv_index', startTime + HOUR_SECONDS, hourlyWindow.PEAK_HOURS);
 }
 
 /**
@@ -434,7 +444,7 @@ function mapUv(json, startTime) {
 function fetchUvInto(provider, lat, lon, done) {
     if (!provider.fetchUv) { done(); return; }
     provider.uvTrend = []; // this fetch owns the field (see adoptMapped)
-    var uvUrl = buildUvUrl(lat, lon);
+    var uvUrl = buildUvUrl(lat, lon, dayPeaks.wanted(provider, 'uv'));
     request(uvUrl, 'GET', function(resp) {
         var uvs = null;
         try { uvs = mapUv(JSON.parse(resp), provider.startTime); }
@@ -471,7 +481,7 @@ OpenMeteoProvider.prototype.withProviderData = function(lat, lon, force, onSucce
         // call just leaves the defaults, so the gust/feels lines stay hidden,
         // the dew slot shows '--' and the wind arrow is omitted rather than
         // failing the whole forecast.
-        var gustUrl = buildGustUrl(lat, lon);
+        var gustUrl = buildGustUrl(lat, lon, dayPeaks.wanted(this, 'gust'));
         request(gustUrl, 'GET', (function(gustResponse) {
             var aux = null;
             var gusts = null;

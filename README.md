@@ -24,7 +24,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Forecast**
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
-* Configurable metrics such as precipitation, UV index, gusts, wind, air pressure, and feels-like temperature (drawn as a muted second line on the temperature scale)
+* Configurable metrics such as precipitation, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
 * Up to three metric lines at once, each in its own style — thin or thick line, square dots, or little x marks (third metric and style selection on watches with enough memory, not Pebble Classic/Steel)
 * Optional day/night shading
 * Recolor the forecast graph per metric
@@ -74,8 +74,8 @@ Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead. Temperature is
   always shown; on top of it you choose what to add — precipitation %, wind speed, wind gusts,
-  UV index, air pressure (sea-level, in hPa, with a Narrow/Mid/Wide graph scale), or feels-like
-  temperature (drawn muted on the same scale as the temperature curve) as a main
+  UV index, air pressure (sea-level, in hPa, with a Narrow/Mid/Wide graph scale), feels-like
+  temperature or dew point (both drawn on the same scale as the temperature curve) as a main
   metric, an optional second metric, and — on watches with enough memory (not Pebble
   Classic/Steel) — an optional third metric (the same metric can't appear twice), plus optional
   bars for the hourly rain amount. Each metric line has a selectable style: thin or thick solid
@@ -83,7 +83,9 @@ Two things that both involve rain over time, but answer different questions:
   likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
   temperature status slot can also show the feels-like value, or both as `12/10`; the UV index
   slot can show today's highest UV still to come, or both as `3/7`; today's peak stays until the
-  UV drops below it, then tomorrow's shows instead, marked `»` (`4/»8`). How the pair is written
+  UV drops below it, then tomorrow's shows instead, marked `»` (`4/»8`). The wind, gust and air
+  quality slots offer the same day max (air quality with the Open-Meteo AQI provider, whose
+  hourly forecast it needs; WAQI reports the current reading only). How the pair is written
   is up to you: pick the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or
   without spaces around it (`12 / 10`), which value comes first, and how tomorrow's peak is
   marked (`»6`, `>6`, `+6`, `6*` or no mark). Feels-like itself comes in two flavours, picked

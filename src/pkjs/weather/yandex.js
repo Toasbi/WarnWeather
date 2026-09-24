@@ -83,6 +83,22 @@ function hourUv(hour) {
     return typeof hour.uvIndex === 'number' ? hour.uvIndex : 0;
 }
 
+/**
+ * @param {Object} hour A Yandex hourly bucket.
+ * @returns {number} Its wind speed in km/h, 0 when unreported.
+ */
+function hourWind(hour) {
+    return typeof hour.windSpeed === 'number' ? hour.windSpeed : 0;
+}
+
+/**
+ * @param {Object} hour A Yandex hourly bucket.
+ * @returns {number} Its gust speed in km/h, 0 when unreported.
+ */
+function hourGust(hour) {
+    return typeof hour.windGust === 'number' ? hour.windGust : 0;
+}
+
 // hourly-window owns the anchor rule; Yandex hours carry unix-second strings.
 function anchorIndex(hours, nowEpoch) {
     return hourlyWindow.anchorIndex(hours, nowEpoch, hourEpoch);
@@ -117,8 +133,6 @@ function mapResponse(json, nowEpoch) {
     var tempTrend = [];
     var precipTrend = [];
     var rainTrend = [];
-    var windTrend = [];
-    var gustTrend = [];
     var feelsTrend = [];
     var i;
     var hr;
@@ -127,8 +141,6 @@ function mapResponse(json, nowEpoch) {
         tempTrend.push(typeof hr.temperature === 'number' ? hr.temperature : 0);
         precipTrend.push(typeof hr.precProbability === 'number' ? hr.precProbability : 0);
         rainTrend.push(typeof hr.prec === 'number' ? hr.prec : 0);
-        windTrend.push(typeof hr.windSpeed === 'number' ? hr.windSpeed : 0);
-        gustTrend.push(typeof hr.windGust === 'number' ? hr.windGust : 0);
         // Server-side °F like temperature; a missing hour falls back to the
         // mapped temp so the series stays numeric. No humidityTrend on purpose
         // (the GraphQL note in buildQuery), so the Units tab's Steadman
@@ -141,11 +153,12 @@ function mapResponse(json, nowEpoch) {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
-        windTrend: windTrend,
-        gustTrend: gustTrend,
-        // UV alone reads on to UV_HOURS (hourly-window.js). days(limit: 3) carries
-        // the rest of today plus two full days, past the end of tomorrow.
-        uvTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.UV_HOURS, hourEpoch, hourUv),
+        // The day-max series (UV, wind, gusts) read on to PEAK_HOURS
+        // (hourly-window.js). days(limit: 3) carries the rest of today plus two
+        // full days, past the end of tomorrow.
+        windTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.PEAK_HOURS, hourEpoch, hourWind),
+        gustTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.PEAK_HOURS, hourEpoch, hourGust),
+        uvTrend: hourlyWindow.readHourly(hours, anchor, hourlyWindow.PEAK_HOURS, hourEpoch, hourUv),
         feelsTrend: feelsTrend,
         startTime: hourEpoch(hours[anchor]),
         currentTemp: now.temperature,

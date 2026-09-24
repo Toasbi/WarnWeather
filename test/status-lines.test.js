@@ -1298,6 +1298,8 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
       if (!WRITTEN.has(m[1])) { seen.add(m[1]); }
     }
   }
+  // The day-max kinds are read by key through wire-units' dayMaxShown.
+  require('../src/pkjs/wire-units.js').dayMaxPayloadKeys().forEach((k) => seen.add(k));
 
   const declared = new Set(statusLines.SOURCE_KEYS);
   const missing = [...seen].filter((k) => !declared.has(k)).sort();
