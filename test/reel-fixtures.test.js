@@ -235,7 +235,8 @@ test('every screenshot (intro scenes + chapter frames) holds for the same length
 
 test('the reel intro derives from the showcase table: its order, minus reelIntro:false scenes', () => {
   const showcase = require('../scripts/gen-showcase-fixtures');
-  const expected = showcase.SCENES.filter((s) => s.reelIntro !== false).map((s) => s.id);
+  const expected = showcase.SCENES.filter((s) => s.reelIntro !== false && s.inShowcase !== false)
+    .map((s) => s.id);
   assert.deepStrictEqual(reel.INTRO_SCENES, expected,
     'INTRO_SCENES follows the showcase scene order with no local copy');
   assert.ok(showcase.SCENES.some((s) => s.reelIntro === false),

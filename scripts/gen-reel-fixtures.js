@@ -274,7 +274,7 @@ function generateReelFixtures(opts = {}) {
 // skipped on the rest. Reordering the showcase reorders the reel intro with zero edits.
 const SHOWCASE = require('./gen-showcase-fixtures');
 const INTRO_SCENES = SHOWCASE.SCENES
-  .filter((s) => s.reelIntro !== false)
+  .filter((s) => s.reelIntro !== false && s.inShowcase !== false)
   .map((s) => s.id);
 
 /**
@@ -284,7 +284,8 @@ const INTRO_SCENES = SHOWCASE.SCENES
  */
 function introScenesFor(platform) {
   return SHOWCASE.SCENES
-    .filter((s) => s.reelIntro !== false && SHOWCASE.scenePlatforms(s).includes(platform))
+    .filter((s) => s.reelIntro !== false && s.inShowcase !== false
+      && SHOWCASE.scenePlatforms(s).includes(platform))
     .map((s) => s.id);
 }
 

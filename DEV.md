@@ -346,7 +346,10 @@ on every capture) and are guarded by `test/showcase-fixtures.test.js`. Most are 
 the Berlin base; a scene with `fixture` copies a fixture of its own (the Miami scenes).
 The table's ROW ORDER is the GIF and reel order — ids only name the frames
 (`scene_<id>.png`), so moving a scene never renames its frame. A scene with `platforms`
-is captured, shown and put in the reel intro only there.
+is captured, shown and put in the reel intro only there. A scene with `inShowcase: false` is
+captured with the rest but left out of the GIF and the reel intro (the Light-theme Miami
+scenes 10-12, for the store); a fixture-backed scene's `clay` layers on its fixture's
+settings (their `theme: 'light'`).
 
 Health readings and the rain-countdown strip are read live on the watch and don't
 reproduce in a static compile-time fixture, so screenshot builds swap in two canned twins
@@ -356,10 +359,12 @@ reproduce in a static compile-time fixture, so screenshot builds swap in two can
 - a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the exact
   "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" strip.
 
-Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`:
+Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`,
+and only some scenes via `SCENE_IDS` (the other frames stay as they are):
 ```bash
 scripts/capture-showcase.sh <version>                    # aplite basalt flint emery
 PLATFORMS=basalt scripts/capture-showcase.sh <version>   # one platform
+SCENE_IDS="10 11 12" scripts/capture-showcase.sh <version>   # just those scenes
 ```
 It's a thin wrapper over `capture-screenshots.sh` (same pattern as `capture-store-shots.sh`):
 per scene it exports `WW_HEALTH_FIXTURE=1` + `FLICKS=<scene flicks>`, shoots the platforms,

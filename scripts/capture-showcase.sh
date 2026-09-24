@@ -52,6 +52,10 @@ file_scene() {
 
 for i in "${!ids[@]}"; do
   id="${ids[$i]}"; flicks="${flickss[$i]}"; variants="${variantss[$i]}"; plats="${platss[$i]}"
+  # SCENE_IDS="10 11 12" captures only those scenes (the rest keep their frames).
+  if [[ -n "${SCENE_IDS:-}" ]]; then
+    case " $SCENE_IDS " in *" $id "*) ;; *) continue ;; esac
+  fi
 
   # A scene with per-platform variants (emery pinning HR, aplite falling back off health
   # slots) shoots each variant platform from its own fixture; every other platform in

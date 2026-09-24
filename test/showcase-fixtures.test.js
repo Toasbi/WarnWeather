@@ -95,7 +95,7 @@ test('every scene resolves its intended preset through the real Clay settings pi
   const pebbleColors = require('../src/pkjs/pebble-colors.js');
   const viewCycle = require('../src/pkjs/view-cycle.js');
   const expectedPreset = { 1: 'fullCal', 2: 'compactDense', 4: 'compactCal', 5: 'noCal', 6: 'noCal',
-    7: 'compactCal', 8: 'custom', 9: 'noCal' };
+    7: 'compactCal', 8: 'custom', 9: 'noCal', 10: 'compactCal', 11: 'custom', 12: 'noCal' };
 
   const byId = generateIntoTmp();
   for (const scene of SCENES) {
@@ -270,7 +270,8 @@ test('scene 5 tightens the heart-rate scale; scene 6 adds wind + gust as x marks
 });
 
 test('the table order is the showcase order; the Miami scenes follow scene 2 on colour watches', () => {
-  assert.deepStrictEqual(SCENES.map((s) => s.id), [1, 2, 7, 8, 9, 4, 5, 6]);
+  // 10-12 (the Light-theme Miami scenes) are captured but never shown.
+  assert.deepStrictEqual(SCENES.map((s) => s.id), [1, 2, 7, 8, 9, 4, 5, 6, 10, 11, 12]);
   for (const p of ['basalt', 'flint', 'emery']) {
     assert.deepStrictEqual(sceneIdsFor(p), [1, 2, 7, 8, 9, 4, 5, 6], p);
   }
@@ -289,4 +290,28 @@ test('the Miami scenes copy their fixtures verbatim; the radar flick needs one f
   }
   assert.strictEqual(SCENES.find((s) => s.id === 8).flicks, 1);
   assert.strictEqual(byId[8].claySettings.viewStripOff1, true, 'the flick view has no top bar');
+});
+
+test('the Light-theme Miami scenes are the Miami fixtures with theme light, captured only', () => {
+  const byId = generateIntoTmp();
+  const names = { 10: 'miami-stripes-cal', 11: 'miami-radar-flick', 12: 'miami-stripes' };
+  for (const id of Object.keys(names)) {
+    const src = JSON.parse(fs.readFileSync(path.join('fixtures', names[id] + '.json'), 'utf8'));
+    const clay = byId[id].claySettings;
+    assert.strictEqual(clay.theme, 'light', 'scene ' + id + ' is light');
+    // Switched the way the settings page switches a theme: the white clock turns black
+    // (it would vanish on the white face) and the radar bars go solid.
+    assert.strictEqual(clay.colorTime, 0x000000, 'scene ' + id + ' clock is black');
+    assert.strictEqual(clay.radarColor, 'white', 'scene ' + id + ' radar bars are solid');
+    const rest = Object.assign({}, clay);
+    ['theme', 'colorTime', 'radarColor'].forEach((k) => { delete rest[k]; });
+    const srcRest = Object.assign({}, src.claySettings);
+    ['theme', 'colorTime', 'radarColor'].forEach((k) => { delete srcRest[k]; });
+    assert.deepStrictEqual(rest, srcRest, 'scene ' + id + ' otherwise keeps ' + names[id]);
+    assert.deepStrictEqual(byId[id].weather, src.weather);
+    const scene = SCENES.find((s) => s.id === Number(id));
+    assert.strictEqual(scene.inShowcase, false, 'scene ' + id + ' stays out of the GIF');
+    assert.deepStrictEqual(scene.platforms, COLOUR_PLATFORMS);
+  }
+  assert.strictEqual(SCENES.find((s) => s.id === 11).flicks, 1);
 });

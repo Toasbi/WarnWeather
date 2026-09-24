@@ -16,6 +16,34 @@ const path = require('path');
 
 const BASE_PATH = path.join('fixtures', 'berlin.json');
 
+/**
+ * A scene's settings after switching its theme, as the settings page would switch it.
+ * Picking a theme there runs the themeConvert hook, which flips every polarity-dependent
+ * colour still on the old theme's default (the white clock -> black, the bar colour
+ * modes, ...). A fixture sets `theme` directly and would skip that — a Light scene
+ * would keep the white clock on a white face. So run the same conversion
+ * (theme-flip.js) over the settings the watch would hold (the defaults, then the
+ * fixture), and keep what it changed.
+ * @param {Object} clay The fixture's claySettings, without the scene's theme.
+ * @param {string} newTheme The scene's theme.
+ * @returns {Object} claySettings with the theme and the flipped colours.
+ */
+function withTheme(clay, newTheme) {
+  const claySettings = require('../src/pkjs/clay-settings.js');
+  const pebbleColors = require('../src/pkjs/pebble-colors.js');
+  const themeFlip = require('../src/pkjs/theme-flip.js');
+  const defaults = claySettings.getDefaults({ white: pebbleColors.GColorWhite,
+    folly: pebbleColors.GColorFolly, holiday: pebbleColors.GColorBlueMoon });
+  const S = { ...defaults, ...clay };
+  const before = { ...S };
+  themeFlip.applyThemeConvert(S, before.theme || 'dark', newTheme);
+  const out = { ...clay, theme: newTheme };
+  for (const k of Object.keys(S)) {
+    if (S[k] !== before[k]) { out[k] = S[k]; }
+  }
+  return out;
+}
+
 // A round watch.now (minute 0). The forecast/radar anchor is the base startHour, so a
 // minute-0 now lands the rain-countdown's now_slot exactly at radar slot 0 — the crafted
 // segment below is then read starting "now".
@@ -216,6 +244,14 @@ const SCENES = [
     radar: { exact: RAIN_NOW_EXACT, area: RAIN_NOW_AREA },
     countdown: { text: "Rain for 20'", tier: 3 },
   },
+  // The Miami scenes again in the Light theme: captured with the showcase (for the store
+  // and the README) but left out of the GIF and the reel intro (inShowcase: false).
+  { id: 10, flicks: 0, fixture: 'miami-stripes-cal', clay: { theme: 'light' },
+    platforms: COLOUR_PLATFORMS, inShowcase: false },
+  { id: 11, flicks: 1, fixture: 'miami-radar-flick', clay: { theme: 'light' },
+    platforms: COLOUR_PLATFORMS, inShowcase: false },
+  { id: 12, flicks: 0, fixture: 'miami-stripes', clay: { theme: 'light' },
+    platforms: COLOUR_PLATFORMS, inShowcase: false },
 ];
 
 /**
@@ -267,9 +303,15 @@ function generateShowcaseFixtures(opts = {}) {
     const outPath = path.join(outDir, 'showcase-' + scene.id + '.json');
     if (scene.fixture) {
       // A scene backed by a whole fixture of its own (its data, clock and settings
-      // are the scene): copied verbatim, no Berlin base.
+      // are the scene), no Berlin base; `clay` (e.g. a theme) layers on its settings.
       const src = path.join(path.dirname(basePath), scene.fixture + '.json');
-      fs.writeFileSync(outPath, fs.readFileSync(src, 'utf8'));
+      const own = JSON.parse(fs.readFileSync(src, 'utf8'));
+      const { theme, ...rest } = scene.clay || {};
+      own.claySettings = { ...own.claySettings, ...rest };
+      if (theme && theme !== (own.claySettings.theme || 'dark')) {
+        own.claySettings = withTheme(own.claySettings, theme);
+      }
+      fs.writeFileSync(outPath, JSON.stringify(own, null, 2) + '\n');
       written.push(outPath);
       continue;
     }
@@ -296,12 +338,14 @@ function scenePlatforms(scene) {
 }
 
 /**
- * The scene ids a platform shows, in showcase (table) order.
+ * The scene ids a platform's showcase GIF shows, in table order. Capture-only scenes
+ * (`inShowcase: false`) are captured but never shown.
  * @param {string} platform Platform name.
  * @returns {number[]} Scene ids.
  */
 function sceneIdsFor(platform) {
-  return SCENES.filter((s) => scenePlatforms(s).includes(platform)).map((s) => s.id);
+  return SCENES.filter((s) => s.inShowcase !== false && scenePlatforms(s).includes(platform))
+    .map((s) => s.id);
 }
 
 if (require.main === module) {
