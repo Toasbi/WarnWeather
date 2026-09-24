@@ -323,17 +323,25 @@ test('specToKeys ∘ buildViewCycle round-trips byte-identical for every preset 
         }))));
 });
 
-test('buildCustomCycle: slot 0 never carries clockOff/stripOff; flicks do', () => {
+test('buildCustomCycle: slot 0 never drops its clock, but may drop its top bar; flicks both', () => {
   const S = {
     viewCount: '2', healthMode: 'off', radarMode: 'off',
     viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
     viewTop1: 'none', viewBody1: 'forecast', viewUpper1: 'off', viewLower1: 'off', viewOrder1: 'TACB',
-    viewClockOff0: true, viewStripOff0: true,   // hostile: must be ignored
+    viewClockOff0: true,   // hostile: the Default view always shows the time
+    viewStripOff0: true,
     viewClockOff1: true, viewStripOff1: true,
   };
-  const packed = vc.buildCustomCycle(S).map(vc.packSpec);
-  assert.equal(packed[0] & 0xC00, 0, 'default view keeps clock + top bar');
+  const views = vc.buildCustomCycle(S);
+  const packed = views.map(vc.packSpec);
+  assert.equal(packed[0] & 0x400, 0, 'default view keeps its clock');
+  assert.equal(packed[0] & 0x800, 0x800, 'default view may drop its top bar');
   assert.equal(packed[1] & 0xC00, 0xC00, 'flick view carries both flags');
+  // specToKeys writes the Default view's top-bar key back, and never a clock key.
+  const keys = vc.specToKeys(views);
+  assert.equal(keys.viewStripOff0, true);
+  assert.equal(keys.viewClockOff0, undefined);
+  assert.equal(vc.specToKeys(vc.buildCustomCycle(Object.assign({}, S, { viewStripOff0: false }))).viewStripOff0, false);
 });
 
 test('buildCustomCycle: capability folds mirror the watch resolve', () => {

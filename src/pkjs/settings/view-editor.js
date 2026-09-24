@@ -337,8 +337,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Remove an element from view `i`. The clock and top bar only on flicks (the schema
-     * has no slot-0 keys for them anyway); the graph on every view, the Default
+     * Remove an element from view `i`. The clock only on flicks (the schema has no
+     * slot-0 key for it); the top bar and the graph on every view, the Default
      * included. A removal that would leave the view with nothing on screen is refused
      * (removalEmpties).
      * @param {Object} S @param {number} i
@@ -348,7 +348,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function removeElement(S, i, el) {
         var snap;
         if (el === 'topbar') {
-            if (i === 0 || S[k('StripOff', i)]) { return false; }
+            if (S[k('StripOff', i)]) { return false; }
             snap = orderSnapshot(S, i);
             S[k('StripOff', i)] = true;
             keepOrder(S, i, snap);
@@ -436,7 +436,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     function addableElements(S, i) {
         var out = [];
         var pres = presence(S, i);
-        if (i > 0 && S[k('StripOff', i)]) { out.push(['Top bar (battery & date)', 'topbar']); }
+        if (S[k('StripOff', i)]) { out.push(['Top bar (battery & date)', 'topbar']); }
         // 'Top area', not 'Calendar': it lands as a calendar, but it is the seat — its
         // content is picked (calendar, radar, a graph) on the row once it is added.
         if (!pres.T) { out.push(['Top area', 'top']); }
@@ -466,7 +466,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var snap = orderSnapshot(S, i);
         var shown = snap.shown;
         if (kind === 'topbar') {
-            if (i === 0 || !S[k('StripOff', i)]) { return false; }
+            if (!S[k('StripOff', i)]) { return false; }
             S[k('StripOff', i)] = false;
             keepOrder(S, i, snap);
             return true;
@@ -647,7 +647,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var keys = ['viewCount'], i, s;
         for (i = 0; i < 3; i++) {
             for (s = 0; s < VIEW_KEY_STEMS.length; s++) { keys.push(k(VIEW_KEY_STEMS[s], i)); }
-            if (i > 0) { keys.push(k('ClockOff', i)); keys.push(k('StripOff', i)); }
+            if (i > 0) { keys.push(k('ClockOff', i)); }
+            keys.push(k('StripOff', i));
         }
         return keys;
     }
@@ -896,10 +897,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var pres = presence(S, i);
         var ord = displayOrder(S, i);   // what the watch renders, not the stored letters
         var body = previewHtml(S, i);
-        if (i === 0 || !S[k('StripOff', i)]) {
+        if (!S[k('StripOff', i)]) {
+            // Every view may drop its top bar — the Default view too; only its clock
+            // is fixed.
             body += rowHtml({
-                label: 'Top bar', value: 'battery · date', fixed: true,
-                del: i > 0 ? 'topbar' : null
+                label: 'Top bar', value: 'battery · date', fixed: true, del: 'topbar'
             });
         }
         var j;

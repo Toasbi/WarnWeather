@@ -134,16 +134,15 @@ static ViewSpec unpack_slot_spec(uint16_t value) {
 // The ViewSpec for the view currently on screen.
 static ViewSpec current_view_spec(void) {
 #if defined(WW_VIEW_CYCLE)
-    // Belt for the phone-side guard: the DEFAULT view always keeps its clock and its
-    // top strip, whatever the wire says. The compiler never emits either bit on slot 0
-    // and the editor offers no toggle there, but a watch that shows no time is a
-    // product-breaking failure worth two compares. unpack/resolve stay slot-blind
-    // (no signature carries an index), so the one call site that knows s_view_index
-    // is where the rule lives.
+    // Belt for the phone-side guard: the DEFAULT view always keeps its clock, whatever
+    // the wire says. The compiler never emits clock_off on slot 0 and the editor offers
+    // no ✕ there, but a watch that shows no time is a product-breaking failure worth a
+    // compare. Its top strip is the user's call (the Default view may drop it, like a
+    // flick view). unpack/resolve stay slot-blind (no signature carries an index), so
+    // the one call site that knows s_view_index is where the rule lives.
     ViewSpec spec = unpack_slot_spec(s_view_index);
     if (s_view_index == 0) {
         spec.clock_off = 0;
-        spec.strip_off = 0;
     }
     return spec;
 #else

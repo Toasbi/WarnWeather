@@ -191,7 +191,7 @@ typedef struct {
     // twin never reads these bits, so the guard keeps aplite's struct — and every byte of its
     // copy/codegen — identical to pre-custom builds.
     uint8_t clock_off;      // 1 = this view omits the clock band (flick views only)
-    uint8_t strip_off;      // 1 = this view omits the top status strip (flick views only)
+    uint8_t strip_off;      // 1 = this view omits the top status strip (any view)
     uint8_t order;          // canonical band-order code; 0 = the legacy fixed order
     // Custom layout v2 — decoded from the EXT word (the high half of the CLAY_VIEW_n
     // int32, persisted as Config.view_ext) by view_spec_apply_ext, always normalised:

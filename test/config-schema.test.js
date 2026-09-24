@@ -81,7 +81,7 @@ const EXPECTED_KEYS = [
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
   // Custom-layout storage (sheetOnly section; see customViewItems in custom-layout-schema.js).
   'viewCount','customLayoutSeeded',
-  'viewTop0','viewBody0','viewUpper0','viewLower0','viewOrder0',
+  'viewTop0','viewBody0','viewUpper0','viewLower0','viewOrder0','viewStripOff0',
   'viewTop1','viewBody1','viewUpper1','viewLower1','viewOrder1','viewClockOff1','viewStripOff1',
   'viewTop2','viewBody2','viewUpper2','viewLower2','viewOrder2','viewClockOff2','viewStripOff2',
   'viewTopSize0','viewBodySize0','viewAlign0',

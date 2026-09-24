@@ -81,9 +81,15 @@ test('remove/add element round-trips; re-added elements land above the graph', (
   assert.equal(ve.freeStatusSource(S, 1), 'radar');
   assert.equal(ve.addElement(S, 1, 'status'), true);
   assert.equal(S.viewLower1, 'radar');
-  // Slot 0 can never remove clock or top bar.
+  // Slot 0 can never remove its clock, but may drop its top bar and add it back.
   assert.equal(ve.removeElement(S, 0, 'C'), false);
-  assert.equal(ve.removeElement(S, 0, 'topbar'), false);
+  assert.equal(ve.addableElements(S, 0).map((a) => a[1]).indexOf('topbar'), -1);
+  assert.equal(ve.removeElement(S, 0, 'topbar'), true);
+  assert.equal(S.viewStripOff0, true);
+  assert.ok(ve.addableElements(S, 0).map((a) => a[1]).indexOf('topbar') >= 0, 'offered back');
+  assert.equal(ve.addableElements(S, 0).map((a) => a[1]).indexOf('clock'), -1, 'the clock never left');
+  assert.equal(ve.addElement(S, 0, 'topbar'), true);
+  assert.equal(S.viewStripOff0, false);
 });
 
 test('normalizeAfterPick: sibling source dedupe and the single radar layer', () => {

@@ -82,10 +82,9 @@ function customViewItems(i) {
         // Position of a stack nothing fills: 'clock'|'top'|'center'|'bottom'.
         type: 'hidden', messageKey: 'viewAlign' + i, defaultValue: 'clock'
     }];
-    if (i > 0) {   // the Default view always keeps its clock and top bar
-        items.push({type: 'hidden', messageKey: 'viewClockOff' + i, defaultValue: false});
-        items.push({type: 'hidden', messageKey: 'viewStripOff' + i, defaultValue: false});
-    }
+    // The Default view always keeps its clock; any view may drop its top bar.
+    if (i > 0) { items.push({type: 'hidden', messageKey: 'viewClockOff' + i, defaultValue: false}); }
+    items.push({type: 'hidden', messageKey: 'viewStripOff' + i, defaultValue: false});
     return items;
 }
 

@@ -660,10 +660,9 @@ function buildCustomCycle(S) {
 
     var s = spec(t.tier, t.top, body, su, sl);
     if (t.kind) { s.topKind = t.kind; }
-    if (i > 0) {   // the Default view always keeps its clock and top bar
-      if (S['viewClockOff' + i]) { s.clockOff = true; }
-      if (S['viewStripOff' + i]) { s.stripOff = true; }
-    }
+    // The Default view always keeps its clock; any view may drop its top bar.
+    if (i > 0 && S['viewClockOff' + i]) { s.clockOff = true; }
+    if (S['viewStripOff' + i]) { s.stripOff = true; }
     if (code) { s.order = code; }
     // Sizes: a radar/graph top and a present body take '2'|'3'|'4'|'fill' rows. A
     // forecast seat never takes 2 rows (its labels collide) — '2' compiles to 3 rows, the
@@ -737,10 +736,8 @@ function specToKeys(cycle) {
     keys['viewUpper' + i] = srcName[s.statusUpper] || 'off';
     keys['viewLower' + i] = srcName[s.statusLower] || 'off';
     keys['viewOrder' + i] = STACK_ORDERS[s.order || 0];
-    if (i > 0) {
-      keys['viewClockOff' + i] = Boolean(s.clockOff);
-      keys['viewStripOff' + i] = Boolean(s.stripOff);
-    }
+    if (i > 0) { keys['viewClockOff' + i] = Boolean(s.clockOff); }
+    keys['viewStripOff' + i] = Boolean(s.stripOff);
     // A calendar's size is its rows (the tier); a radar/graph top's is its ext code.
     keys['viewTopSize' + i] = (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? '3' : '2')
       : (topSizeName[s.topSize || 0] || '3');
