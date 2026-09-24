@@ -8,15 +8,16 @@
 
 var FORECAST_HOURS = 24;
 var HOUR_SECONDS = 60 * 60;
-// The UV series' longer reach: enough hourly buckets from the anchor to run to the
-// end of TOMORROW, which the UV slot's day-max modes need once today's peak has
-// passed (localDayPeaks). The worst case is the EARLIEST anchor, 00:00: the rest of
+// The day-max series' longer reach (UV, wind, gusts, AQI): enough hourly buckets
+// from the anchor to run to the end of TOMORROW, which the status slots' day-max
+// modes need once today's peak has passed (localDayPeaks). The worst case is the EARLIEST anchor, 00:00: the rest of
 // today is then a whole day and tomorrow another, 48 h, plus one when either is a
 // 25 h DST fall-back day — 49 buckets. Any later anchor needs fewer. (A :30/:45
 // UTC-offset zone's anchor can start up to 45 min before today's midnight: still 49,
 // bar that zone's fall-back days, where a fetch in those minutes reads tomorrow as
-// unknown.) Only UV reads this far; every other trend keeps FORECAST_HOURS.
-var UV_HOURS = 2 * FORECAST_HOURS + 1;
+// unknown.) Only the day-max series read this far; every other trend keeps
+// FORECAST_HOURS, and getPayload cuts these back to it for the graph.
+var PEAK_HOURS = 2 * FORECAST_HOURS + 1;
 
 /**
  * Index of the first hourly bucket at or after the current wall-clock hour.
@@ -77,7 +78,7 @@ function alignHourly(json, field, startTime, hours) {
 }
 
 /**
- * Up to `hours` values of a series (the UV series' UV_HOURS), read from the
+ * Up to `hours` values of a series (a day-max series' PEAK_HOURS), read from the
  * provider's own buckets starting at items[anchor]: the first FORECAST_HOURS
  * unconditionally (mapResponse has already checked they exist, like every other
  * series in its window), then only while each bucket is exactly the next hour —
@@ -89,7 +90,8 @@ function alignHourly(json, field, startTime, hours) {
  * @param {number} anchor Index of entry 0 in items (a valid anchorIndex result).
  * @param {number} hours Maximum series length.
  * @param {function(*): number} epochOf Bucket -> epoch seconds.
- * @param {function(*): number} valueOf Bucket -> the series value.
+ * @param {function(*, number): number} valueOf (Bucket, its index in items) -> the
+ *   series value.
  * @returns {number[]} A fresh array.
  */
 function readHourly(items, anchor, hours, epochOf, valueOf) {
@@ -100,7 +102,7 @@ function readHourly(items, anchor, hours, epochOf, valueOf) {
         if (i >= FORECAST_HOURS && epochOf(items[anchor + i]) !== startEpoch + i * HOUR_SECONDS) {
             break;
         }
-        out.push(valueOf(items[anchor + i]));
+        out.push(valueOf(items[anchor + i], anchor + i));
     }
     return out;
 }
@@ -171,7 +173,7 @@ function localDayPeaks(series, startEpoch, nowEpoch) {
 
 module.exports = {
     FORECAST_HOURS: FORECAST_HOURS,
-    UV_HOURS: UV_HOURS,
+    PEAK_HOURS: PEAK_HOURS,
     HOUR_SECONDS: HOUR_SECONDS,
     anchorIndex: anchorIndex,
     alignHourly: alignHourly,

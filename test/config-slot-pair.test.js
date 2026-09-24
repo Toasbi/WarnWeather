@@ -116,7 +116,7 @@ test('spacing is one toggle over every preset, off by default, its hint on the k
   // The hint's promise, read back through the formatter.
   assert.equal(statusPair.formatTempPair('12', '10', { tempSlotSeparatorSpaced: true }, WIDE),
     '12 / 10');
-  assert.equal(statusPair.formatUv({ now: 3, peak: 7, nextDay: false },
+  assert.equal(statusPair.formatPeak('uv', { now: 3, peak: 7, nextDay: false },
     { uvSlotSeparatorSpaced: true }, WIDE), '3 / 7');
 });
 
@@ -132,11 +132,11 @@ test('every separator label is exactly what the slot prints for its sample pair'
       tempSlotSeparatorSpaced: false }, WIDE), o[0], 'the labels are the tight forms: ' + o[1]);
   });
   item('uvSlotSeparator').options.filter(o => o[1] !== 'custom').forEach((o) => {
-    assert.equal(statusPair.formatUv({ now: 3, peak: 7, nextDay: false },
+    assert.equal(statusPair.formatPeak('uv', { now: 3, peak: 7, nextDay: false },
       { uvSlotSeparator: o[1] }, WIDE), o[0], 'uv ' + o[1]);
   });
   item('uvSlotNextDayMark').options.forEach((o) => {
-    assert.equal(statusPair.formatUv({ now: null, peak: 6, nextDay: true },
+    assert.equal(statusPair.formatPeak('uv', { now: null, peak: 6, nextDay: true },
       { uvSlotNextDayMark: o[1] }), o[1] === 'none' ? '6' : o[0], 'mark ' + o[1]);
   });
 });
@@ -252,10 +252,10 @@ test('fresh defaults ride the save blob and print exactly what an absent key pri
     statusPair.formatTempPair('-12', '-10', {}));
   [{ now: 3, peak: 7, nextDay: false }, { now: 11, peak: 12, nextDay: true },
     { now: null, peak: 6, nextDay: true }].forEach((uv) => {
-    assert.equal(statusPair.formatUv(uv, blob), statusPair.formatUv(uv, {}),
+    assert.equal(statusPair.formatPeak('uv', uv, blob), statusPair.formatPeak('uv', uv, {}),
       JSON.stringify(uv));
   });
-  assert.equal(statusPair.formatUv({ now: 11, peak: 12, nextDay: true }, blob), '11/»12');
+  assert.equal(statusPair.formatPeak('uv', { now: 11, peak: 12, nextDay: true }, blob), '11/»12');
 });
 
 // --- rendered spacing ---------------------------------------------------------

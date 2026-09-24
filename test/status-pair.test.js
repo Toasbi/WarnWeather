@@ -57,22 +57,22 @@ test('absent settings reproduce the pre-feature text byte for byte', () => {
       const what = JSON.stringify(settings) + ' cap ' + cap;
       assert.equal(pair.formatTempPair('12', '10', settings, cap), '12/10', what);
       assert.equal(pair.formatTempPair('-12', '-10', settings, cap), '-12/-10', what);
-      assert.equal(pair.formatUv(uvNow(3, 7), settings, cap), '3/7', what);
-      assert.equal(pair.formatUv(uvTomorrow(5, 6), settings, cap), '5/' + RAQUO + '6', what);
-      assert.equal(pair.formatUv(uvTomorrow(null, 6), settings, cap), RAQUO + '6', what);
-      assert.equal(pair.formatUv(uvNow(null, 7), settings, cap), '7', what);
-      assert.equal(pair.formatUv(uvNow(3, null), settings, cap), '3', what);
+      assert.equal(pair.formatPeak('uv', uvNow(3, 7), settings, cap), '3/7', what);
+      assert.equal(pair.formatPeak('uv', uvTomorrow(5, 6), settings, cap), '5/' + RAQUO + '6', what);
+      assert.equal(pair.formatPeak('uv', uvTomorrow(null, 6), settings, cap), RAQUO + '6', what);
+      assert.equal(pair.formatPeak('uv', uvNow(null, 7), settings, cap), '7', what);
+      assert.equal(pair.formatPeak('uv', uvNow(3, null), settings, cap), '3', what);
     }
   }
   // The exact bytes, not merely an equal-looking string: » is U+00BB, C2 BB in UTF-8.
-  assert.deepEqual(utf8.encode(pair.formatUv(uvTomorrow(5, 6), {}, EDGE)),
+  assert.deepEqual(utf8.encode(pair.formatPeak('uv', uvTomorrow(5, 6), {}, EDGE)),
     [0x35, 0x2F, 0xC2, 0xBB, 0x36]);
   assert.deepEqual(utf8.encode(pair.formatTempPair('-12', '-10', {}, EDGE)),
     [0x2D, 0x31, 0x32, 0x2F, 0x2D, 0x31, 0x30]);
 });
 
 // The UV text before this module, verbatim: the pieces joined by '/', a tomorrow's
-// peak prefixed with ». Swept against every reading uvShown can produce, so the
+// peak prefixed with ». Swept against every reading dayMaxShown can produce, so the
 // default is pinned to the code it replaces rather than to a handful of examples.
 function legacyUv(uv) {
   const parts = [];
@@ -81,14 +81,15 @@ function legacyUv(uv) {
   return parts.join('/');
 }
 
-test('absent settings match the pre-feature UV bake across every reading uvShown gives', () => {
+test('absent settings match the pre-feature UV bake across every reading dayMaxShown gives', () => {
   const peaks = [null, 0, 25, 60, 71, 95, 110, 120, 149];
   for (const mode of [undefined, 'current', 'max', 'both']) {
     for (let head = 0; head <= 150; head += 5) {
       for (const today of peaks) {
         for (const next of peaks) {
-          const uv = wireUnits.uvShown([head], [today, next], mode);
-          assert.equal(pair.formatUv(uv, {}, EDGE), legacyUv(uv),
+          const uv = wireUnits.dayMaxShown('uv', { UV_TREND_UINT8: [head],
+            UV_DAY_PEAKS: [today, next] }, { uvSlotDisplay: mode });
+          assert.equal(pair.formatPeak('uv', uv, {}, EDGE), legacyUv(uv),
             `${mode} ${head} [${today}, ${next}]`);
         }
       }
@@ -147,11 +148,11 @@ test('uv: every separator, tight and spaced, in both orders', () => {
         const base = { uvSlotSeparator: sep, uvSlotSeparatorCustom: custom,
           uvSlotSeparatorSpaced: flag };
         const what = `${sep} ${JSON.stringify(custom)} spaced=${flag} cap ${cap}`;
-        assert.equal(pair.formatUv(uvNow(3, 7), base, cap), want[0],
+        assert.equal(pair.formatPeak('uv', uvNow(3, 7), base, cap), want[0],
           what + ': absent order is now first');
-        assert.equal(pair.formatUv(uvNow(3, 7),
+        assert.equal(pair.formatPeak('uv', uvNow(3, 7),
           Object.assign({ uvSlotOrder: 'now' }, base), cap), want[0], what);
-        assert.equal(pair.formatUv(uvNow(3, 7),
+        assert.equal(pair.formatPeak('uv', uvNow(3, 7),
           Object.assign({ uvSlotOrder: 'max' }, base), cap), want[1], what);
       }
     }
@@ -172,7 +173,7 @@ test('spaceAround: one space each side, never doubled, none inside a bracket', (
 test('the two kinds read their own keys, never each other\'s', () => {
   const tempStyled = { tempSlotSeparator: 'brackets', tempSlotOrder: 'feels',
     tempSlotSeparatorSpaced: true };
-  assert.equal(pair.formatUv(uvNow(3, 7), tempStyled, MID), '3/7');
+  assert.equal(pair.formatPeak('uv', uvNow(3, 7), tempStyled, MID), '3/7');
   const uvStyled = { uvSlotSeparator: 'brackets', uvSlotOrder: 'max',
     uvSlotSeparatorCustom: 'x', uvSlotSeparatorSpaced: true };
   assert.equal(pair.formatTempPair('12', '10', uvStyled, MID), '12/10');
@@ -203,14 +204,14 @@ const MARKS = [
 test('every next-day mark, alone in max mode and paired in both', () => {
   for (const [mark, marked] of MARKS) {
     const s = { uvSlotNextDayMark: mark };
-    assert.equal(pair.formatUv(uvTomorrow(null, 6), s, EDGE), marked, 'max: ' + mark);
-    assert.equal(pair.formatUv(uvTomorrow(5, 6), s, EDGE), '5/' + marked, 'both: ' + mark);
-    assert.equal(pair.formatUv(uvTomorrow(5, 6),
+    assert.equal(pair.formatPeak('uv', uvTomorrow(null, 6), s, EDGE), marked, 'max: ' + mark);
+    assert.equal(pair.formatPeak('uv', uvTomorrow(5, 6), s, EDGE), '5/' + marked, 'both: ' + mark);
+    assert.equal(pair.formatPeak('uv', uvTomorrow(5, 6),
       Object.assign({ uvSlotOrder: 'max' }, s), EDGE), marked + '/5', 'both, max first: ' + mark);
-    assert.equal(pair.formatUv(uvTomorrow(5, 6),
+    assert.equal(pair.formatPeak('uv', uvTomorrow(5, 6),
       Object.assign({ uvSlotSeparatorSpaced: true }, s), MID), '5 / ' + marked,
       'the mark rides with the peak whatever the spacing: ' + mark);
-    assert.equal(pair.formatUv(uvTomorrow(5, 6),
+    assert.equal(pair.formatPeak('uv', uvTomorrow(5, 6),
       Object.assign({ uvSlotSeparator: 'brackets' }, s), MID), '5(' + marked + ')',
       'the mark rides with the peak whatever the separator: ' + mark);
   }
@@ -219,8 +220,8 @@ test('every next-day mark, alone in max mode and paired in both', () => {
 test('today\'s peak is never marked, whatever the mark setting', () => {
   for (const [mark] of MARKS) {
     const s = { uvSlotNextDayMark: mark };
-    assert.equal(pair.formatUv(uvNow(null, 7), s, EDGE), '7', mark);
-    assert.equal(pair.formatUv(uvNow(3, 7), s, EDGE), '3/7', mark);
+    assert.equal(pair.formatPeak('uv', uvNow(null, 7), s, EDGE), '7', mark);
+    assert.equal(pair.formatPeak('uv', uvNow(3, 7), s, EDGE), '3/7', mark);
   }
 });
 
@@ -281,7 +282,7 @@ test('fit rule: the middle slot has room for every preset, spaced or not', () =>
 
 test('fit rule: UV keeps its order and its mark at every step', () => {
   const worst = uvTomorrow(11, 12);   // '11/»12' is 7 bytes
-  const u = (extra) => pair.formatUv(worst, extra, EDGE);
+  const u = (extra) => pair.formatPeak('uv', worst, extra, EDGE);
   assert.equal(u({}), '11/' + RAQUO + '12');
   assert.equal(u({ uvSlotSeparatorSpaced: true }), '11/' + RAQUO + '12', "'11 / »12' is 9 B");
   assert.equal(u({ uvSlotSeparator: 'brackets' }), '11(' + RAQUO + '12)', "'11(»12)' is 8 B");
@@ -298,7 +299,7 @@ test('fit rule: UV keeps its order and its mark at every step', () => {
   assert.equal(u({ uvSlotSeparator: 'custom', uvSlotSeparatorCustom: 'ÿÿ' }),
     '11/' + RAQUO + '12', "'11ÿÿ»12' is 10 B even tight");
   // ...and the middle slot takes them all.
-  assert.equal(pair.formatUv(worst, { uvSlotSeparator: 'brackets', uvSlotSeparatorSpaced: true },
+  assert.equal(pair.formatPeak('uv', worst, { uvSlotSeparator: 'brackets', uvSlotSeparatorSpaced: true },
     MID), '11 (' + RAQUO + '12)');
 });
 
@@ -329,7 +330,7 @@ function expectedFit(first, second, sep, custom, spaced, cap) {
 
 test('no preset, spacing, order or mark ever needs the last-resort truncation on an edge slot', () => {
   // Every whole-degree pair the planet produces, both units' ranges, the widest custom
-  // separator and every mark: what formatUv/formatTempPair return must already fit, and
+  // separator and every mark: what formatPeak/formatTempPair return must already fit, and
   // must be the spaced form, the tight form or the slash form -- never a clipped number.
   const seps = ['slash', 'brackets', 'dot', 'bar', 'custom'];
   for (let a = -62; a <= 140; a += 1) {
@@ -353,7 +354,7 @@ test('no preset, spacing, order or mark ever needs the last-resort truncation on
         for (const spaced of [false, true]) {
           for (const order of ['now', 'max']) {
             for (const [mark] of MARKS) {
-              const text = pair.formatUv(uvTomorrow(now, peak), { uvSlotSeparator: sep,
+              const text = pair.formatPeak('uv', uvTomorrow(now, peak), { uvSlotSeparator: sep,
                 uvSlotOrder: order, uvSlotNextDayMark: mark, uvSlotSeparatorSpaced: spaced,
                 uvSlotSeparatorCustom: 'ÿÿ' }, EDGE);
               assert.ok(bytes(text) <= EDGE, `${text} (${sep}, ${spaced}, ${order}, ${mark})`);
@@ -414,7 +415,7 @@ test('an empty custom separator renders as the slash', () => {
     assert.equal(pair.formatTempPair('12', '10',
       { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: custom }, MID), '12/10',
       JSON.stringify(custom));
-    assert.equal(pair.formatUv(uvTomorrow(5, 6),
+    assert.equal(pair.formatPeak('uv', uvTomorrow(5, 6),
       { uvSlotSeparator: 'custom', uvSlotSeparatorCustom: custom }, MID), '5/' + RAQUO + '6',
       JSON.stringify(custom));
   }

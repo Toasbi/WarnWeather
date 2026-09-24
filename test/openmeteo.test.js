@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const openmeteo = require('../src/pkjs/weather/openmeteo.js');
-const { UV_HOURS } = require('../src/pkjs/weather/hourly-window.js');
+const { PEAK_HOURS } = require('../src/pkjs/weather/hourly-window.js');
 const mapResponse = openmeteo.mapResponse;
 
 // BASE is hour-aligned: 1718841600 / 3600 === 477456 exactly.
@@ -48,7 +48,10 @@ test('mapResponse anchors at the current hour and returns 24-length trends', () 
   assert.equal(out.tempTrend.length, 24);
   assert.equal(out.precipTrend.length, 24);
   assert.equal(out.rainTrend.length, 24);
-  assert.equal(out.windTrend.length, 24);
+  // Wind reads on to PEAK_HOURS for the wind slot's day max — here as far as the
+  // 48-bucket sample goes (buckets 18..47); getPayload cuts the graph's 24 back out.
+  assert.equal(out.windTrend.length, 30);
+  assert.equal(out.windTrend[29], 47);
   assert.equal(out.gustTrend.length, 24);
 
   // Bucket 18 is the first slot; bucket 41 is the last (spans into tomorrow).
@@ -228,7 +231,11 @@ test('buildGustUrl requests gusts + feels and avoids the derived-field-less ECMW
   // (moisture) and wind; the main call already carries the current temperature.
   assert.match(url, /&current=apparent_temperature,dew_point_2m,wind_speed_10m(&|$)/);
   assert.doesNotMatch(url, /models=ecmwf/);
+  // Two GMT days hold the graph's window; four while the gust slot shows its day
+  // max, whose window reads on to PEAK_HOURS (a fall-back day ahead of GMT needs
+  // the fourth, as UV's does).
   assert.match(url, /&forecast_days=2(&|$)/);
+  assert.match(openmeteo.buildGustUrl(52.52, 13.41, true), /&forecast_days=4(&|$)/);
   assert.match(url, /&timeformat=unixtime(&|$)/);
   assert.match(url, /&windspeed_unit=kmh(&|$)/);
   // temperature_unit applies per-request — without it the feels come back °C.
@@ -246,7 +253,7 @@ test('mapGusts aligns gusts to the forecast start time by timestamp, one hour ah
   }
   const startTime = BASE + 18 * 3600;
   const out = openmeteo.mapGusts({ hourly: { time, windgusts_10m } }, startTime);
-  assert.equal(out.length, 24);
+  assert.equal(out.length, 49);
   assert.equal(out[0], 119);  // bucket 19: the 18:00-19:00 max
   assert.equal(out[23], 142); // bucket 42 (spans into tomorrow)
 });
@@ -262,15 +269,16 @@ test('mapGusts aligns even when the gust feed array is offset from the main fore
   }
   const startTime = BASE + 18 * 3600; // sits at feed index 12; its hour ends at index 13
   const out = openmeteo.mapGusts({ hourly: { time, windgusts_10m } }, startTime);
-  assert.equal(out.length, 24);
+  assert.equal(out.length, 49, 'PEAK_HOURS deep, for the gust slot\'s day max');
   assert.equal(out[0], 13);
+  assert.equal(out[48], null, 'past the feed -> missing');
 });
 
 test('mapGusts yields null for missing or non-numeric buckets (rendered as no gust)', () => {
   // Window starts an hour before the feed: slot 0 reads the BASE bucket.
   const out = openmeteo.mapGusts(
     { hourly: { time: [BASE, BASE + 3600], windgusts_10m: [null, 5] } }, BASE - 3600);
-  assert.equal(out.length, 24);
+  assert.equal(out.length, 49);
   assert.equal(out[0], null); // explicit null in the feed
   assert.equal(out[1], 5);
   assert.equal(out[2], null); // beyond the feed -> missing
@@ -288,22 +296,24 @@ test('buildUvUrl requests only uv_index, from GFS', () => {
   // GFS everywhere: best_match hands the UK/Ireland to UKMO, whose UV is an
   // instant, where GFS's is the mean of the hour ending at the stamp.
   assert.match(url, /[?&]models=ncep_gfs_global(&|$)/);
-  // Four GMT days: the UV window runs UV_HOURS ahead (to tomorrow's end in any
+  // Four GMT days: the UV window runs PEAK_HOURS ahead (to tomorrow's end in any
   // zone), read one bucket ahead.
-  assert.match(url, /[?&]forecast_days=4(&|$)/);
+  assert.match(openmeteo.buildUvUrl(52.52, 13.41, true), /[?&]forecast_days=4(&|$)/);
+  // Two while the UV slot shows no day max: the graph's window fits in them.
+  assert.match(url, /[?&]forecast_days=2(&|$)/);
 });
 
-test('mapUv aligns uv_index to the forecast start by timestamp, one bucket ahead, UV_HOURS deep', () => {
+test('mapUv aligns uv_index to the forecast start by timestamp, one bucket ahead, PEAK_HOURS deep', () => {
   const time = [], uv_index = [];
   for (let i = 0; i < 52; i += 1) { time.push(BASE + i * 3600); uv_index.push(i); }
   const out = openmeteo.mapUv({ hourly: { time, uv_index } }, BASE + 3600); // start one hour in
-  // UV_HOURS, not FORECAST_HOURS: the UV slot needs tomorrow's peak; the graph slices 24.
-  assert.equal(out.length, UV_HOURS);
+  // PEAK_HOURS, not FORECAST_HOURS: the UV slot needs tomorrow's peak; the graph slices 24.
+  assert.equal(out.length, PEAK_HOURS);
   // GFS UV stamped T is the mean of the hour before T, so entry 0 -- the hour
   // starting at the start -- reads the bucket stamped an hour after it.
   assert.equal(out[0], 2);
   assert.equal(out[23], 25);
-  assert.equal(out[UV_HOURS - 1], UV_HOURS + 1);
+  assert.equal(out[PEAK_HOURS - 1], PEAK_HOURS + 1);
 });
 
 test('a midday UV peak lands on the hour it was measured in, not the hour after', () => {
@@ -315,18 +325,18 @@ test('a midday UV peak lands on the hour it was measured in, not the hour after'
   assert.equal(out[13], 1);
 });
 
-test('four GMT days (forecast_days=4) source every UV_HOURS bucket from the latest start', () => {
+test('four GMT days (forecast_days=4) source every PEAK_HOURS bucket from the latest start', () => {
   // The start is the floored current hour, at most 23:00 on the response's first
-  // GMT day; the one-bucket-ahead read's last bucket is UV_HOURS hours later,
+  // GMT day; the one-bucket-ahead read's last bucket is PEAK_HOURS hours later,
   // 00:00 on the fourth GMT day -- one past what three days hold.
   const day0 = Date.UTC(2026, 6, 15) / 1000;
   const time = [], uv_index = [];
   for (let i = 0; i < 96; i += 1) { time.push(day0 + i * 3600); uv_index.push(1); }
   const out = openmeteo.mapUv({ hourly: { time, uv_index } }, day0 + 23 * 3600);
-  assert.equal(out.length, UV_HOURS);
+  assert.equal(out.length, PEAK_HOURS);
   assert.ok(out.every((v) => v === 1), 'no null tail: ' + JSON.stringify(out));
   const three = openmeteo.mapUv({ hourly: { time: time.slice(0, 72), uv_index } }, day0 + 23 * 3600);
-  assert.equal(three[UV_HOURS - 1], null, 'three days miss the last bucket');
+  assert.equal(three[PEAK_HOURS - 1], null, 'three days miss the last bucket');
 });
 
 test('mapUv: missing/non-numeric buckets become null; malformed → null', () => {

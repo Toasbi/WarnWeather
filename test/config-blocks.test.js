@@ -166,7 +166,7 @@ test('feels-like as the second metric draws grey squares, labels still the actua
 });
 
 test('the preview keeps the feels curve clear of the plot floor (band padding)', () => {
-  // Mirrors forecast-series.padJointBandForFeels. The sample feels series dips to 11°
+  // Mirrors forecast-series.padJointTempAxisBand. The sample feels series dips to 11°
   // under a 14° temp low, so the joint band [11, 24] is padded below by
   // max(1, ceil(13 * 40/960)) = 1 -> [10, 24]. That leaves the grey curve's lowest
   // point one band-degree above ybot instead of sitting flat on it.

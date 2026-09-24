@@ -10,7 +10,9 @@
 var http = require('./http.js');
 var AIR_QUALITY_BASE = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 var WAQI_BASE = 'https://api.waqi.info';
-var alignHourly = require('./hourly-window.js').alignHourly;
+var hourlyWindow = require('./hourly-window.js');
+var dayPeaks = require('./day-peaks.js');
+var alignHourly = hourlyWindow.alignHourly;
 
 /**
  * @param {string} scale 'us' selects US AQI; anything else selects European AQI.
@@ -23,25 +25,27 @@ function scaleField(scale) {
 /**
  * Build the keyless Open-Meteo air-quality request URL for one AQI scale,
  * mirroring the UV call's unixtime/GMT conventions so buckets align with the
- * forecast window by timestamp. Two GMT days hold its FORECAST_HOURS window;
- * only the UV call reaches further, for tomorrow's peak.
+ * forecast window by timestamp. Two GMT days hold its FORECAST_HOURS window; four,
+ * like the UV call, while the AQI slot shows its day max, whose window reaches
+ * PEAK_HOURS ahead (to the end of tomorrow).
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {string} scale 'us' | 'european'.
+ * @param {boolean} [dayPeak] Whether the AQI slot shows its day max.
  * @returns {string} Fully-formed air-quality request URL.
  */
-function buildAqiUrl(lat, lon, scale) {
+function buildAqiUrl(lat, lon, scale, dayPeak) {
     return AIR_QUALITY_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
         + '&hourly=' + scaleField(scale)
         + '&timeformat=unixtime'
         + '&timezone=GMT'
-        + '&forecast_days=2';
+        + '&forecast_days=' + (dayPeak ? 4 : 2);
 }
 
 /**
- * Extract a FORECAST_HOURS AQI window aligned to a forecast start time by
+ * Extract a PEAK_HOURS AQI window aligned to a forecast start time by
  * indexing the response's hourly AQI by timestamp (so a feed with a different
  * offset still lines up). Missing/non-numeric buckets become null. Malformed
  * responses return null.
@@ -53,7 +57,7 @@ function buildAqiUrl(lat, lon, scale) {
 function mapAqi(json, startTime, scale) {
     // hourly-window owns the remap — this used to be a byte-identical copy of
     // openmeteo.js's alignHourly with the field name parameterized.
-    return alignHourly(json, scaleField(scale), startTime);
+    return alignHourly(json, scaleField(scale), startTime, hourlyWindow.PEAK_HOURS);
 }
 
 /**
@@ -84,8 +88,8 @@ function mapWaqi(json) {
 
 /**
  * Open-Meteo air-quality path: fetch the keyless window for an explicit scale
- * and populate provider.aqiTrend. Non-fatal; always calls done() once.
- * @param {Object} provider Active provider (reads .startTime, writes .aqiTrend).
+ * and populate provider.aqiTrend (+ aqiFeedId). Non-fatal; always calls done() once.
+ * @param {Object} provider Active provider (reads .startTime, writes .aqiTrend/.aqiFeedId).
  * @param {number} lat Latitude.
  * @param {number} lon Longitude.
  * @param {string} scale 'us' | 'european'.
@@ -93,12 +97,17 @@ function mapWaqi(json) {
  * @returns {void}
  */
 function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
-    var url = buildAqiUrl(lat, lon, scale);
+    var url = buildAqiUrl(lat, lon, scale, dayPeaks.wanted(provider, 'aqi'));
     http.request(url, 'GET', function(resp) {
         var aqi = null;
         try { aqi = mapAqi(JSON.parse(resp), provider.startTime, scale); }
         catch (ex) { aqi = null; }
-        if (aqi) { provider.aqiTrend = aqi; }
+        if (aqi) {
+            provider.aqiTrend = aqi;
+            // An hourly forecast, so the AQI slot's day max can run on it; the
+            // scale is part of the feed (the two indices are different numbers).
+            provider.aqiFeedId = 'openmeteo-aqi-' + scale;
+        }
         done();
     }, function(err) {
         console.log('[!] Open-Meteo air-quality request failed: ' + JSON.stringify(err));
@@ -108,7 +117,8 @@ function fetchOpenMeteoInto(provider, lat, lon, scale, done) {
 
 /**
  * WAQI (aqicn.org) path: fetch the current station AQI and populate
- * provider.aqiTrend with a one-element window. On no-data/failure calls
+ * provider.aqiTrend with a one-element window — a current reading, not a
+ * forecast, so aqiFeedId stays null and the slot's day max stays off. On no-data/failure calls
  * notFound() (so Auto can fall back) instead of done().
  * @param {Object} provider Active provider (reads .aqicnToken, writes .aqiTrend).
  * @param {number} lat Latitude.

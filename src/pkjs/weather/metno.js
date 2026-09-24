@@ -53,6 +53,15 @@ function entryUv(entry) {
 }
 
 /**
+ * @param {Object} entry A locationforecast timeseries bucket.
+ * @returns {number} Its wind speed in km/h, 0 when unreported.
+ */
+function entryWindKmh(entry) {
+    var instant = entry.data && entry.data.instant && entry.data.instant.details;
+    return msToKmh((instant && instant.wind_speed) || 0);
+}
+
+/**
  * The gust for the hour STARTING at bucket i. Met.no files wind_speed_of_gust
  * under `instant`, but its values behave as the peak of the hour ENDING at the
  * stamp: in recorded /complete responses the gust at T never falls below the
@@ -116,8 +125,6 @@ function mapResponse(json, nowEpoch) {
     var tempTrend = [];
     var precipTrend = [];
     var rainTrend = [];
-    var windTrend = [];
-    var gustTrend = [];
     var pressureTrend = [];
     var cloudTrend = [];
     var feelsTrend = [];
@@ -149,8 +156,6 @@ function mapResponse(json, nowEpoch) {
             currentFeels = feels;
         }
         feelsTrend.push(feels === null ? tempF : feels);
-        windTrend.push(msToKmh(instant.wind_speed || 0));
-        gustTrend.push(msToKmh(followingGust(timeseries, i)));
         pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
             ? instant.air_pressure_at_sea_level : 0);
         cloudTrend.push(typeof instant.cloud_area_fraction === 'number'
@@ -176,11 +181,14 @@ function mapResponse(json, nowEpoch) {
         tempTrend: tempTrend,
         precipTrend: precipTrend,
         rainTrend: rainTrend,
-        windTrend: windTrend,
-        gustTrend: gustTrend,
-        // UV alone reads on to UV_HOURS (hourly-window.js). Met.no turns 6-hourly
-        // after its first ~2.5 days, which readHourly's next-hour rule stops at.
-        uvTrend: hourlyWindow.readHourly(timeseries, anchor, hourlyWindow.UV_HOURS,
+        // The day-max series (UV, wind, gusts) read on to PEAK_HOURS
+        // (hourly-window.js). Met.no turns 6-hourly after its first ~2.5 days,
+        // which readHourly's next-hour rule stops at.
+        windTrend: hourlyWindow.readHourly(timeseries, anchor, hourlyWindow.PEAK_HOURS,
+            entryEpoch, entryWindKmh),
+        gustTrend: hourlyWindow.readHourly(timeseries, anchor, hourlyWindow.PEAK_HOURS,
+            entryEpoch, function(entry, index) { return msToKmh(followingGust(timeseries, index)); }),
+        uvTrend: hourlyWindow.readHourly(timeseries, anchor, hourlyWindow.PEAK_HOURS,
             entryEpoch, entryUv),
         pressureTrend: pressureTrend,
         cloudTrend: cloudTrend,

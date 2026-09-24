@@ -63,6 +63,12 @@ const settingsSchema = z
     uvSlotSeparatorSpaced: z.boolean().optional(),
     uvSlotOrder: z.string().optional(),
     uvSlotNextDayMark: z.string().optional(),
+    // The wind, gust and AQI slots' day-max display mode, lockstep with
+    // buildSettingsSnapshot (their pair presentation is not reported). Same
+    // deploy-ordering rule as the block above.
+    windSlotDisplay: z.string().optional(),
+    gustSlotDisplay: z.string().optional(),
+    aqiSlotDisplay: z.string().optional(),
     dateSlotMonthFormat: z.string().optional(),
     dateSlotFullFormat: z.string().optional(),
     aqiScale: z.enum(['european', 'us']).optional(),

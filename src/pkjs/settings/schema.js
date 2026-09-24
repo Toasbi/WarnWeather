@@ -37,6 +37,7 @@ var LINE_HINTS = {
     uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
     pressure: 'Sea-level air pressure each hour, scaled by the pressure graph scale below.',
     feels: 'Feels-like temperature each hour, drawn grey on the same scale as the temperature curve.',
+    dew: 'Dew point each hour, drawn on the same scale as the temperature curve. The closer it runs to the temperature, the more humid it feels.',
     off: 'No third line — temperature and the secondary line only.'
 };
 // Rendering notes appended per picker. Pre-rendered maps, not appended hints,
@@ -65,16 +66,16 @@ function lineHintsWithNote(note, offText, omit) {
 }
 var THIRD_LINE_HINTS = lineHintsWithNote(DOTS_NOTE,
     'No second metric — temperature and the main metric only.');
-// No feels on the third metric: the fourth line has no curve-inset channel, so
-// feels could never share the temperature axis (line-style.js FORECAST_LINES
-// bans it; blocks.js' forecastMetric resolver drops it via noFeels).
+// No feels or dew on the third metric: the fourth line has no curve-inset channel,
+// so they could never share the temperature axis (line-style.js FORECAST_LINES
+// bans them; blocks.js' forecastMetric resolver drops them via noTempAxis).
 var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
-    'No third metric — the two metric lines above only.', ['feels']);
-// The fourth metric: no feels either (same missing curve-inset channel), and it
-// debuts as a top stripe — handy for cloud cover next to three lines.
+    'No third metric — the two metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
+// The fourth metric: no feels or dew either (same missing curve-inset channel), and
+// it debuts as a top stripe — handy for cloud cover next to three lines.
 var STRIPE_NOTE = '<br>Drawn as a stripe along the top of the graph by default.';
 var FIFTH_LINE_HINTS = lineHintsWithNote(STRIPE_NOTE,
-    'No fourth metric — the three metric lines above only.', ['feels']);
+    'No fourth metric — the three metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -348,7 +349,7 @@ function customViewItems(i) {
     return items;
 }
 
-// The eight rows of the Graph-colors card, each opening its own sheet. The seven metrics
+// The nine rows of the Graph-colors card, each opening its own sheet. The eight metrics
 // come first, labelled and ordered exactly like the Main/Second metric pickers offer
 // them (blocks.js' FORECAST_METRICS — a user reads the two lists together), then the
 // full-height night band. `scope` is line-style.js' vocabulary: a metric id, or 'night'.
@@ -362,6 +363,7 @@ var GRAPH_COLOR_ROWS = [
     {scope: 'uv', sheetId: 'gcUv', label: 'UV Index'},
     {scope: 'pressure', sheetId: 'gcPressure', label: 'Air pressure (hPa)'},
     {scope: 'feels', sheetId: 'gcFeels', label: 'Feels-like temperature'},
+    {scope: 'dew', sheetId: 'gcDew', label: 'Dew point'},
     {scope: 'night', sheetId: 'gcNight', label: 'Night shading'}
 ];
 // What each role is called and explained as inside a sheet. Keyed by line-style.js'
@@ -511,7 +513,7 @@ var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to '
 // phone flips it before baking — so the copy has to say which way it points, or half
 // the readers will read it backwards. Shared by both slots: one arrow, two kinds.
 var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
-    'wind is blowing.';
+    'wind is blowing now. Not while Day max shows a peak alone.';
 // The two-value slots — Temperature and UV in their "Both" mode — print a pair in one
 // slot (12/10, 3/7). How the pair reads is chosen per kind, on the rows pairRows()
 // builds below that kind's display pills. The phone bakes the text (status-pair.js,
@@ -524,7 +526,8 @@ var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the 
 // narrow left/right slots ever hit it ('-12 / -10' is 9 bytes of their 8), so the hint
 // names them the way the Watch tab's intro does, not as "edge slots".
 var PAIR_FALLBACK_HINT = 'In a left or right slot, a pair too wide to fit ' +
-    'drops its spaces, then falls back to the slash.';
+    'drops its spaces, then falls back to the slash, and shows only the current value ' +
+    'if even that is too wide.';
 // The watch draws slot text in its Gothic system fonts, which cover printable ASCII and
 // Latin-1 (the slots already print '°' and '»' from them); the formatter keeps
 // only those, then the first two. Spaces are kept, not trimmed: ', ' is a real separator.
@@ -610,6 +613,43 @@ function pairRows(prefix, first, second, orderOptions) {
         showWhen: bothWhen
     }];
 }
+/**
+ * A day-max slot kind's display rows (UV, wind, gusts, AQI): the Now / Day max / Both
+ * pills, the pair rows Both reveals (pairRows), and the mark on a max that has rolled
+ * on to tomorrow's peak. Global per kind, baked phone-side (status-lines.js
+ * formatValue; the numbers are wire-units' dayMaxShown) and on renderSignature(), so a
+ * change re-bakes without waiting for the next fetch. The highlight follows the
+ * numbers, never their presentation (status-thresholds.js displayValue).
+ * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} label The pills' label, e.g. 'UV selection'.
+ * @param {string} hint The pills' hint.
+ * @param {string} now Sample current reading for the separator labels, e.g. '3'.
+ * @param {string} max Sample peak, e.g. '7'.
+ * @returns {Object[]} The rows, in sheet order.
+ */
+function dayMaxRows(prefix, label, hint, now, max) {
+    return [{
+        type: 'segmented',
+        messageKey: prefix + 'SlotDisplay',
+        label: label,
+        hint: hint,
+        defaultValue: 'current',
+        options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
+    }].concat(pairRows(prefix, now, max, [['Now first', 'now'], ['Max first', 'max']]), [{
+        // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
+        // Both, the two modes that print a max. 'raquo' is the '»' the UV slot
+        // printed before this row existed, so it stays the default.
+        type: 'select',
+        messageKey: prefix + 'SlotNextDayMark',
+        label: 'Tomorrow\'s peak mark',
+        defaultValue: 'raquo',
+        options: nextDayMarkOptions(),
+        joinPrevious: true,
+        showWhen: {key: prefix + 'SlotDisplay', in: ['max', 'both']}
+    }]);
+}
+// The part of every day-max hint after its first sentence.
+var DAY_MAX_HINT_TAIL = ' Today\'s peak shows until the value drops below it, then the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.';
 /**
  * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
  * formatter's own table, so each label shows where its mark lands (three lead the
@@ -1487,7 +1527,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, cloud cover %, wind speed, wind gusts, UV index, air pressure or feels-like temperature, an optional second metric adds another, and on watches with enough memory an optional third and fourth metric add more — each line in its own selectable style (thin or thick line, square dots, little x marks, or a shaded stripe along the top or bottom of the graph) — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, cloud cover %, wind speed, wind gusts, UV index, air pressure, feels-like temperature or dew point, an optional second metric adds another, and on watches with enough memory an optional third and fourth metric add more — each line in its own selectable style (thin or thick line, square dots, little x marks, or a shaded stripe along the top or bottom of the graph) — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1507,7 +1547,7 @@ module.exports = {
                 defaultValue: true,
                 joinPrevious: true,
                 hint: 'Fills the area beneath the line.',
-                // Feels-like rides the temperature axis rather than a 0..max scale, so
+                // Feels-like and dew point ride the temperature axis rather than a 0..max scale, so
                 // "below the line" is not the area between the curve and a meaningful
                 // zero — a fill there would flood the plot up to an arbitrary band
                 // floor. The row is hidden for it and the 'forecastMetricFill' hook
@@ -1516,7 +1556,7 @@ module.exports = {
                 // A stripe has no curve to fill below either (line-style.js gates
                 // fillOn the same way) — unless this watch ignores the styles.
                 showWhen: {all: [
-                    {key: 'secondaryLine', ne: 'feels'},
+                    {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS},
                     {any: [{not: LINE_STYLES_WHEN},
                         {key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom']}]}
                 ]}
@@ -1544,7 +1584,7 @@ module.exports = {
                 label: 'Third metric',
                 defaultValue: 'off',
                 hintByValue: FOURTH_LINE_HINTS,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true}},
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true}},
                 // Only watches with enough memory carry a third metric line
                 // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
                 // an unknown platform). Row-level hiding, not option-gating,
@@ -1563,7 +1603,7 @@ module.exports = {
                 label: 'Fourth metric',
                 defaultValue: 'off',
                 hintByValue: FIFTH_LINE_HINTS,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine'], noFeels: true}},
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine'], noTempAxis: true}},
                 // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
                 showWhen: LINE_STYLES_WHEN
             },
@@ -1894,7 +1934,11 @@ module.exports = {
         },
         // Threshold edit sheets (sheetOnly): reachable only through the pencil next to a
         // status slot whose selected value has thresholds — never rendered as cards here.
-        thresholdSection('Air quality (AQI)', 'Aqi', ''),
+        // The AQI day max needs an hourly forecast, which only the Open-Meteo source
+        // has: on WAQI's current reading every mode prints that reading alone.
+        thresholdSection('Air quality (AQI)', 'Aqi', '', null, dayMaxRows('aqi', 'AQI selection',
+            'Show the air quality index now, the highest it still gets today, or both. The day max needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.'
+            + DAY_MAX_HINT_TAIL, '42', '58')),
         thresholdSection('Pollen', 'Pollen',
             'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
         // Wind and gust each carry their own direction arrow: the two slots often sit
@@ -1902,7 +1946,10 @@ module.exports = {
         // not global. The phone bakes the arrow into the slot text (status-lines.js
         // appends a trailing sentinel byte), and both keys ride renderSignature(), so
         // flipping one re-bakes without waiting for the next fetch.
-        thresholdSection('Wind speed', 'Wind', '', null, [{
+        // Wind, gusts and AQI carry UV's display modes (dayMaxRows), each kind its own.
+        thresholdSection('Wind speed', 'Wind', '', null, dayMaxRows('wind', 'Wind selection',
+            'Show the wind speed now, the strongest it still gets today, or both.' + DAY_MAX_HINT_TAIL,
+            '12', '30').concat([{
             type: 'toggle',
             messageKey: 'windSlotDirection',
             label: 'Show wind direction',
@@ -1914,41 +1961,27 @@ module.exports = {
             // is not rearranged under its owner.
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('windSlotUnit', null, null)]),
-        thresholdSection('Wind gusts', 'Gust', '', null, [{
+        }, unitRow('windSlotUnit', null, null)])),
+        thresholdSection('Wind gusts', 'Gust', '', null, dayMaxRows('gust', 'Gust selection',
+            'Show the gusts now, the strongest they still get today, or both.' + DAY_MAX_HINT_TAIL,
+            '20', '45').concat([{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
             label: 'Show wind direction',
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('gustSlotUnit', null, null)]),
+        }, unitRow('gustSlotUnit', null, null)])),
         // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
-        // What each mode prints is wire-units' uvShown.
+        // What each mode prints is wire-units' dayMaxShown.
         // It sits above the Thresholds group like the wind arrow: it configures the
         // slot, and the highlight follows it (the policy is status-thresholds.js
         // displayValue's). So do the rows shaping how it reads, which change the
         // text only — the highlight judges the numbers, never their presentation.
-        thresholdSection('UV index', 'Uv', '', null, [{
-            type: 'segmented',
-            messageKey: 'uvSlotDisplay',
-            label: 'UV selection',
-            hint: 'Show the UV index now, the highest it still gets today, or both. Today\'s peak shows until the UV drops below it, then the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.',
-            defaultValue: 'current',
-            options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
-        }].concat(pairRows('uv', '3', '7', [['Now first', 'now'], ['Max first', 'max']]), [{
-            // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
-            // Both, the two modes that print a max. 'raquo' is the '»' the slot
-            // printed before this row existed, so it stays the default.
-            type: 'select',
-            messageKey: 'uvSlotNextDayMark',
-            label: 'Tomorrow\'s peak mark',
-            defaultValue: 'raquo',
-            options: nextDayMarkOptions(),
-            joinPrevious: true,
-            showWhen: {key: 'uvSlotDisplay', in: ['max', 'both']}
-        }])),
+        thresholdSection('UV index', 'Uv', '', null, dayMaxRows('uv', 'UV selection',
+            'Show the UV index now, the highest it still gets today, or both.' + DAY_MAX_HINT_TAIL,
+            '3', '7')),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
         thresholdSection('Sleep', 'Sleep',

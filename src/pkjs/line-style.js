@@ -42,7 +42,8 @@
         wind:        { color: COLORS.GColorYellow,     light: COLORS.GColorChromeYellow,   bw: COLORS.GColorWhite },
         uv:          { color: COLORS.GColorMagenta,    light: COLORS.GColorPurple,         bw: COLORS.GColorWhite },
         pressure:    { color: COLORS.GColorOrange,     bw: COLORS.GColorWhite },
-        feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorBlack,          bw: COLORS.GColorWhite }
+        feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorBlack,          bw: COLORS.GColorWhite },
+        dew:         { color: COLORS.GColorCadetBlue,  light: COLORS.GColorMidnightGreen,  bw: COLORS.GColorWhite }
     };
     // Metric → area-fill colour per platform class. Colour fills are a darker shade of the
     // line so the line always reads brighter; the `light` arm is a BRIGHTER tint instead,
@@ -55,9 +56,10 @@
         uv:          { color: COLORS.GColorPurple,     light: COLORS.GColorShockingPink, bw: COLORS.GColorLightGray },
         gust:        { color: COLORS.GColorDarkGray,   light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
         pressure:    { color: COLORS.GColorWindsorTan, light: COLORS.GColorRajah,        bw: COLORS.GColorLightGray },
-        // feels never fills (resolveGraphColors pins fillOn false), so no AREA layer is
-        // ever built from this row — it exists so the wire's shape stays total.
-        feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray }
+        // feels and dew never fill (resolveGraphColors pins fillOn false), so no AREA
+        // layer is ever built from these rows — they exist so the wire's shape stays total.
+        feels:       { color: COLORS.GColorLightGray,  light: COLORS.GColorLightGray,    bw: COLORS.GColorLightGray },
+        dew:         { color: COLORS.GColorCadetBlue,  light: COLORS.GColorCadetBlue,    bw: COLORS.GColorLightGray }
     };
 
     /**
@@ -117,14 +119,15 @@
         uv:          { base: COLORS.GColorImperialPurple, hatch: COLORS.GColorPurple,    boundary: COLORS.GColorVividViolet },
         gust:        { base: COLORS.GColorDarkGray,       hatch: COLORS.GColorLightGray, boundary: COLORS.GColorLightGray },
         pressure:    { base: COLORS.GColorWindsorTan,     hatch: COLORS.GColorOrange,    boundary: COLORS.GColorOrange },
-        feels:       { base: COLORS.GColorLightGray,      hatch: COLORS.GColorWhite,     boundary: COLORS.GColorWhite }
+        feels:       { base: COLORS.GColorLightGray,      hatch: COLORS.GColorWhite,     boundary: COLORS.GColorWhite },
+        dew:         { base: COLORS.GColorMidnightGreen,  hatch: COLORS.GColorCadetBlue, boundary: COLORS.GColorCadetBlue }
     };
     // The same night area on LIGHT polarity — a BASE per metric, not a triple, because the
     // hatch and boundary come from deriveNightTriple. That is deliberate: these five were
     // eyeballed on hardware as *stored tints*, which is the path that derives, so deriving
     // is what reproduces what was signed off. A hand-written triple here would repaint it.
-    // A metric absent from this table keeps its dark triple in both polarities; feels is
-    // absent because it never fills, so no light base of its own is reachable. ADR-0003 §5.
+    // A metric absent from this table keeps its dark triple in both polarities; feels and
+    // dew are absent because they never fill, so no light base of its own is reachable. ADR-0003 §5.
     //
     // ACCEPTED, do not "fix": deriveNightTriple saturates at white, so several of these
     // lose layer separation at the top — gust collapses hatch AND boundary onto white
@@ -152,13 +155,33 @@
 
     // Main/second-line metrics, in the order the settings page lists them
     // (blocks.js' FORECAST_METRICS).
-    var GRAPH_METRICS = ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels'];
+    var GRAPH_METRICS = ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels', 'dew'];
     // Metric id -> the CamelCase key fragment. The ids are snake_case wire values and
     // would make unreadable key names ('gcPrecip_probLineDark').
     var METRIC_SLUG = {
         precip_prob: 'Precip', cloud: 'Cloud', wind: 'Wind', uv: 'Uv',
-        gust: 'Gust', pressure: 'Pressure', feels: 'Feels'
+        gust: 'Gust', pressure: 'Pressure', feels: 'Feels', dew: 'Dew'
     };
+    // The metrics drawn on the TEMPERATURE axis: scaled against the joint band they
+    // share with the temp curve (forecast-series.js) and at its curve inset
+    // (clay-payload.js), so the gap between the curves is real. None of them fills,
+    // and none rides the fourth line, which has no inset channel.
+    var TEMP_AXIS_METRIC_IDS = ['feels', 'dew'];
+    var TEMP_AXIS_METRICS = {};
+    (function () {
+        for (var i = 0; i < TEMP_AXIS_METRIC_IDS.length; i++) {
+            TEMP_AXIS_METRICS[TEMP_AXIS_METRIC_IDS[i]] = true;
+        }
+    })();
+
+    /**
+     * @param {*} metric A metric id.
+     * @returns {boolean} True for a metric drawn on the temperature axis (feels, dew).
+     */
+    function isTempAxisMetric(metric) {
+        return typeof metric === 'string'
+            && Object.prototype.hasOwnProperty.call(TEMP_AXIS_METRICS, metric);
+    }
     // 'Night' is the night FILL TINT — the base nightAreaColorsFor derives the triple from.
     var METRIC_ROLES = ['Line', 'Fill', 'Night'];
     // What the full-height band owns, under the pseudo-scope 'night'.
@@ -196,19 +219,20 @@
 
     /**
      * The roles one scope actually gets a KEY for — the settings page's row list.
-     * feels is Line-only: it never fills (resolveGraphColors pins fillOn false for it), so
-     * a Fill or a night-tint row would offer a colour nothing can paint.
+     * The temperature-axis metrics (feels, dew) are Line-only: they never fill
+     * (resolveGraphColors pins fillOn false for them), so a Fill or a night-tint row would
+     * offer a colour nothing can paint.
      * @param {string} scope A metric id from GRAPH_METRICS, or 'night'.
      * @returns {string[]} The roles, in row order.
      */
     function graphColorRoles(scope) {
         if (scope === 'night') { return NIGHT_ROLES; }
-        return scope === 'feels' ? ['Line'] : METRIC_ROLES;
+        return isTempAxisMetric(scope) ? ['Line'] : METRIC_ROLES;
     }
 
     /**
-     * Every graph-colour key, in row order. 42 keys: six metrics x three roles x two
-     * polarities, feels' Line pair, and the night band's two pairs.
+     * Every graph-colour key, in row order. 44 keys: six metrics x three roles x two
+     * polarities, the Line pairs of feels and dew, and the night band's two pairs.
      *
      * Nothing in the app enumerates these — the schema builds its rows from graphColorRoles
      * per scope, and the reset action takes its key list from the sheet. This exists as the
@@ -360,12 +384,12 @@
     var FORECAST_LINES = [
         { key: 'secondaryLine' },
         { key: 'thirdLine' },
-        // feels never rides the fourth line: it has no curve-inset channel,
-        // so it could never share the temperature axis.
-        { key: 'fourthLine', bans: { feels: true } },
+        // feels and dew never ride the fourth line: it has no curve-inset
+        // channel, so they could never share the temperature axis.
+        { key: 'fourthLine', bans: TEMP_AXIS_METRICS },
         // The fourth metric ("Fourth metric" in the settings): no curve-inset
         // channel either, so the same ban.
-        { key: 'fifthLine', bans: { feels: true } }
+        { key: 'fifthLine', bans: TEMP_AXIS_METRICS }
     ];
 
     /**
@@ -604,7 +628,7 @@
      * round-trip through deriveNightTriple, so re-deriving would repaint blobs nobody has
      * touched. (The light built-ins are derived by construction, so there the two agree.)
      *
-     * @param {string} metric The secondary line's metric (precip_prob|wind|gust|uv|pressure|feels).
+     * @param {string} metric The secondary line's metric (precip_prob|wind|gust|uv|pressure|feels|dew).
      * @param {number|null} tint The 0xRRGGBB night-fill tint, or null for the built-in.
      * @param {string} [theme] 'dark'|'light'|'bw'|'bw-light'; defaults to 'dark' (the
      *   hand-tuned triples) when omitted.
@@ -738,11 +762,11 @@
             fourth: resolved(settings.fourthLine, 'Line'),
             fifth: resolved(settings.fifthLine, 'Line'),
             night: resolveNightColors(settings, cx, secMetric),
-            // THE authoritative gate on feels never filling (ADR-0003 §6) — the config UI
-            // also hides and clears the toggle, but a blob stored before that landed, or
+            // THE authoritative gate on feels/dew never filling (ADR-0003 §6) — the config
+            // UI also hides and clears the toggle, but a blob stored before that landed, or
             // any future caller, still cannot turn it on. A stripe-styled main line has
             // no curve to fill below, so it never fills either.
-            fillOn: Boolean(settings.secondaryLineFill) && secMetric !== 'feels'
+            fillOn: Boolean(settings.secondaryLineFill) && !isTempAxisMetric(secMetric)
                 && !(caps.lineStyles !== false && isStripeStyle(settings, 'secondaryLineStyle'))
         };
     }
@@ -819,6 +843,8 @@
         graphNightTint: graphNightTint,
         graphColorIsPicked: graphColorIsPicked,
         FORECAST_LINES: FORECAST_LINES,
+        TEMP_AXIS_METRIC_IDS: TEMP_AXIS_METRIC_IDS,
+        isTempAxisMetric: isTempAxisMetric,
         effectiveLineMetric: effectiveLineMetric,
         LINE_STYLE_DEFAULTS: LINE_STYLE_DEFAULTS,
         lineStyleValue: lineStyleValue,

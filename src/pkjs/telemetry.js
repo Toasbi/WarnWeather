@@ -116,6 +116,14 @@ function buildSettingsSnapshot(settings, watchInfo) {
         uvSlotSeparatorSpaced: Boolean(safe.uvSlotSeparatorSpaced),
         uvSlotOrder: safe.uvSlotOrder,
         uvSlotNextDayMark: safe.uvSlotNextDayMark,
+        // The wind, gust and AQI slots' display mode ('current' | 'max' | 'both'),
+        // raw like uvSlotDisplay. Their pair presentation (separator, spacing,
+        // order, next-day mark) is NOT reported: fifteen more fields would spend
+        // most of the envelope's headroom, and UV's picks above already show
+        // how people shape a day-max pair.
+        windSlotDisplay: safe.windSlotDisplay,
+        gustSlotDisplay: safe.gustSlotDisplay,
+        aqiSlotDisplay: safe.aqiSlotDisplay,
         // The date slot's two format picks (edit sheet), raw like tempSlotDisplay.
         // dateSlotFullFormat is wizard-seeded per country ('slash' for US installs,
         // 'auto' elsewhere), so a present value does NOT mean the user opened the

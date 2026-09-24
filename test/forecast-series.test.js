@@ -969,14 +969,14 @@ test('feels as the THIRD line does not disturb the secondary metric fill', () =>
 // --- the byte-0 wire invariant ------------------------------------------------
 // chart.c:224 skips any dot at or below the layer floor ("values[i] <= lo", lo=0),
 // so wire byte 0 means ABSENT. Zero-based metrics (precip/wind/gust/uv) rely on
-// that — a 0 % hour SHOULD have no dot. Band-scaled ones (pressure, feels) must
+// that — a 0 % hour SHOULD have no dot. Band-scaled ones (pressure, feels, dew) must
 // never emit it: their minimum is a real reading. metricBytes() is the single gate;
 // these tests are what stop a future band-scaled metric from repeating the bug.
 const { isBandScaledMetric, BAND_SCALED_METRICS } = require('../src/pkjs/forecast-series');
 
 test('BAND_SCALED_METRICS is the declared list and isBandScaledMetric agrees with it', () => {
-  assert.deepEqual(BAND_SCALED_METRICS.slice().sort(), ['feels', 'pressure']);
-  ['pressure', 'feels'].forEach((m) => assert.equal(isBandScaledMetric(m), true, m));
+  assert.deepEqual(BAND_SCALED_METRICS.slice().sort(), ['dew', 'feels', 'pressure']);
+  ['pressure', 'feels', 'dew'].forEach((m) => assert.equal(isBandScaledMetric(m), true, m));
   ['precip_prob', 'wind', 'gust', 'uv', 'off', 'nonsense'].forEach(
     (m) => assert.equal(isBandScaledMetric(m), false, m));
 });
@@ -988,7 +988,8 @@ test('no band-scaled metric ever emits wire byte 0, on either line channel', () 
     // 984 hPa sits below the 'low' scale's floor, so it clamps to the band bottom.
     pressure: { raw: { pressures: [984, 1013, 1040] }, settings: { pressureScale: 'low' } },
     // Feels flat against its own band floor (no tempBand → self-scaled).
-    feels: { raw: { feels: [40, 55, 70] }, settings: {} }
+    feels: { raw: { feels: [40, 55, 70] }, settings: {} },
+    dew: { raw: { dews: [30, 42, 51] }, settings: {} }
   };
   BAND_SCALED_METRICS.forEach((metric) => {
     const c = cases[metric];
@@ -1146,4 +1147,59 @@ test('the fourth metric line ships as FIFTH_LINE_TREND_UINT8 off aplite only', (
   assert.deepEqual(applyForecastSeries(base(), Object.assign({}, settings, { fifthLine: 'precip_prob' }),
     { platform: 'basalt' }).FIFTH_LINE_TREND_UINT8, []);
   assert.equal(needsUv({ fifthLine: 'uv' }), true, 'a UV fourth metric extends the UV fetch gate');
+});
+
+// ---- Dew-point metric ----------------------------------------------------
+// 'dew' rides the temperature axis exactly like feels: the joint band covers the
+// temperature and every drawn temperature-axis series, so feels and dew on the two
+// channels share one scale with the temp curve.
+
+test('dew selected: the joint band covers temp, feels AND dew, and TEMP_MIN/MAX stay the actual temps', () => {
+  const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [8, 18, 28], DEW_TREND: [0, 4, 9] }),
+    { secondaryLine: 'feels', thirdLine: 'dew', barSource: 'off' }, { platform: 'basalt' });
+  // Joint band [0, 30], padded below (dew overshoots) by ceil(30 * 40/960) = 2 -> [-2, 30].
+  // Temps 10/20/30 -> round((t+2)*250/32) = 94/172/250.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [94, 172, 250]);
+  assert.equal(out.TEMP_MIN, 10);
+  assert.equal(out.TEMP_MAX, 30);
+  // Dew 0/4/9 against [-2, 30]: 63/188/344 ‰ -> bytes 16/47/86.
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [16, 47, 86]);
+  // Feels 8/18/28 against the SAME band: 313/625/938 ‰ -> 78/156/235.
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [78, 156, 235]);
+  assert.equal('DEW_TREND' in out, false, 'transient stripped');
+});
+
+test('dew: an hour with no reading ships as byte 0 (drawn as a gap) and never widens the band', () => {
+  const out = applyForecastSeries(feelsPayload({ DEW_TREND: [5, null, 15] }),
+    { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  const bytes = out.SECONDARY_LINE_TREND_UINT8;
+  assert.equal(bytes[1], 0, 'the missing hour is absent');
+  assert.ok(bytes[0] > 0 && bytes[2] > 0, 'the sourced hours keep their dots');
+  // Band [5, 30] padded to [3, 30] — a null read as 0 °F would have dragged it to 0.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
+});
+
+test('dew: a feed without dew (DEW_TREND absent or all null) leaves the line off and the band alone', () => {
+  [undefined, [null, null, null]].forEach((dew) => {
+    const out = applyForecastSeries(feelsPayload(dew ? { DEW_TREND: dew } : {}),
+      { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+    assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [], String(dew));
+    assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250], String(dew));
+  });
+});
+
+test('dew is never drawn on aplite, nor on the fourth line', () => {
+  const aplite = applyForecastSeries(feelsPayload({ DEW_TREND: [0, 4, 9] }),
+    { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'aplite' });
+  assert.deepEqual(aplite.SECONDARY_LINE_TREND_UINT8, []);
+  assert.deepEqual(aplite.TEMP_TREND_UINT8, [0, 125, 250], 'temps keep their own band');
+  const fourth = buildForecastSeries(Object.assign({ dews: [10, 12, 14] }, RAW),
+    { secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'dew', windScale: 'mid', barSource: 'off' });
+  assert.deepEqual(fourth.FOURTH_LINE_TREND_UINT8, [], 'dew never rides the fourth line');
+});
+
+test('dew never fills the area below its line', () => {
+  const cx = lineStyle.renderContextFor({ theme: 'dark' }, { color: true, themePolarity: true });
+  assert.equal(lineStyle.resolveGraphColors(
+    { secondaryLine: 'dew', secondaryLineFill: true, theme: 'dark' }, cx).fillOn, false);
 });

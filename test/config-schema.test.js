@@ -46,7 +46,10 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Dang
   // sheets).
   .concat(['windSlotDirection', 'gustSlotDirection', 'windSlotUnit', 'gustSlotUnit',
     'uvSlotDisplay', 'uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced',
-    'uvSlotOrder', 'uvSlotNextDayMark']);
+    'uvSlotOrder', 'uvSlotNextDayMark']
+    // ...and the same day-max rows on the wind, gust and AQI sheets.
+    .concat(['wind', 'gust', 'aqi'].reduce((all, k) => all.concat(['Display', 'Separator',
+      'SeparatorCustom', 'SeparatorSpaced', 'Order', 'NextDayMark'].map((f) => k + 'Slot' + f)), [])));
 // The "Show unit" toggles on the BOLD-ONLY sheets. Six kinds have one — the six whose
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.
@@ -201,11 +204,12 @@ test('B/W bar-scale hints actually show for bw-light (not just bw) via the show-
 
 test('COLOR-capability + showWhen wiring', () => {
   ['rainBarColor','radarColor','colorTime'].forEach((k) => assert.ok(byKey(k).capabilities.indexOf('COLOR') >= 0));
-  // Fill is available for every metric EXCEPT feels-like, which rides the temperature
-  // axis and so has no meaningful zero to fill down to — and not for a stripe-styled
-  // main line, which has no curve to fill below (unless the watch ignores the styles).
+  // Fill is available for every metric EXCEPT feels-like and dew point, which ride the
+  // temperature axis and so have no meaningful zero to fill down to — and not for a
+  // stripe-styled main line, which has no curve to fill below (unless the watch ignores
+  // the styles).
   assert.deepEqual(byKey('secondaryLineFill').showWhen, { all: [
-    { key: 'secondaryLine', ne: 'feels' },
+    { key: 'secondaryLine', nin: ['feels', 'dew'] },
     { any: [{ not: { env: 'lineStyles' } },
       { key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom'] }] }
   ] });
@@ -220,6 +224,8 @@ test('the fill toggle hides for feels-like and stays visible for every other met
   });
   assert.equal(showWhen.isVisible(fill, { secondaryLine: 'feels', env: {} }), false,
     'feels-like hides the fill row');
+  assert.equal(showWhen.isVisible(fill, { secondaryLine: 'dew', env: {} }), false,
+    'dew point hides the fill row');
   ['stripeTop', 'stripeBottom'].forEach((st) => {
     assert.equal(showWhen.isVisible(fill, { secondaryLine: 'cloud', secondaryLineStyle: st,
       env: { lineStyles: true } }), false, st + ' hides the fill row');
@@ -423,12 +429,12 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
 const metricOptions = (S, env, args) =>
   global.PConf.optionsResolvers.get('forecastMetric')(S, env, args);
 
-test('secondaryLine is a 7-metric dropdown with no Off (resolver-derived)', () => {
+test('secondaryLine is a 8-metric dropdown with no Off (resolver-derived)', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
   assert.equal(sec.optionsFrom.resolver, 'forecastMetric');
   const vals = metricOptions({}, { platform: 'basalt' }).map((o) => o[1]);
-  assert.deepEqual(vals, ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels']);
+  assert.deepEqual(vals, ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew']);
   assert.equal(sec.defaultValue, 'precip_prob');
 });
 
@@ -438,13 +444,13 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
   assert.equal(third.defaultValue, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
   assert.deepEqual(third.optionsFrom.args, { off: true, exclude: ['secondaryLine'] });
-  // Every secondary metric yields Off + the OTHER six (never itself).
-  ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels'].forEach((sec) => {
+  // Every secondary metric yields Off + the OTHER seven (never itself).
+  ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew'].forEach((sec) => {
     const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] })
       .map((o) => o[1]);
     assert.equal(vals[0], 'off', sec + ' third options must start with off');
     assert.ok(!vals.includes(sec), sec + ' must be excluded from its own third-line options');
-    assert.equal(vals.length, 7, sec + ' → off + 6 others');
+    assert.equal(vals.length, 8, sec + ' → off + 7 others');
   });
 });
 
@@ -1005,7 +1011,8 @@ test('forecast line pickers use the new metric-oriented labels', () => {
 
 test('metric options are spelled out fully on both pickers', () => {
   assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
-    ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
+    ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
+    ['Dew point', 'dew']
   ]);
   const thirdOf = (sec) => metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
   const labelOf = (sec, val) => thirdOf(sec).find((o) => o[1] === val)[0];
@@ -1016,6 +1023,7 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.equal(labelOf('gust', 'wind'), 'Wind speed');
   assert.equal(labelOf('precip_prob', 'feels'), 'Feels-like temperature');
   assert.equal(labelOf('feels', 'pressure'), 'Air pressure (hPa)');
+  assert.equal(labelOf('precip_prob', 'dew'), 'Dew point');
 });
 
 test('Second metric picker hints note that it is drawn as bar-aligned square dots', () => {
@@ -2187,17 +2195,18 @@ test('the radar rain-horizon control is labelled "Rain countdown"', () => {
   assert.equal(byKey('rainCountdownHorizon').label, 'Rain countdown');
 });
 
-test('secondaryLine offers cloud cover second, pressure and feels-like last', () => {
+test('secondaryLine offers cloud cover second, then pressure, feels-like and dew point last', () => {
   assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
     ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
-    ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels']
+    ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
+    ['Dew point', 'dew']
   ]);
 });
 
-test('thirdLine offers the six metrics the main line is not using, for all seven', () => {
-  for (const metric of ['cloud', 'feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
+test('thirdLine offers the seven metrics the main line is not using, for all eight', () => {
+  for (const metric of ['cloud', 'dew', 'feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
     const opts = metricOptions({ secondaryLine: metric }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
-    assert.equal(opts.length, 7, `${metric} should offer Off + 6 metrics`);
+    assert.equal(opts.length, 8, `${metric} should offer Off + 7 metrics`);
     assert.equal(opts[0][1], 'off');
     assert.ok(!opts.some(([, v]) => v === metric), `${metric} must not offer itself`);
   }
@@ -2205,13 +2214,14 @@ test('thirdLine offers the six metrics the main line is not using, for all seven
 
 test('fourthLine offers Off + the metrics neither other line uses, never feels', () => {
   const opts = metricOptions({ secondaryLine: 'wind', thirdLine: 'uv' },
-    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
+    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true });
   assert.deepEqual(opts.map(([, v]) => v), ['off', 'precip_prob', 'cloud', 'gust', 'pressure'],
     'Off + the remaining metrics minus feels (no curve-inset channel on the fourth line)');
   // With the other two lines elsewhere, feels is STILL absent.
   const wide = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' },
-    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noFeels: true });
+    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true });
   assert.ok(!wide.some(([, v]) => v === 'feels'), 'feels never offered on the fourth line');
+  assert.ok(!wide.some(([, v]) => v === 'dew'), 'dew never offered on the fourth line');
 });
 
 test('the Third metric row and every line-style row hide behind the lineStyles capability, fail-open for unknown platforms', () => {
@@ -2346,10 +2356,10 @@ const forecastSections = () => schema.tabs.find((t) => t.id === 'forecast').sect
 const graphCard = () => forecastSections().find((s) => s.id === 'graphColors');
 const graphSheets = () => forecastSections().filter((s) => s.sheetOnly);
 const gcSheetById = (id) => graphSheets().find((s) => s.sheetId === id);
-// The eight rows in card order: the seven metrics as the metric pickers list them, then
+// The nine rows in card order: the eight metrics as the metric pickers list them, then
 // the full-height night band.
-const GRAPH_ROW_SHEETS = ['gcPrecip', 'gcCloud', 'gcWind', 'gcGust', 'gcUv', 'gcPressure', 'gcFeels', 'gcNight'];
-const GRAPH_ROW_SCOPES = ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'night'];
+const GRAPH_ROW_SHEETS = ['gcPrecip', 'gcCloud', 'gcWind', 'gcGust', 'gcUv', 'gcPressure', 'gcFeels', 'gcDew', 'gcNight'];
+const GRAPH_ROW_SCOPES = ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew', 'night'];
 // Everything a live gate could read, so only the polarity gate is left to vary — the
 // point being that no graph-colour row reads any of them.
 const graphState = (over) => Object.assign({
@@ -2381,16 +2391,16 @@ test('the Forecast tab carries ONE Graph colors card, always open, under an expl
   assert.equal(showWhen.isVisible(card, { theme: 'dark', env: { color: false } }), false);
 });
 
-test('the card is eight sheet rows in metric-picker order, each identified by its badge args', () => {
+test('the card is nine sheet rows in metric-picker order, each identified by its badge args', () => {
   const rows = graphCard().items;
-  assert.equal(rows.length, 8, 'seven metrics plus the night band — nothing else in the card');
+  assert.equal(rows.length, 9, 'eight metrics plus the night band — nothing else in the card');
   rows.forEach((row) => assert.equal(row.type, 'sheet'));
   assert.deepEqual(rows.map((r) => r.sheetId), GRAPH_ROW_SHEETS);
-  // The seven metric rows carry the metric picker's own labels, in its own order, so the
+  // The eight metric rows carry the metric picker's own labels, in its own order, so the
   // two lists read as one vocabulary instead of drifting apart.
-  assert.deepEqual(rows.slice(0, 7).map((r) => [r.label, r.editBadgeFrom.args.scope]),
+  assert.deepEqual(rows.slice(0, 8).map((r) => [r.label, r.editBadgeFrom.args.scope]),
     metricOptions({}, { platform: 'basalt' }, {}));
-  assert.equal(rows[7].label, 'Night shading');
+  assert.equal(rows[8].label, 'Night shading');
   rows.forEach((row, i) => {
     assert.equal(row.messageKey, undefined, row.sheetId + ' stores nothing of its own');
     // resolveEditBadge merges the item's messageKey UNDER editBadgeFrom.args, and a
@@ -2403,7 +2413,7 @@ test('the card is eight sheet rows in metric-picker order, each identified by it
 });
 
 test('each row has a sheetOnly section carrying BOTH gates and no sticky preview', () => {
-  assert.equal(graphSheets().length, 8, 'eight sheets on the tab, one per row');
+  assert.equal(graphSheets().length, 9, 'nine sheets on the tab, one per row');
   GRAPH_ROW_SHEETS.forEach((id) => {
     const sec = gcSheetById(id);
     assert.ok(sec, 'missing sheet: ' + id);
@@ -2575,4 +2585,15 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
     assert.ok(['provider', 'location', 'locationMode', 'gpsCacheMin'].indexOf(i.messageKey) === -1,
       'the weather tab must not host watch key ' + i.messageKey);
   }));
+});
+
+test('the day-max sheets\' keys are exactly the catalog\'s dayMaxSettingKeys', () => {
+  // Reset and renderSignature take their keys from the catalog; the sheets build theirs
+  // in dayMaxRows. The two must never drift apart, or a new row would neither reset nor
+  // re-bake.
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const kinds = new RegExp('^(' + catalog.DAY_MAX_KINDS.join('|') + ')Slot');
+  const fromSheets = items.map((i) => i.messageKey)
+    .filter((k) => k && kinds.test(k) && !/Slot(Unit|Direction)$/.test(k));
+  assert.deepEqual([...new Set(fromSheets)].sort(), catalog.dayMaxSettingKeys().slice().sort());
 });

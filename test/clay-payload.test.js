@@ -365,6 +365,16 @@ test('CLAY_CURVE_INSET_UINT8: feels on the third line shares the temp inset', fu
   assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 7]);
 });
 
+test('CLAY_CURVE_INSET_UINT8: dew point shares the temp inset on either line', function() {
+  const s = baseSettings();
+  s.secondaryLine = 'dew';
+  s.thirdLine = 'feels';
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 7, 7]);
+  s.secondaryLine = 'wind';
+  s.thirdLine = 'dew';
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 7]);
+});
+
 test('CLAY_CURVE_INSET_UINT8 is omitted for aplite (WW_CURVE_INSET compiled out) but kept for unknown platforms', function() {
   const s = baseSettings();
   const aplite = buildClayPayload(s, { platform: 'aplite' }, NOW);

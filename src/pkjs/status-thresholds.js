@@ -274,25 +274,26 @@
     return 0;
   }
 
-  // First trend value or null — wire-units owns it, shared with status-lines.
-  var trendHead = wireUnits && wireUnits.trendHead;
-
   /**
    * The number the user SEES for a weather kind — thresholds compare against
-   * the displayed value. The wind conversion and trend read are SHARED with
-   * status-lines.js through wire-units (as is the UV reader), so the two cannot
-   * round apart; the AQI rounding here still mirrors formatValue() by contract
-   * (pinned by test).
+   * the displayed value. The readers are SHARED with status-lines.js through
+   * wire-units (dayMaxShown), so the two cannot round apart or
+   * disagree on which peak is shown.
+   *
+   * The day-max kinds (UV, wind, gusts, AQI) judge the highest of TODAY's
+   * numbers shown. An unmarked peak is never below now by construction, so "2/8"
+   * is highlighted for the 8 (and "5/5", a peak still running, for 5); tomorrow's
+   * marked peak never counts until it is today's, so "8/»6" is judged on the 8
+   * and a lone "»9" not at all (null).
    * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
    * @param {Object} payload weather payload (pre-transform, trends present)
-   * @param {Object} settings Clay settings blob (windUnits, uvSlotDisplay)
+   * @param {Object} settings Clay settings blob (windUnits, <kind>SlotDisplay)
    * @returns {number|null} displayed number, or null when unavailable
    */
   function displayValue(code, payload, settings) {
-    var v;
-    if (code === 'aqi') {
-      v = trendHead(payload.AQI_TREND);
-      return v === null ? null : Math.round(v);
+    var s = settings || {};
+    if (wireUnits.isDayMaxKind(code)) {
+      return todaysShown(wireUnits.dayMaxShown(code, payload, s));
     }
     if (code === 'pollen') {
       var pt = payload.POLLEN_TODAY;
@@ -301,27 +302,18 @@
       var idx = POLLEN_BANDS.indexOf(String(pt));
       return idx < 0 ? null : idx / 2;   // 7 bands -> 0,0.5,1,1.5,2,2.5,3
     }
-    if (code === 'wind' || code === 'gust') {
-      v = trendHead(code === 'wind' ? payload.WIND_TREND_UINT8
-                                    : payload.GUST_TREND_UINT8);
-      if (v === null) { return null; }
-      // wire-units owns the conversion — the same helper status-lines'
-      // windParts displays with, so the two can never round apart.
-      return wireUnits.kmhToDisplay(v, settings && settings.windUnits);
-    }
-    if (code === 'uv') {
-      // Thresholds compare the DISPLAYED numbers — the slot text's own reader
-      // (wireUnits.uvShown, whole UV), so the two agree on the peak, the rounding
-      // and every fallback. The policy is here: judge the highest of TODAY's
-      // numbers shown. An unmarked peak is never below now by construction, so
-      // "2/8" is highlighted for the 8 (and "5/5", a peak still running, for 5); tomorrow's marked peak never counts until it is
-      // today's, so "8/»6" is judged on the 8 and a lone "»9" not at all (null).
-      var uv = wireUnits.uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS,
-        settings && settings.uvSlotDisplay);
-      if (!uv) { return null; }
-      return (uv.peak === null || uv.nextDay) ? uv.now : uv.peak;
-    }
     return null;
+  }
+
+  /**
+   * The highest of today's numbers a day-max slot shows (displayValue's policy).
+   * @param {?{now: ?number, peak: ?number, nextDay: boolean}} shown wire-units' pick
+   * @returns {number|null} today's peak when shown, else the current reading
+   *     (null when only tomorrow's peak is on screen, or no reading at all)
+   */
+  function todaysShown(shown) {
+    if (!shown) { return null; }
+    return (shown.peak === null || shown.nextDay) ? shown.now : shown.peak;
   }
 
   // Bit position of a weather kind's 2-bit level in the packed levels value:

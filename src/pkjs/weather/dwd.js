@@ -9,7 +9,9 @@ var feelsLikeFromDewF = feelsLike.feelsLikeFromDewF;
 var BRIGHTSKY_BASE = require('./brightsky.js').BASE_URL;
 var MAX_DIST_METERS = 500000;
 var hourlyWindow = require('./hourly-window.js');
+var dayPeaks = require('./day-peaks.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
+var PEAK_HOURS = hourlyWindow.PEAK_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 var HOUR_MS = HOUR_SECONDS * 1000;
 // Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
@@ -107,21 +109,82 @@ function currentFeelsFrom(current) {
 
 /**
  * ISO 8601 forecast window starting at the current wall-clock hour and
- * covering FORECAST_HOURS + 1 buckets. Brightsky returns `hourly[0]` as the
+ * covering FORECAST_HOURS + 1 buckets (or to the end of tomorrow). Brightsky returns `hourly[0]` as the
  * bucket whose timestamp >= `date`, so anchoring `date` at the hour
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
  * `last_date` is inclusive, so ending it FORECAST_HOURS on returns one record
  * past the window: the one stamped at the last slot's END, which carries that
- * slot's preceding-hour rain, chance and gust (see slotRecords).
+ * slot's preceding-hour rain, chance and gust (see slotRecords). While a wind
+ * or gust slot shows its day max it runs on to the end of local tomorrow
+ * instead: only wind and gusts read on (peakTail).
  *
+ * @param {boolean} peak Whether a wind or gust slot shows its day max.
  * @returns {{ start: string, end: string }} ISO timestamps.
  */
-function forecastWindow() {
-    var startMs = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+function forecastWindow(peak) {
+    var nowMs = Date.now();
+    var startMs = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
+    // The day max reads no further than the end of local tomorrow
+    // (localDayPeaks), plus the record after it that holds the last gust.
+    var endMs = peak
+        ? hourlyWindow.localDayStart(startMs / 1000, Math.floor(nowMs / 1000), 2) * 1000 + HOUR_MS
+        : startMs + FORECAST_HOURS * HOUR_MS;
     return {
         start: new Date(startMs).toISOString(),
-        end: new Date(startMs + FORECAST_HOURS * HOUR_MS).toISOString()
+        end: new Date(endMs).toISOString()
     };
+}
+
+/**
+ * Wind and gusts for the hours after the graph's FORECAST_HOURS slots, out to
+ * PEAK_HOURS — what the wind and gust slots' day max reads past the graph.
+ * Paired by timestamp like slotRecords (wind from the hour's own record, the
+ * gust from the one an hour on), but a record Brightsky does not return reads
+ * as null rather than carrying the previous hour forward: past the graph a
+ * made-up hour could only invent a peak, and localDayPeaks treats a null tail
+ * as the end of the feed.
+ *
+ * @param {Object} byEpoch Brightsky records by epoch second (recordsByEpoch).
+ * @param {number} startEpoch Epoch seconds of slot 0.
+ * @returns {{wind: Array.<(number|null)>, gust: Array.<(number|null)>}} km/h.
+ */
+function peakTail(byEpoch, startEpoch) {
+    var wind = [];
+    var gust = [];
+    var i, own, next;
+    for (i = FORECAST_HOURS; i < PEAK_HOURS; i += 1) {
+        own = byEpoch[startEpoch + i * HOUR_SECONDS];
+        next = byEpoch[startEpoch + (i + 1) * HOUR_SECONDS];
+        wind.push(own && typeof own.wind_speed === 'number' ? own.wind_speed : null);
+        gust.push(next && typeof next.wind_gust_speed === 'number' ? next.wind_gust_speed : null);
+    }
+    return { wind: wind, gust: gust };
+}
+
+/**
+ * Whether a wind or gust slot shows its day max — the only reason to read
+ * Brightsky past the graph's window.
+ *
+ * @param {Object} provider The DWD provider.
+ * @returns {boolean}
+ */
+function windPeaksWanted(provider) {
+    return dayPeaks.wanted(provider, 'wind') || dayPeaks.wanted(provider, 'gust');
+}
+
+/**
+ * Brightsky records keyed by their timestamp's epoch second — the lookup both
+ * slotRecords and peakTail pair by, built once per fetch.
+ *
+ * @param {Object[]} hourly Brightsky `weather` records.
+ * @returns {Object} Epoch second -> record.
+ */
+function recordsByEpoch(hourly) {
+    var byEpoch = {};
+    for (var i = 0; i < hourly.length; i += 1) {
+        byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
+    }
+    return byEpoch;
 }
 
 /**
@@ -150,20 +213,17 @@ function forecastWindow() {
  * caller reads as no rain / no gust.
  *
  * @param {Object[]} hourly Brightsky `weather` records, ascending.
+ * @param {Object} byEpoch The same records by epoch second (recordsByEpoch).
  * @param {number} startEpoch Epoch seconds of slot 0 (hourly[0]'s timestamp).
  * @param {number} count Number of slots to pair.
  * @returns {{own: Object[], following: Array.<(Object|null)>}} One record per
  *   slot each (`following` entries may be null).
  */
-function slotRecords(hourly, startEpoch, count) {
-    var byEpoch = {};
+function slotRecords(hourly, byEpoch, startEpoch, count) {
     var own = [];
     var following = [];
     var i;
     var record;
-    for (i = 0; i < hourly.length; i += 1) {
-        byEpoch[Math.floor(Date.parse(hourly[i].timestamp) / 1000)] = hourly[i];
-    }
     for (i = 0; i < count; i += 1) {
         record = byEpoch[startEpoch + i * HOUR_SECONDS] || (i > 0 ? own[i - 1] : hourly[0]);
         own.push(record);
@@ -186,7 +246,7 @@ DwdProvider.prototype.constructor = DwdProvider;
 DwdProvider.prototype._super = WeatherProvider;
 
 DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) {
-    var win = forecastWindow();
+    var win = forecastWindow(windPeaksWanted(this));
     var url = BRIGHTSKY_BASE + '/weather'
         + '?lat=' + lat
         + '&lon=' + lon
@@ -238,14 +298,15 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
         }
         this.withDwdCurrent(lat, lon, (function(currentTempF, currentFeelsF, currentBearing) {
             var startEpoch = Math.floor(Date.parse(hourly[0].timestamp) / 1000);
-            // The window asks for one record past FORECAST_HOURS (forecastWindow);
+            // The window asks for records out to PEAK_HOURS (forecastWindow);
             // the slots themselves stop at FORECAST_HOURS so every series agrees
-            // on its length. A response short of that (fewer records than slots)
+            // on its length (wind and gusts read on, peakTail below). A response short of that (fewer records than slots)
             // stays short, so hasValidData still rejects it.
             // Instants (temperature, wind speed, pressure, dew point, bearing)
             // read the slot's own record; the preceding-hour totals read the
             // record one hour on (slotRecords).
-            var paired = slotRecords(hourly, startEpoch, Math.min(hourly.length, FORECAST_HOURS));
+            var byEpoch = recordsByEpoch(hourly);
+            var paired = slotRecords(hourly, byEpoch, startEpoch, Math.min(hourly.length, FORECAST_HOURS));
             var slots = paired.own;
             var following = paired.following;
             this.tempTrend = slots.map(function(e) { return celsiusToFahrenheit(e.temperature); });
@@ -267,6 +328,16 @@ DwdProvider.prototype.withProviderData = function(lat, lon, force, onSuccess, on
             // the direction it points must come from the same record.
             if (this.windDirTrend[0] === null && typeof currentBearing === 'number') {
                 this.windDirTrend[0] = currentBearing;
+            }
+            // The day-max series read on past the graph (hourly-window.js
+            // PEAK_HOURS) while a wind or gust slot shows its day max (the
+            // window reached that far, forecastWindow); getPayload cuts them
+            // back to the graph's window.
+            if (slots.length === FORECAST_HOURS
+                && windPeaksWanted(this)) {
+                var tail = peakTail(byEpoch, startEpoch);
+                this.windTrend = this.windTrend.concat(tail.wind);
+                this.gustTrend = this.gustTrend.concat(tail.gust);
             }
             // Steadman-computed (no Brightsky feels field), and the most expensive
             // feels path of any provider — an exp() per hour — so it honours the gate.

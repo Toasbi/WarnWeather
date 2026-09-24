@@ -215,7 +215,7 @@ test('packWeatherLevels: missing data or disabled kinds emit normal', () => {
 });
 
 test('packWeatherLevels: UV thresholds with no UV series emit normal in every display mode', () => {
-  // Bright Sky, a failed UV fetch or no UV slot: wireUnits.uvShown answers null, and
+  // Bright Sky, a failed UV fetch or no UV slot: wireUnits.dayMaxShown answers null, and
   // the level must stay Normal rather than throw on its peak. Warn '0' also catches a
   // missing value read as 0 (0 >= 0 would be warn).
   const payloads = [{}, { UV_TREND_UINT8: [] }, { UV_TREND_UINT8: [], UV_DAY_PEAKS: [90, 90] }];
