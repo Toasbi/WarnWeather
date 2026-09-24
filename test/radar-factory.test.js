@@ -143,3 +143,16 @@ test('radar picker offers tomorrowio', () => {
   const tio = radarItem.options.find((o) => o[1] === 'tomorrowio');
   assert.ok(tio[2] && tio[2].desc, 'has a dropdown description');
 });
+
+test('canAnswer: sources whose missing config clears the radar on every fetch can never answer', () => {
+  const factory = require('../src/pkjs/weather/radar-factory.js');
+  const cfg = { rainbowEndpoint: 'https://proxy.example/rainbow', tomorrowioApiKey: 'KEY' };
+  assert.equal(factory.canAnswer('dwd', cfg), true);
+  assert.equal(factory.canAnswer('metno', cfg), true);
+  assert.equal(factory.canAnswer('rainbow', cfg), true);
+  assert.equal(factory.canAnswer('rainbow', { rainbowEndpoint: '' }), false, 'no proxy endpoint in this build');
+  assert.equal(factory.canAnswer('tomorrowio', cfg), true);
+  assert.equal(factory.canAnswer('tomorrowio', { tomorrowioApiKey: '  ' }), false, 'a blank key');
+  assert.equal(factory.canAnswer('disabled', cfg), false);
+  assert.equal(factory.canAnswer('bogus', cfg), false, 'unknown ids fall back to the clear');
+});

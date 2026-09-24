@@ -275,7 +275,7 @@ static void set_stores_exactly_five_bytes(void) {
 
 // --- The radar no-rain text (same harness: persist.c's NORAIN accessors) --------
 // 1.23.0: an EMPTY text is stored (the user cleared the message: no line), and only
-// a slot never written reads -1 (the radar draws its built-in "No rain ahead").
+// a slot never written reads -1 (the radar draws its built-in no-rain text).
 static void norain_empty_is_stored_not_deleted(void) {
     char buf[NORAIN_TEXT_BUF_BYTES];
     flash_reset();

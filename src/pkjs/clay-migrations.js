@@ -120,7 +120,9 @@ function runMigrations(opts) {
     migrateRadarProviderToMode(opts.defaultRadarProvider,
         isDone(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY),
         mark(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY));
-    migrateEmptyNoRainText(
+    // Marks synchronously: if the send it asks for NACKs, the outbox's uncommitted
+    // last-sent cache still carries the new text on the next Clay send.
+    var wantsClayNoRainText = migrateEmptyNoRainText(
         isDone(KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY),
         mark(KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY));
     // Ahead of the resend below, so a 1.14 -> now jump (which fires both) sends
@@ -144,7 +146,7 @@ function runMigrations(opts) {
         isDone(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY));
     return {
         clayRequired: Boolean(wantsClayColors || wantsClayToggle || wantsClayLightRetune
-                              || wantsClaySolidBars || wantsClayNightColors),
+                              || wantsClaySolidBars || wantsClayNightColors || wantsClayNoRainText),
         commitDeferredMarkers: function () {
             if (wantsClayColors) { mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY)(); }
             if (wantsClayToggle) { mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY)(); }
@@ -640,21 +642,26 @@ function migrateStatusTopRightBattery(isMigrationDone, markDone) {
  *    empty value becomes the default and nobody's radar loses its line on upgrade;
  *  - the old default "No rain ahead": seedDefaults wrote it into every blob, so an
  *    untouched field holds it — those users get the new default like new installs.
- * No Clay resend is forced: the next settings send carries the rewritten text.
+ * Returns true when the watch needs the new text sent: it still holds the old
+ * default "No rain ahead" (an empty text needs no send — the watch had deleted its
+ * slot and already draws the new built-in default).
  * @param {function(): boolean} isMigrationDone marker probe
  * @param {function()} markDone marker setter
- * @returns {void}
+ * @returns {boolean} True when the rewritten text must reach the watch (a Clay send).
  */
 function migrateEmptyNoRainText(isMigrationDone, markDone) {
     var persistClay = loadForMigration(isMigrationDone, 'empty no-rain text');
     if (persistClay === null) { return; }
     var text = persistClay.radarNoRainText;
+    var resend = false;
     if (typeof text === 'string' && (text.trim() === '' || text === 'No rain ahead')) {
+        resend = (text === 'No rain ahead');
         persistClay.radarNoRainText = "You're good :)";
         save(persistClay);
         console.log('Migrated no-rain text -> the new default');
     }
     markDone();
+    return resend;
 }
 
 /**

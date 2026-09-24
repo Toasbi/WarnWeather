@@ -850,3 +850,15 @@ test('migrateEmptyNoRainText: a clear saved after a reset survives the next boot
   clayMigrations.migrateEmptyNoRainText(isDone, () => {});
   assert.equal(JSON.parse(localStorage.getItem('clay-settings')).radarNoRainText, '');
 });
+
+test('migrateEmptyNoRainText asks for a Clay send only when the watch holds the old default', () => {
+  [['No rain ahead', true], ['', false], ['Dry skies', false]].forEach(([stored, want]) => {
+    installFakeStorage();
+    ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
+      delete require.cache[require.resolve(p)];
+    });
+    const clayMigrations = require('../src/pkjs/clay-migrations');
+    localStorage.setItem('clay-settings', JSON.stringify({ radarNoRainText: stored }));
+    assert.equal(clayMigrations.migrateEmptyNoRainText(() => false, () => {}), want, JSON.stringify(stored));
+  });
+});

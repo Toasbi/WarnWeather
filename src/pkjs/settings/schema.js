@@ -1689,8 +1689,8 @@ module.exports = {
                 // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
                 // fetch, on by default (a missing key reads as on everywhere: radar-sky.js
                 // skySourceIdFor, index.js, telemetry.js). Only the radar GRAPH draws them,
-                // like the no-rain text below; index.js clears them whenever the graph is
-                // not shown.
+                // like the no-rain text below; fetch-cycle.js (radarSky.skySourceIdFor) clears
+                // them whenever the graph is not shown.
                 type: 'toggle',
                 messageKey: 'radarSky',
                 label: 'Clouds, sun & lightning',
@@ -1702,9 +1702,9 @@ module.exports = {
                 // finds no rain in the whole window. Ships visibly with the watch's
                 // built-in default so users override the actual message. The UI
                 // maxlength is a soft character cap; the phone re-truncates to 24
-                // UTF-8 BYTES at pack time. Empty/whitespace-only text shows no line
-                // (a 1.23.0 migration turned older empty values back into the
-                // default, which is what "empty" meant before). Only rain_radar_layer.c
+                // UTF-8 BYTES at pack time. Empty/whitespace-only text shows no line.
+                // A 1.23.0 migration moved older empty values (which meant "default")
+                // and the untouched old default "No rain ahead" to "You're good :)". Only rain_radar_layer.c
                 // draws it, so the field follows the graph ('graph'), not the radar
                 // as a whole — in 'status'/'countdown' there is no plot to write on.
                 type: 'text',

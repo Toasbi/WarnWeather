@@ -98,8 +98,15 @@ test('sky on with a failing forecast: no fresh sky rides it, with a real radar w
       settings: { provider: 'tomorrowio', radarProvider, radarSky: true, tomorrowioApiKey: '' },
       answerXhr: true
     });
-    assert.ok(out.skyRequests >= 1, radarProvider + ': the sky half did run');
-    assert.deepEqual(out.skySends, [], radarProvider + ': no sky data rides a failed forecast');
+    if (radarProvider === 'tomorrowio') {
+      // A keyless tomorrow.io radar can never answer: no sky request goes out for rows
+      // it could never draw (radarFactory.canAnswer), only the sky clear.
+      assert.equal(out.skyRequests, 0, 'tomorrowio: no sky request for a radar that can never answer');
+      assertOnlySkyClears(out.skySends, 'keyless radar');
+    } else {
+      assert.ok(out.skyRequests >= 1, radarProvider + ': the sky half did run');
+      assert.deepEqual(out.skySends, [], radarProvider + ': no sky data rides a failed forecast');
+    }
     if (radarProvider === 'tomorrowio') {
       // The keyless radar answers a clear, merged with this cycle's fresh sky:
       // only the three radar keys go out.

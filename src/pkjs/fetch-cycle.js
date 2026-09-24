@@ -227,20 +227,22 @@ function createFetchCycle(deps) {
         // Radar source is configured independently of the forecast provider. The
         // 5-min pinned slot-0 epoch (RAIN_RADAR_START on the wire) is computed here
         // at the clock edge, so the adapters stay deterministic (no clock injection).
-        var source = radarFactory.createRadarSource(
-            // radarMode 'off' clears the watch's radar via the 'disabled' clearing
-            // adapter; any non-off mode fetches the full trend (countdown needs it).
-            (settings.radarMode || 'graph') === 'off' ? 'disabled' : settings.radarProvider,
-            // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
-            // adapter then clears the watch's radar (it can never answer).
-            // tomorrowioApiKey is the user's key from settings; '' likewise
-            // clears in the adapter.
-            {
-                rainbowEndpoint: deps.env.rainbowEndpoint,
-                tomorrowioApiKey: (settings && settings.tomorrowioApiKey) || ''
-            }
-        );
-        var skySource = radarSky.createSkySource(radarSky.skySourceIdFor(settings));
+        // radarMode 'off' clears the watch's radar via the 'disabled' clearing
+        // adapter; any non-off mode fetches the full trend (countdown needs it).
+        var radarId = (settings.radarMode || 'graph') === 'off' ? 'disabled' : settings.radarProvider;
+        // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
+        // adapter then clears the watch's radar (it can never answer).
+        // tomorrowioApiKey is the user's key from settings; '' likewise
+        // clears in the adapter.
+        var radarCfg = {
+            rainbowEndpoint: deps.env.rainbowEndpoint,
+            tomorrowioApiKey: (settings && settings.tomorrowioApiKey) || ''
+        };
+        var source = radarFactory.createRadarSource(radarId, radarCfg);
+        // The sky rows ride the radar graph: a radar source that can never answer draws
+        // no graph, so the sky request would be wasted — clear the rows instead.
+        var skySource = radarSky.createSkySource(radarFactory.canAnswer(radarId, radarCfg)
+            ? radarSky.skySourceIdFor(settings) : 'disabled');
         var slotZeroEpoch = radarWire.slotZeroEpochFor(+deps.now());
         // The sky request is independent of the radar's, so both go out at once and
         // the forecast waits for the slower one, not for one after the other.
