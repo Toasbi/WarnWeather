@@ -265,3 +265,29 @@ test('contentBands: a stacked order renders the movable bands in STACK_ORDERS se
   assert.deepEqual(labels, ['Watch Status', 'Clock', 'Calendar (2 rows)',
     'Forecast Status', 'Health Status', 'Forecast']);
 });
+
+// The watch dispatches ANY custom view with clockOff/stripOff OR order 1-11 through
+// its generic stacker (band sequence = STACK_ORDERS[order], order 0 = 'TACB', absent
+// bands skipped); only pure order-0 full-chrome specs take the legacy tier branches.
+// contentBands mirrors that rule exactly — pin both flag paths at order 0.
+test('contentBands: an order-0 spec with clockOff stacks TACB minus the clock', () => {
+  const s = vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_HEALTH);
+  s.clockOff = true;   // order stays 0 (legacy) — the flag alone must pick the stacker
+  const labels = LY.contentBands(s).map((b) => b.label);
+  assert.deepEqual(labels, ['Watch Status', 'Calendar (3 rows)',
+    'Forecast Status', 'Health Status', 'Forecast'],
+    'TACB with C absent: top, upper, lower, body — no Clock band');
+});
+
+test('contentBands: an order-0 spec with stripOff stacks TACB, not the legacy full order', () => {
+  // Discriminating case: the legacy full/none branch puts the Clock BEFORE the
+  // status rows (T C A B); the stacker's TACB puts the upper row above the clock.
+  const s = vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC,
+    vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_HEALTH);
+  s.stripOff = true;
+  const labels = LY.contentBands(s).map((b) => b.label);
+  assert.deepEqual(labels, ['Calendar (3 rows)', 'Forecast Status', 'Clock',
+    'Health Status', 'Forecast'],
+    'stacker TACB (A above C), Watch Status dropped — the watch\'s rendering');
+});

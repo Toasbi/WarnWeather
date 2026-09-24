@@ -286,7 +286,9 @@ static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L
 // producer (main_window) supplies the value; availability is resolved separately by
 // view_spec_resolve. Value 0 decodes to a zeroed spec. Bits 10-15 exist only on the
 // custom-layout wire; every preset value keeps them clear, and the aplite twin never
-// reads them.
+// reads them. Garbage order codes (12-15 — no compiler emits them) are clamped to 0
+// (the legacy order) here at the decode boundary, so spec.order is a valid 0-11
+// everywhere downstream.
 ViewSpec view_spec_unpack(uint16_t v);
 
 // Data-availability downgrades, pure. Each status source is downgraded to NONE when its
