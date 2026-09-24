@@ -307,6 +307,17 @@ static void tier_and_full_date_are_change_gated(void) {
     ViewSpec nocal = spec_of(0, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_NONE);
     status_bar_apply_view(&nocal, &L);
     expect_int("nocal.full_date", s_last_full_date[fc], 1);
+#if defined(WW_VIEW_CYCLE)
+    // Colour watches: a radar top carries 3 calendar rows (it compiles at the full
+    // tier) but draws no calendar — the full date, not the month.
+    ViewSpec cal3 = spec_of(3, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_FULL);
+    status_bar_apply_view(&cal3, &L);
+    expect_int("cal3.month", s_last_full_date[fc], 0);
+    ViewSpec radar_top = cal3;
+    radar_top.top = TOP_BAND_RADAR;
+    status_bar_apply_view(&radar_top, &L);
+    expect_int("radar_top.full_date", s_last_full_date[fc], 1);
+#endif
 
     status_bar_destroy_all();
 }

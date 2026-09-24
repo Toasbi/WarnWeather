@@ -3516,6 +3516,23 @@ static void full_date_tests(void) {
     expect("full_date.graph_top", layout_full_date(&s), true);
     s = view_spec_unpack(pack(1, 0, BODY_FORECAST, STATUS_SRC_FORECAST, 0));
     expect("full_date.no_top", layout_full_date(&s), true);
+    // One rule, two readers: the strip's date density must agree with whether the
+    // calendar layer is shown, for every tier/top/body and data state.
+    int disagree = 0;
+    for (int tier = 1; tier <= 3; tier++) {
+        for (int top = 0; top <= 3; top++) {
+            for (int body = 0; body <= 3; body++) {
+                for (int data = 0; data < 4; data++) {
+                    ViewSpec v = view_spec_resolve(
+                        view_spec_unpack(pack((uint8_t) tier, (uint8_t) top, (uint8_t) body,
+                                              STATUS_SRC_FORECAST, 0)),
+                        (data & 1) != 0, (data & 2) != 0);
+                    if (layout_full_date(&v) != !layout_visibility(&v).calendar) { disagree++; }
+                }
+            }
+        }
+    }
+    expect("full_date.matches_calendar_visibility", disagree == 0, true);
 }
 
 static void decision4_same_shape_tests(void) {

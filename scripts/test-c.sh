@@ -91,7 +91,7 @@ build/host/hatch_stride_test_emery
 # PBL_HEALTH, which is the only place STATUS_BAR_COUNT == 1 and a stray unguarded
 # STATUS_BAR_RADAR / STATUS_BAR_HEALTH becomes a compile error — the shared CFLAGS
 # force -DPBL_HEALTH everywhere else.
-cc $CFLAGS -DWW_RAIN_RADAR test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test
+cc $CFLAGS -DWW_RAIN_RADAR -DWW_VIEW_CYCLE test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test
 build/host/status_bar_test
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test_aplite

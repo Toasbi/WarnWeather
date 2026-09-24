@@ -10,8 +10,9 @@ void status_row_destroy(StatusRow *row);
 // tier is a LayoutTier value (windows/layout.h) — the font tier this row renders at.
 void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_id);
 bool status_row_refresh(StatusRow *row);
-// Per-instance: the active view has no calendar (none
-// tier or quick-view peek) -> this row's SLOT_LIVE_DATE renders the full date
+// Per-instance: no calendar is on screen (layout_full_date in windows/layout.h: a
+// none-tier view, a radar or graph top, or a quick-view peek) -> this row's
+// SLOT_LIVE_DATE renders the full date
 // ("Jul 4. 2026") instead of month-year ("Jul 2026"). Pushed window -> owner ->
 // row (tier push); the resolver reads only row state.
 void status_row_set_full_date(StatusRow *row, bool full_date);
