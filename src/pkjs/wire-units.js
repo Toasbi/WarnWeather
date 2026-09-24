@@ -134,7 +134,10 @@ function dayMaxShown(code, payload, settings) {
     var running = earlier !== null && today !== null && today > 0 && today >= earlier;
     if (today !== null && (today > shown.now || running)) {
         shown.peak = today;
-    } else if (next !== null) {
+    } else if (next !== null && next > 0) {
+        // (A tomorrow that never prints above 0 has no peak either — often a feed
+        // that writes an unreported hour as 0, like Met.no's gusts outside the
+        // Nordics — so '»0' never shows.)
         shown.peak = next;
         shown.nextDay = true;
     } else {

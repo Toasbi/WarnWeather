@@ -215,7 +215,7 @@ test('each day-max metric keeps its own record, keyed by its own feed', () => {
     'no AQI forecast, no AQI record');
   records.forEach((r) => dayPeaks.save(r.record, r.storageKey));
   assert.equal(JSON.parse(store[KEYS.WIND_DAY_RECORD_KEY]).id, 'dwd');
-  assert.equal(JSON.parse(store[KEYS.GUST_DAY_RECORD_KEY]).v[0], 200, 'tenths of km/h');
+  assert.equal(JSON.parse(store[KEYS.GUST_DAY_RECORD_KEY]).v[0], 20, 'whole km/h, as the payload rounds it');
   assert.equal(JSON.parse(store[KEYS.UV_DAY_RECORD_KEY]).id, 'openmeteo', 'UV keeps its feed');
   assert.equal(store[KEYS.AQI_DAY_RECORD_KEY], undefined);
 });
@@ -257,7 +257,7 @@ test('the wind day record judges a dip in the user\'s unit, not in km/h', () => 
   // Calm until 08:00, 09:00 40 km/h, 10:00 31, 11:00 30 (31 and 30 both print 19 mph);
   // now 12:00 31, the rest of the day's max.
   const midnight = start - 12 * H;
-  dayPeaks.save(dayPeaks.merge(null, { id: 'dwd', lat: 49.2, lon: 7.0 },
+  dayPeaks.save(dayPeaks.merge(null, { id: 'dwd', lat: 49.2, lon: 7.0, scale: 1 },
     new Array(9).fill(5).concat([40, 31, 30]), midnight, midnight), KEYS.WIND_DAY_RECORD_KEY);
   const run = (windUnits) => {
     const p = provider({ id: 'dwd', startTime: start, windUnits, dayPeakCodes: ['wind'],
@@ -301,4 +301,56 @@ test('getPayload skips the peaks of kinds no slot shows in Day max or Both', () 
 test('the catalog\'s day-max kinds and wire-units\' readers are the same list', () => {
   catalog.DAY_MAX_KINDS.forEach((k) => assert.ok(wireUnits.isDayMaxKind(k), k));
   assert.equal(wireUnits.dayMaxPayloadKeys().length, catalog.DAY_MAX_KINDS.length * 2);
+});
+
+test('a fractional wind is rounded once, the same in the record as on the slot', () => {
+  // Wunderground's 9 mph = 14.484 km/h at 11:00 and now, nothing higher later today.
+  Object.keys(store).forEach((k) => delete store[k]);
+  const H = 3600;
+  const start = new Date(2026, 6, 15, 12, 0, 0).getTime() / 1000;
+  const midnight = start - 12 * H;
+  dayPeaks.save(dayPeaks.merge(null, { id: 'wunderground', lat: 49.2, lon: 7.0, scale: 1 },
+    new Array(11).fill(3).concat([14.484]), midnight, midnight), KEYS.WIND_DAY_RECORD_KEY);
+  const p = provider({ id: 'wunderground', startTime: start, dayPeakCodes: ['wind'],
+    windTrend: [14.484].concat(new Array(23).fill(3)) });
+  const earlier = dayPeaks.recall(p, 49.2, 7.0).earlier;
+  const payload = {};
+  dayPeaks.addToPayload(payload, p, earlier);
+  assert.equal(payload.WIND_DAY_PEAKS[0], 14);
+  assert.equal(payload.WIND_DAY_PEAKS[2], 14, 'not 14.5 -> 15, one above the slot');
+});
+
+test('a tomorrow that never prints above 0 is no peak: never "»0"', () => {
+  const p = { GUST_TREND_UINT8: [0], GUST_DAY_PEAKS: [0, 0, null] };
+  assert.equal(statusLines.formatValue('gust', p, settings({ gustSlotDisplay: 'max', gustSlotUnit: false })), '0');
+  assert.equal(statusLines.formatValue('gust', p, settings({ gustSlotDisplay: 'both', gustSlotUnit: false })), '0');
+});
+
+test('the unit gives way to the direction arrow on an edge slot', () => {
+  const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null], WIND_DIR_TREND: [270] };
+  assert.equal(statusLines.formatValue('wind', p,
+    settings({ windSlotDisplay: 'both', windSlotDirection: true })), '12/30');
+  assert.equal(statusLines.formatValue('wind', p,
+    settings({ windSlotDisplay: 'both', windSlotDirection: false })), '12/30kph');
+  // Day max alone draws no arrow, so the unit keeps its byte.
+  assert.equal(statusLines.formatValue('wind', p,
+    settings({ windSlotDisplay: 'max', windSlotDirection: true })), '30kph');
+});
+
+test('the dew line never draws above the air temperature', () => {
+  const fs = require('../src/pkjs/forecast-series.js');
+  const out = fs.applyForecastSeries({
+    TEMP_RAW_TREND: [49, 48, 47, 46], TEMP_MIN: 46, TEMP_MAX: 49,
+    PRECIP_TREND_UINT8: [0, 0, 0, 0], RAIN_TREND_UINT8: [0, 0, 0, 0],
+    CURRENT_TEMP: 49, CITY: 'X', DEW_TREND: [49.4, 48.2, 47.3, 46.4]
+  }, { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  assert.deepEqual(out.TEMP_TREND_UINT8, [250, 167, 83, 0], 'the band stays the temperature\'s');
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [250, 167, 83, 1], 'fog: dew on the temp curve, floored off byte 0');
+});
+
+test('wind peaks stay a byte, like the trend they are compared with', () => {
+  const wind = new Array(24).fill(270);
+  const payload = {};
+  dayPeaks.addToPayload(payload, provider({ windTrend: wind, dayPeakCodes: ['wind'] }), {});
+  assert.equal(payload.WIND_DAY_PEAKS[0], 255);
 });

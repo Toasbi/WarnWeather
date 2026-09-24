@@ -169,6 +169,6 @@
   },
   "1.22.0": {
     "title": "Dew point line, more day maxes",
-    "body": "The forecast graph can now draw dew point on the temperature scale. Wind, gust and air quality slots can show the day's max like UV: tap the pencil next to the slot. Feels-like can use the Steadman formula on every provider, under Units in the General tab."
+    "body": "The forecast graph can now draw dew point on the temperature scale. Wind, gust and air quality slots can show the day's max like UV: tap Edit next to the slot. Feels-like can use the Steadman formula on every provider, under Units in the General tab."
   }
 }

@@ -2,6 +2,7 @@ var WeatherProvider = require('./provider.js');
 var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('./hourly-window.js');
+var dayPeaks = require('./day-peaks.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 // Shared unit helpers (wire-units.js owns them; local aliases keep call sites).
@@ -23,9 +24,10 @@ var MPS_TO_KMH = 3.6;
  * Build the Timelines request URL. startTime is the floored current wall-clock
  * hour (<=59 min in the past — within the free plan's recent-history window) so
  * the returned intervals are hour-aligned like every other provider; endTime is
- * PEAK_HOURS + 1 buckets out so PEAK_HOURS future buckets always remain after the
- * anchor — the forecast window takes FORECAST_HOURS of them, the UV series all
- * PEAK_HOURS (hourly-window.js). One timestep, one call — the calls-per-cycle
+ * `hours` + 1 buckets out so `hours` future buckets always remain after the
+ * anchor — the forecast window takes FORECAST_HOURS of them, and while a UV, wind
+ * or gust slot shows its day max those series read all PEAK_HOURS
+ * (hourly-window.js). One timestep, one call — the calls-per-cycle
  * constants in tomorrowio-budget.js assume this; the longer window costs bytes,
  * not calls.
  *
@@ -33,12 +35,14 @@ var MPS_TO_KMH = 3.6;
  * @param {number|string} lon Longitude.
  * @param {string} apiKey tomorrow.io API key.
  * @param {number} nowEpoch Current time in epoch seconds.
+ * @param {number} [hours] FORECAST_HOURS or PEAK_HOURS; PEAK_HOURS when absent.
  * @returns {string} Fully-formed request URL.
  */
-function buildUrl(lat, lon, apiKey, nowEpoch) {
+function buildUrl(lat, lon, apiKey, nowEpoch, hours) {
     var hourFloor = Math.floor(nowEpoch / HOUR_SECONDS) * HOUR_SECONDS;
     var startIso = new Date(hourFloor * 1000).toISOString();
-    var endIso = new Date((hourFloor + (hourlyWindow.PEAK_HOURS + 1) * HOUR_SECONDS) * 1000).toISOString();
+    var reach = typeof hours === 'number' ? hours : hourlyWindow.PEAK_HOURS;
+    var endIso = new Date((hourFloor + (reach + 1) * HOUR_SECONDS) * 1000).toISOString();
     return TIMELINES_ENDPOINT
         + '?location=' + Number(lat) + ',' + Number(lon)
         + '&fields=' + FIELDS
@@ -235,7 +239,9 @@ TomorrowIoProvider.prototype.withProviderData = function(lat, lon, force, onSucc
     // Timelines call (dew point, bearing and temperatureApparent are Core-tier
     // fields), so mapped carries the full shape and the gates decide what lands.
     WeatherProvider.requestMapped({
-        url: buildUrl(lat, lon, this.apiKey, Math.floor(Date.now() / 1000)),
+        url: buildUrl(lat, lon, this.apiKey, Math.floor(Date.now() / 1000),
+            (dayPeaks.wanted(this, 'uv') || dayPeaks.wanted(this, 'wind') || dayPeaks.wanted(this, 'gust'))
+                ? hourlyWindow.PEAK_HOURS : hourlyWindow.FORECAST_HOURS),
         id: 'tomorrowio', label: 'Tomorrow.io',
         map: function(json) { return mapResponse(json, Math.floor(Date.now() / 1000)); }
     }, (function(mapped) {

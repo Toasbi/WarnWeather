@@ -352,8 +352,12 @@ function formatValue(code, payload, settings, slotKey, cap) {
     // gusts append their unit label when the whole text still fits ('12/30kph').
     var shown = wireUnits.dayMaxShown(code, payload, settings);
     if (!shown) { return '--'; }
+    // The unit gives way to the direction arrow (packLine appends it after the
+    // text, only into a free byte): '12/30' + arrow, never '12/30kph' without one.
+    var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
+    var arrowByte = (settings[code + 'SlotDirection'] && shown.now !== null) ? 1 : 0;
     return withUnit(statusPair.formatPeak(code, shown, settings, cap),
-      dayMaxUnit(code, settings), cap);
+      dayMaxUnit(code, settings), limit - arrowByte);
   }
   if (code === 'pressure') {
     v = trendHead(payload.PRESSURE_TREND);

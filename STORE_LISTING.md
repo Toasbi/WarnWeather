@@ -35,7 +35,7 @@ STATUS LINES
    - Weather:
       - feels-like temperature
       - dew point
-      - air quality (current, and today's/tomorrow's peak)
+      - air quality (current, and today's/tomorrow's peak with the Open-Meteo AQI provider)
       - air pressure
       - pollen
       - wind (current, and today's/tomorrow's peak)

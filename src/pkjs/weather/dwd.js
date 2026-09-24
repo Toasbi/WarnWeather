@@ -109,23 +109,29 @@ function currentFeelsFrom(current) {
 
 /**
  * ISO 8601 forecast window starting at the current wall-clock hour and
- * covering `hours` + 1 buckets. Brightsky returns `hourly[0]` as the
+ * covering FORECAST_HOURS + 1 buckets (or to the end of tomorrow). Brightsky returns `hourly[0]` as the
  * bucket whose timestamp >= `date`, so anchoring `date` at the hour
  * boundary keeps `hourly[0]` on the bucket the user is currently inside.
- * `last_date` is inclusive, so ending it `hours` on returns one record past
- * the window: the one stamped at the last slot's END, which carries that
- * slot's preceding-hour rain, chance and gust (see slotRecords). It is the
- * graph's FORECAST_HOURS, or PEAK_HOURS while a wind or gust slot shows its day
- * max: only wind and gusts read on (peakTail).
+ * `last_date` is inclusive, so ending it FORECAST_HOURS on returns one record
+ * past the window: the one stamped at the last slot's END, which carries that
+ * slot's preceding-hour rain, chance and gust (see slotRecords). While a wind
+ * or gust slot shows its day max it runs on to the end of local tomorrow
+ * instead: only wind and gusts read on (peakTail).
  *
- * @param {number} hours FORECAST_HOURS or PEAK_HOURS.
+ * @param {boolean} peak Whether a wind or gust slot shows its day max.
  * @returns {{ start: string, end: string }} ISO timestamps.
  */
-function forecastWindow(hours) {
-    var startMs = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+function forecastWindow(peak) {
+    var nowMs = Date.now();
+    var startMs = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
+    // The day max reads no further than the end of local tomorrow
+    // (localDayPeaks), plus the record after it that holds the last gust.
+    var endMs = peak
+        ? hourlyWindow.localDayStart(startMs / 1000, Math.floor(nowMs / 1000), 2) * 1000 + HOUR_MS
+        : startMs + FORECAST_HOURS * HOUR_MS;
     return {
         start: new Date(startMs).toISOString(),
-        end: new Date(startMs + hours * HOUR_MS).toISOString()
+        end: new Date(endMs).toISOString()
     };
 }
 
@@ -240,7 +246,7 @@ DwdProvider.prototype.constructor = DwdProvider;
 DwdProvider.prototype._super = WeatherProvider;
 
 DwdProvider.prototype.withDwdForecast = function(lat, lon, callback, onFailure) {
-    var win = forecastWindow(windPeaksWanted(this) ? PEAK_HOURS : FORECAST_HOURS);
+    var win = forecastWindow(windPeaksWanted(this));
     var url = BRIGHTSKY_BASE + '/weather'
         + '?lat=' + lat
         + '&lon=' + lon

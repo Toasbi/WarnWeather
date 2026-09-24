@@ -123,7 +123,7 @@ var BAND_FLOOR_PERMILLE = 2;
 // becomes wire bytes. Adding a metric here rather than hand-clamping inside its
 // own permille function is what stops this from recurring — see the
 // "no band-scaled metric ever emits wire byte 0" test.
-var BAND_SCALED_METRICS = ['pressure', 'feels', 'dew'];
+var BAND_SCALED_METRICS = ['pressure'].concat(lineStyle.TEMP_AXIS_METRIC_IDS);
 
 /**
  * Whether a metric is scaled against a value band (floor = lowest reading) rather
@@ -226,10 +226,13 @@ function tempAxisLineDrawn(settings, watchInfo, metric) {
 
 // Where each temperature-axis metric's series rides: its transient payload key
 // (getPayload, already cut to the graph's window) and its key in
-// buildForecastSeries' raw input.
+// buildForecastSeries' raw input. `atMostTemp`: the metric can never exceed the
+// air temperature, so each hour is capped at that hour's temp -- dew point comes
+// unrounded against whole-degree temps, and on Open-Meteo from a different model
+// than the temps, so in saturated air it would draw above the temp curve.
 var TEMP_AXIS_SERIES = {
     feels: { payload: 'FEELS_TREND', raw: 'feels' },
-    dew: { payload: 'DEW_TREND', raw: 'dews' }
+    dew: { payload: 'DEW_TREND', raw: 'dews', atMostTemp: true }
 };
 
 /**
@@ -280,7 +283,7 @@ var TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40;
  */
 function padJointTempAxisBand(tempBand, jointBand) {
     var below = tempBand.min - jointBand.min;   // feels/dew reach below the temp low
-    var above = jointBand.max - tempBand.max;   // feels reaches above the temp high (dew never does)
+    var above = jointBand.max - tempBand.max;   // feels reaches above the temp high (dew is capped at it)
     var span = jointBand.max - jointBand.min;
     if (span <= 0 || (below <= 0 && above <= 0)) { return jointBand; }
     // pad / (span + pad) = clearance  ->  pad = span * c / (1000 - c). Rounded up, and
@@ -438,6 +441,12 @@ function applyForecastSeries(payload, settings, watchInfo) {
     lineStyle.TEMP_AXIS_METRIC_IDS.forEach(function (m) {
         var series = tempAxisLineDrawn(settings, watchInfo, m)
             ? (payload[TEMP_AXIS_SERIES[m].payload] || []) : [];
+        if (TEMP_AXIS_SERIES[m].atMostTemp) {
+            series = series.map(function (v, i) {
+                return (typeof v === 'number' && typeof rawTemps[i] === 'number')
+                    ? Math.min(v, rawTemps[i]) : v;
+            });
+        }
         raw[TEMP_AXIS_SERIES[m].raw] = series;
         drawnAxis = drawnAxis.concat(series);
     });

@@ -2567,3 +2567,14 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
       'the weather tab must not host watch key ' + i.messageKey);
   }));
 });
+
+test('the day-max sheets\' keys are exactly the catalog\'s dayMaxSettingKeys', () => {
+  // Reset and renderSignature take their keys from the catalog; the sheets build theirs
+  // in dayMaxRows. The two must never drift apart, or a new row would neither reset nor
+  // re-bake.
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const kinds = new RegExp('^(' + catalog.DAY_MAX_KINDS.join('|') + ')Slot');
+  const fromSheets = items.map((i) => i.messageKey)
+    .filter((k) => k && kinds.test(k) && !/Slot(Unit|Direction)$/.test(k));
+  assert.deepEqual([...new Set(fromSheets)].sort(), catalog.dayMaxSettingKeys().slice().sort());
+});

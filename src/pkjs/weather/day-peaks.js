@@ -46,11 +46,26 @@ var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 var SAME_PLACE_DEGREES = 0.5;
 
 /**
- * @param {*} value A series value.
- * @returns {?number} The value in whole UV tenths, or null when unsourced.
+ * @param {Object} source A fetch's source.
+ * @returns {number} The scale its record stores values in: the metric's payload
+ *     scale (source.scale — UV's tenths, the others' whole units), 10 when absent.
  */
-function tenths(value) {
-    return (typeof value === 'number' && isFinite(value)) ? Math.round(value * 10) : null;
+function scaleOf(source) {
+    return typeof source.scale === 'number' ? source.scale : 10;
+}
+
+/**
+ * A series value as the record stores it: whole in the metric's payload scale,
+ * rounded ONCE, exactly as addToPayload rounds a peak and the trend bytes round
+ * the current reading. (Storing tenths of a whole-unit metric rounded twice:
+ * 14.48 km/h became 14.5, then 15, one above the slot's 14.)
+ *
+ * @param {*} value A series value.
+ * @param {Object} source The fetch's source (its scale).
+ * @returns {?number} The stored value, or null when unsourced.
+ */
+function encode(value, source) {
+    return (typeof value === 'number' && isFinite(value)) ? Math.round(value * scaleOf(source)) : null;
 }
 
 /**
@@ -87,7 +102,7 @@ function sameSource(record, source, startEpoch) {
  * @param {number} startEpoch Epoch seconds of series entry 0.
  * @param {number} [nowEpoch] Current time in epoch seconds.
  * @returns {{id: string, lat: number, lon: number, t: number, v: Array.<(number|null)>}}
- *   The new record: v[i] is the hour starting at t + i h, in tenths of the unit.
+ *   The new record: v[i] is the hour starting at t + i h, in the source's scale.
  */
 function merge(record, source, series, startEpoch, nowEpoch) {
     var dayStart = hourlyWindow.localDayStart(startEpoch, nowEpoch);
@@ -109,7 +124,7 @@ function merge(record, source, series, startEpoch, nowEpoch) {
     // keeps the value an earlier fetch stored for it: a null would otherwise
     // outlive the fetch and leave every later walk back across it "unknown".
     for (i = 0; i < series.length; i += 1) {
-        v = tenths(series[i]);
+        v = encode(series[i], source);
         if (v === null && same) {
             old = (startEpoch + i * HOUR_SECONDS - record.t) / HOUR_SECONDS;
             if (old >= 0 && old < record.v.length) { v = record.v[old]; }
@@ -143,7 +158,8 @@ function merge(record, source, series, startEpoch, nowEpoch) {
 function earlierPeak(record, source, startEpoch, nowEpoch, hold, toShown) {
     if (typeof hold !== 'number' || !isFinite(hold)) { return null; }
     var shown = toShown || Math.round;
-    var holdWhole = shown(tenths(hold) / 10);   // as dayMaxShown rounds the payload peak
+    var scale = scaleOf(source);
+    var holdWhole = shown(encode(hold, source) / scale);   // as dayMaxShown reads the payload peak
     var dayStart = hourlyWindow.localDayStart(startEpoch, nowEpoch);
     var count = Math.floor((startEpoch - dayStart) / HOUR_SECONDS);
     if (count <= 0) { return 0; }
@@ -155,10 +171,10 @@ function earlierPeak(record, source, startEpoch, nowEpoch, hold, toShown) {
         if (i < 0 || i >= record.v.length) { return null; }
         v = record.v[i];
         if (typeof v !== 'number') { return null; }
-        if (shown(v / 10) < holdWhole) { break; }
+        if (shown(v / scale) < holdWhole) { break; }
         if (v > peak) { peak = v; }
     }
-    return peak / 10;
+    return peak / scale;
 }
 
 /**
@@ -274,7 +290,7 @@ function recall(provider, lat, lon) {
     active(provider).forEach(function (metric) {
         var series = provider[metric.series];
         var source = { id: feedOf(provider, metric), lat: Number(lat), lon: Number(lon),
-            degrees: metric.degrees };
+            degrees: metric.degrees, scale: metric.scale };
         // As dayMaxShown prints them: a wind peak is whole km/h, then the user's unit.
         var toShown = metric.wind ? function (kmh) {
             return wireUnits.kmhToDisplay(Math.round(kmh), provider.windUnits);
@@ -317,8 +333,7 @@ function saveAll(records) {
  * peak, tomorrow's, today's hours already begun back to the last dip], null
  * when unknown. The first two are read off the FULL series — it reaches
  * PEAK_HOURS, past the graph's 24 h; the clock picks which local day is today.
- * The third is recall's (`earlier`). UV's tenths stay a byte (clampByte, like
- * UV_TREND_UINT8); the whole-unit peaks only round — a US AQI reaches 500.
+ * The third is recall's (`earlier`).
  * Transient PKJS-only: the status bake reads them, forecast-series deletes them.
  *
  * @param {Object} payload The weather payload (mutated).
@@ -335,7 +350,11 @@ function addToPayload(payload, provider, earlier) {
                 .concat([typeof before === 'number' ? before : null])
                 .map(function (peak) {
                     if (peak === null) { return null; }
-                    return metric.scale === 1 ? Math.round(peak) : wireUnits.clampByte(peak * metric.scale);
+                    // UV's tenths and the wind/gust km/h stay a byte, like the trend
+                    // bytes they are compared with (a 270 km/h gust against a trend
+                    // capped at 255 would read as still to come); AQI reaches 500.
+                    return metric.code === 'aqi' ? Math.round(peak)
+                        : wireUnits.clampByte(peak * metric.scale);
                 });
     });
 }

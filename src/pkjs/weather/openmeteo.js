@@ -389,15 +389,16 @@ function adoptFeels(provider, json) {
  * Ireland to the Met Office UKV model, whose UV is an instant at the stamp, so
  * the same stamp meant two different hours depending on where the watch was.
  * With GFS everywhere, mapUv reads one bucket ahead for every location. Four
- * GMT days, not two: the UV window reaches PEAK_HOURS ahead so the UV slot can
- * name TOMORROW's peak, the end of the phone's local tomorrow can fall on the
+ * GMT days while the UV slot shows its day max (two hold the graph's window):
+ * the UV window reaches PEAK_HOURS ahead so the UV slot can name TOMORROW's peak, the end of the phone's local tomorrow can fall on the
  * third GMT day (far-east zones early in their morning), and the one-bucket-
  * ahead read reaches an hour past that.
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
+ * @param {boolean} [dayPeak] Whether the UV slot shows its day max.
  * @returns {string} Fully-formed UV request URL.
  */
-function buildUvUrl(lat, lon) {
+function buildUvUrl(lat, lon, dayPeak) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
@@ -405,7 +406,7 @@ function buildUvUrl(lat, lon) {
         + '&timeformat=unixtime'
         + '&timezone=GMT'
         + '&models=ncep_gfs_global'
-        + '&forecast_days=4';
+        + '&forecast_days=' + (dayPeak ? 4 : 2);
 }
 
 /**
@@ -443,7 +444,7 @@ function mapUv(json, startTime) {
 function fetchUvInto(provider, lat, lon, done) {
     if (!provider.fetchUv) { done(); return; }
     provider.uvTrend = []; // this fetch owns the field (see adoptMapped)
-    var uvUrl = buildUvUrl(lat, lon);
+    var uvUrl = buildUvUrl(lat, lon, dayPeaks.wanted(provider, 'uv'));
     request(uvUrl, 'GET', function(resp) {
         var uvs = null;
         try { uvs = mapUv(JSON.parse(resp), provider.startTime); }

@@ -298,7 +298,9 @@ test('buildUvUrl requests only uv_index, from GFS', () => {
   assert.match(url, /[?&]models=ncep_gfs_global(&|$)/);
   // Four GMT days: the UV window runs PEAK_HOURS ahead (to tomorrow's end in any
   // zone), read one bucket ahead.
-  assert.match(url, /[?&]forecast_days=4(&|$)/);
+  assert.match(openmeteo.buildUvUrl(52.52, 13.41, true), /[?&]forecast_days=4(&|$)/);
+  // Two while the UV slot shows no day max: the graph's window fits in them.
+  assert.match(url, /[?&]forecast_days=2(&|$)/);
 });
 
 test('mapUv aligns uv_index to the forecast start by timestamp, one bucket ahead, PEAK_HOURS deep', () => {

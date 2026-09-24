@@ -498,7 +498,7 @@ var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to '
 // phone flips it before baking — so the copy has to say which way it points, or half
 // the readers will read it backwards. Shared by both slots: one arrow, two kinds.
 var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
-    'wind is blowing.';
+    'wind is blowing now. Not while Day max shows a peak alone.';
 // The two-value slots — Temperature and UV in their "Both" mode — print a pair in one
 // slot (12/10, 3/7). How the pair reads is chosen per kind, on the rows pairRows()
 // builds below that kind's display pills. The phone bakes the text (status-pair.js,
@@ -511,7 +511,8 @@ var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the 
 // narrow left/right slots ever hit it ('-12 / -10' is 9 bytes of their 8), so the hint
 // names them the way the Watch tab's intro does, not as "edge slots".
 var PAIR_FALLBACK_HINT = 'In a left or right slot, a pair too wide to fit ' +
-    'drops its spaces, then falls back to the slash.';
+    'drops its spaces, then falls back to the slash, and shows only the current value ' +
+    'if even that is too wide.';
 // The watch draws slot text in its Gothic system fonts, which cover printable ASCII and
 // Latin-1 (the slots already print '°' and '»' from them); the formatter keeps
 // only those, then the first two. Spaces are kept, not trimmed: ', ' is a real separator.
