@@ -193,8 +193,9 @@ test('emery manifest: intro + all three captioned chapters in order', () => {
   const m = reel.buildManifest('emery');
   const cards = m.filter((s) => s.kind === 'card').map((s) => s.frame);
   assert.deepStrictEqual(cards, ['card-themes.png', 'card-graph.png', 'card-status.png']);
-  const introCount = m.filter((s) => s.group === 'intro').length;
-  assert.strictEqual(introCount, 5, 'five intro scenes (1,2,3,4,6)');
+  const intro = m.filter((s) => s.group === 'intro').map((s) => s.frame);
+  assert.deepStrictEqual(intro, ['scene_1.png', 'scene_2.png', 'scene_7.png', 'scene_8.png',
+    'scene_9.png', 'scene_4.png', 'scene_6.png'], 'the showcase order minus the health scene');
   const themeFrames = m.filter((s) => s.group === 'theme' && s.kind === 'scene').map((s) => s.frame);
   assert.strictEqual(themeFrames.length, 4, 'emery has 4 theme segments');
 });
@@ -202,6 +203,8 @@ test('emery manifest: intro + all three captioned chapters in order', () => {
 test('aplite manifest: no themes card/segments, no radar/health graph or health status', () => {
   const m = reel.buildManifest('aplite');
   const frames = m.map((s) => s.frame);
+  assert.deepStrictEqual(m.filter((s) => s.group === 'intro').map((s) => s.frame),
+    ['scene_1.png', 'scene_2.png', 'scene_4.png', 'scene_6.png'], 'no colour-only intro scenes');
   assert.ok(!frames.includes('card-themes.png'), 'no themes card on aplite');
   assert.strictEqual(m.filter((s) => s.group === 'theme' && s.kind === 'scene').length, 0);
   assert.ok(!frames.includes('graph-4.png') && !frames.includes('graph-5.png'), 'no radar/health graph');

@@ -270,10 +270,23 @@ function generateReelFixtures(opts = {}) {
 // Intro scenes reused from the hero capture (showcase/frames/<platform>/scene_N.png),
 // in the showcase table's order — gen-showcase-fixtures.js owns the scene set and
 // ordering; scenes it flags `reelIntro: false` (the flick-gated health graph) are
-// skipped here. Reordering the showcase reorders the reel intro with zero edits.
-const INTRO_SCENES = require('./gen-showcase-fixtures').SCENES
+// skipped here, and a scene the table limits to other platforms (`platforms`) is
+// skipped on the rest. Reordering the showcase reorders the reel intro with zero edits.
+const SHOWCASE = require('./gen-showcase-fixtures');
+const INTRO_SCENES = SHOWCASE.SCENES
   .filter((s) => s.reelIntro !== false)
   .map((s) => s.id);
+
+/**
+ * The intro scene ids a platform's reel opens with, in showcase order.
+ * @param {string} platform
+ * @returns {number[]}
+ */
+function introScenesFor(platform) {
+  return SHOWCASE.SCENES
+    .filter((s) => s.reelIntro !== false && SHOWCASE.scenePlatforms(s).includes(platform))
+    .map((s) => s.id);
+}
 
 const CHAPTER_ORDER = ['theme', 'graph', 'status'];
 const CARD_BY_GROUP = { theme: 'themes', graph: 'graph', status: 'status' };
@@ -285,7 +298,7 @@ const CARD_BY_GROUP = { theme: 'themes', graph: 'graph', status: 'status' };
  */
 function buildManifest(platform) {
   const out = [];
-  for (const n of INTRO_SCENES) {
+  for (const n of introScenesFor(platform)) {
     out.push({ kind: 'scene', frame: 'scene_' + n + '.png', group: 'intro', ...TIMING.intro });
   }
   for (const group of CHAPTER_ORDER) {
@@ -310,7 +323,7 @@ function printManifest(platform, version) {
 }
 
 module.exports = {
-  PLATFORM_CAPS, ALL_PLATFORMS, TIMING, themesFor, SEGMENTS, CARDS, INTRO_SCENES,
+  PLATFORM_CAPS, ALL_PLATFORMS, TIMING, themesFor, SEGMENTS, CARDS, INTRO_SCENES, introScenesFor,
   segmentPlatforms, fixtureFor, generateReelFixtures,
   buildManifest, printManifest,
 };

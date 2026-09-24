@@ -340,10 +340,13 @@ mise composite v1.4.1
 #### Showcase GIF (README hero)
 
 The README's animated hero is a **showcase GIF**: a handful of curated scenes (different
-layouts + functions, all Berlin) captured per platform and cross-faded into one looping
-GIF. Scenes live in `scripts/gen-showcase-fixtures.js` (regenerated into
-`fixtures/showcase-N.json` on every capture) and are guarded by
-`test/showcase-fixtures.test.js`.
+layouts + functions) captured per platform and cross-faded into one looping GIF. Scenes
+live in `scripts/gen-showcase-fixtures.js` (regenerated into `fixtures/showcase-N.json`
+on every capture) and are guarded by `test/showcase-fixtures.test.js`. Most are built on
+the Berlin base; a scene with `fixture` copies a fixture of its own (the Miami scenes).
+The table's ROW ORDER is the GIF and reel order — ids only name the frames
+(`scene_<id>.png`), so moving a scene never renames its frame. A scene with `platforms`
+is captured, shown and put in the reel intro only there.
 
 Health readings and the rain-countdown strip are read live on the watch and don't
 reproduce in a static compile-time fixture, so screenshot builds swap in two canned twins
@@ -381,12 +384,9 @@ scripts/assemble-showcase-gif.sh <version> <platform> [hold_secs] [fade_secs] [f
 # MAX_SCENES=N  keep only the first N scenes (default 2; 0 = all captured scenes)
 # EXCLUDE_SCENES="2 3 4"  drop specific scene ids (applied before the MAX_SCENES cap)
 ```
-aplite has no `PBL_HEALTH`, so scene 5 (the health graph, reached by a flick that lands on a
-view aplite doesn't have) is broken there — exclude it. The other scenes keep their weather
-layouts (health slots fall back via aplite variants), so aplite ships scenes 1, 2, 3, 4, 6:
-```bash
-EXCLUDE_SCENES="5" MAX_SCENES=0 scripts/assemble-showcase-gif.sh <version> aplite
-```
+The health-graph scene (5) and the Miami scenes (7-9: stripes, radar, custom layout) are
+limited to the colour platforms in the table, so aplite captures and shows only its own
+scenes (1, 2, 4, 6) with no flags. `EXCLUDE_SCENES` still drops further ids by hand.
 
 #### Promo reel (Pebble-store asset)
 

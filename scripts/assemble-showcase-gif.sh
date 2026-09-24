@@ -36,20 +36,22 @@ fps="${5:-15}"
 # default 0 includes every captured scene.
 max_scenes="${MAX_SCENES:-0}"
 # Drop specific scene ids from this platform's GIF (space- or comma-separated), applied
-# before the MAX_SCENES cap. aplite has no PBL_HEALTH, so the health-graph scene (5)
-# renders degraded — so aplite excludes it by default (override with EXCLUDE_SCENES="").
-if [[ "$platform" == "aplite" ]]; then
-  exclude_scenes="${EXCLUDE_SCENES-5}"
-else
-  exclude_scenes="${EXCLUDE_SCENES:-}"
-fi
+# before the MAX_SCENES cap. Scenes the table limits to other platforms (`platforms` in
+# gen-showcase-fixtures.js — e.g. the health graph and the Miami scenes on aplite) are
+# never shown here, whatever frames sit on disk.
+exclude_scenes="${EXCLUDE_SCENES:-}"
 
 frames_dir="screenshot/$version/showcase/frames/$platform"
 out_dir="screenshot/$version/showcase"
 out="$out_dir/$platform-showcase.gif"
 
-shopt -s nullglob
-scenes=("$frames_dir"/scene_*.png)
+# The scene ORDER is the table's (gen-showcase-fixtures.js), not the file ids: ids only
+# name the frames, so a scene keeps its frame when the showcase is reordered.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+scenes=()
+while read -r id; do
+  [[ -e "$frames_dir/scene_$id.png" ]] && scenes+=("$frames_dir/scene_$id.png")
+done < <(node -e "require('$here/scripts/gen-showcase-fixtures.js').sceneIdsFor('$platform').forEach(function(i){console.log(i);})")
 n=${#scenes[@]}
 if [[ $n -eq 0 ]]; then
   printf 'No scene frames in %s; run capture-showcase.sh first\n' "$frames_dir" >&2
@@ -72,7 +74,7 @@ if [[ -n "$exclude_scenes" ]]; then
   fi
 fi
 
-# Glob expands in sorted (scene id) order, so slicing keeps the first N scenes.
+# Scenes are in table order, so slicing keeps the first N scenes.
 if [[ $max_scenes -gt 0 && $max_scenes -lt $n ]]; then
   scenes=("${scenes[@]:0:max_scenes}")
   n=${#scenes[@]}

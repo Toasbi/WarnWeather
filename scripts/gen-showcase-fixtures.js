@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 'use strict';
 
-// Showcase fixtures: six static scenes (no scrolling) demonstrating different layouts
-// and functions, all on the Berlin base. Duplicated in spirit from
-// gen-timelapse-fixtures.js but far simpler — each scene is one frame, defined by
-// claySettings overrides + a crafted rain-radar segment (for the countdown scenes) +
-// how many wrist-flicks capture-showcase.sh must send to reach the intended view.
+// Showcase fixtures: eight static scenes (no scrolling) demonstrating different layouts
+// and functions — five on the Berlin base, three Miami scenes backed by fixtures of their
+// own (`fixture`). Duplicated in spirit from gen-timelapse-fixtures.js but far simpler —
+// each scene is one frame, defined by claySettings overrides + a crafted rain-radar
+// segment (for the countdown scenes) + how many wrist-flicks capture-showcase.sh must
+// send to reach the intended view. The TABLE ORDER is the showcase and reel order; ids
+// only name the frames (scene_<id>.png), so a frame keeps its id when scenes move.
 // Health numbers come from the compile-time health_fixture.c twin (WW_HEALTH_FIXTURE),
 // not from these files.
 
@@ -37,9 +39,6 @@ function segment(start, len, mm) {
   return a;
 }
 
-// Drizzle (~0.3 mm/h → tier 2 = "drizzle") arriving in 15 min (slot 3) for 15 min.
-const DRIZZLE_EXACT = segment(3, 3, 0.3);
-const DRIZZLE_AREA = segment(2, 5, 0.4);        // nearby rain a touch earlier/wider
 // Rain (~1.5 mm/h → tier 3 = "rain") arriving in 15 min (slot 3) for 20 min (4 slots).
 const RAIN_APPROACH_EXACT = segment(3, 4, 1.5);
 const RAIN_APPROACH_AREA = segment(2, 6, 1.8);
@@ -56,6 +55,11 @@ const RAIN_NOW_AREA = segment(0, 5, 1.8);
 // variant writes its own showcase-<id>-<platform>.json layered on the scene clay, and
 // capture-showcase.sh shoots that platform from it while the rest use the base fixture.
 const HR_EMERY = { statusHealthMid: 'sleep', statusHealthRight: 'hr' };
+
+// The platforms the showcase is captured on, and the colour ones among them. A scene
+// with `platforms` is captured, shown and put in the reel intro only there.
+const SHOWCASE_PLATFORMS = ['aplite', 'basalt', 'flint', 'emery'];
+const COLOUR_PLATFORMS = ['basalt', 'flint', 'emery'];
 
 /**
  * Target date for scene 4's date-countdown slot, 21 days out from TODAY.
@@ -88,9 +92,9 @@ function feelsFrom(weather) {
     currentFeels: weather.currentTemp - drop(0),
   };
 }
-// Clock fonts by scene pair (user call): 1+2 roboto, 3+4 leco, 5+6 bitham.
-// Roboto and Bitham draw from the anti-aliased glyph strips on basalt/emery; leco stays
-// on the system font. The reel intro (scenes 1/2/3/4/6) therefore previews all three.
+// Clock fonts (user call): 1+2 roboto, 4 leco, 5+6 bitham; the Miami scenes (7-9)
+// keep the default roboto. Roboto and Bitham draw from the anti-aliased glyph strips on
+// basalt/emery; leco stays on the system font. The reel intro previews all three.
 const SCENES = [
   {
     // Full top view (classic 3-row calendar) with a quiet top strip: calendar week
@@ -133,38 +137,14 @@ const SCENES = [
     radar: { exact: RAIN_APPROACH_EXACT, area: RAIN_APPROACH_AREA },
     countdown: { text: "Rain in 15'", tier: 3 },
   },
-  {
-    // Compact + single status showing the weather status, with a health-flavoured top
-    // strip — heart rate (emery) / date / steps, every value bold (user call: no drizzle
-    // countdown up top; this frame is the bold + health-top-slot showcase). The
-    // drizzle radar series stays for the graph's rain bar, but the countdown is off
-    // (horizon '0', no baked strip) so the top strip shows the slots.
-    id: 3, flicks: 0,
-    clay: {
-      layoutPreset: 'compactCal', healthMode: 'status',
-      secondaryLine: 'precip_prob', secondaryLineFill: true, thirdLine: 'uv',
-      barSource: 'rain', rainBarColor: 'multicolor',
-      radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0',
-      timeFont: 'leco',
-      // Status row between calendar and clock (cal → status → clock → graph), so the
-      // clock sits lower than scene 4's swapped layout. Pinned: swapClockStatus now
-      // defaults ON, so an unset key would render scene 4's order here too.
-      swapClockStatus: false,
-      // All-bold showcase: the master Bold values override packs every slot kind's
-      // bold cell as always at blob-build time.
-      statusBoldAll: 'all',
-      // Base = basalt/flint: narrow side values next to the bold date — UV index left,
-      // watch battery percentage right (user call). emery pins the full
-      // hr/date/steps look; aplite keeps its classic week/date/sun strip (it has no
-      // battery-percentage slot).
-      statusTopLeft: 'uv', statusTopMid: 'date', statusTopRight: 'batteryPct',
-    },
-    variants: {
-      emery:  { statusTopLeft: 'hr', statusTopRight: 'steps' },
-      aplite: { statusTopLeft: 'week', statusTopRight: 'sun' },
-    },
-    radar: { exact: DRIZZLE_EXACT, area: DRIZZLE_AREA },
-  },
+  // Miami, from the fixtures of the same name (live OpenWeatherMap data, pinned): UV as
+  // dots, cloud cover and rain chance as top stripes, feels-like as a curve. Colour
+  // watches only — aplite has no stripes, fourth line, radar or custom layout. Ids 7-9
+  // are new; the table ORDER (not the id) is the showcase and reel order.
+  { id: 7, flicks: 0, fixture: 'miami-stripes-cal', platforms: COLOUR_PLATFORMS },
+  // The custom flick view: no top bar, a 3-row radar with the no-rain text and sky rows.
+  { id: 8, flicks: 1, fixture: 'miami-radar-flick', platforms: COLOUR_PLATFORMS },
+  { id: 9, flicks: 0, fixture: 'miami-stripes', platforms: COLOUR_PLATFORMS },
   {
     // Compact 2-row calendar with every status slot bold (mirrors the user's real-watch
     // look): a bold date in the top-mid — flanked by a date-countdown ("21d") and steps
@@ -207,8 +187,8 @@ const SCENES = [
     // the floor of the 40–150 default.
     // reelIntro: false — the reel intro reuses the showcase scenes in THIS table's
     // order (gen-reel-fixtures.js derives its INTRO_SCENES from here); this one is
-    // skipped there (flick-gated, and degraded on aplite).
-    id: 5, flicks: 1, reelIntro: false, variants: { emery: HR_EMERY },
+    // skipped there (flick-gated). Not on aplite, which has no health graph.
+    id: 5, flicks: 1, reelIntro: false, variants: { emery: HR_EMERY }, platforms: COLOUR_PLATFORMS,
     clay: {
       layoutPreset: 'noCal', healthMode: 'all',
       secondaryLine: 'precip_prob', barSource: 'off',
@@ -285,6 +265,14 @@ function generateShowcaseFixtures(opts = {}) {
   const written = [];
   for (const scene of SCENES) {
     const outPath = path.join(outDir, 'showcase-' + scene.id + '.json');
+    if (scene.fixture) {
+      // A scene backed by a whole fixture of its own (its data, clock and settings
+      // are the scene): copied verbatim, no Berlin base.
+      const src = path.join(path.dirname(basePath), scene.fixture + '.json');
+      fs.writeFileSync(outPath, fs.readFileSync(src, 'utf8'));
+      written.push(outPath);
+      continue;
+    }
     fs.writeFileSync(outPath, JSON.stringify(buildFrame(scene), null, 2) + '\n');
     written.push(outPath);
     // Per-platform variants (e.g. emery pinning the HR slot it alone can render, aplite
@@ -298,10 +286,29 @@ function generateShowcaseFixtures(opts = {}) {
   return written;
 }
 
+/**
+ * The platforms a scene is captured and shown on.
+ * @param {Object} scene A SCENES entry.
+ * @returns {string[]} Platform names.
+ */
+function scenePlatforms(scene) {
+  return scene.platforms || SHOWCASE_PLATFORMS;
+}
+
+/**
+ * The scene ids a platform shows, in showcase (table) order.
+ * @param {string} platform Platform name.
+ * @returns {number[]} Scene ids.
+ */
+function sceneIdsFor(platform) {
+  return SCENES.filter((s) => scenePlatforms(s).includes(platform)).map((s) => s.id);
+}
+
 if (require.main === module) {
   const written = generateShowcaseFixtures();
   console.log('Wrote ' + written.length + ' showcase fixtures: '
     + written.map((p) => path.basename(p)).join(', '));
 }
 
-module.exports = { generateShowcaseFixtures, SCENES, BASE_PATH, RADAR_SLOTS };
+module.exports = { generateShowcaseFixtures, SCENES, BASE_PATH, RADAR_SLOTS, SHOWCASE_PLATFORMS,
+  COLOUR_PLATFORMS, scenePlatforms, sceneIdsFor };
