@@ -70,7 +70,11 @@ function resolveViewCycle(settings, env) {
     if (settings.layoutPreset === 'custom' && env.platform !== 'aplite') {
         return viewCycle.buildCustomCycle(settings);
     }
-    return viewCycle.buildViewCycle(viewCycle.resolvePresetKey(settings),
+    var presetKey = viewCycle.resolvePresetKey(settings);
+    // "Weather only" needs the radar and a view without top bar: aplite has neither
+    // and never offers it, so a stored one folds to No calendar, its nearest preset.
+    if (presetKey === 'weatherOnly' && env.platform === 'aplite') { presetKey = 'noCal'; }
+    return viewCycle.buildViewCycle(presetKey,
         settings.healthMode || 'off', settings.radarMode || 'graph',
         Boolean(settings.swapClockStatus));
 }

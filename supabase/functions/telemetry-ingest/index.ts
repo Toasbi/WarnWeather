@@ -127,7 +127,7 @@ const settingsSchema = z
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
-    layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal', 'custom']).optional(),
+    layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal', 'weatherOnly', 'custom']).optional(),
     // Custom-layout usage: the three packed per-view wire values (uint16; elements,
     // seats, order, clock/top-bar omissions). Present only while layoutPreset is
     // 'custom'. DEPLOY-ORDERING: this function must ship BEFORE the app release

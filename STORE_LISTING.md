@@ -75,7 +75,7 @@ WATCH
 - Night backlight dimming
 
 LAYOUT CUSTOMIZATION
-- Multiple layout presets, with flick-to-cycle between views and optional auto-return
+- Multiple layout presets, with flick-to-cycle between views and optional auto-return, including Weather only: rain radar, clock, weather and a big forecast without the top bar
 - Custom layout (still beta)
 - First-run setup wizard that picks sensible defaults for your country and watch
 

@@ -823,3 +823,33 @@ test('buildCustomCycle folds seats exactly per capabilities() (spot check)', () 
   assert.equal(s.body, vc.BODY_FC, 'radar body folds to the forecast');
   assert.equal(s.statusUpper, vc.STATUS_SRC_RADAR, 'the radar status ROW survives');
 });
+
+// "Weather only": the Miami radar-flick look as a preset — no top bar, the rain radar on
+// top, clock, weather row, filling graph; health flicks are No calendar's.
+test('weatherOnly: no top bar, radar on top, clock then weather row; health flicks from noCal', () => {
+  const g = vc.buildViewCycle('weatherOnly', 'off', 'graph');
+  assert.equal(g.length, 1, 'the radar is in the Default view: no radar flick');
+  assert.equal(g[0].top, vc.TOP_RADAR);
+  assert.equal(g[0].tier, vc.TIER_FULL, 'a 3-row radar');
+  assert.equal(g[0].stripOff, true, 'no top bar');
+  assert.equal(g[0].body, vc.BODY_FC);
+  assert.equal(g[0].statusUpper, vc.STATUS_SRC_FORECAST);
+  assert.equal(g[0].order, 1, 'drawn literally: radar, clock, weather row (T C A B)');
+  assert.equal(vc.packWire(g[0]) >>> 0, 0x1B84, 'the Miami flick view with its top bar off');
+  assert.deepEqual(vc.stackFits(g[0], ''), { fits: true, over: 0 });
+  // Radar as a status row: no chart, the radar row under the weather row.
+  const st = vc.buildViewCycle('weatherOnly', 'off', 'status')[0];
+  assert.equal(st.top, vc.TOP_EMPTY);
+  assert.deepEqual([st.statusUpper, st.statusLower], [vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_RADAR]);
+  assert.equal(st.stripOff, true);
+  // No radar view at all: clock, weather row, graph.
+  const off = vc.buildViewCycle('weatherOnly', 'off', 'off')[0];
+  assert.deepEqual([off.top, off.statusLower, off.stripOff], [vc.TOP_EMPTY, vc.STATUS_SRC_NONE, true]);
+  // Health flicks are No calendar's, whatever the radar.
+  ['status', 'all'].forEach((h) => {
+    const wo = vc.buildViewCycle('weatherOnly', h, 'graph').slice(1).map(vc.packWire);
+    const nc = vc.buildViewCycle('noCal', h, 'off').slice(1).map(vc.packWire);
+    assert.deepEqual(wo, nc, 'health ' + h);
+  });
+  assert.equal(vc.resolvePresetKey({ layoutPreset: 'weatherOnly' }), 'weatherOnly');
+});

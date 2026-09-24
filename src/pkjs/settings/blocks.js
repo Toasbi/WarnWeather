@@ -747,7 +747,12 @@ if (typeof require !== 'undefined') {
             base.push(['Compact calendar (dense)', 'compactDense']);
         }
         base.push(['No calendar', 'noCal']);
-        if (!env || env.platform !== 'aplite') { base.push(['Custom (Beta)', 'custom']); }
+        // Weather only and Custom need a view without top bar (and Weather only the
+        // radar): not on aplite, where a stored value lies dormant (dormantValues).
+        if (!env || env.platform !== 'aplite') {
+            base.push(['Weather only', 'weatherOnly']);
+            base.push(['Custom (Beta)', 'custom']);
+        }
         return base;
     });
 

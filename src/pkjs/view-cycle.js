@@ -392,6 +392,26 @@ var NONE_FC_H    = spec(TIER_NONE,    TOP_EMPTY, BODY_FC,    STATUS_SRC_HEALTH, 
 var NONE_GRAPH_H = spec(TIER_NONE,    TOP_EMPTY, BODY_GRAPH, STATUS_SRC_HEALTH,   STATUS_SRC_NONE);
 var NONE_RDR_W   = spec(TIER_NONE,    TOP_EMPTY, BODY_RADAR, STATUS_SRC_RADAR,    STATUS_SRC_NONE);
 
+/**
+ * A "Weather only" Default view: no top bar, then (top to bottom) the band `top`, the
+ * clock, the status rows and the filling forecast graph — drawn in that literal order
+ * (order code 1, T C A B), like a custom view that dropped its top bar.
+ * @param {number} tier @param {number} top @param {number} upper @param {number} lower
+ * @returns {Object} spec
+ */
+function weatherOnlyView(tier, top, upper, lower) {
+  var s = spec(tier, top, BODY_FC, upper, lower);
+  s.stripOff = true;
+  s.order = 1;
+  return s;
+}
+// With the radar graph: the rain radar on top, 3 rows (tier full), clock, weather row, graph.
+var WO_RADAR   = weatherOnlyView(TIER_FULL, TOP_RADAR, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
+// Radar as a status row only: clock, weather row, radar row, graph.
+var WO_RADAR_S = weatherOnlyView(TIER_NONE, TOP_EMPTY, STATUS_SRC_FORECAST, STATUS_SRC_RADAR);
+// No radar view: clock, weather row, graph.
+var WO_PLAIN   = weatherOnlyView(TIER_NONE, TOP_EMPTY, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
+
 // preset -> healthMode-bucket -> radar-key ('n'|'r') -> cycle. 'r' is the radar-enabled
 // (graph-flavor) cycle; radarMode='status' demotes its BODY_RADAR slot to BODY_FC below
 // (see demoteRadarBody) while keeping the RADAR status row, so the forecast graph stays
@@ -463,7 +483,7 @@ function demoteRadarBody(s) {
  * 'status'/'graph' both include a radar flick view; 'off'/'countdown' do not. Only radar
  * specs are ever cloned (demoteRadarBody/swapUpperToLower), so the shared MATRIX/named-view
  * constants are never mutated.
- * @param {string} presetKey 'fullCal'|'compactCal'|'compactDense'|'noCal'
+ * @param {string} presetKey 'fullCal'|'compactCal'|'compactDense'|'noCal'|'weatherOnly'
  * @param {string} healthMode 'off'|'slot'|'status'|'all'
  * @param {string} radarMode 'off'|'countdown'|'status'|'graph'
  * @param {boolean} [swapClockStatus] Move a single upper status row to the lower band
@@ -475,6 +495,13 @@ function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
   // Health view, so its flick cycle is identical to 'off'.
   var mode = (healthMode === 'slot') ? 'off' : healthMode;
   var radarShowsView = (radarMode === 'status' || radarMode === 'graph');
+  // "Weather only": the radar is part of the Default view (no radar flick), which has
+  // no top bar; the health flicks are No calendar's.
+  if (presetKey === 'weatherOnly') {
+    var def = (radarMode === 'graph') ? WO_RADAR : (radarMode === 'status') ? WO_RADAR_S : WO_PLAIN;
+    var woHealth = MATRIX.noCal[mode] || MATRIX.noCal.off;
+    return [def].concat(woHealth.n.slice(1));
+  }
   // A compactDense that neither a health status row nor a radar view makes dense is
   // DORMANT: the settings page hides the option and shows "Compact calendar" (and its
   // swap toggle) in its place. Its cycle is already compactCal's, so compile it AS
@@ -747,7 +774,7 @@ function specToKeys(cycle) {
   return keys;
 }
 
-var NEW_KEYS = { fullCal: 1, compactCal: 1, compactDense: 1, noCal: 1 };
+var NEW_KEYS = { fullCal: 1, compactCal: 1, compactDense: 1, noCal: 1, weatherOnly: 1 };
 // legacy layoutPreset -> new. fullCal is unchanged (key kept, new semantics).
 var LEGACY_PRESET = {
   classic: 'compactCal', radarLast: 'compactCal', healthFirst: 'compactCal',
@@ -757,7 +784,7 @@ var LEGACY_PRESET = {
 /**
  * Resolve the effective preset key from a settings object, migrating legacy values.
  * @param {Object} state Clay settings (or config-UI state).
- * @returns {string} one of fullCal|compactCal|compactDense|noCal
+ * @returns {string} one of fullCal|compactCal|compactDense|noCal|weatherOnly
  */
 function resolvePresetKey(state) {
   state = state || {};

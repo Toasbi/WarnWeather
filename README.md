@@ -61,7 +61,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself
 
 **Layout customization**
-* Multiple layout presets, with flick-to-cycle between views and optional auto-return
+* Multiple layout presets, with flick-to-cycle between views and optional auto-return — including *Weather only*: no top bar, just the rain radar, clock, weather and a big forecast (colour watches)
 * Fully custom layouts (colour watches): build each view yourself — pick, remove and reorder the calendar, clock and status bars per view; any view can drop its top bar, and flick views also the clock, for a true full-screen radar or graph
 * Light/Dark settings page with grouped, easy-to-browse pickers
 * Weather tab in the settings page: live graphs — temperature & precipitation, wind & gusts, humidity & dew point, pressure, sun & moon — plus a 5-day forecast, for your current location or up to three saved places, with its own switchable data source (never touches the watchface's provider or location); refreshes only on demand — pull down or tap Refresh, which also re-reads your phone's location; it leads the tab bar, and a Misc toggle makes it the tab the page opens on

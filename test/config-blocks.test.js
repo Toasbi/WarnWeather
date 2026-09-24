@@ -316,7 +316,7 @@ test('layoutPresetOptions resolver: compactDense offered once health OR radar sh
   const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
   assert.equal(typeof resolver, 'function', 'resolver registered');
   const codes = (S) => resolver(S).map((o) => o[1]);
-  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'custom'],
+  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'weatherOnly', 'custom'],
     'compactDense hidden when neither health nor radar shows a status row; custom always last');
   // Custom is a colour-platform feature: aplite (frozen-lean) never offers it, and an
   // UNKNOWN platform is treated as capable, matching the payload's own gate.

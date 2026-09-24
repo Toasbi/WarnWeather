@@ -684,3 +684,14 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
       'GColorWhite (argb 0xFF), not the day face\'s black (0xC0)');
   });
 }
+
+test('Weather only folds to No calendar on aplite (no radar, no view without top bar)', function() {
+  const s = baseSettings();
+  s.layoutPreset = 'weatherOnly';
+  s.radarMode = 'graph';
+  const colour = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  const aplite = buildClayPayload(s, { platform: 'aplite' }, NOW);
+  const nocal = buildClayPayload(Object.assign({}, s, { layoutPreset: 'noCal' }), { platform: 'aplite' }, NOW);
+  assert.equal(colour.CLAY_VIEW_0 & 0x800, 0x800, 'colour: the Default view has no top bar');
+  assert.equal(aplite.CLAY_VIEW_0, nocal.CLAY_VIEW_0, 'aplite: exactly No calendar');
+});

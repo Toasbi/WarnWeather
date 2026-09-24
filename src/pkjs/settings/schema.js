@@ -2005,6 +2005,7 @@ module.exports = {
                     compactCal: '2-row calendar. Flick to radar and health as you enable them.',
                     compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
                     noCal: 'No calendar — a big forecast. Flick to radar and health.',
+                    weatherOnly: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast. Flick to health.',
                     custom: 'Build each view yourself — pick its elements and graphs, then order, size and align them.'
                 },
                 // Compact-dense only differs from Compact when a health status row OR the
@@ -2020,7 +2021,7 @@ module.exports = {
                 // there; the payload folds it to compactCal, matching the display).
                 // Picking custom seeds the per-view keys once (layoutPresetChanged).
                 optionsFrom: { resolver: 'layoutPresetOptions' },
-                dormantValues: ['compactDense', 'custom'],
+                dormantValues: ['compactDense', 'weatherOnly', 'custom'],
                 onChange: 'layoutPresetChanged',
                 blockBefore: 'layoutPreviewCombined',
                 blockBeforeSticky: true

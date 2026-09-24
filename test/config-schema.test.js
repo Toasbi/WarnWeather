@@ -1147,9 +1147,15 @@ test('layoutPreset offers the four adaptive presets', () => {
   const resolver = global.PConf.optionsResolvers.get(t.optionsFrom.resolver);
   assert.equal(typeof resolver, 'function', 'layoutPresetOptions resolver registered');
   const codes = (S) => resolver(S).map((o) => o[1]);
-  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'custom']);
-  assert.deepEqual(codes({ healthMode: 'status', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal', 'custom']);
-  assert.deepEqual(codes({ healthMode: 'all', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal', 'custom']);
+  assert.deepEqual(codes({ healthMode: 'off', radarMode: 'off' }), ['fullCal', 'compactCal', 'noCal', 'weatherOnly', 'custom']);
+  assert.deepEqual(codes({ healthMode: 'status', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly', 'custom']);
+  assert.deepEqual(codes({ healthMode: 'all', radarMode: 'off' }), ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly', 'custom']);
+  // Weather only sits right after No calendar; aplite (no radar, no view without top
+  // bar) never offers it, and a stored one lies dormant there.
+  assert.deepEqual(resolver({ healthMode: 'off', radarMode: 'off' }, { platform: 'aplite' }).map((o) => o[1]),
+    ['fullCal', 'compactCal', 'noCal']);
+  assert.ok(t.dormantValues.indexOf('weatherOnly') >= 0);
+  assert.ok(t.hintByValue.weatherOnly, 'Weather only has a hint');
   // compactDense must be reachable from radar alone — even with health off — since the
   // radar-status row also warrants the dense fold (bug #1/#2 fix; Task 9's whole point).
   assert.ok(codes({ healthMode: 'off', radarMode: 'status' }).indexOf('compactDense') >= 0,
