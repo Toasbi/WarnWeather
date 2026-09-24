@@ -185,23 +185,6 @@ test('a throwing radar interpret preserves the radar (null) instead of stranding
   assert.deepEqual(results, [null], 'called back exactly once, with null');
 });
 
-test('runFetchCycle starts nothing for coordinates that arrive after the caller gave up', () => {
-  const { runFetchCycle } = require('../src/pkjs/weather/fetch-orchestrator.js');
-  let deliverFix;
-  let radar = 0;
-  runFetchCycle({
-    provider: { withCoordinates: (ok) => { deliverFix = ok; }, fetchWithCoordinates: assert.fail },
-    fetchRadar: () => { radar += 1; },
-    buildExtras: assert.fail,
-    onSuccess: assert.fail,
-    onFailure: assert.fail,
-    force: false,
-    isCurrent: () => false,
-  });
-  deliverFix(52.5, 13.4);
-  assert.equal(radar, 0);
-});
-
 test('the healthy harness network completes a fetch (harness self-check)', (t) => {
   const h = bootIndex(t, { store: staleSuccess(), network: healthyNetwork });
   h.ready();

@@ -47,9 +47,9 @@ var WeatherProvider = function() {
     this.uvTrend = [];
     // The per-fetch knobs (fetchUv/fetchAqi/fetchPollen/fetchFeels/feelsFormula/
     // dayPeakCodes/windUnits/aqiScale/aqiSource/aqicnToken) as ONE value, every
-    // default in fetch-options.js. index.js replaces it with
-    // fetchOptions.build(settings, ...) before each fetch; a provider that is
-    // never handed one runs on the defaults.
+    // default in fetch-options.js. The fetch cycle (fetch-cycle.js) replaces it
+    // with fetchOptions.build(settings, ...) before each fetch; a provider that
+    // is never handed one runs on the defaults.
     this.options = fetchOptions.defaults();
     // The status slots' day max (day-peaks.js): each metric's peak of today's
     // hours already begun (day-peaks' recall, in fetchWithCoordinates; getPayload
@@ -306,8 +306,8 @@ WeatherProvider.prototype.withGeocodeCoordinates = function(callback, onFailure)
     }
 
     // An address LocationIQ could not resolve stays unresolvable: don't spend
-    // the shared key on it every minute (index.js skips the whole fetch while
-    // this holds; a forced fetch clears it).
+    // the shared key on it every minute (the fetch cycle, fetch-cycle.js, skips
+    // the whole fetch while this holds; a forced fetch clears it).
     if (locationLib.isGeocodeNotFound(locationOverride.query)) {
         console.log('[!] Address was not found recently, skipping geocoding');
         onFailure(failure('forward_geocode', 'not_found'));
@@ -518,7 +518,7 @@ WeatherProvider.prototype.composeWeatherPayload = function(extraPayload, payload
         Object.assign(payload, extraPayload);
     }
     // PKJS-side render selection (metric -> wire series). The provider stays
-    // metric-agnostic; index.js supplies the map.
+    // metric-agnostic; the fetch cycle (fetch-cycle.js) supplies the map.
     if (payloadTransform) {
         payload = payloadTransform(payload);
     }

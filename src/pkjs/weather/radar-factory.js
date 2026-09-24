@@ -15,7 +15,8 @@
 // proxy endpoint) is bound at construction via cfg. 'disabled' is a real
 // registered adapter that clears the watch's radar -- no special case -- and any
 // unknown/unset id falls back to it (today's default-off behavior). Adding a
-// radar source is a new table entry; index.js never learns source names.
+// radar source is a new table entry; the fetch cycle (fetch-cycle.js) never
+// learns source names.
 
 var radar = require('./dwd-radar.js');
 var metnoRadar = require('./metno-radar.js');

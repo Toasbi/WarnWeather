@@ -8,9 +8,9 @@
 // forward with a zero-filled tail at every fetch boundary until it showed a
 // confident "No rain ahead", forever.
 //
-// Drives the real radar-factory → tomorrowio-radar/rainbow-radar →
-// radar-fetch → fetch-orchestrator → outbox → change-detector → radar-dedupe
-// chain; only the HTTP transport and the forecast provider are stubbed.
+// Drives the real fetch-cycle → radar-factory → tomorrowio-radar/rainbow-radar
+// → radar-fetch → outbox → change-detector → radar-dedupe chain; only the HTTP
+// transport and the forecast provider are stubbed.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -29,9 +29,10 @@ global.localStorage = {
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 var transport;
 WeatherProvider.request = function(url, type, onSuccess, onError) { transport(url, onSuccess, onError); };
-const radarFactory = require('../src/pkjs/weather/radar-factory.js');
-const runFetchCycle = require('../src/pkjs/weather/fetch-orchestrator.js').runFetchCycle;
+const createFetchCycle = require('../src/pkjs/fetch-cycle.js');
 const outbox = require('../src/pkjs/outbox.js');
+const authBackoff = require('../src/pkjs/auth-backoff.js');
+const notices = require('../src/pkjs/notices.js');
 
 const SLOT = 300;
 const N = 24;
@@ -47,27 +48,48 @@ function timelinesBody(start, rateAt) {
   return JSON.stringify({ data: { timelines: [{ intervals: intervals }] } });
 }
 
+var provider = {
+  id: 'stub',
+  name: 'Stub',
+  withCoordinates: function(ok) { ok(52.5, 13.4); },
+  // The forecast provider keeps working: an unchanged forecast rides along.
+  fetchWithCoordinates: function(lat, lon, onSuccess, onFailure, force, extras) {
+    outbox.sendWeather(Object.assign({ TEMP_MIN: 1, TEMP_MAX: 9, NUM_ENTRIES: 24 }, extras),
+      onSuccess, onFailure);
+  }
+};
+// What the next cycle runs with: the radar settings, and the clock whose 5-min
+// slot-0 epoch the radar is pinned to (every slotZero here is 5-min aligned).
+var current = null;
+const fetchCycle = createFetchCycle({
+  getSettings: function() {
+    return { radarMode: 'graph', radarProvider: current.radarId, tomorrowioApiKey: current.cfg.tomorrowioApiKey };
+  },
+  getWatchInfo: function() { return null; },   // unknown platform: radar-capable
+  getProvider: function() { return provider; },
+  isWatchConnected: function() { return true; },
+  outbox: outbox,
+  authBackoff: authBackoff,
+  notices: notices,
+  trackWeatherFetch: function() {},
+  env: { waqiToken: '', rainbowEndpoint: '' },
+  now: function() { return new Date(current.slotZero * 1000); },
+  // The stub ACKs synchronously, so every cycle settles before start() returns;
+  // the 120 s watchdog each start arms is dropped instead of left pending.
+  setTimeout: function() {}
+});
+
 /**
  * One fetch cycle; returns the radar tuples that went over the wire, or null
- * when the send carried no radar keys.
+ * when the send carried no radar keys. Non-forced, like a scheduled tick: a
+ * forced start drops the outbox's last-sent radar too, which would resend the
+ * clear every cycle.
  */
 function cycle(radarId, cfg, slotZero) {
   sent = [];
-  runFetchCycle({
-    provider: {
-      withCoordinates: function(ok) { ok(52.5, 13.4); },
-      // The forecast provider keeps working: an unchanged forecast rides along.
-      fetchWithCoordinates: function(lat, lon, onSuccess, onFailure, force, extras) {
-        outbox.sendWeather(Object.assign({ TEMP_MIN: 1, TEMP_MAX: 9, NUM_ENTRIES: 24 }, extras),
-          onSuccess, onFailure);
-      }
-    },
-    fetchRadar: function(lat, lon, cb) {
-      radarFactory.createRadarSource(radarId, cfg).fetchRadarTuplesAt(lat, lon, slotZero, cb);
-    },
-    buildExtras: function(radarTuples) { return radarTuples ? Object.assign({}, radarTuples) : {}; },
-    onSuccess: function() {}, onFailure: function() {}, force: false
-  });
+  current = { radarId: radarId, cfg: cfg, slotZero: slotZero };
+  assert.equal(cfg.rainbowEndpoint, '', 'every case runs on an endpoint-less build (env.rainbowEndpoint)');
+  assert.equal(fetchCycle.start(false), true, 'the cycle starts');
   var radarSends = sent.filter(function(m) { return 'RAIN_RADAR_TREND_UINT8' in m; });
   assert.ok(radarSends.length <= 1, 'at most one radar send per cycle');
   return radarSends.length ? radarSends[0] : null;

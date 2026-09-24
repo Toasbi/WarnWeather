@@ -43,7 +43,8 @@ test('withCoordinates resets countryCode to null even when coordinate resolution
 });
 
 // The compose step runs inside an XHR callback in production, so a throw there
-// escapes both callbacks and leaves index.js's fetchInProgress set for good.
+// escapes both callbacks and leaves the fetch cycle's in-progress flag
+// (fetch-cycle.js) set for good.
 // It must fail the fetch instead — once, and never on top of a success.
 function composeHarness(t, payloadTransform, onAckHook) {
   const outbox = require('../src/pkjs/outbox.js');
@@ -81,7 +82,7 @@ test('a payload build error fails the fetch exactly once instead of escaping', (
   const outcome = composeHarness(t, function () { throw new TypeError('boom'); });
   assert.equal(outcome.escaped, null, 'nothing escapes into the XHR callback');
   assert.deepEqual(outcome.failures, [{ stage: 'compose', code: 'exception' }],
-    'onFailure fires once, so index.js releases fetchInProgress');
+    'onFailure fires once, so the fetch cycle releases its in-progress flag');
   assert.equal(outcome.success, 0);
   assert.equal(outcome.sends.length, 0, 'nothing half-built reaches the outbox');
 });

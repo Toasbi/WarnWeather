@@ -104,7 +104,7 @@ function runFetch(t, isoNow) {
 
 test('a Tromso fetch during midnight sun completes and sends the forecast', (t) => {
   const outcome = runFetch(t, '2026-06-21T12:00:00Z');
-  assert.equal(outcome.success, 1, 'onSuccess fires, so index.js releases fetchInProgress');
+  assert.equal(outcome.success, 1, 'onSuccess fires, so the fetch cycle releases its in-progress flag');
   assert.deepEqual(outcome.failure, []);
   assert.equal(outcome.sent.length, 1, 'the forecast reaches the outbox');
   const sun = outcome.sent[0].SUN_EVENTS;

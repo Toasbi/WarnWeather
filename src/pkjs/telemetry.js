@@ -327,7 +327,7 @@ function normalizeLocationMode(mode) {
     return null;
 }
 
-// durationMs is wall-clock (Date.now() - fetchStart in index.js), so a clock
+// durationMs is wall-clock (now - fetchStart in fetch-cycle.js), so a clock
 // step during a fetch turns it negative or huge: a phone that boots at its
 // build-time floor and syncs network time mid-fetch reports ~1.7e12 ms, which
 // overflowed the ingest's int4 column — a 500 that is retried, so it wedged the

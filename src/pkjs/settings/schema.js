@@ -1495,8 +1495,8 @@ module.exports = {
                 options: [['Kilometres', 'metric'], ['Miles', 'imperial']],
                 hint: 'Unit for the "Walked distance" status item.'
             }, {
-                // Phone-side only (feels-like.js resolvers; index.js hands it to the
-                // provider per fetch) and in renderSignature, so a flip refetches.
+                // Phone-side only (feels-like.js resolvers; fetch-cycle.js hands it to
+                // the provider per fetch) and in renderSignature, so a flip refetches.
                 type: 'segmented',
                 messageKey: 'feelsFormula',
                 label: 'Feels-like formula',

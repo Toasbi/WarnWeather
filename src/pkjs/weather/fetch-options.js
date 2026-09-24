@@ -1,14 +1,15 @@
 // The per-fetch knobs every weather adapter and aux fetch reads, as ONE value.
 //
-// index.js builds it once per fetch (build(), from the Clay settings) and hands it
-// to the provider as `provider.options`, BEFORE any request is built — day-peaks'
-// wanted() reads dayPeakCodes at URL-build time. Every default lives here, in
-// DEFAULTS; nothing downstream carries its own `|| 'default'` fallback.
+// The fetch cycle (fetch-cycle.js) builds it once per fetch (build(), from the
+// Clay settings) and hands it to the provider as `provider.options`, BEFORE any
+// request is built — day-peaks' wanted() reads dayPeakCodes at URL-build time.
+// Every default lives here, in DEFAULTS; nothing downstream carries its own
+// `|| 'default'` fallback.
 //
 // Load-time invariant: provider.js requires this module for its constructor
 // default, so nothing this module loads (directly or transitively, through
 // forecast-series.js and feels-like.js) may touch `Pebble` at require time or
-// require provider.js / index.js — that would be a require cycle.
+// require provider.js / fetch-cycle.js / index.js — that would be a require cycle.
 //
 // The WeatherProvider constructor always sets `this.options = defaults()`, so a
 // WeatherProvider method may assume `options` exists. The aux gates that take a
