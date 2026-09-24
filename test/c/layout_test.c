@@ -1434,7 +1434,7 @@ static void peek_tests(void) {
     // Start from a full-cal forecast+weather view; peek ignores top/calendar. Visibility:
     // calendar hidden (top emptied), forecast + weather status still on.
     ViewSpec s = view_spec_unpack(pack(3, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE));   // CAL3 forecast
-    s.top = TOP_BAND_EMPTY; s.calendar_rows = 0; s.status_tier = LAYOUT_TIER_FULL;
+    layout_peek_spec(&s);   // the transform main_window applies (layout.h)
     LayerVisibility v = layout_visibility(&s);
     expect("peek.calendar_hidden",        v.calendar, false);
     expect("peek.forecast_visible",       v.forecast, true);
@@ -1494,6 +1494,20 @@ static void peek_tests(void) {
     check("peekDual.status_lower", Ld.status_lower, 0, 67, 144, 24);
     check("peekDual.bottom",       Ld.bottom,       0, 91, 144, 26);
 #endif
+
+    // A graphless custom flick (no graph, top bar and clock removed, a Position and a
+    // stale size): peek puts the clock and strip back, clears the v2 geometry fields, and
+    // keeps BODY_NONE — the peek body stays blank (decided), no graph layer unhides.
+    ViewSpec g = unpack_ext(pack_custom(pack(2, 1, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 1, 1, 4),
+                            ext_word(0, 0, 0, ALIGN_BOTTOM));
+    layout_peek_spec(&g);
+    expect("peekGraphless.chrome_back", g.clock_off == 0 && g.strip_off == 0, true);
+    expect("peekGraphless.v2_cleared",
+           g.align == 0 && g.top_size == 0 && g.body_size == 0 && g.top_kind == 0, true);
+    expect("peekGraphless.body_none_kept", g.body == BODY_NONE, true);
+    LayerVisibility vg = layout_visibility(&g);
+    expect("peekGraphless.no_graph", vg.forecast || vg.health_graph || vg.radar, false);
+    expect("peekGraphless.status_kept", vg.weather_status, true);
 }
 
 static void radar_placement_tests(void) {
@@ -1812,8 +1826,8 @@ static void view_cursor_tests(void) {
     // User flicked to slot 1 under compactCal+status+radar, then switched preset to
     // fullCal+off+radar (a different cycle). The cursor must return to the default view;
     // leaving it on slot 1 is exactly "stuck at flick 1, default never shows".
-    uint16_t compactStatusRadar[3] = { B_CAL2_FC_W, B_CAL2_FC_H, B_RDR_FC_NONE };
-    uint16_t fullCalRadar[3]       = { B_CAL3_FC_W, B_CAL3_RDR_W, 0x000 };
+    uint32_t compactStatusRadar[3] = { B_CAL2_FC_W, B_CAL2_FC_H, B_RDR_FC_NONE };
+    uint32_t fullCalRadar[3]       = { B_CAL3_FC_W, B_CAL3_RDR_W, 0x000 };
     expect("cursor.preset_switch_resets_to_default",
            view_cursor_after_config(1, compactStatusRadar, fullCalRadar) == 0, true);
 
@@ -1821,13 +1835,13 @@ static void view_cursor_tests(void) {
     // bits (8-9) — identical low bytes — must still read as a redefined cycle. A uint8 cursor
     // copy would collapse them to equal and wrongly KEEP the cursor; the full 10-bit
     // comparison detects the change and resets to the default view.
-    uint16_t cycleCompact[3] = { B_CAL2_FC_W, 0x000, 0x000 };   // 0x244
-    uint16_t cycleFull[3]    = { B_CAL3_FC_W, 0x000, 0x000 };   // 0x344 — low byte identical
+    uint32_t cycleCompact[3] = { B_CAL2_FC_W, 0x000, 0x000 };   // 0x244
+    uint32_t cycleFull[3]    = { B_CAL3_FC_W, 0x000, 0x000 };   // 0x344 — low byte identical
     expect("cursor.tier_only_change_resets",
            view_cursor_after_config(1, cycleCompact, cycleFull) == 0, true);
 
     // noCal+all+radar reached with a carried-over non-default cursor → back to default.
-    uint16_t noCalAllRadar[3] = { B_NONE_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W };
+    uint32_t noCalAllRadar[3] = { B_NONE_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W };
     expect("cursor.noCal_carryover_resets",
            view_cursor_after_config(2, compactStatusRadar, noCalAllRadar) == 0, true);
 
@@ -1839,7 +1853,7 @@ static void view_cursor_tests(void) {
            view_cursor_after_config(0, fullCalRadar, fullCalRadar) == 0, true);
 
     // Even a single-slot change redefines the cycle → reset (cursor could point anywhere).
-    uint16_t fullCalRadar2[3] = { B_CAL3_FC_W, B_CAL3_RDR_W, B_NONE_FC_W };
+    uint32_t fullCalRadar2[3] = { B_CAL3_FC_W, B_CAL3_RDR_W, B_NONE_FC_W };
     expect("cursor.single_slot_change_resets",
            view_cursor_after_config(1, fullCalRadar, fullCalRadar2) == 0, true);
 
@@ -1848,9 +1862,9 @@ static void view_cursor_tests(void) {
     // the OLD rule failed: it only reset when the current slot went disabled (byte 0), so
     // disabling BOTH health+radar returned to the forecast, but toggling to another
     // populated cycle left the cursor stranded off the forecast.
-    uint16_t compactAllRadar[3]   = { B_CAL3_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W }; // health all + radar
-    uint16_t compactOffNoRadar[3] = { B_CAL2_FC_W, 0x000, 0x000 };                 // both off (1 slot)
-    uint16_t compactOffRadar[3]   = { B_CAL2_FC_W, B_CAL2_RDR_W, 0x000 };          // health off, radar on
+    uint32_t compactAllRadar[3]   = { B_CAL3_FC_W, B_NONE_GRAPH_H, B_NONE_RDR_W }; // health all + radar
+    uint32_t compactOffNoRadar[3] = { B_CAL2_FC_W, 0x000, 0x000 };                 // both off (1 slot)
+    uint32_t compactOffRadar[3]   = { B_CAL2_FC_W, B_CAL2_RDR_W, 0x000 };          // health off, radar on
     expect("cursor.disable_all_returns_to_forecast",
            view_cursor_after_config(2, compactAllRadar, compactOffNoRadar) == 0, true);
     expect("cursor.health_off_radar_on_returns_to_forecast",
@@ -1867,12 +1881,12 @@ static void view_cursor_tests(void) {
     // 2-slot cycle toggles 0<->1; 1-slot cycle never leaves 0.
     expect("next.2slot.0to1", view_cursor_next(0, fullCalRadar, true, true) == 1, true);
     expect("next.2slot.1to0", view_cursor_next(1, fullCalRadar, true, true) == 0, true);
-    uint16_t oneSlot[3] = { B_CAL3_FC_W, 0x000, 0x000 };
+    uint32_t oneSlot[3] = { B_CAL3_FC_W, 0x000, 0x000 };
     expect("next.1slot.stays0", view_cursor_next(0, oneSlot, true, true) == 0, true);
 
     // A radar-status slot (radar row on a forecast body) needs radar data to be a stop.
     // compact cal | forecast body | radar-upper | forecast-lower.
-    uint16_t radarStatusSlot = pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST);
+    uint32_t radarStatusSlot = pack(2, 1, 0, STATUS_SRC_RADAR, STATUS_SRC_FORECAST);
     expect("slot.radar_status_needs_radar", view_slot_available(radarStatusSlot, false, true), false);
     expect("slot.radar_status_ok_with_data", view_slot_available(radarStatusSlot, true, true), true);
 
@@ -1889,10 +1903,31 @@ static void view_cursor_tests(void) {
            view_slot_available(pack_custom(pack(2, 1, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE),
                                            1, 1, 5), true, true), true);
     // Any custom-bit edit redefines the cycle: full-uint16 compare snaps the cursor home.
-    uint16_t clocked[3]   = { B_CAL2_FC_W, B_CAL2_RDR_W, 0x000 };
-    uint16_t clockless[3] = { B_CAL2_FC_W, pack_custom(B_CAL2_RDR_W, 1, 0, 0), 0x000 };
+    uint32_t clocked[3]   = { B_CAL2_FC_W, B_CAL2_RDR_W, 0x000 };
+    uint32_t clockless[3] = { B_CAL2_FC_W, pack_custom(B_CAL2_RDR_W, 1, 0, 0), 0x000 };
     expect("cursor.clock_bit_edit_resets",
            view_cursor_after_config(1, clocked, clockless) == 0, true);
+
+    // ── Custom layout v2: whole 32-bit words ─────────────────────────────────
+    // An ext-only save (a size or Position — bits 16-24, the 16-bit spec untouched) is a
+    // redefined cycle too: the documented "any cycle redefinition resets" rule. A
+    // 16-bit comparison would miss it and keep the cursor on a changed view.
+    const uint32_t graphless = pack(2, 1, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
+    uint32_t alignClock[3]  = { B_CAL2_FC_W, graphless, 0x000 };
+    uint32_t alignBottom[3] = { B_CAL2_FC_W, graphless | ((uint32_t) ext_word(0, 0, 0, ALIGN_BOTTOM) << 16), 0x000 };
+    expect("cursor.ext_only_change_resets",
+           view_cursor_after_config(1, alignClock, alignBottom) == 0, true);
+    expect("cursor.ext_unchanged_keeps",
+           view_cursor_after_config(1, alignBottom, alignBottom) == 1, true);
+    for (int bit = 16; bit <= 24; bit++) {
+        uint32_t a[3] = { B_CAL2_FC_W, graphless, 0x000 };
+        uint32_t b[3] = { B_CAL2_FC_W, graphless | (1u << bit), 0x000 };
+        expect("cursor.each_ext_bit_resets", view_cursor_after_config(2, a, b) == 0, true);
+    }
+    // A graphless flick is a normal stop; an ext word over a zero TIER is still a ghost.
+    expect("slot.graphless_available", view_slot_available(graphless, false, false), true);
+    expect("slot.ext_only_ghost_disabled",
+           view_slot_available((uint32_t) ext_word(0, 0, 0, ALIGN_BOTTOM) << 16, true, true), false);
 }
 
 static void view_timer_tests(void) {

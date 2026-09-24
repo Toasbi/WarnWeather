@@ -18,6 +18,16 @@ build/host/layout_test_emery "${1:-}"
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/layout_aplite_test.c src/c/windows/layout_aplite.c -o build/host/layout_aplite_test
 build/host/layout_aplite_test
+# sizeof(Config) <= 64 (persist.c's change-compare buffer) for each platform arm of
+# config.h: the evolving build, emery (large_graph_font), and aplite (no PBL_HEALTH, no
+# !APLITE tail). A compile-time _Static_assert — the run just prints the size.
+cc $CFLAGS test/c/config_size_test.c -o build/host/config_size_test
+build/host/config_size_test
+cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/config_size_test.c -o build/host/config_size_test_emery
+build/host/config_size_test_emery
+cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
+   test/c/config_size_test.c -o build/host/config_size_test_aplite
+build/host/config_size_test_aplite
 cc $CFLAGS test/c/health_build_test.c src/c/services/health_build.c -o build/host/health_build_test
 build/host/health_build_test
 cc $CFLAGS test/c/health_test.c src/c/services/health.c -o build/host/health_test

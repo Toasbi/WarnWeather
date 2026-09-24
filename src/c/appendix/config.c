@@ -65,6 +65,9 @@ static Config config_defaults(void) {
         // the user picks otherwise on the Date slot's edit sheet.
         .date_month_format = DATE_MONTH_AUTO,
         .date_full_format = DATE_FULL_AUTO,
+        // No custom-layout v2 fields: every view renders as before v2 until the phone
+        // sends an ext word.
+        .view_ext = { 0, 0, 0 },
 #endif
     };
 }

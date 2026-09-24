@@ -345,6 +345,26 @@ LayerVisibility layout_visibility(const ViewSpec *spec);
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
 
 #if defined(WW_QUICK_VIEW)
+// The spec a Quick View peek renders for the active view `s` (in place): no calendar, the
+// status rows at the full-tier font (the peek bands are fc_band_h tall) and — for a
+// custom flick — the clock and strip back on, since the time is the peek's most useful
+// content and the strip its anchor. The v2 sizes and Position do not apply to peek's own
+// geometry and are cleared; a graphless view keeps BODY_NONE, so its peek body is blank
+// (decided). Static inline so main_window (unforked) and the host tests run one copy.
+static inline void layout_peek_spec(ViewSpec *s) {
+    s->top = TOP_BAND_EMPTY;
+    s->calendar_rows = 0;
+    s->status_tier = LAYOUT_TIER_FULL;   // status band is full-tier-sized (fc_band)
+#if defined(WW_VIEW_CYCLE)
+    s->clock_off = 0;
+    s->strip_off = 0;
+    s->top_kind = 0;
+    s->top_size = 0;
+    s->body_size = 0;
+    s->align = 0;
+#endif
+}
+
 // "Peek" geometry for the Timeline Quick View overlay: the active view minus its calendar,
 // fit into `bounds` (the unobstructed area above the overlay) — the date strip stays at the
 // top, then the clock, the status row(s), and the body (forecast/graph/radar) below. Clock
@@ -360,23 +380,29 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics
 // cursor state and resolves availability from the SDK (radar data present? health
 // renderable?); these helpers keep the navigation rules pure and host-testable.
 
-// Is a configured slot value renderable right now? Disabled (wire tier 0) never; a
-// radar band needs radar data; a health band/row needs health. Availability is
-// caller-supplied. The slot is the full 16-bit packed value (see view_spec_unpack).
-bool view_slot_available(uint16_t value, bool has_radar, bool has_health);
+// A view WORD is the full 32-bit wire value: the 16-bit packed spec (view_spec_unpack)
+// in the low half, the custom-layout v2 ext word (view_spec_apply_ext) in the high half
+// — Config.view_spec2[i] | Config.view_ext[i] << 16.
+
+// Is a configured slot renderable right now? Disabled (wire tier 0) never; a radar band
+// needs radar data; a health band/row/graph needs health. Availability is
+// caller-supplied. Decodes the whole word (unpack + apply_ext), so a graph the ext
+// word places — e.g. a health graph in the top band — gates the slot too.
+bool view_slot_available(uint32_t word, bool has_radar, bool has_health);
 
 // Next enabled + available slot after `from`, wrapping. Index 0 (the default view) is
 // always a valid stop, so the cycle can never get stuck.
-uint8_t view_cursor_next(uint8_t from, const uint16_t spec[3], bool has_radar, bool has_health);
+uint8_t view_cursor_next(uint8_t from, const uint32_t word[3], bool has_radar, bool has_health);
 
 // The cursor to keep after a settings apply. A settings change can redefine the cycle
 // (each slot may now hold a different view), which makes the old cursor position
 // meaningless — snap back to the default view (0). An unchanged cycle keeps the cursor
 // (a radar/health availability re-apply must not yank the user off their chosen view).
-// Slots are compared as full 16-bit values, so a change confined to the tier/top or
-// custom bits (8-9 / 6-7 / 10-15) still reads as a redefined cycle.
-uint8_t view_cursor_after_config(uint8_t cursor, const uint16_t old_spec[3],
-                                 const uint16_t new_spec[3]);
+// Slots are compared as full 32-bit words, so a change confined to the tier/top or
+// custom bits (8-9 / 6-7 / 10-15) — or to the ext word alone (a size or Position) —
+// still reads as a redefined cycle.
+uint8_t view_cursor_after_config(uint8_t cursor, const uint32_t old_word[3],
+                                 const uint32_t new_word[3]);
 
 // Whether the auto-return-to-default timer is due. `now` and `flick_since` are epoch
 // seconds; reset_min is the configured window in minutes (0 = auto-return disabled).

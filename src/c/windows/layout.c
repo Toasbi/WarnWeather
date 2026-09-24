@@ -914,15 +914,17 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics
 #if defined(WW_VIEW_CYCLE)
 // ── View-cycle cursor (pure) ─────────────────────────────────────────────────
 
-bool view_slot_available(uint16_t value, bool has_radar, bool has_health) {
+bool view_slot_available(uint32_t word, bool has_radar, bool has_health) {
     // tier=off → disabled slot. The WIRE TIER decides, not the whole value: a custom
-    // slot could theoretically carry stray bits 10-15 over a zeroed tier (e.g. 0x400,
-    // "clock off, everything else off"), and under the old `value == 0` test such a
-    // ghost would look flickable while decoding to an empty view. No compiler emits
-    // one — removed views pack to exactly 0 — but the watch hardens anyway. This also
-    // retires the pre-existing garbage class 0x001-0x0FF (content bits, no tier).
-    if (((value >> 8) & 3) == 0) { return false; }
-    ViewSpec spec = view_spec_unpack(value);
+    // slot could theoretically carry stray bits 10-31 over a zeroed tier (e.g. 0x400,
+    // "clock off, everything else off", or an ext word alone), and under the old
+    // `value == 0` test such a ghost would look flickable while decoding to an empty
+    // view. No compiler emits one — removed views pack to exactly 0 — but the watch
+    // hardens anyway. This also retires the pre-existing garbage class 0x001-0x0FF
+    // (content bits, no tier).
+    if (((word >> 8) & 3) == 0) { return false; }
+    ViewSpec spec = view_spec_unpack((uint16_t) word);
+    view_spec_apply_ext(&spec, (uint16_t)(word >> 16));
     // Through layout_visibility, not hand-written top/body/status predicates: a new
     // band, body or StatusSource value updates layout_visibility once and this
     // function inherits it, instead of a half-migrated copy silently disagreeing
@@ -933,21 +935,21 @@ bool view_slot_available(uint16_t value, bool has_radar, bool has_health) {
     return true;
 }
 
-uint8_t view_cursor_next(uint8_t from, const uint16_t spec[3], bool has_radar, bool has_health) {
+uint8_t view_cursor_next(uint8_t from, const uint32_t word[3], bool has_radar, bool has_health) {
     for (int step = 1; step <= 3; step++) {
         uint8_t i = (uint8_t)((from + step) % 3);
-        if (i == 0 || view_slot_available(spec[i], has_radar, has_health)) { return i; }
+        if (i == 0 || view_slot_available(word[i], has_radar, has_health)) { return i; }
     }
     return 0;
 }
 
-uint8_t view_cursor_after_config(uint8_t cursor, const uint16_t old_spec[3],
-                                 const uint16_t new_spec[3]) {
+uint8_t view_cursor_after_config(uint8_t cursor, const uint32_t old_word[3],
+                                 const uint32_t new_word[3]) {
     // If the cycle definition changed at all, the cursor's old slot may now hold a
     // different view (or none) — snap back to the default. This also covers the current
     // slot being disabled. An identical cycle keeps the cursor untouched.
     for (int i = 0; i < 3; i++) {
-        if (old_spec[i] != new_spec[i]) { return 0; }
+        if (old_word[i] != new_word[i]) { return 0; }
     }
     return cursor;
 }

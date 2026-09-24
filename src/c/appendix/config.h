@@ -140,6 +140,14 @@ typedef struct {
 #if !defined(PBL_PLATFORM_APLITE)
     uint8_t date_month_format;
     uint8_t date_full_format;
+    // --- custom layout v2 (v1.22): each view's EXT word — the high 16 bits of the
+    // CLAY_VIEW_n int32 tuple (graph size, top-area size, top-graph kind, Position;
+    // view-cycle.js packExt), decoded by view_spec_apply_ext. 0 = "as before v2", so an
+    // upgrader's shorter stored blob (which does not reach these bytes) keeps the seeded
+    // zeros and renders exactly as it did. Appended at the END (append-only persist
+    // offsets). !PBL_PLATFORM_APLITE like the fields above: aplite folds every custom
+    // layout to a preset on the phone, and its config_wire arm never reads the high half.
+    uint16_t view_ext[3];
 #endif
 } Config;
 

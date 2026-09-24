@@ -2,6 +2,33 @@
 
 #include "config_wire.h"
 
+#if !defined(PBL_PLATFORM_APLITE)
+// One CLAY_VIEW_n tuple → the view's 16-bit spec (low half) and its 16-bit EXT word
+// (high half: custom layout v2's sizes / top-graph kind / Position — view-cycle.js
+// packWire). PKJS sends every JS number as a 4-byte int (pypkjs Int32; libpebble3
+// createInt; the colour and HR-scale tuples on this very message rely on it), so the
+// high half was always on the wire and simply discarded. The low half is read exactly
+// as before (int16 over a little-endian int32 = its low bytes). The guard is on LENGTH
+// only: a runtime that packed a 2-byte int yields ext 0 (= before v2), never an
+// over-read; a TUPLE_INT type check is deliberately absent — nothing establishes that
+// every phone app tags a positive number INT rather than UINT, and the shipped int32
+// reads below check no type either. ext keeps its memset 0 when the tuple is short.
+static void read_view_tuple(const Tuple *t, int i, uint16_t *spec, uint16_t *ext) {
+    if (!t) { return; }
+    *spec = (uint16_t) t->value->int16;
+    if (t->length >= 4) {
+        *ext = (uint16_t)(((uint32_t) t->value->int32) >> 16);
+    }
+#if defined(WW_ENABLE_MEMORY_LOGGING)
+    // Dev-only carrier proof (ENABLE_MEMORY_LOGGING=1 builds): shows the ext word that
+    // arrived for each view, so an emulator/phone run can confirm the high half survives.
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "view_ext[%d]=0x%04x", i, *ext);
+#else
+    (void) i;
+#endif
+}
+#endif
+
 bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     Tuple *clay_celsius_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_CELSIUS);
     Tuple *clay_time_lead_zero_tuple = dict_find(iterator, MESSAGE_KEY_CLAY_TIME_LEAD_ZERO);
@@ -83,11 +110,18 @@ bool config_parse_wire(DictionaryIterator *iterator, Config *out) {
     out->fetch_interval_min = clay_fetch_interval_tuple->value->int16;
     out->rain_countdown_horizon_min = clay_rain_countdown_tuple->value->int16;
     out->top_view_mode = (uint8_t) (clay_top_view_mode_tuple->value->int16);
-    // 10-bit packed slots — read the full int16 tuple as uint16 (NOT truncated to a byte;
+    // Packed view slots — read the full int16 tuple as uint16 (NOT truncated to a byte;
     // the tier bits 8-9 live above the low byte). See config.h view_spec2 / view_spec_unpack.
+    // Off aplite the high half carries the view's ext word too (read_view_tuple above).
+#if !defined(PBL_PLATFORM_APLITE)
+    read_view_tuple(clay_view_0_tuple, 0, &out->view_spec2[0], &out->view_ext[0]);
+    read_view_tuple(clay_view_1_tuple, 1, &out->view_spec2[1], &out->view_ext[1]);
+    read_view_tuple(clay_view_2_tuple, 2, &out->view_spec2[2], &out->view_ext[2]);
+#else
     if (clay_view_0_tuple) { out->view_spec2[0] = (uint16_t) clay_view_0_tuple->value->int16; }
     if (clay_view_1_tuple) { out->view_spec2[1] = (uint16_t) clay_view_1_tuple->value->int16; }
     if (clay_view_2_tuple) { out->view_spec2[2] = (uint16_t) clay_view_2_tuple->value->int16; }
+#endif
     if (clay_view_reset_tuple) { out->view_reset_min = (uint8_t) clay_view_reset_tuple->value->int16; }
     if (clay_theme_tuple) { out->theme = (uint8_t) clay_theme_tuple->value->int16; }
     if (clay_battery_low_only_tuple) {
