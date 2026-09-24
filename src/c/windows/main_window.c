@@ -204,9 +204,11 @@ static void render_active_view(void) {
     top_status_layer_set_full_date(layout_full_date(&spec));
 #if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
     // "Full mode" = the health graph sits in a short fixed band (a tighter HR/sleep
-    // gap): under a 3-row calendar, as a top-band graph that does not fill, or as a
-    // sized body. Presets only ever hit the first term — their key is unchanged.
-    health_graph_layer_set_full_mode(spec.calendar_rows == 3
+    // gap): under a 3-row top area, as a top-band graph that does not fill, or as a
+    // sized body. The first term asks the top area's SHAPE (layout_top_three_rows),
+    // not the calendar's rows: a 2-row radar top compiles at the full tier. Presets
+    // only ever hit the first term with a calendar top, where both agree.
+    health_graph_layer_set_full_mode(layout_top_three_rows(&spec)
         || (spec.top == TOP_BAND_GRAPH && spec.top_kind == TOP_GRAPH_HEALTH
             && spec.top_size != BAND_SIZE_FILL)
         || (spec.body == BODY_HEALTH_GRAPH && spec.body_size != BAND_SIZE_DEFAULT));
