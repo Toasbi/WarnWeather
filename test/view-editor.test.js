@@ -194,3 +194,16 @@ test('addView copies the Default; removeView compacts so the last slot frees', (
   const cycle = vc.buildCustomCycle(Object.assign({ healthMode: 'off', radarMode: 'graph' }, S));
   assert.equal(cycle.length, 2);
 });
+
+test('a removal that would leave nothing on screen is refused, judged on the compiled view', () => {
+  // Flick 1 keeps a Graph and a Radar status bar whose source is switched off: the bar
+  // compiles away, so removing the Graph would leave the view blank.
+  const S = baseView({ radarMode: 'off', viewTop1: 'none', viewClockOff1: true,
+    viewUpper1: 'radar', viewBody1: 'forecast' });
+  assert.equal(ve.removalEmpties(S, 1, 'G'), true);
+  assert.equal(ve.removeElement(S, 1, 'G'), false);
+  assert.equal(S.viewBody1, 'forecast');
+  S.radarMode = 'status';                       // the bar shows again
+  assert.equal(ve.removeElement(S, 1, 'G'), true);
+  assert.equal(ve.removeElement(S, 1, 'A'), false, 'the bar is now the last element');
+});

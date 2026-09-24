@@ -414,9 +414,12 @@ function capabilities(S) {
  * capabilities(S) — the shared gate table above — so the previews and the wire
  * agree with the watch's view_spec_resolve. Under the legacy order a folded-away
  * upper promotes the surviving lower (dense degradation, the watch's rule);
- * explicit stacked orders keep user-placed seats.
+ * explicit stacked orders keep user-placed seats. A flick view left with NOTHING on
+ * it (no clock, top band, graph or status row — e.g. its only status bar's source was
+ * switched off in settings) compiles to null: a disabled slot the watch skips, instead
+ * of a blank screen the flick would stop on.
  * @param {Object} S settings state
- * @returns {Array<Object>} specs for packSpec (length == viewCount, 1-3)
+ * @returns {Array<?Object>} specs for packWire (length == viewCount, 1-3; null = disabled)
  */
 function buildCustomCycle(S) {
   var count = parseInt(S.viewCount, 10);
@@ -458,6 +461,10 @@ function buildCustomCycle(S) {
     // with its default so a blob that predates the key compiles to ext 0.
     var align = ALIGN_CODE[S['viewAlign' + i] || 'clock'] || ALIGN_CLOCK;
     if (align && !hasFill(s)) { s.align = align; }
+    if (s.clockOff && s.top === TOP_EMPTY && s.body === BODY_NONE
+        && s.statusUpper === STATUS_SRC_NONE && s.statusLower === STATUS_SRC_NONE) {
+      s = null;   // nothing left to show (only a flick can drop its clock)
+    }
     cycle.push(s);
   }
   return cycle;

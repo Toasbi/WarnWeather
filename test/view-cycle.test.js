@@ -502,6 +502,24 @@ test('keys → spec → keys round-trips a graphless view', () => {
   assert.deepStrictEqual(again.map(vc.packWire), cycle.map(vc.packWire));
 });
 
+test('a flick left with nothing on it compiles to a disabled slot', () => {
+  // Flick 1's only element is a Health status bar; switching health off folds it away.
+  const S = customState({ viewCount: '2', viewTop1: 'none', viewBody1: 'none', viewUpper1: 'health',
+    viewLower1: 'off', viewOrder1: 'TACB', viewClockOff1: true, viewStripOff1: false });
+  S.healthMode = 'status';
+  assert.notEqual(vc.buildCustomCycle(S)[1], null, 'the health row shows');
+  S.healthMode = 'off';
+  const cycle = vc.buildCustomCycle(S);
+  assert.equal(cycle.length, 2);
+  assert.equal(cycle[1], null, 'nothing left → disabled');
+  assert.equal(vc.packWire(cycle[1]), 0, 'sent as 0: the watch skips the slot');
+  // A lone clock, or a lone graph, is still a view.
+  S.viewClockOff1 = false;
+  assert.notEqual(vc.buildCustomCycle(S)[1], null);
+  S.viewClockOff1 = true; S.viewBody1 = 'forecast';
+  assert.notEqual(vc.buildCustomCycle(S)[1], null);
+});
+
 test('a blob that predates the new keys compiles to ext 0 (the upgrade path)', () => {
   ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) => {
     const S = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' };

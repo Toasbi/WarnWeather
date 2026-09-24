@@ -152,6 +152,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var compiled = viewCycleLib.buildCustomCycle(S)[i];
         var now = Boolean(compiled) && stackedAtCode0(compiled);
         if (now === snap.stacked) { return; }
+        var pres = presence(S, i);
+        var want = visibleBands(snap.shown.join(''), pres);
+        // Back on the legacy engine and its code 0 draws the same bands: store the legacy
+        // code, so a view that started as a preset seed returns to it byte for byte.
+        if (!now && visibleBands(legacyOrder(S, i), pres) === want) {
+            S[k('Order', i)] = 'TACB';
+            return;
+        }
+        // The stored order still draws what the user saw under the new engine: keep it,
+        // so a view that started on a stacked code keeps that exact code.
+        if (visibleBands(displayOrder(S, i).join(''), pres) === want) { return; }
         storeOrder(S, i, snap.shown.slice());
     }
 
@@ -266,10 +277,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
 
+    // What removing each element writes (removeElement / removalEmpties).
+    var REMOVE_WRITE = {
+        T: ['Top', 'none'], C: ['ClockOff', true], A: ['Upper', 'off'],
+        B: ['Lower', 'off'], G: ['Body', 'none']
+    };
+
+    /**
+     * Would removing `el` leave view `i` with nothing on screen? Judged on the COMPILED
+     * view (a trial compile of the state with the removal applied), so a stored element
+     * the capability folds already hide — a Radar status bar with radar off — does not
+     * count as keeping the view alive. buildCustomCycle compiles an empty flick to null.
+     * @param {Object} S @param {number} i @param {string} el 'T'|'C'|'A'|'B'|'G'
+     * @returns {boolean}
+     */
+    function removalEmpties(S, i, el) {
+        var w = REMOVE_WRITE[el];
+        if (!w) { return false; }
+        var trial = {}, key;
+        for (key in S) {
+            if (Object.prototype.hasOwnProperty.call(S, key)) { trial[key] = S[key]; }
+        }
+        trial[k(w[0], i)] = w[1];
+        return !viewCycleLib.buildCustomCycle(trial)[i];
+    }
+
     /**
      * Remove an element from view `i`. The clock and top bar only on flicks (the schema
      * has no slot-0 keys for them anyway); the graph on every view, the Default
-     * included. The view's last element is never removed.
+     * included. A removal that would leave the view with nothing on screen is refused
+     * (removalEmpties).
      * @param {Object} S @param {number} i
      * @param {string} el 'topbar'|'T'|'C'|'A'|'B'|'G'
      * @returns {boolean} whether anything changed
@@ -283,7 +320,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             keepOrder(S, i, snap);
             return true;
         }
-        if (elementCount(S, i) <= 1) { return false; }
+        if (removalEmpties(S, i, el)) { return false; }
         if (el === 'G') {
             if (!presence(S, i).G) { return false; }
             snap = orderSnapshot(S, i);
@@ -675,29 +712,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (j = 0; j < 4; j++) {
             var b = ord[j];
             if (!pres[b]) { continue; }
-            var last = elementCount(S, i) <= 1;
+            // Every ✕ is withheld where the removal would leave nothing on screen.
             if (b === 'T') {
                 body += rowHtml({
                     label: 'Top area', value: optionLabel(k('Top', i), S[k('Top', i)] || 'cal2'),
-                    selectKey: k('Top', i), del: last ? null : 'T', band: 'T'
+                    selectKey: k('Top', i), del: removalEmpties(S, i, 'T') ? null : 'T', band: 'T'
                 });
             } else if (b === 'C') {
-                body += rowHtml({ label: 'Clock', fixed: i === 0, del: (i > 0 && !last) ? 'C' : null, band: 'C' });
+                body += rowHtml({ label: 'Clock', fixed: i === 0,
+                    del: (i > 0 && !removalEmpties(S, i, 'C')) ? 'C' : null, band: 'C' });
             } else if (b === 'A' || b === 'B') {
                 var key = b === 'A' ? k('Upper', i) : k('Lower', i);
                 body += rowHtml({
                     label: 'Status bar', value: optionLabel(key, S[key]),
-                    selectKey: key, del: last ? null : b, band: b
+                    selectKey: key, del: removalEmpties(S, i, b) ? null : b, band: b
                 });
             }
         }
         // The graph is pinned last (no arrows) and removable on every view — the ✕ is
-        // withheld only while it is the view's last element.
-        var canRemove = elementCount(S, i) > 1;
+        // withheld only where it would leave nothing on screen.
         if (pres.G) {
             body += rowHtml({
                 label: 'Graph', value: optionLabel(k('Body', i), S[k('Body', i)] || 'forecast'),
-                selectKey: k('Body', i), del: canRemove ? 'G' : null
+                selectKey: k('Body', i), del: removalEmpties(S, i, 'G') ? null : 'G'
             });
         }
         if (!viewHasFill(S, i)) { body += positionHtml(S, i, pres); }
@@ -848,6 +885,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             bandToEnd: bandToEnd, removeElement: removeElement, addElement: addElement,
             addableElements: addableElements, freeStatusSource: freeStatusSource,
             freeBodyContent: freeBodyContent, elementCount: elementCount,
+            removalEmpties: removalEmpties,
             setAlign: setAlign, viewHasFill: viewHasFill,
             orderSnapshot: orderSnapshot, keepOrder: keepOrder,
             normalizeAfterPick: normalizeAfterPick,

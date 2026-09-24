@@ -274,3 +274,19 @@ test('a sheet pick that switches engines keeps the drawn order (keepOrder)', () 
   ve.keepOrder(S, 1, snap);
   assert.deepEqual(watchKinds(S, 1), drawn);
 });
+
+test('removing and re-adding the graph keeps a stacked order code byte-identical', () => {
+  // The Default view with its calendar moved below the status bar (a stacked code), then
+  // the calendar removed: the stored code still draws Weather, Clock. Removing and
+  // re-adding the graph must not rewrite that code (the watch would resend the settings
+  // and snap the flick cursor home for an edit the user undid).
+  const S = state();
+  assert.equal(ve.moveBand(S, 0, 'T', 1), true);
+  assert.equal(ve.removeElement(S, 0, 'T'), true);
+  const before = wire(S);
+  const drawn = watchKinds(S, 0);
+  assert.equal(ve.removeElement(S, 0, 'G'), true);
+  assert.deepEqual(watchKinds(S, 0), drawn);
+  assert.equal(ve.addElement(S, 0, 'graph'), true);
+  assert.deepEqual(wire(S), before, 'the stored code survives the round trip');
+});
