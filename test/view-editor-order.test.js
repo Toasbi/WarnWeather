@@ -20,12 +20,12 @@ const vc = require('../src/pkjs/view-cycle.js');
 const schema = require('../src/pkjs/settings/schema.js');
 
 /**
- * The editor's rendered row list for view `i`, as band kinds (top/clock/status).
+ * The editor body's HTML for view `i`.
  * @param {Object} S settings state
  * @param {number} i view slot
- * @returns {string[]} kinds in list order, the fixed Top bar and Graph rows left out
+ * @returns {string} the rendered band list
  */
-function editorKinds(S, i) {
+function editorHtml(S, i) {
   let html = '';
   const sink = { set innerHTML(h) { html = h; } };
   ve._test.VE.ctx = { S, schema, render() {} };
@@ -33,6 +33,17 @@ function editorKinds(S, i) {
   ve._test.VE.tab = i;
   ve._test.renderEditor();
   ve._test.VE.overlay = null;
+  return html;
+}
+
+/**
+ * The editor's rendered row list for view `i`, as band kinds (top/clock/status).
+ * @param {Object} S settings state
+ * @param {number} i view slot
+ * @returns {string[]} kinds in list order, the fixed Top bar and Graph rows left out
+ */
+function editorKinds(S, i) {
+  const html = editorHtml(S, i);
   const kind = { 'Top area': 'top', Clock: 'clock', 'Status bar': 'status' };
   return [...html.matchAll(/<span class="lbl">([^<]+)<\/span>/g)]
     .map((m) => kind[m[1]]).filter(Boolean);
@@ -190,4 +201,30 @@ test('moving the top area down and back up is byte-identical, one or two status 
     assert.equal(S.viewOrder0, 'TACB', upper + '/' + lower);
     assert.deepEqual(wire(S), before, upper + '/' + lower);
   });
+});
+
+test('the Graph row carries a ✕ on every tab; the Position row shows only without a fill', () => {
+  const S = state();
+  let html = editorHtml(S, 0);
+  assert.match(html, /data-ve-del="G"/, 'the Default\'s graph is removable');
+  assert.doesNotMatch(html, /data-ve-align/, 'the graph fills: no Position row');
+  S.viewBody0 = 'none'; S.viewAlign0 = 'bottom';
+  html = editorHtml(S, 0);
+  assert.doesNotMatch(html, /data-ve-del="G"/, 'no Graph row once removed');
+  assert.match(html, /<span class="lbl">Position<\/span>/);
+  assert.match(html, /class="on" data-ve-align="bottom"/, 'the stored Position is on');
+  ['clock', 'top', 'center', 'bottom'].forEach((v) =>
+    assert.match(html, new RegExp('data-ve-align="' + v + '"')));
+  // A clockless flick: 'Clock' is not offered and a stored 'clock' shows as Middle.
+  const C = state({ viewBody1: 'none', viewClockOff1: true, viewAlign1: 'clock' });
+  html = editorHtml(C, 1);
+  assert.doesNotMatch(html, /data-ve-align="clock"/);
+  assert.match(html, /class="on" data-ve-align="center"/);
+});
+
+test('the last element keeps no ✕', () => {
+  const S = state({ viewTop1: 'none', viewUpper1: 'off', viewBody1: 'none' });
+  const html = editorHtml(S, 1);
+  assert.doesNotMatch(html, /data-ve-del="C"/, 'the clock is the only element left');
+  assert.match(html, /data-ve-del="topbar"/, 'the top bar is not an element');
 });

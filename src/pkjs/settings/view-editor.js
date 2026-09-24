@@ -19,26 +19,39 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // ── Pure core ───────────────────────────────────────────────────────────
     // Band letters match view-cycle.js STACK_ORDERS: T = top band (calendar/radar),
-    // C = clock, A = upper status slot, B = lower status slot. The GRAPH is not a
-    // letter — it is pinned below the stack and always present; the TOP BAR is not
-    // a letter either — it is pinned above the stack (presence-only, flicks).
+    // C = clock, A = upper status slot, B = lower status slot. The GRAPH (G) is not an
+    // order letter — it is pinned below the stack, and removable (viewBody 'none');
+    // the TOP BAR is not a letter either — it is pinned above the stack
+    // (presence-only, flicks).
 
     /** Per-view key name. @param {string} stem @param {number} i @returns {string} */
     function k(stem, i) { return 'view' + stem + i; }
 
     /**
-     * Which movable bands are on screen for view `i`.
+     * Which bands are on screen for view `i`: the four movable ones and the graph.
      * @param {Object} S settings state
      * @param {number} i view slot
-     * @returns {{T:boolean,C:boolean,A:boolean,B:boolean}}
+     * @returns {{T:boolean,C:boolean,A:boolean,B:boolean,G:boolean}}
      */
     function presence(S, i) {
         return {
             T: (S[k('Top', i)] || 'cal2') !== 'none',
             C: i === 0 || !S[k('ClockOff', i)],
             A: (S[k('Upper', i)] || 'off') !== 'off',
-            B: (S[k('Lower', i)] || 'off') !== 'off'
+            B: (S[k('Lower', i)] || 'off') !== 'off',
+            G: (S[k('Body', i)] || 'forecast') !== 'none'
         };
+    }
+
+    /**
+     * How many of the view's elements (top area, clock, status bars, graph) are on
+     * screen. A view never drops to zero — the last one keeps its ✕ withheld.
+     * @param {Object} S @param {number} i @returns {number} 0-5
+     */
+    function elementCount(S, i) {
+        var pres = presence(S, i), n = 0, j, names = ['T', 'C', 'A', 'B', 'G'];
+        for (j = 0; j < names.length; j++) { if (pres[names[j]]) { n++; } }
+        return n;
     }
 
     /**
@@ -213,16 +226,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Remove an element from view `i`. The graph cannot be removed; the clock and
-     * top bar only on flicks (the schema has no slot-0 keys for them anyway).
+     * Remove an element from view `i`. The clock and top bar only on flicks (the schema
+     * has no slot-0 keys for them anyway); the graph on every view, the Default
+     * included. The view's last element is never removed.
      * @param {Object} S @param {number} i
-     * @param {string} el 'topbar'|'T'|'C'|'A'|'B'
+     * @param {string} el 'topbar'|'T'|'C'|'A'|'B'|'G'
      * @returns {boolean} whether anything changed
      */
     function removeElement(S, i, el) {
         if (el === 'topbar') {
             if (i === 0 || S[k('StripOff', i)]) { return false; }
             S[k('StripOff', i)] = true; return true;
+        }
+        if (elementCount(S, i) <= 1) { return false; }
+        if (el === 'G') {
+            if (!presence(S, i).G) { return false; }
+            S[k('Body', i)] = 'none'; return true;
         }
         if (el === 'C') {
             if (i === 0 || S[k('ClockOff', i)]) { return false; }
@@ -268,6 +287,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * The graph a re-added Graph band should carry in view `i`: the first of
+     * forecast/health/radar that the Top area does not already show (one seat per
+     * graph kind — each graph layer is a single instance) and that passes the same
+     * capability gates buildCustomCycle folds by (a health graph needs healthMode
+     * 'all', a radar chart radarMode 'graph'). null when none is left.
+     * @param {Object} S @param {number} i @returns {?string}
+     */
+    function freeBodyContent(S, i) {
+        var top = S[k('Top', i)] || 'cal2';
+        var cap = viewCycleLib.capabilities(S);
+        var candidates = ['forecast', 'health', 'radar'], j, c;
+        for (j = 0; j < candidates.length; j++) {
+            c = candidates[j];
+            if (c === top) { continue; }
+            if (c === 'health' && !cap.healthBody) { continue; }
+            if (c === 'radar' && !cap.radarChart) { continue; }
+            return c;
+        }
+        return null;
+    }
+
+    /**
      * What ＋ can still add to view `i`, as [label, kind] pairs.
      * @param {Object} S @param {number} i @returns {Array}
      */
@@ -283,6 +324,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if ((!pres.A || !pres.B) && freeStatusSource(S, i) !== null) {
             out.push(['Status bar', 'status']);
         }
+        if (!pres.G && freeBodyContent(S, i) !== null) { out.push(['Graph', 'graph']); }
         return out;
     }
 
@@ -312,6 +354,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if ((S[k('Top', i)] || 'cal2') !== 'none') { return false; }
             S[k('Top', i)] = 'cal2';
             bandToEnd(S, i, 'T', shown); return true;
+        }
+        if (kind === 'graph') {
+            var g = freeBodyContent(S, i);
+            if (presence(S, i).G || g === null) { return false; }
+            S[k('Body', i)] = g;
+            S[k('BodySize', i)] = 'fill';
+            // One fill per view: a fresh graph takes the space, a filling top reverts.
+            if (S[k('TopSize', i)] === 'fill') { S[k('TopSize', i)] = '3'; }
+            return true;
         }
         if (kind === 'status') {
             var pres = presence(S, i);
@@ -349,7 +400,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
     }
 
-    var VIEW_KEY_STEMS = ['Top', 'Body', 'Upper', 'Lower', 'Order'];
+    /**
+     * Set view `i`'s Position (where a stack nothing fills sits): 'clock' | 'top' |
+     * 'center' | 'bottom'. Unknown values are ignored.
+     * @param {Object} S @param {number} i @param {string} v
+     * @returns {boolean} whether anything changed
+     */
+    function setAlign(S, i, v) {
+        if (!Object.prototype.hasOwnProperty.call(viewCycleLib.ALIGN_CODE, v)) { return false; }
+        if (S[k('Align', i)] === v) { return false; }
+        S[k('Align', i)] = v;
+        return true;
+    }
+
+    /**
+     * Whether view `i` currently has a band that fills the leftover space (then the
+     * Position control does not apply and is not shown). Read off the COMPILED spec, so
+     * capability folds count (e.g. a health graph folded to the forecast still fills).
+     * @param {Object} S @param {number} i @returns {boolean}
+     */
+    function viewHasFill(S, i) {
+        var s = viewCycleLib.buildCustomCycle(S)[i];
+        return Boolean(s) && viewCycleLib.hasFill(s);
+    }
+
+    var VIEW_KEY_STEMS = ['Top', 'Body', 'Upper', 'Lower', 'Order', 'TopSize', 'BodySize', 'Align'];
 
     /** @param {number} count @returns {string[]} every custom key for `count` views */
     function allCustomKeys() {
@@ -454,7 +529,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + 'padding:10px 12px;border-radius:9px;border:1px solid var(--ctl-line);background:var(--ctl);'
         + 'color:var(--fg);font:600 13.5px Inter,sans-serif;cursor:pointer}'
         + '#viewEditor .ve-remove{display:block;width:100%;margin-top:14px;padding:11px;border:none;'
-        + 'border-radius:10px;background:none;color:#FA4A35;font:700 13.5px Inter,sans-serif;cursor:pointer}';
+        + 'border-radius:10px;background:none;color:#FA4A35;font:700 13.5px Inter,sans-serif;cursor:pointer}'
+        // The Position band: label + the page's segmented control (.seg, shell.html),
+        // wrapping onto a second line on narrow phones; tighter buttons fit four.
+        + '#viewEditor .ve-band.ve-pos{flex-wrap:wrap;row-gap:8px}'
+        + '#viewEditor .ve-seg button{padding:6px 9px}';
 
     function esc(s) {
         return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s);
@@ -493,6 +572,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return '<div class="ve-row">' + band + arrows + '</div>';
     }
 
+    /**
+     * The Position band for view `i`: where a stack nothing fills sits. 'Clock'
+     * centres the clock on the screen and is offered only while the view has one; a
+     * stored 'clock' on a clockless view renders (and shows) as Middle.
+     * @param {Object} S @param {number} i @param {Object} pres presence()
+     * @returns {string} HTML
+     */
+    function positionHtml(S, i, pres) {
+        var cur = S[k('Align', i)] || 'clock';
+        if (cur === 'clock' && !pres.C) { cur = 'center'; }
+        var opts = [['Clock', 'clock'], ['Top', 'top'], ['Middle', 'center'], ['Bottom', 'bottom']];
+        var btns = '', j;
+        for (j = 0; j < opts.length; j++) {
+            if (opts[j][1] === 'clock' && !pres.C) { continue; }
+            btns += '<button type="button"' + (opts[j][1] === cur ? ' class="on"' : '')
+                + ' data-ve-align="' + opts[j][1] + '">' + opts[j][0] + '</button>';
+        }
+        return '<div class="ve-row"><div class="ve-band ve-pos"><span class="lbl">Position</span>'
+            + '<div class="seg ve-seg">' + btns + '</div></div></div>';
+    }
+
     function renderEditor() {
         if (!VE.overlay || !VE.ctx) { return; }
         var S = VE.ctx.S;
@@ -523,25 +623,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (j = 0; j < 4; j++) {
             var b = ord[j];
             if (!pres[b]) { continue; }
+            var last = elementCount(S, i) <= 1;
             if (b === 'T') {
                 body += rowHtml({
                     label: 'Top area', value: optionLabel(k('Top', i), S[k('Top', i)] || 'cal2'),
-                    selectKey: k('Top', i), del: 'T', band: 'T'
+                    selectKey: k('Top', i), del: last ? null : 'T', band: 'T'
                 });
             } else if (b === 'C') {
-                body += rowHtml({ label: 'Clock', fixed: i === 0, del: i > 0 ? 'C' : null, band: 'C' });
+                body += rowHtml({ label: 'Clock', fixed: i === 0, del: (i > 0 && !last) ? 'C' : null, band: 'C' });
             } else if (b === 'A' || b === 'B') {
                 var key = b === 'A' ? k('Upper', i) : k('Lower', i);
                 body += rowHtml({
                     label: 'Status bar', value: optionLabel(key, S[key]),
-                    selectKey: key, del: b, band: b
+                    selectKey: key, del: last ? null : b, band: b
                 });
             }
         }
-        body += rowHtml({
-            label: 'Graph', value: optionLabel(k('Body', i), S[k('Body', i)] || 'forecast'),
-            selectKey: k('Body', i), fixed: true
-        });
+        // The graph is pinned last (no arrows) and removable on every view — the ✕ is
+        // withheld only while it is the view's last element.
+        var canRemove = elementCount(S, i) > 1;
+        if (pres.G) {
+            body += rowHtml({
+                label: 'Graph', value: optionLabel(k('Body', i), S[k('Body', i)] || 'forecast'),
+                selectKey: k('Body', i), del: canRemove ? 'G' : null
+            });
+        }
+        if (!viewHasFill(S, i)) { body += positionHtml(S, i, pres); }
 
         var addable = addableElements(S, i);
         if (addable.length) {
@@ -624,6 +731,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             renderEditor();
             return;
         }
+        if ((t = e.target.closest('[data-ve-align]'))) {
+            setAlign(S, i, t.getAttribute('data-ve-align'));
+            renderEditor();
+            return;
+        }
         if ((t = e.target.closest('[data-select]'))) {
             var sk = t.getAttribute('data-select');
             VE.ctx.openSheet(sk, function () {
@@ -680,6 +792,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             displayOrder: displayOrder,
             bandToEnd: bandToEnd, removeElement: removeElement, addElement: addElement,
             addableElements: addableElements, freeStatusSource: freeStatusSource,
+            freeBodyContent: freeBodyContent, elementCount: elementCount,
+            setAlign: setAlign, viewHasFill: viewHasFill,
             normalizeAfterPick: normalizeAfterPick,
             takeSnapshot: takeSnapshot, restoreSnapshot: restoreSnapshot,
             addView: addView, removeView: removeView, viewCount: viewCount,
