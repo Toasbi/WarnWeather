@@ -388,13 +388,30 @@ test('contentBands: sized bands take 2 / 3 / 4 schematic rows; at most one band 
         }));
 });
 
-test('renderBandColumn: a stack taller than the column clips at its floor with a note', () => {
+test('renderBandColumn: only a view the WATCH cannot fit is clipped and flagged; others squeeze', () => {
     const vc = require('../src/pkjs/view-cycle.js');
     const tall = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH,
         vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_RADAR), { order: 1, topSize: vc.SIZE_4, bodySize: vc.SIZE_4 }));
-    const svg = LY.renderBandColumn(tall, 0, 60, 'F', null, false, 'dark', 0);
-    assert.match(svg, />cut off</);
-    const ok = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH,
-        vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1 }));
-    assert.doesNotMatch(LY.renderBandColumn(ok, 0, 60, 'F', null, false, 'dark', 0), />cut off</);
+    assert.match(LY.renderBandColumn(tall, 0, 60, 'F', null, false, 'dark', 0, true), />cut off</);
+    const squeezed = LY.renderBandColumn(tall, 0, 60, 'F', null, false, 'dark', 0, false);
+    assert.doesNotMatch(squeezed, />cut off</);
+    const bottoms = [...squeezed.matchAll(/<rect x="[^"]*" y="([^"]*)"[^>]*height="([^"]*)"/g)]
+        .map((m) => Number(m[1]) + Number(m[2]));
+    assert.ok(Math.max(...bottoms) <= 120, 'squeezed into the column');
+});
+
+test('the previews never flag a view the watch shows whole (spec example D, golden sz7)', () => {
+    const base = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph', viewCount: '2',
+        viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off',
+        viewOrder0: 'TACB', viewBodySize0: '3',                                    // sz7
+        viewTop1: 'forecast', viewTopSize1: '4', viewBody1: 'health', viewUpper1: 'off',
+        viewLower1: 'off', viewOrder1: 'TCAB', viewClockOff1: false, viewStripOff1: false };  // D
+    ['basalt', 'emery', ''].forEach((platform) => {
+        assert.doesNotMatch(LY.layoutPreviewCombined(base, { platform }), />cut off</, platform);
+        [0, 1].forEach((i) =>
+            assert.doesNotMatch(LY.viewPreviewSvg(base, { platform }, i), />cut off</, platform + ' ' + i));
+    });
+    // ...but a view too tall for the 144 px watch is flagged there (and fits emery's).
+    const tall = Object.assign({}, base, { viewTop1: 'forecast', viewTopSize1: '4', viewUpper1: 'weather' });
+    assert.match(LY.viewPreviewSvg(tall, { platform: 'basalt' }, 1), />cut off</);
 });

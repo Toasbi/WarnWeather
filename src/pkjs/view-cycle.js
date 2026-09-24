@@ -236,11 +236,15 @@ function stackNeed(s, f) {
   }
   var fill = 2 * FIT_PX.row[f];
   var h = {}, gapAfter = {};
+  var fcTop = s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST;
   if (s.top === TOP_CAL && rows) {
     h.T = rows === 3 ? FIT_PX.cal3[f] : FIT_PX.cal2[f];
   } else if (s.top === TOP_RADAR || s.top === TOP_GRAPH) {
-    var tr = sizeRows(e.topSize, 3, s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST);
+    var tr = sizeRows(e.topSize, 3, fcTop);
     h.T = tr ? tr * FIT_PX.row[f] + (s.top === TOP_GRAPH ? FIT_PX.tail[f] : 0) : fill;
+    // Without radar data the watch folds a radar top to a calendar: a filling one to the
+    // 3-row calendar, which is taller than the fill floor — budget that shape.
+    if (s.top === TOP_RADAR && !tr) { h.T = FIT_PX.cal3[f]; }
   }
   gapAfter.T = FIT_PX.gap[f];
   if (!s.clockOff) { h.C = FIT_PX.clock[f]; }
@@ -251,7 +255,12 @@ function stackNeed(s, f) {
   gapAfter.A = gapAfter.B = fullRows ? 0 : FIT_PX.gap[f];
   if (bodyOn) {
     var br = sizeRows(e.bodySize, 0, s.body === BODY_FC);
-    h.G = br ? br * FIT_PX.row[f] + (s.body === BODY_RADAR ? 0 : FIT_PX.tail[f]) : fill;
+    // A sized radar or health body falls back to the FORECAST when its data is missing
+    // (radar not fetched yet, health unavailable) — at least 3 rows, with the graph tail —
+    // unless the top already shows the forecast (then it empties). Budget the taller one.
+    if (br === 2 && s.body !== BODY_FC && !fcTop) { br = 3; }
+    var tail = (s.body === BODY_RADAR && fcTop) ? 0 : FIT_PX.tail[f];
+    h.G = br ? br * FIT_PX.row[f] + tail : fill;
   }
   var seq = (STACK_ORDERS[s.order || 0] || 'TACB') + 'G';
   var need = 0, prev = null, j, b;
@@ -269,12 +278,16 @@ function stackNeed(s, f) {
  * Does this compiled view fit the watch it is edited for? `family` is the watch's
  * platform name ('emery' → the 200×228 screen, any other named platform → 144×168); an
  * unknown platform ('') must fit both. `over` is how many pixels the tallest miss needs.
+ * The budget covers the watch's no-data fallbacks too (stackNeed), so a view that fits
+ * keeps fitting before the first radar frame or without health data.
  * @param {?Object} s compiled view spec (null = a disabled slot: fits)
  * @param {string} family platform name or ''
  * @returns {{fits: boolean, over: number}}
  */
 function stackFits(s, family) {
-  if (!s) { return { fits: true, over: 0 }; }
+  // A disabled slot, or a view the watch draws with its LEGACY engine (the preset engine:
+  // fixed seats, the graph takes what is left, nothing is ever cut), always fits.
+  if (!s || !isStacked(s)) { return { fits: true, over: 0 }; }
   var fams = family === 'emery' ? [1] : family ? [0] : [0, 1];
   var over = 0, j, n;
   for (j = 0; j < fams.length; j++) {
@@ -539,7 +552,11 @@ function buildCustomCycle(S) {
     var slRaw = CUSTOM_SRC[S['viewLower' + i]];
     if (slRaw === undefined) { slRaw = STATUS_SRC_NONE; }
 
-    if (t.top === TOP_RADAR && !cap.radarChart) { t = CUSTOM_TOP.cal3; }
+    // A radar top without the radar chart falls back to a calendar — the 2-row one for a
+    // 2-row radar top (the same height, like the watch's no-data fold), else 3 rows.
+    if (t.top === TOP_RADAR && !cap.radarChart) {
+      t = (S['viewTopSize' + i] === '2') ? CUSTOM_TOP.cal2 : CUSTOM_TOP.cal3;
+    }
     if (t.top === TOP_GRAPH && t.kind === TOP_KIND_HEALTH && !cap.healthBody) { t = CUSTOM_TOP.none; }
     if (body === BODY_RADAR && !cap.radarChart) { body = BODY_FC; }
     if (body === BODY_GRAPH && !cap.healthBody) { body = BODY_FC; }

@@ -412,3 +412,43 @@ test('setSize keeps one fill per view, and a size change that switches engines k
   ve.keepOrder(C, 1, snap);
   assert.deepEqual(wire(C), before);
 });
+
+test('a size tap that would move a band across the clock is refused', () => {
+  // emery: radar top + two status bars (legacy: T C A B). Size the radar to 2 rows (the
+  // stacker, order kept), then move the weather bar above the clock (T A C B). Going back
+  // to 3 rows would hand the view back to the legacy engine, which cannot draw T A C B —
+  // the bar would jump below the clock — so '3' is inert.
+  const S = state({ viewTop1: 'radar', viewLower1: 'health', healthMode: 'all' });
+  let snap = ve.orderSnapshot(S, 1);
+  ve.setSize(S, 1, 'TopSize', '2');
+  ve.keepOrder(S, 1, snap);
+  assert.equal(ve.moveBand(S, 1, 'A', -1), true);
+  assert.deepEqual(watchKinds(S, 1), ['top', 'status', 'clock', 'status']);
+  assert.equal(ve.sizeFits(S, 1, 'TopSize', '3'), false);
+  assert.equal(sizeButtons(editorHtmlOn(S, 1, 'emery'), 'TopSize')['3'], 'off');
+  assert.equal(sizeButtons(editorHtmlOn(S, 1, 'emery'), 'TopSize')['2'], 'on');
+});
+
+test('a top-area size never outlives the content it was set for', () => {
+  const S = state({ viewTop1: 'health', viewTopSize1: '2', viewBody1: 'forecast', healthMode: 'all' });
+  assert.equal(ve.removeElement(S, 1, 'T'), true);
+  assert.equal(S.viewTopSize1, '3', '✕ Top area drops its size');
+  S.viewTopSize1 = '2';                              // a stale value from an older build
+  assert.equal(ve.addElement(S, 1, 'top'), true);
+  assert.equal(S.viewTopSize1, '3', '＋ Calendar starts clean');
+  // a forecast top at Fill moved down to the graph row: the calendar left behind has no size
+  S.viewTop1 = 'forecast'; S.viewTopSize1 = 'fill'; S.viewBody1 = 'health'; S.viewBodySize1 = '3';
+  S.viewBody1 = 'forecast';
+  ve.normalizeAfterPick(S, 1, 'viewBody1');
+  assert.equal(S.viewTop1, 'cal2');
+  assert.equal(S.viewTopSize1, '3');
+});
+
+test('the Alignment note names what does not fill, a top-area graph included', () => {
+  const S = state({ viewTop1: 'forecast', viewBody1: 'none', healthMode: 'all' });
+  const html = editorHtml(S, 1);
+  assert.match(html, /Nothing fills this view, so the elements sit together in the free space\./);
+  assert.doesNotMatch(html, /No graph, so/);
+  S.viewTop1 = 'cal2';
+  assert.match(editorHtml(S, 1), /No graph, so the elements sit together/);
+});

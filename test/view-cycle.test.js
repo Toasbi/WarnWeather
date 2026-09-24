@@ -623,6 +623,34 @@ test('stackFits mirrors the watch arithmetic (spec cases, both screen families)'
   assert.deepEqual(vc.stackFits(null, 'emery'), { fits: true, over: 0 });
 });
 
+test('stackFits: the legacy engine always fits; the watch\'s no-data fallbacks are budgeted', () => {
+  const view = (over) => vc.buildCustomCycle(customState(Object.assign({ healthMode: 'all',
+    radarMode: 'graph' }, over)))[0];
+  // cal3 + two status bars at the legacy order, graph filling: the preset engine draws it
+  // with a 31 px graph and cuts nothing (it used to read "too tall by 8 px").
+  const legacy = view({ viewTop0: 'cal3', viewLower0: 'health' });
+  assert.equal(vc.isStacked(legacy), false);
+  ['basalt', 'emery', ''].forEach((p) => assert.deepEqual(vc.stackFits(legacy, p), { fits: true, over: 0 }));
+  // A 2-row health body falls back to a 3-row forecast without health data: budgeted.
+  const h2 = view({ viewTop0: 'radar', viewTopSize0: '2', viewBody0: 'health', viewBodySize0: '2',
+    viewLower0: 'health', viewOrder0: 'TCAB' });
+  assert.equal(vc.stackFits(h2, 'basalt').fits, false, 'the forecast fallback would be cut');
+  // A filling radar top folds to the 3-row calendar without radar data: budgeted as cal3.
+  const rf = view({ viewTop0: 'radar', viewTopSize0: 'fill', viewBodySize0: '4', viewLower0: 'health',
+    viewOrder0: 'TCAB' });
+  const rs = view({ viewTop0: 'radar', viewTopSize0: '2', viewBodySize0: '4', viewLower0: 'health',
+    viewOrder0: 'TCAB' });
+  assert.ok(vc.stackFits(rf, 'basalt').over > vc.stackFits(rs, 'basalt').over, 'fill radar counts 45, not 30');
+});
+
+test('a 2-row radar top without the radar chart compiles to the 2-row calendar (same height)', () => {
+  const c = vc.buildCustomCycle(customState({ viewTop0: 'radar', viewTopSize0: '2', radarMode: 'status' }))[0];
+  assert.equal(c.top, vc.TOP_CAL);
+  assert.equal(c.tier, vc.TIER_COMPACT);
+  const c4 = vc.buildCustomCycle(customState({ viewTop0: 'radar', viewTopSize0: '4', radarMode: 'status' }))[0];
+  assert.equal(c4.tier, vc.TIER_FULL);
+});
+
 test('the fit table is the C engine\'s geometry', () => {
   const P = vc.FIT_PX;
   [0, 1].forEach((f) => {

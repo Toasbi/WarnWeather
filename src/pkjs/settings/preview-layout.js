@@ -179,6 +179,28 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     /**
+     * Scale a column's fixed band heights down so the stack spans at most 104 px (gaps
+     * included), keeping a flex band at least rowsH(2). Unchanged when it already fits.
+     * @param {Array.<{flex: boolean}>} bands @param {number[]} heights resolved heights
+     * @returns {number[]} heights that fit the column
+     */
+    function squeezeToColumn(bands, heights) {
+        var gaps = (bands.length - 1) * BAND_GAP, fixed = 0, flexIdx = -1, i;
+        for (i = 0; i < bands.length; i++) {
+            if (bands[i].flex) { flexIdx = i; } else { fixed += heights[i]; }
+        }
+        var flexH = flexIdx >= 0 ? Math.max(heights[flexIdx], rowsH(2)) : 0;
+        if (fixed + flexH + gaps <= 104 || fixed <= 0) { return heights; }
+        var k = (104 - gaps - flexH) / fixed, out = [], used = 0;
+        for (i = 0; i < bands.length; i++) {
+            out.push(bands[i].flex ? 0 : Math.max(4, Math.floor(heights[i] * k)));
+            if (!bands[i].flex) { used += out[i]; }
+        }
+        if (flexIdx >= 0) { out[flexIdx] = 104 - gaps - used; }
+        return out;
+    }
+
+    /**
      * Where the band column's stack sits when nothing fills it (spec.align — the watch's
      * Position; see stack_align_offset in src/c/windows/layout.c): 0 Clock centres the
      * clock band on the column's midline (Middle without a clock), clamped to the slack;
@@ -205,7 +227,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // Card/placeholder fills are theme-relative washes (previewInk's rgba helper), so
     // this — the block wired into the Layout tab via layoutPreviewCombined — follows
     // the theme too, not just its outer canvas.
-    function renderBandColumn(bands, x, w, header, note, dim, theme, align) {
+    function renderBandColumn(bands, x, w, header, note, dim, theme, align, tooTall) {
         var ink = previewInk(theme);
         var headerColor = dim ? '#5A6270' : '#8A92A0';
         var bandFill = ink.rgba(dim ? '0.08' : '0.12');
@@ -219,6 +241,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // Bands + gaps span y=16..120, matching the empty-column placeholder's 104px box, so
         // the flex (body) band always fills down to the same bottom across all columns.
         var heights = resolveBandHeights(bands, 104, BAND_GAP);
+        // The schematic rows are not the watch's pixels, so a stack the watch fits can
+        // overrun the 104 px column (sized graphs, several rows): squeeze the fixed bands
+        // to fit, leaving a flex band its 2-row schematic floor. Only a view the watch
+        // itself cannot fit (tooTall — view-cycle.js stackFits) is clipped and flagged.
+        if (!tooTall) { heights = squeezeToColumn(bands, heights); }
         var ys = [], total = 0, clock = null, flex = false;
         for (i = 0; i < bands.length; i++) {
             ys.push(y);
@@ -265,9 +292,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var HEADERS = ['Default', 'Flick 1', 'Flick 2'];
         var W = 200, GAP = 6, n = contents.length || 1, colW = (W - GAP * (n - 1)) / n;
         var e = rect(0, 0, W, 128, previewInk(state.theme).bg), i;
+        var family = (env && env.platform) || '';
         for (i = 0; i < contents.length; i += 1) {
             e += renderBandColumn(contentBands(contents[i]), i * (colW + GAP), colW,
-                HEADERS[i], null, false, state.theme, contents[i] ? (contents[i].align || 0) : 0);
+                HEADERS[i], null, false, state.theme, contents[i] ? (contents[i].align || 0) : 0,
+                !VC.stackFits(contents[i] || null, family).fits);
         }
         return svgFrame(e, 128);
     }
@@ -288,7 +317,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var W = 84, H = 130;   // 130: room for the "cut off" note under the column
         var e = rect(0, 0, W, H, previewInk(state.theme).bg);
         e += renderBandColumn(contentBands(spec), 0, W, 'Preview', spec ? null : 'Nothing to show',
-            false, state.theme, spec ? (spec.align || 0) : 0);
+            false, state.theme, spec ? (spec.align || 0) : 0,
+            !VC.stackFits(spec, (env && env.platform) || '').fits);
         return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Preview of this view"'
             + ' style="display:block;width:108px;height:auto">' + e + '</svg>';
     }

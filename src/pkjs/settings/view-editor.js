@@ -146,24 +146,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} S settings state (mutated)
      * @param {number} i view slot
      * @param {{shown: string[], stacked: boolean}} snap orderSnapshot() before the edit
-     * @returns {void}
+     * @returns {boolean} false when the engine switched and no stored order can draw the
+     *   bands where they were (the view then shows them in the new engine's order)
      */
     function keepOrder(S, i, snap) {
         var compiled = viewCycleLib.buildCustomCycle(S)[i];
         var now = Boolean(compiled) && stackedAtCode0(compiled);
-        if (now === snap.stacked) { return; }
+        if (now === snap.stacked) { return true; }
         var pres = presence(S, i);
         var want = visibleBands(snap.shown.join(''), pres);
         // Back on the legacy engine and its code 0 draws the same bands: store the legacy
         // code, so a view that started as a preset seed returns to it byte for byte.
         if (!now && visibleBands(legacyOrder(S, i), pres) === want) {
             S[k('Order', i)] = 'TACB';
-            return;
+            return true;
         }
         // The stored order still draws what the user saw under the new engine: keep it,
         // so a view that started on a stacked code keeps that exact code.
-        if (visibleBands(displayOrder(S, i).join(''), pres) === want) { return; }
-        storeOrder(S, i, snap.shown.slice());
+        if (visibleBands(displayOrder(S, i).join(''), pres) === want) { return true; }
+        return storeOrder(S, i, snap.shown.slice());
     }
 
     /**
@@ -334,7 +335,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         }
         if (el === 'T') {
             if ((S[k('Top', i)] || 'cal2') === 'none') { return false; }
-            S[k('Top', i)] = 'none'; return true;
+            S[k('Top', i)] = 'none';
+            S[k('TopSize', i)] = '3';   // a size belongs to the removed content, not the seat
+            return true;
         }
         if (el === 'A') {
             if ((S[k('Upper', i)] || 'off') === 'off') { return false; }
@@ -441,6 +444,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (kind === 'top') {
             if ((S[k('Top', i)] || 'cal2') !== 'none') { return false; }
             S[k('Top', i)] = 'cal2';
+            S[k('TopSize', i)] = '3';
             bandToEnd(S, i, 'T', shown); return true;
         }
         if (kind === 'graph') {
@@ -494,8 +498,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var graph = { forecast: true, health: true };
         if (key === top && graph[S[top]] && S[bodyK] === S[top]) { S[bodyK] = 'none'; }
         if (key === bodyK && graph[S[bodyK]] && S[top] === S[bodyK]) { S[top] = 'cal2'; }
-        // Sizes apply only to a radar/graph top: a calendar pick drops a stale size.
-        if (key === top && !(S[top] === 'radar' || graph[S[top]])) { S[k('TopSize', i)] = '3'; }
+        // Sizes apply only to a radar/graph top: once the top area holds anything else
+        // (a calendar pick, or a graph moved down to the graph row), drop a stale size.
+        if (!(S[top] === 'radar' || graph[S[top]])) { S[k('TopSize', i)] = '3'; }
         // A forecast never takes 2 rows: lift a stale '2' on the seat it just moved into.
         if (key === top && S[top] === 'forecast' && S[k('TopSize', i)] === '2') { S[k('TopSize', i)] = '3'; }
         if (key === bodyK && S[bodyK] === 'forecast' && S[k('BodySize', i)] === '2') { S[k('BodySize', i)] = '3'; }
@@ -540,9 +545,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Would view `i` fit the watch with `stem` set to `v`? A trial compile of the state
-     * with the size applied (setSize's one-fill rule included), checked by
-     * view-cycle.js stackFits on the edited watch's screen.
+     * Can view `i` take `stem` = `v`? A trial of the edit (setSize's one-fill rule and
+     * keepOrder included): the view must fit the edited watch (view-cycle.js stackFits)
+     * and keep every band where it is drawn — a size that switches the view's engine
+     * while no stored order can hold the bands in place would move one across the clock.
      * @param {Object} S @param {number} i @param {string} stem @param {string} v
      * @returns {boolean}
      */
@@ -551,7 +557,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (key in S) {
             if (Object.prototype.hasOwnProperty.call(S, key)) { trial[key] = S[key]; }
         }
+        var snap = orderSnapshot(trial, i);
         setSize(trial, i, stem, v);
+        if (!keepOrder(trial, i, snap)) { return false; }
         return viewCycleLib.stackFits(viewCycleLib.buildCustomCycle(trial)[i], editFamily()).fits;
     }
 
@@ -787,8 +795,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             btns += '<button type="button"' + (opts[j][1] === cur ? ' class="on"' : '')
                 + ' data-ve-align="' + opts[j][1] + '">' + opts[j][0] + '</button>';
         }
-        var why = pres.G ? 'The graph doesn\u2019t fill this view, so the elements sit together in the free space.'
-                         : 'No graph, so the elements sit together in the free space.';
+        var top = S[k('Top', i)] || 'cal2';
+        var anyGraph = pres.G || top === 'radar' || top === 'forecast' || top === 'health';
+        var why = anyGraph ? 'Nothing fills this view, so the elements sit together in the free space.'
+                           : 'No graph, so the elements sit together in the free space.';
         if (pres.C) { why += ' Clock mid keeps the clock in the middle of the screen.'; }
         // A view SETTING, not a band: its own section under the element list (heading in
         // the page's .subhdr style, a divider above), never a card like the element rows.
