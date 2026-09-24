@@ -4,7 +4,15 @@
 #include <stdio.h>
 #include <string.h>
 #include "c/layers/status_metrics.h"
+#include "c/layers/calendar_metrics.h"
 #include "c/windows/layout.h"
+
+// The calendar's date font content height (CALENDAR_FONT_KEY: Gothic 18, emery Gothic 24).
+#ifdef PBL_PLATFORM_EMERY
+#define STATUS_CAL_FONT_H 24
+#else
+#define STATUS_CAL_FONT_H 18
+#endif
 
 static int s_failures = 0;
 static int s_dump = 0;
@@ -249,25 +257,44 @@ static void expect(const char *name, bool got, bool want) {
 }
 
 // ── Clockless geometry (custom layouts) ─────────────────────────────────────
-// An order-0 view with clock_off rides compute_stacked (ANY omission dispatches
-// there): the TACB stack minus the clock, not the legacy engine's anchor seats. The
-// ink solver is never consulted (no clock band to seat). Every expected rect below is
-// hand-derived from the stacker's cursor arithmetic (144px / emery):
+// An order-0 view with clock_off renders its stored order (ANY omission is a custom
+// trigger): TACB minus the clock, not the tier's legacy order. The ink solver is never
+// consulted (no clock band to seat). With no clock there is no clock margin for a row to
+// borrow, so every row is plainly stacked; each expected rect below follows from the
+// engine's seats (144px / emery):
 //   cursor start   content_y + CALENDAR_STATUS_HEIGHT (the strip reserve)   13 / 22
-//   T calendar     cal_h (cal3 45/60, cal2 30/40) + STATUS_FORECAST_CLEARANCE (3/1)
-//                  after; the band RECT slides up to the strip's ink seat (y 15 / 23
-//                  — the legacy ink-slide) while the cursor advances from the reserve
-//   T radar        calendar_h at the cursor itself (no ink-slide) + clearance
+//   T calendar/    cal_h / N rows (cal3 45/60, cal2 30/40) + STATUS_FORECAST_CLEARANCE
+//     radar        (3/1) after; leading under the strip the band RECT seats on the
+//                  strip's ink (y 15 / 23 — the preset calendar/radar frame) while the
+//                  cursor advances from the reserve
 //   A/B rows       STATUS_LARGE_BAND_H (17/21) + clearance after — an omission
-//                  un-squeezes the rows to the large font (status_tier_for), and the
-//                  NONE tier sizes rows from the same font-derived band here, not
-//                  the legacy NONE_STATUS_HEIGHT
+//                  un-squeezes the rows to the large font (status_tier_for); only rows
+//                  seated under a clock take NONE_STATUS_HEIGHT
 //   C clock        absent: zero-height rect parked at the cursor
-//   body           cursor .. bottom pad (168 / 224); loading == body in the stacker
+//   body           cursor .. bottom pad (168 / 224); loading == body
 
 static MainLayout compute_custom(uint16_t wire) {
     ViewSpec spec = view_spec_unpack(wire);
     return layout_compute_spec(BOUNDS, &spec, MET(FC_BAND_H, INK));
+}
+
+// A 3-row calendar with ONLY the lower status row, order 0, full chrome: no preset emits
+// it, but a custom view can (✕ the upper row). One engine draws it in fullCal's seats: the
+// lone row rests on the graph in fullCal's reserve, exactly where fullCal's own row sits.
+static void golden_rects_full_lone_lower(void) {
+    MainLayout L = compute_custom(pack(3, 1, 0, STATUS_SRC_NONE, STATUS_SRC_FORECAST));
+    if (s_dump) printf("  FULL LONE LOWER\n");
+#ifndef PBL_PLATFORM_EMERY
+    check("fll.time", L.time, 0, 58, 144, 45);                    // == full.time
+    check("fll.status_lower", L.status_lower, 0, 97, 144, 20);    // == full.status
+    check("fll.bottom", L.bottom, 0, 117, 144, 51);               // == full.bottom
+    check("fll.loading", L.loading, 0, 117, 144, 51);
+#else
+    check("fll.time", L.time, 2, 77, 196, 60);
+    check("fll.status_lower", L.status_lower, 2, 132, 198, 24);   // the lower band is graph-wide
+    check("fll.bottom", L.bottom, 2, 156, 198, 68);
+    check("fll.loading", L.loading, 2, 156, 198, 68);
+#endif
 }
 
 static void golden_rects_clockless(void) {
@@ -328,17 +355,17 @@ static void golden_rects_clockless(void) {
     check("cklc3D.bottom",       L.bottom,       0, 101, 144, 67);
     L = compute_custom(rdr);
     if (s_dump) printf("  CLOCKLESS radar-top statusless\n");
-    // A radar top band takes the calendar-height slot AT the cursor (13): the
-    // ink-slide is a calendar-only trick, so the radar sits 2 rows higher than a
-    // calendar band would (the legacy engine kept it on the calendar frame at 15).
-    check("cklrdr.top",          L.top,          0, 13, 144, 45);
-    check("cklrdr.radar",        L.radar,        0, 13, 144, 45);
+    // A radar top leading under the strip seats on the strip's ink exactly like the
+    // calendar (15, the frame the radar-top preset has always used); its slot, and so
+    // everything below it, still starts at the reserve (13).
+    check("cklrdr.top",          L.top,          0, 15, 144, 45);
+    check("cklrdr.radar",        L.radar,        0, 15, 144, 45);
     check("cklrdr.time",         L.time,         0, 61, 144, 0);
     check("cklrdr.bottom",       L.bottom,       0, 61, 144, 107);
     L = compute_custom(nA);
     if (s_dump) printf("  CLOCKLESS none lone-upper\n");
     // No top band: A is first, at the cursor (13), in the font-derived 17 band —
-    // the stacker's NONE rows share the large-font band, not NONE_STATUS_HEIGHT 22.
+    // a NONE row away from a clock takes the large-font band, not NONE_STATUS_HEIGHT 22.
     check("cklnA.status",        L.status,       0, 13, 144, 17);
     check("cklnA.time",          L.time,         0, 33, 144, 0);
     check("cklnA.bottom",        L.bottom,       0, 33, 144, 135);
@@ -352,8 +379,8 @@ static void golden_rects_clockless(void) {
     L = compute_custom(c2A);
     if (s_dump) printf("  CLOCKLESS cal2 lone-upper (emery)\n");
     // cursor 22 → T(40) rect@23, +40+1 → 63 → A(21)@63, +21+1 → 85 → body 85..224.
-    // loading == bottom in the stacker, so it takes the body's 198 width (band rects
-    // are content_w 196; the body runs to the right edge).
+    // loading == bottom here (no clock, so not the preset overlay): it takes the body's
+    // 198 width (band rects are content_w 196; the body runs to the right edge).
     check("cklc2A.status",       L.status,       2, 63, 196, 21);
     check("cklc2A.time",         L.time,         2, 85, 196, 0);
     check("cklc2A.bottom",       L.bottom,       2, 85, 198, 139);
@@ -396,10 +423,9 @@ static void golden_rects_clockless(void) {
     check("cklc3D.bottom",       L.bottom,       2, 127, 198, 97);
     L = compute_custom(rdr);
     if (s_dump) printf("  CLOCKLESS radar-top statusless (emery)\n");
-    // Radar top band at the cursor itself (22, no ink-slide) — 1 row above a
-    // calendar's 23.
-    check("cklrdr.top",          L.top,          2, 22, 196, 60);
-    check("cklrdr.radar",        L.radar,        2, 22, 196, 60);
+    // Radar top on the strip's ink (23) like the calendar; its slot starts at 22.
+    check("cklrdr.top",          L.top,          2, 23, 196, 60);
+    check("cklrdr.radar",        L.radar,        2, 23, 196, 60);
     check("cklrdr.time",         L.time,         2, 83, 196, 0);
     check("cklrdr.bottom",       L.bottom,       2, 83, 198, 141);
     L = compute_custom(nA);
@@ -416,11 +442,13 @@ static void golden_rects_clockless(void) {
 #endif
 }
 
-// Stripless goldens (ViewSpec.strip_off): also compute_stacked. The strip band
+// Stripless goldens (ViewSpec.strip_off): also their stored order. The strip band
 // collapses and its reserve leaves the stack — the TACB cursor starts at the content
-// top (0 / 2) instead of the reserve row, with the same band heights and gap-after
-// rule as the clockless section above (no strip also means no calendar ink-slide: the
-// T rect sits at the cursor). Clocked cases seat the clock's RECT by the ink solver
+// top (0 / 2) instead of the reserve row (no strip also means no ink seat: the T rect
+// sits at the cursor). A row between T and the clock takes T's FREED ROW (compactCal's
+// upper row: a row_h slot, band top COMPACT_STATUS_TOP_ABOVE_CLOCK 14 / 18 above the
+// clock slot); a row under the clock takes the RESERVE (row_h slot, the large band
+// bottom-aligned in it). Clocked cases seat the clock's RECT by the ink solver
 // against its actual stack neighbours; each derivation quotes the neighbour ink rows
 // from the same font model the engine uses (144px Roboto ink {0,35}, band offset
 // 45/2 + 0 - 35/2 = 5; emery {2,46}, offset 60/2 + 2 - 46/2 = 9), with
@@ -437,34 +465,34 @@ static void golden_rects_stripless(void) {
 #ifndef PBL_PLATFORM_EMERY
     L = compute_custom(c2A_s);
     if (s_dump) printf("  STRIPLESS cal2 lone-upper (clocked)\n");
-    // cursor 0 → T(30)@0, +30+3 → 33 → A(17)@33, +17+3 → 53 → C(45)@53 → 98.
-    // Clock: above = A cap floor 46 (band_ink_top 33-4+7 = 36, +11-1), below = body
-    // 98 → ink top (46+98-35+1)/2 = 55, -5 → 50.
+    // cursor 0 → T(30)@0 → A in the freed row: slot 30..45, band 45-14 = 31 (17) →
+    // C slot 45..90 → body 90. Clock: above = A cap floor 44 (band_ink_top 31-4+7 = 34,
+    // +11-1), below = body 90 → ink top (44+90-35+1)/2 = 50, -5 → 45.
     check("sflc2A.top_status",   L.top_status,   0, 0, 144, 0);
     check("sflc2A.top",          L.top,          0, 0, 144, 30);
-    check("sflc2A.status",       L.status,       0, 33, 144, 17);
-    check("sflc2A.time",         L.time,         0, 50, 144, 45);
-    check("sflc2A.bottom",       L.bottom,       0, 98, 144, 70);
+    check("sflc2A.status",       L.status,       0, 31, 144, 17);
+    check("sflc2A.time",         L.time,         0, 45, 144, 45);
+    check("sflc2A.bottom",       L.bottom,       0, 90, 144, 78);
     L = compute_custom(c3A_s);
     if (s_dump) printf("  STRIPLESS cal3 lone-upper (clocked) — TACB, row above the clock\n");
-    // The stack renders the order-0 band list literally: the lone A sits BETWEEN
-    // calendar and clock (TACB), not down by the forecast where the legacy FULL
-    // engine kept it. cursor 0 → T(45)@0, +45+3 → 48 → A(17)@48, +17+3 → 68 →
-    // C(45)@68 → 113. Clock: above = A cap floor 61 (48-4+7 = 51, +11-1), below =
-    // body 113 → ink top (61+113-35+1)/2 = 70, -5 → 65.
+    // The view renders the order-0 band list literally: the lone A sits BETWEEN
+    // calendar and clock (TACB), not down by the forecast where the FULL legacy order
+    // seats it. cursor 0 → T(45)@0 → A freed row: slot 45..60, band 46 → C slot
+    // 60..105 → body 105. Clock: above = A cap floor 59 (46-4+7 = 49, +11-1), below =
+    // body 105 → ink top (59+105-35+1)/2 = 65, -5 → 60.
     check("sflc3A.top",          L.top,          0, 0, 144, 45);
-    check("sflc3A.status",       L.status,       0, 48, 144, 17);
-    check("sflc3A.time",         L.time,         0, 65, 144, 45);
-    check("sflc3A.bottom",       L.bottom,       0, 113, 144, 55);
+    check("sflc3A.status",       L.status,       0, 46, 144, 17);
+    check("sflc3A.time",         L.time,         0, 60, 144, 45);
+    check("sflc3A.bottom",       L.bottom,       0, 105, 144, 63);
     L = compute_custom(c3D_s);
     if (s_dump) printf("  STRIPLESS cal3 dual (clocked)\n");
-    // T@0 → 48 → A@48 → 68 → C(45)@68 → 113 → B(17)@113, +17+3 → 133. Clock:
-    // above = A cap floor 61, below = B ink top 116 (113-4+7) → ink top
-    // (61+116-35+1)/2 = 71, -5 → 66.
-    check("sflc3D.status",       L.status,       0, 48, 144, 17);
-    check("sflc3D.status_lower", L.status_lower, 0, 113, 144, 17);
-    check("sflc3D.time",         L.time,         0, 66, 144, 45);
-    check("sflc3D.bottom",       L.bottom,       0, 133, 144, 35);
+    // T@0 → A band 46 (slot 45..60) → C slot 60..105 → B in the reserve: slot 105..120,
+    // band 103..120 → body 120. Clock: above = A cap floor 59, below = B ink top 106
+    // (103-4+7) → ink top (59+106-35+1)/2 = 65, -5 → 60.
+    check("sflc3D.status",       L.status,       0, 46, 144, 17);
+    check("sflc3D.status_lower", L.status_lower, 0, 103, 144, 17);
+    check("sflc3D.time",         L.time,         0, 60, 144, 45);
+    check("sflc3D.bottom",       L.bottom,       0, 120, 144, 48);
     L = compute_custom(c3S_cs);
     if (s_dump) printf("  STRIPLESS cal3 statusless (clockless)\n");
     // cursor 0 → T(45)@0, +45+3 → 48; absent bands park their zero rects there.
@@ -474,8 +502,8 @@ static void golden_rects_stripless(void) {
     L = compute_custom(nA_s);
     if (s_dump) printf("  STRIPLESS none lone-upper (clocked) — A above C\n");
     // No top band: TACB puts the status row FIRST, at the content top, in the
-    // font-derived 17 band; the clock follows it. (The legacy engine seated the
-    // clock first — the stacker renders the editor's band list instead.) cursor 0 →
+    // font-derived 17 band; the clock follows it. (The NONE tier's legacy order
+    // seats the clock first — a stored order renders the editor's band list.) cursor 0 →
     // A(17)@0, +17+3 → 20 → C(45)@20 → 65. Clock: above = A cap floor 13
     // (0-4+7 = 3, +11-1), below = body 65 → ink top (13+65-35+1)/2 = 22, -5 → 17.
     check("sflnA.status",        L.status,       0, 0, 144, 17);
@@ -491,32 +519,32 @@ static void golden_rects_stripless(void) {
 #else
     L = compute_custom(c2A_s);
     if (s_dump) printf("  STRIPLESS cal2 lone-upper (clocked, emery)\n");
-    // cursor 2 → T(40)@2, +40+1 → 43 → A(21)@43, +21+1 → 65 → C(60)@65 → 125.
-    // Clock: above = A cap floor 59 (band_ink_top 43-7+10 = 46, +14-1), below = body
-    // 125 → ink top (59+125-46+1)/2 = 69, -9 → 60.
+    // cursor 2 → T(40)@2 → A freed row: slot 42..62, band 62-18 = 44 (21) → C slot
+    // 62..122 → body 122. Clock: above = A cap floor 60 (band_ink_top 44-7+10 = 47,
+    // +14-1), below = body 122 → ink top (60+122-46+1)/2 = 68, -9 → 59.
     check("sflc2A.top_status",   L.top_status,   2, 2, 196, 0);
     check("sflc2A.top",          L.top,          2, 2, 196, 40);
-    check("sflc2A.status",       L.status,       2, 43, 196, 21);
-    check("sflc2A.time",         L.time,         2, 60, 196, 60);
-    check("sflc2A.bottom",       L.bottom,       2, 125, 198, 99);
+    check("sflc2A.status",       L.status,       2, 44, 196, 21);
+    check("sflc2A.time",         L.time,         2, 59, 196, 60);
+    check("sflc2A.bottom",       L.bottom,       2, 122, 198, 102);
     L = compute_custom(c3A_s);
     if (s_dump) printf("  STRIPLESS cal3 lone-upper (clocked, emery) — TACB, row above the clock\n");
-    // cursor 2 → T(60)@2, +60+1 → 63 → A(21)@63, +21+1 → 85 → C(60)@85 → 145.
-    // Clock: above = A cap floor 79 (63-7+10 = 66, +14-1), below = body 145 →
-    // ink top (79+145-46+1)/2 = 89, -9 → 80.
+    // cursor 2 → T(60)@2 → A freed row: slot 62..82, band 64 → C slot 82..142 → body
+    // 142. Clock: above = A cap floor 80 (64-7+10 = 67, +14-1), below = body 142 →
+    // ink top (80+142-46+1)/2 = 88, -9 → 79.
     check("sflc3A.top",          L.top,          2, 2, 196, 60);
-    check("sflc3A.status",       L.status,       2, 63, 196, 21);
-    check("sflc3A.time",         L.time,         2, 80, 196, 60);
-    check("sflc3A.bottom",       L.bottom,       2, 145, 198, 79);
+    check("sflc3A.status",       L.status,       2, 64, 196, 21);
+    check("sflc3A.time",         L.time,         2, 79, 196, 60);
+    check("sflc3A.bottom",       L.bottom,       2, 142, 198, 82);
     L = compute_custom(c3D_s);
     if (s_dump) printf("  STRIPLESS cal3 dual (clocked, emery)\n");
-    // T@2 → 63 → A@63 → 85 → C(60)@85 → 145 → B(21)@145, +21+1 → 167. Clock:
-    // above = A cap floor 79, below = B ink top 148 (145-7+10) → ink top
-    // (79+148-46+1)/2 = 91, -9 → 82.
-    check("sflc3D.status",       L.status,       2, 63, 196, 21);
-    check("sflc3D.status_lower", L.status_lower, 2, 145, 196, 21);
-    check("sflc3D.time",         L.time,         2, 82, 196, 60);
-    check("sflc3D.bottom",       L.bottom,       2, 167, 198, 57);
+    // T@2 → A band 64 → C slot 82..142 → B reserve: slot 142..162, band 141..162,
+    // carved from the body's width (198) → body 162. Clock: above = A cap floor 80,
+    // below = B ink top 144 (141-7+10) → ink top (80+144-46+1)/2 = 89, -9 → 80.
+    check("sflc3D.status",       L.status,       2, 64, 196, 21);
+    check("sflc3D.status_lower", L.status_lower, 2, 141, 198, 21);
+    check("sflc3D.time",         L.time,         2, 80, 196, 60);
+    check("sflc3D.bottom",       L.bottom,       2, 162, 198, 62);
     L = compute_custom(c3S_cs);
     if (s_dump) printf("  STRIPLESS cal3 statusless (clockless, emery)\n");
     // cursor 2 → T(60)@2, +60+1 → 63.
@@ -598,7 +626,12 @@ static void stacked_order_parity(void) {
 }
 
 // Every order x occupancy: present movable bands never overlap, the body starts at or
-// below every band's floor, and dropping a band grows the body.
+// below every band's floor, and dropping a band grows the body. One sibling overlap is the
+// presets' own: a calendar seated on the strip's ink overhangs its slot by the slide, onto
+// the blank top of a status row in its freed row (T A C, compactCal) — allowed only while
+// the row starts below the calendar's last digit row, i.e. inside the calendar's blank
+// margin. Decision 4 (same shape, same pixels) makes order 2 with a lone row (TABC minus
+// B == compactCal's T A C) render exactly that shape.
 static void stacked_property_tests(void) {
     const struct { int su, sl, clock_off; } occ[] = {
         { STATUS_SRC_FORECAST, STATUS_SRC_HEALTH, 0 },   // full house
@@ -632,6 +665,14 @@ static void stacked_property_tests(void) {
                     if (i == 1 || j == 1) { continue; }   // clock rect is solver-lifted
                     bool disjoint = bands[i].origin.y + bands[i].size.h <= bands[j].origin.y
                                  || bands[j].origin.y + bands[j].size.h <= bands[i].origin.y;
+                    if (!disjoint && i == 0 && j >= 2) {
+                        // a row starting under the calendar's last digit row (the calendar
+                        // is rows 2 here, large-font date digits)
+                        disjoint = bands[j].origin.y > calendar_last_row_ink_bottom(
+                            bands[0].origin.y, bands[0].size.h, 2, STATUS_CAL_FONT_H);
+                    } else if (!disjoint && j == 0 && i >= 2) {
+                        continue;   // the (0, row) visit above decides the pair
+                    }
                     expect("stacked.bands_disjoint", disjoint, true);
                 }
             }
@@ -660,12 +701,14 @@ static void golden_rects_stacked(void) {
 #ifndef PBL_PLATFORM_EMERY
     L = compute_custom(ctab);
     if (s_dump) printf("  STACKED CTAB cal2 lone-upper\n");
-    // Clock at the very top: its band takes the strip reserve's row (13) directly.
+    // Clock at the very top: leading under the strip, its slot takes the noCal seat
+    // (reserve + 1: 14..59), so the calendar follows at 59 and the row (plainly stacked
+    // after the calendar's clearance) at 92.
     check("stkctab.top_status",   L.top_status,   0, 0, 144, 17);
-    check("stkctab.time",         L.time,         0, 13, 144, 45);
-    check("stkctab.top",          L.top,          0, 58, 144, 30);
-    check("stkctab.status",       L.status,       0, 91, 144, 17);
-    check("stkctab.bottom",       L.bottom,       0, 111, 144, 57);
+    check("stkctab.time",         L.time,         0, 14, 144, 45);
+    check("stkctab.top",          L.top,          0, 59, 144, 30);
+    check("stkctab.status",       L.status,       0, 92, 144, 17);
+    check("stkctab.bottom",       L.bottom,       0, 112, 144, 56);
     L = compute_custom(abct);
     if (s_dump) printf("  STACKED ABCT cal2 dual\n");
     // Calendar at the BOTTOM, directly above the graph; the dual squeezes to the
@@ -679,20 +722,23 @@ static void golden_rects_stacked(void) {
     L = compute_custom(cabt);
     if (s_dump) printf("  STACKED CABT radar-top + radar row\n");
     // The radar strip band sits between the status row and the graph; L.radar
-    // aliases it (radar-in-top), and the body keeps the forecast.
-    check("stkcabt.time",         L.time,         0, 15, 144, 45);
-    check("stkcabt.status",       L.status,       0, 58, 144, 20);
-    check("stkcabt.top",          L.top,          0, 78, 144, 45);
-    check("stkcabt.radar",        L.radar,        0, 78, 144, 45);
-    check("stkcabt.bottom",       L.bottom,       0, 126, 144, 42);
+    // aliases it (radar-in-top), and the body keeps the forecast. The row right under
+    // the clock takes fullCal's reserve (WEATHER_STATUS_HEIGHT slot 59..73, its
+    // fc_band_h band bottom-aligned at 53..73 — rows under a radar top of 3 rows
+    // squeeze like fullCal's), and the radar follows it at 73.
+    check("stkcabt.time",         L.time,         0, 13, 144, 45);
+    check("stkcabt.status",       L.status,       0, 53, 144, 20);
+    check("stkcabt.top",          L.top,          0, 73, 144, 45);
+    check("stkcabt.radar",        L.radar,        0, 73, 144, 45);
+    check("stkcabt.bottom",       L.bottom,       0, 121, 144, 47);
 #else
     L = compute_custom(ctab);
     if (s_dump) printf("  STACKED CTAB cal2 lone-upper (emery)\n");
     check("stkctab.top_status",   L.top_status,   2, 2, 196, 21);
     check("stkctab.time",         L.time,         2, 19, 196, 60);
-    check("stkctab.top",          L.top,          2, 82, 196, 40);
-    check("stkctab.status",       L.status,       2, 123, 196, 21);
-    check("stkctab.bottom",       L.bottom,       2, 145, 198, 79);
+    check("stkctab.top",          L.top,          2, 83, 196, 40);
+    check("stkctab.status",       L.status,       2, 124, 196, 21);
+    check("stkctab.bottom",       L.bottom,       2, 146, 198, 78);
     L = compute_custom(abct);
     if (s_dump) printf("  STACKED ABCT cal2 dual (emery)\n");
     check("stkabct.status",       L.status,       2, 22, 196, 24);
@@ -702,11 +748,11 @@ static void golden_rects_stacked(void) {
     check("stkabct.bottom",       L.bottom,       2, 171, 198, 53);
     L = compute_custom(cabt);
     if (s_dump) printf("  STACKED CABT radar-top + radar row (emery)\n");
-    check("stkcabt.time",         L.time,         2, 20, 196, 60);
-    check("stkcabt.status",       L.status,       2, 82, 196, 24);
-    check("stkcabt.top",          L.top,          2, 106, 196, 60);
-    check("stkcabt.radar",        L.radar,        2, 106, 196, 60);
-    check("stkcabt.bottom",       L.bottom,       2, 167, 198, 57);
+    check("stkcabt.time",         L.time,         2, 16, 196, 60);
+    check("stkcabt.status",       L.status,       2, 73, 196, 24);
+    check("stkcabt.top",          L.top,          2, 97, 196, 60);
+    check("stkcabt.radar",        L.radar,        2, 97, 196, 60);
+    check("stkcabt.bottom",       L.bottom,       2, 158, 198, 66);
 #endif
 }
 
@@ -715,8 +761,9 @@ static void golden_rects_stacked(void) {
 // examples (docs spec §4.5): A = strip + clock only; B = TCAB cal2 + one weather row;
 // and a CTAB cal3 + one weather row whose clock sits at the top. With no graph the
 // stack ends at its last band (no trailing clearance) and the block moves rigidly by
-// the Position's offset; the strip never moves. The "today" rows (Top) are the pre-v2
-// stacker's top-anchored output — nothing above the slack changes.
+// the Position's offset; the strip never moves. The Top rows are the top-anchored
+// layout, seated exactly as the same bands would be over a graph (a clock leading under
+// the strip takes the noCal seat, a row under the clock the reserve).
 static MainLayout compute_ext(uint16_t wire, uint16_t ext) {
     ViewSpec spec = unpack_ext(wire, ext);
     return layout_compute_spec(BOUNDS, &spec, MET(FC_BAND_H, INK));
@@ -728,74 +775,76 @@ static void golden_rects_graphless(void) {
     const uint16_t tcab = pack_custom(pack(2, 1, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 0, 1);
     const uint16_t ctab = pack_custom(pack(3, 1, 3, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 0, 3);
 #ifndef PBL_PLATFORM_EMERY
-    // Example A (clock only): block 13..58, time solved at 12 (ink 17..51); slack 110.
-    // Clock: off 50 → time 62, ink 67..101, centre 84 = the midline. Middle: off 55.
-    // Example B (TCAB cal2 + A): block ends 108 (A's clearance is not counted — nothing
-    // follows it); slack 60. Clock: off 16 → time 62. The loading overlay is the
-    // remainder under the shifted block (0 rows under Bottom).
-    // CTAB cal3 + A: the bands under the clock need 110 of the 155 rows, so Clock clamps
-    // at the full slack (45) — the clock stops short of the midline by the overflow.
+    // Example A (clock only): the noCal seat 14..59, time solved at 13 (ink 18..52);
+    // block ends 59, slack 109. Clock: off 49 → time 62, ink 67..101, centre 84 = the
+    // midline. Middle: off 54.
+    // Example B (TCAB cal2 + A — compactCal-swap's seats): T slot 13..43, clock slot
+    // 43..88 (solved 43), A in the reserve 86..103; block ends 103, slack 65. Clock:
+    // off 19 → time 62. The loading overlay is the remainder under the shifted block
+    // (0 rows under Bottom).
+    // CTAB cal3 + A: the bands under the clock leave 44 rows of slack, less than the 48
+    // the clock needs to reach the midline, so Clock clamps at the full slack.
     L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_CLOCK));
     if (s_dump) printf("  GRAPHLESS clk clock\n");
     check("gl_clk_clock.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_clk_clock.top", L.top, 0, 63, 144, 0);
+    check("gl_clk_clock.top", L.top, 0, 64, 144, 0);
     check("gl_clk_clock.time", L.time, 0, 62, 144, 45);
-    check("gl_clk_clock.status", L.status, 0, 63, 144, 0);
+    check("gl_clk_clock.status", L.status, 0, 62, 144, 0);
     check("gl_clk_clock.bottom", L.bottom, 0, 108, 144, 0);
     check("gl_clk_clock.loading", L.loading, 0, 108, 144, 60);
     L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_TOP));
     if (s_dump) printf("  GRAPHLESS clk top\n");
     check("gl_clk_top.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_clk_top.top", L.top, 0, 13, 144, 0);
-    check("gl_clk_top.time", L.time, 0, 12, 144, 45);
+    check("gl_clk_top.top", L.top, 0, 15, 144, 0);
+    check("gl_clk_top.time", L.time, 0, 13, 144, 45);
     check("gl_clk_top.status", L.status, 0, 13, 144, 0);
-    check("gl_clk_top.bottom", L.bottom, 0, 58, 144, 0);
-    check("gl_clk_top.loading", L.loading, 0, 58, 144, 110);
+    check("gl_clk_top.bottom", L.bottom, 0, 59, 144, 0);
+    check("gl_clk_top.loading", L.loading, 0, 59, 144, 109);
     L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_CENTRE));
     if (s_dump) printf("  GRAPHLESS clk centre\n");
     check("gl_clk_centre.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_clk_centre.top", L.top, 0, 68, 144, 0);
+    check("gl_clk_centre.top", L.top, 0, 69, 144, 0);
     check("gl_clk_centre.time", L.time, 0, 67, 144, 45);
-    check("gl_clk_centre.status", L.status, 0, 68, 144, 0);
+    check("gl_clk_centre.status", L.status, 0, 67, 144, 0);
     check("gl_clk_centre.bottom", L.bottom, 0, 113, 144, 0);
     check("gl_clk_centre.loading", L.loading, 0, 113, 144, 55);
     L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_BOTTOM));
     if (s_dump) printf("  GRAPHLESS clk bottom\n");
     check("gl_clk_bottom.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_clk_bottom.top", L.top, 0, 123, 144, 0);
+    check("gl_clk_bottom.top", L.top, 0, 124, 144, 0);
     check("gl_clk_bottom.time", L.time, 0, 122, 144, 45);
-    check("gl_clk_bottom.status", L.status, 0, 123, 144, 0);
+    check("gl_clk_bottom.status", L.status, 0, 122, 144, 0);
     check("gl_clk_bottom.bottom", L.bottom, 0, 168, 144, 0);
     check("gl_clk_bottom.loading", L.loading, 0, 168, 144, 0);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_CLOCK));
     if (s_dump) printf("  GRAPHLESS tcab clock\n");
     check("gl_tcab_clock.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_tcab_clock.top", L.top, 0, 31, 144, 30);
+    check("gl_tcab_clock.top", L.top, 0, 34, 144, 30);
     check("gl_tcab_clock.time", L.time, 0, 62, 144, 45);
-    check("gl_tcab_clock.status", L.status, 0, 107, 144, 17);
-    check("gl_tcab_clock.bottom", L.bottom, 0, 124, 144, 0);
-    check("gl_tcab_clock.loading", L.loading, 0, 124, 144, 44);
+    check("gl_tcab_clock.status", L.status, 0, 105, 144, 17);
+    check("gl_tcab_clock.bottom", L.bottom, 0, 122, 144, 0);
+    check("gl_tcab_clock.loading", L.loading, 0, 122, 144, 46);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_TOP));
     if (s_dump) printf("  GRAPHLESS tcab top\n");
     check("gl_tcab_top.top_status", L.top_status, 0, 0, 144, 17);
     check("gl_tcab_top.top", L.top, 0, 15, 144, 30);
-    check("gl_tcab_top.time", L.time, 0, 46, 144, 45);
-    check("gl_tcab_top.status", L.status, 0, 91, 144, 17);
-    check("gl_tcab_top.bottom", L.bottom, 0, 108, 144, 0);
-    check("gl_tcab_top.loading", L.loading, 0, 108, 144, 60);
+    check("gl_tcab_top.time", L.time, 0, 43, 144, 45);
+    check("gl_tcab_top.status", L.status, 0, 86, 144, 17);
+    check("gl_tcab_top.bottom", L.bottom, 0, 103, 144, 0);
+    check("gl_tcab_top.loading", L.loading, 0, 103, 144, 65);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_CENTRE));
     if (s_dump) printf("  GRAPHLESS tcab centre\n");
     check("gl_tcab_centre.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_tcab_centre.top", L.top, 0, 45, 144, 30);
-    check("gl_tcab_centre.time", L.time, 0, 76, 144, 45);
-    check("gl_tcab_centre.status", L.status, 0, 121, 144, 17);
-    check("gl_tcab_centre.bottom", L.bottom, 0, 138, 144, 0);
-    check("gl_tcab_centre.loading", L.loading, 0, 138, 144, 0);
+    check("gl_tcab_centre.top", L.top, 0, 47, 144, 30);
+    check("gl_tcab_centre.time", L.time, 0, 75, 144, 45);
+    check("gl_tcab_centre.status", L.status, 0, 118, 144, 17);
+    check("gl_tcab_centre.bottom", L.bottom, 0, 135, 144, 0);
+    check("gl_tcab_centre.loading", L.loading, 0, 135, 144, 0);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_BOTTOM));
     if (s_dump) printf("  GRAPHLESS tcab bottom\n");
     check("gl_tcab_bottom.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_tcab_bottom.top", L.top, 0, 75, 144, 30);
-    check("gl_tcab_bottom.time", L.time, 0, 106, 144, 45);
+    check("gl_tcab_bottom.top", L.top, 0, 80, 144, 30);
+    check("gl_tcab_bottom.time", L.time, 0, 108, 144, 45);
     check("gl_tcab_bottom.status", L.status, 0, 151, 144, 17);
     check("gl_tcab_bottom.bottom", L.bottom, 0, 168, 144, 0);
     check("gl_tcab_bottom.loading", L.loading, 0, 168, 144, 0);
@@ -810,19 +859,19 @@ static void golden_rects_graphless(void) {
     L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_TOP));
     if (s_dump) printf("  GRAPHLESS ctab top\n");
     check("gl_ctab_top.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_ctab_top.top", L.top, 0, 58, 144, 45);
-    check("gl_ctab_top.time", L.time, 0, 13, 144, 45);
-    check("gl_ctab_top.status", L.status, 0, 106, 144, 17);
-    check("gl_ctab_top.bottom", L.bottom, 0, 123, 144, 0);
-    check("gl_ctab_top.loading", L.loading, 0, 123, 144, 45);
+    check("gl_ctab_top.top", L.top, 0, 59, 144, 45);
+    check("gl_ctab_top.time", L.time, 0, 14, 144, 45);
+    check("gl_ctab_top.status", L.status, 0, 107, 144, 17);
+    check("gl_ctab_top.bottom", L.bottom, 0, 124, 144, 0);
+    check("gl_ctab_top.loading", L.loading, 0, 124, 144, 44);
     L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_CENTRE));
     if (s_dump) printf("  GRAPHLESS ctab centre\n");
     check("gl_ctab_centre.top_status", L.top_status, 0, 0, 144, 17);
-    check("gl_ctab_centre.top", L.top, 0, 80, 144, 45);
-    check("gl_ctab_centre.time", L.time, 0, 35, 144, 45);
-    check("gl_ctab_centre.status", L.status, 0, 128, 144, 17);
-    check("gl_ctab_centre.bottom", L.bottom, 0, 145, 144, 0);
-    check("gl_ctab_centre.loading", L.loading, 0, 145, 144, 0);
+    check("gl_ctab_centre.top", L.top, 0, 81, 144, 45);
+    check("gl_ctab_centre.time", L.time, 0, 36, 144, 45);
+    check("gl_ctab_centre.status", L.status, 0, 129, 144, 17);
+    check("gl_ctab_centre.bottom", L.bottom, 0, 146, 144, 0);
+    check("gl_ctab_centre.loading", L.loading, 0, 146, 144, 0);
     L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_BOTTOM));
     if (s_dump) printf("  GRAPHLESS ctab bottom\n");
     check("gl_ctab_bottom.top_status", L.top_status, 0, 0, 144, 17);
@@ -832,31 +881,32 @@ static void golden_rects_graphless(void) {
     check("gl_ctab_bottom.bottom", L.bottom, 0, 168, 144, 0);
     check("gl_ctab_bottom.loading", L.loading, 0, 168, 144, 0);
 #else
-    // Example A (emery): block 22..82, time 17 (ink 26..71); slack 142. Clock: off 65 →
-    // time 82, ink 91..136 on the 114 midline. Example B: block ends 144, slack 80,
-    // Clock off 21 → cal 44..84, time 82, A 144..165, loading 165..224.
+    // Example A (emery): the noCal seat 23..83, time 18 (ink 27..72); slack 141. Clock:
+    // off 64 → time 82, ink 91..136 on the 114 midline. Example B: T slot 22..62, clock
+    // slot 62..122 (solved 60), A reserve 121..142 (carved from the body's width 198);
+    // slack 82, Clock off 22 → cal 45..85, time 82, A 143..164, loading 164..224.
     L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_CLOCK));
     if (s_dump) printf("  GRAPHLESS clk clock\n");
     check("gl_clk_clock.top_status", L.top_status, 2, 2, 196, 21);
     check("gl_clk_clock.top", L.top, 2, 87, 196, 0);
     check("gl_clk_clock.time", L.time, 2, 82, 196, 60);
-    check("gl_clk_clock.status", L.status, 2, 87, 196, 0);
+    check("gl_clk_clock.status", L.status, 2, 86, 196, 0);
     check("gl_clk_clock.bottom", L.bottom, 2, 147, 198, 0);
     check("gl_clk_clock.loading", L.loading, 2, 147, 198, 77);
     L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_TOP));
     if (s_dump) printf("  GRAPHLESS clk top\n");
     check("gl_clk_top.top_status", L.top_status, 2, 2, 196, 21);
-    check("gl_clk_top.top", L.top, 2, 22, 196, 0);
-    check("gl_clk_top.time", L.time, 2, 17, 196, 60);
+    check("gl_clk_top.top", L.top, 2, 23, 196, 0);
+    check("gl_clk_top.time", L.time, 2, 18, 196, 60);
     check("gl_clk_top.status", L.status, 2, 22, 196, 0);
-    check("gl_clk_top.bottom", L.bottom, 2, 82, 198, 0);
-    check("gl_clk_top.loading", L.loading, 2, 82, 198, 142);
+    check("gl_clk_top.bottom", L.bottom, 2, 83, 198, 0);
+    check("gl_clk_top.loading", L.loading, 2, 83, 198, 141);
     L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_CENTRE));
     if (s_dump) printf("  GRAPHLESS clk centre\n");
     check("gl_clk_centre.top_status", L.top_status, 2, 2, 196, 21);
     check("gl_clk_centre.top", L.top, 2, 93, 196, 0);
     check("gl_clk_centre.time", L.time, 2, 88, 196, 60);
-    check("gl_clk_centre.status", L.status, 2, 93, 196, 0);
+    check("gl_clk_centre.status", L.status, 2, 92, 196, 0);
     check("gl_clk_centre.bottom", L.bottom, 2, 153, 198, 0);
     check("gl_clk_centre.loading", L.loading, 2, 153, 198, 71);
     L = compute_ext(clk, ext_word(0, 0, 0, ALIGN_BOTTOM));
@@ -864,62 +914,62 @@ static void golden_rects_graphless(void) {
     check("gl_clk_bottom.top_status", L.top_status, 2, 2, 196, 21);
     check("gl_clk_bottom.top", L.top, 2, 164, 196, 0);
     check("gl_clk_bottom.time", L.time, 2, 159, 196, 60);
-    check("gl_clk_bottom.status", L.status, 2, 164, 196, 0);
+    check("gl_clk_bottom.status", L.status, 2, 163, 196, 0);
     check("gl_clk_bottom.bottom", L.bottom, 2, 224, 198, 0);
     check("gl_clk_bottom.loading", L.loading, 2, 224, 198, 0);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_CLOCK));
     if (s_dump) printf("  GRAPHLESS tcab clock\n");
     check("gl_tcab_clock.top_status", L.top_status, 2, 2, 196, 21);
-    check("gl_tcab_clock.top", L.top, 2, 44, 196, 40);
+    check("gl_tcab_clock.top", L.top, 2, 45, 196, 40);
     check("gl_tcab_clock.time", L.time, 2, 82, 196, 60);
-    check("gl_tcab_clock.status", L.status, 2, 144, 196, 21);
-    check("gl_tcab_clock.bottom", L.bottom, 2, 165, 198, 0);
-    check("gl_tcab_clock.loading", L.loading, 2, 165, 198, 59);
+    check("gl_tcab_clock.status", L.status, 2, 143, 198, 21);
+    check("gl_tcab_clock.bottom", L.bottom, 2, 164, 198, 0);
+    check("gl_tcab_clock.loading", L.loading, 2, 164, 198, 60);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_TOP));
     if (s_dump) printf("  GRAPHLESS tcab top\n");
     check("gl_tcab_top.top_status", L.top_status, 2, 2, 196, 21);
     check("gl_tcab_top.top", L.top, 2, 23, 196, 40);
-    check("gl_tcab_top.time", L.time, 2, 61, 196, 60);
-    check("gl_tcab_top.status", L.status, 2, 123, 196, 21);
-    check("gl_tcab_top.bottom", L.bottom, 2, 144, 198, 0);
-    check("gl_tcab_top.loading", L.loading, 2, 144, 198, 80);
+    check("gl_tcab_top.time", L.time, 2, 60, 196, 60);
+    check("gl_tcab_top.status", L.status, 2, 121, 198, 21);
+    check("gl_tcab_top.bottom", L.bottom, 2, 142, 198, 0);
+    check("gl_tcab_top.loading", L.loading, 2, 142, 198, 82);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_CENTRE));
     if (s_dump) printf("  GRAPHLESS tcab centre\n");
     check("gl_tcab_centre.top_status", L.top_status, 2, 2, 196, 21);
-    check("gl_tcab_centre.top", L.top, 2, 63, 196, 40);
+    check("gl_tcab_centre.top", L.top, 2, 64, 196, 40);
     check("gl_tcab_centre.time", L.time, 2, 101, 196, 60);
-    check("gl_tcab_centre.status", L.status, 2, 163, 196, 21);
-    check("gl_tcab_centre.bottom", L.bottom, 2, 184, 198, 0);
-    check("gl_tcab_centre.loading", L.loading, 2, 184, 198, 0);
+    check("gl_tcab_centre.status", L.status, 2, 162, 198, 21);
+    check("gl_tcab_centre.bottom", L.bottom, 2, 183, 198, 0);
+    check("gl_tcab_centre.loading", L.loading, 2, 183, 198, 0);
     L = compute_ext(tcab, ext_word(0, 0, 0, ALIGN_BOTTOM));
     if (s_dump) printf("  GRAPHLESS tcab bottom\n");
     check("gl_tcab_bottom.top_status", L.top_status, 2, 2, 196, 21);
-    check("gl_tcab_bottom.top", L.top, 2, 103, 196, 40);
-    check("gl_tcab_bottom.time", L.time, 2, 141, 196, 60);
-    check("gl_tcab_bottom.status", L.status, 2, 203, 196, 21);
+    check("gl_tcab_bottom.top", L.top, 2, 105, 196, 40);
+    check("gl_tcab_bottom.time", L.time, 2, 142, 196, 60);
+    check("gl_tcab_bottom.status", L.status, 2, 203, 198, 21);
     check("gl_tcab_bottom.bottom", L.bottom, 2, 224, 198, 0);
     check("gl_tcab_bottom.loading", L.loading, 2, 224, 198, 0);
     L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_CLOCK));
     if (s_dump) printf("  GRAPHLESS ctab clock\n");
     check("gl_ctab_clock.top_status", L.top_status, 2, 2, 196, 21);
     check("gl_ctab_clock.top", L.top, 2, 142, 196, 60);
-    check("gl_ctab_clock.time", L.time, 2, 79, 196, 60);
+    check("gl_ctab_clock.time", L.time, 2, 78, 196, 60);
     check("gl_ctab_clock.status", L.status, 2, 203, 196, 21);
     check("gl_ctab_clock.bottom", L.bottom, 2, 224, 198, 0);
     check("gl_ctab_clock.loading", L.loading, 2, 224, 198, 0);
     L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_TOP));
     if (s_dump) printf("  GRAPHLESS ctab top\n");
     check("gl_ctab_top.top_status", L.top_status, 2, 2, 196, 21);
-    check("gl_ctab_top.top", L.top, 2, 82, 196, 60);
+    check("gl_ctab_top.top", L.top, 2, 83, 196, 60);
     check("gl_ctab_top.time", L.time, 2, 19, 196, 60);
-    check("gl_ctab_top.status", L.status, 2, 143, 196, 21);
-    check("gl_ctab_top.bottom", L.bottom, 2, 164, 198, 0);
-    check("gl_ctab_top.loading", L.loading, 2, 164, 198, 60);
+    check("gl_ctab_top.status", L.status, 2, 144, 196, 21);
+    check("gl_ctab_top.bottom", L.bottom, 2, 165, 198, 0);
+    check("gl_ctab_top.loading", L.loading, 2, 165, 198, 59);
     L = compute_ext(ctab, ext_word(0, 0, 0, ALIGN_CENTRE));
     if (s_dump) printf("  GRAPHLESS ctab centre\n");
     check("gl_ctab_centre.top_status", L.top_status, 2, 2, 196, 21);
     check("gl_ctab_centre.top", L.top, 2, 112, 196, 60);
-    check("gl_ctab_centre.time", L.time, 2, 49, 196, 60);
+    check("gl_ctab_centre.time", L.time, 2, 48, 196, 60);
     check("gl_ctab_centre.status", L.status, 2, 173, 196, 21);
     check("gl_ctab_centre.bottom", L.bottom, 2, 194, 198, 0);
     check("gl_ctab_centre.loading", L.loading, 2, 194, 198, 0);
@@ -927,7 +977,7 @@ static void golden_rects_graphless(void) {
     if (s_dump) printf("  GRAPHLESS ctab bottom\n");
     check("gl_ctab_bottom.top_status", L.top_status, 2, 2, 196, 21);
     check("gl_ctab_bottom.top", L.top, 2, 142, 196, 60);
-    check("gl_ctab_bottom.time", L.time, 2, 79, 196, 60);
+    check("gl_ctab_bottom.time", L.time, 2, 78, 196, 60);
     check("gl_ctab_bottom.status", L.status, 2, 203, 196, 21);
     check("gl_ctab_bottom.bottom", L.bottom, 2, 224, 198, 0);
     check("gl_ctab_bottom.loading", L.loading, 2, 224, 198, 0);
@@ -959,120 +1009,123 @@ static const int TG_ALIGN[6] = { 0, 0, 0, 0, ALIGN_CLOCK, ALIGN_BOTTOM };
 static void golden_rects_top_graph(void) {
     MainLayout L;
 #ifndef PBL_PLATFORM_EMERY
-    // tg0 = example C: health graph 13..58, clock band 61..106 (ink between 57 and the row's
-    // cap), weather row 106..123 at the large font (tier NONE), forecast body 126..168 (42).
-    // tg1: the forecast top's loading overlay starts at 17, under the strip band — not 13.
-    // tg4: graphless forecast top, Clock alignment: off 3 seats the ink on the midline.
+    // tg0 = example C: health graph 15..60 (3 rows, slid onto the strip's ink like a
+    // calendar), clock 58, weather row in fullCal's reserve (fc_band_h band 97..117 — a
+    // 3-row top squeezes its row like fullCal's), forecast body 117..168, loading 97..168:
+    // the fullCal preset's rects exactly — flicking between the two, nothing moves.
+    // tg1: the forecast top's loading overlay starts at 17, under the strip band.
+    // tg4: graphless forecast top + clock at Clock alignment: the ink sits on the midline.
     L = compute_ext(TG_WIRES[0], ext_word(0, 0, TG_KIND[0], TG_ALIGN[0]));
     if (s_dump) printf("  TOPGRAPH 0\n");
     check("tg0.top_status", L.top_status, 0, 0, 144, 17);
-    check("tg0.top", L.top, 0, 13, 144, 45);
-    check("tg0.time", L.time, 0, 61, 144, 45);
-    check("tg0.status", L.status, 0, 106, 144, 17);
-    check("tg0.bottom", L.bottom, 0, 126, 144, 42);
-    check("tg0.loading", L.loading, 0, 126, 144, 42);
-    check("tg0.radar", L.radar, 0, 126, 144, 42);
+    check("tg0.top", L.top, 0, 15, 144, 45);
+    check("tg0.time", L.time, 0, 58, 144, 45);
+    check("tg0.status", L.status, 0, 97, 144, 20);
+    check("tg0.bottom", L.bottom, 0, 117, 144, 51);
+    check("tg0.loading", L.loading, 0, 97, 144, 71);
+    check("tg0.radar", L.radar, 0, 117, 144, 51);
     L = compute_ext(TG_WIRES[1], ext_word(0, 0, TG_KIND[1], TG_ALIGN[1]));
     if (s_dump) printf("  TOPGRAPH 1\n");
     check("tg1.top_status", L.top_status, 0, 0, 144, 17);
-    check("tg1.top", L.top, 0, 13, 144, 45);
-    check("tg1.time", L.time, 0, 59, 144, 45);
-    check("tg1.status", L.status, 0, 106, 144, 0);
-    check("tg1.bottom", L.bottom, 0, 106, 144, 62);
-    check("tg1.loading", L.loading, 0, 17, 144, 41);
-    check("tg1.radar", L.radar, 0, 106, 144, 62);
+    check("tg1.top", L.top, 0, 15, 144, 45);
+    check("tg1.time", L.time, 0, 58, 144, 45);
+    check("tg1.status", L.status, 0, 103, 144, 0);
+    check("tg1.bottom", L.bottom, 0, 103, 144, 65);
+    check("tg1.loading", L.loading, 0, 17, 144, 43);
+    check("tg1.radar", L.radar, 0, 103, 144, 65);
     L = compute_ext(TG_WIRES[2], ext_word(0, 0, TG_KIND[2], TG_ALIGN[2]));
     if (s_dump) printf("  TOPGRAPH 2\n");
     check("tg2.top_status", L.top_status, 0, 0, 144, 17);
-    check("tg2.top", L.top, 0, 58, 144, 45);
-    check("tg2.time", L.time, 0, 12, 144, 45);
-    check("tg2.status", L.status, 0, 106, 144, 17);
-    check("tg2.bottom", L.bottom, 0, 126, 144, 42);
-    check("tg2.loading", L.loading, 0, 58, 144, 45);
-    check("tg2.radar", L.radar, 0, 126, 144, 42);
+    check("tg2.top", L.top, 0, 59, 144, 45);
+    check("tg2.time", L.time, 0, 14, 144, 45);
+    check("tg2.status", L.status, 0, 107, 144, 20);
+    check("tg2.bottom", L.bottom, 0, 127, 144, 41);
+    check("tg2.loading", L.loading, 0, 59, 144, 45);
+    check("tg2.radar", L.radar, 0, 127, 144, 41);
     L = compute_ext(TG_WIRES[3], ext_word(0, 0, TG_KIND[3], TG_ALIGN[3]));
     if (s_dump) printf("  TOPGRAPH 3\n");
     check("tg3.top_status", L.top_status, 0, 0, 144, 17);
     check("tg3.top", L.top, 0, 78, 144, 45);
-    check("tg3.time", L.time, 0, 30, 144, 45);
-    check("tg3.status", L.status, 0, 13, 144, 17);
+    check("tg3.time", L.time, 0, 31, 144, 45);
+    check("tg3.status", L.status, 0, 13, 144, 20);
     check("tg3.bottom", L.bottom, 0, 126, 144, 42);
     check("tg3.loading", L.loading, 0, 126, 144, 42);
     check("tg3.radar", L.radar, 0, 126, 144, 42);
     L = compute_ext(TG_WIRES[4], ext_word(0, 0, TG_KIND[4], TG_ALIGN[4]));
     if (s_dump) printf("  TOPGRAPH 4\n");
     check("tg4.top_status", L.top_status, 0, 0, 144, 17);
-    check("tg4.top", L.top, 0, 16, 144, 45);
+    check("tg4.top", L.top, 0, 19, 144, 45);
     check("tg4.time", L.time, 0, 62, 144, 45);
-    check("tg4.status", L.status, 0, 64, 144, 0);
-    check("tg4.bottom", L.bottom, 0, 109, 144, 0);
-    check("tg4.loading", L.loading, 0, 17, 144, 44);
-    check("tg4.radar", L.radar, 0, 109, 144, 0);
+    check("tg4.status", L.status, 0, 62, 144, 0);
+    check("tg4.bottom", L.bottom, 0, 107, 144, 0);
+    check("tg4.loading", L.loading, 0, 19, 144, 45);
+    check("tg4.radar", L.radar, 0, 107, 144, 0);
     L = compute_ext(TG_WIRES[5], ext_word(0, 0, TG_KIND[5], TG_ALIGN[5]));
     if (s_dump) printf("  TOPGRAPH 5\n");
     check("tg5.top_status", L.top_status, 0, 0, 144, 0);
-    check("tg5.top", L.top, 0, 55, 144, 45);
-    check("tg5.time", L.time, 0, 120, 144, 45);
-    check("tg5.status", L.status, 0, 103, 144, 17);
+    check("tg5.top", L.top, 0, 63, 144, 45);
+    check("tg5.time", L.time, 0, 123, 144, 45);
+    check("tg5.status", L.status, 0, 109, 144, 17);
     check("tg5.bottom", L.bottom, 0, 168, 144, 0);
-    check("tg5.loading", L.loading, 0, 55, 144, 45);
+    check("tg5.loading", L.loading, 0, 63, 144, 45);
     check("tg5.radar", L.radar, 0, 168, 144, 0);
 #else
-    // tg0 = example C on emery: graph 22..92 (60 + the 10-row tail), clock 92, row 153..174,
-    // body 175..224 (49). tg4: the bands above push the clock past the midline → off 0.
+    // tg0 = example C on emery: graph 23..83 (3 rows, its hour-label tail inside them),
+    // clock 77, row 132..156, body 156..224 — the fullCal preset's rects (host fc 24).
+    // tg4: Clock off 3 seats the clock on the midline.
     L = compute_ext(TG_WIRES[0], ext_word(0, 0, TG_KIND[0], TG_ALIGN[0]));
     if (s_dump) printf("  TOPGRAPH 0\n");
     check("tg0.top_status", L.top_status, 2, 2, 196, 21);
-    check("tg0.top", L.top, 2, 22, 198, 70);
-    check("tg0.time", L.time, 2, 92, 196, 60);
-    check("tg0.status", L.status, 2, 153, 196, 21);
-    check("tg0.bottom", L.bottom, 2, 175, 198, 49);
-    check("tg0.loading", L.loading, 2, 175, 198, 49);
-    check("tg0.radar", L.radar, 2, 175, 198, 49);
+    check("tg0.top", L.top, 2, 23, 198, 60);
+    check("tg0.time", L.time, 2, 77, 196, 60);
+    check("tg0.status", L.status, 2, 132, 196, 24);
+    check("tg0.bottom", L.bottom, 2, 156, 198, 68);
+    check("tg0.loading", L.loading, 2, 132, 196, 92);
+    check("tg0.radar", L.radar, 2, 156, 198, 68);
     L = compute_ext(TG_WIRES[1], ext_word(0, 0, TG_KIND[1], TG_ALIGN[1]));
     if (s_dump) printf("  TOPGRAPH 1\n");
     check("tg1.top_status", L.top_status, 2, 2, 196, 21);
-    check("tg1.top", L.top, 2, 22, 198, 70);
-    check("tg1.time", L.time, 2, 90, 196, 60);
-    check("tg1.status", L.status, 2, 153, 196, 0);
-    check("tg1.bottom", L.bottom, 2, 153, 198, 71);
-    check("tg1.loading", L.loading, 2, 23, 198, 69);
-    check("tg1.radar", L.radar, 2, 153, 198, 71);
+    check("tg1.top", L.top, 2, 23, 198, 60);
+    check("tg1.time", L.time, 2, 79, 196, 60);
+    check("tg1.status", L.status, 2, 142, 196, 0);
+    check("tg1.bottom", L.bottom, 2, 142, 198, 82);
+    check("tg1.loading", L.loading, 2, 23, 198, 60);
+    check("tg1.radar", L.radar, 2, 142, 198, 82);
     L = compute_ext(TG_WIRES[2], ext_word(0, 0, TG_KIND[2], TG_ALIGN[2]));
     if (s_dump) printf("  TOPGRAPH 2\n");
     check("tg2.top_status", L.top_status, 2, 2, 196, 21);
-    check("tg2.top", L.top, 2, 82, 198, 70);
-    check("tg2.time", L.time, 2, 17, 196, 60);
-    check("tg2.status", L.status, 2, 153, 196, 21);
-    check("tg2.bottom", L.bottom, 2, 175, 198, 49);
-    check("tg2.loading", L.loading, 2, 82, 198, 70);
-    check("tg2.radar", L.radar, 2, 175, 198, 49);
+    check("tg2.top", L.top, 2, 83, 198, 60);
+    check("tg2.time", L.time, 2, 19, 196, 60);
+    check("tg2.status", L.status, 2, 144, 196, 24);
+    check("tg2.bottom", L.bottom, 2, 168, 198, 56);
+    check("tg2.loading", L.loading, 2, 83, 198, 60);
+    check("tg2.radar", L.radar, 2, 168, 198, 56);
     L = compute_ext(TG_WIRES[3], ext_word(0, 0, TG_KIND[3], TG_ALIGN[3]));
     if (s_dump) printf("  TOPGRAPH 3\n");
     check("tg3.top_status", L.top_status, 2, 2, 196, 21);
-    check("tg3.top", L.top, 2, 104, 198, 70);
-    check("tg3.time", L.time, 2, 39, 196, 60);
-    check("tg3.status", L.status, 2, 22, 196, 21);
-    check("tg3.bottom", L.bottom, 2, 175, 198, 49);
-    check("tg3.loading", L.loading, 2, 175, 198, 49);
-    check("tg3.radar", L.radar, 2, 175, 198, 49);
+    check("tg3.top", L.top, 2, 106, 198, 60);
+    check("tg3.time", L.time, 2, 43, 196, 60);
+    check("tg3.status", L.status, 2, 22, 196, 24);
+    check("tg3.bottom", L.bottom, 2, 167, 198, 57);
+    check("tg3.loading", L.loading, 2, 167, 196, 57);
+    check("tg3.radar", L.radar, 2, 167, 198, 57);
     L = compute_ext(TG_WIRES[4], ext_word(0, 0, TG_KIND[4], TG_ALIGN[4]));
     if (s_dump) printf("  TOPGRAPH 4\n");
     check("tg4.top_status", L.top_status, 2, 2, 196, 21);
-    check("tg4.top", L.top, 2, 22, 198, 70);
-    check("tg4.time", L.time, 2, 90, 196, 60);
-    check("tg4.status", L.status, 2, 93, 196, 0);
-    check("tg4.bottom", L.bottom, 2, 153, 198, 0);
-    check("tg4.loading", L.loading, 2, 23, 198, 69);
-    check("tg4.radar", L.radar, 2, 153, 198, 0);
+    check("tg4.top", L.top, 2, 26, 198, 60);
+    check("tg4.time", L.time, 2, 82, 196, 60);
+    check("tg4.status", L.status, 2, 85, 196, 0);
+    check("tg4.bottom", L.bottom, 2, 145, 198, 0);
+    check("tg4.loading", L.loading, 2, 26, 198, 60);
+    check("tg4.radar", L.radar, 2, 145, 198, 0);
     L = compute_ext(TG_WIRES[5], ext_word(0, 0, TG_KIND[5], TG_ALIGN[5]));
     if (s_dump) printf("  TOPGRAPH 5\n");
     check("tg5.top_status", L.top_status, 2, 2, 196, 0);
-    check("tg5.top", L.top, 2, 71, 198, 70);
-    check("tg5.time", L.time, 2, 159, 196, 60);
-    check("tg5.status", L.status, 2, 142, 196, 21);
+    check("tg5.top", L.top, 2, 84, 198, 60);
+    check("tg5.time", L.time, 2, 161, 196, 60);
+    check("tg5.status", L.status, 2, 146, 196, 21);
     check("tg5.bottom", L.bottom, 2, 224, 198, 0);
-    check("tg5.loading", L.loading, 2, 71, 198, 70);
+    check("tg5.loading", L.loading, 2, 84, 198, 60);
     check("tg5.radar", L.radar, 2, 224, 198, 0);
 #endif
 }
@@ -1126,188 +1179,189 @@ static uint16_t sz_ext(int c) {
 static void golden_rects_sized(void) {
     MainLayout L;
 #ifndef PBL_PLATFORM_EMERY
-    // sz5 = example D: forecast top 13..73 (4 rows), clock band 76..121 (solved 74), health
-    // body 121..168 (47). sz6: its graphless variant clamps Clock to 0 (top-anchored).
-    // sz10 = the overflow clamp: 13+60+3+45+17+3+17+3 = 161 → the 4-row body gets 7 px.
+    // sz5 = example D: forecast top 15..75 (4 rows), clock solved at 73, health body
+    // 118..168 (50). sz6: its graphless variant clamps Clock to 0 (top-anchored).
+    // sz10 = the overflow clamp: 13+60+45+14+20 = 152 (the two squeezed rows under the
+    // clock take fullCal's reserve and stack flush) → the 4-row body gets 16 px.
     L = compute_ext(SZ[0].wire, sz_ext(0));
     if (s_dump) printf("  SIZED 0\n");
-    check("sz0.top", L.top, 0, 13, 144, 45);
-    check("sz0.time", L.time, 0, 59, 144, 45);
-    check("sz0.status", L.status, 0, 106, 144, 0);
-    check("sz0.status_lower", L.status_lower, 0, 106, 144, 0);
-    check("sz0.bottom", L.bottom, 0, 106, 144, 62);
-    check("sz0.loading", L.loading, 0, 17, 144, 41);
+    check("sz0.top", L.top, 0, 15, 144, 45);
+    check("sz0.time", L.time, 0, 58, 144, 45);
+    check("sz0.status", L.status, 0, 103, 144, 0);
+    check("sz0.status_lower", L.status_lower, 0, 103, 144, 0);
+    check("sz0.bottom", L.bottom, 0, 103, 144, 65);
+    check("sz0.loading", L.loading, 0, 17, 144, 43);
     L = compute_ext(SZ[1].wire, sz_ext(1));
     if (s_dump) printf("  SIZED 1\n");
-    check("sz1.top", L.top, 0, 13, 144, 30);
-    check("sz1.time", L.time, 0, 44, 144, 45);
-    check("sz1.status", L.status, 0, 91, 144, 0);
-    check("sz1.status_lower", L.status_lower, 0, 91, 144, 0);
-    check("sz1.bottom", L.bottom, 0, 91, 144, 77);
-    check("sz1.loading", L.loading, 0, 91, 144, 77);
+    check("sz1.top", L.top, 0, 15, 144, 30);
+    check("sz1.time", L.time, 0, 43, 144, 45);
+    check("sz1.status", L.status, 0, 88, 144, 0);
+    check("sz1.status_lower", L.status_lower, 0, 88, 144, 0);
+    check("sz1.bottom", L.bottom, 0, 88, 144, 80);
+    check("sz1.loading", L.loading, 0, 88, 144, 80);
     L = compute_ext(SZ[2].wire, sz_ext(2));
     if (s_dump) printf("  SIZED 2\n");
-    check("sz2.top", L.top, 0, 13, 144, 60);
-    check("sz2.time", L.time, 0, 76, 144, 45);
-    check("sz2.status", L.status, 0, 121, 144, 17);
-    check("sz2.status_lower", L.status_lower, 0, 121, 144, 17);
-    check("sz2.bottom", L.bottom, 0, 141, 144, 27);
-    check("sz2.loading", L.loading, 0, 141, 144, 27);
+    check("sz2.top", L.top, 0, 15, 144, 60);
+    check("sz2.time", L.time, 0, 73, 144, 45);
+    check("sz2.status", L.status, 0, 112, 144, 20);
+    check("sz2.status_lower", L.status_lower, 0, 112, 144, 20);
+    check("sz2.bottom", L.bottom, 0, 132, 144, 36);
+    check("sz2.loading", L.loading, 0, 112, 144, 56);
     L = compute_ext(SZ[3].wire, sz_ext(3));
     if (s_dump) printf("  SIZED 3\n");
-    check("sz3.top", L.top, 0, 13, 144, 62);
-    check("sz3.time", L.time, 0, 76, 144, 45);
+    check("sz3.top", L.top, 0, 15, 144, 63);
+    check("sz3.time", L.time, 0, 77, 144, 45);
     check("sz3.status", L.status, 0, 123, 144, 0);
     check("sz3.status_lower", L.status_lower, 0, 123, 144, 0);
     check("sz3.bottom", L.bottom, 0, 123, 144, 45);
-    check("sz3.loading", L.loading, 0, 17, 144, 58);
+    check("sz3.loading", L.loading, 0, 17, 144, 61);
     L = compute_ext(SZ[4].wire, sz_ext(4));
     if (s_dump) printf("  SIZED 4\n");
-    check("sz4.top", L.top, 0, 13, 144, 60);
-    check("sz4.time", L.time, 0, 74, 144, 45);
-    check("sz4.status", L.status, 0, 121, 144, 0);
-    check("sz4.status_lower", L.status_lower, 0, 121, 144, 0);
-    check("sz4.bottom", L.bottom, 0, 121, 144, 47);
-    check("sz4.loading", L.loading, 0, 121, 144, 47);
+    check("sz4.top", L.top, 0, 15, 144, 60);
+    check("sz4.time", L.time, 0, 73, 144, 45);
+    check("sz4.status", L.status, 0, 118, 144, 0);
+    check("sz4.status_lower", L.status_lower, 0, 118, 144, 0);
+    check("sz4.bottom", L.bottom, 0, 118, 144, 50);
+    check("sz4.loading", L.loading, 0, 118, 144, 50);
     L = compute_ext(SZ[5].wire, sz_ext(5));
     if (s_dump) printf("  SIZED 5\n");
-    check("sz5.top", L.top, 0, 13, 144, 60);
-    check("sz5.time", L.time, 0, 74, 144, 45);
-    check("sz5.status", L.status, 0, 121, 144, 0);
-    check("sz5.status_lower", L.status_lower, 0, 121, 144, 0);
-    check("sz5.bottom", L.bottom, 0, 121, 144, 47);
-    check("sz5.loading", L.loading, 0, 17, 144, 56);
+    check("sz5.top", L.top, 0, 15, 144, 60);
+    check("sz5.time", L.time, 0, 73, 144, 45);
+    check("sz5.status", L.status, 0, 118, 144, 0);
+    check("sz5.status_lower", L.status_lower, 0, 118, 144, 0);
+    check("sz5.bottom", L.bottom, 0, 118, 144, 50);
+    check("sz5.loading", L.loading, 0, 17, 144, 58);
     L = compute_ext(SZ[6].wire, sz_ext(6));
     if (s_dump) printf("  SIZED 6\n");
-    check("sz6.top", L.top, 0, 13, 144, 60);
-    check("sz6.time", L.time, 0, 74, 144, 45);
-    check("sz6.status", L.status, 0, 121, 144, 0);
-    check("sz6.status_lower", L.status_lower, 0, 121, 144, 0);
-    check("sz6.bottom", L.bottom, 0, 121, 144, 0);
-    check("sz6.loading", L.loading, 0, 17, 144, 56);
+    check("sz6.top", L.top, 0, 15, 144, 60);
+    check("sz6.time", L.time, 0, 73, 144, 45);
+    check("sz6.status", L.status, 0, 118, 144, 0);
+    check("sz6.status_lower", L.status_lower, 0, 118, 144, 0);
+    check("sz6.bottom", L.bottom, 0, 118, 144, 0);
+    check("sz6.loading", L.loading, 0, 17, 144, 58);
     L = compute_ext(SZ[7].wire, sz_ext(7));
     if (s_dump) printf("  SIZED 7\n");
-    check("sz7.top", L.top, 0, 15, 144, 30);
-    check("sz7.time", L.time, 0, 63, 144, 45);
-    check("sz7.status", L.status, 0, 46, 144, 17);
-    check("sz7.status_lower", L.status_lower, 0, 46, 144, 17);
-    check("sz7.bottom", L.bottom, 0, 111, 144, 45);
-    check("sz7.loading", L.loading, 0, 111, 144, 45);
+    check("sz7.top", L.top, 0, 19, 144, 30);
+    check("sz7.time", L.time, 0, 62, 144, 45);
+    check("sz7.status", L.status, 0, 48, 144, 17);
+    check("sz7.status_lower", L.status_lower, 0, 48, 144, 17);
+    check("sz7.bottom", L.bottom, 0, 107, 144, 45);
+    check("sz7.loading", L.loading, 0, 107, 144, 45);
     L = compute_ext(SZ[8].wire, sz_ext(8));
     if (s_dump) printf("  SIZED 8\n");
-    check("sz8.top", L.top, 0, 27, 144, 30);
-    check("sz8.time", L.time, 0, 75, 144, 45);
-    check("sz8.status", L.status, 0, 58, 144, 17);
-    check("sz8.status_lower", L.status_lower, 0, 58, 144, 17);
+    check("sz8.top", L.top, 0, 35, 144, 30);
+    check("sz8.time", L.time, 0, 78, 144, 45);
+    check("sz8.status", L.status, 0, 64, 144, 17);
+    check("sz8.status_lower", L.status_lower, 0, 64, 144, 17);
     check("sz8.bottom", L.bottom, 0, 123, 144, 45);
     check("sz8.loading", L.loading, 0, 123, 144, 45);
     L = compute_ext(SZ[9].wire, sz_ext(9));
     if (s_dump) printf("  SIZED 9\n");
-    check("sz9.top", L.top, 0, 13, 144, 45);
-    check("sz9.time", L.time, 0, 59, 144, 45);
-    check("sz9.status", L.status, 0, 106, 144, 0);
-    check("sz9.status_lower", L.status_lower, 0, 106, 144, 0);
-    check("sz9.bottom", L.bottom, 0, 106, 144, 62);
-    check("sz9.loading", L.loading, 0, 106, 144, 62);
+    check("sz9.top", L.top, 0, 15, 144, 45);
+    check("sz9.time", L.time, 0, 58, 144, 45);
+    check("sz9.status", L.status, 0, 103, 144, 0);
+    check("sz9.status_lower", L.status_lower, 0, 103, 144, 0);
+    check("sz9.bottom", L.bottom, 0, 103, 144, 65);
+    check("sz9.loading", L.loading, 0, 103, 144, 65);
     L = compute_ext(SZ[10].wire, sz_ext(10));
     if (s_dump) printf("  SIZED 10\n");
-    check("sz10.top", L.top, 0, 13, 144, 60);
-    check("sz10.time", L.time, 0, 76, 144, 45);
-    check("sz10.status", L.status, 0, 121, 144, 17);
-    check("sz10.status_lower", L.status_lower, 0, 141, 144, 17);
-    check("sz10.bottom", L.bottom, 0, 161, 144, 7);
-    check("sz10.loading", L.loading, 0, 17, 144, 56);
+    check("sz10.top", L.top, 0, 15, 144, 60);
+    check("sz10.time", L.time, 0, 73, 144, 45);
+    check("sz10.status", L.status, 0, 112, 144, 20);
+    check("sz10.status_lower", L.status_lower, 0, 132, 144, 20);
+    check("sz10.bottom", L.bottom, 0, 152, 144, 16);
+    check("sz10.loading", L.loading, 0, 17, 144, 58);
 #else
-    // sz5 = example D on emery: forecast top 22..112 (80 + the 10-row tail), clock 110,
-    // health body 173..224 (51).
+    // sz5 = example D on emery: forecast top 23..103 (4 rows, the tail inside them),
+    // clock 99, health body 162..224 (62).
     L = compute_ext(SZ[0].wire, sz_ext(0));
     if (s_dump) printf("  SIZED 0\n");
-    check("sz0.top", L.top, 2, 22, 198, 70);
-    check("sz0.time", L.time, 2, 90, 196, 60);
-    check("sz0.status", L.status, 2, 153, 196, 0);
-    check("sz0.status_lower", L.status_lower, 2, 153, 196, 0);
-    check("sz0.bottom", L.bottom, 2, 153, 198, 71);
-    check("sz0.loading", L.loading, 2, 23, 198, 69);
+    check("sz0.top", L.top, 2, 23, 198, 60);
+    check("sz0.time", L.time, 2, 79, 196, 60);
+    check("sz0.status", L.status, 2, 142, 196, 0);
+    check("sz0.status_lower", L.status_lower, 2, 142, 196, 0);
+    check("sz0.bottom", L.bottom, 2, 142, 198, 82);
+    check("sz0.loading", L.loading, 2, 23, 198, 60);
     L = compute_ext(SZ[1].wire, sz_ext(1));
     if (s_dump) printf("  SIZED 1\n");
-    check("sz1.top", L.top, 2, 22, 198, 50);
-    check("sz1.time", L.time, 2, 70, 196, 60);
-    check("sz1.status", L.status, 2, 133, 196, 0);
-    check("sz1.status_lower", L.status_lower, 2, 133, 196, 0);
-    check("sz1.bottom", L.bottom, 2, 133, 198, 91);
-    check("sz1.loading", L.loading, 2, 133, 198, 91);
+    check("sz1.top", L.top, 2, 23, 198, 40);
+    check("sz1.time", L.time, 2, 59, 196, 60);
+    check("sz1.status", L.status, 2, 122, 196, 0);
+    check("sz1.status_lower", L.status_lower, 2, 122, 196, 0);
+    check("sz1.bottom", L.bottom, 2, 122, 198, 102);
+    check("sz1.loading", L.loading, 2, 122, 196, 102);
     L = compute_ext(SZ[2].wire, sz_ext(2));
     if (s_dump) printf("  SIZED 2\n");
-    check("sz2.top", L.top, 2, 22, 198, 90);
-    check("sz2.time", L.time, 2, 112, 196, 60);
-    check("sz2.status", L.status, 2, 173, 196, 21);
-    check("sz2.status_lower", L.status_lower, 2, 173, 196, 21);
-    check("sz2.bottom", L.bottom, 2, 195, 198, 29);
-    check("sz2.loading", L.loading, 2, 195, 198, 29);
+    check("sz2.top", L.top, 2, 23, 198, 80);
+    check("sz2.time", L.time, 2, 97, 196, 60);
+    check("sz2.status", L.status, 2, 152, 196, 24);
+    check("sz2.status_lower", L.status_lower, 2, 152, 196, 24);
+    check("sz2.bottom", L.bottom, 2, 176, 198, 48);
+    check("sz2.loading", L.loading, 2, 152, 196, 72);
     L = compute_ext(SZ[3].wire, sz_ext(3));
     if (s_dump) printf("  SIZED 3\n");
-    check("sz3.top", L.top, 2, 22, 198, 71);
-    check("sz3.time", L.time, 2, 91, 196, 60);
-    check("sz3.status", L.status, 2, 154, 196, 0);
-    check("sz3.status_lower", L.status_lower, 2, 154, 196, 0);
-    check("sz3.bottom", L.bottom, 2, 154, 198, 70);
-    check("sz3.loading", L.loading, 2, 23, 198, 70);
+    check("sz3.top", L.top, 2, 23, 198, 81);
+    check("sz3.time", L.time, 2, 100, 196, 60);
+    check("sz3.status", L.status, 2, 164, 196, 0);
+    check("sz3.status_lower", L.status_lower, 2, 164, 196, 0);
+    check("sz3.bottom", L.bottom, 2, 164, 198, 60);
+    check("sz3.loading", L.loading, 2, 23, 198, 81);
     L = compute_ext(SZ[4].wire, sz_ext(4));
     if (s_dump) printf("  SIZED 4\n");
-    check("sz4.top", L.top, 2, 22, 196, 80);
-    check("sz4.time", L.time, 2, 100, 196, 60);
-    check("sz4.status", L.status, 2, 163, 196, 0);
-    check("sz4.status_lower", L.status_lower, 2, 163, 196, 0);
-    check("sz4.bottom", L.bottom, 2, 163, 198, 61);
-    check("sz4.loading", L.loading, 2, 163, 198, 61);
+    check("sz4.top", L.top, 2, 23, 196, 80);
+    check("sz4.time", L.time, 2, 99, 196, 60);
+    check("sz4.status", L.status, 2, 162, 196, 0);
+    check("sz4.status_lower", L.status_lower, 2, 162, 196, 0);
+    check("sz4.bottom", L.bottom, 2, 162, 198, 62);
+    check("sz4.loading", L.loading, 2, 162, 196, 62);
     L = compute_ext(SZ[5].wire, sz_ext(5));
     if (s_dump) printf("  SIZED 5\n");
-    check("sz5.top", L.top, 2, 22, 198, 90);
-    check("sz5.time", L.time, 2, 110, 196, 60);
-    check("sz5.status", L.status, 2, 173, 196, 0);
-    check("sz5.status_lower", L.status_lower, 2, 173, 196, 0);
-    check("sz5.bottom", L.bottom, 2, 173, 198, 51);
-    check("sz5.loading", L.loading, 2, 23, 198, 89);
+    check("sz5.top", L.top, 2, 23, 198, 80);
+    check("sz5.time", L.time, 2, 99, 196, 60);
+    check("sz5.status", L.status, 2, 162, 196, 0);
+    check("sz5.status_lower", L.status_lower, 2, 162, 196, 0);
+    check("sz5.bottom", L.bottom, 2, 162, 198, 62);
+    check("sz5.loading", L.loading, 2, 23, 198, 80);
     L = compute_ext(SZ[6].wire, sz_ext(6));
     if (s_dump) printf("  SIZED 6\n");
-    check("sz6.top", L.top, 2, 22, 198, 90);
-    check("sz6.time", L.time, 2, 110, 196, 60);
-    check("sz6.status", L.status, 2, 173, 196, 0);
-    check("sz6.status_lower", L.status_lower, 2, 173, 196, 0);
-    check("sz6.bottom", L.bottom, 2, 173, 198, 0);
-    check("sz6.loading", L.loading, 2, 23, 198, 89);
+    check("sz6.top", L.top, 2, 23, 198, 80);
+    check("sz6.time", L.time, 2, 99, 196, 60);
+    check("sz6.status", L.status, 2, 162, 196, 0);
+    check("sz6.status_lower", L.status_lower, 2, 162, 196, 0);
+    check("sz6.bottom", L.bottom, 2, 162, 198, 0);
+    check("sz6.loading", L.loading, 2, 23, 198, 80);
     L = compute_ext(SZ[7].wire, sz_ext(7));
     if (s_dump) printf("  SIZED 7\n");
-    check("sz7.top", L.top, 2, 25, 196, 40);
+    check("sz7.top", L.top, 2, 26, 196, 40);
     check("sz7.time", L.time, 2, 82, 196, 60);
-    check("sz7.status", L.status, 2, 65, 196, 21);
-    check("sz7.status_lower", L.status_lower, 2, 65, 196, 21);
-    check("sz7.bottom", L.bottom, 2, 147, 198, 70);
-    check("sz7.loading", L.loading, 2, 147, 198, 70);
+    check("sz7.status", L.status, 2, 67, 196, 21);
+    check("sz7.status_lower", L.status_lower, 2, 67, 196, 21);
+    check("sz7.bottom", L.bottom, 2, 145, 198, 60);
+    check("sz7.loading", L.loading, 2, 145, 198, 60);
     L = compute_ext(SZ[8].wire, sz_ext(8));
     if (s_dump) printf("  SIZED 8\n");
-    check("sz8.top", L.top, 2, 32, 196, 40);
-    check("sz8.time", L.time, 2, 89, 196, 60);
-    check("sz8.status", L.status, 2, 72, 196, 21);
-    check("sz8.status_lower", L.status_lower, 2, 72, 196, 21);
-    check("sz8.bottom", L.bottom, 2, 154, 198, 70);
-    check("sz8.loading", L.loading, 2, 154, 198, 70);
+    check("sz8.top", L.top, 2, 45, 196, 40);
+    check("sz8.time", L.time, 2, 101, 196, 60);
+    check("sz8.status", L.status, 2, 86, 196, 21);
+    check("sz8.status_lower", L.status_lower, 2, 86, 196, 21);
+    check("sz8.bottom", L.bottom, 2, 164, 198, 60);
+    check("sz8.loading", L.loading, 2, 164, 198, 60);
     L = compute_ext(SZ[9].wire, sz_ext(9));
     if (s_dump) printf("  SIZED 9\n");
-    check("sz9.top", L.top, 2, 22, 196, 60);
-    check("sz9.time", L.time, 2, 80, 196, 60);
-    check("sz9.status", L.status, 2, 143, 196, 0);
-    check("sz9.status_lower", L.status_lower, 2, 143, 196, 0);
-    check("sz9.bottom", L.bottom, 2, 143, 198, 81);
-    check("sz9.loading", L.loading, 2, 143, 198, 81);
+    check("sz9.top", L.top, 2, 23, 196, 60);
+    check("sz9.time", L.time, 2, 79, 196, 60);
+    check("sz9.status", L.status, 2, 142, 196, 0);
+    check("sz9.status_lower", L.status_lower, 2, 142, 196, 0);
+    check("sz9.bottom", L.bottom, 2, 142, 198, 82);
+    check("sz9.loading", L.loading, 2, 142, 196, 82);
     L = compute_ext(SZ[10].wire, sz_ext(10));
     if (s_dump) printf("  SIZED 10\n");
-    check("sz10.top", L.top, 2, 22, 198, 90);
-    check("sz10.time", L.time, 2, 112, 196, 60);
-    check("sz10.status", L.status, 2, 173, 196, 21);
-    check("sz10.status_lower", L.status_lower, 2, 195, 196, 21);
-    check("sz10.bottom", L.bottom, 2, 217, 198, 7);
-    check("sz10.loading", L.loading, 2, 23, 198, 89);
+    check("sz10.top", L.top, 2, 23, 198, 80);
+    check("sz10.time", L.time, 2, 97, 196, 60);
+    check("sz10.status", L.status, 2, 152, 196, 24);
+    check("sz10.status_lower", L.status_lower, 2, 176, 198, 24);
+    check("sz10.bottom", L.bottom, 2, 200, 198, 24);
+    check("sz10.loading", L.loading, 2, 23, 198, 80);
 #endif
 }
 
@@ -1402,7 +1456,7 @@ static void graphless_property_tests(void) {
 // Top-graph invariants over every order × occupancy × body × Position:
 //   - graph bands (the top graph and the body) are disjoint from the A/B status bands
 //     and from each other — the unchanged z-order (graphs created first, bars over them)
-//     is safe only because the stacker never overlaps a graph with a bar;
+//     is safe only because the engine never overlaps a graph with a bar;
 //   - both graph rects run the full graph width and stay within [strip reserve, floor];
 //   - visibility shows exactly the graphs placed, never the same kind twice.
 static bool rects_disjoint(GRect a, GRect b) {
@@ -1498,15 +1552,14 @@ static void top_graph_resolve_tests(void) {
 // Sizing invariants over every order × occupancy × top size × body size × Position:
 //   - no rect is negative or passes the floor; graph bands stay clear of the status bars;
 //   - a FILL band takes exactly the remainder (the block ends on the floor);
-//   - a sized radar/health band is exactly rows × row_h (+ the tail for a graph), a sized
-//     forecast is never under 3 rows, and 2 / 3 rows equal cal2 / cal3 (30|40, 45|60);
+//   - a sized radar/health band is exactly rows × row_h whatever it shows (decision 3:
+//     a graph's hour-label tail lies INSIDE its rows — the layer pads its own plot), a
+//     sized forecast is never under 3 rows, and 2 / 3 rows equal cal2 / cal3 (30|40, 45|60);
 //   - without a fill band the block moves rigidly within [0, slack].
 #ifdef PBL_PLATFORM_EMERY
 #define SZ_ROW 20
-#define SZ_TAIL 10
 #else
 #define SZ_ROW 15
-#define SZ_TAIL 0
 #endif
 static void sized_property_tests(void) {
     const struct { int top, kind, body, su, sl, clock_off, strip_off; } occ[] = {
@@ -1586,17 +1639,17 @@ static void sized_property_tests(void) {
                             expect("sz.body_fill_to_floor", L.bottom.origin.y + L.bottom.size.h == GL_FLOOR, true);
                         } else if (sp.body != BODY_NONE && L.bottom.size.h > 0
                                    && L.bottom.origin.y + L.bottom.size.h < GL_FLOOR) {
-                            // an unclamped sized body: exact rows (+ tail), forecast >= 3 rows
+                            // an unclamped sized body: exact rows, forecast >= 3 rows
                             int r = rows_of[sp.body_size];
                             if (sp.body == BODY_FORECAST && r == 2) { r = 3; }
-                            int want = r * SZ_ROW + (sp.body == BODY_RADAR ? 0 : SZ_TAIL);
+                            int want = r * SZ_ROW;
                             expect("sz.body_rows", L.bottom.size.h == want, true);
                         }
                         if ((sp.top == TOP_BAND_RADAR || sp.top == TOP_BAND_GRAPH) && !top_fills
                                 && L.top.origin.y + L.top.size.h < GL_FLOOR) {
                             int r = sp.top_size ? rows_of[sp.top_size] : 3;
                             if (sp.top == TOP_BAND_GRAPH && sp.top_kind == 0 && r == 2) { r = 3; }
-                            int want = r * SZ_ROW + (sp.top == TOP_BAND_GRAPH ? SZ_TAIL : 0);
+                            int want = r * SZ_ROW;
                             expect("sz.top_rows", L.top.size.h == want, true);
                         }
                     }
@@ -1643,11 +1696,11 @@ static void sized_property_tests(void) {
     printf("sized_properties OK\n");
 }
 
-// Dispatch: an order-0 spec with an omission bit rides compute_stacked, not the legacy
-// engine. Observable without reaching into the dispatcher: the rendered band order is
-// exactly TACB minus the absent band — which the goldens above pin pixel-exactly, and
-// which the legacy engine contradicts in band ORDER for the NONE tier (it seated the
-// clock under the strip with the status row below it; TACB puts A first).
+// Order: an order-0 spec with an omission bit renders its stored order, not its tier's
+// legacy order. Observable from the rects: the rendered band order is exactly TACB
+// minus the absent band — which the goldens above pin pixel-exactly, and which the
+// NONE tier's legacy order contradicts (it seats the clock under the strip with the
+// status row below it; TACB puts A first).
 static void dispatch_order0_omission_stacked(void) {
 #ifdef PBL_PLATFORM_EMERY
     const int body_floor = 224;
@@ -1670,8 +1723,8 @@ static void dispatch_order0_omission_stacked(void) {
     expect("dispatch0.body_fills",
            L.bottom.origin.y + L.bottom.size.h == body_floor, true);
 
-    // NONE-tier stripless CLOCKED view: TACB puts A above C. The legacy engine put
-    // the clock first — the sharpest observable that the omission switched engines.
+    // NONE-tier stripless CLOCKED view: TACB puts A above C. The legacy order puts
+    // the clock first — the sharpest observable that the omission switched orders.
     ViewSpec n = view_spec_unpack(pack_custom(
         pack(1, 0, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE), 0, 1, 0));
     MainLayout Ln = layout_compute_spec(BOUNDS, &n, MET(FC_BAND_H, INK));
@@ -1765,10 +1818,10 @@ static void clockless_property_tests(void) {
 
         // Stripless variants of the same shape: the strip band collapses and its
         // reserve leaves the stack. NOT asserted any more: "the stripless body grows
-        // vs the clocked LEGACY view" — omission views reflow through the stacker,
+        // vs the clocked LEGACY view" — omission views reflow in their stored order,
         // whose un-squeezed large-font rows (band + clearance in flow) can cost more
         // than the strip frees (the cal2 dual on the 144px watches lands 1px short of
-        // the clocked preset's body). What IS exact inside the stacker: removing the
+        // the clocked preset's body). What IS exact among omission views: removing the
         // strip frees its reserve row for row — the both-omissions body is the
         // clockless body plus exactly STRIP_RESERVE — and removing the clock from a
         // stripless view still converts its band into body pixels.
@@ -1821,7 +1874,7 @@ static void test_unpack_custom_bits(void) {
     expect("custom_bits.full_width", s.clock_off == 1 && s.strip_off == 1 && s.order == 11, true);
     // Garbage order codes (12-15 — no compiler emits them) clamp to 0 at the decode
     // boundary, so spec.order is a trustworthy STACK_ORDER index everywhere downstream
-    // (the dispatcher and the stacker read it unchecked). The flag and content bits
+    // (the engine's order lookup reads it unchecked). The flag and content bits
     // decode unharmed.
     s = view_spec_unpack(pack_custom(base, 0, 0, 12));
     expect("custom_bits.order_garbage_low_clamped", s.order == 0, true);
@@ -1972,10 +2025,10 @@ static void ext_decode_tests(void) {
     LayerVisibility v = layout_visibility(&gd);
     expect("ext.graphless_no_graph", v.forecast || v.health_graph || v.radar, false);
 
-    // The ENGINE is decided on the configured spec and survives resolve's folds: a
-    // legacy-order view stacked only by a sized radar top keeps the stacker's T A C when
-    // radar data is missing (the top folds to a calendar and loses its size), instead of
-    // falling back to the legacy engine's T C A — the status row must not cross the
+    // The ORDER is decided on the configured spec and survives resolve's folds: an
+    // order-0 view stacked only by a sized radar top keeps its stored T A C when radar
+    // data is missing (the top folds to a calendar and loses its size), instead of
+    // falling back to the FULL tier's legacy T C A — the status row must not cross the
     // clock with the data.
     const uint16_t sized_radar = pack(3, 2, 0, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
     for (int has_radar = 0; has_radar <= 1; has_radar++) {
@@ -1985,7 +2038,7 @@ static void ext_decode_tests(void) {
         MainLayout L = layout_compute_spec(BOUNDS, &sr, MET(FC_BAND_H, INK));
         expect("ext.sticky_engine_order", L.status.origin.y < L.time.origin.y, true);
     }
-    // ...while a preset (nothing stacked configured) stays on the legacy engine.
+    // ...while a preset (nothing stacked configured) keeps its legacy order.
     expect("ext.preset_not_stacked",
            view_spec_resolve(view_spec_unpack(sized_radar), false, true).stacked, false);
 
@@ -3068,7 +3121,7 @@ static int cal_ink_bottom_of(GRect top, int rows, int content_h) {
 }
 
 // The clock's two ink neighbours for a laid-out view. Mirrors — deliberately, see above — the
-// selection at the end of compute_with_weights.
+// neighbour selection in layout.c's compute_layout (for the preset orders).
 static void clock_neighbours(const MainLayout *L, uint8_t tier, bool upper, bool lower,
                              int *above, int *below) {
     bool compact = (tier == LAYOUT_TIER_COMPACT);
@@ -3428,6 +3481,94 @@ static void clock_label_gap_yields(void) {
     printf("clock_label_gap_yields OK\n");
 }
 
+// ── Decision 4: same-shape views keep the clock still ────────────────────────────────────
+// [strip, T, clock, weather row, fill graph] for a top T of N rows — whatever T shows: the
+// N-row calendar, the radar, a health or a forecast graph — inks the clock on the rows of the
+// preset of that shape (N = 3 → fullCal, N = 2 → compactSwap), and [strip, T, weather row,
+// clock, fill] for N = 2 on compactCal's. Swept over every CLOCK_INKS face at the shipping fc
+// band, both platforms. The top band keeps the preset's frame, and the row's cap edge facing
+// the clock sits on the preset's row too (the engine seats every row next to the clock on its
+// shape's cap line, in whatever font the view renders its rows). The graph body keeps the
+// preset's rect exactly, on both platforms: a view's rows take their tier from the top area's
+// ROW count (3+ rows → the full tier, like fullCal), so the row renders in the preset's font.
+static void decision4_same_shape_tests(void) {
+    const uint16_t full_cal = pack(3, 1, BODY_FORECAST, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
+    const uint16_t swap = pack(2, 1, BODY_FORECAST, STATUS_SRC_NONE, STATUS_SRC_FORECAST);
+    const uint16_t compact_cal = pack(2, 1, BODY_FORECAST, STATUS_SRC_FORECAST, STATUS_SRC_NONE);
+    const struct { const char *name; uint16_t wire; uint16_t ext; uint16_t preset; bool row_below; } cases[] = {
+        { "cal3",         pack_custom(pack(3, 1, BODY_FORECAST, STATUS_SRC_FORECAST, 0), 0, 0, 1),
+          0, full_cal, true },
+        { "radar3",       pack_custom(pack(3, 2, BODY_FORECAST, STATUS_SRC_FORECAST, 0), 0, 0, 1),
+          0, full_cal, true },
+        { "health3",      pack_custom(pack(1, 3, BODY_FORECAST, STATUS_SRC_FORECAST, 0), 0, 0, 1),
+          ext_word(0, 0, TOP_GRAPH_HEALTH, 0), full_cal, true },
+        { "forecast3",    pack_custom(pack(1, 3, BODY_HEALTH_GRAPH, STATUS_SRC_FORECAST, 0), 0, 0, 1),
+          ext_word(0, 0, TOP_GRAPH_FORECAST, 0), full_cal, true },
+        { "cal2",         pack_custom(pack(2, 1, BODY_FORECAST, STATUS_SRC_FORECAST, 0), 0, 0, 1),
+          0, swap, true },
+        { "radar2",       pack_custom(pack(3, 2, BODY_FORECAST, STATUS_SRC_FORECAST, 0), 0, 0, 1),
+          ext_word(0, BAND_SIZE_2, 0, 0), swap, true },
+        { "health2",      pack_custom(pack(1, 3, BODY_FORECAST, STATUS_SRC_FORECAST, 0), 0, 0, 1),
+          ext_word(0, BAND_SIZE_2, TOP_GRAPH_HEALTH, 0), swap, true },
+        { "radar2.TACB",  pack(3, 2, BODY_FORECAST, STATUS_SRC_FORECAST, 0),
+          ext_word(0, BAND_SIZE_2, 0, 0), compact_cal, false },
+        { "health2.TACB", pack(1, 3, BODY_FORECAST, STATUS_SRC_FORECAST, 0),
+          ext_word(0, BAND_SIZE_2, TOP_GRAPH_HEALTH, 0), compact_cal, false },
+    };
+    for (unsigned c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+        ViewSpec s = view_spec_resolve(unpack_ext(cases[c].wire, cases[c].ext), true, true);
+        ViewSpec p = view_spec_unpack(cases[c].preset);
+        expect("d4.custom_order", s.stacked, true);
+        expect("d4.preset_order", p.stacked, false);
+        for (unsigned k = 0; k < sizeof(CLOCK_INKS) / sizeof(CLOCK_INKS[0]); k++) {
+            ClockInk ink = CLOCK_INKS[k];
+            MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H_SHIPPING, ink));
+            MainLayout P = layout_compute_spec(BOUNDS, &p, MET(FC_BAND_H_SHIPPING, ink));
+            if (clock_ink_top_of(L.time, ink) != clock_ink_top_of(P.time, ink)) {
+                printf("FAIL d4.clock_still %s ink{%d,%d}: ink top %d, preset %d\n",
+                       cases[c].name, ink.centre_off, ink.ink_h,
+                       clock_ink_top_of(L.time, ink), clock_ink_top_of(P.time, ink));
+                s_failures++;
+            }
+            expect("d4.top_frame", L.top.origin.y == P.top.origin.y
+                   && L.top.size.h == P.top.size.h, true);
+            // The row's cap edge facing the clock: its first cap row below the clock, its last
+            // one above it, in the font each view renders its row at.
+            GRect lr = L.status, pr = cases[c].preset == swap ? P.status_lower : P.status;
+            int lch = status_row_content_h(s.status_tier), pch = status_row_content_h(p.status_tier);
+            int l_edge = status_band_ink_top(lr.origin.y, lr.size.h, lch)
+                         + (cases[c].row_below ? 0 : STATUS_CAP_H(lch) - 1);
+            int p_edge = status_band_ink_top(pr.origin.y, pr.size.h, pch)
+                         + (cases[c].row_below ? 0 : STATUS_CAP_H(pch) - 1);
+            expect("d4.row_cap_line", l_edge == p_edge, true);
+            expect("d4.body_floor", L.bottom.origin.y + L.bottom.size.h
+                   == P.bottom.origin.y + P.bottom.size.h, true);
+            expect("d4.body_top", L.bottom.origin.y == P.bottom.origin.y, true);
+        }
+    }
+    // The health row's dense drop keys on the view's shape too: a health row under a 3-row
+    // graph or radar top sits exactly where fullCal's does (no 2 px drop), and one under a
+    // 2-row radar top in a dual drops like compactDense's.
+    const struct { uint16_t wire; uint16_t ext; uint16_t preset; } hc[] = {
+        { pack_custom(pack(1, 3, BODY_FORECAST, STATUS_SRC_HEALTH, 0), 0, 0, 1),
+          ext_word(0, 0, TOP_GRAPH_HEALTH, 0), pack(3, 1, BODY_FORECAST, STATUS_SRC_HEALTH, 0) },
+        { pack_custom(pack(3, 2, BODY_FORECAST, STATUS_SRC_HEALTH, 0), 0, 0, 1),
+          0, pack(3, 1, BODY_FORECAST, STATUS_SRC_HEALTH, 0) },
+        { pack(3, 2, BODY_FORECAST, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST),
+          ext_word(0, BAND_SIZE_2, 0, 0), pack(2, 1, BODY_FORECAST, STATUS_SRC_HEALTH, STATUS_SRC_FORECAST) },
+    };
+    for (unsigned c = 0; c < sizeof(hc) / sizeof(hc[0]); c++) {
+        ViewSpec s = view_spec_resolve(unpack_ext(hc[c].wire, hc[c].ext), true, true);
+        ViewSpec p = view_spec_unpack(hc[c].preset);
+        MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H_SHIPPING, INK));
+        MainLayout P = layout_compute_spec(BOUNDS, &p, MET(FC_BAND_H_SHIPPING, INK));
+        GRect bs = layout_status_band(&s, &L, STATUS_SRC_HEALTH);
+        GRect bp = layout_status_band(&p, &P, STATUS_SRC_HEALTH);
+        expect("d4.health_row_band", bs.origin.y == bp.origin.y && bs.size.h == bp.size.h, true);
+    }
+    printf("decision4_same_shape OK\n");
+}
+
 int main(int argc, char **argv) {
     s_dump = (argc > 1 && strcmp(argv[1], "dump") == 0);
     golden_rects();
@@ -3437,6 +3578,7 @@ int main(int argc, char **argv) {
     golden_rects_graphless();
     golden_rects_top_graph();
     golden_rects_sized();
+    golden_rects_full_lone_lower();
     if (!s_dump) clockless_property_tests();
     if (!s_dump) dispatch_order0_omission_stacked();
     if (!s_dump) full_dual_fix_tests();
@@ -3470,6 +3612,7 @@ int main(int argc, char **argv) {
     if (!s_dump) clock_am_pm_ink_meets_digits();
     if (!s_dump) clock_digits_centring();
     if (!s_dump) clock_label_gap_yields();
+    if (!s_dump) decision4_same_shape_tests();
     if (s_dump) return 0;
     if (s_failures) { printf("%d golden-rect failure(s)\n", s_failures); return 1; }
     printf("layout golden rects OK%s\n",

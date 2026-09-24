@@ -200,11 +200,12 @@ typedef struct {
     uint8_t top_size;       // BandSize of a radar/graph top (0 = its 3-row default)
     uint8_t body_size;      // BandSize of the graph body (0 = fill, today's graph)
     uint8_t align;          // BandAlign of a stack nothing fills (0 = clock centred)
-    // Which ENGINE renders this view, decided from the CONFIGURED spec (unpack +
-    // apply_ext) and never cleared by view_spec_resolve: a missing radar/health feed
-    // folds a sized radar top or a top graph away, and re-deciding on the folded spec
-    // would move a legacy-order view to the other engine — which draws order code 0 in
-    // a different band order, so the status bar would cross the clock with the data.
+    // Which band ORDER this view renders — STACK_ORDER[order] literally (1) or its
+    // tier's legacy order (0) — decided from the CONFIGURED spec (unpack + apply_ext)
+    // and never cleared by view_spec_resolve: a missing radar/health feed folds a sized
+    // radar top or a top graph away, and re-deciding on the folded spec would flip an
+    // order-0 view to the legacy order — a different band order for code 0, so the
+    // status bar would cross the clock with the data.
     uint8_t stacked;
 #endif
 } ViewSpec;
@@ -300,12 +301,29 @@ static inline bool layout_status_visible(const ViewSpec *spec, uint8_t src) {
 // the frame a bar is seated in IS the geometry its row lays out against, so
 // layer_set_frame() owns dirtying every geometric change — a full-mode flip included
 // — and no caller needs to track applied bounds by hand.
+#if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
+// Is the top area three (or more) rows tall — the fullCal shape — whatever it shows? A
+// calendar by its rows; a radar/graph top by its size (the default is 3 rows, a 2-row
+// forecast graph renders 3). The row tier follows the same rule (layout.c), so the health
+// row's dense drop below keys on the view's SHAPE, not on the calendar alone.
+static inline bool layout_top_three_rows(const ViewSpec *s) {
+    if (s->top == TOP_BAND_CALENDAR) { return s->calendar_rows == 3; }
+    if (s->top != TOP_BAND_RADAR && s->top != TOP_BAND_GRAPH) { return false; }
+    return s->top_size != BAND_SIZE_2
+        || (s->top == TOP_BAND_GRAPH && s->top_kind == TOP_GRAPH_FORECAST);
+}
+#endif
+
 static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L, uint8_t src) {
     GRect band = (spec->status_lower == src) ? L->status_lower : L->status;
 #if defined(PBL_HEALTH)
     if (src == STATUS_SRC_HEALTH
             && spec->status_tier == LAYOUT_TIER_FULL
+#if defined(WW_VIEW_CYCLE)
+            && !layout_top_three_rows(spec)
+#else
             && spec->calendar_rows != 3
+#endif
             && band.size.h > HEALTH_TALL_BAND_MIN) {
         band.origin.y += HEALTH_SECTION_DROP;
         band.size.h -= HEALTH_SECTION_DROP;
@@ -362,8 +380,8 @@ LayerVisibility layout_visibility(const ViewSpec *spec);
 // Pure vertical band geometry for the main window. fc_band_h is the font-derived height
 // of the forecast-abutting status band (status_forecast_band_h(status_full_tier_font())
 // on the watch; a fixed representative value in host tests). m.clock describes the active time
-// font and moves ONLY the clock — see clock_seat_y above and the seating at the end of
-// compute_with_weights: every other rect is byte-identical whatever `ink` says.
+// font and moves ONLY the clock — see clock_seat_y above and the clock seating in
+// layout.c's compute_layout: every other rect is byte-identical whatever `ink` says.
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m);
 
 #if defined(WW_QUICK_VIEW)
