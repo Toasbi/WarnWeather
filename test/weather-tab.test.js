@@ -747,6 +747,11 @@ test('the chip IS the selection: a second tap puts it down, and a day change tak
   const realFetch = data.fetchWeather;
   let respond = null;
   data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  // Pin the clock to mid-morning of the fixture's day: the steps below pick hours
+  // a few after now, which near midnight would fall off the end of the day and
+  // make the result depend on when the suite happens to run.
+  const realNow = Date.now;
+  Date.now = () => DAY0 + 9 * 3600000 + 20 * 60000;
   const el = {};
   const nodeFor = (id) => {
     if (!el[id]) { el[id] = { attrs: {}, style: {}, innerHTML: '', offsetWidth: 60, offsetHeight: 44,
@@ -814,6 +819,7 @@ test('the chip IS the selection: a second tap puts it down, and a day change tak
     tab._commitDay(0);
     assert.equal(chip(), 'inline', 'today gets its now-chip back');
   } finally {
+    Date.now = realNow;
     delete global.document;
     data.fetchWeather = realFetch;
     tab._resetState();
@@ -1840,6 +1846,11 @@ test('on the current hour the crosshair stands down and lets the now line speak'
   const realFetch = data.fetchWeather;
   let respond = null;
   data.fetchWeather = (provider, lat, lon, settings, cb) => { respond = cb; };
+  // Pin the clock to mid-morning of the fixture's day: the steps below pick hours
+  // a few after now, which near midnight would fall off the end of the day and
+  // make the result depend on when the suite happens to run.
+  const realNow = Date.now;
+  Date.now = () => DAY0 + 9 * 3600000 + 20 * 60000;
   const lines = {};
   const lineFor = (id) => {
     if (!lines[id]) { lines[id] = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } }; }
@@ -1891,6 +1902,7 @@ test('on the current hour the crosshair stands down and lets the now line speak'
     tab._scrubTo(svg, at(now + 1));
     assert.equal(x(), String(charts.xAt(view, now + 1)), 'one hour on, it is back');
   } finally {
+    Date.now = realNow;
     delete global.document;
     data.fetchWeather = realFetch;
     tab._resetState();

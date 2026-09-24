@@ -39,6 +39,7 @@ const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const createFetchCycle = require('../src/pkjs/fetch-cycle.js');
 const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 const radarFactory = require('../src/pkjs/weather/radar-factory.js');
+const radarSky = require('../src/pkjs/weather/radar-sky.js');
 const authBackoff = require('../src/pkjs/auth-backoff.js');
 const notices = require('../src/pkjs/notices.js');
 const KEYS = require('../src/pkjs/storage-keys.js');
@@ -66,6 +67,10 @@ const WATCHDOG_MS = createFetchCycle.FETCH_WATCHDOG_MS;
 const APLITE = { platform: 'aplite' };   // radar compiled out
 const BASALT = { platform: 'basalt' };   // radar-capable
 const CLEAR = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 };
+// The radar's sky rows (radar-sky.js) ride the same merged answer. None of these settings
+// turn the sky on, so the 'disabled' sky source answers its CLEAR synchronously and it
+// rides beside whatever the radar answered — including a transient radar miss.
+const SKY_CLEAR = radarSky.clearSkyTuple();
 const ENV = { waqiToken: 'WAQI-TOKEN', rainbowEndpoint: '' };
 
 /** Empty the storage mock, the setItem fault and the radar request log. */
@@ -615,8 +620,8 @@ test('radar: one fix feeds both legs — the radar request and the forecast get 
     assert.equal(call.lat, 48.1);
     assert.equal(call.lon, 11.6);
     assert.equal(call.force, true);
-    assert.deepEqual(call.extras, Object.assign({}, expected, { IS_SLEEPING: false }),
-        'the extras are this cycle\'s radar tuples plus the sleep flag');
+    assert.deepEqual(call.extras, Object.assign({}, expected, SKY_CLEAR, { IS_SLEEPING: false }),
+        'the extras are this cycle\'s radar tuples, the sky CLEAR (rows off) and the sleep flag');
     assert.equal(call.extras.RAIN_RADAR_START, slotZero);
     assert.equal(typeof call.payloadTransform, 'function');
 });
@@ -665,10 +670,11 @@ test('failure: on a radar-capable watch the 401 notice and this cycle\'s radar C
     const h = makeHarness({ settings: { fetchIntervalMin: '60', radarMode: 'off' }, watchInfo: BASALT });
     h.cycle.start(false);
     h.provider.fix(52.5, 13.4);
-    assert.deepEqual(h.provider.lastForecast().extras, Object.assign({ IS_SLEEPING: false }, CLEAR),
-        'radar off answers the CLEAR');
+    assert.deepEqual(h.provider.lastForecast().extras, Object.assign({ IS_SLEEPING: false }, CLEAR, SKY_CLEAR),
+        'radar off answers the CLEAR, and the sky rows (not drawn without the graph) their own');
     h.provider.fail(AUTH_401);
-    assert.deepEqual(h.calls.sendWeather, [Object.assign({ NOTICE_TEXT: 'API key error' }, CLEAR)]);
+    assert.deepEqual(h.calls.sendWeather, [Object.assign({ NOTICE_TEXT: 'API key error' }, CLEAR, SKY_CLEAR)],
+        'one send: the overlay text, the radar CLEAR and the sky CLEAR');
 });
 
 test('failure: a forecast failure hands this cycle\'s radar CLEAR to the failure send', () => {
@@ -681,7 +687,8 @@ test('failure: a forecast failure hands this cycle\'s radar CLEAR to the failure
     assert.equal(radarRequests.length, 0);
     const failure = { stage: 'provider_data', code: 'tomorrowio_missing_api_key' };
     h.provider.fail(failure);
-    assert.deepEqual(h.calls.sendWeather, [CLEAR], 'the CLEAR rides alone (no notice for this failure)');
+    assert.deepEqual(h.calls.sendWeather, [Object.assign({}, CLEAR, SKY_CLEAR)],
+        'the radar CLEAR (and the sky CLEAR) ride alone (no notice for this failure)');
     assert.deepEqual(readJson(KEYS.LAST_FETCH_ATTEMPT_KEY).error, failure);
     assert.equal(h.calls.telemetry[0].success, false);
 });
@@ -698,16 +705,20 @@ test('failure: an AppMessage NACK does not pass the radar CLEAR through again', 
     assert.deepEqual(h.calls.telemetry[0].error, nack);
 });
 
-test('failure: a transient radar miss (null) adds no radar keys to the failure send', () => {
+test('failure: a transient radar miss (null) adds no radar keys to the failure send (the sky CLEAR still rides)', () => {
     resetStore();
     const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     h.cycle.start(false);
     h.provider.fix(52.5, 13.4);
     radarRequests[0].onError({ code: 'status_503', detail: 'http_status' });
-    assert.deepEqual(h.provider.lastForecast().extras, { IS_SLEEPING: false }, 'no radar keys for a transient miss');
+    assert.deepEqual(h.provider.lastForecast().extras, Object.assign({ IS_SLEEPING: false }, SKY_CLEAR),
+        'no radar keys for a transient miss; the sky answer rides alone');
     h.provider.fail(AUTH_401);
-    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'API key error' }], 'the notice rides without radar keys');
+    assert.deepEqual(h.calls.sendWeather, [Object.assign({ NOTICE_TEXT: 'API key error' }, SKY_CLEAR)],
+        'the notice rides without radar keys; the sky CLEAR is forwarded like the radar one would be');
+    assert.deepEqual(Object.keys(h.calls.sendWeather[0]).filter(function (k) { return k.indexOf('RAIN_RADAR') === 0; }), [],
+        'no RAIN_RADAR_* key on a transient miss');
 });
 
 test('failure: a 429 raises a settings-panel notice but sends nothing to the watch', () => {

@@ -52,7 +52,7 @@ test('the fixture send bundles the line styling, threaded with watchInfo', () =>
   }
   assert.equal(sent.length, 1);
   const style = sent[0].CLAY_LINE_STYLE_UINT8;
-  assert.equal(style.length, 14);
+  assert.equal(style.length, 16);
   assert.equal(style[0], 0xFF);   // GColorWhite line on B&W — proves watchInfo reached the resolver
   assert.equal(style[1], 0xEA);   // GColorLightGray fill on B&W
   assert.equal(style[3] & 0x01, 1, 'secondaryLineFill rides the line flag byte');
@@ -216,6 +216,13 @@ test('fixture pressureHpa feeds the pressure secondary line (mid scale)', () => 
   // -- see forecast-series.test.js's matching assertion.
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [23, 81, 229]);
   assert.ok(!('PRESSURE_TREND' in out), 'PRESSURE_TREND is transient — consumed by forecast-series, never wired');
+});
+
+test('fixture cloudPct feeds the cloud line', () => {
+  const out = getFixtureWeatherPayload(
+    makeFixture({ cloudPct: [0, 50, 100] }), { secondaryLine: 'cloud', thirdLine: 'off', barSource: 'off' });
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 125, 250]);
+  assert.ok(!('CLOUD_TREND' in out), 'CLOUD_TREND is transient');
 });
 
 test('fixture without pressureHpa still produces a valid (empty/off) pressure line', () => {

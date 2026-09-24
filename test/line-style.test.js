@@ -7,11 +7,12 @@ const { resolveInk } = require('../src/pkjs/resolve-ink.js');
 
 const emery = { platform: 'emery' };
 
-test('packs fourteen bytes: four line colours, a line flag byte, five night colours, a night flag byte, three style bytes', () => {
+test('packs sixteen bytes: five line colours, a line flag byte, five night colours, a night flag byte, four style bytes', () => {
   const bytes = lineStyle.buildLineStyleBytes(
     { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, theme: 'dark' }, emery);
-  assert.equal(bytes.length, 14);
-  [0, 1, 2, 4, 5, 6, 7, 8, 10].forEach(
+  assert.equal(bytes.length, 16);
+  assert.equal(bytes[15], 0x07, 'the fourth metric debuts as a top stripe');
+  [0, 1, 2, 4, 5, 6, 7, 8, 10, 14].forEach(
     (i) => assert.ok(bytes[i] >= 0xC0 && bytes[i] <= 0xFF, `byte ${i} (${bytes[i]}) is not a GColor8`));
   assert.equal(bytes[3], 0, 'fill off');
   assert.equal(bytes[9], 0, 'night fill still on its built-in tint');
@@ -28,7 +29,7 @@ test('the night block is a contiguous six-byte block at [4..9], flag included', 
     secondaryLine: 'wind', thirdLine: 'off', secondaryLineFill: true, theme: 'dark',
     gcWindNightDark: '#550055'
   }, emery);
-  assert.equal(bytes.length, 14, 'night block [4..9] + ext block [10..13]');
+  assert.equal(bytes.length, 16, 'night block [4..9] + ext block [10..13] + fifth block [14..15]');
   assert.equal(bytes[9] & lineStyle.FLAG_NIGHT_FILL_EXPLICIT, lineStyle.FLAG_NIGHT_FILL_EXPLICIT);
   assert.equal(bytes[3] & 0x01, 1, 'the line flag byte still carries only the fill bit');
   assert.equal(bytes[3], 0x01, 'and nothing else — the night flag left byte [3] entirely');
@@ -267,18 +268,18 @@ test('a pick stored as an int reads the same as the hex string the page writes',
   assert.deepEqual(asInt, asHex);
 });
 
-// THE appearance contract. seedDefaults writes every one of the 36 keys into a fresh
+// THE appearance contract. seedDefaults writes every one of the 42 keys into a fresh
 // blob, so "a blob carrying all the defaults" is what a real install looks like — and it
 // has to pack exactly what a blob with no graph keys at all (a 1.14.1 install) packs.
 test('a blob seeded with every default packs the same ten bytes as a blob with no graph keys', () => {
   const keys = lineStyle.graphColorKeys();
   ['dark', 'light'].forEach((theme) => {
-    ['precip_prob', 'wind', 'uv', 'gust', 'pressure', 'feels'].forEach((metric) => {
+    ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels'].forEach((metric) => {
       const base = { secondaryLine: metric, thirdLine: 'uv', secondaryLineFill: true, theme };
       const seeded = Object.assign({}, base);
       keys.forEach((key) => {
         const m = /^gc([A-Z][a-z]+)([A-Z][a-z]+)(Dark|Light)$/.exec(key);
-        const scope = { Precip: 'precip_prob', Wind: 'wind', Uv: 'uv', Gust: 'gust',
+        const scope = { Precip: 'precip_prob', Cloud: 'cloud', Wind: 'wind', Uv: 'uv', Gust: 'gust',
           Pressure: 'pressure', Feels: 'feels', Dew: 'dew', Night: 'night' }[m[1]];
         seeded[key] = lineStyle.graphColorDefault(scope, m[2], m[3], base);
       });
@@ -569,6 +570,12 @@ const EXPECTED_DEFAULTS = {
     Fill:     { Dark: 0x0055AA, Light: 0x55FFFF },  // CobaltBlue / ElectricBlue
     Night:    { Dark: 0x0000AA, Light: 0x00FFFF }   // DukeBlue / Cyan
   },
+  // Cloud cover postdates 1.14.1: these are its debut built-ins, pinned the same way.
+  cloud: {
+    Line:     { Dark: 0xAAAAFF, Light: 0x5555AA },  // BabyBlueEyes / Liberty
+    Fill:     { Dark: 0x5555AA, Light: 0xAAAAFF },  // Liberty / BabyBlueEyes
+    Night:    { Dark: 0x000055, Light: 0xAAAAFF }   // OxfordBlue / BabyBlueEyes
+  },
   wind: {
     Line:     { Dark: 0xFFFF00, Light: 0xFFAA00 },  // Yellow / ChromeYellow
     Fill:     { Dark: 0x555500, Light: 0xFFFF00 },  // ArmyGreen / Yellow
@@ -619,7 +626,7 @@ test('every built-in default is the exact colour 1.14.1 painted for that metric 
   // (resolveGraphColors asks for them), which is why the table is wider than the key list.
   lineStyle.graphColorKeys().forEach((key) => {
     const m = /^gc([A-Z][a-z]+)([A-Z][a-z]+)(Dark|Light)$/.exec(key);
-    const scope = { Precip: 'precip_prob', Wind: 'wind', Uv: 'uv', Gust: 'gust',
+    const scope = { Precip: 'precip_prob', Cloud: 'cloud', Wind: 'wind', Uv: 'uv', Gust: 'gust',
       Pressure: 'pressure', Feels: 'feels', Dew: 'dew', Night: 'night' }[m[1]];
     assert.ok(EXPECTED_DEFAULTS[scope] && EXPECTED_DEFAULTS[scope][m[2]],
       `${key} has no pinned expectation`);
@@ -657,10 +664,10 @@ test('gust/Line/Dark counts as untouched on either built-in, so white bars never
     false, 'the exemption is gust/Line/Dark alone');
 });
 
-test('graphColorKeys lists 38 unique, well-formed keys and covers every role each scope owns', () => {
+test('graphColorKeys lists 44 unique, well-formed keys and covers every role each scope owns', () => {
   const keys = lineStyle.graphColorKeys();
-  assert.equal(keys.length, 38);
-  assert.equal(new Set(keys).size, 38, 'no duplicates');
+  assert.equal(keys.length, 44);
+  assert.equal(new Set(keys).size, 44, 'no duplicates');
   keys.forEach((key) => assert.match(key, /^gc[A-Z][A-Za-z]+(Dark|Light)$/, key));
   // feels never fills, so it has no Fill or night-tint row; the night band has only its
   // own two. Both are the graphColorRoles exception the schema builds its rows from.
@@ -717,17 +724,16 @@ test('the style-byte encoding matches the C headers, decoded with their own cons
   const KIND = {
     solid: cEnum(chartHeader, 'CHART_LINE_SOLID', 'chart.h'),
     dots: cEnum(chartHeader, 'CHART_LINE_DOTS', 'chart.h'),
-    x: cEnum(chartHeader, 'CHART_LINE_X', 'chart.h')
+    x: cEnum(chartHeader, 'CHART_LINE_X', 'chart.h'),
+    stripe: cEnum(chartHeader, 'CHART_LINE_STRIPE', 'chart.h')
   };
   const KIND_MASK = cDefine(persistHeader, 'LINE_STYLE_KIND_MASK', 'persist.h');
   const WIDTH_SHIFT = cDefine(persistHeader, 'LINE_STYLE_WIDTH_SHIFT', 'persist.h');
   const WIDTH_MAX = cDefine(persistHeader, 'LINE_STYLE_WIDTH_MAX', 'persist.h');
   const STYLE_BYTES = cDefine(persistHeader, 'LINE_STYLE_STYLE_BYTES', 'persist.h');
   // persist.h's decode inlines, replicated from the parsed constants.
-  const decodeKind = (b) => {
-    const k = b & KIND_MASK;
-    return k > KIND.x ? KIND.solid : k;
-  };
+  const decodeKind = (b) => b & KIND_MASK;
+  const decodeStripeTop = (b) => ((b >> WIDTH_SHIFT) & 0x01) !== 0;
   const decodeWidth = (b, fallback) => {
     const w = (b >> WIDTH_SHIFT) & WIDTH_MAX;
     return w > 0 ? w : fallback;
@@ -740,7 +746,48 @@ test('the style-byte encoding matches the C headers, decoded with their own cons
   assert.equal(decodeWidth(byteFor('bold'), 0), 3, "'bold' carries a 3 px stroke");
   assert.equal(decodeKind(byteFor('dots')), KIND.dots);
   assert.equal(decodeKind(byteFor('x')), KIND.x);
+  assert.equal(decodeKind(byteFor('stripeTop')), KIND.stripe);
+  assert.equal(decodeStripeTop(byteFor('stripeTop')), true, "'stripeTop' sits on the top edge");
+  assert.equal(decodeKind(byteFor('stripeBottom')), KIND.stripe);
+  assert.equal(decodeStripeTop(byteFor('stripeBottom')), false, "'stripeBottom' on the bottom edge");
+  // The literal bytes test/c/line_style_decode_test.c pins on the C side.
+  assert.equal(byteFor('stripeBottom'), 0x03);
+  assert.equal(byteFor('stripeTop'), 0x07);
   // The wire's style block is exactly the persist blob the watch stores.
   const bytes = lineStyle.buildLineStyleBytes({ secondaryLine: 'wind', thirdLine: 'gust', theme: 'dark' }, { platform: 'emery' });
-  assert.equal(bytes.length - 11, STYLE_BYTES, 'bytes [11..13] are LINE_STYLE_STYLE_BYTES');
+  assert.equal(bytes.length - 11 - 2, STYLE_BYTES, 'bytes [11..13] are LINE_STYLE_STYLE_BYTES');
+  // The fourth metric's style byte ([15]) rides its own persist slot, same layout.
+  assert.equal(decodeKind(bytes[15]), KIND.stripe);
+  assert.equal(decodeStripeTop(bytes[15]), true);
+});
+
+test('a stripe-styled main line never fills, unless the watch ignores the styles', () => {
+  const base = { secondaryLine: 'cloud', secondaryLineFill: true, thirdLine: 'off', theme: 'dark' };
+  ['stripeTop', 'stripeBottom'].forEach((st) => {
+    const s = Object.assign({ secondaryLineStyle: st }, base);
+    assert.equal(lineStyle.resolveLineStyle(s, { platform: 'basalt' }).fillOn, false, st + ' on basalt');
+    assert.equal(lineStyle.buildLineStyleBytes(s, { platform: 'basalt' })[3] & 0x01, 0,
+      st + ': the wire fill flag is clear');
+    // aplite has no selectable styles (WW_LINE_STYLE): a stripe picked on a colour
+    // watch paired to the same phone must not switch its fill off.
+    assert.equal(lineStyle.resolveLineStyle(s, { platform: 'aplite' }).fillOn, true, st + ' on aplite');
+    assert.equal(lineStyle.resolveGraphColors(s, { color: true, themePolarity: true, lineStyles: false }).fillOn,
+      true, st + ' with lineStyles: false');
+  });
+  // A stripe on another line leaves the main line's fill alone.
+  assert.equal(lineStyle.resolveLineStyle(Object.assign({ thirdLineStyle: 'stripeTop' }, base),
+    { platform: 'basalt' }).fillOn, true);
+  assert.equal(lineStyle.isStripeStyle({ fourthLineStyle: 'stripeBottom' }, 'fourthLineStyle'), true);
+  assert.equal(lineStyle.isStripeStyle({}, 'fourthLineStyle'), false, 'the default x is not a stripe');
+});
+
+test('cloud cover resolves its own line and fill colours, like every graph metric', () => {
+  const s = { secondaryLine: 'cloud', thirdLine: 'off', theme: 'dark' };
+  const dark = lineStyle.resolveLineStyle(s, { platform: 'basalt' });
+  assert.equal(dark.secondary, COLORS.GColorBabyBlueEyes);
+  assert.equal(dark.fill, COLORS.GColorLiberty);
+  const light = lineStyle.resolveLineStyle(Object.assign({}, s, { theme: 'light' }), { platform: 'basalt' });
+  assert.equal(light.secondary, COLORS.GColorLiberty);
+  assert.deepEqual(lineStyle.nightAreaColorsFor('cloud', null, 'dark'),
+    { base: COLORS.GColorOxfordBlue, hatch: COLORS.GColorLiberty, boundary: COLORS.GColorBabyBlueEyes });
 });

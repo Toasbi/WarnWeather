@@ -30,13 +30,19 @@ const { WEATHER_CATEGORIES } = require('../src/pkjs/outbox');
 
 const N = 24; // provider.numEntries
 
-/** The inbox size the watch actually opens, read from the C source. */
-function readInboxSize() {
+/**
+ * The inbox size a platform's watch actually opens, read from the C source:
+ * aplite keeps its own (tiny-heap) value in the PBL_PLATFORM_APLITE arm, every
+ * other platform opens the #else arm's.
+ * @param {string} [platform] Watch platform; defaults to a non-aplite one.
+ * @returns {number} inbox_size in bytes.
+ */
+function readInboxSize(platform) {
   const src = fs.readFileSync(
     path.join(__dirname, '../src/c/appendix/app_message.c'), 'utf8');
-  const m = src.match(/const\s+int\s+inbox_size\s*=\s*(\d+)\s*;/);
-  assert.ok(m, 'could not find inbox_size in app_message.c');
-  return parseInt(m[1], 10);
+  const m = src.match(/#if defined\(PBL_PLATFORM_APLITE\)[\s\S]*?const\s+int\s+inbox_size\s*=\s*(\d+)\s*;[\s\S]*?#else[\s\S]*?const\s+int\s+inbox_size\s*=\s*(\d+)\s*;/);
+  assert.ok(m, 'could not find the aplite/other inbox_size pair in app_message.c');
+  return parseInt(platform === 'aplite' ? m[1] : m[2], 10);
 }
 
 /**
@@ -83,8 +89,13 @@ function buildWeatherOutboxPayload(payload) {
   return outgoing;
 }
 
-/** Build the heaviest single AppMessage the phone can emit (DWD + wind). */
-function buildHeaviestBundle() {
+/**
+ * Build the heaviest single AppMessage the phone can emit (DWD + wind).
+ * @param {string} [platform] Watch platform; aplite's bundle drops the lines it
+ *   cannot draw (FOURTH/FIFTH), so it is sized against aplite's own inbox.
+ * @returns {Object} The outgoing AppMessage payload.
+ */
+function buildHeaviestBundle(platform) {
   const range = Array.from({ length: N }, function(_, i) { return i; });
 
   // Base forecast payload as provider.getPayload emits it (pre-series): raw
@@ -113,7 +124,7 @@ function buildHeaviestBundle() {
   // bars, on a platform that carries the fourth line (emery below — aplite's
   // bundle omits the FOURTH key entirely).
   applyForecastSeries(payload, {
-    secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv',
+    secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', fifthLine: 'precip_prob',
     secondaryLineFill: false, barSource: 'rain', windScale: 'high',
     temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
     healthMode: 'all', radarProvider: 'rainbow',
@@ -128,12 +139,21 @@ function buildHeaviestBundle() {
     statusRadarLeft: 'city', statusRadarMid: 'city', statusRadarRight: 'city',
     statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city',
     statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
-  }, { platform: 'emery' });
+  }, { platform: platform || 'emery' });
 
   // Radar (DWD supplies it) — two 24-slot trends + a start epoch.
   payload.RAIN_RADAR_TREND_UINT8 = range.map(function() { return 7; });
   payload.RAIN_RADAR_TREND_AREA_UINT8 = range.map(function() { return 7; });
   payload.RAIN_RADAR_START = 1700000000;
+  // The radar's sky rows (radar-sky.js packSky: 5 B header + 9 cloud + 9 sun +
+  // 2 B lightning mask). Never sent to aplite: index.js skips the whole radar
+  // step there (no WW_RAIN_RADAR).
+  if ((platform || 'emery') !== 'aplite') {
+    payload.RADAR_SKY_UINT8 = require('../src/pkjs/weather/radar-sky.js').packSky({
+      start: 1700000000, clouds: Array(9).fill(250), suns: Array(9).fill(250),
+      bolts: Array(9).fill(true)
+    });
+  }
 
   // Sleep state rides in the same bundle.
   payload.IS_SLEEPING = false;
@@ -147,19 +167,32 @@ function buildHeaviestBundle() {
 // notice never coexists with a full bundle (it's a failure-time signal), but
 // model the conservative "full bundle + cleared notice" combination against the
 // hard inbox ceiling so the NOTICE_TEXT key is proven to still fit.
-function buildHeaviestBundleWithNotice() {
-  const bundle = buildHeaviestBundle();
+function buildHeaviestBundleWithNotice(platform) {
+  const bundle = buildHeaviestBundle(platform);
   bundle.NOTICE_TEXT = '';
   return bundle;
 }
 
-test('heaviest bundled payload (DWD + wind) fits the watch inbox', function() {
-  const inbox = readInboxSize();
-  const size = dictSize(buildHeaviestBundleWithNotice());
-  assert.ok(
-    size <= inbox,
-    'bundled DWD+wind payload is ' + size + ' B but inbox_size is only ' + inbox +
-    ' B — the message would be dropped (APP_MSG_BUFFER_OVERFLOW). Bump inbox_size.');
+test('heaviest bundled payload (DWD + wind) fits the watch inbox, per platform', function() {
+  ['emery', 'aplite'].forEach(function(platform) {
+    const inbox = readInboxSize(platform);
+    const size = dictSize(buildHeaviestBundleWithNotice(platform));
+    assert.ok(
+      size <= inbox,
+      platform + ': bundled DWD+wind payload is ' + size + ' B but inbox_size is only ' + inbox +
+      ' B — the message would be dropped (APP_MSG_BUFFER_OVERFLOW). Bump inbox_size.');
+  });
+});
+
+test('aplite keeps its 536 B inbox and a bundle without the extra metric lines', () => {
+  const inbox = readInboxSize('aplite');
+  const size = dictSize(buildHeaviestBundle('aplite'));
+  console.log(`heaviest aplite weather bundle: ${size} B of ${inbox} B (headroom ${inbox - size})`);
+  assert.equal(inbox, 536, 'aplite\'s inbox comes out of its tiny heap — do not grow it');
+  // MEASURED: the full emery bundle less both extra line trends (2 × 31 B) and
+  // the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out.
+  assert.equal(size, 473, 'aplite ships neither FOURTH_ nor FIFTH_LINE_TREND_UINT8');
+  assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
 test('weather bundle keeps explicit headroom below the watch inbox', () => {
@@ -173,7 +206,13 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   // 4 x 11 B = 7 B tuple header + 4 B int32/bool each). Headroom 10 -> 54 B.
   // 482 -> 513 when the third-metric line joined (FOURTH_LINE_TREND_UINT8:
   // 7 B tuple header + 24 B trend). Headroom 54 -> 23 B. Never sent to aplite.
-  assert.equal(size, 513, 'update the recorded realistic bundle size when its wire contract changes');
+  // 513 -> 544 when the fourth-metric line joined (FIFTH_LINE_TREND_UINT8:
+  // 7 B tuple header + 24 B trend), with inbox_size split per platform: 600 B
+  // off aplite (headroom 56 B), aplite unchanged at 536 B (it never gets the
+  // line — see the aplite test above).
+  // 544 -> 576 when the radar's sky rows joined (RADAR_SKY_UINT8: 7 B tuple
+  // header + 25 B blob). Headroom 56 -> 24 B. Never sent to aplite.
+  assert.equal(size, 576, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
@@ -211,7 +250,9 @@ function buildHeaviestClayMessage() {
 }
 
 test('Clay settings message (with palette) fits the watch inbox', function() {
-  const inbox = readInboxSize();
+  // The line-style tuple ships to every watch, aplite included: size it
+  // against the smallest inbox.
+  const inbox = readInboxSize('aplite');
   const size = dictSize(buildHeaviestClayMessage());
   assert.ok(
     size <= inbox,
@@ -220,7 +261,7 @@ test('Clay settings message (with palette) fits the watch inbox', function() {
 
 test('Clay settings message keeps its recorded size (and headroom)', () => {
   const size = dictSize(buildHeaviestClayMessage());
-  const inbox = readInboxSize();
+  const inbox = readInboxSize('aplite');
   console.log(`heaviest Clay message: ${size} B of ${inbox} B (headroom ${inbox - size})`);
   // Recorded exactly, like the weather bundle above: the Clay message grows key by key
   // (the palette, then the threshold blob), so the next task that adds one has to see the
@@ -258,6 +299,9 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // colour (byte [10]) and the three per-line marker style bytes ([11..13], the
   // watch's LINE_STYLES persist blob — kind | width << 2). The 7 B tuple header
   // was already paid. Headroom 25 -> 21 B.
-  assert.equal(size, 515, 'update the recorded Clay message size when its wire contract changes');
+  // 515 -> 517 when it grew 14 -> 16: the fourth-metric line's colour and style
+  // ([14..15], FIFTH_LINE_COLOR / FIFTH_LINE_STYLE). Headroom (vs aplite's 536 B,
+  // the smallest inbox) 21 -> 19 B.
+  assert.equal(size, 517, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

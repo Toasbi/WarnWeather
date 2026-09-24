@@ -24,8 +24,8 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Forecast**
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
-* Configurable metrics such as precipitation, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
-* Up to three metric lines at once, each in its own style — thin or thick line, square dots, or little x marks (third metric and style selection on watches with enough memory, not Pebble Classic/Steel)
+* Configurable metrics such as precipitation, cloud cover, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
+* Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
 * Optional day/night shading
 * Recolor the forecast graph per metric
 * Multiple weather providers, including regional and worldwide sources
@@ -34,6 +34,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Rain countdown telling you when rain starts (or stops)
 * Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph — in the Radar tab
+* Optional clouds, sun & lightning rows under the radar graph's time axis: cloud cover and sunshine per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Health status for steps, sleep, distance, and heart rate
@@ -73,13 +74,17 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 Two things that both involve rain over time, but answer different questions:
 
 - **Forecast graph** — the hourly prediction, looking up to 24 hours ahead. Temperature is
-  always shown; on top of it you choose what to add — precipitation %, wind speed, wind gusts,
-  UV index, air pressure (sea-level, in hPa, with a Narrow/Mid/Wide graph scale), feels-like
-  temperature or dew point (both drawn on the same scale as the temperature curve) as a main
+  always shown; on top of it you choose what to add — precipitation %, cloud cover % (every
+  provider except Yandex), wind speed, wind gusts, UV index, air pressure (sea-level, in hPa,
+  with a Narrow/Mid/Wide graph scale), feels-like temperature or dew point (both drawn on the
+  same scale as the temperature curve) as a main
   metric, an optional second metric, and — on watches with enough memory (not Pebble
-  Classic/Steel) — an optional third metric (the same metric can't appear twice), plus optional
-  bars for the hourly rain amount. Each metric line has a selectable style: thin or thick solid
-  line, bar-aligned square dots, or little x marks (defaults: line, dots, x; style selection is
+  Classic/Steel) — an optional third and fourth metric (the same metric can't appear twice), plus
+  optional bars for the hourly rain amount. Each metric line has a selectable style: thin or thick
+  solid line, bar-aligned square dots, little x marks, or a stripe — a thin band of hourly cells
+  along the top of the graph or in its own band below the zero line (where bars and lines never
+  cover it), shaded stronger the higher the value (on black & white watches as denser
+  dithering) (defaults: line, dots, x, top stripe; style selection is
   likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
   temperature status slot can also show the feels-like value, or both as `12/10`; the UV index
   slot can show today's highest UV still to come, or both as `3/7`; today's peak stays until the
@@ -100,6 +105,10 @@ Two things that both involve rain over time, but answer different questions:
   amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
   them is the strongest rain within 2 km. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
   (worldwide, exact location only) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
+  Turn on *Clouds, sun & lightning* in the Radar tab and two thin stripes appear under the
+  graph's time axis: cloud cover and sunshine for each quarter hour, drawn like the forecast's
+  stripes, with a lightning bolt in the quarter hours where Open-Meteo expects a
+  thunderstorm (lightning potential sharpens that in Central Europe).
 
 ## Platforms
 

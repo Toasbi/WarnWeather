@@ -17,7 +17,7 @@ var TIMELINES_ENDPOINT = 'https://api.tomorrow.io/v4/timelines';
 // humidity feeds the Units tab's Steadman feels-like option (feels-like.js):
 // temperatureApparent is the US heat-index / wind-chill value, equal to the air
 // temperature between roughly 5 °C and 27 °C.
-var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,temperatureApparent,dewPoint,windDirection,humidity';
+var FIELDS = 'temperature,precipitationProbability,precipitationIntensity,windSpeed,windGust,uvIndex,pressureSeaLevel,cloudCover,temperatureApparent,dewPoint,windDirection,humidity';
 var MPS_TO_KMH = 3.6;
 
 /**
@@ -131,6 +131,7 @@ function mapResponse(json, nowEpoch) {
     var precipTrend = [];
     var rainTrend = [];
     var pressureTrend = [];
+    var cloudTrend = [];
     var feelsTrend = [];
     var currentFeels = null;
     // Dew point and bearing skip num()'s 0-collapse: 0 °F and 0° are both real
@@ -156,6 +157,7 @@ function mapResponse(json, nowEpoch) {
         precipTrend.push(num(values.precipitationProbability) / 100);
         rainTrend.push(num(values.precipitationIntensity));
         pressureTrend.push(num(values.pressureSeaLevel));   // sea-level, NOT pressureSurfaceLevel
+        cloudTrend.push(num(values.cloudCover));            // total cloud cover, %
         // °C→°F like temperature; a missing hour falls back to the mapped temp
         // so the series stays numeric (0 would be a real 0 °F feels).
         feelsTrend.push(typeof values.temperatureApparent === 'number'
@@ -187,6 +189,7 @@ function mapResponse(json, nowEpoch) {
         uvTrend: hourlyWindow.readHourly(intervals, anchor, hourlyWindow.PEAK_HOURS,
             intervalEpoch, intervalUv),
         pressureTrend: pressureTrend,
+        cloudTrend: cloudTrend,
         feelsTrend: feelsTrend,
         dewTrend: dewTrend,             // °F, unrounded (formatValue rounds per unit)
         windDirTrend: windDirTrend,     // degrees 0-359, "comes from"

@@ -225,6 +225,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
     var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
     var oldRadarMode = app.settings ? app.settings.radarMode : undefined;
+    var oldRadarSky = app.settings ? Boolean(app.settings.radarSky) : undefined;
     // Capture the render-affecting settings before they're overwritten below so we can
     // detect a change and force a resend. Colours are NOT here — rain/radar, graph lines
     // and fill, the theme itself: they ride the Clay message and the watch persists
@@ -291,8 +292,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
     // this handler only captures the facts and performs the effects.
     var decision = decideConfigClose({
         providerOrLocationChanged: providerOrLocationChanged,
+        // The sky rows ride the radar fetch, so their toggle counts as a radar change.
         radarProviderChanged: oldRadarProvider !== app.settings.radarProvider
-            || oldRadarMode !== app.settings.radarMode,
+            || oldRadarMode !== app.settings.radarMode
+            || oldRadarSky !== Boolean(app.settings.radarSky),
         renderSettingsChanged: prevRender !== renderSignature(app.settings),
         fetchToggle: app.settings.fetch === true,
         acked: acked,

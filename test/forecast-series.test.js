@@ -1107,6 +1107,48 @@ test('the outbox projection has no category for either transient', () => {
   });
 });
 
+test('cloud cover maps percent to the 0..250 wire range and never rides the wire raw', () => {
+  const payload = {
+    TEMP_RAW_TREND: [10, 20, 30, 40], TEMP_MIN: 10, TEMP_MAX: 40, NUM_ENTRIES: 4,
+    PRECIP_TREND_UINT8: [0, 0, 0, 0], RAIN_TREND_UINT8: [0, 0, 0, 0],
+    WIND_TREND_UINT8: [0, 0, 0, 0], GUST_TREND_UINT8: [0, 0, 0, 0], UV_TREND_UINT8: [],
+    CLOUD_TREND: [0, 50, 100, 140]
+  };
+  const out = applyForecastSeries(payload,
+    { secondaryLine: 'precip_prob', thirdLine: 'cloud', windScale: 'mid', barSource: 'off' },
+    { platform: 'basalt' });
+  // Zero-based like rain chance: 0 % is a real "clear sky" and stays wire byte 0.
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 125, 250, 250], 'clamped at 100 %');
+  assert.ok(!('CLOUD_TREND' in out), 'CLOUD_TREND is transient, never wired');
+});
+
+test('a provider without cloud cover leaves the cloud line off', () => {
+  const out = applyForecastSeries({
+    TEMP_RAW_TREND: [10, 20], TEMP_MIN: 10, TEMP_MAX: 20, NUM_ENTRIES: 2,
+    PRECIP_TREND_UINT8: [0, 0], RAIN_TREND_UINT8: [0, 0], WIND_TREND_UINT8: [0, 0],
+    GUST_TREND_UINT8: [0, 0], UV_TREND_UINT8: [], CLOUD_TREND: []
+  }, { secondaryLine: 'cloud', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, []);
+});
+
+test('the fourth metric line ships as FIFTH_LINE_TREND_UINT8 off aplite only', () => {
+  const base = () => ({
+    TEMP_RAW_TREND: [10, 20], TEMP_MIN: 10, TEMP_MAX: 20, NUM_ENTRIES: 2,
+    PRECIP_TREND_UINT8: [0, 0], RAIN_TREND_UINT8: [0, 0], WIND_TREND_UINT8: [0, 0],
+    GUST_TREND_UINT8: [0, 0], UV_TREND_UINT8: [], CLOUD_TREND: [40, 100]
+  });
+  const settings = { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off',
+    fifthLine: 'cloud', barSource: 'off' };
+  assert.deepEqual(applyForecastSeries(base(), settings, { platform: 'basalt' }).FIFTH_LINE_TREND_UINT8,
+    [100, 250]);
+  assert.ok(!('FIFTH_LINE_TREND_UINT8' in applyForecastSeries(base(), settings, { platform: 'aplite' })),
+    'aplite has no SERIES_FIFTH, so the key would only spend bundle bytes');
+  // A metric an earlier line already draws turns the fourth metric off.
+  assert.deepEqual(applyForecastSeries(base(), Object.assign({}, settings, { fifthLine: 'precip_prob' }),
+    { platform: 'basalt' }).FIFTH_LINE_TREND_UINT8, []);
+  assert.equal(needsUv({ fifthLine: 'uv' }), true, 'a UV fourth metric extends the UV fetch gate');
+});
+
 // ---- Dew-point metric ----------------------------------------------------
 // 'dew' rides the temperature axis exactly like feels: the joint band covers the
 // temperature and every drawn temperature-axis series, so feels and dew on the two

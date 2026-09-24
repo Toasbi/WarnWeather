@@ -74,10 +74,10 @@ const EXPECTED_KEYS = [
   // sleepNightStartHour / sleepNightEndHour / backlightDimMode are gone.
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
-  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','tempSlotDisplay',
+  'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarNoRainText','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
   // Custom-layout storage (sheetOnly section; see customViewItems in schema.js).
   'viewCount','customLayoutSeeded',
@@ -97,8 +97,8 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   const counts = {};
   seen.forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
   const dups = Object.keys(counts).filter((k) => counts[k] > 1);
-  // windScale: one slot per line context (main / second / third-metric line).
-  // pressureScale: same three-way split. theme: color-env (4 options) vs. B&W-env
+  // windScale: one slot per line context (main / second / third / fourth metric).
+  // pressureScale: same four-way split. theme: color-env (4 options) vs. B&W-env
   // (2 options) — two slots, not four: the 'Day theme' pair is gone and the Theme
   // row is never renamed. themeNight is the same color/B&W split. colorUSFederal:
   // dark-exclude-white vs. light-exclude-black.
@@ -107,8 +107,8 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   assert.deepEqual(dups.sort(),
     ['colorUSFederal', 'pressureScale', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  assert.equal(counts.windScale, 9, 'windScale appears in nine slots (3 contexts × 3 units)');
-  assert.equal(counts.pressureScale, 3, 'pressureScale appears in three slots (secondary + third + fourth)');
+  assert.equal(counts.windScale, 12, 'windScale appears in twelve slots (4 contexts × 3 units)');
+  assert.equal(counts.pressureScale, 4, 'pressureScale appears in four slots (one per line context)');
   assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
   assert.equal(counts.themeNight, 2, 'themeNight appears in two slots (color / B&W env)');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
@@ -205,21 +205,33 @@ test('B/W bar-scale hints actually show for bw-light (not just bw) via the show-
 test('COLOR-capability + showWhen wiring', () => {
   ['rainBarColor','radarColor','colorTime'].forEach((k) => assert.ok(byKey(k).capabilities.indexOf('COLOR') >= 0));
   // Fill is available for every metric EXCEPT feels-like and dew point, which ride the
-  // temperature axis and so have no meaningful zero to fill down to.
-  assert.deepEqual(byKey('secondaryLineFill').showWhen, { key: 'secondaryLine', nin: ['feels', 'dew'] });
+  // temperature axis and so have no meaningful zero to fill down to — and not for a
+  // stripe-styled main line, which has no curve to fill below (unless the watch ignores
+  // the styles).
+  assert.deepEqual(byKey('secondaryLineFill').showWhen, { all: [
+    { key: 'secondaryLine', nin: ['feels', 'dew'] },
+    { any: [{ not: { env: 'lineStyles' } },
+      { key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom'] }] }
+  ] });
   assert.deepEqual(byKey('owmApiKey').showWhen, { key: 'provider', eq: 'openweathermap' });
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
 });
 
 test('the fill toggle hides for feels-like and stays visible for every other metric', () => {
   const fill = byKey('secondaryLineFill');
-  ['precip_prob', 'wind', 'gust', 'uv', 'pressure'].forEach((m) => {
+  ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure'].forEach((m) => {
     assert.equal(showWhen.isVisible(fill, { secondaryLine: m, env: {} }), true, m + ' keeps the fill row');
   });
   assert.equal(showWhen.isVisible(fill, { secondaryLine: 'feels', env: {} }), false,
     'feels-like hides the fill row');
   assert.equal(showWhen.isVisible(fill, { secondaryLine: 'dew', env: {} }), false,
     'dew point hides the fill row');
+  ['stripeTop', 'stripeBottom'].forEach((st) => {
+    assert.equal(showWhen.isVisible(fill, { secondaryLine: 'cloud', secondaryLineStyle: st,
+      env: { lineStyles: true } }), false, st + ' hides the fill row');
+    assert.equal(showWhen.isVisible(fill, { secondaryLine: 'cloud', secondaryLineStyle: st,
+      env: { lineStyles: false } }), true, st + ' is ignored where the watch ignores styles');
+  });
   // The metric picker carries the hook that clears the stored value on the way in.
   assert.equal(byKey('secondaryLine').onChange, 'forecastMetricFill');
 });
@@ -384,8 +396,9 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
   const radarItems = schema.tabs.find((t) => t.id === 'radar').sections[0].items;
   const idx = radarItems.indexOf(item);
   assert.ok(idx !== -1, 'lives in the Radar tab');
-  assert.equal(radarItems[idx - 1].messageKey, 'radarColor',
-    'follows the radar appearance settings, not mid-provider-config');
+  assert.equal(radarItems[idx - 1].messageKey, 'radarSky',
+    'follows the radar appearance settings (colour, sky rows), not mid-provider-config');
+  assert.equal(radarItems[idx - 2].messageKey, 'radarColor');
   // End-to-end through the real renderer: the maxlength attribute and the
   // visible default both land on the <input>.
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
@@ -416,12 +429,12 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
 const metricOptions = (S, env, args) =>
   global.PConf.optionsResolvers.get('forecastMetric')(S, env, args);
 
-test('secondaryLine is a 7-metric dropdown with no Off (resolver-derived)', () => {
+test('secondaryLine is a 8-metric dropdown with no Off (resolver-derived)', () => {
   const sec = byKey('secondaryLine');
   assert.equal(sec.type, 'select');
   assert.equal(sec.optionsFrom.resolver, 'forecastMetric');
   const vals = metricOptions({}, { platform: 'basalt' }).map((o) => o[1]);
-  assert.deepEqual(vals, ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew']);
+  assert.deepEqual(vals, ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew']);
   assert.equal(sec.defaultValue, 'precip_prob');
 });
 
@@ -431,22 +444,22 @@ test('thirdLine derives options from secondaryLine, excluding it, with Off + def
   assert.equal(third.defaultValue, 'uv');
   assert.equal(third.optionsFrom.resolver, 'forecastMetric');
   assert.deepEqual(third.optionsFrom.args, { off: true, exclude: ['secondaryLine'] });
-  // Every secondary metric yields Off + the OTHER six (never itself).
-  ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew'].forEach((sec) => {
+  // Every secondary metric yields Off + the OTHER seven (never itself).
+  ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew'].forEach((sec) => {
     const vals = metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] })
       .map((o) => o[1]);
     assert.equal(vals[0], 'off', sec + ' third options must start with off');
     assert.ok(!vals.includes(sec), sec + ' must be excluded from its own third-line options');
-    assert.equal(vals.length, 7, sec + ' → off + 6 others');
+    assert.equal(vals.length, 8, sec + ' → off + 7 others');
   });
 });
 
 test('feels-like is left out of both metric pickers on aplite', () => {
   const sec = metricOptions({}, { platform: 'aplite' }).map((o) => o[1]);
-  assert.deepEqual(sec, ['precip_prob', 'wind', 'gust', 'uv', 'pressure']);
+  assert.deepEqual(sec, ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure']);
   const third = metricOptions({ secondaryLine: 'precip_prob' }, { platform: 'aplite' }, { off: true, exclude: ['secondaryLine'] })
     .map((o) => o[1]);
-  assert.deepEqual(third, ['off', 'wind', 'gust', 'uv', 'pressure']);
+  assert.deepEqual(third, ['off', 'cloud', 'wind', 'gust', 'uv', 'pressure']);
 });
 
 test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', () => {
@@ -455,9 +468,9 @@ test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', ()
   assert.match(hint, /half-height/);
 });
 
-test('windScale has nine contextual slots: three line-contexts × three wind units', () => {
+test('windScale has twelve contextual slots: four line-contexts × three wind units', () => {
   const slots = items.filter((i) => i.messageKey === 'windScale');
-  assert.equal(slots.length, 9, 'nine windScale slots');
+  assert.equal(slots.length, 12, 'twelve windScale slots');
   // Leaf conditions only: the fourth-line copies name the other two lines inside
   // {not: …} wrappers, which carry no .key, so each filter matches one context.
   const secondary = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'secondaryLine' && c.in));
@@ -998,7 +1011,7 @@ test('forecast line pickers use the new metric-oriented labels', () => {
 
 test('metric options are spelled out fully on both pickers', () => {
   assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
-    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
+    ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'], ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
     ['Dew point', 'dew']
   ]);
   const thirdOf = (sec) => metricOptions({ secondaryLine: sec }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
@@ -1032,20 +1045,24 @@ test('forecast tab nests style, fill and wind scale under the line that enables 
   const iFill = keys.indexOf('secondaryLineFill');
   const iThird = keys.indexOf('thirdLine');
   const iFourth = keys.indexOf('fourthLine');
-  assert.ok(iSolid >= 0 && iFill > iSolid && iThird > iFill && iFourth > iThird,
-    'order must be Main metric -> Fill area -> Second metric -> Third metric; got ' + keys.join(','));
+  const iFifth = keys.indexOf('fifthLine');
+  assert.ok(iSolid >= 0 && iFill > iSolid && iThird > iFill && iFourth > iThird && iFifth > iFourth,
+    'order must be Main metric -> Fill area -> Second -> Third -> Fourth metric; got ' + keys.join(','));
   // Each line's style picker sits directly under its metric picker.
   assert.equal(keys.indexOf('secondaryLineStyle'), iSolid + 1, 'main style under Main metric');
   assert.equal(keys.indexOf('thirdLineStyle'), iThird + 1, 'second style under Second metric');
   assert.equal(keys.indexOf('fourthLineStyle'), iFourth + 1, 'third style under Third metric');
+  assert.equal(keys.indexOf('fifthLineStyle'), iFifth + 1, 'fourth style under Fourth metric');
   const windIdxs = keys.reduce((a, k, i) => (k === 'windScale' ? a.concat(i) : a), []);
-  assert.equal(windIdxs.length, 9, 'nine wind-scale slots (3 contexts × 3 units)');
+  assert.equal(windIdxs.length, 12, 'twelve wind-scale slots (4 contexts × 3 units)');
   assert.ok(windIdxs.slice(0, 3).every((i) => i > iFill && i < iThird),
     'secondary-line wind-scale copies sit under the solid line');
   assert.ok(windIdxs.slice(3, 6).every((i) => i > iThird && i < iFourth),
     'third-line wind-scale copies sit under the second metric');
-  assert.ok(windIdxs.slice(6).every((i) => i > iFourth),
+  assert.ok(windIdxs.slice(6, 9).every((i) => i > iFourth && i < iFifth),
     'fourth-line wind-scale copies sit under the third metric');
+  assert.ok(windIdxs.slice(9).every((i) => i > iFifth),
+    'fifth-line wind-scale copies sit under the fourth metric');
 });
 
 test('startOnWeatherTab is a page-only toggle that defaults to General', () => {
@@ -2178,18 +2195,18 @@ test('the radar rain-horizon control is labelled "Rain countdown"', () => {
   assert.equal(byKey('rainCountdownHorizon').label, 'Rain countdown');
 });
 
-test('secondaryLine offers pressure, feels-like and dew point as the fifth to seventh metrics', () => {
+test('secondaryLine offers cloud cover second, then pressure, feels-like and dew point last', () => {
   assert.deepEqual(metricOptions({}, { platform: 'basalt' }), [
-    ['Precipitation %', 'precip_prob'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
+    ['Precipitation %', 'precip_prob'], ['Cloud cover %', 'cloud'], ['Wind speed', 'wind'], ['Wind gusts', 'gust'],
     ['UV Index', 'uv'], ['Air pressure (hPa)', 'pressure'], ['Feels-like temperature', 'feels'],
     ['Dew point', 'dew']
   ]);
 });
 
-test('thirdLine offers the six metrics the main line is not using, for all seven', () => {
-  for (const metric of ['dew', 'feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
+test('thirdLine offers the seven metrics the main line is not using, for all eight', () => {
+  for (const metric of ['cloud', 'dew', 'feels', 'gust', 'precip_prob', 'pressure', 'uv', 'wind']) {
     const opts = metricOptions({ secondaryLine: metric }, { platform: 'basalt' }, { off: true, exclude: ['secondaryLine'] });
-    assert.equal(opts.length, 7, `${metric} should offer Off + 6 metrics`);
+    assert.equal(opts.length, 8, `${metric} should offer Off + 7 metrics`);
     assert.equal(opts[0][1], 'off');
     assert.ok(!opts.some(([, v]) => v === metric), `${metric} must not offer itself`);
   }
@@ -2198,7 +2215,7 @@ test('thirdLine offers the six metrics the main line is not using, for all seven
 test('fourthLine offers Off + the metrics neither other line uses, never feels', () => {
   const opts = metricOptions({ secondaryLine: 'wind', thirdLine: 'uv' },
     { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true });
-  assert.deepEqual(opts.map(([, v]) => v), ['off', 'precip_prob', 'gust', 'pressure'],
+  assert.deepEqual(opts.map(([, v]) => v), ['off', 'precip_prob', 'cloud', 'gust', 'pressure'],
     'Off + the remaining metrics minus feels (no curve-inset channel on the fourth line)');
   // With the other two lines elsewhere, feels is STILL absent.
   const wide = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' },
@@ -2237,11 +2254,13 @@ test('the Third metric row and every line-style row hide behind the lineStyles c
   assert.equal(platformLib.computeEnv(null).lineStyles, true, 'unknown watch keeps the feature');
 });
 
-test('the line-style pickers offer thin/thick/dots/x with per-line defaults matching the wire', () => {
+test('the line-style pickers offer thin/thick/dots/x/top/bottom with per-line defaults matching the wire', () => {
   const lineStyle = require('../src/pkjs/line-style.js');
-  const OPTIONS = [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x']];
+  const OPTIONS = [['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'],
+    ['× marks', 'x'], ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']];
   for (const key of ['secondaryLineStyle', 'thirdLineStyle', 'fourthLineStyle']) {
     const item = byKey(key);
+    assert.equal(item.type, 'select', key + ' is a dropdown — six styles overflow a segmented row');
     assert.deepEqual(item.options, OPTIONS, key);
     assert.equal(item.defaultValue, lineStyle.LINE_STYLE_DEFAULTS[key],
       key + ' schema default must match line-style.js’ wire default');
@@ -2250,7 +2269,7 @@ test('the line-style pickers offer thin/thick/dots/x with per-line defaults matc
 
 test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
   const scales = items.filter((i) => i.messageKey === 'pressureScale');
-  assert.equal(scales.length, 3, 'one copy per line-context (secondary + third + fourth)');
+  assert.equal(scales.length, 4, 'one copy per line-context (secondary + third + fourth + fifth)');
   for (const s of scales) {
     assert.deepEqual(s.options, [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']]);
     assert.equal(s.defaultValue, 'mid');
@@ -2316,7 +2335,7 @@ test('the wind slot arrows by default, the gust slot beside it does not', () => 
 // in either dependency cannot silently rewrite user-facing copy.
 test('windScale hints derive from the graph ceilings, strings pinned', () => {
   const winds = items.filter((i) => i.messageKey === 'windScale');
-  assert.equal(winds.length, 9, 'three units x three line-contexts');
+  assert.equal(winds.length, 12, 'three units x four line-contexts');
   const hintFor = (unit) => winds.find((i) =>
     JSON.stringify(i.showWhen).indexOf('"' + unit + '"') >= 0).hintByValue;
   assert.equal(hintFor('kph').low, 'Tops out at 30 kph — emphasizes light, gentle winds.');
@@ -2337,10 +2356,10 @@ const forecastSections = () => schema.tabs.find((t) => t.id === 'forecast').sect
 const graphCard = () => forecastSections().find((s) => s.id === 'graphColors');
 const graphSheets = () => forecastSections().filter((s) => s.sheetOnly);
 const gcSheetById = (id) => graphSheets().find((s) => s.sheetId === id);
-// The seven rows in card order: the six metrics as the metric pickers list them, then
+// The nine rows in card order: the eight metrics as the metric pickers list them, then
 // the full-height night band.
-const GRAPH_ROW_SHEETS = ['gcPrecip', 'gcWind', 'gcGust', 'gcUv', 'gcPressure', 'gcFeels', 'gcDew', 'gcNight'];
-const GRAPH_ROW_SCOPES = ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew', 'night'];
+const GRAPH_ROW_SHEETS = ['gcPrecip', 'gcCloud', 'gcWind', 'gcGust', 'gcUv', 'gcPressure', 'gcFeels', 'gcDew', 'gcNight'];
+const GRAPH_ROW_SCOPES = ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew', 'night'];
 // Everything a live gate could read, so only the polarity gate is left to vary — the
 // point being that no graph-colour row reads any of them.
 const graphState = (over) => Object.assign({
@@ -2372,16 +2391,16 @@ test('the Forecast tab carries ONE Graph colors card, always open, under an expl
   assert.equal(showWhen.isVisible(card, { theme: 'dark', env: { color: false } }), false);
 });
 
-test('the card is eight sheet rows in metric-picker order, each identified by its badge args', () => {
+test('the card is nine sheet rows in metric-picker order, each identified by its badge args', () => {
   const rows = graphCard().items;
-  assert.equal(rows.length, 8, 'seven metrics plus the night band — nothing else in the card');
+  assert.equal(rows.length, 9, 'eight metrics plus the night band — nothing else in the card');
   rows.forEach((row) => assert.equal(row.type, 'sheet'));
   assert.deepEqual(rows.map((r) => r.sheetId), GRAPH_ROW_SHEETS);
-  // The seven metric rows carry the metric picker's own labels, in its own order, so the
+  // The eight metric rows carry the metric picker's own labels, in its own order, so the
   // two lists read as one vocabulary instead of drifting apart.
-  assert.deepEqual(rows.slice(0, 7).map((r) => [r.label, r.editBadgeFrom.args.scope]),
+  assert.deepEqual(rows.slice(0, 8).map((r) => [r.label, r.editBadgeFrom.args.scope]),
     metricOptions({}, { platform: 'basalt' }, {}));
-  assert.equal(rows[7].label, 'Night shading');
+  assert.equal(rows[8].label, 'Night shading');
   rows.forEach((row, i) => {
     assert.equal(row.messageKey, undefined, row.sheetId + ' stores nothing of its own');
     // resolveEditBadge merges the item's messageKey UNDER editBadgeFrom.args, and a
@@ -2394,7 +2413,7 @@ test('the card is eight sheet rows in metric-picker order, each identified by it
 });
 
 test('each row has a sheetOnly section carrying BOTH gates and no sticky preview', () => {
-  assert.equal(graphSheets().length, 8, 'eight sheets on the tab, one per row');
+  assert.equal(graphSheets().length, 9, 'nine sheets on the tab, one per row');
   GRAPH_ROW_SHEETS.forEach((id) => {
     const sec = gcSheetById(id);
     assert.ok(sec, 'missing sheet: ' + id);
@@ -2472,7 +2491,7 @@ test('no graph colour row writes a sibling key; exactly the Night rows paint a d
       expected.push(lineStyle.graphColorKey(scope, 'Night', suffix));
     });
   });
-  assert.equal(expected.length, 10, 'five filling metrics x two polarities');
+  assert.equal(expected.length, 12, 'six filling metrics x two polarities');
   const withDisplay = gcItems.filter((i) => i.displayFrom);
   assert.deepEqual(withDisplay.map((i) => i.messageKey).slice().sort(), expected.slice().sort());
   // Each row names its OWN scope and polarity, not the live theme: the pair's two rows

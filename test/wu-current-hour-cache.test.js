@@ -82,16 +82,16 @@ test('corrupt cache JSON does not throw and falls back to clone', () => {
   assert.equal(out[0].temp, 60, 'cloned from the soonest bucket');
 });
 
-test('stored bucket holds exactly the twelve consumed fields plus its capture coordinates', () => {
+test('stored bucket holds exactly the thirteen consumed fields plus its capture coordinates', () => {
   resetStore();
   var entry = { fcst_valid: H16, temp: 60, pop: 80, qpf: 0.2, wspd: 10, gust: 20, uv_index: 3,
-    feels_like: 55, rh: 70, mslp: 29.92, dewpt: 51, wdir: 270, wxPhrase: 'Rain', extra: 1 };
+    feels_like: 55, rh: 70, mslp: 29.92, clds: 40, dewpt: 51, wdir: 270, wxPhrase: 'Rain', extra: 1 };
   wuCache.anchorForecast([entry, bucket(H17, 62, 90)], H15, A_LAT, A_LON);
   var cache = JSON.parse(store[CACHE_KEY]);
   var stored = cache[String(H16)];
   assert.deepEqual(
     Object.keys(stored).sort(),
-    ['dewpt', 'fcst_valid', 'feels_like', 'gust', 'lat', 'lon', 'mslp', 'pop', 'qpf', 'rh', 'temp',
+    ['clds', 'dewpt', 'fcst_valid', 'feels_like', 'gust', 'lat', 'lon', 'mslp', 'pop', 'qpf', 'rh', 'temp',
       'uv_index', 'wdir', 'wspd']
   );
   assert.equal(stored.lat, A_LAT);

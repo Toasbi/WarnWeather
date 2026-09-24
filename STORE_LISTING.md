@@ -9,8 +9,10 @@ Highly customizable with a modern settings UI and previews.
 
 FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
-- Up to three configurable metrics such as precipitation, UV index, gusts, wind, air
-  pressure, feels-like temperature and dew point
+- Up to four configurable metrics such as precipitation, cloud cover, UV index, gusts,
+  wind, air pressure, feels-like temperature and dew point
+- Show any metric as a line, dots, x marks, or a shaded stripe along the top or bottom of
+  the graph
 - Feels-like your way: the provider's own value, or the Steadman formula
   (temperature, humidity, wind) applied the same on every provider
 - Optional day/night shading
@@ -21,6 +23,7 @@ RAIN RADAR
 - 2-hour precipitation nowcast from regional and worldwide providers
 - Rain countdown telling you when rain starts (or stops)
 - Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph
+- Optional clouds, sun and lightning rows under the radar graph for the next 2 hours
 
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
 - Health status for steps, sleep, distance and heart rate

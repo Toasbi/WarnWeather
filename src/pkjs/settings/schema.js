@@ -31,6 +31,7 @@ var HOURS = (function () {
 // the metric maps to graph height; UV mirrors the precip-percentage phrasing.
 var LINE_HINTS = {
     precip_prob: 'Chance of rain each hour<br>— half-height = 50% rain chance<br>— full-height = 100% rain chance',
+    cloud: 'Cloud cover each hour<br>— half-height = half the sky covered<br>— full-height = overcast<br>Not available with Yandex.',
     wind: 'Wind speed each hour, scaled by the wind graph scale below.',
     gust: 'Wind gust peaks each hour, scaled by the wind graph scale below.',
     uv: 'UV index each hour<br>— half-height = UV 5.5<br>— full-height = UV 11 (extreme)',
@@ -70,6 +71,11 @@ var THIRD_LINE_HINTS = lineHintsWithNote(DOTS_NOTE,
 // bans them; blocks.js' forecastMetric resolver drops them via noTempAxis).
 var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
     'No third metric — the two metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
+// The fourth metric: no feels or dew either (same missing curve-inset channel), and
+// it debuts as a top stripe — handy for cloud cover next to three lines.
+var STRIPE_NOTE = '<br>Drawn as a stripe along the top of the graph by default.';
+var FIFTH_LINE_HINTS = lineHintsWithNote(STRIPE_NOTE,
+    'No fourth metric — the three metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -81,19 +87,26 @@ var LINE_STYLE_HINTS = {
     line: 'A thin 1-pixel line.',
     bold: 'A thick 3-pixel line.',
     dots: 'Square dots, aligned to the rain bars.',
-    x: 'Little x marks, aligned to the rain bars.'
+    x: 'Little x marks, aligned to the rain bars.',
+    stripeTop: 'A thin stripe along the top of the graph, one cell per hour. The higher the value, the stronger the colour.',
+    stripeBottom: 'A thin stripe below the graph\'s zero line, one cell per hour, where bars and lines never cover it. The higher the value, the stronger the colour.'
 };
+var LINE_STYLE_OPTIONS = [
+    ['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'], ['× marks', 'x'],
+    ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']
+];
 /**
  * One line-style picker.
- * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+ * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
  * @param {string} [lineKey] Metric-picker key whose 'off' also hides this row.
  * @returns {Object} Schema item.
  */
 function lineStyleCopy(messageKey, lineKey) {
     var when = [LINE_STYLES_WHEN];
     if (lineKey) { when.push({key: lineKey, ne: 'off'}); }
+    // A dropdown, not a segmented row: six styles no longer fit one row on a phone.
     return {
-        type: 'segmented',
+        type: 'select',
         messageKey: messageKey,
         label: 'Line style',
         // The one source of the built-ins (the pre-feature look per line) —
@@ -102,7 +115,7 @@ function lineStyleCopy(messageKey, lineKey) {
         defaultValue: lineStyle.LINE_STYLE_DEFAULTS[messageKey],
         joinPrevious: true,
         hintByValue: LINE_STYLE_HINTS,
-        options: [['Thin', 'line'], ['Thick', 'bold'], ['Dots', 'dots'], ['×', 'x']],
+        options: LINE_STYLE_OPTIONS,
         showWhen: {all: when}
     };
 }
@@ -150,11 +163,12 @@ var WIND_SCALE_HINTS_KNOTS = windScaleHints('knots', 'kn');
 var LINE_CONTEXTS = [
     {key: 'secondaryLine'},
     {key: 'thirdLine'},
-    {key: 'fourthLine', gates: [LINE_STYLES_WHEN]}
+    {key: 'fourthLine', gates: [LINE_STYLES_WHEN]},
+    {key: 'fifthLine', gates: [LINE_STYLES_WHEN]}
 ];
 /**
  * Index of one picker key in LINE_CONTEXTS.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @returns {number} Its position.
  */
 function lineContextIndex(pickerKey) {
@@ -167,7 +181,7 @@ function lineContextIndex(pickerKey) {
  * The showWhen conditions ARRAY for one line-context's scale row: the
  * context's gates, then the matcher on its own picker, then a {not: ...} of
  * the matcher on every earlier picker.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {function(string): Object} matchOf Picker key -> matcher leaf.
  * @returns {Array.<Object>} Conditions, for {all: ...} (or bare when single).
  */
@@ -335,7 +349,7 @@ function customViewItems(i) {
     return items;
 }
 
-// The seven rows of the Graph-colors card, each opening its own sheet. The six metrics
+// The nine rows of the Graph-colors card, each opening its own sheet. The eight metrics
 // come first, labelled and ordered exactly like the Main/Second metric pickers offer
 // them (blocks.js' FORECAST_METRICS — a user reads the two lists together), then the
 // full-height night band. `scope` is line-style.js' vocabulary: a metric id, or 'night'.
@@ -343,6 +357,7 @@ function customViewItems(i) {
 // it is picked, and the feels row simply has fewer pickers in its sheet.
 var GRAPH_COLOR_ROWS = [
     {scope: 'precip_prob', sheetId: 'gcPrecip', label: 'Precipitation %'},
+    {scope: 'cloud', sheetId: 'gcCloud', label: 'Cloud cover %'},
     {scope: 'wind', sheetId: 'gcWind', label: 'Wind speed'},
     {scope: 'gust', sheetId: 'gcGust', label: 'Wind gusts'},
     {scope: 'uv', sheetId: 'gcUv', label: 'UV Index'},
@@ -908,7 +923,7 @@ var PRESSURE_SCALE_HINTS = {
 /**
  * One pressureScale control for a line-context. Unlike windScaleCopy this needs no
  * per-unit duplication — pressure ships hPa only, so one copy per context is enough.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @returns {Object} Schema item.
  */
 function pressureScaleCopy(pickerKey) {
@@ -1512,7 +1527,7 @@ module.exports = {
         }]
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
-            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, wind speed, wind gusts, UV index, air pressure, feels-like temperature or dew point, an optional second metric adds another, and on watches with enough memory an optional third metric adds one more — each line in its own selectable style (thin or thick line, square dots, or little x marks) — plus optional bars for the hourly rain amount.',
+            intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always shown; on top of it the main metric shows one of precipitation %, cloud cover %, wind speed, wind gusts, UV index, air pressure, feels-like temperature or dew point, an optional second metric adds another, and on watches with enough memory an optional third and fourth metric add more — each line in its own selectable style (thin or thick line, square dots, little x marks, or a shaded stripe along the top or bottom of the graph) — plus optional bars for the hourly rain amount.',
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -1538,7 +1553,13 @@ module.exports = {
                 // floor. The row is hidden for it and the 'forecastMetricFill' hook
                 // above clears the stored value; forecast-series.js re-forces false at
                 // bake time so a settings blob written before this gate still can't fill.
-                showWhen: {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS}
+                // A stripe has no curve to fill below either (line-style.js gates
+                // fillOn the same way) — unless this watch ignores the styles.
+                showWhen: {all: [
+                    {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS},
+                    {any: [{not: LINE_STYLES_WHEN},
+                        {key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom']}]}
+                ]}
             },
             windScaleCopy('secondaryLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),
@@ -1576,6 +1597,21 @@ module.exports = {
             windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('fourthLine'),
+            {
+                type: 'select',
+                messageKey: 'fifthLine',
+                label: 'Fourth metric',
+                defaultValue: 'off',
+                hintByValue: FIFTH_LINE_HINTS,
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine'], noTempAxis: true}},
+                // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
+                showWhen: LINE_STYLES_WHEN
+            },
+            lineStyleCopy('fifthLineStyle', 'fifthLine'),
+            windScaleCopy('fifthLine', 'kph', WIND_SCALE_HINTS_KPH),
+            windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
+            windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
+            pressureScaleCopy('fifthLine'),
             {
                 type: 'segmented',
                 messageKey: 'barSource',
@@ -1736,6 +1772,16 @@ module.exports = {
                 // right polarity color itself — see rain-tier.js); only the label changes.
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
                 showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
+            }, {
+                // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
+                // fetch, so opt-in. Only the radar GRAPH draws them, like the no-rain
+                // text below; index.js clears them whenever the graph is not shown.
+                type: 'toggle',
+                messageKey: 'radarSky',
+                label: 'Clouds, sun & lightning',
+                defaultValue: false,
+                hint: 'Adds two thin stripes under the radar\'s time axis: cloud cover and sunshine for the next two hours, with a lightning bolt where thunderstorms are expected. Uses Open-Meteo, whatever the radar source.',
+                showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
                 // finds no rain in the whole window. Ships visibly with the watch's

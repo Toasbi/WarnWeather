@@ -31,7 +31,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // pins the two lists together; requiring outbox.js here would drag its storage
     // and Pebble dependencies into the page). 'notice' rides alone -- an auth-failure
     // overlay or its dismissal -- so without its column such a send read as an empty one.
-    var CATEGORIES = ['forecast', 'status', 'sun', 'radar', 'sleep', 'notice'];
+    var CATEGORIES = ['forecast', 'status', 'sun', 'radar', 'sky', 'sleep', 'notice'];
     // Header text where the name is too wide for a ninth column on a phone.
     var CATEGORY_LABELS = { notice: 'ntc' };
 

@@ -63,6 +63,11 @@ function mapForecast(forecast, current) {
             // drawing a spike to the graph floor.
             return typeof entry.mslp === 'number' ? entry.mslp * INHG_TO_HPA : 0;
         }),
+        cloudTrend: forecast.map(function(entry) {
+            // v1 hourly clds: total cloud cover, percent. Absent → 0,
+            // which the cloud line draws as clear sky.
+            return typeof entry.clds === 'number' ? entry.clds : 0;
+        }),
         dewTrend: forecast.map(function(entry) {
             // v1 hourly dewpt, already °F (the forecast call carries no
             // units param, so it defaults to units=e, same as temp).

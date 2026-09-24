@@ -391,6 +391,29 @@ test('open-meteo tolerates a response with no pressure_msl', () => {
   assert.deepEqual(mapped.pressureTrend, []);
 });
 
+// ---- Cloud cover ---------------------------------------------------------
+test('open-meteo requests cloud_cover on the pinned main request', () => {
+  assert.ok(openmeteo.buildForecastUrl(52.52, 13.41).includes('cloud_cover'),
+    'forecast URL must request cloud_cover');
+});
+
+test('open-meteo maps hourly cloud_cover into cloudTrend, a null hour as 0', () => {
+  const json = sampleResponse();
+  json.hourly.cloud_cover = json.hourly.time.map((_, i) => (i === 1 ? null : i * 4));
+  const mapped = mapResponse(json, BASE);
+  assert.equal(mapped.cloudTrend.length, 24);
+  assert.equal(mapped.cloudTrend[0], 0);
+  assert.equal(mapped.cloudTrend[1], 0, 'null bucket zero-fills');
+  assert.equal(mapped.cloudTrend[2], 8);
+});
+
+// Optional like pressure: a response without it keeps the forecast, cloud line off.
+test('open-meteo tolerates a response with no cloud_cover', () => {
+  const mapped = mapResponse(sampleResponse(), BASE);
+  assert.notEqual(mapped, null);
+  assert.deepEqual(mapped.cloudTrend, []);
+});
+
 // ---- Feels-like (apparent temperature) -----------------------------------
 test('mapFeels aligns apparent_temperature to the forecast start by timestamp', () => {
   const time = [], apparent_temperature = [];

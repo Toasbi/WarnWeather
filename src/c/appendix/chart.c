@@ -3,6 +3,7 @@
 #include "config.h"
 #include "hatch.h"
 #include "theme.h"
+#include "chart_stripe.h"
 
 // Shared per-call point scratch for LINE and AREA layers (callers that don't
 // pass export_points). Static, not stack: aplite's small app stack overflows
@@ -620,6 +621,65 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
 #endif
 }
 
+#if defined(WW_LINE_STYLE) || defined(WW_RAIN_RADAR)
+// One stripe cell shaded for its level (chart_stripe.h). Colour: an opaque
+// background->colour tint with full-colour vertical lines that tighten with the
+// level. B&W: a theme_bg() cell dithered with theme_fg() — on real B&W builds
+// theme_is_bw() is constant-true, so the colour arm compiles out. Shared by the
+// forecast's stripe line style and the radar's sky rows.
+void chart_stripe_fill_cell(GContext *ctx, GRect cell, GColor color, int level) {
+    if (level <= 0 || cell.size.w <= 0 || cell.size.h <= 0) return;
+    if (theme_is_bw()) {
+        graphics_context_set_fill_color(ctx, theme_bg());
+        graphics_fill_rect(ctx, cell, 0, GCornerNone);
+        graphics_context_set_stroke_color(ctx, theme_fg());
+        for (int py = cell.origin.y; py < cell.origin.y + cell.size.h; ++py) {
+            for (int px = cell.origin.x; px < cell.origin.x + cell.size.w; ++px) {
+                if (chart_stripe_dither_on(level, px, py)) {
+                    graphics_draw_pixel(ctx, GPoint(px, py));
+                }
+            }
+        }
+        return;
+    }
+#if defined(PBL_COLOR)
+    graphics_context_set_fill_color(ctx, (GColor){ .argb =
+        chart_stripe_blend(theme_bg().argb, color.argb, chart_stripe_tint_level(level)) });
+    graphics_fill_rect(ctx, cell, 0, GCornerNone);
+    if (level < CHART_STRIPE_LEVELS) {
+        graphics_context_set_fill_color(ctx, color);
+        for (int px = cell.origin.x; px < cell.origin.x + cell.size.w; ++px) {
+            if (chart_stripe_line_on(level, px)) {
+                graphics_fill_rect(ctx, GRect(px, cell.origin.y, 1, cell.size.h), 0, GCornerNone);
+            }
+        }
+    }
+#else
+    (void)color;
+#endif
+}
+#endif
+
+#if defined(WW_LINE_STYLE)
+// One cell per slot, a full pitch wide (tick to tick, so the band reads as one
+// continuous strip under the bar columns), shaded by the value's level
+// (chart_stripe_fill_cell).
+static void chart_render_stripe(const ChartRender *r, const ChartStripeLayer *s) {
+    const int   count = chart_clamp_count(r, s->count);
+    const GRect c     = r->geo.content;
+    const int   pitch = r->geo.slots.pitch;
+    const int   y     = s->top ? c.origin.y + s->y_offset
+                               : c.origin.y + c.size.h - s->height - s->y_offset;
+    if (s->height <= 0 || y < c.origin.y) return;
+
+    for (int i = 0; i < count; ++i) {
+        chart_stripe_fill_cell(r->ctx,
+            GRect(chart_slot_tick_x(&r->geo, i), y, pitch, s->height),
+            s->color, chart_stripe_level(s->values[i], s->lo, s->hi));
+    }
+}
+#endif
+
 void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
                 const ChartLayer *layers, int num_layers) {
     ChartRender r = {
@@ -651,6 +711,11 @@ void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
                 break;
             case CHART_LAYER_HATCH:
                 chart_render_hatch(&r, &l->hatch);
+                break;
+            case CHART_LAYER_STRIPE:
+#if defined(WW_LINE_STYLE)
+                chart_render_stripe(&r, &l->stripe);
+#endif
                 break;
         }
     }

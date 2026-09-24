@@ -52,6 +52,7 @@ function fullMapped() {
     windTrend: series(24, () => 20),
     gustTrend: series(24, () => 35),
     pressureTrend: series(24, () => 1013),
+    cloudTrend: series(24, () => 50),
     dewTrend: series(24, () => 40),
     windDirTrend: series(24, () => 270),
     feelsTrend: series(24, (i) => 45 + i),

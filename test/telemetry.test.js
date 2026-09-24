@@ -672,10 +672,12 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
     secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
     pressureScale: 'high', thirdLine: 'pressure', barSource: 'precip_prob',
-    // The third metric line on its longest realistic option (the UI resolver
-    // excludes the two metrics already picked above), with the longest of the
-    // per-line styles stored (the other two lines' built-ins are already 4 chars).
-    fourthLine: 'gust', fourthLineStyle: 'dots',
+    // The third and fourth metric lines on their longest realistic options (the UI
+    // resolver excludes the metrics already picked above), and every line on the
+    // longest per-line style, 'stripeBottom'.
+    fourthLine: 'gust', fifthLine: 'cloud',
+    secondaryLineStyle: 'stripeBottom', thirdLineStyle: 'stripeBottom',
+    fourthLineStyle: 'stripeBottom', fifthLineStyle: 'stripeBottom',
     rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
     radarColor: 'multicolor', devStatsEnabled: true, theme: 'light',
     statusForecastLeft: 'phone_battery', statusForecastMid: 'phone_battery',
@@ -686,11 +688,12 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     statusHealthMid: 'phone_battery', statusHealthRight: 'phone_battery',
     colorTime: 0xFFFFFF, colorToday: 0xFF0000, colorSunday: 0xFF0000,
     colorSaturday: 0xFF0000, colorUSFederal: 0xFF0000,
-    // The light-polarity colours for the three metrics selected above (precip_prob as
-    // the secondary line, pressure as the third, gust as the fourth), each moved off
-    // its built-in so all seven fields report the seven-character form.
+    // The light-polarity colours for the four metrics selected above (precip_prob as
+    // the secondary line, pressure as the third, gust as the fourth, cloud as the
+    // fifth), each moved off its built-in so all eight fields report the
+    // seven-character form.
     gcPrecipLineLight: 0xFF00FF, gcPrecipFillLight: 0xAAFF55,
-    gcPressureLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00,
+    gcPressureLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00, gcCloudLineLight: 0x00FF55,
     gcPrecipNightLight: 0xAA5500,
     gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000
   };

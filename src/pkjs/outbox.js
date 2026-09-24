@@ -29,7 +29,7 @@ var WEATHER_CATEGORIES = [
         cacheKey: KEYS.LAST_SENT_FORECAST_KEY,
         // Values only: the line colours + fill flag are settings-derived and ride the
         // Clay message (CLAY_LINE_STYLE_UINT8), not this one.
-        keys: ['TEMP_TREND_UINT8','TEMP_MIN','TEMP_MAX','SECONDARY_LINE_TREND_UINT8','BAR_TREND_UINT8','THIRD_LINE_TREND_UINT8','FOURTH_LINE_TREND_UINT8','FORECAST_START','NUM_ENTRIES']
+        keys: ['TEMP_TREND_UINT8','TEMP_MIN','TEMP_MAX','SECONDARY_LINE_TREND_UINT8','BAR_TREND_UINT8','THIRD_LINE_TREND_UINT8','FOURTH_LINE_TREND_UINT8','FIFTH_LINE_TREND_UINT8','FORECAST_START','NUM_ENTRIES']
     },
     {
         name: 'status',
@@ -48,6 +48,13 @@ var WEATHER_CATEGORIES = [
         cacheKey: KEYS.LAST_SENT_RADAR_KEY,
         keys: ['RAIN_RADAR_TREND_UINT8', 'RAIN_RADAR_TREND_AREA_UINT8', 'RAIN_RADAR_START'],
         comparator: radarDedupe.radarComparator
+    },
+    {
+        // The radar's sky rows (radar-sky.js): an absolute-start blob, so an
+        // exact compare is right — it only changes when the sky or its slot does.
+        name: 'sky',
+        cacheKey: KEYS.LAST_SENT_SKY_KEY,
+        keys: ['RADAR_SKY_UINT8']
     },
     {
         name: 'sleep',

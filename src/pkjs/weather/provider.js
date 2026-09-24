@@ -71,6 +71,10 @@ var WeatherProvider = function() {
     // the pressure line stays off and the status slot shows '--'. Transient:
     // consumed by forecast-series + formatValue, never wired.
     this.pressureTrend = [];
+    // Total cloud cover, percent 0..100, one entry per hourly slot. Not every
+    // provider exposes it (Yandex doesn't); empty → the cloud line stays off.
+    // Transient: consumed by forecast-series, never wired.
+    this.cloudTrend = [];
     // Feels-like (apparent temperature, °F) — API-sourced or Steadman-computed
     // (feels-like.js). Empty/null → the feels line stays off and the temp slot
     // renders the actual temp alone. Transient: consumed by forecast-series +
@@ -743,6 +747,7 @@ WeatherProvider.prototype.getPayload = function() {
         UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
         AQI_TREND: (this.aqiTrend && this.aqiTrend.length) ? this.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; forecast-series consumes + deletes before send
         POLLEN_TODAY: this.pollenToday, // Transient PKJS-only: native DWD severity; forecast-series consumes + deletes before send
+        CLOUD_TREND: (this.cloudTrend && this.cloudTrend.length) ? this.cloudTrend.slice(0, numEntries) : [], // Transient PKJS-only: cloud cover %; forecast-series consumes + deletes before send
         PRESSURE_TREND: (this.pressureTrend && this.pressureTrend.length) ? this.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,
         NUM_ENTRIES: numEntries,
@@ -855,7 +860,7 @@ WeatherProvider.requestMapped = function(opts, onMapped, onFailure) {
 WeatherProvider.MAPPED_KEYS = {
     core: ['tempTrend', 'precipTrend', 'startTime', 'currentTemp'],
     zeroed: ['rainTrend', 'windTrend', 'gustTrend'],
-    empty: ['pressureTrend', 'dewTrend', 'windDirTrend'],
+    empty: ['pressureTrend', 'cloudTrend', 'dewTrend', 'windDirTrend'],
     feels: ['feelsTrend', 'currentFeels', 'humidityTrend', 'currentHumidity', 'currentWindKmh'],
     uv: ['uvTrend']
 };

@@ -8,6 +8,7 @@
 #include "c/layers/status_bar.h"
 #include "c/layers/loading_layer.h"
 #include "c/layers/rain_radar_layer.h"
+#include "c/appendix/radar_sky.h"
 #include "c/layers/calendar_layer.h"
 #include "c/layers/top_status_layer.h"
 #include "c/windows/main_window.h"
@@ -83,6 +84,7 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
         { SERIES_THIRD,  MESSAGE_KEY_THIRD_LINE_TREND_UINT8     },
 #if defined(WW_LINE_STYLE)
         { SERIES_FOURTH, MESSAGE_KEY_FOURTH_LINE_TREND_UINT8    },
+        { SERIES_FIFTH,  MESSAGE_KEY_FIFTH_LINE_TREND_UINT8     },
 #endif
         { SERIES_BARS,   MESSAGE_KEY_BAR_TREND_UINT8            },
     };
@@ -275,6 +277,28 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     return true;
 }
 
+// The radar's sky rows (clouds, sun, lightning): the RADAR_SKY_UINT8 blob,
+// stored verbatim after a shape check (radar_sky.h). Its own outbox category,
+// independent of the rain-radar tuples above. Empty clears the rows; a
+// malformed blob is dropped so persist never holds one the layer would reject.
+static bool handle_radar_sky(DictionaryIterator *iterator, bool *radar_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_RADAR_SKY_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY) { return true; }
+    if (tuple->length == 0) {
+        *radar_dirty |= persist_set_radar_sky(NULL, 0);
+        return true;
+    }
+    if (tuple->length > RADAR_SKY_MAX_BYTES
+            || radar_sky_count(tuple->value->data, (int) tuple->length) == 0) {
+        APP_LOG(APP_LOG_LEVEL_WARNING, "Radar sky blob malformed (%u bytes) — skipping",
+                (unsigned) tuple->length);
+        return true;
+    }
+    *radar_dirty |= persist_set_radar_sky(tuple->value->data, tuple->length);
+    return true;
+}
+
 // Custom radar empty-state text — settings-derived, so it rides the Clay
 // message (see clay-payload.js). Empty clears the stored text and the radar
 // falls back to its built-in string; persist_set_norain_text also bounds the
@@ -386,6 +410,11 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
 // receive.
 #define LINE_STYLE_EXT_OFFSET 10
 #define LINE_STYLE_EXT_BYTES 4
+// Third appended tail block: [14] the fourth-metric line colour, [15] its
+// style byte (kind | field, as a LINE_STYLES byte). Own length check, per the
+// growth contract; WW_LINE_STYLE-guarded like the block above.
+#define LINE_STYLE_FIFTH_OFFSET 14
+#define LINE_STYLE_FIFTH_BYTES 2
 
 static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_LINE_STYLE_UINT8);
@@ -419,6 +448,11 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
         changed |= persist_set_fourth_line_color(
             (GColor){ .argb = b[LINE_STYLE_EXT_OFFSET] });
         changed |= persist_set_line_styles(&b[LINE_STYLE_EXT_OFFSET + 1]);
+    }
+    if (tuple->length >= LINE_STYLE_FIFTH_OFFSET + LINE_STYLE_FIFTH_BYTES) {
+        changed |= persist_set_fifth_line_color(
+            (GColor){ .argb = b[LINE_STYLE_FIFTH_OFFSET] });
+        changed |= persist_set_fifth_line_style(b[LINE_STYLE_FIFTH_OFFSET + 1]);
     }
 #endif
     *forecast_dirty |= changed;
@@ -573,6 +607,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
     // ignores inbound radar payloads; the whole radar persist surface drops too.
     handled |= handle_rain_radar(iterator, &radar_dirty);
+    handled |= handle_radar_sky(iterator, &radar_dirty);
     // The no-rain text repaints via the same radar_dirty checkpoint below
     // (rain_radar_layer_refresh), so an open radar view redraws on save.
     handled |= handle_norain_text(iterator, &radar_dirty);
@@ -770,7 +805,16 @@ void app_message_init() {
     // 536 (was 528): the threshold-highlight levels byte rides the weather
     // bundle as its own tuple — 1 value byte + the 7-byte tuple header
     // (recorded heaviest bundle now 525 B; headroom 11).
+#if defined(PBL_PLATFORM_APLITE)
+    // aplite: the buffer comes out of its tiny heap, so 536 B is a hard ceiling;
+    // its bundle never carries the fourth/fifth metric lines (WW_LINE_STYLE).
     const int inbox_size = 536;
+#else
+    // Every other platform has heap to spare and carries the extra metric lines
+    // (test/inbox-size.test.js sizes each platform's heaviest bundle against its
+    // own value here).
+    const int inbox_size = 600;
+#endif
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));
     APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage buffer sizes: inbox=%d outbox=%d", inbox_size, outbox_size);
     app_message_open(inbox_size, outbox_size);

@@ -200,6 +200,23 @@ test('DWD maps Brightsky pressure_msl into pressureTrend', () => {
   assert.deepEqual(p.pressureTrend, [1012.5, 0], 'pressure_msl hPa passthrough, absent → 0');
 });
 
+test('DWD maps Brightsky cloud_cover into cloudTrend', () => {
+  responder = function(url, onSuccess) {
+    if (url.indexOf('/current_weather') !== -1) {
+      onSuccess(JSON.stringify({ weather: { temperature: 20 } }));
+      return;
+    }
+    onSuccess(JSON.stringify({ weather: [
+      { temperature: 0, precipitation_probability: 40, precipitation: 1.2, wind_speed: 18, wind_gust_speed: 30, cloud_cover: 88, timestamp: '2023-11-14T22:00:00+00:00' },
+      // second hour omits cloud_cover -> 0 (clear sky)
+      { temperature: 10, precipitation_probability: 0, precipitation: 0, wind_speed: 0, wind_gust_speed: 0, timestamp: '2023-11-14T23:00:00+00:00' }
+    ] }));
+  };
+  const p = new DwdProvider();
+  p.withProviderData(0, 0, false, function() {}, function(f) { throw new Error('unexpected failure ' + JSON.stringify(f)); });
+  assert.deepEqual(p.cloudTrend, [88, 0], 'cloud_cover % passthrough, absent → 0');
+});
+
 const feelsLikeF = require('../src/pkjs/weather/feels-like.js').feelsLikeF;
 
 test('DWD computes feelsTrend via Steadman from temperature/relative_humidity/wind_speed', () => {

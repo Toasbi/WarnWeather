@@ -37,6 +37,17 @@ function precedingHourSlice(series, anchor, bucketCount, fill) {
     return out;
 }
 
+/**
+ * One cloud-cover bucket as a number: a null hour (a gap in the model output)
+ * reads as 0 %, the same zero-fill the other providers apply, so the series stays
+ * numeric and hour-aligned.
+ * @param {*} v Raw bucket value.
+ * @returns {number} Cloud cover percent, 0 when absent.
+ */
+function percentOrZero(v) {
+    return typeof v === 'number' ? v : 0;
+}
+
 // The ECMWF IFS 0.25° ensemble's forecast step: its buckets fall on 00, 03,
 // 06 … UTC.
 var ENSEMBLE_STEP_SECONDS = 3 * HOUR_SECONDS;
@@ -103,7 +114,7 @@ function ensembleBlockSlice(series, times, anchor) {
  *
  * @param {Object} json Parsed Open-Meteo /v1/forecast response.
  * @param {number} nowEpoch Current time in epoch seconds.
- * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], startTime: number, currentTemp: number}|null}
+ * @returns {{tempTrend: number[], precipTrend: number[], rainTrend: number[], windTrend: number[], gustTrend: number[], pressureTrend: number[], cloudTrend: number[], startTime: number, currentTemp: number}|null}
  *   Mapped fields, or null when the response is malformed or has fewer than
  *   FORECAST_HOURS buckets at/after the current hour. (The last slot's
  *   preceding-hour values sit in the bucket after the window; a response
@@ -152,6 +163,10 @@ function mapResponse(json, nowEpoch) {
         // which it returns all-null — hence the separate gust call below).
         pressureTrend: Array.isArray(hourly.pressure_msl)
             ? hourly.pressure_msl.slice(anchor, end) : [],
+        // Optional like pressure: total cloud cover (%) is an ECMWF IFS output, so it
+        // rides the pinned main request. Absent → [] → the cloud line stays off.
+        cloudTrend: Array.isArray(hourly.cloud_cover)
+            ? hourly.cloud_cover.slice(anchor, end).map(percentOrZero) : [],
         startTime: times[anchor],
         currentTemp: current.temperature_2m
     };
@@ -193,7 +208,7 @@ function buildForecastUrl(lat, lon) {
     return OPEN_METEO_BASE
         + '?latitude=' + lat
         + '&longitude=' + lon
-        + '&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl'
+        + '&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover'
         + '&current=temperature_2m'
         + '&temperature_unit=fahrenheit'
         + '&windspeed_unit=kmh'

@@ -41,6 +41,9 @@ var APP_FILES = [
   // test/config-page-bundle.test.js pins each of them into the generated page.
   path.join(ROOT, 'src/pkjs/settings/preview-svg.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-rain.js'),
+  // preview-stripe.js publishes window.PreviewStripe (the stripe cell look), read by
+  // the forecast and radar previews below.
+  path.join(ROOT, 'src/pkjs/settings/preview-stripe.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-forecast.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),

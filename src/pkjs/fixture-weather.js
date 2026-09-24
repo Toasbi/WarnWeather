@@ -11,6 +11,7 @@ var forecastSeries = require('./forecast-series.js');
 var wireUnits = require('./wire-units.js');
 var paletteWire = require('./weather/palette-wire.js');
 var lineStyle = require('./line-style.js');
+var radarSky = require('./weather/radar-sky.js');
 
 /**
  * Put a copy of `source` on `mapped[key]` when it is an array; otherwise leave
@@ -68,6 +69,9 @@ function mapFixtureWeather(weather) {
     // Sea-level pressure (hPa) is a status-slot value AND a forecast-line metric;
     // absent → [] so the line/slot render as off/'--'.
     mapArrayIfPresent(mapped, 'pressureTrend', weather.pressureHpa);
+    // Cloud cover (%) is a forecast-line metric only: an hourly array, or absent so
+    // adoptMapped leaves [] and the cloud line renders as off.
+    mapArrayIfPresent(mapped, 'cloudTrend', weather.cloudPct);
     // Dew point (°F) and the wind bearing (degrees the wind comes FROM) are
     // status-slot values: absent → [] so the dew slot renders '--' and the
     // wind/gust slots draw no arrow (a provider that does not source them).
@@ -174,11 +178,28 @@ function getFixtureRadarTuples(fixture) {
     } else {
         radarStart = Math.floor(Date.now() / 1000);
     }
-    return {
+    var tuples = {
         RAIN_RADAR_TREND_UINT8: weather.rainRadarExactMm.map(toTenths),
         RAIN_RADAR_TREND_AREA_UINT8: weather.rainRadarAreaMm.map(toTenths),
         RAIN_RADAR_START: radarStart
     };
+    // Optional sky rows (radar-sky.js): weather.sky = { cloudPct, sunPct, lightning },
+    // one entry per 15-min slot from the quarter-hour holding the radar start.
+    var sky = weather.sky;
+    if (sky && Array.isArray(sky.cloudPct) && Array.isArray(sky.sunPct)) {
+        var pctToByte = function(p) {
+            return radarSky.toByte(p, 100);
+        };
+        tuples.RADAR_SKY_UINT8 = radarSky.packSky({
+            start: radarSky.skyStartFor(radarStart),
+            clouds: sky.cloudPct.map(pctToByte),
+            suns: sky.sunPct.map(pctToByte),
+            bolts: sky.cloudPct.map(function(_, k) {
+                return Array.isArray(sky.lightning) && Boolean(sky.lightning[k]);
+            })
+        });
+    }
+    return tuples;
 }
 
 /**

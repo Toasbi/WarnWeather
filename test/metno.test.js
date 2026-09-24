@@ -248,6 +248,14 @@ test('metno maps air_pressure_at_sea_level into pressureTrend', () => {
   assert.equal(mapped.pressureTrend.length, 24);
 });
 
+test('metno maps cloud_area_fraction into cloudTrend', () => {
+  const body = forecastBody(26, HOUR0, { 0: { instant: { cloud_area_fraction: 62.5 } } });
+  const mapped = metno.mapResponse(body, NOW);
+  assert.equal(mapped.cloudTrend[0], 62.5);
+  assert.equal(mapped.cloudTrend[1], 0, 'an hour without the field reads as clear sky');
+  assert.equal(mapped.cloudTrend.length, 24);
+});
+
 // Dew point and wind bearing both come from instant.details on the /complete
 // endpoint already in use — no request change. Dew converts °C → °F (the repo's
 // internal temperature unit, matching currentTemp/feelsTrend); the bearing stays

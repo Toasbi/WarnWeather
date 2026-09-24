@@ -455,9 +455,11 @@ Fields supported in `fixtures/<name>.json`:
 - `weather.startDayOffset` — optional day offset added to `watch.now.day` for the forecast start (default 0; pairs with `startHour`)
 - `weather.temps` — hourly Fahrenheit forecast array
 - `weather.precipPct` — hourly precipitation-probability array (0–100)
+- `weather.cloudPct` — optional hourly cloud-cover array (0–100); feeds the cloud-cover metric (omitted → that line stays off)
 - `weather.rainMm` — hourly rain-amount array (mm); drives the optional rain bars
 - `weather.windKmh` / `weather.gustKmh` — hourly wind / gust speed arrays (km/h); a non-zero gust array turns the gust line on
 - `weather.rainRadarExactMm` / `weather.rainRadarAreaMm` — radar rain per 5-minute frame (mm/h): rain at the exact location, and the strongest rain within 2 km. Supply both or radar is skipped
+- `weather.sky` — optional radar sky rows: `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start (percent, percent, 0/1); sent as `RADAR_SKY_UINT8` with the radar
 - `weather.radarStartEpoch` — optional Unix-seconds anchor for the radar window (defaults to the forecast start; the time-lapse uses it to scroll radar independently of the forecast)
 - `weather.sunEvents` — next two sun events, authored as local fields `{ type, dayOffset, hour, minute }` and normalized to `{ type, epoch }`
 

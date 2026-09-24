@@ -29,6 +29,7 @@ var sleepWindow = require('./sleep-window.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var radarFactory = require('./weather/radar-factory.js');
 var radarWire = require('./weather/radar-wire.js');
+var radarSky = require('./weather/radar-sky.js');
 var WeatherProvider = require('./weather/provider.js');
 var forecastSeries = require('./forecast-series.js');
 
@@ -199,14 +200,16 @@ function createFetchCycle(deps) {
 
     /**
      * Fetch rain-radar tuples for already-resolved coordinates (single per-cycle
-     * acquisition). A transient failure calls `callback(null)`; the weather payload
-     * still ships without radar tuples. A permanent one (missing key/endpoint,
-     * rejected key) calls back the clearing tuples. Out-of-coverage produces zero
-     * arrays, shipped normally.
+     * acquisition), with the radar's sky rows (radar-sky.js) merged in. A transient
+     * radar failure leaves the radar keys out: the callback gets the sky answer
+     * alone, or null when the sky had none either, and the weather payload still
+     * ships without radar tuples. A permanent one (missing key/endpoint, rejected
+     * key) calls back the clearing tuples. Out-of-coverage produces zero arrays,
+     * shipped normally.
      *
      * @param {number} lat Latitude in decimal degrees.
      * @param {number} lon Longitude in decimal degrees.
-     * @param {Function} callback Receives a radar tuples object, or null.
+     * @param {Function} callback Receives the radar and/or sky tuples, or null.
      * @returns {void}
      */
     function withRainRadarTuplesAt(lat, lon, callback) {
@@ -237,7 +240,15 @@ function createFetchCycle(deps) {
                 tomorrowioApiKey: (settings && settings.tomorrowioApiKey) || ''
             }
         );
-        source.fetchRadarTuplesAt(lat, lon, radarWire.slotZeroEpochFor(+deps.now()), callback);
+        var skySource = radarSky.createSkySource(radarSky.skySourceIdFor(settings));
+        var slotZeroEpoch = radarWire.slotZeroEpochFor(+deps.now());
+        // The sky request is independent of the radar's, so both go out at once and
+        // the forecast waits for the slower one, not for one after the other.
+        radarSky.joinRadarAndSky(function (cb) {
+            source.fetchRadarTuplesAt(lat, lon, slotZeroEpoch, cb);
+        }, function (cb) {
+            skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, cb);
+        }, callback);
     }
 
     /**
@@ -437,11 +448,19 @@ function createFetchCycle(deps) {
             // failed — e.g. tomorrow.io as both forecast and radar source with no key
             // or a revoked one. Its extras died with the forecast, and without the
             // clear the watch rolls its last window into a made-up "No rain ahead".
-            // The outbox dedupe sends it once. Not on a NACK: that send already
-            // carried it, and its uncommitted cache retries next cycle.
-            if (radarWire.isClearRadarTuples(radarTuples)
-                && !(failure && failure.stage === 'app_message')) {
-                Object.assign(failureSend, radarTuples);
+            // A sky CLEAR (the sky rows' toggle off, or the radar graph not shown)
+            // likewise, or the watch keeps drawing the rows until a forecast next
+            // succeeds. Each clear goes out as its own keys only: the answer merges
+            // radar and sky, and a failed forecast forwards clears, never fresh data.
+            // The outbox dedupe sends each once. Not on a NACK: that send already
+            // carried them, and its uncommitted cache retries next cycle.
+            if (!(failure && failure.stage === 'app_message')) {
+                if (radarWire.isClearRadarTuples(radarTuples)) {
+                    Object.assign(failureSend, radarWire.clearRadarTuples());
+                }
+                if (radarSky.isClearSkyTuple(radarTuples)) {
+                    Object.assign(failureSend, radarSky.clearSkyTuple());
+                }
             }
             if (Object.keys(failureSend).length > 0) {
                 deps.outbox.sendWeather(failureSend);
