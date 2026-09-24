@@ -130,39 +130,79 @@ static void split_content(int content_h, const uint8_t weights[3],
     *bottom_h = content_h - *calendar_h - *time_h;
 }
 
-// Single source of truth for the vertical band geometry, both platforms, all modes.
-// Each status band is carved from its own field: `upper` (L.status) and `lower`
-// (L.status_lower). Full: the upper band abuts the forecast, sized from the font
-// (fc_band_h), bottom pinned to the forecast top. Compact: calendar drops to 2 rows, the
-// upper band takes the freed 3rd-row slot, the bottom band grows up to the fixed time band.
-// None: no calendar, time rises under the strip, a taller upper band beneath it, the bottom
-// band (which also hosts the radar) fills the rest. The lower band is carved from the top of
-// the bottom band (the forecast-abutting slot), independently of the upper band.
-// The legacy (order-0) geometry engine. Takes the ViewSpec whole — the same signature
-// as compute_stacked below, so layout_compute_spec is a pure dispatcher and no caller
-// threads the spec's facts through by hand.
-// `clock` is false only for a custom clockless view (ViewSpec.clock_off): the time band
-// collapses to zero height, the bands that borrowed its blank margins consume their full
-// heights in flow instead, and the body absorbs everything the clock vacated.
-// `strip` is false only for a custom stripless view (ViewSpec.strip_off): the top status
-// strip's band collapses and its reserve leaves the anchor chain, so every band above the
-// body shifts up and the body absorbs the freed rows at the bottom. Band HEIGHTS are
-// deliberately untouched (the content split keeps the strip reserve in its arithmetic) —
-// removing the strip moves the remaining elements, it does not resize them.
-// Preset specs always carry clock and strip, so every preset path below is
-// byte-identical to pre-custom builds.
+// ── Strip-adjacent seats, shared by BOTH engines ────────────────────────────
+// Two rows both geometry engines must agree on — the clock centred under the strip and
+// the calendar seated on its ink — live here so the measured reasoning exists once.
+
+// The last inked row of the strip's CAP — the edge a clock with no other ink above it
+// centres against — or, stripless, the row just above the first content row (it plays
+// the "last inked row" part so the centring rule needs no special case).
+// The CAP floor, deliberately NOT status_strip_ink_h() (which strip_calendar_seat
+// below anchors to): that one counts the descender tails because the calendar must not
+// COLLIDE with a 'y' the date sometimes has; centring is an optical question and the
+// eye reads the line, not the tail. MEASURED: the cap floor reproduces the hand-tuned
+// noCal clock exactly on both platforms (144px ink 21..55, gaps 9/9; emery 31..76,
+// 14/14), where the tail floor would drop it a row. status_ink_top + status_cap_h ==
+// content_h, so the cap's last row is the seated frame top plus the content height,
+// less one.
+static int strip_cap_floor(bool strip, int content_y, int strip_h) {
+    return strip ? (content_y + status_strip_seat_y(strip_h, STATUS_LARGE_FONT_H)
+                    + STATUS_LARGE_FONT_H - 1)
+                 : (content_y - 1);
+}
+
+// First row of a calendar band seated directly under the strip: the first row the strip
+// DOES NOT PAINT (status_strip_ink_h), not the first row below the strip's band. The
+// calendar's rows keep their height and simply slide down under the taller font-sized
+// strip — the extra px come out of the calendar→clock gap — so its bottom overhangs the
+// next band's blank top margin; that band paints only text over a clear background, the
+// same sibling overlap the compact status row uses.
+//
+// Why the strip's INK and not its band: every element between the screen's top edge and
+// the clock is a fixed anchor, so the air up here is a fixed budget the gaps share. The
+// strip's line seats STATUS_TOP_STRIP_LIFT rows high inside an unchanged band, which
+// leaves that many rows at the band's bottom the strip can never reach — dead air the
+// eye reads as calendar→strip padding, while below the calendar the gap had closed to
+// 1 px against the status row's slot icons (MEASURED on basalt compactCal: calendar
+// digits inked rows 34..44, the row's leftmost icon row 46) and the threshold-highlight
+// box, which spans its whole band from row 44, overlapped that last digit row outright.
+// Anchoring to the ink hands those rows to the gap that needs them: the calendar's first
+// painted row now sits directly under the strip's last painted row, and its last digit
+// row clears the status row's cap by at least STATUS_FORECAST_CLEARANCE — the same ink
+// clearance that row keeps above the forecast graph. Both edges are ink, so nothing here
+// is a per-mode pixel: test/c/layout_test.c::calendar_status_clearance pins the
+// resulting gap from the font metrics on both platforms.
+// + STATUS_STRIP_CAL_GAP (emery 2, else 0): blank rows between the strip's ink floor
+// and the calendar's first painted row, spent on the strip's threshold-highlight box —
+// its tail room and its clearance to the calendar highlight (see status_metrics.h).
+// The emery ink lifts above each shave 1 to re-centre against the lowered calendar ink.
+static int strip_calendar_seat(int content_y, int strip_h) {
+    return content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H)
+           + STATUS_STRIP_CAL_GAP;
+}
+
+// Single source of truth for the vertical band geometry of PRESETS — and of order-0
+// custom views that keep all their chrome — both platforms, all modes. Each status band
+// is carved from its own field: `upper` (L.status) and `lower` (L.status_lower). Full:
+// the upper band abuts the forecast, sized from the font (fc_band_h), bottom pinned to
+// the forecast top. Compact: calendar drops to 2 rows, the upper band takes the freed
+// 3rd-row slot, the bottom band grows up to the fixed time band. None: no calendar,
+// time rises under the strip, a taller upper band beneath it, the bottom band (which
+// also hosts the radar) fills the rest. The lower band is carved from the top of the
+// bottom band (the forecast-abutting slot), independently of the upper band.
+// Takes the ViewSpec whole — the same signature as compute_stacked below, so
+// layout_compute_spec is a pure dispatcher and no caller threads the spec's facts
+// through by hand.
+// Chrome omissions NEVER reach this engine: any spec with clock_off, strip_off or a
+// non-zero order is dispatched to compute_stacked, so the clock band and the top strip
+// are unconditional here and the body below carries no omission conditionals at all.
+// That is what keeps preset geometry byte-identical BY CONSTRUCTION — this is the
+// v1.15.3 preset engine, plus exactly one addition it needed for a shape presets never
+// emit but custom order-0 views can: the FULL-dual lower-band reserve (see the carve).
 static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
     uint8_t tier = layout_tier_for_rows(spec->calendar_rows);
     bool upper = (spec->status_upper != STATUS_SRC_NONE);
     bool lower = (spec->status_lower != STATUS_SRC_NONE);
-    bool clock = (spec->clock_off == 0);
-    bool strip = (spec->strip_off == 0);
-    // Band sizes SERVE the font, and the font is the spec's status_tier (pushed to
-    // the rows by main_window): squeezed = the smaller full-tier type, which — per
-    // status_tier_for — only a CLOCKED dual (or a clocked FULL-tier seat) renders.
-    // Clockless views carry the large font, so their bands take the large clamp-free
-    // height below whatever their occupancy is.
-    bool squeezed = (spec->status_tier == LAYOUT_TIER_FULL);
     const uint8_t *weights = spec->weights;
     // Unpacked once into locals so the body below reads exactly as it did; both are register
     // copies, and the bundling exists purely to keep the call itself off the stack (layout.h).
@@ -197,48 +237,25 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
     // footprint. Holding this fixed is what keeps the clock, the status rows and the forecast
     // graph on exactly the pixels they had when the strip's band grew (CALENDAR_STATUS_HEIGHT
     // above). The strip's surplus height is paid for out of the air below it instead.
-    int strip_anchor_y = content_y + (strip ? CALENDAR_STATUS_HEIGHT : 0);
-    // The calendar starts on the first row the strip DOES NOT PAINT (status_strip_ink_h), not
-    // on the first row below the strip's band. Its rows keep their height and simply slide
-    // down under the taller strip — the extra px come out of the calendar→clock gap — so its
-    // bottom overhangs the clock band's blank top margin; that band paints only text over a
-    // clear background, the same sibling overlap the compact status row uses.
-    //
-    // Why the strip's INK and not its band: the compact tier stacks the calendar directly on
-    // the upper status row's band, and every element between the screen's top edge and the
-    // clock is a fixed anchor, so the air up here is a fixed budget the two gaps share. The
-    // strip's line seats STATUS_TOP_STRIP_LIFT rows high inside an unchanged band, which
-    // leaves that many rows at the band's bottom the strip can never reach — dead air the
-    // eye reads as calendar→strip padding, while below the calendar the gap had closed to
-    // 1 px against the status row's slot icons (MEASURED on basalt compactCal: calendar
-    // digits inked rows 34..44, the row's leftmost icon row 46) and the threshold-highlight
-    // box, which spans its whole band from row 44, overlapped that last digit row outright.
-    // Anchoring to the ink hands those rows to the gap that needs them: the calendar's first
-    // painted row now sits directly under the strip's last painted row, and its last digit row
-    // clears the status row's cap by at least STATUS_FORECAST_CLEARANCE — the same ink
-    // clearance that row keeps above the forecast graph. Both edges are ink, so nothing here
-    // is a per-mode pixel: test/c/layout_test.c::calendar_status_clearance pins the resulting
-    // gap from the font metrics on both platforms.
-    // + STATUS_STRIP_CAL_GAP (emery 2, else 0): blank rows between the strip's ink floor
-    // and the calendar's first painted row, spent on the strip's threshold-highlight box —
-    // its tail room and its clearance to the calendar highlight (see status_metrics.h).
-    // The emery ink lifts below each shave 1 to re-centre against the lowered calendar ink.
-    // Stripless: no ink above — the calendar starts at the content top itself.
-    int calendar_y = strip ? (content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H)
-                              + STATUS_STRIP_CAL_GAP)
-                           : content_y;
+    int strip_anchor_y = content_y + CALENDAR_STATUS_HEIGHT;
+    // The calendar seats on the strip's INK, not its band (strip_calendar_seat): its rows
+    // keep their height and slide down under the taller font-sized strip, spending the
+    // calendar→clock gap, so its bottom overhangs the clock band's blank top margin — the
+    // same sibling overlap the compact status row uses. The compact tier stacks the
+    // calendar directly on the upper status row's band, which is what makes the ink edge
+    // (not the band edge) the one to anchor; the full reasoning and MEASURED rows live on
+    // the helper.
+    int calendar_y = strip_calendar_seat(content_y, strip_h);
     int time_y = strip_anchor_y + calendar_h;
 
-    L.top_status = GRect(content_x, content_y, content_w, strip ? strip_h : 0);
+    L.top_status = GRect(content_x, content_y, content_w, strip_h);
     if (tier == LAYOUT_TIER_NONE) {
         // none: no calendar, so the clock rides directly under the strip — but it keeps the
         // slot it had under the PRE-RESIZE strip, which was one px taller than the reserve
         // (hence the +1). The taller band grows down into the strip→clock gap instead of
         // pushing the clock, the status row and the graph down.
-        // (+1 only under a strip: the slot the clock had under the PRE-RESIZE strip.
-        // Stripless there is nothing above at all — the clock band starts at the content top.)
-        int none_time_y = strip_anchor_y + (strip ? 1 : 0);
-        int status_y = none_time_y + (clock ? time_h : 0);
+        int none_time_y = strip_anchor_y + 1;
+        int status_y = none_time_y + time_h;
         // Reserve the band under the clock only when the UPPER row actually fills it. Without a
         // calendar there is no 3rd-row slot to swap out of, so a lone LOWER row (the compact swap
         // toggle also rewrites the NONE-tier flick views) is carved from the top of the body just
@@ -248,20 +265,10 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
 
         L.top = GRect(content_x, calendar_y, content_w, 0);   // calendar hidden; zero-height band
         L.status = GRect(content_x, status_y, content_w, NONE_STATUS_HEIGHT);
-        L.time = GRect(content_x, none_time_y, content_w, clock ? time_h : 0);
-        // The strip is the only ink above the clock here, and we want its CAP floor — NOT
-        // status_strip_ink_h(), which calendar_y anchors to. That one counts the descender
-        // tails because the calendar must not COLLIDE with a 'y' the date sometimes has;
-        // centring is an optical question and the eye reads the line, not the tail. MEASURED:
-        // the cap floor reproduces the hand-tuned noCal clock exactly on both platforms
-        // (144px ink 21..55, gaps 9/9; emery 31..76, 14/14), where the tail floor would drop
-        // it a row. status_ink_top + status_cap_h == content_h, so the cap's last row is the
-        // seated frame top plus the content height, less one.
-        // Stripless: no ink above the clock at all — centre against the content top edge
-        // (the row just above the first content row plays the "last inked row" part).
-        clock_above = strip ? (content_y + status_strip_seat_y(strip_h, STATUS_LARGE_FONT_H)
-                               + STATUS_LARGE_FONT_H - 1)
-                            : (content_y - 1);
+        L.time = GRect(content_x, none_time_y, content_w, time_h);
+        // The strip is the only ink above the clock here — its CAP floor, not its
+        // descender-inclusive ink floor; see strip_cap_floor for the measured reasoning.
+        clock_above = strip_cap_floor(true, content_y, strip_h);
         upper_ch = STATUS_LARGE_FONT_H;   // NONE_ROW_FONT_KEY is the large tier font
         L.bottom = GRect(content_x, forecast_y, bottom_w, h - LAYOUT_PAD_BOTTOM - forecast_y);
         L.loading = L.bottom;
@@ -275,11 +282,19 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
         // gap. (A compact view always has an upper status unless swapped, so this only fires for
         // the swap layout.) Anchored to the strip's reserve, not to calendar_y, so the taller
         // font-sized strip cannot drag the swapped clock — and the graph below it — down.
-        if (compact && !upper && clock) { time_y = strip_anchor_y + cal_h; }
-        // Band height and ink lift are hoisted above forecast_y because the CLOCKLESS
-        // compact arm below needs the band's extent — and in COMPACT both are independent
-        // of forecast_y (the band anchors to time_y). The FULL status band still derives
-        // its top from forecast_y afterwards, exactly as before.
+        if (compact && !upper) { time_y = strip_anchor_y + cal_h; }
+        // full: reserve the abutting status band above the forecast — but only when a status
+        // row is actually shown. A statusless full view (the radar-top forecast flick,
+        // RDR_FC_NONE) reclaims that row so its forecast matches the compact tier's height.
+        int forecast_y = compact ? (time_y + time_h)
+                                 : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
+        // full: the status band rides directly above the forecast — size it from the font
+        // (fc_band_h) and pin its bottom to the forecast top so the centred line clears the
+        // graph by a constant margin, rising up into the clock band's slack. compact: the band
+        // drops into the freed 3rd calendar row between the 2-row calendar and the clock, and is
+        // anchored to the clock band (which never moves) rather than to the calendar's bottom
+        // (which slides down with the font-sized strip), so the row stays put when the strip
+        // grows.
         //
         // HEIGHT and POSITION are independent here, and that is the point. A LONE row takes the
         // clamp-free font-sized band — its old calendar_h/3 slot was 2px (emery 3px) short and
@@ -289,66 +304,19 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
         // preset-independent calendar is the same whatever band and font the preset picked; the
         // difference in height is absorbed at the BOTTOM, in the clock band's blank top margin.
         // Anchoring the bottom instead made the gap vary per preset — the defect this fixes.
-        int status_h = compact ? (squeezed ? (calendar_h / 3) : STATUS_LARGE_BAND_H)
-                               : (squeezed ? fc_band_h : STATUS_LARGE_BAND_H);
+        int status_h = compact ? (two_rows ? (calendar_h / 3) : STATUS_LARGE_BAND_H) : fc_band_h;
         // The compact band top adds the per-preset ink-centring lift to the shared anchor:
         // the anchor equalizes where the band STARTS, the lift centres where its INK lands
         // (a dense row's smaller font floats lower in the same slot than the lone row's).
-        int row_lift = squeezed ? COMPACT_DENSE_ROW_INK_LIFT : COMPACT_LONE_ROW_INK_LIFT;
-        int compact_status_y = time_y - COMPACT_STATUS_TOP_ABOVE_CLOCK - row_lift;
-        int forecast_y;
-        if (clock) {
-            // full: reserve the abutting status band above the forecast — but only when a status
-            // row is actually shown. A statusless full view (the radar-top forecast flick,
-            // RDR_FC_NONE) reclaims that row so its forecast matches the compact tier's height.
-            forecast_y = compact ? (time_y + time_h)
-                                 : (time_y + time_h + (has_status ? WEATHER_STATUS_HEIGHT : 0));
-        } else if (upper) {
-            // No clock, upper row shown — and per status_tier_for every clockless row
-            // renders the LARGE font, so the band is the large clamp-free height
-            // (ink to the band edge) and always adds STATUS_FORECAST_CLEARANCE of
-            // ink-to-neighbour air below it. COMPACT: the audited seat does not move —
-            // the band keeps its COMPACT_STATUS_TOP_ABOVE_CLOCK anchor — and the body
-            // (or the dual's B band, carved below) rises to the band's floor, merging
-            // the freed 3rd-calendar-row and absent-clock reclaims into one. FULL: the
-            // band sits in flow at time_y — with a clock it reserved only
-            // WEATHER_STATUS_HEIGHT and let the surplus rise into the clock band's
-            // blank margin, which no longer exists.
-            forecast_y = (compact ? compact_status_y : time_y)
-                         + status_h + STATUS_FORECAST_CLEARANCE;
-        } else {
-            // No clock, no upper row: anchor to the top band's REAL frame bottom (calendar_y
-            // + cal_h), not to the strip reserve — the calendar/radar band slides below
-            // strip_anchor by design, and with no clock band there is no blank margin to
-            // absorb that overhang. One expression, no knowledge of the top content.
-            forecast_y = calendar_y + cal_h + STATUS_FORECAST_CLEARANCE;
-        }
-        // full: the status band rides directly above the forecast — pin its bottom to the
-        // forecast top so the centred line clears the graph by a constant margin, rising up
-        // into the clock band's slack (clockless FULL has no slack; there the ladder above
-        // placed forecast_y a full fc_band_h below time_y, so the same expression seats the
-        // band in flow). compact: the band drops into the freed 3rd calendar row between the
-        // 2-row calendar and the clock, anchored to the clock band's reserve (which never
-        // moves) rather than to the calendar's bottom (which slides down with the font-sized
-        // strip), so the row stays put when the strip grows — clockless included: the seat is
-        // audited, only the body below it moves.
-        // full-CLOCKED: bottom pinned to the forecast top, rising into the clock's
-        // slack — a squeezed band carries its own clearances inside fc_band_h, an
-        // UNSQUEEZED one (stripless view, large font) is the clamp-free band plus an
-        // explicit ink clearance (on the 144px watches 17+3 == fc_band_h, so the
-        // band's top row doesn't even move; only the type grows). full-CLOCKLESS:
-        // in flow at time_y (the ladder above spaced the body off the band).
-        int full_status_reserve = squeezed ? fc_band_h
-                                           : (status_h + STATUS_FORECAST_CLEARANCE);
-        int status_y = compact ? compact_status_y
-                     : clock   ? (forecast_y - full_status_reserve)
-                               : time_y;
+        int row_lift = two_rows ? COMPACT_DENSE_ROW_INK_LIFT : COMPACT_LONE_ROW_INK_LIFT;
+        int status_y = compact ? (time_y - COMPACT_STATUS_TOP_ABOVE_CLOCK - row_lift)
+                               : (forecast_y - fc_band_h);
         // What the clock's ink sits under. In COMPACT the upper row takes the freed 3rd
         // calendar row, i.e. it is ABOVE the clock and the calendar is not the neighbour; in
         // FULL that same row rides down by the forecast instead, so the calendar is. Dates are
         // digits — no ascenders, no descenders — which is what makes the calendar's cap box a
         // usable edge (calendar_metrics.h).
-        upper_ch = squeezed ? full_tier_h : STATUS_LARGE_FONT_H;
+        upper_ch = compact ? (two_rows ? full_tier_h : STATUS_LARGE_FONT_H) : full_tier_h;
         if (compact && upper) {
             clock_above = status_band_ink_top(status_y, status_h, upper_ch)
                           + status_cap_h(upper_ch) - 1;
@@ -359,12 +327,12 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
 
         L.top = GRect(content_x, calendar_y, content_w, cal_h);
         L.status = GRect(content_x, status_y, content_w, status_h);
-        L.time = GRect(content_x, time_y, content_w, clock ? time_h : 0);
+        L.time = GRect(content_x, time_y, content_w, time_h);
         L.bottom = GRect(content_x, forecast_y, bottom_w, h - LAYOUT_PAD_BOTTOM - forecast_y);
         // Unified loading rule: from the status band's top to the bottom pad. In compact
         // the status band sits inside the calendar band, so loading covers just the graph;
         // a statusless full view has no band above the forecast, so loading starts at it.
-        int full_loading_top = has_status ? (forecast_y - full_status_reserve) : forecast_y;
+        int full_loading_top = has_status ? (forecast_y - fc_band_h) : forecast_y;
         L.loading = compact
             ? GRect(content_x, forecast_y, content_w, h - LAYOUT_PAD_BOTTOM - forecast_y)
             : GRect(content_x, full_loading_top, content_w,
@@ -386,49 +354,36 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
             L.bottom.origin.y += NONE_STATUS_HEIGHT;
             L.bottom.size.h -= NONE_STATUS_HEIGHT;
             L.radar = L.bottom;
-        } else if (clock && (squeezed || compact)) {
-            // compact/full, CLOCKED: the lower row rides the forecast-abutting band. A DUAL
-            // lower row uses the squeezed full-tier band (fc_band_h) so two stacked rows fit
-            // beside the clock. A LONE lower row (the compact swap layout — a single status
-            // moved below the clock) instead keeps the compact single-status band size and
-            // font, so swapping only changes position, not size (a true top/bottom swap).
-            // The forecast gives up `reserve` from its top; the band's bottom sits on that
-            // forecast top. The swap's reserve stays the old calendar_h/3 SLOT even though
-            // the lone band is the taller clamp-free height: the surplus grows upward into
-            // the clock band's slack, so the graph keeps every pixel it had.
+        } else {
+            // compact/full: the lower row rides the forecast-abutting band. A DUAL lower row uses
+            // the squeezed full-tier band (fc_band_h) so two stacked rows fit. A LONE lower row
+            // (the compact swap layout — a single status moved below the clock) instead keeps the
+            // compact single-status band size and font, so swapping only changes position, not
+            // size (a true top/bottom swap). The forecast gives up `reserve` from its top; the
+            // band's bottom sits on that forecast top. The swap's reserve stays the old
+            // calendar_h/3 SLOT even though the lone band is now the taller clamp-free height:
+            // the surplus grows upward into the clock band's slack, so the graph keeps every
+            // pixel it had.
             //
             // The FULL DUAL takes a full-band reserve: its upper band already occupies
             // [forecast_y - fc_band_h, forecast_y), so a WEATHER_STATUS_HEIGHT reserve
             // would seat the lower band fc_band_h - 14 rows INTO it (6px here, 10px emery —
-            // the historical overlap that kept presets from ever emitting a FULL dual;
-            // custom layouts make the shape reachable, so it must render). The COMPACT dual
-            // keeps the shallow reserve — its upper band is far above (in the freed
-            // calendar row) and the carve's upward growth spends the clock band's blank
-            // margin by design; those are shipping preset pixels.
-            lower_ch = squeezed ? full_tier_h : STATUS_LARGE_FONT_H;
-            int band_h  = squeezed ? fc_band_h : STATUS_LARGE_BAND_H;
+            // the historical overlap that kept presets from ever emitting a FULL dual; a
+            // custom order-0 view with a 3-row calendar and both rows makes the shape
+            // reachable, so it must render). The COMPACT dual keeps the shallow reserve —
+            // its upper band is far above (in the freed calendar row) and the carve's
+            // upward growth spends the clock band's blank margin by design; those are
+            // shipping preset pixels.
+            bool lone_lower_compact = compact && !two_rows;
+            lower_ch = lone_lower_compact ? STATUS_LARGE_FONT_H : full_tier_h;
+            int band_h  = lone_lower_compact ? STATUS_LARGE_BAND_H : fc_band_h;
             bool full_dual = !compact && two_rows;
             int reserve = full_dual ? band_h
-                        : squeezed  ? WEATHER_STATUS_HEIGHT
-                                    : (calendar_h / 3);
+                        : (lone_lower_compact ? (calendar_h / 3) : WEATHER_STATUS_HEIGHT);
             int forecast_top = L.bottom.origin.y + reserve;
             L.status_lower = GRect(L.bottom.origin.x, forecast_top - band_h,
                                    L.bottom.size.w, band_h);
             L.bottom.origin.y = forecast_top;
-            L.bottom.size.h -= reserve;
-        } else {
-            // Everything else — clockless views, and clocked FULL-tier views whose
-            // chrome removal un-squeezed them (status_tier_for): the row renders the
-            // large font, so the band takes the large clamp-free height, sits at the
-            // body top in flow, and reserves its own height plus the ink clearance
-            // below. Overlap-free by construction for duals and lone-lowers alike
-            // (the ladder/reserve above already spaced forecast_y off the upper band).
-            lower_ch = STATUS_LARGE_FONT_H;
-            int band_h = STATUS_LARGE_BAND_H;
-            int reserve = band_h + STATUS_FORECAST_CLEARANCE;
-            L.status_lower = GRect(L.bottom.origin.x, L.bottom.origin.y,
-                                   L.bottom.size.w, band_h);
-            L.bottom.origin.y += reserve;
             L.bottom.size.h -= reserve;
         }
         L.loading = L.bottom;
@@ -447,24 +402,19 @@ static MainLayout compute_with_weights(GRect bounds, const ViewSpec *spec, Layou
     // clock shifts by a pixel whatever `ink` says (pinned by clock_ink_nothing_below_moves in
     // test/c/layout_test.c) — the same trick the retired *_TIME_INK_LIFT constants used, only
     // derived from the fonts now instead of hand-measured once per platform.
-    // Clockless view: the band is zero-height and the solver must not be consulted — every
-    // rect, L.time included, is identical whatever `ink` says (pinned by clock_off_ink_inert
-    // in test/c/layout_test.c).
-    if (clock) {
-        int clock_below;
-        if (upper && tier != LAYOUT_TIER_COMPACT) {
-            // full/none seat the upper row BELOW the clock (compact puts it above — see there).
-            clock_below = status_band_ink_top(L.status.origin.y, L.status.size.h, upper_ch);
-        } else if (lower) {
-            clock_below = status_band_ink_top(L.status_lower.origin.y, L.status_lower.size.h,
-                                              lower_ch);
-        } else {
-            // Nothing between the clock and the graph, which paints from its very first row
-            // (MEASURED: chart.c fills the left-axis rect from outer.origin.y == 0).
-            clock_below = L.bottom.origin.y;
-        }
-        L.time.origin.y = clock_seat_y(L.time.size.h, ink, clock_above, clock_below);
+    int clock_below;
+    if (upper && tier != LAYOUT_TIER_COMPACT) {
+        // full/none seat the upper row BELOW the clock (compact puts it above — see there).
+        clock_below = status_band_ink_top(L.status.origin.y, L.status.size.h, upper_ch);
+    } else if (lower) {
+        clock_below = status_band_ink_top(L.status_lower.origin.y, L.status_lower.size.h,
+                                          lower_ch);
+    } else {
+        // Nothing between the clock and the graph, which paints from its very first row
+        // (MEASURED: chart.c fills the left-axis rect from outer.origin.y == 0).
+        clock_below = L.bottom.origin.y;
     }
+    L.time.origin.y = clock_seat_y(L.time.size.h, ink, clock_above, clock_below);
     return L;
 }
 
@@ -508,6 +458,10 @@ ViewSpec view_spec_unpack(uint16_t v) {
     spec.clock_off = (uint8_t)((v >> 10) & 1);
     spec.strip_off = (uint8_t)((v >> 11) & 1);
     spec.order     = (uint8_t)((v >> 12) & 15);
+    // Garbage order codes (12-15 — no compiler emits them) fold to the legacy order at
+    // this decode boundary, so spec.order is a trustworthy 0-11 everywhere downstream:
+    // the engine dispatch and the STACK_ORDER indexing both read it unchecked.
+    if (spec.order > 11) { spec.order = 0; }
     // Via `rows`, not the wire tier, so the field and the tier can never disagree —
     // and through status_tier_for, the one rule unpack and resolve share (base
     // squeeze rule in layout.h's layout_status_tier; clockless exemption above).
@@ -633,24 +587,26 @@ MainLayout layout_compute_peek(GRect bounds, const ViewSpec *spec, LayoutMetrics
 }
 #endif
 
-// ── Stacked geometry (custom band orders 1-11) ──────────────────────────────
-// A custom view with a non-legacy order is a plain vertical stack: the strip (when
-// present) pinned first, then the movable bands — top band (calendar/radar), clock,
-// status A, status B — in the coded order, then the body absorbing the remainder to
-// the bottom pad. Absent bands keep their place in the stored order and are skipped.
+// ── Stacked geometry (every custom shape) ───────────────────────────────────
+// A custom view — a non-legacy band order, OR the legacy order with a chrome omission
+// (clock_off / strip_off) — is a plain vertical stack: the strip (when present) pinned
+// first, then the movable bands — top band (calendar/radar), clock, status A, status B
+// — in the coded order, then the body absorbing the remainder to the bottom pad.
+// Absent bands keep their place in the stored order and are skipped.
 // Band ids for STACK_ORDER below; A renders above B by canonicalization (the phone
 // compiler assigns the visually-upper source to the wire's upper slot).
 enum { STK_TOP = 0, STK_CLOCK = 1, STK_A = 2, STK_B = 3 };
 
 // The 12 canonical orderings of {top, clock, A, B} with A before B. Code 0 is the
-// legacy order (top, A, clock, B) and is DISPATCHED TO compute_with_weights — it
-// appears here only so the table indexes read as wire order codes. Codes 1-11 are
-// the remaining orderings in lexicographic id order. MIRRORED in
-// src/pkjs/view-cycle.js STACK_ORDERS — both sides pin the same documented list in
+// legacy order (top, A, clock, B): with full chrome it is DISPATCHED TO
+// compute_with_weights, but an order-0 view that removed the clock or the strip stacks
+// HERE through this row — which is exactly the band list the phone editor displays for
+// order 0. Codes 1-11 are the remaining orderings in lexicographic id order. MIRRORED
+// in src/pkjs/view-cycle.js STACK_ORDERS — both sides pin the same documented list in
 // their tests; edit in lockstep or the phone previews one order and the watch
 // renders another.
 static const uint8_t STACK_ORDER[12][4] = {
-    { STK_TOP,   STK_A,     STK_CLOCK, STK_B     },   //  0: TACB (legacy — never here)
+    { STK_TOP,   STK_A,     STK_CLOCK, STK_B     },   //  0: TACB (omission views only)
     { STK_TOP,   STK_CLOCK, STK_A,     STK_B     },   //  1: TCAB
     { STK_TOP,   STK_A,     STK_B,     STK_CLOCK },   //  2: TABC
     { STK_CLOCK, STK_TOP,   STK_A,     STK_B     },   //  3: CTAB
@@ -717,8 +673,7 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
     // next band clears them by STATUS_FORECAST_CLEARANCE; an fc_band_h status band
     // and the clock carry their own blank margins, so nothing is added.
     GRect rect[4];
-    uint8_t order = (spec->order <= 11) ? spec->order : 0;
-    const uint8_t *ord = STACK_ORDER[order];
+    const uint8_t *ord = STACK_ORDER[spec->order];   // unpack clamps the field to 0-11
     uint8_t prev = 4;                       // 4 = nothing placed yet (strip or top edge)
     uint8_t prev_of[4] = { 4, 4, 4, 4 };    // rendered predecessor of each PLACED band
     uint8_t next_of[4] = { 4, 4, 4, 4 };    // rendered successor (4 = the body)
@@ -731,12 +686,10 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
         }
         int by = y;
         if (b == STK_TOP && spec->top == TOP_BAND_CALENDAR && strip && prev == 4) {
-            // The calendar directly under the strip keeps the legacy ink-slide: its
-            // first painted row sits on the strip's first unpainted one, and the
-            // reserve chain (the cursor) is unaffected — same trick as calendar_y in
-            // compute_with_weights.
-            by = content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H)
-                 + STATUS_STRIP_CAL_GAP;
+            // The calendar directly under the strip keeps the legacy ink-slide
+            // (strip_calendar_seat — same seat as calendar_y in compute_with_weights);
+            // the reserve chain (the cursor) is unaffected.
+            by = strip_calendar_seat(content_y, strip_h);
         }
         rect[b] = GRect(content_x, by, content_w, bh);
         if (prev != 4) { next_of[prev] = b; }
@@ -763,9 +716,7 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
         uint8_t below = next_of[STK_CLOCK];
         int above_ink;
         if (above == 4) {
-            above_ink = strip ? (content_y + status_strip_seat_y(strip_h, STATUS_LARGE_FONT_H)
-                                 + STATUS_LARGE_FONT_H - 1)
-                              : (content_y - 1);
+            above_ink = strip_cap_floor(strip, content_y, strip_h);
         } else if (above == STK_TOP) {
             above_ink = (spec->top == TOP_BAND_RADAR)
                 ? (rect[STK_TOP].origin.y + rect[STK_TOP].size.h - 1)   // radar paints edge-to-edge
@@ -792,10 +743,14 @@ static MainLayout compute_stacked(GRect bounds, const ViewSpec *spec, LayoutMetr
 }
 
 MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics m) {
-    // Custom band order → the generic stacker; order 0 (and clamped garbage) stays
-    // on the legacy engine, which presets ride bit-identically. Both engines share
-    // one signature, so this is a pure dispatch.
-    MainLayout L = (spec->order >= 1 && spec->order <= 11)
+    // Presets and order-0 full-chrome custom views ride the legacy engine
+    // bit-identically; ANY other custom shape — a reorder (order >= 1; unpack clamps
+    // garbage to 0) OR a chrome omission under wire order 0 — rides the generic
+    // stacker, which reflows it as its stored order (TACB for 0) minus the absent
+    // bands. One rule, so the band list the phone editor displays (always TACB at
+    // order 0) is what the watch actually renders. Both engines share one signature,
+    // so this is a pure dispatch.
+    MainLayout L = (spec->order >= 1 || spec->clock_off || spec->strip_off)
         ? compute_stacked(bounds, spec, m)
         : compute_with_weights(bounds, spec, m);
     // Radar rides wherever it's placed: the top band when it replaces the calendar,
