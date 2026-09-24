@@ -284,12 +284,13 @@ test('presets never carry the custom bits or an ext word (full matrix sweep)', (
         }))));
 });
 
-// isStacked is the watch's engine dispatch (layout.c layout_compute_spec), shared by
-// the preview and the editor's band list: an explicit order OR a removed chrome band.
-test('isStacked mirrors the watch dispatch: order >= 1 or a removed clock/top bar', () => {
+// isStacked is the watch's ORDER rule (layout.c spec_is_stacked), shared by the preview
+// and the editor's band list: an explicit order OR a removed chrome band draws the order
+// code literally; anything else draws its tier's legacy order.
+test('isStacked mirrors the watch order rule: order >= 1 or a removed clock/top bar', () => {
   const base = vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE);
   assert.equal(vc.isStacked(null), false, 'a disabled slot');
-  assert.equal(vc.isStacked(base), false, 'order 0 with full chrome rides the legacy engine');
+  assert.equal(vc.isStacked(base), false, 'order 0 with full chrome keeps its tier\'s legacy order');
   assert.equal(vc.isStacked(Object.assign(vc.cloneSpec(base), { clockOff: true })), true);
   assert.equal(vc.isStacked(Object.assign(vc.cloneSpec(base), { stripOff: true })), true);
   for (let code = 1; code <= 11; code++) {
@@ -630,26 +631,38 @@ test('stackFits mirrors the watch arithmetic (spec cases, both screen families)'
   assert.deepEqual(vc.stackFits(null, 'emery'), { fits: true, over: 0 });
 });
 
-test('stackFits: the legacy engine always fits; the watch\'s no-data fallbacks are budgeted', () => {
+test('stackFits: legacy-order views always fit; the watch\'s no-data fallbacks are budgeted', () => {
   const view = (over) => vc.buildCustomCycle(customState(Object.assign({ healthMode: 'all',
     radarMode: 'graph' }, over)))[0];
-  // cal3 + two status bars at the legacy order, graph filling: the preset engine draws it
+  // cal3 + two status bars at the legacy order, graph filling: the watch draws it
   // with a 31 px graph and cuts nothing (it used to read "too tall by 8 px").
   const legacy = view({ viewTop0: 'cal3', viewLower0: 'health' });
   assert.equal(vc.isStacked(legacy), false);
   ['basalt', 'emery', ''].forEach((p) => assert.deepEqual(vc.stackFits(legacy, p), { fits: true, over: 0 }));
-  // A 2-row health body falls back to a 3-row forecast without health data: budgeted —
-  // it fits as configured (148 of 155) but not in the fallback (163).
+  // The budget is exact: every data state laid out as the watch folds it (resolveForFit).
+  // A 2-row radar top + weather/radar rows + a 2-row health graph needs 150 of 155 with all
+  // data, but without health the graph becomes a 3-row forecast: 165 — refused.
   const h2 = view({ viewTop0: 'radar', viewTopSize0: '2', viewBody0: 'health', viewBodySize0: '2',
     viewLower0: 'radar', viewOrder0: 'TABC' });
-  assert.equal(vc.stackNeed(h2, 0, true).need, 148);
-  assert.equal(vc.stackFits(h2, 'basalt').fits, false, 'the forecast fallback would be cut');
-  // A filling radar top folds to the 3-row calendar without radar data: budgeted as cal3
-  // (149 at its 2-row fill floor, 164 as the calendar).
+  assert.equal(vc.stackNeed(vc.resolveForFit(h2, true, true), 0).need, 150);
+  assert.equal(vc.stackNeed(vc.resolveForFit(h2, true, false), 0).need, 165);
+  assert.deepEqual(vc.stackFits(h2, 'basalt'), { fits: false, over: 10 });
+  // ...while a view whose outage also DROPS a band is not over-budgeted: cal3 + a weather
+  // and a health row over a 2-row health graph loses the health row with the data (149 /
+  // 150 of 155 in every state) and fits — it used to be refused by an additive budget.
+  const fitsAll = view({ viewTop0: 'cal3', viewBody0: 'health', viewBodySize0: '2',
+    viewLower0: 'health', viewOrder0: 'TACB' });
+  assert.deepEqual(vc.stackFits(fitsAll, 'basalt'), { fits: true, over: 0 });
+  // A filling radar top folds to the calendar without radar data (the watch's
+  // CALENDAR fold): 150 as the calendar, 151 at the radar's fill floor — it fits both ways.
   const rf = view({ viewTop0: 'radar', viewTopSize0: 'fill', viewBodySize0: '4', viewUpper0: 'off',
     viewLower0: 'radar', viewOrder0: 'TCAB' });
-  assert.equal(vc.stackNeed(rf, 0, true).need, 149);
-  assert.equal(vc.stackFits(rf, 'basalt').fits, false, 'the calendar fallback would be cut');
+  assert.equal(vc.resolveForFit(rf, false, true).top, vc.TOP_CAL);
+  assert.equal(vc.stackNeed(vc.resolveForFit(rf, false, true), 0).need, 150);
+  assert.equal(vc.stackNeed(vc.resolveForFit(rf, true, true), 0).need, 151);
+  assert.deepEqual(vc.stackFits(rf, 'basalt'), { fits: true, over: 0 });
+  // Every state of every sizable shape is checked against the watch itself by
+  // scripts/check-fit-lockstep.js (run from scripts/test-c.sh).
 });
 
 test('a 2-row radar top without the radar chart compiles to the 2-row calendar (same height)', () => {
