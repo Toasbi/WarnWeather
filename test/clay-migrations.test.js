@@ -798,9 +798,10 @@ test('runMigrations has exactly one home', () => {
 });
 
 // 1.23.0: an empty no-rain text now means "show no message"; before, it meant "use the
-// default" (the field's hint said so). A stored empty value goes back to the default once.
-test('migrateEmptyNoRainText: a stored empty or blank text becomes the default once', () => {
-  ['', '   '].forEach((stored) => {
+// default" (the field's hint said so). A stored empty value, and the untouched old default
+// "No rain ahead", move to the new default once.
+test('migrateEmptyNoRainText: an empty, blank or old-default text becomes the new default once', () => {
+  ['', '   ', 'No rain ahead'].forEach((stored) => {
     installFakeStorage();
     ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
       delete require.cache[require.resolve(p)];
@@ -809,7 +810,7 @@ test('migrateEmptyNoRainText: a stored empty or blank text becomes the default o
     localStorage.setItem('clay-settings', JSON.stringify({ radarNoRainText: stored }));
     let done = false;
     clayMigrations.migrateEmptyNoRainText(() => done, () => { done = true; });
-    assert.equal(JSON.parse(localStorage.getItem('clay-settings')).radarNoRainText, 'No rain ahead');
+    assert.equal(JSON.parse(localStorage.getItem('clay-settings')).radarNoRainText, "You're good :)");
     assert.equal(done, true, 'marker set');
     // Once marked, a later empty value (cleared on purpose) is left alone.
     localStorage.setItem('clay-settings', JSON.stringify({ radarNoRainText: '' }));
@@ -845,7 +846,7 @@ test('migrateEmptyNoRainText: a clear saved after a reset survives the next boot
   localStorage.setItem('clay-settings', JSON.stringify({ radarNoRainText: 'Dry skies' }));
   claySettings.resetAll();
   localStorage.setItem('clay-settings', JSON.stringify({ radarNoRainText: '' }));
-  const isDone = () => localStorage.getItem(KEYS.NORAIN_EMPTY_TO_DEFAULT_MIGRATION_KEY) === '1';
+  const isDone = () => localStorage.getItem(KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY) === '1';
   clayMigrations.migrateEmptyNoRainText(isDone, () => {});
   assert.equal(JSON.parse(localStorage.getItem('clay-settings')).radarNoRainText, '');
 });

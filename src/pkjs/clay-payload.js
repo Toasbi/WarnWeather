@@ -16,7 +16,7 @@ var nightLight = require('./night-light.js');
 
 // The radar's built-in no-rain text — the schema's radarNoRainText default and the
 // watch's fallback string (rain_radar_layer.c). test/clay-payload.test.js pins all three.
-var DEFAULT_NORAIN_TEXT = 'No rain ahead';
+var DEFAULT_NORAIN_TEXT = "You're good :)";
 
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
 var DEFAULT_COLOR_FOLLY = pebbleColors.GColorFolly;

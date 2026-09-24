@@ -226,7 +226,8 @@ var SKY_FACTORIES = {
  */
 function skySourceIdFor(settings) {
     var s = settings || {};
-    return ((s.radarMode || 'graph') === 'graph' && Boolean(s.radarSky)) ? 'openmeteo' : 'disabled';
+    // On by default: only an explicit false turns the rows off.
+    return ((s.radarMode || 'graph') === 'graph' && s.radarSky !== false) ? 'openmeteo' : 'disabled';
 }
 
 /**

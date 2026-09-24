@@ -63,7 +63,7 @@ var provider = {
 var current = null;
 const fetchCycle = createFetchCycle({
   getSettings: function() {
-    return { radarMode: 'graph', radarProvider: current.radarId, tomorrowioApiKey: current.cfg.tomorrowioApiKey };
+    return { radarMode: 'graph', radarSky: false, radarProvider: current.radarId, tomorrowioApiKey: current.cfg.tomorrowioApiKey };
   },
   getWatchInfo: function() { return null; },   // unknown platform: radar-capable
   getProvider: function() { return provider; },

@@ -1687,12 +1687,14 @@ module.exports = {
                 showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
             }, {
                 // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
-                // fetch, so opt-in. Only the radar GRAPH draws them, like the no-rain
-                // text below; index.js clears them whenever the graph is not shown.
+                // fetch, on by default (a missing key reads as on everywhere: radar-sky.js
+                // skySourceIdFor, index.js, telemetry.js). Only the radar GRAPH draws them,
+                // like the no-rain text below; index.js clears them whenever the graph is
+                // not shown.
                 type: 'toggle',
                 messageKey: 'radarSky',
                 label: 'Clouds, sun & lightning',
-                defaultValue: false,
+                defaultValue: true,
                 hint: 'Adds two thin stripes under the radar\'s time axis: cloud cover and sunshine for the next two hours, with a lightning bolt where thunderstorms are expected. Uses Open-Meteo, whatever the radar source.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
@@ -1708,9 +1710,9 @@ module.exports = {
                 type: 'text',
                 messageKey: 'radarNoRainText',
                 label: 'No-rain message',
-                defaultValue: 'No rain ahead',
+                defaultValue: "You're good :)",
                 attributes: {maxlength: 24},
-                hint: 'Shown in the radar graph when no rain is coming (default: No rain ahead). Up to 24 characters; leave it empty to show nothing.',
+                hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 type: 'select',

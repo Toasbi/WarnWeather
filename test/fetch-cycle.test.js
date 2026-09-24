@@ -590,7 +590,7 @@ test('success: a delivered sleep onset pauses the gate; a failed one does not', 
 
 test('radar: one fix feeds both legs — the radar request and the forecast get the same coordinates', () => {
     resetStore();
-    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' };
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     const p = h.provider;
     assert.equal(h.cycle.start(true), true);
@@ -680,7 +680,7 @@ test('failure: on a radar-capable watch the 401 notice and this cycle\'s radar C
 test('failure: a forecast failure hands this cycle\'s radar CLEAR to the failure send', () => {
     resetStore();
     // tomorrow.io radar with no key can never answer: it clears, without a request.
-    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'tomorrowio', tomorrowioApiKey: '' };
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'tomorrowio', tomorrowioApiKey: '' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     h.cycle.start(false);
     h.provider.fix(52.5, 13.4);
@@ -707,7 +707,7 @@ test('failure: an AppMessage NACK does not pass the radar CLEAR through again', 
 
 test('failure: a transient radar miss (null) adds no radar keys to the failure send (the sky CLEAR still rides)', () => {
     resetStore();
-    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' };
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     h.cycle.start(false);
     h.provider.fix(52.5, 13.4);
@@ -735,7 +735,7 @@ test('failure: a 429 raises a settings-panel notice but sends nothing to the wat
 test('coordinates: a failed fix is recorded and tracked, and starts no radar, forecast, send or sleep commit', () => {
     resetStore();
     const settings = Object.assign(
-        { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' },
+        { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' },
         sleepWindowCovering(new Date(T0)));
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     const p = h.provider;
@@ -851,7 +851,7 @@ test('watchdog: a fetch completes exactly once — a late failure or watchdog af
 // coordinates that arrive after the caller gave up").
 test('watchdog: a fix arriving after the fetch was abandoned starts no radar, geocode or provider request', () => {
     resetStore();
-    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' };
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     const p = h.provider;
     h.cycle.start(false);

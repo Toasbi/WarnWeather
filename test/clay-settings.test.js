@@ -96,7 +96,7 @@ test('getDefaults seeds radarNoRainText with the visible built-in text', () => {
   installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
-  assert.equal(claySettings.getDefaults(COLORS).radarNoRainText, 'No rain ahead');
+  assert.equal(claySettings.getDefaults(COLORS).radarNoRainText, "You're good :)");
 });
 
 test('getDefaults includes gpsCacheMin defaulting to 30 minutes', () => {

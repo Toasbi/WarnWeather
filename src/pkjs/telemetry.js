@@ -224,7 +224,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
         radarProvider: safe.radarProvider,
         radarMode: safe.radarMode || 'graph',
         radarColor: safe.radarColor,
-        radarSky: Boolean(safe.radarSky),
+        radarSky: safe.radarSky !== false,   // on by default: a missing key is on
         devStatsEnabled: Boolean(safe.devStatsEnabled),
         theme: safe.theme,
         statusForecastLeft: safe.statusForecastLeft,

@@ -34,7 +34,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Rain countdown telling you when rain starts (or stops)
 * Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph — in the Radar tab
-* Optional clouds, sun & lightning rows under the radar graph's time axis: cloud cover and sunshine per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
+* Clouds, sun & lightning rows under the radar graph's time axis (on by default): cloud cover and sunshine per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
 * Health status for steps, sleep, distance, and heart rate
@@ -105,7 +105,7 @@ Two things that both involve rain over time, but answer different questions:
   amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
   them is the strongest rain within 2 km. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
   (worldwide, exact location only) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
-  Turn on *Clouds, sun & lightning* in the Radar tab and two thin stripes appear under the
+  With *Clouds, sun & lightning* (Radar tab, on by default), two thin stripes appear under the
   graph's time axis: cloud cover and sunshine for each quarter hour, drawn like the forecast's
   stripes, with a lightning bolt in the quarter hours where Open-Meteo expects a
   thunderstorm (lightning potential sharpens that in Central Europe).

@@ -461,7 +461,7 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         char custom[NORAIN_TEXT_BUF_BYTES];
         const int custom_len = persist_get_norain_text(custom, sizeof(custom));
         const char *text = (custom_len > 0) ? custom
-                         : (custom_len < 0) ? "No rain ahead" : NULL;
+                         : (custom_len < 0) ? "You're good :)" : NULL;
         if (text) {
             // A custom text can run to 24 UTF-8 bytes — wider than a 144 px plot at
             // this font — so the box grows to TWO lines when the plot affords them

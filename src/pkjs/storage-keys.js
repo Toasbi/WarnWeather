@@ -17,7 +17,9 @@ module.exports = {
     LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY: 'v1.16.0_light_graph_color_retune_migration',
     LIGHT_SOLID_BARS_MIGRATION_KEY: 'v1.16.0_light_solid_bars_migration',
     ONBOARDING_EXISTING_INSTALL_MIGRATION_KEY: 'v1.20.0_onboarding_existing_install_migration',
-    NORAIN_EMPTY_TO_DEFAULT_MIGRATION_KEY: 'v1.23.0_norain_empty_to_default_migration',
+    // Replaced, never released: 'v1.23.0_norain_empty_to_default_migration' only ran on
+    // dev builds of 1.23.0, which then learnt to move the old default text too.
+    NORAIN_DEFAULT_TEXT_MIGRATION_KEY: 'v1.23.0_norain_default_text_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

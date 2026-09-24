@@ -163,7 +163,9 @@ test('the source follows the radar graph and the toggle; disabled clears the row
   assert.equal(radarSky.skySourceIdFor({ radarSky: true, radarMode: 'graph' }), 'openmeteo');
   assert.equal(radarSky.skySourceIdFor({ radarSky: true, radarMode: 'countdown' }), 'disabled');
   assert.equal(radarSky.skySourceIdFor({ radarSky: false }), 'disabled');
-  assert.equal(radarSky.skySourceIdFor(null), 'disabled');
+  // On by default: a blob without the key (or no settings yet) fetches the rows.
+  assert.equal(radarSky.skySourceIdFor({}), 'openmeteo');
+  assert.equal(radarSky.skySourceIdFor(null), 'openmeteo');
   let got;
   radarSky.createSkySource('disabled').fetchSkyTupleAt(0, 0, SLOT0, (t) => { got = t; });
   assert.deepEqual(got, { RADAR_SKY_UINT8: [] });

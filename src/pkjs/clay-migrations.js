@@ -121,8 +121,8 @@ function runMigrations(opts) {
         isDone(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY),
         mark(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY));
     migrateEmptyNoRainText(
-        isDone(KEYS.NORAIN_EMPTY_TO_DEFAULT_MIGRATION_KEY),
-        mark(KEYS.NORAIN_EMPTY_TO_DEFAULT_MIGRATION_KEY));
+        isDone(KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY),
+        mark(KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY));
     // Ahead of the resend below, so a 1.14 -> now jump (which fires both) sends
     // the healed blob rather than the carried one.
     migrateCarriedGraphNightTints(
@@ -633,12 +633,14 @@ function migrateStatusTopRightBattery(isMigrationDone, markDone) {
 }
 
 /**
- * One-time 1.23.0 migration: an empty radar no-rain text used to mean "use the
- * built-in default" (the field's hint said "clear the field to use the default");
- * from 1.23.0 on it means "show no message". A stored empty value is turned back
- * into the default text so nobody's radar loses its line on upgrade. No Clay
- * resend is needed: the watch already draws the default for that install, and the
- * next settings send carries the rewritten text.
+ * One-time 1.23.0 migration of the radar no-rain text, to the new default "You're
+ * good :)". Two stored values move:
+ *  - empty: it used to mean "use the built-in default" (the field's hint said "clear
+ *    the field to use the default"); from 1.23.0 on it means "show no message", so an
+ *    empty value becomes the default and nobody's radar loses its line on upgrade;
+ *  - the old default "No rain ahead": seedDefaults wrote it into every blob, so an
+ *    untouched field holds it — those users get the new default like new installs.
+ * No Clay resend is forced: the next settings send carries the rewritten text.
  * @param {function(): boolean} isMigrationDone marker probe
  * @param {function()} markDone marker setter
  * @returns {void}
@@ -647,10 +649,10 @@ function migrateEmptyNoRainText(isMigrationDone, markDone) {
     var persistClay = loadForMigration(isMigrationDone, 'empty no-rain text');
     if (persistClay === null) { return; }
     var text = persistClay.radarNoRainText;
-    if (typeof text === 'string' && text.trim() === '') {
-        persistClay.radarNoRainText = 'No rain ahead';
+    if (typeof text === 'string' && (text.trim() === '' || text === 'No rain ahead')) {
+        persistClay.radarNoRainText = "You're good :)";
         save(persistClay);
-        console.log('Migrated empty no-rain text -> default');
+        console.log('Migrated no-rain text -> the new default');
     }
     markDone();
 }

@@ -387,7 +387,7 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
   // The watch's built-in string ships as a VISIBLE defaultValue (not a
   // placeholder) so users see and override the actual message; clearing the
   // field falls back to the built-in string watch-side.
-  assert.equal(item.defaultValue, 'No rain ahead');
+  assert.equal(item.defaultValue, "You're good :)");
   // Soft UI cap; the real limit is 24 UTF-8 BYTES, enforced phone-side at pack
   // time.
   assert.equal(item.attributes.maxlength, 24);
@@ -412,7 +412,7 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
     openEdit: null, selectQuery: '', collapsed: {},
     evalCtx: Object.assign({}, S, { env: ENV }),
   });
-  assert.match(body, /data-k="radarNoRainText" value="No rain ahead" placeholder="" maxlength="24"/,
+  assert.match(body, /data-k="radarNoRainText" value="You(?:'|&#39;|&#x27;|&apos;)re good :\)" placeholder="" maxlength="24"/,
     'the rendered input carries the visible default and the 24 cap');
 
   // ...and it disappears in the modes with no graph to draw it in.

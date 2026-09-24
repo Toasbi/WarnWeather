@@ -291,7 +291,7 @@ test('CLAY_NORAIN_TEXT packs the trimmed radarNoRainText', function() {
 test('CLAY_NORAIN_TEXT: unset sends the built-in text, empty or whitespace sends "" (no line)', function() {
   // Unset (pre-seed upgrade blob): the key still rides, with the built-in text, so a
   // watch holding an old custom text is set back to the default.
-  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, 'No rain ahead');
+  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_NORAIN_TEXT, "You're good :)");
   // Cleared by the user: an empty text, which the watch stores and draws as no line.
   const s = baseSettings();
   s.radarNoRainText = '   ';
@@ -318,7 +318,7 @@ test('the built-in no-rain text is one string: payload default, schema default, 
   const c = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'layers', 'rain_radar_layer.c'), 'utf8');
   assert.ok(c.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'the watch falls back to the same text');
   const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'clay-migrations.js'), 'utf8');
-  assert.ok(migrations.indexOf("'" + DEFAULT_NORAIN_TEXT + "'") !== -1, 'and the 1.23.0 migration restores it');
+  assert.ok(migrations.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'and the 1.23.0 migration moves to it');
 });
 
 test('CLAY_NORAIN_TEXT truncates to 24 UTF-8 bytes, not 24 chars', function() {
@@ -694,4 +694,19 @@ test('Weather only folds to No calendar on aplite (no radar, no view without top
   const nocal = buildClayPayload(Object.assign({}, s, { layoutPreset: 'noCal' }), { platform: 'aplite' }, NOW);
   assert.equal(colour.CLAY_VIEW_0 & 0x800, 0x800, 'colour: the Default view has no top bar');
   assert.equal(aplite.CLAY_VIEW_0, nocal.CLAY_VIEW_0, 'aplite: exactly No calendar');
+});
+
+test('radar sky rows are on by default: a missing key sends them', function() {
+  const radarSky = require('../src/pkjs/weather/radar-sky.js');
+  assert.equal(radarSky.skySourceIdFor({ radarMode: 'graph' }), 'openmeteo');
+  const schema = require('../src/pkjs/settings/schema.js');
+  let item = null;
+  (function walk(list) {
+    (list || []).forEach((it) => {
+      if (it.messageKey === 'radarSky') { item = it; }
+      if (it.items) { walk(it.items); }
+      if (it.sections) { it.sections.forEach((sc) => walk(sc.items)); }
+    });
+  })(schema.tabs || schema);
+  assert.equal(item.defaultValue, true);
 });
