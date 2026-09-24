@@ -81,8 +81,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // Custom-layout usage: the three packed CLAY_VIEW values fully describe what a
     // custom user built (elements, seats, order, clock/strip omissions) in 3 ints.
     // null (-> absent fields) unless custom is active, so preset rows stay unchanged.
-    var customPacked = safe.layoutPreset === 'custom'
-        ? viewCycle.buildCustomCycle(safe).map(viewCycle.packSpec) : null;
+    var customCycle = safe.layoutPreset === 'custom' ? viewCycle.buildCustomCycle(safe) : null;
+    var customPacked = customCycle ? customCycle.map(viewCycle.packSpec) : null;
+    // The v2 fields (sizes, top-graph kind, Position) ride their own ADDITIVE fields
+    // (packExt, 0..0x7FFF) rather than widening customView*: an ingest that predates
+    // them strips unknown keys, but a known field failing validation 400s the batch.
+    var customExt = customCycle ? customCycle.map(viewCycle.packExt) : null;
     // --- the Nighttime card's gates, resolved once for the fields below ---------
     // Dim backlight is HARDWARE-gated, not only setting-gated: the red tint is
     // light_set_color_rgb888() and emery is the only watch with the LED
@@ -194,6 +198,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
         customView0: customPacked ? customPacked[0] : undefined,
         customView1: customPacked ? (customPacked[1] || 0) : undefined,
         customView2: customPacked ? (customPacked[2] || 0) : undefined,
+        customViewExt0: customExt ? customExt[0] : undefined,
+        customViewExt1: customExt ? (customExt[1] || 0) : undefined,
+        customViewExt2: customExt ? (customExt[2] || 0) : undefined,
         viewResetMin: toIntOrUndefined(safe.viewResetMin),
         largeGraphFont: Boolean(safe.largeGraphFont),
         vibe: !!safe.vibe,

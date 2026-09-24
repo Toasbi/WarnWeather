@@ -135,6 +135,12 @@ const settingsSchema = z
     customView0: z.number().int().min(0).max(0xFFFF).optional(),
     customView1: z.number().int().min(0).max(0xFFFF).optional(),
     customView2: z.number().int().min(0).max(0xFFFF).optional(),
+    // Custom layout v2: each view's ext word (graph size, top-area size, top-graph kind,
+    // Position; bit 15 always clear). ADDITIVE on purpose — widening customView* would
+    // make an older deploy reject the whole batch. Same deploy-ordering rule as above.
+    customViewExt0: z.number().int().min(0).max(0x7FFF).optional(),
+    customViewExt1: z.number().int().min(0).max(0x7FFF).optional(),
+    customViewExt2: z.number().int().min(0).max(0x7FFF).optional(),
     viewResetMin: z.number().int().min(0).optional(),
     largeGraphFont: z.boolean().optional(),
     vibe: z.boolean().optional(),
