@@ -174,6 +174,23 @@ function unpackWire(v) {
 }
 
 /**
+ * Rewrite a spec's ext fields in their canonical form (extFields — the watch's
+ * normalisation): a field equal to its seat default is removed, one that does not apply
+ * is removed, both-fill leaves the body filling. The compiler's specs then carry exactly
+ * what packExt sends.
+ * @param {!Object} s view spec (mutated)
+ * @returns {!Object} s
+ */
+function canonicalExt(s) {
+  var e = extFields(s);
+  var names = ['topKind', 'topSize', 'bodySize', 'align'], j;
+  for (j = 0; j < names.length; j++) {
+    if (e[names[j]]) { s[names[j]] = e[names[j]]; } else { delete s[names[j]]; }
+  }
+  return s;
+}
+
+/**
  * Does a band of this view fill the space left over (the graph body at its default
  * size, or a radar/graph top sized 'fill')? Without one, the stack is shorter than the
  * screen and the view's Position (align) places it.
@@ -182,6 +199,89 @@ function unpackWire(v) {
  */
 function hasFill(s) {
   return extFields(s).fill;
+}
+
+// ── Fit check (the editor's size pickers) ───────────────────────────────────
+// The watch's stacked-band arithmetic in pixels, per screen family (index 0: the 144 px
+// watches, 1: emery) — the constants src/c/windows/layout.c compute_stacked uses, as the
+// device renders them (the emery FULL-squeezed status band is 20 px on the watch; the C
+// host goldens use a 24 px stand-in). Pinned against the C goldens by
+// test/view-cycle.test.js. `avail*` = floor minus the cursor start (with / without the
+// top bar). A FILL band is counted at its 2-row floor.
+var FIT_PX = {
+  row: [15, 20], clock: [45, 60], statusLarge: [17, 21], statusFull: [20, 20], gap: [3, 1],
+  cal2: [30, 40], cal3: [45, 60], tail: [0, 10], availStrip: [155, 202], availNoStrip: [168, 222]
+};
+
+/**
+ * Pixels a stack needs on one screen family, in the watch's walk order: the bands the
+ * compiled spec shows (STACK_ORDERS[order] + the body) with the clearance after every
+ * edge-inking band that another band follows.
+ * @param {!Object} s compiled view spec
+ * @param {number} f family index (0 = 144 px, 1 = emery)
+ * @returns {{need: number, avail: number}}
+ */
+function stackNeed(s, f) {
+  var e = extFields(s);
+  var rows = (s.tier === TIER_FULL) ? 3 : (s.tier === TIER_COMPACT) ? 2 : 0;
+  var dual = s.statusUpper !== STATUS_SRC_NONE && s.statusLower !== STATUS_SRC_NONE;
+  var bodyOn = s.body !== BODY_NONE;
+  // FULL-squeezed rows: layout_status_tier (a 3-row calendar, or a 2-row one with two
+  // rows) with every chrome band and the graph present (status_tier_for's exemptions).
+  var fullRows = (rows === 3 || (rows === 2 && dual)) && !s.clockOff && !s.stripOff && bodyOn;
+  /** @param {number} code @param {number} dflt @param {boolean} fc @returns {number} rows, 0 = fill */
+  function sizeRows(code, dflt, fc) {
+    var r = code === SIZE_2 ? 2 : code === SIZE_3 ? 3 : code === SIZE_4 ? 4 : code === SIZE_FILL ? 0 : dflt;
+    return (fc && r === 2) ? 3 : r;
+  }
+  var fill = 2 * FIT_PX.row[f];
+  var h = {}, gapAfter = {};
+  if (s.top === TOP_CAL && rows) {
+    h.T = rows === 3 ? FIT_PX.cal3[f] : FIT_PX.cal2[f];
+  } else if (s.top === TOP_RADAR || s.top === TOP_GRAPH) {
+    var tr = sizeRows(e.topSize, 3, s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST);
+    h.T = tr ? tr * FIT_PX.row[f] + (s.top === TOP_GRAPH ? FIT_PX.tail[f] : 0) : fill;
+  }
+  gapAfter.T = FIT_PX.gap[f];
+  if (!s.clockOff) { h.C = FIT_PX.clock[f]; }
+  gapAfter.C = 0;
+  var rowH = fullRows ? FIT_PX.statusFull[f] : FIT_PX.statusLarge[f];
+  if (s.statusUpper !== STATUS_SRC_NONE) { h.A = rowH; }
+  if (s.statusLower !== STATUS_SRC_NONE) { h.B = rowH; }
+  gapAfter.A = gapAfter.B = fullRows ? 0 : FIT_PX.gap[f];
+  if (bodyOn) {
+    var br = sizeRows(e.bodySize, 0, s.body === BODY_FC);
+    h.G = br ? br * FIT_PX.row[f] + (s.body === BODY_RADAR ? 0 : FIT_PX.tail[f]) : fill;
+  }
+  var seq = (STACK_ORDERS[s.order || 0] || 'TACB') + 'G';
+  var need = 0, prev = null, j, b;
+  for (j = 0; j < seq.length; j++) {
+    b = seq.charAt(j);
+    if (h[b] === undefined) { continue; }
+    if (prev !== null) { need += gapAfter[prev] || 0; }
+    need += h[b];
+    prev = b;
+  }
+  return { need: need, avail: s.stripOff ? FIT_PX.availNoStrip[f] : FIT_PX.availStrip[f] };
+}
+
+/**
+ * Does this compiled view fit the watch it is edited for? `family` is the watch's
+ * platform name ('emery' → the 200×228 screen, any other named platform → 144×168); an
+ * unknown platform ('') must fit both. `over` is how many pixels the tallest miss needs.
+ * @param {?Object} s compiled view spec (null = a disabled slot: fits)
+ * @param {string} family platform name or ''
+ * @returns {{fits: boolean, over: number}}
+ */
+function stackFits(s, family) {
+  if (!s) { return { fits: true, over: 0 }; }
+  var fams = family === 'emery' ? [1] : family ? [0] : [0, 1];
+  var over = 0, j, n;
+  for (j = 0; j < fams.length; j++) {
+    n = stackNeed(s, fams[j]);
+    if (n.need - n.avail > over) { over = n.need - n.avail; }
+  }
+  return { fits: over <= 0, over: over };
 }
 
 // Named views (see the design doc's view vocabulary). Positional status:
@@ -470,7 +570,18 @@ function buildCustomCycle(S) {
       if (S['viewStripOff' + i]) { s.stripOff = true; }
     }
     if (code) { s.order = code; }
-    // Position: only while no band fills (the watch zeroes it otherwise), and read
+    // Sizes: a radar/graph top and a present body take '2'|'3'|'4'|'fill' rows. A
+    // forecast seat never takes 2 rows (its labels collide) — '2' compiles to 3 rows, the
+    // watch's band_rows clamp, so the fit check and the watch agree. Read with defaults,
+    // so a blob that predates the keys compiles to ext 0.
+    var fcTop = (t.top === TOP_GRAPH && t.kind === TOP_KIND_FORECAST);
+    var ts = S['viewTopSize' + i] || '3', bs = S['viewBodySize' + i] || 'fill';
+    if (fcTop && ts === '2') { ts = '3'; }
+    if (body === BODY_FC && bs === '2') { bs = '3'; }
+    if (SIZE_CODE[ts]) { s.topSize = SIZE_CODE[ts]; }
+    if (SIZE_CODE[bs]) { s.bodySize = SIZE_CODE[bs]; }
+    canonicalExt(s);
+    // Alignment: only while no band fills (the watch zeroes it otherwise), and read
     // with its default so a blob that predates the key compiles to ext 0.
     var align = ALIGN_CODE[S['viewAlign' + i] || 'clock'] || ALIGN_CLOCK;
     if (align && !hasFill(s)) { s.align = align; }
@@ -587,6 +698,7 @@ var VIEW_CYCLE = {
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   packExt: packExt, packWire: packWire, unpackWire: unpackWire, hasFill: hasFill,
+  stackFits: stackFits, FIT_PX: FIT_PX,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
   STACK_ORDERS: STACK_ORDERS, orderCode: orderCode, isStacked: isStacked,
   RADAR_CHART_MODES: RADAR_CHART_MODES, RADAR_ROW_MODES: RADAR_ROW_MODES,

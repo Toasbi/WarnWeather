@@ -577,6 +577,66 @@ test('keys → spec → keys round-trips both top graphs', () => {
   });
 });
 
+// ── Sizes (Phase 2b) ─────────────────────────────────────────────────────────
+
+test('sizes compile to canonical codes: seat defaults absent, forecast never 2 rows, one fill', () => {
+  const top = (over) => vc.buildCustomCycle(customState(Object.assign({ healthMode: 'all', radarMode: 'graph' }, over)))[0];
+  assert.equal(top({ viewTop0: 'radar', viewTopSize0: '4' }).topSize, vc.SIZE_4);
+  assert.equal(top({ viewTop0: 'health', viewTopSize0: '2' }).topSize, vc.SIZE_2, 'health may take 2 rows');
+  assert.ok(!('topSize' in top({ viewTop0: 'forecast', viewTopSize0: '2', viewBody0: 'health' })),
+    'a forecast top asked for 2 rows compiles to 3 = its default');
+  assert.equal(top({ viewBodySize0: '2' }).bodySize, vc.SIZE_3, 'a forecast body: 2 → 3 rows');
+  assert.equal(top({ viewBody0: 'health', viewBodySize0: '2' }).bodySize, vc.SIZE_2);
+  assert.ok(!('topSize' in top({ viewTop0: 'cal3', viewTopSize0: '2' })), 'a stale size on a calendar top → 0');
+  assert.ok(!('bodySize' in top({ viewBody0: 'none', viewBodySize0: '4' })), 'no body, no size');
+  assert.ok(!('bodySize' in top({ viewBodySize0: 'fill' })), 'fill is the body default');
+  const both = top({ viewTop0: 'radar', viewTopSize0: 'fill', viewBodySize0: 'fill' });
+  assert.ok(!('topSize' in both), 'both fill → the body fills, the top takes its 3-row default');
+  const fillTop = top({ viewTop0: 'radar', viewTopSize0: 'fill', viewBodySize0: '3', viewAlign0: 'bottom' });
+  assert.equal(fillTop.topSize, vc.SIZE_FILL);
+  assert.ok(!('align' in fillTop), 'the top fills: no alignment');
+  const sized = top({ viewBodySize0: '3', viewAlign0: 'bottom' });
+  assert.equal(sized.align, vc.ALIGN_BOTTOM, 'a sized body leaves slack: alignment applies');
+  assert.equal(vc.isStacked(sized), true);
+});
+
+test('stackFits mirrors the watch arithmetic (spec cases, both screen families)', () => {
+  const view = (over) => vc.buildCustomCycle(customState(Object.assign({ healthMode: 'all',
+    radarMode: 'graph', viewOrder0: 'TCAB' }, over)))[0];
+  const B = view({ viewTop0: 'cal2', viewBody0: 'none' });
+  const C = view({ viewTop0: 'health', viewBody0: 'forecast' });
+  const D = view({ viewTop0: 'forecast', viewTopSize0: '4', viewBody0: 'health' });
+  const cal3 = view({ viewTop0: 'cal3', viewBody0: 'forecast' });
+  const over = view({ viewTop0: 'forecast', viewTopSize0: '4', viewBody0: 'health', viewBodySize0: '4',
+    viewLower0: 'radar' });
+  [B, C, cal3].forEach((s) => {
+    assert.deepEqual(vc.stackFits(s, 'basalt'), { fits: true, over: 0 });
+    assert.deepEqual(vc.stackFits(s, 'emery'), { fits: true, over: 0 });
+    assert.equal(vc.stackFits(s, '').fits, true);
+  });
+  assert.deepEqual(vc.stackFits(D, 'basalt'), { fits: false, over: 3 }, 'D + a row: 158 of 155');
+  assert.deepEqual(vc.stackFits(D, 'emery'), { fits: false, over: 11 }, '213 of 202');
+  assert.deepEqual(vc.stackFits(D, ''), { fits: false, over: 11 }, 'unknown watch: the worse family');
+  // The C golden's overflow clamp (sz10): 4-row top + clock + two rows + 4-row body →
+  // the body gets 7 of its 60 px on the 144 px watch = 53 px too tall.
+  assert.equal(vc.stackFits(over, 'basalt').over, 53);
+  assert.deepEqual(vc.stackFits(null, 'emery'), { fits: true, over: 0 });
+});
+
+test('the fit table is the C engine\'s geometry', () => {
+  const P = vc.FIT_PX;
+  [0, 1].forEach((f) => {
+    assert.equal(P.cal2[f], 2 * P.row[f], 'cal2 = 2 rows');
+    assert.equal(P.cal3[f], 3 * P.row[f], 'cal3 = 3 rows');
+    assert.equal(P.clock[f], P.cal3[f], 'the clock band = the 3-row calendar (45 : 45 weights)');
+  });
+  assert.deepEqual([P.availStrip[0], P.availNoStrip[0]], [168 - 13, 168 - 0], '144: floor - cursor start');
+  assert.deepEqual([P.availStrip[1], P.availNoStrip[1]], [224 - 22, 224 - 2], 'emery: floor - cursor start');
+  assert.deepEqual(P.tail, [0, 10], 'LAYOUT_GRAPH_TAIL');
+  assert.deepEqual(P.statusLarge, [17, 21], 'STATUS_LARGE_BAND_H');
+  assert.deepEqual(P.gap, [3, 1], 'STATUS_FORECAST_CLEARANCE');
+});
+
 // ── The ext word (high half of CLAY_VIEW_n) ──────────────────────────────────
 
 /**
