@@ -118,8 +118,9 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
   treat bumping `inbox_size` as a last resort. Before spending weather-message bytes, ask
   whether the value is settings-derived — if it is, it belongs on the Clay message —
-  but the Clay message ships to aplite too and is tight (517 B of aplite's 536 B, and the
-  test enforces a 10 B headroom floor on each bundle), so check `test/inbox-size.test.js`
+  but the Clay message ships to aplite too and is tight (the heaviest Clay message is
+  519 B, sized against aplite's 536 B inbox as the conservative floor, and the test
+  enforces a 10 B headroom floor on each bundle), so check `test/inbox-size.test.js`
   either way.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the
   weather message.** Config-derived values — colour palettes, formatting/display toggles,

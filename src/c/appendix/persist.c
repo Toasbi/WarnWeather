@@ -60,11 +60,13 @@ enum key {
     // append-only because the numbers are the on-flash slots.
     NORAIN_TEXT,                  // 45 — radar no-rain text, <= 24 B UTF-8 + NUL
     // Appended: per-series forecast curve insets (CLAY_CURVE_INSET_UINT8 tuple,
-    // [FIRST, SECOND, THIRD] px). aplite never reads or writes it
+    // [FIRST, SECOND, THIRD, FOURTH, FIFTH] px; installs from before the
+    // fourth/fifth channels hold a 3-byte blob until the next Clay save
+    // rewrites it). aplite never reads or writes it
     // (WW_CURVE_INSET is undefined there and the accessors below compile out),
     // but the ID stays listed on every platform: the enum is append-only
     // because the numbers are the on-flash slots.
-    CURVE_INSETS,                 // 46 — 3 render-ready inset bytes, absent = {7, 0, 0}
+    CURVE_INSETS,                 // 46 — 5 render-ready inset bytes (legacy 3), absent = {7, 0, 0, 0, 0}
     // Appended: the user-selectable night colours (layout in persist.h). B&W
     // builds never read or write it (the accessors are PBL_COLOR-guarded and
     // theme_pick discards the colour arm there), but the ID stays listed on
@@ -685,24 +687,39 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
 #endif  // WW_THRESHOLD_HIGHLIGHT
 
 #if defined(WW_CURVE_INSET)
-bool persist_set_curve_insets(const uint8_t insets[3]) {
+// The blob's size before the tuple grew the FOURTH/FIFTH channels.
+#define CURVE_INSET_LEGACY_BYTES 3
+
+bool persist_set_curve_insets(const uint8_t insets[CURVE_INSET_BYTES]) {
+    // write_data_if_changed reads back only CURVE_INSET_BYTES, so a legacy
+    // 3-byte blob reads short, mismatches and is rewritten at the full size:
+    // the first Clay message after an upgrade self-heals the slot.
     return write_data_if_changed(CURVE_INSETS, insets, CURVE_INSET_BYTES);
 }
 
-void persist_get_curve_insets(uint8_t out[3]) {
+void persist_get_curve_insets(uint8_t out[CURVE_INSET_BYTES]) {
     // Default = the pre-feature look: the temp curve keeps its fixed inset and
     // the metric channels map full-height.
     out[0] = BOTTOM_VIEW_PRIMARY_LINE_INSET_Y;
-    out[1] = 0;
-    out[2] = 0;
-    if (!persist_exists(CURVE_INSETS)) { return; }
+    for (int i = 1; i < CURVE_INSET_BYTES; i++) {
+        out[i] = 0;
+    }
+    // Branch on the stored size (absent reads as E_DOES_NOT_EXIST, < 0). An
+    // install upgraded from the 3-byte tuple still holds that blob until the
+    // next Clay send; honour its [FIRST, SECOND, THIRD] bytes over the defaults
+    // rather than discarding them — otherwise a Main/Second line showing
+    // feels-like or dew point would draw full-height, misaligned with the
+    // temperature curve, from the upgrade until the startup Clay message
+    // arrives. Any other size is corrupt: keep the defaults.
+    const int size = persist_get_size(CURVE_INSETS);
+    if (size != CURVE_INSET_BYTES && size != CURVE_INSET_LEGACY_BYTES) { return; }
     // Read into a scratch first: a short read must not scribble on the
     // already-defaulted out[] bytes.
     uint8_t stored[CURVE_INSET_BYTES];
-    if (persist_read_data(CURVE_INSETS, stored, sizeof(stored)) < (int) sizeof(stored)) {
+    if (persist_read_data(CURVE_INSETS, stored, (size_t) size) != size) {
         return;  // short/corrupt — keep the defaults
     }
-    memcpy(out, stored, sizeof(stored));
+    memcpy(out, stored, (size_t) size);
 }
 #endif  // WW_CURVE_INSET
 

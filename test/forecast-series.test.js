@@ -182,21 +182,28 @@ test('fourth line ("Third metric") bakes a third distinct trend', () => {
   assert.deepEqual(out.FOURTH_LINE_TREND_UINT8, [0, 125, 250]); // uv tenths @110
 });
 
-test('fourth line duplicates, feels and off all bake empty (defensive: the UI excludes them)', () => {
+test('fourth line duplicates and off bake empty (defensive: the UI excludes them)', () => {
   const dupSec = buildForecastSeries(RAW,
     { secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'wind', windScale: 'mid', barSource: 'off' });
   assert.deepEqual(dupSec.FOURTH_LINE_TREND_UINT8, [], 'duplicate of the main metric');
   const dupThird = buildForecastSeries(RAW,
     { secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'uv', windScale: 'mid', barSource: 'off' });
   assert.deepEqual(dupThird.FOURTH_LINE_TREND_UINT8, [], 'duplicate of the second metric');
-  // feels has no curve-inset channel on the fourth line, so a stale blob
-  // naming it must degrade to line-off rather than render misaligned.
-  const feels = buildForecastSeries(Object.assign({ feels: [10, 12, 14] }, RAW),
-    { secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'feels', windScale: 'mid', barSource: 'off' });
-  assert.deepEqual(feels.FOURTH_LINE_TREND_UINT8, [], 'feels never rides the fourth line');
   const off = buildForecastSeries(RAW,
     { secondaryLine: 'wind', thirdLine: 'off', windScale: 'mid', barSource: 'off' });
   assert.deepEqual(off.FOURTH_LINE_TREND_UINT8, [], 'absent fourthLine setting bakes empty');
+});
+
+test('feels on the fourth line bakes the same joint-band bytes it would on the third', () => {
+  // Every line has its own curve-inset byte now, so the fourth line maps a
+  // temperature-axis metric exactly like the third: against the shared band.
+  const raw = Object.assign({ feels: [10, 12, 14], tempBand: { min: 8, max: 20 } }, RAW);
+  const onFourth = buildForecastSeries(raw,
+    { secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'feels', windScale: 'mid', barSource: 'off' });
+  const onThird = buildForecastSeries(raw,
+    { secondaryLine: 'wind', thirdLine: 'feels', windScale: 'mid', barSource: 'off' });
+  assert.deepEqual(onThird.THIRD_LINE_TREND_UINT8, [42, 83, 125], 'premise: joint band [8, 20]');
+  assert.deepEqual(onFourth.FOURTH_LINE_TREND_UINT8, onThird.THIRD_LINE_TREND_UINT8);
 });
 
 test('the fourth line ships to every platform except aplite, unknown included', () => {
@@ -1188,14 +1195,75 @@ test('dew: a feed without dew (DEW_TREND absent or all null) leaves the line off
   });
 });
 
-test('dew is never drawn on aplite, nor on the fourth line', () => {
+test('dew is never drawn on aplite, but rides the fourth line like the third', () => {
   const aplite = applyForecastSeries(feelsPayload({ DEW_TREND: [0, 4, 9] }),
     { secondaryLine: 'dew', thirdLine: 'off', barSource: 'off' }, { platform: 'aplite' });
   assert.deepEqual(aplite.SECONDARY_LINE_TREND_UINT8, []);
   assert.deepEqual(aplite.TEMP_TREND_UINT8, [0, 125, 250], 'temps keep their own band');
-  const fourth = buildForecastSeries(Object.assign({ dews: [10, 12, 14] }, RAW),
+  // Every line has its own curve-inset byte now: the fourth line maps dew on the
+  // shared temperature band, byte for byte what the third line would.
+  const raw = Object.assign({ dews: [10, 12, 14], tempBand: { min: 8, max: 20 } }, RAW);
+  const fourth = buildForecastSeries(raw,
     { secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'dew', windScale: 'mid', barSource: 'off' });
-  assert.deepEqual(fourth.FOURTH_LINE_TREND_UINT8, [], 'dew never rides the fourth line');
+  const third = buildForecastSeries(raw,
+    { secondaryLine: 'wind', thirdLine: 'dew', windScale: 'mid', barSource: 'off' });
+  assert.deepEqual(third.THIRD_LINE_TREND_UINT8, [42, 83, 125], 'premise: joint band [8, 20]');
+  assert.deepEqual(fourth.FOURTH_LINE_TREND_UINT8, third.THIRD_LINE_TREND_UINT8);
+});
+
+test('dew on the fourth line widens the joint band through applyForecastSeries', () => {
+  const out = applyForecastSeries(feelsPayload({ DEW_TREND: [5, 15, 25] }),
+    { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'dew', barSource: 'off' },
+    { platform: 'basalt' });
+  // Band [5, 30] padded to [3, 30], as for dew on the main line.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
+  assert.deepEqual(out.FOURTH_LINE_TREND_UINT8, [19, 111, 204]);
+  assert.equal(out.TEMP_MIN, 10, 'labels stay the actual temps');
+  assert.equal(out.TEMP_MAX, 30);
+});
+
+test('feels on the fifth line ("Fourth metric") rides the joint band through applyForecastSeries', () => {
+  const settings = { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'feels',
+    barSource: 'off' };
+  for (const watchInfo of [{ platform: 'basalt' }, { platform: 'emery' }, null]) {
+    const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [5, 15, 25], FEELS_CURRENT: 8 }),
+      settings, watchInfo);
+    // Same joint band as the main-line feels case: [5, 30] padded to [3, 30].
+    assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250], JSON.stringify(watchInfo));
+    assert.deepEqual(out.FIFTH_LINE_TREND_UINT8, [19, 111, 204], JSON.stringify(watchInfo));
+    assert.equal(out.TEMP_MIN, 10, 'labels stay the actual temps');
+  }
+});
+
+test('a feels pick repeated on the fourth line leaves the fourth line empty', () => {
+  const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [5, 15, 25] }),
+    { secondaryLine: 'precip_prob', thirdLine: 'feels', fourthLine: 'feels', barSource: 'off' },
+    { platform: 'basalt' });
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [19, 111, 204], 'the earlier line draws it');
+  assert.deepEqual(out.FOURTH_LINE_TREND_UINT8, [], 'the duplicate does not');
+});
+
+test('aplite drops a stored feels/dew on the fourth and fifth lines: no joint band, no fourth-line keys', () => {
+  const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [5, 15, 25], DEW_TREND: [0, 4, 9] }),
+    { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'feels', fifthLine: 'dew', barSource: 'off' },
+    { platform: 'aplite' });
+  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250], 'temps keep their own band');
+  assert.equal('FOURTH_LINE_TREND_UINT8' in out, false);
+  assert.equal('FIFTH_LINE_TREND_UINT8' in out, false);
+});
+
+test('needsFeels: feels on the third- or fourth-metric line opens the gate off aplite only', () => {
+  const base = { secondaryLine: 'wind', thirdLine: 'gust', tempSlotDisplay: 'actual' };
+  for (const key of ['fourthLine', 'fifthLine']) {
+    const s = Object.assign({ [key]: 'feels' }, base);
+    assert.equal(needsFeels(s, { platform: 'basalt' }), true, key + ' basalt');
+    assert.equal(needsFeels(s, { platform: 'emery' }), true, key + ' emery');
+    assert.equal(needsFeels(s, null), true, key + ' unknown platform stays capable');
+    assert.equal(needsFeels(s, { platform: 'aplite' }), false, key + ' aplite never draws it');
+  }
+  // Dew on those lines is its own series: it does not pull in the feels fetch.
+  assert.equal(needsFeels(Object.assign({}, base, { fourthLine: 'dew', fifthLine: 'uv' }),
+    { platform: 'basalt' }), false, 'dew is not feels');
 });
 
 test('dew never fills the area below its line', () => {

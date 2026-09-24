@@ -137,11 +137,12 @@ static void load_dataset(ForecastDataset *ds) {
     ds->num_entries = n;
     ds->forecast_start = persist_get_forecast_start();
 
-    // The temp axis owns the vertical inset: feels-like shares the temp curve's
-    // (configurable) offset so the two series scaled against one band land
-    // pixel-aligned, while every other metric keeps the full-height mapping.
-    // The watch stays metric-agnostic — the phone decides, sending three
-    // render-ready per-series px values (CLAY_CURVE_INSET_UINT8 → persist).
+    // The temp axis owns the vertical inset: a temperature-axis metric line
+    // (feels-like, dew point) shares the temp curve's offset so the series
+    // scaled against one band land pixel-aligned, while every other metric
+    // keeps the full-height mapping. The watch stays metric-agnostic — the
+    // phone decides, sending one render-ready px value per series in SeriesId
+    // order, [FIRST..FIFTH] (CLAY_CURVE_INSET_UINT8 → persist).
 #if defined(WW_CURVE_INSET)
     uint8_t curve_insets[CURVE_INSET_BYTES];
     persist_get_curve_insets(curve_insets);
@@ -149,7 +150,9 @@ static void load_dataset(ForecastDataset *ds) {
     // aplite: frozen constants — temp keeps its fixed 7 px inset, the metric
     // channels map full-height (the exact pre-feature rendering); feels-like
     // is not offered there. Plain const (not static) so the constant-indexed
-    // reads fold to immediates and the array itself is elided.
+    // reads fold to immediates and the array itself is elided. Three entries
+    // only: aplite has no SERIES_FOURTH/FIFTH (WW_LINE_STYLE), and
+    // CURVE_INSET_BYTES is declared away with the rest of the inset API.
     const uint8_t curve_insets[3] = { BOTTOM_VIEW_PRIMARY_LINE_INSET_Y, 0, 0 };
 #endif
 
@@ -184,13 +187,22 @@ static void load_dataset(ForecastDataset *ds) {
         // blob just below, and aplite reads the frozen constant through
         // series_style_pick at the layer-build site instead.
 
+    // The block below indexes curve_insets[SERIES_FOURTH/FIFTH], slots that
+    // exist only in the WW_CURVE_INSET tuple — the aplite #else array above is
+    // three bytes. wscript sets both flags off aplite today, but nothing else
+    // ties them together, so say it here instead of reading past the array.
+#if defined(WW_LINE_STYLE) && !defined(WW_CURVE_INSET)
+#error "WW_LINE_STYLE is set but WW_CURVE_INSET is not — the fourth/fifth forecast lines read curve_insets[3..4], which only the 5-byte WW_CURVE_INSET tuple carries"
+#endif
 #if defined(WW_LINE_STYLE)
+    _Static_assert(SERIES_FIFTH < CURVE_INSET_BYTES,
+                   "CLAY_CURVE_INSET_UINT8 must carry one byte per SeriesId up to SERIES_FIFTH");
     ds->series[SERIES_FOURTH] = (Series){
         .id = SERIES_FOURTH, .kind = SERIES_KIND_LINE,
         .present = persist_series_present(SERIES_FOURTH),
         .line = { .color  = persist_get_fourth_line_color(),   // raw per-metric — SDK reduces on B&W
                   .width  = FORECAST_GRID_BAR_W,   // marks match the rain-bar columns
-                  .inset_y = 0 } };   // full-height mapping; feels is never offered on this line
+                  .inset_y = curve_insets[SERIES_FOURTH] } };
 
     // Per-line marker styles, phone-resolved (bytes [11..13] of
     // CLAY_LINE_STYLE_UINT8 → LINE_STYLES persist blob). The persisted
@@ -208,7 +220,7 @@ static void load_dataset(ForecastDataset *ds) {
         .present = persist_series_present(SERIES_FIFTH),
         .line = { .color  = persist_get_fifth_line_color(),   // raw per-metric — SDK reduces on B&W
                   .width  = FORECAST_GRID_BAR_W,
-                  .inset_y = 0 } };   // full-height mapping; feels is never offered on this line
+                  .inset_y = curve_insets[SERIES_FIFTH] } };
     apply_line_style(&ds->series[SERIES_FIFTH].line, persist_get_fifth_line_style(), 1);
 #endif
 

@@ -41,7 +41,7 @@ typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH / FIF
     int16_t values[MAX_BOTTOM_VIEW_ENTRIES];
     GColor  color;                      // stroke (resolved at load)
     int     width;                      // stroke px (SOLID) / mark box px (DOTS, X)
-    int     inset_y;                    // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y for FIRST, else 0
+    int     inset_y;                    // px: FIRST's fixed inset; a temp-axis metric line (feels, dew) shares it, else 0
     uint8_t style;                      // ChartLineStyle — metric lines only, FIRST stays SOLID
 #if defined(WW_LINE_STYLE)
     bool    stripe_top;                 // CHART_LINE_STRIPE only: top edge (else bottom)

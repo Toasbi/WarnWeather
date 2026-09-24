@@ -164,8 +164,8 @@
     };
     // The metrics drawn on the TEMPERATURE axis: scaled against the joint band they
     // share with the temp curve (forecast-series.js) and at its curve inset
-    // (clay-payload.js), so the gap between the curves is real. None of them fills,
-    // and none rides the fourth line, which has no inset channel.
+    // (clay-payload.js), so the gap between the curves is real. None of them fills.
+    // Any forecast line may carry one: every line has its own inset byte.
     var TEMP_AXIS_METRIC_IDS = ['feels', 'dew'];
     var TEMP_AXIS_METRICS = {};
     (function () {
@@ -375,27 +375,22 @@
 
     // --- The ordered forecast lines -----------------------------------------
     // ONE home for the per-line eligibility rule its consumers used to restate
-    // by hand: a line draws iff its metric is set, not 'off', not banned on
-    // that line, and not the STORED pick of any EARLIER line (earlier wins;
-    // the settings page's display-snap resolves collisions the same way).
+    // by hand: a line draws iff its metric is set, not 'off', and not the
+    // STORED pick of any EARLIER line (earlier wins; the settings page's
+    // display-snap resolves collisions the same way).
     // Consumers: forecast-series.js (the bake), preview-forecast.js (the
     // settings preview — which must match the bake pixel for pixel), and the
     // pickers' exclusion lists via the schema's resolver args.
     var FORECAST_LINES = [
         { key: 'secondaryLine' },
         { key: 'thirdLine' },
-        // feels and dew never ride the fourth line: it has no curve-inset
-        // channel, so they could never share the temperature axis.
-        { key: 'fourthLine', bans: TEMP_AXIS_METRICS },
-        // The fourth metric ("Fourth metric" in the settings): no curve-inset
-        // channel either, so the same ban.
-        { key: 'fifthLine', bans: TEMP_AXIS_METRICS }
+        { key: 'fourthLine' },
+        { key: 'fifthLine' }
     ];
 
     /**
      * The metric one forecast line actually draws: its stored metric, or null
-     * when the line is off, banned from that metric, or repeating an earlier
-     * line's stored pick.
+     * when the line is off or repeating an earlier line's stored pick.
      * @param {Object} settings Clay settings blob.
      * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
      * @returns {string|null} The drawn metric, or null for line-off.
@@ -407,7 +402,6 @@
             if (line.key !== key) { continue; }
             var m = s[key];
             if (!m || m === 'off') { return null; }
-            if (line.bans && Object.prototype.hasOwnProperty.call(line.bans, m)) { return null; }
             for (var j = 0; j < i; j++) {
                 if (s[FORECAST_LINES[j].key] === m) { return null; }
             }

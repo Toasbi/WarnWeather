@@ -190,10 +190,12 @@ def build(ctx):
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_THRESHOLD_HIGHLIGHT=1']
         # Configurable forecast curve insets (CLAY_CURVE_INSET_UINT8): the phone
-        # sends render-ready per-series vertical insets so temperature and a
-        # feels-like metric line share one pixel mapping. aplite keeps its frozen
-        # constant insets (temp 7 px, metric channels full-height) — feels-like is
-        # not offered there — so the persist accessors and the app_message handler
+        # sends render-ready per-series vertical insets (one byte per Series,
+        # FIRST..FIFTH) so temperature and a temperature-axis metric line
+        # (feels-like, dew point — on any of the four metric lines) share one
+        # pixel mapping. aplite keeps its frozen constant insets (temp 7 px,
+        # metric channels full-height) — feels-like and dew point are not
+        # offered there — so the persist accessors and the app_message handler
         # are guarded away and --gc-sections reaps the rest. The CURVE_INSETS
         # persist key ID stays in persist.c's enum on every platform — the slots
         # are append-only on-flash IDs. Mirrors WW_THRESHOLD_HIGHLIGHT above.

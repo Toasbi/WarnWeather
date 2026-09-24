@@ -791,3 +791,19 @@ test('cloud cover resolves its own line and fill colours, like every graph metri
   assert.deepEqual(lineStyle.nightAreaColorsFor('cloud', null, 'dark'),
     { base: COLORS.GColorOxfordBlue, hatch: COLORS.GColorLiberty, boundary: COLORS.GColorBabyBlueEyes });
 });
+
+test('effectiveLineMetric: every forecast line may carry a temperature-axis metric; off and repeats draw nothing', () => {
+  // Each line has its own curve-inset byte, so no line bans feels or dew.
+  for (const key of ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine']) {
+    for (const metric of lineStyle.TEMP_AXIS_METRIC_IDS) {
+      const s = { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
+      s[key] = metric;
+      assert.equal(lineStyle.effectiveLineMetric(s, key), metric, `${metric} on ${key}`);
+    }
+  }
+  const s = { secondaryLine: 'wind', thirdLine: 'feels', fourthLine: 'feels', fifthLine: 'dew' };
+  assert.equal(lineStyle.effectiveLineMetric(s, 'fourthLine'), null, 'a repeat of an earlier pick is off');
+  assert.equal(lineStyle.effectiveLineMetric(s, 'fifthLine'), 'dew');
+  assert.equal(lineStyle.effectiveLineMetric({ fourthLine: 'off' }, 'fourthLine'), null, 'off is off');
+  assert.equal(lineStyle.effectiveLineMetric({}, 'fifthLine'), null, 'unset is off');
+});

@@ -202,7 +202,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         // The ordered metric lines, modelled ONCE for the draw pass and the
         // legend: colours off the resolver, styles off the pickers, on-gates
-        // from line-style.js' effectiveLineMetric — the same off/duplicate/ban
+        // from line-style.js' effectiveLineMetric — the same off/duplicate
         // rules the bake applies, so the preview matches the watch by
         // construction. Entries are named by the settings keys they read (the
         // one frozen vocabulary); the UI ordinals ("Third metric") are labels only.
@@ -241,17 +241,23 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var tickX = function (i) { return PX0 + i * pitch; };              // line vertex / hour tick x
         var gapCenter = function (i) { return PX0 + (i + 0.5) * pitch; };  // bar / dot column centre
         // Joint temperature axis (mirrors forecast-series.applyForecastSeries): with
-        // feels or dew on either line every curve rescales against the union band so
+        // feels or dew on any drawn line — whatever its style, a stripe included —
+        // every curve rescales against the union band so
         // the gaps between them are real, and the band is padded on whichever side
         // they overshoot the temperature so that curve lands clear of the plot edge
         // instead of flat against it (TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40 ‰ there —
         // pad = ceil(span * 40/960)). The hi/lo LABELS are not this band: they stay
         // the actual temperature range, which is why tmin/tmax and tLabelMin/Max part
-        // company here.
+        // company here. Each line is gated on its own LINES[i].on, not on bare
+        // effectiveLineMetric: previewing a watch without WW_LINE_STYLE turns the
+        // third- and fourth-metric lines off while effectiveLineMetric would still
+        // name their metric, and the band must not widen for a line nobody draws.
         var axisSeries = [];
         var AXIS_SAMPLES = { feels: feels, dew: dew };
-        [state.secondaryLine, state.thirdLine].forEach(function (m) {
-            if (lineStyle.isTempAxisMetric(m)) { axisSeries = axisSeries.concat(AXIS_SAMPLES[m]); }
+        LINES.forEach(function (line) {
+            if (line.on && lineStyle.isTempAxisMetric(line.metric)) {
+                axisSeries = axisSeries.concat(AXIS_SAMPLES[line.metric]);
+            }
         });
         var tLabelMin = Math.min.apply(null, temps), tLabelMax = Math.max.apply(null, temps);
         var tmin = tLabelMin, tmax = tLabelMax;
@@ -530,14 +536,39 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // here, as it always drew, 2 preview units a column from x 0 — near the watch's
         // scale (7 px an hour, 8 on emery), not its phase (preview-stripe.js cell).
         var STRIPE_UNIT = 2, STRIPE_ORIGIN = 0;
+        // forecast-series.js' BAND_FLOOR_PERMILLE: a band-scaled reading at the band
+        // floor still ships as wire byte 1, never the absent byte 0.
+        var TEMP_AXIS_FLOOR_PERMILLE = 2;
+        /**
+         * A temperature-axis value's (feels, dew) wire byte: its position on the
+         * joint temperature band [tmin, tmax] in permille, floored so an hour with
+         * data is never blank, then quantized /4 — forecast-series.js'
+         * tempAxisPermille + metricBytes, mirrored. The band itself, NOT
+         * metricY -> yT: that path carries the preview's curve inset, which the
+         * watch's stripe never applies.
+         * @param {number} v Sample value (degrees).
+         * @returns {number} Wire byte, 1..250.
+         */
+        function tempAxisStripeByte(v) {
+            var span = tmax - tmin;
+            var pm = span === 0 ? 500 : Math.round((v - tmin) / span * 1000);
+            pm = Math.min(1000, Math.max(TEMP_AXIS_FLOOR_PERMILLE, pm));
+            return Math.min(250, Math.round(pm / 4));
+        }
         /**
          * A metric value's stripe level, 0..4: the watch's chart_stripe_level on the
-         * wire byte (0..250), so a cell shades exactly where the watch's does.
+         * wire byte (0..250), so a cell shades exactly where the watch's does. A
+         * temperature-axis metric (feels, dew) takes its byte from its position on
+         * the joint temperature band (tempAxisStripeByte) — what chart_render_stripe
+         * shades from on the watch, whose stripe ignores the curve inset. That half
+         * mirrors the watch and the bake's temp-axis mapping approximately: the
+         * edge-clearance padding's rounding may leave a cell one level off.
          * @param {Object} m METRIC entry.
          * @param {number} i Sample index.
          * @returns {number} 0 (draws nothing) .. 4 (full colour).
          */
         function stripeLevel(m, i) {
+            if (m.tempAxis) { return previewStripe.levelOfByte(tempAxisStripeByte(m.vals[i])); }
             var y = metricY(m, i, true);
             if (y === null) { return 0; }
             var b = Math.round((PB - y) / (PB - PT - 3) * 250);
@@ -558,7 +589,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          */
         function stripeFor(metric, color, top, slot) {
             var m = METRIC[metric];
-            if (!m || m.tempAxis) { return ''; }
+            if (!m) { return ''; }
             var off = slot * (STRIPE_H + STRIPE_GAP);
             // Bottom: flush under the zero line — past its 0.7-unit stroke's half.
             var y = top ? PT + off : PB + 0.35 + off;

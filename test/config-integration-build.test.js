@@ -88,3 +88,84 @@ test('generated page registers PConf.actions.startWizard (wizard.js concatenated
     vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
     assert.equal(typeof sandbox.PConf.actions.startWizard, 'function', 'startWizard action registered');
 });
+
+/**
+ * Build the device page for `platform` through generateUrl (the shipping path: env is
+ * computed from watchInfo) and run its inline script in a DOM-less sandbox, boot() stripped.
+ *
+ * @param {string} platform Watch platform name, e.g. 'emery'.
+ * @returns {Object} The sandbox: PConf plus the page's INJECTED_SCHEMA/_CFG/_ENV globals.
+ */
+function loadDevicePage(platform) {
+    var vm = require('vm');
+    var url = settings.generateUrl({ values: settings.getDefaults(), watchInfo: { platform: platform }, userData: {} });
+    var decoded = decodeURIComponent(url.slice('data:text/html;charset=utf-8,'.length));
+    var scriptMatch = decoded.match(/<script>([\s\S]*)<\/script>/);
+    assert.ok(scriptMatch, 'page contains a <script> block');
+    var src = scriptMatch[1].replace(/PConf\.engine\.boot\(\);\s*$/, '');
+    var sandbox = { console: console };
+    sandbox.window = sandbox;
+    sandbox.document = { getElementById: function () { return { addEventListener: function () {} }; }, querySelector: function () { return null; }, addEventListener: function () {} };
+    sandbox.navigator = {};
+    vm.createContext(sandbox);
+    vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
+    return sandbox;
+}
+
+/**
+ * Open `key`'s select sheet through the page's own engine, on the page's injected schema,
+ * stored values and env, and list the option values a user can tap.
+ *
+ * @param {Object} page Sandbox from loadDevicePage.
+ * @param {string} key The select's messageKey.
+ * @returns {{picks: string[], visible: boolean}} Tappable values, and whether the row shows.
+ */
+function openSheet(page, key) {
+    var schema = page.INJECTED_SCHEMA, env = page.INJECTED_ENV;
+    var S = page.PConf.engine.hydrate(schema, page.INJECTED_CFG || {});
+    var evalCtx = Object.assign({}, S, { env: env });
+    var item = null;
+    schema.tabs.forEach(function (t) {
+        t.sections.forEach(function (sec) {
+            sec.items.forEach(function (it) { if (it.messageKey === key) { item = it; } });
+        });
+    });
+    assert.ok(item, key + ' is in the injected schema');
+    var html = page.PConf.engine.renderSelectModal(schema, {
+        S: S, ENV: env, USERDATA: {}, openSelect: key, selectQuery: '', evalCtx: evalCtx
+    });
+    var picks = [];
+    html.replace(/data-select-pick="([^"]+)"/g, function (all, v) { picks.push(v); return all; });
+    assert.ok(picks.length > 0, key + ' sheet renders options');
+    return { picks: picks, visible: page.PConf.showWhen.isVisible(item, evalCtx) };
+}
+
+// Regression ("I can't select dew or feels-like as third or fourth metric"): the Third
+// (fourthLine) and Fourth (fifthLine) metric pickers are resolved at render time by the
+// forecastMetric resolver from the schema item's optionsFrom.args. The resolver's own tests
+// load blocks.js as a Node module; this drives the ACTUAL generated page, so a build step
+// that drops blocks.js, a schema arg that re-bans temperature-axis metrics, or a resolver
+// regression all fail here. aplite has no curve inset and no Third/Fourth line at all: its
+// rows stay hidden, and even the Main/Second sheets never offer feels or dew.
+test('generated page offers feels and dew on the Third and Fourth metric pickers off aplite, never on aplite', function () {
+    ['basalt', 'emery'].forEach(function (platform) {
+        var page = loadDevicePage(platform);
+        assert.equal(page.INJECTED_ENV.platform, platform, 'env computed for ' + platform);
+        ['fourthLine', 'fifthLine'].forEach(function (key) {
+            var sheet = openSheet(page, key);
+            assert.ok(sheet.visible, key + ' row shows on ' + platform);
+            assert.ok(sheet.picks.indexOf('feels') !== -1, key + ' offers feels on ' + platform);
+            assert.ok(sheet.picks.indexOf('dew') !== -1, key + ' offers dew on ' + platform);
+        });
+    });
+    var aplite = loadDevicePage('aplite');
+    assert.equal(aplite.INJECTED_ENV.platform, 'aplite', 'env computed for aplite');
+    ['fourthLine', 'fifthLine'].forEach(function (key) {
+        assert.equal(openSheet(aplite, key).visible, false, key + ' row hidden on aplite');
+    });
+    ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach(function (key) {
+        var picks = openSheet(aplite, key).picks;
+        assert.equal(picks.indexOf('feels'), -1, key + ' never offers feels on aplite');
+        assert.equal(picks.indexOf('dew'), -1, key + ' never offers dew on aplite');
+    });
+});

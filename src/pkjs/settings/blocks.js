@@ -90,12 +90,11 @@ if (typeof require !== 'undefined') {
     // Metric picker options, shaped by self-describing args from the schema:
     // `off` leads with an Off row, `exclude` names the sibling picker keys
     // whose CURRENT pick is withheld (a collision left in a stored value is
-    // display-snapped by the engine — a later pick turns the later line off),
-    // and `noTempAxis` bans the temperature-axis metrics (feels, dew) outright (the
-    // fourth line has no curve-inset channel — line-style.js FORECAST_LINES
-    // carries the same ban at bake time). Both are also dropped on aplite: the
-    // temp-axis line inset is not compiled there, so they would render
-    // misaligned with the temperature curve.
+    // display-snapped by the engine — a later pick turns the later line off).
+    // Every picker offers the temperature-axis metrics (feels, dew) — each line
+    // has its own curve-inset byte — except on aplite: the temp-axis line inset
+    // is not compiled there, so they would render misaligned with the
+    // temperature curve.
     PConf.optionsResolvers.register('forecastMetric', function (S, env, args) {
         var a = args || {};
         var exclude = a.exclude || [];
@@ -103,7 +102,7 @@ if (typeof require !== 'undefined') {
         for (var i = 0; i < FORECAST_METRICS.length; i += 1) {
             var opt = FORECAST_METRICS[i];
             if (lineStyle.isTempAxisMetric(opt[1])
-                && (a.noTempAxis || (env && env.platform === 'aplite'))) { continue; }
+                && env && env.platform === 'aplite') { continue; }
             var taken = false;
             for (var j = 0; j < exclude.length; j += 1) {
                 if (S && opt[1] === S[exclude[j]]) { taken = true; break; }

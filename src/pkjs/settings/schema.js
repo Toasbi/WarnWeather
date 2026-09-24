@@ -47,35 +47,32 @@ var DOTS_NOTE = '<br>Drawn as square dots by default, aligned to the rain bars.'
 var X_NOTE = '<br>Drawn as little x marks by default, aligned to the rain bars.';
 /**
  * A metric picker's hint map: the shared per-metric LINE_HINTS with a
- * rendering note appended, an 'off' row of its own, and any banned metrics
- * left out.
+ * rendering note appended and an 'off' row of its own.
  * @param {string} note Appended to every metric's hint.
  * @param {string} offText Hint for the 'off' row.
- * @param {Array.<string>} [omit] Metric ids left out of the map.
  * @returns {Object} Picker-value -> hint map.
  */
-function lineHintsWithNote(note, offText, omit) {
+function lineHintsWithNote(note, offText) {
     var out = {}, k;
     for (k in LINE_HINTS) {
         if (!Object.prototype.hasOwnProperty.call(LINE_HINTS, k)) { continue; }
-        if (k === 'off' || (omit && omit.indexOf(k) >= 0)) { continue; }
+        if (k === 'off') { continue; }
         out[k] = LINE_HINTS[k] + note;
     }
     out.off = offText;
     return out;
 }
+// Every metric picker below carries the full metric set, feels and dew included:
+// each line has its own curve-inset byte (CLAY_CURVE_INSET_UINT8), so any of them
+// can share the temperature axis with the temperature curve.
 var THIRD_LINE_HINTS = lineHintsWithNote(DOTS_NOTE,
     'No second metric — temperature and the main metric only.');
-// No feels or dew on the third metric: the fourth line has no curve-inset channel,
-// so they could never share the temperature axis (line-style.js FORECAST_LINES
-// bans them; blocks.js' forecastMetric resolver drops them via noTempAxis).
 var FOURTH_LINE_HINTS = lineHintsWithNote(X_NOTE,
-    'No third metric — the two metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
-// The fourth metric: no feels or dew either (same missing curve-inset channel), and
-// it debuts as a top stripe — handy for cloud cover next to three lines.
+    'No third metric — the two metric lines above only.');
+// The fourth metric debuts as a top stripe — handy for cloud cover next to three lines.
 var STRIPE_NOTE = '<br>Drawn as a stripe along the top of the graph by default.';
 var FIFTH_LINE_HINTS = lineHintsWithNote(STRIPE_NOTE,
-    'No fourth metric — the three metric lines above only.', lineStyle.TEMP_AXIS_METRIC_IDS);
+    'No fourth metric — the three metric lines above only.');
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
@@ -1584,7 +1581,7 @@ module.exports = {
                 label: 'Third metric',
                 defaultValue: 'off',
                 hintByValue: FOURTH_LINE_HINTS,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true}},
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine']}},
                 // Only watches with enough memory carry a third metric line
                 // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
                 // an unknown platform). Row-level hiding, not option-gating,
@@ -1603,7 +1600,7 @@ module.exports = {
                 label: 'Fourth metric',
                 defaultValue: 'off',
                 hintByValue: FIFTH_LINE_HINTS,
-                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine'], noTempAxis: true}},
+                optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
                 // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
                 showWhen: LINE_STYLES_WHEN
             },

@@ -302,6 +302,8 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 515 -> 517 when it grew 14 -> 16: the fourth-metric line's colour and style
   // ([14..15], FIFTH_LINE_COLOR / FIFTH_LINE_STYLE). Headroom (vs aplite's 536 B,
   // the smallest inbox) 21 -> 19 B.
-  assert.equal(size, 517, 'update the recorded Clay message size when its wire contract changes');
+  // 517 -> 519 when CLAY_CURVE_INSET_UINT8 grew 3 -> 5: feels-like and dew point
+  // allowed on the third and fourth metric lines (headroom 19 -> 17 B).
+  assert.equal(size, 519, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

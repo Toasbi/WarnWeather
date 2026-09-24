@@ -343,11 +343,14 @@ static bool handle_palette(DictionaryIterator *iterator, bool *forecast_dirty,
 
 #if defined(WW_CURVE_INSET)
 // Per-series forecast curve insets — settings-derived, so the tuple rides the
-// Clay message (see clay-payload.js). The phone sends three render-ready px
-// values ([FIRST, SECOND, THIRD]: temp's configurable inset, feels-like shares
-// it, every other metric 0); the watch stays metric-agnostic and just persists
-// them for load_dataset. aplite keeps its frozen constant insets, so the
-// handler compiles out there (mirrors the threshold handlers above).
+// Clay message (see clay-payload.js). The phone sends five render-ready px
+// values, one per series in SeriesId order ([FIRST, SECOND, THIRD, FOURTH,
+// FIFTH]: temp's inset, which a temperature-axis metric line — feels-like or
+// dew point — shares; every other metric 0); the watch stays metric-agnostic
+// and just persists them for load_dataset. The phone JS and this handler ship
+// in one .pbw, so any other length is malformed — no short-tuple fallback.
+// aplite keeps its frozen constant insets, so the handler compiles out there
+// (mirrors the threshold handlers above).
 static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_CLAY_CURVE_INSET_UINT8);
     if (!tuple) { return false; }

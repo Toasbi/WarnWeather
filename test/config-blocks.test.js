@@ -515,7 +515,7 @@ test('legend stays on one row for the default-sized selections', () => {
 });
 
 // The legend lives in a 200-wide viewBox (the page clips past it). Walk every
-// main / second / third metric / bars / bar colour combination, colour and B&W, and hold
+// main / second / third / fourth metric / bars / bar colour combination, colour and B&W, and hold
 // each label's estimated extent (the layout's own 4.3 units per char at font 7.5) inside
 // it. Rows wrap instead of shrinking, so within each row (text baselines 115, 125, …)
 // entries must stay ordered and end inside the frame at full label size.
@@ -529,27 +529,32 @@ test('legend never runs past the 200-wide frame, for any metric combination', ()
     return out;
   };
   let worst = 0;
+  // The third- and fourth-metric lines take feels and dew too (each line has its
+  // own curve-inset byte), so both dimensions walk them — plus the long labels
+  // (Pressure), since rows wrap in order and the fourth metric's entry comes last.
   METRICS.forEach((main) => {
     ['off'].concat(METRICS).forEach((third) => {
-      ['off', 'gust', 'pressure'].forEach((fourth) => {
-        ['rain', 'off'].forEach((bars) => {
-          ['multicolor', 'white'].forEach((barColor) => {
-            [true, false].forEach((color) => {
-              const svg = FC.forecastPreview({ secondaryLine: main, thirdLine: third, fourthLine: fourth, barSource: bars, rainBarColor: barColor, windScale: 'mid', pressureScale: 'mid', dayNightShading: false }, { color });
-              const texts = legendTexts(svg);
-              assert.ok(texts.length >= 2, 'the legend rendered');
-              const tag = main + '/' + third + '/' + fourth + '/' + bars + '/' + barColor + '/' + (color ? 'color' : 'bw');
-              const rowEnds = {};
-              texts.forEach((tx) => {
-                assert.ok(tx.fs === 7.5, tag + ': labels never shrink (font ' + tx.fs + ')');
-                const end = tx.x + tx.t.length * 4.3;
-                const prevEnd = rowEnds[tx.y] === undefined ? -Infinity : rowEnds[tx.y];
-                assert.ok(tx.x > prevEnd, tag + ': "' + tx.t + '" does not overlap the entry before it');
-                assert.ok(end <= 200, tag + ': "' + tx.t + '" ends at ' + end.toFixed(1) + ' (> 200)');
-                rowEnds[tx.y] = end;
-                worst = Math.max(worst, end);
+      ['off', 'gust', 'pressure', 'feels', 'dew'].forEach((fourth) => {
+        ['off', 'gust', 'pressure', 'feels', 'dew'].forEach((fifth) => {
+          ['rain', 'off'].forEach((bars) => {
+            ['multicolor', 'white'].forEach((barColor) => {
+              [true, false].forEach((color) => {
+                const svg = FC.forecastPreview({ secondaryLine: main, thirdLine: third, fourthLine: fourth, fifthLine: fifth, barSource: bars, rainBarColor: barColor, windScale: 'mid', pressureScale: 'mid', dayNightShading: false }, { color });
+                const texts = legendTexts(svg);
+                assert.ok(texts.length >= 2, 'the legend rendered');
+                const tag = main + '/' + third + '/' + fourth + '/' + fifth + '/' + bars + '/' + barColor + '/' + (color ? 'color' : 'bw');
+                const rowEnds = {};
+                texts.forEach((tx) => {
+                  assert.ok(tx.fs === 7.5, tag + ': labels never shrink (font ' + tx.fs + ')');
+                  const end = tx.x + tx.t.length * 4.3;
+                  const prevEnd = rowEnds[tx.y] === undefined ? -Infinity : rowEnds[tx.y];
+                  assert.ok(tx.x > prevEnd, tag + ': "' + tx.t + '" does not overlap the entry before it');
+                  assert.ok(end <= 200, tag + ': "' + tx.t + '" ends at ' + end.toFixed(1) + ' (> 200)');
+                  rowEnds[tx.y] = end;
+                  worst = Math.max(worst, end);
+                });
+                assert.ok(Object.keys(rowEnds).length <= 2, tag + ': at most two legend rows');
               });
-              assert.ok(Object.keys(rowEnds).length <= 2, tag + ': at most two legend rows');
             });
           });
         });
@@ -1314,6 +1319,53 @@ test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
     secondaryLineStyle: 'stripeTop', thirdLine: 'off', windScale: 'mid' };
   const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
   assert.equal(stripeCells(svg).length, 6, 'only the six non-zero hours get a cell');
+});
+
+test('forecastPreview: a dew stripe on the fourth metric line shades every hour by its place on the joint temperature band', () => {
+  // This used to render nothing (the preview skipped temperature-axis stripes)
+  // while the watch painted one. Temps 14..24 and the dew sample
+  // [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, (13)] widen the band to [12, 24],
+  // padded below by max(1, ceil(12 * 40/960)) = 1 -> [11, 24]. Per hour column:
+  // permille round((v - 11)/13 * 1000) -> byte round(pm/4) -> level ceil(b*4/250)
+  // = [1, 1, 2, 3, 2, 1, 1, 1, 1, 1, 1] — the bake's bytes and the watch's
+  // chart_stripe_level. Never 0: the band floor keeps every sourced hour visible.
+  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+    secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'dew',
+    fifthLineStyle: 'stripeTop', windScale: 'mid' };
+  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
+  const cells = stripeCells(svg);
+  assert.equal(cells.length, 11, 'one cell for every hour column');
+  cells.forEach((r) => assert.match(r, /y="4"/, 'a top stripe on the plot top'));
+  const fills = cells.map((r) => /fill="(#[0-9A-F]{6})"/.exec(r)[1]);
+  assert.equal(fills[0], '#000000', 'level 1 is the bare background tint (dark theme)');
+  [1, 5, 6, 7, 8, 9, 10].forEach((i) => assert.equal(fills[i], fills[0], 'level 1 at hour ' + i));
+  assert.equal(fills[2], fills[4], 'hours 2 and 4 share level 2');
+  assert.notEqual(fills[2], fills[0], 'level 2 is tinted');
+  assert.ok(fills[3] !== fills[2] && fills[3] !== fills[0], 'hour 3 alone reaches level 3');
+  // B&W: the same levels as dither densities.
+  const bw = FC.forecastPreview(state, { color: false, platform: 'diorite', lineStyles: true });
+  assert.equal((bw.match(/height="5" fill="url\(#sd[1-4]\)"/g) || []).length, 11, 'B&W dithers every hour');
+});
+
+// The temp curve's path (the only #FF0000 stroke in the colour preview) — it moves
+// exactly when the joint temperature band does.
+const tempCurvePath = (svg) => /<path d="([^"]+)" fill="none" stroke="#FF0000"/.exec(svg)[1];
+test('forecastPreview: feels on the third or fourth metric line widens the joint band like on the second', () => {
+  const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob',
+    secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
+  const env = { color: true, platform: 'basalt', lineStyles: true };
+  const plain = tempCurvePath(FC.forecastPreview(base, env));
+  const onSecond = tempCurvePath(FC.forecastPreview(Object.assign({}, base, { thirdLine: 'feels' }), env));
+  assert.notEqual(onSecond, plain, 'premise: feels widens the band');
+  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels' }), env)),
+    onSecond, 'feels on the third metric line: same joint band');
+  // The fourth metric line's default style is a top stripe — it still widens the band.
+  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fifthLine: 'feels' }), env)),
+    onSecond, 'feels on the fourth metric line (a stripe): same joint band');
+  // A watch without WW_LINE_STYLE draws neither line, so a stored pick widens nothing.
+  const frozenEnv = { color: true, platform: 'aplite', lineStyles: false };
+  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels', fifthLine: 'dew' }), frozenEnv)),
+    tempCurvePath(FC.forecastPreview(base, frozenEnv)), 'aplite preview: the band stays the temperature\'s');
 });
 
 // The radar's sky rows (Radar tab -> Clouds, sun & lightning): the preview draws

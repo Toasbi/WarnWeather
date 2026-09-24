@@ -111,13 +111,16 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len);
 // stays in persist.c's append-only enum on every platform.
 #if defined(WW_CURVE_INSET)
 // Render-ready per-series vertical insets for the forecast graph's value-mapped
-// lines (CLAY_CURVE_INSET_UINT8 tuple: [FIRST, SECOND, THIRD] px — the phone
-// computes them; the watch stays metric-agnostic). Get always fills out[],
-// defaulting to {7, 0, 0} — exactly the pre-feature look — when unset/short.
-#define CURVE_INSET_BYTES 3
+// lines (CLAY_CURVE_INSET_UINT8 tuple: [FIRST, SECOND, THIRD, FOURTH, FIFTH] px,
+// in SeriesId order — SERIES_FIRST..SERIES_FIFTH = 0..4 under WW_LINE_STYLE,
+// series.h — so load_dataset indexes it by series id; the phone computes them
+// and the watch stays metric-agnostic). Get always fills out[], defaulting to
+// {7, 0, 0, 0, 0} — exactly the pre-feature look — when unset/unreadable; a
+// legacy 3-byte blob from before the fourth/fifth channels fills the first three.
+#define CURVE_INSET_BYTES 5
 #define CURVE_INSET_MAX  14
-bool persist_set_curve_insets(const uint8_t insets[3]);
-void persist_get_curve_insets(uint8_t out[3]);
+bool persist_set_curve_insets(const uint8_t insets[CURVE_INSET_BYTES]);
+void persist_get_curve_insets(uint8_t out[CURVE_INSET_BYTES]);
 #endif
 
 // The third selectable metric line ("Third metric" in the settings — the

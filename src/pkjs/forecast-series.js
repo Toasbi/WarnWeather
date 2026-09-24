@@ -202,26 +202,40 @@ function pressurePermille(arr, scale) {
 }
 
 /**
- * Whether a temperature-axis line (feels, dew) is selected on either
- * inset-capable channel (secondary or third line) and can actually be DRAWN on
- * this watch. Not on aplite: such a curve only lines up with the temp curve when
- * both share a band AND a pixel inset, and aplite compiles the configurable inset
- * out (no WW_CURVE_INSET — its insets are frozen at 7/0/0 and clay-payload.js never
- * sends it CLAY_CURVE_INSET_UINT8), so the line would map full-height against a
- * 7 px-inset temp curve squashed into the joint band. The settings page never
- * offers these there, but a stored blob can still carry one (picked on a colour
- * watch paired to the same phone), so this is the bake-time gate — the line
- * degrades to off and the temps keep their own band. Gates on exactly 'aplite':
- * an unknown platform (no watchInfo) stays capable, as in computeEnv and
- * clay-payload.js.
+ * Whether a temperature-axis line (feels, dew) is the effective metric of a
+ * forecast line this watch actually DRAWS. Every line carries its own curve-inset
+ * byte (clay-payload.js' CLAY_CURVE_INSET_UINT8), so any of them can share the
+ * temperature axis: the Main and Second metric lines (secondaryLine/thirdLine) on
+ * every non-aplite watch, the Third and Fourth metric lines (fourthLine/fifthLine)
+ * only where the watch compiles them (configUi.isLineStylePlatform — the same gate
+ * applyForecastSeries puts on their wire keys). "Effective" is line-style.js'
+ * effectiveLineMetric: an off line, or one repeating an earlier line's pick, draws
+ * nothing and so widens nothing.
+ *
+ * Never on aplite: such a curve only lines up with the temp curve when both share
+ * a band AND a pixel inset, and aplite compiles the configurable inset out (no
+ * WW_CURVE_INSET — its insets are frozen at 7/0/0 and clay-payload.js never sends
+ * it CLAY_CURVE_INSET_UINT8), so the line would map full-height against a 7 px-inset
+ * temp curve squashed into the joint band. The settings page never offers these
+ * there, but a stored blob can still carry one (picked on a colour watch paired to
+ * the same phone), so this is the bake-time gate — the line degrades to off and the
+ * temps keep their own band. Gates on exactly 'aplite': an unknown platform (no
+ * watchInfo) stays capable, as in computeEnv and clay-payload.js.
  * @param {Object} settings Clay settings.
  * @param {Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @param {string} metric 'feels' | 'dew'.
  * @returns {boolean} True when the line is selected and the watch can draw it.
  */
 function tempAxisLineDrawn(settings, watchInfo, metric) {
-    return (settings.secondaryLine === metric || settings.thirdLine === metric)
-        && !(watchInfo && watchInfo.platform === 'aplite');
+    var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
+    if (platform === 'aplite') { return false; }
+    var lineStylePlatform = configUi.isLineStylePlatform(platform);
+    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+        var key = lineStyle.FORECAST_LINES[i].key;
+        var drawnHere = (key === 'secondaryLine' || key === 'thirdLine') || lineStylePlatform;
+        if (drawnHere && lineStyle.effectiveLineMetric(settings, key) === metric) { return true; }
+    }
+    return false;
 }
 
 // Where each temperature-axis metric's series rides: its transient payload key
@@ -355,10 +369,10 @@ function metricPermille(metric, raw, settings) {
 
 /**
  * Map raw provider series + settings to the render-ready forecast wire fields.
- * Which metric each line actually draws — off, duplicate-of-an-earlier-line
- * and banned-metric rules included — is resolved by line-style.js'
- * effectiveLineMetric, the one home for the rule the settings preview and the
- * pickers share. Only the secondary line can fill.
+ * Which metric each line actually draws — off and duplicate-of-an-earlier-line
+ * rules included — is resolved by line-style.js' effectiveLineMetric, the one
+ * home for the rule the settings preview and the pickers share. Only the
+ * secondary line can fill.
  *
  * Values only: the lines' COLOURS and styles (and the fill flag) are
  * settings-derived, so they ride the Clay settings message instead — see

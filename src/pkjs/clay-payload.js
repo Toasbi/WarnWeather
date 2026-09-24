@@ -117,8 +117,20 @@ function holidayWindowOpts(settings, watchInfo) {
 
 // Fixed vertical inset for the temperature axis (px) — the watch's
 // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y. Deliberately NOT a user setting; the wire
-// stays a per-series triple so feels-like inherits it only where selected.
+// carries one byte per series (five) so feels-like and dew point inherit it only
+// on the lines where they are selected.
 var CURVE_INSET_PX = 7;
+
+/**
+ * One forecast line's curve-inset byte: the temp curve's inset for a
+ * temperature-axis metric (feels, dew), 0 (full-height) for every other metric.
+ * @param {Object} settings Clay settings (raw — see CLAY_CURVE_INSET_UINT8).
+ * @param {string} key secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @returns {number} Inset in px.
+ */
+function lineCurveInset(settings, key) {
+    return lineStyle.isTempAxisMetric(settings[key]) ? CURVE_INSET_PX : 0;
+}
 
 /**
  * Build the Clay settings AppMessage payload.
@@ -270,21 +282,27 @@ function buildClayPayload(settings, watchInfo, now) {
     }
 
     // Per-series vertical insets for the forecast graph's value-mapped lines,
-    // render-ready in px: [SERIES_FIRST (temp), SERIES_SECOND (main metric),
-    // SERIES_THIRD (second metric)]. The watch stays metric-agnostic — the
-    // phone decides here that feels-like and dew point share the temp curve's configurable
-    // offset (so the two land pixel-aligned on their joint band) while every
-    // other metric keeps the full-height mapping. Settings-derived, so it rides
-    // the Clay message. Omitted for a watch that compiles the configurable
-    // inset out (aplite, no WW_CURVE_INSET): its inbox handler for this tuple
-    // is gone and it keeps the frozen 7/0/0 constants, so the 10 B stay out of
-    // its Clay bundle. An unknown platform is treated as capable (computeEnv's
-    // platform is '' then), so a missing watchInfo never drops it.
+    // render-ready in px, five bytes in the watch's Series id order:
+    // [SERIES_FIRST (temp), SERIES_SECOND (main metric), SERIES_THIRD (second
+    // metric), SERIES_FOURTH (third metric), SERIES_FIFTH (fourth metric)]. The
+    // watch stays metric-agnostic — the phone decides here that feels-like and
+    // dew point share the temp curve's configurable offset (so the two land
+    // pixel-aligned on their joint band) while every other metric keeps the
+    // full-height mapping. Read from the RAW settings: a line that is off or
+    // repeats an earlier line's pick is not drawn on the watch, so its byte is
+    // never read and needs no effective-metric resolution. Settings-derived, so
+    // it rides the Clay message. Omitted for a watch that compiles the
+    // configurable inset out (aplite, no WW_CURVE_INSET): its inbox handler for
+    // this tuple is gone and it keeps the frozen 7/0/0 constants, so the 12 B
+    // stay out of its Clay bundle. An unknown platform is treated as capable
+    // (computeEnv's platform is '' then), so a missing watchInfo never drops it.
     if (env.platform !== 'aplite') {
         payload.CLAY_CURVE_INSET_UINT8 = [
             CURVE_INSET_PX,
-            lineStyle.isTempAxisMetric(settings.secondaryLine) ? CURVE_INSET_PX : 0,
-            lineStyle.isTempAxisMetric(settings.thirdLine) ? CURVE_INSET_PX : 0
+            lineCurveInset(settings, 'secondaryLine'),
+            lineCurveInset(settings, 'thirdLine'),
+            lineCurveInset(settings, 'fourthLine'),
+            lineCurveInset(settings, 'fifthLine')
         ];
     }
 

@@ -2212,16 +2212,49 @@ test('thirdLine offers the seven metrics the main line is not using, for all eig
   }
 });
 
-test('fourthLine offers Off + the metrics neither other line uses, never feels', () => {
-  const opts = metricOptions({ secondaryLine: 'wind', thirdLine: 'uv' },
-    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true });
-  assert.deepEqual(opts.map(([, v]) => v), ['off', 'precip_prob', 'cloud', 'gust', 'pressure'],
-    'Off + the remaining metrics minus feels (no curve-inset channel on the fourth line)');
-  // With the other two lines elsewhere, feels is STILL absent.
-  const wide = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' },
-    { platform: 'basalt' }, { off: true, exclude: ['secondaryLine', 'thirdLine'], noTempAxis: true });
-  assert.ok(!wide.some(([, v]) => v === 'feels'), 'feels never offered on the fourth line');
-  assert.ok(!wide.some(([, v]) => v === 'dew'), 'dew never offered on the fourth line');
+test('fourthLine offers Off + the metrics neither other line uses, feels and dew included', () => {
+  // The resolver args come FROM the schema item, so a schema regression shows here.
+  const args = byKey('fourthLine').optionsFrom.args;
+  const opts = metricOptions({ secondaryLine: 'wind', thirdLine: 'uv' }, { platform: 'basalt' }, args);
+  assert.deepEqual(opts.map(([, v]) => v), ['off', 'precip_prob', 'cloud', 'gust', 'pressure', 'feels', 'dew'],
+    'Off + the remaining metrics, the temperature-axis ones included (own curve-inset byte)');
+});
+
+test('the Third and Fourth metric pickers offer feels and dew off aplite, and exclude sibling picks', () => {
+  const siblings = {
+    fourthLine: ['secondaryLine', 'thirdLine'],
+    fifthLine: ['secondaryLine', 'thirdLine', 'fourthLine']
+  };
+  for (const key of ['fourthLine', 'fifthLine']) {
+    const args = byKey(key).optionsFrom.args;
+    assert.deepEqual(args.exclude, siblings[key], key + ' excludes the earlier lines');
+    for (const platform of ['basalt', 'emery']) {
+      const wide = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' }, { platform }, args)
+        .map(([, v]) => v);
+      assert.ok(wide.includes('feels'), `${key} offers feels on ${platform}`);
+      assert.ok(wide.includes('dew'), `${key} offers dew on ${platform}`);
+    }
+    // aplite has no temperature-axis inset at all: never offered there.
+    const aplite = metricOptions({ secondaryLine: 'precip_prob', thirdLine: 'off' }, { platform: 'aplite' }, args)
+      .map(([, v]) => v);
+    assert.ok(!aplite.includes('feels') && !aplite.includes('dew'), key + ' offers neither on aplite');
+    // A sibling line's current pick is withheld — feels/dew included.
+    const taken = { secondaryLine: 'feels', thirdLine: 'dew', fourthLine: 'wind' };
+    const rest = metricOptions(taken, { platform: 'basalt' }, args).map(([, v]) => v);
+    assert.ok(!rest.includes('feels'), key + ' withholds the main line\'s feels');
+    assert.ok(!rest.includes('dew'), key + ' withholds the second line\'s dew');
+    if (key === 'fifthLine') {
+      assert.ok(!rest.includes('wind'), 'fifthLine withholds the third metric\'s wind');
+    }
+  }
+});
+
+test('the Third and Fourth metric pickers carry the feels and dew hints', () => {
+  for (const key of ['fourthLine', 'fifthLine']) {
+    const hints = byKey(key).hintByValue;
+    assert.match(hints.feels, /same scale as the temperature curve/i, key + ' feels');
+    assert.match(hints.dew, /same scale as the temperature curve/i, key + ' dew');
+  }
 });
 
 test('the Third metric row and every line-style row hide behind the lineStyles capability, fail-open for unknown platforms', () => {

@@ -341,12 +341,13 @@ test('truncateUtf8Bytes passes short strings through untouched', function() {
   assert.equal(truncateUtf8Bytes('', 24), '');
 });
 
-test('CLAY_CURVE_INSET_UINT8 sends the fixed [7,0,0] when feels is not selected', function() {
+test('CLAY_CURVE_INSET_UINT8 sends the fixed [7,0,0,0,0] when feels is not selected', function() {
   // The inset is deliberately NOT a user setting — a fixed 7 px (the watch's
-  // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), with the per-series triple only marking
-  // which metric channel carries feels-like.
+  // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), with the five per-series bytes (Series id
+  // order: temp, main, second, third, fourth metric) only marking which metric
+  // channel carries a temperature-axis metric.
   const p = buildClayPayload(baseSettings(), { platform: 'emery' }, NOW);
-  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 0]);
+  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 0, 0, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8: feels on the secondary line shares the temp inset', function() {
@@ -354,7 +355,7 @@ test('CLAY_CURVE_INSET_UINT8: feels on the secondary line shares the temp inset'
   s.secondaryLine = 'feels';
   s.thirdLine = 'uv';
   const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
-  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 7, 0]);
+  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 7, 0, 0, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8: feels on the third line shares the temp inset', function() {
@@ -362,26 +363,46 @@ test('CLAY_CURVE_INSET_UINT8: feels on the third line shares the temp inset', fu
   s.secondaryLine = 'precip_prob';
   s.thirdLine = 'feels';
   const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
-  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 7]);
+  assert.deepEqual(p.CLAY_CURVE_INSET_UINT8, [7, 0, 7, 0, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8: dew point shares the temp inset on either line', function() {
   const s = baseSettings();
   s.secondaryLine = 'dew';
   s.thirdLine = 'feels';
-  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 7, 7]);
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 7, 7, 0, 0]);
   s.secondaryLine = 'wind';
   s.thirdLine = 'dew';
-  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 7]);
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 7, 0, 0]);
+});
+
+test('CLAY_CURVE_INSET_UINT8: the third- and fourth-metric lines get an inset byte of their own', function() {
+  const s = Object.assign(baseSettings(), { secondaryLine: 'feels', thirdLine: 'wind', fourthLine: 'dew' });
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 7, 0, 7, 0]);
+  const fifth = Object.assign(baseSettings(), { secondaryLine: 'precip_prob', thirdLine: 'uv', fifthLine: 'feels' });
+  assert.deepEqual(buildClayPayload(fifth, { platform: 'emery' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 0, 0, 7]);
+});
+
+test('CLAY_CURVE_INSET_UINT8 reads the RAW settings: a duplicate pick still gets its byte', function() {
+  // feels on the third AND the third-metric line: effectiveLineMetric turns the
+  // later one off, so the watch never draws that series and never reads its byte.
+  // The tuple does not resolve effective metrics — a byte nobody reads is harmless.
+  const s = Object.assign(baseSettings(), { secondaryLine: 'wind', thirdLine: 'feels', fourthLine: 'feels' });
+  assert.equal(lineStyle.effectiveLineMetric(s, 'fourthLine'), null, 'the duplicate line is not drawn');
+  assert.deepEqual(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_CURVE_INSET_UINT8, [7, 0, 7, 7, 0]);
 });
 
 test('CLAY_CURVE_INSET_UINT8 is omitted for aplite (WW_CURVE_INSET compiled out) but kept for unknown platforms', function() {
   const s = baseSettings();
   const aplite = buildClayPayload(s, { platform: 'aplite' }, NOW);
   assert.equal(Object.prototype.hasOwnProperty.call(aplite, 'CLAY_CURVE_INSET_UINT8'), false);
+  // Even with every line on a temperature-axis metric, aplite never gets the tuple.
+  const apliteAxis = buildClayPayload(Object.assign(baseSettings(),
+    { secondaryLine: 'feels', thirdLine: 'dew', fourthLine: 'feels', fifthLine: 'dew' }), { platform: 'aplite' }, NOW);
+  assert.equal(Object.prototype.hasOwnProperty.call(apliteAxis, 'CLAY_CURVE_INSET_UINT8'), false);
   // Unknown watchInfo must never drop a real feature (computeEnv convention).
   const unknown = buildClayPayload(s, null, NOW);
-  assert.deepEqual(unknown.CLAY_CURVE_INSET_UINT8, [7, 0, 0]);
+  assert.deepEqual(unknown.CLAY_CURVE_INSET_UINT8, [7, 0, 0, 0, 0]);
 });
 
 test('the Clay message carries the graph line styling', function() {
