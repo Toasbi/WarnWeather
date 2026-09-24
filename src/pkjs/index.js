@@ -824,14 +824,16 @@ function isWatchConnected() {
 
 /**
  * Fetch rain-radar tuples for already-resolved coordinates (single per-cycle
- * acquisition). A transient failure calls `callback(null)`; the weather payload
- * still ships without radar tuples. A permanent one (missing key/endpoint,
- * rejected key) calls back the clearing tuples. Out-of-coverage produces zero
- * arrays, shipped normally.
+ * acquisition), with the radar's sky rows (radar-sky.js) merged in. A transient
+ * radar failure leaves the radar keys out: the callback gets the sky answer
+ * alone, or null when the sky had none either, and the weather payload still
+ * ships without radar tuples. A permanent one (missing key/endpoint, rejected
+ * key) calls back the clearing tuples. Out-of-coverage produces zero arrays,
+ * shipped normally.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
- * @param {Function} callback Receives a radar tuples object, or null.
+ * @param {Function} callback Receives the radar and/or sky tuples, or null.
  * @returns {void}
  */
 function withRainRadarTuplesAt(lat, lon, callback) {
@@ -861,29 +863,15 @@ function withRainRadarTuplesAt(lat, lon, callback) {
             tomorrowioApiKey: (app.settings && app.settings.tomorrowioApiKey) || ''
         }
     );
+    var skySource = radarSky.createSkySource(radarSky.skySourceIdFor(app.settings));
     var slotZeroEpoch = radarWire.slotZeroEpochFor(Date.now());
-    source.fetchRadarTuplesAt(lat, lon, slotZeroEpoch, function (radarTuples) {
-        withRadarSkyTupleAt(lat, lon, slotZeroEpoch, radarTuples, callback);
-    });
-}
-
-/**
- * Fetch the radar's sky rows (radar-sky.js) and merge them into this cycle's
- * radar answer. Its own outbox category, so a sky answer rides the send even
- * when the radar's own answer was transient (null) or is deduped out.
- * @param {number} lat Latitude.
- * @param {number} lon Longitude.
- * @param {number} slotZeroEpoch The radar's 5-min pinned slot-0 epoch.
- * @param {?Object} radarTuples This cycle's radar tuples, or null.
- * @param {Function} callback Receives the merged tuples, or null when neither answered.
- * @returns {void}
- */
-function withRadarSkyTupleAt(lat, lon, slotZeroEpoch, radarTuples, callback) {
-    radarSky.createSkySource(radarSky.skySourceIdFor(app.settings))
-        .fetchSkyTupleAt(lat, lon, slotZeroEpoch, function (skyTuple) {
-            if (!skyTuple) { callback(radarTuples); return; }
-            callback(Object.assign({}, radarTuples || {}, skyTuple));
-        });
+    // The sky request is independent of the radar's, so both go out at once and
+    // the forecast waits for the slower one, not for one after the other.
+    radarSky.joinRadarAndSky(function (cb) {
+        source.fetchRadarTuplesAt(lat, lon, slotZeroEpoch, cb);
+    }, function (cb) {
+        skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, cb);
+    }, callback);
 }
 
 /**
@@ -1088,11 +1076,19 @@ function fetch(provider, force) {
         // failed — e.g. tomorrow.io as both forecast and radar source with no key
         // or a revoked one. Its extras died with the forecast, and without the
         // clear the watch rolls its last window into a made-up "No rain ahead".
-        // The outbox dedupe sends it once. Not on a NACK: that send already
-        // carried it, and its uncommitted cache retries next cycle.
-        if (radarWire.isClearRadarTuples(radarTuples)
-            && !(failure && failure.stage === 'app_message')) {
-            Object.assign(failureSend, radarTuples);
+        // A sky CLEAR (the sky rows' toggle off, or the radar graph not shown)
+        // likewise, or the watch keeps drawing the rows until a forecast next
+        // succeeds. Each clear goes out as its own keys only: the answer merges
+        // radar and sky, and a failed forecast forwards clears, never fresh data.
+        // The outbox dedupe sends each once. Not on a NACK: that send already
+        // carried them, and its uncommitted cache retries next cycle.
+        if (!(failure && failure.stage === 'app_message')) {
+            if (radarWire.isClearRadarTuples(radarTuples)) {
+                Object.assign(failureSend, radarWire.clearRadarTuples());
+            }
+            if (radarSky.isClearSkyTuple(radarTuples)) {
+                Object.assign(failureSend, radarSky.clearSkyTuple());
+            }
         }
         if (Object.keys(failureSend).length > 0) {
             outbox.sendWeather(failureSend);

@@ -141,7 +141,7 @@ function getFixtureRadarTuples(fixture) {
     var sky = weather.sky;
     if (sky && Array.isArray(sky.cloudPct) && Array.isArray(sky.sunPct)) {
         var pctToByte = function(p) {
-            return Math.max(0, Math.min(radarSky.FULL_SCALE, Math.round((p || 0) * radarSky.FULL_SCALE / 100)));
+            return radarSky.toByte(p, 100);
         };
         tuples.RADAR_SKY_UINT8 = radarSky.packSky({
             start: radarSky.skyStartFor(radarStart),

@@ -43,8 +43,14 @@ function skyStartFor(slotZeroEpoch) {
 
 /**
  * The Open-Meteo request for the sky rows: 15-minute cloud cover, sunshine,
- * lightning potential and weather code, in unix time. One quarter-hour of the
- * past too, so the current slot is there even just after a boundary.
+ * lightning potential and weather code, in unix time. Open-Meteo's forecast
+ * buckets begin at its current quarter hour, no earlier than the sky's start
+ * (the request goes out after slot 0 is pinned), and the last slot's sunshine
+ * sits in the bucket AFTER the window, start + NUM_SLOTS quarter hours (see
+ * mapOpenMeteoSky): NUM_SLOTS + 1 buckets reach it exactly, one more leaves a
+ * quarter hour of slack for a phone clock running ahead of Open-Meteo's. One
+ * quarter-hour of the past too, so the current slot is there even when the
+ * request crosses a boundary.
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @returns {string} Request URL.
@@ -55,14 +61,15 @@ function buildOpenMeteoSkyUrl(lat, lon) {
         + '&longitude=' + lon
         + '&minutely_15=cloud_cover,sunshine_duration,lightning_potential,weather_code'
         + '&past_minutely_15=1'
-        + '&forecast_minutely_15=' + (NUM_SLOTS + 1)
+        + '&forecast_minutely_15=' + (NUM_SLOTS + 2)
         + '&timeformat=unixtime'
         + '&timezone=GMT';
 }
 
 /**
  * Scale a 0..max reading to the 0..250 stripe wire scale, clamped; a missing
- * reading (null, NaN) is 0.
+ * reading (null, NaN) or a negative one is 0. Shared with fixture-weather.js's
+ * sky rows, so the fixture and live paths scale alike.
  * @param {*} v Raw reading.
  * @param {number} max Reading that maps to full scale.
  * @returns {number} Byte 0..250.
@@ -87,9 +94,14 @@ function isLightning(code, potential) {
 }
 
 /**
- * Map an Open-Meteo minutely_15 response onto the sky slots, by timestamp:
- * slot k is the bucket stamped start + k * 15 min (Open-Meteo stamps a bucket
- * with its START). A slot the response lacks reads as clear, sunless and calm.
+ * Map an Open-Meteo minutely_15 response onto the sky slots, by timestamp. Slot
+ * k is the quarter hour from start + k * 15 min, and its fields come from two
+ * buckets (openmeteo.js's precedingHourSlice, a quarter hour at a time):
+ * cloud_cover, weather_code and lightning_potential are instants, read from the
+ * bucket stamped at the slot's START; sunshine_duration is Open-Meteo's sum over
+ * the PRECEDING 15 minutes, read from the bucket stamped at its END,
+ * start + (k + 1) * 15 min. Read at the start, the sun row ran a slot early. A
+ * bucket the response lacks reads as clear, sunless and calm.
  * @param {Object} json Parsed Open-Meteo response.
  * @param {number} slotZeroEpoch The radar's 5-min pinned slot-0 epoch.
  * @returns {?{start: number, clouds: number[], suns: number[], bolts: boolean[]}}
@@ -102,21 +114,16 @@ function mapOpenMeteoSky(json, slotZeroEpoch) {
     var byTime = {};
     for (var i = 0; i < m.time.length; i += 1) { byTime[m.time[i]] = i; }
     var pick = function (field, idx) {
-        return Array.isArray(m[field]) ? m[field][idx] : null;
+        return (idx !== undefined && Array.isArray(m[field])) ? m[field][idx] : null;
     };
     var sky = { start: start, clouds: [], suns: [], bolts: [] };
     var found = 0;
     for (var k = 0; k < NUM_SLOTS; k += 1) {
         var idx = byTime[start + k * SLOT_SECONDS];
-        if (idx === undefined) {
-            sky.clouds.push(0);
-            sky.suns.push(0);
-            sky.bolts.push(false);
-            continue;
-        }
-        found += 1;
+        var sunIdx = byTime[start + (k + 1) * SLOT_SECONDS];
+        if (idx !== undefined || sunIdx !== undefined) { found += 1; }
         sky.clouds.push(toByte(pick('cloud_cover', idx), 100));
-        sky.suns.push(toByte(pick('sunshine_duration', idx), SLOT_SECONDS));
+        sky.suns.push(toByte(pick('sunshine_duration', sunIdx), SLOT_SECONDS));
         sky.bolts.push(isLightning(pick('weather_code', idx), pick('lightning_potential', idx)));
     }
     return found > 0 ? sky : null;
@@ -148,6 +155,17 @@ function packSky(sky) {
  */
 function clearSkyTuple() {
     return { RADAR_SKY_UINT8: [] };
+}
+
+/**
+ * Whether a sky answer is the CLEAR above (an empty blob): the toggle is off, or
+ * the radar graph is not shown. The radar-wire.js isClearRadarTuples of the sky.
+ * @param {?Object} tuples A sky (or merged radar + sky) answer, or null/undefined.
+ * @returns {boolean} True for the clearing tuple.
+ */
+function isClearSkyTuple(tuples) {
+    return Boolean(tuples) && Array.isArray(tuples.RADAR_SKY_UINT8)
+        && tuples.RADAR_SKY_UINT8.length === 0;
 }
 
 var DEFAULT_SKY_ID = 'disabled';
@@ -221,6 +239,44 @@ function createSkySource(skyId) {
     return (has ? SKY_FACTORIES[skyId] : SKY_FACTORIES[DEFAULT_SKY_ID])();
 }
 
+/**
+ * Start the radar and the sky request together and join their answers, so the
+ * forecast after them waits for the slower of the two rather than their sum.
+ * Each branch counts once (a second callback from it is ignored) and may answer
+ * synchronously (the 'disabled' sources do). The sky is its own outbox
+ * category, so it rides the send even when the radar's answer was transient
+ * (null) or is deduped out.
+ * @param {function(function(?Object))} startRadar Starts the radar request;
+ *   calls its callback with the radar tuples, or null.
+ * @param {function(function(?Object))} startSky Starts the sky request; calls
+ *   its callback with {RADAR_SKY_UINT8}, or null.
+ * @param {function(?Object)} callback Receives the radar tuples with the sky
+ *   merged in, either one alone, or null when neither answered.
+ * @returns {void}
+ */
+function joinRadarAndSky(startRadar, startSky, callback) {
+    var radar = null;
+    var sky = null;
+    var radarDone = false;
+    var skyDone = false;
+    var finish = function () {
+        if (!radarDone || !skyDone) { return; }
+        callback(sky ? Object.assign({}, radar || {}, sky) : radar);
+    };
+    startRadar(function (tuples) {
+        if (radarDone) { return; }
+        radarDone = true;
+        radar = tuples || null;
+        finish();
+    });
+    startSky(function (tuple) {
+        if (skyDone) { return; }
+        skyDone = true;
+        sky = tuple || null;
+        finish();
+    });
+}
+
 module.exports = {
     SLOT_SECONDS: SLOT_SECONDS,
     NUM_SLOTS: NUM_SLOTS,
@@ -228,11 +284,14 @@ module.exports = {
     LIGHTNING_POTENTIAL_MIN: LIGHTNING_POTENTIAL_MIN,
     skyStartFor: skyStartFor,
     buildOpenMeteoSkyUrl: buildOpenMeteoSkyUrl,
+    toByte: toByte,
     mapOpenMeteoSky: mapOpenMeteoSky,
     isLightning: isLightning,
     packSky: packSky,
     clearSkyTuple: clearSkyTuple,
+    isClearSkyTuple: isClearSkyTuple,
     SKY_FACTORIES: SKY_FACTORIES,
     skySourceIdFor: skySourceIdFor,
-    createSkySource: createSkySource
+    createSkySource: createSkySource,
+    joinRadarAndSky: joinRadarAndSky
 };
