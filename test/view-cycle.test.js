@@ -280,6 +280,24 @@ test('presets never carry the custom bits (full matrix sweep)', () => {
         }))));
 });
 
+// isStacked is the watch's engine dispatch (layout.c layout_compute_spec), shared by
+// the preview and the editor's band list: an explicit order OR a removed chrome band.
+test('isStacked mirrors the watch dispatch: order >= 1 or a removed clock/top bar', () => {
+  const base = vc.spec(vc.TIER_FULL, vc.TOP_CAL, vc.BODY_FC, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE);
+  assert.equal(vc.isStacked(null), false, 'a disabled slot');
+  assert.equal(vc.isStacked(base), false, 'order 0 with full chrome rides the legacy engine');
+  assert.equal(vc.isStacked(Object.assign(vc.cloneSpec(base), { clockOff: true })), true);
+  assert.equal(vc.isStacked(Object.assign(vc.cloneSpec(base), { stripOff: true })), true);
+  for (let code = 1; code <= 11; code++) {
+    assert.equal(vc.isStacked(Object.assign(vc.cloneSpec(base), { order: code })), true, 'order ' + code);
+  }
+  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) =>
+    ['off', 'slot', 'status', 'all'].forEach((h) =>
+      ['off', 'countdown', 'status', 'graph'].forEach((r) =>
+        [false, true].forEach((sw) => vc.buildViewCycle(p, h, r, sw).forEach((s) =>
+          assert.equal(vc.isStacked(s), false, p + '/' + h + '/' + r + '/' + sw))))));
+});
+
 // ── Custom compiler (buildCustomCycle / specToKeys) ──────────────────────────
 
 // THE upgrade-safety proof: entering Custom seeds the per-view keys from the compiled

@@ -65,19 +65,41 @@ function state(over) {
   }, over || {});
 }
 
-test('the editor lists every top, row count and order the way the watch draws it', () => {
+test('the editor lists every top, row count, order and omission the way the watch draws it', () => {
+  // The stripOff axis is the case the clockOff one hides: removing the clock drops the
+  // very band whose position the legacy/stacked engines disagree on, so a clockless view
+  // lists the same bands either way — but a STRIPLESS view keeps its clock, and the
+  // stacker draws it TACB (status above the clock) where the legacy engine would not.
   ['cal2', 'cal3', 'radar', 'none'].forEach((top) => {
     [['weather', 'off'], ['weather', 'radar']].forEach(([upper, lower]) => {
       vc.STACK_ORDERS.forEach((order) => {
         [false, true].forEach((clockOff) => {
-          const S = state({ viewTop1: top, viewUpper1: upper, viewLower1: lower,
-            viewOrder1: order, viewClockOff1: clockOff });
-          const label = [top, upper + '/' + lower, order, clockOff ? 'no clock' : 'clock'].join(' ');
-          assert.deepEqual(editorKinds(S, 1), watchKinds(S, 1), label);
+          [false, true].forEach((stripOff) => {
+            const S = state({ viewTop1: top, viewUpper1: upper, viewLower1: lower,
+              viewOrder1: order, viewClockOff1: clockOff, viewStripOff1: stripOff });
+            const label = [top, upper + '/' + lower, order, clockOff ? 'no clock' : 'clock',
+              stripOff ? 'no top bar' : 'top bar'].join(' ');
+            assert.deepEqual(editorKinds(S, 1), watchKinds(S, 1), label);
+          });
         });
       });
     });
   });
+});
+
+test('a stripless view keeps its listed order when its bands are moved and moved back', () => {
+  // cal3 + one status bar, top bar removed: the watch stacks it T A C (TACB minus B), so
+  // the list must read the same, and a move that returns to that order stores the
+  // legacy code again (byte-identical to before the move).
+  const S = state({ viewTop1: 'cal3', viewStripOff1: true });
+  assert.deepEqual(editorKinds(S, 1), ['top', 'status', 'clock'], 'listed as the watch stacks it');
+  assert.deepEqual(watchKinds(S, 1), ['top', 'status', 'clock']);
+  assert.equal(ve.moveBand(S, 1, 'C', -1), true);
+  assert.deepEqual(editorKinds(S, 1), watchKinds(S, 1));
+  assert.deepEqual(watchKinds(S, 1), ['top', 'clock', 'status']);
+  assert.equal(ve.moveBand(S, 1, 'C', 1), true);
+  assert.equal(S.viewOrder1, 'TACB', 'moved back: the legacy code again');
+  assert.deepEqual(editorKinds(S, 1), ['top', 'status', 'clock']);
 });
 
 test('a view seeded from any preset opens listed exactly as the watch shows it', () => {

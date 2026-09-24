@@ -72,17 +72,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The band order the watch's LEGACY engine (stored order code 0, 'TACB' — what
-     * every preset seeds) renders view `i` in. The legacy engine seats the upper status
-     * row above the clock only under the 2-row (COMPACT) calendar; a 3-row calendar, a
-     * radar top and no top at all put the clock first and the status row(s) below it
-     * (layout.c compute_with_weights; preview-layout.js contentBands mirrors it). Read
-     * off the COMPILED tier, which already folds a radar top the watch can't draw.
+     * The band order view `i` renders in when it STORES the legacy order code 0
+     * ('TACB' — what every preset seeds). A view the watch stacks even at code 0 (a
+     * removed clock or top bar — viewCycleLib.isStacked, the watch's own dispatch
+     * rule) is drawn literally as 'TACB'. Otherwise the legacy engine seats the upper
+     * status row above the clock only under the 2-row (COMPACT) calendar; a 3-row
+     * calendar, a radar top and no top at all put the clock first and the status
+     * row(s) below it (layout.c compute_with_weights). Read off the COMPILED spec, which
+     * already folds a radar top the watch can't draw — with its order code stripped:
+     * the question is what code 0 renders, and storedOrderFor asks it while the view
+     * still holds a stacked code (which would otherwise always answer 'TACB').
      * @param {Object} S @param {number} i @returns {string} 'TACB' or 'TCAB'
      */
     function legacyOrder(S, i) {
-        var s = viewCycleLib.buildCustomCycle(S)[i];
-        return (s && s.tier === viewCycleLib.TIER_COMPACT) ? 'TACB' : 'TCAB';
+        var compiled = viewCycleLib.buildCustomCycle(S)[i];
+        if (!compiled) { return 'TCAB'; }
+        var s = viewCycleLib.cloneSpec(compiled);
+        delete s.order;
+        if (viewCycleLib.isStacked(s)) { return 'TACB'; }
+        return (s.tier === viewCycleLib.TIER_COMPACT) ? 'TACB' : 'TCAB';
     }
 
     /**

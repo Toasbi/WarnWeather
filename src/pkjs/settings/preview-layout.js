@@ -117,12 +117,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var lowerRow = lowerLabel ? { label: lowerLabel, h: STATUS_H } : null;
         var clock = spec.clockOff ? null : { label: 'Clock', h: isNone ? 30 : 22 };
         var code = spec.order || 0;
-        if ((code >= 1 && code <= 11) || spec.clockOff || spec.stripOff) {
-            // Generic stacker — mirrors the watch's dispatch rule exactly (layout.c):
-            // ANY custom spec with clockOff/stripOff OR an explicit order 1-11 renders
-            // as the STACK_ORDERS[order] band sequence (order 0 = 'TACB'), absent bands
-            // skipped, body last. Only pure order-0 full-chrome specs take the legacy
-            // tier branches below.
+        if (VC.isStacked(spec)) {
+            // Generic stacker — the watch's dispatch rule, shared (view-cycle.js
+            // isStacked): ANY custom spec with clockOff/stripOff OR an explicit order
+            // 1-11 renders as the STACK_ORDERS[order] band sequence (order 0 = 'TACB'),
+            // absent bands skipped, body last. Only pure order-0 full-chrome specs take
+            // the legacy tier branches below.
             var seq = VC.STACK_ORDERS[code] || VC.STACK_ORDERS[0], j, byLetter = {
                 T: topBand, C: clock, A: upperRow, B: lowerRow
             };

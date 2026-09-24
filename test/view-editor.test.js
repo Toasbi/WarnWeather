@@ -64,10 +64,15 @@ test('remove/add element round-trips; re-added elements land above the graph', (
   // duplicate and fold away).
   assert.deepEqual(ve.addableElements(S, 1).map((a) => a[1]).sort(),
     ['clock', 'top', 'topbar'].sort());
-  // Re-add the clock: it lands at the END of the order (directly above the graph).
+  // Re-add the clock: it lands at the END of the drawn order (directly above the graph).
+  // This view has no top bar, so the watch stacks even the legacy code literally (T A C B
+  // minus the absent bands = A, C) — the legacy code already draws the clock last, and
+  // storedOrderFor prefers it (byte-identical to the seed).
   assert.equal(ve.addElement(S, 1, 'clock'), true);
   assert.equal(S.viewClockOff1, false);
-  assert.equal(S.viewOrder1[3], 'C', 'clock re-added above the graph');
+  const drawn = ve.displayOrder(S, 1).filter((b) => ve.presence(S, 1)[b]);
+  assert.deepEqual(drawn, ['A', 'C'], 'clock re-added above the graph');
+  assert.equal(S.viewOrder1, 'TACB', 'the legacy code already draws it there');
   // With radar capable, the second status bar becomes addable and fills the free
   // slot with the first NON-DUPLICATE capable source (radar — weather is taken).
   S.radarMode = 'graph';

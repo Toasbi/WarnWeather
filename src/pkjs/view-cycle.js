@@ -226,6 +226,22 @@ var STACK_ORDERS = [
 ];
 
 /**
+ * Does the watch render this spec through its STACKED engine (compute_stacked) rather
+ * than the legacy preset engine? THE one copy of the watch's dispatch rule
+ * (layout.c layout_compute_spec): an explicit band order (1-11) or a removed chrome
+ * band (clock / top strip). The stacked engine draws the bands literally in
+ * STACK_ORDERS[order] ('TACB' for code 0) minus the absent ones; the legacy engine
+ * seats them per tier. The settings preview and the editor's band list both read it,
+ * so neither can drift from the watch. Presets never carry these fields → false.
+ * @param {?Object} s view spec (packSpec's shape)
+ * @returns {boolean}
+ */
+function isStacked(s) {
+  if (!s) { return false; }
+  return (s.order >= 1) || Boolean(s.clockOff) || Boolean(s.stripOff);
+}
+
+/**
  * Wire order code for a band sequence (e.g. 'CTAB'). Unknown sequences (including
  * a B-before-A non-canonical spelling) return 0 — the legacy order.
  * @param {string} seq 4-char permutation of T/C/A/B
@@ -424,7 +440,7 @@ var VIEW_CYCLE = {
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
-  STACK_ORDERS: STACK_ORDERS, orderCode: orderCode,
+  STACK_ORDERS: STACK_ORDERS, orderCode: orderCode, isStacked: isStacked,
   RADAR_CHART_MODES: RADAR_CHART_MODES, RADAR_ROW_MODES: RADAR_ROW_MODES,
   HEALTH_ROW_MODES: HEALTH_ROW_MODES, HEALTH_BODY_MODES: HEALTH_BODY_MODES,
   capabilities: capabilities,
