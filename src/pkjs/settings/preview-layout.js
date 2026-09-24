@@ -79,6 +79,25 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return out;
     }
 
+    /**
+     * Schematic height of `rows` stacked rows (the calendar model: ROW + BAND_GAP):
+     * 2 → 22, 3 → 34, 4 → 46.
+     * @param {number} rows @returns {number} px
+     */
+    function rowsH(rows) { return rows * ROW + (rows - 1) * BAND_GAP; }
+
+    /**
+     * Rows a sized seat shows for its ext size code (view-cycle.js SIZE_*): 2 / 3 / 4,
+     * 0 for fill, `dflt` for the seat default; a forecast never under 3 (the watch clamp).
+     * @param {number|undefined} code @param {number} dflt @param {boolean} forecast
+     * @returns {number} rows, 0 = fill
+     */
+    function sizedRows(code, dflt, forecast) {
+        var r = code === VC.SIZE_2 ? 2 : code === VC.SIZE_3 ? 3 : code === VC.SIZE_4 ? 4
+              : code === VC.SIZE_FILL ? 0 : dflt;
+        return (forecast && r === 2) ? 3 : r;
+    }
+
     // Status-source -> band label. Labels drop the trailing "Bar" to stay compact in the
     // narrow preview columns. STATUS_SRC_NONE (0) has no entry, so a lookup for it is falsy
     // (no band) — see upperRow/lowerRow below.
@@ -107,11 +126,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var isNone = spec.tier === VC.TIER_NONE;
         var isFull = spec.tier === VC.TIER_FULL;
         var topBand = null;
-        if (spec.top === VC.TOP_RADAR) { topBand = { label: 'Radar', h: CAL3_H, kind: 'top' }; }
-        else if (spec.top === VC.TOP_GRAPH) {
-            // A graph in the top band: 3 rows like a radar top (the size is Phase-2b data).
-            topBand = { label: spec.topKind === VC.TOP_KIND_HEALTH ? 'Health graph' : 'Forecast',
-                        h: CAL3_H, kind: 'top' };
+        if (spec.top === VC.TOP_RADAR || spec.top === VC.TOP_GRAPH) {
+            // A radar/graph top: its size in schematic rows (default 3), or flex for fill.
+            var tRows = sizedRows(spec.topSize, 3,
+                spec.top === VC.TOP_GRAPH && spec.topKind !== VC.TOP_KIND_HEALTH);
+            topBand = { label: spec.top === VC.TOP_RADAR ? 'Radar'
+                          : spec.topKind === VC.TOP_KIND_HEALTH ? 'Health graph' : 'Forecast',
+                        h: tRows ? rowsH(tRows) : 20, flex: !tRows, kind: 'top' };
         }
         else if (!isNone) {
             topBand = { label: isFull ? 'Calendar (3 rows)' : 'Calendar (2 rows)',
@@ -121,8 +142,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                       : spec.body === VC.BODY_RADAR ? 'Radar' : 'Forecast';
         // The body takes the remaining space (flex); the fallback h only matters to a
         // consumer that doesn't resolve flex bands. A graphless view has none.
+        var bRows = sizedRows(spec.bodySize, 0, spec.body === VC.BODY_FC);
         var bodyBand = spec.body === VC.BODY_NONE ? null
-            : { label: bodyLabel, h: 20, flex: true, kind: 'body' };
+            : { label: bodyLabel, h: bRows ? rowsH(bRows) : 20, flex: !bRows, kind: 'body' };
         var upperLabel = STATUS_LABEL[spec.statusUpper];
         var lowerLabel = STATUS_LABEL[spec.statusLower];
         var upperRow = upperLabel ? { label: upperLabel, h: STATUS_H, kind: 'status' } : null;
@@ -205,13 +227,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             y += heights[i] + BAND_GAP;
             total += heights[i] + (i > 0 ? BAND_GAP : 0);
         }
-        // No flex band: the stack is shorter than the column and the view's Position
+        // No flex band: the stack is shorter than the column and the view's alignment
         // places it. The Watch Status strip is pinned (the watch never moves it).
         var off = flex ? 0 : alignOffset(align || 0, Math.max(0, 104 - total), clock, 16 + 52);
+        // Too tall (sized bands the watch cannot fit): clip at the column floor like the
+        // watch clamps its last bands, and say so.
+        var clipped = false;
         for (i = 0; i < bands.length; i++) {
             var by = ys[i] + (bands[i].kind === 'strip' ? 0 : off);
-            e += rect(x, by, w, heights[i], bandFill);
-            e += txt(x + w / 2, by + heights[i] / 2 + 3, 7.5, labelColor, 'middle', 600, bands[i].label);
+            var bh = heights[i];
+            if (by + bh > 120) { bh = Math.max(0, 120 - by); clipped = true; }
+            if (bh <= 0) { continue; }
+            e += rect(x, by, w, bh, bandFill);
+            e += txt(x + w / 2, by + bh / 2 + 3, 7.5, labelColor, 'middle', 600, bands[i].label);
+        }
+        if (clipped) {
+            e += txt(x + w / 2, 127, 6.5, '#FA4A35', 'middle', 700, 'cut off');
         }
         if (note) {
             e += txt(x + w / 2, y + 8, 7, '#7C828D', 'middle', 600, note);
@@ -254,7 +285,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     function viewPreviewSvg(state, env, i) {
         state = state || {};
         var spec = presetContents(state, env)[i] || null;
-        var W = 84, H = 124;
+        var W = 84, H = 130;   // 130: room for the "cut off" note under the column
         var e = rect(0, 0, W, H, previewInk(state.theme).bg);
         e += renderBandColumn(contentBands(spec), 0, W, 'Preview', spec ? null : 'Nothing to show',
             false, state.theme, spec ? (spec.align || 0) : 0);

@@ -496,6 +496,63 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (key === bodyK && graph[S[bodyK]] && S[top] === S[bodyK]) { S[top] = 'cal2'; }
         // Sizes apply only to a radar/graph top: a calendar pick drops a stale size.
         if (key === top && !(S[top] === 'radar' || graph[S[top]])) { S[k('TopSize', i)] = '3'; }
+        // A forecast never takes 2 rows: lift a stale '2' on the seat it just moved into.
+        if (key === top && S[top] === 'forecast' && S[k('TopSize', i)] === '2') { S[k('TopSize', i)] = '3'; }
+        if (key === bodyK && S[bodyK] === 'forecast' && S[k('BodySize', i)] === '2') { S[k('BodySize', i)] = '3'; }
+    }
+
+    var SIZE_VALUES = ['2', '3', '4', 'fill'];
+
+    /**
+     * Set a band size of view `i`: stem 'TopSize' (a radar/graph top area) or
+     * 'BodySize' (the graph), value '2' | '3' | '4' | 'fill'. One band fills per view:
+     * making one fill turns a filling other into 3 rows.
+     * @param {Object} S @param {number} i @param {string} stem @param {string} v
+     * @returns {boolean} whether anything changed
+     */
+    function setSize(S, i, stem, v) {
+        if ((stem !== 'TopSize' && stem !== 'BodySize') || SIZE_VALUES.indexOf(v) < 0) { return false; }
+        if (S[k(stem, i)] === v) { return false; }
+        S[k(stem, i)] = v;
+        if (v === 'fill') {
+            var other = stem === 'TopSize' ? 'BodySize' : 'TopSize';
+            var cur = S[k(other, i)] || (other === 'BodySize' ? 'fill' : '3');
+            if (cur === 'fill') { S[k(other, i)] = '3'; }
+        }
+        return true;
+    }
+
+    /**
+     * The size a seat SHOWS: the stored value with its default, a forecast seat's '2'
+     * reading as the '3' it compiles to.
+     * @param {Object} S @param {number} i @param {string} stem 'TopSize'|'BodySize'
+     * @returns {string} '2'|'3'|'4'|'fill'
+     */
+    function shownSize(S, i, stem) {
+        var v = S[k(stem, i)] || (stem === 'TopSize' ? '3' : 'fill');
+        var content = S[k(stem === 'TopSize' ? 'Top' : 'Body', i)];
+        return (content === 'forecast' && v === '2') ? '3' : v;
+    }
+
+    /** @returns {string} the edited watch's platform ('' = unknown: both screens must fit) */
+    function editFamily() {
+        return (VE.ctx && VE.ctx.ENV && VE.ctx.ENV.platform) || '';
+    }
+
+    /**
+     * Would view `i` fit the watch with `stem` set to `v`? A trial compile of the state
+     * with the size applied (setSize's one-fill rule included), checked by
+     * view-cycle.js stackFits on the edited watch's screen.
+     * @param {Object} S @param {number} i @param {string} stem @param {string} v
+     * @returns {boolean}
+     */
+    function sizeFits(S, i, stem, v) {
+        var trial = {}, key;
+        for (key in S) {
+            if (Object.prototype.hasOwnProperty.call(S, key)) { trial[key] = S[key]; }
+        }
+        setSize(trial, i, stem, v);
+        return viewCycleLib.stackFits(viewCycleLib.buildCustomCycle(trial)[i], editFamily()).fits;
     }
 
     /**
@@ -637,6 +694,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + '#viewEditor .ve-align .ve-note{margin:0 0 10px;color:var(--muted);'
         + 'font:500 12.5px/1.35 Inter,sans-serif}'
         + '#viewEditor .ve-seg button{padding:6px 9px}'
+        // Two-line bands (a sized top area / the graph): the picker line, then the size line.
+        + '#viewEditor .ve-band.ve-2l{flex-direction:column;align-items:stretch;gap:9px}'
+        + '#viewEditor .ve-line{display:flex;align-items:center;gap:10px}'
+        + '#viewEditor .ve-size .ve-cap{flex:1;color:var(--muted);font:600 12px Inter,sans-serif}'
+        + '#viewEditor .ve-over{margin:4px 2px 8px;color:#FA4A35;font:600 12.5px/1.35 Inter,sans-serif}'
         // The live preview of the tab's view, centred above its element list.
         + '#viewEditor .ve-preview{display:flex;justify-content:center;margin:0 0 12px}';
 
@@ -659,15 +721,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         return found;
     }
 
-    /** One element row: dropdown trigger (optional), × inside, ▲▼ outside. */
+    /**
+     * One element row: dropdown trigger (optional), × inside, ▲▼ outside. With
+     * `opts.size` (the size line's HTML) the band is two lines: the picker line, which
+     * alone carries data-select, then the size line — a tap there never opens the sheet.
+     */
     function rowHtml(opts) {
-        var band = '<div class="ve-band' + (opts.fixed ? ' fixed' : '')
-            + (opts.selectKey ? '" data-select="' + esc(opts.selectKey) : '') + '">'
-            + '<span class="lbl">' + esc(opts.label) + '</span>'
+        var line = '<span class="lbl">' + esc(opts.label) + '</span>'
             + (opts.value ? '<span class="val">' + esc(opts.value) + '</span><span class="caret">▾</span>' : '')
             + (opts.del ? '<button type="button" class="ve-del" data-ve-del="' + esc(opts.del)
-                + '" aria-label="Remove ' + esc(opts.label) + '">✕</button>' : '')
-            + '</div>';
+                + '" aria-label="Remove ' + esc(opts.label) + '">✕</button>' : '');
+        var sel = opts.selectKey ? ' data-select="' + esc(opts.selectKey) + '"' : '';
+        var band = opts.size
+            ? '<div class="ve-band ve-2l' + (opts.fixed ? ' fixed' : '') + '">'
+              + '<div class="ve-line"' + sel + '>' + line + '</div>' + opts.size + '</div>'
+            : '<div class="ve-band' + (opts.fixed ? ' fixed' : '') + '"' + sel + '>' + line + '</div>';
         var arrows = opts.band
             ? '<div class="ve-arrows">'
               + '<button type="button" class="ve-mv" data-ve-mv="' + esc(opts.band) + ':-1" aria-label="Move up">▲</button>'
@@ -675,6 +743,29 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
               + '</div>'
             : '';
         return '<div class="ve-row">' + band + arrows + '</div>';
+    }
+
+    /**
+     * The size line of a sized band (a radar/graph top area, the graph): 2 · 3 · 4 ·
+     * Fill rows of the calendar row. A choice is inert when the watch cannot show it: 2
+     * rows of the forecast (its labels collide), or a size that makes the view too tall
+     * for the edited watch — never the current value.
+     * @param {Object} S @param {number} i @param {string} stem 'TopSize'|'BodySize'
+     * @returns {string} HTML
+     */
+    function sizeHtml(S, i, stem) {
+        var cur = shownSize(S, i, stem);
+        var forecast = S[k(stem === 'TopSize' ? 'Top' : 'Body', i)] === 'forecast';
+        var btns = '', j, v, off;
+        for (j = 0; j < SIZE_VALUES.length; j++) {
+            v = SIZE_VALUES[j];
+            off = v !== cur && ((forecast && v === '2') || !sizeFits(S, i, stem, v));
+            btns += '<button type="button"' + (v === cur ? ' class="on"' : '')
+                + ' data-ve-size="' + stem + ':' + v + '"' + (off ? ' disabled' : '') + '>'
+                + (v === 'fill' ? 'Fill' : v) + '</button>';
+        }
+        return '<div class="ve-line ve-size"><span class="ve-cap">Size · rows</span>'
+            + '<div class="seg ve-seg">' + btns + '</div></div>';
     }
 
     /**
@@ -752,9 +843,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             if (!pres[b]) { continue; }
             // Every ✕ is withheld where the removal would leave nothing on screen.
             if (b === 'T') {
+                var topVal = S[k('Top', i)] || 'cal2';
+                var sizedTop = topVal === 'radar' || topVal === 'forecast' || topVal === 'health';
                 body += rowHtml({
-                    label: 'Top area', value: optionLabel(k('Top', i), S[k('Top', i)] || 'cal2'),
-                    selectKey: k('Top', i), del: removalEmpties(S, i, 'T') ? null : 'T', band: 'T'
+                    label: 'Top area', value: optionLabel(k('Top', i), topVal),
+                    selectKey: k('Top', i), del: removalEmpties(S, i, 'T') ? null : 'T', band: 'T',
+                    size: sizedTop ? sizeHtml(S, i, 'TopSize') : null
                 });
             } else if (b === 'C') {
                 body += rowHtml({ label: 'Clock', fixed: i === 0,
@@ -772,8 +866,16 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         if (pres.G) {
             body += rowHtml({
                 label: 'Graph', value: optionLabel(k('Body', i), S[k('Body', i)] || 'forecast'),
-                selectKey: k('Body', i), del: removalEmpties(S, i, 'G') ? null : 'G'
+                selectKey: k('Body', i), del: removalEmpties(S, i, 'G') ? null : 'G',
+                size: sizeHtml(S, i, 'BodySize')
             });
+        }
+        // A stored layout the edited watch cannot show whole (e.g. edited for a bigger
+        // screen): say so — the watch clamps the last bands.
+        var fit = viewCycleLib.stackFits(viewCycleLib.buildCustomCycle(S)[i], editFamily());
+        if (!fit.fits) {
+            body += '<p class="ve-over">Too tall for your watch by ' + fit.over
+                + ' px — the bottom will be cut off.</p>';
         }
 
         var addable = addableElements(S, i);
@@ -858,6 +960,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             renderEditor();
             return;
         }
+        if ((t = e.target.closest('[data-ve-size]'))) {
+            if (t.disabled) { return; }
+            var sz = t.getAttribute('data-ve-size').split(':');
+            var sizeSnap = orderSnapshot(S, i);   // a size can switch engines (keepOrder)
+            if (setSize(S, i, sz[0], sz[1])) { keepOrder(S, i, sizeSnap); }
+            renderEditor();
+            return;
+        }
         if ((t = e.target.closest('[data-ve-align]'))) {
             setAlign(S, i, t.getAttribute('data-ve-align'));
             renderEditor();
@@ -924,7 +1034,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             addableElements: addableElements, freeStatusSource: freeStatusSource,
             freeBodyContent: freeBodyContent, elementCount: elementCount,
             removalEmpties: removalEmpties,
-            setAlign: setAlign, viewHasFill: viewHasFill,
+            setAlign: setAlign, viewHasFill: viewHasFill, setSize: setSize, sizeFits: sizeFits,
             orderSnapshot: orderSnapshot, keepOrder: keepOrder,
             normalizeAfterPick: normalizeAfterPick,
             takeSnapshot: takeSnapshot, restoreSnapshot: restoreSnapshot,

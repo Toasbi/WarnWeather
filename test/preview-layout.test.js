@@ -358,3 +358,43 @@ test('contentBands: a graph in the top area is a labelled 3-row top band', () =>
     assert.equal(h[1].label, 'Health graph');
     assert.equal(h[1].h, f[1].h, 'both 3 rows (sizes are Phase 2b)');
 });
+
+// ── Sizes (Phase 2b) ─────────────────────────────────────────────────────────
+
+test('contentBands: sized bands take 2 / 3 / 4 schematic rows; at most one band is flex', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const radar = (topSize, extra) => LY.contentBands(Object.assign(vc.spec(vc.TIER_FULL, vc.TOP_RADAR,
+        vc.BODY_FC, vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1, topSize }, extra || {}));
+    assert.equal(radar(vc.SIZE_2)[1].h, 22);
+    assert.equal(radar(vc.SIZE_3)[1].h, 34);
+    assert.equal(radar(vc.SIZE_4)[1].h, 46);
+    // a filling top with a sized body: the top is the one flex band
+    const ft = radar(vc.SIZE_FILL, { bodySize: vc.SIZE_3 });
+    assert.equal(ft[1].flex, true);
+    assert.equal(ft[ft.length - 1].flex, false);
+    assert.equal(ft[ft.length - 1].h, 34);
+    // a forecast body never shows 2 rows (the watch clamp)
+    const fc2 = LY.contentBands(Object.assign(vc.spec(vc.TIER_COMPACT, vc.TOP_CAL, vc.BODY_FC,
+        vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1, bodySize: vc.SIZE_2 }));
+    assert.equal(fc2[fc2.length - 1].h, 34);
+    // every compiled shape has at most one flex band
+    [vc.SIZE_2, vc.SIZE_3, vc.SIZE_4, vc.SIZE_FILL, undefined].forEach((ts) =>
+        [vc.SIZE_2, vc.SIZE_4, undefined].forEach((bs) => {
+            const s = vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH, vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_NONE);
+            if (ts) { s.topSize = ts; }
+            if (bs) { s.bodySize = bs; }
+            const canonical = vc.unpackWire(vc.packWire(s));
+            assert.ok(LY.contentBands(canonical).filter((b) => b.flex).length <= 1, ts + '/' + bs);
+        }));
+});
+
+test('renderBandColumn: a stack taller than the column clips at its floor with a note', () => {
+    const vc = require('../src/pkjs/view-cycle.js');
+    const tall = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH,
+        vc.STATUS_SRC_FORECAST, vc.STATUS_SRC_RADAR), { order: 1, topSize: vc.SIZE_4, bodySize: vc.SIZE_4 }));
+    const svg = LY.renderBandColumn(tall, 0, 60, 'F', null, false, 'dark', 0);
+    assert.match(svg, />cut off</);
+    const ok = LY.contentBands(Object.assign(vc.spec(vc.TIER_NONE, vc.TOP_GRAPH, vc.BODY_GRAPH,
+        vc.STATUS_SRC_NONE, vc.STATUS_SRC_NONE), { order: 1 }));
+    assert.doesNotMatch(LY.renderBandColumn(ok, 0, 60, 'F', null, false, 'dark', 0), />cut off</);
+});

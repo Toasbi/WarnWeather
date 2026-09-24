@@ -84,12 +84,12 @@ test('the editor lists every top, row count, order and omission the way the watc
       vc.STACK_ORDERS.forEach((order) => {
         [false, true].forEach((clockOff) => {
           [false, true].forEach((stripOff) => {
-            ['forecast', 'none'].forEach((body) => {
+            [['forecast', 'fill'], ['forecast', '3'], ['none', 'fill']].forEach(([body, size]) => {
               const S = state({ viewTop1: top, viewUpper1: upper, viewLower1: lower,
                 viewOrder1: order, viewClockOff1: clockOff, viewStripOff1: stripOff,
-                viewBody1: body, healthMode: 'all' });
+                viewBody1: body, viewBodySize1: size, healthMode: 'all' });
               const label = [top, upper + '/' + lower, order, clockOff ? 'no clock' : 'clock',
-                stripOff ? 'no top bar' : 'top bar', 'graph ' + body].join(' ');
+                stripOff ? 'no top bar' : 'top bar', 'graph ' + body + ' ' + size].join(' ');
               assert.deepEqual(editorKinds(S, 1), watchKinds(S, 1), label);
             });
           });
@@ -332,4 +332,83 @@ test('picking a graph for the top area keeps the drawn order (the sheet flow swi
   ve.keepOrder(S, 1, snap);
   assert.equal(ve.addElement(S, 1, 'graph'), true);
   assert.deepEqual(wire(S), before);
+});
+
+// ── Sizes (Phase 2b) ─────────────────────────────────────────────────────────
+
+/**
+ * The editor HTML for view `i` edited for watch `platform` (the ready ctx carries ENV).
+ * @param {Object} S @param {number} i @param {string} platform
+ * @returns {string} HTML
+ */
+function editorHtmlOn(S, i, platform) {
+  let html = '';
+  const sink = { set innerHTML(h) { html = h; } };
+  ve._test.VE.ctx = { S, schema, render() {}, ENV: { platform } };
+  ve._test.VE.overlay = { querySelector: (sel) => (sel === '[data-ve-body]' ? sink : { set innerHTML(h) {} }) };
+  ve._test.VE.tab = i;
+  ve._test.renderEditor();
+  ve._test.VE.overlay = null;
+  return html;
+}
+
+/** @param {string} html @param {string} stem @returns {Object<string,string>} value → state */
+function sizeButtons(html, stem) {
+  const out = {};
+  [...html.matchAll(new RegExp('<button type="button"( class="on")? data-ve-size="' + stem
+    + ':(\\w+)"( disabled)?>', 'g'))]
+    .forEach((m) => { out[m[2]] = m[1] ? 'on' : m[3] ? 'off' : 'ok'; });
+  return out;
+}
+
+test('size lines: on the graph row and a radar/graph top area, never on a calendar', () => {
+  const S = state({ viewTop1: 'cal3', healthMode: 'all' });
+  let html = editorHtml(S, 1);
+  assert.match(html, /data-ve-size="BodySize:fill"/);
+  assert.doesNotMatch(html, /data-ve-size="TopSize/);
+  S.viewTop1 = 'health'; S.viewBody1 = 'forecast';
+  html = editorHtml(S, 1);
+  assert.match(html, /Size · rows/);
+  assert.deepEqual(Object.keys(sizeButtons(html, 'TopSize')), ['2', '3', '4', 'fill']);
+  assert.equal(sizeButtons(html, 'TopSize')['3'], 'on', 'a top defaults to 3 rows');
+  assert.equal(sizeButtons(html, 'BodySize').fill, 'on', 'the graph defaults to fill');
+  assert.equal(sizeButtons(html, 'BodySize')['2'], 'off', 'a forecast never takes 2 rows');
+});
+
+test('sizes that make the view too tall for the edited watch are inert (never the current one)', () => {
+  // Forecast top + clock + weather row + health body: a 4-row top fits emery with the
+  // body filling, but the 144 px watch runs out (see stackFits' D + row case).
+  const S = state({ viewTop1: 'forecast', viewBody1: 'health', viewOrder1: 'TCAB', healthMode: 'all' });
+  assert.equal(sizeButtons(editorHtmlOn(S, 1, 'basalt'), 'TopSize')['4'], 'off');
+  assert.equal(sizeButtons(editorHtmlOn(S, 1, 'emery'), 'TopSize')['4'], 'off', '213 of 202 on emery too');
+  assert.equal(sizeButtons(editorHtmlOn(S, 1, 'basalt'), 'TopSize')['2'], 'off', 'forecast: never 2');
+  // an ENV-less ctx (the unknown watch) checks both screens and keeps rendering
+  assert.equal(sizeButtons(editorHtml(S, 1), 'TopSize')['4'], 'off');
+  // a stored layout that does not fit shows the note, and its value stays selectable
+  S.viewTopSize1 = '4';
+  const html = editorHtmlOn(S, 1, 'basalt');
+  assert.match(html, /Too tall for your watch by 3 px/);
+  assert.equal(sizeButtons(html, 'TopSize')['4'], 'on');
+});
+
+test('setSize keeps one fill per view, and a size change that switches engines keeps the order', () => {
+  const S = state({ viewTop1: 'radar', viewBody1: 'forecast', healthMode: 'all' });
+  assert.equal(ve.setSize(S, 1, 'TopSize', 'fill'), true);
+  assert.equal(S.viewBodySize1, '3', 'the filling graph gives the fill up');
+  assert.equal(ve.setSize(S, 1, 'BodySize', 'fill'), true);
+  assert.equal(S.viewTopSize1, '3');
+  assert.equal(ve.setSize(S, 1, 'BodySize', '7'), false);
+  // cal3 + weather, legacy engine (T C A): sizing the graph makes the view stacked —
+  // the bands stay where they were drawn, and sizing it back restores the view exactly.
+  const C = state({ viewTop1: 'cal3', healthMode: 'all' });
+  const drawn = watchKinds(C, 1);
+  const before = wire(C);
+  let snap = ve.orderSnapshot(C, 1);
+  ve.setSize(C, 1, 'BodySize', '3');
+  ve.keepOrder(C, 1, snap);
+  assert.deepEqual(watchKinds(C, 1), drawn);
+  snap = ve.orderSnapshot(C, 1);
+  ve.setSize(C, 1, 'BodySize', 'fill');
+  ve.keepOrder(C, 1, snap);
+  assert.deepEqual(wire(C), before);
 });
