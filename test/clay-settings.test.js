@@ -32,6 +32,33 @@ test('seedDefaults backfills missing keys without clobbering set ones', () => {
   assert.equal(read.temperatureUnits, 'c');     // backfilled
 });
 
+test('an existing Custom layout gains the size/Position keys at boot and still compiles to ext 0', () => {
+  // A 1.16-era custom user: their blob has every per-view key the editor wrote then,
+  // none of the three v2 keys. seedDefaults (PKJS boot) backfills them from the schema's
+  // hidden items, and the compiled wire words keep an all-zero high half — the watch
+  // sees nothing change until the user edits the layout.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  const vc = require('../src/pkjs/view-cycle.js');
+  store['clay-settings'] = JSON.stringify({
+    layoutPreset: 'custom', customLayoutSeeded: true, healthMode: 'off', radarMode: 'graph',
+    viewCount: '2',
+    viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
+    viewTop1: 'none', viewBody1: 'radar', viewUpper1: 'radar', viewLower1: 'off', viewOrder1: 'CTAB',
+    viewClockOff1: false, viewStripOff1: true
+  });
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  for (let i = 0; i < 3; i++) {
+    assert.equal(read['viewTopSize' + i], '3', 'viewTopSize' + i);
+    assert.equal(read['viewBodySize' + i], 'fill', 'viewBodySize' + i);
+    assert.equal(read['viewAlign' + i], 'clock', 'viewAlign' + i);
+  }
+  assert.equal(read.viewOrder1, 'CTAB', 'the user\'s own keys are untouched');
+  vc.buildCustomCycle(read).forEach((s) => assert.equal(vc.packWire(s), vc.packSpec(s)));
+});
+
 test('a fresh install gets the new swapClockStatus default', () => {
   installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];

@@ -1984,7 +1984,7 @@ module.exports = {
                     compactCal: '2-row calendar. Flick to radar and health as you enable them.',
                     compactDense: 'Compact calendar with two status bars at once — health or radar above the clock, forecast below.',
                     noCal: 'No calendar — a big forecast. Flick to radar and health.',
-                    custom: 'Build each view yourself — pick, remove and reorder its elements.'
+                    custom: 'Build each view yourself — pick its elements and graphs, then order, size and position them.'
                 },
                 // Compact-dense only differs from Compact when a health status row OR the
                 // radar status row is shown; with both off the two produce identical cycles,

@@ -67,6 +67,16 @@ function customViewItems(i) {
         // Machine value the editor's ▲▼ buttons write (a STACK_ORDERS sequence
         // string, e.g. 'CTAB'); never opened as a sheet.
         type: 'hidden', messageKey: 'viewOrder' + i, defaultValue: 'TACB'
+    }, {
+        // The editor's inline segmented controls write these three (never sheets).
+        // Top-area size — read only for a radar/graph top: '2'|'3'|'4'|'fill'.
+        type: 'hidden', messageKey: 'viewTopSize' + i, defaultValue: '3'
+    }, {
+        // Graph-band size: '2'|'3'|'4'|'fill' (fill = the space left, today's graph).
+        type: 'hidden', messageKey: 'viewBodySize' + i, defaultValue: 'fill'
+    }, {
+        // Position of a stack nothing fills: 'clock'|'top'|'center'|'bottom'.
+        type: 'hidden', messageKey: 'viewAlign' + i, defaultValue: 'clock'
     }];
     if (i > 0) {   // the Default view always keeps its clock and top bar
         items.push({type: 'hidden', messageKey: 'viewClockOff' + i, defaultValue: false});
@@ -85,7 +95,7 @@ var editRow = {
     // hint copy rides inside the row: staticText items don't render `hint`.
     text: '<div class="row-action">'
         + '<span class="row-action-title">Custom layout'
-        + '<span class="row-action-sub">Choose what each view shows, and where.</span></span>'
+        + '<span class="row-action-sub">Choose what each view shows, where, and how big.</span></span>'
         + '<button type="button" class="thr-btn" data-action="openViewEditor"'
         + ' aria-label="Edit the custom layout">Edit</button></div>',
     // Platform-gated like the option itself: a DORMANT stored 'custom'
