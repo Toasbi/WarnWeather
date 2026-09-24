@@ -307,3 +307,34 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   assert.equal(size, 519, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
+
+// The custom-layout ext word rides the HIGH half of the CLAY_VIEW_0-2 int32 tuples, so
+// a custom layout using every v2 field costs exactly what a preset does: 0 B. And every
+// view word must stay a non-negative int32 (bit 31 clear) — pypkjs throws on larger
+// values and libpebble3 retypes them to UInt.
+test('a custom layout with a non-zero ext word costs no Clay bytes and keeps bit 31 clear', () => {
+  const presetSize = dictSize(buildHeaviestClayMessage());
+  const payload = buildClayPayload({
+    temperatureUnits: 'c', timeLeadingZero: true, axisTimeFormat: '12h',
+    weekStartDay: 'mon', firstWeek: 'prev', timeFont: 'bitham', showQt: true,
+    btIcons: 'both', vibe: true, timeShowAmPm: true, dayNightShading: true,
+    fetchIntervalMin: '30', holidayCountry: 'US', holidaysEnabled: true,
+    rainBarColor: 'multicolor', radarColor: 'multicolor', rainCountdownHorizon: '120',
+    healthMode: 'all', theme: 'dark', largeGraphFont: true,
+    radarNoRainText: 'Kein Regen in Sichtweite',
+    layoutPreset: 'custom', radarMode: 'graph', viewCount: '3',
+    viewTop0: 'cal2', viewBody0: 'none', viewUpper0: 'weather', viewLower0: 'off',
+    viewOrder0: 'ABCT', viewAlign0: 'bottom',
+    viewTop1: 'none', viewBody1: 'none', viewUpper1: 'weather', viewLower1: 'radar',
+    viewOrder1: 'TACB', viewClockOff1: false, viewStripOff1: true, viewAlign1: 'center',
+    viewTop2: 'radar', viewBody2: 'none', viewUpper2: 'off', viewLower2: 'off',
+    viewOrder2: 'CTAB', viewClockOff2: true, viewStripOff2: true, viewAlign2: 'top',
+  }, { platform: 'emery' }, new Date('2026-06-26T00:00:00Z'));
+  assert.equal(dictSize(payload), presetSize, 'the ext word is free');
+  ['CLAY_VIEW_0', 'CLAY_VIEW_1', 'CLAY_VIEW_2'].forEach((k) => {
+    const v = payload[k];
+    assert.ok(Number.isInteger(v) && v >= 0, k + ' is a non-negative integer');
+    assert.equal(v >>> 31, 0, k + ' keeps bit 31 clear');
+    assert.notEqual(v >>> 16, 0, k + ' carries a non-zero ext word here');
+  });
+});

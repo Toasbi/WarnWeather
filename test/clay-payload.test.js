@@ -567,10 +567,28 @@ test('layoutPreset custom compiles the per-view keys onto CLAY_VIEW_*', () => {
     viewClockOff1: true, viewStripOff1: true,
   });
   const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
-  const want = viewCycle.buildCustomCycle(s).map(viewCycle.packSpec);
+  const want = viewCycle.buildCustomCycle(s).map(viewCycle.packWire);
   assert.deepStrictEqual([p.CLAY_VIEW_0, p.CLAY_VIEW_1, p.CLAY_VIEW_2], [want[0], want[1], 0]);
   assert.equal(p.CLAY_VIEW_1 & 0xC00, 0xC00, 'flick carries clockOff+stripOff');
-  assert.equal(p.CLAY_VIEW_1 >> 12, viewCycle.orderCode('CTAB'), 'order code rides bits 12-15');
+  assert.equal((p.CLAY_VIEW_1 >> 12) & 15, viewCycle.orderCode('CTAB'), 'order code rides bits 12-15');
+});
+
+test('a graphless custom view sends its Position in the high half of CLAY_VIEW_n', () => {
+  const s = Object.assign(baseSettings(), {
+    layoutPreset: 'custom', healthMode: 'off', radarMode: 'off',
+    viewCount: '2',
+    viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off', viewOrder0: 'TACB',
+    viewTop1: 'cal2', viewBody1: 'none', viewUpper1: 'weather', viewLower1: 'off', viewOrder1: 'TACB',
+    viewClockOff1: false, viewStripOff1: false, viewAlign1: 'bottom',
+  });
+  const p = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  assert.equal(p.CLAY_VIEW_0 >>> 16, 0, 'the Default keeps its graph: no ext');
+  assert.equal((p.CLAY_VIEW_1 >> 4) & 3, viewCycle.BODY_NONE, 'body code 3 = no graph');
+  assert.equal((p.CLAY_VIEW_1 >>> 16) >> 7, viewCycle.ALIGN_BOTTOM, 'align in ext bits 7-8');
+  [p.CLAY_VIEW_0, p.CLAY_VIEW_1, p.CLAY_VIEW_2].forEach((v) => {
+    assert.ok(Number.isInteger(v) && v >= 0, 'a non-negative integer');
+    assert.equal(v >>> 31, 0, 'bit 31 clear: every phone packs it as a positive int32');
+  });
 });
 
 test('an aplite watch folds custom to the EXPLICIT compactCal preset cycle', () => {
@@ -584,7 +602,7 @@ test('an aplite watch folds custom to the EXPLICIT compactCal preset cycle', () 
   const compact = viewCycle.buildViewCycle('compactCal', 'off', 'off', false).map(viewCycle.packSpec);
   assert.deepStrictEqual([p.CLAY_VIEW_0, p.CLAY_VIEW_1, p.CLAY_VIEW_2],
     [compact[0], compact[1] || 0, compact[2] || 0]);
-  assert.equal(p.CLAY_VIEW_0 & 0xFC00, 0, 'no custom bits reach an aplite watch');
+  assert.equal(p.CLAY_VIEW_0 >>> 10, 0, 'no custom bits and no ext word reach an aplite watch');
 });
 
 test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never folds)', () => {
@@ -595,7 +613,7 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
   });
   const p = buildClayPayload(s, null, NOW);
   assert.deepStrictEqual(p.CLAY_VIEW_0,
-    viewCycle.buildCustomCycle(s).map(viewCycle.packSpec)[0]);
+    viewCycle.buildCustomCycle(s).map(viewCycle.packWire)[0]);
 });
 
 // --- the auto theme switch, end to end over the blob the phone really stores -------

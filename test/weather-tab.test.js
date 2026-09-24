@@ -1157,6 +1157,68 @@ test('a refresh that fails offline keeps the charts, and the other locations sta
   }
 });
 
+// The phone keeps the day's data for the place the tab opens on and injects it at
+// every page open (src/pkjs/weather-tab-cache.js): the tab fetches on its own at most
+// once a day, and after that only when the user refreshes.
+test('the phone\'s copy from today shows without a request; a stale or foreign one does not', () => {
+  const urls = [];
+  class FakeXhr {
+    open(method, url) { urls.push(url); }
+    send() {
+      this.status = 200;
+      this.responseText = JSON.stringify(openMeteoBody());
+      this.onload();
+    }
+  }
+  const realXhr = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = FakeXhr;
+  const CHARTS = 'Temperature &amp; precipitation';
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  // Earlier today, whatever time the suite runs: halfway between midnight and now.
+  const earlierToday = dayStart.getTime() + Math.floor((Date.now() - dayStart.getTime()) / 2);
+  const stored = (over) => {
+    const d = data.parsers.openmeteo(openMeteoBody(), Date.now());
+    d.meta = Object.assign({ provider: 'openmeteo', fetchedAt: earlierToday, lat: 52.521, lon: 13.406 }, over);
+    return Object.assign({}, SEED, { weatherTabCache: d });
+  };
+  const open = (userData, state) => {
+    tab._resetState();
+    data.clearCache();
+    tab._setCtx({ S: state, USERDATA: userData, render: () => {} });
+    return tab.weatherGraphsBlock(state, {}, userData);
+  };
+  try {
+    const state = { graphsProvider: 'openmeteo', graphsLocation: 'current' };
+    const fresh = stored({});
+    let html = open(fresh, state);
+    assert.ok(html.indexOf(CHARTS) !== -1, 'today\'s copy renders the charts at once');
+    assert.ok(state.weatherTabSeenAt > 0 && Date.now() - state.weatherTabSeenAt < 60000,
+      'the render stamps the tab as seen, for the phone (carried back by a Save)');
+    assert.equal(urls.length, 0, 'no request');
+    assert.equal(tab._fetchState().data.meta.fetchedAt, earlierToday, 'the age says when the phone fetched');
+    // A manual refresh still goes to the network, and its answer wins over the copy.
+    assert.equal(tab.refreshWeather(), true);
+    html = tab.weatherGraphsBlock(state, {}, fresh);
+    assert.equal(urls.length, 1, 'Refresh fetches');
+    assert.ok(tab._fetchState().data.meta.fetchedAt > earlierToday, 'the refreshed data is shown');
+    tab.weatherGraphsBlock(state, {}, fresh);
+    assert.equal(urls.length, 1, 'and is not replaced by the older copy on a re-render');
+
+    const yesterday = dayStart.getTime() - 3600000;
+    open(stored({ fetchedAt: yesterday }), state);
+    assert.equal(urls.length, 2, 'yesterday\'s copy: the day\'s first look fetches');
+    open(stored({ provider: 'dwd' }), state);
+    assert.equal(urls.length, 3, 'another provider\'s copy: fetch');
+    open(stored({ lat: 59.9, lon: 10.7 }), state);
+    assert.equal(urls.length, 4, 'another place\'s copy: fetch');
+  } finally {
+    if (realXhr === undefined) { delete globalThis.XMLHttpRequest; } else { globalThis.XMLHttpRequest = realXhr; }
+    data.clearCache();
+    tab._resetState();
+  }
+});
+
 // render() rebuilds the ACTIVE tab wholesale: a fetch, GPS fix or city name that lands
 // after the user left the Weather tab must not repaint the tab they are typing in.
 test('async completions repaint only while the Weather tab is showing', () => {

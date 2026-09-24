@@ -32,11 +32,12 @@ static Window *s_main_window;
 // in main_window_load(). Beyond that window it boots to the DEFAULT view (index 0).
 static uint8_t s_view_index;
 #if defined(WW_VIEW_CYCLE)
-// The cycle definition (16-bit view_spec2 values) the cursor was last validated against, so
-// main_window_apply_top_view can tell a real settings change (cycle redefined → return
-// to default) from a same-cycle re-apply (radar/health availability → keep the cursor).
-// uint16_t (not uint8_t) so a change confined to the tier/top/custom bits (8-15) is still detected.
-static uint16_t s_applied_view_spec[3];
+// The cycle definition (32-bit view words — see config_view_words) the cursor was last
+// validated against, so main_window_apply_top_view can tell a real settings change (cycle
+// redefined → return to default) from a same-cycle re-apply (radar/health availability →
+// keep the cursor). Whole words, so a change confined to the tier/top/custom bits (8-15)
+// or to the custom-layout ext word alone (a size or Position) is still detected.
+static uint32_t s_applied_view_word[3];
 // Epoch of the last flick (or relaunch-restore to a non-default view), seeding the
 // auto-return-to-default timer. 0 = on the default view / no timer running.
 static time_t s_flick_epoch;
@@ -88,14 +89,39 @@ static bool health_renderable(void) {
 static bool health_graph_renderable(void) {
     if (!health_renderable()) { return false; }
     for (int i = 0; i < 3; i++) {
-        if (view_spec_unpack(config_get()->view_spec2[i]).body == BODY_HEALTH_GRAPH) {
-            return true;
-        }
+        // Through layout_visibility (layout.c's recommended pattern), not a body test:
+        // a custom layout can seat the health graph in the TOP band too, and a graph
+        // there must repaint and report its left-axis width like a body graph.
+        ViewSpec s = view_spec_unpack(config_get()->view_spec2[i]);
+#if defined(WW_VIEW_CYCLE)
+        view_spec_apply_ext(&s, config_get()->view_ext[i]);
+#endif
+        if (layout_visibility(&s).health_graph) { return true; }
     }
     return false;
 }
 #endif
 
+#if defined(WW_VIEW_CYCLE)
+// The configured cycle as full 32-bit view words: the 16-bit packed spec in the low half,
+// the custom-layout ext word in the high half (layout.h "view WORD"). One place builds
+// them, so every cursor helper sees the ext word the renderer sees.
+static void config_view_words(uint32_t out[3]) {
+    const Config *c = config_get();
+    for (int i = 0; i < 3; i++) {
+        out[i] = (uint32_t) c->view_spec2[i] | ((uint32_t) c->view_ext[i] << 16);
+    }
+}
+
+// Decode configured slot `slot` to a ViewSpec — its packed value, then its ext word — and
+// apply runtime availability downgrades (radar data present? health renderable?). The SDK
+// queries happen HERE; layout.c stays pure.
+static ViewSpec unpack_slot_spec(uint8_t slot) {
+    ViewSpec spec = view_spec_unpack(config_get()->view_spec2[slot]);
+    view_spec_apply_ext(&spec, config_get()->view_ext[slot]);
+    return view_spec_resolve(spec, main_window_radar_has_data(), health_renderable());
+}
+#else
 // Decode a configured 16-bit slot value to a ViewSpec, then apply runtime availability
 // downgrades (radar data present? health renderable?). The SDK queries happen HERE;
 // layout.c stays pure.
@@ -103,6 +129,7 @@ static ViewSpec unpack_slot_spec(uint16_t value) {
     ViewSpec spec = view_spec_unpack(value);
     return view_spec_resolve(spec, main_window_radar_has_data(), health_renderable());
 }
+#endif
 
 // The ViewSpec for the view currently on screen.
 static ViewSpec current_view_spec(void) {
@@ -113,7 +140,7 @@ static ViewSpec current_view_spec(void) {
     // product-breaking failure worth two compares. unpack/resolve stay slot-blind
     // (no signature carries an index), so the one call site that knows s_view_index
     // is where the rule lives.
-    ViewSpec spec = unpack_slot_spec(config_get()->view_spec2[s_view_index]);
+    ViewSpec spec = unpack_slot_spec(s_view_index);
     if (s_view_index == 0) {
         spec.clock_off = 0;
         spec.strip_off = 0;
@@ -129,8 +156,9 @@ static ViewSpec current_view_spec(void) {
 // Next flick target after `from`. Resolves availability from the SDK here (radar data
 // present? health renderable?) and defers the pure wrap logic to layout.c.
 static uint8_t next_view_index(uint8_t from) {
-    return view_cursor_next(from, config_get()->view_spec2, main_window_radar_has_data(),
-                            health_renderable());
+    uint32_t words[3];
+    config_view_words(words);
+    return view_cursor_next(from, words, main_window_radar_has_data(), health_renderable());
 }
 #endif
 
@@ -159,16 +187,10 @@ static void render_active_view(void) {
     GRect unobstructed = quick_view_unobstructed_bounds(root_layer);
     bool peek = unobstructed.size.h < bounds.size.h;
     if (peek) {
-        spec.top = TOP_BAND_EMPTY;
-        spec.calendar_rows = 0;
-        spec.status_tier = LAYOUT_TIER_FULL;   // status band is full-tier-sized (fc_band)
-#if defined(WW_VIEW_CYCLE)
-        // Peek over a custom clockless/stripless flick view shows both anyway: the time
-        // is peek's most useful content and the strip is its anchor. layout_compute_peek
-        // never reads the flags, but the visibility toggles below do.
-        spec.clock_off = 0;
-        spec.strip_off = 0;
-#endif
+        // No calendar, full-tier rows, and a custom flick's clock/strip back on
+        // (layout_compute_peek never reads those flags, but the visibility toggles below
+        // do) — one helper in layout.h, shared with the host tests.
+        layout_peek_spec(&spec);
         L = layout_compute_peek(unobstructed, &spec, metrics);
     } else
 #endif
@@ -181,7 +203,15 @@ static void render_active_view(void) {
     // quick-view peek too.
     calendar_layer_set_rows(spec.calendar_rows);
     top_status_layer_set_full_date(spec.calendar_rows == 0);
-#if defined(PBL_HEALTH)
+#if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
+    // "Full mode" = the health graph sits in a short fixed band (a tighter HR/sleep
+    // gap): under a 3-row calendar, as a top-band graph that does not fill, or as a
+    // sized body. Presets only ever hit the first term — their key is unchanged.
+    health_graph_layer_set_full_mode(spec.calendar_rows == 3
+        || (spec.top == TOP_BAND_GRAPH && spec.top_kind == TOP_GRAPH_HEALTH
+            && spec.top_size != BAND_SIZE_FILL)
+        || (spec.body == BODY_HEALTH_GRAPH && spec.body_size != BAND_SIZE_DEFAULT));
+#elif defined(PBL_HEALTH)
     health_graph_layer_set_full_mode(spec.calendar_rows == 3);
 #endif
     layer_set_frame(time_layer_get_root(), L.time);
@@ -192,9 +222,19 @@ static void render_active_view(void) {
     // Tier, full-date, full-mode, band frame and visibility for every band row, in
     // one call — the bars own the fan-out now (see layers/status_bar.h).
     status_bar_apply_view(&spec, &L);
+#if defined(WW_VIEW_CYCLE)
+    // Each graph layer frames to ITS seat: the top band when a custom layout put it
+    // there, else the body. (aplite keeps the plain body frames below — the helper
+    // call measured +16 B of image there.)
+    layer_set_frame(forecast_layer_get_root(), layout_forecast_frame(&spec, &L));
+#if defined(PBL_HEALTH)
+    layer_set_frame(health_graph_layer_get_root(), layout_health_frame(&spec, &L));
+#endif
+#else
     layer_set_frame(forecast_layer_get_root(), L.bottom);
 #if defined(PBL_HEALTH)
     layer_set_frame(health_graph_layer_get_root(), L.bottom);
+#endif
 #endif
     layer_set_frame(loading_layer_get_root(), L.loading);
 
@@ -325,8 +365,10 @@ static void main_window_load(Window *window) {
                                  : (time_t) MAX_STALE_TIME_SEC;
     if (unload_epoch > 0 && time(NULL) - unload_epoch <= restore_window) {
         uint8_t restored = (uint8_t) persist_get_view_cursor();
+        uint32_t words[3];
+        config_view_words(words);
         if (restored < 3
-                && view_slot_available(config_get()->view_spec2[restored],
+                && view_slot_available(words[restored],
                                        main_window_radar_has_data(), health_renderable())) {
             s_view_index = restored;
             s_flick_epoch = time(NULL);   // restored a non-default view → run its full window
@@ -367,7 +409,7 @@ static void main_window_load(Window *window) {
     // Seed the applied-cycle snapshot with the boot config so the first same-cycle
     // re-apply (e.g. an incoming radar update) doesn't read it as a settings change
     // and reset a cursor the user has since flicked (or we just restored above).
-    memcpy(s_applied_view_spec, config_get()->view_spec2, sizeof(s_applied_view_spec));
+    config_view_words(s_applied_view_word);
 #endif
     render_active_view();
 #if defined(PBL_HEALTH)
@@ -583,8 +625,10 @@ void main_window_apply_top_view() {
     // "default view never shows after changing settings" bug). A same-cycle re-apply (radar
     // availability flip) leaves the cursor where the user put it.
 #if defined(WW_VIEW_CYCLE)
-    s_view_index = view_cursor_after_config(s_view_index, s_applied_view_spec, config_get()->view_spec2);
-    memcpy(s_applied_view_spec, config_get()->view_spec2, sizeof(s_applied_view_spec));
+    uint32_t words[3];
+    config_view_words(words);
+    s_view_index = view_cursor_after_config(s_view_index, s_applied_view_word, words);
+    memcpy(s_applied_view_word, words, sizeof(s_applied_view_word));
 #endif
 #if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
     // Same transition heal as the flick: a save can add a live-health slot to a

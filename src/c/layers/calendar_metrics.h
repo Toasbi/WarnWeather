@@ -7,7 +7,7 @@
 //
 // It exists because TWO modules must agree on it. calendar_layer.c applies it to draw, and
 // windows/layout.c reads the calendar's last inked row as the ink the clock is centred against
-// (see the clock seating at the end of compute_with_weights). layout.c may not call the SDK at
+// (see the clock seating in compute_layout). layout.c may not call the SDK at
 // all — the host tests stub pebble.h — so the two constants that decide the seating live here
 // rather than in the layer, and there is one definition instead of a copy that can drift.
 

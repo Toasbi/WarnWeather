@@ -333,6 +333,30 @@ test('layoutPresetOptions resolver: compactDense offered once health OR radar sh
   assert.ok(codes({ healthMode: 'off', radarMode: 'graph' }).indexOf('compactDense') >= 0, 'radar=graph offers compactDense');
 });
 
+// Picking Custom must ONLY seed the per-view keys (seedCustomKeys); the editor is
+// opened solely through the dedicated Edit row's data-action. The hook used to call
+// PConf.actions.openViewEditor() itself — removed on maintainer request.
+test('layoutPresetChanged seeds the custom keys and does NOT auto-open the editor', () => {
+  const hook = global.PConf.onChange.get('layoutPresetChanged');
+  assert.equal(typeof hook, 'function', 'hook registered');
+  let opened = 0;
+  global.PConf.actions = global.PConf.actions || {};
+  const prev = global.PConf.actions.openViewEditor;
+  global.PConf.actions.openViewEditor = () => { opened += 1; };   // spy action
+  try {
+    const S = { healthMode: 'off', radarMode: 'off', swapClockStatus: false, layoutPreset: 'custom' };
+    hook(S, 'compactCal', 'custom');
+    assert.equal(S.customLayoutSeeded, true, 'seeding still latches');
+    assert.equal(S.viewCount, '1', 'per-view keys seeded from the preset being left');
+    assert.equal(S.viewTop0, 'cal', 'a seeded key holds the compactCal shape:');
+    assert.equal(S.viewTopSize0, '2', 'a 2-row calendar');
+    assert.equal(opened, 0, 'the Edit row is the sole way to open the editor');
+  } finally {
+    if (prev === undefined) { delete global.PConf.actions.openViewEditor; }
+    else { global.PConf.actions.openViewEditor = prev; }
+  }
+});
+
 test('preview-rain barPermille matches rain-tier.rainPermille byte-for-byte', () => {
   const rt = require('../src/pkjs/weather/rain-tier.js');
   [0, 1, 2, 3, 5, 6, 20, 21, 50, 100, 101, 200, 255, 500, 1000].forEach((t) =>

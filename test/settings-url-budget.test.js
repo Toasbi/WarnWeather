@@ -63,6 +63,29 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
   store[KEYS.NEWS_CACHE_KEY] = JSON.stringify({ at: now, version: pkg.version,
     body: JSON.stringify({ items: items, lastSeenId: 150 }) });
 
+  // The Weather tab's stored copy at its heaviest: DWD's derived humidity prints as
+  // 17-digit floats, so every hourly series here does, over a full 7-day window.
+  const f17 = (h) => 12.345678901234567 + h / 1000;
+  const hourly = { time: [], temp: [], rain: [], prob: [], wind: [], gust: [], dir: [], rh: [], dew: [],
+    pressure: [], icon: [], sunshineMin: [], measured: [], measuredAll: [] };
+  for (let h = 0; h < 7 * 24; h += 1) {
+    hourly.time.push(now - DAY_MS + h * 3600000);
+    ['temp', 'rain', 'prob', 'wind', 'gust', 'dir', 'rh', 'dew', 'pressure', 'sunshineMin']
+      .forEach((k) => hourly[k].push(f17(h)));
+    hourly.icon.push('partly-cloudy-night');
+    hourly.measured.push(h < 24);
+    hourly.measuredAll.push(h < 24);
+  }
+  const daily = [];
+  for (let d = 0; d < 6; d += 1) {
+    daily.push({ date: now + d * DAY_MS, tmin: f17(d), tmax: f17(d), icon: 'partly-cloudy-night',
+      rainMm: f17(d), probMax: 80, sunshineH: f17(d) });
+  }
+  store[KEYS.WEATHER_TAB_CACHE_KEY] = JSON.stringify({ v: 1, failed: null, data: {
+    hourly: hourly, daily: daily, utcOffsetSec: 7200,
+    meta: { provider: 'openmeteo', fetchedAt: now, lat: 52.52, lon: 13.405 } } });
+  store.gpsCache = JSON.stringify({ lat: 52.52, lon: 13.405, time: now });
+
   const listeners = {};
   const opened = [];
   global.Pebble = {  // no `platform: 'pypkjs'` -> generateUrl takes the device data: branch
@@ -100,6 +123,7 @@ test('the device settings URL stays under the WebView URL cap with worst-case us
   const decoded = decodeURIComponent(url);
   assert.ok(decoded.indexOf('"lastSeenId":150') !== -1 || decoded.indexOf('\\"lastSeenId\\":150') !== -1,
     'the news cache really rode along');
+  assert.ok(decoded.indexOf('"weatherTabCache":{') !== -1, 'the Weather tab copy really rode along');
   assert.ok(url.length <= URL_CAP - HEADROOM,
     'settings URL is ' + url.length + ' chars; Android WebView refuses more than ' + URL_CAP
     + ' (keep ' + HEADROOM + ' spare)');

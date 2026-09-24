@@ -76,6 +76,19 @@ function inZone(tz, body, arg) {
     { env: Object.assign({}, process.env, { TZ: tz }), encoding: 'utf8' });
 }
 
+// The Weather tab serves a fetch for the rest of the PHONE's day. For a place in a time
+// zone ahead of the phone, the place's midnight can pass first: day tile i must still
+// be panel day i, so a leftover yesterday tile is dropped.
+test('prepareView starts the day tiles on the view\'s day 0 when the place\'s midnight has passed', () => {
+  const data = fixtureData();
+  // Shown at 01:00 on the fixture's second day: the hourly grid re-anchors there.
+  const view = charts.prepareView(data, DAY0 + 25 * 3600000);
+  assert.equal(view.dayStartMs, DAY0 + 86400000);
+  assert.equal(view.daily[0].date, DAY0 + 86400000, 'tile 0 is the view\'s day 0, not yesterday');
+  assert.equal(view.daily.length, data.daily.length - 1);
+  assert.equal(charts.prepareView(data, NOON).daily.length, data.daily.length, 'same day: every tile stays');
+});
+
 test('prepareView day-aligns the timeline and trims trailing dataless days', () => {
   const view = charts.prepareView(fixtureData(), NOON);
   assert.ok(view);

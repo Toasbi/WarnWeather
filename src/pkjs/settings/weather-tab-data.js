@@ -44,8 +44,11 @@
 //           daytime icon windows and hour labels all follow this clock.
 //
 // Results are cached per provider+coords for the lifetime of the page open
-// (module var — page storage doesn't persist, news-cache.js:3-5) with a 15 min
-// TTL so switching between locations doesn't refetch on every tap.
+// (module var — page storage doesn't persist, news-cache.js:3-5) and served for
+// the rest of the phone's calendar day, so switching places never refetches one
+// already shown today. Across opens only the place the tab opens on is kept: the
+// phone stores the day's data for it (src/pkjs/weather-tab-cache.js) and the page
+// primes this cache from it. Refresh and pull-to-refresh always fetch.
 /* global WeatherTabModel */
 (function () {
     'use strict';
@@ -54,11 +57,21 @@
         ? require('./weather-tab-model.js') : window.WeatherTabModel;
 
     var DAILY_COUNT = model.DAY_COUNT;
-    var CACHE_TTL_MS = 15 * 60 * 1000;
     var XHR_TIMEOUT_MS = 12000;
 
     // provider|lat|lon → {at: ms, data: normalized} — page-open lifetime only.
     var cache = {};
+
+    /**
+     * The cache key of one provider + place.
+     * @param {string} providerId GRAPH_PROVIDERS id.
+     * @param {number} lat Latitude.
+     * @param {number} lon Longitude.
+     * @returns {string} Key.
+     */
+    function cacheKey(providerId, lat, lon) {
+        return providerId + '|' + lat.toFixed(3) + '|' + lon.toFixed(3);
+    }
 
     /**
      * GET a JSON endpoint with the page's XHR house pattern (key-test.js).
@@ -752,7 +765,8 @@
     };
 
     /**
-     * Fetch (or serve from the page-open cache) the normalized weather for one
+     * Fetch (or serve from the page-open cache, while it is from the phone's
+     * current day) the normalized weather for one
      * provider + location. A cache hit answers on the SAME tick — callers that
      * repaint from the callback must handle the synchronous case (weather-tab.js
      * skips its render() then, because it is already inside one).
@@ -770,10 +784,10 @@
     function fetchWeather(providerId, lat, lon, settings, cb, force) {
         var adapter = ADAPTERS[providerId];
         if (!adapter) { cb(null, 'unknown_provider'); return; }
-        var key = providerId + '|' + lat.toFixed(3) + '|' + lon.toFixed(3);
+        var key = cacheKey(providerId, lat, lon);
         var nowMs = Date.now();
         var hit = cache[key];
-        if (!force && hit && (nowMs - hit.at) < CACHE_TTL_MS) {
+        if (!force && hit && model.sameLocalDay(hit.at, nowMs)) {
             cb(hit.data, null);
             return;
         }
@@ -791,6 +805,25 @@
      */
     function clearCache() {
         cache = {};
+    }
+
+    /**
+     * Seed the page-open cache with data fetched earlier (the phone's stored
+     * copy, handed over at page open) under the given provider + place. Never
+     * replaces a newer entry — a refresh made on this page wins.
+     * @param {string} providerId GRAPH_PROVIDERS id.
+     * @param {number} lat Latitude to file it under.
+     * @param {number} lon Longitude to file it under.
+     * @param {Object} result Normalized data with its meta.fetchedAt.
+     * @returns {boolean} True when the entry was stored.
+     */
+    function primeCache(providerId, lat, lon, result) {
+        var at = result && result.meta && Number(result.meta.fetchedAt);
+        if (!result || !result.hourly || !isFinite(at)) { return false; }
+        var key = cacheKey(providerId, lat, lon);
+        if (cache[key] && cache[key].at >= at) { return false; }
+        cache[key] = { at: at, data: result };
+        return true;
     }
 
     var GPS_TIMEOUT_MS = 8000;
@@ -861,6 +894,7 @@
         fetchJson: fetchJson,
         geocodeSearch: geocodeSearch,
         fetchWeather: fetchWeather,
+        primeCache: primeCache,
         clearCache: clearCache,
         getGpsFix: getGpsFix,
         reverseGeocode: reverseGeocode,

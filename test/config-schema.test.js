@@ -64,7 +64,7 @@ const GRAPH_COLOR_KEYS = lineStyle.graphColorKeys();
 
 const EXPECTED_KEYS = [
   'theme','themeAuto','themeNight','themeAutoMode','themeAutoStartHour','themeAutoEndHour',
-  'graphsProvider','graphsLocation','savedLocation1','savedLocation2','savedLocation3',
+  'graphsProvider','graphsLocation','savedLocation1','savedLocation2','savedLocation3','weatherTabSeenAt',
   'timeLeadingZero','timeShowAmPm','axisTimeFormat','timeFont','colorTime',
   'weekStartDay','firstWeek','colorToday','colorSunday','colorSaturday','holidaysEnabled','colorUSFederal',
   'holidayCountry','holidayRegion',
@@ -79,11 +79,14 @@ const EXPECTED_KEYS = [
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
-  // Custom-layout storage (sheetOnly section; see customViewItems in schema.js).
+  // Custom-layout storage (sheetOnly section; see customViewItems in custom-layout-schema.js).
   'viewCount','customLayoutSeeded',
   'viewTop0','viewBody0','viewUpper0','viewLower0','viewOrder0',
   'viewTop1','viewBody1','viewUpper1','viewLower1','viewOrder1','viewClockOff1','viewStripOff1',
   'viewTop2','viewBody2','viewUpper2','viewLower2','viewOrder2','viewClockOff2','viewStripOff2',
+  'viewTopSize0','viewBodySize0','viewAlign0',
+  'viewTopSize1','viewBodySize1','viewAlign1',
+  'viewTopSize2','viewBodySize2','viewAlign2',
   'statusBoldAll',
   'statusForecastLeft','statusForecastLeftCountdown','statusForecastMid','statusForecastMidCountdown','statusForecastRight','statusForecastRightCountdown',
   'statusRadarLeft','statusRadarLeftCountdown','statusRadarMid','statusRadarMidCountdown','statusRadarRight','statusRadarRightCountdown',
@@ -465,7 +468,7 @@ test('feels-like is left out of both metric pickers on aplite', () => {
 test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', () => {
   const hint = byKey('secondaryLine').hintByValue.uv;
   assert.match(hint, /UV 11/);
-  assert.match(hint, /half-height/);
+  assert.match(hint, /half.height/i);
 });
 
 test('windScale has twelve contextual slots: four line-contexts × three wind units', () => {
@@ -1026,12 +1029,25 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.equal(labelOf('precip_prob', 'dew'), 'Dew point');
 });
 
-test('Second metric picker hints note that it is drawn as bar-aligned square dots', () => {
-  const hints = byKey('thirdLine').hintByValue;
-  ['precip_prob', 'wind', 'gust', 'uv', 'pressure', 'feels'].forEach((m) => {
-    assert.match(hints[m], /square dots.*rain bars/i, m + ' hint should mention bar-aligned square dots');
+test('metric hints add only the scale or meaning: no default line style, no Off, no repeated name', () => {
+  ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach((key) => {
+    const hints = byKey(key).hintByValue;
+    assert.equal(hints.off, undefined, key + ': Off explains itself');
+    Object.keys(hints).forEach((m) => {
+      assert.ok(!/by default|square dots|x marks/i.test(hints[m]), key + '.' + m + ' repeats the line style: ' + hints[m]);
+      assert.ok(!/each hour/i.test(hints[m]), key + '.' + m + ' repeats the hourly resolution: ' + hints[m]);
+    });
   });
-  assert.match(hints.off, /No second metric/i);
+  // The three pickers share one hint map, so switching lines never rewords one.
+  assert.equal(byKey('thirdLine').hintByValue, byKey('secondaryLine').hintByValue);
+  assert.equal(byKey('fourthLine').hintByValue, byKey('secondaryLine').hintByValue);
+  assert.equal(byKey('fifthLine').hintByValue, byKey('secondaryLine').hintByValue);
+  // With wind and gusts both picked, the one scale row sits under the first of them:
+  // the hint names the setting instead of pointing "below".
+  assert.ok(!/below/.test(byKey('thirdLine').hintByValue.gust), 'gust hint must not point below');
+  assert.ok(!/below/.test(byKey('secondaryLine').hintByValue.wind), 'wind hint must not point below');
+  // A colour note would be wrong on Light, B/W and after a custom pick.
+  assert.ok(!/grey|gray/i.test(byKey('secondaryLine').hintByValue.feels), 'feels hint names no colour');
 });
 
 test('feels-like hint says it shares the temperature scale, on both pickers', () => {
@@ -1077,7 +1093,15 @@ test('startOnWeatherTab is a page-only toggle that defaults to General', () => {
   const path = require('node:path');
   const pkjs = path.join(__dirname, '..', 'src', 'pkjs');
   const watchSide = fs.readdirSync(pkjs).filter((f) => f.slice(-3) === '.js');
-  watchSide.forEach((f) => {
+  // Phone-side support for the settings page itself, which may read the page's own
+  // keys: weather-tab-cache.js keeps the Weather tab's data only while the tab is in
+  // use. It must never reach the watch — no AppMessage, no outbox.
+  const PAGE_SUPPORT = ['weather-tab-cache.js'];
+  PAGE_SUPPORT.forEach((f) => {
+    const src = fs.readFileSync(path.join(pkjs, f), 'utf8');
+    assert.ok(!/sendAppMessage|outbox|clay-payload/.test(src), f + ' must not talk to the watch');
+  });
+  watchSide.filter((f) => PAGE_SUPPORT.indexOf(f) === -1).forEach((f) => {
     const src = fs.readFileSync(path.join(pkjs, f), 'utf8');
     assert.equal(src.indexOf('startOnWeatherTab'), -1,
       'watch-side ' + f + ' must not read a page-only key');
@@ -1273,6 +1297,29 @@ test('Layout tab leads with the arrangement section: combined preview above the 
   const storage = layout.sections.find((s) => s.sheetId === 'viewEditKeys');
   assert.ok(storage, 'custom-layout storage section exists');
   assert.equal(storage.sheetOnly, true);
+});
+
+// The custom-layout capability gates are BUILT from view-cycle.js's mode lists
+// (custom-layout-schema.js) — assert the very same array instances, not equal
+// copies, so a re-typed literal can never silently drift from buildCustomCycle.
+test('custom-layout gates reference view-cycle.js\'s mode lists (single source)', () => {
+  const vc = require('../src/pkjs/view-cycle.js');
+  [0, 1, 2].forEach((i) => {
+    const top = byKey('viewTop' + i);
+    assert.strictEqual(top.optionDisabledWhen.radar.not.in, vc.RADAR_CHART_MODES,
+      'viewTop' + i + ': the radar chart seat gates on RADAR_CHART_MODES');
+    const body = byKey('viewBody' + i);
+    assert.strictEqual(body.optionDisabledWhen.radar.not.in, vc.RADAR_CHART_MODES,
+      'viewBody' + i + ': the radar body gates on RADAR_CHART_MODES');
+    assert.strictEqual(body.optionDisabledWhen.health.not.in, vc.HEALTH_BODY_MODES,
+      'viewBody' + i + ': the health body gates on HEALTH_BODY_MODES');
+    [byKey('viewUpper' + i), byKey('viewLower' + i)].forEach((row) => {
+      assert.strictEqual(row.optionDisabledWhen.radar.not.in, vc.RADAR_ROW_MODES,
+        row.messageKey + ': the radar source gates on RADAR_ROW_MODES');
+      assert.strictEqual(row.optionDisabledWhen.health.not.in, vc.HEALTH_ROW_MODES,
+        row.messageKey + ': the health source gates on HEALTH_ROW_MODES');
+    });
+  });
 });
 
 test('largeGraphFont is offered on emery only, and hidden when watchInfo is unavailable', () => {

@@ -4,14 +4,28 @@
 // Also read by settings/preview-layout.js (config-UI preview) and the node tests.
 
 var TIER_OFF = 0, TIER_NONE = 1, TIER_COMPACT = 2, TIER_FULL = 3;
-var TOP_EMPTY = 0, TOP_CAL = 1, TOP_RADAR = 2;
+// TOP_GRAPH (custom layouts only): a forecast or health graph in the top band; which
+// one rides the ext word's topKind (packExt). The watch decodes it to TOP_BAND_GRAPH.
+var TOP_EMPTY = 0, TOP_CAL = 1, TOP_RADAR = 2, TOP_GRAPH = 3;
+var TOP_KIND_FORECAST = 0, TOP_KIND_HEALTH = 1;
 // Unlike `top` above (deliberately renumbered and translated by view_spec_unpack()),
 // these numberings must stay bit-for-bit identical to BodyContent/StatusRowContent in
 // src/c/windows/layout.h — the packed wire byte passes them through untranslated.
 // RADAR_STATUS retired — radar flavor now lives in a status row (statusUpper/statusLower).
-var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2;
+// BODY_NONE (custom layouts only): the view has no graph band at all.
+var BODY_FC = 0, BODY_GRAPH = 1, BODY_RADAR = 2, BODY_NONE = 3;
 // Positional status sources: which content feeds the upper/lower status row.
 var STATUS_SRC_NONE = 0, STATUS_SRC_FORECAST = 1, STATUS_SRC_RADAR = 2, STATUS_SRC_HEALTH = 3;
+
+// Band size codes (the ext word's topSize / bodySize fields — one vocabulary for both
+// seats, mirroring BandSize in src/c/windows/layout.h). 0 = the seat's default: 3 rows
+// for a radar/graph top, fill for the graph body. The settings keys store '2'|'3'|'4'|'fill'.
+var SIZE_DEFAULT = 0, SIZE_2 = 1, SIZE_3 = 2, SIZE_4 = 3, SIZE_FILL = 4;
+var SIZE_CODE = { '2': SIZE_2, '3': SIZE_3, '4': SIZE_4, fill: SIZE_FILL };
+// Position of a stack that nothing fills (the ext word's align field; BandAlign in C).
+// 0 = the clock's ink centred on the screen midline (Middle when the view has no clock).
+var ALIGN_CLOCK = 0, ALIGN_TOP = 1, ALIGN_CENTER = 2, ALIGN_BOTTOM = 3;
+var ALIGN_CODE = { clock: ALIGN_CLOCK, top: ALIGN_TOP, center: ALIGN_CENTER, bottom: ALIGN_BOTTOM };
 
 /**
  * Build a view spec object.
@@ -28,13 +42,16 @@ function spec(tier, top, body, statusUpper, statusLower) {
 }
 
 /**
- * Clone a spec, preserving the custom-layout fields (clockOff/stripOff/order) that
- * the 5-arg spec() builder does not carry. Every cycle transform MUST clone through
- * this helper — cloning via spec() silently drops the flags (pinned by a test).
+ * Clone a spec, preserving the custom-layout fields (clockOff/stripOff/order and the
+ * ext word's topKind/topSize/bodySize/align) that the 5-arg spec() builder does not
+ * carry. Every cycle transform MUST clone through this helper — cloning via spec()
+ * silently drops them (pinned by a test).
  * Canonical form: the fields are attached only when set (absent === off/0), so
  * preset constants stay flag-free and pack byte-identically to pre-custom builds.
  * @param {{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
- *          clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined)}} s
+ *          clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined),
+ *          topKind:(number|undefined),topSize:(number|undefined),bodySize:(number|undefined),
+ *          align:(number|undefined)}} s
  * @returns {!Object} an independent copy with the same canonical fields
  */
 function cloneSpec(s) {
@@ -42,6 +59,10 @@ function cloneSpec(s) {
   if (s.clockOff) { out.clockOff = true; }
   if (s.stripOff) { out.stripOff = true; }
   if (s.order) { out.order = s.order; }
+  if (s.topKind) { out.topKind = s.topKind; }
+  if (s.topSize) { out.topSize = s.topSize; }
+  if (s.bodySize) { out.bodySize = s.bodySize; }
+  if (s.align) { out.align = s.align; }
   return out;
 }
 
@@ -79,6 +100,272 @@ function unpackSpec(v) {
   if ((v >> 11) & 1) { s.stripOff = true; }
   if ((v >> 12) & 15) { s.order = (v >> 12) & 15; }
   return s;
+}
+
+/**
+ * The ext fields of a spec in the watch's NORMALISED form — the exact rules
+ * view_spec_apply_ext + view_spec_resolve apply in src/c/windows/layout.c, so the phone
+ * packs, previews and dispatches on the same values the watch renders: out-of-range
+ * sizes → 0; explicit fill on the body and 3 rows on the top → 0 (their seat defaults);
+ * sizes only on a radar/graph top and on a present body; topKind only on a graph top;
+ * one fill per view (both → the body fills, the top takes its 3-row default); align only
+ * while no band fills.
+ * @param {!Object} s view spec
+ * @returns {{topKind:number,topSize:number,bodySize:number,align:number,fill:boolean}}
+ */
+function extFields(s) {
+  var topKind = (s.topKind || 0) & 1;
+  var topSize = s.topSize || 0;
+  var bodySize = s.bodySize || 0;
+  var align = (s.align || 0) & 3;
+  var sizedTop = (s.top === TOP_RADAR || s.top === TOP_GRAPH);
+  if (topSize > SIZE_FILL || topSize === SIZE_3 || !sizedTop) { topSize = SIZE_DEFAULT; }
+  if (bodySize > SIZE_FILL || bodySize === SIZE_FILL || s.body === BODY_NONE) { bodySize = SIZE_DEFAULT; }
+  if (s.top !== TOP_GRAPH) { topKind = TOP_KIND_FORECAST; }
+  var bodyFills = (s.body !== BODY_NONE && bodySize === SIZE_DEFAULT);
+  if (bodyFills && topSize === SIZE_FILL) { topSize = SIZE_DEFAULT; }
+  var fill = bodyFills || topSize === SIZE_FILL;
+  if (fill) { align = ALIGN_CLOCK; }
+  return { topKind: topKind, topSize: topSize, bodySize: bodySize, align: align, fill: fill };
+}
+
+/**
+ * Pack a spec's ext fields into the 16-bit ext word — the HIGH half of the 32-bit
+ * CLAY_VIEW_n tuple (the watch's config_wire.c reads it off the int32; aplite ignores
+ * it). Bit layout (LSB→MSB): bodySize(0-2) | topSize(3-5) | topKind(6) | align(7-8);
+ * 9-15 reserved (bit 15 stays clear so the whole wire word stays a positive int32).
+ * Every field is 0 in its seat's default, so a preset (no fields) packs to 0.
+ * @param {?Object} s view spec (null = disabled slot)
+ * @returns {number} 0..0x1FF
+ */
+function packExt(s) {
+  if (!s) { return 0; }
+  var e = extFields(s);
+  return (e.bodySize & 7) | ((e.topSize & 7) << 3) | ((e.topKind & 1) << 6) | ((e.align & 3) << 7);
+}
+
+/**
+ * Pack a spec into the full 32-bit wire word the CLAY_VIEW_n tuples carry:
+ * packSpec in the low 16 bits, packExt in the high 16. packExt is 0 for every preset,
+ * so a preset's wire word is exactly its 16-bit packSpec (the upgrade no-op).
+ * @param {?Object} s view spec (null = disabled slot → 0)
+ * @returns {number} non-negative integer below 2^31
+ */
+function packWire(s) {
+  return packSpec(s) + packExt(s) * 65536;
+}
+
+/**
+ * Decode a 32-bit wire word (packWire's inverse, in canonical form). A zero low half
+ * is a disabled slot → null, whatever the high half says (the watch keys slot
+ * availability on the wire tier the same way).
+ * @param {number} v wire word
+ * @returns {?Object} view spec
+ */
+function unpackWire(v) {
+  var s = unpackSpec(v & 0xFFFF);
+  if (!s) { return null; }
+  var ext = Math.floor(v / 65536) & 0x7FFF;
+  if (ext & 7) { s.bodySize = ext & 7; }
+  if ((ext >> 3) & 7) { s.topSize = (ext >> 3) & 7; }
+  if ((ext >> 6) & 1) { s.topKind = 1; }
+  if ((ext >> 7) & 3) { s.align = (ext >> 7) & 3; }
+  return s;
+}
+
+/**
+ * Rewrite a spec's ext fields in their canonical form (extFields — the watch's
+ * normalisation): a field equal to its seat default is removed, one that does not apply
+ * is removed, both-fill leaves the body filling. The compiler's specs then carry exactly
+ * what packExt sends.
+ * @param {!Object} s view spec (mutated)
+ * @returns {!Object} s
+ */
+function canonicalExt(s) {
+  var e = extFields(s);
+  var names = ['topKind', 'topSize', 'bodySize', 'align'], j;
+  for (j = 0; j < names.length; j++) {
+    if (e[names[j]]) { s[names[j]] = e[names[j]]; } else { delete s[names[j]]; }
+  }
+  return s;
+}
+
+/**
+ * Does a band of this view fill the space left over (the graph body at its default
+ * size, or a radar/graph top sized 'fill')? Without one, the stack is shorter than the
+ * screen and the view's Position (align) places it.
+ * @param {!Object} s view spec
+ * @returns {boolean}
+ */
+function hasFill(s) {
+  return extFields(s).fill;
+}
+
+// ── Fit check (the editor's size pickers) ───────────────────────────────────
+// The watch's band arithmetic in pixels, per screen family (index 0: the 144 px watches,
+// 1: emery) — the SEATS src/c/windows/layout.c compute_layout gives each band, as the
+// device renders them (the emery FULL-squeezed status band is 20 px on the watch; the C
+// host goldens use a 24 px stand-in). Kept in lockstep with the C engine by
+// scripts/check-fit-lockstep.js (run from scripts/test-c.sh). `avail*` = floor minus the
+// cursor start (with / without the top bar). A FILL band is counted at its 2-row floor.
+var FIT_PX = {
+  row: [15, 20], clock: [45, 60], statusLarge: [17, 21], statusFull: [20, 20], gap: [3, 1],
+  reserve: [14, 14], noneRow: [22, 30], slide: [2, 1], stripInk: [2, 0],
+  cal2: [30, 40], cal3: [45, 60], availStrip: [155, 202], availNoStrip: [168, 222]
+};
+
+/**
+ * Pixels a stack needs on one screen family, in the watch's walk order: the bands the
+ * compiled spec shows (STACK_ORDERS[order] + the body), each on its SEAT (compute_layout's
+ * row_seat rules), plus the clearance a band owes the next one. The status rows' tier
+ * follows the top area's row count, like the watch (layout.c status_tier_for). A FILL band
+ * is counted at its floor: 2 rows, or 3 for the forecast (its labels collide below that).
+ * @param {!Object} s view spec as the watch lays it out (resolveForFit for a data state)
+ * @param {number} f family index (0 = 144 px, 1 = emery)
+ * @returns {{need: number, avail: number}}
+ */
+function stackNeed(s, f) {
+  var e = extFields(s);
+  var row = FIT_PX.row[f], slide = FIT_PX.slide[f];
+  var fcTop = s.top === TOP_GRAPH && e.topKind === TOP_KIND_FORECAST;
+  /** @param {number} code @param {number} dflt @param {boolean} fc @returns {number} rows, 0 = fill */
+  function sizeRows(code, dflt, fc) {
+    var r = code === SIZE_2 ? 2 : code === SIZE_3 ? 3 : code === SIZE_4 ? 4 : code === SIZE_FILL ? 0 : dflt;
+    return (fc && r === 2) ? 3 : r;
+  }
+  // The top area's rows (spec_top_rows): a calendar by its tier, a radar/graph by its size.
+  var topRows = 0, topFill = false, sizedTop = s.top === TOP_RADAR || s.top === TOP_GRAPH;
+  if (s.top === TOP_CAL) {
+    topRows = s.tier === TIER_FULL ? 3 : s.tier === TIER_COMPACT ? 2 : 0;
+  } else if (sizedTop) {
+    topRows = sizeRows(e.topSize, 3, fcTop);
+    if (!topRows) { topFill = true; topRows = 3; }
+  }
+  // The rows' tier (status_tier_for): 3+ rows FULL, 2 COMPACT (a dual squeezes to FULL),
+  // none NONE; a removed clock, top bar or graph keeps the large font.
+  var dual = s.statusUpper !== STATUS_SRC_NONE && s.statusLower !== STATUS_SRC_NONE;
+  var bodyOn = s.body !== BODY_NONE;
+  var tier = topRows >= 3 ? TIER_FULL : topRows === 2 ? (dual ? TIER_FULL : TIER_COMPACT) : TIER_NONE;
+  if (tier === TIER_FULL && (s.clockOff || s.stripOff || !bodyOn)) { tier = TIER_COMPACT; }
+  var full = tier === TIER_FULL, gap = FIT_PX.gap[f];
+  var bandH = full ? FIT_PX.statusFull[f] : FIT_PX.statusLarge[f];
+  // Present bands in the watch's walk order.
+  var seq = (STACK_ORDERS[s.order || 0] || 'TACB') + 'G', list = [], j, b;
+  var present = { T: s.top !== TOP_EMPTY && topRows > 0, C: !s.clockOff,
+                  A: s.statusUpper !== STATUS_SRC_NONE, B: s.statusLower !== STATUS_SRC_NONE, G: bodyOn };
+  for (j = 0; j < seq.length; j++) { if (present[seq.charAt(j)]) { list.push(seq.charAt(j)); } }
+  var need = 0, under = {};
+  var isRow = { A: true, B: true };
+  // A status row or the graph leading under the top bar starts on the first row the bar
+  // does not paint (2 rows past the reserve on the 144 px watches).
+  if (!s.stripOff && list.length && (list[0] === 'G' || isRow[list[0]])) { need += FIT_PX.stripInk[f]; }
+  for (j = 0; j < list.length; j++) {
+    b = list[j];
+    var prev = j > 0 ? list[j - 1] : null, next = j + 1 < list.length ? list[j + 1] : null;
+    var pitch = 0, g = 0;
+    var leads = j === 0 && !s.stripOff;
+    if (b === 'T') {
+      // A filling top at its floor; one leading under the bar loses the slide to it.
+      pitch = topFill ? (fcTop ? 3 : 2) * row + (leads ? slide : 0) : topRows * row;
+      var freedNext = Boolean(isRow[next]) && list[j + 2] === 'C';
+      g = (next === 'C' || freedNext) ? 0 : gap;
+      // A top leading under the bar is seated on the bar's ink, `slide` rows below its
+      // slot: when nothing follows that overhang is the block's end, and a radar/graph
+      // top (inking to its edge) pays its clearance from there.
+      if (leads && !topFill && (!next || (sizedTop && g > 0))) { pitch += slide; }
+    } else if (b === 'C') {
+      pitch = FIT_PX.clock[f] + (leads ? 1 : 0);
+    } else if (b === 'G') {
+      var br = sizeRows(e.bodySize, 0, s.body === BODY_FC);
+      pitch = br ? br * row : (s.body === BODY_FC ? 3 : 2) * row;
+    } else {
+      // row_seat: the freed row above the clock, the reserve under it, else a plain band.
+      if (prev === 'T' && next === 'C') {
+        pitch = row;
+      } else if (prev === 'C' || (isRow[prev] && under[prev])) {
+        under[b] = true;
+        var h = tier === TIER_NONE ? FIT_PX.noneRow[f] : bandH;
+        pitch = (prev === 'C' && tier !== TIER_NONE) ? (full ? FIT_PX.reserve[f] : row) : h;
+        g = (next === 'T' && tier === TIER_COMPACT) ? gap : 0;
+      } else {
+        pitch = bandH;
+        g = full ? 0 : gap;
+      }
+    }
+    need += pitch;
+    if (next) { need += g; }
+  }
+  return { need: need, avail: s.stripOff ? FIT_PX.availNoStrip[f] : FIT_PX.availStrip[f] };
+}
+
+/**
+ * The view the watch lays out for one data state — the capability folds of layout.c
+ * view_spec_resolve, mirrored: without health a health top empties and a health body falls
+ * back to the forecast (or empties under a forecast top); without radar a radar top becomes
+ * the calendar of its rows (2 → 2-row, else 3-row) and a radar body the forecast; a graph
+ * never shows twice; status rows of a missing source drop, and at order 0 a surviving lower
+ * row takes the upper seat. The order rule stays the configured view's (the watch keeps it).
+ * @param {!Object} s compiled view spec
+ * @param {boolean} hasRadar
+ * @param {boolean} hasHealth
+ * @returns {!Object} the resolved spec
+ */
+function resolveForFit(s, hasRadar, hasHealth) {
+  var r = cloneSpec(s);
+  var topSize = extFields(s).topSize;
+  if (r.top === TOP_GRAPH && r.topKind === TOP_KIND_HEALTH && !hasHealth) { r.top = TOP_EMPTY; }
+  if (r.body === BODY_GRAPH && !hasHealth) { r.body = BODY_FC; }
+  if (r.top === TOP_RADAR && !hasRadar) {
+    r.top = TOP_CAL;
+    r.tier = topSize === SIZE_2 ? TIER_COMPACT : TIER_FULL;
+  }
+  if (r.body === BODY_RADAR && !hasRadar) { r.body = BODY_FC; }
+  if (r.top === TOP_GRAPH && ((!r.topKind && r.body === BODY_FC)
+                              || (r.topKind === TOP_KIND_HEALTH && r.body === BODY_GRAPH))) {
+    r.body = BODY_NONE;
+  }
+  /** @param {number} src @returns {number} the source, or NONE when its data is missing */
+  function keep(src) {
+    return ((src === STATUS_SRC_RADAR && !hasRadar) || (src === STATUS_SRC_HEALTH && !hasHealth))
+      ? STATUS_SRC_NONE : src;
+  }
+  var upBefore = r.statusUpper;
+  r.statusUpper = keep(r.statusUpper);
+  r.statusLower = keep(r.statusLower);
+  if (!r.order && upBefore !== STATUS_SRC_NONE && r.statusUpper === STATUS_SRC_NONE
+      && r.statusLower !== STATUS_SRC_NONE) {
+    r.statusUpper = r.statusLower;
+    r.statusLower = STATUS_SRC_NONE;
+  }
+  return canonicalExt(r);
+}
+
+/**
+ * Does this compiled view fit the watch it is edited for? `family` is the watch's
+ * platform name ('emery' → the 200×228 screen, any other named platform → 144×168); an
+ * unknown platform ('') must fit both. `over` is how many pixels the tallest miss needs.
+ * The budget covers the watch's no-data fallbacks too (every data state, resolveForFit), so
+ * a view that fits keeps fitting before the first radar frame or without health data.
+ * @param {?Object} s compiled view spec (null = a disabled slot: fits)
+ * @param {string} family platform name or ''
+ * @returns {{fits: boolean, over: number}}
+ */
+function stackFits(s, family) {
+  // A disabled slot, or a preset-shaped view (legacy order, full chrome, a filling graph:
+  // the presets' own seats, the graph takes what is left, nothing is ever cut), always fits.
+  if (!s || !isStacked(s)) { return { fits: true, over: 0 }; }
+  var fams = family === 'emery' ? [1] : family ? [0] : [0, 1];
+  // Every data state the watch can meet — radar and health present or missing — laid out
+  // the way it folds them (resolveForFit): the view must fit in the worst one.
+  var states = [[true, true], [false, true], [true, false], [false, false]];
+  var over = 0, j, k, n;
+  for (j = 0; j < fams.length; j++) {
+    for (k = 0; k < states.length; k++) {
+      n = stackNeed(resolveForFit(s, states[k][0], states[k][1]), fams[j]);
+      if (n.need - n.avail > over) { over = n.need - n.avail; }
+    }
+  }
+  return { fits: over <= 0, over: over };
 }
 
 // Named views (see the design doc's view vocabulary). Positional status:
@@ -217,13 +504,32 @@ function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
 // The 12 canonical band orderings of {T=top band, C=clock, A=status upper, B=status
 // lower} with A rendered above B (the compiler assigns the visually-upper source to
 // the wire's upper slot). Index == the wire order code (spec bits 12-15). Code 0 is
-// the legacy order the presets ride (dispatched to the legacy watch engine); 1-11 go
-// to the stacked engine. MIRRORS STACK_ORDER in src/c/windows/layout.c — keep in
+// the legacy order the presets ride (a preset-shaped view renders its tier's order);
+// 1-11 are drawn literally. MIRRORS STACK_ORDER in src/c/windows/layout.c — keep in
 // lockstep (both sides pin this exact list in their tests).
 var STACK_ORDERS = [
   'TACB', 'TCAB', 'TABC', 'CTAB', 'CATB', 'CABT',
   'ATCB', 'ATBC', 'ACTB', 'ACBT', 'ABTC', 'ABCT'
 ];
+
+/**
+ * Does the watch draw this spec's bands LITERALLY in STACK_ORDERS[order] ('TACB' for code
+ * 0) rather than in its tier's legacy order (compact: T A C B; full / none: T C A B)? THE
+ * one copy of the watch's order rule (layout.c spec_is_stacked): an explicit band order
+ * (1-11), a removed chrome band (clock / top strip), no graph body, a graph in the top
+ * band, or a non-default band size (read normalised, as the watch does). One layout engine
+ * draws both; this decides only the ORDER. The settings preview and the editor's band
+ * list both read it, so neither can drift from the watch. Presets never carry these → false.
+ * @param {?Object} s view spec (packSpec's shape)
+ * @returns {boolean}
+ */
+function isStacked(s) {
+  if (!s) { return false; }
+  if ((s.order >= 1) || Boolean(s.clockOff) || Boolean(s.stripOff)) { return true; }
+  if (s.body === BODY_NONE || s.top === TOP_GRAPH) { return true; }
+  var e = extFields(s);
+  return e.topSize !== SIZE_DEFAULT || e.bodySize !== SIZE_DEFAULT;
+}
 
 /**
  * Wire order code for a band sequence (e.g. 'CTAB'). Unknown sequences (including
@@ -239,44 +545,84 @@ function orderCode(seq) {
 // ── Custom layout compiler ──────────────────────────────────────────────────
 // The second producer beside the preset MATRIX: compiles the per-view settings keys
 // (viewCount, viewTop{i}, viewBody{i}, viewUpper{i}, viewLower{i}, viewOrder{i},
-// viewClockOff{i}, viewStripOff{i}) into the same spec objects packSpec ships.
-// The key vocabulary is the editor's contract — schema.js and view-editor.js speak
-// these exact strings.
+// viewClockOff{i}, viewStripOff{i}, viewTopSize{i}, viewBodySize{i}, viewAlign{i})
+// into the same spec objects packWire ships.
+// The key vocabulary is the editor's contract — settings/custom-layout-schema.js
+// and settings/view-editor.js speak these exact strings.
 
+// A graph in the top band compiles at tier NONE: no calendar rows, so the watch shows
+// the strip's full date. The status rows' font follows the top area's ROW count on the
+// watch (layout.c status_tier_for), not this wire tier: a 3-row graph top squeezes its
+// row like fullCal's 3-row calendar, a 2-row one keeps compactCal's large row.
 var CUSTOM_TOP = {
-  cal3:  { tier: TIER_FULL,    top: TOP_CAL },
-  cal2:  { tier: TIER_COMPACT, top: TOP_CAL },
-  radar: { tier: TIER_FULL,    top: TOP_RADAR },
-  none:  { tier: TIER_NONE,    top: TOP_EMPTY }
+  cal3:     { tier: TIER_FULL,    top: TOP_CAL },
+  cal2:     { tier: TIER_COMPACT, top: TOP_CAL },
+  radar:    { tier: TIER_FULL,    top: TOP_RADAR },
+  forecast: { tier: TIER_NONE,    top: TOP_GRAPH, kind: TOP_KIND_FORECAST },
+  health:   { tier: TIER_NONE,    top: TOP_GRAPH, kind: TOP_KIND_HEALTH },
+  none:     { tier: TIER_NONE,    top: TOP_EMPTY }
 };
-var CUSTOM_BODY = { forecast: BODY_FC, health: BODY_GRAPH, radar: BODY_RADAR };
+var CUSTOM_BODY = { forecast: BODY_FC, health: BODY_GRAPH, radar: BODY_RADAR, none: BODY_NONE };
 var CUSTOM_SRC = {
   off: STATUS_SRC_NONE, weather: STATUS_SRC_FORECAST,
   radar: STATUS_SRC_RADAR, health: STATUS_SRC_HEALTH
 };
 
+// Capability gates, single-sourced: which radarMode/healthMode values unlock each
+// seat kind. THE one copy — buildCustomCycle folds by them, view-editor.js's
+// freeStatusSource offers by them, and settings/custom-layout-schema.js builds its
+// declarative optionDisabledWhen gates from these very arrays, so the compiler,
+// the editor and the sheets can never disagree. Mirrors the watch's
+// view_spec_resolve: radar CHART seats (top strip / body) need radarMode 'graph';
+// the radar status SOURCE needs 'status'|'graph'; a health graph body needs
+// healthMode 'all'; a health status source needs 'status'|'all' ('slot' shows
+// health only in the regular slot system, same as the preset MATRIX's bucket rule).
+var RADAR_CHART_MODES = ['graph'];
+var RADAR_ROW_MODES = ['status', 'graph'];
+var HEALTH_ROW_MODES = ['status', 'all'];
+var HEALTH_BODY_MODES = ['all'];
+
 /**
- * Compile the custom per-view keys into a 1-3 slot cycle. Mirrors the watch's
- * view_spec_resolve capability semantics so the previews and the wire agree:
- * radar CHART seats (top strip / body) need radarMode 'graph'; the radar status
- * SOURCE needs 'status' or 'graph'; a health graph body needs healthMode 'all';
- * a health status source needs 'status' or 'all' ('slot' shows health only in the
- * regular slot system, same as the preset MATRIX's bucket rule). Under the legacy
- * order a folded-away upper promotes the surviving lower (dense degradation, the
- * watch's rule); explicit stacked orders keep user-placed seats.
+ * The capability booleans for a settings state — one per seat kind, derived
+ * from the mode lists above (reads S.radarMode / S.healthMode).
  * @param {Object} S settings state
- * @returns {Array<Object>} specs for packSpec (length == viewCount, 1-3)
+ * @returns {{radarChart:boolean,radarRow:boolean,healthRow:boolean,healthBody:boolean}}
+ */
+function capabilities(S) {
+  S = S || {};
+  return {
+    radarChart: RADAR_CHART_MODES.indexOf(S.radarMode) >= 0,
+    radarRow: RADAR_ROW_MODES.indexOf(S.radarMode) >= 0,
+    healthRow: HEALTH_ROW_MODES.indexOf(S.healthMode) >= 0,
+    healthBody: HEALTH_BODY_MODES.indexOf(S.healthMode) >= 0
+  };
+}
+
+/**
+ * Compile the custom per-view keys into a 1-3 slot cycle. Seats fold by
+ * capabilities(S) — the shared gate table above — so the previews and the wire
+ * agree with the watch's view_spec_resolve. Under the legacy order a folded-away
+ * upper promotes the surviving lower (dense degradation, the watch's rule);
+ * explicit stacked orders keep user-placed seats. A flick view left with NOTHING on
+ * it (no clock, top band, graph or status row — e.g. its only status bar's source was
+ * switched off in settings) compiles to null: a disabled slot the watch skips, instead
+ * of a blank screen the flick would stop on.
+ * @param {Object} S settings state
+ * @returns {Array<?Object>} specs for packWire (length == viewCount, 1-3; null = disabled)
  */
 function buildCustomCycle(S) {
   var count = parseInt(S.viewCount, 10);
   if (!(count >= 1 && count <= 3)) { count = 1; }
-  var radarChartOk = S.radarMode === 'graph';
-  var radarRowOk = S.radarMode === 'status' || S.radarMode === 'graph';
-  var healthRowOk = S.healthMode === 'status' || S.healthMode === 'all';
-  var healthBodyOk = S.healthMode === 'all';
+  var cap = capabilities(S);
   var cycle = [];
   for (var i = 0; i < count; i++) {
-    var t = CUSTOM_TOP[S['viewTop' + i]] || CUSTOM_TOP.cal2;
+    // 'cal' is the calendar with its rows in viewTopSize ('2' → 2 rows, else 3); the
+    // older 'cal2' / 'cal3' spellings (stored before the calendar took a size) still
+    // compile — the editor rewrites them to 'cal' + a size when it opens.
+    var topKey = S['viewTop' + i];
+    var t = (topKey === 'cal')
+      ? ((S['viewTopSize' + i] === '2') ? CUSTOM_TOP.cal2 : CUSTOM_TOP.cal3)
+      : (CUSTOM_TOP[topKey] || CUSTOM_TOP.cal2);
     var body = CUSTOM_BODY[S['viewBody' + i]];
     if (body === undefined) { body = BODY_FC; }
     var suRaw = CUSTOM_SRC[S['viewUpper' + i]];
@@ -284,14 +630,26 @@ function buildCustomCycle(S) {
     var slRaw = CUSTOM_SRC[S['viewLower' + i]];
     if (slRaw === undefined) { slRaw = STATUS_SRC_NONE; }
 
-    if (t.top === TOP_RADAR && !radarChartOk) { t = CUSTOM_TOP.cal3; }
-    if (body === BODY_RADAR && !radarChartOk) { body = BODY_FC; }
-    if (body === BODY_GRAPH && !healthBodyOk) { body = BODY_FC; }
+    // A radar top without the radar chart falls back to a calendar — the 2-row one for a
+    // 2-row radar top (the same height, like the watch's no-data fold), else 3 rows.
+    if (t.top === TOP_RADAR && !cap.radarChart) {
+      t = (S['viewTopSize' + i] === '2') ? CUSTOM_TOP.cal2 : CUSTOM_TOP.cal3;
+    }
+    if (t.top === TOP_GRAPH && t.kind === TOP_KIND_HEALTH && !cap.healthBody) { t = CUSTOM_TOP.none; }
+    if (body === BODY_RADAR && !cap.radarChart) { body = BODY_FC; }
+    if (body === BODY_GRAPH && !cap.healthBody) { body = BODY_FC; }
+    // One seat per graph kind (each graph layer is a single instance): a body showing —
+    // or just folded to — the top band's graph goes empty; the top keeps it. Mirrors the
+    // watch's view_spec_resolve dedupe.
+    if (t.top === TOP_GRAPH && ((t.kind === TOP_KIND_FORECAST && body === BODY_FC)
+                                || (t.kind === TOP_KIND_HEALTH && body === BODY_GRAPH))) {
+      body = BODY_NONE;
+    }
     var su = suRaw, sl = slRaw;
-    if (su === STATUS_SRC_RADAR && !radarRowOk) { su = STATUS_SRC_NONE; }
-    if (su === STATUS_SRC_HEALTH && !healthRowOk) { su = STATUS_SRC_NONE; }
-    if (sl === STATUS_SRC_RADAR && !radarRowOk) { sl = STATUS_SRC_NONE; }
-    if (sl === STATUS_SRC_HEALTH && !healthRowOk) { sl = STATUS_SRC_NONE; }
+    if (su === STATUS_SRC_RADAR && !cap.radarRow) { su = STATUS_SRC_NONE; }
+    if (su === STATUS_SRC_HEALTH && !cap.healthRow) { su = STATUS_SRC_NONE; }
+    if (sl === STATUS_SRC_RADAR && !cap.radarRow) { sl = STATUS_SRC_NONE; }
+    if (sl === STATUS_SRC_HEALTH && !cap.healthRow) { sl = STATUS_SRC_NONE; }
 
     var code = orderCode(S['viewOrder' + i] || 'TACB');
     if (code === 0 && suRaw !== STATUS_SRC_NONE && su === STATUS_SRC_NONE
@@ -301,11 +659,31 @@ function buildCustomCycle(S) {
     }
 
     var s = spec(t.tier, t.top, body, su, sl);
+    if (t.kind) { s.topKind = t.kind; }
     if (i > 0) {   // the Default view always keeps its clock and top bar
       if (S['viewClockOff' + i]) { s.clockOff = true; }
       if (S['viewStripOff' + i]) { s.stripOff = true; }
     }
     if (code) { s.order = code; }
+    // Sizes: a radar/graph top and a present body take '2'|'3'|'4'|'fill' rows. A
+    // forecast seat never takes 2 rows (its labels collide) — '2' compiles to 3 rows, the
+    // watch's band_rows clamp, so the fit check and the watch agree. Read with defaults,
+    // so a blob that predates the keys compiles to ext 0.
+    var fcTop = (t.top === TOP_GRAPH && t.kind === TOP_KIND_FORECAST);
+    var ts = S['viewTopSize' + i] || '3', bs = S['viewBodySize' + i] || 'fill';   // (calendar rows: above)
+    if (fcTop && ts === '2') { ts = '3'; }
+    if (body === BODY_FC && bs === '2') { bs = '3'; }
+    if (SIZE_CODE[ts]) { s.topSize = SIZE_CODE[ts]; }
+    if (SIZE_CODE[bs]) { s.bodySize = SIZE_CODE[bs]; }
+    canonicalExt(s);
+    // Alignment: only while no band fills (the watch zeroes it otherwise), and read
+    // with its default so a blob that predates the key compiles to ext 0.
+    var align = ALIGN_CODE[S['viewAlign' + i] || 'clock'] || ALIGN_CLOCK;
+    if (align && !hasFill(s)) { s.align = align; }
+    if (s.clockOff && s.top === TOP_EMPTY && s.body === BODY_NONE
+        && s.statusUpper === STATUS_SRC_NONE && s.statusLower === STATUS_SRC_NONE) {
+      s = null;   // nothing left to show (only a flick can drop its clock)
+    }
     cycle.push(s);
   }
   return cycle;
@@ -342,13 +720,20 @@ function seedCustomKeys(S, oldPreset) {
 function specToKeys(cycle) {
   var keys = { viewCount: String(cycle.length) };
   var srcName = ['off', 'weather', 'radar', 'health'];
+  // Size code → key value per seat: code 0 is the seat default ('3' rows for a top,
+  // 'fill' for the body), so both columns differ only in row 0.
+  var topSizeName = ['3', '2', '3', '4', 'fill'];
+  var bodySizeName = ['fill', '2', '3', '4', 'fill'];
+  var alignName = ['clock', 'top', 'center', 'bottom'];
   for (var i = 0; i < cycle.length; i++) {
     var s = cycle[i];
     keys['viewTop' + i] = (s.top === TOP_RADAR) ? 'radar'
-      : (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? 'cal3' : 'cal2')
+      : (s.top === TOP_CAL) ? 'cal'
+      : (s.top === TOP_GRAPH) ? ((s.topKind === TOP_KIND_HEALTH) ? 'health' : 'forecast')
       : 'none';
     keys['viewBody' + i] = (s.body === BODY_GRAPH) ? 'health'
-      : (s.body === BODY_RADAR) ? 'radar' : 'forecast';
+      : (s.body === BODY_RADAR) ? 'radar'
+      : (s.body === BODY_NONE) ? 'none' : 'forecast';
     keys['viewUpper' + i] = srcName[s.statusUpper] || 'off';
     keys['viewLower' + i] = srcName[s.statusLower] || 'off';
     keys['viewOrder' + i] = STACK_ORDERS[s.order || 0];
@@ -356,6 +741,11 @@ function specToKeys(cycle) {
       keys['viewClockOff' + i] = Boolean(s.clockOff);
       keys['viewStripOff' + i] = Boolean(s.stripOff);
     }
+    // A calendar's size is its rows (the tier); a radar/graph top's is its ext code.
+    keys['viewTopSize' + i] = (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? '3' : '2')
+      : (topSizeName[s.topSize || 0] || '3');
+    keys['viewBodySize' + i] = bodySizeName[s.bodySize || 0] || 'fill';
+    keys['viewAlign' + i] = alignName[s.align || 0] || 'clock';
   }
   return keys;
 }
@@ -394,13 +784,23 @@ function resolvePresetKey(state) {
 // rather than require()-ing it — one export list, no hand-copied duplicate to drift.
 var VIEW_CYCLE = {
   TIER_OFF: TIER_OFF, TIER_NONE: TIER_NONE, TIER_COMPACT: TIER_COMPACT, TIER_FULL: TIER_FULL,
-  TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR,
-  BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR,
+  TOP_EMPTY: TOP_EMPTY, TOP_CAL: TOP_CAL, TOP_RADAR: TOP_RADAR, TOP_GRAPH: TOP_GRAPH,
+  TOP_KIND_FORECAST: TOP_KIND_FORECAST, TOP_KIND_HEALTH: TOP_KIND_HEALTH,
+  BODY_FC: BODY_FC, BODY_GRAPH: BODY_GRAPH, BODY_RADAR: BODY_RADAR, BODY_NONE: BODY_NONE,
+  SIZE_DEFAULT: SIZE_DEFAULT, SIZE_2: SIZE_2, SIZE_3: SIZE_3, SIZE_4: SIZE_4, SIZE_FILL: SIZE_FILL,
+  SIZE_CODE: SIZE_CODE,
+  ALIGN_CLOCK: ALIGN_CLOCK, ALIGN_TOP: ALIGN_TOP, ALIGN_CENTER: ALIGN_CENTER,
+  ALIGN_BOTTOM: ALIGN_BOTTOM, ALIGN_CODE: ALIGN_CODE,
   STATUS_SRC_NONE: STATUS_SRC_NONE, STATUS_SRC_FORECAST: STATUS_SRC_FORECAST,
   STATUS_SRC_RADAR: STATUS_SRC_RADAR, STATUS_SRC_HEALTH: STATUS_SRC_HEALTH,
   spec: spec, cloneSpec: cloneSpec, packSpec: packSpec, unpackSpec: unpackSpec,
+  packExt: packExt, packWire: packWire, unpackWire: unpackWire, hasFill: hasFill,
+  stackFits: stackFits, stackNeed: stackNeed, resolveForFit: resolveForFit, FIT_PX: FIT_PX,
   swapUpperToLower: swapUpperToLower, demoteRadarBody: demoteRadarBody,
-  STACK_ORDERS: STACK_ORDERS, orderCode: orderCode,
+  STACK_ORDERS: STACK_ORDERS, orderCode: orderCode, isStacked: isStacked,
+  RADAR_CHART_MODES: RADAR_CHART_MODES, RADAR_ROW_MODES: RADAR_ROW_MODES,
+  HEALTH_ROW_MODES: HEALTH_ROW_MODES, HEALTH_BODY_MODES: HEALTH_BODY_MODES,
+  capabilities: capabilities,
   buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
   seedCustomKeys: seedCustomKeys,
   buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey

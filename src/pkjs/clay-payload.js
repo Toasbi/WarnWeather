@@ -306,10 +306,14 @@ function buildClayPayload(settings, watchInfo, now) {
         ];
     }
 
-    // Pack the cycle into the three wire bytes (unused slots → 0 = disabled).
-    payload.CLAY_VIEW_0 = viewCycle.packSpec(cycle[0] || null);
-    payload.CLAY_VIEW_1 = viewCycle.packSpec(cycle[1] || null);
-    payload.CLAY_VIEW_2 = viewCycle.packSpec(cycle[2] || null);
+    // Pack the cycle into the three view words (unused slots → 0 = disabled). Each is
+    // a 32-bit int: packSpec in the low half, the custom ext word (sizes, top-graph
+    // kind, Position) in the high half — PKJS sends every number as 4 bytes anyway, so
+    // the ext costs no Clay bytes. It is 0 for every preset and for an aplite watch
+    // (folded to compactCal above), whose config_wire.c keeps reading only the int16.
+    payload.CLAY_VIEW_0 = viewCycle.packWire(cycle[0] || null);
+    payload.CLAY_VIEW_1 = viewCycle.packWire(cycle[1] || null);
+    payload.CLAY_VIEW_2 = viewCycle.packWire(cycle[2] || null);
     payload.CLAY_VIEW_RESET_MIN = parseInt(settings.viewResetMin, 10) || 0;
 
     // emery-only axis-font step-up (Layout tab). The simple Boolean() is provably safe
