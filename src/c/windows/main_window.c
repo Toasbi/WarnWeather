@@ -89,9 +89,14 @@ static bool health_renderable(void) {
 static bool health_graph_renderable(void) {
     if (!health_renderable()) { return false; }
     for (int i = 0; i < 3; i++) {
-        if (view_spec_unpack(config_get()->view_spec2[i]).body == BODY_HEALTH_GRAPH) {
-            return true;
-        }
+        // Through layout_visibility (layout.c's recommended pattern), not a body test:
+        // a custom layout can seat the health graph in the TOP band too, and a graph
+        // there must repaint and report its left-axis width like a body graph.
+        ViewSpec s = view_spec_unpack(config_get()->view_spec2[i]);
+#if defined(WW_VIEW_CYCLE)
+        view_spec_apply_ext(&s, config_get()->view_ext[i]);
+#endif
+        if (layout_visibility(&s).health_graph) { return true; }
     }
     return false;
 }
@@ -198,7 +203,15 @@ static void render_active_view(void) {
     // quick-view peek too.
     calendar_layer_set_rows(spec.calendar_rows);
     top_status_layer_set_full_date(spec.calendar_rows == 0);
-#if defined(PBL_HEALTH)
+#if defined(PBL_HEALTH) && defined(WW_VIEW_CYCLE)
+    // "Full mode" = the health graph sits in a short fixed band (a tighter HR/sleep
+    // gap): under a 3-row calendar, as a top-band graph that does not fill, or as a
+    // sized body. Presets only ever hit the first term — their key is unchanged.
+    health_graph_layer_set_full_mode(spec.calendar_rows == 3
+        || (spec.top == TOP_BAND_GRAPH && spec.top_kind == TOP_GRAPH_HEALTH
+            && spec.top_size != BAND_SIZE_FILL)
+        || (spec.body == BODY_HEALTH_GRAPH && spec.body_size != BAND_SIZE_DEFAULT));
+#elif defined(PBL_HEALTH)
     health_graph_layer_set_full_mode(spec.calendar_rows == 3);
 #endif
     layer_set_frame(time_layer_get_root(), L.time);
@@ -209,9 +222,19 @@ static void render_active_view(void) {
     // Tier, full-date, full-mode, band frame and visibility for every band row, in
     // one call — the bars own the fan-out now (see layers/status_bar.h).
     status_bar_apply_view(&spec, &L);
+#if defined(WW_VIEW_CYCLE)
+    // Each graph layer frames to ITS seat: the top band when a custom layout put it
+    // there, else the body. (aplite keeps the plain body frames below — the helper
+    // call measured +16 B of image there.)
+    layer_set_frame(forecast_layer_get_root(), layout_forecast_frame(&spec, &L));
+#if defined(PBL_HEALTH)
+    layer_set_frame(health_graph_layer_get_root(), layout_health_frame(&spec, &L));
+#endif
+#else
     layer_set_frame(forecast_layer_get_root(), L.bottom);
 #if defined(PBL_HEALTH)
     layer_set_frame(health_graph_layer_get_root(), L.bottom);
+#endif
 #endif
     layer_set_frame(loading_layer_get_root(), L.loading);
 

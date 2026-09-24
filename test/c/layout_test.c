@@ -1781,6 +1781,39 @@ static void peek_tests(void) {
     LayerVisibility vg = layout_visibility(&g);
     expect("peekGraphless.no_graph", vg.forecast || vg.health_graph || vg.radar, false);
     expect("peekGraphless.status_kept", vg.weather_status, true);
+
+    // A graph alone in the top band is promoted into the peek body; a view with a body
+    // graph peeks with that one (the top band is dropped either way).
+    ViewSpec lone_fc = unpack_ext(pack(1, 3, 3, STATUS_SRC_NONE, STATUS_SRC_NONE), ext_word(0, 0, 0, 0));
+    layout_peek_spec(&lone_fc);
+    expect("peekTopGraph.forecast_promoted", lone_fc.body == BODY_FORECAST && lone_fc.top == TOP_BAND_EMPTY, true);
+    ViewSpec lone_h = unpack_ext(pack(1, 3, 3, STATUS_SRC_NONE, STATUS_SRC_NONE), ext_word(0, 0, 1, 0));
+    layout_peek_spec(&lone_h);
+    expect("peekTopGraph.health_promoted", lone_h.body == BODY_HEALTH_GRAPH, true);
+    ViewSpec both = unpack_ext(pack(1, 3, BODY_HEALTH_GRAPH, 0, 0), ext_word(0, 0, 0, 0));
+    layout_peek_spec(&both);
+    LayerVisibility vb = layout_visibility(&both);
+    expect("peekTopGraph.body_graph_kept", both.body == BODY_HEALTH_GRAPH && vb.health_graph && !vb.forecast, true);
+}
+
+// Each graph layer frames to its seat: the top band when a custom layout put that graph
+// there, else the body band.
+static void graph_frame_tests(void) {
+    ViewSpec s = unpack_ext(pack(1, 3, BODY_HEALTH_GRAPH, STATUS_SRC_FORECAST, 0), ext_word(0, 0, 0, 0));
+    MainLayout L = layout_compute_spec(BOUNDS, &s, MET(FC_BAND_H, INK));
+    expect("frame.forecast_in_top", layout_forecast_frame(&s, &L).origin.y == L.top.origin.y
+           && layout_forecast_frame(&s, &L).size.h == L.top.size.h, true);
+    expect("frame.health_in_body", layout_health_frame(&s, &L).origin.y == L.bottom.origin.y
+           && layout_health_frame(&s, &L).size.h == L.bottom.size.h, true);
+    ViewSpec h = unpack_ext(pack(1, 3, BODY_FORECAST, 0, 0), ext_word(0, 0, 1, 0));
+    MainLayout Lh = layout_compute_spec(BOUNDS, &h, MET(FC_BAND_H, INK));
+    expect("frame.health_in_top", layout_health_frame(&h, &Lh).origin.y == Lh.top.origin.y, true);
+    expect("frame.forecast_in_body", layout_forecast_frame(&h, &Lh).origin.y == Lh.bottom.origin.y, true);
+    ViewSpec p = view_spec_unpack(pack(2, 1, 0, STATUS_SRC_FORECAST, 0));   // a preset
+    MainLayout Lp = layout_compute_spec(BOUNDS, &p, MET(FC_BAND_H, INK));
+    expect("frame.preset_body", layout_forecast_frame(&p, &Lp).origin.y == Lp.bottom.origin.y
+           && layout_health_frame(&p, &Lp).origin.y == Lp.bottom.origin.y, true);
+    printf("graph_frames OK\n");
 }
 
 static void radar_placement_tests(void) {
@@ -3029,6 +3062,7 @@ int main(int argc, char **argv) {
     if (!s_dump) graphless_property_tests();
     if (!s_dump) top_graph_property_tests();
     if (!s_dump) top_graph_resolve_tests();
+    if (!s_dump) graph_frame_tests();
     if (!s_dump) test_unpack_positional();
     if (!s_dump) test_unpack_custom_bits();
     if (!s_dump) ext_decode_tests();

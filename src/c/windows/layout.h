@@ -314,6 +314,22 @@ static inline GRect layout_status_band(const ViewSpec *spec, const MainLayout *L
     return band;
 }
 
+#if defined(WW_VIEW_CYCLE)
+// The frame of the forecast / health graph LAYER for a view: the top band when the
+// custom layout placed that graph there (TOP_BAND_GRAPH + top_kind), else the body band.
+// Static inline for the unforked main_window.c (the tier-predicate idiom above); aplite
+// never calls them — it frames both layers to L.bottom directly.
+static inline GRect layout_forecast_frame(const ViewSpec *spec, const MainLayout *L) {
+    if (spec->top == TOP_BAND_GRAPH && spec->top_kind == TOP_GRAPH_FORECAST) { return L->top; }
+    return L->bottom;
+}
+
+static inline GRect layout_health_frame(const ViewSpec *spec, const MainLayout *L) {
+    if (spec->top == TOP_BAND_GRAPH && spec->top_kind == TOP_GRAPH_HEALTH) { return L->top; }
+    return L->bottom;
+}
+#endif
+
 // Decode a packed wire value (statusLower | statusUpper<<2 | body<<4 | top<<6 |
 // tier<<8 | clockOff<<10 | stripOff<<11 | order<<12) to a ViewSpec. Pure — the
 // producer (main_window) supplies the value; availability is resolved separately by
@@ -358,6 +374,15 @@ MainLayout layout_compute_spec(GRect bounds, const ViewSpec *spec, LayoutMetrics
 // geometry and are cleared; a graphless view keeps BODY_NONE, so its peek body is blank
 // (decided). Static inline so main_window (unforked) and the host tests run one copy.
 static inline void layout_peek_spec(ViewSpec *s) {
+#if defined(WW_VIEW_CYCLE)
+    // A graph that sits alone in the top band moves into the peek body — the top band
+    // is dropped below, and the graph is the view's content (a view with a body graph
+    // keeps that one; one with no graph at all peeks blank). resolve has already folded
+    // an unrenderable health top away, so nothing unrenderable is promoted.
+    if (s->body == BODY_NONE && s->top == TOP_BAND_GRAPH) {
+        s->body = (s->top_kind == TOP_GRAPH_HEALTH) ? BODY_HEALTH_GRAPH : BODY_FORECAST;
+    }
+#endif
     s->top = TOP_BAND_EMPTY;
     s->calendar_rows = 0;
     s->status_tier = LAYOUT_TIER_FULL;   // status band is full-tier-sized (fc_band)
