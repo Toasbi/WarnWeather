@@ -413,3 +413,39 @@ test('transforms preserve clockOff/stripOff/order through their clones', () => {
   assert.notStrictEqual(cloned, radar);
   assert.deepEqual(cloned, radar);
 });
+
+// The capability gate table — THE single source: buildCustomCycle folds by it,
+// view-editor.js's freeStatusSource offers by it, and custom-layout-schema.js
+// builds its declarative optionDisabledWhen gates from the same arrays.
+test('capabilities: mode lists pinned, booleans derived per seat kind', () => {
+  assert.deepEqual(vc.RADAR_CHART_MODES, ['graph']);
+  assert.deepEqual(vc.RADAR_ROW_MODES, ['status', 'graph']);
+  assert.deepEqual(vc.HEALTH_ROW_MODES, ['status', 'all']);
+  assert.deepEqual(vc.HEALTH_BODY_MODES, ['all']);
+  assert.deepEqual(vc.capabilities({ radarMode: 'graph', healthMode: 'all' }),
+    { radarChart: true, radarRow: true, healthRow: true, healthBody: true });
+  assert.deepEqual(vc.capabilities({ radarMode: 'status', healthMode: 'status' }),
+    { radarChart: false, radarRow: true, healthRow: true, healthBody: false });
+  assert.deepEqual(vc.capabilities({ radarMode: 'countdown', healthMode: 'slot' }),
+    { radarChart: false, radarRow: false, healthRow: false, healthBody: false },
+    'countdown shows no radar view; slot shows health only in the regular bars');
+  assert.deepEqual(vc.capabilities({ radarMode: 'off', healthMode: 'off' }),
+    { radarChart: false, radarRow: false, healthRow: false, healthBody: false });
+  assert.deepEqual(vc.capabilities({}),
+    { radarChart: false, radarRow: false, healthRow: false, healthBody: false },
+    'absent modes gate closed');
+  assert.deepEqual(vc.capabilities(null), vc.capabilities({}), 'null state is safe');
+});
+
+test('buildCustomCycle folds seats exactly per capabilities() (spot check)', () => {
+  // radarMode 'status': the radar ROW survives, the radar CHART seats fold away.
+  const S = {
+    viewCount: '1', radarMode: 'status', healthMode: 'off',
+    viewTop0: 'radar', viewBody0: 'radar', viewUpper0: 'radar', viewLower0: 'off',
+    viewOrder0: 'TACB',
+  };
+  const s = vc.buildCustomCycle(S)[0];
+  assert.equal(s.top, vc.TOP_CAL, 'top radar seat folds to the calendar');
+  assert.equal(s.body, vc.BODY_FC, 'radar body folds to the forecast');
+  assert.equal(s.statusUpper, vc.STATUS_SRC_RADAR, 'the radar status ROW survives');
+});

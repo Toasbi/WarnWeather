@@ -52,11 +52,12 @@ test('defaults-policy is bundled BEFORE the wizard that consumes it', () => {
 });
 
 // The custom-layout editor is the same silent-no-op shape as the defaults policy:
-// BOTH consumers guard its absence (the Edit button's [data-action] dispatch and the
-// layoutPresetChanged hook's `if (PConf.actions.openViewEditor)`), so dropping
-// view-editor.js from APP_FILES keeps every Node test green while the shipped page's
-// Edit button does nothing. Pin the ASSIGNMENT, not the bare name — blocks.js's guard
-// keeps the string 'openViewEditor' in the page even with the editor gutted.
+// its one consumer, the Edit button's [data-action] dispatch, guards its absence, so
+// dropping view-editor.js from APP_FILES keeps every Node test green while the shipped
+// page's Edit button does nothing. Pin the ASSIGNMENT, not the bare name — the schema
+// itself never enters the page (build-page concatenates shell.html + APP_FILES only;
+// the schema is injected at runtime), but blocks.js mentions 'openViewEditor' in a
+// comment, so a bare-name search would stay green with the editor gutted.
 test('the custom-layout editor reaches the generated page, after view-cycle', () => {
   const src = page();
   assert.ok(src.indexOf('PConf.actions.openViewEditor =') !== -1,

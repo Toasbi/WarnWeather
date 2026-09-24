@@ -356,6 +356,14 @@
      status slots'. */
   .thr-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; min-height: 33px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); cursor: pointer; padding: 0 10px; border-radius: 9px; font: 600 12px 'Inter', sans-serif; transition: color .15s, background .15s, border-color .15s; }
   .thr-btn:active { color: var(--link); border-color: var(--link); background: rgba(250,74,53,0.12); }
+  /* Action row hosted in a staticText item (the Custom-layout Edit row): title + sub-hint
+     left, a .thr-btn right. Own classes rather than .row .lbl/.hint — those are scoped to
+     .row and this markup renders inside .static; sizes match the previous inline styles
+     (title = .lbl's look, sub slightly tighter than .hint: 12px, 2px gap). The 400 weight
+     on the sub is load-bearing — it is nested inside the 600-weight title span. */
+  .row-action { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+  .row-action-title { font-size: 14.5px; font-weight: 600; color: var(--lbl); }
+  .row-action-sub { display: block; font-size: 12px; font-weight: 400; color: var(--hint); margin-top: 2px; }
   /* Badge colour preview, LEFT of the control: one dot per colour the row's badge
      reports, hollow (.ring) or filled (.fill) — the watch's own outline/fill language,
      so the shape carries meaning and not just the hue. It is a preview, not a control —
