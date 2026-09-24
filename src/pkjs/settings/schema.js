@@ -2064,13 +2064,14 @@ module.exports = {
                 // as compactCal, swap included (view-cycle.js buildViewCycle, resolvePresetKey).
                 // That is a compactDense no status row makes dense — the complement of
                 // blocks.js layoutPresetOptions' dense predicate; keep the two in step — and
-                // a 'custom' on aplite, which never offers Custom.
+                // a 'custom' or 'weatherOnly' on aplite, which offers neither.
                 showWhen: {any: [
                     {key: 'layoutPreset', eq: 'compactCal'},
                     {all: [{key: 'layoutPreset', eq: 'compactDense'},
                            {key: 'healthMode', in: ['off', 'slot']},
                            {key: 'radarMode', in: ['off', 'countdown']}]},
-                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]}
+                    {all: [{key: 'layoutPreset', eq: 'custom'}, {env: 'platform', eq: 'aplite'}]},
+                    {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {env: 'platform', eq: 'aplite'}]}
                 ]}
             }, {
                 // Last in the section deliberately: the rows above shape what the layout

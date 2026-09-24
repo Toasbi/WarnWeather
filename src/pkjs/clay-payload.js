@@ -70,11 +70,9 @@ function resolveViewCycle(settings, env) {
     if (settings.layoutPreset === 'custom' && env.platform !== 'aplite') {
         return viewCycle.buildCustomCycle(settings);
     }
-    var presetKey = viewCycle.resolvePresetKey(settings);
-    // "Weather only" needs the radar and a view without top bar: aplite has neither
-    // and never offers it, so a stored one folds to No calendar, its nearest preset.
-    if (presetKey === 'weatherOnly' && env.platform === 'aplite') { presetKey = 'noCal'; }
-    return viewCycle.buildViewCycle(presetKey,
+    // A preset the watch can't draw (Weather only on aplite) runs as the one the
+    // settings radio shows (presetKeyFor, shared with the Layout preview).
+    return viewCycle.buildViewCycle(viewCycle.presetKeyFor(settings, env),
         settings.healthMode || 'off', settings.radarMode || 'graph',
         Boolean(settings.swapClockStatus));
 }

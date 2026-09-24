@@ -127,6 +127,9 @@ const settingsSchema = z
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
+    // DEPLOY ORDERING: a value missing from this enum fails the WHOLE batch (400), so a
+    // new preset (1.23.0: 'weatherOnly') must be deployed here BEFORE the watch build
+    // that can send it ships.
     layoutPreset: z.enum(['classic', 'radarLast', 'forecast', 'fullCal', 'healthFirst', 'compactCal', 'compactDense', 'noCal', 'weatherOnly', 'custom']).optional(),
     // Custom-layout usage: the three packed per-view wire values (uint16; elements,
     // seats, order, clock/top-bar omissions). Present only while layoutPreset is

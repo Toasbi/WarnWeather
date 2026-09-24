@@ -117,7 +117,7 @@ test('a dormant compactDense (no status row makes it dense) compiles as compactC
 });
 
 test('no view maps two sources to the same band, and no source repeats across bands', () => {
-  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) =>
+  ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((p) =>
     ['off', 'slot', 'status', 'all'].forEach((h) =>
       ['off', 'countdown', 'status', 'graph'].forEach((r) =>
         [false, true].forEach((sw) => {
@@ -149,7 +149,7 @@ test("radar 'status' mode keeps the forecast body (no chart) but still carries a
 });
 
 test("'slot' health mode uses the same cycle as 'off' (no dedicated Health view)", () => {
-  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) => {
+  ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((p) => {
     ['off', 'countdown', 'status', 'graph'].forEach((r) => {
       assert.deepStrictEqual(bytes(p, 'slot', r), bytes(p, 'off', r),
         p + ' radar=' + r + ": 'slot' must match 'off'");
@@ -203,6 +203,8 @@ test('seedCustomKeys copies the leaving preset once and latches; preset re-picks
   assert.equal(S.viewTop0, 'none', 'custom work survives re-entering Custom');
 });
 
+// Weather only is the exception: its countdown Default view keeps the top bar, where the
+// "Rain in X′" countdown is drawn (pinned in the weatherOnly test below).
 test("radar 'countdown' mode uses the same cycle as 'off' (no radar flick view)", () => {
   ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) => {
     ['off', 'status', 'all'].forEach((h) => {
@@ -296,6 +298,7 @@ test('isStacked mirrors the watch order rule: order >= 1 or a removed clock/top 
   for (let code = 1; code <= 11; code++) {
     assert.equal(vc.isStacked(Object.assign(vc.cloneSpec(base), { order: code })), true, 'order ' + code);
   }
+  // Weather only is left out: its Default view has no top bar, so it IS stacked.
   ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) =>
     ['off', 'slot', 'status', 'all'].forEach((h) =>
       ['off', 'countdown', 'status', 'graph'].forEach((r) =>
@@ -309,7 +312,7 @@ test('isStacked mirrors the watch order rule: order >= 1 or a removed clock/top 
 // preset cycle, and an untouched Custom session must compile back to BYTE-IDENTICAL
 // packed values — so the change-detector transmits nothing on mode entry.
 test('specToKeys ∘ buildViewCycle round-trips byte-identical for every preset cell', () => {
-  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) =>
+  ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((p) =>
     ['off', 'slot', 'status', 'all'].forEach((h) =>
       ['off', 'countdown', 'status', 'graph'].forEach((r) =>
         [false, true].forEach((sw) => {
@@ -531,7 +534,7 @@ test('a flick left with nothing on it compiles to a disabled slot', () => {
 });
 
 test('a blob that predates the new keys compiles to ext 0 (the upgrade path)', () => {
-  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) => {
+  ['fullCal', 'compactCal', 'compactDense', 'noCal', 'weatherOnly'].forEach((p) => {
     const S = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' };
     vc.seedCustomKeys(S, p);
     for (let i = 0; i < 3; i++) {
@@ -845,6 +848,16 @@ test('weatherOnly: no top bar, radar on top, clock then weather row; health flic
   // No radar view at all: clock, weather row, graph.
   const off = vc.buildViewCycle('weatherOnly', 'off', 'off')[0];
   assert.deepEqual([off.top, off.statusLower, off.stripOff], [vc.TOP_EMPTY, vc.STATUS_SRC_NONE, true]);
+  // Countdown mode: the "Rain in X′" countdown lives in the top bar, so the Default view
+  // keeps it — No calendar's Default view.
+  const cd = vc.buildViewCycle('weatherOnly', 'off', 'countdown');
+  assert.equal(cd[0].stripOff, undefined, 'countdown keeps the top bar');
+  assert.deepEqual(cd.map(vc.packWire), vc.buildViewCycle('noCal', 'off', 'off').map(vc.packWire));
+  // aplite has no radar and no view without top bar: a stored Weather only runs (and
+  // previews) as the Compact calendar its settings radio shows.
+  assert.equal(vc.presetKeyFor({ layoutPreset: 'weatherOnly' }, { platform: 'aplite' }), 'compactCal');
+  assert.equal(vc.presetKeyFor({ layoutPreset: 'weatherOnly' }, { platform: 'basalt' }), 'weatherOnly');
+  assert.equal(vc.presetKeyFor({ layoutPreset: 'weatherOnly' }, null), 'weatherOnly', 'unknown platform: capable');
   // Health flicks are No calendar's, whatever the radar.
   ['status', 'all'].forEach((h) => {
     const wo = vc.buildViewCycle('weatherOnly', h, 'graph').slice(1).map(vc.packWire);

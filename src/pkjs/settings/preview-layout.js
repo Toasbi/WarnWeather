@@ -42,7 +42,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         if (state.layoutPreset === 'custom' && !(env && env.platform === 'aplite')) {
             return VC.buildCustomCycle(state);
         }
-        return VC.buildViewCycle(VC.resolvePresetKey(state), state.healthMode || 'off', radarMode,
+        return VC.buildViewCycle(VC.presetKeyFor(state, env), state.healthMode || 'off', radarMode,
             Boolean(state.swapClockStatus));
     }
 

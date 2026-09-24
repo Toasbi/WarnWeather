@@ -685,15 +685,15 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
   });
 }
 
-test('Weather only folds to No calendar on aplite (no radar, no view without top bar)', function() {
+test('Weather only folds to Compact calendar on aplite, the preset its radio shows there', function() {
   const s = baseSettings();
   s.layoutPreset = 'weatherOnly';
   s.radarMode = 'graph';
   const colour = buildClayPayload(s, { platform: 'basalt' }, NOW);
   const aplite = buildClayPayload(s, { platform: 'aplite' }, NOW);
-  const nocal = buildClayPayload(Object.assign({}, s, { layoutPreset: 'noCal' }), { platform: 'aplite' }, NOW);
+  const compact = buildClayPayload(Object.assign({}, s, { layoutPreset: 'compactCal' }), { platform: 'aplite' }, NOW);
   assert.equal(colour.CLAY_VIEW_0 & 0x800, 0x800, 'colour: the Default view has no top bar');
-  assert.equal(aplite.CLAY_VIEW_0, nocal.CLAY_VIEW_0, 'aplite: exactly No calendar');
+  assert.equal(aplite.CLAY_VIEW_0, compact.CLAY_VIEW_0, 'aplite: exactly Compact calendar');
 });
 
 test('radar sky rows are on by default: a missing key sends them', function() {

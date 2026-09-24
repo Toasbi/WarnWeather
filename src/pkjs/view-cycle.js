@@ -46,8 +46,9 @@ function spec(tier, top, body, statusUpper, statusLower) {
  * ext word's topKind/topSize/bodySize/align) that the 5-arg spec() builder does not
  * carry. Every cycle transform MUST clone through this helper — cloning via spec()
  * silently drops them (pinned by a test).
- * Canonical form: the fields are attached only when set (absent === off/0), so
- * preset constants stay flag-free and pack byte-identically to pre-custom builds.
+ * Canonical form: the fields are attached only when set (absent === off/0), so the
+ * calendar presets stay flag-free and pack byte-identically to pre-custom builds (Weather
+ * only sets stripOff + order 1 on its Default view).
  * @param {{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
  *          clockOff:(boolean|undefined),stripOff:(boolean|undefined),order:(number|undefined),
  *          topKind:(number|undefined),topSize:(number|undefined),bodySize:(number|undefined),
@@ -70,8 +71,9 @@ function cloneSpec(s) {
  * Pack a view spec into one 16-bit wire value. Null (disabled slot) → 0.
  * Bit layout (LSB→MSB): statusLower(0-1) | statusUpper(2-3) | body(4-5) |
  * top(6-7) | tier(8-9) | clockOff(10) | stripOff(11) | order(12-15).
- * Bits 10-15 are custom-layout-only: preset specs never carry the fields, so every
- * preset packs to the same 10-bit value as pre-custom builds (pinned by a test).
+ * Bits 10-15 are the custom-layout fields: the calendar presets never carry them, so they
+ * pack to the same 10-bit value as pre-custom builds (pinned by a test); Weather only's
+ * Default view sets stripOff + order 1.
  * Values with bit 15 set exceed 0x7FFF and ride the AppMessage int16 as negative;
  * the watch recovers all 16 bits via its (uint16_t) cast (config_wire.c).
  * @param {?{tier:number,top:number,body:number,statusUpper:number,statusLower:number,
@@ -496,9 +498,11 @@ function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
   var mode = (healthMode === 'slot') ? 'off' : healthMode;
   var radarShowsView = (radarMode === 'status' || radarMode === 'graph');
   // "Weather only": the radar is part of the Default view (no radar flick), which has
-  // no top bar; the health flicks are No calendar's.
+  // no top bar; the health flicks are No calendar's. In countdown mode the Default view
+  // keeps its top bar: the "Rain in X′" countdown is drawn there and nowhere else.
   if (presetKey === 'weatherOnly') {
-    var def = (radarMode === 'graph') ? WO_RADAR : (radarMode === 'status') ? WO_RADAR_S : WO_PLAIN;
+    var def = (radarMode === 'graph') ? WO_RADAR : (radarMode === 'status') ? WO_RADAR_S
+      : (radarMode === 'countdown') ? NONE_FC_W : WO_PLAIN;
     var woHealth = MATRIX.noCal[mode] || MATRIX.noCal.off;
     return [def].concat(woHealth.n.slice(1));
   }
@@ -546,7 +550,8 @@ var STACK_ORDERS = [
  * (1-11), a removed chrome band (clock / top strip), no graph body, a graph in the top
  * band, or a non-default band size (read normalised, as the watch does). One layout engine
  * draws both; this decides only the ORDER. The settings preview and the editor's band
- * list both read it, so neither can drift from the watch. Presets never carry these → false.
+ * list both read it, so neither can drift from the watch. The calendar presets never carry
+ * these → false; Weather only's Default view (no top bar) → true.
  * @param {?Object} s view spec (packSpec's shape)
  * @returns {boolean}
  */
@@ -786,6 +791,22 @@ var LEGACY_PRESET = {
  * @param {Object} state Clay settings (or config-UI state).
  * @returns {string} one of fullCal|compactCal|compactDense|noCal|weatherOnly
  */
+/**
+ * The preset a watch actually runs: resolvePresetKey, with the presets a platform can't
+ * draw folded to the one its settings radio shows instead (the dormant value's
+ * fallback, compactCal). aplite has no radar and no view without top bar, so a stored
+ * Weather only runs — and previews — as Compact calendar there. The one fold the
+ * payload (clay-payload.js) and the Layout preview (preview-layout.js) share.
+ * @param {Object} state settings state
+ * @param {?{platform: string}} env platform facts ('' / missing = capable)
+ * @returns {string} preset key
+ */
+function presetKeyFor(state, env) {
+  var key = resolvePresetKey(state);
+  if (key === 'weatherOnly' && env && env.platform === 'aplite') { return 'compactCal'; }
+  return key;
+}
+
 function resolvePresetKey(state) {
   state = state || {};
   var p = state.layoutPreset;
@@ -827,7 +848,7 @@ var VIEW_CYCLE = {
   capabilities: capabilities,
   buildCustomCycle: buildCustomCycle, specToKeys: specToKeys,
   seedCustomKeys: seedCustomKeys,
-  buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey
+  buildViewCycle: buildViewCycle, resolvePresetKey: resolvePresetKey, presetKeyFor: presetKeyFor
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = VIEW_CYCLE;

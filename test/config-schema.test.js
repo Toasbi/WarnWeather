@@ -1252,7 +1252,7 @@ test('swapClockStatus is offered and applied exactly where the radio shows Compa
     const env = platform.computeEnv({ platform: p });
     ['off', 'slot', 'status', 'all'].forEach((healthMode) => {
       ['off', 'countdown', 'status', 'graph'].forEach((radarMode) => {
-        ['compactCal', 'compactDense', 'custom', 'fullCal', 'noCal'].forEach((layoutPreset) => {
+        ['compactCal', 'compactDense', 'custom', 'fullCal', 'noCal', 'weatherOnly'].forEach((layoutPreset) => {
           const S = { layoutPreset, healthMode, radarMode };
           const offered = resolver(S, env).map((o) => o[1]);
           // What the radio shows: the stored value when offered, else the dormant fallback.
@@ -1261,8 +1261,9 @@ test('swapClockStatus is offered and applied exactly where the radio shows Compa
           assert.equal(showWhen.isVisible(swap, Object.assign({ env }, S)), shown === 'compactCal',
             label + ': toggle visible iff the radio shows Compact calendar');
           if (layoutPreset === 'custom' && p !== 'aplite') { return; }   // compiles the custom keys
-          const on = vc.buildViewCycle(vc.resolvePresetKey(S), healthMode, radarMode, true);
-          const off = vc.buildViewCycle(vc.resolvePresetKey(S), healthMode, radarMode, false);
+          // presetKeyFor = what the payload compiles (Weather only folds on aplite).
+          const on = vc.buildViewCycle(vc.presetKeyFor(S, env), healthMode, radarMode, true);
+          const off = vc.buildViewCycle(vc.presetKeyFor(S, env), healthMode, radarMode, false);
           const applied = JSON.stringify(on) !== JSON.stringify(off);
           if (shown !== 'compactCal') {
             assert.equal(applied, false, label + ': a hidden toggle changes nothing on the watch');
