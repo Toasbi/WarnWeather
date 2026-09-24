@@ -236,7 +236,31 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return svgFrame(e, 128);
     }
 
+    /**
+     * One view's band column as a standalone SVG — the Custom-layout editor's live
+     * preview of the tab being edited (view-editor.js), so a pick, a move or an
+     * Alignment tap shows its effect right away. Same column geometry as the Layout
+     * tab's preview; a view with nothing on it (a disabled slot) shows the placeholder.
+     * @param {Object} state Live settings.
+     * @param {Object} env Config-UI environment facts (platform gate).
+     * @param {number} i View slot (0 = Default, 1-2 = flicks).
+     * @returns {string} SVG markup.
+     */
+    function viewPreviewSvg(state, env, i) {
+        state = state || {};
+        var spec = presetContents(state, env)[i] || null;
+        var W = 84, H = 124;
+        var e = rect(0, 0, W, H, previewInk(state.theme).bg);
+        e += renderBandColumn(contentBands(spec), 0, W, 'Preview', spec ? null : 'Nothing to show',
+            false, state.theme, spec ? (spec.align || 0) : 0);
+        return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Preview of this view"'
+            + ' style="display:block;width:108px;height:auto">' + e + '</svg>';
+    }
+
     PConf.blocks.register('layoutPreviewCombined', layoutPreviewCombined);
+    // The editor overlay (view-editor.js, concatenated after this file in the webview)
+    // reads the single-view preview from here; under Node it require()s this module.
+    PConf.previewLayout = { viewPreviewSvg: viewPreviewSvg };
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
@@ -245,7 +269,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             contentBands: contentBands,
             resolveBandHeights: resolveBandHeights,
             renderBandColumn: renderBandColumn,
-            alignOffset: alignOffset
+            alignOffset: alignOffset,
+            viewPreviewSvg: viewPreviewSvg
         };
     }
 })();

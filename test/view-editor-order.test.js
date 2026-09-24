@@ -204,23 +204,41 @@ test('moving the top area down and back up is byte-identical, one or two status 
   });
 });
 
-test('the Graph row carries a ✕ on every tab; the Position row shows only without a fill', () => {
+test('the Graph row carries a ✕ on every tab; the Alignment row shows only without a fill', () => {
   const S = state();
   let html = editorHtml(S, 0);
   assert.match(html, /data-ve-del="G"/, 'the Default\'s graph is removable');
-  assert.doesNotMatch(html, /data-ve-align/, 'the graph fills: no Position row');
+  assert.doesNotMatch(html, /data-ve-align/, 'the graph fills: no Alignment row');
   S.viewBody0 = 'none'; S.viewAlign0 = 'bottom';
   html = editorHtml(S, 0);
   assert.doesNotMatch(html, /data-ve-del="G"/, 'no Graph row once removed');
-  assert.match(html, /<span class="lbl">Position<\/span>/);
-  assert.match(html, /class="on" data-ve-align="bottom"/, 'the stored Position is on');
-  ['clock', 'top', 'center', 'bottom'].forEach((v) =>
-    assert.match(html, new RegExp('data-ve-align="' + v + '"')));
-  // A clockless flick: 'Clock' is not offered and a stored 'clock' shows as Middle.
+  assert.match(html, /<span class="lbl">Alignment<\/span>/);
+  assert.match(html, /No graph, so the elements sit together in the free space\./,
+    'the row says what it aligns and why it is there');
+  assert.match(html, /Clock mid keeps the clock in the middle of the screen/);
+  assert.match(html, /class="on" data-ve-align="bottom"/, 'the stored alignment is on');
+  const order = [...html.matchAll(/data-ve-align="(\w+)">([^<]+)</g)].map((m) => m[2]);
+  assert.deepEqual(order, ['Top', 'Middle', 'Bottom', 'Clock mid']);
+  // A clockless flick: 'Clock mid' is neither offered nor explained, and a stored
+  // 'clock' shows as Middle.
   const C = state({ viewBody1: 'none', viewClockOff1: true, viewAlign1: 'clock' });
   html = editorHtml(C, 1);
   assert.doesNotMatch(html, /data-ve-align="clock"/);
+  assert.doesNotMatch(html, /Clock mid/);
   assert.match(html, /class="on" data-ve-align="center"/);
+});
+
+test('each tab shows a live preview of its view that follows the edits', () => {
+  const S = state({ viewBody1: 'none', viewAlign1: 'top' });
+  const preview = (h) => (/<div class="ve-preview">(<svg[\s\S]*?<\/svg>)<\/div>/.exec(h) || [])[1];
+  const top = preview(editorHtml(S, 1));
+  assert.ok(top, 'a preview SVG heads the tab');
+  assert.match(top, />Clock</, 'it draws this view\'s bands');
+  assert.doesNotMatch(top, />Forecast</, 'no graph band for a graphless view');
+  S.viewAlign1 = 'bottom';
+  assert.notEqual(preview(editorHtml(S, 1)), top, 'an alignment tap moves the preview');
+  S.viewBody1 = 'forecast';
+  assert.match(preview(editorHtml(S, 1)), />Forecast</, 'a re-added graph shows up');
 });
 
 test('the last element keeps no ✕', () => {

@@ -490,7 +490,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Set view `i`'s Position (where a stack nothing fills sits): 'clock' | 'top' |
+     * Set view `i`'s Alignment (where a stack nothing fills sits): 'clock' | 'top' |
      * 'center' | 'bottom'. Unknown values are ignored.
      * @param {Object} S @param {number} i @param {string} v
      * @returns {boolean} whether anything changed
@@ -504,7 +504,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * Whether view `i` currently has a band that fills the leftover space (then the
-     * Position control does not apply and is not shown). Read off the COMPILED spec, so
+     * Alignment control does not apply and is not shown). Read off the COMPILED spec, so
      * capability folds count (e.g. a health graph folded to the forecast still fills).
      * @param {Object} S @param {number} i @returns {boolean}
      */
@@ -619,10 +619,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         + 'color:var(--fg);font:600 13.5px Inter,sans-serif;cursor:pointer}'
         + '#viewEditor .ve-remove{display:block;width:100%;margin-top:14px;padding:11px;border:none;'
         + 'border-radius:10px;background:none;color:#FA4A35;font:700 13.5px Inter,sans-serif;cursor:pointer}'
-        // The Position band: label + the page's segmented control (.seg, shell.html),
-        // wrapping onto a second line on narrow phones; tighter buttons fit four.
-        + '#viewEditor .ve-band.ve-pos{flex-wrap:wrap;row-gap:8px}'
-        + '#viewEditor .ve-seg button{padding:6px 9px}';
+        // The Alignment band: label, a one-line why, then the page's segmented control
+        // (.seg, shell.html) on its own line; tighter buttons fit four on a 320 px phone.
+        + '#viewEditor .ve-band.ve-pos{flex-wrap:wrap;row-gap:6px}'
+        + '#viewEditor .ve-pos .ve-note{flex-basis:100%;color:var(--muted);'
+        + 'font:500 12.5px/1.35 Inter,sans-serif}'
+        + '#viewEditor .ve-seg button{padding:6px 9px}'
+        // The live preview of the tab's view, centred above its element list.
+        + '#viewEditor .ve-preview{display:flex;justify-content:center;margin:0 0 12px}';
 
     function esc(s) {
         return (PConf.engine && PConf.engine.esc) ? PConf.engine.esc(s) : String(s);
@@ -662,24 +666,44 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The Position band for view `i`: where a stack nothing fills sits. 'Clock'
-     * centres the clock on the screen and is offered only while the view has one; a
-     * stored 'clock' on a clockless view renders (and shows) as Middle.
+     * The Alignment band for view `i`: where the elements sit, as one group, in the
+     * space nothing fills (viewAlign). The note says why the row exists and what the
+     * one non-obvious choice does; 'Clock mid' keeps the clock in the screen's middle
+     * and is offered only while the view has a clock — a stored 'clock' on a clockless
+     * view renders (and shows) as Middle.
      * @param {Object} S @param {number} i @param {Object} pres presence()
      * @returns {string} HTML
      */
-    function positionHtml(S, i, pres) {
+    function alignmentHtml(S, i, pres) {
         var cur = S[k('Align', i)] || 'clock';
         if (cur === 'clock' && !pres.C) { cur = 'center'; }
-        var opts = [['Clock', 'clock'], ['Top', 'top'], ['Middle', 'center'], ['Bottom', 'bottom']];
+        var opts = [['Top', 'top'], ['Middle', 'center'], ['Bottom', 'bottom'], ['Clock mid', 'clock']];
         var btns = '', j;
         for (j = 0; j < opts.length; j++) {
             if (opts[j][1] === 'clock' && !pres.C) { continue; }
             btns += '<button type="button"' + (opts[j][1] === cur ? ' class="on"' : '')
                 + ' data-ve-align="' + opts[j][1] + '">' + opts[j][0] + '</button>';
         }
-        return '<div class="ve-row"><div class="ve-band ve-pos"><span class="lbl">Position</span>'
+        var why = pres.G ? 'The graph doesn\u2019t fill this view, so the elements sit together in the free space.'
+                         : 'No graph, so the elements sit together in the free space.';
+        if (pres.C) { why += ' Clock mid keeps the clock in the middle of the screen.'; }
+        return '<div class="ve-row"><div class="ve-band ve-pos"><span class="lbl">Alignment</span>'
+            + '<span class="ve-note">' + esc(why) + '</span>'
             + '<div class="seg ve-seg">' + btns + '</div></div></div>';
+    }
+
+    /**
+     * The live preview of view `i` (preview-layout.js viewPreviewSvg): the schematic
+     * band column the Layout tab shows, redrawn on every edit. '' when the preview
+     * module is not on the page.
+     * @param {Object} S @param {number} i @returns {string} HTML
+     */
+    function previewHtml(S, i) {
+        var pl = (typeof require !== 'undefined') ? require('./preview-layout.js')
+            : (PConf.previewLayout || null);
+        if (!pl || !pl.viewPreviewSvg) { return ''; }
+        var env = (VE.ctx && VE.ctx.ENV) || {};
+        return '<div class="ve-preview">' + pl.viewPreviewSvg(S, env, i) + '</div>';
     }
 
     function renderEditor() {
@@ -701,7 +725,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
         var pres = presence(S, i);
         var ord = displayOrder(S, i);   // what the watch renders, not the stored letters
-        var body = '';
+        var body = previewHtml(S, i);
         if (i === 0 || !S[k('StripOff', i)]) {
             body += rowHtml({
                 label: 'Top bar', value: 'battery · date', fixed: true,
@@ -737,7 +761,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 selectKey: k('Body', i), del: removalEmpties(S, i, 'G') ? null : 'G'
             });
         }
-        if (!viewHasFill(S, i)) { body += positionHtml(S, i, pres); }
+        if (!viewHasFill(S, i)) { body += alignmentHtml(S, i, pres); }
 
         var addable = addableElements(S, i);
         if (addable.length) {
