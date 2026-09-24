@@ -314,8 +314,10 @@ test('specToKeys ∘ buildViewCycle round-trips byte-identical for every preset 
           const cycle = vc.buildViewCycle(p, h, r, sw);
           const S = Object.assign({ healthMode: h, radarMode: r }, vc.specToKeys(cycle));
           const rebuilt = vc.buildCustomCycle(S);
-          assert.deepStrictEqual(rebuilt.map(vc.packSpec), cycle.map(vc.packSpec),
+          assert.deepStrictEqual(rebuilt.map(vc.packWire), cycle.map(vc.packWire),
             p + '/' + h + '/' + r + '/' + sw);
+          assert.deepStrictEqual(rebuilt.map(vc.packWire), cycle.map(vc.packSpec),
+            'an untouched Custom session sends no ext word');
         }))));
 });
 
@@ -441,6 +443,74 @@ test('transforms preserve clockOff/stripOff/order through their clones', () => {
   const extDemoted = vc.demoteRadarBody(ext);
   assert.deepEqual([extDemoted.topKind, extDemoted.topSize, extDemoted.bodySize, extDemoted.align],
     [1, 3, 1, 2]);
+});
+
+// ── Graphless views + Position (custom compiler) ────────────────────────────
+
+/**
+ * A one-view custom state.
+ * @param {Object} over key overrides
+ * @returns {Object} settings state
+ */
+function customState(over) {
+  return Object.assign({
+    layoutPreset: 'custom', healthMode: 'off', radarMode: 'graph', viewCount: '1',
+    viewTop0: 'cal2', viewBody0: 'forecast', viewUpper0: 'weather', viewLower0: 'off',
+    viewOrder0: 'TACB', viewTopSize0: '3', viewBodySize0: 'fill', viewAlign0: 'clock'
+  }, over || {});
+}
+
+test('specToKeys emits the three new keys per view at their defaults for presets', () => {
+  const keys = vc.specToKeys(vc.buildViewCycle('fullCal', 'all', 'graph', false));
+  for (let i = 0; i < 3; i++) {
+    assert.equal(keys['viewTopSize' + i], '3');
+    assert.equal(keys['viewBodySize' + i], 'fill');
+    assert.equal(keys['viewAlign' + i], 'clock');
+  }
+});
+
+test("viewBody 'none' compiles to BODY_NONE and carries its Position", () => {
+  const c = vc.buildCustomCycle(customState({ viewBody0: 'none', viewAlign0: 'bottom' }));
+  assert.equal(c[0].body, vc.BODY_NONE);
+  assert.equal(c[0].align, vc.ALIGN_BOTTOM);
+  assert.equal(vc.isStacked(c[0]), true, 'the watch stacks a graphless view');
+  assert.equal(vc.packWire(c[0]) >>> 16, 3 << 7, 'align rides the ext word');
+  // the Default view may drop its graph too (decided); Clock centred is code 0
+  const d = vc.buildCustomCycle(customState({ viewBody0: 'none' }))[0];
+  assert.equal(d.body, vc.BODY_NONE);
+  assert.ok(!('align' in d), 'Clock centred is the default → absent (canonical)');
+  assert.equal(vc.packWire(d), vc.packSpec(d));
+});
+
+test('Position is dropped while the graph fills (the watch would ignore it)', () => {
+  const c = vc.buildCustomCycle(customState({ viewAlign0: 'bottom' }))[0];
+  assert.ok(!('align' in c));
+  assert.equal(vc.packWire(c), vc.packSpec(c));
+  const bad = vc.buildCustomCycle(customState({ viewBody0: 'none', viewAlign0: 'sideways' }))[0];
+  assert.ok(!('align' in bad), 'an unknown Position falls back to the default');
+});
+
+test('keys → spec → keys round-trips a graphless view', () => {
+  const S = customState({ viewCount: '2', viewTop1: 'none', viewBody1: 'none', viewUpper1: 'weather',
+    viewLower1: 'off', viewOrder1: 'TACB', viewClockOff1: false, viewStripOff1: true,
+    viewTopSize1: '3', viewBodySize1: 'fill', viewAlign1: 'center' });
+  const cycle = vc.buildCustomCycle(S);
+  const keys = vc.specToKeys(cycle);
+  assert.equal(keys.viewBody1, 'none');
+  assert.equal(keys.viewAlign1, 'center');
+  const again = vc.buildCustomCycle(Object.assign({}, S, keys));
+  assert.deepStrictEqual(again.map(vc.packWire), cycle.map(vc.packWire));
+});
+
+test('a blob that predates the new keys compiles to ext 0 (the upgrade path)', () => {
+  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((p) => {
+    const S = { layoutPreset: 'custom', healthMode: 'all', radarMode: 'graph' };
+    vc.seedCustomKeys(S, p);
+    for (let i = 0; i < 3; i++) {
+      delete S['viewTopSize' + i]; delete S['viewBodySize' + i]; delete S['viewAlign' + i];
+    }
+    vc.buildCustomCycle(S).forEach((s) => assert.equal(vc.packWire(s), vc.packSpec(s), p));
+  });
 });
 
 // ── The ext word (high half of CLAY_VIEW_n) ──────────────────────────────────

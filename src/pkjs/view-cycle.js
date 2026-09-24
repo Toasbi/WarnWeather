@@ -362,7 +362,8 @@ function orderCode(seq) {
 // ── Custom layout compiler ──────────────────────────────────────────────────
 // The second producer beside the preset MATRIX: compiles the per-view settings keys
 // (viewCount, viewTop{i}, viewBody{i}, viewUpper{i}, viewLower{i}, viewOrder{i},
-// viewClockOff{i}, viewStripOff{i}) into the same spec objects packSpec ships.
+// viewClockOff{i}, viewStripOff{i}, viewTopSize{i}, viewBodySize{i}, viewAlign{i})
+// into the same spec objects packWire ships.
 // The key vocabulary is the editor's contract — settings/custom-layout-schema.js
 // and settings/view-editor.js speak these exact strings.
 
@@ -372,7 +373,7 @@ var CUSTOM_TOP = {
   radar: { tier: TIER_FULL,    top: TOP_RADAR },
   none:  { tier: TIER_NONE,    top: TOP_EMPTY }
 };
-var CUSTOM_BODY = { forecast: BODY_FC, health: BODY_GRAPH, radar: BODY_RADAR };
+var CUSTOM_BODY = { forecast: BODY_FC, health: BODY_GRAPH, radar: BODY_RADAR, none: BODY_NONE };
 var CUSTOM_SRC = {
   off: STATUS_SRC_NONE, weather: STATUS_SRC_FORECAST,
   radar: STATUS_SRC_RADAR, health: STATUS_SRC_HEALTH
@@ -453,6 +454,10 @@ function buildCustomCycle(S) {
       if (S['viewStripOff' + i]) { s.stripOff = true; }
     }
     if (code) { s.order = code; }
+    // Position: only while no band fills (the watch zeroes it otherwise), and read
+    // with its default so a blob that predates the key compiles to ext 0.
+    var align = ALIGN_CODE[S['viewAlign' + i] || 'clock'] || ALIGN_CLOCK;
+    if (align && !hasFill(s)) { s.align = align; }
     cycle.push(s);
   }
   return cycle;
@@ -489,13 +494,19 @@ function seedCustomKeys(S, oldPreset) {
 function specToKeys(cycle) {
   var keys = { viewCount: String(cycle.length) };
   var srcName = ['off', 'weather', 'radar', 'health'];
+  // Size code → key value per seat: code 0 is the seat default ('3' rows for a top,
+  // 'fill' for the body), so both columns differ only in row 0.
+  var topSizeName = ['3', '2', '3', '4', 'fill'];
+  var bodySizeName = ['fill', '2', '3', '4', 'fill'];
+  var alignName = ['clock', 'top', 'center', 'bottom'];
   for (var i = 0; i < cycle.length; i++) {
     var s = cycle[i];
     keys['viewTop' + i] = (s.top === TOP_RADAR) ? 'radar'
       : (s.top === TOP_CAL) ? ((s.tier === TIER_FULL) ? 'cal3' : 'cal2')
       : 'none';
     keys['viewBody' + i] = (s.body === BODY_GRAPH) ? 'health'
-      : (s.body === BODY_RADAR) ? 'radar' : 'forecast';
+      : (s.body === BODY_RADAR) ? 'radar'
+      : (s.body === BODY_NONE) ? 'none' : 'forecast';
     keys['viewUpper' + i] = srcName[s.statusUpper] || 'off';
     keys['viewLower' + i] = srcName[s.statusLower] || 'off';
     keys['viewOrder' + i] = STACK_ORDERS[s.order || 0];
@@ -503,6 +514,9 @@ function specToKeys(cycle) {
       keys['viewClockOff' + i] = Boolean(s.clockOff);
       keys['viewStripOff' + i] = Boolean(s.stripOff);
     }
+    keys['viewTopSize' + i] = topSizeName[s.topSize || 0] || '3';
+    keys['viewBodySize' + i] = bodySizeName[s.bodySize || 0] || 'fill';
+    keys['viewAlign' + i] = alignName[s.align || 0] || 'clock';
   }
   return keys;
 }
