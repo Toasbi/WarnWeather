@@ -126,10 +126,13 @@ test('DWD wind and gusts read on past the graph for the day max, paired by times
 test('DWD asks Brightsky for one record past the day-max window (last_date is inclusive)', () => {
   const { url } = runAt0920(stampedRecords(Array.from({ length: 25 }, (_, i) => i), -1));
   assert.match(url, /[?&]date=2026-09-23T07:00:00\.000Z&/);
-  // Berlin, 09:20 on 23 Sep: tomorrow ends at 25 Sep 00:00 CEST (22:00Z on the
-  // 24th); one record past it holds that last hour's gust.
-  assert.match(url, /last_date=2026-09-24T23:00:00\.000Z&/,
-    'to the end of local tomorrow: the record stamped at the last day-max slot\'s end');
+  // To the end of LOCAL tomorrow (the host's calendar, so this holds in any TZ the
+  // suite runs in — CI is UTC), plus one record: the one holding that hour's gust.
+  const now = new Date(SLOT0 + 20 * 60000);
+  const end = new Date(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2).getTime()
+    + 3600000).toISOString();
+  assert.ok(url.indexOf('last_date=' + end + '&') !== -1,
+    'the record stamped at the last day-max slot\'s end: ' + url);
 });
 
 test('DWD reads the last slot\'s totals from the record after the window, and survives its absence', () => {
