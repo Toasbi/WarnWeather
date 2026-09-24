@@ -1,9 +1,9 @@
 #pragma once
 // The stripe's pure arithmetic — SDK-free, so the host suite can pin it
 // (test/c/chart_stripe_test.c, the chart_runs.h pattern; chart.c itself is
-// SDK-bound and never host-compiles). The settings preview mirrors all three
-// (preview-forecast.js stripeLevel / stripeBlend / stripeDitherDefs), so the
-// preview and the watch shade the same cells the same way.
+// SDK-bound and never host-compiles). The settings previews mirror all three
+// (preview-stripe.js levelOfByte / blend / ditherDefs, drawn by its cell() for
+// the forecast and radar previews), so they shade the same cells the same way.
 #include <stdbool.h>
 #include <stdint.h>
 

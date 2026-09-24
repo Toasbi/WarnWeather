@@ -516,7 +516,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         };
         // --- Stripes: chart.c's chart_render_stripe, mirrored -------------------
         // STRIPE_H / STRIPE_GAP (above) are the watch's FORECAST_STRIPE_H / _GAP,
-        // scaled to this plot.
+        // scaled to this plot. The cells' line pattern keys off watch pixel columns:
+        // here, as it always drew, 2 preview units a column from x 0 — near the watch's
+        // scale (7 px an hour, 8 on emery), not its phase (preview-stripe.js cell).
+        var STRIPE_UNIT = 2, STRIPE_ORIGIN = 0;
         /**
          * A metric value's stripe level, 0..4: the watch's chart_stripe_level on the
          * wire byte (0..250), so a cell shades exactly where the watch's does.
@@ -554,7 +557,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 var level = stripeLevel(m, i);
                 if (!level) { continue; }
                 out += previewStripe.cell(isColor, tickX(i), y, pitch, STRIPE_H, color, level,
-                    ink.bg, 'sd');
+                    ink.bg, 'sd', STRIPE_UNIT, STRIPE_ORIGIN);
             }
             return out;
         }
@@ -656,7 +659,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                     // The ramp itself, weakest to strongest: what the cells mean.
                     for (var sl = 1; sl <= 4; sl += 1) {
                         out += previewStripe.cell(isColor, ex + (sl - 1) * 3, gy - 2, 3, 4,
-                            en.color, sl, ink.bg, 'sd');
+                            en.color, sl, ink.bg, 'sd', STRIPE_UNIT, STRIPE_ORIGIN);
                     }
                 } else if (isColor && state.rainBarColor !== 'white') {
                     for (var k = 0; k < P.rainTiers.length; k += 1) {

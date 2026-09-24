@@ -2,8 +2,10 @@
 // previews draw — chart_stripe.h mirrored: a value's level, the colour cell (tint +
 // full-colour vertical lines that tighten with the level) and the four B&W dither
 // densities. Shared by the forecast preview's stripe line style and the radar
-// preview's sky rows, so both draw exactly what the watch's chart_stripe_fill_cell
-// does. test/c/chart_stripe_test.c pins the C side; test/config-blocks.test.js this.
+// preview's sky rows, so both draw the watch's chart_stripe_fill_cell pattern: the
+// colour lines on the watch pixel grid each preview passes (see cell), the B&W
+// dither at preview scale. test/c/chart_stripe_test.c pins the C side;
+// test/config-blocks.test.js this.
 (function () {
     var svg = (typeof require !== 'undefined') ? require('./preview-svg.js') : window.PreviewSvg;
     var rect = svg.rect;
@@ -58,8 +60,12 @@
 
     /**
      * One stripe cell at a level — chart_stripe_fill_cell. Colour: the tint, then
-     * the full-colour vertical lines (one watch pixel column = 2 preview units). B&W:
-     * the `<prefix>1`..`<prefix>4` dither pattern (see ditherDefs).
+     * the full-colour vertical lines on the watch's pixel columns, which each preview
+     * passes in: watch column px spans `unit` preview units from origin + px * unit
+     * (chart_stripe_line_on keys off the column, so the line density is the watch's
+     * whatever the preview's scale). A column is drawn by the cell its left edge falls
+     * in, clipped at the cell's right edge. B&W: the `<prefix>1`..`<prefix>4` dither
+     * pattern (see ditherDefs).
      * @param {boolean} isColor Effective colour render?
      * @param {number} x Cell left.
      * @param {number} y Cell top.
@@ -69,16 +75,23 @@
      * @param {number} level 0..4 (0 draws nothing).
      * @param {string} bgHex Background '#RRGGBB'.
      * @param {string} prefix Dither pattern id prefix.
+     * @param {number} unit Preview units per watch pixel column.
+     * @param {number} origin Preview x of watch pixel column 0.
      * @returns {string} SVG markup.
      */
-    function cell(isColor, x, y, w, h, color, level, bgHex, prefix) {
+    function cell(isColor, x, y, w, h, color, level, bgHex, prefix, unit, origin) {
         if (level <= 0) { return ''; }
         if (!isColor) { return rect(x, y, w, h, 'url(#' + prefix + level + ')'); }
         var out = rect(x, y, w, h, blend(bgHex, color, TINT[level]));
         if (level >= 4) { return out; }
-        for (var px = Math.ceil(x / 2); px * 2 < x + w; px += 1) {
+        // The columns whose left edge lies in [x, x + w). The 1e-9 absorbs float error
+        // where a cell edge sits on a column edge (the radar's cells span whole slots).
+        var end = Math.ceil((x + w - origin) / unit - 1e-9), lx, cx;
+        for (var px = Math.ceil((x - origin) / unit - 1e-9); px < end; px += 1) {
             if (lineOn(level, px)) {
-                out += rect(px * 2, y, Math.min(2, x + w - px * 2), h, color);
+                lx = origin + px * unit;
+                cx = Math.max(x, lx);
+                out += rect(cx, y, Math.min(lx + unit, x + w) - cx, h, color);
             }
         }
         return out;

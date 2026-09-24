@@ -1336,3 +1336,111 @@ test('radarPreview: the sky rows show with the toggle in graph mode, never on ap
   const bw = RD.radarPreview(Object.assign({ radarSky: true }, base), { color: false, platform: 'diorite' });
   assert.ok(bw.indexOf('<pattern id="rsd4"') >= 0 && bw.indexOf('url(#rsd') >= 0);
 });
+
+// The stripe lines key off WATCH pixel columns (chart_stripe_line_on), so each
+// preview hands preview-stripe.js its own grid: preview units per watch column and
+// the preview x of column 0. The radar's 24 slots span x 11..196, one RADAR_DEF
+// pitch each (6 px on the 144 px platforms, 8 on emery), column 0 at the plot's left.
+const PS = require('../src/pkjs/settings/preview-stripe.js');
+const RADAR_PX0 = 11;
+const RADAR_STEP = (196 - 11) / 24;
+const svgRects = (svg) => [...svg.matchAll(
+  /<rect x="([-0-9.e]+)" y="([-0-9.e]+)" width="([-0-9.e]+)" height="([-0-9.e]+)" fill="([^"]+)"><\/rect>/g)]
+  .map((m) => ({ x: +m[1], y: +m[2], w: +m[3], h: +m[4], fill: m[5] }));
+const near = (a, b) => Math.abs(a - b) < 1e-6;
+
+[['basalt', 6], ['emery', 8]].forEach(([platform, pitch]) => {
+  test(`radarPreview (${platform}): the sky rows sit on the watch's pixel grid`, () => {
+    const u = RADAR_STEP / pitch;
+    const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', radarMode: 'graph',
+      theme: 'dark', radarSky: true }, { color: true, platform });
+    const rects = svgRects(svg);
+    // (a) A cell spans its quarter hour (three radar slots) and is 4 watch px tall
+    // (radar_sky_stripe_h on a roomy plot); the sun row sits 1 px under the cloud row.
+    const cells = rects.filter((r) => near(r.w, 3 * RADAR_STEP));
+    assert.ok(cells.length >= 10, 'the cloud and sun cells');
+    cells.forEach((c) => assert.ok(near(c.h, 4 * u), `cell height ${c.h} is 4 watch px (${4 * u})`));
+    const cloudY = Math.min(...cells.map((c) => c.y));
+    const sunY = Math.max(...cells.map((c) => c.y));
+    assert.ok(near(sunY - cloudY, 5 * u), 'cloud row, 1 px gap, sun row');
+    // (b) The lines inside each cell, by level (the tint tells it: level 1 has none,
+    // level 2 the first blend step): every 5th watch column at level 1, every 3rd at
+    // level 2, counted from watch x 0 — the plot's left edge.
+    const rows = [{ y: cloudY, color: '#AAAAFF', tints: { '#000000': 1, '#555555': 2 } },
+      { y: sunY, color: '#FFFF00', tints: { '#000000': 1, '#555500': 2 } }];
+    const seen = { 1: 0, 2: 0 };
+    rows.forEach((row) => {
+      cells.filter((c) => near(c.y, row.y) && row.tints[c.fill]).forEach((c) => {
+        const level = row.tints[c.fill];
+        const every = level === 1 ? 5 : 3;
+        const cols = rects.filter((r) => near(r.y, row.y) && r.fill === row.color && r.w <= u + 1e-6
+          && r.x >= c.x - 1e-6 && r.x < c.x + c.w - 1e-6).map((r) => (r.x - RADAR_PX0) / u);
+        const first = Math.round((c.x - RADAR_PX0) / u);
+        const expected = [];
+        for (let px = first; px < first + 3 * pitch; px += 1) { if (px % every === 0) { expected.push(px); } }
+        assert.equal(cols.length, expected.length, `level ${level}: one line per ${every}th column`);
+        cols.forEach((col, i) => assert.ok(near(col, expected[i]), `line at watch column ${expected[i]}`));
+        seen[level] += 1;
+      });
+    });
+    assert.ok(seen[1] > 0 && seen[2] > 0, 'the sample has level-1 and level-2 cells');
+  });
+});
+
+test('radarPreview: the bolts are drawn at watch scale where draw_radar_sky puts them', () => {
+  // Light theme: the bolt (Orange) differs from the sun (ChromeYellow) there.
+  [['basalt', 6], ['emery', 8]].forEach(([platform, pitch]) => {
+    const u = RADAR_STEP / pitch;
+    const rects = svgRects(RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
+      radarMode: 'graph', theme: 'light', radarSky: true }, { color: true, platform }));
+    const cloudY = Math.min(...rects.filter((r) => near(r.w, 3 * RADAR_STEP)).map((r) => r.y));
+    const ink = rects.filter((r) => r.fill === '#FF5500' && near(r.w, u));
+    assert.equal(ink.length, 2 * 17, 'two 17-pixel bolts, one watch px per glyph pixel');
+    // The first (quarter hour 3): centred on its slot, (xa + xb) / 2 - 5 / 2 in C.
+    const bx = Math.floor((9 * pitch + 12 * pitch) / 2) - 2;
+    assert.ok(near(Math.min(...ink.map((r) => r.x)), RADAR_PX0 + bx * u), 'bolt x');
+    // Vertically centred on the two 4 px rows: glyph rows 1..7 of the 10-row band.
+    assert.ok(near(Math.min(...ink.map((r) => r.y)), cloudY + u), 'bolt top');
+    assert.ok(near(Math.max(...ink.map((r) => r.y + r.h)), cloudY + 8 * u), 'bolt bottom');
+    // The halo (theme background, 3 x 3 watch px per glyph pixel) stays in the band.
+    const halo = rects.filter((r) => r.fill === '#FFFFFF' && r.w <= 3 * u + 1e-6 && r.y < cloudY + 10 * u);
+    assert.ok(halo.length > 0, 'the halo is drawn');
+    halo.forEach((r) => assert.ok(r.y >= cloudY - 1e-6 && r.y + r.h <= cloudY + 10 * u + 1e-6, 'halo in the band'));
+  });
+});
+
+test('preview-stripe cell: 2 units per watch column from x 0 draws what the forecast always drew', () => {
+  // The pre-grid cell (one watch pixel column = 2 preview units, hard-coded), kept
+  // here as the reference: the forecast preview passes unit 2 / origin 0.
+  const legacyCell = (isColor, x, y, w, h, color, level, bgHex, prefix) => {
+    if (level <= 0) { return ''; }
+    if (!isColor) { return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${prefix}${level})"></rect>`; }
+    let out = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${PS.blend(bgHex, color, [0, 0, 1, 2, 4][level])}"></rect>`;
+    if (level >= 4) { return out; }
+    for (let px = Math.ceil(x / 2); px * 2 < x + w; px += 1) {
+      if (PS.lineOn(level, px)) {
+        out += `<rect x="${px * 2}" y="${y}" width="${Math.min(2, x + w - px * 2)}" height="${h}" fill="${color}"></rect>`;
+      }
+    }
+    return out;
+  };
+  // The forecast's hour cells (x 20 + i * 177 / 11) and its legend ramp (3 units wide).
+  const pitch = 177 / 11;
+  for (let level = 0; level <= 4; level += 1) {
+    for (let i = 0; i < 11; i += 1) {
+      [true, false].forEach((isColor) => {
+        assert.equal(PS.cell(isColor, 20 + i * pitch, 88.35, pitch, 5, '#55AAFF', level, '#000000', 'sd', 2, 0),
+          legacyCell(isColor, 20 + i * pitch, 88.35, pitch, 5, '#55AAFF', level, '#000000', 'sd'));
+      });
+      assert.equal(PS.cell(true, 40 + i * 3, 50, 3, 4, '#FF0000', level, '#FFFFFF', 'sd', 2, 0),
+        legacyCell(true, 40 + i * 3, 50, 3, 4, '#FF0000', level, '#FFFFFF', 'sd'));
+    }
+  }
+  // Spelled out once: a level-2 cell over watch columns 10..18 lines columns 12, 15 and
+  // 18, the last clipped at the cell's right edge.
+  assert.equal(PS.cell(true, 20, 4, 17, 5, '#55AAFF', 2, '#000000', 'sd', 2, 0),
+    '<rect x="20" y="4" width="17" height="5" fill="#005555"></rect>'
+    + '<rect x="24" y="4" width="2" height="5" fill="#55AAFF"></rect>'
+    + '<rect x="30" y="4" width="2" height="5" fill="#55AAFF"></rect>'
+    + '<rect x="36" y="4" width="1" height="5" fill="#55AAFF"></rect>');
+});
