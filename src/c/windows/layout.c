@@ -685,6 +685,14 @@ static MainLayout compute_layout(GRect bounds, const ViewSpec *spec, LayoutMetri
     // A FILLING top takes what every other band and clearance leaves (its own clearance
     // included: a band follows it).
     int start = strip ? (content_y + CALENDAR_STATUS_HEIGHT) : content_y;
+    // A status row or the graph leading straight under the strip starts on the first row
+    // the strip does not paint (its descender tails reach past the reserve on the 144 px
+    // watches — 2 rows; emery's reserve already clears them). Presets always lead with the
+    // top area or the clock, so none of their pixels move.
+    if (strip && n > 0 && (list[0] == STK_BODY || is_row(list[0]))) {
+        int ink_end = content_y + status_strip_ink_h(strip_h, STATUS_LARGE_FONT_H);
+        if (start < ink_end) { start = ink_end; }
+    }
     if (top_fill) {
         int fixed = 0;
         for (int i = 0; i < n; i++) {
@@ -743,7 +751,10 @@ static MainLayout compute_layout(GRect bounds, const ViewSpec *spec, LayoutMetri
         rect[b] = GRect(content_x, ry, full_w ? bottom_w : content_w, rh);
         if (b == STK_TOP) { top_slot = y; }
         y += pitch;
+        // A radar/graph top slid onto the strip's ink overhangs its slot, and it inks to its
+        // edge: the clearance it owes the next band is paid from where it really ends.
         pending = s.gap;
+        if (b == STK_TOP && sized_top && s.gap > 0 && ry + rh > y) { pending += ry + rh - y; }
         placed = true;
         if (ry + rh > block_end) { block_end = ry + rh; }
         if (y > block_end) { block_end = y; }

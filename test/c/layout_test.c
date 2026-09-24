@@ -360,21 +360,21 @@ static void golden_rects_clockless(void) {
     // everything below it, still starts at the reserve (13).
     check("cklrdr.top",          L.top,          0, 15, 144, 45);
     check("cklrdr.radar",        L.radar,        0, 15, 144, 45);
-    check("cklrdr.time",         L.time,         0, 61, 144, 0);
-    check("cklrdr.bottom",       L.bottom,       0, 61, 144, 107);
+    check("cklrdr.time",         L.time,         0, 63, 144, 0);
+    check("cklrdr.bottom",       L.bottom,       0, 63, 144, 105);
     L = compute_custom(nA);
     if (s_dump) printf("  CLOCKLESS none lone-upper\n");
     // No top band: A is first, at the cursor (13), in the font-derived 17 band —
     // a NONE row away from a clock takes the large-font band, not NONE_STATUS_HEIGHT 22.
-    check("cklnA.status",        L.status,       0, 13, 144, 17);
-    check("cklnA.time",          L.time,         0, 33, 144, 0);
-    check("cklnA.bottom",        L.bottom,       0, 33, 144, 135);
+    check("cklnA.status",        L.status,       0, 15, 144, 17);
+    check("cklnA.time",          L.time,         0, 35, 144, 0);
+    check("cklnA.bottom",        L.bottom,       0, 35, 144, 133);
     L = compute_custom(nR);
     if (s_dump) printf("  CLOCKLESS none statusless radar-body\n");
     // Nothing to stack: the body IS everything under the strip reserve.
-    check("cklnR.time",          L.time,         0, 13, 144, 0);
-    check("cklnR.bottom",        L.bottom,       0, 13, 144, 155);
-    check("cklnR.radar",         L.radar,        0, 13, 144, 155);
+    check("cklnR.time",          L.time,         0, 15, 144, 0);
+    check("cklnR.bottom",        L.bottom,       0, 15, 144, 153);
+    check("cklnR.radar",         L.radar,        0, 15, 144, 153);
 #else
     L = compute_custom(c2A);
     if (s_dump) printf("  CLOCKLESS cal2 lone-upper (emery)\n");
@@ -426,8 +426,8 @@ static void golden_rects_clockless(void) {
     // Radar top on the strip's ink (23) like the calendar; its slot starts at 22.
     check("cklrdr.top",          L.top,          2, 23, 196, 60);
     check("cklrdr.radar",        L.radar,        2, 23, 196, 60);
-    check("cklrdr.time",         L.time,         2, 83, 196, 0);
-    check("cklrdr.bottom",       L.bottom,       2, 83, 198, 141);
+    check("cklrdr.time",         L.time,         2, 84, 196, 0);
+    check("cklrdr.bottom",       L.bottom,       2, 84, 198, 140);
     L = compute_custom(nA);
     if (s_dump) printf("  CLOCKLESS none lone-upper (emery)\n");
     // A first at the cursor (22), font-derived 21 band (not NONE_STATUS_HEIGHT 30).
@@ -714,11 +714,11 @@ static void golden_rects_stacked(void) {
     // Calendar at the BOTTOM, directly above the graph; the dual squeezes to the
     // fc_band_h pair at the top. The clock rect floats 2px into B's blank bottom
     // margin (solver ink-centring) — the established sibling-overlap style.
-    check("stkabct.status",       L.status,       0, 13, 144, 20);
-    check("stkabct.status_lower", L.status_lower, 0, 33, 144, 20);
-    check("stkabct.time",         L.time,         0, 51, 144, 45);
-    check("stkabct.top",          L.top,          0, 98, 144, 30);
-    check("stkabct.bottom",       L.bottom,       0, 131, 144, 37);
+    check("stkabct.status",       L.status,       0, 15, 144, 20);
+    check("stkabct.status_lower", L.status_lower, 0, 35, 144, 20);
+    check("stkabct.time",         L.time,         0, 53, 144, 45);
+    check("stkabct.top",          L.top,          0, 100, 144, 30);
+    check("stkabct.bottom",       L.bottom,       0, 133, 144, 35);
     L = compute_custom(cabt);
     if (s_dump) printf("  STACKED CABT radar-top + radar row\n");
     // The radar strip band sits between the status row and the graph; L.radar
@@ -986,9 +986,10 @@ static void golden_rects_graphless(void) {
 
 // ── Graphs in the top band (custom layout v2, Phase 2a) ──────────────────────
 // A forecast or health graph in the top band: wire top 3 (tier NONE — no calendar
-// rows, so the strip shows the full date and the rows keep the large font) with the
-// kind in the ext word. Default height 3 rows of the calendar row unit + the graph tail
-// (45 | 60+10), full graph width. Example C of the spec is the health-top TCAB view.
+// rows, so the strip shows the full date) with the kind in the ext word. The rows take
+// the tier of the top area's row count (status_tier_for), like a calendar of that size.
+// Default height 3 rows of the calendar row unit, the graph's hour-label tail inside the
+// rows (45 | 60), full graph width. Example C of the spec is the health-top TCAB view.
 static const uint16_t TG_WIRES[6] = {
     // example C: health top, clock, weather row, forecast body (TCAB)
     (uint16_t)((1 << 8) | (3 << 6) | (0 << 4) | (STATUS_SRC_FORECAST << 2) | 0 | (1 << 12)),
@@ -1045,12 +1046,12 @@ static void golden_rects_top_graph(void) {
     L = compute_ext(TG_WIRES[3], ext_word(0, 0, TG_KIND[3], TG_ALIGN[3]));
     if (s_dump) printf("  TOPGRAPH 3\n");
     check("tg3.top_status", L.top_status, 0, 0, 144, 17);
-    check("tg3.top", L.top, 0, 78, 144, 45);
-    check("tg3.time", L.time, 0, 31, 144, 45);
-    check("tg3.status", L.status, 0, 13, 144, 20);
-    check("tg3.bottom", L.bottom, 0, 126, 144, 42);
-    check("tg3.loading", L.loading, 0, 126, 144, 42);
-    check("tg3.radar", L.radar, 0, 126, 144, 42);
+    check("tg3.top", L.top, 0, 80, 144, 45);
+    check("tg3.time", L.time, 0, 33, 144, 45);
+    check("tg3.status", L.status, 0, 15, 144, 20);
+    check("tg3.bottom", L.bottom, 0, 128, 144, 40);
+    check("tg3.loading", L.loading, 0, 128, 144, 40);
+    check("tg3.radar", L.radar, 0, 128, 144, 40);
     L = compute_ext(TG_WIRES[4], ext_word(0, 0, TG_KIND[4], TG_ALIGN[4]));
     if (s_dump) printf("  TOPGRAPH 4\n");
     check("tg4.top_status", L.top_status, 0, 0, 144, 17);
@@ -1157,7 +1158,7 @@ static const struct { uint16_t wire; uint16_t ext; } SZ[11] = {
     { W(2, 1, 0, 1, 0, 0), 0 },
     // 9: both fill → the body fills, the radar top takes its 3-row default
     { W(3, 2, 0, 0, 0, 1), 0 },
-    // 10: overflow — 4-row forecast top + clock + two large rows + 4-row health body
+    // 10: overflow — 4-row forecast top + clock + two full-tier rows + 4-row health body
     { W(1, 3, 1, 1, 2, 1), 0 },
 };
 static uint16_t sz_ext(int c) {
@@ -1759,8 +1760,10 @@ static void full_dual_fix_tests(void) {
 // convention as the row lifts above.
 #ifdef PBL_PLATFORM_EMERY
 #define STRIP_RESERVE 20
+#define STRIP_FREE_ROW 21   // reserve + a radar top's 1-row slide (the ink ends inside the reserve)
 #else
 #define STRIP_RESERVE 13
+#define STRIP_FREE_ROW 15   // the first row the strip's descender tails do not reach (= reserve + slide)
 #endif
 
 // Property invariants for every clockless shape, both platforms — no golden numbers:
@@ -1830,8 +1833,12 @@ static void clockless_property_tests(void) {
         expect("sfl.strip_collapsed", Ls.top_status.size.h == 0, true);
         ViewSpec sb = view_spec_unpack(pack_custom(bases[i], 1, 1, 0));
         MainLayout Lb = layout_compute_spec(BOUNDS, &sb, MET(FC_BAND_H, INK));
-        expect("both.strip_reserve_freed",
-               Lb.bottom.size.h == L.bottom.size.h + STRIP_RESERVE, true);
+        // The strip frees its reserve (13 | 20 rows) — plus, on the 144 px watches, the
+        // rows between the reserve and the strip's ink end that a band leading under it
+        // keeps clear (a status row or the graph starts on row 15; a radar top slid onto
+        // the ink owes its clearance from its real end): at most STRIP_FREE_ROW.
+        int freed = Lb.bottom.size.h - L.bottom.size.h;
+        expect("both.strip_reserve_freed", freed >= STRIP_RESERVE && freed <= STRIP_FREE_ROW, true);
         expect("both.body_grows_past_stripless", Lb.bottom.size.h > Ls.bottom.size.h, true);
     }
     printf("clockless_properties OK\n");
