@@ -849,11 +849,17 @@ var ALERT_LEVELS = {
 // load-bearing since the rows moved off the Radar tab: that tab is env-hidden on
 // aplite, the Status slots tab is not.
 var RAIN_ALERT_WHEN = {all: [{key: 'radarMode', ne: 'off'}, {env: 'platform', ne: 'aplite'}]};
+// "Some status slot holds the Alerts item" — one leaf per configurable slot, from the
+// catalog, so a slot added to a bar is covered without touching this list.
+var ALERTS_SLOT_WHEN = STATUS_LINE_CATALOG.allSlotKeys().map(function (slotKey) {
+    return {key: slotKey, eq: 'alerts'};
+});
 // The Alerts card's two rows for one metric alert kind. The toggle puts the kind's
 // icon into the watch's Alerts row whenever today reaches its warn level (the phone
-// bakes the row — Phase 3; until then the switch only stores); its pencil opens the
-// levels-only sheet (alertSheet) on the SAME levels the slot's pencil sheet edits,
-// and its hint prints those levels live (blocks.js alertLevelsHint). The Look row
+// bakes the entry into the alerts slot's own bytes, status-thresholds.js
+// bakeAlerts); its pencil opens the levels-only sheet (alertSheet) on the SAME
+// levels the slot's pencil sheet edits, and its hint prints those levels live
+// (blocks.js alertLevelsHint). The Look row
 // follows only while that alert is on — it has nothing to shape otherwise.
 /**
  * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>, alert<Stem>Display).
@@ -1991,14 +1997,23 @@ module.exports = {
             // intro never counts as empty (engine buildSectionBody) — without it the
             // sub-header and intro would outlive their rows on aplite, which has
             // neither the rain radar nor the threshold machinery.
-            // TODO(Phase 3): the "Alerts row is not in any status bar yet" placement
-            // note goes here, once the 'alerts' slot item exists.
             groupCard: 'watchStatus',
             title: 'Alerts',
             showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
             intro: 'One icon per active alert in the Alerts row, highlighted like a status slot: an outline at warn, filled at danger, in that value\'s colors. Rain shows in the radar\'s rain color.',
             items: [{
-                // Moved here from the Radar tab; key, default, gate and hint unchanged.
+                // The placement nudge: the row draws only where a status slot holds the
+                // 'alerts' item. Fresh installs and still-default upgrades have it
+                // top-left (the catalog default + migrateAlertsTopLeft); everyone who
+                // had filled that slot deliberately is left alone and lands here. The
+                // hydrate resolves unset slot keys to their defaults, so the test
+                // reads the slots the watch actually shows. THRESHOLD_WHEN: the item
+                // is notAplite, so aplite can never place it — no nudge there.
+                type: 'staticText',
+                text: 'The Alerts row is not in any status bar yet — pick Alerts in a slot below.',
+                showWhen: {all: [THRESHOLD_WHEN, {not: {any: ALERTS_SLOT_WHEN}}]}
+            }, {
+                // Moved here from the Radar tab; key, default and gate unchanged.
                 // Its Off option is back (132b577a had dropped it when radarMode took
                 // over the radar's on/off): the rain alert's on/off IS this select —
                 // there is no separate toggle. Downstream already takes a 0: the payload
@@ -2012,14 +2027,15 @@ module.exports = {
                 label: 'Rain countdown',
                 icon: 'rain',
                 defaultValue: '60',
-                hint: 'Show a rain countdown in the Watch Status Bar when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
+                hint: 'Show a rain countdown in the Alerts row when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
                 options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
                 optionDisabledWhen: {'0': {key: 'radarMode', eq: 'countdown'}},
                 showWhen: RAIN_ALERT_WHEN
             }, {
                 // How the rain alert draws. 'text' is today's "Rain in 12′", so an
-                // untouched upgrade looks the same. Stored only for now: it rides the
-                // Clay message to the watch in Phase 3.
+                // untouched upgrade looks the same. The watch resolves the rain entry
+                // itself, so this rides the Clay message (thresholds blob byte 34),
+                // not the phone's bake.
                 type: 'segmented',
                 messageKey: 'rainAlertDisplay',
                 label: 'Rain alert look',
@@ -2056,10 +2072,10 @@ module.exports = {
             title: 'Watch Status Bar',
             items: [
                 {
-                    // aplite compiles out rain radar (WW_RAIN_RADAR), so no incoming-rain
-                    // alert can ever replace this bar there — hide the note on aplite.
+                    // aplite compiles the Alerts row out (WW_ALERT_ROW) and cannot place
+                    // the item (notAplite), so the note would describe nothing there.
                     type: 'staticText',
-                    text: 'An incoming-rain alert temporarily replaces the left and middle slot.',
+                    text: 'The Alerts row shows every active alert and grows into the middle slot when it needs the room.',
                     showWhen: {env: 'platform', ne: 'aplite'}
                 }
             ].concat(barSlots('statusTop', null, true), [

@@ -2109,8 +2109,14 @@ test('Status-slots tab (id watch) opens with a general status-bar intro, the Ale
     'the Layout tab ends with Time then Calendar');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
-  const note = wsb.find((i) => i.type === 'staticText' && /incoming-rain alert/.test(i.text || ''));
-  assert.ok(note, 'Watch bar keeps the incoming-rain alert note as a staticText');
+  const note = wsb.find((i) => i.type === 'staticText' && /Alerts row/.test(i.text || ''));
+  assert.ok(note, 'Watch bar keeps its Alerts row note as a staticText');
+  // The rain text takeover is gone (the Alerts row replaced it): the note describes
+  // the row growing into the middle slot, and it stays aplite-hidden (WW_ALERT_ROW).
+  assert.equal(note.text,
+    'The Alerts row shows every active alert and grows into the middle slot when it needs the room.');
+  assert.deepEqual(note.showWhen, { env: 'platform', ne: 'aplite' });
+  assert.ok(!wsb.some((i) => /incoming-rain alert/.test(i.text || '')), 'the takeover note is gone');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const countdownIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRightCountdown');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
@@ -2138,19 +2144,21 @@ test('the Alerts card is watch.sections[1]: a watchStatus sub-section right afte
     assert.equal(showWhen.isVisible(sec, ctx(p)), true, 'shown on ' + p));
 });
 
-test('the Alerts card rows, in order: rain countdown, rain look, radar-off note, then two rows per alert kind', () => {
-  const rows = alertsSection().items;
+test('the Alerts card rows, in order: placement note, rain countdown, rain look, radar-off note, then two rows per alert kind', () => {
+  const rows = alertsSection().items.slice(1);   // [0] is the placement note (own test below)
+  assert.match(alertsSection().items[0].text, /^The Alerts row is not in any status bar yet/);
   const ids = rows.map((i) => i.messageKey || i.type);
   assert.deepEqual(ids, ['rainCountdownHorizon', 'rainAlertDisplay', 'staticText',
     'alertUv', 'alertUvDisplay', 'alertWind', 'alertWindDisplay', 'alertGust', 'alertGustDisplay',
     'alertAqi', 'alertAqiDisplay', 'alertPollen', 'alertPollenDisplay']);
-  // The rain countdown moved here — its label, default, hint and gate unchanged, plus
-  // the rain icon (the options/Off rule are pinned by the rainCountdownHorizon test).
+  // The rain countdown moved here — its label, default and gate unchanged, plus the
+  // rain icon (the options/Off rule are pinned by the rainCountdownHorizon test); its
+  // hint now names the Alerts row, where the countdown draws since the takeover went.
   const rain = rows[0];
   assert.equal(rain.type, 'select');
   assert.equal(rain.label, 'Rain countdown');
   assert.equal(rain.icon, 'rain');
-  assert.match(rain.hint, /^Show a rain countdown in the Watch Status Bar/);
+  assert.match(rain.hint, /^Show a rain countdown in the Alerts row/);
   assert.deepEqual(rain.showWhen, RAIN_WHEN);
   assert.deepEqual(rows[1], {
     type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Rain alert look', defaultValue: 'text',
@@ -2182,6 +2190,30 @@ test('the Alerts card rows, in order: rain countdown, rain look, radar-off note,
     }, stem + ' Look');
   });
   assert.ok(!ids.some((id) => /Steps|Sleep|Distance/.test(id)), 'the goal kinds get no alert rows');
+});
+
+test('the Alerts card placement note shows only while no status slot holds the Alerts item', () => {
+  const note = alertsSection().items[0];
+  const slotKeys = require('../src/pkjs/status-line-catalog.js').allSlotKeys();
+  assert.equal(slotKeys.length, 12);
+  assert.deepEqual(note, {
+    type: 'staticText',
+    text: 'The Alerts row is not in any status bar yet — pick Alerts in a slot below.',
+    showWhen: { all: [THRESHOLD_WHEN, { not: { any: slotKeys.map((key) => ({ key, eq: 'alerts' })) } }] }
+  });
+  const env = (p) => platform.computeEnv({ platform: p });
+  const none = {};
+  slotKeys.forEach((key) => { none[key] = 'empty'; });
+  assert.equal(showWhen.isVisible(note, Object.assign({ env: env('basalt') }, none)), true,
+    'no slot holds it: the nudge shows');
+  // Any one of the twelve slots placing the item hides the note — edge, mid, any bar.
+  slotKeys.forEach((key) => {
+    const ctx = Object.assign({ env: env('basalt') }, none, { [key]: 'alerts' });
+    assert.equal(showWhen.isVisible(note, ctx), false, key + ' holds Alerts: note hidden');
+  });
+  // aplite cannot place the item (notAplite), so it never nudges there.
+  assert.equal(showWhen.isVisible(note, Object.assign({ env: env('aplite') }, none)), false,
+    'no nudge on aplite');
 });
 
 test('rainCountdownHorizon lives only on the Alerts card — gone from the Radar tab', () => {

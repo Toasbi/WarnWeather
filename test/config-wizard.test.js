@@ -122,7 +122,8 @@ test('flickStops: layout-only cycle -> Default + Radar; radar copy is provider-a
   assert.equal(stops[1].label, 'Radar');
   assert.equal(stops[1].shotGroup, 'radar');
   assert.match(stops[1].caption, /short-term rain forecast/);
-  assert.match(stops[1].caption, /Watch Status Bar/);
+  assert.match(stops[1].caption, /Alerts row in the Watch Status Bar/); // the row's default home
+  assert.match(stops[1].caption, /Rain in 15’/); // the rain alert's default 'text' look
   assert.doesNotMatch(stops[1].caption, /DWD|nearby/); // no provider named, kept general
 });
 

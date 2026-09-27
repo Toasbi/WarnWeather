@@ -45,11 +45,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     // Per-stop demo copy. The Default and radar captions are fixed (the radar copy stays
-    // provider-agnostic — no provider named); the health-status and health-graph captions
-    // vary with heart-rate availability (emery + diorite hardware) and are built from the shared
+    // provider-agnostic — no provider named; its "Rain in 15’" is the rain alert's default
+    // 'text' look, and the Alerts row sits in the Watch Status Bar by default); the
+    // health-status and health-graph captions vary with heart-rate availability (emery + diorite hardware) and are built from the shared
     // item helpers below, so the health step and the flick demo can never drift.
     var FLICK_CAPTION_DEFAULT = 'your calendar, the Forecast Status Bar, and the forecast.';
-    var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the Watch Status Bar counts it down (“Rain in 15’”).';
+    var FLICK_CAPTION_RADAR = 'a precise short-term rain forecast for the next 2 hours, in 5-minute frames. When rain’s on the way, the Alerts row in the Watch Status Bar counts it down (“Rain in 15’”).';
 
     /**
      * Health status-line contents, with the heart-rate clause only where the hardware has a
