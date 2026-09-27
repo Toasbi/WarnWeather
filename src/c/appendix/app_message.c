@@ -667,9 +667,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 
     // The rain-countdown rescan comes FIRST, before anything paints: the countdown is
-    // pure data that top_status_layer_refresh() -> recompute_rain_alert() reads, and the
-    // status rows are signature-gated (an unchanged signature repaints nothing), so a
-    // strip refreshed ahead of the rescan would keep showing the old "Rain in X'" until
+    // pure data that every Alerts row's refresh reads (status_row.c resolve_alerts), and
+    // the status rows are signature-gated (an unchanged signature repaints nothing), so
+    // a row refreshed ahead of the rescan would keep showing the old rain entry until
     // the next minute tick. The radar payload (or the snooze latch/release) is the
     // countdown's only data-change source, hence the radar_dirty gate.
     // aplite drops the rain-countdown alert (24 KB budget), so it skips the rescan and
@@ -723,15 +723,21 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #if defined(WW_RAIN_RADAR)
         rain_radar_layer_refresh();
 #endif
-        // The strip carries the rain-countdown alert, so it repaints for the rescan
-        // above — unless an earlier block already refreshed it AFTER that rescan and
-        // therefore already carries the fresh countdown. Both do: the config block's
-        // whole-window refresh, and the status block's own strip refresh. Nothing the
-        // strip reads is produced in between (rain_radar_layer_refresh() above is only
-        // a layer_mark_dirty), so a second pass would re-run the battery override, the
-        // alert recompute and a full three-slot persist read for an identical picture.
+        // Any row holding an Alerts slot carries the rain entry, which it derives from
+        // the countdown rescanned above — the strip (top-left by default) and any band
+        // row the user placed the Alerts slot in. They refresh for the rescan here —
+        // unless an earlier block already refreshed them AFTER that rescan and they
+        // therefore already carry the fresh countdown. Both do: the config block's
+        // whole-window refresh, and the status block's refresh of every bar plus the
+        // strip. Nothing a row reads is produced in between
+        // (rain_radar_layer_refresh() above is only a layer_mark_dirty), so a second
+        // pass would re-run the battery override and a full three-slot persist read
+        // per row for an identical picture.
         if (!config_dirty && !status_dirty) {
             top_status_layer_refresh();
+#if defined(WW_ALERT_ROW)
+            main_window_tick_alerts();
+#endif
         }
 #if defined(WW_RAIN_RADAR)
         // Radar availability may have switched — re-evaluate the top view so a cleared

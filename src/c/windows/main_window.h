@@ -23,6 +23,14 @@ void main_window_apply_theme(void);
 // actually uses. Constant-false on aplite (radar is compiled out).
 bool main_window_radar_has_data(void);
 
+#if defined(WW_ALERT_ROW)
+// Re-resolve the band rows that hold an Alerts slot, against the view on screen
+// (status_bar_tick_alerts). The window owns the current ViewSpec, so this is how
+// app_message.c's radar rescan reaches those rows without re-deriving the view.
+// The top strip is refreshed by its own owner (top_status_layer_tick/_refresh).
+void main_window_tick_alerts(void);
+#endif
+
 #if defined(PBL_HEALTH)
 // Re-derive the health graph from the cache + repaint. Call after a settings save
 // that can change the graph's compute (e.g. the HR scale or the label font) so it

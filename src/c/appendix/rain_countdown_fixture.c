@@ -9,8 +9,11 @@
 // persisted radar trend vs the wall clock — fragile to reproduce in a static, compile-
 // time fixture (the upcoming-rain "in X" branch is gated on the look-ahead horizon and
 // the radar/now anchor) — this returns the fixture's exact, pre-formatted string so a
-// captured frame shows a deterministic "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'"
-// strip. Feature-frozen mirror of rain_countdown.h; hand-port interface changes.
+// captured frame shows a deterministic rain entry in every Alerts row (status_row.c):
+// the tier picks the drops and their colour, and the text is what the 'text' rain look
+// prints — "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" — and what the 'minutes'
+// look takes its minute token from. Feature-frozen mirror of rain_countdown.h;
+// hand-port interface changes.
 
 void rain_countdown_refresh(time_t now) {
     (void) now;   // the string is fixed at compile time — nothing to rescan

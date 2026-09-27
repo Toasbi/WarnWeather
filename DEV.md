@@ -351,13 +351,15 @@ captured with the rest but left out of the GIF and the reel intro (the Light-the
 scenes 10-12, for the store); a fixture-backed scene's `clay` layers on its fixture's
 settings (their `theme: 'light'`).
 
-Health readings and the rain-countdown strip are read live on the watch and don't
+Health readings and the Alerts row's rain entry are read live on the watch and don't
 reproduce in a static compile-time fixture, so screenshot builds swap in two canned twins
 (wired in `wscript`, never shipped in a normal build):
 
 - `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
-- a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the exact
-  "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" strip.
+- a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — a rain entry in
+  every Alerts row: its `tier` picks the drops and their colour, and its `text` is the exact
+  "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" the 'text' rain look prints (the
+  'minutes' look shows its minute token, `15'` / `+20'`).
 
 Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`,
 and only some scenes via `SCENE_IDS` (the other frames stay as they are):

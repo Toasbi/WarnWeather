@@ -34,6 +34,16 @@ test('aplite top-status resolves snooze but draws it as cheap text', function() 
   assert.doesNotMatch(APLITE, /ICON_SLOT_3/);
 });
 
-test('color rain-alert collision uses the resolved indicator count', function() {
-  assert.match(BASE, /icons_right[\s\S]*indicators\.count/);
+// The strip's rain text takeover is gone: the rain alert is an Alerts-row entry
+// (status_row.c), so the strip has one paint path, never hides its indicators for an
+// alert, and no longer resolves the countdown itself.
+test('the strip draws its indicators unconditionally and has no rain takeover', function() {
+  assert.doesNotMatch(BASE, /rain_countdown_format|rain_countdown_peak_tier/);
+  assert.doesNotMatch(BASE, /status_row_set_suppress_edges|status_row_right_slot_width/);
+  assert.doesNotMatch(BASE, /draw_indicators|s_rain_alert|rain_glyph/);
+  var proc = BASE.slice(BASE.indexOf('static void top_status_update_proc'),
+    BASE.indexOf('void top_status_layer_create'));
+  assert.equal(proc.split('status_row_draw(').length - 1, 1, 'one row paint');
+  // The countdown's segment cache is still primed at create, for every Alerts row.
+  assert.match(BASE, /rain_countdown_refresh\(watch_services_now\(\)\)/);
 });

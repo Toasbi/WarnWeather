@@ -220,6 +220,21 @@ void status_bar_refresh_live_health(const ViewSpec *spec) {
     }
 }
 
+#if defined(WW_ALERT_ROW)
+void status_bar_tick_alerts(const ViewSpec *spec) {
+    for (int i = 0; i < STATUS_BAR_COUNT; i++) {
+        StatusBar *b = &s_bars[i];
+        if (!b->row) { continue; }
+        // refresh_row repaints only on a signature change, so a quiet minute (no
+        // rain, or an icon-only rain look) costs the refresh and nothing else.
+        if (status_row_uses_alerts(b->row)
+                && layout_status_visible(spec, bar_source((StatusBarId) i))) {
+            refresh_row((StatusBarId) i);
+        }
+    }
+}
+#endif
+
 void status_bar_destroy_all(void) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];

@@ -1,9 +1,14 @@
 // Lean aplite (Pebble Classic/Steel) twin of status_row.c.
 //
-// Frozen fork of status_row.c as of 5707b35. FEATURE-FROZEN, NOT CODE-FROZEN:
+// Frozen fork of status_row.c as of b81feca. FEATURE-FROZEN, NOT CODE-FROZEN:
 // preserve aplite's text/date/sun/battery behavior and hand-port bug
 // fixes, but do not add the evolving PDC glyph, health, week, theme-polarity,
-// or rain-alert pipeline. See docs/adr/0001-aplite-frozen-lean-fork.md.
+// or Alerts-row pipeline (status_row_uses_alerts is declared only under
+// WW_ALERT_ROW, which aplite never defines, so this twin does not answer it).
+// Reconciled at b81feca with the base's Alerts-row interface change: the strip's
+// rain takeover hooks (status_row_set_suppress_edges /
+// status_row_right_slot_width) left status_row.h, and their no-op stubs left here.
+// See docs/adr/0001-aplite-frozen-lean-fork.md.
 
 #include "status_row.h"
 #include "layer_util.h"
@@ -194,16 +199,6 @@ void status_row_set_battery_override(StatusRow *row, bool active) {
         row->battery_override = active;
         row->content_sig = 0;
     }
-}
-
-void status_row_set_suppress_edges(StatusRow *row, bool suppress) {
-    (void)row;
-    (void)suppress;
-}
-
-int16_t status_row_right_slot_width(StatusRow *row) {
-    (void)row;
-    return 0;
 }
 
 bool status_row_uses_live_health(const StatusRow *row) {

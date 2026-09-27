@@ -4,8 +4,9 @@
 // all) missed the missing-accessor bug that collapse fixes.
 //
 // Built TWICE by scripts/test-c.sh:
-//   - evolving:  -DPBL_HEALTH -DWW_RAIN_RADAR   => STATUS_BAR_COUNT == 3
-//   - aplite:    neither                        => STATUS_BAR_COUNT == 1
+//   - evolving:  -DPBL_HEALTH -DWW_RAIN_RADAR -DWW_ALERT_ROW => STATUS_BAR_COUNT == 3,
+//                plus the Alerts-row tick (status_bar_tick_alerts)
+//   - aplite:    none of the three               => STATUS_BAR_COUNT == 1, no tick
 // The second build is what pins the compact-enum contract: it is the only place a
 // stray unguarded STATUS_BAR_RADAR / STATUS_BAR_HEALTH becomes a compile error,
 // because the shared CFLAGS force -DPBL_HEALTH for every other host test.
@@ -172,6 +173,14 @@ void status_row_set_full_date(StatusRow *row, bool full_date) {
 bool status_row_uses_live_health(const StatusRow *row) {
     return row && s_live_health[row->line_id];
 }
+
+#if defined(WW_ALERT_ROW)
+static bool s_uses_alerts[STATUS_LINE_COUNT];
+
+bool status_row_uses_alerts(const StatusRow *row) {
+    return row && s_uses_alerts[row->line_id];
+}
+#endif
 
 // --- helpers -----------------------------------------------------------------
 
@@ -362,6 +371,52 @@ static void live_health_gate(void) {
     expect_int("destroy.live_health_false", status_bar_any_visible_uses_live_health(&spec), 0);
 }
 
+#if defined(WW_ALERT_ROW)
+// The minute tick (and a radar rescan) must reach an Alerts row in ANY visible bar —
+// its rain entry is re-derived only by a refresh — and nothing else: a bar without
+// an Alerts slot, or a hidden one, spends no persist reads.
+static void tick_alerts_refreshes_visible_alert_rows(void) {
+    Layer parent = {0};
+    s_refresh_changed = true;
+    memset(s_uses_alerts, 0, sizeof(s_uses_alerts));
+    memset(s_live_health, 0, sizeof(s_live_health));
+
+    ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
+    status_bar_create_all(&parent, &spec, &L);
+    const int fc = STATUS_LINE_FORECAST;
+
+    reset_records();
+    status_bar_tick_alerts(&spec);
+    expect_int("alerts.no_slot_no_refresh", s_refresh_count[fc], 0);
+
+    s_uses_alerts[fc] = true;
+    reset_records();
+    status_bar_tick_alerts(&spec);
+    expect_int("alerts.visible_refreshed", s_refresh_count[fc], 1);
+    expect_int("alerts.visible_dirtied", s_dirty_count[fc], 1);
+
+    // An unchanged signature refreshes but does not repaint.
+    s_refresh_changed = false;
+    reset_records();
+    status_bar_tick_alerts(&spec);
+    expect_int("alerts.quiet_minute_refreshed", s_refresh_count[fc], 1);
+    expect_int("alerts.quiet_minute_no_dirty", s_dirty_count[fc], 0);
+    s_refresh_changed = true;
+
+    ViewSpec hidden = spec_of(2, STATUS_SRC_NONE, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    reset_records();
+    status_bar_tick_alerts(&hidden);
+    expect_int("alerts.hidden_not_refreshed", s_refresh_count[fc], 0);
+
+    // Independent of the live-health gate in both directions.
+    expect_int("alerts.not_live_health", status_bar_any_visible_uses_live_health(&spec), 0);
+
+    status_bar_destroy_all();
+    memset(s_uses_alerts, 0, sizeof(s_uses_alerts));
+}
+#endif
+
 #if defined(WW_RAIN_RADAR)
 // The radar bar is the one that had no test before — and the one carrying the bug.
 static void radar_bar_is_a_first_class_bar(void) {
@@ -498,6 +553,9 @@ int main(void) {
     apply_view_assigns_bands_and_visibility();
     tier_and_full_date_are_change_gated();
     live_health_gate();
+#if defined(WW_ALERT_ROW)
+    tick_alerts_refreshes_visible_alert_rows();
+#endif
 #if defined(WW_RAIN_RADAR)
     radar_bar_is_a_first_class_bar();
 #endif

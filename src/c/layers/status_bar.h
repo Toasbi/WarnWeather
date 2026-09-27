@@ -19,8 +19,8 @@
 // unrepresentable.
 //
 // THE TOP STRIP IS DELIBERATELY NOT HERE. top_status_layer.c owns two service
-// subscriptions, three lazily-loaded indicator bitmaps, a scaled PDC rain glyph
-// cache and the rain-alert state machine; it carves its own content rect around
+// subscriptions, three lazily-loaded indicator bitmaps and the low-battery
+// override; it carves its own content rect around
 // the indicator slots instead of taking the band's full bounds, has no render
 // tier, no band assignment and no visibility toggle, ticks on the minute, and has
 // a full aplite lean twin. The abstraction those four rows genuinely share is
@@ -91,3 +91,14 @@ bool status_bar_any_visible_uses_live_health(const ViewSpec *spec);
 // view first (main_window's health_warm_for_incoming_view), so that unhide
 // paints fresh values, not the gate-skipped statics.
 void status_bar_refresh_live_health(const ViewSpec *spec);
+
+#if defined(WW_ALERT_ROW)
+// Re-resolve the VISIBLE bars whose line holds an Alerts slot
+// (status_row_uses_alerts) — the rain entry in it is derived from the radar cache
+// on every refresh, and only a refresh notices that the countdown moved on. Called
+// on the minute tick (beside top_status_layer_tick) and after a radar rescan
+// (app_message's radar_dirty block), so an Alerts row in a band row keeps pace with
+// the one in the strip. Hidden bars are skipped for the live-health reason above:
+// the refresh_all that unhides one re-resolves it. Absent on aplite (no Alerts row).
+void status_bar_tick_alerts(const ViewSpec *spec);
+#endif

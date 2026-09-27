@@ -21,12 +21,12 @@ bool status_row_uses_live_health(const StatusRow *row);
 // of its packed content — the top strip's low-battery takeover. Independent of a
 // slot whose packed kind is already SLOT_LIVE_BATTERY (that draws battery anyway).
 void status_row_set_battery_override(StatusRow *row, bool active);
-// When true, only the right slot renders (left + mid treated as absent, right
-// stays right-aligned). The top strip sets this during a rain alert so the alert
-// takeover keeps the right slot (battery) visible instead of hiding the row.
-void status_row_set_suppress_edges(StatusRow *row, bool suppress);
-// Pixel width the right slot occupies for the current blob + state (icon + gap +
-// text), or 0 when empty. Lets the top strip reserve exactly the right slot's
-// width when bounding a rain-alert takeover to its left.
-int16_t status_row_right_slot_width(StatusRow *row);
+#if defined(WW_ALERT_ROW)
+// True when this row's packed line holds an Alerts slot (SLOT_ALERTS). Its rain
+// entry is re-derived from the radar cache on every refresh, so the owner of a row
+// that answers true refreshes it on the minute tick and after a radar rescan
+// (status_bar_tick_alerts; the top strip's own tick). Declared only where the row
+// exists: aplite has no Alerts row, so its lean twin need not answer it.
+bool status_row_uses_alerts(const StatusRow *row);
+#endif
 void status_row_draw(StatusRow *row, GContext *ctx);
