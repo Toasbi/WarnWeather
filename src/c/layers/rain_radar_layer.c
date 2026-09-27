@@ -12,6 +12,7 @@
 #include "c/appendix/theme.h"
 #include "c/appendix/chart_stripe.h"
 #include "c/appendix/radar_sky.h"
+#include "c/appendix/radar_limit.h"
 #include "c/layers/status_metrics.h"
 
 // Layout constants. The axis area sits above the bar plot. Hour labels
@@ -427,12 +428,20 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     // Empty-state text: a RECEIVED radar window (start > 0 — never the blank
     // fresh-install state) whose slots are all dry would otherwise render as a bare
     // axis over nothing. Say so instead, centred in the plot under the axis. The
-    // wording deliberately claims only what ~90 minutes of radar can know.
+    // wording deliberately claims only what ~90 minutes of radar can know. While
+    // the radar source refuses us over a request limit (radar_limit.h) the line
+    // says that instead: the window it keeps is unverified, so "no rain" would be
+    // made up. Where the kept window still shows rain, the bars win and no line
+    // is drawn. A limit hit with no window ever received (start 0: a fresh
+    // install, or right after a clear) still shows the notice, over the zeroed
+    // slots under an axis without hour digits (radar_axis_slot_mark): the view
+    // resolves the radar in for it (radar_has_view, main_window_radar_has_data).
+    const bool limited = persist_get_radar_limited();
     bool any_rain = false;
     for (int i = 0; i < RADAR_NUM_SLOTS; i++) {
         if (exact_tenths[i] > 0 || area_tenths[i] > 0) { any_rain = true; break; }
     }
-    if (!any_rain && radar_start > 0) {
+    if (!any_rain && radar_has_view(radar_start > 0, limited)) {
 #ifdef PBL_PLATFORM_EMERY
         // emery: the taller plot swallows 18px text — step up a font tier.
         GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_24);
@@ -455,13 +464,13 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
             text_h = 14;
 #endif
         }
-        // A configured text (CLAY_NORAIN_TEXT, Radar settings) replaces the
-        // built-in line; an empty one (the user cleared the message) draws no
-        // line at all; a slot never set (-1) keeps the built-in default.
+        // The limit notice beats any no-rain text. Otherwise a configured text
+        // (CLAY_NORAIN_TEXT, Radar settings) replaces the built-in line; an empty
+        // one (the user cleared the message) draws no line at all; a slot never
+        // set (-1) keeps the built-in default (radar_empty_text).
         char custom[NORAIN_TEXT_BUF_BYTES];
         const int custom_len = persist_get_norain_text(custom, sizeof(custom));
-        const char *text = (custom_len > 0) ? custom
-                         : (custom_len < 0) ? "You're good :)" : NULL;
+        const char *text = radar_empty_text(limited, custom_len, custom);
         if (text) {
             // A custom text can run to 24 UTF-8 bytes — wider than a 144 px plot at
             // this font — so the box grows to TWO lines when the plot affords them
@@ -534,11 +543,14 @@ bool rain_radar_layer_tick(time_t now) {
     // between grid boundaries no fetch was due — so we hold. The watch stands in
     // for a fetch PKJS *skipped* (deduped): a skip means PKJS validated the
     // freshly-revealed tail slots are dry, so zero-padding them is correct.
-    // CAVEAT: a TRANSIENT radar failure (PKJS radar callback null — 429, 5xx,
-    // no mobile data) also leaves the radar keys out, and we cannot tell it
-    // from a skip, so the padded tail is unverified until the next real window.
+    // CAVEAT: a TRANSIENT radar failure (PKJS radar callback null — 5xx, no
+    // mobile data) also leaves the radar keys out, and we cannot tell it from a
+    // skip, so the padded tail is unverified until the next real window.
     // Permanent failures (no key/endpoint, rejected key) don't reach here: PKJS
-    // sends the empty-array clear instead, whose start 0 returns early above.
+    // sends the empty-array clear instead, whose start 0 returns early above. A
+    // request limit (429) does: PKJS sends the limit notice, which keeps this
+    // window rolling, and the empty state then says "Radar limit reached"
+    // rather than claiming no rain (radar_update_proc).
     const time_t grid = (now / interval_sec) * interval_sec;
     if (start >= grid) {
         return false;  // current grid fetch already applied; no boundary to cover

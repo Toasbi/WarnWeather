@@ -17,6 +17,13 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
+  // The runtime's radar-source resolver (Rainbow + "Use your own key" -> 'rainbowkey'),
+  // which rainbow-budget.js reads as PConf.radarSourceId at load.
+  path.join(ROOT, 'src/pkjs/weather/radar-source-id.js'),
+  // rainbow-budget.js reads PConf.tomorrowioBudget (ladder + night-pause rule) at load, and
+  // interval-budget.js reads both; blocks.js reads all three at load — keep this order.
+  path.join(ROOT, 'src/pkjs/settings/rainbow-budget.js'),
+  path.join(ROOT, 'src/pkjs/settings/interval-budget.js'),
   // The graph-colour resolver the forecast preview draws from, plus its two deps.
   // ORDER IS LOAD-BEARING and stricter than the globals above: each of these reads the
   // previous one's window global while its OWN top-level body runs (resolve-ink needs
@@ -63,10 +70,11 @@ var APP_FILES = [
   // at load) and beside the wizard, whose overlay pattern it shares.
   path.join(ROOT, 'src/pkjs/settings/view-editor.js'),
   path.join(ROOT, 'src/pkjs/settings/onbuild.js'),
-  // key-test.js must precede its two consumers (window.KeyTest factory).
+  // key-test.js must precede its three consumers (window.KeyTest factory).
   path.join(ROOT, 'src/pkjs/settings/key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/owm-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-key-test.js'),
+  path.join(ROOT, 'src/pkjs/settings/rainbow-key-test.js'),
   path.join(ROOT, 'src/pkjs/settings/news-protocol.js'),
   path.join(ROOT, 'src/pkjs/settings/news.js'),
   // support.js must FOLLOW news.js: it appends its header button into the

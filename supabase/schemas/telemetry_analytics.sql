@@ -239,7 +239,8 @@ begin
   from public.telemetry_weather_fetch
   where not success;
 
-  -- 4. Prune (raw first-rolled-up days, aged errors, dead rainbow rows).
+  -- 4. Prune (raw first-rolled-up days, aged errors). The Rainbow proxy's rows
+  --    are rainbow_prune's (rainbow.sql), an hourly job of their own.
   if p_prune then
     -- Prune whole UTC days only (day-aligned, matching the rollup's day bucketing).
     -- A rolling-timestamp cutoff (received_at < now() - Nd) would leave the day that
@@ -250,10 +251,6 @@ begin
             < (now() at time zone 'UTC')::date - p_raw_retention_days;
     delete from public.telemetry_errors
       where received_at < now() - make_interval(days => p_error_retention_days);
-    delete from public.rainbow_nowcast_cache where expires_at < now();
-    -- IPv6 keys contain colons; the hour suffix is the last 13 chars ("YYYY-MM-DDTHH").
-    delete from public.rainbow_ip_usage
-      where right(ip_hour, 13) < to_char(now() - interval '2 days', 'YYYY-MM-DD"T"HH24');
   end if;
 end;
 $$;

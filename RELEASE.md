@@ -9,6 +9,10 @@ Flow:
 3. Merge the release PR.
 4. The workflow creates a GitHub release and uploads `build/warnweather.pbw`.
 
+**Supabase goes out before the app.** Any `supabase/` change a release depends on must be merged
+and deployed (the *Deploy Supabase* run on `main` green) before the `.pbw` is uploaded — by
+merging the release PR or to the appstore — since the app POSTs to the rainbow-nowcast proxy.
+
 ## Release notification requirements
 
 ### Boot toast — feature releases only

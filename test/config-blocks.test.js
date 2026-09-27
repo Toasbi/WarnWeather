@@ -955,6 +955,20 @@ test('radarPreview (rainbow) still renders exact bars and the countdown band', (
   assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown band applies to rainbow too');
 });
 
+// Regression pin, not coverage: preview-radar.js branches on radarProvider === 'dwd' alone
+// (nearby hatching is DWD-only), so Rainbow with "Use your own key" on previews exactly like
+// the shared Rainbow radar.
+test('radarPreview (Rainbow on your own key) renders the same preview as shared Rainbow', () => {
+  [{ color: true }, { color: false }].forEach((env) => {
+    ['0', '60'].forEach((horizon) => {
+      const state = { radarProvider: 'rainbow', radarColor: 'multicolor', radarMode: 'graph', rainCountdownHorizon: horizon };
+      const shared = RD.radarPreview(Object.assign({ rainbowOwnKey: false }, state), env);
+      const ownKey = RD.radarPreview(Object.assign({ rainbowOwnKey: true }, state), env);
+      assert.equal(ownKey, shared, 'color=' + env.color + ' horizon=' + horizon);
+    });
+  });
+});
+
 test('forecastPreview: light theme flips the canvas background to white', () => {
   const state = { dayNightShading: true, barSource: 'rain', rainBarColor: 'multicolor', secondaryLine: 'off', theme: 'light' };
   const svg = FC.forecastPreview(state, { color: true });
@@ -1116,9 +1130,18 @@ test('tomorrowioBudget block: empty without a tomorrow.io selection; states limi
   assert.match(ok, /408/);
   assert.match(ok, /✓/);
 
-  const over = block(budgetState({ sleepNightEnabled: false }), {});  // 576
+  // Fit off: the stored 5 min stands, and the block warns.
+  const over = block(budgetState({ sleepNightEnabled: false, tomorrowioFitBudget: false }), {});  // 576
   assert.match(over, /576/);
   assert.match(over, /✗/);
+});
+
+test('tomorrowioBudget block reads the interval Save stores: Fit on replaces 5 min with 15', () => {
+  const block = global.PConf.blocks.get('tomorrowioBudget');
+  // Fit on, no pause: 5 min (576/day) drops out of the list, and Save stores 15.
+  const fitted = block(budgetState({ sleepNightEnabled: false }), {});   // 96 * 2 = 192
+  assert.ok(fitted.indexOf('every 15 min, no night pause, incl. radar → <b>~192 calls/day ✓</b>') !== -1, fitted);
+  assert.doesNotMatch(fitted, /✗ over budget/);
 });
 
 test('tomorrowioBudget block never claims radar is off when radar runs on another provider', () => {
@@ -1163,6 +1186,111 @@ test('fetchIntervalBudget resolver: filters when guard on, passes through when o
     ['5', '10', '15', '30', '60']);
   assert.deepEqual(resolver(budgetState({ provider: 'dwd', radarProvider: 'disabled', sleepNightEnabled: false }), {}, {}).map((o) => o[1]),
     ['5', '10', '15', '30', '60']);
+});
+
+// Rainbow with "Use your own key" on: radar on the user's key, weather elsewhere, no night pause.
+function rainbowState(over) {
+  return Object.assign({
+    provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph', fetchIntervalMin: '15',
+    sleepNightEnabled: false, sleepStartHour: '22', sleepEndHour: '7',
+    tomorrowioFitBudget: true, rainbowFitBudget: true
+  }, over || {});
+}
+
+test('rainbowBudget block: empty unless Rainbow on the user\'s own key drives a running radar', () => {
+  const block = global.PConf.blocks.get('rainbowBudget');
+  assert.equal(typeof block, 'function', 'the block is registered');
+  assert.equal(block(rainbowState({ rainbowOwnKey: false }), {}), '', 'shared Rainbow bills nothing to the user');
+  assert.equal(block(rainbowState({ radarProvider: 'dwd' }), {}), '', 'another radar source, the switch left on');
+  assert.equal(block(rainbowState({ radarMode: 'off' }), {}), '', 'radar off: no Rainbow call is made');
+  assert.equal(B.rainbowBudgetBlock, block, 'the exported renderer is the registered one');
+});
+
+test('rainbowBudget block states the monthly plan, the projected month and the verdict', () => {
+  const block = global.PConf.blocks.get('rainbowBudget');
+  const ok = block(rainbowState(), {});          // 24 h * 4 * 31 = 2976
+  assert.ok(ok.indexOf('Free plan: 5,000 calls/month') !== -1, ok);
+  assert.ok(ok.indexOf('~2,976 calls/month ✓') !== -1, ok);
+  assert.ok(ok.indexOf('no night pause') !== -1, ok);
+  assert.equal(ok,
+    '<b>Free plan: 5,000 calls/month.</b> Your settings: every 15 min, no night pause → '
+    + '<b>~2,976 calls/month ✓</b>.<br>5-minute updates need a night pause of ≥ 11 h — '
+    + 'widen the pause to unlock faster updates.');
+  // The worked copy example: every 15 min with the default 9 h pause.
+  const pausedHtml = block(rainbowState({ sleepNightEnabled: true }), {});
+  assert.ok(pausedHtml.indexOf('every 15 min, night pause 9 h → <b>~1,860 calls/month ✓</b>.') !== -1, pausedHtml);
+
+  // Fit off: the stored 5 min stands, and the block warns.
+  const over = block(rainbowState({ fetchIntervalMin: '5', rainbowFitBudget: false }), {});   // 8928
+  assert.ok(over.indexOf('every 5 min, no night pause → '
+    + '<b style="color:#FF6A52">~8,928 calls/month ✗ over budget</b>') !== -1, over);
+  assert.ok(over.indexOf('5-minute updates need a night pause of ≥ 11 h') !== -1, over);
+});
+
+test('rainbowBudget block writes its numbers with thousands commas, like the hints around it', () => {
+  const block = global.PConf.blocks.get('rainbowBudget');
+  const hourly = block(rainbowState({ fetchIntervalMin: '60' }), {});   // 24 * 31 = 744
+  assert.ok(hourly.indexOf('<b>Free plan: 5,000 calls/month.</b>') !== -1, hourly);
+  assert.ok(hourly.indexOf('<b>~744 calls/month ✓</b>') !== -1, 'no comma below a thousand: ' + hourly);
+  assert.doesNotMatch(hourly, /5000/);
+});
+
+test('rainbowBudget block reads the interval Save stores: Fit on replaces 5 min with 15', () => {
+  const block = global.PConf.blocks.get('rainbowBudget');
+  // The stored 5 min no longer fits (8928/month); with Fit on, Save stores 15, so the
+  // read-out must not warn under a toggle saying only fitting intervals are offered.
+  const fitted = block(rainbowState({ fetchIntervalMin: '5' }), {});
+  assert.ok(fitted.indexOf('every 15 min, no night pause → <b>~2,976 calls/month ✓</b>') !== -1, fitted);
+  assert.doesNotMatch(fitted, /✗ over budget/);
+  assert.ok(fitted.indexOf('5-minute updates need a night pause of ≥ 11 h') !== -1, 'the unlock line stays');
+  // Both guards on (weather on tomorrow.io too): the intersection's fit, 15.
+  const both = block(rainbowState({ provider: 'tomorrowio', fetchIntervalMin: '5' }), {});
+  assert.ok(both.indexOf('every 15 min') !== -1, both);
+  // A fitting stored interval is shown as stored.
+  const ten = block(rainbowState({ fetchIntervalMin: '10' }), {});   // 4464
+  assert.ok(ten.indexOf('every 10 min, no night pause → <b>~4,464 calls/month ✓</b>') !== -1, ten);
+});
+
+test('rainbowBudget block: no unlock line once the pause already unlocks every step', () => {
+  const block = global.PConf.blocks.get('rainbowBudget');
+  const html = block(rainbowState({ fetchIntervalMin: '5', sleepNightEnabled: true, sleepStartHour: '20' }), {});
+  assert.ok(html.indexOf('~4,836 calls/month ✓') !== -1, html);
+  assert.doesNotMatch(html, /need a night pause/);
+});
+
+test('rainbowBudget block: bare content, no radar qualifier and no hourly heads-up', () => {
+  const block = global.PConf.blocks.get('rainbowBudget');
+  [rainbowState(), rainbowState({ fetchIntervalMin: '5' })].forEach((s) => {
+    const html = block(s, {});
+    assert.doesNotMatch(html, /class="static"/, 'no nested .static row inside the .blockrow');
+    assert.doesNotMatch(html, /\/hour/, 'Rainbow has no hourly limit');
+    assert.doesNotMatch(html, /may delay one cycle/, 'no same-hour heads-up');
+    assert.doesNotMatch(html, /with radar|incl\. radar/, 'every Rainbow call is a radar call');
+  });
+});
+
+test('fetchIntervalBudget resolver: the intersection of every active guard', () => {
+  const resolver = global.PConf.optionsResolvers.get('fetchIntervalBudget');
+  const run = (s) => resolver(s, {}, {}).map((o) => o[1]);
+  // Own-key Rainbow guard on: 5 min drops out.
+  assert.deepEqual(run(rainbowState()), ['10', '15', '30', '60']);
+  // "Use your own key" off: the shared radar bills nothing, so the full ladder.
+  assert.deepEqual(run(rainbowState({ rainbowOwnKey: false })), ['5', '10', '15', '30', '60']);
+  // ...off: the full ladder (the block shows the red warning instead).
+  assert.deepEqual(run(rainbowState({ rainbowFitBudget: false })), ['5', '10', '15', '30', '60']);
+  // Both guards in play (tomorrow.io weather + Rainbow key radar): the intersection.
+  assert.deepEqual(run(rainbowState({ provider: 'tomorrowio' })), ['10', '15', '30', '60']);
+  // tomorrow.io's guard off, Rainbow's on: Rainbow still binds.
+  assert.deepEqual(run(rainbowState({ provider: 'tomorrowio', tomorrowioFitBudget: false })),
+    ['10', '15', '30', '60']);
+  // Rainbow's guard off, tomorrow.io weather only: tomorrow.io's list (every step fits).
+  assert.deepEqual(run(rainbowState({ provider: 'tomorrowio', rainbowFitBudget: false })),
+    ['5', '10', '15', '30', '60']);
+  // An 11 h pause unlocks 5 min on the Rainbow key.
+  assert.deepEqual(run(rainbowState({ sleepNightEnabled: true, sleepStartHour: '20' })),
+    ['5', '10', '15', '30', '60']);
+  // No state: the full ladder.
+  assert.deepEqual(run(undefined), ['5', '10', '15', '30', '60']);
 });
 
 test('recommend resolvers: country-matched weather + radar providers (DE→dwd, Nordics→metno, else→openmeteo/rainbow)', () => {
@@ -1345,30 +1473,23 @@ test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
   assert.equal(stripeCells(svg).length, 6, 'only the six non-zero hours get a cell');
 });
 
-test('forecastPreview: a dew stripe on the fourth metric line shades every hour by its place on the joint temperature band', () => {
-  // This used to render nothing (the preview skipped temperature-axis stripes)
-  // while the watch painted one. Temps 14..24 and the dew sample
-  // [13, 14, 17, 18, 16, 14, 13, 12, 12, 12, 13, (13)] widen the band to [12, 24],
-  // padded below by max(1, ceil(12 * 40/960)) = 1 -> [11, 24]. Per hour column:
-  // permille round((v - 11)/13 * 1000) -> byte round(pm/4) -> level ceil(b*4/250)
-  // = [1, 1, 2, 3, 2, 1, 1, 1, 1, 1, 1] — the bake's bytes and the watch's
-  // chart_stripe_level. Never 0: the band floor keeps every sourced hour visible.
-  const state = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
-    secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'dew',
-    fifthLineStyle: 'stripeTop', windScale: 'mid' };
-  const svg = FC.forecastPreview(state, { color: true, platform: 'basalt', lineStyles: true });
-  const cells = stripeCells(svg);
-  assert.equal(cells.length, 11, 'one cell for every hour column');
-  cells.forEach((r) => assert.match(r, /y="4"/, 'a top stripe on the plot top'));
-  const fills = cells.map((r) => /fill="(#[0-9A-F]{6})"/.exec(r)[1]);
-  assert.equal(fills[0], '#000000', 'level 1 is the bare background tint (dark theme)');
-  [1, 5, 6, 7, 8, 9, 10].forEach((i) => assert.equal(fills[i], fills[0], 'level 1 at hour ' + i));
-  assert.equal(fills[2], fills[4], 'hours 2 and 4 share level 2');
-  assert.notEqual(fills[2], fills[0], 'level 2 is tinted');
-  assert.ok(fills[3] !== fills[2] && fills[3] !== fills[0], 'hour 3 alone reaches level 3');
-  // B&W: the same levels as dither densities.
-  const bw = FC.forecastPreview(state, { color: false, platform: 'diorite', lineStyles: true });
-  assert.equal((bw.match(/height="5" fill="url\(#sd[1-4]\)"/g) || []).length, 11, 'B&W dithers every hour');
+test('forecastPreview: a stored stripe on feels, dew or pressure previews as the line the watch draws', () => {
+  // Stripes are for intensity metrics only (line-style.js metricAllowsStripe): the bake
+  // resolves a stored one on these to the line's non-stripe style, and so does the
+  // preview — it must never show a stripe the watch will not draw.
+  const env = { color: true, platform: 'basalt', lineStyles: true };
+  ['feels', 'dew', 'pressure'].forEach((m) => {
+    const base = { theme: 'dark', dayNightShading: false, barSource: 'off', secondaryLine: 'precip_prob',
+      secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: m, windScale: 'mid' };
+    ['stripeTop', 'stripeBottom'].forEach((st) => {
+      const striped = FC.forecastPreview(Object.assign({ fifthLineStyle: st }, base), env);
+      assert.equal(stripeCells(striped).length, 0, m + ' ' + st + ': no stripe cells');
+      const resolved = lineStyle.lineStyleValue({ fifthLine: m, fifthLineStyle: st }, 'fifthLineStyle');
+      assert.ok(!lineStyle.isStripeValue(resolved), 'premise: ' + m + ' resolves to no stripe');
+      assert.equal(striped, FC.forecastPreview(Object.assign({ fifthLineStyle: resolved }, base), env),
+        m + ' ' + st + ': identical to the style the bake resolves');
+    });
+  });
 });
 
 // The temp curve's path (the only #FF0000 stroke in the colour preview) — it moves
@@ -1383,8 +1504,8 @@ test('forecastPreview: feels on the third or fourth metric line widens the joint
   assert.notEqual(onSecond, plain, 'premise: feels widens the band');
   assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels' }), env)),
     onSecond, 'feels on the third metric line: same joint band');
-  // Feels on the fourth metric line widens the band too (as marks here: a top stripe
-  // would also move the plot below its band — pinned in the next test).
+  // Feels on the fourth metric line widens the band too (feels is never a stripe, so
+  // it draws as a curve or marks).
   assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base,
     { fifthLine: 'feels', fifthLineStyle: 'dots' }), env)),
     onSecond, 'feels on the fourth metric line: same joint band');

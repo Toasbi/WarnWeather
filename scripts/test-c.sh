@@ -166,3 +166,14 @@ build/host/chart_stripe_test
 # against radar-sky.js's packSky pin in test/radar-sky.test.js.
 cc $CFLAGS test/c/radar_sky_test.c -o build/host/radar_sky_test
 build/host/radar_sky_test
+# The radar limit notice (RAIN_RADAR_LIMITED): its pure decisions, header-only
+# static inlines in radar_limit.h (when the flag moves; whether the radar has a
+# window or the notice to show; what the empty state says),
+# and the RADAR_LIMITED persist accessors run for real over a faked flash (slot 56,
+# change gating, absent = not limited). The accessors are unguarded, so the plain
+# host build must define them.
+cc $CFLAGS test/c/radar_limit_test.c -o build/host/radar_limit_test
+build/host/radar_limit_test
+cc $CFLAGS test/c/radar_limited_persist_test.c src/c/appendix/persist.c \
+   -o build/host/radar_limited_persist_test
+build/host/radar_limited_persist_test

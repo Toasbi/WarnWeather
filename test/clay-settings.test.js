@@ -378,6 +378,32 @@ test('a non-object parking slot is discarded, not laundered into junk keys', () 
     'only real credentials are parked — no laundered index keys');
 });
 
+test('reset keeps the Rainbow (own key) radar key, and a post-reset save fills it back', () => {
+  // The radar key is a credential like the forecast keys: someone signed up for it.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+
+  store['clay-settings'] = JSON.stringify({ rainbowApiKey: 'rbw-secret', radarProvider: 'rainbow', rainbowOwnKey: true, timeFont: 'bitham' });
+  const kept = claySettings.resetAll();
+  assert.deepEqual(kept, { rainbowApiKey: 'rbw-secret' }, 'handed back for the live session');
+  assert.equal(claySettings.read(), null, 'settings blob must stay absent');
+  assert.ok(store['preservedApiKeys'], 'parked for the next boot');
+
+  // A save between the reset and the next boot carries '' for the untyped key.
+  const blob = claySettings.fillFromPreserved({ provider: 'openmeteo', rainbowApiKey: '' });
+  assert.equal(blob.rainbowApiKey, 'rbw-secret', 'the empty field is filled from the parked copy');
+  assert.equal(store['preservedApiKeys'], undefined, 'the parking slot is consumed by the fill');
+
+  // And the boot restore brings it back too.
+  store['clay-settings'] = JSON.stringify({ rainbowApiKey: 'rbw-secret' });
+  claySettings.resetAll();
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.equal(read.rainbowApiKey, 'rbw-secret');
+  assert.notEqual(read.timeFont, 'bitham', 'the erased font must NOT come back');
+});
+
 test('fillFromPreserved is a pass-through when nothing is parked', () => {
   installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];

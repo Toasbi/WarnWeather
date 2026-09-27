@@ -1,22 +1,33 @@
 // src/pkjs/weather/radar-factory.js
 //
 // Data-driven radar-source construction, mirroring provider-factory.js. The
-// RADAR_FACTORIES table maps a Clay radarProvider id to a builder that returns
-// an adapter exposing the single radar seam:
+// RADAR_FACTORIES table maps a radar source id to a builder that returns an
+// adapter exposing the single radar seam:
 //
 //   fetchRadarTuplesAt(lat, lon, slotZeroEpoch, cb)
 //
 // where cb receives radar tuples, or null for a TRANSIENT source failure (the
 // radar keys stay out of the send; the watch keeps its last window and
 // self-advances it as for a dedupe skip). A failure that cannot heal on its
-// own (missing key/endpoint, rejected key) answers clearRadarTuples() instead,
-// so the watch drops the radar rather than rolling it into a made-up
-// "No rain ahead" — see radar-fetch.js. Per-source config (e.g. the Rainbow
-// proxy endpoint) is bound at construction via cfg. 'disabled' is a real
-// registered adapter that clears the watch's radar -- no special case -- and any
-// unknown/unset id falls back to it (today's default-off behavior). Adding a
-// radar source is a new table entry; the fetch cycle (fetch-cycle.js) never
-// learns source names.
+// own (missing key/endpoint, rejected key, a missing Rainbow proxy) answers
+// clearRadarTuples() instead, so the watch drops the radar rather than rolling
+// it into a made-up "No rain ahead", and a request limit (HTTP 429) on the
+// sources that have one answers limitedRadarTuples(), so the watch says "Radar
+// limit reached" — see radar-fetch.js. Per-source config (e.g. the Rainbow
+// proxy endpoint, or a user's API key) is bound at construction via cfg.
+// 'disabled' is a real registered adapter that clears the watch's radar -- no
+// special case -- and any unknown/unset id falls back to it (today's
+// default-off behavior). Adding a radar source is a new table entry; the fetch
+// cycle (fetch-cycle.js) never learns source names. A source that may not be
+// asked every cycle (the shared Rainbow proxy) also gets an entry in
+// RADAR_MIN_REQUEST_INTERVAL_MS, which the cycle reads through
+// minRequestIntervalMs.
+//
+// Source ids are the Clay radarProvider values plus two internal ones that are
+// never stored: 'disabled' (radar off, and the fallback) and 'rainbowkey'
+// (Rainbow on the user's own key). The settings offer ONE Rainbow option with a
+// "Use your own key" switch; radar-source-id.js effectiveRadarId resolves that
+// pair to 'rainbow' or 'rainbowkey', and callers pass its answer here.
 
 var radar = require('./dwd-radar.js');
 var metnoRadar = require('./metno-radar.js');
@@ -25,6 +36,11 @@ var tomorrowioRadar = require('./tomorrowio-radar.js');
 var radarWire = require('./radar-wire.js');
 
 var DEFAULT_RADAR_ID = 'disabled';
+
+// Minimum spacing between two requests of one radar source. Only the shared Rainbow proxy:
+// every request is a Supabase edge invocation (log-ingest quota) and a call on the project's
+// paid Rainbow key. 'rainbowkey' (the user's own key) is deliberately absent.
+var RADAR_MIN_REQUEST_INTERVAL_MS = { rainbow: 30 * 60 * 1000 };
 
 var RADAR_FACTORIES = {
     dwd: function(cfg) {
@@ -37,6 +53,13 @@ var RADAR_FACTORIES = {
         return {
             fetchRadarTuplesAt: function(lat, lon, slotZeroEpoch, cb) {
                 rainbowRadar.fetchRadarTuplesAt(cfg.rainbowEndpoint, lat, lon, slotZeroEpoch, cb);
+            }
+        };
+    },
+    rainbowkey: function(cfg) {
+        return {
+            fetchRadarTuplesAt: function(lat, lon, slotZeroEpoch, cb) {
+                rainbowRadar.fetchRadarTuplesWithKey(cfg.rainbowApiKey, lat, lon, slotZeroEpoch, cb);
             }
         };
     },
@@ -67,11 +90,22 @@ function isKnownRadarSource(radarId) {
 }
 
 /**
+ * Whether a setting holds a usable string: non-blank once paste whitespace is
+ * trimmed (the keyed adapters trim before deciding a key is missing).
+ * @param {*} value Setting value.
+ * @returns {boolean} True for a string with a non-whitespace character.
+ */
+function isNonBlank(value) {
+    return typeof value === 'string' && value.trim() !== '';
+}
+
+/**
  * Can this radar source ever answer with this config? False for the sources that
  * clear the watch's radar on every fetch: the 'disabled' clear (and any unknown id),
- * Rainbow without its proxy endpoint, tomorrow.io without a key — the same checks the
- * adapters make (rainbow-radar.js, tomorrowio-radar.js). A rejected key is found out
- * per fetch and is not covered here.
+ * Rainbow without its proxy endpoint, tomorrow.io or Rainbow (own key) without a
+ * key — the same checks the adapters make (rainbow-radar.js, tomorrowio-radar.js).
+ * 'rainbowkey' calls Rainbow directly, so it does not need the proxy endpoint. A
+ * rejected key is found out per fetch and is not covered here.
  * @param {string} radarId Clay radarProvider id.
  * @param {Object} cfg Per-source config, as for createRadarSource.
  * @returns {boolean} True when a fetch can bring radar frames.
@@ -79,11 +113,22 @@ function isKnownRadarSource(radarId) {
 function canAnswer(radarId, cfg) {
     if (!isKnownRadarSource(radarId) || radarId === DEFAULT_RADAR_ID) { return false; }
     if (radarId === 'rainbow') { return Boolean(cfg && cfg.rainbowEndpoint); }
-    if (radarId === 'tomorrowio') {
-        var key = cfg && cfg.tomorrowioApiKey;
-        return typeof key === 'string' && key.trim() !== '';
-    }
+    if (radarId === 'tomorrowio') { return isNonBlank(cfg && cfg.tomorrowioApiKey); }
+    if (radarId === 'rainbowkey') { return isNonBlank(cfg && cfg.rainbowApiKey); }
     return true;
+}
+
+/**
+ * Minimum spacing between two requests of a radar source (0 = every cycle).
+ * The table lives here, not in fetch-cycle.js, so the cycle never learns
+ * source names; fetch-cycle.js takeRadarRequestSlot applies it as UTC-aligned
+ * slots of this length.
+ * @param {string} radarId Clay radarProvider id.
+ * @returns {number} Milliseconds.
+ */
+function minRequestIntervalMs(radarId) {
+    return Object.prototype.hasOwnProperty.call(RADAR_MIN_REQUEST_INTERVAL_MS, radarId)
+        ? RADAR_MIN_REQUEST_INTERVAL_MS[radarId] : 0;
 }
 
 /**
@@ -91,13 +136,19 @@ function canAnswer(radarId, cfg) {
  * fall back to the 'disabled' source (clears the watch's radar), matching the
  * legacy default-off behavior.
  *
- * @param {string} radarId Clay radarProvider id ('dwd', 'metno', 'rainbow', 'tomorrowio', 'disabled').
+ * @param {string} radarId Radar source id ('dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio', 'disabled';
+ *   radar-source-id.js effectiveRadarId resolves it from the settings).
  * @param {Object} cfg Per-source config.
  * @param {string} cfg.rainbowEndpoint Rainbow proxy URL ('' when the build carries none).
+ * @param {string} cfg.rainbowApiKey The user's own Rainbow API key for 'rainbowkey' ('' when unset; the adapter clears the watch's radar).
  * @param {string} cfg.tomorrowioApiKey tomorrow.io API key ('' when unset; the adapter clears the watch's radar).
  * @returns {{fetchRadarTuplesAt: Function}} Radar-source adapter satisfying the seam.
  */
 function createRadarSource(radarId, cfg) {
+    // Every radar step builds its source here, so this is where the keyed Rainbow path
+    // learns it stopped being the radar in use: another source (or radar off) ends its
+    // run of nulls (rainbow-radar.js resetKeyedStreak), and coming back starts afresh.
+    if (radarId !== 'rainbowkey') { rainbowRadar.resetKeyedStreak(); }
     var factory = isKnownRadarSource(radarId) ? RADAR_FACTORIES[radarId] : RADAR_FACTORIES[DEFAULT_RADAR_ID];
     return factory(cfg);
 }
@@ -105,7 +156,9 @@ function createRadarSource(radarId, cfg) {
 module.exports = {
     DEFAULT_RADAR_ID: DEFAULT_RADAR_ID,
     RADAR_FACTORIES: RADAR_FACTORIES,
+    RADAR_MIN_REQUEST_INTERVAL_MS: RADAR_MIN_REQUEST_INTERVAL_MS,
     isKnownRadarSource: isKnownRadarSource,
     canAnswer: canAnswer,
+    minRequestIntervalMs: minRequestIntervalMs,
     createRadarSource: createRadarSource
 };

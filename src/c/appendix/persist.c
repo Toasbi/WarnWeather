@@ -96,11 +96,18 @@ enum key {
     // length is what existing installs have on flash.
     FIFTH_LINE_TREND,             // 52 — uint8 trend bytes, absent = line off
     FIFTH_LINE_COLOR,             // 53 — GColor8 argb byte, absent = theme foreground
-    FIFTH_LINE_STYLE,             // 54 — 1 style byte (persist.h layout), absent = top stripe
+    FIFTH_LINE_STYLE,             // 54 — 1 style byte (persist.h layout), absent = x marks
     // Appended: the radar's sky rows (RADAR_SKY_UINT8, layout in radar_sky.h),
     // stored verbatim. Radar-only (WW_RAIN_RADAR), so aplite never reads or
     // writes it, but the ID stays listed on every platform (append-only enum).
-    RADAR_SKY                     // 55 — <= RADAR_SKY_MAX_BYTES, absent = no sky rows
+    RADAR_SKY,                    // 55 — <= RADAR_SKY_MAX_BYTES, absent = no sky rows
+    // Appended: the radar limit notice (RAIN_RADAR_LIMITED): the radar source
+    // refuses us over a request limit, so the radar says "Radar limit reached"
+    // where its window shows no rain. aplite never reads or writes it (its
+    // callers, the WW_RAIN_RADAR-guarded handler and the unreferenced
+    // rain_radar_layer.c, drop out there), but the ID stays listed on every
+    // platform: the enum is append-only because the numbers are the on-flash slots.
+    RADAR_LIMITED                 // 56 — bool, present only while limited (absent = not)
 };
 
 // Setters report whether the stored value actually changed so callers can
@@ -358,9 +365,9 @@ bool persist_set_fifth_line_color(GColor color) {
 
 uint8_t persist_get_fifth_line_style(void) {
     if (!persist_exists(FIFTH_LINE_STYLE)) {
-        // Unset: the line's built-in, a top stripe (line-style.js
-        // LINE_STYLE_DEFAULTS.fifthLineStyle).
-        return (uint8_t) (CHART_LINE_STRIPE | (1 << LINE_STYLE_WIDTH_SHIFT));
+        // Unset: the line's built-in, x marks (line-style.js
+        // LINE_STYLE_DEFAULTS.fifthLineStyle — the phone's byte for 'x').
+        return (uint8_t) CHART_LINE_X;
     }
     return (uint8_t) persist_read_int(FIFTH_LINE_STYLE);
 }
@@ -503,6 +510,24 @@ bool persist_set_radar_sky(const uint8_t *data, size_t size) {
     return write_sized_data_if_changed(RADAR_SKY, data, size);
 }
 #endif
+
+// Unguarded on purpose (see persist.h), like the no-rain text above:
+// rain_radar_layer.c compiles on every platform and reads the getter; on aplite
+// both accessors are unreferenced and --gc-sections reaps them.
+bool persist_get_radar_limited(void) {
+    return persist_exists(RADAR_LIMITED) && persist_read_bool(RADAR_LIMITED);
+}
+
+bool persist_set_radar_limited(bool limited) {
+    // Not limited is the ABSENT slot, so every window that arrives on an install
+    // that was never limited costs no flash write, and ending the notice deletes.
+    if (!limited) {
+        if (!persist_exists(RADAR_LIMITED)) { return false; }
+        persist_delete(RADAR_LIMITED);
+        return true;
+    }
+    return write_bool_if_changed(RADAR_LIMITED, true);
+}
 
 time_t persist_get_rain_radar_start() {
     return (time_t) persist_read_int(RAIN_RADAR_START);

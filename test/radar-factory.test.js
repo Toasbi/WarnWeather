@@ -5,9 +5,17 @@ const metnoRadar = require('../src/pkjs/weather/metno-radar.js');
 const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
 const tomorrowioRadar = require('../src/pkjs/weather/tomorrowio-radar.js');
 const radarFactory = require('../src/pkjs/weather/radar-factory.js');
+const radarSourceId = require('../src/pkjs/weather/radar-source-id.js');
 const schema = require('../src/pkjs/settings/schema.js');
 
 const CLEAR = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 };
+
+// The radar picker's option list. It resolves through blocks.js radarProviderOptions (which
+// only renames the Rainbow entry by key state), so its values, order and descs are the
+// static list the schema hands the resolver.
+function radarPickerOptions(radarItem) {
+  return radarItem.optionsFrom.args.options;
+}
 
 test("createRadarSource('dwd') routes to radar.fetchRadarTuplesAt with lat/lon/slot", () => {
   let seen = null;
@@ -93,11 +101,12 @@ test('isKnownRadarSource recognizes registered ids only', () => {
   assert.equal(radarFactory.DEFAULT_RADAR_ID, 'disabled');
 });
 
-test('schema radarProvider options are all registered factory ids; the registry also keeps the internal-only "disabled" fallback', () => {
+test('schema radarProvider options are all registered factory ids; the registry also keeps the internal-only "disabled" and "rainbowkey" ids', () => {
   // As of the radarMode tier, "disabled" is no longer a user-selectable radarProvider
   // option (radarMode owns on/off) but the factory registry keeps it as the fallback
   // for unknown/unset ids (see radar-factory.js DEFAULT_RADAR_ID) and as the id
-  // radar-fetch gating still routes to when radarMode is 'off'.
+  // radar-fetch gating still routes to when radarMode is 'off'. "rainbowkey" is never a
+  // stored value either: radar-source-id.js resolves Rainbow + "Use your own key" to it.
   const items = [];
   schema.tabs.forEach(function(t) {
     t.sections.forEach(function(sec) {
@@ -106,15 +115,20 @@ test('schema radarProvider options are all registered factory ids; the registry 
   });
   const radarItem = items.filter(function(i) { return i.messageKey === 'radarProvider'; })[0];
   assert.ok(radarItem, 'radarProvider item exists in the schema');
-  const schemaIds = radarItem.options.map(function(o) { return o[1]; }).sort();
+  const schemaIds = radarPickerOptions(radarItem).map(function(o) { return o[1]; }).sort();
   const registryIds = Object.keys(radarFactory.RADAR_FACTORIES).sort();
   assert.deepEqual(schemaIds, ['dwd', 'metno', 'rainbow', 'tomorrowio'],
-    'radarProvider schema options no longer offer "disabled" — the radarMode radio owns on/off');
+    'radarProvider schema options offer neither "disabled" (the radarMode radio owns on/off) nor "rainbowkey" (a switch)');
   schemaIds.forEach(function(id) {
     assert.ok(registryIds.indexOf(id) >= 0, id + ' schema option must be a registered radar factory id');
   });
   assert.ok(registryIds.indexOf('disabled') >= 0,
     '"disabled" stays registered as the internal fallback factory');
+  // Every registered source is reachable from the settings: a picker option, the
+  // radar-off clear, or the own-key source the resolver turns Rainbow + the switch into.
+  const reachable = schemaIds.concat(['disabled',
+    radarSourceId.effectiveRadarId({ radarProvider: 'rainbow', rainbowOwnKey: true })]).sort();
+  assert.deepEqual(registryIds, reachable, 'no registered source is out of the settings\' reach');
 });
 
 test("createRadarSource('tomorrowio') binds cfg.tomorrowioApiKey and routes to tomorrowioRadar", () => {
@@ -139,8 +153,8 @@ test('radar picker offers tomorrowio', () => {
   const items = [];
   schema.tabs.forEach((t) => t.sections.forEach((s) => s.items.forEach((i) => items.push(i))));
   const radarItem = items.filter((i) => i.messageKey === 'radarProvider')[0];
-  assert.ok(radarItem.options.map((o) => o[1]).includes('tomorrowio'));
-  const tio = radarItem.options.find((o) => o[1] === 'tomorrowio');
+  assert.ok(radarPickerOptions(radarItem).map((o) => o[1]).includes('tomorrowio'));
+  const tio = radarPickerOptions(radarItem).find((o) => o[1] === 'tomorrowio');
   assert.ok(tio[2] && tio[2].desc, 'has a dropdown description');
 });
 
@@ -155,4 +169,47 @@ test('canAnswer: sources whose missing config clears the radar on every fetch ca
   assert.equal(factory.canAnswer('tomorrowio', { tomorrowioApiKey: '  ' }), false, 'a blank key');
   assert.equal(factory.canAnswer('disabled', cfg), false);
   assert.equal(factory.canAnswer('bogus', cfg), false, 'unknown ids fall back to the clear');
+});
+
+test("createRadarSource('rainbowkey') binds cfg.rainbowApiKey and routes to rainbowRadar.fetchRadarTuplesWithKey", () => {
+  let seen = null;
+  const fetched = { RAIN_RADAR_TREND_UINT8: [1], RAIN_RADAR_TREND_AREA_UINT8: [0], RAIN_RADAR_START: 100 };
+  const orig = rainbowRadar.fetchRadarTuplesWithKey;
+  const origProxy = rainbowRadar.fetchRadarTuplesAt;
+  rainbowRadar.fetchRadarTuplesWithKey = function(apiKey, lat, lon, slot, cb) {
+    seen = { apiKey, lat, lon, slot }; cb(fetched);
+  };
+  rainbowRadar.fetchRadarTuplesAt = function() { throw new Error('the proxy path must not be called'); };
+  try {
+    const source = radarFactory.createRadarSource('rainbowkey', { rainbowApiKey: 'K', rainbowEndpoint: '' });
+    let result;
+    source.fetchRadarTuplesAt(52.5, 13.4, 100, function(t) { result = t; });
+    assert.deepEqual(seen, { apiKey: 'K', lat: 52.5, lon: 13.4, slot: 100 });
+    assert.equal(result, fetched);
+  } finally {
+    rainbowRadar.fetchRadarTuplesWithKey = orig;
+    rainbowRadar.fetchRadarTuplesAt = origProxy;
+  }
+});
+
+test('canAnswer: Rainbow (own key) needs a non-blank key, not the proxy endpoint', () => {
+  assert.equal(radarFactory.isKnownRadarSource('rainbowkey'), true);
+  assert.equal(radarFactory.canAnswer('rainbowkey', { rainbowApiKey: 'K', rainbowEndpoint: '' }), true,
+    'works in an endpoint-less build');
+  assert.equal(radarFactory.canAnswer('rainbowkey', { rainbowApiKey: '  ' }), false, 'a blank key');
+  assert.equal(radarFactory.canAnswer('rainbowkey', {}), false, 'no key');
+  assert.equal(radarFactory.canAnswer('rainbowkey', undefined), false, 'no cfg');
+  // tomorrow.io is unchanged by the shared blank check.
+  assert.equal(radarFactory.canAnswer('tomorrowio', { tomorrowioApiKey: 'KEY' }), true);
+  assert.equal(radarFactory.canAnswer('tomorrowio', { tomorrowioApiKey: '' }), false);
+  assert.equal(radarFactory.canAnswer('tomorrowio', { rainbowApiKey: 'K' }), false, 'the other source\'s key does not count');
+  assert.equal(radarFactory.canAnswer('tomorrowio', undefined), false);
+});
+
+test('minRequestIntervalMs: only the shared Rainbow proxy is throttled, to one request per 30 min', () => {
+  assert.equal(radarFactory.minRequestIntervalMs('rainbow'), 1800000);
+  ['rainbowkey', 'dwd', 'metno', 'tomorrowio', 'disabled', 'bogus'].forEach((id) => {
+    assert.equal(radarFactory.minRequestIntervalMs(id), 0, id + ' requests every cycle');
+  });
+  assert.equal(radarFactory.minRequestIntervalMs('hasOwnProperty'), 0, 'an Object.prototype name is not a table entry');
 });

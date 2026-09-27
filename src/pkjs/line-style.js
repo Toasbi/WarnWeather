@@ -381,12 +381,20 @@
     // Consumers: forecast-series.js (the bake), preview-forecast.js (the
     // settings preview — which must match the bake pixel for pixel), and the
     // pickers' exclusion lists via the schema's resolver args.
+    // `styleKey` is the line's style picker (the per-line marker styles below).
     var FORECAST_LINES = [
-        { key: 'secondaryLine' },
-        { key: 'thirdLine' },
-        { key: 'fourthLine' },
-        { key: 'fifthLine' }
+        { key: 'secondaryLine', styleKey: 'secondaryLineStyle' },
+        { key: 'thirdLine', styleKey: 'thirdLineStyle' },
+        { key: 'fourthLine', styleKey: 'fourthLineStyle' },
+        { key: 'fifthLine', styleKey: 'fifthLineStyle' }
     ];
+    // Style key -> the metric key of the line it styles.
+    var LINE_OF_STYLE = {};
+    (function () {
+        for (var i = 0; i < FORECAST_LINES.length; i++) {
+            LINE_OF_STYLE[FORECAST_LINES[i].styleKey] = FORECAST_LINES[i].key;
+        }
+    })();
 
     /**
      * The metric one forecast line actually draws: its stored metric, or null
@@ -426,28 +434,90 @@
     var LINE_STYLE_KINDS = { line: 0, bold: 0, dots: 1, x: 2, stripeTop: 3, stripeBottom: 3 };
     var LINE_STYLE_WIDTHS = { line: 1, bold: 3, stripeTop: 1 };
     // Defaults reproduce the pre-feature look: solid 1 px main line, dotted
-    // second line — the third-metric line debuted as x marks, and the fourth
-    // debuts as a stripe along the top (where cloud cover reads naturally).
+    // second line — and the third and fourth metric lines as x marks. None is a
+    // stripe, so every default suits every metric (a stripe needs an intensity
+    // metric, metricAllowsStripe below). The fourth debuted as a top stripe
+    // until 1.23.1; clay-migrations.js' migrateFifthLineStyleDefault moves the
+    // seeded 'stripeTop' of a fourth line that is off onto 'x'. persist.c's
+    // persist_get_fifth_line_style mirrors this default for an unset slot.
     var LINE_STYLE_DEFAULTS = {
         secondaryLineStyle: 'line',
         thirdLineStyle: 'dots',
         fourthLineStyle: 'x',
-        fifthLineStyle: 'stripeTop'
+        fifthLineStyle: 'x'
     };
+
+    // --- Which metrics a stripe can show -----------------------------------
+    // A stripe shades each hour by HOW MUCH of the metric there is, so it reads
+    // only for an intensity with a real zero: the rain-chance and cloud-cover
+    // percentages, the UV index, wind and gusts. Not feels-like or dew point
+    // (drawn against today's temperature band: no zero, and "more" is not
+    // "stronger") and not pressure (band-scaled; its trend is the story, not its
+    // size). THE one source: the settings page's style options (blocks.js
+    // 'lineStyleOptions') and its fill-row gate, the bake (lineStyleValue — the
+    // wire's style bytes, the fill flag, the top-stripe band), the settings
+    // preview and telemetry all ask here, so none of them can draw or report a
+    // stripe the others would not.
+    var STRIPE_METRIC_IDS = ['precip_prob', 'cloud', 'wind', 'gust', 'uv'];
+    var STRIPE_METRICS = {};
+    (function () {
+        for (var i = 0; i < STRIPE_METRIC_IDS.length; i++) {
+            STRIPE_METRICS[STRIPE_METRIC_IDS[i]] = true;
+        }
+    })();
+
+    /**
+     * Can a line of this metric be drawn as a stripe?
+     * @param {*} metric A metric id.
+     * @returns {boolean} True for an intensity metric (STRIPE_METRIC_IDS).
+     */
+    function metricAllowsStripe(metric) {
+        return typeof metric === 'string'
+            && Object.prototype.hasOwnProperty.call(STRIPE_METRICS, metric);
+    }
+
+    /**
+     * Is this style value one of the two stripes? OWN keys only on the kind table.
+     * @param {*} style A style value.
+     * @returns {boolean} True for 'stripeTop' and 'stripeBottom'.
+     */
+    function isStripeValue(style) {
+        return Object.prototype.hasOwnProperty.call(LINE_STYLE_KINDS, style)
+            && LINE_STYLE_KINDS[style] === 3;
+    }
+
+    /**
+     * The style a line falls back to when its metric cannot be a stripe: its
+     * built-in when that is not a stripe, else a thin line. The same answer the
+     * settings page's display-snap gives (the item default when the options still
+     * carry it, else the first option, 'line'), so the page shows what the watch draws.
+     * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
+     * @returns {string} A non-stripe style value.
+     */
+    function nonStripeStyle(key) {
+        var d = LINE_STYLE_DEFAULTS[key];
+        return isStripeValue(d) ? 'line' : d;
+    }
 
     /**
      * The effective style value for one line-style key: the stored value when
-     * it is a known style, else the key's built-in default. OWN keys only on
-     * the kind table — a bare object literal answers truthy for every
-     * Object.prototype name.
-     * @param {Object} settings Clay settings blob.
+     * it is a known style, else the key's built-in default — and never a stripe
+     * for a line whose metric cannot be one (metricAllowsStripe): that resolves to
+     * nonStripeStyle, so a stored stripe left over from another metric can never
+     * reach the watch. OWN keys only on the kind table — a bare object literal
+     * answers truthy for every Object.prototype name.
+     * @param {Object} settings Clay settings blob (the style key and its line's metric).
      * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
      * @returns {string} 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
      */
     function lineStyleValue(settings, key) {
-        var v = (settings || {})[key];
-        return Object.prototype.hasOwnProperty.call(LINE_STYLE_KINDS, v)
-            ? v : LINE_STYLE_DEFAULTS[key];
+        var s = settings || {};
+        var v = Object.prototype.hasOwnProperty.call(LINE_STYLE_KINDS, s[key])
+            ? s[key] : LINE_STYLE_DEFAULTS[key];
+        if (isStripeValue(v) && !metricAllowsStripe(s[LINE_OF_STYLE[key]])) {
+            return nonStripeStyle(key);
+        }
+        return v;
     }
 
     /**
@@ -457,7 +527,24 @@
      * @returns {boolean} True for 'stripeTop' and 'stripeBottom'.
      */
     function isStripeStyle(settings, key) {
-        return LINE_STYLE_KINDS[lineStyleValue(settings, key)] === 3;
+        return isStripeValue(lineStyleValue(settings, key));
+    }
+
+    /**
+     * Does some drawn line (effectiveLineMetric) resolve to a stripe along the graph's
+     * TOP edge? Platform-free: the bake (forecast-series.js topStripeDrawn) adds the
+     * watch gate, the render signature (render-signature.js) signs it as is.
+     * @param {Object} settings Clay settings blob.
+     * @returns {boolean} True when a drawn line's effective style is 'stripeTop'.
+     */
+    function topStripeLineDrawn(settings) {
+        for (var i = 0; i < FORECAST_LINES.length; i++) {
+            if (effectiveLineMetric(settings, FORECAST_LINES[i].key)
+                    && lineStyleValue(settings, FORECAST_LINES[i].styleKey) === 'stripeTop') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -841,9 +928,13 @@
         isTempAxisMetric: isTempAxisMetric,
         effectiveLineMetric: effectiveLineMetric,
         LINE_STYLE_DEFAULTS: LINE_STYLE_DEFAULTS,
+        STRIPE_METRIC_IDS: STRIPE_METRIC_IDS,
+        metricAllowsStripe: metricAllowsStripe,
+        isStripeValue: isStripeValue,
         lineStyleValue: lineStyleValue,
         lineStyleByte: lineStyleByte,
         isStripeStyle: isStripeStyle,
+        topStripeLineDrawn: topStripeLineDrawn,
         FLAG_NIGHT_FILL_EXPLICIT: FLAG_NIGHT_FILL_EXPLICIT,
         LINE_COLORS: LINE_COLORS,
         FILL_COLORS: FILL_COLORS,

@@ -22,6 +22,7 @@
 #include "c/appendix/theme.h"
 #include "c/appendix/bottom_view.h"
 #include "c/appendix/night_light.h"
+#include "c/appendix/radar_limit.h"
 
 static Window *s_main_window;
 
@@ -59,7 +60,11 @@ static bool s_health_graph_reachable;
 // it. Constant-false on aplite (radar is compiled out).
 bool main_window_radar_has_data(void) {
 #if defined(WW_RAIN_RADAR)
-    return persist_get_rain_radar_start() > 0;
+    // A stored window, or the radar limit notice alone (radar_limit.h
+    // radar_has_view): a source that refused us before any window arrived keeps
+    // its radar view, which says why it is empty. The notice flipping with no
+    // window re-applies the top view through app_message.c's bracket.
+    return radar_has_view(persist_get_rain_radar_start() > 0, persist_get_radar_limited());
 #else
     // aplite: radar is compiled out, so it never has data — the view cycle
     // resolves every radar slot away (view_spec_resolve/view_slot_available).

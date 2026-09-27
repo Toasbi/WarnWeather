@@ -30,7 +30,22 @@ test('buildSettingsSnapshot includes forecast and radar display settings', () =>
 // pressureScale is windScale's sibling (graph scale for the pressure line, added
 // alongside it); per this repo's rule a telemetry setting must be added in BOTH the
 // watch-side snapshot here AND the Deno .strip() schema
-// (supabase/functions/telemetry-ingest/index.ts) or it's silently dropped end to end.
+// (supabase/functions/telemetry-ingest/handler.ts) or it's silently dropped end to end.
+test('buildSettingsSnapshot reports each line style in effect: no stripe on feels, dew or pressure', () => {
+  // Stripes are for intensity metrics only (line-style.js metricAllowsStripe); a stored
+  // stripe on another metric reaches the watch as the line's non-stripe style, and the
+  // report says what the watch draws, not what the blob holds.
+  const snapshot = buildSettingsSnapshot({
+    secondaryLine: 'pressure', thirdLine: 'feels', fourthLine: 'dew', fifthLine: 'cloud',
+    secondaryLineStyle: 'stripeTop', thirdLineStyle: 'stripeBottom', fourthLineStyle: 'stripeTop',
+    fifthLineStyle: 'stripeBottom'
+  });
+  assert.equal(snapshot.secondaryLineStyle, 'line');
+  assert.equal(snapshot.thirdLineStyle, 'dots');
+  assert.equal(snapshot.fourthLineStyle, 'x');
+  assert.equal(snapshot.fifthLineStyle, 'stripeBottom', 'cloud keeps its stripe');
+});
+
 test('buildSettingsSnapshot includes pressureScale', () => {
   const snapshot = buildSettingsSnapshot({ pressureScale: 'low' });
   assert.equal(snapshot.pressureScale, 'low');
@@ -195,7 +210,7 @@ test('snapshot includes windUnits and distanceUnits', () => {
 });
 
 // The Units tab's feels-like formula, raw like tempSlotDisplay (absent = the default).
-// Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/index.ts).
+// Lockstep: it is also in the Deno .strip() schema (telemetry-ingest/handler.ts).
 test('snapshot includes feelsFormula raw', () => {
   assert.equal(buildSettingsSnapshot({ feelsFormula: 'steadman' }).feelsFormula, 'steadman');
   assert.equal(buildSettingsSnapshot({}).feelsFormula, undefined);
@@ -224,6 +239,37 @@ test('snapshot includes batteryLowOnly as a real boolean', () => {
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
+});
+
+// Rainbow on the user's own key needs no new telemetry field: radarProvider reports the
+// source in EFFECT (radar-source-id.js), so the "Use your own key" switch shows up as
+// 'rainbowkey' — the value the ingest already takes (any string; see its schemas_test.ts
+// pin). What this also pins: the user's API key never leaves the phone in a snapshot
+// (buildSettingsSnapshot is an explicit allowlist), and neither does rainbowFitBudget —
+// parity with tomorrowioFitBudget, which is not reported either.
+test('a Rainbow install on its own key reports the own-key radar source, never its key', () => {
+  const snapshot = buildSettingsSnapshot({ radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph',
+    rainbowApiKey: 'SECRET-RBW', rainbowFitBudget: false }, null);
+  assert.strictEqual(snapshot.radarProvider, 'rainbowkey');
+  assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowOwnKey'),
+    'the switch rides radarProvider, not a field of its own');
+  assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowApiKey'),
+    'the Rainbow API key must never be a snapshot field');
+  assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowFitBudget'),
+    'rainbowFitBudget is not reported, like tomorrowioFitBudget');
+  assert.ok(JSON.stringify(snapshot).indexOf('SECRET-RBW') === -1,
+    'the key must not appear anywhere in the snapshot');
+});
+
+test('radarProvider reports the effective radar source for every switch position', () => {
+  const report = (s) => buildSettingsSnapshot(s, null).radarProvider;
+  assert.strictEqual(report({ radarProvider: 'rainbow', rainbowOwnKey: false }), 'rainbow', 'the shared radar');
+  assert.strictEqual(report({ radarProvider: 'rainbow' }), 'rainbow', 'a switch never touched is off');
+  assert.strictEqual(report({ radarProvider: 'rainbow', rainbowOwnKey: true }), 'rainbowkey', 'the own key');
+  ['dwd', 'metno', 'tomorrowio'].forEach((p) => {
+    assert.strictEqual(report({ radarProvider: p, rainbowOwnKey: true }), p, p + ' ignores a left-on switch');
+  });
+  assert.strictEqual(report({}), undefined, 'unset stays unset');
 });
 
 // The phone-battery slot's Bold mode — the ONLY per-kind bold mode telemetry reports.
@@ -326,9 +372,9 @@ test('the Nighttime fields are declared in the Deno .strip() schema too', () => 
   const fs = require('fs');
   const path = require('path');
   const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
   const start = ts.indexOf('const settingsSchema');
-  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/index.ts');
+  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
   const slice = ts.slice(start, ts.indexOf('.strip()', start));
   const fields = [
     ['sleepStartHour', 'z\\.number'], ['sleepEndHour', 'z\\.number'],
@@ -361,9 +407,9 @@ test('threshPhoneBatteryBoldMode is declared in the Deno .strip() schema too', (
   const fs = require('fs');
   const path = require('path');
   const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
   const start = ts.indexOf('const settingsSchema');
-  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/index.ts');
+  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
   const slice = ts.slice(start, ts.indexOf('.strip()', start));
   assert.match(slice, /^\s*threshPhoneBatteryBoldMode:\s*z\.string\(\)\.optional\(\)/m,
     'ingest must accept it as an optional string, or .strip() drops it silently');
@@ -373,11 +419,11 @@ test('settings snapshot keys match the Deno telemetry schema (lockstep)', () => 
   const fs = require('fs');
   const path = require('path');
   const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
 
   // Slice the settingsSchema object literal: `const settingsSchema = z ... .strip()`.
   const start = ts.indexOf('const settingsSchema');
-  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/index.ts');
+  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
   const slice = ts.slice(start, ts.indexOf('.strip()', start));
 
   // Field lines look like `  fieldName: z.string()...` or `  provider: providerSchema...`.
@@ -624,8 +670,8 @@ test('reporting default agrees with the wire painting the built-in', () => {
 
 // Targeted half of the lockstep for the six colour fields, per threshPhoneBatteryBoldMode
 // above — and the ONLY automated guard on their TYPE: the set-equality test catches a
-// missing key but not a wrong type, and `mise test-deno`'s telemetry-ingest suite checks
-// durationMs only. A z.number() here would make every 'default'
+// missing key but not a wrong type, and `mise test-deno`'s telemetry-ingest suite never
+// sends them. A z.number() here would make every 'default'
 // fail safeParse and 400 the whole event fleet-wide, taking the fetch outcome with it.
 // These six names and types are what the per-metric redesign deliberately did NOT move:
 // the storage changed, the reporting contract did not.
@@ -633,9 +679,9 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
   const fs = require('fs');
   const path = require('path');
   const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
   const start = ts.indexOf('const settingsSchema');
-  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/index.ts');
+  assert.ok(start !== -1, 'settingsSchema not found in telemetry-ingest/handler.ts');
   const slice = ts.slice(start, ts.indexOf('.strip()', start));
   GRAPH_COLOR_FIELDS.forEach((field) => {
     assert.match(slice, new RegExp('^\\s*' + field + ':\\s*z\\.string\\(\\)\\.optional\\(\\)', 'm'),
@@ -663,7 +709,7 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
   const fs = require('fs');
   const path = require('path');
   const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
 
@@ -696,10 +742,13 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     batteryLowOnly: true, topViewMode: 'compact', layoutPreset: 'compactDense',
     viewResetMin: '15', largeGraphFont: true, vibe: true, btIcons: 'both',
     secondaryLine: 'precip_prob', secondaryLineFill: true, windScale: 'high',
-    pressureScale: 'high', thirdLine: 'pressure', barSource: 'precip_prob',
+    pressureScale: 'high', thirdLine: 'wind', barSource: 'precip_prob',
     // The third and fourth metric lines on their longest realistic options (the UI
     // resolver excludes the metrics already picked above), and every line on the
-    // longest per-line style, 'stripeBottom'.
+    // longest per-line style, 'stripeBottom'. Stripes are for intensity metrics only
+    // (line-style.js metricAllowsStripe) and telemetry reports the style in effect, so
+    // the heaviest pairs are stripe metrics: 'pressure' (8) could only report a 4-char
+    // style, 'wind' (4) reports 'stripeBottom' (12).
     fourthLine: 'gust', fifthLine: 'cloud',
     secondaryLineStyle: 'stripeBottom', thirdLineStyle: 'stripeBottom',
     fourthLineStyle: 'stripeBottom', fifthLineStyle: 'stripeBottom',
@@ -714,11 +763,11 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     colorTime: 0xFFFFFF, colorToday: 0xFF0000, colorSunday: 0xFF0000,
     colorSaturday: 0xFF0000, colorUSFederal: 0xFF0000,
     // The light-polarity colours for the four metrics selected above (precip_prob as
-    // the secondary line, pressure as the third, gust as the fourth, cloud as the
+    // the secondary line, wind as the third, gust as the fourth, cloud as the
     // fifth), each moved off its built-in so all eight fields report the
     // seven-character form.
     gcPrecipLineLight: 0xFF00FF, gcPrecipFillLight: 0xAAFF55,
-    gcPressureLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00, gcCloudLineLight: 0x00FF55,
+    gcWindLineLight: 0x00AAFF, gcGustLineLight: 0x55FF00, gcCloudLineLight: 0x00FF55,
     gcPrecipNightLight: 0xAA5500,
     gcNightHatchLight: 0xAAAAAA, gcNightBoundaryLight: 0xFF0000
   };
@@ -939,7 +988,7 @@ test('client batch cap and ingest z.array max are in lockstep', () => {
   const fs = require('fs');
   const path = require('path');
   const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
   assert.match(ts, /eventType: z\.literal\("weather_fetch_batch"\)/,
     'ingest accepts the batch shape');
   const cap = Number(/const MAX_BATCH_EVENTS = (\d+)/.exec(ts)[1]);
@@ -954,7 +1003,7 @@ test('the heaviest batch envelope stays under the ingest batch body cap', () => 
   const fs = require('fs');
   const path = require('path');
   const ts = fs.readFileSync(
-    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'index.ts'), 'utf8');
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
   const cap = Number(/const MAX_BATCH_BODY_BYTES = (\d+)/.exec(ts)[1]);
   const events = [];
   for (let i = 0; i < TELEMETRY_BATCH.MAX_BATCH_EVENTS; i++) {

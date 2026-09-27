@@ -25,9 +25,9 @@ function harness() {
     }
   };
   global.XMLHttpRequest = function () {
-    this.open = (method, url) => { this.url = url; };
+    this.open = (method, url) => { this.method = method; this.url = url; };
     this.setRequestHeader = () => {};
-    this.send = () => {};
+    this.send = function () { this.sendArgs = Array.prototype.slice.call(arguments); };
     xhrs.push(this);
   };
   ['../src/pkjs/settings/key-test.js', '../src/pkjs/settings/tomorrowio-key-test.js'].forEach((p) => {
@@ -122,4 +122,89 @@ test('with no result line on the page any more, a late verdict does not throw', 
   global.document.querySelector = () => null;   // another tab is showing
   h.xhrs[0].ontimeout();
   assert.match(detached.textContent, /Timed out/);
+});
+
+test('a plain key test (tomorrow.io) still opens a GET and sends no body', () => {
+  const h = harness();
+  h.field.value = 'some-key';
+  h.run();
+  assert.equal(h.xhrs.length, 1);
+  assert.equal(h.xhrs[0].method, 'GET');
+  assert.deepEqual(h.xhrs[0].sendArgs, [], 'send() is called with no argument at all');
+  assert.match(h.xhrs[0].url, /^https:\/\/api\.tomorrow\.io\//);
+});
+
+/**
+ * Register a key test built straight from makeKeyTest on a fresh PConf over a fake
+ * field + result line, counting every XMLHttpRequest constructed.
+ * @param {Object} config makeKeyTest config (action 'testFake', dataKey 'fakeKey' are filled in).
+ * @param {{throwOnOpen: boolean}} [opts] Make every XHR's open() throw.
+ * @returns {{run: Function, field: Object, result: Object, xhrs: Array}} Harness.
+ */
+function customHarness(config, opts) {
+  const field = { value: '' };
+  const result = { textContent: '' };
+  const xhrs = [];
+  global.PConf = {};
+  global.document = {
+    querySelector: (sel) => {
+      if (sel === 'input[data-k="fakeKey"]') { return field; }
+      if (sel === '[data-action-result="fakeKey"]') { return result; }
+      return null;
+    }
+  };
+  global.XMLHttpRequest = function () {
+    this.open = (method, url) => {
+      if (opts && opts.throwOnOpen && opts.throwOnOpen()) { throw new Error('SyntaxError: bad URL'); }
+      this.method = method; this.url = url;
+    };
+    this.setRequestHeader = () => {};
+    this.send = () => {};
+    xhrs.push(this);
+  };
+  delete require.cache[require.resolve('../src/pkjs/settings/key-test.js')];
+  const keyTest = require('../src/pkjs/settings/key-test.js');
+  keyTest.makeKeyTest(Object.assign({ action: 'testFake', dataKey: 'fakeKey', host: 'Fake' }, config));
+  return { run: global.PConf.actions.testFake, field, result, xhrs };
+}
+
+test('a test URL of \'\' shows the unavailable message and builds no request', () => {
+  const h = customHarness({
+    buildTestUrl: () => '',
+    unavailableMessage: '✗ Key test isn’t available in this build. You can still save the key.'
+  });
+  h.field.value = 'some-key';
+  h.run();
+  assert.equal(h.result.textContent, '✗ Key test isn’t available in this build. You can still save the key.');
+  assert.equal(h.xhrs.length, 0, 'no XMLHttpRequest constructed');
+
+  const plain = customHarness({ buildTestUrl: () => '' });
+  plain.field.value = 'some-key';
+  plain.run();
+  assert.equal(plain.result.textContent, '✗ Key test isn’t available in this build.', 'the shared fallback text');
+  assert.equal(plain.xhrs.length, 0);
+});
+
+test('an open() that throws reports "Couldn\'t reach" instead of hanging on Testing…', () => {
+  let throwNext = false;
+  const h = customHarness({ buildTestUrl: () => 'https://fake.example/check' },
+    { throwOnOpen: () => throwNext });
+  h.field.value = 'first-key';
+  h.run();                                   // a normal request, still in flight
+  assert.equal(h.result.textContent, 'Testing…');
+  throwNext = true;
+  h.field.value = 'second-key';
+  h.run();                                   // this tap's open() throws
+  assert.equal(h.result.textContent, '✗ Couldn\'t reach Fake. Check your connection and try again.');
+  // The stale-ticket rule still holds: the first request's late answer is ignored.
+  h.xhrs[0].status = 200;
+  h.xhrs[0].onload();
+  assert.equal(h.result.textContent, '✗ Couldn\'t reach Fake. Check your connection and try again.');
+  // ...and a later tap still gets its own verdict.
+  throwNext = false;
+  h.run();
+  const last = h.xhrs[h.xhrs.length - 1];
+  last.status = 200;
+  last.onload();
+  assert.equal(h.result.textContent, '✓ Key works.');
 });

@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 set timezone = 'UTC';  -- make current_date / day-bucketing deterministic
-select plan(20);
+select plan(25);
 
 -- ── Schema ────────────────────────────────────────────────────────────────
 select has_table('public', 'telemetry_watch', 'telemetry_watch exists');
@@ -20,6 +20,27 @@ select is(
     where schemaname = 'public'
       and tablename in ('telemetry_watch', 'telemetry_dau', 'telemetry_errors')),
   3, 'three no_api_access policies present');
+
+-- ── API surface ─────────────────────────────────────────────────────────────
+-- SECURITY DEFINER bypasses RLS, so no API role may call it (a caller could pass a negative
+-- retention and wipe raw telemetry). pg_cron runs it as its owner; manual runs use the
+-- service role. Every migration that recreates it restates the revoke (db diff omits ACLs).
+select ok(
+  not has_function_privilege('anon', 'public.telemetry_rollup_and_prune(integer, integer, boolean)', 'execute'),
+  'anon cannot execute telemetry_rollup_and_prune');
+select ok(
+  not has_function_privilege('authenticated', 'public.telemetry_rollup_and_prune(integer, integer, boolean)', 'execute'),
+  'authenticated cannot execute telemetry_rollup_and_prune');
+select ok(
+  has_function_privilege('service_role', 'public.telemetry_rollup_and_prune(integer, integer, boolean)', 'execute'),
+  'service_role can execute telemetry_rollup_and_prune (manual runs)');
+select is_definer('public', 'telemetry_rollup_and_prune', array['integer', 'integer', 'boolean'],
+  'telemetry_rollup_and_prune runs as its owner');
+select is(
+  (select proconfig from pg_proc
+    where oid = 'public.telemetry_rollup_and_prune(integer, integer, boolean)'::regprocedure),
+  array['search_path=""'],
+  'telemetry_rollup_and_prune pins an empty search_path');
 
 -- ── Behavior ──────────────────────────────────────────────────────────────
 -- Seed: watchA has 2 fetches (1 failed) on a completed day 2 days ago, plus a
@@ -83,10 +104,11 @@ select is((select fetch_count from telemetry_dau
 select is((select lifetime_events from telemetry_watch where watch_key = 'watchA'),
           3::int, 'lifetime_events unchanged after second run (idempotent)');
 
--- Now prune: stale raw row + expired cache go away, live cache stays.
+-- Now prune: the stale raw row goes. The Rainbow cache is rainbow_prune's (its own hourly
+-- job, rainbow_nowcast_cache_rpc_test.sql), so even the expired row stays here.
 select telemetry_rollup_and_prune(p_raw_retention_days => 14, p_prune => true);
-select is((select count(*)::int from rainbow_nowcast_cache), 1,
-          'expired cache pruned, live cache kept');
+select is((select count(*)::int from rainbow_nowcast_cache), 2,
+          'the rollup leaves the Rainbow cache to rainbow_prune');
 
 -- ── Prune boundary: day-aligned, not rolling-timestamp ──────────────────────
 -- The day that straddles the retention cutoff must be pruned as a WHOLE UTC day,

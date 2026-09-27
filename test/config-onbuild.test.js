@@ -86,6 +86,30 @@ test('onSubmit forces a refetch when tomorrowioApiKey changed', function () {
     assert.equal(store.fetch, true);
 });
 
+test('onSubmit trims paste whitespace off rainbowApiKey', function () {
+    var store = { fetch: false, provider: 'wunderground', owmApiKey: '', rainbowApiKey: '  rbw-key \n', location: 'Berlin' };
+    var initial = { provider: 'wunderground', owmApiKey: '', rainbowApiKey: '', location: 'Berlin' };
+    var ctx = { get: function (k) { return store[k]; }, set: function (k, v) { store[k] = v; }, getInitial: function (k) { return initial[k]; } };
+    OB.onSubmit(ctx);
+    assert.equal(store.rainbowApiKey, 'rbw-key');
+});
+
+test('onSubmit forces a refetch when rainbowApiKey changed', function () {
+    var store = { fetch: false, provider: 'wunderground', owmApiKey: '', rainbowApiKey: 'new', location: 'Berlin' };
+    var initial = { provider: 'wunderground', owmApiKey: '', rainbowApiKey: 'old', location: 'Berlin' };
+    var ctx = { get: function (k) { return store[k]; }, set: function (k, v) { store[k] = v; }, getInitial: function (k) { return initial[k]; } };
+    OB.onSubmit(ctx);
+    assert.equal(store.fetch, true);
+});
+
+test('onSubmit leaves fetch alone when rainbowApiKey is unchanged', function () {
+    var store = { fetch: false, provider: 'wunderground', owmApiKey: '', rainbowApiKey: 'same', location: 'Berlin' };
+    var initial = { provider: 'wunderground', owmApiKey: '', rainbowApiKey: 'same', location: 'Berlin' };
+    var ctx = { get: function (k) { return store[k]; }, set: function (k, v) { store[k] = v; }, getInitial: function (k) { return initial[k]; } };
+    OB.onSubmit(ctx);
+    assert.equal(store.fetch, false);
+});
+
 test('registers into PConf.hooks', function () {
     assert.equal(_L.length, 1);
     assert.equal(_S.length, 1);
@@ -143,4 +167,59 @@ test('onSubmit leaves an interval alone when it fits, the guard is off, or no to
     var none = budgetCtx({ provider: 'dwd', radarProvider: 'dwd', fetchIntervalMin: '20' });
     OB.onSubmit(none.ctx);
     assert.equal(none.store.fetchIntervalMin, '20', 'no tomorrow.io in play: not this guard\'s business');
+});
+
+// --- the own-key Rainbow budget guard at save time ------------------------------------
+// Same trap as tomorrow.io: Rainbow's "Use your own key" is switched on on the Radar tab,
+// the interval lives on General. 5000 calls/month over a 31-day month: 5 min needs an
+// 11 h pause.
+function rainbowCtx(over) {
+    return budgetCtx(Object.assign({
+        provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwnKey: true, rainbowFitBudget: true
+    }, over || {}));
+}
+
+test('onSubmit fits an interval the own-key Rainbow free plan no longer affords', function () {
+    // No night pause: 5 min = 24 * 12 * 31 = 8928 calls/month > 5000.
+    var b = rainbowCtx();
+    OB.onSubmit(b.ctx);
+    assert.equal(b.store.fetchIntervalMin, '15', 'the item default, which fits');
+    assert.equal(b.store.gpsCacheMin, '15', 'and the GPS cache raise sees the fitted interval');
+});
+
+test('onSubmit leaves the interval alone when the Rainbow guard is off, it fits, or no Rainbow key call is made', function () {
+    var off = rainbowCtx({ rainbowFitBudget: false });
+    OB.onSubmit(off.ctx);
+    assert.equal(off.store.fetchIntervalMin, '5', 'guard off: the page only warns');
+
+    var ten = rainbowCtx({ fetchIntervalMin: '10' });     // 4464/month
+    OB.onSubmit(ten.ctx);
+    assert.equal(ten.store.fetchIntervalMin, '10');
+
+    var paused = rainbowCtx({ sleepNightEnabled: true, sleepStartHour: 20 });  // 11 h: 4836/month
+    OB.onSubmit(paused.ctx);
+    assert.equal(paused.store.fetchIntervalMin, '5');
+
+    var radarOff = rainbowCtx({ radarMode: 'off' });
+    OB.onSubmit(radarOff.ctx);
+    assert.equal(radarOff.store.fetchIntervalMin, '5', 'radar off: no Rainbow call is made');
+
+    var shared = rainbowCtx({ rainbowOwnKey: false });
+    OB.onSubmit(shared.ctx);
+    assert.equal(shared.store.fetchIntervalMin, '5', '"Use your own key" off: the shared radar bills the user nothing');
+});
+
+test('onSubmit fits to every active guard: the tomorrow.io toggle does not switch off Rainbow\'s', function () {
+    // Weather on tomorrow.io (5 min fits its 500/day) with radar on the Rainbow key.
+    var both = rainbowCtx({ provider: 'tomorrowio' });
+    OB.onSubmit(both.ctx);
+    assert.equal(both.store.fetchIntervalMin, '15', 'Rainbow binds when both guards are on');
+
+    var tioOff = rainbowCtx({ provider: 'tomorrowio', tomorrowioFitBudget: false });
+    OB.onSubmit(tioOff.ctx);
+    assert.equal(tioOff.store.fetchIntervalMin, '15', 'Rainbow\'s guard still binds');
+
+    var rbOff = rainbowCtx({ provider: 'tomorrowio', rainbowFitBudget: false });
+    OB.onSubmit(rbOff.ctx);
+    assert.equal(rbOff.store.fetchIntervalMin, '5', 'only tomorrow.io\'s guard: weather alone fits 5 min');
 });

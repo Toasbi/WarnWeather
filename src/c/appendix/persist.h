@@ -141,7 +141,7 @@ bool persist_set_fourth_line_color(GColor color);
 // The fourth selectable metric line (SERIES_FIFTH): colour + its own style
 // byte (same kind | field layout as a LINE_STYLES byte, below), both off the
 // third tail block of CLAY_LINE_STYLE_UINT8 (bytes [14..15]). The style
-// defaults to a top stripe when unset.
+// defaults to x marks when unset.
 GColor persist_get_fifth_line_color(void);
 bool persist_set_fifth_line_color(GColor color);
 uint8_t persist_get_fifth_line_style(void);
@@ -322,6 +322,15 @@ int  persist_get_notice_text(char *buffer, size_t buffer_size);
 #define NORAIN_TEXT_BUF_BYTES 25
 bool persist_set_norain_text(const char *text);
 int  persist_get_norain_text(char *buffer, size_t buffer_size);
+
+// The radar limit notice (RAIN_RADAR_LIMITED tuple; see radar_limit.h for when it
+// moves and what the radar then draws). Unguarded for the same reason as the
+// no-rain text above: rain_radar_layer.c reads it and compiles on aplite too,
+// where nothing references either accessor and --gc-sections reaps both.
+// Get: whether the notice is up (absent slot = not limited). Set: false deletes
+// the slot, true stores it; returns whether the stored state actually changed.
+bool persist_get_radar_limited(void);
+bool persist_set_radar_limited(bool limited);
 
 bool persist_set_forecast_start(time_t val);
 

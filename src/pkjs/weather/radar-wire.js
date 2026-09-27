@@ -3,9 +3,10 @@
 // Single source of truth for the rain-radar wire invariant shared by every
 // radar source (DWD, Met.no, Rainbow, Tomorrow.io) and the dedupe comparator:
 // the 24-slot, 5-min-per-slot frame layout, the slot-0 pinning rule, and the
-// wire-tuple shapes. Previously the constants were re-declared per source,
-// each guarded only by a "must match" comment, and the {TREND, AREA, START}
-// triple was hand-assembled at five call sites.
+// wire-tuple shapes (a window, the clear, the limit notice). Previously the
+// constants were re-declared per source, each guarded only by a "must match"
+// comment, and the {TREND, AREA, START} triple was hand-assembled at five call
+// sites.
 
 var zeroFilledArray = require('../wire-units.js').zeroFilledArray;
 
@@ -37,7 +38,8 @@ function clearRadarTuples() {
 
 /**
  * Whether a radar answer is the CLEAR above (empty trend array): radar switched
- * off, or a source that can never answer (no key/endpoint, rejected key).
+ * off, or a source that can never answer (no key/endpoint, rejected key, a
+ * missing Rainbow proxy).
  *
  * @param {?Object} tuples Radar tuples, or null/undefined (no answer).
  * @returns {boolean} True for the clearing tuples.
@@ -45,6 +47,33 @@ function clearRadarTuples() {
 function isClearRadarTuples(tuples) {
     return Boolean(tuples) && Array.isArray(tuples.RAIN_RADAR_TREND_UINT8)
         && tuples.RAIN_RADAR_TREND_UINT8.length === 0;
+}
+
+/**
+ * The LIMITED answer: the radar source is up but refuses us because a request
+ * limit is reached (HTTP 429). Neither a window nor a clear: the watch keeps
+ * its window and, where that window shows no rain, says "Radar limit reached"
+ * instead of the no-rain line. It rides ALONE, never together with the three
+ * radar arrays (which end the notice on the watch), so it never makes the
+ * heaviest weather bundle heavier (test/inbox-size.test.js).
+ *
+ * @returns {{RAIN_RADAR_LIMITED: number}} The limit notice tuple.
+ */
+function limitedRadarTuples() {
+    return { RAIN_RADAR_LIMITED: 1 };
+}
+
+/**
+ * Whether a radar answer is the LIMITED one above. Reads the key rather than
+ * comparing the whole object: the answer that reaches the fetch cycle may carry
+ * the sky rows too (radar-sky.js joinRadarAndSky merges them in).
+ *
+ * @param {?Object} tuples Radar tuples, or null/undefined (no answer).
+ * @returns {boolean} True for the limit notice; never for a window or a clear.
+ */
+function isLimitedRadarTuples(tuples) {
+    return Boolean(tuples) && tuples.RAIN_RADAR_LIMITED === 1
+        && !Array.isArray(tuples.RAIN_RADAR_TREND_UINT8);
 }
 
 /**
@@ -85,6 +114,8 @@ module.exports = {
     slotZeroEpochFor: slotZeroEpochFor,
     clearRadarTuples: clearRadarTuples,
     isClearRadarTuples: isClearRadarTuples,
+    limitedRadarTuples: limitedRadarTuples,
+    isLimitedRadarTuples: isLimitedRadarTuples,
     pointRadarTuples: pointRadarTuples,
     flatRadarTuples: flatRadarTuples
 };

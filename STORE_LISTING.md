@@ -11,8 +11,8 @@ FORECAST
 - 24-hour forecast with a temperature line and configurable, battery-friendly updates
 - Up to four configurable metrics such as precipitation, cloud cover, UV index, gusts,
   wind, air pressure, feels-like temperature and dew point
-- Show any metric as a line, dots, x marks, or a shaded stripe along the top or bottom of
-  the graph
+- Show any metric as a line, dots or x marks, and precipitation, cloud cover, UV, wind or
+  gusts also as a shaded stripe along the top or bottom of the graph
 - Feels-like your way: the provider's own value, or the Steadman formula
   (temperature, humidity, wind) applied the same on every provider
 - Optional day/night shading
@@ -21,6 +21,10 @@ FORECAST
 
 RAIN RADAR
 - 2-hour precipitation nowcast from regional and worldwide providers
+- Worldwide Rainbow.ai radar: "Rainbow (limited)" is shared by every user, so it refreshes every
+  30 minutes; turn on "Use your own key" and enter your own Rainbow API key to refresh it at your
+  own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
+- "Radar limit reached" on the radar when a radar source refuses requests over its limit
 - Rain countdown telling you when rain starts (or stops)
 - Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph
 - Clouds, sun and lightning rows under the radar graph for the next 2 hours

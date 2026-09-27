@@ -28,6 +28,7 @@ var buildClayPayload = require('./clay-payload.js').buildClayPayload;
 var effectiveHolidayCountry = require('./clay-payload.js').effectiveHolidayCountry;
 var holidayWindowOpts = require('./clay-payload.js').holidayWindowOpts;
 var providerFactory = require('./provider-factory.js');
+var radarSourceId = require('./weather/radar-source-id.js');
 var previewPalette = require('./settings/preview-palette.js');
 var newsCache = require('./news-cache.js');
 var weatherTabCache = require('./weather-tab-cache.js');
@@ -187,6 +188,9 @@ Pebble.addEventListener('showConfiguration', function(e) {
         devStats: devStats.summarize(),
         palette: previewPalette.buildPreviewPalette(),
         newsEndpoint: (pkg.news && pkg.news.endpoint) || '',
+        // The Rainbow proxy endpoint: the key Test button POSTs to its '/key-check' path ('' = no
+        // endpoint in this build; the button then says the test isn't available).
+        rainbowEndpoint: (pkg.rainbow && pkg.rainbow.endpoint) || '',
         appVersion: pkg.version || '',
         accountToken: newsAccountToken,
         // Raw cached `list` response (≤1h old at last refresh); the page
@@ -232,7 +236,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
         return;
     }
 
-    var oldRadarProvider = app.settings ? app.settings.radarProvider : undefined;
+    // The radar SOURCE in effect (radar-source-id.js), not the stored radarProvider:
+    // flipping Rainbow's "Use your own key" switches sources without touching it.
+    var oldRadarSource = app.settings ? radarSourceId.effectiveRadarId(app.settings) : undefined;
     var oldRadarMode = app.settings ? app.settings.radarMode : undefined;
     var oldRadarSky = app.settings ? app.settings.radarSky !== false : undefined;
     // Capture the render-affecting settings before they're overwritten below so we can
@@ -302,7 +308,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     var decision = decideConfigClose({
         providerOrLocationChanged: providerOrLocationChanged,
         // The sky rows ride the radar fetch, so their toggle counts as a radar change.
-        radarProviderChanged: oldRadarProvider !== app.settings.radarProvider
+        radarProviderChanged: oldRadarSource !== radarSourceId.effectiveRadarId(app.settings)
             || oldRadarMode !== app.settings.radarMode
             || oldRadarSky !== (app.settings.radarSky !== false),
         renderSettingsChanged: prevRender !== renderSignature(app.settings),

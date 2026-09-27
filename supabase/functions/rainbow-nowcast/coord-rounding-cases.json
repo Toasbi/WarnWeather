@@ -1,0 +1,22 @@
+{
+  "_comment": "Coordinate rounding shared by the phone (src/pkjs/weather/coords.js, test/coords.test.js) and the rainbow-nowcast proxy (body.ts, body_test.ts): [input, rounded]. Both sides must agree, or an old GET and a new POST from the same fix land in different cache rows. Half-points round toward +Infinity (Math.round), never away from zero (toFixed); -0 comes back as 0.",
+  "cases": [
+    [52.5170365, 52.517],
+    [13.3888599, 13.389],
+    [-179.9995, -179.999],
+    [179.9995, 180],
+    [-0.0004, 0],
+    [-0.0005, 0],
+    [0.0005, 0.001],
+    [-0.0006, -0.001],
+    [1.0005, 1.001],
+    [-1.0005, -1],
+    [52.5205, 52.521],
+    [-33.8675, -33.867],
+    [89.9996, 90],
+    [-89.9996, -90],
+    [90, 90],
+    [-180, -180],
+    [0, 0]
+  ]
+}

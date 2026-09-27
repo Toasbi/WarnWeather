@@ -28,6 +28,7 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [Block registry — PConf.blocks](#block-registry--pconfblocks)
    - [Options-resolver registry — PConf.optionsResolvers](#options-resolver-registry--pconfoptionsresolvers)
    - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
+   - [Hint-resolver registry — PConf.hintResolvers](#hint-resolver-registry--pconfhintresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
    - [Hook registry — PConf.hooks](#hook-registry--pconfhooks)
 6. [Build step — buildPage](#build-step--buildpage)
@@ -328,6 +329,7 @@ picking the shown swatch is what writes it.
 | `description` | string | HTML description rendered below the label |
 | `hint` | string | HTML hint rendered below the control |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
+| `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows only (not `button`/`sheet` chevron rows or `inline` cells). |
 | `attributes.placeholder` | string | Placeholder text for `text` items |
 | `capabilities` | `["COLOR"]` | Clay-compatible sugar: hides the item on b&w platforms |
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
@@ -446,6 +448,21 @@ PConf.optionsResolvers.register('statusSlot', function (state, env, args) {
 });
 ```
 
+The resolver runs on every render, so the list — labels included — follows any key it reads.
+A resolver can therefore RENAME an option from the live settings as well as filter the list;
+WarnWeather's radar picker calls its Rainbow option "Rainbow (limited)" until a toggle is on and
+a key is typed into a text field. When that happens depends on the control that changed:
+
+- **Toggle, select/searchSelect pick, radio, segmented, colour** — the page re-renders at once
+  (an action button when its handler returns `true`).
+- **Text field** — typing writes the state per keystroke but repaints nothing (a re-render would
+  swallow the user's next tap). When the field **commits** (`change`: blur or Enter), the engine
+  relabels every rendered `select`/`searchSelect` trigger IN PLACE — only the trigger's label
+  text and `aria-label` change, so the tap still lands — from its freshly resolved option list.
+  A trigger whose stored value is no longer among its options is left alone until the next full
+  render snaps it. The option sheet is rebuilt whenever it opens, so it is always current.
+  Anything else a text key feeds (hints, `showWhen`, blocks) catches up at the next full render.
+
 ### Display-resolver registry — PConf.displayResolvers
 
 An item with a `displayFrom: { resolver: id, args }` field PAINTS a derived value while its
@@ -465,6 +482,29 @@ PConf.displayResolvers.register('graphNightTint', function (state, env, args) {
 
 The write path is unaffected: the control still stores under its own `messageKey`, so picking
 the shown value is what pins it. An unregistered resolver id falls back to the stored value.
+
+### Hint-resolver registry — PConf.hintResolvers
+
+An item with a `hintFrom: { resolver: id, args }` field shows a hint DERIVED from the live
+settings — for a hint that depends on keys other than the row's own value (`hintByValue` covers
+that one). WarnWeather's line-style pickers use it: each explains the scale of the metric its
+own line draws, which lives in a sibling key.
+
+```js
+// Returns the hint HTML; null/undefined = "use the row's static hint"; '' = no hint.
+PConf.hintResolvers.register('lineStyleHint', function (state, env, args) {
+  // args carries the row's messageKey and the value the row SHOWS (after the
+  // display-snap), both merged UNDER hintFrom.args
+  return scaleFor(state[args.metricKey], args.value);
+});
+```
+
+The resolver runs at render time, after the display-snap. The page re-renders its whole body
+after every change but a text edit (that one waits for the next full render — see the
+options-resolver registry above), so the hint follows every key the resolver reads with no dependency list
+to declare — the same reason `optionsFrom` lists and `showWhen` gates stay current. An
+unregistered resolver id, or a `null`/`undefined` answer, falls back to `hintByValue` for the
+shown value, then `hint`; an empty string is honoured as "no hint here".
 
 ### Action registry — PConf.actions
 

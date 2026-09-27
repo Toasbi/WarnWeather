@@ -1,7 +1,7 @@
 // test/index-radar-clear-on-failure.test.js
 //
-// A radar source that can never answer (tomorrow.io with no key or a rejected
-// one) answers the radar CLEAR, so the watch drops its radar instead of rolling
+// A radar source that can never answer (tomorrow.io or Rainbow (own key) with no
+// key or a rejected one) answers the radar CLEAR, so the watch drops its radar instead of rolling
 // the last window forward into a made-up "No rain ahead". But that clear rides
 // the weather send's extras, which only go out when the FORECAST succeeds — and
 // with tomorrow.io as both the forecast and the radar source, the same missing
@@ -45,6 +45,15 @@ test('REGRESSION: tomorrow.io as forecast AND radar source with no key still cle
     answerXhr: true
   });
   assertOnlyClears(out.radarSends, 'the clear reaches the watch though the forecast failed');
+  assert.equal(out.radarRequests, 0);
+});
+
+test('Rainbow on your own key with no key clears the watch radar, without a request', () => {
+  const out = probe('basalt', {
+    settings: { provider: 'tomorrowio', radarProvider: 'rainbow', rainbowOwnKey: true, tomorrowioApiKey: '' },
+    answerXhr: true
+  });
+  assertOnlyClears(out.radarSends, 'the keyless own-key radar clears');
   assert.equal(out.radarRequests, 0);
 });
 
@@ -93,21 +102,24 @@ test('REGRESSION: the sky toggle off with a failing forecast still clears the wa
 });
 
 test('sky on with a failing forecast: no fresh sky rides it, with a real radar window or a radar clear', () => {
-  ['rainbow', 'tomorrowio'].forEach((radarProvider) => {
+  [['rainbow', false], ['tomorrowio', false], ['rainbow', true]].forEach(([radarProvider, rainbowOwnKey]) => {
     const out = probe('basalt', {
-      settings: { provider: 'tomorrowio', radarProvider, radarSky: true, tomorrowioApiKey: '' },
+      settings: { provider: 'tomorrowio', radarProvider, rainbowOwnKey, radarSky: true, tomorrowioApiKey: '' },
       answerXhr: true
     });
-    if (radarProvider === 'tomorrowio') {
-      // A keyless tomorrow.io radar can never answer: no sky request goes out for rows
+    // tomorrow.io and Rainbow on your own key both run without a key here.
+    const keyless = radarProvider !== 'rainbow' || rainbowOwnKey;
+    const label = radarProvider + (rainbowOwnKey ? ' (own key)' : '');
+    if (keyless) {
+      // A keyless radar can never answer: no sky request goes out for rows
       // it could never draw (radarFactory.canAnswer), only the sky clear.
-      assert.equal(out.skyRequests, 0, 'tomorrowio: no sky request for a radar that can never answer');
-      assertOnlySkyClears(out.skySends, 'keyless radar');
+      assert.equal(out.skyRequests, 0, label + ': no sky request for a radar that can never answer');
+      assertOnlySkyClears(out.skySends, label + ': keyless radar');
     } else {
-      assert.ok(out.skyRequests >= 1, radarProvider + ': the sky half did run');
-      assert.deepEqual(out.skySends, [], radarProvider + ': no sky data rides a failed forecast');
+      assert.ok(out.skyRequests >= 1, label + ': the sky half did run');
+      assert.deepEqual(out.skySends, [], label + ': no sky data rides a failed forecast');
     }
-    if (radarProvider === 'tomorrowio') {
+    if (keyless) {
       // The keyless radar answers a clear, merged with this cycle's fresh sky:
       // only the three radar keys go out.
       assertOnlyClears(out.radarSends, 'radar clear beside a fresh sky');

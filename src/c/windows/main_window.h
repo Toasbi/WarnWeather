@@ -16,7 +16,8 @@ void main_window_apply_top_view();
 // next full redraw.
 void main_window_apply_theme(void);
 
-// Radar data present? — the ONE availability predicate the ViewSpec resolves
+// Radar data present (a stored window, or the radar limit notice to show in its
+// place)? — the ONE availability predicate the ViewSpec resolves
 // against (view_spec_resolve / view_slot_available), exported so app_message.c's
 // availability-flip bracket can never drift from the definition the view
 // actually uses. Constant-false on aplite (radar is compiled out).

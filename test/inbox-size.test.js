@@ -216,6 +216,30 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 
+// The radar limit notice (RAIN_RADAR_LIMITED, radar-wire.js limitedRadarTuples) is
+// sent INSTEAD of the three radar tuples, never beside them: a 7 B header + a 4 B
+// int32 (PKJS packs a JS number as int32) replaces 7 + 24 + 7 + 24 + 7 + 4 = 73 B. So
+// the recorded heaviest bundles above stay the worst case; this pins both halves.
+test('the radar limit notice rides alone, so a limited bundle is lighter than the heaviest', () => {
+  const radarWire = require('../src/pkjs/weather/radar-wire.js');
+  const limited = radarWire.limitedRadarTuples();
+  const RADAR_KEYS = ['RAIN_RADAR_TREND_UINT8', 'RAIN_RADAR_TREND_AREA_UINT8', 'RAIN_RADAR_START'];
+  RADAR_KEYS.forEach(function(k) {
+    assert.equal(Object.prototype.hasOwnProperty.call(limited, k), false, k + ' never rides with the notice');
+  });
+  const radarCategory = WEATHER_CATEGORIES.filter(function(c) { return c.name === 'radar'; })[0];
+  assert.ok(radarCategory.keys.indexOf('RAIN_RADAR_LIMITED') !== -1, 'the notice is in the radar category');
+  ['emery', 'aplite'].forEach(function(platform) {
+    const heaviest = buildHeaviestBundle(platform);
+    const withNotice = Object.assign({}, heaviest);
+    RADAR_KEYS.forEach(function(k) { delete withNotice[k]; });
+    Object.assign(withNotice, limited);
+    const size = dictSize(buildWeatherOutboxPayload(withNotice));
+    assert.equal(size, dictSize(heaviest) - 73 + 11, platform + ': the notice costs 11 B in place of 73 B');
+    assert.ok(size <= dictSize(heaviest), platform + ': a limited bundle is at most the heaviest');
+  });
+});
+
 /** The Clay settings message now carries the palette tuples too. */
 function buildHeaviestClayMessage() {
   const payload = buildClayPayload({

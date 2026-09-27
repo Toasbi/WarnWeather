@@ -14,13 +14,14 @@ var KEYS = require('./storage-keys');
 
 var STORAGE_KEY = 'clay-settings';
 
-// Credentials "Reset watchface" deliberately KEEPS. The reset is about the face;
-// making someone dig out an API key again — one they may have paid for, or waited
-// on an activation email for — is a different and far more annoying kind of reset
-// than the one they asked for. The Weather Underground key is scraped rather than
-// typed and already lives outside the blob (KEYS.WU_API_KEY), so it is preserved
+// Credentials "Reset watchface" deliberately KEEPS (the forecast providers' keys,
+// and the Rainbow own-key radar key). The reset is about the face; making someone
+// dig out an API key again — one they may have paid for, or waited on an
+// activation email for — is a different and far more annoying kind of reset than
+// the one they asked for. The Weather Underground key is scraped rather than typed
+// and already lives outside the blob (KEYS.WU_API_KEY), so it is preserved
 // separately below.
-var PRESERVED_SETTING_KEYS = ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey'];
+var PRESERVED_SETTING_KEYS = ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'rainbowApiKey'];
 
 /**
  * Wipe phone-side PKJS localStorage — the settings blob and every cache /
@@ -69,6 +70,9 @@ function resetAll() {
     // the default, so any '' saved from here on is a deliberate clear: mark the
     // migration done, or a clear saved before the next boot would be undone by it.
     localStorage.setItem(KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY, '1');
+    // Same reasoning for the 1.23.1 fourth-line style move: the next blob is seeded
+    // with the new default 'x', so a 'stripeTop' saved from here on was picked.
+    localStorage.setItem(KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, '1');
     return keep;
 }
 

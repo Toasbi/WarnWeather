@@ -25,6 +25,12 @@ if (typeof require !== 'undefined') {
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
     var tomorrowioBudget = (typeof require !== 'undefined')
         ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
+    var rainbowBudget = (typeof require !== 'undefined')
+        ? require('./rainbow-budget.js') : PConf.rainbowBudget;
+    // The update-interval ladder under every active budget guard, shared with onbuild.js's
+    // save-time fit so the page and the save clamp can't drift apart.
+    var intervalBudget = (typeof require !== 'undefined')
+        ? require('./interval-budget.js') : PConf.intervalBudget;
     // Country → recommended-provider mapping (shared with the wizard).
     var CD = (typeof require !== 'undefined') ? require('./country-defaults.js') : COUNTRY_DEFAULTS;
     // The graph-colour vocabulary (key names, per-scope roles, the built-in table) —
@@ -110,6 +116,130 @@ if (typeof require !== 'undefined') {
             if (!taken) { out.push(opt); }
         }
         return out;
+    });
+
+    // The six line styles in picker order — line-style.js' LINE_STYLE_KINDS vocabulary.
+    var LINE_STYLE_OPTIONS = [
+        ['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'], ['× marks', 'x'],
+        ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']
+    ];
+    // One line's style options: the two stripes only while the line's metric can be
+    // one (line-style.js metricAllowsStripe — the rule the bake resolves by), so the
+    // engine's display-snap shows a stored stripe on any other metric as the style the
+    // watch actually draws. args.metricKey names the metric picker it sits under.
+    PConf.optionsResolvers.register('lineStyleOptions', function (S, env, args) {
+        var metric = S ? S[(args || {}).metricKey] : undefined;
+        if (lineStyle.metricAllowsStripe(metric)) { return LINE_STYLE_OPTIONS.slice(); }
+        var out = [];
+        for (var i = 0; i < LINE_STYLE_OPTIONS.length; i += 1) {
+            if (!lineStyle.isStripeValue(LINE_STYLE_OPTIONS[i][1])) { out.push(LINE_STYLE_OPTIONS[i]); }
+        }
+        return out;
+    });
+
+    // ---- The forecast line hints: how a metric's value reads on the graph ----
+    // The scale lives on the LINE-STYLE picker, because the style decides how a value
+    // is shown: a curve or its marks by HEIGHT, a stripe by COLOUR STRENGTH. The
+    // metric pickers keep only notes true of the metric whatever its style — except on
+    // a watch without style pickers (env.lineStyles false: aplite, the schema's
+    // LINE_STYLES_WHEN gate), where the metric picker adds the height wording, so the
+    // scale is explained there too. No hint restates a metric's or a style's name, a
+    // default look or 'Off'. The wind scale is named, not placed ("below"): with wind
+    // and gusts both picked, its row sits under the first of them only; the pressure
+    // scale row always sits below its (single) pressure line.
+    var HEIGHT_SCALE = {
+        precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
+        cloud: 'Half height = half the sky covered, full height = overcast.',
+        wind: 'Scaled by the Wind graph scale setting.',
+        gust: 'Scaled by the Wind graph scale setting.',
+        uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
+        pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
+        feels: 'Drawn on the same scale as the temperature curve.',
+        dew: 'Drawn on the same scale as the temperature curve.'
+    };
+    // A stripe cell's colour strength steps with the value (chart_stripe.h: four
+    // levels), so the half/full anchors read as colour instead of height. Keyed by
+    // exactly the metrics a stripe can show (line-style.js STRIPE_METRIC_IDS — a test
+    // holds the two lists equal).
+    var STRIPE_SCALE = {
+        precip_prob: 'Half-strength colour = 50% chance of rain, full colour = 100%.',
+        cloud: 'Half-strength colour = half the sky covered, full colour = overcast.',
+        wind: 'Colour strength follows the Wind graph scale setting.',
+        gust: 'Colour strength follows the Wind graph scale setting.',
+        uv: 'Half-strength colour = UV 5.5, full colour = UV 11 (extreme).'
+    };
+    // What the metric picker says whatever the style.
+    var METRIC_NOTES = {
+        cloud: 'Not available with Yandex.',
+        gust: 'The hourly peak.',
+        dew: 'The closer it runs to the temperature, the more humid it feels.'
+    };
+    // What the style adds after its line's scale. Thin and Thick say it all.
+    var STYLE_NOTES = {
+        dots: 'Aligned to the rain bars.',
+        x: 'Aligned to the rain bars.',
+        stripeTop: 'One cell per hour.',
+        stripeBottom: 'One cell per hour. Below the zero line, where bars and lines never cover it.'
+    };
+
+    /**
+     * One entry of a copy table, OWN keys only — a stored value like 'constructor'
+     * must not print an Object.prototype function.
+     * @param {Object} table Copy table.
+     * @param {*} key Lookup key.
+     * @returns {string} The entry, or '' when absent.
+     */
+    function copyOf(table, key) {
+        return (typeof key === 'string' && Object.prototype.hasOwnProperty.call(table, key))
+            ? table[key] : '';
+    }
+
+    /**
+     * Sentences joined with one space, empty ones dropped.
+     * @param {string[]} parts Sentences, '' for none.
+     * @returns {string} The hint, '' when every part is empty.
+     */
+    function joinHint(parts) {
+        var out = [];
+        for (var i = 0; i < parts.length; i += 1) {
+            if (parts[i]) { out.push(parts[i]); }
+        }
+        return out.join(' ');
+    }
+
+    /**
+     * A metric picker's hint: the metric's own note, and — only on a watch without
+     * style pickers — its height scale after it.
+     * @param {string} metric The picker's shown metric (or 'off').
+     * @param {Object} [env] Platform env; `lineStyles` truthy = style pickers exist
+     *   (the same truthy test as the schema's {env: 'lineStyles'} row gate).
+     * @returns {string} The hint, '' for none.
+     */
+    function forecastMetricHint(metric, env) {
+        var note = copyOf(METRIC_NOTES, metric);
+        if (env && env.lineStyles) { return note; }
+        return joinHint([note, copyOf(HEIGHT_SCALE, metric)]);
+    }
+
+    /**
+     * A line-style picker's hint: its line's scale as this style shows it, then the
+     * style's own note.
+     * @param {string} metric The metric of the line this picker styles.
+     * @param {string} style The picker's shown style.
+     * @returns {string} The hint, '' for none.
+     */
+    function lineStyleHint(metric, style) {
+        if (!metric || metric === 'off') { return ''; }
+        return joinHint([copyOf(lineStyle.isStripeValue(style) ? STRIPE_SCALE : HEIGHT_SCALE, metric),
+            copyOf(STYLE_NOTES, style)]);
+    }
+
+    PConf.hintResolvers.register('forecastMetricHint', function (S, env, args) {
+        return forecastMetricHint(args.value, env);
+    });
+    // args.metricKey names the metric picker this style picker sits under.
+    PConf.hintResolvers.register('lineStyleHint', function (S, env, args) {
+        return lineStyleHint(S ? S[args.metricKey] : undefined, args.value);
     });
 
     // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
@@ -778,7 +908,57 @@ if (typeof require !== 'undefined') {
         return PConf.engine.formatDateValue(new Date());
     });
 
-    // ---- tomorrow.io rate-limit info block + budget-guard interval resolver ----
+    // ---- rate-limit info blocks (tomorrow.io, Rainbow own key) + budget-guard interval resolver ----
+
+    /**
+     * A whole number with thousands commas ("5,000"), formatted by hand:
+     * Number.prototype.toLocaleString is unreliable in old Android WebViews.
+     *
+     * @param {number} n Non-negative integer.
+     * @returns {string} The number with a comma every three digits.
+     */
+    function withThousands(n) {
+        return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    /**
+     * The derived sleep->cadence unlock line for a budget module, or ''. Names the
+     * fastest ladder step that does NOT fit at the current pause, and the pause that
+     * would unlock it — only when some pause can, and it is longer than the current one.
+     *
+     * @param {Object} B Budget module (INTERVAL_LADDER/fits/minSleepHoursFor).
+     * @param {Object} state Settings state.
+     * @param {number} sleep Current night pause in hours.
+     * @param {string} qualifier Text after "N-minute updates" (e.g. ' with radar'), or ''.
+     * @returns {string} '<br>…' or ''.
+     */
+    function unlockRuleHtml(B, state, sleep, qualifier) {
+        for (var i = 0; i < B.INTERVAL_LADDER.length; i += 1) {
+            var min = parseInt(B.INTERVAL_LADDER[i][1], 10);
+            if (!B.fits(state, min)) {
+                var need = B.minSleepHoursFor(state, min);
+                if (need !== null && need > sleep) {
+                    return '<br>' + min + '-minute updates' + qualifier
+                        + ' need a night pause of ≥ ' + need + ' h — widen the pause to unlock faster updates.';
+                }
+                return '';
+            }
+        }
+        return '';
+    }
+
+    /**
+     * The interval a budget read-out computes with: the one Save will store (interval-budget.js
+     * fitInterval), not the raw stored value. With a "Fit update interval" guard on, a stored
+     * interval the budget no longer affords (radar picked on the Radar tab, the interval set on
+     * General) is replaced at Save; warning "over budget" about it would contradict the toggle.
+     *
+     * @param {Object} state Settings state.
+     * @returns {number} Minutes.
+     */
+    function readoutInterval(state) {
+        return parseInt(intervalBudget.fitInterval(state, state.fetchIntervalMin), 10) || 15;
+    }
 
     /**
      * Rate-limit info block under the tomorrow.io key field: free-tier limits,
@@ -795,7 +975,7 @@ if (typeof require !== 'undefined') {
         var B = tomorrowioBudget;
         var cpc = B.callsPerCycle(state);
         if (cpc === 0) { return ''; }
-        var interval = parseInt(state.fetchIntervalMin, 10) || 15;
+        var interval = readoutInterval(state);
         var sleep = B.sleepHours(state);
         var daily = Math.round(B.dailyCalls(state, interval));
         var ok = B.fits(state, interval);
@@ -812,19 +992,7 @@ if (typeof require !== 'undefined') {
             : '<b style="color:#FF6A52">~' + daily + ' calls/day ✗ over budget</b>';
         var html = '<b>Free plan: ' + B.LIMIT_DAY + ' calls/day, ' + B.LIMIT_HOUR + '/hour.</b> '
             + 'Your settings: ' + settingsBits + ' → ' + verdict + '.';
-        // Derived unlock rule: name the fastest ladder step that does NOT fit at
-        // the current pause, and the pause that would unlock it.
-        for (var i = 0; i < B.INTERVAL_LADDER.length; i += 1) {
-            var min = parseInt(B.INTERVAL_LADDER[i][1], 10);
-            if (!B.fits(state, min)) {
-                var need = B.minSleepHoursFor(state, min);
-                if (need !== null && need > sleep) {
-                    html += '<br>' + min + '-minute updates' + (radarOn ? ' with radar' : '')
-                        + ' need a night pause of ≥ ' + need + ' h — widen the pause to unlock faster updates.';
-                }
-                break;
-            }
-        }
+        html += unlockRuleHtml(B, state, sleep, radarOn ? ' with radar' : '');
         if (B.hourlyCalls(state, interval) >= B.LIMIT_HOUR - 1) {
             html += '<br>At this rate a settings-save refetch in the same hour may delay one cycle — harmless.';
         }
@@ -835,16 +1003,47 @@ if (typeof require !== 'undefined') {
     }
     PConf.blocks.register('tomorrowioBudget', tomorrowioBudgetBlock);
 
-    // Update-interval ladder for fetchIntervalMin: guard on -> only entries the
-    // tomorrow.io budget affords (full ladder when no tomorrow.io is selected);
-    // guard off -> full ladder (the info block shows the red warning instead).
-    // If the stored interval drops out, the engine's resolveRowItem snaps it to
-    // the item default ('15') — but only while the row renders (General tab), so
-    // onbuild.js's onSubmit applies the same fit at save time for a change made
-    // on another tab (the radar provider/mode, on the Radar tab).
-    PConf.optionsResolvers.register('fetchIntervalBudget', function (S, env, args) {
-        if (!S || S.tomorrowioFitBudget === false) { return tomorrowioBudget.INTERVAL_LADDER.slice(); }
-        return tomorrowioBudget.fittingOptions(S);
+    /**
+     * Monthly-usage info block under the Rainbow API key field (Rainbow with "Use your
+     * own key" on): the free plan's monthly ceiling, the user's projected month at the
+     * current settings, a ✓/✗ verdict and the derived sleep->cadence unlock rule. Unlike tomorrow.io's block
+     * there is no "with radar" qualifier (every Rainbow call is a radar call) and no
+     * hourly heads-up (Rainbow documents no hourly limit). Recomputes on every render.
+     *
+     * @param {Object} state Settings state.
+     * @param {Object} env Platform env (unused).
+     * @returns {string} Block HTML, or '' when no own-key Rainbow budget is in play.
+     */
+    function rainbowBudgetBlock(state, env) {
+        var B = rainbowBudget;
+        if (B.callsPerCycle(state) === 0) { return ''; }
+        var interval = readoutInterval(state);
+        var sleep = B.sleepHours(state);
+        var monthly = Math.round(B.monthlyCalls(state, interval));
+        var settingsBits = 'every ' + interval + ' min, '
+            + (sleep > 0 ? 'night pause ' + sleep + ' h' : 'no night pause');
+        // "5,000" like the hints around this read-out (RAINBOW_KEY_HINT, RAINBOW_BUDGET_HINT).
+        var verdict = B.fits(state, interval)
+            ? '<b>~' + withThousands(monthly) + ' calls/month ✓</b>'
+            : '<b style="color:#FF6A52">~' + withThousands(monthly) + ' calls/month ✗ over budget</b>';
+        // Bare content, no .static wrapper: same .blockrow rule as tomorrowioBudgetBlock.
+        return '<b>Free plan: ' + withThousands(B.LIMIT_MONTH) + ' calls/month.</b> '
+            + 'Your settings: ' + settingsBits + ' → ' + verdict + '.'
+            + unlockRuleHtml(B, state, sleep, '');
+    }
+    PConf.blocks.register('rainbowBudget', rainbowBudgetBlock);
+
+    // Update-interval ladder for fetchIntervalMin: the entries that fit every active
+    // budget guard (tomorrow.io, Rainbow own key) — the intersection. A guard is active
+    // while its "Fit update interval" toggle is on and its provider makes calls; with
+    // none active (or its toggle off) the full ladder passes through, and the info
+    // block shows the red warning instead. If the stored interval drops out, the
+    // engine's resolveRowItem snaps it to the item default ('15') — but only while the
+    // row renders (General tab), so onbuild.js's onSubmit applies the same fit, from the
+    // same interval-budget.js, at save time for a change made on another tab (the radar
+    // provider/mode, on the Radar tab).
+    PConf.optionsResolvers.register('fetchIntervalBudget', function (S) {
+        return intervalBudget.fittingOptions(S || {});
     });
 
     // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the
@@ -857,10 +1056,43 @@ if (typeof require !== 'undefined') {
         return CD.mapCountry(S && S.holidayCountry).radarProvider;
     });
 
+    /**
+     * Whether the Rainbow radar runs on the user's own key: "Use your own key" on AND a key
+     * that isn't blank once trimmed (onbuild.js trims it on Save). The switch on with the
+     * field still empty is not "in use" yet, so the option stays the limited one until a
+     * key is there.
+     *
+     * @param {Object} S Settings state (rainbowOwnKey, rainbowApiKey); may be null.
+     * @returns {boolean} True when the own key is in use.
+     */
+    function rainbowOwnKeyInUse(S) {
+        return Boolean(S) && S.rainbowOwnKey === true
+            && typeof S.rainbowApiKey === 'string' && S.rainbowApiKey.trim() !== '';
+    }
+
+    // The radar picker's options (schema.js RADAR_PROVIDER_OPTIONS, handed over as
+    // args.options) with the Rainbow entry named for the key it runs on: its schema label
+    // ("Rainbow") once the user's own key is in use, "Rainbow (limited)" on the shared key
+    // every user splits — switch off, or on with no key yet. Value, desc and order stay
+    // as they are, so hintByValue, the showWhen gates and the "(Recommended)" marker key
+    // off the same 'rainbow' value in both states (for the bracketed name the marker
+    // leads the desc line instead — engine.js renderSelectOptions).
+    PConf.optionsResolvers.register('radarProviderOptions', function (S, env, args) {
+        var options = (args && args.options) || [];
+        if (rainbowOwnKeyInUse(S)) { return options.slice(); }
+        return options.map(function (o) {
+            return o[1] === 'rainbow' ? [o[0] + ' (limited)'].concat(o.slice(1)) : o;
+        });
+    });
+
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
-            thresholdRangeCfg: thresholdRangeCfg
+            rainbowBudgetBlock: rainbowBudgetBlock,
+            thresholdRangeCfg: thresholdRangeCfg,
+            forecastMetricHint: forecastMetricHint,
+            lineStyleHint: lineStyleHint,
+            STRIPE_SCALE: STRIPE_SCALE
         };
     }
 })();

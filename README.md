@@ -25,13 +25,15 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Forecast**
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
 * Configurable metrics such as precipitation, cloud cover, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
-* Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
+* Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or (for precipitation, cloud cover, UV, wind and gusts) a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
 * Optional day/night shading
 * Recolor the forecast graph per metric
 * Multiple weather providers, including regional and worldwide sources
 
 **Rain radar**
 * 2-hour precipitation nowcast from regional and worldwide providers
+* Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; turn on *Use your own key* and enter your own Rainbow API key to run it as plain *Rainbow*, refreshed at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
+* The radar says *Radar limit reached* when a radar source refuses requests over its limit, instead of claiming no rain
 * Rain countdown telling you when rain starts (or stops)
 * Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph — in the Radar tab
 * Clouds, sun & lightning rows under the radar graph's time axis (on by default): cloud cover and sunshine per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
@@ -81,10 +83,11 @@ Two things that both involve rain over time, but answer different questions:
   metric, an optional second metric, and — on watches with enough memory (not Pebble
   Classic/Steel) — an optional third and fourth metric (the same metric can't appear twice), plus
   optional bars for the hourly rain amount. Each metric line has a selectable style: thin or thick
-  solid line, bar-aligned square dots, little x marks, or a stripe — a thin band of hourly cells
+  solid line, bar-aligned square dots, little x marks, or — for the intensity metrics
+  (precipitation, cloud cover, UV, wind, gusts) — a stripe: a thin band of hourly cells
   along the top of the graph or in its own band below the zero line (where bars and lines never
   cover it), shaded stronger the higher the value (on black & white watches as denser
-  dithering) (defaults: line, dots, x, top stripe; style selection is
+  dithering) (defaults: line, dots, x, x; style selection is
   likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
   temperature status slot can also show the feels-like value, or both as `12/10`; the UV index
   slot can show today's highest UV still to come, or both as `3/7`; today's peak stays until the
@@ -104,7 +107,10 @@ Two things that both involve rain over time, but answer different questions:
   sampled at your location, and each 5-minute frame becomes one bar whose height is the rain
   amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
   them is the strongest rain within 2 km. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
-  (worldwide, exact location only) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
+  (worldwide, exact location only; *Rainbow (limited)* on the shared key refreshes every 30
+  minutes, and with *Use your own key* on your own Rainbow API key it is plain *Rainbow* and
+  refreshes at your update interval — free for 5,000 calls a month, Rainbow asks for a credit
+  card) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
   With *Clouds, sun & lightning* (Radar tab, on by default), two thin stripes appear under the
   graph's time axis: cloud cover and sunshine for each quarter hour, drawn like the forecast's
   stripes, with a lightning bolt in the quarter hours where Open-Meteo expects a

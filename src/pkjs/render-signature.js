@@ -10,6 +10,27 @@
 
 var statusCatalog = require('./status-line-catalog.js');
 var statusThresholds = require('./status-thresholds.js');
+var lineStyle = require('./line-style.js');
+
+/**
+ * Does a top stripe change the weather bake? Under one the bake leaves the top of a
+ * drawn feels/dew curve's joint temperature band unpadded (forecast-series.js
+ * topStripeDrawn -> padJointTempAxisBand), re-baking TEMP_TREND_UINT8 and the curve's
+ * bytes; with no such curve there is no band to pad. Platform-free: the bake's watch
+ * gate (aplite draws no stripes) at worst costs aplite one redundant fetch.
+ * @param {Object} settings Clay settings.
+ * @returns {boolean} True when a drawn top stripe sits over a temperature-axis curve.
+ */
+function topStripeOverTempAxis(settings) {
+    if (!lineStyle.topStripeLineDrawn(settings)) { return false; }
+    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+        if (lineStyle.isTempAxisMetric(
+                lineStyle.effectiveLineMetric(settings, lineStyle.FORECAST_LINES[i].key))) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * Join the render-affecting settings into a change-detection signature.
@@ -21,11 +42,14 @@ function renderSignature(settings) {
     if (!settings) { return ''; }
     // Series selection and encoding — fourthLine/fifthLine change which series the phone
     // bakes (and fetches — UV), so it joins. NOT the theme or the area-fill toggle:
-    // the line colours, the fill flag, the three ...LineStyle keys and the
+    // the line colours, the fill flag, the ...LineStyle keys and the
     // threshold auto-colours all ride the Clay message now (line-style.js,
     // palette-wire.js, status-thresholds.js' buildSettingsBlob), and the auto theme
-    // switch already flips with a Clay-only resend...
+    // switch already flips with a Clay-only resend. The one style fact the bake does
+    // read — a top stripe over a feels/dew curve — joins as a derived flag, so a
+    // style edit that bakes nothing forces no fetch...
     var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine, settings.fifthLine,
+        topStripeOverTempAxis(settings) ? 'topStripe' : '',
         settings.barSource, settings.windScale, settings.pressureScale,
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.tempSlotDisplay,

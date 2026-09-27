@@ -5,8 +5,8 @@
 // fresh-install defaults (radarMode 'graph', radarProvider 'rainbow' — what an
 // install whose settings page was never saved still holds) for the platform
 // named in argv[2], lets the first fetch cycle run, and prints one JSON line:
-// how many Rainbow radar requests went out, and the radar tuples of every
-// AppMessage that carried them; likewise how many Open-Meteo sky requests
+// how many Rainbow radar requests went out (to the proxy, or to Rainbow's own
+// API for 'rainbowkey'), and the radar tuples of every AppMessage that carried them; likewise how many Open-Meteo sky requests
 // (radar-sky.js) went out, and the length of every RADAR_SKY_UINT8 sent.
 //
 // argv[3] (optional JSON): {settings: {...}} seeds a partial settings blob the
@@ -47,7 +47,7 @@ var skyRequests = 0;
 var skyBeforeRadarAnswer = null;
 var WeatherProvider = require(path.join(ROOT, 'src/pkjs/weather/provider.js'));
 WeatherProvider.request = function (url, type, onSuccess) {
-    if (url.indexOf('rainbow-nowcast') !== -1) {
+    if (url.indexOf('rainbow-nowcast') !== -1 || url.indexOf('api.rainbow.ai') !== -1) {
         radarRequests += 1;
         if (!opts.holdRadar) {
             onSuccess(JSON.stringify({ forecast: [] }));

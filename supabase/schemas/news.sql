@@ -74,3 +74,131 @@ for all
 to anon, authenticated
 using (false)
 with check (false);
+
+-- ── RPCs for the news edge function ─────────────────────────────────────────
+-- The API gateway logs the full URL of every PostgREST request, so nothing
+-- keyed by account_token_hash may ride a query filter (?account_token_hash=eq.…).
+-- Every read or write keyed by it goes through these functions instead: called
+-- as plain POST /rest/v1/rpc/<fn>, their arguments travel in the request body.
+-- All are SECURITY INVOKER (the default; the edge function calls them with the
+-- service role, which bypasses the deny-all RLS above), pin an empty
+-- search_path, and are revoked from public/anon/authenticated below.
+
+-- The `list` op in one round trip: the newest p_limit items visible to
+-- p_version (general rows plus rows targeted at exactly that version), each
+-- with the caller's vote on it, and the caller's seen watermark. A null
+-- p_account_token_hash (no or nonconforming token) gives last_seen_id null
+-- ("unread unknowable") and no votes; a hash with no news_seen row gives 0
+-- ("everything unread"). created_at stays a timestamptz inside the jsonb, so it
+-- serialises as ISO 8601 with a 'T' exactly as a table read did.
+create or replace function public.news_list(
+  p_version text,
+  p_account_token_hash text,
+  p_limit integer
+)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  with items as (
+    select n.id, n.created_at, n.title, n.body_md, n.choices
+      from public.news n
+     where n.target_version is null or n.target_version = p_version
+     order by n.id desc
+     limit p_limit
+  )
+  select jsonb_build_object(
+    'items', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', i.id,
+               'created_at', i.created_at,
+               'title', i.title,
+               'body_md', i.body_md,
+               'choices', i.choices,
+               'my_choice', v.choice_index
+             ) order by i.id desc)
+        from items i
+        left join public.news_votes v
+          on v.news_id = i.id
+         and v.account_token_hash = p_account_token_hash
+    ), '[]'::jsonb),
+    'last_seen_id', case
+      when p_account_token_hash is null then null
+      else coalesce((
+        select s.last_seen_news_id
+          from public.news_seen s
+         where s.account_token_hash = p_account_token_hash
+      ), 0)
+    end
+  );
+$$;
+
+-- The `seen` op: raise the caller's watermark to p_max_seen_id, never lower
+-- it. One upsert, so an existing row is no unique violation (whose DETAIL line
+-- would print the hash into the Postgres log).
+create or replace function public.news_mark_seen(
+  p_account_token_hash text,
+  p_max_seen_id bigint
+)
+returns void
+language sql
+volatile
+set search_path = ''
+as $$
+  insert into public.news_seen as s (account_token_hash, last_seen_news_id, updated_at)
+  values (p_account_token_hash, p_max_seen_id, now())
+  on conflict (account_token_hash) do update
+    set last_seen_news_id = excluded.last_seen_news_id,
+        updated_at = excluded.updated_at
+    where s.last_seen_news_id < excluded.last_seen_news_id;
+$$;
+
+-- The caller's shared daily budget (replies + poll votes) since p_since:
+-- replies count by created_at, votes by their last change (updated_at), so a
+-- re-vote refreshes its window but never adds a second row.
+create or replace function public.news_recent_action_count(
+  p_account_token_hash text,
+  p_since timestamp with time zone
+)
+returns integer
+language sql
+stable
+set search_path = ''
+as $$
+  select (
+    (select count(*)
+       from public.news_replies r
+      where r.account_token_hash = p_account_token_hash
+        and r.created_at >= p_since)
+    + (select count(*)
+         from public.news_votes v
+        where v.account_token_hash = p_account_token_hash
+          and v.updated_at >= p_since)
+  )::integer;
+$$;
+
+-- Replies from ALL accounts since p_since: the global flood cap that backstops
+-- the per-account budget against fabricated-token rotation.
+create or replace function public.news_reply_count_since(
+  p_since timestamp with time zone
+)
+returns integer
+language sql
+stable
+set search_path = ''
+as $$
+  select count(*)::integer
+    from public.news_replies r
+   where r.created_at >= p_since;
+$$;
+
+-- Service-role only: the news edge function is the sole caller.
+revoke all on function public.news_list(text, text, integer)
+  from public, anon, authenticated;
+revoke all on function public.news_mark_seen(text, bigint)
+  from public, anon, authenticated;
+revoke all on function public.news_recent_action_count(text, timestamp with time zone)
+  from public, anon, authenticated;
+revoke all on function public.news_reply_count_since(timestamp with time zone)
+  from public, anon, authenticated;

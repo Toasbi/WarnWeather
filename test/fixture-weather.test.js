@@ -80,6 +80,36 @@ test('radarStartEpoch overrides startEpoch for the radar window only', () => {
   assert.equal(t.RAIN_RADAR_START, 1300);
 });
 
+test('weather.radarLimited adds the radar limit notice over the fixture window (dev only)', () => {
+  const plain = getFixtureRadarTuples(makeFixture({
+    rainRadarExactMm: [0, 0, 0], rainRadarAreaMm: [0, 0, 0],
+  }));
+  assert.equal('RAIN_RADAR_LIMITED' in plain, false, 'absent unless the fixture asks');
+  const limited = getFixtureRadarTuples(makeFixture({
+    rainRadarExactMm: [0, 0, 0], rainRadarAreaMm: [0, 0, 0], radarLimited: true,
+  }));
+  assert.equal(limited.RAIN_RADAR_LIMITED, 1);
+  // The window still rides: the watch lets the notice win, over the window the fixture chose.
+  assert.deepEqual(limited.RAIN_RADAR_TREND_UINT8, [0, 0, 0]);
+  assert.equal(limited.RAIN_RADAR_START, 1000);
+});
+
+test('the radar-limited fixtures carry the notice over a dry window, a rainy one and none', () => {
+  const load = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
+  const dry = getFixtureRadarTuples(load('radar-limited.json'));
+  assert.equal(dry.RAIN_RADAR_LIMITED, 1);
+  assert.ok(dry.RAIN_RADAR_TREND_UINT8.every((b) => b === 0), 'dry: the notice draws');
+  const rain = getFixtureRadarTuples(load('radar-limited-rain.json'));
+  assert.equal(rain.RAIN_RADAR_LIMITED, 1);
+  assert.ok(rain.RAIN_RADAR_TREND_UINT8.some((b) => b > 0), 'rain: the bars draw, no notice');
+  // No window ever received: start 0 stores no window on the watch, so the
+  // notice alone keeps the radar view up (radar_limit.h radar_has_view).
+  const none = getFixtureRadarTuples(load('radar-limited-nowindow.json'));
+  assert.equal(none.RAIN_RADAR_LIMITED, 1);
+  assert.equal(none.RAIN_RADAR_START, 0, 'nowindow: no stored window, just the notice');
+  assert.ok(none.RAIN_RADAR_TREND_UINT8.every((b) => b === 0));
+});
+
 test('fixture gustKmh flows to a dashed gust third line when wind+gust are selected', () => {
   const payload = getFixtureWeatherPayload(
     makeFixture({ windKmh: [0, 25, 50], gustKmh: [0, 50, 100] }),

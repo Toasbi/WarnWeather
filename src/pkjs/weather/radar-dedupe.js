@@ -19,14 +19,27 @@ var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
  * Decide whether a candidate radar subset differs from the last-sent one.
  *
  * @param {Object} newSubset Candidate subset: {RAIN_RADAR_TREND_UINT8: number[],
- *   RAIN_RADAR_TREND_AREA_UINT8: number[], RAIN_RADAR_START: number}.
- * @param {Object|null} cachedSubset Last-sent subset in the same shape, or null
+ *   RAIN_RADAR_TREND_AREA_UINT8: number[], RAIN_RADAR_START: number}, or the
+ *   limit notice {RAIN_RADAR_LIMITED: 1} (radarWire.limitedRadarTuples).
+ * @param {Object|null} cachedSubset Last-sent subset in either shape, or null
  *   when nothing was sent yet.
  * @returns {boolean} true when the radar should be sent (changed), false to skip.
  */
 function radarComparator(newSubset, cachedSubset) {
     if (!cachedSubset) {
         return true;  // nothing sent yet
+    }
+    // The limit notice carries no window, so it has nothing to align. A repeat
+    // of it is unchanged: a source that stays limited sends it once, not every
+    // cycle. After it, any window or clear must go out, even one equal to the
+    // window the watch already holds: the arrays are what end the notice there.
+    var newLimited = radarWire.isLimitedRadarTuples(newSubset);
+    var oldLimited = radarWire.isLimitedRadarTuples(cachedSubset);
+    if (newLimited) {
+        return !oldLimited;
+    }
+    if (oldLimited) {
+        return true;
     }
     var newExact = newSubset.RAIN_RADAR_TREND_UINT8;
     var newArea = newSubset.RAIN_RADAR_TREND_AREA_UINT8;

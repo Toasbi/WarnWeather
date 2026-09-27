@@ -119,15 +119,38 @@ _Avoid_: normalized provider fields, provider instance shape.
 The user-selected origin of the short-term rain nowcast — DWD (best radar in
 Germany, exact spot + nearby area), Met.no (best radar in the Nordics, exact
 spot), Rainbow (global satellite + radar nowcast, exact spot, worldwide), or
-Tomorrow.io (ML nowcast on the user's own key, exact spot, worldwide) —
-chosen independently of the weather provider. Every source answers the same
-interface; "off" is itself a source whose tuples clear the radar.
+Tomorrow.io (ML nowcast on the user's own key, exact spot, worldwide) — chosen
+independently of the weather provider. Every source answers the same interface;
+"off" is itself a source whose tuples clear the radar. Rainbow is one option in
+the settings with a "Use your own key" switch (`rainbowOwnKey`) that picks one
+of two sources: shared Rainbow (id `rainbow`) goes through the project's proxy
+on the project's key and its monthly allowance, so it refreshes at most every
+30 minutes (one request per UTC-aligned half-hour slot, wherever the watch is:
+a move within the slot keeps the slot's answer until the next slot); own-key
+Rainbow (id `rainbowkey`, never a stored `radarProvider` — resolved in
+`radar-source-id.js`) fetches the same nowcast directly on the user's own key
+at every update, on a key whose first 5,000 calls a month are free (Rainbow
+asks for a credit card and bills calls past that). The settings name the
+option for the key it runs on: "Rainbow (limited)" until the own key is in use
+(the switch on AND a key entered), plain "Rainbow" after — one stored value,
+`rainbow`, either way. Wherever the own key can't be set, it is the limited one.
 _Avoid_: radar provider in prose (the wire key `radarProvider` keeps its name).
 
 **Radar tuples**:
 The wire triplet every radar source produces: exact-spot trend, nearby-area
 trend, and the slot-0 start epoch. Empty trends with a zero start mean "clear
 the radar on the watch".
+
+**Radar limit notice**:
+The third radar answer, beside a window and the clear: the source is up but
+refuses us because a request limit is reached (HTTP 429 from the shared
+Rainbow proxy, Rainbow on the user's own key or Tomorrow.io). It rides alone as
+`RAIN_RADAR_LIMITED`, never with the radar tuples; the watch keeps its window
+and, where that window shows no rain, says "Radar limit reached" instead of the
+no-rain line. With no window yet (a fresh install, or right after a clear) the
+radar view still shows, carrying just the notice. The next radar tuples (a
+window or the clear) end it.
+_Avoid_: calling it transient — a transient failure sends no radar keys at all.
 
 **Slot (radar)**:
 One five-minute bucket of the two-hour nowcast window; slot 0 is pinned to the

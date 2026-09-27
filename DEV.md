@@ -133,8 +133,8 @@ Serve `telemetry-ingest` edge function locally:
 mise telemetry-serve
 ```
 
-Run the Edge Functions' Deno test suites (rainbow-nowcast + news + telemetry-ingest;
-separate runner from `mise test`):
+Type-check each Edge Function's `index.ts` and run its Deno test suite (rainbow-nowcast + news +
+telemetry-ingest; separate runner from `mise test`; CI's gate before `supabase functions deploy`):
 ```bash
 mise test-deno
 ```
@@ -442,7 +442,7 @@ mise prepare-package release
 | `PEBBLE_EMULATOR` | Default emulator platform (e.g. `basalt`) |
 | `TELEMETRY_ENDPOINT` | Telemetry function URL (set for release/CI builds) |
 | `TELEMETRY_HASH_SECRET` | Secret for server-side HMAC hashing of IDs |
-| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — Rainbow is the default radar provider, and an empty endpoint doesn't hide the option, it makes every Rainbow radar fetch fail soft with no radar reaching the watch; dev/fork builds may leave it empty on purpose) |
+| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — Rainbow is the default radar provider, and an empty endpoint doesn't hide the option, it makes every Rainbow radar fetch fail soft with no radar reaching the watch; dev/fork builds may leave it empty on purpose); also reaches the settings page (userData `rainbowEndpoint`) for the Rainbow API key's Test button (Radar tab, *Use your own key*) — empty = the button says the test isn't available |
 | `NEWS_ENDPOINT` | News edge-function URL baked into the bundle (set for release/CI builds via the `NEWS_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — the config-page news pill would otherwise be silently disabled for every user) |
 | `AQICN_TOKEN` | Shared WAQI (aqicn.org) token baked into the bundle (set for release/CI builds via the `AQICN_TOKEN_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — WAQI is the default AQI source, so every device would otherwise silently fall back to Open-Meteo) |
 
@@ -561,6 +561,13 @@ Deploy telemetry edge function:
 supabase functions deploy telemetry-ingest
 ```
 
+telemetry-ingest never puts the account-token hash in a URL the gateway logs: its hourly rate
+check is the `telemetry_recent_insert_count` RPC in `supabase/schemas/telemetry.sql` (arguments in
+the POST body, service role only), and the insert carries both hashes in its row bodies. Its logs
+carry a fixed tag plus at most a Postgres/PostgREST code (`log.ts`). The function needs that RPC,
+so the migration goes out first (CI runs `db push` before `functions deploy`); until it exists,
+every post is a `500 rate_check_failed`, which the phone retries.
+
 Serve the rainbow-nowcast edge function locally:
 ```bash
 supabase functions serve rainbow-nowcast --env-file .env
@@ -571,6 +578,19 @@ Set the Rainbow proxy secrets (hosted):
 supabase secrets set RAINBOW_API_KEY=<key from https://developer.rainbow.ai/profile>
 supabase secrets set RAINBOW_MONTHLY_BUDGET=5000   # optional; default 5000 upstream calls per UTC month (raise to accept paid overage — no redeploy needed)
 supabase secrets set RAINBOW_IP_HOURLY_CAP=30      # optional; default 30 cache-miss requests per IP per hour
+supabase secrets set RAINBOW_IP_HASH_KEY=$(openssl rand -hex 32)   # optional; pepper for the stored keys (below), else the service-role key
+```
+
+The nowcast (the endpoint's root) takes a POST of `{"lat", "lon", "start"}` (sent as `text/plain`, a
+CORS simple request; the body is read whatever the content type) and answers `{"forecast": [...]}`.
+Coordinates are rounded to 3 decimals (~110 m) on the phone and again on the proxy, so no URL the
+gateway logs carries a position. The older `GET ?lat&lon&start` still works for app versions that
+send it (remove once telemetry shows none). The proxy stores no place and no IP: the cache key and
+the per-IP hourly bucket are HMAC-SHA-256 under keys derived from the pepper (`keys.ts`), the cache
+read and both counters are RPCs (keys in the POST body), the cached payload is the forecast only,
+and function logs carry a fixed tag plus at most a Postgres/PostgREST code (`log.ts`).
+```bash
+curl -s -X POST --data '{"lat":52.52,"lon":13.405,"start":'$(( $(date +%s) / 300 * 300 ))'}' "$RAINBOW_PROXY_ENDPOINT"
 ```
 
 Deploy the rainbow-nowcast edge function:
@@ -578,10 +598,40 @@ Deploy the rainbow-nowcast edge function:
 supabase functions deploy rainbow-nowcast
 ```
 
+Key-check mode (the settings page's *Test* button beside the Rainbow API key, shown with the
+Rainbow radar's *Use your own key* on; on the endpoint's `/key-check` path): a POST of `{"key":"..."}` as `text/plain` makes one Rainbow call with that key at a fixed,
+always-covered point (Berlin) and answers HTTP 200 `{"status": <Rainbow status>}`. Any other
+HTTP status is the proxy's own error, never a key verdict: 400 (missing key, or not shaped like
+a Rainbow key), 413 (body over 1 KB), 429 (more than 5 checks per IP per minute) and 504
+(Rainbow didn't answer within 5 s). It touches no DB, cache or shared wallet, logs nothing, and
+costs one call on the tested key (none on the project's):
+```bash
+curl -s -X POST --data '{"key":"<your key>"}' "$RAINBOW_PROXY_ENDPOINT/key-check"
+```
+
+Accepted risk: `/key-check` is an unauthenticated relay. Anyone who knows the endpoint can have
+the project's egress make one Rainbow call per POST with a key of their choosing (probing keys,
+or wearing down the standing with Rainbow that the shared radar also runs on), and every POST
+costs an edge invocation. The only limit is a best-effort in-memory counter in `key-check.ts`: 5
+checks per IP per minute, per isolate, reset on every cold start and not shared across isolates,
+so a caller hitting several isolates gets more. If abuse shows in `function_edge_logs` (a run of
+POSTs to `rainbow-nowcast/key-check`), harden it in `key-check.ts`: either count key checks in
+the DB-backed hashed per-IP bucket the nowcast's hourly cap uses (`keys.ts` `ipHourKey` +
+`increment_rainbow_ip_usage`, under a separate key prefix so checks don't eat the radar's cap),
+or require a header only the settings page sends (it then preflights, so add the header to the
+CORS `Access-Control-Allow-Headers`).
+
 Deploy the news edge function:
 ```bash
 supabase functions deploy news
 ```
+
+The news function never puts the account-token hash in a URL the gateway logs: the list (items,
+seen watermark and the caller's votes in one call), the seen upsert and the rate-limit counts are
+RPCs in `supabase/schemas/news.sql` (arguments in the POST body, service role only), and the vote
+upsert and reply insert carry it in their row bodies. Its logs carry a fixed tag plus at most a
+Postgres/PostgREST code (`log.ts`). The function needs those RPCs, so the migration goes out first
+(CI runs `db push` before `functions deploy`).
 
 ## Upgrading pebble-tool
 

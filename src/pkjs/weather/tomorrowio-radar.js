@@ -45,18 +45,6 @@ function mapFrames(intervals) {
 }
 
 /**
- * Whether a transport error is tomorrow.io rejecting the KEY (HTTP 401/403): an
- * invalid, revoked or unauthorised key that no retry will fix. Rate limits
- * (429) and server errors (5xx) are transient and stay out of this.
- *
- * @param {Object} error Transport failure ({code: 'status_<http>', ...}).
- * @returns {boolean} True for a 401/403 key rejection.
- */
-function isKeyRejection(error) {
-    return Boolean(error) && (error.code === 'status_401' || error.code === 'status_403');
-}
-
-/**
  * Fetch 2-hour tomorrow.io rain-nowcast tuples for pre-resolved coordinates.
  * Single-point product, so the area ("nearby") array is always 24 zeros
  * (Rainbow/Met.no convention). tomorrow.io is global — there is no
@@ -66,7 +54,10 @@ function isKeyRejection(error) {
  *   its last window forward and zero-filling the tail, which ends in a
  *   confident "No rain ahead" nothing ever reported. The outbox dedupe sends
  *   the clear once; entering a key forces a fetch that sends a fresh window.
- * - TRANSIENT (parse error, 429/quota, 5xx, network, empty frames):
+ * - LIMITED (429, the key's rate limit or quota reached):
+ *   radarWire.limitedRadarTuples(). The watch keeps its window and, where it
+ *   shows no rain, says "Radar limit reached".
+ * - TRANSIENT (parse error, 5xx, network, empty frames):
  *   callback(null) — the radar keys stay out of this send and the watch keeps
  *   (and self-advances) its last window.
  *
@@ -74,7 +65,8 @@ function isKeyRejection(error) {
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
  * @param {number} slotZeroEpoch The 5-min pinned slot-0 epoch.
- * @param {Function} callback Receives the radar tuples object, or null.
+ * @param {Function} callback Receives the radar tuples object (a window, the
+ *   clear or the limit notice), or null.
  * @returns {void}
  */
 function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
@@ -89,7 +81,12 @@ function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
         url: buildNowcastUrl(apiKey, lat, lon, slotZeroEpoch),
         label: 'Tomorrow.io',
         onTransportError: function (error, cb) {
-            if (!isKeyRejection(error)) { return false; }
+            if (radarFetch.isRateLimited(error)) {
+                console.log('[!] Tomorrow.io radar: request limit reached (' + error.code + ')');
+                cb(radarWire.limitedRadarTuples());
+                return true;
+            }
+            if (!radarFetch.isKeyRejection(error)) { return false; }
             console.log('[!] Tomorrow.io radar: key rejected (' + error.code + ') — clearing the watch radar');
             cb(radarWire.clearRadarTuples());
             return true;

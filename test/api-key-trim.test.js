@@ -9,13 +9,14 @@ const assert = require('node:assert/strict');
 const PASTED = '  0123abcd\t ';
 const KEY = '0123abcd';
 
-/** Records every URL opened; never answers (the URL is all these tests need). */
+/** Records every URL opened and every header set; never answers. */
 class FakeXhr {
   open(method, url) { FakeXhr.urls.push(url); }
   send() {}
-  setRequestHeader() {}
+  setRequestHeader(name, value) { FakeXhr.headers.push({ name: name, value: value }); }
 }
 FakeXhr.urls = [];
+FakeXhr.headers = [];
 
 /**
  * Run fn with FakeXhr installed and return the URLs it opened.
@@ -25,6 +26,7 @@ FakeXhr.urls = [];
 function capture(fn) {
   const real = globalThis.XMLHttpRequest;
   FakeXhr.urls = [];
+  FakeXhr.headers = [];
   globalThis.XMLHttpRequest = FakeXhr;
   try { fn(); } finally {
     if (real === undefined) { delete globalThis.XMLHttpRequest; } else { globalThis.XMLHttpRequest = real; }
@@ -89,6 +91,40 @@ test('Tomorrow.io radar: a whitespace-only key is a missing key, not a request',
   assert.deepEqual(got, radarWire.clearRadarTuples());
 });
 
+test('Rainbow (own key): the radar sends the trimmed key in the header, never in the URL', () => {
+  const radar = require('../src/pkjs/weather/rainbow-radar.js');
+  const urls = capture(() => { radar.fetchRadarTuplesWithKey(PASTED, 52.5, 13.4, 1700000100, () => {}); });
+  assert.equal(urls.length, 1);
+  assert.equal(urls[0].indexOf(KEY), -1, 'the key is not in the URL');
+  assert.deepEqual(FakeXhr.headers.filter((h) => h.name === 'Ocp-Apim-Subscription-Key'),
+    [{ name: 'Ocp-Apim-Subscription-Key', value: KEY }]);
+});
+
+test('Rainbow (own key): a whitespace-only key is a missing key, not a request', () => {
+  const radar = require('../src/pkjs/weather/rainbow-radar.js');
+  const radarWire = require('../src/pkjs/weather/radar-wire.js');
+  let got;
+  const urls = capture(() => { radar.fetchRadarTuplesWithKey(' \t', 1, 2, 1700000100, (t) => { got = t; }); });
+  assert.equal(urls.length, 0);
+  assert.equal(FakeXhr.headers.length, 0);
+  assert.deepEqual(got, radarWire.clearRadarTuples());
+});
+
+test('Rainbow (own key): the Test body carries the same key the radar sends', () => {
+  const radarFactory = require('../src/pkjs/weather/radar-factory.js');
+  const rbwTest = require('../src/pkjs/settings/rainbow-key-test.js');
+  const urls = capture(() => {
+    radarFactory.createRadarSource('rainbowkey', { rainbowApiKey: PASTED })
+      .fetchRadarTuplesAt(52.5, 13.4, 1700000100, () => {});
+  });
+  assert.equal(urls.length, 1, 'the adapter sent one radar request');
+  const sent = FakeXhr.headers.filter((h) => h.name === 'Ocp-Apim-Subscription-Key');
+  assert.equal(sent.length, 1);
+  const tested = JSON.parse(rbwTest.buildBody(PASTED)).key;
+  assert.equal(tested, KEY);
+  assert.equal(sent[0].value, tested, 'the radar header carries the key the Test checked');
+});
+
 test('settings Weather tab: OWM and Tomorrow.io graphs send the trimmed key', () => {
   const data = require('../src/pkjs/settings/weather-tab-data.js');
   const urls = capture(() => {
@@ -106,14 +142,22 @@ test('Save stores the API keys trimmed, and a key that only lost whitespace refe
   global.PConf = { hooks: { onLoad: function () {}, onSubmit: function () {} } };
   const OB = require('../src/pkjs/settings/onbuild.js');
   const store = { provider: 'openweathermap', owmApiKey: KEY + ' ', yandexApiKey: '\tY',
-    tomorrowioApiKey: PASTED, location: 'Berlin', fetch: false };
+    tomorrowioApiKey: PASTED, rainbowApiKey: PASTED, location: 'Berlin', fetch: false };
   const initial = { provider: 'openweathermap', owmApiKey: KEY + ' ', yandexApiKey: '\tY',
-    tomorrowioApiKey: PASTED, location: 'Berlin' };
+    tomorrowioApiKey: PASTED, rainbowApiKey: PASTED, location: 'Berlin' };
   OB.onSubmit({ get: (k) => store[k], set: (k, v) => { store[k] = v; }, getInitial: (k) => initial[k] });
   assert.equal(store.owmApiKey, KEY);
   assert.equal(store.yandexApiKey, 'Y');
   assert.equal(store.tomorrowioApiKey, KEY);
+  assert.equal(store.rainbowApiKey, KEY, 'the Rainbow radar key is stored trimmed too');
   assert.equal(store.fetch, true, 'the provider now sends a different key, so refetch');
+
+  // The Rainbow key alone: a key that only lost its whitespace still refetches.
+  const rbw = { provider: 'dwd', rainbowApiKey: PASTED, location: 'Berlin', fetch: false };
+  const rbwInitial = { provider: 'dwd', rainbowApiKey: PASTED, location: 'Berlin' };
+  OB.onSubmit({ get: (k) => rbw[k], set: (k, v) => { rbw[k] = v; }, getInitial: (k) => rbwInitial[k] });
+  assert.equal(rbw.rainbowApiKey, KEY);
+  assert.equal(rbw.fetch, true, 'the Rainbow radar now sends a different key, so refetch');
 
   // Already-clean keys: nothing is rewritten and nothing forces a refetch.
   const clean = { provider: 'dwd', owmApiKey: KEY, tomorrowioApiKey: '', location: 'Berlin', fetch: false };

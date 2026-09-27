@@ -5,6 +5,8 @@ var configUi = require('./config-ui');          // intToHex
 // of a second opinion about it.
 var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
+// The radar source in effect ('rainbowkey' for Rainbow with "Use your own key" on).
+var radarSourceId = require('./weather/radar-source-id.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -221,7 +223,10 @@ function buildSettingsSnapshot(settings, watchInfo) {
         fifthLineStyle: lineStyle.lineStyleValue(safe, 'fifthLineStyle'),
         barSource: safe.barSource,
         rainBarColor: safe.rainBarColor,
-        radarProvider: safe.radarProvider,
+        // The source the radar RUNS, not the stored picker value: Rainbow with "Use your
+        // own key" on reports 'rainbowkey', so the own-key share stays countable without a
+        // new field (rainbowOwnKey itself is not reported; the Deno schema takes any string).
+        radarProvider: radarSourceId.effectiveRadarId(safe),
         radarMode: safe.radarMode || 'graph',
         radarColor: safe.radarColor,
         radarSky: safe.radarSky !== false,   // on by default: a missing key is on
@@ -250,7 +255,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // flipped default can never desynchronize what telemetry reports from what
     // the watch renders. Defaults pinned by test/telemetry.test.js. A new key
     // here must also join the Deno .strip() schema or it is silently dropped
-    // (supabase/functions/telemetry-ingest/index.ts).
+    // (supabase/functions/telemetry-ingest/handler.ts).
     var toggles = statusCatalog.UNIT_TOGGLES;
     for (var i = 0; i < toggles.length; i++) {
         snapshot[toggles[i].key] = toggles[i].dflt
@@ -274,7 +279,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
     //
     // The colours are stored PER METRIC now (gcWindLineDark, …), but these six field names
     // and their z.string() type are unchanged — the watch/zod lockstep is satisfied by NOT
-    // touching supabase/functions/telemetry-ingest/index.ts, and the dashboards keep their
+    // touching supabase/functions/telemetry-ingest/handler.ts, and the dashboards keep their
     // history. Each names an ELEMENT of the graph, and the metric it belongs to is the
     // secondaryLine / thirdLine already in this same snapshot, so a query slices by metric
     // (`where secondaryLine = 'wind'`) rather than needing twenty more columns.

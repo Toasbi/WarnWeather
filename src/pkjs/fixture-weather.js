@@ -12,6 +12,7 @@ var wireUnits = require('./wire-units.js');
 var paletteWire = require('./weather/palette-wire.js');
 var lineStyle = require('./line-style.js');
 var radarSky = require('./weather/radar-sky.js');
+var radarWire = require('./weather/radar-wire.js');
 
 /**
  * Put a copy of `source` on `mapped[key]` when it is an array; otherwise leave
@@ -153,7 +154,8 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
  * payload without radar tuples in that case.
  *
  * @param {Object} fixture Active fixture.
- * @returns {Object|null} Object of three radar AppMessage tuples, or null.
+ * @returns {Object|null} Object of three radar AppMessage tuples (plus the
+ *   optional sky rows and limit notice), or null.
  */
 function getFixtureRadarTuples(fixture) {
     var weather = fixture && fixture.weather;
@@ -183,6 +185,14 @@ function getFixtureRadarTuples(fixture) {
         RAIN_RADAR_TREND_AREA_UINT8: weather.rainRadarAreaMm.map(toTenths),
         RAIN_RADAR_START: radarStart
     };
+    // Dev: weather.radarLimited shows the radar limit notice over this window.
+    // Production never bundles the notice with the arrays (radar-wire.js), but
+    // the watch lets it win when both arrive, so a fixture can choose the window
+    // it is shown over: a dry one draws "Radar limit reached", a rainy one keeps
+    // its bars.
+    if (weather.radarLimited === true) {
+        Object.assign(tuples, radarWire.limitedRadarTuples());
+    }
     // Optional sky rows (radar-sky.js): weather.sky = { cloudPct, sunPct, lightning },
     // one entry per 15-min slot from the quarter-hour holding the radar start.
     var sky = weather.sky;

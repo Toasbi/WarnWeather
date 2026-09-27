@@ -9,6 +9,7 @@
 #include "c/layers/loading_layer.h"
 #include "c/layers/rain_radar_layer.h"
 #include "c/appendix/radar_sky.h"
+#include "c/appendix/radar_limit.h"
 #include "c/layers/calendar_layer.h"
 #include "c/layers/top_status_layer.h"
 #include "c/windows/main_window.h"
@@ -236,6 +237,11 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     Tuple *rain_radar_exact_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_TREND_UINT8);
     Tuple *rain_radar_area_tuple  = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_TREND_AREA_UINT8);
     Tuple *rain_radar_start_tuple = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_START);
+    // The limit notice (radar_limit.h): its PRESENCE is the signal. It rides in
+    // place of the three arrays and leaves the stored window untouched.
+    const bool limited_sent = dict_find(iterator, MESSAGE_KEY_RAIN_RADAR_LIMITED) != NULL;
+    bool window_applied = false;   // a window or the clear was stored
+    bool changed = false;
 
     if (!(rain_radar_exact_tuple && rain_radar_area_tuple && rain_radar_start_tuple)) {
         if (rain_radar_exact_tuple || rain_radar_area_tuple) {
@@ -246,18 +252,16 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
                     rain_radar_exact_tuple != NULL,
                     rain_radar_area_tuple  != NULL,
                     rain_radar_start_tuple != NULL);
-            return true;
+        } else if (!limited_sent) {
+            return false;
         }
-        return false;
-    }
-
-    bool changed = false;
-    if (rain_radar_exact_tuple->length == 0) {
+    } else if (rain_radar_exact_tuple->length == 0) {
         // Empty array from a non-DWD provider — clear persisted radar data.
         uint8_t zeros[24] = {0};
         changed |= persist_set_rain_radar_trend(zeros, 24);
         changed |= persist_set_rain_radar_trend_area(zeros, 24);
         changed |= persist_set_rain_radar_start(0);
+        window_applied = true;
     } else if (rain_radar_exact_tuple->length < 24 || rain_radar_area_tuple->length < 24) {
         // Short arrays (version skew / corrupt payload) — discard rather than
         // overread the inbox and persist the trailing bytes as intensities.
@@ -272,6 +276,13 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
             (uint8_t*) rain_radar_area_tuple->value->data, 24);
         changed |= persist_set_rain_radar_start(
             (time_t) rain_radar_start_tuple->value->int32);
+        window_applied = true;
+    }
+    // The notice goes up when it arrives and comes down with the next stored
+    // window or clear; a message with neither never touches the slot.
+    if (window_applied || limited_sent) {
+        changed |= persist_set_radar_limited(
+            radar_limited_after(window_applied, limited_sent, persist_get_radar_limited()));
     }
     *radar_dirty |= changed;
     return true;

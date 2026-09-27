@@ -65,13 +65,13 @@ test('saturates at 255 (25.5 mm/h and up)', () => {
 
 const CLEAR = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 };
 
-test('transient failures (parse, 429, 5xx, network, empty intervals) soft-fail with null', () => {
+test('transient failures (parse, 5xx, network, empty intervals) soft-fail with null', () => {
   let out;
   responder = (url, type, onSuccess) => onSuccess('not json');
   out = 'unset'; fetchTuples((t) => { out = t; });
   assert.equal(out, null, 'parse error');
 
-  ['status_429', 'status_500', 'status_503', 'network_error', 'timeout'].forEach((code) => {
+  ['status_500', 'status_503', 'network_error', 'timeout'].forEach((code) => {
     responder = (url, type, onSuccess, onError) => onError({ code: code, detail: 'http_status' });
     out = 'unset'; fetchTuples((t) => { out = t; });
     assert.equal(out, null, code);
@@ -93,6 +93,13 @@ test('missing key clears the watch radar, with no request', () => {
   tomorrowioRadar.fetchRadarTuplesAt('', 52.5, 13.4, SLOT0, (t) => { out = t; });
   assert.deepEqual(out, CLEAR);
   assert.equal(requested, false);
+});
+
+test('a 429 (rate limit or quota) is the limit notice, not a clear or null', () => {
+  responder = (url, type, onSuccess, onError) => onError({ code: 'status_429', detail: 'http_status' });
+  let out = 'unset';
+  fetchTuples((t) => { out = t; });
+  assert.deepEqual(out, { RAIN_RADAR_LIMITED: 1 });
 });
 
 test('a 401/403 key rejection clears the watch radar', () => {

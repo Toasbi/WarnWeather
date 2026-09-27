@@ -1,8 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
-import { batchEventSchema, durationMsSchema, telemetryPayloadSchema } from "./index.ts";
+import { batchEventSchema, durationMsSchema, telemetryPayloadSchema } from "./handler.ts";
 
-// Importing index.ts runs its top-level Deno.serve, which binds a port at load —
-// hence `deno test --allow-net` (same as news's suite).
+// The request schemas on their own; handler_test.ts drives whole requests.
 
 const EVENT = {
   t: 1_760_000_000_000,
@@ -62,4 +61,13 @@ Deno.test("the legacy single-event shape nulls an out-of-range durationMs too", 
 
 Deno.test("durationMsSchema still rejects a non-number (a type error is not a soft value)", () => {
   assert(!durationMsSchema.safeParse("1500").success);
+});
+
+// Regression pin, not coverage: radarProvider is z.string().optional(), so this passes by
+// construction. It fails only if someone narrows the field to an enum and forgets the
+// Rainbow (own key) source id — which would 400 every batch from such an install.
+Deno.test("a rainbowkey radarProvider is accepted and kept", () => {
+  const parsed = telemetryPayloadSchema.safeParse({ ...LEGACY, settings: { radarProvider: "rainbowkey" } });
+  assert(parsed.success);
+  assertEquals(parsed.data.settings.radarProvider, "rainbowkey");
 });

@@ -119,6 +119,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // the shown value pins it.
   PConf.displayResolvers = makeRegistry();
 
+  // --- hint-resolver registry --- a value row opts into a DERIVED hint by name
+  // (item.hintFrom: {resolver, args}); fn(S, env, args) returns the hint HTML, or
+  // null/undefined for "use the row's static hint" (hintByValue for the shown value,
+  // else hint). '' is a real answer: no hint. For a hint that depends on OTHER keys
+  // than the row's own value (hintByValue covers that one) — e.g. a line-style
+  // picker explaining the scale of its line's metric. Read at render time, after the
+  // display-snap, like the badge resolver; the page re-renders its whole body after
+  // every change, so the hint follows any key the resolver reads with no dependency
+  // list. args carries the row's messageKey and its shown value, merged UNDER
+  // hintFrom.args.
+  PConf.hintResolvers = makeRegistry();
+
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is.
   // fn(S, oldValue, newValue, env) runs synchronously, right after the click handler
@@ -349,7 +361,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // opened AS A SHEET (openSheet — the custom-layout editor's only surface)
   // rendered every gated option fully pickable.
   function renderSelectOptions(item, value, query, recommended, off) {
-    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, gated, classes, labelCell, rec, shown = 0;
+    var q = String(query || '').toLowerCase(), h = '', i, o, lo, vo, meta, gated, classes, labelCell, rec, recLead, shown = 0;
     var offVals = off || [];
     for (i = 0; i < item.options.length; i++) {
       o = item.options[i];
@@ -368,12 +380,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // country-matched weather/radar provider) — appended in bold after the name (labels are
       // esc()'d, so the marker can't ride in the option text itself).
       rec = (recommended != null && o[1] === recommended) ? ' <b class="ssel-rec">(Recommended)</b>' : '';
+      // A name that already ends in a parenthesis ("Foo (beta)") would read
+      // "Foo (beta) (Recommended)", so where a desc line exists the marker leads
+      // that line instead ("Recommended · <desc>"). Every other option renders as before.
+      recLead = Boolean(rec) && Boolean(meta.desc) && o[0].charAt(o[0].length - 1) === ')';
       // An option may carry a one-line description (meta.desc) rendered under its name — the
       // weather-provider picker uses it to say what each provider is best at while choosing.
       // Options without a desc keep the original single-span layout untouched.
       labelCell = meta.desc
-        ? '<span class="ssel-opt-txt"><span class="ssel-opt-name">' + esc(o[0]) + rec + '</span>'
-          + '<span class="ssel-opt-desc">' + esc(meta.desc) + '</span></span>'
+        ? '<span class="ssel-opt-txt"><span class="ssel-opt-name">' + esc(o[0]) + (recLead ? '' : rec) + '</span>'
+          + '<span class="ssel-opt-desc">' + (recLead ? '<b class="ssel-rec">Recommended</b> · ' : '')
+          + esc(meta.desc) + '</span></span>'
         : '<span>' + esc(o[0]) + rec + '</span>';
       // A non-header disabled option — per-option meta.disabled (a provider-gated
       // slot item, e.g. "Pollen (DWD)" under another provider) or an
@@ -485,6 +502,31 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (!fn) { return undefined; }
     var args = Object.assign({ messageKey: item.messageKey }, item.displayFrom.args || {});
     return fn(S, env, args);
+  }
+
+  /**
+   * The hint a row derives from the live settings, via the item's named hint resolver —
+   * undefined when the item opts out, the resolver is missing or it answers
+   * null/undefined, in which case the row falls back to its static hintByValue/hint.
+   * An empty string is honoured: the resolver saying "no hint here".
+   *
+   * `args` gets the row's messageKey and its SHOWN value (after the display-snap, so a
+   * stored value the options no longer carry is described as what the row displays)
+   * merged UNDER hintFrom.args.
+   *
+   * @param {Object} item Schema item (hintFrom: {resolver, args}).
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @param {*} value The value the row shows.
+   * @returns {(string|undefined)} Hint HTML, or undefined for "use the static hint".
+   */
+  function resolveHint(item, S, env, value) {
+    if (!item.hintFrom) { return undefined; }
+    var fn = PConf.hintResolvers.get(item.hintFrom.resolver);
+    if (!fn) { return undefined; }
+    var args = Object.assign({ messageKey: item.messageKey, value: value }, item.hintFrom.args || {});
+    var hint = fn(S, env, args);
+    return hint == null ? undefined : String(hint);
   }
 
   // Rotate-ccw glyph for a label's reset-to-defaults button (item.labelAction).
@@ -613,11 +655,64 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function renderSelectTrigger(item, view) {
     var key = esc(item.messageKey), label = currentLabel(item, view.value);
     var listId = 'ssel-list-' + key, open = view.openSelect === item.messageKey;
-    var accessibleLabel = String(item.label || 'Selection') + ': ' + label;
+    var accessibleLabel = selectTriggerAria(item, label);
     return '<button type="button" class="sel-wrap" data-select="' + key
       + '" aria-label="' + esc(accessibleLabel) + '" aria-haspopup="listbox" aria-expanded="'
       + (open ? 'true' : 'false') + '" aria-controls="' + listId + '"><span>'
       + esc(label) + '</span><i class="sel-chev"></i></button>';
+  }
+
+  /**
+   * A select trigger's accessible name: the row's field label, then the shown option.
+   * Shared by the render path and the in-place relabel after a text commit, so the two
+   * can't announce different things.
+   *
+   * @param {Object} item Schema item (select or searchSelect).
+   * @param {string} label The option label the trigger shows.
+   * @returns {string} The aria-label text (unescaped).
+   */
+  function selectTriggerAria(item, label) {
+    return String(item.label || 'Selection') + ': ' + label;
+  }
+
+  /**
+   * The label a select/searchSelect trigger shows for the live settings: the stored
+   * value's option label from the item's CURRENT option list (optionsFrom resolved
+   * against S, so a resolver whose labels read other keys answers for their current
+   * values). Null when the stored value is not among those options — the render path
+   * snaps such a value (resolveRowItem), which this pure lookup must not do.
+   *
+   * @param {Object} item Schema item (select or searchSelect).
+   * @param {Object} S Live settings state.
+   * @param {Object} [env] Platform env, threaded to an options resolver.
+   * @returns {?string} The trigger label, or null.
+   */
+  function selectTriggerLabel(item, S, env) {
+    var options = resolveOptionsFrom(item, S, env), value = S[item.messageKey];
+    if (!optionHasValue(options, value)) { return null; }
+    return currentLabel({ options: options }, value);
+  }
+
+  /**
+   * The schema item a key's control renders from: two items can share a messageKey with
+   * mutually-exclusive showWhen (e.g. the color vs B/W `theme` blocks), so the VISIBLE one
+   * wins; any match is the fallback (a hidden trigger can't be tapped, so that only guards
+   * degenerate schemas). Null when no item carries the key.
+   *
+   * @param {Object} schema Config schema.
+   * @param {string} key messageKey.
+   * @param {Object} ctx Show-when context ({<settings>, env}).
+   * @returns {?Object} The schema item, or null.
+   */
+  function findShownItem(schema, key, ctx) {
+    var found = null, fallback = null;
+    eachItem(schema, function (it) {
+      if (it.messageKey === key) {
+        fallback = it;
+        if (PConf.showWhen.isVisible(it, ctx)) { found = it; }
+      }
+    });
+    return found || fallback;
   }
 
   /**
@@ -634,19 +729,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    */
   function renderSelectModal(schema, cx) {
     if (!cx.openSelect) { return ''; }
-    // Prefer the item that is actually VISIBLE for the current platform — two items can
-    // share a messageKey with mutually-exclusive showWhen (e.g. the color vs B/W `theme`
-    // blocks), and the open picker must mirror the same block whose trigger was tapped, not
-    // just the last match. Fall back to any match if none resolves visible (belt-and-braces:
-    // a hidden trigger can't be opened, so this only guards degenerate schemas).
-    var found = null, fallback = null;
-    eachItem(schema, function (it) {
-      if (it.messageKey === cx.openSelect) {
-        fallback = it;
-        if (PConf.showWhen.isVisible(it, cx.evalCtx)) { found = it; }
-      }
-    });
-    found = found || fallback;
+    // The open picker must mirror the same block whose trigger was tapped, not just the
+    // last item carrying the key — findShownItem prefers the visible one.
+    var found = findShownItem(schema, cx.openSelect, cx.evalCtx);
     if (!found) { return ''; }
     var item = resolveRowItem(found, { value: cx.S[found.messageKey] }, cx);
     var key = esc(item.messageKey), value = cx.S[item.messageKey];
@@ -791,7 +876,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         + '"><div class="date-cell">' + renderControl(item, view)
         + '</div></div>';
     }
-    var hint = item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
+    // view.hint is a hintFrom resolver's answer (renderItem); without one the static
+    // per-value hint, else the plain one.
+    var hint = view.hint != null ? view.hint
+      : item.hintByValue ? (item.hintByValue[view.value] || item.hint) : item.hint;
     // A segmented control with many options is a wide pill row that can't float beside the
     // label without stranding it above (2-3-option segmenteds stay narrow and keep the
     // inline/float layouts). It gets its own flex row (.segwide): the control keeps the
@@ -988,6 +1076,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // for a setting whose effective value cascades from a sibling until it is pinned.
     if (item.displayFrom) {
       view.displayValue = resolveDisplayValue(item, cx.S, cx.ENV);
+    }
+    // hintFrom: a hint derived from the live settings — after resolveRowItem, so it
+    // describes the value the row actually shows.
+    if (item.hintFrom) {
+      view.hint = resolveHint(item, cx.S, cx.ENV, view.value);
     }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
       + renderRow(rowItem, view, noDivider)
@@ -1729,7 +1822,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var tk = inp.getAttribute('data-k'), newV = inp.value;
       var tItem = findItem(tk);
       var onChangeFn = tItem && tItem.onChange && PConf.onChange.get(tItem.onChange);
-      if (!onChangeFn) { S[tk] = newV; return; }
+      if (!onChangeFn) { S[tk] = newV; relabelSelectTriggers(); return; }
       // No focusin seen (programmatic value + change): fall back to the new value so a
       // revert is a no-op rather than restoring something that was never in the field.
       var oldV = Object.prototype.hasOwnProperty.call(textPreEdit, tk)
@@ -1742,7 +1835,42 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // unconditional render() here would swallow their next tap — in a webview
       // focus moves on mousedown, so `change` fires BEFORE mouseup, and replacing
       // the subtree's innerHTML detaches the node the click was about to land on.
-      if (S[tk] !== newV) { render(); }
+      if (S[tk] !== newV) { render(); return; }
+      relabelSelectTriggers();
+    }
+
+    /**
+     * The one thing a text commit repaints without render(): select-trigger labels. An
+     * optionsFrom resolver may NAME its options from a text key (e.g. a provider picker
+     * that calls one provider "limited" until an API key is typed into a field below it),
+     * and the collapsed trigger would otherwise keep the old name until the next full
+     * render. So after every commit, each trigger rendered in #scroll and #modal (an edit
+     * sheet hosts triggers too) is relabelled IN PLACE — only its label span's text and
+     * its aria-label change, no node is replaced, so the tap the commit ran ahead of
+     * still lands (see above). Per keystroke (`input`) nothing repaints; the option list
+     * itself is rebuilt whenever a sheet opens. A trigger whose stored value dropped out
+     * of its derived options is left alone: the next full render snaps it
+     * (resolveRowItem) — this path never writes S. Everything else a text key feeds
+     * (hints, showWhen, blocks) still waits for that next render.
+     *
+     * @returns {void}
+     */
+    function relabelSelectTriggers() {
+      var hosts = [document.getElementById('scroll'), document.getElementById('modal')];
+      var ctx = evalCtx(), h, i, trigs, item, label, span, aria;
+      for (h = 0; h < hosts.length; h++) {
+        trigs = (hosts[h] && hosts[h].querySelectorAll)
+          ? hosts[h].querySelectorAll('.sel-wrap[data-select]') : [];
+        for (i = 0; i < trigs.length; i++) {
+          item = findShownItem(SCHEMA, trigs[i].getAttribute('data-select'), ctx);
+          label = item ? selectTriggerLabel(item, S, ENV) : null;
+          span = (label == null || !trigs[i].querySelector) ? null : trigs[i].querySelector('span');
+          if (!span) { continue; }
+          if (span.textContent !== label) { span.textContent = label; }
+          aria = selectTriggerAria(item, label);
+          if (trigs[i].getAttribute('aria-label') !== aria) { trigs[i].setAttribute('aria-label', aria); }
+        }
+      }
     }
 
     // Scroll body: click (control interactions incl. opening a select/searchSelect,
@@ -2020,7 +2148,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     parseRgb: parseRgb, formatRgb: formatRgb, rgbHex: rgbHex,
     setRgbChannel: setRgbChannel, renderRgb: renderRgb, paintRgb: paintRgb,
     renderTabBar: renderTabBar, renderBody: renderBody, resolveOptionsFrom: resolveOptionsFrom,
-    resolveDefaultFrom: resolveDefaultFrom,
+    selectTriggerLabel: selectTriggerLabel, findShownItem: findShownItem,
+    resolveDefaultFrom: resolveDefaultFrom, resolveHint: resolveHint,
     resolveTheme: resolveTheme,
     fitSelectPeek: fitSelectPeek
   };
@@ -2048,10 +2177,13 @@ if (typeof module !== 'undefined' && module.exports) {
     rgbHex: PConf.engine.rgbHex, setRgbChannel: PConf.engine.setRgbChannel,
     renderRgb: PConf.engine.renderRgb, paintRgb: PConf.engine.paintRgb,
     rangeResolvers: PConf.rangeResolvers, badgeResolvers: PConf.badgeResolvers,
-    displayResolvers: PConf.displayResolvers,
+    displayResolvers: PConf.displayResolvers, hintResolvers: PConf.hintResolvers,
     renderTabBar: PConf.engine.renderTabBar, renderBody: PConf.engine.renderBody,
     resolveOptionsFrom: PConf.engine.resolveOptionsFrom,
+    selectTriggerLabel: PConf.engine.selectTriggerLabel,
+    findShownItem: PConf.engine.findShownItem,
     resolveDefaultFrom: PConf.engine.resolveDefaultFrom,
+    resolveHint: PConf.engine.resolveHint,
     resolveTheme: PConf.engine.resolveTheme,
     fitSelectPeek: PConf.engine.fitSelectPeek
   };

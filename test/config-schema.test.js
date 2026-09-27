@@ -77,7 +77,7 @@ const EXPECTED_KEYS = [
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowOwnKey','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
   // Custom-layout storage (sheetOnly section; see customViewItems in custom-layout-schema.js).
   'viewCount','customLayoutSeeded',
@@ -210,11 +210,12 @@ test('COLOR-capability + showWhen wiring', () => {
   // Fill is available for every metric EXCEPT feels-like and dew point, which ride the
   // temperature axis and so have no meaningful zero to fill down to — and not for a
   // stripe-styled main line, which has no curve to fill below (unless the watch ignores
-  // the styles).
+  // the styles, or the metric cannot be a stripe and so draws a stored one as a line).
   assert.deepEqual(byKey('secondaryLineFill').showWhen, { all: [
     { key: 'secondaryLine', nin: ['feels', 'dew'] },
     { any: [{ not: { env: 'lineStyles' } },
-      { key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom'] }] }
+      { key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom'] },
+      { key: 'secondaryLine', nin: ['precip_prob', 'cloud', 'wind', 'gust', 'uv'] }] }
   ] });
   assert.deepEqual(byKey('owmApiKey').showWhen, { key: 'provider', eq: 'openweathermap' });
   assert.deepEqual(byKey('devStatsClear').showWhen, { key: 'devStatsEnabled', eq: true });
@@ -234,6 +235,11 @@ test('the fill toggle hides for feels-like and stays visible for every other met
       env: { lineStyles: true } }), false, st + ' hides the fill row');
     assert.equal(showWhen.isVisible(fill, { secondaryLine: 'cloud', secondaryLineStyle: st,
       env: { lineStyles: false } }), true, st + ' is ignored where the watch ignores styles');
+    // Pressure cannot be a stripe: a stored one draws as a line, which fills — and the
+    // row must say so in the same render the metric changed in, before the style row's
+    // display-snap has rewritten the stored value.
+    assert.equal(showWhen.isVisible(fill, { secondaryLine: 'pressure', secondaryLineStyle: st,
+      env: { lineStyles: true } }), true, st + ' on pressure keeps the fill row');
   });
   // The metric picker carries the hook that clears the stored value on the way in.
   assert.equal(byKey('secondaryLine').onChange, 'forecastMetricFill');
@@ -254,7 +260,7 @@ test('tomorrow.io key renders under whichever picker uses it: General (weather) 
 test('provider API-key rows join their picker loosely (grouped, but normal spacing)', () => {
   // The key/budget rows that hang off a provider picker use the roomy join (no divider, but
   // full padding) rather than the tight `true` grouping, so they do not read as cramped.
-  ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'tomorrowioFitBudget'].forEach((key) => {
+  ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'rainbowOwnKey', 'rainbowApiKey', 'rainbowFitBudget'].forEach((key) => {
     const instances = items.filter((i) => i.messageKey === key);
     assert.ok(instances.length >= 1, 'missing ' + key);
     instances.forEach((item) => assert.equal(item.joinPrevious, 'loose', key + ' uses the loose join'));
@@ -463,12 +469,6 @@ test('feels-like is left out of both metric pickers on aplite', () => {
   const third = metricOptions({ secondaryLine: 'precip_prob' }, { platform: 'aplite' }, { off: true, exclude: ['secondaryLine'] })
     .map((o) => o[1]);
   assert.deepEqual(third, ['off', 'cloud', 'wind', 'gust', 'uv', 'pressure']);
-});
-
-test('UV hint explains the fixed 0-11 scale (parallel to precip percentage)', () => {
-  const hint = byKey('secondaryLine').hintByValue.uv;
-  assert.match(hint, /UV 11/);
-  assert.match(hint, /half.height/i);
 });
 
 test('windScale has twelve contextual slots: four line-contexts × three wind units', () => {
@@ -1029,30 +1029,160 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.equal(labelOf('precip_prob', 'dew'), 'Dew point');
 });
 
-test('metric hints add only the scale or meaning: no default line style, no Off, no repeated name', () => {
-  ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'].forEach((key) => {
-    const hints = byKey(key).hintByValue;
-    assert.equal(hints.off, undefined, key + ': Off explains itself');
-    Object.keys(hints).forEach((m) => {
-      assert.ok(!/by default|square dots|x marks/i.test(hints[m]), key + '.' + m + ' repeats the line style: ' + hints[m]);
-      assert.ok(!/each hour/i.test(hints[m]), key + '.' + m + ' repeats the hourly resolution: ' + hints[m]);
-    });
+// --- The forecast line hints (blocks.js 'forecastMetricHint' / 'lineStyleHint') ---
+// The scale explanation rides the LINE-STYLE picker: a curve or its marks show a value
+// by height, a stripe by colour strength. The metric pickers keep only what holds
+// whatever the style — plus the height wording on a watch without style pickers.
+// Resolved through the engine with the real schema items, so the wiring (resolver id,
+// args) is pinned along with the copy.
+const engineLib = require('../src/pkjs/config-ui/lib/engine.js');
+const LINE_KEYS = ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'];
+const GRAPH_METRIC_IDS = ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'feels', 'dew'];
+const STYLE_IDS = ['line', 'bold', 'dots', 'x', 'stripeTop', 'stripeBottom'];
+const STYLED_ENV = platform.computeEnv({ platform: 'basalt' });
+const APLITE_ENV = platform.computeEnv({ platform: 'aplite' });
+/** A row's resolved hint for settings S (the row shows S[key]). */
+const hintOf = (key, S, env) => engineLib.resolveHint(byKey(key), S, env, S[key]);
+
+const HEIGHT = {
+  precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
+  cloud: 'Half height = half the sky covered, full height = overcast.',
+  wind: 'Scaled by the Wind graph scale setting.',
+  gust: 'Scaled by the Wind graph scale setting.',
+  uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
+  pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
+  feels: 'Drawn on the same scale as the temperature curve.',
+  dew: 'Drawn on the same scale as the temperature curve.'
+};
+const STRIPE = {
+  precip_prob: 'Half-strength colour = 50% chance of rain, full colour = 100%.',
+  cloud: 'Half-strength colour = half the sky covered, full colour = overcast.',
+  wind: 'Colour strength follows the Wind graph scale setting.',
+  gust: 'Colour strength follows the Wind graph scale setting.',
+  uv: 'Half-strength colour = UV 5.5, full colour = UV 11 (extreme).'
+};
+const NOTE = {
+  cloud: 'Not available with Yandex.',
+  gust: 'The hourly peak.',
+  dew: 'The closer it runs to the temperature, the more humid it feels.'
+};
+
+test('metric pickers: a derived hint, one resolver for all four', () => {
+  LINE_KEYS.forEach((key) => {
+    assert.deepEqual(byKey(key).hintFrom, { resolver: 'forecastMetricHint' }, key);
+    assert.equal(byKey(key).hintByValue, undefined, key + ' carries no static per-metric copy');
   });
-  // The three pickers share one hint map, so switching lines never rewords one.
-  assert.equal(byKey('thirdLine').hintByValue, byKey('secondaryLine').hintByValue);
-  assert.equal(byKey('fourthLine').hintByValue, byKey('secondaryLine').hintByValue);
-  assert.equal(byKey('fifthLine').hintByValue, byKey('secondaryLine').hintByValue);
-  // With wind and gusts both picked, the one scale row sits under the first of them:
-  // the hint names the setting instead of pointing "below".
-  assert.ok(!/below/.test(byKey('thirdLine').hintByValue.gust), 'gust hint must not point below');
-  assert.ok(!/below/.test(byKey('secondaryLine').hintByValue.wind), 'wind hint must not point below');
-  // A colour note would be wrong on Light, B/W and after a custom pick.
-  assert.ok(!/grey|gray/i.test(byKey('secondaryLine').hintByValue.feels), 'feels hint names no colour');
 });
 
-test('feels-like hint says it shares the temperature scale, on both pickers', () => {
-  assert.match(byKey('secondaryLine').hintByValue.feels, /same scale as the temperature curve/i);
-  assert.match(byKey('thirdLine').hintByValue.feels, /same scale as the temperature curve/i);
+test('metric pickers keep only the notes that hold whatever the style', () => {
+  const expected = {
+    precip_prob: '', cloud: 'Not available with Yandex.', wind: '', gust: 'The hourly peak.', uv: '',
+    pressure: '', feels: '', dew: 'The closer it runs to the temperature, the more humid it feels.', off: ''
+  };
+  LINE_KEYS.forEach((key) => {
+    Object.keys(expected).forEach((m) => {
+      if (key === 'secondaryLine' && m === 'off') { return; }
+      assert.equal(hintOf(key, { [key]: m }, STYLED_ENV), expected[m], key + '.' + m);
+    });
+  });
+});
+
+test('without style pickers (aplite) the metric picker keeps the height scale after its note', () => {
+  const expected = {
+    precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
+    cloud: 'Not available with Yandex. Half height = half the sky covered, full height = overcast.',
+    wind: 'Scaled by the Wind graph scale setting.',
+    gust: 'The hourly peak. Scaled by the Wind graph scale setting.',
+    uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
+    pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
+    feels: 'Drawn on the same scale as the temperature curve.',
+    dew: 'The closer it runs to the temperature, the more humid it feels. '
+      + 'Drawn on the same scale as the temperature curve.'
+  };
+  GRAPH_METRIC_IDS.forEach((m) => {
+    assert.equal(hintOf('secondaryLine', { secondaryLine: m }, APLITE_ENV), expected[m], 'aplite ' + m);
+    // The same truthy test as the style rows' {env: 'lineStyles'} gate: whenever those
+    // rows are hidden, the metric picker explains the scale itself.
+    assert.equal(hintOf('thirdLine', { thirdLine: m }, {}), expected[m], 'no lineStyles fact ' + m);
+  });
+  assert.equal(hintOf('thirdLine', { thirdLine: 'off' }, APLITE_ENV), '', 'Off explains itself');
+  // The style rows really are hidden wherever this wording shows.
+  assert.equal(showWhen.isVisible(byKey('secondaryLineStyle'), { env: APLITE_ENV }), false);
+});
+
+test('line-style pickers: the scale of their own line\'s metric, one resolver for all four', () => {
+  LINE_KEYS.forEach((key) => {
+    const item = byKey(key + 'Style');
+    assert.deepEqual(item.hintFrom, { resolver: 'lineStyleHint', args: { metricKey: key } }, key);
+    assert.equal(item.hintByValue, undefined, key + 'Style carries no static per-style copy');
+  });
+  // Each picker reads ITS line's metric, not a sibling's.
+  const S = { secondaryLine: 'uv', thirdLine: 'precip_prob', fourthLine: 'cloud', fifthLine: 'gust',
+    secondaryLineStyle: 'line', thirdLineStyle: 'line', fourthLineStyle: 'line', fifthLineStyle: 'line' };
+  assert.equal(hintOf('secondaryLineStyle', S, STYLED_ENV), HEIGHT.uv);
+  assert.equal(hintOf('thirdLineStyle', S, STYLED_ENV), HEIGHT.precip_prob);
+  assert.equal(hintOf('fourthLineStyle', S, STYLED_ENV), HEIGHT.cloud);
+  assert.equal(hintOf('fifthLineStyle', S, STYLED_ENV), HEIGHT.gust);
+});
+
+test('line-style hint: every metric x style reads height for curves and marks, colour strength for stripes', () => {
+  const lineStyle = require('../src/pkjs/line-style.js');
+  // The stripe copy covers exactly the metrics a stripe can show (the picker offers no
+  // stripe for any other, so no other combination can reach the hint).
+  assert.deepEqual(Object.keys(STRIPE).sort(), lineStyle.STRIPE_METRIC_IDS.slice().sort());
+  assert.deepEqual(Object.keys(require('../src/pkjs/settings/blocks.js').STRIPE_SCALE).sort(),
+    lineStyle.STRIPE_METRIC_IDS.slice().sort(), 'blocks.js STRIPE_SCALE keys = STRIPE_METRIC_IDS');
+  const expected = (m, st) => {
+    if (st === 'line' || st === 'bold') { return HEIGHT[m]; }
+    if (st === 'dots' || st === 'x') { return HEIGHT[m] + ' Aligned to the rain bars.'; }
+    return STRIPE[m] + ' One cell per hour.'
+      + (st === 'stripeBottom' ? ' Below the zero line, where bars and lines never cover it.' : '');
+  };
+  LINE_KEYS.forEach((key) => {
+    GRAPH_METRIC_IDS.forEach((m) => {
+      STYLE_IDS.forEach((st) => {
+        if (lineStyle.isStripeValue(st) && !lineStyle.metricAllowsStripe(m)) { return; }
+        assert.equal(hintOf(key + 'Style', { [key]: m, [key + 'Style']: st }, STYLED_ENV), expected(m, st),
+          key + 'Style ' + m + ' / ' + st);
+      });
+    });
+    assert.equal(hintOf(key + 'Style', { [key]: 'off', [key + 'Style']: 'dots' }, STYLED_ENV), '',
+      key + ': a line that is off explains nothing');
+  });
+  // Spelled out once, so the composed copy reads as written.
+  const S = { secondaryLine: 'precip_prob', secondaryLineStyle: 'stripeBottom' };
+  assert.equal(hintOf('secondaryLineStyle', S, STYLED_ENV), 'Half-strength colour = 50% chance of rain, '
+    + 'full colour = 100%. One cell per hour. Below the zero line, where bars and lines never cover it.');
+  assert.equal(hintOf('secondaryLineStyle', { secondaryLine: 'uv', secondaryLineStyle: 'x' }, STYLED_ENV),
+    'Half height = UV 5.5, full height = UV 11 (extreme). Aligned to the rain bars.');
+});
+
+test('forecast hints: no name echo, no colour, and the wind scale is named rather than placed', () => {
+  const all = [];
+  GRAPH_METRIC_IDS.forEach((m) => {
+    all.push(['metric ' + m, hintOf('thirdLine', { thirdLine: m }, STYLED_ENV)]);
+    all.push(['aplite ' + m, hintOf('thirdLine', { thirdLine: m }, APLITE_ENV)]);
+    STYLE_IDS.forEach((st) => {
+      if (/^stripe/.test(st) && !STRIPE[m]) { return; }   // not offered for this metric
+      all.push([m + '/' + st, hintOf('thirdLineStyle', { thirdLine: m, thirdLineStyle: st }, STYLED_ENV)]);
+    });
+  });
+  all.forEach(([what, h]) => {
+    assert.ok(!/by default|square dots|x marks|thin line|thick line|stripe at/i.test(h), what + ' echoes a label: ' + h);
+    // A colour name would be wrong on Light, B/W and after a custom pick.
+    assert.ok(!/grey|gray|blue|yellow|white/i.test(h), what + ' names a colour: ' + h);
+  });
+  // With wind and gusts both picked, the one scale row sits under the first of them.
+  ['wind', 'gust'].forEach((m) => {
+    STYLE_IDS.forEach((st) => {
+      assert.ok(!/below/.test(hintOf('fourthLineStyle', { fourthLine: m, fourthLineStyle: st }, STYLED_ENV)
+        .replace('Below the zero line', '')), m + '/' + st + ' must not point below');
+    });
+    assert.ok(!/below/.test(hintOf('fourthLine', { fourthLine: m }, APLITE_ENV)), 'aplite ' + m);
+  });
+  // Pressure names sea level, so an altitude reading makes sense.
+  assert.ok(hintOf('secondaryLineStyle', { secondaryLine: 'pressure', secondaryLineStyle: 'line' }, STYLED_ENV)
+    .includes('Sea-level'));
 });
 
 test('forecast tab nests style, fill and wind scale under the line that enables them', () => {
@@ -1357,17 +1487,141 @@ test('flick/positioning narrative lives only in the Layout tab, not Health/Radar
   assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
 });
 
+// The radar picker's options as the page resolves them for a settings state (through the
+// engine, so the wiring — resolver id + args — is exercised, not just the resolver).
+const radarPickerOptions = (S) => require('../src/pkjs/config-ui/lib/engine.js')
+  .resolveOptionsFrom(byKey('radarProvider'), S || {}, {});
+
 test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io (short labels, scope in desc/why; on/off now lives in radarMode)', () => {
   const item = byKey('radarProvider');
-  assert.equal(item.type, 'select', 'dropdown — four options no longer fit a segmented row');
-  assert.deepEqual(item.options.map((o) => [o[0], o[1]]), [
+  assert.equal(item.type, 'select', 'dropdown — the options carry a desc line each');
+  assert.equal(item.options, undefined, 'options are derived: the Rainbow label follows the own key');
+  assert.equal(item.optionsFrom.resolver, 'radarProviderOptions');
+  assert.deepEqual(radarPickerOptions({ rainbowOwnKey: true, rainbowApiKey: 'KEY' }).map((o) => [o[0], o[1]]), [
     ['DWD', 'dwd'],
     ['Met.no', 'metno'],
     ['Rainbow', 'rainbow'],
     ['Tomorrow.io', 'tomorrowio']
-  ]);
+  ], 'ONE Rainbow option: the own key is a switch under the picker, not a second option');
+  assert.deepEqual(radarPickerOptions({}).map((o) => [o[0], o[1]]), [
+    ['DWD', 'dwd'],
+    ['Met.no', 'metno'],
+    ['Rainbow (limited)', 'rainbow'],
+    ['Tomorrow.io', 'tomorrowio']
+  ], 'on the shared key the same option reads "Rainbow (limited)"');
   assert.ok(item.hintByValue && item.hintByValue.rainbow, 'per-provider "why" lives in hintByValue on the picker');
+  assert.equal(item.hintByValue.rainbowkey, undefined, 'no why note for a value the picker no longer offers');
   assert.equal(item.defaultValue, 'rainbow');
+});
+
+// The Radar tab's Rainbow rows, in order: the "Use your own key" switch right under the
+// picker, then (switch on) the key field, the monthly read-out and the budget toggle.
+const RAINBOW_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbow' }, { key: 'radarMode', ne: 'off' }] };
+const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbow' }, { key: 'radarMode', ne: 'off' },
+  { key: 'rainbowOwnKey', eq: true }] };
+const radarPickerSection = () => schema.tabs.reduce((found, t) => found
+  || t.sections.find((sec) => sec.items.some((i) => i.messageKey === 'radarProvider')), null);
+
+test('"Use your own key" is a toggle right under the radar picker, only while Rainbow drives a running radar', () => {
+  const toggles = items.filter((i) => i.messageKey === 'rainbowOwnKey');
+  assert.equal(toggles.length, 1, 'one instance: the Radar tab only');
+  const item = toggles[0];
+  assert.equal(item.type, 'toggle');
+  assert.equal(item.label, 'Use your own key');
+  assert.equal(item.defaultValue, false, 'the shared radar until the user opts in');
+  assert.equal(item.joinPrevious, 'loose', 'grouped with the picker it belongs to');
+  assert.equal(item.hint, 'Refreshes the radar at every update on your own Rainbow key instead of every 30 minutes. '
+    + 'A key is free: Rainbow\'s free plan covers 5,000 calls a month.');
+  assert.deepEqual(item.showWhen, RAINBOW_WHEN);
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph' }), true, 'shown for Rainbow');
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'countdown', rainbowOwnKey: true }), true,
+    'and stays shown once on, so it can be turned off again');
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'off' }), false, 'hidden with radar off');
+  ['dwd', 'metno', 'tomorrowio'].forEach((p) => {
+    assert.equal(showWhen.isVisible(item, { radarProvider: p, radarMode: 'graph', rainbowOwnKey: true }), false,
+      'hidden for ' + p);
+  });
+
+  const section = radarPickerSection();
+  assert.ok(section, 'the radar picker section exists');
+  const picker = section.items.findIndex((i) => i.messageKey === 'radarProvider');
+  assert.equal(section.items.indexOf(item), picker + 1, 'directly under the picker');
+});
+
+test('Rainbow key field sits under "Use your own key", only while the switch is on', () => {
+  const keyItems = items.filter((i) => i.messageKey === 'rainbowApiKey');
+  assert.equal(keyItems.length, 1, 'one instance: the Radar tab only');
+  const item = keyItems[0];
+  assert.equal(item.type, 'text');
+  assert.equal(item.label, 'Rainbow API key');
+  assert.equal(item.defaultValue, '');
+  assert.equal(item.suffixAction, 'testRainbowKey', 'the inline Test button (rainbow-key-test.js)');
+  assert.equal(item.suffixLabel, 'Test');
+  assert.deepEqual(item.showWhen, RAINBOW_OWN_KEY_WHEN);
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: true }), true,
+    'visible while Rainbow runs on the user\'s key');
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: false }), false,
+    'hidden for the shared Rainbow radar (the proxy needs no key)');
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph' }), false,
+    'hidden with the switch never touched (its default is off)');
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'off', rainbowOwnKey: true }), false,
+    'hidden with radar off (no Rainbow call is made)');
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'dwd', radarMode: 'graph', rainbowOwnKey: true }), false,
+    'hidden for another radar source, whatever the switch says');
+
+  // Same section as the picker: picker, switch, key, Rainbow budget toggle — then the
+  // radar-only tomorrow.io pair, then the radar bar-scale note (the SCALE_NOTE staticText
+  // carrying the radar preview).
+  const section = radarPickerSection();
+  const at = section.items.indexOf(item);
+  assert.ok(at >= 0, 'the key field shares the radar picker\'s section');
+  assert.equal(section.items[at - 1].messageKey, 'rainbowOwnKey', 'right after the "Use your own key" switch');
+  assert.equal(section.items[at + 1].messageKey, 'rainbowFitBudget', 'then the Rainbow budget toggle');
+  assert.equal(section.items[at + 2].messageKey, 'tomorrowioApiKey', 'then the radar-only tomorrow.io key');
+  assert.equal(section.items[at + 3].messageKey, 'tomorrowioFitBudget', 'and its budget toggle');
+  const scaleNote = section.items[at + 4];
+  assert.equal(scaleNote.type, 'staticText');
+  assert.equal(scaleNote.blockBefore, 'radarPreview');
+  assert.match(scaleNote.text, /don't scale linearly/, 'right before the SCALE_NOTE staticText');
+
+  assert.ok(item.hint.indexOf('https://developer.rainbow.ai/signup/') >= 0, 'the hint links the signup page');
+  assert.ok(item.hint.indexOf('https://developer.rainbow.ai/profile') >= 0, 'the hint links the profile page');
+  assert.equal(item.hint.indexOf('below'), -1, 'the hint points at nothing "below"');
+  // Step-by-step, with the free-tier terms a user needs before signing up.
+  assert.ok(item.hint.indexOf('<b>How to get a key:</b>') === 0, 'opens with the how-to heading');
+  assert.match(item.hint, /1\. .*2\. .*3\. Tap Test\./, 'three numbered steps, ending in the Test button');
+  assert.match(item.hint, /credit card/, 'says Rainbow asks for a card');
+  assert.match(item.hint, /first 5,000 calls each month are free/, 'and that the first 5,000 a month are free');
+  assert.ok(item.hint.indexOf('data-copy="https://developer.rainbow.ai/profile"') >= 0, 'a copy button for the profile link');
+  assert.match(item.hint, /Fit update interval to rate limit/, 'names the budget toggle by its label');
+  assert.match(item.hint, /on and the watch stays within the free 5,000 calls\.$/,
+    'closes on what the toggle gets the user, not how it works');
+});
+
+test('Rainbow budget toggle follows the key field and carries the monthly read-out', () => {
+  const toggles = items.filter((i) => i.messageKey === 'rainbowFitBudget');
+  assert.equal(toggles.length, 1, 'one instance: the Radar tab only');
+  const item = toggles[0];
+  assert.equal(item.type, 'toggle');
+  assert.equal(item.defaultValue, true);
+  assert.equal(item.label, 'Fit update interval to rate limit');
+  // blockBefore: the usage read-out sits between the key field and the toggle.
+  assert.equal(item.blockBefore, 'rainbowBudget');
+  assert.equal(item.block, undefined);
+  assert.deepEqual(item.showWhen, byKey('rainbowApiKey').showWhen, 'the same RAINBOW_OWN_KEY_WHEN as the key');
+  assert.deepEqual(item.showWhen, RAINBOW_OWN_KEY_WHEN);
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'status', rainbowOwnKey: true }), true);
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'off', rainbowOwnKey: true }), false);
+  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: false }), false);
+
+  const section = schema.tabs.reduce((found, t) => found
+    || t.sections.find((sec) => sec.items.indexOf(item) !== -1), null);
+  assert.ok(section, 'the toggle is in a section');
+  const at = section.items.indexOf(item);
+  assert.equal(section.items[at - 1].messageKey, 'rainbowApiKey', 'directly after the Rainbow key field');
+  assert.equal(item.hint.indexOf('below'), -1, 'the hint points at nothing "below"');
+  assert.match(item.hint, /5,000 calls a month/, 'the hint names the free allowance');
+  assert.match(item.hint, /\$0\.10 per 1,000/, 'and what Rainbow bills past it');
 });
 
 test('radarMode is a four-step radio with per-mode hint copy', () => {
@@ -1449,6 +1703,17 @@ test('each weather + radar provider has a per-value "why" hint on its picker', (
   assert.match(whyNote('provider', 'wunderground'), /crowd-sourced|250,000/i);
   assert.match(whyNote('provider', 'dwd'), /Germany/);
   assert.match(whyNote('radarProvider', 'tomorrowio'), /budget/i, 'radar Tomorrow.io keeps the key/budget caveat');
+  // Rainbow's note, verbatim: why the shared radar is limited, and the switch that lifts it.
+  assert.equal(whyNote('radarProvider', 'rainbow'),
+    'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a '
+    + 'growing number of users I can only provide a limited number of them, so the shared radar refreshes at most '
+    + 'every 30 minutes. Turn on “Use your own key” for a refresh at every update — a key is free. Powered by '
+    + '<a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.');
+  assert.match(whyNote('radarProvider', 'rainbow'), /growing number of users/, 'names why the calls are limited');
+  assert.ok(whyNote('radarProvider', 'rainbow').indexOf('“' + byKey('rainbowOwnKey').label + '”') !== -1,
+    'points at the switch by its label');
+  // Rainbow's terms ask for a "Powered by Rainbow.ai" link.
+  assert.match(whyNote('radarProvider', 'rainbow'), /Powered by <a target='_blank' href='https:\/\/rainbow\.ai'>Rainbow\.ai<\/a>\.$/);
   // The old showWhen-gated staticText notes are gone — the hint is the only copy.
   assert.ok(!items.some((i) => i.type === 'staticText' && i.showWhen
     && (i.showWhen.key === 'provider' || i.showWhen.key === 'radarProvider')),
@@ -1456,14 +1721,17 @@ test('each weather + radar provider has a per-value "why" hint on its picker', (
 });
 
 test('every radar provider carries a "best at" dropdown description', () => {
-  const item = byKey('radarProvider');
-  const desc = (v) => { const o = item.options.find((x) => x[1] === v); return o[2] && o[2].desc; };
-  ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((v) => {
-    assert.ok(typeof desc(v) === 'string' && desc(v).length > 0, v + ' radar option should carry a meta.desc');
+  [{}, { rainbowOwnKey: true, rainbowApiKey: 'KEY' }].forEach((S) => {
+    const options = radarPickerOptions(S);
+    const desc = (v) => { const o = options.find((x) => x[1] === v); return o[2] && o[2].desc; };
+    ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((v) => {
+      assert.ok(typeof desc(v) === 'string' && desc(v).length > 0, v + ' radar option should carry a meta.desc');
+    });
+    assert.match(desc('dwd'), /Germany/);
+    assert.match(desc('metno'), /Nordics/);
+    assert.match(desc('tomorrowio'), /precise/i, 'Tomorrow.io radar reads as precise');
+    assert.equal(desc('rainbow'), 'Worldwide satellite + radar nowcast', 'the same desc in both label states');
   });
-  assert.match(desc('dwd'), /Germany/);
-  assert.match(desc('metno'), /Nordics/);
-  assert.match(desc('tomorrowio'), /precise/i, 'Tomorrow.io radar reads as precise');
 });
 
 test('provider/radar/health controls register their status cleanup handlers', () => {
@@ -2303,14 +2571,6 @@ test('the Third and Fourth metric pickers offer feels and dew off aplite, and ex
   }
 });
 
-test('the Third and Fourth metric pickers carry the feels and dew hints', () => {
-  for (const key of ['fourthLine', 'fifthLine']) {
-    const hints = byKey(key).hintByValue;
-    assert.match(hints.feels, /same scale as the temperature curve/i, key + ' feels');
-    assert.match(hints.dew, /same scale as the temperature curve/i, key + ' dew');
-  }
-});
-
 test('the Third metric row and every line-style row hide behind the lineStyles capability, fail-open for unknown platforms', () => {
   // Row-level showWhen, not option-gating: a hidden row is never rendered, so
   // the engine's display-snap can't rewrite the stored value on a watch that
@@ -2345,13 +2605,63 @@ test('the line-style pickers offer thin/thick/dots/x/top/bottom with per-line de
   const lineStyle = require('../src/pkjs/line-style.js');
   const OPTIONS = [['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'],
     ['× marks', 'x'], ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']];
-  for (const key of ['secondaryLineStyle', 'thirdLineStyle', 'fourthLineStyle']) {
+  const styleOptions = global.PConf.optionsResolvers.get('lineStyleOptions');
+  for (const lineKey of ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine']) {
+    const key = lineKey + 'Style';
     const item = byKey(key);
     assert.equal(item.type, 'select', key + ' is a dropdown — six styles overflow a segmented row');
-    assert.deepEqual(item.options, OPTIONS, key);
+    assert.equal(item.options, undefined, key + ' options are derived, not static');
+    assert.deepEqual(item.optionsFrom, { resolver: 'lineStyleOptions', args: { metricKey: lineKey } }, key);
+    // Stripes only while this line's metric can be one (line-style.js metricAllowsStripe).
+    lineStyle.GRAPH_METRICS.forEach((m) => {
+      const opts = styleOptions({ [lineKey]: m }, STYLED_ENV, item.optionsFrom.args);
+      assert.deepEqual(opts, lineStyle.metricAllowsStripe(m) ? OPTIONS : OPTIONS.slice(0, 4), key + ' ' + m);
+    });
+    assert.deepEqual(styleOptions({ secondaryLine: 'feels', [lineKey]: 'cloud' }, STYLED_ENV, item.optionsFrom.args),
+      OPTIONS, key + ' reads its own line, not the main one');
     assert.equal(item.defaultValue, lineStyle.LINE_STYLE_DEFAULTS[key],
       key + ' schema default must match line-style.js’ wire default');
   }
+});
+
+// A stripe picked on an intensity metric lies DORMANT (the item's dormantValues) while
+// the line tries a metric that cannot be one: the row shows the style the watch draws
+// (line-style.js lineStyleValue) but the stored pick stays, so switching back to an
+// intensity metric brings the stripe back instead of silently losing it.
+test('a stored stripe on a metric that cannot be one shows the drawn style and survives a switch back', () => {
+  const lineStyle = require('../src/pkjs/line-style.js');
+  const tab = schema.tabs.find((t) => t.id === 'forecast');
+  const env = STYLED_ENV;
+  const LABELS = { line: 'Thin line', bold: 'Thick line', dots: 'Square dots', x: '× marks',
+    stripeTop: 'Stripe at top', stripeBottom: 'Stripe at bottom' };
+  const render = (S) => {
+    const cx = { S, ENV: env, USERDATA: {}, openColor: null, openSelect: null, openDate: null, openEdit: null,
+      selectQuery: '', collapsed: {}, evalCtx: Object.assign({}, S, { env }) };
+    return engineLib.renderBody(schema, tab.id, cx);
+  };
+  const shown = (html, key) => {
+    const m = html.match(new RegExp('data-select="' + key + '" aria-label="Line style: ([^"]*)"'));
+    return m ? m[1] : null;
+  };
+  LINE_KEYS.forEach((lineKey) => {
+    const key = lineKey + 'Style';
+    assert.deepEqual(byKey(key).dormantValues, ['stripeTop', 'stripeBottom'], key);
+    ['stripeTop', 'stripeBottom'].forEach((stripe) => {
+      ['feels', 'dew', 'pressure'].forEach((m) => {
+        const S = engineLib.hydrate(schema, { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off',
+          fifthLine: 'off', [lineKey]: m, [key]: stripe }, env);
+        const what = key + ' ' + stripe + ' on ' + m;
+        const drawn = lineStyle.lineStyleValue({ [lineKey]: m, [key]: stripe }, key);
+        assert.ok(!lineStyle.isStripeValue(drawn), what + ': the watch draws no stripe');
+        assert.equal(shown(render(S), key), LABELS[drawn], what + ': the row shows the drawn style');
+        assert.equal(S[key], stripe, what + ': the stored pick is kept');
+        // Back on an intensity metric the stripe is offered, stored and shown again.
+        S[lineKey] = 'cloud';
+        assert.equal(shown(render(S), key), LABELS[stripe], what + ': the stripe returns with cloud');
+        assert.equal(S[key], stripe, what + ': still stored');
+      });
+    });
+  });
 });
 
 test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
@@ -2386,10 +2696,6 @@ test('pressureScale shows for the main line, and for a later line only when no e
     { not: { key: 'secondaryLine', eq: 'pressure' } },
     { not: { key: 'thirdLine', eq: 'pressure' } }
   ]});
-});
-
-test('the pressure line hint names sea-level so an altitude reading makes sense', () => {
-  assert.ok(byKey('secondaryLine').hintByValue.pressure.includes('Sea-level'));
 });
 
 // A hardcoded copy of the curve numbers here is the third copy (forecast-series.js and

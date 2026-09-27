@@ -69,6 +69,9 @@ function run(opts) {
       // from Open-Meteo/Brightsky, so the tab is fully reviewable here.
       graphsSeed: { lat: 52.52, lon: 13.405, name: 'Berlin', gps: true },
       newsEndpoint: process.env.NEWS_ENDPOINT || '',
+      // The Rainbow key Test button's proxy (key-check mode). Unset = the button says
+      // the test isn't available; point it at a local `supabase functions serve` stack.
+      rainbowEndpoint: process.env.RAINBOW_PROXY_ENDPOINT || '',
       appVersion: process.env.NEWS_PREVIEW_VERSION || '9.9.9',
       // WARNING: pointing NEWS_ENDPOINT at the PRODUCTION news function makes the
       // preview write real news_seen / news_replies / news_votes rows under this

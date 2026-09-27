@@ -202,6 +202,19 @@ function pressurePermille(arr, scale) {
 }
 
 /**
+ * Does the watch draw a stripe along the graph's top edge? Only watches that draw the
+ * line styles at all (not aplite) draw stripes; a line that is off draws nothing.
+ * @param {Object} settings Clay settings blob.
+ * @param {?{platform: string}} watchInfo The watch.
+ * @returns {boolean} True when some drawn line is styled 'stripeTop'.
+ */
+function topStripeDrawn(settings, watchInfo) {
+    var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
+    if (platform === 'aplite' || !configUi.isLineStylePlatform(platform)) { return false; }
+    return lineStyle.topStripeLineDrawn(settings);
+}
+
+/**
  * Whether a temperature-axis line (feels, dew) is the effective metric of a
  * forecast line this watch actually DRAWS. Every line carries its own curve-inset
  * byte (clay-payload.js' CLAY_CURVE_INSET_UINT8), so any of them can share the
@@ -226,26 +239,6 @@ function pressurePermille(arr, scale) {
  * @param {string} metric 'feels' | 'dew'.
  * @returns {boolean} True when the line is selected and the watch can draw it.
  */
-/**
- * Does the watch draw a stripe along the graph's top edge? Only watches that draw the
- * line styles at all (not aplite) draw stripes; a line that is off draws nothing.
- * @param {Object} settings Clay settings blob.
- * @param {?{platform: string}} watchInfo The watch.
- * @returns {boolean} True when some drawn line is styled 'stripeTop'.
- */
-function topStripeDrawn(settings, watchInfo) {
-    var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-    if (platform === 'aplite' || !configUi.isLineStylePlatform(platform)) { return false; }
-    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
-        var key = lineStyle.FORECAST_LINES[i].key;
-        if (lineStyle.effectiveLineMetric(settings, key)
-                && lineStyle.lineStyleValue(settings, key + 'Style') === 'stripeTop') {
-            return true;
-        }
-    }
-    return false;
-}
-
 function tempAxisLineDrawn(settings, watchInfo, metric) {
     var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
     if (platform === 'aplite') { return false; }

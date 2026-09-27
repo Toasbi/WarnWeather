@@ -5,7 +5,7 @@ import {
   hmacSha256Hex,
   payloadSchema,
   versionSchema,
-} from "./index.ts";
+} from "./handler.ts";
 
 // A conforming 32-hex account token (today's Pebble format).
 const HEX32 = "0123456789abcdef0123456789abcdef";
@@ -36,7 +36,7 @@ Deno.test("unknown op is rejected", () => {
   assert(!accepts({ version: "1.8.0" }));
 });
 
-// --- version regex (feeds a PostgREST .or() filter) ---
+// --- version regex (a plain version string; part of the request contract) ---
 
 Deno.test("version with PostgREST metacharacters is rejected", () => {
   assert(!versionSchema.safeParse("1.8.0,x").success); // comma

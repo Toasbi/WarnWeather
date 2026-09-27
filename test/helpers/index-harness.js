@@ -104,8 +104,9 @@ function isWeatherMessage(dict) {
  *   (manual Berlin coordinates, Open-Meteo, radar off, hourly refresh, battery
  *   saver off — its schema default would pause fetching at night).
  * @param {Object} [opts.store] Extra localStorage entries seeded before boot.
- * @param {function(string): (Object|string)} [opts.network] URL -> response
- *   {status, body}, or 'error' (onerror), 'timeout' (ontimeout), 'hang' (never).
+ * @param {function(string, {method: string, body: *}): (Object|string)} [opts.network]
+ *   (URL, the request's method and body) -> response {status, body}, or 'error'
+ *   (onerror), 'timeout' (ontimeout), 'hang' (never).
  * @param {function(Object): string} [opts.onSend] AppMessage dict -> 'ack' |
  *   'nack' | 'throw' | 'hold' (no callback yet: the send lands in `held`, as
  *   {dict, ack, nack}, for the test to answer later). Default ack.
@@ -137,15 +138,17 @@ function bootIndex(t, opts) {
   };
 
   const xhrs = [];
+  const requests = [];
   const uncaught = [];
   const network = opts.network || healthyNetwork;
   global.XMLHttpRequest = function FakeXhr() {
     const xhr = this;
-    xhr.open = (method, url) => { xhr.url = url; };
+    xhr.open = (method, url) => { xhr.method = method; xhr.url = url; };
     xhr.setRequestHeader = () => {};
-    xhr.send = () => {
+    xhr.send = (body) => {
       xhrs.push(xhr.url);
-      const r = network(xhr.url);
+      requests.push({ method: xhr.method, url: xhr.url, body: body });
+      const r = network(xhr.url, { method: xhr.method, body: body });
       if (r === 'hang') { return; }
       setTimeout(() => {
         try {
@@ -218,7 +221,7 @@ function bootIndex(t, opts) {
   require(PKJS_DIR + 'index.js');
 
   const h = {
-    store, xhrs, sends, held, logs, listeners, geoRequests, uncaught,
+    store, xhrs, requests, sends, held, logs, listeners, geoRequests, uncaught,
     /** Boot: PebbleKit 'ready' (runs the first scheduler tick synchronously). */
     ready() { listeners.ready({}); },
     /**

@@ -618,6 +618,28 @@ test('renderSelectOptions: a recommended value appends a bold (Recommended) mark
   assert.equal(E.renderSelectOptions(plain, 'dwd', '', 'nope').indexOf('ssel-rec'), -1, 'unmatched recommended value adds no marker');
 });
 
+test('renderSelectOptions: a parenthesised name moves the Recommended marker to the front of its desc line', () => {
+  // "Foo (beta) (Recommended)" reads as a stutter: the marker leads the desc instead.
+  const picker = { messageKey: 'r', options: [
+    ['Foo (beta)', 'foo', { desc: 'First line' }],
+    ['Bar (alpha)', 'bar', { desc: 'Second line' }],
+    ['Baz', 'baz', { desc: 'Third line' }]
+  ] };
+  const h = E.renderSelectOptions(picker, 'baz', '', 'foo');
+  assert.ok(h.indexOf('<span class="ssel-opt-name">Foo (beta)</span>'
+    + '<span class="ssel-opt-desc"><b class="ssel-rec">Recommended</b> · First line</span>') >= 0, h);
+  assert.equal(h.indexOf('(beta) <b'), -1, 'no "(beta) (Recommended)" stutter');
+  assert.equal(h.split('ssel-rec').length - 1, 1, 'one marker, on the recommended option only');
+  // An unparenthesised recommended name keeps the marker after the name, byte for byte.
+  const d = E.renderSelectOptions(picker, 'foo', '', 'baz');
+  assert.ok(d.indexOf('<span class="ssel-opt-name">Baz <b class="ssel-rec">(Recommended)</b></span>'
+    + '<span class="ssel-opt-desc">Third line</span>') >= 0, d);
+  // Without a desc line there is nowhere to move it: the name keeps it.
+  const plain = { messageKey: 'p', options: [['Foo (beta)', 'foo']] };
+  assert.ok(E.renderSelectOptions(plain, 'foo', '', 'foo')
+    .indexOf('<span>Foo (beta) <b class="ssel-rec">(Recommended)</b></span>') >= 0);
+});
+
 test('renderSelectOptions renders explicit groups without heading indicators', () => {
   const item = { messageKey: 'slot', options: [
     ['Empty', 'empty'],
@@ -848,7 +870,9 @@ test('onChange registry: register/get; unknown id -> undefined', () => {
 // no-op'ing it) so the test can invoke it directly, simulating a real browser event.
 // `opts.modalQuery(sel)` (optional) answers #modal.querySelector — the edit-sheet
 // tests hand it a scroll-list stub and a focusable trigger; without it every
-// in-dialog query misses, as before.
+// in-dialog query misses, as before. `opts.scrollQueryAll(sel)` / `opts.modalQueryAll(sel)`
+// (optional) answer querySelectorAll on #scroll / #modal — the in-place trigger relabel
+// after a text commit asks them for '.sel-wrap[data-select]'; without them both answer [].
 function bootWithCapturedListeners(schema, env, opts) {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = fs.readFileSync(path.join(LIB, 'schema-walk.js'), 'utf8')
@@ -867,12 +891,17 @@ function bootWithCapturedListeners(schema, env, opts) {
   const listeners = {};
   const modalListeners = {};
   const focusCounts = { select: {}, date: {}, 'edit-sheet': {} };
-  const scroll = { innerHTML: '', addEventListener: (type, fn) => { listeners[type] = fn; } };
+  const scroll = {
+    innerHTML: '',
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    querySelectorAll: (sel) => ((opts && opts.scrollQueryAll) ? opts.scrollQueryAll(sel) : [])
+  };
   const modal = {
     innerHTML: '',
     style: {},
     addEventListener: (type, fn) => { modalListeners[type] = fn; },
-    querySelector: (sel) => ((opts && opts.modalQuery) ? opts.modalQuery(sel) : null)
+    querySelector: (sel) => ((opts && opts.modalQuery) ? opts.modalQuery(sel) : null),
+    querySelectorAll: (sel) => ((opts && opts.modalQueryAll) ? opts.modalQueryAll(sel) : [])
   };
   const sselList = { innerHTML: '', focus: () => {} };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
@@ -1518,6 +1547,127 @@ test('boot(): committing a text item with no onChange hook keeps the typed value
   listeners.input(ev);
   listeners.change(ev);
   assert.equal(getValue('note'), 'hello');
+});
+
+// A text commit relabels select triggers IN PLACE: an optionsFrom resolver may name its
+// options from a text key (WarnWeather's radar picker calls its Rainbow entry "limited"
+// until an own key is typed), and commitTextChange deliberately skips render() — a full
+// re-render there swallows the next tap. So on commit the engine rewrites only each
+// rendered trigger's label span + aria-label, never the markup around it.
+const RELABEL_SCHEMA = {
+  appName: 'X', versionLabel: 'v0',
+  tabs: [{ id: 't', label: 'T', sections: [{ title: 'S', items: [
+    { type: 'text', messageKey: 'suffix', label: 'Suffix', defaultValue: '' },
+    { type: 'text', messageKey: 'hooked', label: 'Hooked', defaultValue: '', onChange: 'acceptAll' },
+    { type: 'select', messageKey: 'pick', label: 'Pick', defaultValue: 'a',
+      optionsFrom: { resolver: 'suffixed' } },
+    { type: 'select', messageKey: 'plain', label: 'Plain', defaultValue: 'p',
+      options: [['P', 'p', { short: 'P!' }]] }
+  ] }] }]
+};
+/** A rendered select trigger as the relabel reads it: its data-select key, an
+ * aria-label, and the label <span>.
+ * @param {string} key messageKey (data-select)
+ * @param {string} label the label the trigger currently shows
+ * @param {string} aria its current aria-label
+ * @returns {{span: Object, attrs: Object, getAttribute: Function, setAttribute: Function,
+ *   querySelector: Function}} trigger stub
+ */
+function triggerStub(key, label, aria) {
+  const span = { textContent: label };
+  const attrs = { 'data-select': key, 'aria-label': aria };
+  return {
+    span, attrs,
+    getAttribute: (n) => (Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null),
+    setAttribute: (n, v) => { attrs[n] = v; },
+    querySelector: (sel) => (sel === 'span' ? span : null)
+  };
+}
+/** Boot RELABEL_SCHEMA with one 'pick' trigger in #scroll and one in #modal, then
+ * register the app-side resolver (the bundle installs its own registries, so it can
+ * only be registered after boot).
+ * @returns {Object} boot handles plus the two trigger stubs
+ */
+function bootRelabel() {
+  const inPage = triggerStub('pick', 'A', 'Pick: A');
+  const inSheet = triggerStub('pick', 'A', 'Pick: A');
+  const plain = triggerStub('plain', 'P!', 'Plain: P!');
+  const h = bootWithCapturedListeners(RELABEL_SCHEMA, {}, {
+    scrollQueryAll: (sel) => (sel === '.sel-wrap[data-select]' ? [inPage, plain] : []),
+    modalQueryAll: (sel) => (sel === '.sel-wrap[data-select]' ? [inSheet] : [])
+  });
+  global.PConf.optionsResolvers.register('suffixed', function (S) {
+    if (S.suffix === 'drop') { return [['B', 'b']]; }
+    return [['A' + (S.suffix ? ' ' + S.suffix : ''), 'a'], ['B', 'b']];
+  });
+  global.PConf.onChange.register('acceptAll', function () {});
+  return Object.assign(h, { inPage, inSheet, plain });
+}
+
+test('boot(): a text commit relabels select triggers in place; typing alone does not', () => {
+  const h = bootRelabel();
+  const bodyBefore = h.scroll.innerHTML;
+  const ev = textFieldEvent('suffix', '');
+  h.listeners.focusin(ev);
+  ev.input.value = 'x';
+  h.listeners.input(ev);
+  assert.equal(h.inPage.span.textContent, 'A', 'no relabel per keystroke');
+  ev.input.value = 'xy';
+  h.listeners.input(ev);
+  h.listeners.change(ev);
+  assert.equal(h.inPage.span.textContent, 'A xy', 'the page trigger shows the derived label');
+  assert.equal(h.inPage.attrs['aria-label'], 'Pick: A xy', 'and announces it');
+  assert.equal(h.inSheet.span.textContent, 'A xy', 'a trigger inside the dialog follows too');
+  assert.equal(h.plain.span.textContent, 'P!', 'a static trigger keeps its (short) label');
+  assert.equal(h.scroll.innerHTML, bodyBefore, 'no full re-render: the next tap still lands');
+  assert.equal(h.getValue('pick'), 'a', 'the stored value is untouched');
+});
+
+test('boot(): the relabel also runs when a text item\'s onChange hook accepts the value', () => {
+  const h = bootRelabel();
+  const setSuffix = textFieldEvent('suffix', '');
+  setSuffix.input.value = 'z';
+  h.listeners.input(setSuffix);   // S.suffix = 'z' without a commit: no relabel yet
+  assert.equal(h.inPage.span.textContent, 'A');
+  const ev = textFieldEvent('hooked', '');
+  h.listeners.focusin(ev);
+  ev.input.value = 'ok';
+  h.listeners.input(ev);
+  h.listeners.change(ev);
+  assert.equal(h.inPage.span.textContent, 'A z', 'any text commit relabels every trigger');
+});
+
+test('boot(): a trigger whose stored value left its derived options is left for the next render', () => {
+  const h = bootRelabel();
+  const ev = textFieldEvent('suffix', '');
+  h.listeners.focusin(ev);
+  ev.input.value = 'drop';
+  h.listeners.input(ev);
+  h.listeners.change(ev);
+  assert.equal(h.inPage.span.textContent, 'A', 'no raw-value label painted in place');
+  assert.equal(h.getValue('pick'), 'a', 'the relabel never snaps S — render() does');
+});
+
+test('selectTriggerLabel: the stored value\'s label from the CURRENT options; null when it left them', () => {
+  const plain = RELABEL_SCHEMA.tabs[0].sections[0].items[3];
+  assert.equal(E.selectTriggerLabel(plain, { plain: 'p' }, {}), 'P!', 'meta.short wins, as in the trigger');
+  assert.equal(E.selectTriggerLabel(plain, { plain: 'gone' }, {}), null);
+  global.PConf.optionsResolvers.register('suffixed', function (S) {
+    return [['A' + (S.suffix ? ' ' + S.suffix : ''), 'a']];
+  });
+  const pick = RELABEL_SCHEMA.tabs[0].sections[0].items[2];
+  assert.equal(E.selectTriggerLabel(pick, { pick: 'a', suffix: 'q' }, {}), 'A q');
+  assert.equal(E.selectTriggerLabel(pick, { pick: 'b', suffix: 'q' }, {}), null);
+});
+
+test('findShownItem: the visible item of a shared messageKey wins; any match is the fallback', () => {
+  const schema = { tabs: [{ id: 't', sections: [{ items: [
+    { type: 'select', messageKey: 'theme', label: 'Color', options: [['Dark', 'dark']], showWhen: { env: 'color' } },
+    { type: 'select', messageKey: 'theme', label: 'BW', options: [['Dark', 'dark']], showWhen: { not: { env: 'color' } } }
+  ] }] }] };
+  assert.equal(E.findShownItem(schema, 'theme', { env: { color: true } }).label, 'Color');
+  assert.equal(E.findShownItem(schema, 'theme', { env: { color: false } }).label, 'BW');
+  assert.equal(E.findShownItem(schema, 'nope', { env: {} }), null);
 });
 
 test('boot(): modal live-search on an optionsFrom searchSelect resolves options without throwing (regression: raw item threw)', () => {

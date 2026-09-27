@@ -51,3 +51,35 @@ create index telemetry_weather_fetch_account_inserted_idx
 
 create index telemetry_weather_fetch_dau_idx
   on public.telemetry_weather_fetch ((((received_at at time zone 'UTC'::text))::date), account_token_hash);
+
+-- ── RPC for the telemetry-ingest edge function ──────────────────────────────
+-- The API gateway logs the full URL of every PostgREST request, so the
+-- per-account rate check must not ride a query filter
+-- (HEAD ?account_token_hash=eq.…&inserted_at=gte.…). It goes through this
+-- function instead: called as a plain POST /rest/v1/rpc/<fn>, its arguments
+-- travel in the request body. SECURITY INVOKER (the default; the edge function
+-- calls it with the service role, which bypasses the deny-all RLS above), an
+-- empty search_path, and revoked from public/anon/authenticated below.
+--
+-- The caller's rows that ARRIVED since p_since: inserted_at, not received_at,
+-- because batched rows carry a client-stamped received_at up to 72 h old and
+-- would slide past an event-time window. Served by
+-- telemetry_weather_fetch_account_inserted_idx.
+create or replace function public.telemetry_recent_insert_count(
+  p_account_token_hash text,
+  p_since timestamp with time zone
+)
+returns integer
+language sql
+stable
+set search_path = ''
+as $$
+  select count(*)::integer
+    from public.telemetry_weather_fetch t
+   where t.account_token_hash = p_account_token_hash
+     and t.inserted_at >= p_since;
+$$;
+
+-- Service-role only: the telemetry-ingest edge function is the sole caller.
+revoke all on function public.telemetry_recent_insert_count(text, timestamp with time zone)
+  from public, anon, authenticated;

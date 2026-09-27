@@ -242,3 +242,61 @@ test('the Weather tab kit reaches the generated page in dependency order', () =>
       dep + ' must precede weather-tab.js, which reads its window global at IIFE time');
   });
 });
+
+// The update-interval budget modules are the same silent-no-op shape: blocks.js and
+// onbuild.js read PConf.tomorrowioBudget / rainbowBudget / intervalBudget, and
+// rainbow-budget.js and interval-budget.js read their predecessors WHILE THEIR OWN IIFE
+// RUNS — so a missing or misordered file throws at page boot (or leaves the Update
+// interval row without options) on a real phone while every Node test passes.
+test('the budget modules reach the generated page in dependency order, ahead of blocks.js', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('settings/tomorrowio-budget.js') < idx('settings/rainbow-budget.js'),
+    'tomorrowio-budget.js must precede rainbow-budget.js, which reads PConf.tomorrowioBudget at IIFE time');
+  assert.ok(idx('weather/radar-source-id.js') < idx('settings/rainbow-budget.js'),
+    'radar-source-id.js must precede rainbow-budget.js, which reads PConf.radarSourceId at IIFE time');
+  assert.ok(idx('settings/rainbow-budget.js') < idx('settings/interval-budget.js'),
+    'rainbow-budget.js must precede interval-budget.js, which reads PConf.rainbowBudget at IIFE time');
+  assert.ok(idx('settings/interval-budget.js') < idx('settings/blocks.js'),
+    'interval-budget.js must precede blocks.js, which reads PConf.intervalBudget at IIFE time');
+
+  // ...and the generated page really carries them, in that order.
+  const src = page();
+  const at = (needle) => {
+    const i = src.indexOf(needle);
+    assert.notEqual(i, -1, needle + ' is not in page.generated.js');
+    return i;
+  };
+  const tioAt = at('PConf.tomorrowioBudget = api');
+  const idAt = at('PConf.radarSourceId = api');
+  const rbAt = at('PConf.rainbowBudget = api');
+  const ibAt = at('PConf.intervalBudget = api');
+  const blockAt = at('register(\'rainbowBudget\'');
+  assert.ok(tioAt < rbAt && idAt < rbAt && rbAt < ibAt && ibAt < blockAt,
+    'the page must define tomorrowio-budget and radar-source-id, then rainbow-budget, then interval-budget, then blocks.js');
+  assert.ok(src.indexOf('PConf.intervalBudget') !== -1, 'blocks.js / onbuild.js read PConf.intervalBudget');
+});
+
+// The Rainbow key Test button is another silent no-op hazard: rainbow-key-test.js reads
+// window.KeyTest WHILE ITS IIFE RUNS (a throw at page boot if key-test.js comes later), and
+// without the file in APP_FILES the Test button's action is simply never registered — the
+// button does nothing on a real phone while every Node test passes.
+test('the Rainbow key Test reaches the generated page after key-test.js', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('settings/key-test.js') < idx('settings/rainbow-key-test.js'),
+    'key-test.js must precede rainbow-key-test.js, which reads window.KeyTest at IIFE time');
+  const src = page();
+  assert.ok(src.indexOf("action: 'testRainbowKey'") !== -1,
+    'rainbow-key-test.js does not register testRainbowKey in the page');
+  assert.ok(src.indexOf('window.KeyTest = api') < src.indexOf("action: 'testRainbowKey'"),
+    'the page must define window.KeyTest before rainbow-key-test.js runs');
+});

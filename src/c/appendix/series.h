@@ -13,7 +13,7 @@ typedef enum {
                         // aplite compiles the slot out (frozen-lean fork): its
                         // dataset stays four Series and SERIES_BARS shifts down —
                         // safe, SeriesId values are compile-time only, never persisted.
-    SERIES_FIFTH,       // configurable metric ("Fourth metric"), a top stripe by
+    SERIES_FIFTH,       // configurable metric ("Fourth metric"), x marks by
                         // default. Same feature set as FOURTH, compiled out alike.
 #endif
     SERIES_BARS,        // rain bars, multi-stop palette

@@ -862,3 +862,206 @@ test('migrateEmptyNoRainText asks for a Clay send only when the watch holds the 
     assert.equal(clayMigrations.migrateEmptyNoRainText(() => false, () => {}), want, JSON.stringify(stored));
   });
 });
+
+// 1.23.1: the fourth metric's style defaults to x marks (was a top stripe). Every blob
+// seeded under 1.23.0 carries 'stripeTop' whether or not the line was ever used, so a
+// fourth line that is OFF moves to 'x'; one in use keeps its stripe.
+test('migrateFifthLineStyleDefault: an unused fourth line moves stripeTop -> x once; a used one keeps it', () => {
+  [[{ fifthLine: 'off', fifthLineStyle: 'stripeTop' }, 'x'],
+    [{ fifthLineStyle: 'stripeTop' }, 'x'],
+    [{ fifthLine: '', fifthLineStyle: 'stripeTop' }, 'x'],
+    [{ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, 'stripeTop'],
+    [{ fifthLine: 'off', fifthLineStyle: 'stripeBottom' }, 'stripeBottom'],
+    [{ fifthLine: 'off', fifthLineStyle: 'dots' }, 'dots'],
+    [{ fifthLine: 'off' }, undefined]
+  ].forEach(([stored, want]) => {
+    installFakeStorage();
+    ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
+      delete require.cache[require.resolve(p)];
+    });
+    const clayMigrations = require('../src/pkjs/clay-migrations');
+    localStorage.setItem('clay-settings', JSON.stringify(stored));
+    const m = makeMarker();
+    clayMigrations.migrateFifthLineStyleDefault(m.isDone, m.mark);
+    assert.equal(JSON.parse(localStorage.getItem('clay-settings')).fifthLineStyle, want, JSON.stringify(stored));
+    assert.equal(m.state.done, true, JSON.stringify(stored) + ': marked either way');
+  });
+});
+
+test('migrateFifthLineStyleDefault: idempotent once marked', () => {
+  installFakeStorage();
+  ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
+    delete require.cache[require.resolve(p)];
+  });
+  const clayMigrations = require('../src/pkjs/clay-migrations');
+  localStorage.setItem('clay-settings', JSON.stringify({ fifthLine: 'off', fifthLineStyle: 'stripeTop' }));
+  const m = makeMarker();
+  m.mark();   // a later stripeTop on an unused line was picked after the move
+  clayMigrations.migrateFifthLineStyleDefault(m.isDone, m.mark);
+  assert.equal(JSON.parse(localStorage.getItem('clay-settings')).fifthLineStyle, 'stripeTop');
+});
+
+// The real boot order: seedDefaults runs BEFORE the ledger (index.js), which is the trap
+// that once reset topViewMode. Here the backfill cannot mislead the move: it writes an
+// absent fifthLine as 'off' and an absent fifthLineStyle as the new default.
+test('the fourth-line style move survives the boot order (seedDefaults, then the ledger)', () => {
+  [[{ theme: 'dark', fifthLine: 'off', fifthLineStyle: 'stripeTop' }, 'x', '1.23.0 blob, line never used'],
+    [{ theme: 'dark', fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, 'stripeTop', '1.23.0 blob, line in use'],
+    [{ theme: 'dark', fifthLine: 'wind', fifthLineStyle: 'dots' }, 'dots', 'a picked style'],
+    [{ theme: 'dark' }, 'x', 'pre-1.23.0 blob without the fourth line: seeded with the new default']
+  ].forEach(([stored, want, what]) => {
+    const store = installFakeStorage();
+    const mods = loadUpgradeModules();
+    store['clay-settings'] = JSON.stringify(stored);
+    mods.claySettings.seedDefaults(COLORS);
+    const res = mods.clayMigrations.runMigrations({
+      platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
+    const read = mods.claySettings.read();
+    assert.equal(read.fifthLineStyle, want, what);
+    assert.equal(read.fifthLine, stored.fifthLine || 'off', what + ': the metric is untouched');
+    assert.equal(store[mods.KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY], '1', what + ': marked synchronously');
+    res.commitDeferredMarkers();
+  });
+  // A fresh install seeds the new default and has nothing to move.
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  mods.claySettings.seedDefaults(COLORS);
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(mods.claySettings.read().fifthLineStyle, 'x', 'fresh install: x marks');
+  assert.equal(store[mods.KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY], '1');
+});
+
+// 1.23.1: a stripe only shows an intensity metric (line-style.js metricAllowsStripe), so
+// a stripe stored on a DRAWN feels/dew/pressure line now resolves to the line's
+// non-stripe style. The watch still holds the 1.23 stripe byte and an in-place upgrade
+// sends no Clay (hasConfig true), so the migration asks for one resend. It rewrites
+// nothing: the stored pick stays (the picker keeps it dormant).
+const LINE_KEYS = ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'];
+
+test('migrateStripeMetricRuleResend: resend exactly when a drawn line holds a stripe its metric cannot show', () => {
+  const lineStyle = require('../src/pkjs/line-style.js');
+  const cases = [];
+  LINE_KEYS.forEach((lineKey) => {
+    ['feels', 'dew', 'pressure'].forEach((m) => {
+      ['stripeTop', 'stripeBottom'].forEach((stripe) => {
+        cases.push([{ [lineKey]: m, [lineKey + 'Style']: stripe }, true]);
+      });
+    });
+    cases.push([{ [lineKey]: 'cloud', [lineKey + 'Style']: 'stripeTop' }, false]);
+    cases.push([{ [lineKey]: 'pressure', [lineKey + 'Style']: 'dots' }, false]);
+    cases.push([{ [lineKey]: 'off', [lineKey + 'Style']: 'stripeTop' }, false]);
+  });
+  // A line repeating an earlier line's metric is not drawn.
+  cases.push([{ secondaryLine: 'pressure', thirdLine: 'pressure', thirdLineStyle: 'stripeTop' }, false]);
+  cases.push([{ fifthLineStyle: 'stripeTop' }, false]);
+  cases.forEach(([stored, want]) => {
+    installFakeStorage();
+    ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
+      delete require.cache[require.resolve(p)];
+    });
+    const clayMigrations = require('../src/pkjs/clay-migrations');
+    localStorage.setItem('clay-settings', JSON.stringify(stored));
+    const m = makeMarker();
+    const what = JSON.stringify(stored);
+    assert.equal(clayMigrations.migrateStripeMetricRuleResend(m.isDone, m.mark), want, what);
+    assert.equal(m.state.done, !want, what + (want ? ': marker deferred to the ACK' : ': nothing to send, marked'));
+    assert.deepEqual(JSON.parse(localStorage.getItem('clay-settings')), stored, what + ': nothing rewritten');
+  });
+  // The resend is worth it: the wire byte moves off the stripe the watch holds (0x07).
+  assert.equal(lineStyle.lineStyleByte({ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }, 'fifthLineStyle'),
+    lineStyle.lineStyleByte({}, 'fifthLineStyle'), 'the fourth line resolves to its default, x marks');
+  assert.notEqual(lineStyle.lineStyleByte({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, 'fifthLineStyle'),
+    lineStyle.lineStyleByte({ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }, 'fifthLineStyle'));
+});
+
+test('migrateStripeMetricRuleResend: idempotent once marked', () => {
+  installFakeStorage();
+  ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
+    delete require.cache[require.resolve(p)];
+  });
+  const clayMigrations = require('../src/pkjs/clay-migrations');
+  localStorage.setItem('clay-settings', JSON.stringify({ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }));
+  const m = makeMarker();
+  m.mark();
+  assert.equal(clayMigrations.migrateStripeMetricRuleResend(m.isDone, m.mark), false);
+});
+
+/**
+ * A 1.23 install upgrading into 1.23.1: the settings blob stored, then seeded (the real
+ * boot order), and every marker set except the stripe-rule resend's.
+ * @param {Object} store Fake storage.
+ * @param {Object} mods loadUpgradeModules() result.
+ * @param {Object} blob The stored 1.23 settings.
+ * @returns {void}
+ */
+function seed123Install(store, mods, blob) {
+  store['clay-settings'] = JSON.stringify(Object.assign({ theme: 'dark' }, blob));
+  mods.claySettings.seedDefaults(COLORS);
+  Object.keys(mods.KEYS).forEach((name) => {
+    if (/_MIGRATION_KEY$/.test(name) && name !== 'STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY') {
+      store[mods.KEYS[name]] = '1';
+    }
+  });
+}
+
+test('an upgrade with a stripe on a drawn pressure/feels/dew line asks for one Clay send, marked on the ACK', () => {
+  [[{ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }, true, 'fourth metric pressure, the 1.23 default stripe'],
+    [{ secondaryLine: 'dew', secondaryLineStyle: 'stripeBottom' }, true, 'main line dew, a picked stripe'],
+    [{ thirdLine: 'feels', thirdLineStyle: 'stripeTop' }, true, 'second line feels'],
+    [{ fifthLine: 'off', fifthLineStyle: 'stripeTop' }, false, 'fourth metric off'],
+    [{ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, false, 'fourth metric cloud keeps its stripe']
+  ].forEach(([blob, want, what]) => {
+    const store = installFakeStorage();
+    const mods = loadUpgradeModules();
+    seed123Install(store, mods, blob);
+    const res = mods.clayMigrations.runMigrations({
+      platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
+    assert.equal(res.clayRequired, want, what);
+    const read = mods.claySettings.read();
+    Object.keys(blob).forEach((k) => {
+      if (/Style$/.test(k) && blob[k] === 'stripeTop' && blob[k.replace(/Style$/, '')] === 'off') { return; }
+      assert.equal(read[k], blob[k], what + ': ' + k + ' untouched');
+    });
+    const marker = mods.KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY;
+    assert.equal(store[marker], want ? undefined : '1', what + ': ' + (want ? 'deferred' : 'marked'));
+    res.commitDeferredMarkers();
+    assert.equal(store[marker], '1', what + ': committed');
+    const again = mods.clayMigrations.runMigrations({
+      platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
+    assert.equal(again.clayRequired, false, what + ': one-time');
+  });
+});
+
+test('the stripe-rule resend goes out on the upgrade boot even though the watch kept its config', () => {
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  const now = new Date(2026, 8, 26, 9, 0, 0);
+  seed123Install(store, mods, { fifthLine: 'pressure', fifthLineStyle: 'stripeTop' });
+  store[mods.KEYS.LAST_HOLIDAY_DAY_KEY] = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
+  const marker = mods.KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY;
+
+  const first = bootUpgradedInstall(mods.clayMigrations, mods.createChannelScheduler, now);
+  assert.equal(first.length, 1, 'hasConfig true, yet the migration sends the resolved style bytes');
+  first[0].onFailure();
+  assert.equal(store[marker], undefined, 'a NACK leaves the marker unset');
+
+  const second = bootUpgradedInstall(mods.clayMigrations, mods.createChannelScheduler, now);
+  assert.equal(second.length, 1, 'the next boot retries');
+  second[0].onSuccess();
+  assert.equal(store[marker], '1', 'the ACK commits the marker');
+
+  const third = bootUpgradedInstall(mods.clayMigrations, mods.createChannelScheduler, now);
+  assert.equal(third.length, 0, 'and it never fires again');
+});
+
+test('resetAll marks the fourth-line style move done: the next blob is seeded with x', () => {
+  installFakeStorage();
+  const mods = loadUpgradeModules();
+  localStorage.setItem('clay-settings', JSON.stringify({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }));
+  mods.claySettings.resetAll();
+  assert.equal(localStorage.getItem(mods.KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY), '1');
+  // A stripe on an unused line saved after the reset is a pick, and stays.
+  localStorage.setItem('clay-settings', JSON.stringify({ fifthLine: 'off', fifthLineStyle: 'stripeTop' }));
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(mods.claySettings.read().fifthLineStyle, 'stripeTop');
+});

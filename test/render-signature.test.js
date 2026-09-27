@@ -312,3 +312,34 @@ test('health thresholds and threshold colors do NOT change the render signature'
     });
   });
 });
+
+// A TOP stripe changes the weather bake, not only the Clay style bytes: under one the
+// joint temperature band of a drawn feels/dew curve loses its top pad
+// (forecast-series.js topStripeDrawn -> padJointTempAxisBand), which re-bakes
+// TEMP_TREND_UINT8 and the curve's bytes. So it joins the signature — as ONE derived
+// flag, not the raw ...LineStyle keys, so a style edit that bakes nothing forces no fetch.
+test('a top stripe joins the signature only while it squeezes a feels/dew curve', () => {
+  const withStyle = (base, over) => renderSignature(Object.assign({}, base, over));
+  const feels = { secondaryLine: 'feels', thirdLine: 'uv', thirdLineStyle: 'dots', barSource: 'off' };
+  assert.notEqual(withStyle(feels, {}), withStyle(feels, { thirdLineStyle: 'stripeTop' }),
+    'uv dots -> top stripe re-bakes the temperature band');
+  const dew = { secondaryLine: 'precip_prob', fourthLine: 'dew', fifthLine: 'cloud', fifthLineStyle: 'x' };
+  assert.notEqual(withStyle(dew, {}), withStyle(dew, { fifthLineStyle: 'stripeTop' }),
+    'a cloud top stripe over a dew curve on another line');
+  // Neither a bottom stripe nor a switch between strokes and marks bakes anything.
+  ['line', 'bold', 'x', 'stripeBottom'].forEach((style) => {
+    assert.equal(withStyle(feels, {}), withStyle(feels, { thirdLineStyle: style }), style);
+  });
+  // A stored stripe on a metric that cannot be one draws as a line (line-style.js
+  // lineStyleValue), and a line that is off or repeats another draws nothing.
+  assert.equal(withStyle(feels, {}), withStyle(feels, { secondaryLineStyle: 'stripeTop' }), 'feels stripe');
+  assert.equal(withStyle(feels, { fifthLine: 'pressure' }),
+    withStyle(feels, { fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }), 'pressure stripe');
+  assert.equal(withStyle(feels, { fifthLine: 'off' }),
+    withStyle(feels, { fifthLine: 'off', fifthLineStyle: 'stripeTop' }), 'line off');
+  assert.equal(withStyle(feels, { fifthLine: 'uv' }),
+    withStyle(feels, { fifthLine: 'uv', fifthLineStyle: 'stripeTop' }), 'repeats the uv line');
+  // Without a temperature-axis curve there is no band to pad.
+  const rain = { secondaryLine: 'precip_prob', thirdLine: 'uv', thirdLineStyle: 'dots' };
+  assert.equal(withStyle(rain, {}), withStyle(rain, { thirdLineStyle: 'stripeTop' }), 'no feels/dew drawn');
+});

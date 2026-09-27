@@ -72,9 +72,9 @@ function loadForMigration(isMigrationDone, label) {
  * body, marker key (storage-keys.js) and gating live together; index.js's ready
  * handler used to thread twelve getItem/setItem closures through six calls.
  *
- * The two Clay-COLOR migrations and the 1.15.0 graph-night-colour resend defer
- * their marker to the Clay ACK: a migrated blob is only safe once the watch has
- * it, and a NACK must leave the marker unset. The scheduler runs the commit on
+ * The two Clay-COLOR migrations and the 1.15.0 graph-night-colour and 1.23.1
+ * stripe-rule resends defer their marker to the Clay ACK: a migrated blob is only
+ * safe once the watch has it, and a NACK must leave the marker unset. The scheduler runs the commit on
  * the first Clay send of the session that is ACKed — the boot send, or a later
  * one carrying the same blob — so only a session in which none lands retries
  * the migration next boot. Their migrate* functions return true for "the Clay
@@ -144,15 +144,27 @@ function runMigrations(opts) {
         isDone(KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY));
     var wantsClayNightColors = migrateGraphNightColorsResend(
         isDone(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY));
+    // Marks synchronously and asks for no send: it only rewrites the style of a line
+    // that is off, which the watch never draws (and whose wire byte already resolves
+    // to the new default — line-style.js lineStyleValue). A line that IS drawn and
+    // now resolves differently is the stripe-rule resend's job, below.
+    migrateFifthLineStyleDefault(
+        isDone(KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY),
+        mark(KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY));
+    var wantsClayStripeRule = migrateStripeMetricRuleResend(
+        isDone(KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY),
+        mark(KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY));
     return {
         clayRequired: Boolean(wantsClayColors || wantsClayToggle || wantsClayLightRetune
-                              || wantsClaySolidBars || wantsClayNightColors || wantsClayNoRainText),
+                              || wantsClaySolidBars || wantsClayNightColors || wantsClayNoRainText
+                              || wantsClayStripeRule),
         commitDeferredMarkers: function () {
             if (wantsClayColors) { mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY)(); }
             if (wantsClayToggle) { mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY)(); }
             if (wantsClayLightRetune) { mark(KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY)(); }
             if (wantsClaySolidBars) { mark(KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY)(); }
             if (wantsClayNightColors) { mark(KEYS.GRAPH_NIGHT_COLORS_MIGRATION_KEY)(); }
+            if (wantsClayStripeRule) { mark(KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY)(); }
         }
     };
 }
@@ -665,6 +677,80 @@ function migrateEmptyNoRainText(isMigrationDone, markDone) {
 }
 
 /**
+ * One-time 1.23.1 move of the fourth metric's line style onto its new default, x marks.
+ * Until 1.23.1 the fourth line debuted as a top stripe, and seedDefaults wrote that
+ * 'stripeTop' into every blob — so on most installs it is the seeded default of a line
+ * that was never switched on, not a choice. Where the fourth metric is off (or absent),
+ * a stored 'stripeTop' becomes 'x', so switching the line on later starts from the new
+ * default like a fresh install. A fourth metric in use keeps its stripe: that one is on
+ * screen and may well be picked.
+ *
+ * Safe after seedDefaults (index.js runs it first — the layoutPreset trap): the backfill
+ * can only write an ABSENT fifthLine as 'off' (the same verdict as absent) and an absent
+ * fifthLineStyle as the new default 'x' (nothing left to move), so it can neither hide
+ * a stripe in use nor invent one to move. A fixed 'x', not LINE_STYLE_DEFAULTS: this is
+ * what the 1.23.1 default WAS, whatever it becomes later.
+ *
+ * No Clay send: the watch never draws a line that is off.
+ *
+ * @param {function(): boolean} isMigrationDone marker probe
+ * @param {function()} markDone marker setter
+ * @returns {void}
+ */
+function migrateFifthLineStyleDefault(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'fourth-line style default');
+    if (persistClay === null) { return; }
+    var fifthLineOff = !persistClay.fifthLine || persistClay.fifthLine === 'off';
+    if (fifthLineOff && persistClay.fifthLineStyle === 'stripeTop') {
+        persistClay.fifthLineStyle = 'x';
+        save(persistClay);
+        console.log('Migrated the unused fourth-line style stripeTop -> x');
+    }
+    markDone();
+}
+
+/**
+ * One-time forced Clay resend for the 1.23.1 stripe rule: a stripe only shows an
+ * intensity metric (line-style.js metricAllowsStripe), so a stripe stored on a DRAWN
+ * feels-like, dew-point or pressure line now resolves to that line's non-stripe style
+ * (lineStyleValue) and its CLAY_LINE_STYLE_UINT8 byte changes — e.g. the fourth metric
+ * on pressure with 1.23.0's default 'stripeTop' goes 0x07 -> 0x02. The watch still
+ * holds the old byte, and an IN-PLACE upgrade sends no Clay (the handshake reports
+ * hasConfig true; see migrateGraphNightColorsResend), so without this it keeps drawing
+ * the stripe until the next day-change or settings save — while the next weather bake
+ * already drops the top-stripe padding (forecast-series.js topStripeDrawn) under it.
+ *
+ * Rewrites nothing: the stored stripe stays a pick (the settings page keeps it dormant
+ * and brings it back with an intensity metric). A line that is off or repeats an
+ * earlier line's metric (lineStyle.effectiveLineMetric null) is never drawn, so it
+ * needs no send.
+ *
+ * Marker-gated; the marker is DEFERRED to the Clay ACK (see runMigrations) when a send
+ * is wanted, so a NACK retries on the next boot, and set right away when there is
+ * nothing to send.
+ *
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @param {Function} markDone Records the migration as complete (no-send branch only).
+ * @returns {boolean} True when the settings must be sent to the watch.
+ */
+function migrateStripeMetricRuleResend(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'stripe-rule resend');
+    if (persistClay === null) { return false; }
+    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+        var line = lineStyle.FORECAST_LINES[i];
+        var metric = lineStyle.effectiveLineMetric(persistClay, line.key);
+        if (metric && lineStyle.isStripeValue(persistClay[line.styleKey])
+                && !lineStyle.metricAllowsStripe(metric)) {
+            console.log('Forcing one Clay resend: a stripe on ' + metric + ' now draws as '
+                + lineStyle.lineStyleValue(persistClay, line.styleKey));
+            return true;
+        }
+    }
+    markDone();
+    return false;
+}
+
+/**
  * One-time migration onto the radarMode tiered setting. Existing installs that
  * disabled radar via radarProvider:'disabled' map to radarMode:'off' and get
  * their now-invalid provider rewritten to a real default (the Off option was
@@ -703,6 +789,8 @@ module.exports = {
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
     migrateRadarProviderToMode: migrateRadarProviderToMode,
     migrateEmptyNoRainText: migrateEmptyNoRainText,
+    migrateFifthLineStyleDefault: migrateFifthLineStyleDefault,
+    migrateStripeMetricRuleResend: migrateStripeMetricRuleResend,
     migrateGraphNightColorsResend: migrateGraphNightColorsResend,
     migrateCarriedGraphNightTints: migrateCarriedGraphNightTints,
     migrateLightGraphColorRetune: migrateLightGraphColorRetune,

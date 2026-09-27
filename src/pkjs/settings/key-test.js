@@ -5,19 +5,33 @@
 // and the shared verdict grammar (2xx / 429 / unreachable / unexpected).
 // A future provider test (e.g. Yandex — NOTE: it authenticates via a request
 // HEADER, hence the optional headers hook) is a config object, not a third
-// copy of the whole file.
+// copy of the whole file. A test that has to go through a proxy (Rainbow: the
+// webview can't call its API directly) POSTs the key in a body and reads the
+// upstream status out of the proxy's envelope — the optional method /
+// buildBody / readStatus hooks; OWM and tomorrow.io leave them unset and stay
+// a plain GET whose verdict is the XHR status.
 (function () {
     /**
      * @param {Object} config
      *   {string} config.action PConf.actions id, e.g. 'testOwmKey'.
      *   {string} config.dataKey Settings messageKey of the key field.
      *   {string} config.host Display name for connectivity/timeout messages.
-     *   {function(string): string} config.buildTestUrl Key -> request URL.
+     *   {function(string): string} config.buildTestUrl Key -> request URL; ''
+     *     means this build can't test the key (no request, unavailableMessage).
      *   {Object.<number, string>} [config.messages] Status -> message override
      *     (401/403 rejection texts, a provider-specific 429, ...).
      *   {function(string): Object} [config.headers] Key -> request headers.
-     * @returns {{buildTestUrl: Function, interpretStatus: Function}} The pure
-     *   halves, for unit tests — the same shape the standalone files exported.
+     *   {string} [config.method] HTTP method; defaults to 'GET'.
+     *   {function(string): string} [config.buildBody] Key -> request body
+     *     (sent only when set; a GET test sends nothing).
+     *   {function(XMLHttpRequest): number} [config.readStatus] The status fed to
+     *     interpretStatus, for proxies that wrap the upstream status in an
+     *     envelope; defaults to xhr.status.
+     *   {string} [config.unavailableMessage] Shown when buildTestUrl returns ''.
+     * @returns {{buildTestUrl: Function, interpretStatus: Function,
+     *   buildBody: (Function|undefined), readStatus: (Function|undefined)}} The
+     *   pure halves, for unit tests — the same shape the standalone files
+     *   exported, plus the optional body/status hooks as configured.
      */
     function makeKeyTest(config) {
         /**
@@ -66,6 +80,11 @@
             el.textContent = text;
         }
 
+        /**
+         * The Test button's action: read the key field, send the test request and
+         * write its verdict into the field's result line.
+         * @returns {void}
+         */
         function runTest() {
             var mine = ++seq;   // taken before any early return, so it cancels in-flight results too
             var input = document.querySelector('input[data-k="' + config.dataKey + '"]');
@@ -76,25 +95,38 @@
                 resultEl.textContent = 'Enter your API key above first.';
                 return;
             }
+            var url = config.buildTestUrl(key);
+            if (!url) {
+                resultEl.textContent = config.unavailableMessage
+                    || '\u2717 Key test isn\u2019t available in this build.';
+                return;
+            }
             resultEl.textContent = 'Testing\u2026';
             var xhr = new XMLHttpRequest();
-            xhr.open('GET', config.buildTestUrl(key));
-            xhr.timeout = 8000;
-            xhr.onload = function () { showResult(mine, resultEl, interpretStatus(xhr.status).message); };
-            xhr.onerror = function () { showResult(mine, resultEl, interpretStatus(0).message); };
-            xhr.ontimeout = function () {
-                showResult(mine, resultEl, '\u2717 Timed out reaching ' + config.host + '.');
-            };
-            if (config.headers) {
-                var headers = config.headers(key);
-                for (var name in headers) {
-                    if (Object.prototype.hasOwnProperty.call(headers, name)) {
-                        try { xhr.setRequestHeader(name, headers[name]); }
-                        catch (ex) { /* runtime forbids this header */ }
+            var statusOf = config.readStatus || function (x) { return x.status; };
+            try {
+                xhr.open(config.method || 'GET', url);
+                xhr.timeout = 8000;
+                xhr.onload = function () { showResult(mine, resultEl, interpretStatus(statusOf(xhr)).message); };
+                xhr.onerror = function () { showResult(mine, resultEl, interpretStatus(0).message); };
+                xhr.ontimeout = function () {
+                    showResult(mine, resultEl, '\u2717 Timed out reaching ' + config.host + '.');
+                };
+                if (config.headers) {
+                    var headers = config.headers(key);
+                    for (var name in headers) {
+                        if (Object.prototype.hasOwnProperty.call(headers, name)) {
+                            try { xhr.setRequestHeader(name, headers[name]); }
+                            catch (ex) { /* runtime forbids this header */ }
+                        }
                     }
                 }
+                if (config.buildBody) { xhr.send(config.buildBody(key)); } else { xhr.send(); }
+            } catch (err) {
+                // A malformed endpoint must not leave the "Testing" line up forever
+                // (news.js postNews precedent): report it as a connectivity failure.
+                showResult(mine, resultEl, interpretStatus(0).message);
             }
-            xhr.send();
         }
 
         var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
@@ -104,7 +136,12 @@
             PConf.actions = PConf.actions || {};
             PConf.actions[config.action] = runTest;
         }
-        return { buildTestUrl: config.buildTestUrl, interpretStatus: interpretStatus };
+        return {
+            buildTestUrl: config.buildTestUrl,
+            interpretStatus: interpretStatus,
+            buildBody: config.buildBody,
+            readStatus: config.readStatus
+        };
     }
 
     var api = { makeKeyTest: makeKeyTest };

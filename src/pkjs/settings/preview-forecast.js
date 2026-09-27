@@ -81,12 +81,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     }
 
     /**
-     * Is this line style one of the two stripes?
+     * Is this line style one of the two stripes? line-style.js' own vocabulary test.
      * @param {string} style lineStyleValue output.
      * @returns {boolean} True for 'stripeTop' / 'stripeBottom'.
      */
     function isStripe(style) {
-        return style === 'stripeTop' || style === 'stripeBottom';
+        return lineStyle.isStripeValue(style);
     }
 
     // Mirrors forecast-series.PRESSURE_SCALE_CURVE_HPA (+ curvePermille); a drift
@@ -192,8 +192,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var stylesFrozen = Boolean(env) && env.lineStyles === false;
         /**
          * The effective style for one line-style key: the frozen built-in on a
-         * watch without WW_LINE_STYLE, else the stored pick (or its default).
-         * @param {string} styleKey secondaryLineStyle|thirdLineStyle|fourthLineStyle.
+         * watch without WW_LINE_STYLE, else the stored pick (or its default) as
+         * the bake resolves it — never a stripe on a metric that cannot be one
+         * (line-style.js metricAllowsStripe), exactly as the watch draws it.
+         * @param {string} styleKey secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
          * @returns {string} 'line'|'bold'|'dots'|'x'|'stripeTop'|'stripeBottom'.
          */
         function styleFor(styleKey) {
@@ -254,8 +256,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var tickX = function (i) { return PX0 + i * pitch; };              // line vertex / hour tick x
         var gapCenter = function (i) { return PX0 + (i + 0.5) * pitch; };  // bar / dot column centre
         // Joint temperature axis (mirrors forecast-series.applyForecastSeries): with
-        // feels or dew on any drawn line — whatever its style, a stripe included —
-        // every curve rescales against the union band so
+        // feels or dew on any drawn line — whatever its style — every curve
+        // rescales against the union band so
         // the gaps between them are real, and the band is padded on whichever side
         // they overshoot the temperature so that curve lands clear of the plot edge
         // instead of flat against it (TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40 ‰ there —
@@ -550,39 +552,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // here, as it always drew, 2 preview units a column from x 0 — near the watch's
         // scale (7 px an hour, 8 on emery), not its phase (preview-stripe.js cell).
         var STRIPE_UNIT = 2, STRIPE_ORIGIN = 0;
-        // forecast-series.js' BAND_FLOOR_PERMILLE: a band-scaled reading at the band
-        // floor still ships as wire byte 1, never the absent byte 0.
-        var TEMP_AXIS_FLOOR_PERMILLE = 2;
-        /**
-         * A temperature-axis value's (feels, dew) wire byte: its position on the
-         * joint temperature band [tmin, tmax] in permille, floored so an hour with
-         * data is never blank, then quantized /4 — forecast-series.js'
-         * tempAxisPermille + metricBytes, mirrored. The band itself, NOT
-         * metricY -> yT: that path carries the preview's curve inset, which the
-         * watch's stripe never applies.
-         * @param {number} v Sample value (degrees).
-         * @returns {number} Wire byte, 1..250.
-         */
-        function tempAxisStripeByte(v) {
-            var span = tmax - tmin;
-            var pm = span === 0 ? 500 : Math.round((v - tmin) / span * 1000);
-            pm = Math.min(1000, Math.max(TEMP_AXIS_FLOOR_PERMILLE, pm));
-            return Math.min(250, Math.round(pm / 4));
-        }
         /**
          * A metric value's stripe level, 0..4: the watch's chart_stripe_level on the
-         * wire byte (0..250), so a cell shades exactly where the watch's does. A
-         * temperature-axis metric (feels, dew) takes its byte from its position on
-         * the joint temperature band (tempAxisStripeByte) — what chart_render_stripe
-         * shades from on the watch, whose stripe ignores the curve inset. That half
-         * mirrors the watch and the bake's temp-axis mapping approximately: the
-         * edge-clearance padding's rounding may leave a cell one level off.
+         * wire byte (0..250), so a cell shades exactly where the watch's does. Only
+         * intensity metrics are ever stripes (line-style.js metricAllowsStripe —
+         * styleFor never hands this a feels, dew or pressure stripe), so every value
+         * maps from its own 0..max scale.
          * @param {Object} m METRIC entry.
          * @param {number} i Sample index.
          * @returns {number} 0 (draws nothing) .. 4 (full colour).
          */
         function stripeLevel(m, i) {
-            if (m.tempAxis) { return previewStripe.levelOfByte(tempAxisStripeByte(m.vals[i])); }
             var y = metricY(m, i, true);
             if (y === null) { return 0; }
             var b = Math.round((PB - y) / (PB - MT) * 250);

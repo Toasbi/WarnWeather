@@ -315,8 +315,13 @@ test('the built-in no-rain text is one string: payload default, schema default, 
     });
   })(tabs);
   assert.equal(item.defaultValue, DEFAULT_NORAIN_TEXT);
-  const c = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'layers', 'rain_radar_layer.c'), 'utf8');
-  assert.ok(c.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'the watch falls back to the same text');
+  // The watch's fallback lives in radar_limit.h (radar_empty_text), which
+  // rain_radar_layer.c draws through.
+  const c = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'appendix', 'radar_limit.h'), 'utf8');
+  assert.ok(c.indexOf('#define RADAR_NORAIN_DEFAULT_TEXT "' + DEFAULT_NORAIN_TEXT + '"') !== -1,
+    'the watch falls back to the same text');
+  const layer = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'layers', 'rain_radar_layer.c'), 'utf8');
+  assert.ok(layer.indexOf('radar_empty_text(') !== -1, 'and the radar layer draws through it');
   const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'clay-migrations.js'), 'utf8');
   assert.ok(migrations.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'and the 1.23.0 migration moves to it');
 });

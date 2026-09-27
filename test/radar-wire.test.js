@@ -39,3 +39,35 @@ test('isClearRadarTuples: the clear only — not a window, not a flat out-of-cov
   assert.equal(radarWire.isClearRadarTuples(undefined), false);
   assert.equal(radarWire.isClearRadarTuples({}), false);
 });
+
+test('limitedRadarTuples is the limit notice alone: no radar array, no start', () => {
+  const limited = radarWire.limitedRadarTuples();
+  assert.deepEqual(limited, { RAIN_RADAR_LIMITED: 1 });
+  // It must never ride with the three radar keys: the arrays are what END the
+  // notice on the watch, and riding alone is what keeps the heaviest weather
+  // bundle from growing (test/inbox-size.test.js).
+  ['RAIN_RADAR_TREND_UINT8', 'RAIN_RADAR_TREND_AREA_UINT8', 'RAIN_RADAR_START'].forEach((k) => {
+    assert.equal(Object.prototype.hasOwnProperty.call(limited, k), false, k);
+  });
+  assert.notEqual(radarWire.limitedRadarTuples(), radarWire.limitedRadarTuples(), 'a fresh object each call');
+});
+
+test('isLimitedRadarTuples: the limit notice (sky rows merged in too), never a window, a clear or no answer', () => {
+  assert.equal(radarWire.isLimitedRadarTuples(radarWire.limitedRadarTuples()), true);
+  // radar-sky.js joinRadarAndSky merges the sky rows into the radar answer.
+  assert.equal(radarWire.isLimitedRadarTuples(
+    Object.assign({}, radarWire.limitedRadarTuples(), { RADAR_SKY_UINT8: [1, 2, 3] })), true);
+  assert.equal(radarWire.isLimitedRadarTuples(radarWire.clearRadarTuples()), false);
+  assert.equal(radarWire.isLimitedRadarTuples(radarWire.flatRadarTuples(1700000100)), false);
+  // A window that somehow carries the flag too is a window (a fixture bundles both).
+  assert.equal(radarWire.isLimitedRadarTuples(
+    Object.assign(radarWire.flatRadarTuples(1700000100), radarWire.limitedRadarTuples())), false);
+  assert.equal(radarWire.isLimitedRadarTuples({ RAIN_RADAR_LIMITED: 0 }), false);
+  assert.equal(radarWire.isLimitedRadarTuples(null), false);
+  assert.equal(radarWire.isLimitedRadarTuples(undefined), false);
+  assert.equal(radarWire.isLimitedRadarTuples({}), false);
+});
+
+test('isClearRadarTuples is false for the limit notice', () => {
+  assert.equal(radarWire.isClearRadarTuples(radarWire.limitedRadarTuples()), false);
+});

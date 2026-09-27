@@ -133,7 +133,7 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   cheap shape.)
 - **A new telemetry setting must be added in two places or it's silently dropped:** the
   watch-side snapshot in `src/pkjs/telemetry.js` AND the Deno `.strip()` schema in
-  `supabase/functions/telemetry-ingest/index.ts`.
+  `supabase/functions/telemetry-ingest/handler.ts`.
 - JSDoc (`@param`/`@returns`) on new JS functions — this project has no TypeScript.
 - Prefer `Boolean(value)` over `!!value`.
 
@@ -219,6 +219,36 @@ on runtime peak-free heap measured on the diorite proxy. See
 Never hand-write `supabase/migrations/` files. Edit the declarative `supabase/schemas/`
 and generate a migration before committing: `supabase db diff -f <label>`. Local-stack
 and hosted-deploy commands are in `DEV.md` / `CONTRIBUTING.md`.
+
+### Privacy in Supabase requests and logs
+
+Supabase logs the full URL (query string included) of every request: the phone's calls to our
+edge functions and every PostgREST call a function makes. It also keeps every line a function
+prints. Request bodies are never logged. For our edge functions, their PostgREST calls and the
+Rainbow calls (the proxy and the own-key direct call):
+
+- **Personal data never goes in a URL or a query filter.** That covers coordinates,
+  account/watch tokens and their hashes, IPs, API keys and free text. The phone sends it in a
+  POST body. A function passes it to an RPC as a plain `supabase.rpc(name, params)`, never to
+  `.eq()`/`.or()`/`.match()` or a `head: true` count. The `{ head: true }`/`{ get: true }` rpc
+  options and chained filters move the params into the URL too. Store no raw IP or position: key
+  them with a server-side HMAC (rainbow-nowcast `keys.ts`). Anything stored per IP or per place
+  needs a prune in the hourly `rainbow_prune` job (`supabase/schemas/rainbow.sql`) or a job of
+  its own, not in the nightly telemetry rollup, whose timeout would roll the prune back too.
+- **Round coordinates to 3 decimals (~110 m)** before they leave the phone for Rainbow
+  (`src/pkjs/weather/coords.js`). The proxy rounds them again.
+- **Function logs carry a fixed tag plus at most a machine code** (Postgres SQLSTATE, PostgREST
+  code, HTTP status), and only through the function's `log.ts` `logEvent()`. Never log an error
+  object, message, detail, hint or request data. Thrown errors get literal messages. Each
+  `Deno.serve` handler catches everything and logs it as `unhandled`, because the runtime would
+  print an uncaught error's message and stack. `test/supabase-log-hygiene.test.js` enforces this
+  statically. The Deno suites' recording-fetch tests check the URLs supabase-js actually builds.
+- **New SQL functions** are `security invoker` (the default) unless they must bypass RLS, set
+  `search_path = ''`, and are revoked from `public, anon, authenticated`. The REVOKE goes in the
+  schema AND is hand-appended to the generated migration, because `db diff` doesn't capture ACLs.
+
+Out of scope: third-party weather and geocoding APIs (met.no, DWD, Open-Meteo, LocationIQ,
+tomorrow.io, …) take coordinates or addresses in their URLs by their own design.
 
 ## Commits & releases
 

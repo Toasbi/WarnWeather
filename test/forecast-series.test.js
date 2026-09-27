@@ -815,6 +815,53 @@ test('under a top stripe the feels curve reaches the top: the band keeps it clea
     settings, { platform: 'aplite' }).TEMP_TREND_UINT8);
 });
 
+test('a stored top stripe on a metric that cannot be one keeps the band padded', () => {
+  // Stripes are for intensity metrics only (line-style.js metricAllowsStripe): a stored
+  // stripe on feels, dew or pressure is drawn as a line, so it opens no top band and
+  // the feels curve keeps its top pad.
+  const settings = { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' };
+  const plain = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }), settings, { platform: 'basalt' });
+  [{ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' },
+    { secondaryLineStyle: 'stripeTop' }].forEach((over) => {
+    const stored = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
+      Object.assign({}, settings, over), { platform: 'basalt' });
+    assert.deepEqual(stored.SECONDARY_LINE_TREND_UINT8, plain.SECONDARY_LINE_TREND_UINT8, JSON.stringify(over));
+    assert.deepEqual(stored.TEMP_TREND_UINT8, plain.TEMP_TREND_UINT8, JSON.stringify(over));
+  });
+});
+
+// The force-fetch rule for the line styles: a style edit that changes the baked weather
+// bytes must change renderSignature (render-signature.js), or the new band only shows
+// after the next scheduled fetch. Every pair of styles on an intensity line beside a
+// feels or dew curve, on every line slot.
+test('a line-style edit that changes the bake changes the render signature', () => {
+  const { renderSignature } = require('../src/pkjs/render-signature.js');
+  const STYLES = ['line', 'bold', 'dots', 'x', 'stripeTop', 'stripeBottom'];
+  const payload = () => feelsPayload({ FEELS_TREND: [15, 20, 38], DEW_TREND: [5, 8, 12] });
+  const bake = (s) => {
+    const out = applyForecastSeries(payload(), s, { platform: 'basalt' });
+    return JSON.stringify([out.TEMP_TREND_UINT8, out.SECONDARY_LINE_TREND_UINT8, out.THIRD_LINE_TREND_UINT8,
+      out.FOURTH_LINE_TREND_UINT8, out.FIFTH_LINE_TREND_UINT8]);
+  };
+  let changed = 0;
+  [{ secondaryLine: 'feels', thirdLine: 'uv', key: 'thirdLineStyle' },
+    { secondaryLine: 'precip_prob', thirdLine: 'dew', fourthLine: 'cloud', key: 'fourthLineStyle' },
+    { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'feels', fifthLine: 'wind', key: 'fifthLineStyle' },
+    { secondaryLine: 'cloud', thirdLine: 'feels', key: 'secondaryLineStyle' }].forEach((ctx) => {
+    const base = Object.assign({ barSource: 'off' }, ctx);
+    delete base.key;
+    STYLES.forEach((a) => STYLES.forEach((b) => {
+      const sa = Object.assign({}, base, { [ctx.key]: a });
+      const sb = Object.assign({}, base, { [ctx.key]: b });
+      if (bake(sa) !== bake(sb)) {
+        changed += 1;
+        assert.notEqual(renderSignature(sa), renderSignature(sb), ctx.key + ' ' + a + ' -> ' + b);
+      }
+    }));
+  });
+  assert.ok(changed > 0, 'premise: some style edit re-bakes');
+});
+
 test('no padding when feels stays inside the temp band — the temp curve still spans the plot', () => {
   // The temperature defines both extremes here, so its curve is supposed to reach the
   // inset edges: that edge is exactly what the hi/lo labels name.

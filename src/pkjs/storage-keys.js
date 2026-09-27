@@ -20,6 +20,8 @@ module.exports = {
     // Replaced, never released: 'v1.23.0_norain_empty_to_default_migration' only ran on
     // dev builds of 1.23.0, which then learnt to move the old default text too.
     NORAIN_DEFAULT_TEXT_MIGRATION_KEY: 'v1.23.0_norain_default_text_migration',
+    FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY: 'v1.23.1_fifth_line_style_default_migration',
+    STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY: 'v1.23.1_stripe_metric_rule_resend_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
@@ -101,5 +103,11 @@ module.exports = {
     TELEMETRY_SENDING_KEY: 'telemetrySending',
     // The settings page Weather tab's data for the place it opens on ({v, data}),
     // refreshed at most once a day on settings open (weather-tab-cache.js).
-    WEATHER_TAB_CACHE_KEY: 'weatherTabCache'
+    WEATHER_TAB_CACHE_KEY: 'weatherTabCache',
+    // The last radar request of a throttled radar source ({id, at: epoch ms, tuples?}, no
+    // position; see radar-factory.js RADAR_MIN_REQUEST_INTERVAL_MS): the shared Rainbow proxy
+    // is asked at most once per 30-minute slot, wherever the watch is, and the throttled
+    // cycles of that slot re-serve its answer. Persisted so a PKJS relaunch doesn't reset
+    // it; a reset's localStorage.clear() drops it (the next fetch then requests).
+    RADAR_REQUEST_THROTTLE_KEY: 'radarRequestThrottle'
 };

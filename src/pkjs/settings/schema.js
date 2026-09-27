@@ -31,53 +31,35 @@ var HOURS = (function () {
     }
     return o;
 })();
-// Per-metric hints, one map shared by all four metric pickers. Each says only
-// what the picker's own label can't: how the metric maps to graph height (UV
-// mirrors the precip-percentage phrasing), or what the line means (dew point). No
-// hint restates the metric's name, its default look (the style and colour rows
-// set that) or 'Off'. The wind scale is named, not placed ("below"): with wind and
-// gusts both picked, its row sits under the first of them only. Every picker
-// carries the full metric set, feels and dew included: each line has its own
-// curve-inset byte (CLAY_CURVE_INSET_UINT8), so any of them can share the
+// The metric and line-style pickers' hints are DERIVED (hintFrom), not static: a
+// line's scale depends on its metric AND its style (height for a curve or marks,
+// colour strength for a stripe), so the copy and its composition live with the
+// resolvers in blocks.js ('forecastMetricHint', 'lineStyleHint'). The metric pickers
+// keep only notes true of the metric whatever its style — plus the height wording on a
+// watch without style pickers (aplite), so the scale is still explained there.
+// Every picker carries the full metric set, feels and dew included: each line has its
+// own curve-inset byte (CLAY_CURVE_INSET_UINT8), so any of them can share the
 // temperature axis with the temperature curve.
-var LINE_HINTS = {
-    precip_prob: 'Half height = 50% chance of rain, full height = 100%.',
-    cloud: 'Half height = half the sky covered, full height = overcast. Not available with Yandex.',
-    wind: 'Scaled by the Wind graph scale setting.',
-    gust: 'The hourly peak, scaled by the Wind graph scale setting.',
-    uv: 'Half height = UV 5.5, full height = UV 11 (extreme).',
-    pressure: 'Sea-level pressure, scaled by the pressure graph scale below.',
-    feels: 'Drawn on the same scale as the temperature curve.',
-    dew: 'Drawn on the same scale as the temperature curve. The closer it runs to the temperature, the more humid it feels.'
-};
+var METRIC_HINT_FROM = {resolver: 'forecastMetricHint'};
 // "This watch draws the third metric line and selectable styles at all" — the
 // WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
 // line-style picker and the fourth-line scale contexts. Fails open for an
 // unknown platform, like every feature-absence capability.
 var LINE_STYLES_WHEN = {env: 'lineStyles'};
-// Per-line style pickers, one under each metric picker. The values are
-// line-style.js' LINE_STYLE_KINDS vocabulary.
-// Thin and Thick say it all; the marker and stripe styles add where they sit and
-// how a stripe reads.
-var LINE_STYLE_HINTS = {
-    dots: 'Aligned to the rain bars.',
-    x: 'Aligned to the rain bars.',
-    stripeTop: 'One cell per hour: the higher the value, the stronger the colour.',
-    stripeBottom: 'Below the zero line, where bars and lines never cover it. One cell per hour: the higher the value, the stronger the colour.'
-};
-var LINE_STYLE_OPTIONS = [
-    ['Thin line', 'line'], ['Thick line', 'bold'], ['Square dots', 'dots'], ['× marks', 'x'],
-    ['Stripe at top', 'stripeTop'], ['Stripe at bottom', 'stripeBottom']
-];
+// The two stripe styles (line-style.js isStripeValue).
+var STRIPE_STYLES = ['stripeTop', 'stripeBottom'];
+// Per-line style pickers, one under each metric picker.
 /**
- * One line-style picker.
- * @param {string} messageKey secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
- * @param {string} [lineKey] Metric-picker key whose 'off' also hides this row.
+ * One line-style picker, messageKey lineKey + 'Style'.
+ * @param {string} lineKey The metric picker it sits under:
+ *   secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @param {boolean} [offable] That picker offers Off, which also hides this row.
  * @returns {Object} Schema item.
  */
-function lineStyleCopy(messageKey, lineKey) {
+function lineStyleCopy(lineKey, offable) {
+    var messageKey = lineKey + 'Style';
     var when = [LINE_STYLES_WHEN];
-    if (lineKey) { when.push({key: lineKey, ne: 'off'}); }
+    if (offable) { when.push({key: lineKey, ne: 'off'}); }
     // A dropdown, not a segmented row: six styles no longer fit one row on a phone.
     return {
         type: 'select',
@@ -88,8 +70,17 @@ function lineStyleCopy(messageKey, lineKey) {
         // what the graph paints.
         defaultValue: lineStyle.LINE_STYLE_DEFAULTS[messageKey],
         joinPrevious: true,
-        hintByValue: LINE_STYLE_HINTS,
-        options: LINE_STYLE_OPTIONS,
+        // The scale of THIS line's metric as this style shows it, plus the style's
+        // own note (blocks.js 'lineStyleHint').
+        hintFrom: {resolver: 'lineStyleHint', args: {metricKey: lineKey}},
+        // The six styles, minus the stripes for a metric that cannot be one
+        // (blocks.js 'lineStyleOptions', off line-style.js' metricAllowsStripe).
+        optionsFrom: {resolver: 'lineStyleOptions', args: {metricKey: lineKey}},
+        // A stored stripe on such a metric lies dormant: the row shows the style the
+        // watch draws (line-style.js lineStyleValue resolves it the same way for the
+        // bake, the preview and telemetry) but the pick stays stored, so trying another
+        // metric and coming back to an intensity one brings the stripe back.
+        dormantValues: STRIPE_STYLES,
         showWhen: {all: when}
     };
 }
@@ -880,15 +871,40 @@ var PROVIDER_WHY = {
 var RADAR_WHY = {
     dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
     metno: 'Precise weather radar — rain at your exact spot. Nordics only.',
-    rainbow: 'A model nowcast blending satellite and radar — works worldwide.',
+    // Rainbow's terms ask for a "Powered by Rainbow.ai" link wherever its data shows.
+    // The note says why the shared radar is limited: the developer pays for the calls
+    // every user shares, and the rainbow-nowcast proxy caps that account at
+    // RAINBOW_MONTHLY_BUDGET upstream calls (DEV.md; default the free 5,000), so past it
+    // users get no fresh radar rather than a bill. The "Use your own key" switch under
+    // the picker (rainbowOwnKey) moves the radar onto the user's own Rainbow account.
+    rainbow: 'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Turn on “Use your own key” for a refresh at every update — a key is free. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
     tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget.'
 };
+// The radar picker's options in order. desc (3rd tuple slot) = the short "what it's best at"
+// tag under each name in the dropdown, mirroring the weather picker. DWD/Met.no are real
+// radar; Rainbow/Tomorrow.io are model nowcasts (Tomorrow.io is the precise, worldwide one).
+// Scope lives in the desc + "why" note, not the label (keeps the trigger short). Rainbow's
+// label is the one that isn't static: the radarProviderOptions resolver (blocks.js) shows it
+// as "Rainbow (limited)" until the user's own key is in use.
+var RADAR_PROVIDER_OPTIONS = [
+    ['DWD', 'dwd', {desc: 'Best radar in Germany · exact spot + nearby'}],
+    ['Met.no', 'metno', {desc: 'Best radar in the Nordics · exact spot'}],
+    ['Rainbow', 'rainbow', {desc: 'Worldwide satellite + radar nowcast'}],
+    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
+];
 // The tomorrow.io key + budget guard render under whichever picker actually uses the key:
 // the General tab when it's the WEATHER provider, the Radar tab when it's radar-only (so the
 // key never sits in the weather section for a non-weather provider). Both contexts reuse the
 // same messageKeys (mutually-exclusive showWhen, like the theme color/B&W split).
 var TOMORROWIO_WEATHER_WHEN = {key: 'provider', eq: 'tomorrowio'};
 var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'provider', ne: 'tomorrowio'}]};
+// The Rainbow radar's "Use your own key" switch sits under the radar picker while Rainbow
+// drives a running radar; the key + budget guard follow it only while the switch is on
+// (the runtime then fetches the own-key source, radar-source-id.js). The radarMode clause
+// keeps them all hidden with radar off, when no Rainbow call is made.
+var RAINBOW_WHEN = {all: [{key: 'radarProvider', eq: 'rainbow'}, {key: 'radarMode', ne: 'off'}]};
+var RAINBOW_OWN_KEY_WHEN = {all: [{key: 'radarProvider', eq: 'rainbow'}, {key: 'radarMode', ne: 'off'},
+    {key: 'rainbowOwnKey', eq: true}]};
 // A tap-to-copy button (copy icon) for use inside hint HTML: copies `url` via the engine's delegated
 // [data-copy] handler and flashes a "Copied" toast. Used instead of a plain link where tapping is
 // useless — e.g. a page that 404s on the mobile site, so users copy the URL and open it on desktop.
@@ -969,6 +985,10 @@ function barSlots(prefix, barWhen, leftJoins) {
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
 var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b>' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ', copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io\'s mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.</b>';
 var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
+// Rainbow's terms (developer.rainbow.ai, checked 2026-09-25): signup takes payment details, the
+// Nowcast API's first 5,000 calls each calendar month are free, then $0.10 per 1,000.
+var RAINBOW_KEY_HINT = '<b>How to get a key:</b><br>1. <a target=\'_blank\' href=\'https://developer.rainbow.ai/signup/\'>Sign up at developer.rainbow.ai</a>. Rainbow asks for a credit card, but the first 5,000 calls each month are free.<br>2. Open your <a target=\'_blank\' href=\'https://developer.rainbow.ai/profile\'>profile page</a>' + copyBtn('https://developer.rainbow.ai/profile', 'Copy the profile page link') + ', copy the API key and paste it here.<br>3. Tap Test.<br>Keep "Fit update interval to rate limit" on and the watch stays within the free 5,000 calls.';
+var RAINBOW_BUDGET_HINT = 'Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.';
 // The Nighttime card's gates. "Dim backlight" is emery-only: env.colorBacklight
 // (config-ui/lib/platform.js) is a fact about the BACKLIGHT, not the screen — only
 // emery's board carries the RGB LED driver light_set_color_rgb888() needs, so
@@ -1447,13 +1467,13 @@ module.exports = {
                 messageKey: 'secondaryLine',
                 label: 'Main metric',
                 defaultValue: 'precip_prob',
-                hintByValue: LINE_HINTS,
+                hintFrom: METRIC_HINT_FROM,
                 optionsFrom: {resolver: 'forecastMetric'},
                 onChange: 'forecastMetricFill',
                 blockBefore: 'forecastPreview',
                 blockBeforeSticky: true
             },
-            lineStyleCopy('secondaryLineStyle'),
+            lineStyleCopy('secondaryLine'),
             {
                 type: 'toggle',
                 messageKey: 'secondaryLineFill',
@@ -1467,11 +1487,15 @@ module.exports = {
                 // above clears the stored value; forecast-series.js re-forces false at
                 // bake time so a settings blob written before this gate still can't fill.
                 // A stripe has no curve to fill below either (line-style.js gates
-                // fillOn the same way) — unless this watch ignores the styles.
+                // fillOn the same way) — unless this watch ignores the styles, or the
+                // metric cannot be a stripe: a stored stripe then lies dormant in the
+                // style row (dormantValues — it stays stored) and draws as a line, so
+                // the metric is read too, not only the stored style.
                 showWhen: {all: [
                     {key: 'secondaryLine', nin: lineStyle.TEMP_AXIS_METRIC_IDS},
                     {any: [{not: LINE_STYLES_WHEN},
-                        {key: 'secondaryLineStyle', nin: ['stripeTop', 'stripeBottom']}]}
+                        {key: 'secondaryLineStyle', nin: STRIPE_STYLES},
+                        {key: 'secondaryLine', nin: lineStyle.STRIPE_METRIC_IDS}]}
                 ]}
             },
             windScaleCopy('secondaryLine', 'kph', WIND_SCALE_HINTS_KPH),
@@ -1483,10 +1507,10 @@ module.exports = {
                 messageKey: 'thirdLine',
                 label: 'Second metric',
                 defaultValue: 'uv',
-                hintByValue: LINE_HINTS,
+                hintFrom: METRIC_HINT_FROM,
                 optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
             },
-            lineStyleCopy('thirdLineStyle', 'thirdLine'),
+            lineStyleCopy('thirdLine', true),
             windScaleCopy('thirdLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('thirdLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('thirdLine', 'knots', WIND_SCALE_HINTS_KNOTS),
@@ -1496,7 +1520,7 @@ module.exports = {
                 messageKey: 'fourthLine',
                 label: 'Third metric',
                 defaultValue: 'off',
-                hintByValue: LINE_HINTS,
+                hintFrom: METRIC_HINT_FROM,
                 optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine']}},
                 // Only watches with enough memory carry a third metric line
                 // (LINE_STYLES_WHEN — the WW_LINE_STYLE mirror, fail-open for
@@ -1505,7 +1529,7 @@ module.exports = {
                 // watch that lacks the line.
                 showWhen: LINE_STYLES_WHEN
             },
-            lineStyleCopy('fourthLineStyle', 'fourthLine'),
+            lineStyleCopy('fourthLine', true),
             windScaleCopy('fourthLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
@@ -1515,12 +1539,12 @@ module.exports = {
                 messageKey: 'fifthLine',
                 label: 'Fourth metric',
                 defaultValue: 'off',
-                hintByValue: LINE_HINTS,
+                hintFrom: METRIC_HINT_FROM,
                 optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine', 'thirdLine', 'fourthLine']}},
                 // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
                 showWhen: LINE_STYLES_WHEN
             },
-            lineStyleCopy('fifthLineStyle', 'fifthLine'),
+            lineStyleCopy('fifthLine', true),
             windScaleCopy('fifthLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
@@ -1615,22 +1639,56 @@ module.exports = {
                 // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Rainbow),
                 // the same map the wizard uses. See blocks.js recommend resolvers.
                 recommendFrom: 'recommendedRadarProvider',
-                // Rainbow is always offered. Builds without a proxy endpoint
-                // (dev/forks) still show it; selecting it there fails soft with
-                // the Task 2 warning. Production always sets RAINBOW_PROXY_ENDPOINT.
-                // desc (3rd tuple slot) = the short "what it's best at" tag under each name in the
-                // dropdown, mirroring the weather picker. DWD/Met.no are real radar; Rainbow/Tomorrow.io
-                // are model nowcasts (Tomorrow.io is the precise, worldwide one).
+                // One Rainbow option (id 'rainbow') with a "Use your own key" switch under the
+                // picker (rainbowOwnKey). Switch off: the shared proxy, at most every 30 min
+                // (fetch-cycle.js throttle); builds without a proxy endpoint still show it and
+                // clear the radar. Switch on: api.rainbow.ai directly on the user's key, at
+                // every update, which works without the endpoint. radar-source-id.js resolves
+                // the pair to the runtime's source id ('rainbow' / 'rainbowkey').
                 // The selected provider's fuller rationale renders via hintByValue (RADAR_WHY),
                 // wrapping around the trigger — mirroring the weather picker.
-                // Scope lives in the desc + "why" note, not the label (keeps the trigger short).
                 hintByValue: RADAR_WHY,
-                options: [
-                    ['DWD', 'dwd', {desc: 'Best radar in Germany · exact spot + nearby'}],
-                    ['Met.no', 'metno', {desc: 'Best radar in the Nordics · exact spot'}],
-                    ['Rainbow', 'rainbow', {desc: 'Global satellite + radar rain nowcast'}],
-                    ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
-                ]
+                // RADAR_PROVIDER_OPTIONS through a resolver so the Rainbow option can say which
+                // key it runs on: "Rainbow (limited)" on the shared one, "Rainbow" once the switch
+                // is on AND a key is entered (blocks.js radarProviderOptions). The label follows
+                // the switch at once (a toggle re-renders the page) and the key field when it
+                // commits — blur/Enter (the engine relabels triggers in place on a text commit).
+                optionsFrom: {resolver: 'radarProviderOptions', args: {options: RADAR_PROVIDER_OPTIONS}}
+            }, {
+                // Rainbow on the user's own key instead of the shared one. Phone-only (never on the
+                // watch wire): radar-source-id.js turns Rainbow + this switch into the 'rainbowkey'
+                // source, and flipping it changes that source, so index.js forces a fetch on Save.
+                type: 'toggle',
+                messageKey: 'rainbowOwnKey',
+                label: 'Use your own key',
+                defaultValue: false,
+                joinPrevious: 'loose',
+                hint: 'Refreshes the radar at every update on your own Rainbow key instead of every 30 minutes. '
+                    + 'A key is free: Rainbow\'s free plan covers 5,000 calls a month.',
+                showWhen: RAINBOW_WHEN
+            }, {
+                // The user's own Rainbow key, shown while "Use your own key" is on. Never on the
+                // watch wire; kept through Reset (clay-settings.js PRESERVED_SETTING_KEYS), trimmed
+                // + refetch-forcing on Save (onbuild.js).
+                type: 'text',
+                messageKey: 'rainbowApiKey',
+                label: 'Rainbow API key',
+                defaultValue: '',
+                joinPrevious: 'loose',
+                suffixAction: 'testRainbowKey',
+                suffixLabel: 'Test',
+                hint: RAINBOW_KEY_HINT,
+                showWhen: RAINBOW_OWN_KEY_WHEN
+            }, {
+                type: 'toggle',
+                messageKey: 'rainbowFitBudget',
+                label: 'Fit update interval to rate limit',
+                defaultValue: true,
+                joinPrevious: 'loose',
+                // The monthly-usage read-out sits between the key field and this toggle.
+                blockBefore: 'rainbowBudget',
+                hint: RAINBOW_BUDGET_HINT,
+                showWhen: RAINBOW_OWN_KEY_WHEN
             }, {
                 // Tomorrow.io key + budget guard, radar-only: shown here (under the radar picker) when
                 // tomorrow.io drives the radar but is NOT the weather provider, so the key isn't orphaned

@@ -9,9 +9,9 @@ const emery = { platform: 'emery' };
 
 test('packs sixteen bytes: five line colours, a line flag byte, five night colours, a night flag byte, four style bytes', () => {
   const bytes = lineStyle.buildLineStyleBytes(
-    { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineFill: false, theme: 'dark' }, emery);
+    { secondaryLine: 'wind', thirdLine: 'gust', fifthLine: 'cloud', secondaryLineFill: false, theme: 'dark' }, emery);
   assert.equal(bytes.length, 16);
-  assert.equal(bytes[15], 0x07, 'the fourth metric debuts as a top stripe');
+  assert.equal(bytes[15], 0x02, 'the fourth metric debuts as x marks');
   [0, 1, 2, 4, 5, 6, 7, 8, 10, 14].forEach(
     (i) => assert.ok(bytes[i] >= 0xC0 && bytes[i] <= 0xFF, `byte ${i} (${bytes[i]}) is not a GColor8`));
   assert.equal(bytes[3], 0, 'fill off');
@@ -739,7 +739,7 @@ test('the style-byte encoding matches the C headers, decoded with their own cons
     return w > 0 ? w : fallback;
   };
   // Each style value decodes on the C side to the rendering it names.
-  const byteFor = (v) => lineStyle.lineStyleByte({ secondaryLineStyle: v }, 'secondaryLineStyle');
+  const byteFor = (v) => lineStyle.lineStyleByte({ secondaryLine: 'uv', secondaryLineStyle: v }, 'secondaryLineStyle');
   assert.equal(decodeKind(byteFor('line')), KIND.solid);
   assert.equal(decodeWidth(byteFor('line'), 0), 1, "'line' carries a 1 px stroke");
   assert.equal(decodeKind(byteFor('bold')), KIND.solid);
@@ -754,11 +754,15 @@ test('the style-byte encoding matches the C headers, decoded with their own cons
   assert.equal(byteFor('stripeBottom'), 0x03);
   assert.equal(byteFor('stripeTop'), 0x07);
   // The wire's style block is exactly the persist blob the watch stores.
-  const bytes = lineStyle.buildLineStyleBytes({ secondaryLine: 'wind', thirdLine: 'gust', theme: 'dark' }, { platform: 'emery' });
+  const bytes = lineStyle.buildLineStyleBytes({ secondaryLine: 'wind', thirdLine: 'gust', fifthLine: 'cloud', theme: 'dark' }, { platform: 'emery' });
   assert.equal(bytes.length - 11 - 2, STYLE_BYTES, 'bytes [11..13] are LINE_STYLE_STYLE_BYTES');
-  // The fourth metric's style byte ([15]) rides its own persist slot, same layout.
-  assert.equal(decodeKind(bytes[15]), KIND.stripe);
-  assert.equal(decodeStripeTop(bytes[15]), true);
+  // The fourth metric's style byte ([15]) rides its own persist slot, same layout —
+  // x marks by default, the kind persist.c's unset-slot default returns too.
+  assert.equal(decodeKind(bytes[15]), KIND.x);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'appendix', 'persist.c'), 'utf8'),
+    /FIFTH_LINE_STYLE\)\) \{[^}]*return \(uint8_t\) CHART_LINE_X;/,
+    "persist.c's unset fourth-line style mirrors LINE_STYLE_DEFAULTS.fifthLineStyle ('x')");
+  assert.equal(byteFor('x'), KIND.x, "and 'x' packs to exactly that byte");
 });
 
 test('a stripe-styled main line never fills, unless the watch ignores the styles', () => {
@@ -777,8 +781,80 @@ test('a stripe-styled main line never fills, unless the watch ignores the styles
   // A stripe on another line leaves the main line's fill alone.
   assert.equal(lineStyle.resolveLineStyle(Object.assign({ thirdLineStyle: 'stripeTop' }, base),
     { platform: 'basalt' }).fillOn, true);
-  assert.equal(lineStyle.isStripeStyle({ fourthLineStyle: 'stripeBottom' }, 'fourthLineStyle'), true);
+  assert.equal(lineStyle.isStripeStyle({ fourthLine: 'uv', fourthLineStyle: 'stripeBottom' }, 'fourthLineStyle'), true);
   assert.equal(lineStyle.isStripeStyle({}, 'fourthLineStyle'), false, 'the default x is not a stripe');
+  // Pressure cannot be a stripe: a stored one draws as a line, which fills.
+  const pressure = Object.assign({}, base, { secondaryLine: 'pressure', secondaryLineStyle: 'stripeTop' });
+  assert.equal(lineStyle.resolveLineStyle(pressure, { platform: 'basalt' }).fillOn, true, 'pressure fills');
+});
+
+// Stripes read as intensity (how MUCH rain chance, cloud, UV, wind), so only those
+// metrics can be one: feels-like and dew point sit on the temperature band (no zero)
+// and pressure is band-scaled, its trend the story. ONE rule in line-style.js; the
+// settings page's options, the bake, the preview and telemetry all resolve through it.
+const STYLE_KEYS = ['secondaryLineStyle', 'thirdLineStyle', 'fourthLineStyle', 'fifthLineStyle'];
+test('stripes are for intensity metrics only: precip, cloud, wind, gusts and UV', () => {
+  assert.deepEqual(lineStyle.STRIPE_METRIC_IDS, ['precip_prob', 'cloud', 'wind', 'gust', 'uv']);
+  lineStyle.GRAPH_METRICS.forEach((m) => {
+    assert.equal(lineStyle.metricAllowsStripe(m), ['feels', 'dew', 'pressure'].indexOf(m) === -1, m);
+  });
+  [undefined, null, 'off', '', 'constructor', 'toString', 42].forEach((m) => {
+    assert.equal(lineStyle.metricAllowsStripe(m), false, String(m) + ' is no stripe metric');
+  });
+  assert.equal(lineStyle.isStripeValue('stripeTop'), true);
+  assert.equal(lineStyle.isStripeValue('stripeBottom'), true);
+  ['line', 'bold', 'dots', 'x', 'constructor', undefined].forEach((v) => {
+    assert.equal(lineStyle.isStripeValue(v), false, String(v));
+  });
+});
+
+test('no built-in line style is a stripe: the fourth metric debuts as x marks', () => {
+  assert.deepEqual(lineStyle.LINE_STYLE_DEFAULTS, { secondaryLineStyle: 'line', thirdLineStyle: 'dots',
+    fourthLineStyle: 'x', fifthLineStyle: 'x' });
+  // So every default suits every metric, and a stripe a metric cannot show falls back
+  // to the line's own default.
+  STYLE_KEYS.forEach((key) => assert.ok(!lineStyle.isStripeValue(lineStyle.LINE_STYLE_DEFAULTS[key]), key));
+  assert.equal(lineStyle.lineStyleValue({ fifthLine: 'feels', fifthLineStyle: 'stripeTop' }, 'fifthLineStyle'), 'x');
+  assert.equal(lineStyle.lineStyleValue({ fifthLine: 'cloud' }, 'fifthLineStyle'), 'x', 'unset: x marks');
+});
+
+test('a stored stripe on a metric that cannot be one resolves to the line\'s non-stripe style', () => {
+  STYLE_KEYS.forEach((key, i) => {
+    const lineKey = lineStyle.FORECAST_LINES[i].key;
+    assert.equal(lineStyle.FORECAST_LINES[i].styleKey, key, 'FORECAST_LINES names each line\'s style key');
+    const d = lineStyle.LINE_STYLE_DEFAULTS[key];
+    // The line's built-in when that is no stripe, else a thin line — what the settings
+    // page's display-snap shows (item default when still offered, else the first option).
+    const fallback = lineStyle.isStripeValue(d) ? 'line' : d;
+    ['stripeTop', 'stripeBottom'].forEach((st) => {
+      lineStyle.GRAPH_METRICS.forEach((m) => {
+        const s = { [lineKey]: m, [key]: st };
+        const want = lineStyle.metricAllowsStripe(m) ? st : fallback;
+        assert.equal(lineStyle.lineStyleValue(s, key), want, key + ' ' + m + ' ' + st);
+        assert.equal(lineStyle.isStripeStyle(s, key), lineStyle.metricAllowsStripe(m), key + ' ' + m + ' ' + st);
+        // The wire byte never carries the stripe kind (3) for a disallowed metric.
+        assert.equal((lineStyle.lineStyleByte(s, key) & 0x03) === 3, lineStyle.metricAllowsStripe(m),
+          key + ' ' + m + ' ' + st + ' byte');
+      });
+    });
+    // Non-stripe styles pass through for every metric.
+    ['line', 'bold', 'dots', 'x'].forEach((st) => {
+      lineStyle.GRAPH_METRICS.forEach((m) => {
+        assert.equal(lineStyle.lineStyleValue({ [lineKey]: m, [key]: st }, key), st, key + ' ' + m + ' ' + st);
+      });
+    });
+  });
+  // The packed tuple: feels, dew and pressure stripes on every line reach the watch as
+  // no stripe at all, so the watch can never draw one.
+  const bytes = lineStyle.buildLineStyleBytes({ secondaryLine: 'pressure', thirdLine: 'feels', fourthLine: 'dew',
+    fifthLine: 'off', secondaryLineStyle: 'stripeTop', thirdLineStyle: 'stripeBottom',
+    fourthLineStyle: 'stripeTop', fifthLineStyle: 'stripeBottom', theme: 'dark' }, emery);
+  [11, 12, 13, 15].forEach((i) => assert.notEqual(bytes[i] & 0x03, 3, 'byte ' + i + ' is no stripe'));
+  assert.deepEqual([bytes[11], bytes[12], bytes[13]], [
+    lineStyle.lineStyleByte({ secondaryLineStyle: 'line' }, 'secondaryLineStyle'),
+    lineStyle.lineStyleByte({ thirdLineStyle: 'dots' }, 'thirdLineStyle'),
+    lineStyle.lineStyleByte({ fourthLineStyle: 'x' }, 'fourthLineStyle')
+  ], 'each line falls back to its own built-in');
 });
 
 test('cloud cover resolves its own line and fill colours, like every graph metric', () => {
@@ -806,4 +882,19 @@ test('effectiveLineMetric: every forecast line may carry a temperature-axis metr
   assert.equal(lineStyle.effectiveLineMetric(s, 'fifthLine'), 'dew');
   assert.equal(lineStyle.effectiveLineMetric({ fourthLine: 'off' }, 'fourthLine'), null, 'off is off');
   assert.equal(lineStyle.effectiveLineMetric({}, 'fifthLine'), null, 'unset is off');
+});
+
+// The bake's top-stripe band and the render signature both read this one predicate:
+// a DRAWN line (effectiveLineMetric) whose effective style is 'stripeTop'.
+test('topStripeLineDrawn: only a drawn line whose effective style is a top stripe', () => {
+  assert.equal(lineStyle.topStripeLineDrawn({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }), true);
+  assert.equal(lineStyle.topStripeLineDrawn({ secondaryLine: 'uv', secondaryLineStyle: 'stripeTop' }), true);
+  assert.equal(lineStyle.topStripeLineDrawn({ fifthLine: 'cloud', fifthLineStyle: 'stripeBottom' }), false, 'bottom');
+  assert.equal(lineStyle.topStripeLineDrawn({ fifthLine: 'off', fifthLineStyle: 'stripeTop' }), false, 'off');
+  assert.equal(lineStyle.topStripeLineDrawn({ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }), false,
+    'a metric that cannot be a stripe draws its non-stripe style');
+  assert.equal(lineStyle.topStripeLineDrawn({ secondaryLine: 'uv', fifthLine: 'uv', fifthLineStyle: 'stripeTop' }),
+    false, 'a repeat of an earlier pick draws nothing');
+  assert.equal(lineStyle.topStripeLineDrawn({}), false, 'no default is a stripe');
+  assert.equal(lineStyle.topStripeLineDrawn(null), false);
 });

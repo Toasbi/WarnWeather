@@ -105,43 +105,40 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Keep the saved update interval inside the tomorrow.io free-tier budget while the
-     * "Fit update interval to rate limit" guard is on. The page enforces it by snapping
+     * Keep the saved update interval inside every free-tier budget whose "Fit update
+     * interval to rate limit" guard is on — tomorrow.io's (500 calls/day, 25/hour) and
+     * own-key Rainbow's (5000 calls/month). The page enforces it by snapping
      * fetchIntervalMin into its fetchIntervalBudget option list (blocks.js), but only when
      * that row RENDERS — and the row lives on the General tab while what it depends on
-     * (the radar provider and mode) is edited on the Radar tab. Picking Tomorrow.io as the
-     * radar source and saving without revisiting General used to store an interval the
-     * doubled call count no longer affords, and the free tier ran out every evening.
-     * Same rule as that snap: keep a value the list still offers, else the item's schema
-     * default '15' when it fits, else the first (shortest) fitting interval.
+     * (the radar provider, Rainbow's "Use your own key" and the mode) is edited on the
+     * Radar tab. Picking a keyed radar (Tomorrow.io, Rainbow on your own key) and saving
+     * without revisiting General used to store an interval the added calls no longer
+     * afford, and the free tier ran out every evening.
+     * Same list as that snap and the same rule (interval-budget.js fitInterval, shared
+     * with the resolver and the budget read-outs): keep a value the list still offers,
+     * else the item's schema default '15' when it fits, else the first (shortest) fitting
+     * interval.
      * @param {{ get: function, set: function }} ctx onSubmit context
      * @returns {void}
      */
     function fitIntervalToBudget(ctx) {
-        // Node (tests): CommonJS require. Webview: tomorrowio-budget.js is concatenated into
+        // Node (tests): CommonJS require. Webview: interval-budget.js is concatenated into
         // the flat page and publishes itself on PConf (resolved here, at submit time).
-        var budget = (typeof require !== 'undefined')
-            ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
-        if (!budget || ctx.get('tomorrowioFitBudget') === false) { return; }
+        var ib = (typeof require !== 'undefined') ? require('./interval-budget.js') : PConf.intervalBudget;
+        if (!ib) { return; }
         var S = {};
-        for (var i = 0; i < budget.STATE_KEYS.length; i++) {
-            S[budget.STATE_KEYS[i]] = ctx.get(budget.STATE_KEYS[i]);
+        for (var i = 0; i < ib.STATE_KEYS.length; i++) {
+            S[ib.STATE_KEYS[i]] = ctx.get(ib.STATE_KEYS[i]);
         }
-        if (budget.callsPerCycle(S) === 0) { return; }   // no tomorrow.io call: nothing to fit
-        var opts = budget.fittingOptions(S);
         var stored = String(ctx.get('fetchIntervalMin'));
-        var j, offersDefault = false;
-        for (j = 0; j < opts.length; j++) {
-            if (opts[j][1] === stored) { return; }
-            if (opts[j][1] === '15') { offersDefault = true; }
-        }
-        ctx.set('fetchIntervalMin', offersDefault ? '15' : opts[0][1]);
+        var fitted = ib.fitInterval(S, stored);   // no guarded call: stored as-is
+        if (fitted !== stored) { ctx.set('fetchIntervalMin', fitted); }
     }
 
     /**
      * onSubmit: keep the location consistent with the picker, trim paste whitespace off the
      * API keys, then force a re-fetch when
-     * any provider-identity field changed. GPS mode must leave location empty so the
+     * any provider-identity field or API key changed. GPS mode must leave location empty so the
      * watch falls back to GPS; clearing it before the change check also means flipping
      * Manual to GPS is correctly detected as a location change.
      * @param {{ get: function, set: function, getInitial: function }} ctx
@@ -155,7 +152,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // A pasted key often carries a trailing space. The Test buttons trim it, so
         // the key tests fine and then 401s on the watch. Store it trimmed, and do it
         // before the change check so a key that only lost its whitespace still refetches.
-        ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey'].forEach(function (k) {
+        ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'rainbowApiKey'].forEach(function (k) {
             var v = ctx.get(k);
             if (typeof v === 'string' && v !== v.trim()) {
                 ctx.set(k, v.trim());
@@ -166,6 +163,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ctx.get('owmApiKey') !== ctx.getInitial('owmApiKey') ||
             ctx.get('yandexApiKey') !== ctx.getInitial('yandexApiKey') ||
             ctx.get('tomorrowioApiKey') !== ctx.getInitial('tomorrowioApiKey') ||
+            ctx.get('rainbowApiKey') !== ctx.getInitial('rainbowApiKey') ||
             ctx.get('location') !== ctx.getInitial('location')
         ) {
             ctx.set('fetch', true);

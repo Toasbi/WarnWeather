@@ -123,3 +123,41 @@ test('REGRESSION: CLEAR → an all-dry real window → changed (the watch holds 
   // and was skipped — stranding the watch with no radar once the key healed.
   assert.equal(radarComparator(subset(zeros(), zeros(), REAL_START), CLEAR), true);
 });
+
+// The LIMIT notice (radarWire.limitedRadarTuples: {RAIN_RADAR_LIMITED: 1}, no
+// arrays) is what a source refusing us over a request limit sends (HTTP 429).
+// It carries no window to align: a repeat of it is skipped, and whatever radar
+// comes after it must go out, even a window equal to the one the watch holds —
+// the arrays are what end the notice on the watch.
+const LIMITED = { RAIN_RADAR_LIMITED: 1 };
+
+test('limit notice → limit notice → unchanged (a source that stays limited sends it once)', () => {
+  assert.equal(radarComparator(LIMITED, LIMITED), false);
+  assert.equal(radarComparator({ RAIN_RADAR_LIMITED: 1 }, { RAIN_RADAR_LIMITED: 1 }), false);
+});
+
+test('a window → the limit notice → changed', () => {
+  const area = zeros(); area[3] = 5;
+  assert.equal(radarComparator(LIMITED, subset(zeros(), area, REAL_START)), true);
+});
+
+test('the clear → the limit notice → changed', () => {
+  assert.equal(radarComparator(LIMITED, CLEAR), true);
+});
+
+test('no cache → the limit notice → changed', () => {
+  assert.equal(radarComparator(LIMITED, null), true);
+});
+
+test('the limit notice → the clear → changed', () => {
+  assert.equal(radarComparator(CLEAR, LIMITED), true);
+});
+
+test('the limit notice → a window → changed, even an all-dry, aligned one', () => {
+  const rain = zeros(); rain[4] = 9;
+  assert.equal(radarComparator(subset(rain, zeros(), REAL_START), LIMITED), true);
+  // What the dedupe would skip against a cached dry window (k = 1, dry tail)
+  // must still go out after the notice: the watch needs its flag cleared.
+  assert.equal(radarComparator(subset(zeros(), zeros(), REAL_START + SLOT), subset(zeros(), zeros(), REAL_START)), false);
+  assert.equal(radarComparator(subset(zeros(), zeros(), REAL_START + SLOT), LIMITED), true);
+});
