@@ -26,28 +26,42 @@
 
   // 27 -> 29 when UV became kind 7; 29 -> 33 when the bold-only kinds (8..15)
   // widened the bold area to 16 kinds; 33 -> 34 when battery % (kind 16) opened
-  // byte 33; 34 -> 35 when the alerts byte was appended. (The interim 31-byte,
-  // 8-kind-bold format never shipped — it existed only on an unmerged branch —
-  // so exactly {35, 34, 33, 29} are accepted; see status_threshold.h.) Byte 33
-  // holds FOUR 2-bit cells (kinds 16..19): dew point (17) and the two
-  // phone-battery kinds (18, 19) all appended into it for free — and it is FULL,
-  // with the alerts byte right behind it. So a twenty-first kind (index 20) is no
-  // plain append any more: it needs a sixth bold byte AND a relocated alerts
-  // byte, a layout change on both ends (the C header's _Static_assert trips).
-  var SETTINGS_BYTES = 35;
+  // byte 33; 34 -> 36 when the two alert bytes were appended (the rain look, then
+  // the per-bar placement). (The interim 31-byte, 8-kind-bold format never
+  // shipped — it existed only on an unmerged branch — so exactly
+  // {36, 35, 34, 33, 29} are accepted; see status_threshold.h.) Byte 33 holds
+  // FOUR 2-bit cells (kinds 16..19): dew point (17) and the two phone-battery
+  // kinds (18, 19) all appended into it for free — and it is FULL, with the alert
+  // bytes right behind it. So a twenty-first kind (index 20) is no plain append
+  // any more: it needs a sixth bold byte AND both alert bytes relocated, a layout
+  // change on both ends (the C header's _Static_assert trips).
+  var SETTINGS_BYTES = 36;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
   var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
   // The alerts options byte: bits 0-1 the Alerts row's rain look (RAIN_DISPLAY),
   // bits 2-7 reserved (DWD official warnings later) and written 0.
   var ALERTS_OFFSET = 34;
+  // The Alerts row's placement per status bar: 2 bits per bar (BAR_ALERT_KEYS
+  // order — top 0-1, forecast 2-3, radar 4-5, health 6-7), BAR_ALERT_PLACES
+  // values. While an alert is active the row replaces that slot of the bar.
+  var BAR_ALERTS_OFFSET = 35;
+  // Bar -> its placement setting, in the byte's cell order (ThreshBar in C).
+  var BAR_ALERT_KEYS = [
+    {bar: 'top', key: 'statusTopAlerts'},
+    {bar: 'forecast', key: 'statusForecastAlerts'},
+    {bar: 'radar', key: 'statusRadarAlerts'},
+    {bar: 'health', key: 'statusHealthAlerts'}
+  ];
+  // statusXxxAlerts -> the 2-bit wire value (ThreshAlertsPlace).
+  var BAR_ALERT_PLACES = {off: 0, left: 1, middle: 2, right: 3};
 
   // rainAlertDisplay -> the 2-bit wire value. 'text' is 0 — the full "Rain in
   // 12'" countdown the strip drew before the Alerts row — so an absent setting
   // and a pre-upgrade watch (no byte 34 at all) both keep today's look.
   var RAIN_DISPLAY = {text: 0, icon: 1, minutes: 2};
 
-  // SLOT_ALERTS entry header (status_line.h): bits 0-2 the ThreshKind, bits 3-4
+  // ALERT_ENTRIES_UINT8 entry header (alert_set.h): bits 0-2 the ThreshKind, bits 3-4
   // the level, bits 5-7 the value length.
   var ALERT_LEVEL_SHIFT = 3;
   var ALERT_LEN_SHIFT = 5;
@@ -586,19 +600,19 @@
   }
 
   /**
-   * Bake the Alerts slot's value bytes (SLOT_ALERTS, status_line.h): one entry
+   * Bake the Alerts row's metric entries (ALERT_ENTRIES_UINT8, alert_set.h): one entry
    * per ACTIVE metric alert — switched on (alert<Key>) and at warn or higher —
    * in the fixed order UV, wind, gust, AQI, pollen. Each entry is one header
    * byte (bits 0-2 ThreshKind, 3-4 level, 5-7 value length) + that many ASCII
    * value bytes, which are there only when the kind's Look is 'value'
    * (alert<Key>Display). Entries that would push the bytes past `cap` are
    * dropped from the TAIL (pollen first) — the rule the watch applies to its
-   * pixels — so a slot never outweighs the city slot its position's cap is
-   * sized for, and the weather message does not grow.
+   * pixels — so the tuple never outgrows what the watch's inbox budgets for it
+   * (ALERT_ENTRIES_MAX_BYTES, test/inbox-size.test.js).
    * @param {Object} payload weather payload (pre-transform, trends present)
    * @param {Object} settings Clay settings blob
-   * @param {number} cap the slot position's byte cap (EDGE 8 / MID 19)
-   * @returns {number[]} the value bytes, [] when nothing is alerting
+   * @param {number} cap the tuple's byte cap (status-lines.js: 20)
+   * @returns {number[]} the entry bytes, [] when nothing is alerting
    */
   function bakeAlerts(payload, settings, cap) {
     var out = [];
@@ -671,6 +685,28 @@
   }
 
   /**
+   * Where a bar shows the Alerts row (its statusXxxAlerts setting), resolved to a
+   * BAR_ALERT_PLACES key. An absent or unknown value takes the default: the top
+   * strip 'left' — the rain countdown's takeover of that slot, which the strip
+   * always had — and every other bar 'off', so an untouched upgrade draws
+   * exactly what it drew before.
+   * @param {Object} settings Clay settings blob
+   * @param {string} bar 'top' | 'forecast' | 'radar' | 'health'
+   * @returns {string} 'off' | 'left' | 'middle' | 'right'
+   */
+  function barAlertPlace(settings, bar) {
+    for (var i = 0; i < BAR_ALERT_KEYS.length; i++) {
+      if (BAR_ALERT_KEYS[i].bar !== bar) { continue; }
+      var v = settings ? settings[BAR_ALERT_KEYS[i].key] : undefined;
+      if (typeof v === 'string' && Object.prototype.hasOwnProperty.call(BAR_ALERT_PLACES, v)) {
+        return v;
+      }
+      return bar === 'top' ? 'left' : 'off';
+    }
+    return 'off';
+  }
+
+  /**
    * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
    * The statusBoldAll master row ('all') overrides the PACKED bold cell of
    * every kind to BOLD_MODES.always at build time only — the stored
@@ -679,9 +715,10 @@
    * untouched by the master.
    * Byte ALERTS_OFFSET carries the Alerts row's rain look (rainAlertDisplay);
    * which METRIC alerts are on never rides here — the phone bakes only the
-   * active ones into the alerts slot itself (bakeAlerts).
+   * active ones into their own weather tuple (bakeAlerts). Byte
+   * BAR_ALERTS_OFFSET carries where each bar shows the row (barAlertPlace).
    * @param {Object} settings Clay settings blob
-   * @returns {number[]} SETTINGS_BYTES-long array (currently 35 bytes)
+   * @returns {number[]} SETTINGS_BYTES-long array (currently 36 bytes)
    */
   function buildSettingsBlob(settings) {
     var blob = [];
@@ -712,6 +749,10 @@
     var rain = settings && settings.rainAlertDisplay;
     blob[ALERTS_OFFSET] = Object.prototype.hasOwnProperty.call(RAIN_DISPLAY, rain)
       ? RAIN_DISPLAY[rain] : RAIN_DISPLAY.text;
+    for (var b = 0; b < BAR_ALERT_KEYS.length; b++) {
+      blob[BAR_ALERTS_OFFSET] |=
+        BAR_ALERT_PLACES[barAlertPlace(settings, BAR_ALERT_KEYS[b].bar)] << (2 * b);
+    }
     return blob;
   }
 
@@ -722,6 +763,10 @@
     HEALTH_OFFSET: HEALTH_OFFSET,
     BOLD_OFFSET: BOLD_OFFSET,
     ALERTS_OFFSET: ALERTS_OFFSET,
+    BAR_ALERTS_OFFSET: BAR_ALERTS_OFFSET,
+    BAR_ALERT_KEYS: BAR_ALERT_KEYS,
+    BAR_ALERT_PLACES: BAR_ALERT_PLACES,
+    barAlertPlace: barAlertPlace,
     RAIN_DISPLAY: RAIN_DISPLAY,
     ALERT_KINDS: ALERT_KINDS,
     BOLD_MODES: BOLD_MODES,

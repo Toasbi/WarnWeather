@@ -189,15 +189,14 @@ def build(ctx):
         # WW_FETCH_NOTICE above, which was excluded for the same trigger.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_THRESHOLD_HIGHLIGHT=1']
-        # The Alerts row (status slot kind SLOT_ALERTS: the phone-baked metric alerts
-        # plus the watch-resolved rain alert) is compiled out of aplite: aplite paints
-        # its status rows from the frozen lean twin layers/status_row_aplite.c, the
-        # row's inputs (the thresholds blob, rain_countdown.c) are aplite-absent
-        # already, and the phone never offers the item there (catalog notAplite). Even
-        # the walker's entry check for the slot's bytes (appendix/status_line.c) took
-        # the aplite image past its 21804 B launch guard (+112 B), so it rides this
-        # macro too: aplite's walker keeps rejecting value bytes on every non-TEXT
-        # kind, exactly as before. The row's own code lives in two leaf files whose
+        # The Alerts row (a per-bar takeover of the status slots: the phone-baked
+        # metric alerts from the ALERT_ENTRIES_UINT8 tuple plus the watch-resolved
+        # rain alert) is compiled out of aplite: aplite paints its status rows from
+        # the frozen lean twin layers/status_row_aplite.c, the row's inputs (the
+        # thresholds blob, rain_countdown.c) are aplite-absent already, and the
+        # phone never sends it the tuple. The tuple's inbox handler and its persist
+        # accessors (app_message.c, persist.c) ride this macro too, so aplite's
+        # image does not grow by a byte. The row's own code lives in two leaf files whose
         # bodies sit behind the macro — appendix/alert_set.c (the pure entry set, fit
         # and spill) and layers/status_alerts.c (glyph cache + paint) — so aplite
         # compiles both to empty objects and pays zero bytes. Every other platform

@@ -83,20 +83,19 @@
         {
             id: 'wizard-bold-top-row',
             when: {wizard: true, platform: 'emery'},
-            // emery is the only platform whose strip beside the clock ships readings
-            // on both sides of the date (status-line-catalog.js's emeryDefaults —
-            // alerts/date/sun), and these kinds are exactly its text ones: the Alerts
-            // row has no bold cell of its own (each entry takes its kind's ladder),
-            // and the calendar week left the default in 1.24.0, so its bold went
-            // with it. Everywhere else that strip is the date with the battery in the
-            // corner: one heavy value in a row of one contrasts with nothing, so the
-            // narrow platforms leave the whole strip at the lighter weight and the
-            // Forecast row above stands alone as the bold one.
+            // emery is the only platform whose strip beside the clock ships three
+            // readings (status-line-catalog.js's emeryDefaults — week/date/sun), and
+            // these three kinds are exactly those. Everywhere else that strip is the
+            // date alone with the battery in the corner: one heavy value in a row of
+            // one contrasts with nothing, so the narrow platforms leave the whole
+            // strip at the lighter weight and the Forecast row above stands alone as
+            // the bold one.
             why: 'On the widest watch the strip beside the clock carries three '
                 + 'readings, which makes it the second row a wearer reads — so setup '
                 + 'bolds it too. The narrower watches show only the date up there, '
                 + 'and bolding a lone value would say nothing.',
             set: {
+                threshWeekBoldMode: 'always',
                 threshDateBoldMode: 'always',
                 threshSunBoldMode: 'always'
             }
@@ -126,8 +125,8 @@
             // emery only: this promotion takes the top row's RIGHT-HAND corner, which
             // exists to be taken only where that corner ships a reading to give up
             // (emeryDefaults' sunrise/sunset). On the narrow platforms the corner is
-            // the battery and the left slot is the Alerts row's, so steps stays in
-            // the health row there (the retired compact sibling, see below).
+            // the battery and steps goes to the free left slot instead — the sibling
+            // rule below, which is otherwise this one.
             //
             // Steps vacates the health row's left slot, distance fills it, and no
             // row ends up holding the same item twice — on a heart-rate watch too,
@@ -168,14 +167,33 @@
             // eviction and bold keep the normal protection: a customized health
             // row or bold choice survives.
             overrules: ['statusTopRight']
+        },
+        {
+            id: 'wizard-health-slots-compact',
+            when: {wizard: true, health: true, platformNot: 'emery'},
+            // The same move as the rule above, aimed at the slot this platform's top
+            // row actually has free. Its right-hand corner is the battery here, and
+            // the battery is the reason that corner exists — so steps takes the LEFT
+            // slot, which the narrow default ships empty for exactly this.
+            why: 'Steps is the health number people glance at most, and the strip beside '
+                + 'the clock is on screen in every view — but on these watches its '
+                + 'right-hand corner is the battery, so steps takes the free left slot '
+                + 'and the battery keeps its corner. Walked distance takes the place '
+                + 'steps left in the health row, so no reading is lost. No bold rides '
+                + 'along: nothing in this strip is bolded on a narrow watch, and a lone '
+                + 'heavy value would contrast with nothing.',
+            set: {
+                statusTopLeft: 'steps',
+                statusHealthLeft: 'distance'
+            },
+            // Both halves of one move, exactly as above: the eviction is only safe
+            // while the strip actually shows steps.
+            dependsOn: {statusHealthLeft: 'statusTopLeft'},
+            // Same consent argument as the rule above, on this platform's promoted
+            // slot. It bites less often — the slot ships EMPTY here, so only someone
+            // who parked something there before re-running setup is overruled.
+            overrules: ['statusTopLeft']
         }
-
-        // Retired in 1.24.0: 'wizard-health-slots-compact', which promoted steps into
-        // the 144/180 px strip's free LEFT slot. That slot is the Alerts row's home
-        // now (status-line-catalog.js LINES.top), and the rain alert it carries is
-        // worth more there than a second copy of a reading the health bar already
-        // shows. clay-migrations.js migrateAlertsTopLeft (c) undoes its footprint on
-        // installs that still hold it.
 
         // Deliberately NOT here: the step, sleep and distance GOALS. They stay off
         // until the wearer sets one — a goal nobody chose is a number nobody meant,

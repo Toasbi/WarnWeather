@@ -125,6 +125,25 @@ test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 120);
 });
 
+// The rain alert's switch (the Alerts card's rain sheet): off sends horizon 0 — the
+// watch's "no countdown" — whatever window is stored; absent reads as on.
+test('alertRain false sends CLAY_RAIN_COUNTDOWN_HORIZON 0; absent or true keeps the window', () => {
+  const base = baseSettings();
+  base.radarMode = 'graph';
+  base.rainCountdownHorizon = '30';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 30, 'absent = on');
+  base.alertRain = true;
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 30);
+  base.alertRain = false;
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0);
+  delete base.rainCountdownHorizon;
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0,
+    'off beats the default window too');
+  // Only a real false switches it off (the toggle's stored value).
+  base.alertRain = 'false';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
+});
+
 test('maps topViewMode to CLAY_TOP_VIEW_MODE int (full=0, compact=1, none=2), default compact', () => {
   assert.strictEqual(buildClayPayload(baseSettings(), null, NOW).CLAY_TOP_VIEW_MODE, 1); // unset → compact
   const full = baseSettings(); full.topViewMode = 'full';

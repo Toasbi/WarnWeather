@@ -27,6 +27,7 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
   assert.equal(th.HEALTH_OFFSET, cDefine('THRESH_HEALTH_OFFSET'));
   assert.equal(th.BOLD_OFFSET, cDefine('THRESH_BOLD_OFFSET'));
   assert.equal(th.ALERTS_OFFSET, cDefine('THRESH_ALERTS_OFFSET'));
+  assert.equal(th.BAR_ALERTS_OFFSET, cDefine('THRESH_BAR_ALERTS_OFFSET'));
   // The paired kinds — the ones owning an enable bit, a color pair, and (for
   // the health trio) a u16 pair — are exactly the non-boldOnly ones, and they
   // must ALL precede the bold-only tail: byte 0 has 8 enable bits, no more.
@@ -44,23 +45,24 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
 // only claimed the first. Every kind appended into the remaining three was free:
 // the blob's width is paid for on the Clay message (7 B tuple header +
 // SETTINGS_BYTES, recorded in test/inbox-size.test.js). The only widening since
-// is the alerts byte (34 -> 35), appended right AFTER the bold area — so the bold
-// area now ends where the alerts byte begins.
+// is the two alert bytes (34 -> 36), appended right AFTER the bold area — so the
+// bold area now ends where the alert bytes begin.
 test('the bold-only kinds sharing byte 33 never widen the blob', () => {
   assert.equal(cEnum('THRESH_DEW'), 17, 'dew is the second cell of byte 33');
   assert.equal(th.BOLD_OFFSET + (cEnum('THRESH_DEW') >> 2), 33,
     'the dew bold cell shares byte 33 with battery %');
-  assert.equal(th.SETTINGS_BYTES, 35, 'the alerts byte is the one widening past 34');
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 35);
+  assert.equal(th.SETTINGS_BYTES, 36, 'the two alert bytes are the one widening past 34');
+  assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 36);
+  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS'), 35);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
   // Capacity, stated once: the bold area runs to the end of byte 33, and kinds
   // 18/19 (the phone battery) took the last two cells; kind 20 would need a
-  // sixth bold byte AND relocate the alerts byte behind it.
+  // sixth bold byte AND relocate both alert bytes behind it.
   assert.ok(th.KINDS.length <= 20,
     'kind 20 would need a sixth bold byte — that is a layout change, not an append');
   assert.equal(th.BOLD_OFFSET + ((th.KINDS.length - 1) >> 2), th.ALERTS_OFFSET - 1,
-    'the last bold byte sits right before the alerts byte');
+    'the last bold byte sits right before the alert bytes');
   assert.equal(cEnum('THRESH_PHONE_BATTERY_PLAIN'), 19,
     'the last cell of byte 33 is the highest kind the blob can hold for free');
 });
@@ -75,7 +77,7 @@ test('bold modes are in lockstep with the ThreshBold enum', () => {
 });
 
 test('the bold bytes cover every kind at 2 bits each', () => {
-  // The alerts byte ENDS the bold area, so the bold area is BOLD..ALERTS.
+  // The alert bytes follow the bold area, so the bold area is BOLD..ALERTS.
   const boldBytes = th.ALERTS_OFFSET - th.BOLD_OFFSET;
   assert.equal(boldBytes, Math.ceil((th.KINDS.length * 2) / 8));
   // The C side refuses to compile a kind whose bold cell would alias it.
@@ -91,11 +93,30 @@ test('the rain look wire values are in lockstep with ThreshRainDisplay', () => {
   assert.equal(th.RAIN_DISPLAY.icon, cEnum('THRESH_RAIN_DISPLAY_ICON'));
   assert.equal(th.RAIN_DISPLAY.minutes, cEnum('THRESH_RAIN_DISPLAY_MINUTES'));
   assert.equal(th.RAIN_DISPLAY.text, 0);
-  assert.equal(th.SETTINGS_BYTES, th.ALERTS_OFFSET + 1, 'the alerts byte is the last one');
+  assert.equal(th.BAR_ALERTS_OFFSET, th.ALERTS_OFFSET + 1, 'the placement byte follows it');
 });
 
-// The alert entries name their kind by ThreshKind in 3 bits (status_line.h
-// SLOT_ALERTS): every alert kind's wire id must fit.
+// Byte 35: the Alerts row's placement per status bar, 2 bits per bar in ThreshBar
+// order, ThreshAlertsPlace values. It ends the blob.
+test('the per-bar placement byte is in lockstep with ThreshBar / ThreshAlertsPlace', () => {
+  assert.equal(th.BAR_ALERTS_OFFSET, 35);
+  assert.equal(th.SETTINGS_BYTES, th.BAR_ALERTS_OFFSET + 1, 'the placement byte is the last one');
+  assert.deepEqual(th.BAR_ALERT_KEYS.map(b => b.bar), ['top', 'forecast', 'radar', 'health']);
+  assert.equal(cEnum('THRESH_BAR_TOP'), 0);
+  assert.equal(cEnum('THRESH_BAR_FORECAST'), 1);
+  assert.equal(cEnum('THRESH_BAR_RADAR'), 2);
+  assert.equal(cEnum('THRESH_BAR_HEALTH'), 3);
+  assert.equal(th.BAR_ALERT_KEYS.length, cDefine('THRESH_BAR_COUNT'));
+  assert.equal(th.BAR_ALERT_PLACES.off, cEnum('THRESH_ALERTS_OFF'));
+  assert.equal(th.BAR_ALERT_PLACES.left, cEnum('THRESH_ALERTS_LEFT'));
+  assert.equal(th.BAR_ALERT_PLACES.middle, cEnum('THRESH_ALERTS_MIDDLE'));
+  assert.equal(th.BAR_ALERT_PLACES.right, cEnum('THRESH_ALERTS_RIGHT'));
+  // The C side refuses to compile a layout where the two bytes drift apart.
+  assert.match(header, /_Static_assert\(THRESH_BAR_ALERTS_OFFSET == THRESH_ALERTS_OFFSET \+ 1/);
+});
+
+// The alert entries name their kind by ThreshKind in 3 bits (alert_set.h,
+// ALERT_ENTRIES_UINT8): every alert kind's wire id must fit.
 test('every alert kind is a weather kind whose wire id fits the entry header', () => {
   th.ALERT_KINDS.forEach((a) => {
     const i = th.KINDS.findIndex(k => k.code === a.code);
@@ -154,11 +175,12 @@ test('the phone-battery kinds are 18/19 and share one settings key', () => {
 });
 
 // Kinds 18 and 19 took byte 33's LAST two 2-bit cells without widening the blob;
-// the one widening since is the alerts byte (34 -> 35), which added exactly one
-// accepted length (34, pre-alerts) for upgrading watches.
-test('kinds 18/19 fill byte 33; the alerts byte adds exactly one accepted length', () => {
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 35);
-  assert.equal(th.SETTINGS_BYTES, 35);
+// the one widening since is the two alert bytes (34 -> 36), which added exactly
+// two accepted lengths (34 pre-alerts, 35 pre-placement) for upgrading watches.
+test('kinds 18/19 fill byte 33; the alert bytes add exactly two accepted lengths', () => {
+  assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 36);
+  assert.equal(th.SETTINGS_BYTES, 36);
+  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS'), 35);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
   assert.equal(cDefine('THRESH_BOLD_OFFSET'), 29);
@@ -171,20 +193,21 @@ test('kinds 18/19 fill byte 33; the alerts byte adds exactly one accepted length
   });
   assert.equal(2 * (iconedKind & 3), 4, 'phoneBattery is byte 33 bits 4-5');
   assert.equal(2 * (plainKind & 3), 6, 'phoneBatteryPlain is byte 33 bits 6-7');
-  // The watch accepts exactly FOUR blob lengths — 35, 34 (pre-alerts), 33
-  // (pre-kind-16), 29 (pre-bold). A fifth entry in status_threshold.c's
-  // validator would mean another widening.
+  // The watch accepts exactly FIVE blob lengths — 36, 35 (pre-placement), 34
+  // (pre-alerts), 33 (pre-kind-16), 29 (pre-bold). A sixth entry in
+  // status_threshold.c's validator would mean another widening.
   const validator = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'c', 'appendix', 'status_threshold.c'), 'utf8')
     .split('bool status_threshold_settings_validate')[1].split('}')[0];
   const lengths = [...validator.matchAll(/len\s*==\s*(THRESH_SETTINGS_BYTES[A-Z0-9_]*)/g)]
     .map(m => m[1]);
   assert.deepEqual(lengths,
-    ['THRESH_SETTINGS_BYTES', 'THRESH_SETTINGS_BYTES_PRE_ALERTS',
-      'THRESH_SETTINGS_BYTES_PRE_KIND16', 'THRESH_SETTINGS_BYTES_PRE_BOLD'],
-    'exactly the four known lengths');
-  // Byte 33 is FULL, and the alerts byte sits right behind it: kind 20 needs a
-  // sixth bold byte AND a relocated alerts byte — a layout change. Stated as an
+    ['THRESH_SETTINGS_BYTES', 'THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS',
+      'THRESH_SETTINGS_BYTES_PRE_ALERTS', 'THRESH_SETTINGS_BYTES_PRE_KIND16',
+      'THRESH_SETTINGS_BYTES_PRE_BOLD'],
+    'exactly the five known lengths');
+  // Byte 33 is FULL, and the alert bytes sit right behind it: kind 20 needs a
+  // sixth bold byte AND both alert bytes relocated — a layout change. Stated as an
   // equality so the next append trips this test.
   assert.equal(th.KINDS.length, 20, 'byte 33 holds exactly four cells (kinds 16..19)');
   assert.equal(th.ALERTS_OFFSET - th.BOLD_OFFSET, 5, 'five bold bytes, 20 cells');

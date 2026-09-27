@@ -115,6 +115,11 @@ const settingsSchema = z
     alertKinds: z.string().optional(),
     alertValueKinds: z.string().optional(),
     rainAlertDisplay: z.string().optional(),
+    // Where each status bar places the Alerts row — one letter per bar (top,
+    // forecast, radar, health): o off / l left / m middle / r right, e.g. 'looo' —
+    // and the rain alert's switch.
+    alertBars: z.string().optional(),
+    alertRain: z.boolean().optional(),
     // The battery saver's night window — its own pair, present only while the saver
     // is on, which is how the night_sleep flag in
     // supabase/reports/telemetry-dashboards.sql reads "battery saver on".

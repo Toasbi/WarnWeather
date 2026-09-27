@@ -557,17 +557,6 @@ function packLine(line, payload, settings, env) {
       if (dirByte && valueBytes.length < textCap(s)) { valueBytes.push(dirByte); }
       bytes.push(item.kind, icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
-    } else if (item.kind === catalog.KINDS.ALERTS) {
-      // The Alerts row: its value bytes are the active metric alerts, baked here
-      // (status-thresholds.js bakeAlerts) under the SAME per-position cap a TEXT
-      // slot gets, so the row never outweighs the city slot the heaviest weather
-      // bundle already assumes. No direction sentinel on this kind — the entries
-      // are not text. The rain alert is not in here: the watch resolves it from
-      // its own radar cache. On aplite 'alerts' already resolved to 'empty' above
-      // (notAplite), so kind 11 never reaches the lean twin.
-      var alertBytes = thresholds.bakeAlerts(payload, settings, textCap(s));
-      bytes.push(item.kind, icon, alertBytes.length);
-      for (var ab = 0; ab < alertBytes.length; ab++) { bytes.push(alertBytes[ab]); }
     } else {
       bytes.push(kind, icon, 0);
     }
@@ -575,12 +564,17 @@ function packLine(line, payload, settings, env) {
   return bytes;
 }
 
+// The Alerts row's entry tuple cap (alert_set.h ALERT_ENTRIES_MAX_BYTES): all
+// five metric alerts with their widest values are 19 B, so nothing is dropped
+// today; the cap is what the watch's inbox budgets for (test/inbox-size.test.js).
+var ALERT_ENTRIES_CAP = 20;
+
 /**
- * Add STATUS_LINE_1..4_UINT8 AND the packed STATUS_LEVELS_UINT8 threshold
- * byte to the weather payload. Must run BEFORE applyForecastSeries deletes
- * the transient trend arrays (AQI_TREND, WIND_TREND_UINT8, GUST_TREND_UINT8,
- * PRESSURE_TREND, POLLEN_TODAY) -- both the status text and the threshold
- * levels are read from them.
+ * Add STATUS_LINE_1..4_UINT8, the packed STATUS_LEVELS_UINT8 threshold bytes and
+ * the Alerts row's ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
+ * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
+ * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY) -- the
+ * status text, the threshold levels and the alert entries are read from them.
  * @param {Object} payload weather payload (mutated)
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
@@ -610,6 +604,14 @@ function buildStatusLines(payload, settings, watchInfo) {
   // so the change detector is unaffected.
   if (env.thresholds) {
     payload.STATUS_LEVELS_UINT8 = thresholds.packWeatherLevels(payload, settings);
+    // The Alerts row's metric entries, judged here for the same reason. Its own
+    // tuple in the 'status' category, so it rides (and is change-detected) with
+    // the lines; [] when nothing is alerting, which clears the watch's stored
+    // entries. The rain alert is not in here: the watch resolves it from its own
+    // radar cache. The row is compiled out on exactly the platforms the highlight
+    // is (WW_ALERT_ROW and WW_THRESHOLD_HIGHLIGHT: every platform but aplite), so
+    // this gate is the right one, and aplite's inbox never budgets for the tuple.
+    payload.ALERT_ENTRIES_UINT8 = thresholds.bakeAlerts(payload, settings, ALERT_ENTRIES_CAP);
   }
   return payload;
 }
@@ -619,8 +621,8 @@ function buildStatusLines(payload, settings, watchInfo) {
  * per-code arms plus directionSentinel — and, by inclusion, the only ones
  * status-thresholds' packWeatherLevels and bakeAlerts need (their displayValue /
  * dayMaxToday read a subset: the day-max trends and peaks, POLLEN_TODAY).
- * STATUS_LINE_n_UINT8 and STATUS_LEVELS_UINT8 are deliberately absent: the bake
- * WRITES those.
+ * STATUS_LINE_n_UINT8, STATUS_LEVELS_UINT8 and ALERT_ENTRIES_UINT8 are
+ * deliberately absent: the bake WRITES those.
  *
  * Exported because status-rebake.js persists exactly this slice of the payload
  * so a charging event can re-bake after a PKJS restart. It lives HERE, next to
@@ -644,6 +646,7 @@ var SOURCE_KEYS = [
 module.exports = {
   buildStatusLines: buildStatusLines,
   SOURCE_KEYS: SOURCE_KEYS,
+  ALERT_ENTRIES_CAP: ALERT_ENTRIES_CAP,
   packLine: packLine,
   formatValue: formatValue,
   formatCountdown: formatCountdown,

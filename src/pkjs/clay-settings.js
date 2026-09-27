@@ -80,10 +80,6 @@ function resetAll() {
     // pair, the user switches it OFF — pair kept), and that boot would turn the OFF
     // back ON.
     localStorage.setItem(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY, '1');
-    // And for the 1.24.0 Alerts-row placement: the next blob gets the Alerts row
-    // from the fresh top-left default already, so an 'empty' saved there from here
-    // on was picked, and an unmarked boot would put the row back over it.
-    localStorage.setItem(KEYS.ALERTS_TOP_LEFT_MIGRATION_KEY, '1');
     return keep;
 }
 

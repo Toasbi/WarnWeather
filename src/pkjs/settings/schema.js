@@ -849,30 +849,9 @@ var ALERT_LEVELS = {
 // load-bearing since the rows moved off the Radar tab: that tab is env-hidden on
 // aplite, the Status slots tab is not.
 var RAIN_ALERT_WHEN = {all: [{key: 'radarMode', ne: 'off'}, {env: 'platform', ne: 'aplite'}]};
-// "Some status slot holds the Alerts item" — one leaf per configurable slot, from the
-// catalog, so a slot added to a bar is covered without touching this list.
-var ALERTS_SLOT_WHEN = STATUS_LINE_CATALOG.allSlotKeys().map(function (slotKey) {
-    return {key: slotKey, eq: 'alerts'};
-});
-// The same leaves split by bar: the top bar's three, and the nine of the bars the
-// Default view never drops (forecast, radar, health).
-var ALERTS_TOP_WHEN = ALERTS_SLOT_WHEN.filter(function (leaf) {
-    return STATUS_LINE_CATALOG.lineOf(leaf.key).id === 'top';
-});
-var ALERTS_BAR_WHEN = ALERTS_SLOT_WHEN.filter(function (leaf) {
-    return STATUS_LINE_CATALOG.lineOf(leaf.key).id !== 'top';
-});
-// "The Default view hides the top bar" — the view the watch rests on. Weather only
-// drops it unless the radar is in countdown mode (view-cycle.js buildViewCycle:
-// WO_RADAR / WO_RADAR_S / WO_PLAIN set stripOff, NONE_FC_W keeps the bar for the
-// countdown); a custom layout drops it with its view 0's viewStripOff0.
-var DEFAULT_VIEW_STRIP_OFF_WHEN = {any: [
-    {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {key: 'radarMode', ne: 'countdown'}]},
-    {all: [{key: 'layoutPreset', eq: 'custom'}, {key: 'viewStripOff0'}]}
-]};
 // The Alerts card's two rows for one metric alert kind. The toggle puts the kind's
 // icon into the watch's Alerts row whenever today reaches its warn level (the phone
-// bakes the entry into the alerts slot's own bytes, status-thresholds.js
+// bakes the entry into its ALERT_ENTRIES_UINT8 tuple, status-thresholds.js
 // bakeAlerts); its pencil opens the levels-only sheet (alertSheet) on the SAME
 // levels the slot's pencil sheet edits, and its hint prints those levels live
 // (blocks.js alertLevelsHint). The Look row
@@ -2018,28 +1997,6 @@ module.exports = {
             showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
             intro: 'One icon per active alert in the Alerts row, highlighted like a status slot: an outline at warn, filled at danger, in that value\'s colors. Rain shows in the radar\'s rain color.',
             items: [{
-                // The placement nudge: the row draws only where a status slot holds the
-                // 'alerts' item. Fresh installs and still-default upgrades have it
-                // top-left (the catalog default + migrateAlertsTopLeft); everyone who
-                // had filled that slot deliberately is left alone and lands here. The
-                // hydrate resolves unset slot keys to their defaults, so the test
-                // reads the slots the watch actually shows. THRESHOLD_WHEN: the item
-                // is notAplite, so aplite can never place it — no nudge there.
-                type: 'staticText',
-                text: 'The Alerts row is not in any status bar yet — pick Alerts in a slot below.',
-                showWhen: {all: [THRESHOLD_WHEN, {not: {any: ALERTS_SLOT_WHEN}}]}
-            }, {
-                // The same nudge for a row that IS placed but only in the top bar while
-                // the Default view hides that bar (Weather only, or a custom view 0
-                // without it): the row never draws on the resting view, so the metric
-                // alerts switched on below would stay silent there. A copy in any other
-                // bar draws, so the note steps aside. Flick views may still show the
-                // top bar, so the copy speaks of the Default view only.
-                type: 'staticText',
-                text: 'The Default view hides the top bar, and with it the Alerts row — pick Alerts in another status bar below.',
-                showWhen: {all: [THRESHOLD_WHEN, {any: ALERTS_TOP_WHEN}, {not: {any: ALERTS_BAR_WHEN}},
-                    DEFAULT_VIEW_STRIP_OFF_WHEN]}
-            }, {
                 // Moved here from the Radar tab; key, default and gate unchanged.
                 // Its Off option is back (132b577a had dropped it when radarMode took
                 // over the radar's on/off): the rain alert's on/off IS this select —

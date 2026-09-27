@@ -92,6 +92,26 @@ function alertCodesReport(safe, pick) {
 }
 
 /**
+ * Where each status bar shows the Alerts row: one letter per bar in the bars' wire
+ * order (top, forecast, radar, health) — o off, l left, m middle, r right. So
+ * 'looo' is an untouched install (the strip left, the rest off), 'oooo' every bar
+ * off, 'loro' the strip left and the radar bar right. Absent keys resolve to their defaults, the placement the watch
+ * actually draws (status-thresholds barAlertPlace). Four characters, never a
+ * 'top:left,radar:right' list: the heaviest envelope sits 34 B under the ingest's
+ * MAX_BODY_BYTES, and four bars at 'middle' spelled out would cost 50 B more.
+ * @param {Object} safe Settings blob (never null).
+ * @returns {string} e.g. 'looo' on an untouched install.
+ */
+function alertBarsReport(safe) {
+    var out = '';
+    var bars = statusThresholds.BAR_ALERT_KEYS;
+    for (var i = 0; i < bars.length; i++) {
+        out += statusThresholds.barAlertPlace(safe, bars[i].bar).charAt(0);
+    }
+    return out;
+}
+
+/**
  * Build a compact, allowlisted settings snapshot for telemetry.
  *
  * @param {Object} settings Clay settings object.
@@ -186,6 +206,10 @@ function buildSettingsSnapshot(settings, watchInfo) {
         alertKinds: alertCodesReport(safe, statusThresholds.alertKindCodes),
         alertValueKinds: alertCodesReport(safe, statusThresholds.alertValueKindCodes),
         rainAlertDisplay: safe.rainAlertDisplay,
+        // Where each bar places the row (see alertBarsReport), and the rain alert's
+        // switch — on by default like radarSky: a missing key is on.
+        alertBars: alertBarsReport(safe),
+        alertRain: safe.alertRain !== false,
         // The battery saver's window — the saver's OWN pair, as it has always been;
         // the Nighttime card groups it with two other features but shares no hours
         // with them. Present only while the saver is on ("value in effect"), which is

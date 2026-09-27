@@ -17,6 +17,10 @@
 #include "rain_countdown.h"
 #include "memory_log.h"
 #include "status_line.h"
+// Unguarded on purpose: declarations only (nothing is emitted), and waf's dependency
+// scanner cannot see an include inside a -D guard (night_light.c). Only the
+// handler below is WW_ALERT_ROW-guarded.
+#include "alert_set.h"
 #if defined(WW_THRESHOLD_HIGHLIGHT)
 #include "status_threshold.h"
 #endif
@@ -194,6 +198,26 @@ static bool handle_thresholds(DictionaryIterator *iterator, bool *status_dirty) 
     return true;
 }
 #endif  // WW_THRESHOLD_HIGHLIGHT
+
+#if defined(WW_ALERT_ROW)
+// The Alerts row's metric entries — ride the weather message's status category
+// next to the levels (the phone judges the alerts; the watch has no raw values).
+// An empty array means nothing is alerting and clears the stored entries; a
+// malformed one is dropped and the last good entries stay.
+static bool handle_alert_entries(DictionaryIterator *iterator, bool *status_dirty) {
+    Tuple *tuple = dict_find(iterator, MESSAGE_KEY_ALERT_ENTRIES_UINT8);
+    if (!tuple) { return false; }
+    if (tuple->type != TUPLE_BYTE_ARRAY
+            || !alert_set_bytes_ok(tuple->value->data, tuple->length)) {
+        APP_LOG(APP_LOG_LEVEL_WARNING,
+                "Alert entries malformed (%u bytes) — skipping",
+                (unsigned) tuple->length);
+        return true;
+    }
+    *status_dirty |= persist_set_alert_entries(tuple->value->data, tuple->length);
+    return true;
+}
+#endif  // WW_ALERT_ROW
 
 #if defined(WW_FETCH_NOTICE)
 static bool handle_notice(DictionaryIterator *iterator, bool *notice_dirty) {
@@ -616,6 +640,11 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_status_levels(iterator, &status_dirty);
     handled |= handle_thresholds(iterator, &status_dirty);
 #endif
+#if defined(WW_ALERT_ROW)
+    // aplite has no Alerts row (the lean status-row twin draws none) and the phone
+    // never sends it the tuple.
+    handled |= handle_alert_entries(iterator, &status_dirty);
+#endif
     handled |= handle_sun_events(iterator, &forecast_dirty, &status_dirty);
 #if defined(WW_RAIN_RADAR)
     // aplite has no radar layer (--gc-sections reaps rain_radar_layer.c), so it
@@ -723,9 +752,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #if defined(WW_RAIN_RADAR)
         rain_radar_layer_refresh();
 #endif
-        // Any row holding an Alerts slot carries the rain entry, which it derives from
-        // the countdown rescanned above — the strip (top-left by default) and any band
-        // row the user placed the Alerts slot in. They refresh for the rescan here —
+        // Any row showing the Alerts row carries the rain entry, which it derives from
+        // the countdown rescanned above — the strip (left by default) and any band
+        // row whose bar the user gave an Alerts placement. They refresh for the rescan here —
         // unless an earlier block already refreshed them AFTER that rescan and they
         // therefore already carry the fresh countdown. Both do: the config block's
         // whole-window refresh, and the status block's refresh of every bar plus the
@@ -833,7 +862,10 @@ void app_message_init() {
     // Every other platform has heap to spare and carries the extra metric lines
     // (test/inbox-size.test.js sizes each platform's heaviest bundle against its
     // own value here).
-    const int inbox_size = 600;
+    // 640 (was 600): the Alerts row's ALERT_ENTRIES_UINT8 tuple rides the status
+    // category — 7 B of tuple header + up to 20 entry bytes. aplite stays at 536:
+    // it has no Alerts row and never receives the tuple.
+    const int inbox_size = 640;
 #endif
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));
     APP_LOG(APP_LOG_LEVEL_INFO, "AppMessage buffer sizes: inbox=%d outbox=%d", inbox_size, outbox_size);

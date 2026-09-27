@@ -43,7 +43,7 @@ static void parse_tests(void) {
     expect("parse.0.kind", set.entries[0].kind, THRESH_UV);
     expect("parse.0.level", set.entries[0].level, THRESH_LEVEL_DANGER);
     expect("parse.0.len", set.entries[0].value_len, 1);
-    // Values point INTO the buffer (not copies): the StatusSlotView contract.
+    // Values point INTO the buffer (not copies): the set lives as long as it.
     expect("parse.0.value_ptr", set.entries[0].value == (const char *)&bytes[1], 1);
     expect("parse.0.rain", set.entries[0].rain, 0);
     expect("parse.1.kind", set.entries[1].kind, THRESH_WIND);
@@ -57,7 +57,7 @@ static void parse_tests(void) {
     expect("parse.3.len", set.entries[3].value_len, 3);
     expect("parse.3.value_ptr", set.entries[3].value == (const char *)&bytes[7], 1);
 
-    // Zero bytes: an alerts slot with nothing alerting.
+    // Zero bytes: nothing alerting.
     expect("parse.empty", alert_set_parse(bytes, 0, &set), 0);
     expect("parse.null_bytes", alert_set_parse(NULL, 4, &set), 0);
     expect("parse.null_out", alert_set_parse(bytes, sizeof(bytes), NULL), 0);
@@ -90,6 +90,51 @@ static void parse_tests(void) {
     uint8_t many[9];
     for (int i = 0; i < 9; i++) { many[i] = header(THRESH_UV, THRESH_LEVEL_WARN, 0); }
     expect("parse.cap", alert_set_parse(many, sizeof(many), &set), ALERT_SET_MAX);
+}
+
+// alert_set_bytes_ok: what app_message.c lets into persist from the
+// ALERT_ENTRIES_UINT8 tuple (the checks the status-line walker ran while the row
+// was a slot kind, now on the tuple of its own).
+static void bytes_ok_tests(void) {
+    uint8_t e[24];
+    expect("ok.empty", alert_set_bytes_ok(NULL, 0), 1);
+    expect("ok.null_with_len", alert_set_bytes_ok(NULL, 2), 0);
+
+    // Icon-only UV danger + wind warn: two header bytes.
+    e[0] = header(THRESH_UV, THRESH_LEVEL_DANGER, 0);
+    e[1] = header(THRESH_WIND, THRESH_LEVEL_WARN, 0);
+    expect("ok.icons", alert_set_bytes_ok(e, 2), 1);
+
+    // All five with their widest values: UV "11", wind "120", gust "130",
+    // AQI "500", pollen "2-3" = 5 + 14 = 19 B, under the 20-B cap.
+    size_t n = 0;
+    e[n++] = header(THRESH_UV, THRESH_LEVEL_DANGER, 2); e[n++] = '1'; e[n++] = '1';
+    e[n++] = header(THRESH_WIND, THRESH_LEVEL_WARN, 3); e[n++] = '1'; e[n++] = '2'; e[n++] = '0';
+    e[n++] = header(THRESH_GUST, THRESH_LEVEL_WARN, 3); e[n++] = '1'; e[n++] = '3'; e[n++] = '0';
+    e[n++] = header(THRESH_AQI, THRESH_LEVEL_DANGER, 3); e[n++] = '5'; e[n++] = '0'; e[n++] = '0';
+    e[n++] = header(THRESH_POLLEN, THRESH_LEVEL_WARN, 3); e[n++] = '2'; e[n++] = '-'; e[n++] = '3';
+    expect("ok.widest_len", (long)n, 19);
+    expect("ok.widest", alert_set_bytes_ok(e, n), 1);
+    expect("ok.cap_pinned", ALERT_ENTRIES_MAX_BYTES, 20);
+    // 21 B is past the cap whatever it holds.
+    memset(e, header(THRESH_UV, THRESH_LEVEL_WARN, 0), sizeof(e));
+    expect("ok.cap20", alert_set_bytes_ok(e, 20), 1);
+    expect("ok.cap21.reject", alert_set_bytes_ok(e, 21), 0);
+
+    // A declared value length past the end is malformed, not a truncated value.
+    e[0] = header(THRESH_AQI, THRESH_LEVEL_WARN, 3); e[1] = '1'; e[2] = '5';
+    expect("ok.value_past_len.reject", alert_set_bytes_ok(e, 3), 0);
+    // ...a second entry's overrun too.
+    e[0] = header(THRESH_UV, THRESH_LEVEL_WARN, 0);
+    e[1] = header(THRESH_WIND, THRESH_LEVEL_WARN, 7); e[2] = '4';
+    expect("ok.second_overrun.reject", alert_set_bytes_ok(e, 3), 0);
+    // Value bytes are printable ASCII only.
+    e[0] = header(THRESH_UV, THRESH_LEVEL_WARN, 1); e[1] = 0x01;
+    expect("ok.value_control.reject", alert_set_bytes_ok(e, 2), 0);
+    e[1] = 0xC2;
+    expect("ok.value_high.reject", alert_set_bytes_ok(e, 2), 0);
+    e[1] = '8';
+    expect("ok.value_digit", alert_set_bytes_ok(e, 2), 1);
 }
 
 static void icon_tests(void) {
@@ -258,6 +303,7 @@ static void rain_minutes_tests(void) {
 
 int main(void) {
     parse_tests();
+    bytes_ok_tests();
     icon_tests();
     prepend_rain_tests();
     fit_tests();

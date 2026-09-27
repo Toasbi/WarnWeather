@@ -10,10 +10,7 @@
   var KINDS = {
     EMPTY: 0, TEXT: 1, LIVE_DATE: 2,
     LIVE_STEPS: 3, LIVE_HR: 4, LIVE_SLEEP: 5, LIVE_DISTANCE: 6, LIVE_WEEK: 7,
-    LIVE_DISTANCE_MI: 8, LIVE_BATTERY: 9, LIVE_BATTERY_PCT: 10,
-    // The Alerts row: watch-drawn, its value bytes the phone-baked metric-alert
-    // entries (status-thresholds.js bakeAlerts; encoding in status_line.h).
-    ALERTS: 11
+    LIVE_DISTANCE_MI: 8, LIVE_BATTERY: 9, LIVE_BATTERY_PCT: 10
   };
   var ICONS = {
     NONE: 0, DRAWN_SUN: 1, TEMP: 2, UV: 3, WIND: 4, GUST: 5,
@@ -40,13 +37,6 @@
 
   var ITEMS = [
     { code: 'empty', label: 'Empty', kind: KINDS.EMPTY, icon: ICONS.NONE },
-    // The Alerts row: an icon per active alert (rain, and every metric alert at its
-    // warn level or higher), growing into the neighbouring slot when it needs the
-    // room. Never on aplite (the lean status-row twin has no alert row), and never
-    // top-right: the low-battery override owns that slot and would hide the row
-    // exactly when the watch is running out.
-    { code: 'alerts', label: 'Alerts', kind: KINDS.ALERTS, icon: ICONS.NONE, category: 'alerts',
-      notAplite: true, notTopRight: true },
     // Slashed like its neighbour 'Sunrise/sunset': one slot, two readings. It is the
     // only hint in the dropdown that this slot has a choice behind it — its edit sheet
     // picks actual, feels-like, or both — and without it the row reads as a fixed
@@ -101,10 +91,7 @@
   // but exist only where the phone can report its charge (needsPhoneBattery,
   // Android-only) and never on aplite. The labels carry the Watch/Phone
   // qualifier because all four otherwise read as "battery".
-  // 'alerts' comes FIRST and holds one item, so it collapses to a plain row right
-  // under Empty — the first thing in every slot sheet.
   var CATEGORIES = [
-    ['alerts', 'Alerts'],
     ['weather', 'Weather'], ['datelocation', 'Date and location'],
     ['health', 'Health'], ['battery', 'Battery']
   ];
@@ -118,16 +105,15 @@
       defaults: { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' } },
     { id: 'top', wireKey: 'STATUS_LINE_3_UINT8',
       slots: ['statusTopLeft', 'statusTopMid', 'statusTopRight'],
-      // The strip beside the clock, and the one row on screen in EVERY view — which
-      // is why the Alerts row lives in its left slot by default: an idle row draws
-      // nothing, and an active one grows into the date's slot when it needs the
-      // room. emery's 200 px display is the only one with the width to carry three
-      // readings there, so it keeps the three-up row (the calendar week gave up its
-      // corner; it stays selectable); on the 144/180 px platforms the strip ships
-      // the date with the battery in its corner (the corner that already reads as
-      // the battery — see the topRightOnly items).
-      defaults: { statusTopLeft: 'alerts', statusTopMid: 'date', statusTopRight: 'battery' },
-      emeryDefaults: { statusTopLeft: 'alerts', statusTopMid: 'date', statusTopRight: 'sun' } },
+      // The strip beside the clock, and the one row on screen in EVERY view. emery's
+      // 200 px display is the only one with the width to carry three readings there,
+      // so it keeps the three-up row; on the 144/180 px platforms the strip ships the
+      // date alone with the battery in its corner (the corner that already reads as
+      // the battery — see the topRightOnly items). That leaves the left slot free,
+      // which is where the wizard's steps promotion lands on those platforms
+      // (defaults-policy.js wizard-health-slots-compact).
+      defaults: { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' },
+      emeryDefaults: { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' } },
     { id: 'health', wireKey: 'STATUS_LINE_4_UINT8',
       slots: ['statusHealthLeft', 'statusHealthMid', 'statusHealthRight'],
       // Non-HR platforms (basalt/chalk/aplite): leave the middle empty and show
@@ -161,10 +147,6 @@
     if (!item) { return false; }
     if (item.middleOnly && (!slotCtx || slotCtx.position !== 'mid')) { return false; }
     if (item.topRightOnly && (!slotCtx || slotCtx.slotKey !== 'statusTopRight')) { return false; }
-    // The inverse gate: never the top-right slot, whose low-battery override would
-    // replace the item with the battery glyph (the Alerts row). Unlike topRightOnly
-    // it needs no slot context to pass — an unknown slot is not the top-right one.
-    if (item.notTopRight && slotCtx && slotCtx.slotKey === 'statusTopRight') { return false; }
     if (item.needsHealth) {
       if (!env || !env.health) { return false; }
       if (settings && settings.healthMode === 'off') { return false; }
@@ -180,8 +162,7 @@
     // Items whose watch-side C rendering is compiled out on aplite (frozen
     // image budget): batteryPct — the lean status-row twin never learned kind
     // 10, and aplite's glyph battery slot already renders as "NN%" text anyway
-    // — the two phone-battery items, which ship no aplite glyph at all, and the
-    // Alerts row (kind 11: no WW_ALERT_ROW on aplite).
+    // — and the two phone-battery items, which ship no aplite glyph at all.
     // (Calendar-week used this gate once — the watch-side iso_week() is
     // aplite-excluded — but the phone now bakes that slot as phone-side TEXT
     // for aplite instead; status-lines.js.)
@@ -336,20 +317,11 @@
     for (var l = 0; l < LINES.length; l++) {
       var line = LINES[l];
       if (line.slots.indexOf(slotKey) === -1) { continue; }
-      var code;
       if (env && env.platform === 'emery' && line.emeryDefaults) {
-        code = line.emeryDefaults[slotKey];
-      } else if (env && env.hr && line.hrDefaults) {
-        code = line.hrDefaults[slotKey];
-      } else {
-        code = line.defaults[slotKey];
+        return line.emeryDefaults[slotKey];
       }
-      // A default the platform cannot show is Empty there (the Alerts row on
-      // aplite), so the page's hydrated value is one its slot sheet offers and
-      // matches what the bake resolves anyway. Env-free callers keep the table.
-      var item = byCode(code);
-      if (item && item.notAplite && env && env.platform === 'aplite') { return 'empty'; }
-      return code;
+      if (env && env.hr && line.hrDefaults) { return line.hrDefaults[slotKey]; }
+      return line.defaults[slotKey];
     }
     return undefined;
   }

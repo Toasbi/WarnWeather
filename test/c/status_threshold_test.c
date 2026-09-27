@@ -147,10 +147,10 @@ static void blob_tests(void) {
     blob[THRESH_HEALTH_OFFSET + 3] = 0x0F;
 
     expect("blob.valid", status_threshold_settings_validate(blob, sizeof(blob)), 1);
-    // sizeof - 1 = 34 (pre-alerts) and sizeof - 2 = 33 (16-kind) are accepted
-    // legacy lengths, not truncations (see legacy_blob_tests); the nearest
-    // genuinely short length is 32.
-    expect("blob.short", status_threshold_settings_validate(blob, sizeof(blob) - 3), 0);
+    // sizeof - 1 = 35 (pre-placement), sizeof - 2 = 34 (pre-alerts) and
+    // sizeof - 3 = 33 (16-kind) are accepted legacy lengths, not truncations (see
+    // legacy_blob_tests); the nearest genuinely short length is 32.
+    expect("blob.short", status_threshold_settings_validate(blob, sizeof(blob) - 4), 0);
     expect("blob.null", status_threshold_settings_validate(NULL, sizeof(blob)), 0);
     expect("blob.aqi_on", status_threshold_enabled(blob, sizeof(blob), THRESH_AQI), 1);
     expect("blob.wind_off", status_threshold_enabled(blob, sizeof(blob), THRESH_WIND), 0);
@@ -332,19 +332,21 @@ static void bold_tests(void) {
            status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY_PLAIN, THRESH_LEVEL_NORMAL), 1);
 
     // The blob width is pinned: byte 33's four cells cover kinds 16..19, and
-    // the only widening since is the alerts byte (34 -> 35) — every extra byte
-    // rides the Clay message on every settings send (see test/inbox-size.test.js).
-    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 35);
+    // the only widening since is the two alert bytes (34 -> 36) — every extra
+    // byte rides the Clay message on every settings send (see
+    // test/inbox-size.test.js).
+    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 36);
     expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 20);
     expect("bold.top_kind_inside_bold_area",
            THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2) < THRESH_ALERTS_OFFSET, 1);
-    // Byte 33 is FULL — kinds 16..19 claim all four cells — and the alerts byte
-    // sits right after it, so kind 20 is a layout change (a sixth bold byte AND
-    // a relocated alerts byte), not an append. status_threshold.h's
-    // _Static_assert is the compile-time half of this pin.
+    // Byte 33 is FULL — kinds 16..19 claim all four cells — and the alert bytes
+    // sit right after it, so kind 20 is a layout change (a sixth bold byte AND
+    // both alert bytes relocated), not an append. status_threshold.h's
+    // _Static_asserts are the compile-time half of this pin.
     expect("bold.byte33_is_the_last_bold_byte",
            THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2), THRESH_ALERTS_OFFSET - 1);
-    expect("bold.alerts_byte_is_last", THRESH_ALERTS_OFFSET, THRESH_SETTINGS_BYTES - 1);
+    expect("bold.alerts_bytes_follow", THRESH_BAR_ALERTS_OFFSET, THRESH_ALERTS_OFFSET + 1);
+    expect("bold.bar_alerts_byte_is_last", THRESH_BAR_ALERTS_OFFSET, THRESH_SETTINGS_BYTES - 1);
     expect("bold.byte33_full", THRESH_KIND_COUNT % 4, 0);
 
     // Degrade safely: the reserved wire value, a bad blob and a slot with no
@@ -406,12 +408,13 @@ static void legacy_blob_tests(void) {
     // blob reads invalid until the phone re-syncs the 33-B one.
     expect("legacy.reject_31", status_threshold_settings_validate(blob, 31), 0);
     expect("legacy.reject_32", status_threshold_settings_validate(blob, 32), 0);
-    // The accepted set is exactly {35, 34, 33, 29}. A 36-byte blob is a blob
+    // The accepted set is exactly {36, 35, 34, 33, 29}. A 37-byte blob is a blob
     // from a FUTURE, wider format: reject it until that widening actually
     // happens (see status_threshold.h).
+    expect("legacy.accept_36", status_threshold_settings_validate(blob, 36), 1);
     expect("legacy.accept_35", status_threshold_settings_validate(blob, 35), 1);
     expect("legacy.accept_34", status_threshold_settings_validate(blob, 34), 1);
-    expect("legacy.reject_36", status_threshold_settings_validate(blob, 36), 0);
+    expect("legacy.reject_37", status_threshold_settings_validate(blob, 37), 0);
 
     // A 33-byte blob (16-kind bold era, every current install at upgrade time)
     // keeps kinds 0..15's bold settings and reads kind 16 as the default.
@@ -473,6 +476,66 @@ static void rain_display_tests(void) {
            THRESH_RAIN_DISPLAY_TEXT);
     expect("rain.bad_len", status_threshold_rain_display(blob, 27), THRESH_RAIN_DISPLAY_TEXT);
     expect("rain.null", status_threshold_rain_display(NULL, n), THRESH_RAIN_DISPLAY_TEXT);
+    // The placement byte next door never leaks into the look.
+    blob[THRESH_ALERTS_OFFSET] = 1;
+    blob[THRESH_BAR_ALERTS_OFFSET] = 0xFF;
+    expect("rain.placement_no_alias", status_threshold_rain_display(blob, n),
+           THRESH_RAIN_DISPLAY_ICON);
+}
+
+// The placement byte [35]: 2 bits per bar (top 0-1, forecast 2-3, radar 4-5,
+// health 6-7), 0 off / 1 left / 2 middle / 3 right. A blob without it (35 B and
+// shorter) reads what the watch drew before the byte: the strip's left-slot
+// takeover, no row anywhere else.
+static void bar_alerts_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    expect("bars.offset_pinned", THRESH_BAR_ALERTS_OFFSET, 35);
+    expect("bars.pre_pinned", THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS, 35);
+    expect("bars.count", THRESH_BAR_COUNT, 4);
+    // All zero: every bar off, the strip too (an explicit Off is honoured).
+    for (int bar = 0; bar < THRESH_BAR_COUNT; bar++) {
+        expect("bars.zero_off", status_threshold_bar_alerts(blob, n, bar), THRESH_ALERTS_OFF);
+    }
+    // top left, forecast middle, radar right, health off.
+    blob[THRESH_BAR_ALERTS_OFFSET] = (uint8_t)(THRESH_ALERTS_LEFT
+        | (THRESH_ALERTS_MIDDLE << 2) | (THRESH_ALERTS_RIGHT << 4) | (THRESH_ALERTS_OFF << 6));
+    expect("bars.top_left", status_threshold_bar_alerts(blob, n, THRESH_BAR_TOP), THRESH_ALERTS_LEFT);
+    expect("bars.forecast_middle",
+           status_threshold_bar_alerts(blob, n, THRESH_BAR_FORECAST), THRESH_ALERTS_MIDDLE);
+    expect("bars.radar_right",
+           status_threshold_bar_alerts(blob, n, THRESH_BAR_RADAR), THRESH_ALERTS_RIGHT);
+    expect("bars.health_off",
+           status_threshold_bar_alerts(blob, n, THRESH_BAR_HEALTH), THRESH_ALERTS_OFF);
+    // The top cell of the byte is the health bar's.
+    blob[THRESH_BAR_ALERTS_OFFSET] = (uint8_t)(THRESH_ALERTS_RIGHT << 6);
+    expect("bars.health_right",
+           status_threshold_bar_alerts(blob, n, THRESH_BAR_HEALTH), THRESH_ALERTS_RIGHT);
+    expect("bars.top_off_explicit",
+           status_threshold_bar_alerts(blob, n, THRESH_BAR_TOP), THRESH_ALERTS_OFF);
+    // The rain look next door never leaks into the placement.
+    blob[THRESH_ALERTS_OFFSET] = 0xFF;
+    blob[THRESH_BAR_ALERTS_OFFSET] = 0;
+    expect("bars.rain_no_alias", status_threshold_bar_alerts(blob, n, THRESH_BAR_TOP),
+           THRESH_ALERTS_OFF);
+    // Out-of-range bars are off.
+    expect("bars.oob_neg", status_threshold_bar_alerts(blob, n, -1), THRESH_ALERTS_OFF);
+    expect("bars.oob_4", status_threshold_bar_alerts(blob, n, THRESH_BAR_COUNT), THRESH_ALERTS_OFF);
+    // Shorter accepted blobs, a bad length and NULL: the pre-placement picture —
+    // the strip left, everything else off — never a read past the end.
+    size_t lens[] = { THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS, THRESH_SETTINGS_BYTES_PRE_ALERTS,
+                      THRESH_SETTINGS_BYTES_PRE_KIND16, THRESH_SETTINGS_BYTES_PRE_BOLD, 27 };
+    for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
+        expect("bars.short_top_left",
+               status_threshold_bar_alerts(blob, lens[i], THRESH_BAR_TOP), THRESH_ALERTS_LEFT);
+        expect("bars.short_radar_off",
+               status_threshold_bar_alerts(blob, lens[i], THRESH_BAR_RADAR), THRESH_ALERTS_OFF);
+    }
+    expect("bars.null_top_left",
+           status_threshold_bar_alerts(NULL, n, THRESH_BAR_TOP), THRESH_ALERTS_LEFT);
+    expect("bars.null_health_off",
+           status_threshold_bar_alerts(NULL, n, THRESH_BAR_HEALTH), THRESH_ALERTS_OFF);
 }
 
 static void health_value_tests(void) {
@@ -520,6 +583,7 @@ int main(void) {
     bold_tests();
     legacy_blob_tests();
     rain_display_tests();
+    bar_alerts_tests();
     health_value_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }
     printf("status_threshold_test OK\n");

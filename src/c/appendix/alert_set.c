@@ -17,6 +17,22 @@ uint8_t alert_set_icon(int kind) {
     }
 }
 
+bool alert_set_bytes_ok(const uint8_t *bytes, size_t len) {
+    if (len > ALERT_ENTRIES_MAX_BYTES) { return false; }
+    if (len > 0 && !bytes) { return false; }
+    size_t i = 0;
+    while (i < len) {
+        size_t n = (size_t)(bytes[i] >> STATUS_ALERT_LEN_SHIFT);
+        i++;
+        if (n > len - i) { return false; }
+        for (size_t k = 0; k < n; k++) {
+            if (bytes[i + k] < 0x20 || bytes[i + k] > 0x7E) { return false; }
+        }
+        i += n;
+    }
+    return true;
+}
+
 int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out) {
     if (!out) { return 0; }
     out->count = 0;

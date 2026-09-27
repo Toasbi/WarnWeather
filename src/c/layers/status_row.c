@@ -353,12 +353,9 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
         memcpy(buf, slot->value, n);
         buf[n] = '\0';
         return dir;
-    } else if (slot->kind == SLOT_EMPTY || slot->kind == SLOT_LIVE_BATTERY
-               || slot->kind == SLOT_ALERTS) {
+    } else if (slot->kind == SLOT_EMPTY || slot->kind == SLOT_LIVE_BATTERY) {
         // Glyph battery is icon-only; SLOT_LIVE_BATTERY_PCT must NOT join this
-        // arm — it renders its charge as text via format_live_value below. An
-        // Alerts slot has no text of its own either: its value bytes are entries,
-        // which resolve_alerts() reads and status_alerts.c paints.
+        // arm — it renders its charge as text via format_live_value below.
         buf[0] = '\0';
     } else {
         format_live_value(row, slot->kind, buf, cap);
@@ -533,6 +530,12 @@ static int resolve_row(const StatusRow *row, ResolvedSlot out[STATUS_SLOT_COUNT]
 #if defined(WW_ALERT_ROW)
 // rain_countdown_format()'s buffer contract: "Downpour for +99'" + NUL.
 #define RAIN_TEXT_CAP 20
+
+// Interim: the Alerts row is no longer a slot kind (the walker rejects kind 11
+// again) — it becomes a per-bar takeover placed by the thresholds blob's
+// placement byte, with its entries in the ALERT_ENTRIES tuple. Until the draw
+// pass is rewired to that, no slot carries this kind, so the row stays idle.
+#define ALERTS_SLOT_KIND_RETIRED 0xFF
 
 // An Alerts slot resolved for one pass: the entries (the phone-baked metric alerts,
 // with the watch-resolved rain entry in front) and what their text lanes print.
@@ -754,7 +757,7 @@ bool status_row_refresh(StatusRow *row) {
 #if defined(WW_ALERT_ROW)
             // The first Alerts slot is the row's (the phone dedupes slots per
             // line; a second one measures absent in the draw and folds nothing).
-            if (slot->kind == SLOT_ALERTS && !row->uses_alerts) {
+            if (slot->kind == ALERTS_SLOT_KIND_RETIRED && !row->uses_alerts) {
                 row->uses_alerts = true;
                 ResolvedAlerts alerts;
                 resolve_alerts(slot, &alerts);
@@ -1028,7 +1031,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     alerts.slot = -1;
     alerts.n = 0;
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        if (slots[i].slot.kind == SLOT_ALERTS) { alerts.slot = i; break; }
+        if (slots[i].slot.kind == ALERTS_SLOT_KIND_RETIRED) { alerts.slot = i; break; }
     }
     if (alerts.slot >= 0) {
         resolve_alerts(&slots[alerts.slot].slot, &alerts.r);

@@ -23,7 +23,6 @@ module.exports = {
     FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY: 'v1.23.1_fifth_line_style_default_migration',
     STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY: 'v1.23.1_stripe_metric_rule_resend_migration',
     THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY: 'v1.24.0_threshold_highlight_toggle_migration',
-    ALERTS_TOP_LEFT_MIGRATION_KEY: 'v1.24.0_alerts_top_left_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

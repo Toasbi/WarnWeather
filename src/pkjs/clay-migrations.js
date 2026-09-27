@@ -118,11 +118,6 @@ function runMigrations(opts) {
     migrateStatusTopRightBattery(
         isDone(KEYS.STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY),
         mark(KEYS.STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY));
-    // Slot selections ride the weather bake, not Clay, and the rain look it hands the
-    // row defaults to today's text: marks synchronously and asks for no send.
-    migrateAlertsTopLeft(opts.platform,
-        isDone(KEYS.ALERTS_TOP_LEFT_MIGRATION_KEY),
-        mark(KEYS.ALERTS_TOP_LEFT_MIGRATION_KEY));
     migrateRadarProviderToMode(opts.defaultRadarProvider,
         isDone(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY),
         mark(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY));
@@ -658,65 +653,6 @@ function migrateStatusTopRightBattery(isMigrationDone, markDone) {
 }
 
 /**
- * One-time 1.24.0 placement of the Alerts row in the top strip's left slot — the
- * new fresh-install default (status-line-catalog.js LINES.top) — for installs that
- * still hold a default there. The row replaces the strip's old rain takeover, so an
- * install that does not get it loses the rain countdown it had. Rewrites only:
- *   (a) statusTopLeft 'empty' -> 'alerts', on every platform that has the row (all
- *       but aplite, where the item does not exist). An UNSET slot needs no write:
- *       it already resolves to the new default (slotDefault), so a fresh seeded
- *       blob stays exactly as seeded. On emery 'empty' was not the default, so this
- *       can override a deliberate pick — taken anyway because an idle Alerts row
- *       draws nothing: the slot still looks empty until something alerts
- *       (migrateStatusTopRightBattery made the same call);
- *   (b) 'week' -> 'alerts' on EMERY ONLY, where the calendar week was the shipped
- *       default. Nothing else ever writes 'week' (no wizard rule does), so on every
- *       other platform it is a deliberate pick and stays. The index.js fallback
- *       platform when watchInfo is unreadable is basalt, so an unknown watch keeps
- *       its week — the safe direction;
- *   (c) the 144/180 px wizard-with-health cohort: statusTopLeft 'steps' AND
- *       statusHealthLeft 'distance' (the retired wizard-health-slots-compact rule's
- *       exact footprint) AND healthMode 'status' or 'all' (the health bar is on
- *       screen) -> top-left 'alerts', health-left back to 'steps'. The wizard's
- *       distance filler is dropped and steps stays on the face. Not on emery: its
- *       wizard promoted steps top-RIGHT, so this pair there was picked by hand;
- *   (d) anything else is left alone — the Alerts card nudges those users to place
- *       the row themselves.
- * No Clay resend: slot selections ride the weather bake, and the row's rain look
- * (rainAlertDisplay) defaults to today's text while every metric alert defaults
- * off, so an untouched upgrade renders exactly today's rain-only behaviour.
- * @param {string} platform watch platform name ('emery', 'basalt', ...)
- * @param {function(): boolean} isMigrationDone marker probe
- * @param {function()} markDone marker setter
- * @returns {void}
- */
-function migrateAlertsTopLeft(platform, isMigrationDone, markDone) {
-    var persistClay = loadForMigration(isMigrationDone, 'alerts top-left slot');
-    if (persistClay === null) { return; }
-    // aplite has no Alerts row (the item is notAplite): writing it there would only
-    // store a value its slot sheet cannot offer.
-    if (platform === 'aplite') { markDone(); return; }
-    var left = persistClay.statusTopLeft;
-    var emery = platform === 'emery';
-    var healthShown = persistClay.healthMode === 'status' || persistClay.healthMode === 'all';
-    var moved = false;
-    if (left === 'empty' || (emery && left === 'week')) {
-        persistClay.statusTopLeft = 'alerts';
-        moved = true;
-    } else if (!emery && left === 'steps' && persistClay.statusHealthLeft === 'distance'
-            && healthShown) {
-        persistClay.statusTopLeft = 'alerts';
-        persistClay.statusHealthLeft = 'steps';
-        moved = true;
-    }
-    if (moved) {
-        save(persistClay);
-        console.log('Migrated top-left slot to the Alerts row');
-    }
-    markDone();
-}
-
-/**
  * One-time 1.23.0 migration of the radar no-rain text, to the new default "You're
  * good :)". Two stored values move:
  *  - empty: it used to mean "use the built-in default" (the field's hint said "clear
@@ -932,7 +868,6 @@ module.exports = {
     migrateHolidayRegionKeys: migrateHolidayRegionKeys,
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
-    migrateAlertsTopLeft: migrateAlertsTopLeft,
     migrateRadarProviderToMode: migrateRadarProviderToMode,
     migrateThresholdHighlightToggles: migrateThresholdHighlightToggles,
     migrateEmptyNoRainText: migrateEmptyNoRainText,

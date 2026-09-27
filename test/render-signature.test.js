@@ -429,3 +429,15 @@ test('the rain alert look stays OUT of the render signature (it rides Clay)', ()
     assert.equal(renderSignature({ rainAlertDisplay: v }), base, v);
   });
 });
+
+test('the per-bar Alerts placements and the rain switch stay OUT of the render signature (Clay)', () => {
+  const base = renderSignature({});
+  ['statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts']
+    .forEach((key) => {
+      ['off', 'left', 'middle', 'right'].forEach((v) => {
+        assert.equal(renderSignature({ [key]: v }), base, key + ' ' + v);
+      });
+    });
+  assert.equal(renderSignature({ alertRain: false }), base, 'alertRain only moves the Clay horizon');
+  assert.equal(renderSignature({ alertRain: true }), base);
+});

@@ -104,6 +104,18 @@ int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size);
 bool persist_set_threshold_settings(const uint8_t *data, size_t len);
 #endif
 
+// The Alerts row is compiled out of aplite (WW_ALERT_ROW, wscript), and so are
+// these accessors, like the threshold pair above; the ALERT_ENTRIES key ID stays
+// in persist.c's append-only enum on every platform.
+#if defined(WW_ALERT_ROW)
+// The phone-baked metric alert entries (ALERT_ENTRIES_UINT8 tuple, encoding in
+// alert_set.h), stored verbatim. Get returns the byte count, 0 when none is
+// stored (no metric alert active, or never received). Set with len 0 deletes the
+// slot; returns whether the stored value actually changed.
+int persist_get_alert_entries(uint8_t *out, size_t cap);
+bool persist_set_alert_entries(const uint8_t *data, size_t len);
+#endif
+
 // Forecast curve insets are compiled out of aplite (WW_CURVE_INSET, wscript):
 // it keeps the frozen constant insets (temp 7 px, metric channels full-height),
 // so the accessors are declared away there and any unguarded caller fails to

@@ -45,9 +45,8 @@ const BOLD_FORECAST = {
   threshCityBoldMode: 'always',
   threshAqiBoldMode: 'always'
 };
-// emery's strip defaults are alerts/date/sun: the Alerts row has no bold cell, so
-// the date and sunrise/sunset are the kinds its bold rule names.
 const BOLD_TOP = {
+  threshWeekBoldMode: 'always',
   threshDateBoldMode: 'always',
   threshSunBoldMode: 'always'
 };
@@ -59,6 +58,7 @@ const HEALTH_SLOTS = {
 };
 // The narrow platforms: the left slot instead of the corner, and no bold to match —
 // nothing in that strip is bold there.
+const HEALTH_SLOTS_COMPACT = { statusTopLeft: 'steps', statusHealthLeft: 'distance' };
 
 // --- ruleApplies: the `when` predicate -------------------------------------
 
@@ -150,13 +150,11 @@ test('the wizard on an emery health watch applies the whole matrix', () => {
     Object.assign({}, BOLD_FORECAST, BOLD_TOP, AQI_HIGHLIGHT, HEALTH_SLOTS));
 });
 
-// The narrow strip's left slot is the Alerts row's home since 1.24.0, so the retired
-// wizard-health-slots-compact rule no longer promotes steps into it.
-test('a narrow health watch bolds the Forecast row only and moves no slot', () => {
+test('a narrow health watch bolds the Forecast row only and promotes into the left slot', () => {
   assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true })),
-    Object.assign({}, BOLD_FORECAST, AQI_HIGHLIGHT));
+    Object.assign({}, BOLD_FORECAST, AQI_HIGHLIGHT, HEALTH_SLOTS_COMPACT));
   assert.deepEqual(policy.resolveDefaults(ctx({ wizard: true, env: ENV_DIORITE })),
-    Object.assign({}, BOLD_FORECAST, AQI_HIGHLIGHT),
+    Object.assign({}, BOLD_FORECAST, AQI_HIGHLIGHT, HEALTH_SLOTS_COMPACT),
     'the split is by display width, not by colour or heart rate');
 });
 
@@ -184,12 +182,12 @@ test('later rules win when two rules set the same key', () => {
 });
 
 test('resolveDefaults returns a fresh object and never mutates the table', () => {
-  const first = policy.resolveDefaults(ctx({ wizard: true, env: ENV_EMERY }));
+  const first = policy.resolveDefaults(ctx({ wizard: true }));
   first.threshTempBoldMode = 'off';
-  delete first.statusTopRight;
-  const second = policy.resolveDefaults(ctx({ wizard: true, env: ENV_EMERY }));
+  delete first.statusTopLeft;
+  const second = policy.resolveDefaults(ctx({ wizard: true }));
   assert.equal(second.threshTempBoldMode, 'always');
-  assert.equal(second.statusTopRight, 'steps');
+  assert.equal(second.statusTopLeft, 'steps');
 });
 
 test('rulesFor exposes the matching rules themselves (ids, why, seedVia)', () => {
@@ -385,8 +383,8 @@ test('on emery, every kind the wizard puts in the top or forecast row ends up bo
 
 test('on a narrow watch the same agreement holds inverted: the top strip stays light', () => {
   // The mirror of the emery pin. Here the rules must NOT bold anything in the strip
-  // beside the clock — and since 1.24.0 no health rule promotes into it either (its
-  // left slot is the Alerts row's).
+  // beside the clock — including the steps the health rule promotes into it, which is
+  // the half a future edit is most likely to get wrong by copying the emery rule.
   [{ healthMode: 'all' }, { healthMode: 'off' }].forEach((choices) => {
     const rows = headlineRowBolds(ENV_BASALT, choices);
     Object.keys(rows).forEach((slotKey) => {
@@ -397,11 +395,8 @@ test('on a narrow watch the same agreement holds inverted: the top strip stays l
         `so ${r.boldKey} must be ${expected === undefined ? 'left alone' : "'always'"}`);
     });
   });
-  assert.equal(headlineRowBolds(ENV_BASALT, { healthMode: 'all' }).statusTopMid.kind, 'date',
-    'guard: the date really is in that strip, so the loop above saw a boldable kind');
-  assert.equal(policy.resolveDefaults({ wizard: true, env: ENV_BASALT,
-    choices: { healthMode: 'all' } }).statusTopLeft, undefined,
-    'the Alerts row keeps the strip\'s left slot');
+  assert.equal(headlineRowBolds(ENV_BASALT, { healthMode: 'all' }).statusTopLeft.kind, 'steps',
+    'guard: steps really is promoted into that strip, so the loop above saw it');
 });
 
 test('the wind arrow is a plain schema default, not a rule in this table', () => {
@@ -443,25 +438,28 @@ test('the health-slot swap declares its coupling: eviction and bold depend on th
     statusHealthLeft: 'statusTopRight',
     threshStepsBoldMode: 'statusTopRight'
   }, 'both companion writes hang off the steps promotion');
+
+  const compact = policy.RULES.find((r) => r.id === 'wizard-health-slots-compact');
+  assert.ok(compact, 'the narrow-platform sibling exists');
+  assert.deepEqual(compact.dependsOn, { statusHealthLeft: 'statusTopLeft' },
+    'the eviction hangs off the promotion there too — and there is no bold to couple');
+  assert.deepEqual(compact.overrules, ['statusTopLeft']);
+  assert.equal(compact.set.threshStepsBoldMode, undefined,
+    'nothing in that strip is bold on a narrow watch, so the promoted slot is not either');
 });
 
-// Retired in 1.24.0: the narrow-platform sibling promoted steps into the strip's left
-// slot, which is the Alerts row's home now (clay-migrations.js migrateAlertsTopLeft
-// (c) undoes its footprint on existing installs).
-test('the compact steps promotion is retired: the health-slot swap is emery-only', () => {
-  assert.equal(policy.RULES.find((r) => r.id === 'wizard-health-slots-compact'), undefined);
+test('the two health-slot rules are mutually exclusive — never both on one watch', () => {
+  // They set overlapping keys (statusHealthLeft) with the same value, so a context
+  // matching both would be harmless today; it would stop being harmless the moment
+  // either rule's eviction changes. Pin the split instead of trusting it.
   const emeryRule = policy.RULES.find((r) => r.id === 'wizard-health-slots');
-  [ENV_BASALT, ENV_DIORITE, ENV_APLITE, { platform: 'chalk', health: true }].forEach((env) => {
-    const c = { wizard: true, env, choices: { healthMode: 'all' } };
-    assert.equal(policy.ruleApplies(emeryRule, c), false, env.platform);
-    const out = policy.resolveDefaults(c);
-    catalog.allSlotKeys().forEach((key) => {
-      assert.equal(out[key], undefined, env.platform + ': no rule writes ' + key);
+  const compact = policy.RULES.find((r) => r.id === 'wizard-health-slots-compact');
+  [ENV_EMERY, ENV_BASALT, ENV_DIORITE, ENV_APLITE, { platform: 'chalk', health: true }]
+    .forEach((env) => {
+      const c = { wizard: true, env, choices: { healthMode: 'all' } };
+      assert.notEqual(policy.ruleApplies(emeryRule, c) && policy.ruleApplies(compact, c), true,
+        env.platform + ' matches both health-slot rules');
     });
-  });
-  // ...and on emery the promotion still targets the top-RIGHT corner.
-  assert.equal(policy.resolveDefaults(ctx({ wizard: true, env: ENV_EMERY })).statusTopRight,
-    'steps');
 });
 
 test('overrules always names keys of the same rule\'s set — a typo must not silently protect nothing', () => {

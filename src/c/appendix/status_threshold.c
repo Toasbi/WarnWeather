@@ -90,11 +90,12 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 }
 
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
-    // Four exact lengths, never a range: the pre-bold 29, the 16-kind 33 and the
-    // pre-alerts 34 are readable because the bold bytes and the alerts byte were
-    // appended (see status_threshold.h).
+    // Five exact lengths, never a range: the pre-bold 29, the 16-kind 33, the
+    // pre-alerts 34 and the pre-placement 35 are readable because the bold bytes
+    // and the two alert bytes were appended (see status_threshold.h).
     return blob != NULL
         && (len == THRESH_SETTINGS_BYTES
+            || len == THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS
             || len == THRESH_SETTINGS_BYTES_PRE_ALERTS
             || len == THRESH_SETTINGS_BYTES_PRE_KIND16
             || len == THRESH_SETTINGS_BYTES_PRE_BOLD);
@@ -157,6 +158,17 @@ int status_threshold_rain_display(const uint8_t *blob, size_t len) {
         || THRESH_ALERTS_OFFSET >= len) { return THRESH_RAIN_DISPLAY_TEXT; }
     int mode = blob[THRESH_ALERTS_OFFSET] & 3;
     return mode == 3 ? THRESH_RAIN_DISPLAY_TEXT : mode;   // 3 is reserved
+}
+
+int status_threshold_bar_alerts(const uint8_t *blob, size_t len, int bar) {
+    if (bar < 0 || bar >= THRESH_BAR_COUNT) { return THRESH_ALERTS_OFF; }
+    // Append-only again: without the byte, the strip keeps the left-slot rain
+    // takeover it always had and no other bar grows a row.
+    if (!status_threshold_settings_validate(blob, len)
+        || THRESH_BAR_ALERTS_OFFSET >= len) {
+        return bar == THRESH_BAR_TOP ? THRESH_ALERTS_LEFT : THRESH_ALERTS_OFF;
+    }
+    return (blob[THRESH_BAR_ALERTS_OFFSET] >> (2 * bar)) & 3;
 }
 
 bool status_threshold_is_bold(const uint8_t *blob, size_t len, int kind, int level) {

@@ -130,12 +130,14 @@ function renderSignature(settings) {
         parts.push(held.warn, held.danger);
     }
     // The metric alerts (the Alerts card): alert<Kind> changes both the bake (the
-    // alerts slot's entries, status-thresholds.js bakeAlerts) and the fetch set (an
+    // ALERT_ENTRIES_UINT8 entries, status-thresholds.js bakeAlerts) and the fetch set (an
     // enabled alert fetches its metric and day peaks with no slot showing it), and
     // alert<Kind>Display changes the baked bytes (a value after the icon). Signed as
     // what the bake reads — on or not, and the Look only while on — so the page
-    // hydrating an absent key to its default forces no fetch. rainAlertDisplay does
-    // NOT join: the rain look rides the Clay blob (byte 34), already immediate.
+    // hydrating an absent key to its default forces no fetch. rainAlertDisplay, the
+    // four per-bar placements (statusXxxAlerts) and the rain switch (alertRain) do
+    // NOT join: the look and the placements ride the Clay blob (bytes 34 and 35),
+    // the switch the Clay horizon (0 when off) — all already immediate.
     var alerts = statusThresholds.ALERT_KINDS;
     for (var a = 0; a < alerts.length; a++) {
         var on = settings['alert' + alerts[a].key] === true;

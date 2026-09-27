@@ -97,6 +97,7 @@ function boot(opts) {
       payload.STATUS_LINE_3_UINT8 = [3];
       payload.STATUS_LINE_4_UINT8 = [4];
       payload.STATUS_LEVELS_UINT8 = [0];
+      payload.ALERT_ENTRIES_UINT8 = [];
       // A key the bake might legitimately add that is NOT the status category:
       // the micro-send must drop it rather than smuggle it onto the wire.
       payload.NOT_A_STATUS_KEY = 99;
@@ -534,9 +535,11 @@ test('STATUS_KEYS is exactly the outbox status category', () => {
   assert.deepEqual(statusRebake.STATUS_KEYS,
     outbox.WEATHER_CATEGORIES.find((c) => c.name === 'status').keys);
   assert.ok(statusRebake.STATUS_KEYS.indexOf('STATUS_LEVELS_UINT8') !== -1);
+  assert.ok(statusRebake.STATUS_KEYS.indexOf('ALERT_ENTRIES_UINT8') !== -1,
+    'the Alerts row entries re-bake with the lines');
 });
 
-test('the micro-send carries the five status keys and nothing else', () => {
+test('the micro-send carries the six status keys and nothing else', () => {
   const mgr = fakeManager(0.62, false);
   const h = boot({ navigator: modernNavigator(mgr) });
   statusRebake.rememberBakeInputs(
@@ -725,7 +728,7 @@ test('the re-bake changes the battery slot and reproduces every other slot exact
   const after = h2.sends[h2.sends.length - 1];
 
   ['STATUS_LINE_2_UINT8', 'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8',
-   'STATUS_LEVELS_UINT8'].forEach((k) =>
+   'STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8'].forEach((k) =>
     assert.deepEqual(after[k], before[k], k + ' is byte-identical across the restart'));
   const b = decodeLine(before.STATUS_LINE_1_UINT8);
   const a = decodeLine(after.STATUS_LINE_1_UINT8);

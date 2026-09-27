@@ -33,33 +33,8 @@ typedef enum {
     SLOT_LIVE_DISTANCE_MI = 8,  // walked distance in miles (imperial); unit chosen by the phone
     SLOT_LIVE_BATTERY = 9,      // watch draws the battery glyph; state read on-device
     SLOT_LIVE_BATTERY_PCT = 10, // watch formats the charge as "NN%" text; icon NONE
-    SLOT_ALERTS = 11,           // watch-drawn alert row; icon NONE, value bytes =
-                                // the phone-baked metric-alert entries (encoding
-                                // below). Phone-side notAplite: never sent there.
 } StatusSlotKind;
-#define STATUS_SLOT_KIND_MAX SLOT_ALERTS
-
-// SLOT_ALERTS value bytes: one entry per ACTIVE metric alert, in the fixed order
-// UV, wind, gust, AQI, pollen (the phone bakes only enabled alerts at warn or
-// higher, and tail-drops entries past the slot's cap — pollen first). Each entry:
-//   header byte   bits 0-2  ThreshKind (AQI 0, pollen 1, wind 2, gust 3, UV 7 —
-//                           status_threshold.h's ids, which fit 3 bits)
-//                 bits 3-4  level (1 warn / 2 danger)
-//                 bits 5-7  value length, 0-7
-//   value bytes   that many ASCII bytes — the number printed after the icon;
-//                 zero unless the kind's Look is 'value' on the phone
-// The rain alert is NOT in here: the watch resolves it from its own radar cache.
-// Zero active alerts = value_len 0, which is legal for this kind (unlike TEXT).
-// The caps are the TEXT caps (EDGE 8 / MID 19), so an alerts slot is never
-// heavier on the wire than the city slot the worst-case bundle already assumes.
-// The walker checks the entries only where WW_ALERT_ROW is defined (wscript: every
-// platform but aplite); aplite's walker rejects bytes on kind 11 like on any other
-// non-TEXT kind — the phone never sends it there.
-#define STATUS_ALERT_KIND_MASK 0x07
-#define STATUS_ALERT_LEVEL_SHIFT 3
-#define STATUS_ALERT_LEVEL_MASK 0x03
-#define STATUS_ALERT_LEN_SHIFT 5
-#define STATUS_ALERT_LEN_MAX 7
+#define STATUS_SLOT_KIND_MAX SLOT_LIVE_BATTERY_PCT
 
 typedef enum {
     STATUS_ICON_NONE = 0,
@@ -106,8 +81,7 @@ typedef struct {
     uint8_t kind;
     uint8_t icon;
     uint8_t value_len;
-    const char *value;  // into the blob, NOT NUL-terminated; NULL unless the kind
-                        // carries bytes (SLOT_TEXT, or SLOT_ALERTS with value_len > 0)
+    const char *value;  // into the blob, NOT NUL-terminated; NULL unless SLOT_TEXT
 } StatusSlotView;
 
 // Parse a packed line in ONE walk: validates the whole blob and fills all three

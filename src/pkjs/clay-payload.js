@@ -205,6 +205,9 @@ function buildClayPayload(settings, watchInfo, now) {
             var rc = parseInt(settings.rainCountdownHorizon, 10);
             if (isNaN(rc)) { rc = 60; }
             if ((settings.radarMode || 'graph') === 'off') { rc = 0; }
+            // The rain alert's switch (Alerts card; absent = on, the countdown
+            // every install had): off sends horizon 0, the watch's "no countdown".
+            if (settings.alertRain === false) { rc = 0; }
             return rc;
         })(),
         // Health-graph HR line scale, packed lo | (hi << 8) — both ends are <= 220,

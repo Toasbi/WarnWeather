@@ -704,7 +704,10 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // until the unset-field check below was added, is 26 B (3423 before it). The third
 // metric line's fields (fourthLine, the three per-line styles and graphThirdColor)
 // are 125 B (3449 before them). The wind/gust/AQI day-max display modes are 83 B
-// (3600 before them; their pair presentation is deliberately not reported).
+// (3600 before them; their pair presentation is deliberately not reported). The
+// Alerts row's per-bar placement code and rain switch (alertBars, alertRain) are
+// 37 B (3912 before them): 3949 B, headroom 147; the custom-layout envelope 4059 B,
+// headroom 37 — why alertBars is a four-letter code, not a spelled-out list.
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -733,6 +736,10 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true,
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value', rainAlertDisplay: 'minutes',
+    // Every bar placing the row (the code is four letters whatever they are), and the
+    // rain switch off — 'false' is a byte longer than 'true'.
+    statusTopAlerts: 'middle', statusForecastAlerts: 'middle', statusRadarAlerts: 'middle',
+    statusHealthAlerts: 'middle', alertRain: false,
     sleepEndHour: '7',
     // The Nighttime card at its heaviest: every one of the three features on, each
     // reporting its own window. Theme switching is on 'manual' because that is its
@@ -1180,6 +1187,23 @@ test('the Alerts card reports alertKinds, alertValueKinds and rainAlertDisplay',
   assert.equal(some.rainAlertDisplay, 'minutes');
 });
 
+// Where each bar places the Alerts row (a four-letter code in bar order) and the
+// rain alert's switch (on unless stored false, like radarSky).
+test('the Alerts card reports alertBars and alertRain', () => {
+  const fresh = buildSettingsSnapshot({});
+  assert.equal(fresh.alertBars, 'looo', 'untouched: the strip left, every other bar off');
+  assert.equal(fresh.alertRain, true, 'a missing key is on');
+  assert.equal(buildSettingsSnapshot({ statusTopAlerts: 'off' }).alertBars, 'oooo', 'every bar off');
+  assert.equal(buildSettingsSnapshot({ statusRadarAlerts: 'right', statusHealthAlerts: 'middle' })
+    .alertBars, 'lorm');
+  assert.equal(buildSettingsSnapshot({ statusTopAlerts: 'right', statusForecastAlerts: 'left' })
+    .alertBars, 'rloo');
+  assert.equal(buildSettingsSnapshot({ statusTopAlerts: 'bogus' }).alertBars, 'looo',
+    'an unknown value reports the default the watch draws');
+  assert.equal(buildSettingsSnapshot({ alertRain: false }).alertRain, false);
+  assert.equal(buildSettingsSnapshot({ alertRain: true }).alertRain, true);
+});
+
 test('the Alerts card fields are declared in the Deno .strip() schema too', () => {
   const fs = require('fs');
   const path = require('path');
@@ -1191,4 +1215,8 @@ test('the Alerts card fields are declared in the Deno .strip() schema too', () =
     assert.match(slice, new RegExp('^\\s*' + key + ':\\s*z\\.string\\(\\)\\.optional\\(\\)', 'm'),
       key + ' must be an optional string in the ingest schema, or .strip() drops it');
   });
+  assert.match(slice, /^\s*alertBars:\s*z\.string\(\)\.optional\(\)/m,
+    'alertBars must be an optional string in the ingest schema, or .strip() drops it');
+  assert.match(slice, /^\s*alertRain:\s*z\.boolean\(\)\.optional\(\)/m,
+    'alertRain must be an optional boolean in the ingest schema, or .strip() drops it');
 });

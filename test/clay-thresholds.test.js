@@ -21,13 +21,25 @@ const BASE = {
   healthMode: 'all', theme: 'dark'
 };
 
-test('Clay payload carries the 35-byte threshold settings blob', () => {
+test('Clay payload carries the 36-byte threshold settings blob', () => {
   const payload = buildClayPayload(BASE, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
   assert.ok(Array.isArray(payload.CLAY_THRESHOLDS_UINT8));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 35);
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 36);
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0], 0); // nothing configured
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[34], 0); // rain look: text, today's
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8[35], 1); // Alerts row: the strip left, today's
+});
+
+// Where each bar shows the Alerts row rides byte 35, so a change reaches the watch
+// with the settings save (no refetch, no renderSignature entry).
+test('the per-bar Alerts placement rides byte 35 of the Clay blob', () => {
+  const s = Object.assign({}, BASE, { statusTopAlerts: 'off', statusRadarAlerts: 'right',
+    statusHealthAlerts: 'middle' });
+  const payload = buildClayPayload(s, { platform: 'basalt' },
+    new Date('2026-07-22T00:00:00Z'));
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8[35], (3 << 4) | (2 << 6));
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
 });
 
 // The Alerts row's rain look rides the blob's last byte, so a change reaches the
@@ -56,8 +68,8 @@ test('the blob matches buildSettingsBlob for configured settings', () => {
 
 test('aplite gets no threshold blob at all (it compiles the highlight out)', () => {
   // aplite has no WW_THRESHOLD_HIGHLIGHT: its status-row twin cannot draw the
-  // highlight and its inbox handler for this tuple is gone, so the 42 B
-  // (35-byte blob + 7 B tuple header) must not ride its Clay bundle.
+  // highlight and its inbox handler for this tuple is gone, so the 43 B
+  // (36-byte blob + 7 B tuple header) must not ride its Clay bundle.
   const payload = buildClayPayload(BASE, { platform: 'aplite' },
     new Date('2026-07-22T00:00:00Z'));
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_THRESHOLDS_UINT8'), false);
@@ -73,7 +85,7 @@ test('the dew bold cell fits byte 33 without widening the blob', () => {
   const s = Object.assign({}, BASE, { threshDewBoldMode: 'always' });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 35,
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 36,
     'kinds 17-19 share byte 33 with kind 16 — no widening');
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
   // The cell lands where the contract says, and leaves its byte-mates alone.
@@ -106,7 +118,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   const s = Object.assign({}, BASE, { threshPhoneBatteryBoldMode: 'always' });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 35,
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 36,
     'the phone battery must not grow the Clay bundle by a byte');
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
   const byte33 = payload.CLAY_THRESHOLDS_UINT8[33];
@@ -114,15 +126,15 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   assert.equal((byte33 >> 6) & 3, thresholds.BOLD_MODES.always, 'phoneBatteryPlain cell (kind 19)');
   // Its byte-mates (battery % and dew) keep the warn default.
   assert.equal(byte33 & 0x0F, 0, 'kinds 16/17 untouched by their new neighbours');
-  // Byte 33 is now full: every one of its four cells is claimed, and the alerts
-  // byte sits right behind it — so the NEXT threshold kind is a layout change.
+  // Byte 33 is now full: every one of its four cells is claimed, and the alert
+  // bytes sit right behind it — so the NEXT threshold kind is a layout change.
   const full = Object.assign({}, BASE, {
     threshBatteryPctBoldMode: 'always', threshDewBoldMode: 'always',
     threshPhoneBatteryBoldMode: 'always'
   });
   const fullPayload = buildClayPayload(full, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 35);
+  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 36);
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[33], 0xAA, 'all four cells = always');
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[34], 0, 'no bold cell spills into the alerts byte');
 });
@@ -143,7 +155,7 @@ test('the phone-battery slots pack their own cells, not the city cell they resem
 test('an unknown/absent watchInfo still gets the blob (never hide a real feature)', () => {
   [null, undefined, {}].forEach((wi) => {
     const payload = buildClayPayload(BASE, wi, new Date('2026-07-22T00:00:00Z'));
-    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 35, String(wi));
+    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 36, String(wi));
   });
 });
 

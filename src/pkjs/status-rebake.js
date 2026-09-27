@@ -45,9 +45,10 @@
 //     reproduces the text the watch is ALREADY displaying for every slot but
 //     the battery one.
 //   * Every weather-derived slot (temp/feels, city, uv, wind, gust, pressure,
-//     dew, aqi, pollen, plus the wind-direction sentinel byte) and the packed
-//     STATUS_LEVELS_UINT8 threshold byte read frozen payload values, so they
-//     re-bake byte-identically however old the snapshot is.
+//     dew, aqi, pollen, plus the wind-direction sentinel byte), the packed
+//     STATUS_LEVELS_UINT8 threshold byte and the Alerts row's
+//     ALERT_ENTRIES_UINT8 read frozen payload values, so they re-bake
+//     byte-identically however old the snapshot is.
 //   * The `sun` slot formats the epoch frozen in SUN_EVENTS, not the clock, so
 //     an old snapshot re-renders the identical string -- stale in precisely the
 //     way the watch is already stale, never differently stale.

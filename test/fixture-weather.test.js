@@ -266,11 +266,12 @@ test('fixtures/uv-alert-hold.json holds today\'s 7 at warn, highlight on or off'
 
 // fixtures/rain-countdown.json is the emulator sign-off scene for the Alerts row: rain
 // 10-25 min ahead (the watch resolves that entry itself from the radar tuples) plus a
-// UV alert at danger with its value, which the phone bakes into the top-left slot —
-// the Alerts item's default home. radarStartEpoch pins the radar window to the
-// emulator's clock (watch.now read as UTC); without it the window anchors to the
-// host-local startEpoch and can land wholly in the past, so no rain alert draws.
-test('fixtures/rain-countdown.json bakes one UV danger entry, value 8, into the top-left alerts slot', () => {
+// UV alert at danger with its value, which the phone bakes into the row's own entry
+// tuple (ALERT_ENTRIES_UINT8); the strip shows the row in its left slot by default.
+// radarStartEpoch pins the radar window to the emulator's clock (watch.now read as
+// UTC); without it the window anchors to the host-local startEpoch and can land
+// wholly in the past, so no rain alert draws.
+test('fixtures/rain-countdown.json bakes one UV danger entry, value 8, into ALERT_ENTRIES_UINT8', () => {
   const { normalizeWeather } = require('../scripts/lib/fixture-time');
   const thresholds = require('../src/pkjs/status-thresholds.js');
   const catalog = require('../src/pkjs/status-line-catalog.js');
@@ -283,14 +284,18 @@ test('fixtures/rain-countdown.json bakes one UV danger entry, value 8, into the 
   const uvKind = thresholds.KINDS.findIndex((k) => k.code === 'uv');
   ['basalt', 'emery'].forEach((platform) => {
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
-    const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
-    assert.equal(topLeft.kind, catalog.KINDS.ALERTS, platform + ': top-left is the alerts slot');
     // One entry: header (bits 0-2 kind, 3-4 level, 5-7 value length) + the value.
-    const header = out.STATUS_LINE_3_UINT8[3];
-    assert.equal(topLeft.len, 2, platform + ': one entry, one value byte');
+    const bytes = out.ALERT_ENTRIES_UINT8;
+    assert.equal(bytes.length, 2, platform + ': one entry, one value byte');
+    const header = bytes[0];
     assert.deepEqual({ kind: header & 7, level: (header >> 3) & 3, len: header >> 5 },
       { kind: uvKind, level: 2, len: 1 }, platform + ': a UV entry at danger');
-    assert.equal(topLeft.text.slice(1), '8', platform + ': printing 8 (today\'s 8.4)');
+    assert.equal(String.fromCharCode(bytes[1]), '8', platform + ': printing 8 (today\'s 8.4)');
+    // The status lines carry no entries: the top-left slot is its shipped default.
+    const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
+    assert.notEqual(topLeft.kind, 11, platform + ': no alerts slot kind any more');
+    assert.equal(topLeft.kind, platform === 'emery' ? catalog.KINDS.LIVE_WEEK : catalog.KINDS.EMPTY,
+      platform + ': the shipped top-left default');
   });
 });
 

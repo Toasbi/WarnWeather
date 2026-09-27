@@ -16,8 +16,9 @@
 // guarded.
 //
 // Where the entries come from:
-//  - the metric alerts are baked by the phone into the SLOT_ALERTS slot's value
-//    bytes (encoding in status_line.h) — alert_set_parse() reads them;
+//  - the metric alerts are baked by the phone into their own weather tuple,
+//    ALERT_ENTRIES_UINT8 (encoding below), which app_message.c checks with
+//    alert_set_bytes_ok() and persists — alert_set_parse() reads them;
 //  - the rain alert is resolved on the watch from its own radar cache
 //    (rain_countdown_format() / rain_countdown_peak_tier()) — the SDK caller
 //    collapses the tier to a bucket and hands both in to alert_set_prepend_rain().
@@ -26,6 +27,29 @@
 // never.
 
 #define ALERT_SET_MAX 6   // rain + the five metric kinds
+
+// ALERT_ENTRIES_UINT8 (weather message, status category): one entry per ACTIVE
+// metric alert, in the fixed order UV, wind, gust, AQI, pollen (the phone bakes
+// only enabled alerts at warn or higher — status-thresholds.js bakeAlerts — and
+// tail-drops entries past ALERT_ENTRIES_MAX_BYTES, pollen first). Each entry:
+//   header byte   bits 0-2  ThreshKind (AQI 0, pollen 1, wind 2, gust 3, UV 7 —
+//                           status_threshold.h's ids, which fit 3 bits)
+//                 bits 3-4  level (1 warn / 2 danger)
+//                 bits 5-7  value length, 0-7
+//   value bytes   that many ASCII bytes — the number printed after the icon;
+//                 zero unless the kind's Look is 'value' on the phone
+// The rain alert is NOT in here: the watch resolves it from its own radar cache.
+// Zero active alerts = an empty array, which clears the stored entries. All five
+// with values stay under the cap (5 headers + at most 2 + 3 + 3 + 3 + 3 value
+// bytes, pollen's widest band being "2-3" = 19 B), so the 20-B cap drops nothing
+// today; it bounds what the inbox has to budget for (test/inbox-size.test.js).
+// The phone never sends the tuple to aplite.
+#define ALERT_ENTRIES_MAX_BYTES 20
+#define STATUS_ALERT_KIND_MASK 0x07
+#define STATUS_ALERT_LEVEL_SHIFT 3
+#define STATUS_ALERT_LEVEL_MASK 0x03
+#define STATUS_ALERT_LEN_SHIFT 5
+#define STATUS_ALERT_LEN_MAX 7
 
 typedef struct {
     uint8_t kind;          // ThreshKind of a metric entry (AQI, pollen, wind, gust, UV)
@@ -47,10 +71,20 @@ typedef struct {
 // not an alert kind (the health trio, the bold-only kinds, out of range).
 uint8_t alert_set_icon(int kind);
 
-// Parse an alerts slot's value bytes (StatusSlotView value/value_len) into metric
-// entries, in wire order. Every `value` points into `bytes`, so the set must not
-// outlive the buffer — the same contract as the StatusSlotView it came from.
-// Tolerant, although the walker (status_line.c) already rejects malformed bytes: a
+// Whether an ALERT_ENTRIES_UINT8 payload is well formed: at most
+// ALERT_ENTRIES_MAX_BYTES, every header's declared value length inside the
+// bytes and the entries tiling them exactly (a length that runs past the end is
+// a malformed tuple, never a truncated value), and every value byte printable
+// ASCII (the phone prints digits and pollen bands like "2-3"; anything else is
+// rejected here rather than reaching graphics_draw_text). Zero bytes is valid
+// (nothing alerting). app_message.c drops a malformed tuple, keeping the last
+// good entries.
+bool alert_set_bytes_ok(const uint8_t *bytes, size_t len);
+
+// Parse the stored alert entries (ALERT_ENTRIES_UINT8) into metric entries, in
+// wire order. Every `value` points into `bytes`, so the set must not outlive the
+// buffer.
+// Tolerant, although alert_set_bytes_ok() already rejects malformed bytes: a
 // declared value length that runs past `len` ends the parse there, an entry whose
 // kind has no icon or whose level is NORMAL is skipped (its value bytes still
 // consumed), a reserved level 3 reads as DANGER (status_threshold_weather_level's

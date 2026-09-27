@@ -48,39 +48,6 @@ static size_t slot_text_cap(int slot_index) {
     return (slot_index == 1) ? STATUS_TEXT_MID_MAX : STATUS_TEXT_EDGE_MAX;
 }
 
-#if defined(WW_ALERT_ROW)
-// The SLOT_ALERTS entry walk (encoding in status_line.h): every header's declared
-// value length must land inside value_len, and the entries must tile it exactly —
-// a length that runs past the slot's bytes is a malformed line, never a truncated
-// value, so the renderer can trust every entry it is handed. Value bytes are
-// printable ASCII (the phone prints digits); anything else is rejected here
-// rather than reaching graphics_draw_text.
-static bool alert_entries_ok(const uint8_t *bytes, size_t value_len) {
-    size_t i = 0;
-    while (i < value_len) {
-        size_t n = (size_t)(bytes[i] >> STATUS_ALERT_LEN_SHIFT);
-        i++;
-        if (n > value_len - i) { return false; }
-        for (size_t k = 0; k < n; k++) {
-            if (bytes[i + k] < 0x20 || bytes[i + k] > 0x7E) { return false; }
-        }
-        i += n;
-    }
-    return true;
-}
-
-// Whether a slot's value bytes ride the blob: phone-formatted text, and the
-// alert row's baked entries (none when nothing is alerting). Every other kind
-// is formatted by the watch and carries none.
-#define SLOT_HAS_BYTES(kind, len) \
-    (((kind) == SLOT_TEXT || (kind) == SLOT_ALERTS) && (len) > 0)
-#else
-// aplite: no Alerts row (WW_ALERT_ROW, wscript) — the phone never sends kind 11
-// there, and a kind-11 slot WITH bytes falls to the "no bytes on a non-TEXT kind"
-// rejection below, exactly as before the kind existed. TEXT always has len > 0.
-#define SLOT_HAS_BYTES(kind, len) ((kind) == SLOT_TEXT)
-#endif
-
 // Advance *off past the slot at slot_index; optionally fill out.
 static bool walk_slot(const uint8_t *blob, size_t len, int slot_index,
                       size_t *off, StatusSlotView *out) {
@@ -94,24 +61,16 @@ static bool walk_slot(const uint8_t *blob, size_t len, int slot_index,
         if (value_len == 0 || value_len > slot_text_cap(slot_index)) { return false; }
         if (*off + value_len > len) { return false; }
         if (!utf8_complete(blob + *off, value_len)) { return false; }
-#if defined(WW_ALERT_ROW)
-    } else if (kind == SLOT_ALERTS) {
-        // Zero bytes is legal here (no metric alert active right now); the cap is
-        // the TEXT cap for the position, so the row never outweighs a city slot.
-        if (value_len > slot_text_cap(slot_index)) { return false; }
-        if (*off + value_len > len) { return false; }
-        if (!alert_entries_ok(blob + *off, value_len)) { return false; }
-#endif
     } else if (value_len != 0) {
         return false;
     }
     if (out) {
         out->kind = kind;
         out->icon = icon;
-        out->value_len = SLOT_HAS_BYTES(kind, value_len) ? value_len : 0;
-        out->value = SLOT_HAS_BYTES(kind, value_len) ? (const char *) (blob + *off) : NULL;
+        out->value_len = (kind == SLOT_TEXT) ? value_len : 0;
+        out->value = (kind == SLOT_TEXT) ? (const char *) (blob + *off) : NULL;
     }
-    if (SLOT_HAS_BYTES(kind, value_len)) { *off += value_len; }
+    if (kind == SLOT_TEXT) { *off += value_len; }
     return true;
 }
 

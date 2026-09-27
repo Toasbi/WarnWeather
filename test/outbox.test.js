@@ -9,11 +9,11 @@ test('WEATHER_CATEGORIES has a forecast category', function() {
     assert.ok(forecastCategory, 'forecast category must exist');
 });
 
-test('status category carries the four packed status lines + the levels byte', function() {
+test('status category carries the four packed status lines, the levels and the alert entries', function() {
     assert.deepEqual(statusCategory.keys, [
         'STATUS_LINE_1_UINT8', 'STATUS_LINE_2_UINT8',
         'STATUS_LINE_3_UINT8', 'STATUS_LINE_4_UINT8',
-        'STATUS_LEVELS_UINT8'
+        'STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8'
     ]);
 });
 

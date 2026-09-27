@@ -36,7 +36,7 @@ test('the duplicated PhoneBattery key writes ONE bold mode into BOTH cells', () 
   // kind 19 -> byte 33, bits 2 * (19 & 3) = 6-7
   Object.keys(th.BOLD_MODES).forEach((mode) => {
     const blob = th.buildSettingsBlob({ threshPhoneBatteryBoldMode: mode });
-    assert.equal(blob.length, 35, mode + ': the duplicate must not widen the blob');
+    assert.equal(blob.length, 36, mode + ': the duplicate must not widen the blob');
     assert.equal((blob[33] >> 4) & 3, th.BOLD_MODES[mode], mode + ': phoneBattery cell (kind 18)');
     assert.equal((blob[33] >> 6) & 3, th.BOLD_MODES[mode], mode + ': phoneBatteryPlain cell (kind 19)');
     // The byte-mates (battery % and dew) keep the warn default.
@@ -58,7 +58,7 @@ test('the phone-battery cells share byte 33 with battery % and dew without bleed
     threshDewBoldMode: 'off',             // kind 17 -> bits 2-3
     threshPhoneBatteryBoldMode: 'off'     // kinds 18 AND 19 -> bits 4-5, 6-7
   });
-  assert.equal(blob.length, 35, 'byte 33 was already paid for — no widening');
+  assert.equal(blob.length, 36, 'byte 33 was already paid for — no widening');
   assert.equal(blob[33], (2 << 0) | (1 << 2) | (1 << 4) | (1 << 6));
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the earlier bold bytes stay at the warn default');
@@ -384,7 +384,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
     // An ordered pair with the toggle off sets no bit (wind, kind 2).
     threshWindOn: false, threshWindWarn: '30', threshWindDanger: '50'
   });
-  assert.equal(blob.length, 35);
+  assert.equal(blob.length, 36);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
@@ -482,9 +482,10 @@ test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds',
   const blob = th.buildSettingsBlob({});
   assert.equal(blob[0], 0);
   // 12 health-threshold bytes, the five bold bytes (0 = the default warn mode),
-  // then the alerts byte (0 = the rain alert's legacy text look).
+  // the alerts byte (0 = the rain alert's legacy text look), then the placement
+  // byte: top strip left (1), every other bar off — the pre-1.24 picture.
   assert.deepEqual(blob.slice(17),
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
 });
 
 // "0 and negative thresholds are legitimate; unset must stay distinguishable from zero" —
@@ -544,7 +545,7 @@ test('buildSettingsBlob: goal u16s carry the SEED when the toggle is on over a b
 // so a never-configured kind reproduces the shipped bold-from-warn behaviour.
 test('buildSettingsBlob: unset bold modes pack as warn (all-zero bold bytes)', () => {
   const blob = th.buildSettingsBlob({});
-  assert.equal(blob.length, 35);
+  assert.equal(blob.length, 36);
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, th.ALERTS_OFFSET), [0, 0, 0, 0, 0]);
 });
 
@@ -650,7 +651,7 @@ test('packing with statusBoldAll "all" does not mutate the stored per-kind modes
 // (blob bytes 31/32), byte 29 + (k >> 2) at bits 2 * (k & 3).
 test('buildSettingsBlob: battery % (kind 16) packs its bold cell into byte 33', () => {
   const blob = th.buildSettingsBlob({ threshBatteryPctBoldMode: 'always' });
-  assert.equal(blob.length, 35);
+  assert.equal(blob.length, 36);
   assert.equal(blob[33], 2 << 0, 'batteryPct always in byte 33 bits 0-1');
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the other bold bytes stay at the warn default');
@@ -777,6 +778,48 @@ test('buildSettingsBlob: byte 34 carries the rain alert look in bits 0-1', () =>
   // Which metric alerts are on never rides the Clay blob.
   assert.deepEqual(th.buildSettingsBlob({ alertUv: true, alertWind: true }),
     th.buildSettingsBlob({}));
+});
+
+test('buildSettingsBlob: byte 35 packs each bar\'s Alerts placement, 2 bits per bar', () => {
+  const B = th.BAR_ALERTS_OFFSET;
+  assert.equal(B, 35);
+  // Absent keys: the strip left (the rain takeover it always had), the rest off.
+  assert.equal(th.buildSettingsBlob({})[B], 1);
+  assert.equal(th.buildSettingsBlob(null)[B], 1, 'no settings at all: the same defaults');
+  // Each bar's cell, alone.
+  const cells = { statusTopAlerts: 0, statusForecastAlerts: 2, statusRadarAlerts: 4,
+    statusHealthAlerts: 6 };
+  Object.keys(cells).forEach((key) => {
+    ['off', 'left', 'middle', 'right'].forEach((place, v) => {
+      const settings = { statusTopAlerts: 'off' };
+      settings[key] = place;
+      assert.equal(th.buildSettingsBlob(settings)[B], v << cells[key], key + ' ' + place);
+    });
+  });
+  // All four at once: top right, forecast middle, radar left, health right.
+  assert.equal(th.buildSettingsBlob({ statusTopAlerts: 'right', statusForecastAlerts: 'middle',
+    statusRadarAlerts: 'left', statusHealthAlerts: 'right' })[B],
+    3 | (2 << 2) | (1 << 4) | (3 << 6));
+  // An explicit Off on the strip is honoured; an unknown value takes the default.
+  assert.equal(th.buildSettingsBlob({ statusTopAlerts: 'off' })[B], 0);
+  assert.equal(th.buildSettingsBlob({ statusTopAlerts: 'bogus', statusRadarAlerts: 'up' })[B], 1);
+  // The placement never touches the rain look next door, nor the look the placement.
+  const both = th.buildSettingsBlob({ rainAlertDisplay: 'minutes', statusHealthAlerts: 'right' });
+  assert.equal(both[th.ALERTS_OFFSET], 2);
+  assert.equal(both[B], 1 | (3 << 6));
+});
+
+test('BAR_ALERT_KEYS names the four bars\' placement settings in cell order', () => {
+  assert.deepEqual(th.BAR_ALERT_KEYS, [
+    { bar: 'top', key: 'statusTopAlerts' },
+    { bar: 'forecast', key: 'statusForecastAlerts' },
+    { bar: 'radar', key: 'statusRadarAlerts' },
+    { bar: 'health', key: 'statusHealthAlerts' }
+  ]);
+  assert.equal(th.barAlertPlace({}, 'top'), 'left');
+  assert.equal(th.barAlertPlace({}, 'health'), 'off');
+  assert.equal(th.barAlertPlace({ statusRadarAlerts: 'middle' }, 'radar'), 'middle');
+  assert.equal(th.barAlertPlace({}, 'nope'), 'off');
 });
 
 // UV payload units are tenths; wind/gust km/h; *_DAY_PEAKS = [today's rest, tomorrow,
