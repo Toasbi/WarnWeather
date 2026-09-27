@@ -2141,10 +2141,15 @@ test('the Alerts card is watch.sections[0]: its own card, above the status card'
     assert.equal(showWhen.isVisible(sec, ctx(p)), true, 'shown on ' + p));
 });
 
-test('the Alerts card rows: six of one shape (rain, then the metric alerts) and the radar-off info note', () => {
+test('the Alerts card rows: six of one shape (rain, then the metric alerts) and the two info notes', () => {
   // No switch on the card and no placement note: every alert's switch lives in its
-  // sheet, and where the icons show is each bar's own select.
-  const rows = alertsSection().items;
+  // sheet, and where the icons show is each bar's own select. The first row is the
+  // no-Watch-Status-Bar note (its predicate is pinned by the page tests).
+  const all = alertsSection().items;
+  assert.equal(all[0].type, 'staticText');
+  assert.equal(all[0].style, 'info');
+  assert.equal(all[0].text, 'Your Default view has no Watch Status Bar, so alerts won’t show there — pick a place in another status bar’s Alerts setting.');
+  const rows = all.slice(1);
   assert.deepEqual(rows.map((i) => i.sheetId || i.type),
     ['alertRain', 'staticText', 'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen']);
   assert.deepEqual(rows[0], {

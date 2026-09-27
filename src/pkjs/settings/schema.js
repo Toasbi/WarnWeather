@@ -23,6 +23,9 @@ var lineStyle = require('../line-style.js');
 // the Edit-button row) lives in its own module so its capability gates are BUILT
 // from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
 var customLayout = require('./custom-layout-schema.js');
+// The same mode lists gate the Alerts card's "no bar shows alerts" notes
+// (seatPlacesAlertsWhen), so they fold a custom view's seats as the compiler does.
+var VIEW_CYCLE = require('../view-cycle.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -900,7 +903,7 @@ function rainAlertSheet() {
             label: 'Rain alert',
             defaultValue: true,
             disabledWhen: {key: 'radarMode', eq: 'countdown'}
-        }, {
+        }, rainAlertUnshownNote(), {
             // The countdown's window, key and default unchanged since it lived on the
             // Radar tab. No Off option: the switch above is the off.
             type: 'select',
@@ -1017,12 +1020,21 @@ function alertRow(sheetId, label, icon, showWhen, hintFrom, keyStem) {
     };
 }
 /**
- * The Alerts card's rows: rain (radar-gated), the radar-off note, then the five
- * metric alerts (thresholds-gated — aplite has neither the row nor the levels).
+ * The Alerts card's rows: the no-Watch-Status-Bar note (shown only when the Default
+ * view has no bar that places alerts), rain (radar-gated), the radar-off note, then
+ * the five metric alerts (thresholds-gated — aplite has neither the row nor the
+ * levels).
  * @returns {Object[]} The card's items, in order.
  */
 function alertCardItems() {
     return [
+        {
+            // Nothing moves the alerts for the user: the note names the gap and the fix.
+            type: 'staticText',
+            style: 'info',
+            text: 'Your Default view has no Watch Status Bar, so alerts won’t show there — pick a place in another status bar’s Alerts setting.',
+            showWhen: {all: [{env: 'platform', ne: 'aplite'}, DEFAULT_VIEW_NO_ALERTS_WHEN]}
+        },
         alertRow('alertRain', 'Rain', 'rain', RAIN_ALERT_WHEN,
             {resolver: 'rainAlertHint', args: {windows: RAIN_WINDOW_OPTIONS, looks: RAIN_LOOK_OPTIONS}},
             'Rain'),
@@ -1068,6 +1080,80 @@ function alertPlaceRow(bar, barWhen) {
             right: ALERT_PLACE_HINT
         },
         showWhen: barWhen ? {all: [THRESHOLD_WHEN, barWhen]} : THRESHOLD_WHEN
+    };
+}
+/**
+ * "This bar shows the Alerts row" as a showWhen predicate that resolves exactly as
+ * status-thresholds.js barAlertPlace does: a bar whose default is Off (every bar but
+ * the top strip) places alerts only on a stored Left/Middle/Right, while the top strip
+ * — default Left — places them on anything but an explicit Off (absent or unknown
+ * reads as Left). The default is read from the contract, not restated here.
+ * @param {string} bar 'top' | 'forecast' | 'radar' | 'health' (BAR_ALERT_KEYS).
+ * @returns {Object} The showWhen predicate.
+ */
+function barPlacesAlertsWhen(bar) {
+    var key = null, i;
+    for (i = 0; i < STATUS_THRESHOLDS.BAR_ALERT_KEYS.length; i++) {
+        if (STATUS_THRESHOLDS.BAR_ALERT_KEYS[i].bar === bar) { key = STATUS_THRESHOLDS.BAR_ALERT_KEYS[i].key; }
+    }
+    if (STATUS_THRESHOLDS.barAlertPlace(null, bar) !== 'off') { return {key: key, ne: 'off'}; }
+    var places = [];
+    var all = Object.keys(STATUS_THRESHOLDS.BAR_ALERT_PLACES);
+    for (i = 0; i < all.length; i++) {
+        if (all[i] !== 'off') { places.push(all[i]); }
+    }
+    return {key: key, 'in': places};
+}
+/**
+ * Whether a custom view's status seat (viewUpper<i> / viewLower<i>) shows a bar that
+ * places alerts: the seat's source, kept only where the compiler keeps it
+ * (view-cycle.js buildCustomCycle folds a radar or health seat away without its mode —
+ * the same RADAR_ROW_MODES / HEALTH_ROW_MODES tables).
+ * @param {string} seatKey The seat's settings key, e.g. 'viewUpper0'.
+ * @returns {Object} The showWhen predicate.
+ */
+function seatPlacesAlertsWhen(seatKey) {
+    return {any: [
+        {all: [{key: seatKey, eq: 'weather'}, barPlacesAlertsWhen('forecast')]},
+        {all: [{key: seatKey, eq: 'radar'}, {key: 'radarMode', 'in': VIEW_CYCLE.RADAR_ROW_MODES},
+            barPlacesAlertsWhen('radar')]},
+        {all: [{key: seatKey, eq: 'health'}, {key: 'healthMode', 'in': VIEW_CYCLE.HEALTH_ROW_MODES},
+            barPlacesAlertsWhen('health')]}
+    ]};
+}
+// The Default view has no Watch Status Bar AND none of the bars it does show places
+// alerts — so no alert (rain or metric) is drawn there. Derived from view-cycle.js's
+// own inputs: 'Weather only' drops the strip in every radar mode but 'Rain alert only'
+// (its Default view is the forecast bar, plus the radar bar in radar mode 'Status');
+// a custom layout drops it on its Default view's viewStripOff0, and shows the bars its
+// two seats hold. The Alerts card's info box (#3 of the settings audit) says so; the
+// watch does not move the alerts on its own.
+var DEFAULT_VIEW_NO_ALERTS_WHEN = {any: [
+    {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {key: 'radarMode', ne: 'countdown'},
+        {not: {any: [barPlacesAlertsWhen('forecast'),
+            {all: [{key: 'radarMode', eq: 'status'}, barPlacesAlertsWhen('radar')]}]}}]},
+    {all: [{key: 'layoutPreset', eq: 'custom'}, {key: 'viewStripOff0'},
+        {not: {any: [seatPlacesAlertsWhen('viewUpper0'), seatPlacesAlertsWhen('viewLower0')]}}]}
+]};
+// Radar mode 'Rain alert only' fetches the radar for the rain alert alone, yet no bar
+// that exists in that mode places the Alerts row — the top strip, the forecast bar,
+// and the health bar while it exists (the radar bar never shows in this mode, so its
+// stored placement does not count). Shown in the Rain alert sheet and under the
+// radar mode control.
+var RAIN_ALERT_UNSHOWN_WHEN = {all: [{key: 'radarMode', eq: 'countdown'}, {env: 'platform', ne: 'aplite'},
+    {not: {any: [barPlacesAlertsWhen('top'), barPlacesAlertsWhen('forecast'),
+        {all: [HEALTH_BAR_WHEN, barPlacesAlertsWhen('health')]}]}}]};
+/**
+ * The 'Rain alert only' warning: an info box, shown while RAIN_ALERT_UNSHOWN_WHEN holds.
+ * A fresh object per call, like every item.
+ * @returns {Object} The info-box staticText.
+ */
+function rainAlertUnshownNote() {
+    return {
+        type: 'staticText',
+        style: 'info',
+        text: 'No status bar shows alerts, so the rain alert won’t appear. Pick a place in a status bar’s Alerts setting.',
+        showWhen: RAIN_ALERT_UNSHOWN_WHEN
     };
 }
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
@@ -1940,7 +2026,7 @@ module.exports = {
                 // mode fetches radar solely for the rain alert, which the Alerts row draws.
                 options: [['Off', 'off'], ['Rain alert only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
-            }, {
+            }, rainAlertUnshownNote(), {
                 type: 'select',
                 messageKey: 'radarProvider',
                 label: 'Radar provider',
@@ -2139,8 +2225,9 @@ module.exports = {
             // section with an intro never counts as empty (engine buildSectionBody) —
             // without it the title and intro would outlive their rows on aplite, which
             // has neither the rain radar nor the Alerts row. The reset chip reverts the
-            // alerts' switches and looks (blocks.js resetAlerts); the levels keep their
-            // own reset in each sheet, the placements ride the status card's reset.
+            // alerts' switches and looks and the rain time window (blocks.js
+            // resetAlerts); the levels keep their own reset in each sheet, the
+            // placements ride the status card's reset.
             title: 'Alerts',
             showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
             intro: 'One icon per active alert, highlighted like a status slot: an outline at warn, filled at danger, in that value\'s colors. Rain shows in the radar\'s rain color. Each status bar below chooses where they appear.'

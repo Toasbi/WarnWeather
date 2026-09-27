@@ -1,6 +1,6 @@
 // src/pkjs/settings/preview-radar.js — ES5, WebView. The rain-radar preview
 // block: a two-hour nowcast bar chart with its provider-dependent "nearby"
-// outline bars, its legend, and the rain-countdown status strip above it.
+// outline bars, its legend, and the rain-alert status strip above it.
 /* global PConf */
 // The `.blocks` test is not redundant. config-ui's lib/color.js and lib/schema-walk.js
 // each do `global.PConf = global.PConf || {}` to attach their own shard, and
@@ -114,17 +114,43 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // eyeball with `mise preview-config` and nudge the 0.52 factor if labels crowd.
     function labelAdvance(text, s) { return Math.round(text.length * s * 0.52); }
 
-    // Small rain-intensity glyph: three short diagonal strokes in a size×size box at
-    // (gx, gy). An SVG stand-in for the watch's procedural rain-lines glyph — visual
-    // approximation, not a pixel-for-pixel trace.
-    function rainGlyph(gx, gy, size, color) {
-        var s = '', i, x0;
-        for (i = 0; i < 3; i += 1) {
-            x0 = gx + 2 + i * (size / 3);
-            s += '<line x1="' + (x0 + size * 0.28) + '" y1="' + (gy + 1) + '" x2="' + x0 + '" y2="' + (gy + size - 1)
-                + '" stroke="' + color + '" stroke-width="1.4" stroke-linecap="round"></line>';
-        }
-        return s;
+    // The watch's rain drop, as the Alerts card's rain icon draws it
+    // (status-slot-icons.js — scripts/gen-rain-pdc.py's construction: a cone from the
+    // tip tangent to a round body, pure fill, no outline). Its ink spans x 6..18,
+    // y 3..20.5 of that icon's 24-unit box.
+    var DROP_PATH = 'M12 3L17.1 11.4A6 6 0 1 1 6.9 11.4Z';
+    var DROP_INK_W = 12, DROP_INK_H = 17.5;
+    /**
+     * The drop's width at a given ink height.
+     * @param {number} h Ink height in preview px.
+     * @returns {number} Ink width in preview px.
+     */
+    function rainDropW(h) { return h * DROP_INK_W / DROP_INK_H; }
+    /**
+     * The rain drop, filled, its ink box's top-left at (gx, gy) and `h` px tall.
+     * @param {number} gx Left edge of the ink.
+     * @param {number} gy Top edge of the ink.
+     * @param {number} h Ink height.
+     * @param {string} color Fill colour.
+     * @returns {string} SVG markup.
+     */
+    function rainDrop(gx, gy, h, color) {
+        var k = h / DROP_INK_H;
+        return '<path transform="translate(' + (gx - 6 * k) + ',' + (gy - 3 * k) + ') scale(' + k + ')"'
+            + ' d="' + DROP_PATH + '" fill="' + color + '"></path>';
+    }
+
+    /**
+     * The top bar's Alerts placement (status-thresholds.js barAlertPlace — an absent
+     * value is Left), resolved lazily: in the flat page status-thresholds.js is
+     * concatenated after this file, so window.StatusThresholds exists only at render.
+     * @param {Object} state Live settings.
+     * @returns {string} 'off' | 'left' | 'middle' | 'right'.
+     */
+    function topAlertPlace(state) {
+        var contract = (typeof require !== 'undefined') ? require('../status-thresholds.js')
+            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
+        return contract ? contract.barAlertPlace(state, 'top') : 'left';
     }
 
     /**
@@ -259,27 +285,37 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             e += boltGlyph(sx, sy - 4, 1, 0, 0, skc.bolt, ink.bg);
             e += txt(sx + 8, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Lightning');
         }
-        // Rain-countdown preview band: a status-strip mock ("Rain in 15'") above the
-        // chart, mirroring top_status_layer.c. Hidden while the rain alert is switched
-        // off (alertRain false, its Alerts sheet — the watch shows no alert then), and never
-        // shown on aplite (which lacks the feature). Only the glyph is coloured, and it
-        // follows the radar colour the way rain_glyph_color() does: the watch
-        // reads palette_radar_color(tier), clamped to the palette's last stop, so a
-        // Multicolor palette gives the green tier while the one-stop Solid palette gives
-        // the Solid bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text
-        // stays theme-fg and centred.
-        if (isAplite || state.alertRain === false) {
+        // Rain-alert preview band: a Watch Status Bar mock above the chart showing the
+        // rain entry as the Alerts row draws it there (status_alerts.c) — its Look
+        // (rainAlertDisplay: the drop alone, the drop + "15'", or the drop + "Rain in
+        // 15'"), placed per the strip's Alerts setting (barAlertPlace: left-aligned for
+        // Left, centred for Middle, right-aligned for Right). Hidden while the rain
+        // alert is switched off (alertRain false, its Alerts sheet), while the strip's
+        // Alerts is Off (the strip draws no rain entry then), and never shown on aplite
+        // (which lacks the feature). Only the drop is coloured, and it follows the radar
+        // colour the way status_alerts_rain_tint() does: the watch reads
+        // palette_radar_color(tier), clamped to the palette's last stop, so a Multicolor
+        // palette gives the green tier while the one-stop Solid palette gives the Solid
+        // bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text stays
+        // theme-fg.
+        var place = topAlertPlace(state);
+        if (isAplite || state.alertRain === false || place === 'off') {
             return svgFrame(e, frameH);
         }
-        // !isColor first: B&W / bw themes take rain_glyph_color()'s theme_fg() branch
-        // whatever the (hidden) radar colour says.
+        // !isColor first: B&W / bw themes take the theme_fg() branch whatever the
+        // (hidden) radar colour says.
         var glyphColor = !isColor ? ink.fg : (radarWhite ? radarBarFg : P.rainTiers[2].color);
-        var bandH = 20, glyphSize = 10, label = "Rain in 15'";
-        var groupW = glyphSize + 4 + labelAdvance(label, 11);
-        var groupX = (200 - groupW) / 2;
+        var look = state.rainAlertDisplay;
+        var label = look === 'icon' ? '' : (look === 'minutes' ? "15'" : "Rain in 15'");
+        var bandH = 20, dropH = 11, dropW = rainDropW(dropH), edge = 4;
+        var groupW = dropW + (label ? 4 + labelAdvance(label, 11) : 0);
+        var groupX = place === 'left' ? edge
+            : (place === 'right' ? 200 - edge - groupW : (200 - groupW) / 2);
         var band = rect(0, 0, 200, bandH, ink.bg);
-        band += rainGlyph(groupX, (bandH - glyphSize) / 2, glyphSize, glyphColor);
-        band += txt(groupX + glyphSize + 4, bandH / 2 + 4, 11, ink.fg, 'start', 700, label);
+        band += rainDrop(groupX, (bandH - dropH) / 2, dropH, glyphColor);
+        if (label) {
+            band += txt(groupX + dropW + 4, bandH / 2 + 4, 11, ink.fg, 'start', 700, label);
+        }
         band += '<line x1="0" y1="' + bandH + '" x2="200" y2="' + bandH + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
         return svgFrame(band + '<g transform="translate(0,' + bandH + ')">' + e + '</g>', frameH + bandH);
     }

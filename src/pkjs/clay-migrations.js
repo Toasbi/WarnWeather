@@ -160,10 +160,16 @@ function runMigrations(opts) {
     var wantsClayStripeRule = migrateStripeMetricRuleResend(
         isDone(KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY),
         mark(KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY));
+    // After the radar provider -> mode move above: it reads radarMode. Marks
+    // synchronously; a NACKed send leaves the new horizon in the outbox's uncommitted
+    // last-sent cache, so the next Clay send carries it (as the no-rain text above).
+    var wantsClayRainHorizon = migrateRainHorizonOff(
+        isDone(KEYS.RAIN_HORIZON_OFF_MIGRATION_KEY),
+        mark(KEYS.RAIN_HORIZON_OFF_MIGRATION_KEY));
     return {
         clayRequired: Boolean(wantsClayColors || wantsClayToggle || wantsClayLightRetune
                               || wantsClaySolidBars || wantsClayNightColors || wantsClayNoRainText
-                              || wantsClayStripeRule),
+                              || wantsClayStripeRule || wantsClayRainHorizon),
         commitDeferredMarkers: function () {
             if (wantsClayColors) { mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY)(); }
             if (wantsClayToggle) { mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY)(); }
@@ -860,8 +866,47 @@ function migrateThresholdHighlightToggles(isMigrationDone, markDone) {
     markDone();
 }
 
+/**
+ * One-time 1.24.0 move of the rain window's retired Off option. Until 132b577a the
+ * Radar tab's rain countdown offered 'Off' (rainCountdownHorizon '0'); the rain
+ * alert's own switch (alertRain) replaced it, but a stored '0' was never moved: the
+ * Alerts card's Rain row read "Within 60 min" through its fallback while the phone
+ * sent horizon 0 and the watch showed no rain. A stored '0' becomes the window's
+ * default '60' with the switch OFF — the same "no rain alert" the watch already
+ * draws — except in radar mode 'Rain alert only', which holds the switch on
+ * (reset-status-defaults.js forceRainAlert): there the alert stays on, now with a
+ * working window.
+ *
+ * Keyed on the stored HORIZON value, never on alertRain being absent: seedDefaults
+ * (which runs before the ledger) has written alertRain's default into every blob.
+ *
+ * Returns true when the watch must get the new horizon: only in 'Rain alert only',
+ * where the sent value moves from 0 to 60. Elsewhere the switch off keeps sending 0
+ * (clay-payload.js), which the watch already holds. "Reset watchface" marks this done
+ * (clay-settings.js resetAll).
+ * @param {function(): boolean} isMigrationDone marker probe
+ * @param {function()} markDone marker setter
+ * @returns {boolean} True when a Clay send must carry the new horizon.
+ */
+function migrateRainHorizonOff(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'rain window off');
+    if (persistClay === null) { return false; }
+    var resend = false;
+    var h = persistClay.rainCountdownHorizon;
+    if (h !== null && typeof h !== 'undefined' && String(h) === '0') {
+        persistClay.rainCountdownHorizon = '60';
+        resend = persistClay.radarMode === 'countdown';
+        persistClay.alertRain = resend;
+        save(persistClay);
+        console.log('Migrated rain window Off -> 60 min, rain alert ' + (resend ? 'on' : 'off'));
+    }
+    markDone();
+    return resend;
+}
+
 module.exports = {
     runMigrations: runMigrations,
+    migrateRainHorizonOff: migrateRainHorizonOff,
     migrateExistingInstallOnboarded: migrateExistingInstallOnboarded,
     migrateWeekendHolidayColors: migrateWeekendHolidayColors,
     migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle,

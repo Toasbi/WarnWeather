@@ -266,3 +266,85 @@ test('the status card reset reverts every bar\'s placement on a live page', () =
   assert.equal(page.S.statusForecastAlerts, 'off');
   assert.strictEqual(page.S.alertUv, true, 'the alerts are the Alerts card\'s');
 });
+
+const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so alerts won’t show there';
+const UNSHOWN_NOTE = 'No status bar shows alerts, so the rain alert won’t appear.';
+
+test('no Watch Status Bar on the Default view and no bar there placing alerts: the card says so', () => {
+  const shows = (cfg) => watchTab(cfg).scroll.innerHTML.indexOf(NO_TOP_NOTE) !== -1;
+  // Weather only drops the strip in every radar mode but 'Rain alert only'.
+  assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph', statusForecastAlerts: 'off' }),
+    'Weather only + radar graph + forecast bar Off: shown');
+  assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'status' }), 'radar status, defaults: shown');
+  assert.ok(!shows({ layoutPreset: 'weatherOnly', radarMode: 'graph', statusForecastAlerts: 'left' }),
+    'the forecast bar places them: hidden');
+  assert.ok(!shows({ layoutPreset: 'weatherOnly', radarMode: 'status', statusRadarAlerts: 'right' }),
+    'radar status: the radar bar is on the Default view and places them: hidden');
+  assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph', statusRadarAlerts: 'right' }),
+    'radar graph: no radar bar on the Default view, so its placement does not count');
+  assert.ok(!shows({ layoutPreset: 'weatherOnly', radarMode: 'countdown' }),
+    'Rain alert only keeps the Default view\'s strip: hidden');
+  assert.ok(!shows({ layoutPreset: 'compactCal', radarMode: 'graph', statusTopAlerts: 'off' }),
+    'a standard preset keeps its strip: hidden');
+  assert.ok(!shows({}), 'defaults: hidden');
+  // A custom layout: the Default view's strip switch and the bars its seats hold.
+  const custom = { layoutPreset: 'custom', viewStripOff0: true, viewUpper0: 'weather', viewLower0: 'off' };
+  assert.ok(shows(custom), 'custom, strip off, forecast bar Off: shown');
+  assert.ok(!shows(Object.assign({}, custom, { statusForecastAlerts: 'middle' })), 'forecast bar Middle: hidden');
+  assert.ok(!shows(Object.assign({}, custom, { viewStripOff0: false })), 'custom with its strip: hidden');
+  assert.ok(!shows(Object.assign({}, custom, { viewLower0: 'health', healthMode: 'status',
+    statusHealthAlerts: 'left' })), 'a health seat placing them: hidden');
+  assert.ok(shows(Object.assign({}, custom, { viewLower0: 'health', healthMode: 'off',
+    statusHealthAlerts: 'left' })), 'a health seat folded away (health off) does not count');
+});
+
+test('radar mode "Rain alert only" with no visible bar placing alerts: the rain sheet and the Radar tab say so', () => {
+  const inSheet = (cfg) => {
+    const page = watchTab(Object.assign({ radarMode: 'countdown' }, cfg));
+    page.openEditSheet('alertRain');
+    return page.modal.innerHTML.indexOf(UNSHOWN_NOTE) !== -1;
+  };
+  const onRadarTab = (cfg) => {
+    const page = bootGeneratedPage(Object.assign({ provider: 'dwd', radarMode: 'countdown' }, cfg));
+    page.clickTab('radar');
+    return page.scroll.innerHTML.indexOf(UNSHOWN_NOTE) !== -1;
+  };
+  [inSheet, onRadarTab].forEach((shows, i) => {
+    const where = i === 0 ? 'sheet: ' : 'radar tab: ';
+    assert.ok(shows({ statusTopAlerts: 'off' }), where + 'strip Off, the rest at Off: shown');
+    assert.ok(!shows({}), where + 'defaults (the strip Left): hidden');
+    assert.ok(!shows({ statusTopAlerts: 'off', statusForecastAlerts: 'middle' }),
+      where + 'forecast bar places them: hidden');
+    assert.ok(shows({ statusTopAlerts: 'off', statusRadarAlerts: 'left' }),
+      where + 'the radar bar never shows in this mode: its placement does not count');
+    assert.ok(shows({ statusTopAlerts: 'off', healthMode: 'off', statusHealthAlerts: 'left' }),
+      where + 'no health bar: its placement does not count');
+    assert.ok(!shows({ statusTopAlerts: 'off', healthMode: 'status', statusHealthAlerts: 'left' }),
+      where + 'the health bar places them: hidden');
+    assert.ok(!shows({ radarMode: 'graph', statusTopAlerts: 'off' }), where + 'another radar mode: hidden');
+  });
+});
+
+test('the notes resolve a bar\'s placement exactly as the contract does (absent or unknown top = Left)', () => {
+  const schema = require('../src/pkjs/settings/schema.js');
+  const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
+  const contract = require('../src/pkjs/status-thresholds.js');
+  const notes = [];
+  const walk = (items) => (items || []).forEach(it => {
+    if (it.type === 'staticText' && it.text && it.text.indexOf(UNSHOWN_NOTE) === 0) { notes.push(it); }
+  });
+  schema.tabs.forEach(t => (t.sections || []).forEach(sec => walk(sec.items)));
+  assert.equal(notes.length, 2, 'the rain sheet and the Radar tab');
+  const env = { platform: 'basalt', health: true };
+  [undefined, 'off', 'left', 'middle', 'right', 'bogus', ''].forEach((top) => {
+    [undefined, 'off', 'left', 'bogus'].forEach((fc) => {
+      const S = { radarMode: 'countdown', healthMode: 'off' };
+      if (top !== undefined) { S.statusTopAlerts = top; }
+      if (fc !== undefined) { S.statusForecastAlerts = fc; }
+      const want = contract.barAlertPlace(S, 'top') === 'off'
+        && contract.barAlertPlace(S, 'forecast') === 'off';
+      notes.forEach(n => assert.equal(showWhen.isVisible(n, Object.assign({ env }, S)), want,
+        'top ' + top + ', forecast ' + fc));
+    });
+  });
+});

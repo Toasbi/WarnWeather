@@ -1492,10 +1492,14 @@ test('the rain alert sheet: its switch (held on in Rain alert only), the time wi
   assert.match(s.items[0].intro, /“Rain alert only” keeps it on\.$/, 'the intro says the mode holds it');
   assert.deepEqual(s.items[1], { type: 'toggle', messageKey: 'alertRain', label: 'Rain alert',
     defaultValue: true, disabledWhen: { key: 'radarMode', eq: 'countdown' } });
-  assert.equal(s.items[2].messageKey, 'rainCountdownHorizon');
-  assert.equal(s.items[2].label, 'Time window');
-  assert.deepEqual(s.items[2].disabledWhen, off);
-  assert.deepEqual(s.items[3], {
+  // The 'Rain alert only' warning (its predicate is pinned by the page tests).
+  assert.equal(s.items[2].type, 'staticText');
+  assert.equal(s.items[2].style, 'info');
+  assert.equal(s.items[2].text, 'No status bar shows alerts, so the rain alert won’t appear. Pick a place in a status bar’s Alerts setting.');
+  assert.equal(s.items[3].messageKey, 'rainCountdownHorizon');
+  assert.equal(s.items[3].label, 'Time window');
+  assert.deepEqual(s.items[3].disabledWhen, off);
+  assert.deepEqual(s.items[4], {
     type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Look', defaultValue: 'text',
     options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
     // Only the minutes look needs explaining (the drop alone and the full text describe
@@ -1505,7 +1509,7 @@ test('the rain alert sheet: its switch (held on in Rain alert only), the time wi
     },
     disabledWhen: off
   });
-  assert.equal(s.items.length, 4);
+  assert.equal(s.items.length, 5);
 });
 
 test('alert sheets carry no slot rows (Bold, display mode, arrow, unit)', () => {
@@ -1917,6 +1921,7 @@ function scrambledSlotState() {
     S['thresh' + kind.key + 'BoldMode'] = (i % 2 === 0) ? 'always' : 'off';
   });
   S.threshWindOn = true;
+  S.threshStepsOn = true;
   S.threshWindWarn = '10'; S.threshWindDanger = '20'; S.threshWindMax = '200';
   S.threshWindWarnColor = '#00AAFF'; S.threshWindDangerColor = '#5500FF';
   return S;
@@ -1948,8 +1953,10 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
       assert.equal(S['thresh' + kind.key + 'BoldMode'], kind.boldOnly ? 'off' : 'warn',
         name + ': ' + kind.key + ' BoldMode back to its sheet default');
     });
+    // A weather kind's slot Highlight is a slot-sheet row like Bold: back to off.
+    assert.strictEqual(S.threshWindOn, false, name + ': the slot Highlight back to off');
     // Thresholds/colors/outline/max belong to the per-sheet reset — untouched here.
-    assert.equal(S.threshWindOn, true, name + ': highlight toggle untouched');
+    assert.strictEqual(S.threshStepsOn, true, name + ': a goal kind\'s switch (its Goals group) untouched');
     assert.equal(S.threshWindWarn, '10', name + ': warn threshold untouched');
     assert.equal(S.threshWindDanger, '20', name + ': danger threshold untouched');
     assert.equal(S.threshWindMax, '200', name + ': scale max untouched');
@@ -1978,7 +1985,7 @@ test('resetStatusSlots reverts every bar\'s Alerts placement, and leaves the ale
   assert.equal(S.rainAlertDisplay, 'minutes');
 });
 
-test('resetAlerts reverts every alert\'s switch and look — not the levels, the window or the bars', () => {
+test('resetAlerts reverts every alert\'s switch and look and the rain window — not the levels or the bars', () => {
   const map = itemsByKey();
   const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
   const S = { threshUvWarn: '7', threshUvDanger: '9', threshUvOn: true, rainCountdownHorizon: '120',
@@ -1995,7 +2002,7 @@ test('resetAlerts reverts every alert\'s switch and look — not the levels, the
     assert.ok(!('alert' + stem in S), 'no alert' + stem + ' key written (goal kinds are no alerts)'));
   assert.equal(S.threshUvWarn, '7', 'the levels keep their own reset');
   assert.strictEqual(S.threshUvOn, true, 'and so does the highlight switch');
-  assert.equal(S.rainCountdownHorizon, '120', 'the rain window is left alone');
+  assert.equal(S.rainCountdownHorizon, '60', 'the rain window back to 60 min (its sheet, its card row)');
   assert.equal(S.statusTopAlerts, 'middle', 'placements ride the status card\'s reset');
 });
 

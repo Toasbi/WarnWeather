@@ -1228,3 +1228,76 @@ test('resetAll marks the highlight-toggle backfill done: an OFF saved before the
   assert.strictEqual(read.threshAqiOn, false, 'the OFF survives the boot');
   assert.deepEqual([read.threshAqiWarn, read.threshAqiDanger], ['100', '150'], 'the kept pair is still kept');
 });
+
+// --- 1.24.0: the rain window's retired Off option ------------------------------------
+
+test('migrateRainHorizonOff: a stored Off window becomes 60 min with the rain alert off', () => {
+  ['0', 0].forEach((off) => {
+    const c = loadThresholdToggleCase({ radarMode: 'graph', rainCountdownHorizon: off, alertRain: true });
+    const resend = c.clayMigrations.migrateRainHorizonOff(c.marker.isDone, c.marker.mark);
+    const read = c.claySettings.read();
+    assert.equal(read.rainCountdownHorizon, '60', JSON.stringify(off) + ': the window lands on its default');
+    assert.strictEqual(read.alertRain, false, 'the switch now says what the watch drew: no rain alert');
+    assert.equal(resend, false, 'no send: the switch off keeps sending horizon 0');
+    assert.equal(c.marker.state.done, true, 'marked synchronously');
+  });
+});
+
+test('migrateRainHorizonOff: in Rain alert only the alert stays on, and the watch gets the window', () => {
+  const c = loadThresholdToggleCase({ radarMode: 'countdown', rainCountdownHorizon: '0', alertRain: true });
+  const resend = c.clayMigrations.migrateRainHorizonOff(c.marker.isDone, c.marker.mark);
+  const read = c.claySettings.read();
+  assert.equal(read.rainCountdownHorizon, '60');
+  assert.strictEqual(read.alertRain, true, 'the mode holds the rain alert on');
+  assert.equal(resend, true, 'the sent horizon moves 0 -> 60: a Clay send');
+});
+
+test('migrateRainHorizonOff: keyed on the window value — a real window, or a marked ledger, is left alone', () => {
+  ['30', '60', '120'].forEach((h) => {
+    const c = loadThresholdToggleCase({ radarMode: 'graph', rainCountdownHorizon: h, alertRain: true });
+    assert.equal(c.clayMigrations.migrateRainHorizonOff(c.marker.isDone, c.marker.mark), false);
+    assert.equal(c.saves.n, 0, h + ': nothing saved');
+    assert.strictEqual(c.claySettings.read().alertRain, true, h + ': the switch untouched');
+    assert.equal(c.marker.state.done, true, h + ': still marked');
+  });
+  const marked = loadThresholdToggleCase({ radarMode: 'graph', rainCountdownHorizon: '0', alertRain: true });
+  marked.marker.mark();
+  marked.clayMigrations.migrateRainHorizonOff(marked.marker.isDone, marked.marker.mark);
+  assert.equal(marked.claySettings.read().rainCountdownHorizon, '0', 'a marked ledger does not touch the blob');
+});
+
+test('the rain-window move survives the boot order and asks the ledger for a send only in Rain alert only', () => {
+  [['graph', false], ['countdown', true]].forEach(([mode, wantSend]) => {
+    const store = installFakeStorage();
+    const mods = loadUpgradeModules();
+    store['clay-settings'] = JSON.stringify({ theme: 'dark', radarMode: mode, rainCountdownHorizon: '0' });
+    // seedDefaults backfills alertRain (true) first — the reason the move keys on the
+    // window, not on the switch being absent.
+    mods.claySettings.seedDefaults(COLORS);
+    Object.keys(mods.KEYS).forEach((name) => {
+      if (/_MIGRATION_KEY$/.test(name) && name !== 'RAIN_HORIZON_OFF_MIGRATION_KEY') {
+        store[mods.KEYS[name]] = '1';
+      }
+    });
+    const res = mods.clayMigrations.runMigrations({
+      platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
+    const read = mods.claySettings.read();
+    assert.equal(read.rainCountdownHorizon, '60', mode);
+    assert.strictEqual(read.alertRain, wantSend, mode + ': the switch');
+    assert.equal(res.clayRequired, wantSend, mode + ': clayRequired');
+    assert.equal(store[mods.KEYS.RAIN_HORIZON_OFF_MIGRATION_KEY], '1', mode + ': marked');
+  });
+});
+
+test('resetAll marks the rain-window move done', () => {
+  installFakeStorage();
+  const mods = loadUpgradeModules();
+  localStorage.setItem('clay-settings', JSON.stringify({ rainCountdownHorizon: '0' }));
+  mods.claySettings.resetAll();
+  assert.equal(localStorage.getItem(mods.KEYS.RAIN_HORIZON_OFF_MIGRATION_KEY), '1');
+  // A blob saved before the next boot (none could hold '0' — the option is gone) is
+  // never rewritten by it.
+  localStorage.setItem('clay-settings', JSON.stringify({ rainCountdownHorizon: '0', alertRain: true }));
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(mods.claySettings.read().rainCountdownHorizon, '0', 'the marked ledger leaves it');
+});

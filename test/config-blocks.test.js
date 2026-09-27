@@ -365,11 +365,14 @@ test('alertLevelBadge: the alert\'s colours while it is on, no bold B; rain gets
   assert.equal(off.label, 'Edit');
   assert.deepEqual(off.dots, [], 'alert off: no dots, whatever the highlight says');
   assert.equal(off.ariaNote, 'off');
-  // On: the entry's outline (warn) and fill (danger). With no warn outline picked the
-  // watch outlines an alert entry in the theme fg anyway — an icon has no bold.
+  // On: the entry's outline (warn) and fill (danger). With 'Outline on warn' off the
+  // watch draws no box at warn, so the ring is the neutral no-outline gray the slot
+  // pencil uses — never a theme-fg ring previewing an outline that never appears.
   const on = badge({ alertUv: true, theme: 'dark', threshUvDangerColor: '#FF0000' }, env, uv);
   assert.equal(on.dots.length, 2, 'warn ring + danger fill');
-  assert.deepEqual(on.dots[0], { color: '#FFFFFF', ring: true }, 'no outline colour: the theme fg ring');
+  assert.deepEqual(on.dots[0], { color: '#8A8E97', ring: true }, 'no outline: the neutral gray ring');
+  assert.deepEqual(badge({ alertUv: true, theme: 'light' }, env, uv).dots[0],
+    { color: '#8A8E97', ring: true }, 'on the light theme too');
   assert.ok(!on.dots[1].ring, 'then the fill (danger)');
   assert.equal(on.dots[1].color, '#FF0000');
   assert.equal(on.ariaNote, '');
@@ -727,12 +730,45 @@ test('radarPreview never shows the countdown band on aplite', () => {
   assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'aplite frame stays at the no-band height');
 });
 
-test('countdown glyph is tier-coloured on color, white on B&W; text stays white', () => {
+test('countdown drop is tier-coloured on color, white on B&W; text stays white', () => {
   const color = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
   const bw = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: false });
-  assert.ok(/stroke="#00FF00"/.test(color), 'glyph uses the green tier stroke on color');
-  assert.equal(/stroke="#00FF00"/.test(bw), false, 'no green glyph stroke on B&W');
+  assert.ok(/<path[^>]*d="M12 3L17\.1 11\.4A6 6 0 1 1 6\.9 11\.4Z" fill="#00FF00"/.test(color),
+    'the watch\'s filled teardrop, in the green tier, on color');
+  assert.equal(/<path[^>]*fill="#00FF00"/.test(bw), false, 'no green drop on B&W');
+  assert.equal(/<line[^>]*stroke="#00FF00"/.test(color), false, 'no three-stroke glyph any more');
   assert.ok(color.indexOf('fill="#FFFFFF"') >= 0, 'white band text present on color');
+});
+
+/**
+ * The preview band's drop x (its path's translate) and its text, if any.
+ * @param {string} svg radarPreview markup
+ * @returns {?{x: number, text: ?string}} null when the band is absent
+ */
+function rainBand(svg) {
+  const m = /<path transform="translate\(([-\d.]+),[-\d.]+\) scale\([\d.]+\)" d="M12 3L17/.exec(svg);
+  if (!m) { return null; }
+  const after = svg.slice(m.index);
+  const t = /<text[^>]*>([^<]*)<\/text>/.exec(after.slice(0, after.indexOf('<line')));
+  return { x: Number(m[1]), text: t ? t[1] : null };
+}
+
+test('radarPreview draws the rain entry in its Look, where the Watch Status Bar places it', () => {
+  const base = { radarProvider: 'dwd', radarColor: 'multicolor' };
+  const at = (S) => rainBand(RD.radarPreview(Object.assign({}, base, S), { color: true }));
+  assert.equal(at({}).text, "Rain in 15'", 'the default Look: the countdown text');
+  assert.equal(at({ rainAlertDisplay: 'minutes' }).text, "15'", 'Icon + minutes');
+  assert.equal(at({ rainAlertDisplay: 'icon' }).text, null, 'Icon: the drop alone');
+  const left = at({ statusTopAlerts: 'left', rainAlertDisplay: 'icon' }).x;
+  const middle = at({ statusTopAlerts: 'middle', rainAlertDisplay: 'icon' }).x;
+  const right = at({ statusTopAlerts: 'right', rainAlertDisplay: 'icon' }).x;
+  assert.ok(left < middle && middle < right, 'Left hugs the left edge, Middle centres, Right hugs the right: '
+    + [left, middle, right]);
+  assert.ok(left < 10, 'Left sits at the strip\'s left edge');
+  assert.equal(at({}).x, at({ statusTopAlerts: 'left' }).x, 'an absent placement is Left (barAlertPlace)');
+  assert.equal(at({ statusTopAlerts: 'off' }), null, 'the strip\'s Alerts Off: no rain entry, no band');
+  const off = RD.radarPreview(Object.assign({}, base, { statusTopAlerts: 'off' }), { color: true });
+  assert.ok(off.indexOf('viewBox="0 0 200 118"') >= 0, 'the frame keeps the no-band height');
 });
 
 // The watch colours the countdown glyph with palette_radar_color(tier) (top_status_layer.c
@@ -745,13 +781,13 @@ test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s s
   ['dark', 'light'].forEach((theme) => {
     const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'white', radarMode: 'graph', theme },
       { color: true, platform: 'basalt' }, userData);
-    const strokes = [];
-    svg.replace(/<line [^>]*stroke="([^"]+)" stroke-width="1\.4"/g, (m, c) => { strokes.push(c); return m; });
+    const fills = [];
+    svg.replace(/<path transform="[^"]*" d="M12 3L17[^"]*" fill="([^"]+)"/g, (m, c) => { fills.push(c); return m; });
     const watch = rainTier.buildPalette('basalt', 'white', theme);
     const expected = colorLib.intToHex(watch.rgb[watch.rgb.length - 1]);
-    assert.equal(strokes.length, 3, theme + ': the three glyph strokes are drawn');
-    assert.deepEqual(strokes, [expected, expected, expected], theme + ': glyph takes the Solid stop ' + expected);
-    assert.equal(/stroke="#00FF00"/.test(svg), false, theme + ': no green tier stroke anywhere');
+    assert.equal(fills.length, 1, theme + ': the drop is drawn');
+    assert.deepEqual(fills, [expected], theme + ': the drop takes the Solid stop ' + expected);
+    assert.equal(/<path[^>]*fill="#00FF00"/.test(svg), false, theme + ': no green tier drop');
   });
 });
 

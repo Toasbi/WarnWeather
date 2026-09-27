@@ -80,6 +80,10 @@ function resetAll() {
     // pair, the user switches it OFF — pair kept), and that boot would turn the OFF
     // back ON.
     localStorage.setItem(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY, '1');
+    // And for the 1.24.0 rain-window move: the next blob is seeded with the window
+    // at 60 and the page no longer offers the Off option it rewrites, so there is
+    // nothing for it to move from here on.
+    localStorage.setItem(KEYS.RAIN_HORIZON_OFF_MIGRATION_KEY, '1');
     return keep;
 }
 

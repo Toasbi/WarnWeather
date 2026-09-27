@@ -824,8 +824,12 @@ if (typeof require !== 'undefined') {
     // with the rows shaping their pair and UV's tomorrow mark, the wind/gust
     // direction arrows), the date formats and the Show-unit toggles
     // (the Alert levels group's own reset deliberately covers only the levels),
-    // and each bar's Alerts placement (BAR_ALERT_KEYS — the select lives in the
-    // bar's own sub-section of this card). Deliberately untouched:
+    // each weather kind's slot Highlight switch (a slot-sheet row, like Bold — a
+    // goal kind's rides its Goals header and that group's reset), each bar's Alerts
+    // placement (BAR_ALERT_KEYS — the select lives in the bar's own sub-section of
+    // this card), and the card's other rows: 'Show battery below 10%'
+    // (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration
+    // (vibe) and icon (btIcons). Deliberately untouched:
     // thresholds, colors, outline toggles and scale maxes (every sheet has its own
     // reset button), the alerts themselves (the Alerts card has its own reset,
     // resetAlerts below), and the countdown companion dates (inert once a slot
@@ -851,7 +855,9 @@ if (typeof require !== 'undefined') {
             'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
             'tempSlotOrder',
             'dateSlotMonthFormat',
-            'windSlotDirection', 'gustSlotDirection']
+            'windSlotDirection', 'gustSlotDirection',
+            // The Watch Status Bar section's toggles.
+            'batteryLowOnly', 'showQt', 'vibe', 'btIcons']
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
             // wind, gusts, AQI), from the catalog's one table.
             .concat(statusLineCatalog.dayMaxSettingKeys());
@@ -871,7 +877,9 @@ if (typeof require !== 'undefined') {
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {
-                schemaKeys.push('thresh' + contractMod.KINDS[k].key + 'BoldMode');
+                var kd = contractMod.KINDS[k];
+                schemaKeys.push('thresh' + kd.key + 'BoldMode');
+                if (!kd.boldOnly && !kd.goal) { schemaKeys.push('thresh' + kd.key + 'On'); }
             }
             for (var b = 0; b < contractMod.BAR_ALERT_KEYS.length; b++) {
                 schemaKeys.push(contractMod.BAR_ALERT_KEYS[b].key);
@@ -887,10 +895,11 @@ if (typeof require !== 'undefined') {
     // alertCardItems): every alert's switch and look back to its schema default, via
     // the engine's resolver like resetStatusSlots above. The metric alerts are the
     // level kinds that are neither bold-only nor goals — the five the card lists;
-    // rain's are alertRain (on) and rainAlertDisplay. Deliberately untouched: the
-    // levels and colours (each sheet's Alert levels header has its own reset, which
-    // also serves the slots' highlight), the rain time window (a tuning of the radar,
-    // not an on/off or a look) and each bar's placement (the status card's reset).
+    // rain's are alertRain (on), rainAlertDisplay and its time window
+    // (rainCountdownHorizon — it lives in the Rain sheet and prints on the card row).
+    // Deliberately untouched: the levels and colours (each sheet's Alert levels header
+    // has its own reset, which also serves the slots' highlight) and each bar's
+    // placement (the status card's reset).
     /**
      * @param {*} arg Unused (the engine passes the button's data-action-arg).
      * @param {Object} S Live settings state (mutated in place).
@@ -901,7 +910,7 @@ if (typeof require !== 'undefined') {
      */
     PConf.actions.resetAlerts = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf) { return false; }
-        var keys = ['alertRain', 'rainAlertDisplay'];
+        var keys = ['alertRain', 'rainAlertDisplay', 'rainCountdownHorizon'];
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {
@@ -927,6 +936,9 @@ if (typeof require !== 'undefined') {
      * @param {number} kindIndex Index into the contract's KINDS.
      * @returns {Object} Badge state for the engine's editBadgeFrom.
      */
+    // The badge ring for a kind whose warn outline is off: a neutral gray, so the
+    // ring still reads but carries no colour meaning (the watch draws no warn box).
+    var NO_OUTLINE_RING = '#8A8E97';
     function penStateForKind(S, env, kindIndex) {
         var contract = thresholdContract();
         var key = contract.KINDS[kindIndex].key;
@@ -957,7 +969,7 @@ if (typeof require !== 'undefined') {
             // No warn outline configured -> neutral gray ring (the enabled badge
             // still reads; the ring hue just carries no color meaning then).
             dots: enabled ? [
-                { color: penWarn === null ? '#8A8E97' : penWarn, ring: true },
+                { color: penWarn === null ? NO_OUTLINE_RING : penWarn, ring: true },
                 { color: thresholdDisplayColor(S, key, 'Danger') }
             ] : []
         };
@@ -994,13 +1006,14 @@ if (typeof require !== 'undefined') {
 
     /**
      * The Alerts card row's badge (editBadgeFrom, args.keyStem): the colours the
-     * watch draws that alert in, while it is ON — a ring in the warn colour (the
-     * entry's outline; with no outline colour picked the watch outlines in the theme
-     * fg, since an icon has no bold to fall back on) and a dot in the danger colour
+     * watch draws that alert in, while its Alert switch is ON (no dots at all while
+     * it is off) — a ring in the warn colour (the entry's outline at warn; with
+     * 'Outline on warn' off the watch draws no box at warn, so the ring is the
+     * neutral no-outline gray penStateForKind uses) and a dot in the danger colour
      * (the filled box). No 'B': bold is how a SLOT prints, not part of the alert.
-     * The alert switch decides, not the highlight switch: the entries take the
-     * kind's colours either way. Rain draws in the radar's colours and never boxes,
-     * so its row has no dots, only the Edit button every row carries.
+     * The alert switch decides, not the slot's Highlight switch: the entries take
+     * the kind's colours either way. Rain draws in the radar's colours and never
+     * boxes, so its row has no dots, only the Edit button every row carries.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {{keyStem: string}} args The row's alert: a level kind's stem, or 'Rain'.
@@ -1023,7 +1036,7 @@ if (typeof require !== 'undefined') {
             label: 'Edit',
             ariaNote: '',
             dots: [
-                {color: warn === null ? thresholdAutoFg(st.theme) : warn, ring: true},
+                {color: warn === null ? NO_OUTLINE_RING : warn, ring: true},
                 {color: thresholdDisplayColor(st, stem, 'Danger')}
             ]
         };
