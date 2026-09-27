@@ -16,10 +16,8 @@
 //
 // Each entry is a MINI STATUS SLOT, `[icon][gap][text?]`, highlighted EXACTLY like
 // its value's slot (status_row.c), at the slot's shown level
-// (status_threshold_shown_level — NORMAL while the kind's enable bit is clear, so
-// the entry would then be a plain icon, its presence the alert; the page's one
-// Alert switch per kind sets that bit and gates the phone's bake alike, so a
-// metric entry is baked only while it is set):
+// (status_threshold_shown_level — NORMAL while the kind's 'Highlight on the watch'
+// switch is off, so the entry is then a plain icon, its presence the alert):
 //  - WARN   a rounded-rect OUTLINE in the kind's warn colour — only while the
 //           kind's 'Outline on warn' is on. The 0x00 no-outline sentinel draws no
 //           box, as a warn slot draws none: the icon alone is the alert;

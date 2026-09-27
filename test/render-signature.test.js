@@ -301,41 +301,35 @@ test('setting a WEATHER-kind pair changes the render signature (forces a refetch
   });
 });
 
-// Turning the switch ON over a blank pair pins the SEED strings into storage
-// (blocks.js thresholdToggle) — the numbers the bake reads do not change, so the
-// pinned pair adds nothing to what the switch itself signs.
+// Turning the highlight ON over a blank pair pins the SEED strings into storage
+// (blocks.js thresholdToggle) — the numbers the bake reads do not change, so it must
+// not force a refetch either (spec decision 6: the switch never forces a refetch).
 test('storing the seed pair over a blank one leaves the signature unchanged', () => {
   WEATHER_KINDS.forEach(kind => {
     const seed = thresholds.seedPair(kind.key, {});
-    const on = { ['thresh' + kind.key + 'On']: true };
-    const pinned = Object.assign({
+    const pinned = {
       ['thresh' + kind.key + 'Warn']: String(seed.warn),
-      ['thresh' + kind.key + 'Danger']: String(seed.danger)
-    }, on);
-    assert.equal(renderSignature(pinned), renderSignature(on),
+      ['thresh' + kind.key + 'Danger']: String(seed.danger),
+      ['thresh' + kind.key + 'On']: true
+    };
+    assert.equal(renderSignature(pinned), renderSignature({}),
       kind.key + ': the seed pinned as strings reads the same as a blank pair');
   });
 });
 
-// A weather kind's switch (thresh<Kind>On) is its ALERT's one switch: it gates the baked
-// ALERT_ENTRIES_UINT8 entries and the alert's fetch set, so flipping it must drop the
-// weather caches. A goal kind's switch only flips the blob[0] enable bit on the Clay
-// message (immediate on close) and must not. Editing the pair still re-bakes either way
-// for the weather kinds (the levels and the day-max hold read it).
-test('flipping a weather kind\'s switch changes the signature, a goal kind\'s does not; Warn/Danger still do', () => {
+// The highlight toggle is split from the levels: every weather kind's level is packed
+// whatever thresh<Kind>On says, and the toggle only flips the blob[0] enable bit on the
+// Clay message (immediate on close). So flipping it must NOT drop the weather caches —
+// while editing the pair it guards still must (the levels and the day-max hold read it).
+test('flipping a weather-kind highlight toggle does NOT change the signature; Warn/Danger still do', () => {
   const pair = (kind) => ({ ['thresh' + kind.key + 'Warn']: '5',
     ['thresh' + kind.key + 'Danger']: '10' });
   thresholds.KINDS.filter(k => !k.boldOnly).forEach(kind => {
     const key = 'thresh' + kind.key + 'On';
     const base = pair(kind);
     const off = renderSignature(Object.assign({ [key]: false }, base));
-    if (kind.goal) {
-      assert.equal(renderSignature(Object.assign({ [key]: true }, base)), off,
-        key + ' rides the Clay blob only — it must not force a weather refetch');
-    } else {
-      assert.notEqual(renderSignature(Object.assign({ [key]: true }, base)), off,
-        key + ' is the alert\'s switch — it must force a refetch');
-    }
+    assert.equal(renderSignature(Object.assign({ [key]: true }, base)), off,
+      key + ' rides the Clay blob only — it must not force a weather refetch');
     assert.equal(renderSignature(base), off, key + ' absent reads the same as false');
   });
   WEATHER_KINDS.forEach(kind => {
@@ -404,18 +398,17 @@ test('a top stripe joins the signature only while it squeezes a feels/dew curve'
 // The metric alerts change the bake (the ALERT_ENTRIES_UINT8 tuple) AND the fetch set (an
 // enabled alert fetches its metric and day peaks), so switching one — or its Look —
 // must force a refetch. The rain look rides the Clay blob (byte 34) and must not.
-test('each alert switch (thresh<Kind>On) and, while on, its Look change the render signature', () => {
+test('each alert<Kind> and, while on, its Look change the render signature', () => {
   const base = renderSignature({});
   thresholds.ALERT_KINDS.forEach((a) => {
-    const onKey = 'thresh' + a.key + 'On';
-    const on = renderSignature({ [onKey]: true });
-    assert.notEqual(on, base, onKey + ' must force a refetch');
-    assert.notEqual(renderSignature({ [onKey]: true, ['alert' + a.key + 'Display']: 'value' }),
+    const on = renderSignature({ ['alert' + a.key]: true });
+    assert.notEqual(on, base, 'alert' + a.key + ' must force a refetch');
+    assert.notEqual(renderSignature({ ['alert' + a.key]: true, ['alert' + a.key + 'Display']: 'value' }),
       on, 'alert' + a.key + 'Display must force a refetch while the alert is on');
     // Off, the Look bakes nothing: no refetch for it (nor for the page hydrating it).
     assert.equal(renderSignature({ ['alert' + a.key + 'Display']: 'value' }), base,
       'alert' + a.key + 'Display is inert while the alert is off');
-    assert.equal(renderSignature({ [onKey]: false,
+    assert.equal(renderSignature({ ['alert' + a.key]: false,
       ['alert' + a.key + 'Display']: 'icon' }), base,
     'the hydrated defaults sign like absent keys');
   });
@@ -424,9 +417,8 @@ test('each alert switch (thresh<Kind>On) and, while on, its Look change the rend
 test('the alert keys each occupy their own signature slot', () => {
   const seen = new Set();
   thresholds.ALERT_KINDS.forEach((a) => {
-    const onKey = 'thresh' + a.key + 'On';
-    seen.add(renderSignature({ [onKey]: true }));
-    seen.add(renderSignature({ [onKey]: true, ['alert' + a.key + 'Display']: 'value' }));
+    seen.add(renderSignature({ ['alert' + a.key]: true }));
+    seen.add(renderSignature({ ['alert' + a.key]: true, ['alert' + a.key + 'Display']: 'value' }));
   });
   assert.equal(seen.size, thresholds.ALERT_KINDS.length * 2);
 });

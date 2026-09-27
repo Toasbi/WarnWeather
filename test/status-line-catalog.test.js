@@ -97,14 +97,14 @@ test('the top strip default is placeable in the slot it names', () => {
 test('dayMaxInUse: an enabled alert counts as in use with no slot and a Now-mode slot', () => {
   const noSlot = { statusRadarLeft: 'empty', statusForecastRight: 'empty' };
   assert.equal(catalog.dayMaxInUse(noSlot, 'uv'), false);
-  assert.equal(catalog.dayMaxInUse(Object.assign({ threshUvOn: true }, noSlot), 'uv'), true);
-  assert.equal(catalog.dayMaxInUse(Object.assign({ threshUvOn: false }, noSlot), 'uv'), false);
-  assert.equal(catalog.dayMaxInUse({ threshWindOn: true, windSlotDisplay: 'current' }, 'wind'), true);
-  assert.equal(catalog.dayMaxInUse({ threshAqiOn: true }, 'aqi'), true);
-  assert.equal(catalog.dayMaxInUse({ threshAqiOn: true }, 'gust'), false, 'per kind');
+  assert.equal(catalog.dayMaxInUse(Object.assign({ alertUv: true }, noSlot), 'uv'), true);
+  assert.equal(catalog.dayMaxInUse(Object.assign({ alertUv: false }, noSlot), 'uv'), false);
+  assert.equal(catalog.dayMaxInUse({ alertWind: true, windSlotDisplay: 'current' }, 'wind'), true);
+  assert.equal(catalog.dayMaxInUse({ alertAqi: true }, 'aqi'), true);
+  assert.equal(catalog.dayMaxInUse({ alertAqi: true }, 'gust'), false, 'per kind');
   // Only a real true: a stored string is not the toggle's value.
-  assert.equal(catalog.alertEnabled({ threshGustOn: 'true' }, 'gust'), false);
-  assert.equal(catalog.alertEnabled({ threshPollenOn: true }, 'pollen'), true);
+  assert.equal(catalog.alertEnabled({ alertGust: 'true' }, 'gust'), false);
+  assert.equal(catalog.alertEnabled({ alertPollen: true }, 'pollen'), true);
   assert.equal(catalog.alertEnabled(null, 'uv'), false);
 });
 

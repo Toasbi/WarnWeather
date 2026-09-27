@@ -93,10 +93,7 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
       assert.deepEqual(it[0].disabledWhen, { not: { key: 'thresh' + stem + 'On' } },
         'thresh' + stem + which + ' must disable (not hide) on its toggle');
     });
-    // Aria label = its host header: a weather kind's switch is its alert's (the
-    // alert sheet's 'Alert' header), a goal kind's rides the Goals header.
-    assert.equal(on[0].label, ALERT_STEMS.includes(stem) ? 'Alert' : 'Highlight on the watch',
-      'the toggle\'s aria label');
+    assert.equal(on[0].label, 'Highlight on the watch', 'the toggle\'s aria label');
     // The reset button moved onto the group's sub-header — see "the group header
     // owns the title and the reset action" below.
 
@@ -486,19 +483,17 @@ test('the sheet: the slider stays live while off; on seeds it; off keeps it', ()
   // The AQI levels live in the Alerts card's AQI sheet; the slot sheet points there.
   page.openEditSheet('alertAqi');
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiOn"') !== -1,
-    'the sheet carries the alert switch');
-  // One switch per alert: it rides the sheet's top 'Alert' sub-header, inside the
-  // scroll body, above the Look and the levels group — whose header has none.
+    'the sheet carries the highlight toggle');
+  // The master toggle rides the levels group's sub-header, inside the scroll body —
+  // below the alert's own rows (its switch and Look).
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiOn"')
     > page.modal.innerHTML.indexOf('ssel-list'),
     'the toggle renders inside the scroll body, not the title row');
   assert.ok(page.modal.innerHTML.indexOf('data-k="alertAqiDisplay"')
     < page.modal.innerHTML.indexOf('<div class="subhdr grp"><span>Alert levels'),
     'the alert\'s Look row sits above the levels group header');
-  assert.ok(page.modal.innerHTML.indexOf('<div class="subhdr grp"><span>Alert</span><button class="sw" data-k="threshAqiOn"') !== -1,
-    'the switch rides the Alert sub-header');
-  assert.equal(page.modal.innerHTML.split('data-k="threshAqiOn"').length, 2,
-    'one switch: the levels header carries none');
+  assert.ok(/<div class="subhdr grp"><span>Alert levels<\/span>[\s\S]*?data-k="threshAqiOn"/.test(page.modal.innerHTML),
+    'the master toggle rides the group sub-header');
   // Off = the slider stays LIVE on the seeds (default cfg is WAQI → US AQI): the warn
   // level also sets the day-max hold, highlighting or not. Only the highlight-only
   // rows (outline toggle, colors) go muted.
@@ -552,11 +547,11 @@ test('the page renders an Alerts card sheet: the alert switch, its Look, then th
   page.openEditSheet('alertUv');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
-  assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert</span><button class="sw" data-k="threshUvOn"') !== -1,
+  assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert</span><button class="sw" data-k="alertUv"') !== -1,
     'the Alert sub-header carries the alert switch');
   assert.ok(sheet.indexOf('<span>Alert</span>') < sheet.indexOf('<span>Alert levels</span>'),
     'the Alert sub-header comes first');
-  assert.ok(sheet.indexOf('When the UV index reaches your warn level today, its status slot is highlighted and its icon shows in the Alerts row.') !== -1,
+  assert.ok(sheet.indexOf('Shows an icon in the Alerts row whenever the UV index reaches your warn level or higher today.') !== -1,
     'with its intro');
   assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert levels') > sheet.indexOf('data-k="alertUvDisplay"'),
     'the levels group follows the Look');
@@ -1050,7 +1045,7 @@ function levelsSheetFor(stem) {
 /** @param {string} stem Kind key stem. @returns {Object} Its levels group's subheader. */
 function headerFor(stem) {
   const hdr = levelsSheetFor(stem).items.find(it => it.type === 'subheader'
-    && (it.text === 'Alert levels' || it.text === 'Goals'));
+    && it.toggleKey === 'thresh' + stem + 'On');
   assert.ok(hdr, stem + ' has no levels subheader');
   return hdr;
 }
@@ -1078,9 +1073,7 @@ test('the master toggle moved off the sheet title row onto the group header', ()
   // Only the level kinds have a group header — in their levels sheet; the bold-only
   // sheets carry no subheader at all (their single Bold row IS the sheet), and neither
   // do the alert kinds' slot sheets (their levels live in the Alerts sheet).
-  // The goal kinds' switch rides their Goals header; a weather kind's rides its
-  // alert sheet's top 'Alert' header (pinned in 'the group header owns ...').
-  HEALTH_STEMS.forEach(stem => {
+  STEMS.forEach(stem => {
     assert.equal(headerFor(stem).toggleKey, 'thresh' + stem + 'On');
   });
   ALERT_STEMS.forEach(stem => {
@@ -1094,17 +1087,6 @@ test('the group header owns the title and the reset action', () => {
   assert.deepEqual(headerFor('Wind').labelAction,
     { action: 'resetThresholds', arg: 'Wind', label: 'Reset to defaults' });
   assert.equal(headerFor('Steps').text, 'Goals');
-  // One switch per alert: a weather kind's switch rides its alert sheet's top 'Alert'
-  // header, so its levels header has none; a goal kind's Goals header keeps its own.
-  ALERT_STEMS.forEach(stem => {
-    assert.equal(headerFor(stem).toggleKey, undefined, stem + ' levels header has no switch');
-    const top = levelsSheetFor(stem).items[0];
-    assert.equal(top.text, 'Alert', stem + ' sheet opens on the Alert header');
-    assert.equal(top.toggleKey, 'thresh' + stem + 'On', stem + ' alert switch');
-  });
-  HEALTH_STEMS.forEach(stem => {
-    assert.equal(headerFor(stem).toggleKey, 'thresh' + stem + 'On', stem + ' Goals switch');
-  });
 });
 
 test('the slider no longer carries the group title or the reset action', () => {
@@ -1127,8 +1109,7 @@ test('the intro describes the group, so it hangs off the header, not the sheet',
   assert.doesNotMatch(headerFor('Wind').intro, /threshold/i, 'the old vocabulary is gone');
   assert.match(headerFor('Steps').intro, /goal/i);
   // The slider is live with the switch off, so both intros must say the SWITCH is what
-  // puts the levels on the watch — not the numbers alone (the weather one names the
-  // Alert switch above it: its header carries none).
+  // puts the levels on the watch — not the numbers alone.
   ['Wind', 'Steps'].forEach(stem => {
     assert.match(headerFor(stem).intro, /switch/i, stem + ' intro names the switch');
     assert.match(headerFor(stem).intro, /on the watch/i, stem + ' intro says what the switch does');
@@ -1147,7 +1128,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.ok(items.indexOf(boldFor(stem)) < items.length - 1, stem + ' bold row leads');
     assert.deepEqual(items[items.length - 1], {
       type: 'staticText', style: 'info',
-      text: 'The alert levels and this value\'s alert switch are set under Alerts on the Status slots tab.'
+      text: 'Alert levels and the highlight switch are set under Alerts on the Status slots tab.'
     }, stem + ' slot sheet closes on the Alerts pointer');
   });
   STEMS.forEach(stem => {
@@ -1211,17 +1192,15 @@ test('the reset button leaves the Bold setting alone', () => {
   assert.equal(S.threshWindWarn, '', 'reset blanks the pair — the kind\'s seed, as fresh');
 });
 
-test('reset lands on exactly what a fresh install has; a weather kind keeps its alert switch', () => {
+test('reset lands on exactly what a fresh install has, highlight included', () => {
   // "Reset to defaults" has to mean the shipped defaults: the levels back on the
-  // kind's seed (a blank pair). A goal kind's switch rides the Goals header this
-  // reset sits on, so it lands OFF too — proven on the toggle itself, since a blank
-  // pair alone resolves to an ordered seed and says nothing about the highlight. A
-  // weather kind's switch is its ALERT's, on the sheet's top header, not in this
-  // group: the levels reset leaves it alone (the Alerts card's reset owns it).
+  // kind's seed (a blank pair) AND the stored highlight toggle off. The toggle is
+  // stored state now, so "off" is proven on the toggle itself — a blank pair alone
+  // resolves to an ordered seed and says nothing about the highlight.
 
-  // Aqi is deliberately NOT in this list: its fresh-install state carries the warn
-  // outline — the first-run wizard seeds it (defaults-policy
-  // 'wizard-aqi-keeps-a-warn-signal') — so its reset landing is pinned by its own test.
+  // Aqi is deliberately NOT in this list: its fresh-install state is highlight ON
+  // — the first-run wizard seeds it (defaults-policy 'wizard-aqi-keeps-a-warn-signal')
+  // — so its reset landing is pinned by its own test below.
   ['Wind', 'Gust', 'Steps'].forEach((stem) => {
     const S = { theme: 'dark' };
     S['thresh' + stem + 'On'] = true;
@@ -1229,45 +1208,39 @@ test('reset lands on exactly what a fresh install has; a weather kind keeps its 
     S['thresh' + stem + 'Danger'] = '20';
     S['thresh' + stem + 'Max'] = '200';
     PC.actions.resetThresholds(stem, S, ENV, SCHEMA_DEFAULT_OF);
-    const goal = stem === 'Steps';
-    assert.strictEqual(S['thresh' + stem + 'On'], !goal,
-      stem + (goal ? ': the Goals switch is OFF after a reset, as on a fresh install'
-        : ': the alert switch is not the levels reset\'s'));
+    assert.strictEqual(S['thresh' + stem + 'On'], false,
+      stem + ': the highlight must be OFF after a reset, as on a fresh install');
     assert.equal(S['thresh' + stem + 'Warn'], '', stem + ': warn back on the seed (blank)');
     assert.equal(S['thresh' + stem + 'Danger'], '', stem + ': danger back on the seed (blank)');
-    assert.equal(thresholds.kindConfig(S, thresholds.KINDS.findIndex(k => k.key === stem)).enabled,
-      !goal, stem + ': the packed enable bit follows the switch');
+    assert.ok(!thresholds.kindConfig(S, thresholds.KINDS.findIndex(k => k.key === stem)).enabled,
+      stem + ': the packed enable bit is clear');
     assert.equal(S['thresh' + stem + 'Max'], '', stem + ': scale max cleared');
   });
 });
 
-test('reset flips the rendered Goals toggle off in the same render', () => {
-  // A goal kind's On toggle is the stored highlight state, and reset lands it on its
-  // schema default (off) together with the blank pair — in the same render, so the
+test('reset flips the rendered highlight toggle off in the same render', () => {
+  // The On toggle is the stored highlight state, and reset lands it on its schema
+  // default (off) together with the blank pair — in the same render, so the
   // re-rendered sheet never shows the switch ON while what saves is off.
-  const S = { theme: 'dark', threshStepsOn: true,
-    threshStepsWarn: '4000', threshStepsDanger: '8000' };
-  PC.actions.resetThresholds('Steps', S, ENV, SCHEMA_DEFAULT_OF);
-  assert.strictEqual(S.threshStepsOn, false,
+  const S = { theme: 'dark', threshWindOn: true,
+    threshWindWarn: '40', threshWindDanger: '60' };
+  PC.actions.resetThresholds('Wind', S, ENV, SCHEMA_DEFAULT_OF);
+  assert.strictEqual(S.threshWindOn, false,
     'the rendered toggle must agree with the blanked pair immediately');
 });
 
-test('Aqi reset lands on the wizard-seeded warn outline and leaves the alert switch alone', () => {
-  // Every install that finishes the first-run wizard gets the AQI warn outline
-  // (defaults-policy 'wizard-aqi-keeps-a-warn-signal') — that IS the out-of-box
-  // look. The rule also switches AQI on, but that switch is the alert's now, outside
-  // this group, so the levels reset neither sets nor clears it.
-  [true, false].forEach((was) => {
-    const S = { theme: 'dark', threshAqiOn: was,
-      threshAqiWarn: '42', threshAqiDanger: '77', threshAqiMax: '400' };
-    PC.actions.resetThresholds('Aqi', S, ENV, SCHEMA_DEFAULT_OF);
-    assert.strictEqual(S.threshAqiOn, was, 'the alert switch stays ' + was);
-  });
+test('Aqi reset lands on the wizard-seeded fresh-install state, not schema-off', () => {
+  // Every install that finishes the first-run wizard gets AQI highlighting ON with
+  // the warn outline (defaults-policy 'wizard-aqi-keeps-a-warn-signal') — that IS
+  // the out-of-box state. A reset that lands on highlight-off instead produces
+  // always-bold-with-no-warn-signal, the state that rule's why-text forbids.
   const S = { theme: 'dark', threshAqiOn: true,
     threshAqiWarn: '42', threshAqiDanger: '77', threshAqiMax: '400' };
   PC.actions.resetThresholds('Aqi', S, ENV, SCHEMA_DEFAULT_OF);
-  assert.equal(S.threshAqiWarn, '', 'the pair is back on the seed (blank)');
-  assert.equal(S.threshAqiDanger, '', 'the pair is back on the seed (blank)');
+  assert.strictEqual(S.threshAqiOn, true, 'AQI highlighting is on out of the box');
+  const warn = Number(S.threshAqiWarn), danger = Number(S.threshAqiDanger);
+  assert.ok(warn > 0 && danger > warn,
+    'the pair is reseeded ordered (' + S.threshAqiWarn + '/' + S.threshAqiDanger + ')');
   assert.strictEqual(S.threshAqiWarnOutlineOn, true, 'the warn outline is on out of the box');
   assert.equal(S.threshAqiWarnColor, '#FFFFFF',
     'the outline color is the theme fg, as the toggle hook seeds it');
@@ -1434,15 +1407,11 @@ test('every metric alert sheet: its switch on an Alert sub-header, the Look, the
   sheets.forEach((s) => {
     const stem = s.sheetId.slice('alert'.length);
     const key = 'alert' + stem;
-    const onKey = 'thresh' + stem + 'On';
     assert.deepEqual(s.items.slice(0, 3), [{
-      type: 'subheader', text: 'Alert', toggleKey: onKey,
-      intro: 'When ' + SUBJECT[stem] + ' reaches your warn level today, its status slot is '
-        + 'highlighted and its icon shows in the Alerts row.'
+      type: 'subheader', text: 'Alert', toggleKey: key,
+      intro: 'Shows an icon in the Alerts row whenever ' + SUBJECT[stem] + ' reaches your warn level or higher today.'
     }, {
-      // ONE switch per alert: the kind's highlight switch, seeding the pair on ON.
-      type: 'toggle', messageKey: onKey, label: 'Alert', defaultValue: false,
-      onChange: 'thresholdToggle'
+      type: 'toggle', messageKey: key, label: 'Alert', defaultValue: false
     }, {
       type: 'segmented', messageKey: key + 'Display', label: 'Look', defaultValue: 'icon',
       options: [['Icon', 'icon'], ['Icon + value', 'value']],
@@ -1450,19 +1419,18 @@ test('every metric alert sheet: its switch on an Alert sub-header, the Look, the
       hintByValue: {
         value: 'The value the alert fires on after the icon. Fewer alerts fit the row.'
       },
-      disabledWhen: { not: { key: onKey } }
+      disabledWhen: { not: { key } }
     }], s.sheetId + ': switch, then the Look (inert while off)');
     const head = s.items[3];
     assert.equal(head.type, 'subheader', s.sheetId + ': the levels group follows');
     assert.equal(head.text, 'Alert levels');
-    assert.equal(head.toggleKey, undefined, s.sheetId + ': the levels header carries no switch');
+    assert.equal(head.toggleKey, 'thresh' + stem + 'On');
     assert.deepEqual(head.labelAction,
       { action: 'resetThresholds', arg: stem, label: 'Reset to defaults' });
     // The levels are always live: they also drive the slots' Alert mode and highlight.
     const range = s.items.find(it => it.type === 'range');
     assert.equal(range.disabledWhen, undefined, s.sheetId + ' slider never mutes');
-    assert.equal(s.items.length, 3 + 7, s.sheetId + ': the seven group items close it');
-    assert.equal(itemsByKey()[key], undefined, key + ': no separate alert switch key');
+    assert.equal(s.items.length, 3 + 8, s.sheetId + ': the eight group items close it');
   });
   assert.equal(itemsByKey().threshPollenWarn[0].hint,
     'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.',
@@ -1727,16 +1695,16 @@ test('dayMaxHint: Now mode gets the lead alone; the highlight sentence follows t
     'Show the UV index now, the highest it still gets today, or both.',
     'no hold/mark tail in Now mode — the mark row is hidden there');
   const off = dayMaxHintOf('uv', {}, 'max');
-  assert.ok(/The alert is off — switch it on under Alerts to highlight it\.$/.test(off),
+  assert.ok(/Highlighting is off — switch it on under Alerts to color it\.$/.test(off),
     'switch off: the hint says so, and where the switch is: ' + off);
   assert.equal(off.indexOf('Highlighting follows'), -1);
   const on = dayMaxHintOf('uv', { threshUvOn: true }, 'max');
   assert.ok(/Highlighting follows the number shown\.$/.test(on), on);
-  assert.equal(on.indexOf('The alert is off'), -1);
+  assert.equal(on.indexOf('Highlighting is off'), -1);
   // The hold rule applies either way: the same number with the switch off or on.
   assert.ok(off.indexOf('UV is 6 or higher') !== -1 && on.indexOf('UV is 6 or higher') !== -1);
   // Only the truthy stored boolean counts, as for the enable bit.
-  assert.ok(dayMaxHintOf('uv', { threshUvOn: 'true' }, 'max').indexOf('The alert is off') !== -1);
+  assert.ok(dayMaxHintOf('uv', { threshUvOn: 'true' }, 'max').indexOf('Highlighting is off') !== -1);
 });
 
 test('dayMaxHint: every day-max kind carries the live hint, with a numberless fallback', () => {
@@ -1769,7 +1737,7 @@ test('dayMaxHint: the slot sheet quotes the level set in the Alerts sheet, live'
   assert.ok(page.modal.innerHTML.indexOf('data-hint-for="uvSlotDisplay"') !== -1,
     'the pills hint is marked for the in-place repaint');
   assert.ok(page.modal.innerHTML.indexOf('UV is 6 or higher') !== -1, 'the seed level, rendered');
-  assert.ok(page.modal.innerHTML.indexOf('The alert is off') !== -1);
+  assert.ok(page.modal.innerHTML.indexOf('Highlighting is off') !== -1);
   assert.equal(page.modal.innerHTML.indexOf('data-range="threshUvWarn"'), -1,
     'no slider here: the slot sheet only points at the Alerts sheet');
   page.openEditSheet('alertUv');
@@ -1782,7 +1750,7 @@ test('dayMaxHint: the slot sheet quotes the level set in the Alerts sheet, live'
   page.openEditSheet('threshUv');
   assert.ok(page.modal.innerHTML.indexOf('UV is 7 or higher') !== -1, 'the slot sheet follows the level');
   assert.ok(page.modal.innerHTML.indexOf('Highlighting follows the number shown.') !== -1,
-    'and the alert switch');
+    'and the highlight switch');
 });
 
 test('the slot pencil resolves the bold-only sheet for every new kind', () => {
@@ -1953,7 +1921,7 @@ test('resetStatusSlots reverts every bar\'s Alerts placement, and leaves the ale
   const S = scrambledSlotState();
   S.statusTopAlerts = 'off';
   ['statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'].forEach(k => { S[k] = 'right'; });
-  S.threshUvOn = true;
+  S.alertUv = true;
   S.alertUvDisplay = 'value';
   S.alertRain = false;
   S.rainAlertDisplay = 'minutes';
@@ -1961,7 +1929,7 @@ test('resetStatusSlots reverts every bar\'s Alerts placement, and leaves the ale
   assert.equal(S.statusTopAlerts, 'left', 'the strip back to Left (the rain takeover\'s old home)');
   ['statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'].forEach(k =>
     assert.equal(S[k], 'off', k + ' back to Off'));
-  assert.strictEqual(S.threshUvOn, true, 'the alerts are the Alerts card\'s reset\'s business');
+  assert.strictEqual(S.alertUv, true, 'the alerts are the Alerts card\'s reset\'s business');
   assert.equal(S.alertUvDisplay, 'value');
   assert.strictEqual(S.alertRain, false);
   assert.equal(S.rainAlertDisplay, 'minutes');
@@ -1970,12 +1938,12 @@ test('resetStatusSlots reverts every bar\'s Alerts placement, and leaves the ale
 test('resetAlerts reverts every alert\'s switch and look — not the levels, the window or the bars', () => {
   const map = itemsByKey();
   const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
-  const S = { threshUvWarn: '7', threshUvDanger: '9', rainCountdownHorizon: '120',
-    statusTopAlerts: 'middle', alertRain: false, rainAlertDisplay: 'icon', threshStepsOn: true };
-  ALERT_STEMS.forEach(stem => { S['thresh' + stem + 'On'] = true; S['alert' + stem + 'Display'] = 'value'; });
+  const S = { threshUvWarn: '7', threshUvDanger: '9', threshUvOn: true, rainCountdownHorizon: '120',
+    statusTopAlerts: 'middle', alertRain: false, rainAlertDisplay: 'icon' };
+  ALERT_STEMS.forEach(stem => { S['alert' + stem] = true; S['alert' + stem + 'Display'] = 'value'; });
   assert.equal(PC.actions.resetAlerts(null, S, ENV, defaultOf), true, 'asks for a re-render');
   ALERT_STEMS.forEach(stem => {
-    assert.strictEqual(S['thresh' + stem + 'On'], false, stem + ' alert (its one switch) back off');
+    assert.strictEqual(S['alert' + stem], false, stem + ' alert back off');
     assert.equal(S['alert' + stem + 'Display'], 'icon', stem + ' Look back to Icon');
   });
   assert.strictEqual(S.alertRain, true, 'the rain alert back on');
@@ -1983,7 +1951,7 @@ test('resetAlerts reverts every alert\'s switch and look — not the levels, the
   ['Steps', 'Sleep', 'Distance'].forEach(stem =>
     assert.ok(!('alert' + stem in S), 'no alert' + stem + ' key written (goal kinds are no alerts)'));
   assert.equal(S.threshUvWarn, '7', 'the levels keep their own reset');
-  assert.strictEqual(S.threshStepsOn, true, 'a goal kind\'s switch is no alert\'s');
+  assert.strictEqual(S.threshUvOn, true, 'and so does the highlight switch');
   assert.equal(S.rainCountdownHorizon, '120', 'the rain window is left alone');
   assert.equal(S.statusTopAlerts, 'middle', 'placements ride the status card\'s reset');
 });

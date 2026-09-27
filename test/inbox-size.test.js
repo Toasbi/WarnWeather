@@ -133,7 +133,7 @@ function buildHeaviestBundle(platform) {
   // transient bake inputs.
   const alertSettings = {
     provider: 'dwd',
-    threshUvOn: true, threshWindOn: true, threshGustOn: true, threshAqiOn: true, threshPollenOn: true,
+    alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true,
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value'
   };

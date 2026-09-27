@@ -411,8 +411,7 @@
   }
 
   /**
-   * Whether a metric's alert is switched on (thresh<Kind>On — its one switch, in
-   * its Alerts card sheet; the same bit highlights its slot). An
+   * Whether a metric's alert is switched on (alert<Kind>, the Alerts card). An
    * enabled alert needs its metric and the day's peaks fetched whether or not a
    * slot shows the metric: the alert judges the day (status-thresholds.js
    * alertValue). The five fetch gates ask this next to their slot check.
@@ -422,7 +421,7 @@
    */
   function alertEnabled(settings, code) {
     if (!settings || typeof code !== 'string') { return false; }
-    return settings['thresh' + code.charAt(0).toUpperCase() + code.slice(1) + 'On'] === true;
+    return settings['alert' + code.charAt(0).toUpperCase() + code.slice(1)] === true;
   }
 
   /**

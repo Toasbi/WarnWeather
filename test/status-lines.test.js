@@ -1356,13 +1356,13 @@ function alertPayload() {
   });
 }
 const ALERTS_ALL_VALUES = {
-  threshUvOn: true, alertUvDisplay: 'value', threshWindOn: true, alertWindDisplay: 'value',
-  threshGustOn: true, alertGustDisplay: 'value', threshAqiOn: true, alertAqiDisplay: 'value'
+  alertUv: true, alertUvDisplay: 'value', alertWind: true, alertWindDisplay: 'value',
+  alertGust: true, alertGustDisplay: 'value', alertAqi: true, alertAqiDisplay: 'value'
 };
 
 test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, icon-only by default', () => {
   const p = alertPayload();
-  const s = baseSettings({ threshUvOn: true, threshWindOn: true });
+  const s = baseSettings({ alertUv: true, alertWind: true });
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
   // UV danger (kind 7, level 2), wind warn (kind 2, level 1), no value bytes.
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [7 | (2 << 3), 2 | (1 << 3)]);
@@ -1402,7 +1402,7 @@ test('buildStatusLines never sends ALERT_ENTRIES_UINT8 to aplite (no Alerts row 
   assert.equal(Object.prototype.hasOwnProperty.call(p, 'ALERT_ENTRIES_UINT8'), false);
   // An unknown watch still gets it, like the levels (never hide a real feature).
   const unknown = alertPayload();
-  statusLines.buildStatusLines(unknown, baseSettings({ threshUvOn: true }), null);
+  statusLines.buildStatusLines(unknown, baseSettings({ alertUv: true }), null);
   assert.deepEqual(unknown.ALERT_ENTRIES_UINT8, [7 | (2 << 3)]);
 });
 
@@ -1423,7 +1423,7 @@ test('the entry cap holds all five alerts with their widest values', () => {
     GUST_TREND_UINT8: [130], GUST_DAY_PEAKS: [130, 0, 0],
     AQI_TREND: [500], POLLEN_TODAY: '2-3'
   });
-  const s = baseSettings(Object.assign({ provider: 'dwd', threshPollenOn: true,
+  const s = baseSettings(Object.assign({ provider: 'dwd', alertPollen: true,
     alertPollenDisplay: 'value' }, ALERTS_ALL_VALUES));
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
   const bytes = p.ALERT_ENTRIES_UINT8;

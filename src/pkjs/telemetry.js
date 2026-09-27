@@ -72,12 +72,11 @@ function graphColorReport(settings, scope, role, suffix) {
 }
 
 /**
- * The metric alerts switched on (each weather kind's one switch, thresh<Kind>On),
- * comma-joined in the row's fixed order ('' when none) — or undefined on an install
- * whose blob holds none of those switches, which the column reads as "default", like
- * an unseeded threshPhoneBatteryBoldMode. (Only before the first boot that seeds
- * them: seedDefaults backfills the switches' schema defaults on every boot, so a
- * booted install reports '' from then on.)
+ * The metric alerts switched on, comma-joined in the row's fixed order ('' when
+ * none) — or undefined on an install whose blob holds no alert key at all, which
+ * the column reads as "default", like an unseeded threshPhoneBatteryBoldMode.
+ * (Only before the first 1.24 boot: seedDefaults backfills the alert keys' schema
+ * defaults on every boot, so a booted install reports '' from then on.)
  * @param {Object} safe Settings blob (never null).
  * @param {function(Object): string[]} pick status-thresholds' alertKindCodes or
  *     alertValueKindCodes.
@@ -87,7 +86,7 @@ function alertCodesReport(safe, pick) {
     var kinds = statusThresholds.ALERT_KINDS;
     var seeded = false;
     for (var i = 0; i < kinds.length; i++) {
-        if (typeof safe['thresh' + kinds[i].key + 'On'] !== 'undefined') { seeded = true; }
+        if (typeof safe['alert' + kinds[i].key] !== 'undefined') { seeded = true; }
     }
     return seeded ? pick(safe).join(',') : undefined;
 }

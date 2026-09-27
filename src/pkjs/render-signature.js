@@ -108,9 +108,9 @@ function renderSignature(settings) {
     // time (STATUS_LEVELS_UINT8, and the day-max hold rule reads the warn), so a
     // pair edit only shows up after a refetch — without this the new level or
     // slot text would first appear on the next scheduled fetch (15 min default,
-    // or after the overnight pause). The levels pack whatever the kind's switch
-    // (thresh<Kind>On) says; the switch joins below, with the alerts, because it
-    // gates the baked alert entries. Selected by the SAME
+    // or after the overnight pause). The highlight toggle thresh<Kind>On does NOT
+    // join: levels pack whatever it says and it only flips the Clay blob's enable
+    // bit, which is already immediate. Selected by the SAME
     // predicate packWeatherLevels packs by (neither goal nor boldOnly), so a
     // kind the phone levels can never be omitted here — KINDS.slice(0, 4)
     // silently dropped UV when it joined as kind 7.
@@ -129,20 +129,18 @@ function renderSignature(settings) {
         var held = statusThresholds.resolvedPair(kinds[w].key, settings);
         parts.push(held.warn, held.danger);
     }
-    // The metric alerts (the Alerts card): a weather kind's one switch,
-    // thresh<Kind>On, changes both the bake (the ALERT_ENTRIES_UINT8 entries,
-    // status-thresholds.js bakeAlerts) and the fetch set (an enabled alert fetches its
-    // metric and day peaks with no slot showing it), and alert<Kind>Display changes
-    // the baked bytes (a value after the icon). Its slot highlight rides the Clay
-    // blob's enable bit as well; the goal kinds' switches stay out (watch-side, and
-    // no alert). Signed as what the bake reads — on or not, and the Look only while
-    // on — so the page hydrating an absent key to its default forces no fetch. rainAlertDisplay, the
+    // The metric alerts (the Alerts card): alert<Kind> changes both the bake (the
+    // ALERT_ENTRIES_UINT8 entries, status-thresholds.js bakeAlerts) and the fetch set (an
+    // enabled alert fetches its metric and day peaks with no slot showing it), and
+    // alert<Kind>Display changes the baked bytes (a value after the icon). Signed as
+    // what the bake reads — on or not, and the Look only while on — so the page
+    // hydrating an absent key to its default forces no fetch. rainAlertDisplay, the
     // four per-bar placements (statusXxxAlerts) and the rain switch (alertRain) do
     // NOT join: the look and the placements ride the Clay blob (bytes 34 and 35),
     // the switch the Clay horizon (0 when off) — all already immediate.
     var alerts = statusThresholds.ALERT_KINDS;
     for (var a = 0; a < alerts.length; a++) {
-        var on = settings['thresh' + alerts[a].key + 'On'] === true;
+        var on = settings['alert' + alerts[a].key] === true;
         parts.push(on ? 'on' : '',
             on && settings['alert' + alerts[a].key + 'Display'] === 'value' ? 'value' : '');
     }
