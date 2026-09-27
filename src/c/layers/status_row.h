@@ -22,11 +22,25 @@ bool status_row_uses_live_health(const StatusRow *row);
 // slot whose packed kind is already SLOT_LIVE_BATTERY (that draws battery anyway).
 void status_row_set_battery_override(StatusRow *row, bool active);
 #if defined(WW_ALERT_ROW)
-// True when this row's packed line holds an Alerts slot (SLOT_ALERTS). Its rain
-// entry is re-derived from the radar cache on every refresh, so the owner of a row
-// that answers true refreshes it on the minute tick and after a radar rescan
-// (status_bar_tick_alerts; the top strip's own tick). Declared only where the row
-// exists: aplite has no Alerts row, so its lean twin need not answer it.
+// Declared only where the Alerts row exists: aplite has none, so its lean twin need
+// not answer any of these.
+//
+// The bar's Alerts placement (a ThreshAlertsPlace: 0 off / 1 left / 2 middle /
+// 3 right). While it is not Off and an alert is active, the row takes over the
+// anchor slot — plus one neighbour when it needs the room — and draws the alert
+// entries (the stored ALERT_ENTRIES metric alerts, rain in front) there; with no
+// alert active the bar draws exactly as without the feature. Owners push it from the
+// thresholds blob (status_row_alerts_place) on every settings/weather refresh; a
+// change forces the next refresh to report one. Going Off frees the glyph cache.
+void status_row_set_alerts(StatusRow *row, int placement);
+// The placement stored for `bar` (a ThreshBar) in the persisted thresholds blob —
+// one flash read. THRESH_ALERTS_LEFT for the strip and Off elsewhere when no blob
+// (or a pre-placement one) is stored: the rain countdown's historic takeover.
+int status_row_alerts_place(int bar);
+// True while this row's placement is not Off. Its rain entry is re-derived from the
+// radar cache on every refresh, so the owner of a row that answers true refreshes it
+// on the minute tick and after a radar rescan (status_bar_tick_alerts; the top
+// strip's own tick).
 bool status_row_uses_alerts(const StatusRow *row);
 #endif
 void status_row_draw(StatusRow *row, GContext *ctx);

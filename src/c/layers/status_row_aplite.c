@@ -1,13 +1,16 @@
 // Lean aplite (Pebble Classic/Steel) twin of status_row.c.
 //
-// Frozen fork of status_row.c as of b81feca. FEATURE-FROZEN, NOT CODE-FROZEN:
+// Frozen fork of status_row.c as of 0ae09d0. FEATURE-FROZEN, NOT CODE-FROZEN:
 // preserve aplite's text/date/sun/battery behavior and hand-port bug
 // fixes, but do not add the evolving PDC glyph, health, week, theme-polarity,
-// or Alerts-row pipeline (status_row_uses_alerts is declared only under
-// WW_ALERT_ROW, which aplite never defines, so this twin does not answer it).
+// or Alerts-row pipeline (its whole interface — status_row_set_alerts,
+// status_row_alerts_place, status_row_uses_alerts — is declared only under
+// WW_ALERT_ROW, which aplite never defines, so this twin answers none of it).
 // Reconciled at b81feca with the base's Alerts-row interface change: the strip's
 // rain takeover hooks (status_row_set_suppress_edges /
 // status_row_right_slot_width) left status_row.h, and their no-op stubs left here.
+// Reconciled again at 0ae09d0 with the per-bar Alerts placement: the two new
+// functions sit behind the same guard, so nothing was stubbed.
 // See docs/adr/0001-aplite-frozen-lean-fork.md.
 
 #include "status_row.h"

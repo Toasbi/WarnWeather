@@ -166,8 +166,12 @@ void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
         GFont font = lane_text(e, text, buf, sizeof(buf));
         int16_t icon_w = icon_width(image_for(cache, e));
         int16_t text_w = text_width(buf, font);
-        widths_out[i] = (int16_t)(icon_w + (text_w > 0
+        int16_t w = (int16_t)(icon_w + (text_w > 0
             ? (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + text_w : 0));
+        // The box's padding is part of the footprint — but only around something:
+        // an entry with nothing to draw stays 0 wide and is skipped with its gap.
+        if (w > 0 && !e->rain) { w = (int16_t)(w + 2 * STATUS_ALERTS_BOX_PAD_X); }
+        widths_out[i] = w;
     }
 }
 
@@ -215,20 +219,26 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
         int16_t icon_w = icon_width(image);
         char buf[LANE_CAP];
         GFont font = lane_text(e, text, buf, sizeof(buf));
-        int16_t text_x = (int16_t)(x + icon_w + (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
-        int16_t text_w = (int16_t)(x + w - text_x);
+        // A boxed entry's content sits inside its padding; the rain drop has none.
+        int16_t pad = e->rain ? 0 : STATUS_ALERTS_BOX_PAD_X;
+        int16_t icon_x = (int16_t)(x + pad);
+        int16_t text_x = (int16_t)(icon_x + icon_w
+            + (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
+        int16_t text_w = (int16_t)(x + w - pad - text_x);
 
         GColor ink = fg;
         bool danger = !e->rain && e->level == THRESH_LEVEL_DANGER;
         if (!e->rain) {
-            // The box hugs the entry, 1 px out each side — two neighbouring boxes
-            // still keep 2 px of air across the 4-px entry gap. Its height is the
-            // slots' font-derived extent, so an entry's box matches a slot's.
-            StatusHighlightExtent v = status_highlight_extent(
-                place->band.origin.y, place->band.size.h, place->glyph_cy,
-                place->content_h, place->top_strip,
-                text_w > 0 && buf[0] != '\0' && status_text_has_descender(buf));
-            GRect box = GRect((int16_t)(x - 1), v.y, (int16_t)(w + 2), v.h);
+            // The box IS the footprint: the padding was measured in, so it spans
+            // exactly [x, x + w). Its height is the slots' font-derived extent grown
+            // by a row each side where the band allows (status_highlight_extent_pad).
+            StatusHighlightExtent v = status_highlight_extent_pad(
+                status_highlight_extent(place->band.origin.y, place->band.size.h,
+                    place->glyph_cy, place->content_h, place->top_strip,
+                    text_w > 0 && buf[0] != '\0' && status_text_has_descender(buf)),
+                place->band.origin.y, place->band.size.h, place->top_strip,
+                STATUS_ALERTS_BOX_PAD_Y);
+            GRect box = GRect(x, v.y, w, v.h);
             GColor accent = alert_accent(text, e);
             if (danger) {
                 graphics_context_set_fill_color(ctx, accent);
@@ -245,7 +255,7 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
                                  : status_icon_weight_pct(alert_set_icon(e->kind));
             if (danger) { glyph_set_stroke(image, ink); }
             gdraw_command_image_draw(ctx, image,
-                GPoint(x, status_icon_top_y(place->glyph_cy, gs.h, weight)));
+                GPoint(icon_x, status_icon_top_y(place->glyph_cy, gs.h, weight)));
             if (danger) { glyph_set_stroke(image, fg); }
         }
         if (text_w > 0 && buf[0] != '\0') {
@@ -254,7 +264,7 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
                 GRect(text_x, place->text_y, text_w, (int16_t)(band_bottom - place->text_y)),
                 GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
         }
-        x = (int16_t)(x + w + STATUS_ROW_GROUP_GAP);
+        x = (int16_t)(x + w + STATUS_ALERTS_ENTRY_GAP);
     }
 }
 

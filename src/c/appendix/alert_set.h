@@ -5,8 +5,8 @@
 #include "status_line.h"
 #include "status_threshold.h"
 
-// The Alerts row's entry set: which alerts the row shows, in which order, and how
-// many of them fit. Pure integer code — deliberately no <pebble.h> (nor rain_tier.h,
+// The Alerts row's entry set: which alerts the row shows, in which order, how many
+// of them fit, and which slots of its bar it takes over. Pure integer code — deliberately no <pebble.h> (nor rain_tier.h,
 // which pulls it in), so the module host-compiles (scripts/test-c.sh) like
 // status_threshold.c. The SDK side — glyphs, text, paint — is layers/status_alerts.c.
 //
@@ -107,12 +107,46 @@ int alert_set_row_w(const int16_t *widths, int n, int gap);
 // the first fits.
 int alert_set_fit(const int16_t *widths, int n, int gap, int budget);
 
-// The spill decision for an EDGE alerts slot: `need` px against the span it would
-// have beside the mid slot (`span_shared`) and the span with the mid slot gone
-// (`span_full`). True = displace the mid slot for this paint and budget span_full
-// (which then also bounds the fit when even that is too narrow); false = the normal
-// three-slot layout. A mid alerts slot never calls this: it never displaces an edge.
-bool alert_set_spill(int span_full, int span_shared, int need);
+// The slots of a bar the Alerts row takes over, as a bitmask over the slot indices
+// (0 left, 1 middle, 2 right — status_line.h's order).
+#define ALERT_SLOT_LEFT  (1 << 0)
+#define ALERT_SLOT_MID   (1 << 1)
+#define ALERT_SLOT_RIGHT (1 << 2)
+
+// Which slots the Alerts row replaces for this paint (a ThreshAlertsPlace in
+// `placement`; 0 for OFF or an empty row). The anchor rule: LEFT takes the left
+// slot, RIGHT the right slot, MIDDLE the middle slot — and each borrows ONE
+// neighbour when the row (`need_w` px, at its full lanes) does not fit the room its
+// anchor leaves: LEFT and RIGHT the middle slot, MIDDLE the LEFT slot (the right one
+// usually holds the battery). Never more than two; a neighbour that is absent is not
+// borrowed (it frees nothing). Whatever still does not fit the two-slot span is the
+// lane ladder's and the tail-drop's business.
+//
+// `span_l/m/r` are the three slots' desired widths (status_slot_desired_w — 0 for an
+// absent slot), `content_w` the row's width and `gap` the gap between slot groups.
+// "The room its anchor leaves" follows the row layout's own placement: the edge
+// slots sit at their edges, the middle slot is centred on the row (clamped clear of
+// a present edge), so a LEFT row has the span up to the centred middle slot and a
+// RIGHT row the span after it. test/c/alert_set_test.c holds this model against the
+// real layout (status_row_layout) so the two cannot drift.
+int alert_set_choose_slots(int placement, int need_w, int content_w,
+                           int span_l, int span_m, int span_r, int gap);
+
+// The span the row may paint in once the chosen slots are gone and the rest are
+// laid out: from the nearest slot still visible on the anchor's left (its right edge
+// + `gap`; the row's left edge when none) to the nearest one still visible on its
+// right (its left edge - `gap`; content_w when none). `visible` is a bitmask like
+// the one above; `lo[i]`/`hi[i]` are slot i's placed ink extent [lo, hi), read only
+// for visible slots. A span narrower than 0 comes back as x1 == x0.
+void alert_set_free_span(int placement, int visible, int content_w, int gap,
+                         const int16_t lo[3], const int16_t hi[3], int *x0, int *x1);
+
+// Left edge of a row `w` px wide inside the span [x0, x1): LEFT hugs x0, RIGHT
+// hugs x1 (the entries keep their fixed order — rain first — but the group sits
+// against the right edge), MIDDLE centres on the ROW's centre (content_w / 2, the
+// middle slot's own rule) clamped into the span. A row wider than its span starts
+// at x0 — the fit has already cut it to the span, so this only guards rounding.
+int alert_set_row_x(int placement, int x0, int x1, int content_w, int w);
 
 // One step down the text-lane ladder, run before any entry is dropped: the rain
 // text shortens to its minutes first ("Rain in 12'" -> "12'"), then every lane goes

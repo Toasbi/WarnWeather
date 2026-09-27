@@ -113,13 +113,113 @@ int alert_set_fit(const int16_t *widths, int n, int gap, int budget) {
     return fit;
 }
 
-bool alert_set_spill(int span_full, int span_shared, int need) {
-    // span_full is not needed for the verdict — displacing the mid slot is the
-    // only move left once the shared span is too small, and it always gains room
-    // — but it is the budget the caller fits against afterwards, so it stays in
-    // the signature to keep the decision and its budget in one place.
-    (void)span_full;
-    return need > span_shared;
+// What an edge slot claims off the row before the middle slot gets any: its width
+// and the gap that separates it — nothing for an absent slot, which leaves no gap.
+static int edge_reserve(int span, int gap) {
+    return span > 0 ? span + gap : 0;
+}
+
+// The middle slot's left edge as the row layout places it: centred on the row,
+// clamped into [lo, hi - w] (the room the present edges leave it). `w` is already
+// capped to that room, as the layout shrinks a middle slot to fit it.
+static int mid_x(int content_w, int w, int lo, int hi) {
+    int x = (content_w - w) / 2;
+    if (x < lo) { x = lo; }          // the layout's clamp order, so the two agree
+    if (x > hi - w) { x = hi - w; }  // to the pixel even where they could conflict
+    return x;
+}
+
+int alert_set_choose_slots(int placement, int need_w, int content_w,
+                           int span_l, int span_m, int span_r, int gap) {
+    if (need_w <= 0) { return 0; }
+    int room;
+    int anchor;
+    int neighbour;
+    int neighbour_span;
+    switch (placement) {
+        case THRESH_ALERTS_LEFT: {
+            // The left slot gone: the row runs from the left edge to the middle slot,
+            // which stays centred (bounded on its right by the right slot).
+            int hi = content_w - edge_reserve(span_r, gap);
+            if (span_m > 0) {
+                int w = span_m < hi ? span_m : hi;
+                room = mid_x(content_w, w, 0, hi) - gap;
+            } else {
+                room = hi;
+            }
+            anchor = ALERT_SLOT_LEFT;
+            neighbour = ALERT_SLOT_MID;
+            neighbour_span = span_m;
+            break;
+        }
+        case THRESH_ALERTS_RIGHT: {
+            // The mirror: from the centred middle slot to the right edge.
+            int lo = edge_reserve(span_l, gap);
+            if (span_m > 0) {
+                int w = span_m < content_w - lo ? span_m : content_w - lo;
+                room = content_w - (mid_x(content_w, w, lo, content_w) + w + gap);
+            } else {
+                room = content_w - lo;
+            }
+            anchor = ALERT_SLOT_RIGHT;
+            neighbour = ALERT_SLOT_MID;
+            neighbour_span = span_m;
+            break;
+        }
+        case THRESH_ALERTS_MIDDLE:
+            // Between the two edges; the left one is the one to borrow.
+            room = content_w - edge_reserve(span_l, gap) - edge_reserve(span_r, gap);
+            anchor = ALERT_SLOT_MID;
+            neighbour = ALERT_SLOT_LEFT;
+            neighbour_span = span_l;
+            break;
+        default:
+            return 0;
+    }
+    if (need_w <= room || neighbour_span <= 0) { return anchor; }
+    return anchor | neighbour;
+}
+
+// The slot index a placement anchors at; -1 for OFF (or anything unknown).
+static int anchor_index(int placement) {
+    switch (placement) {
+        case THRESH_ALERTS_LEFT:   return 0;
+        case THRESH_ALERTS_MIDDLE: return 1;
+        case THRESH_ALERTS_RIGHT:  return 2;
+        default:                   return -1;
+    }
+}
+
+void alert_set_free_span(int placement, int visible, int content_w, int gap,
+                         const int16_t lo[3], const int16_t hi[3], int *x0, int *x1) {
+    int a = anchor_index(placement);
+    int left = 0;
+    int right = content_w;
+    if (a >= 0) {
+        // Only the nearest visible slot on each side bounds the span; slots are laid
+        // out left to right, so the nearest left one has the largest right edge.
+        for (int i = 0; i < a; i++) {
+            if ((visible & (1 << i)) && hi[i] + gap > left) { left = hi[i] + gap; }
+        }
+        for (int i = 2; i > a; i--) {
+            if ((visible & (1 << i)) && lo[i] - gap < right) { right = lo[i] - gap; }
+        }
+    }
+    if (right < left) { right = left; }
+    *x0 = left;
+    *x1 = right;
+}
+
+int alert_set_row_x(int placement, int x0, int x1, int content_w, int w) {
+    int x;
+    switch (placement) {
+        case THRESH_ALERTS_RIGHT:  x = x1 - w; break;
+        case THRESH_ALERTS_MIDDLE: x = (content_w - w) / 2; break;
+        default:                   x = x0; break;
+    }
+    if (x > x1 - w) { x = x1 - w; }
+    if (x < x0) { x = x0; }
+    return x;
 }
 
 bool alert_set_degrade(int *rain_display, bool *values) {

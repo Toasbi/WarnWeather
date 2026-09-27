@@ -4,9 +4,11 @@
 
 // The Alerts row's SDK half: the glyph cache, per-entry measuring and paint for an
 // AlertSet (appendix/alert_set.h — the pure half: which entries, in which order, how
-// many fit). The row lives inside a status slot of kind SLOT_ALERTS; status_row.c
-// owns the slot, resolves the set, runs the fit/spill pass and hands the placed
-// entries here.
+// many fit, which slots they take). The row is a per-bar takeover: while an alert is
+// active it replaces the bar's left, middle or right slot (the bar's placement,
+// status_row_set_alerts), plus one neighbour when it needs the room. status_row.c
+// resolves the set, chooses the slots, runs the fit and hands the placed entries
+// here.
 //
 // NOT LINKED ON APLITE: the row is aplite-absent (WW_ALERT_ROW in wscript) — the .c
 // body sits behind the macro and compiles to an empty object there. Every call site
@@ -26,12 +28,24 @@
 // fg box with the glyph and text in the background colour.
 // Text lanes use the row's font; a metric entry follows its kind's bold ladder
 // (status_threshold_is_bold — danger is always bold), the rain text never bolds.
+//
+// A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px of air each
+// side of the icon(+text) group (a slot box's padding), so the widths the fit works
+// on are the ink the row paints — no box reaches into a neighbouring slot or past the
+// span. Vertically the box is the slots' font-derived extent plus
+// STATUS_ALERTS_BOX_PAD_Y px each side where the band has the room. Entries sit
+// STATUS_ALERTS_ENTRY_GAP px apart, footprint to footprint: two neighbouring boxes
+// keep that much air between their strokes.
+#define STATUS_ALERTS_BOX_PAD_X 2
+#define STATUS_ALERTS_BOX_PAD_Y 1
+#define STATUS_ALERTS_ENTRY_GAP 2
 
 typedef struct StatusAlertsCache StatusAlertsCache;
 
 // Allocate / free a row's glyph cache (up to ALERT_SET_MAX PDCs). create returns
-// NULL on OOM; destroy takes NULL. The row creates one only while it holds an
-// alerts slot, and destroys it with the row.
+// NULL on OOM; destroy takes NULL. The row creates one on the first paint with an
+// entry while its bar has a placement, and destroys it when the placement goes Off
+// and with the row.
 StatusAlertsCache *status_alerts_create(void);
 void status_alerts_destroy(StatusAlertsCache *cache);
 
@@ -67,7 +81,8 @@ typedef struct {
 } StatusAlertsText;
 
 // Width of every entry of `set` into widths_out[0..count-1]: icon + (text ?
-// STATUS_ROW_ICON_TEXT_GAP + text : 0), where the text is the entry's lane under
+// STATUS_ROW_ICON_TEXT_GAP + text : 0), plus 2 * STATUS_ALERTS_BOX_PAD_X for a boxed
+// (metric) entry, where the text is the entry's lane under
 // `text` (a metric value when text->values, the rain minutes or full countdown per
 // text->rain_display). 0 for an entry with neither a glyph nor text. Needs the
 // glyphs, so status_alerts_ensure() runs first. Feed the widths to alert_set_fit().
@@ -77,7 +92,7 @@ void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
 // Where the row paints: absolute coordinates in the row's layer.
 typedef struct {
     GRect band;            // the row's band — the highlight boxes clamp to it
-    int16_t x;             // left edge of the first entry
+    int16_t x;             // left edge of the first entry's footprint
     int16_t glyph_cy;      // the digits' cap centre (status_glyph_center_y)
     int16_t text_y;        // top of the text frame (the row's seated text y)
     int16_t content_h;     // the row font's content height (box sizing)
@@ -85,7 +100,7 @@ typedef struct {
 } StatusAlertsPlace;
 
 // Paint the first `n` entries (alert_set_fit's answer) left to right from place->x,
-// STATUS_ROW_GROUP_GAP apart, at the widths status_alerts_measure() returned for
+// STATUS_ALERTS_ENTRY_GAP apart, at the widths status_alerts_measure() returned for
 // the same `text` — zero-width entries are skipped with their gap, as
 // alert_set_row_w() counts them. Paint-only: no allocation.
 void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet *set,

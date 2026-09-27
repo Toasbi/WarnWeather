@@ -3,6 +3,7 @@
 #include "status_bar.h"
 #include "status_row.h"
 #include "../appendix/status_line.h"
+#include "../appendix/status_threshold.h"   // ThreshBar (the Alerts placement cells)
 #include "../windows/layout.h"
 
 // See status_bar.h for what this module is and why its API is collective.
@@ -67,6 +68,31 @@ static inline uint8_t bar_source(StatusBarId id) {
     return STATUS_SRC_FORECAST;
 #endif
 }
+
+#if defined(WW_ALERT_ROW)
+// The bar's cell in the thresholds blob's Alerts placement byte. The placement
+// belongs to the BAR (its settings card), not to the band the view gives it, so
+// the radar row keeps its placement whether it rides the upper or the lower band.
+static inline int bar_alerts_cell(StatusBarId id) {
+    switch (id) {
+#if defined(WW_RAIN_RADAR)
+        case STATUS_BAR_RADAR:  return THRESH_BAR_RADAR;
+#endif
+#if defined(PBL_HEALTH)
+        case STATUS_BAR_HEALTH: return THRESH_BAR_HEALTH;
+#endif
+        default: return THRESH_BAR_FORECAST;
+    }
+}
+
+// Push the stored placement into the bar's row. Only on the create / refresh-all
+// checkpoints: the placement moves only with a settings save, and every save
+// reaches status_bar_refresh_all (app_message's status and config blocks), so the
+// minute tick never pays the blob read.
+static void sync_alerts(StatusBarId id) {
+    status_row_set_alerts(s_bars[id].row, status_row_alerts_place(bar_alerts_cell(id)));
+}
+#endif
 
 // ── Update procs ─────────────────────────────────────────────────────────────
 // One trampoline per bar, selected by a switch that folds to a constant on
@@ -149,6 +175,9 @@ void status_bar_create_all(Layer *parent, const ViewSpec *spec, const MainLayout
         layer_add_child(parent, b->layer);
         b->row = status_row_create(bar_line((StatusBarId) i));
         status_row_set_full_date(b->row, full_date);
+#if defined(WW_ALERT_ROW)
+        sync_alerts((StatusBarId) i);
+#endif
         refresh_row((StatusBarId) i);   // seats the row (refresh_row applies first)
     }
 }
@@ -192,7 +221,11 @@ void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L) {
 
 void status_bar_refresh_all(void) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
-        if (s_bars[i].row) { refresh_row((StatusBarId) i); }
+        if (!s_bars[i].row) { continue; }
+#if defined(WW_ALERT_ROW)
+        sync_alerts((StatusBarId) i);
+#endif
+        refresh_row((StatusBarId) i);
     }
 }
 

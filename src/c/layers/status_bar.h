@@ -69,6 +69,8 @@ void status_bar_destroy_all(void);
 void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L);
 
 // Re-resolve and repaint every bar — the settings / weather / flick checkpoint.
+// Where the Alerts row exists this is also where each bar's placement is re-read
+// from the thresholds blob (status_row_set_alerts), as it is at create.
 void status_bar_refresh_all(void);
 
 // True when any VISIBLE bar's active packed line holds a live health slot. Gates
@@ -93,9 +95,9 @@ bool status_bar_any_visible_uses_live_health(const ViewSpec *spec);
 void status_bar_refresh_live_health(const ViewSpec *spec);
 
 #if defined(WW_ALERT_ROW)
-// Re-resolve the VISIBLE bars whose line holds an Alerts slot
-// (status_row_uses_alerts) — the rain entry in it is derived from the radar cache
-// on every refresh, and only a refresh notices that the countdown moved on. Called
+// Re-resolve the VISIBLE bars that have an Alerts placement
+// (status_row_uses_alerts) — the rain entry is derived from the radar cache on
+// every refresh, and only a refresh notices that the countdown moved on. Called
 // on the minute tick (beside top_status_layer_tick) and after a radar rescan
 // (app_message's radar_dirty block), so an Alerts row in a band row keeps pace with
 // the one in the strip. Hidden bars are skipped for the live-health reason above:

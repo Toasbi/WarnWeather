@@ -9,6 +9,7 @@
 #include "c/appendix/rain_countdown.h"
 #include "c/appendix/snooze.h"
 #include "c/appendix/status_line.h"
+#include "c/appendix/status_threshold.h"   // THRESH_BAR_TOP (the strip's Alerts placement)
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 #include "c/windows/layout.h"   // LayoutTier (status_row tier param)
@@ -144,8 +145,8 @@ static GRect content_rect(void) {
 
 // One paint path: the indicator icons, then the row in the rect they leave. The rain
 // alert is no longer the strip's own takeover — it is an entry of the Alerts row
-// (status_row.c + status_alerts.c), which sits in whichever slot the user placed it
-// (top-left by default) and displaces the date slot beside it only while it needs
+// (status_row.c + status_alerts.c), which replaces the slot of the strip's Alerts
+// placement (left by default) and takes the date slot beside it only while it needs
 // the room. The indicators are therefore never hidden for it: they own the strip's
 // left edge and the row starts after them.
 static void top_status_update_proc(Layer *layer, GContext *ctx) {
@@ -280,7 +281,7 @@ void status_icons_refresh() {
 void top_status_layer_tick() {
     // Per-minute hook. Repaint when the Quiet-Time icon toggles (its only event
     // source) or when the row's content moves. The row refresh IS the per-minute
-    // rain re-derivation: an Alerts slot resolves its rain entry from the cached
+    // rain re-derivation: the Alerts row resolves its rain entry from the cached
     // countdown on every refresh (flash-free; the radar scan itself runs only on
     // data change) and folds it into the row signature, so "Rain in 12'" -> "11'"
     // repaints here. update_battery_override here catches crossing the 10%
@@ -303,8 +304,13 @@ void top_status_layer_tick() {
 void top_status_layer_refresh() {
     // Date formatting lives in status_row.c's format_status_date (SLOT_LIVE_DATE);
     // the rain alert is an Alerts-row entry the row resolves itself; this owner only
-    // keeps the battery override and icon state in sync.
+    // keeps the battery override, the strip's Alerts placement and the icon state in
+    // sync. The placement is re-read here, not in the tick: it moves only with a
+    // settings save, and every save reaches this refresh.
     update_battery_override();   // config may have flipped battery_low_only
+#if defined(WW_ALERT_ROW)
+    status_row_set_alerts(s_row, status_row_alerts_place(THRESH_BAR_TOP));
+#endif
     status_icons_refresh();
     if (status_row_refresh(s_row)) {
         layer_mark_dirty(s_top_status_layer);

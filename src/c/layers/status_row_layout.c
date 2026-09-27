@@ -73,7 +73,7 @@ static void place_group(const StatusSlotMeasure *m, const GroupFit *fit,
 }
 
 // Desired group width (icon + gap + text + gap + suffix). Exported (status_row_layout.h)
-// so the Alerts row's spill pass sizes its neighbours by this rule rather than a
+// so the Alerts row's slot choice sizes its neighbours by this rule rather than a
 // re-derived copy; a negative field counts as 0, as status_row_layout's own
 // normalisation would make it.
 int16_t status_slot_desired_w(const StatusSlotMeasure *m) {
@@ -200,12 +200,19 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 // tail therefore sits inside the outline with 1 px of air; on the 168px watches
 // (gap 0) the floor is 1 short of the tail's last row — the tip overlaps the bottom
 // stroke by 1 px, the best a screen-edge band with an ink-anchored calendar can do.
+// The lowest edge a highlight box may reach: the band's bottom, or on the strip its
+// calendar floor (see above). Shared by the extent and its padded variant.
+static int extent_bottom_limit(int16_t band_top, int16_t band_h, bool top_strip) {
+    int band_bottom = band_top + band_h;         // exclusive edge
+    return top_strip
+        ? band_bottom - STATUS_TOP_STRIP_LIFT + STATUS_STRIP_CAL_GAP - 1 : band_bottom;
+}
+
 StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
                                               int16_t cap_cy, int16_t content_h,
                                               bool top_strip, bool has_tail) {
     int band_bottom = band_top + band_h;         // exclusive edge
-    int bottom_limit = top_strip
-        ? band_bottom - STATUS_TOP_STRIP_LIFT + STATUS_STRIP_CAL_GAP - 1 : band_bottom;
+    int bottom_limit = extent_bottom_limit(band_top, band_h, top_strip);
     int cap = cap_cy;                            // defensive: a cap outside the
     if (cap < band_top) { cap = band_top; }      // band collapses the box at the
     if (cap > band_bottom) { cap = band_bottom; }// nearest edge, never overflows
@@ -223,6 +230,25 @@ StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
     if (below < 0) { below = 0; }                // lifted cap under a tiny band
     StatusHighlightExtent e = { (int16_t)(cap - above), (int16_t)(above + below) };
     return e;
+}
+
+// Grow each side by up to `pad` rows where the band has them — never above the band,
+// never below extent_bottom_limit — so a side already clamped by the band (the strip's
+// top, a tight compact band) simply keeps its extent while the other side still gets
+// its air. The Alerts row's entry boxes (status_alerts.c) sit 1 px roomier than a
+// slot's box this way.
+StatusHighlightExtent status_highlight_extent_pad(StatusHighlightExtent e,
+                                                  int16_t band_top, int16_t band_h,
+                                                  bool top_strip, int16_t pad) {
+    int top = e.y;
+    int bottom = e.y + e.h;
+    int limit = extent_bottom_limit(band_top, band_h, top_strip);
+    int up = top - band_top;
+    int down = limit - bottom;
+    top -= (up < pad) ? (up > 0 ? up : 0) : pad;
+    bottom += (down < pad) ? (down > 0 ? down : 0) : pad;
+    StatusHighlightExtent out = { (int16_t)top, (int16_t)(bottom - top) };
+    return out;
 }
 
 // Does the rendered slot text reach below the baseline? The Gothic lowercase

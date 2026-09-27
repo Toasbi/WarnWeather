@@ -36,8 +36,8 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 // each gap collapsing when a side of it is empty (the suffix abuts the icon when
 // there is no text). 0 for an absent slot, or one with neither icon nor text — a
 // suffix never renders alone. This is the rule status_row_layout claims the edges
-// by; the Alerts row's spill pass reuses it to size the slots it shares a row with,
-// so the two can never drift.
+// by; the Alerts row's slot choice (alert_set_choose_slots) reuses it to size the
+// slots it shares a row with, so the two can never drift.
 int16_t status_slot_desired_w(const StatusSlotMeasure *m);
 
 // Vertical extent (top edge + height) of a slot's threshold-highlight box.
@@ -49,6 +49,14 @@ typedef struct {
 StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
                                               int16_t cap_cy, int16_t content_h,
                                               bool top_strip, bool has_tail);
+
+// `e` (a status_highlight_extent result for the same band) grown by up to `pad` rows
+// on each side, each side stopping at the band's top / its bottom limit (the strip's
+// calendar floor on the top strip). The Alerts row's entry boxes use it for their
+// 1-px vertical padding.
+StatusHighlightExtent status_highlight_extent_pad(StatusHighlightExtent e,
+                                                  int16_t band_top, int16_t band_h,
+                                                  bool top_strip, int16_t pad);
 
 // True when the rendered slot text contains a descender glyph (g j p q y) — drives
 // the box's conditional descender reserve.

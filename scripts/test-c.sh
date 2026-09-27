@@ -51,10 +51,13 @@ cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/
 build/host/status_line_test
 cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o build/host/status_threshold_test
 build/host/status_threshold_test
-# The Alerts row's pure half (entry parse, rain merge, fit/spill/lane ladder). Its body
+# The Alerts row's pure half (entry parse, rain merge, fit/lane ladder, and the per-bar
+# takeover: which slots it replaces, the span they leave, where the row sits). Its body
 # sits behind WW_ALERT_ROW (wscript: every platform but aplite), so the flag is required
-# here or the module compiles to nothing and the test fails to link.
-cc $CFLAGS -DWW_ALERT_ROW test/c/alert_set_test.c src/c/appendix/alert_set.c -o build/host/alert_set_test
+# here or the module compiles to nothing and the test fails to link. Linked with the
+# row layout so the slot choice's placement model is held against the real layout.
+cc $CFLAGS -DWW_ALERT_ROW test/c/alert_set_test.c src/c/appendix/alert_set.c \
+   src/c/layers/status_row_layout.c -o build/host/alert_set_test
 build/host/alert_set_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test

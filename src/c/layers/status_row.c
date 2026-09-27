@@ -70,12 +70,12 @@ struct StatusRow {
     uint16_t content_sig;
     bool uses_live_health;
 #if defined(WW_ALERT_ROW)
-    // The Alerts slot's glyph cache: allocated by the first draw that has entries to
-    // show, freed as soon as the line stops holding an Alerts slot (refresh) and with
-    // the row. Its glyphs come and go with their alerts (status_alerts_ensure), so an
-    // idle Alerts row keeps only the cache struct.
+    // The Alerts row's glyph cache: allocated by the first draw that has entries to
+    // show, freed as soon as the bar's placement goes Off (status_row_set_alerts)
+    // and with the row. Its glyphs come and go with their alerts
+    // (status_alerts_ensure), so an idle Alerts row keeps only the cache struct.
     StatusAlertsCache *alerts;
-    bool uses_alerts;
+    uint8_t alerts_place;   // ThreshAlertsPlace, pushed by the owner
 #endif
 };
 
@@ -531,31 +531,28 @@ static int resolve_row(const StatusRow *row, ResolvedSlot out[STATUS_SLOT_COUNT]
 // rain_countdown_format()'s buffer contract: "Downpour for +99'" + NUL.
 #define RAIN_TEXT_CAP 20
 
-// Interim: the Alerts row is no longer a slot kind (the walker rejects kind 11
-// again) — it becomes a per-bar takeover placed by the thresholds blob's
-// placement byte, with its entries in the ALERT_ENTRIES tuple. Until the draw
-// pass is rewired to that, no slot carries this kind, so the row stays idle.
-#define ALERTS_SLOT_KIND_RETIRED 0xFF
-
-// An Alerts slot resolved for one pass: the entries (the phone-baked metric alerts,
+// The Alerts row resolved for one pass: the entries (the phone-baked metric alerts,
 // with the watch-resolved rain entry in front) and what their text lanes print.
-// The entries' values point into the slot bytes, i.e. into s_blob_scratch, so this
-// lives exactly as long as the pass that loaded them.
+// The metric entries' values point into `bytes` — the stored tuple is read into the
+// struct itself — so the set lives exactly as long as this struct, a pass-local.
 typedef struct {
+    uint8_t bytes[ALERT_ENTRIES_MAX_BYTES];   // the stored ALERT_ENTRIES tuple
     AlertSet set;
     char rain_text[RAIN_TEXT_CAP];   // the countdown text; "" when no rain entry
     int rain_display;                // ThreshRainDisplay, from the settings blob
 } ResolvedAlerts;
 
-// Resolve an Alerts slot of an already-loaded pass (load_pass: the slot bytes AND
-// the thresholds blob). The rain entry is derived here, every pass, from the radar
-// cache rain_countdown_refresh() keeps — O(1) and flash-free — which is why a row
-// holding an Alerts slot must be refreshed on the minute tick and after a radar
-// rescan (status_row_uses_alerts). The tier is collapsed to its drop bucket HERE,
-// on the SDK side: rain_tier.h pulls <pebble.h>, which the pure alert_set.c must
-// not (it host-compiles).
-static void resolve_alerts(const StatusSlotView *slot, ResolvedAlerts *out) {
-    alert_set_parse((const uint8_t *)slot->value, slot->value_len, &out->set);
+// Resolve the Alerts row against an already-loaded pass (load_pass: the thresholds
+// blob behind the rain look): the metric entries from the stored tuple (one flash
+// read — app_message.c has already checked it with alert_set_bytes_ok), the rain
+// entry derived here, every pass, from the radar cache rain_countdown_refresh()
+// keeps — O(1) and flash-free — which is why a row with a placement must be
+// refreshed on the minute tick and after a radar rescan (status_row_uses_alerts).
+// The tier is collapsed to its drop bucket HERE, on the SDK side: rain_tier.h pulls
+// <pebble.h>, which the pure alert_set.c must not (it host-compiles).
+static void resolve_alerts(ResolvedAlerts *out) {
+    int len = persist_get_alert_entries(out->bytes, sizeof(out->bytes));
+    alert_set_parse(out->bytes, len > 0 ? (size_t)len : 0, &out->set);
     bool rain = rain_countdown_format(out->rain_text, sizeof(out->rain_text),
                                       watch_services_now());
     if (!rain) { out->rain_text[0] = '\0'; }
@@ -565,7 +562,7 @@ static void resolve_alerts(const StatusSlotView *slot, ResolvedAlerts *out) {
                                                       (size_t)s_thresh_len);
 }
 
-// Fold everything an Alerts slot paints into the row signature, so a changed set is
+// Fold everything the Alerts row paints into the row signature, so a changed set is
 // a content change: which entries, their levels and baked values, the colour and
 // bold cell each one reads from the blob (a Clay save that only recolours must
 // repaint, as for a slot's accent8), the rain look, the drop's bucket and tier (its
@@ -656,17 +653,40 @@ bool status_row_uses_live_health(const StatusRow *row) {
 }
 
 #if defined(WW_ALERT_ROW)
+void status_row_set_alerts(StatusRow *row, int placement) {
+    if (!row) { return; }
+    if (placement < THRESH_ALERTS_OFF || placement > THRESH_ALERTS_RIGHT) {
+        placement = THRESH_ALERTS_OFF;
+    }
+    if (row->alerts_place == placement) { return; }
+    row->alerts_place = (uint8_t)placement;
+    row->content_sig = 0;   // the takeover moved: the next refresh reports a change
+    // Off: give the cache and whatever glyphs it still holds back now rather than
+    // at row teardown. Any other placement keeps it — the same entries draw there.
+    if (placement == THRESH_ALERTS_OFF && row->alerts) {
+        status_alerts_destroy(row->alerts);
+        row->alerts = NULL;
+    }
+}
+
+int status_row_alerts_place(int bar) {
+    // load_thresholds() normalises an invalid blob to len 0, which the accessor
+    // answers with the pre-placement default (strip left, the rest off).
+    load_thresholds();
+    return status_threshold_bar_alerts(s_thresh_scratch, (size_t)s_thresh_len, bar);
+}
+
 bool status_row_uses_alerts(const StatusRow *row) {
-    return row && row->uses_alerts;
+    return row && row->alerts_place != THRESH_ALERTS_OFF;
 }
 #endif
 
 // The slot kinds whose value is read from HealthService — the ones that put a row
 // into the minute handler's health work. A POSITIVE list on purpose: it used to be
 // a range test (every kind from SLOT_LIVE_STEPS up, minus the two battery kinds),
-// so each appended kind fell into it by default — the calendar week did, and so
-// would the Alerts slot, putting HealthService reads back on every tick of the
-// default strip for every health-enabled user.
+// so each appended kind fell into it by default — the calendar week did, putting
+// HealthService reads back on every tick of the strip for every health-enabled
+// user.
 static bool is_live_health_kind(uint8_t kind) {
     switch (kind) {
         case SLOT_LIVE_STEPS:
@@ -685,14 +705,11 @@ bool status_row_refresh(StatusRow *row) {
     uint16_t sig = 5381;
     bool has_drawn_sun = false;
     row->uses_live_health = false;
-#if defined(WW_ALERT_ROW)
-    row->uses_alerts = false;
-#endif
     ResolvedSlot resolved[STATUS_SLOT_COUNT];
-    // All three slots, always — including a mid slot the Alerts row may displace
-    // at paint time: displacement is a paint decision (it depends on measured
+    // All three slots, always — including the ones the Alerts row may take over at
+    // paint time: which slots it takes is a paint decision (it depends on measured
     // widths), not a content rule, and a signature describing only part of the row
-    // would let a slot that moved while displaced come back stale.
+    // would let a slot that moved while replaced come back stale.
     if (resolve_row(row, resolved) > 0) {
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
             const ResolvedSlot *r = &resolved[i];
@@ -754,26 +771,19 @@ bool status_row_refresh(StatusRow *row) {
             if (is_live_health_kind(slot->kind)) {
                 row->uses_live_health = true;
             }
-#if defined(WW_ALERT_ROW)
-            // The first Alerts slot is the row's (the phone dedupes slots per
-            // line; a second one measures absent in the draw and folds nothing).
-            if (slot->kind == ALERTS_SLOT_KIND_RETIRED && !row->uses_alerts) {
-                row->uses_alerts = true;
-                ResolvedAlerts alerts;
-                resolve_alerts(slot, &alerts);
-                sig = fold_alerts(sig, &alerts);
-            }
-#endif
         }
-    }
 #if defined(WW_ALERT_ROW)
-    // The line no longer holds an Alerts slot: give the cache and whatever glyphs
-    // it still holds back now rather than at row teardown.
-    if (!row->uses_alerts && row->alerts) {
-        status_alerts_destroy(row->alerts);
-        row->alerts = NULL;
-    }
+        // The Alerts row folds only while the bar has a placement — Off draws none
+        // of it, so its entries are not this row's content. The placement is folded
+        // too: the same entries moved from the left to the right are a new paint.
+        if (row->alerts_place != THRESH_ALERTS_OFF) {
+            ResolvedAlerts alerts;
+            resolve_alerts(&alerts);
+            sig = sig_fold(sig, &row->alerts_place, 1);
+            sig = fold_alerts(sig, &alerts);
+        }
 #endif
+    }
     if (has_drawn_sun) {
         uint8_t sun_event_start_type = (uint8_t)persist_get_sun_event_start_type();
         sig = sig_fold(sig, &sun_event_start_type, 1);
@@ -912,55 +922,44 @@ static void glyph_set_stroke(GDrawCommandImage *image, GColor color) {
 }
 
 #if defined(WW_ALERT_ROW)
-// The Alerts slot's share of one draw pass: its resolved entries, the text lanes they
-// print (after the lane ladder), their measured widths and how many of them fit.
+// The Alerts row's share of one draw pass: its resolved entries, the text lanes they
+// print (after the lane ladder), their measured widths, how many of them fit and
+// where the row starts (content-relative, like a StatusSlotPlace).
 typedef struct {
-    int slot;                          // index of the Alerts slot; -1 = none
-    int n;                             // entries that fit (alert_set_fit)
+    int n;                             // entries that fit (alert_set_fit); 0 = none
+    int16_t x;                         // left edge of the row inside the content
     ResolvedAlerts r;
     StatusAlertsText text;
     int16_t widths[ALERT_SET_MAX];
 } AlertsPass;
 
-// What an EDGE slot claims off the row before a neighbour gets any: its desired
-// width (status_row_layout's own rule) plus the gap that separates it — nothing
-// for an absent slot, which leaves no gap either.
-static int edge_reserve(const StatusSlotMeasure *m) {
-    int d = status_slot_desired_w(m);
-    return d > 0 ? d + STATUS_ROW_GROUP_GAP : 0;
+// A placed slot's ink extent end: its suffix lane, else its text, else its icon —
+// the right edge slot_highlight_box() frames. (Its start is always icon_x:
+// place_group puts the group there whether or not it has an icon.)
+static int16_t place_end(const StatusSlotPlace *p, const StatusSlotMeasure *m) {
+    if (m->suffix_w > 0 && p->text_visible) { return (int16_t)(p->suffix_x + m->suffix_w); }
+    if (p->text_visible) { return (int16_t)(p->text_x + p->text_w); }
+    return (int16_t)(p->icon_x + m->icon_w);
 }
 
-// Measure the Alerts slot LAST, against the other two slots' measures, and write
-// its measure back as one text-only lane exactly as wide as the entries that fit —
-// status_row_layout then places it like any slot (an edge at its edge, a mid slot
-// centred between the edges).
+// Resolve and measure the Alerts row at its full lanes. False = nothing to draw
+// (no alert active, or OOM for the cache): the bar then lays out exactly as it
+// would without the feature.
 //
-// The budget (spec 3.3): an EDGE Alerts slot gets the row minus the other edge; if
-// the whole set, at its full lanes, does not fit beside the MID slot too, the mid
-// slot is displaced for this paint (its measure zeroed — the strip's old rain
-// takeover generalised: the date gives way while an alert needs the room, and
-// returns when it does not). A MID Alerts slot gets what the two edges leave and
-// never displaces one. Within the budget the lanes degrade before any entry drops
-// (rain text -> minutes, then every value off; alert_set_degrade), and only then
-// does the tail go (alert_set_fit: pollen first, rain last).
-//
-// Also where the glyph cache lives and dies: created by the first pass that has an
-// entry to draw, and emptied (status_alerts_ensure evicts what the set no longer
-// holds) by every pass after, so an idle row holds no glyph heap.
-static void alerts_measure(StatusRow *row, AlertsPass *a,
-                           StatusSlotMeasure measures[STATUS_SLOT_COUNT],
-                           int16_t content_w, int content_h, GFont font) {
-    StatusSlotMeasure *m = &measures[a->slot];
-    *m = (StatusSlotMeasure){0};
+// Also where the glyph cache lives: created by the first pass that has an entry to
+// draw, and emptied (status_alerts_ensure evicts what the set no longer holds) by
+// every pass after, so an idle row holds no glyph heap. It is freed when the
+// placement goes Off (status_row_set_alerts) and with the row.
+static bool alerts_prepare(StatusRow *row, AlertsPass *a, int content_h, GFont font) {
+    resolve_alerts(&a->r);
     const AlertSet *set = &a->r.set;
     if (!row->alerts && set->count > 0) { row->alerts = status_alerts_create(); }
-    if (!row->alerts) { return; }   // idle (0 px: the neighbours get the row), or OOM
+    if (!row->alerts) { return false; }
     int rain_tier = (set->count > 0 && set->entries[0].rain) ? set->entries[0].rain_tier : 0;
     status_alerts_ensure(row->alerts, set, icon_target_h(row, content_h),
                          row->line_id == STATUS_LINE_TOP, theme_fg(),
                          status_alerts_rain_tint(rain_tier), theme_is_light());
-    if (set->count == 0) { return; }
-
+    if (set->count == 0) { return false; }
     a->text = (StatusAlertsText){
         .font = font,
         .bold = row_font_bold(row->tier, row->line_id),
@@ -971,32 +970,57 @@ static void alerts_measure(StatusRow *row, AlertsPass *a,
         .rain_text = a->r.rain_text[0] != '\0' ? a->r.rain_text : NULL
     };
     status_alerts_measure(row->alerts, set, &a->text, a->widths);
-    int need = alert_set_row_w(a->widths, set->count, STATUS_ROW_GROUP_GAP);
+    return true;
+}
 
-    int budget;
-    if (a->slot == 1) {
-        budget = content_w - edge_reserve(&measures[0]) - edge_reserve(&measures[2]);
-    } else {
-        int span_full = content_w - edge_reserve(&measures[STATUS_SLOT_COUNT - 1 - a->slot]);
-        int span_shared = span_full - edge_reserve(&measures[1]);
-        if (alert_set_spill(span_full, span_shared, need)) {
-            measures[1] = (StatusSlotMeasure){0};
-            budget = span_full;
-        } else {
-            budget = span_shared;
-        }
+// The takeover (spec 4.1): choose the slots the row replaces, lay out the rest as
+// usual, then fit the row into the span they leave.
+//  1. alert_set_choose_slots — the anchor slot of the bar's placement, plus one
+//     neighbour when the row at its FULL lanes does not fit the anchor's room
+//     (LEFT/RIGHT borrow the middle slot, MIDDLE the left one; never more).
+//  2. Those slots' measures are zeroed and status_row_layout places the remaining
+//     ones exactly where they would sit anyway — a slot the row did not take draws
+//     normally, in its usual place (the middle one stays centred).
+//  3. The span is what the placed slots leave around the anchor
+//     (alert_set_free_span). Within it the lanes degrade before any entry drops
+//     (rain text -> minutes, then every value off; alert_set_degrade), and only
+//     then does the tail go (alert_set_fit: pollen first, rain last).
+//  4. The row sits left-aligned (LEFT), centred on the row (MIDDLE) or against the
+//     right edge (RIGHT) inside the span (alert_set_row_x).
+static void alerts_layout(const StatusRow *row, AlertsPass *a,
+                          StatusSlotMeasure measures[STATUS_SLOT_COUNT],
+                          StatusSlotPlace places[STATUS_SLOT_COUNT], int16_t content_w) {
+    const AlertSet *set = &a->r.set;
+    int need = alert_set_row_w(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
+    int mask = alert_set_choose_slots(row->alerts_place, need, content_w,
+        status_slot_desired_w(&measures[0]), status_slot_desired_w(&measures[1]),
+        status_slot_desired_w(&measures[2]), STATUS_ROW_GROUP_GAP);
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        if (mask & (1 << i)) { measures[i] = (StatusSlotMeasure){0}; }
     }
+    status_row_layout(content_w, measures, places);
+
+    int visible = 0;
+    int16_t lo[STATUS_SLOT_COUNT];
+    int16_t hi[STATUS_SLOT_COUNT];
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        lo[i] = places[i].icon_x;
+        hi[i] = place_end(&places[i], &measures[i]);
+        if (places[i].visible) { visible |= 1 << i; }
+    }
+    int x0;
+    int x1;
+    alert_set_free_span(row->alerts_place, visible, content_w, STATUS_ROW_GROUP_GAP,
+                        lo, hi, &x0, &x1);
+    int budget = x1 - x0;
 
     while (need > budget && alert_set_degrade(&a->text.rain_display, &a->text.values)) {
         status_alerts_measure(row->alerts, set, &a->text, a->widths);
-        need = alert_set_row_w(a->widths, set->count, STATUS_ROW_GROUP_GAP);
+        need = alert_set_row_w(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
     }
-    a->n = alert_set_fit(a->widths, set->count, STATUS_ROW_GROUP_GAP, budget);
-    int w = alert_set_row_w(a->widths, a->n, STATUS_ROW_GROUP_GAP);
-    if (w > 0) {
-        m->present = true;
-        m->text_w = (int16_t)w;
-    }
+    a->n = alert_set_fit(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP, budget);
+    int w = alert_set_row_w(a->widths, a->n, STATUS_ALERTS_ENTRY_GAP);
+    a->x = (int16_t)alert_set_row_x(row->alerts_place, x0, x1, content_w, w);
 }
 #endif
 
@@ -1019,28 +1043,27 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         resolve_slot(row, i, font, &views[i], &slots[i]);
         // The resolver's font, not `font`: a bold slot's glyphs are wider, so it
-        // must MEASURE with the font it is about to be drawn with. (An Alerts slot
-        // measures absent here — no text, no glyph — and is re-measured below.)
+        // must MEASURE with the font it is about to be drawn with.
         measures[i] = measure_slot(row, i, slots[i].font, content_w,
                                    &slots[i].slot, slots[i].text, slots[i].dir);
     }
 
-#if defined(WW_ALERT_ROW)
-    // The Alerts slot LAST: its budget is whatever the other two leave it.
-    AlertsPass alerts;
-    alerts.slot = -1;
-    alerts.n = 0;
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        if (slots[i].slot.kind == ALERTS_SLOT_KIND_RETIRED) { alerts.slot = i; break; }
-    }
-    if (alerts.slot >= 0) {
-        resolve_alerts(&slots[alerts.slot].slot, &alerts.r);
-        alerts_measure(row, &alerts, measures, content_w, content_h, font);
-    }
-#endif
-
     StatusSlotPlace places[STATUS_SLOT_COUNT];
+#if defined(WW_ALERT_ROW)
+    // The Alerts row, measured against the three slots: with a placement and an
+    // active alert it takes its slots out of the layout; otherwise the bar lays out
+    // exactly as it would without the feature.
+    AlertsPass alerts;
+    alerts.n = 0;
+    if (row->alerts_place != THRESH_ALERTS_OFF
+            && alerts_prepare(row, &alerts, content_h, font)) {
+        alerts_layout(row, &alerts, measures, places, content_w);
+    } else {
+        status_row_layout(content_w, measures, places);
+    }
+#else
     status_row_layout(content_w, measures, places);
+#endif
 
     int text_y_rel = row_text_y(row, font);
     int text_y = row->bounds.origin.y + text_y_rel;
@@ -1070,27 +1093,26 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         graphics_draw_round_rect(ctx, box, 2);
     }
 
+#if defined(WW_ALERT_ROW)
+    // The Alerts row paints its entries itself — each its own mini slot with its own
+    // box — from the left edge alerts_layout gave it. The slots it replaced were
+    // zeroed out of the layout, so neither pass here touches them.
+    if (alerts.n > 0) {
+        StatusAlertsPlace place = {
+            .band = row->bounds,
+            .x = (int16_t)(x0 + alerts.x),
+            .glyph_cy = (int16_t)glyph_cy,
+            .text_y = (int16_t)text_y,
+            .content_h = (int16_t)content_h,
+            .top_strip = row->line_id == STATUS_LINE_TOP
+        };
+        status_alerts_draw(ctx, row->alerts, &alerts.r.set, alerts.n, alerts.widths,
+                           &alerts.text, &place);
+    }
+#endif
+
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible) { continue; }
-#if defined(WW_ALERT_ROW)
-        // The Alerts slot paints its entries itself — each its own mini slot with
-        // its own box — from the left edge the layout placed its row at. Its
-        // resolved level is NORMAL (no ThreshKind), so the highlight pass above
-        // already left it alone.
-        if (i == alerts.slot) {
-            StatusAlertsPlace place = {
-                .band = row->bounds,
-                .x = (int16_t)(x0 + places[i].text_x),
-                .glyph_cy = (int16_t)glyph_cy,
-                .text_y = (int16_t)text_y,
-                .content_h = (int16_t)content_h,
-                .top_strip = row->line_id == STATUS_LINE_TOP
-            };
-            status_alerts_draw(ctx, row->alerts, &alerts.r.set, alerts.n, alerts.widths,
-                               &alerts.text, &place);
-            continue;
-        }
-#endif
         // Danger slots flip their ink legible over the fill (the calendar's
         // today pattern); warn and normal keep the theme foreground. The accent
         // is the resolver's — the same value the highlight pass above filled the

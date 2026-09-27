@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "c/appendix/alert_set.h"
+#include "c/layers/status_row_layout.h"   // the real layout the choice is held against
 
 // Host test for the Alerts row's pure half (appendix/alert_set.c). Built with
 // -DWW_ALERT_ROW, the flag wscript sets on every platform but aplite — without it
@@ -226,21 +227,178 @@ static void fit_tests(void) {
     expect("fit.hole_short", alert_set_fit(holes, 3, 4, 25), 2);
 }
 
-static void spill_tests(void) {
-    // Fits beside the mid slot: keep it.
-    expect("spill.keep", alert_set_spill(99, 41, 40), 0);
-    expect("spill.keep_exact", alert_set_spill(99, 41, 41), 0);
-    // Too wide for the shared span but fits the full one: displace the mid slot.
-    expect("spill.displace", alert_set_spill(99, 41, 42), 1);
-    expect("spill.displace_exact", alert_set_spill(99, 41, 99), 1);
-    // Too wide even for the full span: still displace, then fit into span_full.
-    expect("spill.overflow", alert_set_spill(99, 41, 140), 1);
-    const int16_t w[] = { 11, 11, 11, 11, 11, 11, 11, 11, 11 };
-    expect("spill.overflow.fit", alert_set_fit(w, 9, 4, 99), 6);   // 6*11 + 5*4 = 86
-    // A shared span that went negative (wide neighbours) always displaces.
-    expect("spill.negative_shared", alert_set_spill(30, -8, 11), 1);
-    // Nothing to show never displaces.
-    expect("spill.nothing", alert_set_spill(99, 41, 0), 0);
+// --- the takeover: which slots, what span, where the row sits -----------------
+
+enum { W = 140, GAP = 4 };
+
+static void choose_slots_tests(void) {
+    // LEFT, middle slot 40 px centred at x 50 (right slot 16 px): the left slot's
+    // room runs to 50 - GAP = 46.
+    expect("choose.left.fits", alert_set_choose_slots(THRESH_ALERTS_LEFT, 46, W, 20, 40, 16, GAP),
+           ALERT_SLOT_LEFT);
+    expect("choose.left.borrows_mid",
+           alert_set_choose_slots(THRESH_ALERTS_LEFT, 47, W, 20, 40, 16, GAP),
+           ALERT_SLOT_LEFT | ALERT_SLOT_MID);
+    // Never more than two, and never the far edge.
+    expect("choose.left.never_three",
+           alert_set_choose_slots(THRESH_ALERTS_LEFT, 1000, W, 20, 40, 16, GAP),
+           ALERT_SLOT_LEFT | ALERT_SLOT_MID);
+    // The left slot's own width is irrelevant: it is replaced either way (an empty
+    // left slot — the strip's default — still has the room up to the date).
+    expect("choose.left.empty_anchor",
+           alert_set_choose_slots(THRESH_ALERTS_LEFT, 46, W, 0, 40, 16, GAP), ALERT_SLOT_LEFT);
+    // No middle slot: the room runs to the right slot, and an absent middle slot is
+    // never borrowed (it frees nothing).
+    expect("choose.left.no_mid.fits",
+           alert_set_choose_slots(THRESH_ALERTS_LEFT, 120, W, 20, 0, 16, GAP), ALERT_SLOT_LEFT);
+    expect("choose.left.no_mid.too_wide",
+           alert_set_choose_slots(THRESH_ALERTS_LEFT, 121, W, 20, 0, 16, GAP), ALERT_SLOT_LEFT);
+
+    // RIGHT mirrors it: from the centred middle slot's right edge (90) + GAP.
+    expect("choose.right.fits",
+           alert_set_choose_slots(THRESH_ALERTS_RIGHT, 46, W, 16, 40, 20, GAP), ALERT_SLOT_RIGHT);
+    expect("choose.right.borrows_mid",
+           alert_set_choose_slots(THRESH_ALERTS_RIGHT, 47, W, 16, 40, 20, GAP),
+           ALERT_SLOT_RIGHT | ALERT_SLOT_MID);
+    expect("choose.right.never_three",
+           alert_set_choose_slots(THRESH_ALERTS_RIGHT, 1000, W, 16, 40, 20, GAP),
+           ALERT_SLOT_RIGHT | ALERT_SLOT_MID);
+    // A wide left slot pushes the middle slot right (the layout's clamp), which
+    // shrinks the right room: middle at 64..104, room 140 - 108 = 32.
+    expect("choose.right.pushed_mid.fits",
+           alert_set_choose_slots(THRESH_ALERTS_RIGHT, 32, W, 60, 40, 20, GAP), ALERT_SLOT_RIGHT);
+    expect("choose.right.pushed_mid.borrows",
+           alert_set_choose_slots(THRESH_ALERTS_RIGHT, 33, W, 60, 40, 20, GAP),
+           ALERT_SLOT_RIGHT | ALERT_SLOT_MID);
+
+    // MIDDLE: the room between the edges (140 - 20 - 24 = 96); it borrows the LEFT
+    // slot, never the right one (the battery usually lives there).
+    expect("choose.mid.fits",
+           alert_set_choose_slots(THRESH_ALERTS_MIDDLE, 96, W, 16, 40, 20, GAP), ALERT_SLOT_MID);
+    expect("choose.mid.borrows_left",
+           alert_set_choose_slots(THRESH_ALERTS_MIDDLE, 97, W, 16, 40, 20, GAP),
+           ALERT_SLOT_MID | ALERT_SLOT_LEFT);
+    expect("choose.mid.never_three",
+           alert_set_choose_slots(THRESH_ALERTS_MIDDLE, 1000, W, 16, 40, 20, GAP),
+           ALERT_SLOT_MID | ALERT_SLOT_LEFT);
+    expect("choose.mid.no_left",
+           alert_set_choose_slots(THRESH_ALERTS_MIDDLE, 1000, W, 0, 40, 20, GAP), ALERT_SLOT_MID);
+
+    // Off, an unknown placement or nothing to show takes nothing.
+    expect("choose.off", alert_set_choose_slots(THRESH_ALERTS_OFF, 30, W, 16, 40, 20, GAP), 0);
+    expect("choose.unknown", alert_set_choose_slots(7, 30, W, 16, 40, 20, GAP), 0);
+    expect("choose.empty_row",
+           alert_set_choose_slots(THRESH_ALERTS_LEFT, 0, W, 16, 40, 20, GAP), 0);
+}
+
+// The model inside alert_set_choose_slots against the REAL layout: for a sweep of
+// rows whose three slots fit side by side, zero the anchor, lay the rest out with
+// status_row_layout and measure the span alert_set_free_span leaves — a row exactly
+// that wide must stay in the anchor, one px wider must borrow the neighbour.
+static void choose_matches_layout(void) {
+    static const int16_t widths[] = { 0, 8, 20, 37, 50 };
+    static const int16_t rows[] = { 100, 140, 176 };
+    static const int places[] = { THRESH_ALERTS_LEFT, THRESH_ALERTS_MIDDLE, THRESH_ALERTS_RIGHT };
+    const int n_w = (int)(sizeof(widths) / sizeof(widths[0]));
+    int checked = 0;
+    for (size_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++) {
+        for (int a = 0; a < n_w; a++) {
+            for (int b = 0; b < n_w; b++) {
+                for (int c = 0; c < n_w; c++) {
+                    int16_t d[3] = { widths[a], widths[b], widths[c] };
+                    if (d[0] + d[1] + d[2] + 2 * GAP > rows[r]) { continue; }
+                    for (size_t p = 0; p < 3; p++) {
+                        int place = places[p];
+                        int anchor = place == THRESH_ALERTS_LEFT ? 0
+                            : place == THRESH_ALERTS_MIDDLE ? 1 : 2;
+                        int neighbour = place == THRESH_ALERTS_MIDDLE ? 0 : 1;
+                        StatusSlotMeasure m[3];
+                        for (int i = 0; i < 3; i++) {
+                            m[i] = (StatusSlotMeasure){ d[i] > 0, 0, d[i], 0 };
+                        }
+                        m[anchor] = (StatusSlotMeasure){0};
+                        StatusSlotPlace out[3];
+                        status_row_layout(rows[r], m, out);
+                        int visible = 0;
+                        int16_t lo[3], hi[3];
+                        for (int i = 0; i < 3; i++) {
+                            lo[i] = out[i].icon_x;
+                            hi[i] = (int16_t)(out[i].text_x + out[i].text_w);
+                            if (out[i].visible) { visible |= 1 << i; }
+                        }
+                        int x0, x1;
+                        alert_set_free_span(place, visible, rows[r], GAP, lo, hi, &x0, &x1);
+                        int room = x1 - x0;
+                        if (room <= 0) { continue; }
+                        char name[64];
+                        snprintf(name, sizeof(name), "lockstep.w%d.p%d.%d/%d/%d.fits",
+                                 rows[r], place, d[0], d[1], d[2]);
+                        expect(name, alert_set_choose_slots(place, room, rows[r],
+                                                            d[0], d[1], d[2], GAP),
+                               1 << anchor);
+                        snprintf(name, sizeof(name), "lockstep.w%d.p%d.%d/%d/%d.borrows",
+                                 rows[r], place, d[0], d[1], d[2]);
+                        expect(name, alert_set_choose_slots(place, room + 1, rows[r],
+                                                            d[0], d[1], d[2], GAP),
+                               (1 << anchor) | (d[neighbour] > 0 ? 1 << neighbour : 0));
+                        checked++;
+                    }
+                }
+            }
+        }
+    }
+    expect("lockstep.swept", checked > 100, 1);
+}
+
+static void free_span_tests(void) {
+    int x0, x1;
+    // LEFT with the middle (50..90) and right (124..140) slots still there.
+    int16_t lo[3] = { 0, 50, 124 };
+    int16_t hi[3] = { 20, 90, 140 };
+    alert_set_free_span(THRESH_ALERTS_LEFT, ALERT_SLOT_MID | ALERT_SLOT_RIGHT, W, GAP, lo, hi,
+                        &x0, &x1);
+    expect("span.left.x0", x0, 0);
+    expect("span.left.x1", x1, 46);
+    // Middle borrowed: up to the right slot.
+    alert_set_free_span(THRESH_ALERTS_LEFT, ALERT_SLOT_RIGHT, W, GAP, lo, hi, &x0, &x1);
+    expect("span.left_mid.x1", x1, 120);
+    // Nothing left on the bar: the whole row.
+    alert_set_free_span(THRESH_ALERTS_LEFT, 0, W, GAP, lo, hi, &x0, &x1);
+    expect("span.left_alone.x0", x0, 0);
+    expect("span.left_alone.x1", x1, W);
+    // RIGHT: from the middle slot's right edge to the row's.
+    alert_set_free_span(THRESH_ALERTS_RIGHT, ALERT_SLOT_LEFT | ALERT_SLOT_MID, W, GAP, lo, hi,
+                        &x0, &x1);
+    expect("span.right.x0", x0, 94);
+    expect("span.right.x1", x1, W);
+    alert_set_free_span(THRESH_ALERTS_RIGHT, ALERT_SLOT_LEFT, W, GAP, lo, hi, &x0, &x1);
+    expect("span.right_mid.x0", x0, 24);
+    // MIDDLE: between the edges; with the left borrowed, from the row's left edge.
+    alert_set_free_span(THRESH_ALERTS_MIDDLE, ALERT_SLOT_LEFT | ALERT_SLOT_RIGHT, W, GAP, lo, hi,
+                        &x0, &x1);
+    expect("span.mid.x0", x0, 24);
+    expect("span.mid.x1", x1, 120);
+    alert_set_free_span(THRESH_ALERTS_MIDDLE, ALERT_SLOT_RIGHT, W, GAP, lo, hi, &x0, &x1);
+    expect("span.mid_left.x0", x0, 0);
+    // Neighbours that leave no room collapse the span instead of inverting it.
+    int16_t tight_lo[3] = { 0, 0, 20 };
+    int16_t tight_hi[3] = { 18, 0, 40 };
+    alert_set_free_span(THRESH_ALERTS_MIDDLE, ALERT_SLOT_LEFT | ALERT_SLOT_RIGHT, W, GAP,
+                        tight_lo, tight_hi, &x0, &x1);
+    expect("span.collapsed", x1 - x0, 0);
+}
+
+static void row_x_tests(void) {
+    expect("row_x.left", alert_set_row_x(THRESH_ALERTS_LEFT, 0, 46, W, 30), 0);
+    // RIGHT hugs the span's right edge: the entries still read rain-first, left to
+    // right, but the group ends where the row ends.
+    expect("row_x.right", alert_set_row_x(THRESH_ALERTS_RIGHT, 94, W, W, 30), 110);
+    expect("row_x.right_full", alert_set_row_x(THRESH_ALERTS_RIGHT, 94, W, W, 46), 94);
+    // MIDDLE centres on the ROW, clamped into its span.
+    expect("row_x.mid", alert_set_row_x(THRESH_ALERTS_MIDDLE, 24, 120, W, 30), 55);
+    expect("row_x.mid_clamped", alert_set_row_x(THRESH_ALERTS_MIDDLE, 0, 60, W, 30), 30);
+    // Wider than the span (rounding only — the fit already cut it): start at x0.
+    expect("row_x.overflow", alert_set_row_x(THRESH_ALERTS_RIGHT, 94, W, W, 60), 94);
 }
 
 static void degrade_tests(void) {
@@ -307,7 +465,10 @@ int main(void) {
     icon_tests();
     prepend_rain_tests();
     fit_tests();
-    spill_tests();
+    choose_slots_tests();
+    choose_matches_layout();
+    free_span_tests();
+    row_x_tests();
     degrade_tests();
     rain_minutes_tests();
     if (s_failures) { printf("%d alert_set failure(s)\n", s_failures); return 1; }
