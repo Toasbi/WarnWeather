@@ -26,24 +26,34 @@ function itemsByKey() {
 
 const STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
 const HEALTH_STEMS = ['Steps', 'Sleep', 'Distance'];
-// The alert kinds: their levels group is embedded in the pencil sheet AND the Alerts
-// card's alert<Stem> sheet as the SAME objects, so their group keys occur twice.
+// The alert kinds: their levels group lives ONLY in the Alerts card's alert<Stem>
+// sheet (their slot sheet points there); the goal kinds' in their slot sheet.
 const ALERT_STEMS = ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
 
 /**
- * A levels-group key's occurrences: two for an alert kind (both sheets), one for a
- * goal kind — and an alert kind's two must be one shared object, never a copy.
+ * The sheet a kind's levels group lives in: alert<Stem> for an alert kind,
+ * thresh<Stem> for a goal kind.
+ * @param {string} stem Kind key stem.
+ * @returns {string} The sheetId.
+ */
+function levelsSheetId(stem) {
+  return (ALERT_STEMS.includes(stem) ? 'alert' : 'thresh') + stem;
+}
+
+/**
+ * A levels-group key occurs exactly once, in its kind's levels sheet.
  * @param {Object[]} its itemsByKey() entry.
  * @param {string} stem Kind key stem.
  * @param {string} key The messageKey, for messages.
  */
 function assertGroupItem(its, stem, key) {
-  const expected = ALERT_STEMS.includes(stem) ? 2 : 1;
-  assert.ok(its && its.length === expected,
-    key + ': expected ' + expected + ' occurrence(s), got ' + (its ? its.length : 0));
-  if (expected === 2) {
-    assert.ok(its[1] === its[0], key + ': the pencil and alert sheets share one object');
-  }
+  assert.ok(its && its.length === 1,
+    key + ': expected exactly one occurrence, got ' + (its ? its.length : 0));
+  let home = null;
+  schema.tabs.forEach(t => (t.sections || []).forEach(sec => {
+    if ((sec.items || []).indexOf(its[0]) !== -1) { home = sec.sheetId; }
+  }));
+  assert.equal(home, levelsSheetId(stem), key + ' lives in its kind\'s levels sheet');
 }
 const ENV = { thresholds: true, color: true, health: true };
 
@@ -470,18 +480,19 @@ test('the sheet: the slider stays live while off; on seeds it; off keeps it', ()
   page.clickTab('watch');
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
     'the default AQI forecast slot renders its pencil');
-  page.openEditSheet('threshAqi');
+  // The AQI levels live in the Alerts card's AQI sheet; the slot sheet points there.
+  page.openEditSheet('alertAqi');
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiOn"') !== -1,
     'the sheet carries the highlight toggle');
-  // The master toggle moved OUT of the sheet's title row and onto the threshold
-  // group's sub-header, inside the scroll body — below the slot-level Bold row.
+  // The master toggle rides the levels group's sub-header, inside the scroll body —
+  // below the alert's own rows (its switch and Look).
   assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiOn"')
     > page.modal.innerHTML.indexOf('ssel-list'),
     'the toggle renders inside the scroll body, not the title row');
-  assert.ok(page.modal.innerHTML.indexOf('data-k="threshAqiBoldMode"')
-    < page.modal.innerHTML.indexOf('subhdr grp'),
-    'the Bold row sits above the threshold group header');
-  assert.ok(/<div class="subhdr grp">[\s\S]*?data-k="threshAqiOn"/.test(page.modal.innerHTML),
+  assert.ok(page.modal.innerHTML.indexOf('data-k="alertAqiDisplay"')
+    < page.modal.innerHTML.indexOf('<div class="subhdr grp"><span>Alert levels'),
+    'the alert\'s Look row sits above the levels group header');
+  assert.ok(/<div class="subhdr grp"><span>Alert levels<\/span>[\s\S]*?data-k="threshAqiOn"/.test(page.modal.innerHTML),
     'the master toggle rides the group sub-header');
   // Off = the slider stays LIVE on the seeds (default cfg is WAQI → US AQI): the warn
   // level also sets the day-max hold, highlighting or not. Only the highlight-only
@@ -530,21 +541,27 @@ test('the sheet: the slider stays live while off; on seeds it; off keeps it', ()
     'the outline toggle is muted again');
 });
 
-test('the page renders an Alerts card sheet: the levels group alone, live on the shared keys', () => {
+test('the page renders an Alerts card sheet: the alert switch, its Look, then the levels', () => {
   const page = bootGeneratedPage();
   page.clickTab('watch');
   page.openEditSheet('alertUv');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
-  assert.ok(/<div class="subhdr grp">[\s\S]*?Alert levels/.test(sheet),
-    'the sheet opens on the Alert levels sub-header');
+  assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert</span><button class="sw" data-k="alertUv"') !== -1,
+    'the Alert sub-header carries the alert switch');
+  assert.ok(sheet.indexOf('<span>Alert</span>') < sheet.indexOf('<span>Alert levels</span>'),
+    'the Alert sub-header comes first');
+  assert.ok(sheet.indexOf('Shows an icon in the Alerts row while the UV index is at your warn level or higher.') !== -1,
+    'with its intro');
+  assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert levels') > sheet.indexOf('data-k="alertUvDisplay"'),
+    'the levels group follows the Look');
   assert.ok(sheet.indexOf('data-range="threshUvWarn"') !== -1, 'the slider renders');
   assert.ok(sheet.indexOf('data-k="threshUvBoldMode"') === -1
     && sheet.indexOf('data-k="uvSlotDisplay"') === -1,
-    'no slot rows: the alert sheet is levels-only');
-  // The same key the pencil sheet edits: flipping it here is flipping it there.
+    'no slot rows: those stay on the slot sheet');
+  // The levels' one home: the highlight switch stores from here.
   page.clickModalToggle('threshUvOn');
-  assert.equal(page.S.threshUvOn, true, 'the shared highlight switch stores');
+  assert.equal(page.S.threshUvOn, true, 'the highlight switch stores');
 });
 
 test('the reset button blanks the pair, restores default colors, clears the scale max', () => {
@@ -617,7 +634,7 @@ test('the stored toggle round-trips through hydrate, independent of its pair', (
   });
   assert.strictEqual(on.S.threshAqiOn, true, 'a stored ON hydrates as ON');
   on.clickTab('watch');
-  on.openEditSheet('threshAqi');
+  on.openEditSheet('alertAqi');
   assert.ok(on.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1,
     'the slider renders immediately with the stored values');
   assert.ok(on.modal.innerHTML.indexOf('Warn 50') !== -1, 'stored warn on the chip');
@@ -861,7 +878,7 @@ test('the pre-existing plain slider (hrScale) still commits its lo-hi string', (
 
 test('the inline scale-max editor: open, sanitize, and untouched-blur writes nothing', () => {
   const page = bootGeneratedPage();
-  page.openEditSheet('threshAqi');
+  page.openEditSheet('alertAqi');
   page.clickModalToggle('threshAqiOn');
   // openMaxEdit: the click swaps the wrap's markup for a seeded numeric field.
   const wrap = { innerHTML: '', querySelector: () => ({ focus() {}, select() {} }) };
@@ -906,7 +923,7 @@ test('closing the scale-max field rebuilds only its slider, so the tap that clos
   // option …), so that click never arrived and every first tap after the editor was
   // swallowed. Now only the slider's own .rng root is rebuilt in place.
   const page = bootGeneratedPage();
-  page.openEditSheet('threshAqi');
+  page.openEditSheet('alertAqi');
   page.clickModalToggle('threshAqiOn');
   page.S.threshAqiWarn = '50';
   page.S.threshAqiDanger = '100';
@@ -1012,10 +1029,24 @@ function sheetFor(stem) {
   assert.ok(s, 'no sheet for ' + stem);
   return s;
 }
-/** @param {string} stem Kind key stem. @returns {Object} Its subheader item. */
+/**
+ * @param {string} stem Kind key stem.
+ * @returns {Object} The sheet holding the kind's levels group: its Alerts sheet for
+ *     an alert kind, its slot sheet for a goal kind.
+ */
+function levelsSheetFor(stem) {
+  let s = null;
+  schema.tabs.forEach(t => (t.sections || []).forEach(x => {
+    if (x.sheetOnly && x.sheetId === levelsSheetId(stem)) { s = x; }
+  }));
+  assert.ok(s, 'no levels sheet for ' + stem);
+  return s;
+}
+/** @param {string} stem Kind key stem. @returns {Object} Its levels group's subheader. */
 function headerFor(stem) {
-  const hdr = sheetFor(stem).items.find(it => it.type === 'subheader');
-  assert.ok(hdr, stem + ' has no subheader');
+  const hdr = levelsSheetFor(stem).items.find(it => it.type === 'subheader'
+    && it.toggleKey === 'thresh' + stem + 'On');
+  assert.ok(hdr, stem + ' has no levels subheader');
   return hdr;
 }
 /** @param {string} stem Kind key stem. @returns {Object} Its Bold row. */
@@ -1039,10 +1070,15 @@ test('the master toggle moved off the sheet title row onto the group header', ()
   sheetSections().forEach(s => {
     assert.equal(s.headerToggleKey, undefined, s.sheetId + ' still has headerToggleKey');
   });
-  // Only the threshold sheets have a group header; the bold-only sheets carry no
-  // subheader at all (their single Bold row IS the sheet).
+  // Only the level kinds have a group header — in their levels sheet; the bold-only
+  // sheets carry no subheader at all (their single Bold row IS the sheet), and neither
+  // do the alert kinds' slot sheets (their levels live in the Alerts sheet).
   STEMS.forEach(stem => {
     assert.equal(headerFor(stem).toggleKey, 'thresh' + stem + 'On');
+  });
+  ALERT_STEMS.forEach(stem => {
+    assert.ok(!sheetFor(stem).items.some(it => it.type === 'subheader'),
+      stem + ' slot sheet carries no levels group');
   });
 });
 
@@ -1055,7 +1091,7 @@ test('the group header owns the title and the reset action', () => {
 
 test('the slider no longer carries the group title or the reset action', () => {
   STEMS.forEach(stem => {
-    const range = sheetFor(stem).items.find(it => it.type === 'range');
+    const range = levelsSheetFor(stem).items.find(it => it.type === 'range');
     assert.equal(range.labelAction, undefined, stem + ' slider still has the reset button');
     assert.ok(!range.label, stem + ' slider still has a label duplicating the header');
   });
@@ -1081,11 +1117,21 @@ test('the intro describes the group, so it hangs off the header, not the sheet',
 });
 
 test('Bold sits above the group and is never gated by the master toggle', () => {
-  STEMS.forEach(stem => {
+  HEALTH_STEMS.forEach(stem => {
     const items = sheetFor(stem).items;
-    const boldIdx = items.indexOf(boldFor(stem));
-    const hdrIdx = items.indexOf(headerFor(stem));
-    assert.ok(boldIdx < hdrIdx, stem + ' bold row is not above the group header');
+    assert.ok(items.indexOf(boldFor(stem)) < items.indexOf(headerFor(stem)),
+      stem + ' bold row is not above the group header');
+  });
+  // An alert kind's slot sheet ends on the pointer to its Alerts sheet instead.
+  ALERT_STEMS.forEach(stem => {
+    const items = sheetFor(stem).items;
+    assert.ok(items.indexOf(boldFor(stem)) < items.length - 1, stem + ' bold row leads');
+    assert.deepEqual(items[items.length - 1], {
+      type: 'staticText', style: 'info',
+      text: 'Alert levels and the highlight switch are set under Alerts on the Status slots tab.'
+    }, stem + ' slot sheet closes on the Alerts pointer');
+  });
+  STEMS.forEach(stem => {
     const bold = boldFor(stem);
     assert.equal(bold.type, 'segmented');
     assert.equal(bold.label, 'Bold value');
@@ -1125,7 +1171,7 @@ test('the middle Bold option goes inert while the kind thresholds are off', () =
 });
 
 test('the outline toggle says what it does to the slot', () => {
-  const wind = sheetFor('Wind').items.find(
+  const wind = levelsSheetFor('Wind').items.find(
     it => it.messageKey === 'threshWindWarnOutlineOn');
   assert.equal(wind.label, 'Outline on warn');
   assert.equal(wind.hint,
@@ -1342,7 +1388,7 @@ test('Bold value is the first row of every slot sheet, threshold and bold-only a
   });
 });
 
-// --- the Alerts card's levels-only sheets --------------------------------------
+// --- the Alerts card's sheets --------------------------------------------------
 
 /** @returns {Object[]} Every alert<Stem> sheet section, in schema order. */
 function alertSheets() {
@@ -1353,26 +1399,71 @@ function alertSheets() {
   return out;
 }
 
-test('every alert sheet is its kind\'s levels group — the pencil sheet\'s own objects', () => {
-  const sheets = alertSheets();
+test('every metric alert sheet: its switch on an Alert sub-header, the Look, then the levels group', () => {
+  const sheets = alertSheets().filter(s => s.sheetId !== 'alertRain');
   assert.deepEqual(sheets.map(s => s.sheetId), ALERT_STEMS.map(stem => 'alert' + stem));
+  const SUBJECT = { Uv: 'the UV index', Wind: 'the wind speed', Gust: 'the gust speed',
+    Aqi: 'the air quality index', Pollen: 'the pollen index' };
   sheets.forEach((s) => {
     const stem = s.sheetId.slice('alert'.length);
-    const head = s.items[0];
-    assert.equal(head.type, 'subheader', s.sheetId + ' opens with the group sub-header');
+    const key = 'alert' + stem;
+    assert.deepEqual(s.items.slice(0, 3), [{
+      type: 'subheader', text: 'Alert', toggleKey: key,
+      intro: 'Shows an icon in the Alerts row while ' + SUBJECT[stem] + ' is at your warn level or higher.'
+    }, {
+      type: 'toggle', messageKey: key, label: 'Alert', defaultValue: false
+    }, {
+      type: 'segmented', messageKey: key + 'Display', label: 'Look', defaultValue: 'icon',
+      options: [['Icon', 'icon'], ['Icon + value', 'value']],
+      hintByValue: {
+        icon: 'Just the icon.',
+        value: 'The value the alert fires on after the icon. Fewer alerts fit the row.'
+      },
+      disabledWhen: { not: { key } }
+    }], s.sheetId + ': switch, then the Look (inert while off)');
+    const head = s.items[3];
+    assert.equal(head.type, 'subheader', s.sheetId + ': the levels group follows');
     assert.equal(head.text, 'Alert levels');
     assert.equal(head.toggleKey, 'thresh' + stem + 'On');
     assert.deepEqual(head.labelAction,
       { action: 'resetThresholds', arg: stem, label: 'Reset to defaults' });
-    // By reference, from the sub-header on: one set of objects, two sheets.
-    const pencil = sheetFor(stem).items;
-    const from = pencil.indexOf(head);
-    assert.ok(from > 0, s.sheetId + ': the pencil sheet embeds the same sub-header object');
-    assert.equal(pencil.length - from, s.items.length,
-      s.sheetId + ': the group closes the pencil sheet');
-    s.items.forEach((it, i) => assert.ok(pencil[from + i] === it,
-      s.sheetId + ' item ' + i + ' is the pencil sheet\'s object'));
+    // The levels are always live: they also drive the slots' Alert mode and highlight.
+    const range = s.items.find(it => it.type === 'range');
+    assert.equal(range.disabledWhen, undefined, s.sheetId + ' slider never mutes');
+    assert.equal(s.items.length, 3 + 8, s.sheetId + ': the eight group items close it');
   });
+  assert.equal(itemsByKey().threshPollenWarn[0].hint,
+    'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.',
+    'Pollen\'s scale note rides its slider in the alert sheet');
+});
+
+test('the rain alert sheet: its switch (held on in Rain alert only), the time window and the look', () => {
+  const s = alertSheets().find(x => x.sheetId === 'alertRain');
+  assert.ok(s, 'the rain sheet exists');
+  assert.equal(s.title, 'Rain alert');
+  assert.deepEqual(s.showWhen,
+    { all: [{ key: 'radarMode', ne: 'off' }, { env: 'platform', ne: 'aplite' }] });
+  const off = { not: { key: 'alertRain' } };
+  assert.equal(s.items[0].type, 'subheader');
+  assert.equal(s.items[0].text, 'Rain alert');
+  assert.equal(s.items[0].toggleKey, 'alertRain');
+  assert.match(s.items[0].intro, /“Rain alert only” keeps it on\.$/, 'the intro says the mode holds it');
+  assert.deepEqual(s.items[1], { type: 'toggle', messageKey: 'alertRain', label: 'Rain alert',
+    defaultValue: true, disabledWhen: { key: 'radarMode', eq: 'countdown' } });
+  assert.equal(s.items[2].messageKey, 'rainCountdownHorizon');
+  assert.equal(s.items[2].label, 'Time window');
+  assert.deepEqual(s.items[2].disabledWhen, off);
+  assert.deepEqual(s.items[3], {
+    type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Look', defaultValue: 'text',
+    options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
+    hintByValue: {
+      icon: 'Just the drop.',
+      minutes: 'The drop with the minutes until the rain starts, or how long it keeps falling.',
+      text: 'The full countdown, as before.'
+    },
+    disabledWhen: off
+  });
+  assert.equal(s.items.length, 4);
 });
 
 test('alert sheets carry no slot rows (Bold, display mode, arrow, unit)', () => {
@@ -1392,7 +1483,7 @@ test('the goal kinds get no alert sheet', () => {
 
 test('the Bold-first pin covers the slot sheets only (its /^thresh/ filter)', () => {
   // The pin above iterates sheetSections(), which the alert sheets must stay out of:
-  // they are levels-only, so they open with the group sub-header, not a Bold row.
+  // they configure an alert, not a slot, so they open on the alert's own sub-header.
   const ids = sheetSections().map(s => s.sheetId);
   assert.ok(ids.length > 0);
   assert.ok(ids.every(id => /^thresh/.test(id)), 'no alert sheet among the slot sheets');
@@ -1501,7 +1592,7 @@ test('the Temp sheet puts its display-mode pills below the Bold row', () => {
   assert.equal(disp.disabledWhen, undefined);
 });
 
-test('the UV sheet puts its display-mode pills between the Bold row and the Alert levels group', () => {
+test('the UV sheet puts its display-mode pills between the Bold row and the levels pointer', () => {
   const items = sheetFor('Uv').items;
   assert.equal(items[0].messageKey, 'threshUvBoldMode', 'Bold leads, as in every sibling sheet');
   const disp = items[1];
@@ -1523,14 +1614,15 @@ test('the UV sheet puts its display-mode pills between the Bold row and the Aler
   assert.match(String(disp.hint), /mark/i, 'hint says tomorrow\'s max is marked');
   assert.match(String(disp.hint), /below/i, 'hint points at the rows that shape the reading');
   assert.match(String(disp.hint), /highlight/i, 'hint says which value the highlight judges');
-  // It configures the SLOT, not the highlight, so it sits above the group header
+  // It configures the SLOT, not the highlight, so it sits above the levels pointer
   // like the wind arrow — and stays live while the highlight is off. So do the rows
   // shaping how it reads (test/config-slot-pair.test.js), which follow it directly.
   assert.deepEqual(items.slice(2, 7).map(it => it.messageKey),
     ['uvSlotSeparator', 'uvSlotSeparatorCustom', 'uvSlotSeparatorSpaced', 'uvSlotOrder',
       'uvSlotNextDayMark'],
     'the pair rows and the tomorrow mark follow the display pills');
-  assert.equal(items[7].type, 'subheader', 'the Alert levels group follows them');
+  assert.equal(items[7].style, 'info', 'the pointer to the Alerts sheet follows them');
+  assert.equal(items.length, 8, 'and closes the sheet');
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
 });
 
@@ -1553,7 +1645,7 @@ test('dayMaxHint: the hold level is the seed while the pair is blank, the stored
   const lead = 'Show the UV index now, the highest it still gets today, or both.';
   const seed = dayMaxHintOf('uv', {}, 'max');
   assert.ok(seed.indexOf(lead) === 0, 'the kind\'s own first sentence leads');
-  assert.ok(seed.indexOf('while it is still ahead, and while UV is 6 or higher — the warn level set below.') !== -1,
+  assert.ok(seed.indexOf('while it is still ahead, and while UV is 6 or higher — the warn level set under Alerts.') !== -1,
     'the seed warn (UV 6) is quoted: ' + seed);
   assert.match(seed, /tomorrow's peak shows instead, marked as chosen below/);
   assert.equal(dayMaxHintOf('uv', {}, 'both'), seed, 'Both reads the same rule');
@@ -1603,7 +1695,7 @@ test('dayMaxHint: Now mode gets the lead alone; the highlight sentence follows t
     'Show the UV index now, the highest it still gets today, or both.',
     'no hold/mark tail in Now mode — the mark row is hidden there');
   const off = dayMaxHintOf('uv', {}, 'max');
-  assert.ok(/Highlighting is off — switch it on below to color it\.$/.test(off),
+  assert.ok(/Highlighting is off — switch it on under Alerts to color it\.$/.test(off),
     'switch off: the hint says so, and where the switch is: ' + off);
   assert.equal(off.indexOf('Highlighting follows'), -1);
   const on = dayMaxHintOf('uv', { threshUvOn: true }, 'max');
@@ -1631,35 +1723,34 @@ test('dayMaxHint: every day-max kind carries the live hint, with a numberless fa
     assert.equal(item.hint.indexOf(item.hintFrom.args.lead), 0, prefix + ' fallback opens on the lead');
     assert.equal(item.hint.slice(item.hint.length - item.hintFrom.args.coda.length),
       item.hintFrom.args.coda, prefix + ' fallback closes on the coda');
-    assert.match(item.hint, /warn level set below/, prefix + ' fallback states the hold rule');
+    assert.match(item.hint, /warn level set under Alerts/, prefix + ' fallback states the hold rule');
     assert.doesNotMatch(item.hint, /\d/, prefix + ' fallback names no number');
     assert.match(dayMaxHintOf(prefix, {}, 'max'), /\d/, prefix + ' live hint names the level');
   });
 });
 
-test('dayMaxHint: the sheet shows the level live, and a keyboard nudge repaints it in place', () => {
+test('dayMaxHint: the slot sheet quotes the level set in the Alerts sheet, live', () => {
+  // The levels live in the kind's Alerts sheet; the slot sheet's pills hint reads them
+  // on every render, so a level set there is the level the slot sheet quotes.
   const page = bootGeneratedPage({ provider: 'dwd', uvSlotDisplay: 'max' });
   page.openEditSheet('threshUv');
   assert.ok(page.modal.innerHTML.indexOf('data-hint-for="uvSlotDisplay"') !== -1,
     'the pills hint is marked for the in-place repaint');
   assert.ok(page.modal.innerHTML.indexOf('UV is 6 or higher') !== -1, 'the seed level, rendered');
   assert.ok(page.modal.innerHTML.indexOf('Highlighting is off') !== -1);
-  // Arrow the warn thumb one step: the keydown path commits WITHOUT render() so the
-  // thumb keeps focus — the hint above it must still follow.
+  assert.equal(page.modal.innerHTML.indexOf('data-range="threshUvWarn"'), -1,
+    'no slider here: the slot sheet only points at the Alerts sheet');
+  page.openEditSheet('alertUv');
   page.S.threshUvWarn = '6';
   page.S.threshUvDanger = '8';
-  const writes = page.modal.writes;
   const th = thumbOn(makeRngRoot('threshUvWarn', 6, 8), 'lo');
   page.modal.dispatch('keydown', { target: th, key: 'ArrowRight', preventDefault() {} });
   assert.equal(page.S.threshUvWarn, '7', 'the warn moved one step');
-  assert.ok(page.modal.innerHTML.indexOf('UV is 7 or higher') !== -1, 'the hint followed the nudge');
-  assert.equal(page.modal.innerHTML.indexOf('UV is 6 or higher'), -1, 'the old level is gone');
-  assert.equal(page.modal.writes, writes, 'no full render — focus stays on the thumb');
-  assert.ok(page.modal.hintRepaints >= 1, 'repainted in place');
-  // Flipping the switch renders as usual, and the highlight sentence follows.
   page.clickModalToggle('threshUvOn');
-  assert.ok(page.modal.innerHTML.indexOf('Highlighting follows the number shown.') !== -1);
-  assert.ok(page.modal.innerHTML.indexOf('UV is 7 or higher') !== -1, 'the stored level survives');
+  page.openEditSheet('threshUv');
+  assert.ok(page.modal.innerHTML.indexOf('UV is 7 or higher') !== -1, 'the slot sheet follows the level');
+  assert.ok(page.modal.innerHTML.indexOf('Highlighting follows the number shown.') !== -1,
+    'and the highlight switch');
 });
 
 test('the slot pencil resolves the bold-only sheet for every new kind', () => {
@@ -1824,26 +1915,45 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
   });
 });
 
-test('resetStatusSlots also resets the Alerts card: every alert switch and Look, and the rain look', () => {
+test('resetStatusSlots reverts every bar\'s Alerts placement, and leaves the alerts to their own card', () => {
   const map = itemsByKey();
   const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
   const S = scrambledSlotState();
-  const STEMS = ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
-  STEMS.forEach(stem => { S['alert' + stem] = true; S['alert' + stem + 'Display'] = 'value'; });
+  S.statusTopAlerts = 'off';
+  ['statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'].forEach(k => { S[k] = 'right'; });
+  S.alertUv = true;
+  S.alertUvDisplay = 'value';
+  S.alertRain = false;
   S.rainAlertDisplay = 'minutes';
-  S.rainCountdownHorizon = '0';
   PC.actions.resetStatusSlots(null, S, ENV, defaultOf);
-  STEMS.forEach(stem => {
+  assert.equal(S.statusTopAlerts, 'left', 'the strip back to Left (the rain takeover\'s old home)');
+  ['statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'].forEach(k =>
+    assert.equal(S[k], 'off', k + ' back to Off'));
+  assert.strictEqual(S.alertUv, true, 'the alerts are the Alerts card\'s reset\'s business');
+  assert.equal(S.alertUvDisplay, 'value');
+  assert.strictEqual(S.alertRain, false);
+  assert.equal(S.rainAlertDisplay, 'minutes');
+});
+
+test('resetAlerts reverts every alert\'s switch and look — not the levels, the window or the bars', () => {
+  const map = itemsByKey();
+  const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
+  const S = { threshUvWarn: '7', threshUvDanger: '9', threshUvOn: true, rainCountdownHorizon: '120',
+    statusTopAlerts: 'middle', alertRain: false, rainAlertDisplay: 'icon' };
+  ALERT_STEMS.forEach(stem => { S['alert' + stem] = true; S['alert' + stem + 'Display'] = 'value'; });
+  assert.equal(PC.actions.resetAlerts(null, S, ENV, defaultOf), true, 'asks for a re-render');
+  ALERT_STEMS.forEach(stem => {
     assert.strictEqual(S['alert' + stem], false, stem + ' alert back off');
     assert.equal(S['alert' + stem + 'Display'], 'icon', stem + ' Look back to Icon');
   });
+  assert.strictEqual(S.alertRain, true, 'the rain alert back on');
   assert.equal(S.rainAlertDisplay, 'text', 'rain look back to the countdown text');
-  // The goal kinds have no alert rows, so the reset writes no alert keys for them.
-  ['Steps', 'Sleep', 'Distance'].forEach(stem => {
-    assert.ok(!('alert' + stem in S), 'no alert' + stem + ' key written');
-  });
-  // The window is the rain alert's own on/off switch (and radar's), not a bar look.
-  assert.equal(S.rainCountdownHorizon, '0', 'the rain countdown window is left alone');
+  ['Steps', 'Sleep', 'Distance'].forEach(stem =>
+    assert.ok(!('alert' + stem in S), 'no alert' + stem + ' key written (goal kinds are no alerts)'));
+  assert.equal(S.threshUvWarn, '7', 'the levels keep their own reset');
+  assert.strictEqual(S.threshUvOn, true, 'and so does the highlight switch');
+  assert.equal(S.rainCountdownHorizon, '120', 'the rain window is left alone');
+  assert.equal(S.statusTopAlerts, 'middle', 'placements ride the status card\'s reset');
 });
 
 test('the intro reset button resets a live page (slots + bold) on click', () => {

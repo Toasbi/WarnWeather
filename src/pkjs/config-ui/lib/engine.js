@@ -277,12 +277,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {string} [ariaLabel] Accessible name for a switch rendered away from
    *   its text label (a subheader-hosted toggle); omitted for row toggles, whose
    *   row label names them.
+   * @param {boolean} [disabled] Render the switch inert (a subheader-hosted toggle
+   *   whose item.disabledWhen holds — a row toggle mutes through its row's .dis
+   *   instead). The `disabled` attribute is what controlClick checks, so a switch
+   *   that CSS cannot stop (keyboard, a synthetic click) still does not flip.
    * @returns {string} Switch button HTML.
    */
-  function renderToggle(item, v, ariaLabel) {
+  function renderToggle(item, v, ariaLabel, disabled) {
     return '<button class="sw' + (v ? ' on' : '') + '" data-k="' + esc(item.messageKey)
       + '" data-toggle="1"' + (ariaLabel ? ' aria-label="' + esc(ariaLabel) + '"' : '')
-      + '><i></i></button>';
+      + (disabled ? ' disabled' : '') + '><i></i></button>';
   }
   function renderSegmented(item, v, off) { return '<div class="seg">' + optionButtons(item, v, false, off) + '</div>'; }
   function renderRadio(item, v, off) { return '<div class="radio">' + optionButtons(item, v, true, off) + '</div>'; }
@@ -585,7 +589,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // the platform can't honour. The toggle's text label stays behind in the
       // body, so the accessible name must ride the switch itself.
       if (it && PConf.showWhen.isVisible(it, cx.evalCtx)) {
-        toggle = renderToggle(it, cx.S[it.messageKey], String(it.label || 'Enable'));
+        toggle = renderToggle(it, cx.S[it.messageKey], String(it.label || 'Enable'),
+          Boolean(it.disabledWhen) && PConf.showWhen.evaluate(it.disabledWhen, cx.evalCtx));
       }
     }
     // item.intro is the group's own explanatory copy — the section-level `intro`
@@ -914,9 +919,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       || (item.type === 'color' && view.openColor === item.messageKey);
     // A derived (hintFrom) hint carries its row's key, so a commit that skips render()
     // can still re-resolve it in place (boot's repaintDerivedHints). Static hints
-    // never change without a render, so they stay unmarked.
+    // never change without a render, so they stay unmarked — and so does a keyless
+    // `sheet` row's derived hint: repaintDerivedHints finds a hint by its key, and such
+    // a row sits under the very sheet whose commit would repaint it (closing the sheet
+    // renders anyway).
     var hintHtml = hint ? '<div class="hint"'
-      + (item.hintFrom ? ' data-hint-for="' + esc(item.messageKey) + '"' : '')
+      + (item.hintFrom && item.messageKey ? ' data-hint-for="' + esc(item.messageKey) + '"' : '')
       + '>' + hint + '</div>' : '';
     // An optional small icon button beside the label (item.labelAction: {action, arg,
     // label}) dispatching through the shared [data-action] path — e.g. the threshold
@@ -1062,10 +1070,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Edit pair instead (renderControl yields '' for type 'sheet', so the control cell
       // holds only those two); without one it stays a chevron row. resolveEditBadge
       // merges the item's messageKey UNDER editBadgeFrom.args and a sheet row has none,
-      // so such a row identifies itself through those args.
+      // so such a row identifies itself through those args. It honours hintFrom the
+      // same way: the resolver gets no row value (a sheet row stores nothing) and reads
+      // what it describes from S — e.g. an Alerts-card row printing its alert's live
+      // state ("Off", or its levels) under the label.
       if (item.editBadgeFrom) {
         view.editSheet = sId;
         view.editBadge = resolveEditBadge(item, cx.S, cx.ENV);
+        if (item.hintFrom) { view.hint = resolveHint(item, cx.S, cx.ENV, undefined); }
         return { kind: 'control', html: renderRow(item, view, noDivider) };
       }
       return { kind: 'control', html: chevronRow(item, 'data-edit-sheet', sId, noDivider) };
@@ -1077,11 +1089,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // (e.g. below a preview block) that should still read as secondary, hint-coloured text.
       // Only a tight join (joinPrevious: true) gets the .join pull-up that hugs the row above; a
       // loose join keeps the static's normal standoff (the row above just drops its divider).
-      var staticCls = 'static' + (item.joinPrevious === true ? ' join' : '') + (item.hinted ? ' hinted' : '') + nbClass(noDivider);
+      // style 'info': the note is boxed like the General tab's fetch-notice panel (its
+      // tinted, left-ruled .notice-item) in the panel's info blue — a pointer the reader
+      // should not scroll past as body copy (e.g. "this is set on another tab").
+      var isInfo = item.style === 'info';
+      var staticCls = 'static' + (item.joinPrevious === true ? ' join' : '') + (item.hinted ? ' hinted' : '')
+        + (isInfo ? ' info' : '') + nbClass(noDivider);
       // A staticText may host preview blocks too (blockBefore/block) — e.g. the Layout tab's
       // after-flick preview rides a caption. renderBlock() no-ops when the id is absent.
       var staticHtml = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
-        + '<div class="' + staticCls + '">' + (item.text || '') + '</div>'
+        + '<div class="' + staticCls + '">'
+        + (isInfo ? '<div class="info-box">' + (item.text || '') + '</div>' : (item.text || '')) + '</div>'
         + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
       return { html: staticHtml, kind: 'static' };
     }
@@ -1811,6 +1829,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var t;
       if ((t = e.target.closest('[data-max-edit]'))) { rangeWiring.openMaxEdit(t); return true; }
       if ((t = e.target.closest('[data-toggle]'))) {
+        // A disabled switch (a hosted toggle under its disabledWhen, renderToggle)
+        // swallows the tap: the setting is held by another one for now.
+        if (t.getAttribute('disabled') != null) { return true; }
         // Toggles fire their onChange like any other control (e.g. thresholdToggle
         // seeding/blanking a kind's warn+danger pair).
         var tgK = t.getAttribute('data-k');

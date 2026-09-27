@@ -398,9 +398,10 @@ var ALERT_LEVELS_INTRO = 'Warn and danger levels for this value. The switch ' +
 var GOAL_SHEET_INTRO = 'Close and goal levels for this value. The switch ' +
     'celebrates them on the watch: getting close adds the green outline, reaching ' +
     'the goal fills the slot. Colors are yours to change below.';
-// The Bold row is a SLOT-level setting, not a level one: it sits above the
-// Alert levels group and stays live while that group's highlight is switched off,
-// because "Always" needs no levels to mean something. Only the middle option does —
+// The Bold row is a SLOT-level setting, not a level one: it leads the slot sheet
+// (above the Goals group; an alert kind's levels live in its Alerts sheet) and stays
+// live while the kind's highlight is switched off, because "Always" needs no levels
+// to mean something. Only the middle option does —
 // it goes inert (not away: removing it would let the options-snapping path
 // rewrite a stored 'warn' to 'off') until the kind's highlight is on.
 // The hint spells out what each step does — bare pills alone read as "bold
@@ -563,7 +564,7 @@ function dayMaxRows(prefix, label, copy, now, max) {
 // The static fallback for the part of every day-max hint after its first sentence —
 // the hold rule without its number (the live dayMaxHint resolver prints the kind's
 // warn level instead; this shows only on a page without the contract module).
-var DAY_MAX_HINT_TAIL = ' Today\'s peak stays on screen while it is still ahead, and while it is at or above the warn level set below. Under that, tomorrow\'s peak shows instead, marked as chosen below. Highlighting follows the number shown.';
+var DAY_MAX_HINT_TAIL = ' Today\'s peak stays on screen while it is still ahead, and while it is at or above the warn level set under Alerts. Under that, tomorrow\'s peak shows instead, marked as chosen below. Highlighting follows the number shown.';
 /**
  * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
  * formatter's own table, so each label shows where its mark lands (three lead the
@@ -626,13 +627,10 @@ function unitRow(key, withUnit, without) {
 // `gate` (optional showWhen) hides kinds that can't appear in any slot (health
 // on aplite / with health off); color pickers additionally hide on B&W
 // (capability + bw theme).
-// The group is its own builder because it is shown in TWO sheets for the alert
-// kinds: the slot's pencil sheet (thresholdSection, below the slot's own rows) and
-// the Alerts card's levels-only sheet (alertSheet). The engine opens one sheet at
-// a time and cannot open a sheet from a sheet, so the levels are embedded in both
-// — as the SAME item objects, so the two copies cannot drift. Duplicate keys are
-// safe there: hydrate/serialize walk items flatly and idempotently, and only one
-// sheet renders at a time.
+// The group has ONE home per kind: the goal kinds' slot pencil sheet
+// (thresholdSection, below the slot's own rows), and for the five alert kinds the
+// Alerts card's sheet (alertSheet) — their slot sheets carry a pointer there instead
+// (alertLevelsNote), so every key renders in exactly one place.
 /**
  * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
  * @param {string} hint Per-kind unit/scale hint (HTML allowed).
@@ -764,23 +762,23 @@ function levelsGroup(keyStem, hint, gate) {
     }];
 }
 // One level edit sheet (sheetOnly — opened from a status slot's pencil, never rendered
-// as a card): the slot's Bold row, the kind's own display rows, then its Alert levels
-// (or Goals) group (levelsGroup above).
+// as a card): the slot's Bold row, the kind's own display rows, then its Goals group
+// (levelsGroup above) — or, for an alert kind, the pointer to its Alerts sheet.
 /**
  * @param {string} title Sub-section title.
  * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
  * @param {string} hint Per-kind unit/scale hint (HTML allowed).
  * @param {Object} [gate] Extra showWhen for the whole sub-section.
  * @param {Object[]} [extraItems] Kind-specific display rows rendered between the Bold
- *     row and the Alert levels group, e.g. the wind slots' direction arrow. They
- *     configure the SLOT, not the highlight, so they sit above the group header —
+ *     row and the levels group (or its pointer), e.g. the wind slots' direction arrow.
+ *     They configure the SLOT, not the highlight, so they sit above the group —
  *     boldSection's extras play the same role on the level-less kinds.
- * @param {Object[]} [group] The kind's levelsGroup when the caller shares it with an
- *     alert sheet (built from keyStem/hint/gate here otherwise) — the same objects,
- *     never a copy.
+ * @param {Object[]} [tail] Rows closing the sheet INSTEAD of the kind's levels group
+ *     (built from keyStem/hint/gate otherwise) — the alert kinds pass the pointer to
+ *     the Alerts card (alertLevelsNote), where their levels live.
  * @returns {Object} Schema section.
  */
-function thresholdSection(title, keyStem, hint, gate, extraItems, group) {
+function thresholdSection(title, keyStem, hint, gate, extraItems, tail) {
     var onKey = 'thresh' + keyStem + 'On';
     var goal = STATUS_THRESHOLDS.isGoalKind(keyStem);
     // Slot-level, above the group: how boldly the slot prints. The ladder is
@@ -804,90 +802,233 @@ function thresholdSection(title, keyStem, hint, gate, extraItems, group) {
     // The slot's rows carry the same gate as the group (gateAll, one pass).
     gateAll([bold].concat(extras), gate);
     // Bold leads every slot sheet; the kind's own display rows follow it, and the
-    // Alert levels / Goals group (header + toggle + slider + colors) closes the sheet.
+    // Goals group (header + toggle + slider + colors) — or, for an alert kind, the
+    // pointer to its Alerts sheet — closes the sheet.
     // sheetOf carries the section-level THRESHOLD_WHEN gate: on a watch that
     // can't render highlighting the sheet must not exist (belt-and-braces
     // behind the resolver's env gate).
     return sheetOf(keyStem, title,
-        [bold].concat(extras, group || levelsGroup(keyStem, hint, gate)));
+        [bold].concat(extras, tail || levelsGroup(keyStem, hint, gate)));
 }
-// The Alerts card's levels-only sheet for one alert kind: the kind's levelsGroup and
-// nothing else — no Bold, display-mode, arrow or unit rows, which configure a SLOT,
-// while the card's row asks only "when does this alert fire". Handed the very group
-// objects the kind's pencil sheet (thresh<K>) embeds, so a level set in one sheet is
-// the level the other shows. Same capability gate as the pencil sheets.
+// The five alert kinds' slot sheets end on this pointer instead of the levels group:
+// the levels (and the highlight switch riding their header) live in ONE place, the
+// kind's Alerts sheet. No link or sheet swap — the engine opens one sheet at a time,
+// and the owner asked for the plain note. A fresh object per call, like every item.
 /**
- * @param {string} keyStem Kind key stem, e.g. 'Uv' (sheetId alert<Stem>).
- * @param {string} title The kind's sheet title, e.g. 'UV index'.
- * @param {Object[]} group The kind's levelsGroup, shared with thresh<Stem>.
- * @returns {Object} Schema section (sheetOnly).
+ * @returns {Object} The info-box staticText closing an alert kind's slot sheet.
  */
-function alertSheet(keyStem, title, group) {
+function alertLevelsNote() {
     return {
-        sheetOnly: true,
-        sheetId: 'alert' + keyStem,
-        showWhen: THRESHOLD_WHEN,
-        title: title + ' alert',
-        items: group
+        type: 'staticText',
+        style: 'info',
+        text: 'Alert levels and the highlight switch are set under Alerts on the Status slots tab.'
     };
 }
-// The five alert kinds' levels groups, built ONCE here and handed to both sheets of
-// each kind (thresholdSection's `group`, alertSheet). The goal kinds (steps, sleep,
-// distance) are not alerts — they build their group inside thresholdSection. The
-// hint lives here with the group: for Pollen it is the slider's scale note.
-var ALERT_LEVELS = {
-    Uv: levelsGroup('Uv', '', null),
-    Wind: levelsGroup('Wind', '', null),
-    Gust: levelsGroup('Gust', '', null),
-    Aqi: levelsGroup('Aqi', '', null),
-    Pollen: levelsGroup('Pollen',
-        'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.', null)
-};
-// The Alerts card's rain rows share one gate: the radar has to be fetching (any
-// radarMode but 'off') and the watch must not be aplite, which compiles the rain
-// radar — and with it the countdown — out (WW_RAIN_RADAR). The platform clause is
-// load-bearing since the rows moved off the Radar tab: that tab is env-hidden on
-// aplite, the Status slots tab is not.
+// The rain alert's gate: the radar has to be fetching (any radarMode but 'off') and
+// the watch must not be aplite, which compiles the rain radar — and with it the
+// countdown — out (WW_RAIN_RADAR). The platform clause is load-bearing: the Radar
+// tab is env-hidden on aplite, the Status slots tab is not.
 var RAIN_ALERT_WHEN = {all: [{key: 'radarMode', ne: 'off'}, {env: 'platform', ne: 'aplite'}]};
-// The Alerts card's two rows for one metric alert kind. The toggle puts the kind's
-// icon into the watch's Alerts row whenever today reaches its warn level (the phone
-// bakes the entry into its ALERT_ENTRIES_UINT8 tuple, status-thresholds.js
-// bakeAlerts); its pencil opens the levels-only sheet (alertSheet) on the SAME
-// levels the slot's pencil sheet edits, and its hint prints those levels live
-// (blocks.js alertLevelsHint). The Look row
-// follows only while that alert is on — it has nothing to shape otherwise.
+// The rain alert's two choices, named once: the sheet's rows offer them and the card
+// row's hint (blocks.js rainAlertHint) prints the picked ones by these labels.
+var RAIN_WINDOW_OPTIONS = [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']];
+var RAIN_LOOK_OPTIONS = [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']];
 /**
- * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>, alert<Stem>Display).
- * @param {string} label Row label, e.g. 'UV index'.
- * @param {string} icon Registered PConf.icons id (status-slot-icons.js), e.g. 'uv'.
- * @param {Object} [gate] Extra showWhen for both rows — Pollen's DWD-only provider.
- * @returns {Object[]} The toggle row and its joined Look row.
+ * The rain alert's sheet (sheetId alertRain), opened from the Alerts card's Rain row:
+ * the on/off switch on the sheet's sub-header, then the time window and the look,
+ * both inert while the switch is off (visible, so the sheet shows what turning it on
+ * offers). The switch is stored state of its own (alertRain, default on); the phone
+ * sends a horizon of 0 while it is off (clay-payload.js), which the watch reads as
+ * "no rain alert" — so the window keeps its value for when the switch comes back.
+ * Radar mode 'Rain alert only' ('countdown') fetches the radar for this alert alone,
+ * so there the switch is held on: disabled, and forced on by the radarMode hook
+ * (reset-status-defaults.js forceRainAlert) when that mode is entered.
+ * @returns {Object} Schema section (sheetOnly).
  */
-function alertRows(keyStem, label, icon, gate) {
-    var args = {keyStem: keyStem};
-    var toggleWhen = gate ? {all: [THRESHOLD_WHEN, gate]} : THRESHOLD_WHEN;
-    var lookWhen = {all: [THRESHOLD_WHEN, {key: 'alert' + keyStem}]};
-    if (gate) { lookWhen.all.push(gate); }
-    return [{
-        type: 'toggle',
-        messageKey: 'alert' + keyStem,
+function rainAlertSheet() {
+    var offWhen = {not: {key: 'alertRain'}};
+    return {
+        sheetOnly: true,
+        sheetId: 'alertRain',
+        showWhen: RAIN_ALERT_WHEN,
+        title: 'Rain alert',
+        items: [{
+            type: 'subheader',
+            text: 'Rain alert',
+            toggleKey: 'alertRain',
+            intro: 'Shows the rain drop in the Alerts row while rain is on its way to your location. '
+                + 'The radar mode “Rain alert only” keeps it on.'
+        }, {
+            // Aria-only: the switch rides the sub-header above.
+            type: 'toggle',
+            messageKey: 'alertRain',
+            label: 'Rain alert',
+            defaultValue: true,
+            disabledWhen: {key: 'radarMode', eq: 'countdown'}
+        }, {
+            // The countdown's window, key and default unchanged since it lived on the
+            // Radar tab. No Off option: the switch above is the off.
+            type: 'select',
+            messageKey: 'rainCountdownHorizon',
+            label: 'Time window',
+            defaultValue: '60',
+            hint: 'Show a rain countdown in the Alerts row when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
+            options: RAIN_WINDOW_OPTIONS,
+            disabledWhen: offWhen
+        }, {
+            // How the rain alert draws. 'text' is the "Rain in 12′" the strip always
+            // showed, so an untouched upgrade looks the same. The watch resolves the
+            // rain entry itself, so this rides the Clay message (thresholds blob byte
+            // 34), not the phone's bake.
+            type: 'segmented',
+            messageKey: 'rainAlertDisplay',
+            label: 'Look',
+            defaultValue: 'text',
+            options: RAIN_LOOK_OPTIONS,
+            hintByValue: {
+                icon: 'Just the drop.',
+                minutes: 'The drop with the minutes until the rain starts, or how long it keeps falling.',
+                text: 'The full countdown, as before.'
+            },
+            disabledWhen: offWhen
+        }]
+    };
+}
+/**
+ * One metric alert's sheet (sheetId alert<Stem>), opened from its Alerts card row:
+ * the "show this alert" switch on an 'Alert' sub-header, the Look, then the kind's
+ * levels group — the levels' ONE home (the slot sheet points here). The Look goes
+ * inert while the switch is off; the levels group never does, because the levels
+ * also drive the slots' Alert mode and highlight. The phone bakes an entry into the
+ * ALERT_ENTRIES_UINT8 tuple only for a switched-on kind whose day reaches its warn
+ * level (status-lines.js bakeAlerts), so the switch and the Look both ride
+ * renderSignature(), not the Clay message.
+ * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>, alert<Stem>Display).
+ * @param {string} title The kind's sheet title, e.g. 'UV index'.
+ * @param {string} subject The value the intro names, e.g. 'the UV index'.
+ * @param {string} hint The levels slider's scale note ('' for none).
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function alertSheet(keyStem, title, subject, hint) {
+    var key = 'alert' + keyStem;
+    return {
+        sheetOnly: true,
+        sheetId: key,
+        showWhen: THRESHOLD_WHEN,
+        title: title + ' alert',
+        items: [{
+            type: 'subheader',
+            text: 'Alert',
+            toggleKey: key,
+            intro: 'Shows an icon in the Alerts row while ' + subject + ' is at your warn level or higher.'
+        }, {
+            // Aria-only: the switch rides the sub-header above.
+            type: 'toggle',
+            messageKey: key,
+            label: 'Alert',
+            defaultValue: false
+        }, {
+            type: 'segmented',
+            messageKey: key + 'Display',
+            label: 'Look',
+            defaultValue: 'icon',
+            options: [['Icon', 'icon'], ['Icon + value', 'value']],
+            hintByValue: {
+                icon: 'Just the icon.',
+                value: 'The value the alert fires on after the icon. Fewer alerts fit the row.'
+            },
+            disabledWhen: {not: {key: key}}
+        }].concat(levelsGroup(keyStem, hint, null))
+    };
+}
+// The Alerts card's rows and sheets, in the card's order. `subject` feeds the
+// sheet intro; Pollen is DWD's alone, like the pollen slot itself.
+var ALERT_KINDS = [
+    {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', icon: 'uv'},
+    {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', icon: 'wind'},
+    {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', icon: 'gust'},
+    {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
+        icon: 'aqi'},
+    {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', icon: 'pollen',
+        gate: {key: 'provider', eq: 'dwd'},
+        hint: 'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'}
+];
+/**
+ * One Alerts card row — every alert, rain included, has this one shape: a badged
+ * `sheet` row (icon + label, the alert's live state under the label, its colours as
+ * dots, Edit). Nothing on the card is a control; each switch lives in its sheet.
+ * @param {string} sheetId The alert's sheet, e.g. 'alertUv'.
+ * @param {string} label Row label.
+ * @param {string} icon Registered PConf.icons id (status-slot-icons.js).
+ * @param {Object} showWhen The row's gate.
+ * @param {Object} hintFrom The live-state hint resolver ({resolver, args}).
+ * @param {string} keyStem The badge resolver's kind ('Rain' for the rain row).
+ * @returns {Object} Schema item.
+ */
+function alertRow(sheetId, label, icon, showWhen, hintFrom, keyStem) {
+    return {
+        type: 'sheet',
+        sheetId: sheetId,
         label: label,
         icon: icon,
-        defaultValue: false,
-        showWhen: toggleWhen,
-        hintFrom: {resolver: 'alertLevelsHint', args: args},
-        editSheetFrom: {resolver: 'alertEditSheet', args: args},
-        editBadgeFrom: {resolver: 'alertLevelBadge', args: args}
-    }, {
-        type: 'segmented',
-        messageKey: 'alert' + keyStem + 'Display',
-        label: 'Look',
-        defaultValue: 'icon',
-        options: [['Icon', 'icon'], ['Icon + value', 'value']],
-        joinPrevious: true,
-        showWhen: lookWhen,
-        hint: 'Prints the value the alert fires on after the icon. Fewer alerts fit the row that way.'
-    }];
+        showWhen: showWhen,
+        hintFrom: hintFrom,
+        editBadgeFrom: {resolver: 'alertLevelBadge', args: {keyStem: keyStem}}
+    };
+}
+/**
+ * The Alerts card's rows: rain (radar-gated), the radar-off note, then the five
+ * metric alerts (thresholds-gated — aplite has neither the row nor the levels).
+ * @returns {Object[]} The card's items, in order.
+ */
+function alertCardItems() {
+    return [
+        alertRow('alertRain', 'Rain', 'rain', RAIN_ALERT_WHEN,
+            {resolver: 'rainAlertHint', args: {windows: RAIN_WINDOW_OPTIONS, looks: RAIN_LOOK_OPTIONS}},
+            'Rain'),
+        {
+            type: 'staticText',
+            style: 'info',
+            text: 'Turn on the rain radar (Radar tab) to get rain alerts.',
+            showWhen: {all: [{key: 'radarMode', eq: 'off'}, {env: 'platform', ne: 'aplite'}]}
+        }
+    ].concat(ALERT_KINDS.map(function (k) {
+        return alertRow('alert' + k.keyStem, k.label, k.icon,
+            k.gate ? {all: [THRESHOLD_WHEN, k.gate]} : THRESHOLD_WHEN,
+            {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem}}, k.keyStem);
+    }));
+}
+// The per-bar Alerts placement: while an alert is active its icons REPLACE the chosen
+// slot of that bar, and a second one when they need the room (the middle slot for Left
+// and Right, the left slot for Middle — the right one usually holds the battery). Rides
+// the Clay message (thresholds blob byte 35); the default is the contract's own
+// (status-thresholds.js barAlertPlace: the top strip Left — where the rain countdown
+// always took over — every other bar Off), so an untouched upgrade draws what it drew.
+var ALERT_PLACE_HINT = 'While an alert is active the icons replace this slot, and the middle slot too when they need the room.';
+/**
+ * @param {string} bar 'top' | 'forecast' | 'radar' | 'health' (BAR_ALERT_KEYS).
+ * @param {?Object} barWhen The bar's own gate (RADAR_BAR_WHEN …), or null.
+ * @returns {Object} The bar's 'Alerts' select.
+ */
+function alertPlaceRow(bar, barWhen) {
+    var key = null, i;
+    for (i = 0; i < STATUS_THRESHOLDS.BAR_ALERT_KEYS.length; i++) {
+        if (STATUS_THRESHOLDS.BAR_ALERT_KEYS[i].bar === bar) { key = STATUS_THRESHOLDS.BAR_ALERT_KEYS[i].key; }
+    }
+    return {
+        type: 'select',
+        messageKey: key,
+        label: 'Alerts',
+        defaultValue: STATUS_THRESHOLDS.barAlertPlace(null, bar),
+        options: [['Off', 'off'], ['Left', 'left'], ['Middle', 'middle'], ['Right', 'right']],
+        // No hint for Off: there is nothing to explain.
+        hintByValue: {
+            left: ALERT_PLACE_HINT,
+            middle: 'While an alert is active the icons replace this slot, and the left slot too when they need the room.',
+            right: ALERT_PLACE_HINT
+        },
+        showWhen: barWhen ? {all: [THRESHOLD_WHEN, barWhen]} : THRESHOLD_WHEN
+    };
 }
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this
@@ -1950,6 +2091,22 @@ module.exports = {
         // Label renamed 'Watch' → 'Status slots' when Time/Calendar moved to the
         // Layout tab; the id stays 'watch' — deep links and tests key on it.
         id: 'watch', label: 'Status slots', sections: [{
+            // The Alerts card: a card of its own, ABOVE the status card. Six rows of one
+            // shape (alertCardItems — icon, label, the alert's live state, Edit); every
+            // switch, level and look lives in the alert's sheet. Where the icons show is
+            // per bar (each bar's 'Alerts' select in the card below). Every row carries
+            // its own gate; the section-level showWhen is only their union, because a
+            // section with an intro never counts as empty (engine buildSectionBody) —
+            // without it the title and intro would outlive their rows on aplite, which
+            // has neither the rain radar nor the Alerts row. The reset chip reverts the
+            // alerts' switches and looks (blocks.js resetAlerts); the levels keep their
+            // own reset in each sheet, the placements ride the status card's reset.
+            title: 'Alerts',
+            showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
+            intro: 'One icon per active alert, highlighted like a status slot: an outline at warn, filled at danger, in that value\'s colors. Rain shows in the radar\'s rain color. Each status bar below chooses where they appear.'
+                + ' <button type="button" class="txt-act-btn" data-action="resetAlerts">Reset alerts to defaults</button>',
+            items: alertCardItems()
+        }, {
             // The intro + the four status-bar sections share one groupCard so they render as a
             // single card (each title becomes an in-card sub-header). Time/Calendar below stay
             // their own cards.
@@ -1985,84 +2142,30 @@ module.exports = {
                 }
             ]
         }, {
-            // The Alerts card: the first in-card sub-header of the status card (it shares
-            // the groupCard, so it renders under the intro's Bold row — sections[0]
-            // stays the intro the tests key on). Every row carries its own gate; the
-            // section-level showWhen is only their union, because a section with an
-            // intro never counts as empty (engine buildSectionBody) — without it the
-            // sub-header and intro would outlive their rows on aplite, which has
-            // neither the rain radar nor the threshold machinery.
-            groupCard: 'watchStatus',
-            title: 'Alerts',
-            showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
-            intro: 'One icon per active alert in the Alerts row, highlighted like a status slot: an outline at warn, filled at danger, in that value\'s colors. Rain shows in the radar\'s rain color.',
-            items: [{
-                // Moved here from the Radar tab; key, default and gate unchanged.
-                // Its Off option is back (132b577a had dropped it when radarMode took
-                // over the radar's on/off): the rain alert's on/off IS this select —
-                // there is no separate toggle. Downstream already takes a 0: the payload
-                // passes a stored '0' through and the watch treats a horizon <= 0 as
-                // "no alert". Off is inert while radarMode is 'countdown', because that
-                // mode fetches the radar solely for this alert — Off there would burn
-                // radar calls for nothing (the radarMode hook also snaps a stored '0'
-                // back to '60' on entering that mode, reset-status-defaults.js).
-                type: 'select',
-                messageKey: 'rainCountdownHorizon',
-                label: 'Rain countdown',
-                icon: 'rain',
-                defaultValue: '60',
-                hint: 'Show a rain countdown in the Alerts row when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
-                options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
-                optionDisabledWhen: {'0': {key: 'radarMode', eq: 'countdown'}},
-                showWhen: RAIN_ALERT_WHEN
-            }, {
-                // How the rain alert draws. 'text' is today's "Rain in 12′", so an
-                // untouched upgrade looks the same. The watch resolves the rain entry
-                // itself, so this rides the Clay message (thresholds blob byte 34),
-                // not the phone's bake.
-                type: 'segmented',
-                messageKey: 'rainAlertDisplay',
-                label: 'Rain alert look',
-                defaultValue: 'text',
-                options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
-                joinPrevious: true,
-                hint: 'Icon only, the icon with the minutes until the rain, or the full countdown text.',
-                showWhen: {all: [RAIN_ALERT_WHEN, {key: 'rainCountdownHorizon', ne: '0'}]}
-            }, {
-                type: 'staticText',
-                text: 'Turn on the rain radar (Radar tab) to get rain alerts.',
-                showWhen: {all: [{key: 'radarMode', eq: 'off'}, {env: 'platform', ne: 'aplite'}]}
-            }].concat(
-                alertRows('Uv', 'UV index', 'uv'),
-                alertRows('Wind', 'Wind speed', 'wind'),
-                alertRows('Gust', 'Wind gusts', 'gust'),
-                alertRows('Aqi', 'Air quality', 'aqi'),
-                // DWD is the only pollen source, as for the pollen slot itself.
-                alertRows('Pollen', 'Pollen', 'pollen', {key: 'provider', eq: 'dwd'}))
-        }, {
             groupCard: 'watchStatus',
             title: 'Forecast Status Bar',
-            items: barSlots('statusForecast', null)
+            items: barSlots('statusForecast', null).concat([alertPlaceRow('forecast', null)])
         }, {
             groupCard: 'watchStatus',
             title: 'Radar Status Bar',
-            items: barSlots('statusRadar', RADAR_BAR_WHEN)
+            items: barSlots('statusRadar', RADAR_BAR_WHEN).concat([alertPlaceRow('radar', RADAR_BAR_WHEN)])
         }, {
             groupCard: 'watchStatus',
             title: 'Health Status Bar',
-            items: barSlots('statusHealth', HEALTH_BAR_WHEN)
+            items: barSlots('statusHealth', HEALTH_BAR_WHEN).concat([alertPlaceRow('health', HEALTH_BAR_WHEN)])
         }, {
             groupCard: 'watchStatus',
             title: 'Watch Status Bar',
             items: [
                 {
-                    // aplite compiles the Alerts row out (WW_ALERT_ROW) and cannot place
-                    // the item (notAplite), so the note would describe nothing there.
+                    // aplite compiles the Alerts row out (WW_ALERT_ROW), so the note
+                    // would describe nothing there.
                     type: 'staticText',
-                    text: 'The Alerts row shows every active alert and grows into the middle slot when it needs the room.',
+                    text: 'While an alert is active, the Alerts row replaces the chosen slot — and the middle one when it needs the room.',
                     showWhen: {env: 'platform', ne: 'aplite'}
                 }
             ].concat(barSlots('statusTop', null, true), [
+                alertPlaceRow('top', null),
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',
                     defaultValue: true,
@@ -2096,10 +2199,9 @@ module.exports = {
             subject: 'the AQI is',
             lead: 'Show the air quality index now, the highest it still gets today, or both.',
             coda: ' The peak needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.'
-        }, '42', '58'), ALERT_LEVELS.Aqi),
-        // Pollen's scale hint rides its levels group (ALERT_LEVELS), shared with the
-        // Alerts card's sheet.
-        thresholdSection('Pollen', 'Pollen', '', null, null, ALERT_LEVELS.Pollen),
+        }, '42', '58'), [alertLevelsNote()]),
+        // Pollen's scale hint rides its levels group, in the Alerts card's sheet.
+        thresholdSection('Pollen', 'Pollen', '', null, null, [alertLevelsNote()]),
         // Wind and gust each carry their own direction arrow: the two slots often sit
         // side by side, and one arrow drawn twice is noise — so the choice is per kind,
         // not global. The phone bakes the arrow into the slot text (status-lines.js
@@ -2123,7 +2225,7 @@ module.exports = {
             // is not rearranged under its owner.
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('windSlotUnit', null, null)]), ALERT_LEVELS.Wind),
+        }, unitRow('windSlotUnit', null, null)]), [alertLevelsNote()]),
         thresholdSection('Wind gusts', 'Gust', '', null, dayMaxRows('gust', 'Gust selection', {
             keyStem: 'Gust',
             subject: 'gusts are',
@@ -2135,13 +2237,13 @@ module.exports = {
             label: 'Show wind direction',
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('gustSlotUnit', null, null)]), ALERT_LEVELS.Gust),
+        }, unitRow('gustSlotUnit', null, null)]), [alertLevelsNote()]),
         // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
         // What each mode prints is wire-units' dayMaxShown.
-        // It sits above the Alert levels group like the wind arrow: it configures the
-        // slot, and the highlight follows it (the policy is status-thresholds.js
+        // It sits between Bold and the levels pointer like the wind arrow: it configures
+        // the slot, and the highlight follows it (the policy is status-thresholds.js
         // displayValue's). So do the rows shaping how it reads, which change the
         // text only — the highlight judges the numbers, never their presentation.
         thresholdSection('UV index', 'Uv', '', null, dayMaxRows('uv', 'UV selection', {
@@ -2149,7 +2251,7 @@ module.exports = {
             subject: 'UV is',
             lead: 'Show the UV index now, the highest it still gets today, or both.',
             coda: ''
-        }, '3', '7'), ALERT_LEVELS.Uv),
+        }, '3', '7'), [alertLevelsNote()]),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
         thresholdSection('Sleep', 'Sleep',
@@ -2246,17 +2348,12 @@ module.exports = {
         // one mode packs into both cells. Android-only on the slot side; the sheet
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery'),
-        // The Alerts card's levels-only sheets (sheetOnly, opened from the card's
-        // rows), one per alert kind in the card's row order, embedding the SAME levels
-        // group as the kind's pencil sheet above. They close the tab's sections on
-        // purpose: renderBody merges CONSECUTIVE groupCard sections into one card, so
-        // a sheetOnly section sitting between two 'watchStatus' sections would split
-        // the status card in two.
-        alertSheet('Uv', 'UV index', ALERT_LEVELS.Uv),
-        alertSheet('Wind', 'Wind speed', ALERT_LEVELS.Wind),
-        alertSheet('Gust', 'Wind gusts', ALERT_LEVELS.Gust),
-        alertSheet('Aqi', 'Air quality (AQI)', ALERT_LEVELS.Aqi),
-        alertSheet('Pollen', 'Pollen', ALERT_LEVELS.Pollen)]
+        // The Alerts card's sheets (sheetOnly, opened from the card's rows), in the
+        // card's row order: rain, then one per metric alert kind holding its switch,
+        // its Look and its levels (the levels' one home).
+        rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
+            return alertSheet(k.keyStem, k.title, k.subject, k.hint || '');
+        }))
     }, {
         id: 'layout', label: 'Layout', sections: [{
             intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',

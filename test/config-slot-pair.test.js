@@ -76,10 +76,11 @@ test('each two-value sheet carries its pair rows right under the display pills',
         k.prefix + 'SlotSeparatorSpaced', k.prefix + 'SlotOrder'],
       k.sheetId + ': separator, custom separator, spacing, order — in that order');
   });
-  // UV's tomorrow mark closes its display group, still above the Alert levels header.
+  // UV's tomorrow mark closes its display group, above the pointer to the Alerts sheet
+  // (UV's levels live there).
   const uvKeys = sheet('threshUv').items.map(it => it.messageKey || it.type);
   assert.equal(uvKeys[uvKeys.indexOf('uvSlotOrder') + 1], 'uvSlotNextDayMark');
-  assert.equal(uvKeys[uvKeys.indexOf('uvSlotNextDayMark') + 1], 'subheader');
+  assert.equal(uvKeys[uvKeys.indexOf('uvSlotNextDayMark') + 1], 'staticText');
   // Temp's degree toggle answers to every mode, so it stays after the pair group.
   const tempKeys = sheet('threshTemp').items.map(it => it.messageKey);
   assert.equal(tempKeys[tempKeys.indexOf('tempSlotOrder') + 1], 'tempSlotUnit');
@@ -280,7 +281,8 @@ function rowClass(html, key) {
   return html.slice(open, html.indexOf('>', open));
 }
 const TIGHT = /\bnb\b/;
-const LOOSE = /\bnbl\b/;
+// Either join (tight nb or loose nbl): the row drops its divider.
+const JOINED = /\bnbl?\b/;
 
 /**
  * Boot the real page with a stored state and open a sheet.
@@ -329,21 +331,22 @@ test('Temp outside Both: no pair rows, and the sheet spaces exactly as before', 
   });
 });
 
-test('UV: the mark joins in Alert, the pair rows join in Both, the Alert levels header follows', () => {
+test('UV: the mark joins in Alert, the pair rows join in Both, the levels pointer follows', () => {
   const max = openSheet({ uvSlotDisplay: 'max' }, 'threshUv').modal.innerHTML;
   assert.equal(max.indexOf('data-select="uvSlotSeparator"'), -1, 'Alert prints no pair');
   assert.match(rowClass(max, 'uvSlotDisplay'), TIGHT, 'display row tightens onto the mark');
-  assert.match(rowClass(max, 'uvSlotNextDayMark'), LOOSE, 'the header draws its own line');
+  assert.doesNotMatch(rowClass(max, 'uvSlotNextDayMark'), JOINED,
+    'the group keeps its divider above the (unjoined) pointer to the Alerts sheet');
 
   const both = openSheet({ uvSlotDisplay: 'both' }, 'threshUv').modal.innerHTML;
   ['uvSlotDisplay', 'uvSlotSeparator', 'uvSlotSeparatorSpaced', 'uvSlotOrder'].forEach((key) => {
     assert.match(rowClass(both, key), TIGHT, key + ' tightens onto the next row of the group');
   });
-  assert.match(rowClass(both, 'uvSlotNextDayMark'), LOOSE);
+  assert.doesNotMatch(rowClass(both, 'uvSlotNextDayMark'), JOINED);
 
   const now = openSheet({ uvSlotDisplay: 'current' }, 'threshUv').modal.innerHTML;
   assert.equal(now.indexOf('data-select="uvSlotNextDayMark"'), -1, 'Now prints no max to mark');
-  assert.match(rowClass(now, 'uvSlotDisplay'), LOOSE, 'as before: the header follows directly');
+  assert.doesNotMatch(rowClass(now, 'uvSlotDisplay'), JOINED, 'the pointer follows directly');
 });
 
 test('the separator dropdown opens inside the sheet and a Custom pick reveals the field', () => {

@@ -409,6 +409,27 @@ test('renderBody: a hinted staticText carries the hinted class (hint style) but 
   assert.equal(html.indexOf('join'), -1, 'hinted does not imply join (no spacing pull-up)');
 });
 
+// style: 'info' boxes a note like the General tab's fetch-notice items (the tinted,
+// left-ruled .notice-item) in their info blue — for a pointer the reader should not
+// skim past as body copy.
+test('renderBody: a staticText with style info renders boxed, with its own class', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
+    { type: 'staticText', style: 'info', text: 'Set <b>elsewhere</b>.' },
+    { type: 'staticText', text: 'plain' }
+  ] } ] } ] };
+  const cx = { S: {}, ENV: { color: true }, USERDATA: {}, openColor: null, collapsed: {}, evalCtx: { env: { color: true } } };
+  const html = E.renderBody(SCH, 't', cx);
+  assert.ok(html.indexOf('<div class="static info"><div class="info-box">Set <b>elsewhere</b>.</div></div>') >= 0,
+    'the note is wrapped in the info box, its HTML verbatim');
+  assert.ok(html.indexOf('<div class="static">plain</div>') >= 0, 'a plain static is unboxed');
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  const rule = shell.match(/\.static\.info \.info-box \{([^}]*)\}/);
+  assert.ok(rule, 'shell.html styles the box');
+  // The notice panel's info item, value for value (notices-panel.js .notice-item.info).
+  ['background: rgba(90,140,255,0.12)', 'border-left: 3px solid #5A8CFF', 'border-radius: 6px']
+    .forEach((decl) => assert.ok(rule[1].indexOf(decl) !== -1, 'box carries ' + decl));
+});
+
 test('renderSelectModal: duplicate messageKey resolves the VISIBLE block (theme B&W regression)', () => {
   // Two items share messageKey 'theme': a 4-option color block and a 2-option B/W block,
   // mutually exclusive by showWhen (mirrors schema.js). The open picker must mirror whichever

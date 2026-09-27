@@ -312,58 +312,79 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'aplite (no thresholds env) badges nothing, B included');
 });
 
-test('alertLevelsHint prints the resolved pair, the unit and the highlight state', () => {
+test('alertLevelsHint: "Off" while the alert is off, else the resolved pair, the unit and the highlight state', () => {
   const hint = PConf.hintResolvers.get('alertLevelsHint');
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
-  assert.equal(hint({}, env, uv), 'Warn 6 · Danger 8 · Highlight off',
+  assert.equal(hint({}, env, uv), 'Off', 'an unset alert reads Off (its default)');
+  assert.equal(hint({ alertUv: false, threshUvOn: true }, env, uv), 'Off',
+    'Off whatever the highlight says: the row describes the alert');
+  const on = (S) => Object.assign({ alertUv: true, alertWind: true, alertAqi: true }, S);
+  assert.equal(hint(on({}), env, uv), 'Warn 6 · Danger 8 · Highlight off',
     'a blank pair reads as the kind\'s seed');
-  assert.equal(hint({ threshUvWarn: '5', threshUvDanger: '9' }, env, uv),
+  assert.equal(hint(on({ threshUvWarn: '5', threshUvDanger: '9' }), env, uv),
     'Warn 5 · Danger 9 · Highlight off', 'a stored pair wins');
-  assert.equal(hint({ threshUvOn: true }, env, uv), 'Warn 6 · Danger 8 · Highlight on',
+  assert.equal(hint(on({ threshUvOn: true }), env, uv), 'Warn 6 · Danger 8 · Highlight on',
     'on/off follows the stored switch');
-  assert.equal(hint({ windUnits: 'mph' }, env, { keyStem: 'Wind' }),
+  assert.equal(hint(on({ windUnits: 'mph' }), env, { keyStem: 'Wind' }),
     'Warn 25 mph · Danger 40 mph · Highlight off',
     'wind speaks the slider\'s unit, on both numbers');
   // AQI seeds follow the scale: European (Open-Meteo, non-US) 60/80, US 100/150.
-  assert.equal(hint({ aqiSource: 'openmeteo', aqiScale: 'european' }, env, { keyStem: 'Aqi' }),
+  assert.equal(hint(on({ aqiSource: 'openmeteo', aqiScale: 'european' }), env, { keyStem: 'Aqi' }),
     'Warn 60 · Danger 80 · Highlight off', 'the European AQI seed');
-  assert.equal(hint({ aqiSource: 'openmeteo', aqiScale: 'us' }, env, { keyStem: 'Aqi' }),
+  assert.equal(hint(on({ aqiSource: 'openmeteo', aqiScale: 'us' }), env, { keyStem: 'Aqi' }),
     'Warn 100 · Danger 150 · Highlight off', 'the US AQI seed');
-  assert.equal(hint({}, { thresholds: false }, uv), null, 'aplite: no levels to describe');
+  assert.equal(hint(on({}), { thresholds: false }, uv), null, 'aplite: no levels to describe');
   assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
 });
 
-test('alertLevelBadge previews the highlight without the slot\'s bold B', () => {
+test('rainAlertHint: "Off" while the rain alert is off, else its window and look by their labels', () => {
+  const hint = PConf.hintResolvers.get('rainAlertHint');
+  assert.equal(typeof hint, 'function', 'hint resolver registered');
+  const args = {
+    windows: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
+    looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']]
+  };
+  assert.equal(hint({}, {}, args), 'Within 60 min · Text', 'unset: the sheet\'s defaults (on)');
+  assert.equal(hint({ alertRain: true, rainCountdownHorizon: '120', rainAlertDisplay: 'minutes' }, {}, args),
+    'Within 2 hours · Icon + minutes');
+  assert.equal(hint({ rainCountdownHorizon: 30, rainAlertDisplay: 'icon' }, {}, args), 'Within 30 min · Icon',
+    'a numeric window reads like its stored string');
+  assert.equal(hint({ alertRain: false, rainCountdownHorizon: '30' }, {}, args), 'Off');
+  assert.equal(hint({ rainCountdownHorizon: '0', rainAlertDisplay: 'bogus' }, {}, args),
+    'Within 60 min · Text', 'a value outside the lists reads as the default');
+});
+
+test('alertLevelBadge: the alert\'s colours while it is on, no bold B; rain gets the Edit button alone', () => {
   const badge = PConf.badgeResolvers.get('alertLevelBadge');
   assert.equal(typeof badge, 'function', 'badge resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
-  const on = badge({ threshUvOn: true }, env, uv);
-  assert.equal(on.label, 'Edit');
+  const off = badge({ threshUvOn: true, threshUvDangerColor: '#FF0000' }, env, uv);
+  assert.equal(off.label, 'Edit');
+  assert.deepEqual(off.dots, [], 'alert off: no dots, whatever the highlight says');
+  assert.equal(off.ariaNote, 'off');
+  // On: the entry's outline (warn) and fill (danger). With no warn outline picked the
+  // watch outlines an alert entry in the theme fg anyway — an icon has no bold.
+  const on = badge({ alertUv: true, theme: 'dark', threshUvDangerColor: '#FF0000' }, env, uv);
   assert.equal(on.dots.length, 2, 'warn ring + danger fill');
-  assert.equal(on.dots[0].ring, true, 'the ring (warn) comes first');
+  assert.deepEqual(on.dots[0], { color: '#FFFFFF', ring: true }, 'no outline colour: the theme fg ring');
   assert.ok(!on.dots[1].ring, 'then the fill (danger)');
-  assert.equal(on.ariaNote, 'highlighting on');
+  assert.equal(on.dots[1].color, '#FF0000');
+  assert.equal(on.ariaNote, '');
   assert.ok(!on.bold, 'no B: bold is a slot property');
-  const allBold = badge({ threshUvOn: true, statusBoldAll: 'all', threshUvBoldMode: 'always' },
-    env, uv);
+  const picked = badge({ alertUv: true, threshUvWarnColor: '#00AAFF' }, env, uv);
+  assert.equal(picked.dots[0].color, '#00AAFF', 'a picked outline colour rings');
+  const allBold = badge({ alertUv: true, statusBoldAll: 'all', threshUvBoldMode: 'always' }, env, uv);
   assert.ok(!allBold.bold, 'not even under the master Bold row');
-  assert.equal(allBold.ariaNote, 'highlighting on', 'and no always-bold note');
-  const off = badge({ threshUvOn: false }, env, uv);
-  assert.deepEqual(off.dots, [], 'switch off: no dots');
-  assert.equal(off.ariaNote, '');
+  // Rain draws in the radar's colours and never boxes: the button only.
+  assert.deepEqual(badge({}, env, { keyStem: 'Rain' }), { label: 'Edit', ariaNote: '', dots: [] });
+  assert.deepEqual(badge({ alertRain: false }, env, { keyStem: 'Rain' }),
+    { label: 'Edit', ariaNote: 'off', dots: [] });
   assert.equal(badge({}, env, { keyStem: 'Nope' }), null, 'unknown stem');
   assert.equal(badge({}, env, { keyStem: 'Temp' }), null, 'bold-only stem');
-  assert.equal(badge({ threshUvOn: true }, { thresholds: false }, uv), null, 'aplite');
-});
-
-test('alertEditSheet opens the kind\'s levels-only sheet where highlighting exists', () => {
-  const sheet = PConf.sheetResolvers.get('alertEditSheet');
-  assert.equal(typeof sheet, 'function', 'sheet resolver registered');
-  assert.equal(sheet({}, { thresholds: true }, { keyStem: 'Uv' }), 'alertUv');
-  assert.equal(sheet({}, { thresholds: false }, { keyStem: 'Uv' }), null, 'aplite');
+  assert.equal(badge({ alertUv: true }, { thresholds: false }, uv), null, 'aplite');
 });
 
 test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {
@@ -688,17 +709,16 @@ test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown 
   assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the 20px band height');
 });
 
-// rainCountdownHorizon has its Off option back (the Alerts card's rain row): '0' means
-// the watch shows no rain alert, so the preview drops the band with it.
-test('radarPreview hides the countdown band when the countdown is Off (horizon 0)', () => {
-  const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
-  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with the countdown Off');
+// The rain alert's switch (alertRain, its Alerts sheet): off means the watch shows no
+// rain alert, so the preview drops the band with it.
+test('radarPreview hides the countdown band while the rain alert is switched off', () => {
+  const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', alertRain: false }, { color: true });
+  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with the rain alert off');
   assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'the frame keeps the no-band height');
-  const on = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
-  assert.ok(on.indexOf("Rain in 15'") >= 0, 'a 60-minute window shows the band');
-  // A numeric 0 (a hand-edited or imported blob) reads the same as the stored string.
-  const num = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: 0 }, { color: true });
-  assert.equal(num.indexOf("Rain in 15'"), -1, 'a numeric 0 hides it too');
+  const on = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', alertRain: true }, { color: true });
+  assert.ok(on.indexOf("Rain in 15'") >= 0, 'switched on, the band shows');
+  const unset = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
+  assert.ok(unset.indexOf("Rain in 15'") >= 0, 'an unset switch is on (its default)');
 });
 
 test('radarPreview never shows the countdown band on aplite', () => {

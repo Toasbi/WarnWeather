@@ -266,7 +266,12 @@ it renders as an ordinary row instead: label on the left, then the badge's colou
 **Edit** button on the right, with nothing between them (there is no control to draw for a
 `sheet`). Use that shape for a row that only leads to a sheet but should still show what is
 configured in there. Because the row has no `messageKey`, whatever the resolver needs to
-identify the row must be passed in `editBadgeFrom.args`.
+identify the row must be passed in `editBadgeFrom.args`. Such a badged row also honours
+`hintFrom`: the resolver gets no row value (`args.value` is `undefined` — the row stores
+nothing) and reads whatever it describes from `S`, e.g. a row printing the live state of the
+settings behind it ("Off", or their current levels) under its label. That hint is not
+repainted in place after a range nudge (it has no key to be found by); the sheet the nudge
+happens in re-renders the page when it closes.
 
 The preview comes in two shapes, chosen by how many colours the row owns. `chip` is ONE
 `'#RRGGBB'`, printed as the full swatch-and-hex readout an `rgb` control shows above its
@@ -291,10 +296,14 @@ section holds rows that answer to different scopes (the threshold sheets keep a 
 (HTML shown under the heading, like a section `intro`), optional `labelAction`, and optional
 `toggleKey`. `toggleKey` names a `toggle` item **in the same section**, which then renders as a
 switch on the header instead of as a row of its own — while keeping its normal place in
-`items`, so hydrate/serialize/`onChange` are unaffected.
+`items`, so hydrate/serialize/`onChange` are unaffected. The hosted toggle's `disabledWhen`
+still applies there: while it holds, the header's switch renders `disabled` (dimmed, showing
+the held value) and a tap on it changes nothing.
 
 `staticText` items carry their HTML in a `text` field and are emitted verbatim without control
-chrome. They are not serialized (no `messageKey`).
+chrome. They are not serialized (no `messageKey`). `style: 'info'` boxes the note — the
+tinted, left-ruled look of the General tab's fetch-notice items, in their info blue — for a
+pointer the reader should not skim past as body copy ("this is set on another tab").
 
 `color` items offer all 64 Pebble swatches; `excludeColors` subtracts specific ones (e.g.
 white from the holiday picker, where white means "no highlight" rather than a real color). A
@@ -330,12 +339,13 @@ picking the shown swatch is what writes it.
 | `description` | string | HTML description rendered below the label |
 | `hint` | string | HTML hint rendered below the control |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
-| `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows only (not `button`/`sheet` chevron rows or `inline` cells). Also re-resolved in place after a keyboard nudge on a range thumb. |
+| `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows and badged `sheet` rows (`editBadgeFrom`, see above) — not `button`/chevron `sheet` rows or `inline` cells. On value rows also re-resolved in place after a keyboard nudge on a range thumb. |
 | `icon` | string | Id of a glyph in the [icon registry](#icon-registry--pconficons), printed before the label text on a value row and on a `button`/`sheet` row alike. An unregistered id prints nothing. |
 | `attributes.placeholder` | string | Placeholder text for `text` items |
 | `capabilities` | `["COLOR"]` | Clay-compatible sugar: hides the item on b&w platforms |
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
-| `text` | string | HTML body for `staticText` items (only field besides `type`) |
+| `text` | string | HTML body for `staticText` items |
+| `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
 
 ### showWhen predicate grammar
 

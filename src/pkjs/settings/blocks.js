@@ -250,8 +250,9 @@ if (typeof require !== 'undefined') {
      * unit pickers and the AQI source/scale with no dependency list — and in place
      * after a keyboard nudge on a thumb, which commits without a render
      * (range-control.js). Now mode gets the kind's lead alone: the hold/mark tail
-     * describes rows that mode hides. The switch it points at rides the Alert levels
-     * header, which follows the display rows — hence "below", like the warn level.
+     * describes rows that mode hides. The warn level and the highlight switch it names
+     * live in the kind's Alerts sheet (the slot sheet only points there), so the hint
+     * sends the reader "under Alerts" for both; the tomorrow mark is still "below".
      * The page's HTML is raw here (engine renderRow),
      * so only numbers and the range table's unit label are interpolated — the rest is
      * schema copy.
@@ -273,10 +274,10 @@ if (typeof require !== 'undefined') {
         var on = Boolean(S) && S['thresh' + stem + 'On'] === true;
         return args.lead + ' Today\'s peak stays on screen while it is still ahead, and while '
             + args.subject + ' ' + pair.warn + (unit ? ' ' + unit : '')
-            + ' or higher — the warn level set below. Under that, tomorrow\'s peak shows'
+            + ' or higher — the warn level set under Alerts. Under that, tomorrow\'s peak shows'
             + ' instead, marked as chosen below. '
             + (on ? 'Highlighting follows the number shown.'
-                : 'Highlighting is off — switch it on below to color it.')
+                : 'Highlighting is off — switch it on under Alerts to color it.')
             + coda;
     }
     // THRESHOLD_RANGES / thresholdContract sit further down this file: both are read at
@@ -300,14 +301,6 @@ if (typeof require !== 'undefined') {
             if (contract.KINDS[i].code === code) { return 'thresh' + contract.KINDS[i].key; }
         }
         return null;
-    });
-
-    // The Alerts card row's sheet (editSheetFrom, args.keyStem): the kind's
-    // levels-only sheet (schema.js alertSheet). Same env gate as the slot pencil —
-    // the sheet itself is gated THRESHOLD_WHEN.
-    PConf.sheetResolvers.register('alertEditSheet', function (S, env, args) {
-        if (!env || !env.thresholds || !args || !args.keyStem) { return null; }
-        return 'alert' + args.keyStem;
     });
 
     // --- threshold sliders (the per-slot edit sheets' controls) ------------------
@@ -824,12 +817,13 @@ if (typeof require !== 'undefined') {
     // with the rows shaping their pair and UV's tomorrow mark, the wind/gust
     // direction arrows), the date formats and the Show-unit toggles
     // (the Alert levels group's own reset deliberately covers only the levels),
-    // and the Alerts card's own rows: each alert kind's switch and Look, and the
-    // rain alert's look. Deliberately untouched:
+    // and each bar's Alerts placement (BAR_ALERT_KEYS — the select lives in the
+    // bar's own sub-section of this card). Deliberately untouched:
     // thresholds, colors, outline toggles and scale maxes (every sheet has its own
-    // reset button), and the countdown companion dates (inert once a slot leaves
-    // 'countdown'). Silent beyond the re-render, like resetThresholds above — the
-    // engine has no shared toast for [data-action] buttons.
+    // reset button), the alerts themselves (the Alerts card has its own reset,
+    // resetAlerts below), and the countdown companion dates (inert once a slot
+    // leaves 'countdown'). Silent beyond the re-render, like resetThresholds above —
+    // the engine has no shared toast for [data-action] buttons.
     /**
      * @param {*} arg Unused (the engine passes the button's data-action-arg).
      * @param {Object} S Live settings state (mutated in place).
@@ -850,10 +844,7 @@ if (typeof require !== 'undefined') {
             'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
             'tempSlotOrder',
             'dateSlotMonthFormat',
-            'windSlotDirection', 'gustSlotDirection',
-            // The Alerts card's rain look. The rain countdown's window stays: it
-            // is the radar's alert switch, not a status-bar look.
-            'rainAlertDisplay']
+            'windSlotDirection', 'gustSlotDirection']
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
             // wind, gusts, AQI), from the catalog's one table.
             .concat(statusLineCatalog.dayMaxSettingKeys());
@@ -873,14 +864,10 @@ if (typeof require !== 'undefined') {
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {
-                var kind = contractMod.KINDS[k];
-                schemaKeys.push('thresh' + kind.key + 'BoldMode');
-                // The alert kinds are the level kinds that are neither bold-only
-                // nor goals — the same five the Alerts card lists (schema.js
-                // alertRows); each has a switch and a Look row there.
-                if (!kind.boldOnly && !kind.goal) {
-                    schemaKeys.push('alert' + kind.key, 'alert' + kind.key + 'Display');
-                }
+                schemaKeys.push('thresh' + contractMod.KINDS[k].key + 'BoldMode');
+            }
+            for (var b = 0; b < contractMod.BAR_ALERT_KEYS.length; b++) {
+                schemaKeys.push(contractMod.BAR_ALERT_KEYS[b].key);
             }
         }
         for (var n = 0; n < schemaKeys.length; n++) {
@@ -889,19 +876,51 @@ if (typeof require !== 'undefined') {
         return true;
     };
 
+    // Reset-to-defaults for the Alerts card (the text button in its intro — schema.js
+    // alertCardItems): every alert's switch and look back to its schema default, via
+    // the engine's resolver like resetStatusSlots above. The metric alerts are the
+    // level kinds that are neither bold-only nor goals — the five the card lists;
+    // rain's are alertRain (on) and rainAlertDisplay. Deliberately untouched: the
+    // levels and colours (each sheet's Alert levels header has its own reset, which
+    // also serves the slots' highlight), the rain time window (a tuning of the radar,
+    // not an on/off or a look) and each bar's placement (the status card's reset).
     /**
-     * The pencil badge of one threshold kind — the state a slot's pencil and an
-     * Alerts-card row preview alike: a warn-color ring + danger-color dot while the
-     * kind's highlight is ENABLED (the contract's kindConfig — the rule the watch
-     * actually packs with), plus, for a slot, the bold 'B'.
+     * @param {*} arg Unused (the engine passes the button's data-action-arg).
+     * @param {Object} S Live settings state (mutated in place).
+     * @param {Object} env Platform env (unused).
+     * @param {function(string): *} defaultOf The engine's stored-shape schema
+     *     default resolver (defaultAsStored).
+     * @returns {boolean} true so the engine re-renders with the restored state.
+     */
+    PConf.actions.resetAlerts = function (arg, S, env, defaultOf) {
+        if (!S || !defaultOf) { return false; }
+        var keys = ['alertRain', 'rainAlertDisplay'];
+        var contractMod = thresholdContract();
+        if (contractMod) {
+            for (var k = 0; k < contractMod.KINDS.length; k++) {
+                var kind = contractMod.KINDS[k];
+                if (!kind.boldOnly && !kind.goal) {
+                    keys.push('alert' + kind.key, 'alert' + kind.key + 'Display');
+                }
+            }
+        }
+        for (var n = 0; n < keys.length; n++) {
+            S[keys[n]] = defaultOf(keys[n]);
+        }
+        return true;
+    };
+
+    /**
+     * The pencil badge of one threshold kind's slot: a warn-color ring + danger-color
+     * dot while the kind's highlight is ENABLED (the contract's kindConfig — the rule
+     * the watch actually packs with), plus the bold 'B'. (The Alerts card's rows
+     * badge the alert instead — alertLevelBadge.)
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused; callers gate on env.thresholds).
      * @param {number} kindIndex Index into the contract's KINDS.
-     * @param {boolean} withBold Whether to preview the slot's always-bold state —
-     *     a slot property, so the Alerts card's rows pass false.
      * @returns {Object} Badge state for the engine's editBadgeFrom.
      */
-    function penStateForKind(S, env, kindIndex, withBold) {
+    function penStateForKind(S, env, kindIndex) {
         var contract = thresholdContract();
         var key = contract.KINDS[kindIndex].key;
         var enabled = contract.kindConfig(S, kindIndex).enabled;
@@ -912,7 +931,7 @@ if (typeof require !== 'undefined') {
         // that name trips the never-called-from-page guard) without touching
         // the stored per-kind values, and the badge previews what the watch
         // will actually render — so the master lights every slot's B.
-        var boldAlways = withBold && (S.statusBoldAll === 'all'
+        var boldAlways = (S.statusBoldAll === 'all'
             || S['thresh' + key + 'BoldMode'] === 'always');
         var notes = [];
         if (enabled) { notes.push('highlighting on'); }
@@ -947,7 +966,7 @@ if (typeof require !== 'undefined') {
         if (!contract) { return null; }
         var code = S[args.messageKey];
         for (var i = 0; i < contract.KINDS.length; i++) {
-            if (contract.KINDS[i].code === code) { return penStateForKind(S, env, i, true); }
+            if (contract.KINDS[i].code === code) { return penStateForKind(S, env, i); }
         }
         return null;
     });
@@ -966,24 +985,52 @@ if (typeof require !== 'undefined') {
         return -1;
     }
 
-    // The Alerts card row's badge (editBadgeFrom, args.keyStem): the slot pencil's
-    // ring + dot, without the 'B' — bold is how a SLOT prints, not part of the
-    // alert, and the row configures the alert only.
-    PConf.badgeResolvers.register('alertLevelBadge', function (S, env, args) {
+    /**
+     * The Alerts card row's badge (editBadgeFrom, args.keyStem): the colours the
+     * watch draws that alert in, while it is ON — a ring in the warn colour (the
+     * entry's outline; with no outline colour picked the watch outlines in the theme
+     * fg, since an icon has no bold to fall back on) and a dot in the danger colour
+     * (the filled box). No 'B': bold is how a SLOT prints, not part of the alert.
+     * The alert switch decides, not the highlight switch: the entries take the
+     * kind's colours either way. Rain draws in the radar's colours and never boxes,
+     * so its row has no dots, only the Edit button every row carries.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{keyStem: string}} args The row's alert: a level kind's stem, or 'Rain'.
+     * @returns {?Object} Badge state, or null where the alert cannot exist (aplite,
+     *     an unknown or level-less stem).
+     */
+    function alertLevelBadge(S, env, args) {
+        var st = S || {};
+        var stem = args && args.keyStem;
+        if (stem === 'Rain') {
+            var rainOn = st.alertRain !== false;
+            return {label: 'Edit', ariaNote: rainOn ? '' : 'off', dots: []};
+        }
         if (!env || !env.thresholds) { return null; }
         var contract = thresholdContract();
-        if (!contract) { return null; }
-        var i = levelKindIndex(contract, args && args.keyStem);
-        return i < 0 ? null : penStateForKind(S || {}, env, i, false);
-    });
+        if (!contract || levelKindIndex(contract, stem) < 0) { return null; }
+        if (st['alert' + stem] !== true) { return {label: 'Edit', ariaNote: 'off', dots: []}; }
+        var warn = thresholdDisplayColor(st, stem, 'Warn');
+        return {
+            label: 'Edit',
+            ariaNote: '',
+            dots: [
+                {color: warn === null ? thresholdAutoFg(st.theme) : warn, ring: true},
+                {color: thresholdDisplayColor(st, stem, 'Danger')}
+            ]
+        };
+    }
+    PConf.badgeResolvers.register('alertLevelBadge', alertLevelBadge);
 
     /**
-     * The Alerts card row's hint: the kind's levels and whether it highlights, e.g.
-     * "Warn 40 kph · Danger 60 kph · Highlight off". The pair is the resolved one
-     * (the stored pair, else the seed — what the watch judges with), in the unit the
-     * kind's slider shows, so the row reads the numbers its sheet opens on. Only
-     * numbers and the range table's unit label are interpolated (the engine prints
-     * hints as raw HTML).
+     * The Alerts card row's hint for a metric alert: "Off" while its switch is off,
+     * else the kind's levels and whether the slots highlight them, e.g. "Warn 40 kph
+     * · Danger 60 kph · Highlight off". The pair is the resolved one (the stored
+     * pair, else the seed — what the watch judges with), in the unit the kind's
+     * slider shows, so the row reads the numbers its sheet opens on. Only numbers and
+     * the range table's unit label are interpolated (the engine prints hints as raw
+     * HTML).
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {{keyStem: string}} args The row's kind key stem, e.g. 'Wind'.
@@ -996,6 +1043,7 @@ if (typeof require !== 'undefined') {
         var stem = args && args.keyStem;
         if (!contract || !THRESHOLD_RANGES[stem]) { return null; }
         var st = S || {};
+        if (st['alert' + stem] !== true) { return 'Off'; }
         var pair = contract.resolvedPair(stem, st);
         if (typeof pair.warn !== 'number' || typeof pair.danger !== 'number') { return null; }
         var unit = THRESHOLD_RANGES[stem](st).unit;
@@ -1004,6 +1052,39 @@ if (typeof require !== 'undefined') {
             + ' · Highlight ' + (st['thresh' + stem + 'On'] === true ? 'on' : 'off');
     }
     PConf.hintResolvers.register('alertLevelsHint', alertLevelsHint);
+
+    /**
+     * The label of a stored value in a [label, value] option list.
+     * @param {Array<Array<string>>} options The list.
+     * @param {*} value The stored value.
+     * @returns {?string} Its label, or null when the list has no such value.
+     */
+    function optionLabel(options, value) {
+        for (var i = 0; i < (options || []).length; i++) {
+            if (options[i][1] === String(value)) { return options[i][0]; }
+        }
+        return null;
+    }
+
+    /**
+     * The Alerts card's Rain row hint: "Off" while the rain alert's switch is off,
+     * else its time window and look by the labels its sheet offers them under, e.g.
+     * "Within 60 min · Text". The lists come from the schema through args (one
+     * copy of each); a value outside them reads as the sheet's default.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused: the row itself is platform-gated).
+     * @param {{windows: Array<Array<string>>, looks: Array<Array<string>>}} args The
+     *     sheet's option lists (schema.js RAIN_WINDOW_OPTIONS, RAIN_LOOK_OPTIONS).
+     * @returns {string} The hint.
+     */
+    function rainAlertHint(S, env, args) {
+        var st = S || {};
+        if (st.alertRain === false) { return 'Off'; }
+        var a = args || {};
+        return (optionLabel(a.windows, st.rainCountdownHorizon) || optionLabel(a.windows, '60'))
+            + ' · ' + (optionLabel(a.looks, st.rainAlertDisplay) || optionLabel(a.looks, 'text'));
+    }
+    PConf.hintResolvers.register('rainAlertHint', rainAlertHint);
 
     var viewCycleLib = (typeof require !== 'undefined')
         ? require('../view-cycle.js') : window.VIEW_CYCLE;

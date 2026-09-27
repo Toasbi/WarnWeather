@@ -5,7 +5,7 @@ const {
   clearPollenForProvider,
   dedupeStatusSlot,
   resetCountdownDate,
-  snapCountdownHorizon
+  forceRainAlert
 } = require('../src/pkjs/settings/reset-status-defaults.js');
 
 function todayValue() {
@@ -203,26 +203,22 @@ test('resetCountdownDate: already-countdown-to-countdown (no-op transition) leav
   assert.equal(S.statusForecastLeftCountdown, '2020-01-01');
 });
 
-// radarMode 'countdown' fetches the radar for the rain alert alone, so the Alerts
-// card's rain countdown may not stay Off there: entering the mode snaps '0' to '60'.
-test('snapCountdownHorizon: entering countdown mode turns an Off rain countdown back to 60 min', () => {
-  const S = { radarMode: 'countdown', rainCountdownHorizon: '0' };
-  snapCountdownHorizon(S, 'countdown');
-  assert.equal(S.rainCountdownHorizon, '60');
-  const numeric = { radarMode: 'countdown', rainCountdownHorizon: 0 };
-  snapCountdownHorizon(numeric, 'countdown');
-  assert.equal(numeric.rainCountdownHorizon, '60', 'a numeric 0 is Off too');
+// radarMode 'countdown' fetches the radar for the rain alert alone, so the rain alert
+// may not stay switched off there: entering the mode switches it back on.
+test('forceRainAlert: entering countdown mode switches the rain alert on', () => {
+  const S = { radarMode: 'countdown', alertRain: false, rainCountdownHorizon: '30' };
+  forceRainAlert(S, 'countdown');
+  assert.strictEqual(S.alertRain, true);
+  assert.equal(S.rainCountdownHorizon, '30', 'the window is left alone');
+  const unset = { radarMode: 'countdown' };
+  forceRainAlert(unset, 'countdown');
+  assert.strictEqual(unset.alertRain, true, 'an unset switch is written on');
 });
 
-test('snapCountdownHorizon: a chosen window, or any other mode, is left alone', () => {
-  ['30', '60', '120', undefined].forEach((h) => {
-    const S = { rainCountdownHorizon: h };
-    snapCountdownHorizon(S, 'countdown');
-    assert.equal(S.rainCountdownHorizon, h, 'window ' + h + ' kept');
-  });
+test('forceRainAlert: any other mode leaves the switch alone', () => {
   ['off', 'status', 'graph'].forEach((mode) => {
-    const S = { rainCountdownHorizon: '0' };
-    snapCountdownHorizon(S, mode);
-    assert.equal(S.rainCountdownHorizon, '0', 'Off kept in radarMode ' + mode);
+    const S = { alertRain: false };
+    forceRainAlert(S, mode);
+    assert.strictEqual(S.alertRain, false, 'off kept in radarMode ' + mode);
   });
 });

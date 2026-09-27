@@ -448,6 +448,45 @@ test('type:sheet WITH a badge renders as a preview + Edit row, not a chevron row
   assert.equal(plain.indexOf('thr-btn'), -1, 'and no Edit button');
 });
 
+test('a badged type:sheet row honours hintFrom: the resolver reads S, with no row value', () => {
+  // The Alerts card's rows: each prints its alert's live state under the label.
+  let seen = null;
+  global.PConf.hintResolvers.register('flagState', function (S, env, args) {
+    seen = args;
+    return S.flag ? 'On · ' + args.what : 'Off';
+  });
+  global.PConf.badgeResolvers.register('plainEdit', function () { return { label: 'Edit', dots: [] }; });
+  const item = { type: 'sheet', sheetId: 'sheetColors', label: 'Rain', hint: 'static',
+    hintFrom: { resolver: 'flagState', args: { what: 'levels' } },
+    editBadgeFrom: { resolver: 'plainEdit' } };
+  const SCH = sheetTriggerSchema(item);
+  const off = E.renderBody(SCH, 't', cxFor(E.hydrate(SCH, { flag: false })));
+  assert.ok(off.indexOf('<div class="hint">Off</div>') !== -1, 'the derived hint replaces the static one');
+  assert.equal(off.indexOf('static'), -1, 'the static hint is not printed');
+  assert.equal(seen.value, undefined, 'a sheet row has no value to hand over');
+  assert.equal(seen.what, 'levels', 'the schema args pass through');
+  const on = E.renderBody(SCH, 't', cxFor(E.hydrate(SCH, { flag: true })));
+  assert.ok(on.indexOf('<div class="hint">On · levels</div>') !== -1, 'follows S on the next render');
+  // Keyless: nothing for repaintDerivedHints to find it by, so no data-hint-for.
+  assert.equal(on.indexOf('data-hint-for'), -1, 'no data-hint-for="undefined" on a keyless row');
+  // A null answer falls back to the static hint, as on a value row.
+  global.PConf.hintResolvers.register('nothing', function () { return null; });
+  const FALLBACK = sheetTriggerSchema(Object.assign({}, item, { hintFrom: { resolver: 'nothing' } }));
+  assert.ok(E.renderBody(FALLBACK, 't', cxFor(E.hydrate(FALLBACK, {}))).indexOf('<div class="hint">static</div>') !== -1);
+});
+
+test('a subheader-hosted toggle honours its disabledWhen: disabled switch, held value, swallowed tap', () => {
+  const SCH = JSON.parse(JSON.stringify(SUB_SCHEMA));
+  SCH.tabs[0].sections[0].items[2].disabledWhen = { key: 'bold', eq: 'always' };
+  const held = E.renderEditModal(SCH, subCx(E.hydrate(SCH, { windOn: true, bold: 'always' })));
+  assert.match(held, /<button class="sw on" data-k="windOn" data-toggle="1" aria-label="Highlight this value" disabled><i><\/i><\/button>/,
+    'the switch renders disabled, keeping its on look');
+  const live = E.renderEditModal(SCH, subCx(E.hydrate(SCH, { windOn: true, bold: 'warn' })));
+  assert.equal(live.indexOf(' disabled>'), -1, 'live again once the condition lifts');
+  const shell = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  assert.match(shell, /\.sw\[disabled\] \{[^}]*opacity/, 'shell.html dims a disabled switch');
+});
+
 test('type:sheet honors showWhen like any other row', () => {
   const SCH = sheetTriggerSchema({ type: 'sheet', sheetId: 'sheetColors', label: 'Graph colors',
     showWhen: { env: 'color' } });

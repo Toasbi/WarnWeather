@@ -144,6 +144,9 @@
      the join variant reuses the same appearance and adds the pull-up spacing below. */
   .static.join, .static.hinted { color: var(--hint); font-size: 12.5px; line-height: 1.55; }
   .static.join { margin-top: -5px; padding-top: 0; }
+  /* style: 'info' — a boxed note, the General tab's fetch-notice item (notices-panel.js
+     .notice-item) in that panel's info blue: tinted fill, 3px left rule, rounded. */
+  .static.info .info-box { padding: 8px 10px; border-radius: 6px; background: rgba(90,140,255,0.12); border-left: 3px solid #5A8CFF; }
   /* inline data block attached to a control (e.g. last-fetch under Force weather fetch) */
   .blockrow { padding: 12px 16px 14px; font-size: 12.5px; color: var(--hint); line-height: 1.55; border-bottom: 1px solid var(--row-line); }
   .blockrow a { color: var(--link); }
@@ -169,6 +172,9 @@
   .sw.on { background: linear-gradient(135deg, #FA4A35, #D93A24); box-shadow: 0 2px 8px rgba(250,74,53,0.35); }
   .sw i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 11px; background: #fff; transition: left .18s; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
   .sw.on i { left: 21px; }
+  /* A hosted switch under its disabledWhen (renderToggle's `disabled`): inert, dimmed
+     like a .dis row, keeping its on/off look — it still shows the held value. */
+  .sw[disabled] { cursor: not-allowed; opacity: .45; }
   .radio { display: flex; flex-direction: column; gap: 8px; width: 100%; }
   .radio button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; border-radius: 10px; font: 600 13.5px 'Inter', sans-serif; border: 1px solid var(--ctl-line-soft); background: var(--ctl); color: var(--muted); transition: background .15s, border-color .15s, color .15s; }
   .radio button.on { border-color: #FA4A35; background: rgba(250,74,53,0.16); color: var(--fg); }
