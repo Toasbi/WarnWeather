@@ -2411,7 +2411,7 @@ module.exports = {
                 key: 'aqiSource',
                 fallback: 'waqi',
                 byValue: {
-                    waqi: ' Your AQI source (WAQI) has no forecast, so the current reading shows.',
+                    waqi: ' Your AQI provider (WAQI) has no forecast, so the current reading shows.',
                     auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
                 },
                 generic: ' The peak needs the Open-Meteo AQI provider (General tab).'
@@ -2589,11 +2589,14 @@ module.exports = {
                 // (view-cycle.js buildViewCycle: WO_RADAR / WO_RADAR_S / NONE_FC_W /
                 // WO_PLAIN), so its hint follows radarMode; the static one above is the
                 // Graph text, the default mode's. Every other preset keeps hintByValue.
+                // The resolver appends " Flick to health." only while a Health view exists
+                // (healthMode status/all on a health watch) — without one the Weather-only
+                // cycle is its Default view alone.
                 hintFrom: {resolver: 'weatherOnlyHint', args: {byRadar: {
-                    graph: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast. Flick to health.',
-                    status: 'No calendar and no top bar — the clock, the weather and radar status bars and a big forecast. Flick to health.',
-                    countdown: 'No calendar — the top bar, where the rain alert shows by default, then the clock, weather and a big forecast. Flick to health.',
-                    off: 'No calendar and no top bar — the clock, weather and a big forecast. Flick to health.'
+                    graph: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast.',
+                    status: 'No calendar and no top bar — the clock, the weather and radar status bars and a big forecast.',
+                    countdown: 'No calendar — the top bar, where the rain alert shows by default, then the clock, weather and a big forecast.',
+                    off: 'No calendar and no top bar — the clock, weather and a big forecast.'
                 }}},
                 // Compact-dense only differs from Compact when a health status row OR the
                 // radar status row is shown; with both off the two produce identical cycles,

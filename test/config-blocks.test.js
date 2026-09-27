@@ -312,6 +312,26 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'aplite (no thresholds env) badges nothing, B included');
 });
 
+// "Flick to health" is only true while a Health view exists in the Weather-only cycle:
+// healthMode 'status' / 'all' on a health watch. 'slot' and 'off' add no view.
+test('weatherOnlyHint promises a health flick only when a Health view exists', () => {
+  const hint = PConf.hintResolvers.get('weatherOnlyHint');
+  assert.equal(typeof hint, 'function', 'hint resolver registered');
+  const args = { value: 'weatherOnly', byRadar: { graph: 'Graph text.', off: 'Off text.' } };
+  const env = { health: true };
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'all' }, env, args), 'Graph text. Flick to health.');
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'status' }, env, args), 'Graph text. Flick to health.');
+  assert.equal(hint({ radarMode: 'graph' }, env, args), 'Graph text. Flick to health.',
+    'an absent healthMode reads as the schema default, all');
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'slot' }, env, args), 'Graph text.',
+    'health in the status slots adds no view to flick to');
+  assert.equal(hint({ radarMode: 'off', healthMode: 'off' }, env, args), 'Off text.');
+  assert.equal(hint({ radarMode: 'graph', healthMode: 'all' }, { health: false }, args), 'Graph text.',
+    'a watch without health sensors has no Health view');
+  assert.equal(hint({ radarMode: 'graph' }, env, { value: 'noCal', byRadar: args.byRadar }), null,
+    'other presets keep their static hint');
+});
+
 test('alertLevelsHint: "Off" while the alert is off, else the resolved pair and the unit — never the slot highlight', () => {
   const hint = PConf.hintResolvers.get('alertLevelsHint');
   assert.equal(typeof hint, 'function', 'hint resolver registered');

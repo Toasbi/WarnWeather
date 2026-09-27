@@ -1770,7 +1770,7 @@ test('dayMaxHint: wind and gusts quote the level in the unit the slider shows', 
 });
 
 test('dayMaxHint: AQI quotes the seed of its scale and adds the source note only where it bites', () => {
-  const waqi = ' Your AQI source (WAQI) has no forecast, so the current reading shows.';
+  const waqi = ' Your AQI provider (WAQI) has no forecast, so the current reading shows.';
   const us = dayMaxHintOf('aqi', {}, 'max');
   assert.ok(us.indexOf('the AQI is below 100 (your warn level)') !== -1, 'US seed, no unit: ' + us);
   assert.ok(us.slice(-waqi.length) === waqi, 'an absent source reads as WAQI, the default');

@@ -1115,7 +1115,16 @@ if (typeof require !== 'undefined') {
     function weatherOnlyHint(S, env, args) {
         if (!args || args.value !== 'weatherOnly' || !args.byRadar) { return null; }
         var mode = (S && S.radarMode) || 'graph';
-        return args.byRadar[mode] || null;
+        var text = args.byRadar[mode];
+        if (!text) { return null; }
+        // "Flick to health" only while a Health view exists to flick to: the health
+        // bar or graph (healthMode 'status' / 'all', the schema default) on a watch
+        // with health sensors. 'slot' puts health in the status slots and adds no view,
+        // so the Weather-only cycle is then its Default view alone (view-cycle.js).
+        var healthMode = (S && S.healthMode) || 'all';
+        var flick = (healthMode === 'status' || healthMode === 'all')
+            && !(env && env.health === false);
+        return flick ? text + ' Flick to health.' : text;
     }
     PConf.hintResolvers.register('weatherOnlyHint', weatherOnlyHint);
 
