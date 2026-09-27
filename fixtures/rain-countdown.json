@@ -27,11 +27,11 @@
     "barSource": "off",
     "rainBarColor": "multicolor",
     "radarColor": "white",
-    "alertUv": true,
+    "threshUvOn": true,
     "alertUvDisplay": "value",
     "threshUvWarn": "6",
     "threshUvDanger": "8",
-    "alertWind": true,
+    "threshWindOn": true,
     "alertWindDisplay": "value",
     "threshWindWarn": "50",
     "threshWindDanger": "80"

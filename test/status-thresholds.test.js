@@ -773,10 +773,11 @@ test('buildSettingsBlob: byte 34 carries the rain alert look in bits 0-1', () =>
   assert.equal(th.buildSettingsBlob({ rainAlertDisplay: 'bogus' })[34], 0, 'unknown = text');
   // Bits 2-7 are reserved: whatever else is configured, they stay 0.
   const busy = th.buildSettingsBlob({ rainAlertDisplay: 'minutes', statusBoldAll: 'all',
-    alertUv: true, alertUvDisplay: 'value', threshUvOn: true });
+    threshUvOn: true, alertUvDisplay: 'value' });
   assert.equal(busy[34], 2);
-  // Which metric alerts are on never rides the Clay blob.
-  assert.deepEqual(th.buildSettingsBlob({ alertUv: true, alertWind: true }),
+  // A metric alert's Look never rides the Clay blob (its switch does, as the kind's
+  // enable bit — the slot highlight's own bit).
+  assert.deepEqual(th.buildSettingsBlob({ alertUvDisplay: 'value', alertWindDisplay: 'value' }),
     th.buildSettingsBlob({}));
 });
 
@@ -904,21 +905,21 @@ const ALL_ALERTING = {
   AQI_TREND: [152],
   POLLEN_TODAY: '2'
 };
-const ALL_ON = { alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true };
+const ALL_ON = { threshUvOn: true, threshWindOn: true, threshGustOn: true, threshAqiOn: true, threshPollenOn: true };
 
 test('bakeAlerts: the exact bytes for a UV-danger + wind-warn row', () => {
   const p = { UV_TREND_UINT8: [30], UV_DAY_PEAKS: [85, 50, 0],
     WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 20, 0] };
   // Icons only: one header byte each. UV = kind 7, danger (2); wind = kind 2, warn (1).
-  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertWind: true }, 8),
+  assert.deepEqual(th.bakeAlerts(p, { threshUvOn: true, threshWindOn: true }, 8),
     [7 | (2 << 3), 2 | (1 << 3)]);
-  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertWind: true }, 8), [0x17, 0x0A]);
+  assert.deepEqual(th.bakeAlerts(p, { threshUvOn: true, threshWindOn: true }, 8), [0x17, 0x0A]);
   // UV with its value ("9" — 8.5 rounds like the slot prints it), wind icon-only.
-  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertUvDisplay: 'value', alertWind: true }, 8),
+  assert.deepEqual(th.bakeAlerts(p, { threshUvOn: true, alertUvDisplay: 'value', threshWindOn: true }, 8),
     [7 | (2 << 3) | (1 << 5), 0x39, 2 | (1 << 3)]);
   // Both with values: wind in the user's unit, no unit label.
-  assert.deepEqual(decodeAlerts(th.bakeAlerts(p, { alertUv: true, alertUvDisplay: 'value',
-    alertWind: true, alertWindDisplay: 'value', windUnits: 'mph' }, 8)),
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(p, { threshUvOn: true, alertUvDisplay: 'value',
+    threshWindOn: true, alertWindDisplay: 'value', windUnits: 'mph' }, 8)),
   [{ kind: 7, level: 2, value: '9' }, { kind: 2, level: 1, value: '28' }],
   'mph: 45 km/h = 28 mph, at the mph seed warn 25');
 });
@@ -930,13 +931,13 @@ test('bakeAlerts: fixed order UV, wind, gust, AQI, pollen; disabled and quiet ki
   assert.deepEqual(all.map(e => e.value), ['', '', '', '', ''], 'icon Look: no values');
   // A disabled alert is absent even at danger; only === true switches one on.
   assert.deepEqual(decodeAlerts(th.bakeAlerts(ALL_ALERTING,
-    { alertUv: false, alertGust: true, alertAqi: 'true' }, 19)).map(e => e.kind), [3]);
+    { threshUvOn: false, threshGustOn: true, threshAqiOn: 'true' }, 19)).map(e => e.kind), [3]);
   // Level 0 (below warn) is absent.
   const calm = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 20, 0], WIND_TREND_UINT8: [45] };
-  assert.deepEqual(decodeAlerts(th.bakeAlerts(calm, { alertUv: true, alertWind: true }, 19))
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(calm, { threshUvOn: true, threshWindOn: true }, 19))
     .map(e => e.kind), [2], 'UV 3 stays quiet, wind 45 warns');
   // Nothing alerting, no settings, no payload: no bytes.
-  assert.deepEqual(th.bakeAlerts(calm, { alertUv: true }, 19), []);
+  assert.deepEqual(th.bakeAlerts(calm, { threshUvOn: true }, 19), []);
   assert.deepEqual(th.bakeAlerts(ALL_ALERTING, null, 19), []);
   assert.deepEqual(th.bakeAlerts(null, ALL_ON, 19), []);
 });
@@ -950,7 +951,7 @@ test('bakeAlerts: values only for the kinds whose Look is value, printed like th
   assert.deepEqual(e.map(x => x.value), ['8', '', '90', '152', '2']);
   // Pollen prints its DWD band, as the pollen slot does.
   const half = decodeAlerts(th.bakeAlerts({ POLLEN_TODAY: '2-3' },
-    { alertPollen: true, alertPollenDisplay: 'value' }, 19));
+    { threshPollenOn: true, alertPollenDisplay: 'value' }, 19));
   assert.deepEqual(half, [{ kind: 1, level: 1, value: '2-3' }]);
   // Every value byte is printable ASCII (the watch's walker rejects anything else).
   th.bakeAlerts(ALL_ALERTING, s, 19).forEach((b, i, all) => {
@@ -987,10 +988,10 @@ test('bakeAlerts: tail-drops entries past the cap, pollen first (edge 8 / mid 19
 test('alertKindCodes / alertValueKindCodes: enabled codes in the row order', () => {
   assert.deepEqual(th.alertKindCodes({}), []);
   assert.deepEqual(th.alertKindCodes(ALL_ON), ['uv', 'wind', 'gust', 'aqi', 'pollen']);
-  assert.deepEqual(th.alertKindCodes({ alertAqi: true, alertUv: true, alertWind: false }),
+  assert.deepEqual(th.alertKindCodes({ threshAqiOn: true, threshUvOn: true, threshWindOn: false }),
     ['uv', 'aqi']);
-  assert.deepEqual(th.alertValueKindCodes({ alertAqi: true, alertAqiDisplay: 'value',
-    alertUv: true, alertUvDisplay: 'icon', alertWind: false, alertWindDisplay: 'value' }),
+  assert.deepEqual(th.alertValueKindCodes({ threshAqiOn: true, alertAqiDisplay: 'value',
+    threshUvOn: true, alertUvDisplay: 'icon', threshWindOn: false, alertWindDisplay: 'value' }),
   ['aqi'], 'a disabled alert\'s Look does not count');
   assert.deepEqual(th.alertKindCodes(null), []);
 });

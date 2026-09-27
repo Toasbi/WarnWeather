@@ -312,29 +312,27 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'aplite (no thresholds env) badges nothing, B included');
 });
 
-test('alertLevelsHint: "Off" while the alert is off, else the resolved pair, the unit and the highlight state', () => {
+test('alertLevelsHint: "Off" while the alert is off, else the resolved pair and the unit', () => {
   const hint = PConf.hintResolvers.get('alertLevelsHint');
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
   assert.equal(hint({}, env, uv), 'Off', 'an unset alert reads Off (its default)');
-  assert.equal(hint({ alertUv: false, threshUvOn: true }, env, uv), 'Off',
-    'Off whatever the highlight says: the row describes the alert');
-  const on = (S) => Object.assign({ alertUv: true, alertWind: true, alertAqi: true }, S);
-  assert.equal(hint(on({}), env, uv), 'Warn 6 · Danger 8 · Highlight off',
+  assert.equal(hint({ threshUvOn: false, threshUvWarn: '5', threshUvDanger: '9' }, env, uv), 'Off',
+    'Off whatever the levels say: the row describes the alert');
+  const on = (S) => Object.assign({ threshUvOn: true, threshWindOn: true, threshAqiOn: true }, S);
+  assert.equal(hint(on({}), env, uv), 'Warn 6 · Danger 8',
     'a blank pair reads as the kind\'s seed');
   assert.equal(hint(on({ threshUvWarn: '5', threshUvDanger: '9' }), env, uv),
-    'Warn 5 · Danger 9 · Highlight off', 'a stored pair wins');
-  assert.equal(hint(on({ threshUvOn: true }), env, uv), 'Warn 6 · Danger 8 · Highlight on',
-    'on/off follows the stored switch');
+    'Warn 5 · Danger 9', 'a stored pair wins');
   assert.equal(hint(on({ windUnits: 'mph' }), env, { keyStem: 'Wind' }),
-    'Warn 25 mph · Danger 40 mph · Highlight off',
+    'Warn 25 mph · Danger 40 mph',
     'wind speaks the slider\'s unit, on both numbers');
   // AQI seeds follow the scale: European (Open-Meteo, non-US) 60/80, US 100/150.
   assert.equal(hint(on({ aqiSource: 'openmeteo', aqiScale: 'european' }), env, { keyStem: 'Aqi' }),
-    'Warn 60 · Danger 80 · Highlight off', 'the European AQI seed');
+    'Warn 60 · Danger 80', 'the European AQI seed');
   assert.equal(hint(on({ aqiSource: 'openmeteo', aqiScale: 'us' }), env, { keyStem: 'Aqi' }),
-    'Warn 100 · Danger 150 · Highlight off', 'the US AQI seed');
+    'Warn 100 · Danger 150', 'the US AQI seed');
   assert.equal(hint(on({}), { thresholds: false }, uv), null, 'aplite: no levels to describe');
   assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
 });
@@ -361,22 +359,22 @@ test('alertLevelBadge: the alert\'s colours while it is on, no bold B; rain gets
   assert.equal(typeof badge, 'function', 'badge resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
-  const off = badge({ threshUvOn: true, threshUvDangerColor: '#FF0000' }, env, uv);
+  const off = badge({ threshUvOn: false, threshUvDangerColor: '#FF0000' }, env, uv);
   assert.equal(off.label, 'Edit');
-  assert.deepEqual(off.dots, [], 'alert off: no dots, whatever the highlight says');
+  assert.deepEqual(off.dots, [], 'alert off: no dots');
   assert.equal(off.ariaNote, 'off');
   // On: the entry's outline (warn) and fill (danger). With no warn outline picked the
   // watch outlines an alert entry in the theme fg anyway — an icon has no bold.
-  const on = badge({ alertUv: true, theme: 'dark', threshUvDangerColor: '#FF0000' }, env, uv);
+  const on = badge({ threshUvOn: true, theme: 'dark', threshUvDangerColor: '#FF0000' }, env, uv);
   assert.equal(on.dots.length, 2, 'warn ring + danger fill');
   assert.deepEqual(on.dots[0], { color: '#FFFFFF', ring: true }, 'no outline colour: the theme fg ring');
   assert.ok(!on.dots[1].ring, 'then the fill (danger)');
   assert.equal(on.dots[1].color, '#FF0000');
   assert.equal(on.ariaNote, '');
   assert.ok(!on.bold, 'no B: bold is a slot property');
-  const picked = badge({ alertUv: true, threshUvWarnColor: '#00AAFF' }, env, uv);
+  const picked = badge({ threshUvOn: true, threshUvWarnColor: '#00AAFF' }, env, uv);
   assert.equal(picked.dots[0].color, '#00AAFF', 'a picked outline colour rings');
-  const allBold = badge({ alertUv: true, statusBoldAll: 'all', threshUvBoldMode: 'always' }, env, uv);
+  const allBold = badge({ threshUvOn: true, statusBoldAll: 'all', threshUvBoldMode: 'always' }, env, uv);
   assert.ok(!allBold.bold, 'not even under the master Bold row');
   // Rain draws in the radar's colours and never boxes: the button only.
   assert.deepEqual(badge({}, env, { keyStem: 'Rain' }), { label: 'Edit', ariaNote: '', dots: [] });
@@ -384,7 +382,7 @@ test('alertLevelBadge: the alert\'s colours while it is on, no bold B; rain gets
     { label: 'Edit', ariaNote: 'off', dots: [] });
   assert.equal(badge({}, env, { keyStem: 'Nope' }), null, 'unknown stem');
   assert.equal(badge({}, env, { keyStem: 'Temp' }), null, 'bold-only stem');
-  assert.equal(badge({ alertUv: true }, { thresholds: false }, uv), null, 'aplite');
+  assert.equal(badge({ threshUvOn: true }, { thresholds: false }, uv), null, 'aplite');
 });
 
 test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {

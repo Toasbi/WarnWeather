@@ -57,10 +57,11 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Dang
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.
 const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
-// The Alerts card's own keys: each alert kind's switch and Look, the rain alert's switch
-// and look — and each status bar's Alerts placement (the select in the bar's card).
+// The Alerts card's own keys: each alert kind's Look (its switch is the kind's
+// thresh<Stem>On, listed with the level keys), the rain alert's switch and look — and
+// each status bar's Alerts placement (the select in the bar's card).
 const PLACE_KEYS = ['statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'];
-const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem, 'alert' + stem + 'Display']),
+const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem + 'Display']),
   ['alertRain', 'rainAlertDisplay']).concat(PLACE_KEYS);
 // The Graph-colors rows: every metric colour, with one picker per theme polarity so a
 // Dark and a Light pick never overwrite one another (the colorUSFederal idiom). The list
@@ -2361,7 +2362,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   // the levels (an alert kind's one home for them).
   const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
   ['data-k="threshAqiBoldMode"', 'Air quality (AQI) slot',
-    '<div class="info-box">Alert levels and the highlight switch are set under Alerts on the Status slots tab.</div>']
+    '<div class="info-box">The alert levels and this value\'s alert switch are set under Alerts on the Status slots tab.</div>']
     .forEach((frag) => assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt slot sheet carries ' + frag));
   assert.equal(basaltSheet.indexOf('data-range="threshAqiWarn"'), -1, 'no levels in the slot sheet');
   const alertSheet = eng.renderEditModal(schema, watchCx('basalt', 'alertAqi'));

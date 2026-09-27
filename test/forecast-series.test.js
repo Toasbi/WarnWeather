@@ -1346,16 +1346,16 @@ test('an enabled alert makes UV, AQI and pollen fetch with no slot or line', () 
   const none = { secondaryLine: 'wind', thirdLine: 'off', statusRadarLeft: 'empty',
     statusForecastRight: 'empty' };
   assert.equal(needsUv(none), false, 'guard: nothing selects uv');
-  assert.equal(needsUv(Object.assign({ alertUv: true }, none)), true);
-  assert.equal(needsUv(Object.assign({ alertUv: false }, none)), false);
+  assert.equal(needsUv(Object.assign({ threshUvOn: true }, none)), true);
+  assert.equal(needsUv(Object.assign({ threshUvOn: false }, none)), false);
   assert.equal(needsAqi(none), false, 'guard: nothing selects aqi');
-  assert.equal(needsAqi(Object.assign({ alertAqi: true }, none)), true);
+  assert.equal(needsAqi(Object.assign({ threshAqiOn: true }, none)), true);
   // Pollen stays DWD-only.
-  assert.equal(needsPollen(Object.assign({ provider: 'dwd', alertPollen: true }, none)), true);
-  assert.equal(needsPollen(Object.assign({ provider: 'openmeteo', alertPollen: true }, none)), false);
+  assert.equal(needsPollen(Object.assign({ provider: 'dwd', threshPollenOn: true }, none)), true);
+  assert.equal(needsPollen(Object.assign({ provider: 'openmeteo', threshPollenOn: true }, none)), false);
   // ...and the day-max kinds' day peaks with them, in every slot display mode.
   assert.deepEqual(dayPeakCodes(none), []);
-  assert.deepEqual(dayPeakCodes(Object.assign({ alertUv: true, alertWind: true,
-    alertGust: true, alertAqi: true, uvSlotDisplay: 'current' }, none)),
+  assert.deepEqual(dayPeakCodes(Object.assign({ threshUvOn: true, threshWindOn: true,
+    threshGustOn: true, threshAqiOn: true, uvSlotDisplay: 'current' }, none)),
   ['uv', 'wind', 'gust', 'aqi']);
 });

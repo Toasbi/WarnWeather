@@ -93,27 +93,28 @@ test('Edit opens the alert sheet; flipping its switch turns the row live — lev
   page.openEditSheet('alertUv');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the alert sheet opened');
-  assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert</span><button class="sw" data-k="alertUv"') !== -1,
+  assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert</span><button class="sw" data-k="threshUvOn"') !== -1,
     'its switch rides the Alert sub-header');
   assert.ok(/<div class="row[^"]*\bdis\b[^"]*">(?:(?!<div class="row)[\s\S])*?data-k="alertUvDisplay"/.test(sheet),
     'the Look is inert while the alert is off');
   assert.ok(sheet.indexOf('data-range="threshUvWarn"') !== -1, 'the levels live in this sheet');
-  page.clickModalToggle('alertUv');
-  assert.strictEqual(page.S.alertUv, true, 'the switch stores');
+  page.clickModalToggle('threshUvOn');
+  assert.strictEqual(page.S.threshUvOn, true, 'the switch stores');
   assert.ok(!/<div class="row[^"]*\bdis\b[^"]*">(?:(?!<div class="row)[\s\S])*?data-k="alertUvDisplay"/.test(page.modal.innerHTML),
     'the Look goes live');
   const row = rowOf(page.scroll.innerHTML, 'data-edit-sheet="alertUv"');
-  assert.ok(row.indexOf('<div class="hint">Warn 6 · Danger 8 · Highlight off</div>') !== -1,
+  assert.ok(row.indexOf('<div class="hint">Warn 6 · Danger 8</div>') !== -1,
     'the card row prints the live levels: ' + row);
   assert.ok(row.indexOf('pen-dot ring') !== -1 && row.indexOf('pen-dot fill" style="--th-c:#FF0000"') !== -1,
     'and the alert\'s colour dots');
   page.clickModalToggle('threshUvOn');
-  assert.ok(rowOf(page.scroll.innerHTML, 'data-edit-sheet="alertUv"')
-    .indexOf('Warn 6 · Danger 8 · Highlight on') !== -1, 'the highlight state follows too');
+  const offRow = rowOf(page.scroll.innerHTML, 'data-edit-sheet="alertUv"');
+  assert.ok(offRow.indexOf('<div class="hint">Off</div>') !== -1, 'switched off, the row reads Off');
+  assert.equal(offRow.indexOf('pen-dot'), -1, 'and badges no dots');
 });
 
 test('the Look reads its hint by value', () => {
-  const page = watchTab({ alertWind: true });
+  const page = watchTab({ threshWindOn: true });
   page.openEditSheet('alertWind');
   // The default (icon-only) look carries no hint — nothing to explain, and describing
   // the default look is against the hint style; only the value look gets one.
@@ -180,7 +181,7 @@ test('the slot pencil sheet points at the Alerts card instead of holding the lev
   const page = watchTab();
   page.openEditSheet('threshUv');
   const sheet = page.modal.innerHTML;
-  assert.ok(sheet.indexOf('<div class="static info"><div class="info-box">Alert levels and the highlight switch are set under Alerts on the Status slots tab.</div></div>') !== -1,
+  assert.ok(sheet.indexOf('<div class="static info"><div class="info-box">The alert levels and this value\'s alert switch are set under Alerts on the Status slots tab.</div></div>') !== -1,
     'the info-box pointer');
   assert.equal(sheet.indexOf('Alert levels</span>'), -1, 'no levels group');
   assert.equal(sheet.indexOf('data-range="threshUvWarn"'), -1, 'no slider');
@@ -214,12 +215,12 @@ test('each bar picks where its alerts show: the Watch Status Bar Left, the forec
 test('pollen alert row is DWD-only', () => {
   const dwd = watchTab().scroll.innerHTML;
   assert.ok(dwd.indexOf('data-edit-sheet="alertPollen"') !== -1, 'shown with DWD');
-  const other = watchTab({ provider: 'openmeteo', alertPollen: true }).scroll.innerHTML;
+  const other = watchTab({ provider: 'openmeteo', threshPollenOn: true }).scroll.innerHTML;
   assert.equal(other.indexOf('data-edit-sheet="alertPollen"'), -1, 'hidden with another provider');
 });
 
 test('aplite: the whole Alerts card and every placement select are absent', () => {
-  const html = watchTab({ alertUv: true }, 'aplite').scroll.innerHTML;
+  const html = watchTab({ threshUvOn: true }, 'aplite').scroll.innerHTML;
   assert.equal(html.indexOf('<span class="ttl">Alerts</span>'), -1, 'no card');
   assert.equal(html.indexOf('One icon per active alert'), -1, 'no intro');
   assert.equal(html.indexOf('Turn on the rain radar'), -1, 'no radar note');
@@ -229,14 +230,14 @@ test('aplite: the whole Alerts card and every placement select are absent', () =
 });
 
 test('the card reset button reverts the alerts on a live page', () => {
-  const page = watchTab({ alertUv: true, alertUvDisplay: 'value', alertRain: false, rainAlertDisplay: 'icon',
+  const page = watchTab({ threshUvOn: true, alertUvDisplay: 'value', alertRain: false, rainAlertDisplay: 'icon',
     statusTopAlerts: 'right' });
   const t = {
     getAttribute: n => (n === 'data-action' ? 'resetAlerts' : null),
     closest: sel => (sel === '[data-action]' ? t : null)
   };
   page.scroll.dispatch('click', { target: t });
-  assert.strictEqual(page.S.alertUv, false);
+  assert.strictEqual(page.S.threshUvOn, false);
   assert.equal(page.S.alertUvDisplay, 'icon');
   assert.strictEqual(page.S.alertRain, true);
   assert.equal(page.S.rainAlertDisplay, 'text');
@@ -246,7 +247,7 @@ test('the card reset button reverts the alerts on a live page', () => {
 });
 
 test('the status card reset reverts every bar\'s placement on a live page', () => {
-  const page = watchTab({ statusTopAlerts: 'off', statusForecastAlerts: 'right', alertUv: true });
+  const page = watchTab({ statusTopAlerts: 'off', statusForecastAlerts: 'right', threshUvOn: true });
   const t = {
     getAttribute: n => (n === 'data-action' ? 'resetStatusSlots' : null),
     closest: sel => (sel === '[data-action]' ? t : null)
@@ -254,5 +255,5 @@ test('the status card reset reverts every bar\'s placement on a live page', () =
   page.scroll.dispatch('click', { target: t });
   assert.equal(page.S.statusTopAlerts, 'left');
   assert.equal(page.S.statusForecastAlerts, 'off');
-  assert.strictEqual(page.S.alertUv, true, 'the alerts are the Alerts card\'s');
+  assert.strictEqual(page.S.threshUvOn, true, 'the alerts are the Alerts card\'s');
 });

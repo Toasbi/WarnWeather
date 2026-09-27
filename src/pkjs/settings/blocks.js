@@ -277,7 +277,7 @@ if (typeof require !== 'undefined') {
             + ' or higher — the warn level set under Alerts. Under that, tomorrow\'s peak shows'
             + ' instead, marked as chosen below. '
             + (on ? 'Highlighting follows the number shown.'
-                : 'Highlighting is off — switch it on under Alerts to color it.')
+                : 'The alert is off — switch it on under Alerts to highlight it.')
             + coda;
     }
     // THRESHOLD_RANGES / thresholdContract sit further down this file: both are read at
@@ -519,8 +519,10 @@ if (typeof require !== 'undefined') {
         }
     });
 
-    // Flipping "Highlight on the watch" (thresh<K>On). The toggle is STORED state
-    // and switches only the highlight — the levels live on without it (the
+    // Flipping a level kind's switch (thresh<K>On: a weather kind's Alert switch,
+    // which highlights its slot and shows its Alerts-row icon; a goal kind's Goals
+    // switch). The toggle is STORED state and switches only the highlight and the
+    // alert — the levels live on without it (the
     // Alert-mode hold keeps using the warn level, and the phone packs every
     // weather kind's level; the watch gates them on the enable bit). So OFF
     // leaves the pair alone: the stored false IS the state. ON pins the kind's
@@ -618,12 +620,15 @@ if (typeof require !== 'undefined') {
         var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(stem));
         // Every key with a schema default lands on it THROUGH the engine's resolver —
         // mirrored literals drift when the schema changes (see resetStatusSlots
-        // below). The result is exactly a fresh install: the stored toggle OFF
-        // (resetting the levels switches the highlight off too), the blank pair
-        // (= the kind's seed, resolved live — a wind pair follows windUnits
-        // again), the cleared Max, and the goal-vs-weather outline color/toggle
-        // are all schema defaults.
-        var keys = ['On', 'Warn', 'Danger', 'Max', 'WarnColor', 'WarnOutlineOn'];
+        // below). The result is exactly a fresh install: for a goal kind the stored
+        // toggle OFF (its switch rides the Goals header this reset sits on), the
+        // blank pair (= the kind's seed, resolved live — a wind pair follows
+        // windUnits again), the cleared Max, and the goal-vs-weather outline
+        // color/toggle are all schema defaults. A weather kind's switch is its
+        // alert's, on the sheet's top header above this group, so the levels reset
+        // leaves it alone (the Alerts card's reset owns it: resetAlerts).
+        var keys = ['Warn', 'Danger', 'Max', 'WarnColor', 'WarnOutlineOn'];
+        if (goal) { keys.unshift('On'); }
         for (var d = 0; d < keys.length; d++) {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
         }
@@ -643,7 +648,9 @@ if (typeof require !== 'undefined') {
         // shared with the wizard finish); this caller contributes only the veto
         // scoping it to THIS kind's threshold-family keys, Bold deliberately
         // excluded (the reset leaves Bold alone — its row sits outside the
-        // Thresholds group). Unlike the wizard, no not-still-default guard:
+        // Thresholds group), and so is a weather kind's switch (above: AQI's
+        // reset lands the warn outline, not the alert). Unlike the wizard, no
+        // not-still-default guard:
         // reset IS the user discarding their choices for this kind.
         var policy = (typeof require !== 'undefined')
             ? require('./defaults-policy.js')
@@ -652,7 +659,8 @@ if (typeof require !== 'undefined') {
             policy.applyDefaults({wizard: true, env: env, choices: S}, {
                 mayWrite: function (name) {
                     return name.indexOf('thresh' + stem) === 0
-                        && name !== 'thresh' + stem + 'BoldMode';
+                        && name !== 'thresh' + stem + 'BoldMode'
+                        && (goal || name !== 'thresh' + stem + 'On');
                 },
                 getHook: function (name) {
                     return PConf.onChange && PConf.onChange.get
@@ -900,7 +908,7 @@ if (typeof require !== 'undefined') {
             for (var k = 0; k < contractMod.KINDS.length; k++) {
                 var kind = contractMod.KINDS[k];
                 if (!kind.boldOnly && !kind.goal) {
-                    keys.push('alert' + kind.key, 'alert' + kind.key + 'Display');
+                    keys.push('thresh' + kind.key + 'On', 'alert' + kind.key + 'Display');
                 }
             }
         }
@@ -991,8 +999,8 @@ if (typeof require !== 'undefined') {
      * entry's outline; with no outline colour picked the watch outlines in the theme
      * fg, since an icon has no bold to fall back on) and a dot in the danger colour
      * (the filled box). No 'B': bold is how a SLOT prints, not part of the alert.
-     * The alert switch decides, not the highlight switch: the entries take the
-     * kind's colours either way. Rain draws in the radar's colours and never boxes,
+     * The alert's one switch (thresh<Stem>On) decides. Rain draws in the radar's
+     * colours and never boxes,
      * so its row has no dots, only the Edit button every row carries.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
@@ -1010,7 +1018,7 @@ if (typeof require !== 'undefined') {
         if (!env || !env.thresholds) { return null; }
         var contract = thresholdContract();
         if (!contract || levelKindIndex(contract, stem) < 0) { return null; }
-        if (st['alert' + stem] !== true) { return {label: 'Edit', ariaNote: 'off', dots: []}; }
+        if (st['thresh' + stem + 'On'] !== true) { return {label: 'Edit', ariaNote: 'off', dots: []}; }
         var warn = thresholdDisplayColor(st, stem, 'Warn');
         return {
             label: 'Edit',
@@ -1024,9 +1032,9 @@ if (typeof require !== 'undefined') {
     PConf.badgeResolvers.register('alertLevelBadge', alertLevelBadge);
 
     /**
-     * The Alerts card row's hint for a metric alert: "Off" while its switch is off,
-     * else the kind's levels and whether the slots highlight them, e.g. "Warn 40 kph
-     * · Danger 60 kph · Highlight off". The pair is the resolved one (the stored
+     * The Alerts card row's hint for a metric alert: "Off" while its switch
+     * (thresh<Stem>On) is off, else the kind's levels, e.g. "Warn 40 kph · Danger
+     * 60 kph". The pair is the resolved one (the stored
      * pair, else the seed — what the watch judges with), in the unit the kind's
      * slider shows, so the row reads the numbers its sheet opens on. Only numbers and
      * the range table's unit label are interpolated (the engine prints hints as raw
@@ -1043,13 +1051,12 @@ if (typeof require !== 'undefined') {
         var stem = args && args.keyStem;
         if (!contract || !THRESHOLD_RANGES[stem]) { return null; }
         var st = S || {};
-        if (st['alert' + stem] !== true) { return 'Off'; }
+        if (st['thresh' + stem + 'On'] !== true) { return 'Off'; }
         var pair = contract.resolvedPair(stem, st);
         if (typeof pair.warn !== 'number' || typeof pair.danger !== 'number') { return null; }
         var unit = THRESHOLD_RANGES[stem](st).unit;
         var suffix = unit ? ' ' + unit : '';
-        return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix
-            + ' · Highlight ' + (st['thresh' + stem + 'On'] === true ? 'on' : 'off');
+        return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;
     }
     PConf.hintResolvers.register('alertLevelsHint', alertLevelsHint);
 

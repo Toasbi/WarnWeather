@@ -733,7 +733,7 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
     // The Alerts card at its heaviest: every metric alert on, every one printing its
     // value, and the rain look on its longest option.
-    alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true,
+    threshUvOn: true, threshWindOn: true, threshGustOn: true, threshAqiOn: true, threshPollenOn: true,
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value', rainAlertDisplay: 'minutes',
     // Every bar placing the row (the code is four letters whatever they are), and the
@@ -1174,14 +1174,14 @@ test('the Alerts card reports alertKinds, alertValueKinds and rainAlertDisplay',
   assert.equal(unseeded.alertValueKinds, undefined);
   assert.equal(unseeded.rainAlertDisplay, undefined);
 
-  const none = buildSettingsSnapshot({ alertUv: false, alertUvDisplay: 'value',
+  const none = buildSettingsSnapshot({ threshUvOn: false, alertUvDisplay: 'value',
     rainAlertDisplay: 'text' });
   assert.equal(none.alertKinds, '', 'seeded, none on');
   assert.equal(none.alertValueKinds, '', 'a disabled alert\'s Look does not count');
   assert.equal(none.rainAlertDisplay, 'text');
 
-  const some = buildSettingsSnapshot({ alertAqi: true, alertAqiDisplay: 'value',
-    alertUv: true, alertUvDisplay: 'icon', alertWind: false, rainAlertDisplay: 'minutes' });
+  const some = buildSettingsSnapshot({ threshAqiOn: true, alertAqiDisplay: 'value',
+    threshUvOn: true, alertUvDisplay: 'icon', threshWindOn: false, rainAlertDisplay: 'minutes' });
   assert.equal(some.alertKinds, 'uv,aqi', 'the row order, whatever the key order');
   assert.equal(some.alertValueKinds, 'aqi');
   assert.equal(some.rainAlertDisplay, 'minutes');

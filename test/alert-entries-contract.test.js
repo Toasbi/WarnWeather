@@ -32,7 +32,7 @@ test('the entry header layout is in lockstep with alert_set.h', () => {
   assert.equal(cDefine('STATUS_ALERT_LEN_MAX'), 7);
   const th = require('../src/pkjs/status-thresholds.js');
   const bytes = th.bakeAlerts({ UV_TREND_UINT8: [80] },
-    { alertUv: true, alertUvDisplay: 'value' }, 20);
+    { threshUvOn: true, alertUvDisplay: 'value' }, 20);
   assert.deepEqual(bytes, [7 | (2 << cDefine('STATUS_ALERT_LEVEL_SHIFT'))
     | (1 << cDefine('STATUS_ALERT_LEN_SHIFT')), '8'.charCodeAt(0)]);
 });

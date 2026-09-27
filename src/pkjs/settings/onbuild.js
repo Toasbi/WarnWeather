@@ -8,7 +8,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 (function () {
     /**
      * Heal each threshold kind's highlight colours on every open. The
-     * "Highlight on the watch" toggle itself (thresh<K>On) is STORED state and
+     * on/off toggle itself (thresh<K>On — a weather kind's Alert switch, a goal
+     * kind's Goals switch) is STORED state and
      * hydrates as-is: kindConfig() packs the enable bit from it (AND an ordered
      * pair), and the levels live on while it is off, so deriving it from the
      * pair here would undo a user's OFF on the next open. The one-time

@@ -509,8 +509,9 @@
 
   // The metric alerts, in the Alerts row's FIXED order (the watch appends the
   // rain alert in front of them). `code` is the KINDS code, so the wire kind id
-  // is its index there; `key` is the settings stem: alert<Key> switches the alert
-  // on, alert<Key>Display ('icon' | 'value') picks whether its number rides after
+  // is its index there; `key` is the settings stem: thresh<Key>On switches the
+  // alert on (the kind's one switch, which also highlights its slot),
+  // alert<Key>Display ('icon' | 'value') picks whether its number rides after
   // the icon.
   var ALERT_KINDS = [
     { code: 'uv', key: 'Uv' },
@@ -532,12 +533,15 @@
   }
 
   /**
+   * A metric alert has ONE switch, the kind's highlight (thresh<Key>On — the
+   * same enable bit kindConfig packs for the slots): on, the value's slot
+   * highlights AND its icon joins the Alerts row; off, neither.
    * @param {Object} settings Clay settings blob
    * @param {Object} a ALERT_KINDS entry
    * @returns {boolean} whether the alert is switched on
    */
   function alertOn(settings, a) {
-    return Boolean(settings) && settings['alert' + a.key] === true;
+    return Boolean(settings) && settings['thresh' + a.key + 'On'] === true;
   }
 
   /**
@@ -601,7 +605,7 @@
 
   /**
    * Bake the Alerts row's metric entries (ALERT_ENTRIES_UINT8, alert_set.h): one entry
-   * per ACTIVE metric alert — switched on (alert<Key>) and at warn or higher —
+   * per ACTIVE metric alert — switched on (thresh<Key>On) and at warn or higher —
    * in the fixed order UV, wind, gust, AQI, pollen. Each entry is one header
    * byte (bits 0-2 ThreshKind, 3-4 level, 5-7 value length) + that many ASCII
    * value bytes, which are there only when the kind's Look is 'value'
