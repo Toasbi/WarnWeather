@@ -557,6 +557,17 @@ function packLine(line, payload, settings, env) {
       if (dirByte && valueBytes.length < textCap(s)) { valueBytes.push(dirByte); }
       bytes.push(item.kind, icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
+    } else if (item.kind === catalog.KINDS.ALERTS) {
+      // The Alerts row: its value bytes are the active metric alerts, baked here
+      // (status-thresholds.js bakeAlerts) under the SAME per-position cap a TEXT
+      // slot gets, so the row never outweighs the city slot the heaviest weather
+      // bundle already assumes. No direction sentinel on this kind — the entries
+      // are not text. The rain alert is not in here: the watch resolves it from
+      // its own radar cache. On aplite 'alerts' already resolved to 'empty' above
+      // (notAplite), so kind 11 never reaches the lean twin.
+      var alertBytes = thresholds.bakeAlerts(payload, settings, textCap(s));
+      bytes.push(item.kind, icon, alertBytes.length);
+      for (var ab = 0; ab < alertBytes.length; ab++) { bytes.push(alertBytes[ab]); }
     } else {
       bytes.push(kind, icon, 0);
     }
@@ -606,7 +617,8 @@ function buildStatusLines(payload, settings, watchInfo) {
 /**
  * Every weather-payload key this module's bake actually READS — formatValue's
  * per-code arms plus directionSentinel — and, by inclusion, the only ones
- * status-thresholds' packWeatherLevels needs (its displayValue reads a subset).
+ * status-thresholds' packWeatherLevels and bakeAlerts need (their displayValue /
+ * dayMaxToday read a subset: the day-max trends and peaks, POLLEN_TODAY).
  * STATUS_LINE_n_UINT8 and STATUS_LEVELS_UINT8 are deliberately absent: the bake
  * WRITES those.
  *

@@ -147,9 +147,10 @@ static void blob_tests(void) {
     blob[THRESH_HEALTH_OFFSET + 3] = 0x0F;
 
     expect("blob.valid", status_threshold_settings_validate(blob, sizeof(blob)), 1);
-    // sizeof - 1 = 33 is the accepted 16-kind legacy length, not a truncation
-    // (see legacy_blob_tests); the nearest genuinely short length is 32.
-    expect("blob.short", status_threshold_settings_validate(blob, sizeof(blob) - 2), 0);
+    // sizeof - 1 = 34 (pre-alerts) and sizeof - 2 = 33 (16-kind) are accepted
+    // legacy lengths, not truncations (see legacy_blob_tests); the nearest
+    // genuinely short length is 32.
+    expect("blob.short", status_threshold_settings_validate(blob, sizeof(blob) - 3), 0);
     expect("blob.null", status_threshold_settings_validate(NULL, sizeof(blob)), 0);
     expect("blob.aqi_on", status_threshold_enabled(blob, sizeof(blob), THRESH_AQI), 1);
     expect("blob.wind_off", status_threshold_enabled(blob, sizeof(blob), THRESH_WIND), 0);
@@ -330,18 +331,20 @@ static void bold_tests(void) {
     expect("bold.phone_battery_plain_bolds",
            status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY_PLAIN, THRESH_LEVEL_NORMAL), 1);
 
-    // The blob width is pinned: byte 33's four cells cover kinds 16..19, so
-    // appending 17, 18 and 19 must not have moved THRESH_SETTINGS_BYTES (every
-    // extra byte rides the Clay message on every settings send — see
-    // test/inbox-size.test.js).
-    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 34);
+    // The blob width is pinned: byte 33's four cells cover kinds 16..19, and
+    // the only widening since is the alerts byte (34 -> 35) — every extra byte
+    // rides the Clay message on every settings send (see test/inbox-size.test.js).
+    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 35);
     expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 20);
     expect("bold.top_kind_inside_bold_area",
-           THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2) < THRESH_SETTINGS_BYTES, 1);
-    // Byte 33 is now FULL — kinds 16..19 claim all four cells — so kind 20 is
-    // the first that widens the blob 34 -> 35 and adds a fourth accepted length.
+           THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2) < THRESH_ALERTS_OFFSET, 1);
+    // Byte 33 is FULL — kinds 16..19 claim all four cells — and the alerts byte
+    // sits right after it, so kind 20 is a layout change (a sixth bold byte AND
+    // a relocated alerts byte), not an append. status_threshold.h's
+    // _Static_assert is the compile-time half of this pin.
     expect("bold.byte33_is_the_last_bold_byte",
-           THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2), THRESH_SETTINGS_BYTES - 1);
+           THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2), THRESH_ALERTS_OFFSET - 1);
+    expect("bold.alerts_byte_is_last", THRESH_ALERTS_OFFSET, THRESH_SETTINGS_BYTES - 1);
     expect("bold.byte33_full", THRESH_KIND_COUNT % 4, 0);
 
     // Degrade safely: the reserved wire value, a bad blob and a slot with no
@@ -394,7 +397,7 @@ static void legacy_blob_tests(void) {
            status_threshold_bold_mode(blob, legacy, THRESH_PHONE_BATTERY), THRESH_BOLD_WARN);
     expect("legacy.phone_battery_plain_default",
            status_threshold_bold_mode(blob, legacy, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_WARN);
-    // Only the three known lengths are accepted — no partial bold byte, no slack.
+    // Only the four known lengths are accepted — no partial bold byte, no slack.
     expect("legacy.reject_30", status_threshold_settings_validate(blob, legacy + 1), 0);
     expect("legacy.reject_28", status_threshold_settings_validate(blob, legacy - 1), 0);
     expect("legacy.reject_27", status_threshold_settings_validate(blob, 27), 0);
@@ -403,10 +406,12 @@ static void legacy_blob_tests(void) {
     // blob reads invalid until the phone re-syncs the 33-B one.
     expect("legacy.reject_31", status_threshold_settings_validate(blob, 31), 0);
     expect("legacy.reject_32", status_threshold_settings_validate(blob, 32), 0);
-    // Kinds 18/19 fit byte 33, so the accepted set is still exactly {34, 33, 29}
-    // — no fourth entry. A 35-byte blob is a blob from a FUTURE, wider format:
-    // reject it until the widening actually happens (see status_threshold.h).
-    expect("legacy.reject_35", status_threshold_settings_validate(blob, 35), 0);
+    // The accepted set is exactly {35, 34, 33, 29}. A 36-byte blob is a blob
+    // from a FUTURE, wider format: reject it until that widening actually
+    // happens (see status_threshold.h).
+    expect("legacy.accept_35", status_threshold_settings_validate(blob, 35), 1);
+    expect("legacy.accept_34", status_threshold_settings_validate(blob, 34), 1);
+    expect("legacy.reject_36", status_threshold_settings_validate(blob, 36), 0);
 
     // A 33-byte blob (16-kind bold era, every current install at upgrade time)
     // keeps kinds 0..15's bold settings and reads kind 16 as the default.
@@ -430,6 +435,44 @@ static void legacy_blob_tests(void) {
            status_threshold_is_bold(blob, pre16, THRESH_PHONE_BATTERY, THRESH_LEVEL_NORMAL), 0);
     expect("legacy33.aqi_on", status_threshold_enabled(blob, pre16, THRESH_AQI), 1);
     expect("legacy33.steps_warn", status_threshold_health_warn(blob, pre16, THRESH_STEPS), 8000);
+}
+
+// The alerts byte [34]: bits 0-1 carry the Alerts row's rain look. A pre-alerts
+// blob (34/33/29 B — every install at upgrade time) has no such byte and must
+// read "text", today's countdown look, so an untouched upgrade looks the same.
+static void rain_display_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    expect("rain.offset_pinned", THRESH_ALERTS_OFFSET, 34);
+    expect("rain.pre_alerts_pinned", THRESH_SETTINGS_BYTES_PRE_ALERTS, 34);
+    expect("rain.text", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_TEXT);
+    blob[THRESH_ALERTS_OFFSET] = 1;
+    expect("rain.icon", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_ICON);
+    blob[THRESH_ALERTS_OFFSET] = 2;
+    expect("rain.minutes", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_MINUTES);
+    // The reserved value 3 reads as the legacy look.
+    blob[THRESH_ALERTS_OFFSET] = 3;
+    expect("rain.reserved", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_TEXT);
+    // Bits 2-7 are reserved (DWD warnings later): they never leak into the look.
+    blob[THRESH_ALERTS_OFFSET] = (uint8_t)(0xFC | 2);
+    expect("rain.reserved_bits_ignored", status_threshold_rain_display(blob, n),
+           THRESH_RAIN_DISPLAY_MINUTES);
+    // The byte lives past every bold cell: writing it moves no kind's bold mode.
+    expect("rain.no_bold_alias",
+           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_WARN);
+    // A pre-alerts blob: byte 34 is not there — text, never a read past the end.
+    expect("rain.pre_alerts_text",
+           status_threshold_rain_display(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS),
+           THRESH_RAIN_DISPLAY_TEXT);
+    expect("rain.pre_kind16_text",
+           status_threshold_rain_display(blob, THRESH_SETTINGS_BYTES_PRE_KIND16),
+           THRESH_RAIN_DISPLAY_TEXT);
+    expect("rain.pre_bold_text",
+           status_threshold_rain_display(blob, THRESH_SETTINGS_BYTES_PRE_BOLD),
+           THRESH_RAIN_DISPLAY_TEXT);
+    expect("rain.bad_len", status_threshold_rain_display(blob, 27), THRESH_RAIN_DISPLAY_TEXT);
+    expect("rain.null", status_threshold_rain_display(NULL, n), THRESH_RAIN_DISPLAY_TEXT);
 }
 
 static void health_value_tests(void) {
@@ -476,6 +519,7 @@ int main(void) {
     paired_bound_tests();
     bold_tests();
     legacy_blob_tests();
+    rain_display_tests();
     health_value_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }
     printf("status_threshold_test OK\n");

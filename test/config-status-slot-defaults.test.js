@@ -21,7 +21,8 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
   assert.equal(emery.statusRadarLeft, 'uv');
   assert.equal(emery.statusRadarMid, 'wind');
   assert.equal(emery.statusRadarRight, 'gust');
-  assert.equal(emery.statusTopLeft, 'week');
+  // The Alerts row took emery's top-left from the calendar week (1.24.0).
+  assert.equal(emery.statusTopLeft, 'alerts');
   assert.equal(emery.statusTopMid, 'date');
   assert.equal(emery.statusTopRight, 'sun');
   assert.equal(emery.statusHealthLeft, 'steps');
@@ -33,8 +34,8 @@ test('real schema hydrates the HR-aware status-slot default set', () => {
   assert.equal(basalt.statusHealthRight, 'sleep', 'non-HR platform -> sleep');
   // The top strip's own flavor, and the one place it is resolved through the REAL
   // schema: emery carries three readings, the narrower displays the date with the
-  // battery in its corner and the left slot free.
-  assert.equal(basalt.statusTopLeft, 'empty');
+  // battery in its corner — and the Alerts row left on both (it was 'empty' here).
+  assert.equal(basalt.statusTopLeft, 'alerts');
   assert.equal(basalt.statusTopMid, 'date');
   assert.equal(basalt.statusTopRight, 'battery');
 });

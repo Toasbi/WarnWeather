@@ -369,10 +369,12 @@ test('buildStatusLines packs four lines with defaults', () => {
   assert.equal(radar[1].icon, I.WIND);
   assert.equal(radar[2].icon, I.GUST);
 
-  // basalt is not emery, so the top strip is the narrow one: date alone in the
-  // middle, battery in the corner, left free.
+  // basalt is not emery, so the top strip is the narrow one: the Alerts row left
+  // (nothing alerting here, so no entry bytes), the date in the middle, battery in
+  // the corner.
   const top = decodeLine(p.STATUS_LINE_3_UINT8);
-  assert.equal(top[0].kind, K.EMPTY);
+  assert.equal(top[0].kind, K.ALERTS);
+  assert.equal(top[0].len, 0);
   assert.equal(top[1].kind, K.LIVE_DATE); // mid slot is selectable; defaults to date
   assert.equal(top[2].kind, K.LIVE_BATTERY);
 
@@ -432,15 +434,15 @@ test('top line: mid defaults to live date; stored mid packs; date packs at edges
   const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
   const env = basaltEnv();
   const p = basePayload();
-  // default (narrow): empty / date / battery
+  // default (narrow): alerts / date / battery
   let slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), env));
-  assert.deepEqual(slots.map(s => s.kind), [K.EMPTY, K.LIVE_DATE, K.LIVE_BATTERY]);
+  assert.deepEqual(slots.map(s => s.kind), [K.ALERTS, K.LIVE_DATE, K.LIVE_BATTERY]);
   // and the emery flavor, which packLine has to take from the env rather than from
   // the flat table — an install that never opened the settings page has nothing
   // stored here, so this fallback IS what such a watch renders.
   const emeryEnv = Object.assign({}, env, { platform: 'emery', hr: true });
   slots = decodeLine(statusLines.packLine(topLine, p, baseSettings(), emeryEnv));
-  assert.deepEqual(slots.map(s => s.kind), [K.LIVE_WEEK, K.LIVE_DATE, K.TEXT]);
+  assert.deepEqual(slots.map(s => s.kind), [K.ALERTS, K.LIVE_DATE, K.TEXT]);
   assert.equal(slots[2].icon, I.DRAWN_SUN);
   // stored mid selection packs as TEXT
   slots = decodeLine(statusLines.packLine(topLine, p,
@@ -1336,4 +1338,104 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
   assert.deepEqual(extra, [], 'keys on SOURCE_KEYS that the bake never reads -- '
     + 'dead weight persisted to flash on every fetch.');
   assert.ok(declared.size > 0);
+});
+
+// ── the Alerts row (SLOT_ALERTS = 11) ─────────────────────────────────────────
+const thresholds = require('../src/pkjs/status-thresholds.js');
+//
+// packLine carries status-thresholds' bakeAlerts bytes as the slot's value bytes,
+// under the same per-position cap a TEXT slot gets (edge 8 / mid 19), so the row
+// never outweighs the city slot the heaviest weather bundle assumes.
+
+// UV 8 (danger on the seed 6/8), wind 45 km/h (warn on 40/60), gusts 90 (danger),
+// AQI 152 (danger on the US 100/150).
+function alertPayload() {
+  return Object.assign(basePayload(), {
+    UV_TREND_UINT8: [30], UV_DAY_PEAKS: [80, 50, 0],
+    WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 20, 0],
+    GUST_TREND_UINT8: [90], GUST_DAY_PEAKS: [90, 20, 0],
+    AQI_TREND: [152]
+  });
+}
+const ALERTS_ALL_VALUES = {
+  alertUv: true, alertUvDisplay: 'value', alertWind: true, alertWindDisplay: 'value',
+  alertGust: true, alertGustDisplay: 'value', alertAqi: true, alertAqiDisplay: 'value'
+};
+
+test('packLine: an alerts slot carries the baked entries in an edge and a mid slot', () => {
+  const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
+  const p = alertPayload();
+  const env = basaltEnv();
+  // Edge (the default top-left): icon-only UV danger + wind warn.
+  const s = baseSettings({ alertUv: true, alertWind: true });
+  let slots = decodeLine(statusLines.packLine(topLine, p, s, env));
+  assert.equal(slots[0].kind, K.ALERTS);
+  assert.equal(slots[0].icon, I.NONE);
+  assert.deepEqual(statusLines.packLine(topLine, p, s, env).slice(0, 5),
+    [K.ALERTS, I.NONE, 2, 7 | (2 << 3), 2 | (1 << 3)]);
+  // The same bytes bakeAlerts produces for that cap.
+  assert.deepEqual(statusLines.packLine(topLine, p, s, env).slice(3, 5),
+    thresholds.bakeAlerts(p, s, catalog.CAPS.EDGE_TEXT_MAX));
+  // Mid: the wider cap takes all four with values ("8" "45" "90" "152" = 4 + 8 B).
+  const mid = baseSettings(Object.assign({ statusTopLeft: 'empty', statusTopMid: 'alerts' },
+    ALERTS_ALL_VALUES));
+  slots = decodeLine(statusLines.packLine(topLine, p, mid, env));
+  assert.equal(slots[1].kind, K.ALERTS);
+  assert.equal(slots[1].len, 12);
+  assert.deepEqual(statusLines.packLine(topLine, p, mid, env).slice(6, 6 + 12),
+    thresholds.bakeAlerts(p, mid, catalog.CAPS.MID_TEXT_MAX));
+  // ...and the edge cap tail-drops the same set to UV + wind + gust (8 B).
+  slots = decodeLine(statusLines.packLine(topLine, p,
+    baseSettings(ALERTS_ALL_VALUES), env));
+  assert.equal(slots[0].len, 8);
+  // Nothing alerting: the slot is still kind 11, with no bytes.
+  slots = decodeLine(statusLines.packLine(topLine, basePayload(), baseSettings(), env));
+  assert.deepEqual([slots[0].kind, slots[0].len], [K.ALERTS, 0]);
+});
+
+test('packLine: an alerts slot never carries a direction sentinel', () => {
+  const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
+  const p = Object.assign(alertPayload(), { WIND_DIR_TREND: [270] });
+  const s = baseSettings({ alertWind: true, alertWindDisplay: 'value',
+    windSlotDirection: true, gustSlotDirection: true });
+  const bytes = statusLines.packLine(topLine, p, s, basaltEnv());
+  // header 0x4A (wind, warn, 2 value bytes) + "45" — and nothing after it.
+  assert.deepEqual(bytes.slice(0, 6), [K.ALERTS, I.NONE, 3, 2 | (1 << 3) | (2 << 5), 0x34, 0x35]);
+  assert.equal(bytes[6], K.LIVE_DATE, 'the next slot starts right after the entries');
+});
+
+test('packLine: a stored alerts slot bakes Empty on aplite (notAplite)', () => {
+  const topLine = catalog.LINES.filter(l => l.id === 'top')[0];
+  const aplite = { platform: 'aplite', color: false, health: false, radar: false };
+  const s = baseSettings(Object.assign({ statusTopLeft: 'alerts' }, ALERTS_ALL_VALUES));
+  const slots = decodeLine(statusLines.packLine(topLine, alertPayload(), s, aplite));
+  assert.deepEqual([slots[0].kind, slots[0].len], [K.EMPTY, 0], 'kind 11 never reaches aplite');
+  // The unset default resolves to Empty there too.
+  const def = decodeLine(statusLines.packLine(topLine, alertPayload(), baseSettings(), aplite));
+  assert.equal(def[0].kind, K.EMPTY);
+  // Never top-right either: the low-battery override owns that slot.
+  const right = decodeLine(statusLines.packLine(topLine, alertPayload(),
+    baseSettings(Object.assign({ statusTopRight: 'alerts' }, ALERTS_ALL_VALUES)), basaltEnv()));
+  assert.equal(right[2].kind, K.EMPTY);
+});
+
+test('an alerts slot never exceeds the cap the City worst case assumes, in any position', () => {
+  const p = Object.assign(alertPayload(), { POLLEN_TODAY: '2-3' });
+  const s = baseSettings(Object.assign({ provider: 'dwd', alertPollen: true,
+    alertPollenDisplay: 'value' }, ALERTS_ALL_VALUES));
+  catalog.LINES.forEach((line) => {
+    [0, 1, 2].forEach((pos) => {
+      const key = line.slots[pos];
+      if (key === 'statusTopRight') { return; }   // not placeable there
+      const settings = Object.assign({}, s);
+      line.slots.forEach((k) => { settings[k] = 'empty'; });
+      settings[key] = 'alerts';
+      const cityCfg = Object.assign({}, settings, { [key]: 'city' });
+      const longCity = Object.assign({}, p, { CITY: 'X'.repeat(40) });
+      const alertsLen = statusLines.packLine(line, p, settings, basaltEnv()).length;
+      const cityLen = statusLines.packLine(line, longCity, cityCfg, basaltEnv()).length;
+      assert.ok(alertsLen <= cityLen, key + ': ' + alertsLen + ' B > the city worst case '
+        + cityLen + ' B');
+    });
+  });
 });

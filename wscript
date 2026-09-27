@@ -189,6 +189,18 @@ def build(ctx):
         # WW_FETCH_NOTICE above, which was excluded for the same trigger.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_THRESHOLD_HIGHLIGHT=1']
+        # The Alerts row (status slot kind SLOT_ALERTS: the phone-baked metric alerts
+        # plus the watch-resolved rain alert) is compiled out of aplite: aplite paints
+        # its status rows from the frozen lean twin layers/status_row_aplite.c, the
+        # row's inputs (the thresholds blob, rain_countdown.c) are aplite-absent
+        # already, and the phone never offers the item there (catalog notAplite). Even
+        # the walker's entry check for the slot's bytes (appendix/status_line.c) took
+        # the aplite image past its 21804 B launch guard (+112 B), so it rides this
+        # macro too: aplite's walker keeps rejecting value bytes on every non-TEXT
+        # kind, exactly as before. Every other platform defines WW_ALERT_ROW. Mirrors
+        # WW_THRESHOLD_HIGHLIGHT above.
+        if platform != 'aplite':
+            ctx.env.CFLAGS += ['-DWW_ALERT_ROW=1']
         # Configurable forecast curve insets (CLAY_CURVE_INSET_UINT8): the phone
         # sends render-ready per-series vertical insets (one byte per Series,
         # FIRST..FIFTH) so temperature and a temperature-axis metric line

@@ -394,3 +394,38 @@ test('a top stripe joins the signature only while it squeezes a feels/dew curve'
   const rain = { secondaryLine: 'precip_prob', thirdLine: 'uv', thirdLineStyle: 'dots' };
   assert.equal(withStyle(rain, {}), withStyle(rain, { thirdLineStyle: 'stripeTop' }), 'no feels/dew drawn');
 });
+
+// The metric alerts change the bake (the alerts slot's entries) AND the fetch set (an
+// enabled alert fetches its metric and day peaks), so switching one — or its Look —
+// must force a refetch. The rain look rides the Clay blob (byte 34) and must not.
+test('each alert<Kind> and, while on, its Look change the render signature', () => {
+  const base = renderSignature({});
+  thresholds.ALERT_KINDS.forEach((a) => {
+    const on = renderSignature({ ['alert' + a.key]: true });
+    assert.notEqual(on, base, 'alert' + a.key + ' must force a refetch');
+    assert.notEqual(renderSignature({ ['alert' + a.key]: true, ['alert' + a.key + 'Display']: 'value' }),
+      on, 'alert' + a.key + 'Display must force a refetch while the alert is on');
+    // Off, the Look bakes nothing: no refetch for it (nor for the page hydrating it).
+    assert.equal(renderSignature({ ['alert' + a.key + 'Display']: 'value' }), base,
+      'alert' + a.key + 'Display is inert while the alert is off');
+    assert.equal(renderSignature({ ['alert' + a.key]: false,
+      ['alert' + a.key + 'Display']: 'icon' }), base,
+    'the hydrated defaults sign like absent keys');
+  });
+});
+
+test('the alert keys each occupy their own signature slot', () => {
+  const seen = new Set();
+  thresholds.ALERT_KINDS.forEach((a) => {
+    seen.add(renderSignature({ ['alert' + a.key]: true }));
+    seen.add(renderSignature({ ['alert' + a.key]: true, ['alert' + a.key + 'Display']: 'value' }));
+  });
+  assert.equal(seen.size, thresholds.ALERT_KINDS.length * 2);
+});
+
+test('the rain alert look stays OUT of the render signature (it rides Clay)', () => {
+  const base = renderSignature({});
+  ['text', 'icon', 'minutes'].forEach((v) => {
+    assert.equal(renderSignature({ rainAlertDisplay: v }), base, v);
+  });
+});

@@ -1337,3 +1337,25 @@ test('dew never fills the area below its line', () => {
   assert.equal(lineStyle.resolveGraphColors(
     { secondaryLine: 'dew', secondaryLineFill: true, theme: 'dark' }, cx).fillOn, false);
 });
+
+// An enabled alert (the Alerts card) judges its metric's day whether or not a slot or
+// line shows it, so it must extend the fetch gates on its own — the user the card
+// invites is exactly the one with no UV/AQI/pollen slot.
+test('an enabled alert makes UV, AQI and pollen fetch with no slot or line', () => {
+  const { dayPeakCodes } = require('../src/pkjs/forecast-series');
+  const none = { secondaryLine: 'wind', thirdLine: 'off', statusRadarLeft: 'empty',
+    statusForecastRight: 'empty' };
+  assert.equal(needsUv(none), false, 'guard: nothing selects uv');
+  assert.equal(needsUv(Object.assign({ alertUv: true }, none)), true);
+  assert.equal(needsUv(Object.assign({ alertUv: false }, none)), false);
+  assert.equal(needsAqi(none), false, 'guard: nothing selects aqi');
+  assert.equal(needsAqi(Object.assign({ alertAqi: true }, none)), true);
+  // Pollen stays DWD-only.
+  assert.equal(needsPollen(Object.assign({ provider: 'dwd', alertPollen: true }, none)), true);
+  assert.equal(needsPollen(Object.assign({ provider: 'openmeteo', alertPollen: true }, none)), false);
+  // ...and the day-max kinds' day peaks with them, in every slot display mode.
+  assert.deepEqual(dayPeakCodes(none), []);
+  assert.deepEqual(dayPeakCodes(Object.assign({ alertUv: true, alertWind: true,
+    alertGust: true, alertAqi: true, uvSlotDisplay: 'current' }, none)),
+  ['uv', 'wind', 'gust', 'aqi']);
+});

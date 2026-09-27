@@ -281,3 +281,17 @@ test('DST days: the earlier hours are the day\'s own, 23 or 25 of them', () => {
   assert.deepEqual(out.spring, { hours: 12, peak: 7, t: true, len: 13 }, '23-hour day');
   assert.deepEqual(out.autumn, { hours: 14, peak: 7, t: true, len: 15 }, '25-hour day');
 });
+
+// wanted() reads the fetch's dayPeakCodes, which an enabled alert extends: an
+// alert-only kind keeps its day record and widens its requests like a Day-max slot.
+test('wanted: an enabled alert asks for its day peaks with no slot showing the kind', () => {
+  const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
+  const none = { statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
+    statusForecastRight: 'empty' };
+  const provider = (settings) => ({ options: fetchOptions.build(settings) });
+  assert.equal(record.wanted(provider(none), 'uv'), false, 'guard: nothing asks for UV peaks');
+  assert.equal(record.wanted(provider(Object.assign({ alertUv: true }, none)), 'uv'), true);
+  assert.equal(record.wanted(provider(Object.assign({ alertGust: true }, none)), 'gust'), true);
+  assert.equal(record.wanted(provider(Object.assign({ alertGust: true }, none)), 'wind'), false,
+    'per kind');
+});

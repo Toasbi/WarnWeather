@@ -533,7 +533,8 @@ function applyForecastSeries(payload, settings, watchInfo) {
 }
 
 /**
- * Whether UV is on a forecast line or in a status slot, so providers fetch it.
+ * Whether UV is on a forecast line, in a status slot or switched on as an alert,
+ * so providers fetch it.
  * @param {Object} settings Clay settings.
  * @returns {boolean} True when any rendered selection needs UV.
  */
@@ -541,15 +542,19 @@ function needsUv(settings) {
     if (!settings) { return false; }
     if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv'
         || settings.fourthLine === 'uv' || settings.fifthLine === 'uv') { return true; }
+    // An enabled alert needs the metric with no slot showing it — the Alerts card
+    // invites exactly that user, and without the fetch the alert can never fire.
+    if (statusCatalog.alertEnabled(settings, 'uv')) { return true; }
     // A status-line UV slot must extend the fetch gate or it bakes empty.
     return statusCatalog.selectedCodes(settings).indexOf('uv') !== -1;
 }
 
 /**
- * The day-max slot kinds that actually show a peak (status-line-catalog's
- * dayMaxInUse): the provider keeps a day record and fetches the longer series
- * for these only. Every input is in renderSignature, so switching a slot to Day
- * max forces the refetch that starts its record.
+ * The day-max kinds that need the day's peaks (status-line-catalog's
+ * dayMaxInUse): a slot shows one, or the kind's alert is on. The provider keeps a
+ * day record and fetches the longer series for these only. Every input is in
+ * renderSignature, so switching a slot to Alert or an alert on forces the refetch
+ * that starts its record.
  * @param {Object} settings Clay settings.
  * @returns {string[]} Codes out of 'uv' | 'wind' | 'gust' | 'aqi'.
  */
@@ -560,13 +565,15 @@ function dayPeakCodes(settings) {
 }
 
 /**
- * Whether AQI is in a status slot, so providers fetch it. AQI is status-only
- * (never a forecast line), so unlike needsUv there is no secondary/third check.
+ * Whether AQI is in a status slot or switched on as an alert, so providers fetch
+ * it. AQI is status-only (never a forecast line), so unlike needsUv there is no
+ * secondary/third check.
  * @param {Object} settings Clay settings.
- * @returns {boolean} True when any status slot selects AQI.
+ * @returns {boolean} True when any status slot selects AQI, or its alert is on.
  */
 function needsAqi(settings) {
     if (!settings) { return false; }
+    if (statusCatalog.alertEnabled(settings, 'aqi')) { return true; }
     return statusCatalog.selectedCodes(settings).indexOf('aqi') !== -1;
 }
 
@@ -586,12 +593,15 @@ function needsFeels(settings, watchInfo) {
 }
 
 /**
- * Whether a DWD status slot selects pollen. Pollen is DWD-only and status-only.
+ * Whether a DWD status slot selects pollen, or its alert is on. Pollen is
+ * DWD-only and status-only.
  * @param {Object} settings Clay settings.
- * @returns {boolean} True when the effective provider and slot selection need pollen.
+ * @returns {boolean} True when the effective provider and slot selection (or the
+ *     pollen alert) need pollen.
  */
 function needsPollen(settings) {
     if (!settings || settings.provider !== 'dwd') { return false; }
+    if (statusCatalog.alertEnabled(settings, 'pollen')) { return true; }
     return statusCatalog.selectedCodes(settings).indexOf('pollen') !== -1;
 }
 

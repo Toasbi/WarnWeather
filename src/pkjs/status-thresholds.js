@@ -19,23 +19,39 @@
   // buildSettingsBlob (the only rainTier consumer) is never called there.
   var rainTier = (typeof require !== 'undefined')
     ? require('./weather/rain-tier.js') : null;
-  // Same guard: displayValue (the only consumer, kindLevel reads it) runs
+  // Same guard: displayValue and the alert bake (its only consumers) run
   // phone-side only.
   var wireUnits = (typeof require !== 'undefined')
     ? require('./wire-units.js') : null;
 
   // 27 -> 29 when UV became kind 7; 29 -> 33 when the bold-only kinds (8..15)
   // widened the bold area to 16 kinds; 33 -> 34 when battery % (kind 16) opened
-  // byte 33. (The interim 31-byte, 8-kind-bold format never shipped — it
-  // existed only on an unmerged branch — so exactly {34, 33, 29} are accepted;
-  // see status_threshold.h.) Byte 33 holds FOUR 2-bit cells (kinds 16..19): dew
-  // point (17) and the two phone-battery kinds (18, 19) all appended into it for
-  // free, so this stays 34 — but the byte is now FULL, and a twenty-first kind
-  // (index 20) is the first that widens the blob and every Clay send with it.
-  var SETTINGS_BYTES = 34;
+  // byte 33; 34 -> 35 when the alerts byte was appended. (The interim 31-byte,
+  // 8-kind-bold format never shipped — it existed only on an unmerged branch —
+  // so exactly {35, 34, 33, 29} are accepted; see status_threshold.h.) Byte 33
+  // holds FOUR 2-bit cells (kinds 16..19): dew point (17) and the two
+  // phone-battery kinds (18, 19) all appended into it for free — and it is FULL,
+  // with the alerts byte right behind it. So a twenty-first kind (index 20) is no
+  // plain append any more: it needs a sixth bold byte AND a relocated alerts
+  // byte, a layout change on both ends (the C header's _Static_assert trips).
+  var SETTINGS_BYTES = 35;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
   var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
+  // The alerts options byte: bits 0-1 the Alerts row's rain look (RAIN_DISPLAY),
+  // bits 2-7 reserved (DWD official warnings later) and written 0.
+  var ALERTS_OFFSET = 34;
+
+  // rainAlertDisplay -> the 2-bit wire value. 'text' is 0 — the full "Rain in
+  // 12'" countdown the strip drew before the Alerts row — so an absent setting
+  // and a pre-upgrade watch (no byte 34 at all) both keep today's look.
+  var RAIN_DISPLAY = {text: 0, icon: 1, minutes: 2};
+
+  // SLOT_ALERTS entry header (status_line.h): bits 0-2 the ThreshKind, bits 3-4
+  // the level, bits 5-7 the value length.
+  var ALERT_LEVEL_SHIFT = 3;
+  var ALERT_LEN_SHIFT = 5;
+  var ALERT_LEN_MAX = 7;
 
   // thresh<Kind>BoldMode -> ThreshBold (src/c/appendix/status_threshold.h). The
   // ladder is monotone over the level: danger is bold under every mode, 'warn'
@@ -477,6 +493,159 @@
     return [packed & 0xFF, (packed >> 8) & 0xFF];
   }
 
+  // The metric alerts, in the Alerts row's FIXED order (the watch appends the
+  // rain alert in front of them). `code` is the KINDS code, so the wire kind id
+  // is its index there; `key` is the settings stem: alert<Key> switches the alert
+  // on, alert<Key>Display ('icon' | 'value') picks whether its number rides after
+  // the icon.
+  var ALERT_KINDS = [
+    { code: 'uv', key: 'Uv' },
+    { code: 'wind', key: 'Wind' },
+    { code: 'gust', key: 'Gust' },
+    { code: 'aqi', key: 'Aqi' },
+    { code: 'pollen', key: 'Pollen' }
+  ];
+
+  /**
+   * @param {string} code A KINDS code.
+   * @returns {number} its wire kind id (the index in KINDS), -1 when unknown
+   */
+  function kindId(code) {
+    for (var i = 0; i < KINDS.length; i++) {
+      if (KINDS[i].code === code) { return i; }
+    }
+    return -1;
+  }
+
+  /**
+   * @param {Object} settings Clay settings blob
+   * @param {Object} a ALERT_KINDS entry
+   * @returns {boolean} whether the alert is switched on
+   */
+  function alertOn(settings, a) {
+    return Boolean(settings) && settings['alert' + a.key] === true;
+  }
+
+  /**
+   * The number a metric alert judges: the day, not the slot. For the day-max
+   * kinds that is the highest value left TODAY, the current hour included
+   * (wire-units' dayMaxToday — independent of the kind's slot display mode, so
+   * a Now-mode slot or no slot at all still gets the morning "UV reaches 8
+   * today" alert); a kind without day peaks in the payload (not fetched, WAQI's
+   * AQI) and pollen (a daily band) fall back to the current reading, judged as
+   * the slot judges it (displayValue).
+   * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi' | 'pollen'
+   * @param {Object} payload weather payload (pre-transform, trends present)
+   * @param {Object} settings Clay settings blob
+   * @returns {number|null} the number in display units, null when unavailable
+   *     or the code has no alert
+   */
+  function alertValue(code, payload, settings) {
+    if (!weatherKindOf(code) || !payload) { return null; }
+    var s = settings || {};
+    if (wireUnits.isDayMaxKind(code)) {
+      var today = wireUnits.dayMaxToday(code, payload, s);
+      if (today !== null) { return today; }
+      // The current reading ALONE — read without the slot's display mode, which
+      // in Alert mode would hand back tomorrow's marked peak (judged as null) when
+      // today's is unknown. Only the unit picker matters to the number.
+      var shown = wireUnits.dayMaxShown(code, payload, {windUnits: s.windUnits});
+      return shown ? shown.now : null;
+    }
+    return displayValue(code, payload, s);
+  }
+
+  /**
+   * A metric alert's level: alertValue against the kind's resolved pair (the
+   * same pair the slot highlight judges by; seeds when blank).
+   * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi' | 'pollen'
+   * @param {Object} payload weather payload (pre-transform, trends present)
+   * @param {Object} settings Clay settings blob
+   * @returns {?number} 0 normal / 1 warn / 2 danger; null without a value
+   */
+  function alertLevel(code, payload, settings) {
+    var k = weatherKindOf(code);
+    var v = alertValue(code, payload, settings);
+    if (!k || v === null) { return null; }
+    var pair = resolvedPair(k.key, settings);
+    return computeLevel(v, pair.warn, pair.danger);
+  }
+
+  /**
+   * An alert's value text as the kind's slot prints its number, without a unit
+   * (the icon carries it): UV, wind, gusts in the user's wind unit and AQI as
+   * whole numbers, pollen as its DWD band ('2-3').
+   * @param {string} code An ALERT_KINDS code.
+   * @param {number} v alertValue's number
+   * @returns {string} ASCII text, '' when it would not fit an entry
+   */
+  function alertValueText(code, v) {
+    var text = code === 'pollen'
+      ? (POLLEN_BANDS[Math.round(v * 2)] || '') : String(Math.round(v));
+    return (text.length <= ALERT_LEN_MAX && /^[\x20-\x7E]*$/.test(text)) ? text : '';
+  }
+
+  /**
+   * Bake the Alerts slot's value bytes (SLOT_ALERTS, status_line.h): one entry
+   * per ACTIVE metric alert — switched on (alert<Key>) and at warn or higher —
+   * in the fixed order UV, wind, gust, AQI, pollen. Each entry is one header
+   * byte (bits 0-2 ThreshKind, 3-4 level, 5-7 value length) + that many ASCII
+   * value bytes, which are there only when the kind's Look is 'value'
+   * (alert<Key>Display). Entries that would push the bytes past `cap` are
+   * dropped from the TAIL (pollen first) — the rule the watch applies to its
+   * pixels — so a slot never outweighs the city slot its position's cap is
+   * sized for, and the weather message does not grow.
+   * @param {Object} payload weather payload (pre-transform, trends present)
+   * @param {Object} settings Clay settings blob
+   * @param {number} cap the slot position's byte cap (EDGE 8 / MID 19)
+   * @returns {number[]} the value bytes, [] when nothing is alerting
+   */
+  function bakeAlerts(payload, settings, cap) {
+    var out = [];
+    if (!payload || !settings) { return out; }
+    for (var i = 0; i < ALERT_KINDS.length; i++) {
+      var a = ALERT_KINDS[i];
+      if (!alertOn(settings, a)) { continue; }
+      var level = alertLevel(a.code, payload, settings);
+      if (level === null || level < 1) { continue; }
+      var text = settings['alert' + a.key + 'Display'] === 'value'
+        ? alertValueText(a.code, alertValue(a.code, payload, settings)) : '';
+      // Tail-drop: a prefix of the fixed order, never a later entry that happens
+      // to be shorter — the watch fits the row by the same rule.
+      if (out.length + 1 + text.length > cap) { break; }
+      out.push(kindId(a.code) | (level << ALERT_LEVEL_SHIFT) | (text.length << ALERT_LEN_SHIFT));
+      for (var c = 0; c < text.length; c++) { out.push(text.charCodeAt(c)); }
+    }
+    return out;
+  }
+
+  /**
+   * @param {Object} settings Clay settings blob
+   * @returns {string[]} the codes whose alert is switched on, fixed order
+   */
+  function alertKindCodes(settings) {
+    var out = [];
+    for (var i = 0; i < ALERT_KINDS.length; i++) {
+      if (alertOn(settings, ALERT_KINDS[i])) { out.push(ALERT_KINDS[i].code); }
+    }
+    return out;
+  }
+
+  /**
+   * @param {Object} settings Clay settings blob
+   * @returns {string[]} the switched-on alerts whose Look prints the value
+   */
+  function alertValueKindCodes(settings) {
+    var out = [];
+    for (var i = 0; i < ALERT_KINDS.length; i++) {
+      var a = ALERT_KINDS[i];
+      if (alertOn(settings, a) && settings['alert' + a.key + 'Display'] === 'value') {
+        out.push(a.code);
+      }
+    }
+    return out;
+  }
+
   /**
    * Health threshold in its wire unit: steps as-is; sleep hours -> minutes;
    * distance km -> 100 m units (mi -> 100 m when distanceUnits is imperial).
@@ -508,8 +677,11 @@
    * thresh<Kind>BoldMode values are never modified, so 'perSlot' restores
    * them on the next build. Enable bits, colors, and health u16s are
    * untouched by the master.
+   * Byte ALERTS_OFFSET carries the Alerts row's rain look (rainAlertDisplay);
+   * which METRIC alerts are on never rides here — the phone bakes only the
+   * active ones into the alerts slot itself (bakeAlerts).
    * @param {Object} settings Clay settings blob
-   * @returns {number[]} SETTINGS_BYTES-long array (currently 34 bytes)
+   * @returns {number[]} SETTINGS_BYTES-long array (currently 35 bytes)
    */
   function buildSettingsBlob(settings) {
     var blob = [];
@@ -537,6 +709,9 @@
         blob[off + 3] = (danger >> 8) & 0xFF;
       }
     }
+    var rain = settings && settings.rainAlertDisplay;
+    blob[ALERTS_OFFSET] = Object.prototype.hasOwnProperty.call(RAIN_DISPLAY, rain)
+      ? RAIN_DISPLAY[rain] : RAIN_DISPLAY.text;
     return blob;
   }
 
@@ -546,6 +721,9 @@
     COLORS_OFFSET: COLORS_OFFSET,
     HEALTH_OFFSET: HEALTH_OFFSET,
     BOLD_OFFSET: BOLD_OFFSET,
+    ALERTS_OFFSET: ALERTS_OFFSET,
+    RAIN_DISPLAY: RAIN_DISPLAY,
+    ALERT_KINDS: ALERT_KINDS,
     BOLD_MODES: BOLD_MODES,
     DEFAULT_BOLD_MODE: DEFAULT_BOLD_MODE,
     parseThreshold: parseThreshold,
@@ -562,6 +740,11 @@
     displayValue: displayValue,
     kindLevel: kindLevel,
     packWeatherLevels: packWeatherLevels,
+    alertValue: alertValue,
+    alertLevel: alertLevel,
+    bakeAlerts: bakeAlerts,
+    alertKindCodes: alertKindCodes,
+    alertValueKindCodes: alertValueKindCodes,
     buildSettingsBlob: buildSettingsBlob,
     DEFAULT_WARN_COLOR: DEFAULT_WARN_COLOR,
     DEFAULT_DANGER_COLOR: DEFAULT_DANGER_COLOR

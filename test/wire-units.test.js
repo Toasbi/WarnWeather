@@ -198,3 +198,34 @@ test('uvShown: no peak ahead known falls back to the current reading alone', () 
   assert.deepEqual(uvShown([0], [null, 40], 'max'), S(null, 4, true));
   assert.deepEqual(uvShown([0], [null, null], 'max'), S(0, null, false));
 });
+
+// dayMaxToday: what the Alerts row judges — the highest number left TODAY incl. now,
+// in the slot's own rounding and unit, whatever the slot's display mode.
+test('dayMaxToday: today\'s remaining peak through the kind\'s reader, never below now', () => {
+  const wu = require('../src/pkjs/wire-units.js');
+  // UV tenths -> whole UV; the slot mode does not matter.
+  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [84, 90, 0] }, {}), 8);
+  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [85, 90, 0] },
+    { uvSlotDisplay: 'current' }), 9, 'rounds like the slot');
+  // Tomorrow's higher peak is never today's.
+  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [50], UV_DAY_PEAKS: [50, 90, 80] }, {}), 5);
+  // Wind and gusts in the user's unit.
+  assert.equal(wu.dayMaxToday('wind', { WIND_TREND_UINT8: [10], WIND_DAY_PEAKS: [64, 0, 0] },
+    { windUnits: 'mph' }), 40);
+  assert.equal(wu.dayMaxToday('gust', { GUST_TREND_UINT8: [10], GUST_DAY_PEAKS: [74, 0, 0] },
+    { windUnits: 'knots' }), 40);
+  assert.equal(wu.dayMaxToday('aqi', { AQI_TREND: [40], AQI_DAY_PEAKS: [88.6, 0, 0] }, {}), 89);
+  // The current hour is included: a feed whose peak lags the reading answers the reading.
+  assert.equal(wu.dayMaxToday('wind', { WIND_TREND_UINT8: [50], WIND_DAY_PEAKS: [40, 0, 0] }, {}), 50);
+  // A peak without a current reading still answers.
+  assert.equal(wu.dayMaxToday('uv', { UV_DAY_PEAKS: [60, 0, 0] }, {}), 6);
+});
+
+test('dayMaxToday: null without today\'s peak — the caller falls back to the reading', () => {
+  const wu = require('../src/pkjs/wire-units.js');
+  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20] }, {}), null, 'no peaks fetched');
+  assert.equal(wu.dayMaxToday('aqi', { AQI_TREND: [120] }, {}), null, 'WAQI: current only');
+  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [null, 50, 0] }, {}), null);
+  assert.equal(wu.dayMaxToday('pollen', { POLLEN_TODAY: '2' }, {}), null, 'not a day-max kind');
+  assert.equal(wu.dayMaxToday('uv', null, {}), null);
+});

@@ -37,6 +37,29 @@ test('slot kinds are in lockstep with status_line.h', () => {
   assert.equal(catalog.KINDS.LIVE_DISTANCE_MI, cEnum('SLOT_LIVE_DISTANCE_MI'));
   assert.equal(catalog.KINDS.LIVE_BATTERY, cEnum('SLOT_LIVE_BATTERY'));
   assert.equal(catalog.KINDS.LIVE_BATTERY_PCT, cEnum('SLOT_LIVE_BATTERY_PCT'));
+  assert.equal(catalog.KINDS.ALERTS, cEnum('SLOT_ALERTS'));
+});
+
+// Kinds are append-only wire values like the icon ids: a persisted line outlives
+// the upgrade that would renumber them.
+test('the Alerts row is slot kind 11 on both sides of the wire', () => {
+  assert.equal(cEnum('SLOT_ALERTS'), 11);
+  assert.equal(catalog.KINDS.ALERTS, 11);
+  assert.equal(catalog.byCode('alerts').kind, catalog.KINDS.ALERTS);
+  assert.equal(catalog.byCode('alerts').icon, catalog.ICONS.NONE);
+});
+
+// The alert-entry header (status_line.h SLOT_ALERTS) is written by the phone
+// (status-thresholds.js bakeAlerts) and walked by the watch (status_line.c).
+test('the alert entry header layout is in lockstep with status_line.h', () => {
+  assert.equal(cDefine('STATUS_ALERT_LEVEL_SHIFT'), 3);
+  assert.equal(cDefine('STATUS_ALERT_LEN_SHIFT'), 5);
+  assert.equal(cDefine('STATUS_ALERT_LEN_MAX'), 7);
+  const th = require('../src/pkjs/status-thresholds.js');
+  const bytes = th.bakeAlerts({ UV_TREND_UINT8: [80] },
+    { alertUv: true, alertUvDisplay: 'value' }, catalog.CAPS.EDGE_TEXT_MAX);
+  assert.deepEqual(bytes, [7 | (2 << cDefine('STATUS_ALERT_LEVEL_SHIFT'))
+    | (1 << cDefine('STATUS_ALERT_LEN_SHIFT')), '8'.charCodeAt(0)]);
 });
 
 test('icon ids are in lockstep with status_line.h', () => {
@@ -94,13 +117,13 @@ test('STATUS_ICON_MAX names the highest icon id in the enum', () => {
 
 // The phone battery is phone-baked TEXT (kind 1), NOT a new SLOT_LIVE_* kind —
 // that is the whole reason it costs zero watch-side plumbing and zero aplite
-// bytes. A new kind would need a walk_slot arm, a persist path and a lean-twin
-// port; pin that the ceiling did not move.
-test('STATUS_SLOT_KIND_MAX is unchanged — the phone battery adds no slot kind', () => {
+// bytes. The one kind appended since is the Alerts row (11), which needs its own
+// walk_slot arm (value bytes on a non-TEXT kind); pin that it is the ceiling.
+test('STATUS_SLOT_KIND_MAX is the Alerts row — the phone battery adds no slot kind', () => {
   const m = header.match(/#define\s+STATUS_SLOT_KIND_MAX\s+(SLOT_[A-Z_]+)/);
   assert.ok(m, 'STATUS_SLOT_KIND_MAX missing from status_line.h');
-  assert.equal(m[1], 'SLOT_LIVE_BATTERY_PCT', 'the phone battery must not add a slot kind');
-  assert.equal(cEnum('SLOT_LIVE_BATTERY_PCT'), 10);
+  assert.equal(m[1], 'SLOT_ALERTS', 'the Alerts row is the highest kind');
+  assert.equal(cEnum('SLOT_ALERTS'), 11);
   // The JS mirror agrees: no catalog kind exceeds the C ceiling.
   const kinds = Object.keys(catalog.KINDS).map(k => catalog.KINDS[k]);
   assert.equal(Math.max.apply(null, kinds), cEnum(m[1]),
@@ -116,6 +139,7 @@ test('STATUS_SLOT_KIND_MAX is unchanged — the phone battery adds no slot kind'
 test('every dropdown item maps kind+icon consistently', () => {
   const expected = {
     empty: [catalog.KINDS.EMPTY, catalog.ICONS.NONE],
+    alerts: [catalog.KINDS.ALERTS, catalog.ICONS.NONE],
     temp: [catalog.KINDS.TEXT, catalog.ICONS.TEMP],
     pressure: [catalog.KINDS.TEXT, catalog.ICONS.PRESSURE],
     dew: [catalog.KINDS.TEXT, catalog.ICONS.DEWPOINT],

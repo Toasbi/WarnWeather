@@ -36,7 +36,7 @@ test('the duplicated PhoneBattery key writes ONE bold mode into BOTH cells', () 
   // kind 19 -> byte 33, bits 2 * (19 & 3) = 6-7
   Object.keys(th.BOLD_MODES).forEach((mode) => {
     const blob = th.buildSettingsBlob({ threshPhoneBatteryBoldMode: mode });
-    assert.equal(blob.length, 34, mode + ': the duplicate must not widen the blob');
+    assert.equal(blob.length, 35, mode + ': the duplicate must not widen the blob');
     assert.equal((blob[33] >> 4) & 3, th.BOLD_MODES[mode], mode + ': phoneBattery cell (kind 18)');
     assert.equal((blob[33] >> 6) & 3, th.BOLD_MODES[mode], mode + ': phoneBatteryPlain cell (kind 19)');
     // The byte-mates (battery % and dew) keep the warn default.
@@ -58,7 +58,7 @@ test('the phone-battery cells share byte 33 with battery % and dew without bleed
     threshDewBoldMode: 'off',             // kind 17 -> bits 2-3
     threshPhoneBatteryBoldMode: 'off'     // kinds 18 AND 19 -> bits 4-5, 6-7
   });
-  assert.equal(blob.length, 34, 'byte 33 was already paid for — no widening');
+  assert.equal(blob.length, 35, 'byte 33 was already paid for — no widening');
   assert.equal(blob[33], (2 << 0) | (1 << 2) | (1 << 4) | (1 << 6));
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the earlier bold bytes stay at the warn default');
@@ -384,7 +384,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
     // An ordered pair with the toggle off sets no bit (wind, kind 2).
     threshWindOn: false, threshWindWarn: '30', threshWindDanger: '50'
   });
-  assert.equal(blob.length, 34);
+  assert.equal(blob.length, 35);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
@@ -481,9 +481,10 @@ test('buildSettingsBlob: imperial distance thresholds convert mi -> 100 m units'
 test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds', () => {
   const blob = th.buildSettingsBlob({});
   assert.equal(blob[0], 0);
-  // 12 health-threshold bytes, then the five bold bytes (0 = the default warn mode).
+  // 12 health-threshold bytes, the five bold bytes (0 = the default warn mode),
+  // then the alerts byte (0 = the rain alert's legacy text look).
   assert.deepEqual(blob.slice(17),
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 // "0 and negative thresholds are legitimate; unset must stay distinguishable from zero" —
@@ -543,8 +544,8 @@ test('buildSettingsBlob: goal u16s carry the SEED when the toggle is on over a b
 // so a never-configured kind reproduces the shipped bold-from-warn behaviour.
 test('buildSettingsBlob: unset bold modes pack as warn (all-zero bold bytes)', () => {
   const blob = th.buildSettingsBlob({});
-  assert.equal(blob.length, 34);
-  assert.deepEqual(blob.slice(th.BOLD_OFFSET), [0, 0, 0, 0, 0]);
+  assert.equal(blob.length, 35);
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET, th.ALERTS_OFFSET), [0, 0, 0, 0, 0]);
 });
 
 test('buildSettingsBlob: bold modes pack 2 bits per kind, kinds 0-3 then 4-7', () => {
@@ -595,9 +596,11 @@ test('buildSettingsBlob: statusBoldAll "all" packs always into every bold cell',
     for (let c = 0; c < tailCells; c += 1) { tail |= th.BOLD_MODES.always << (2 * c); }
     expected.push(tail);
   }
-  assert.deepEqual(blob.slice(th.BOLD_OFFSET), expected);
+  assert.deepEqual(blob.slice(th.BOLD_OFFSET, th.ALERTS_OFFSET), expected);
   // The bold area itself must not shrink, or the assertion above goes vacuous.
-  assert.equal(th.SETTINGS_BYTES - th.BOLD_OFFSET, 5, 'bold area is bytes 29..33');
+  assert.equal(th.ALERTS_OFFSET - th.BOLD_OFFSET, 5, 'bold area is bytes 29..33');
+  // ...and the master never reaches past it into the alerts byte.
+  assert.equal(blob[th.ALERTS_OFFSET], 0, 'the rain look is not a bold cell');
 });
 
 test('statusBoldAll "all" leaves everything below the bold area byte-identical', () => {
@@ -621,9 +624,10 @@ test('statusBoldAll "perSlot" (and absent) defer to the stored per-kind modes', 
     threshHrBoldMode: 'always'     // kind 15 -> byte 32 bits 6-7
   };
   const expected = [(2 << 0) | (1 << 6), 2 << 6, 1 << 0, 2 << 6, 0];
-  assert.deepEqual(th.buildSettingsBlob(mixed).slice(th.BOLD_OFFSET), expected);
+  assert.deepEqual(th.buildSettingsBlob(mixed).slice(th.BOLD_OFFSET, th.ALERTS_OFFSET), expected);
   assert.deepEqual(
-    th.buildSettingsBlob(Object.assign({ statusBoldAll: 'perSlot' }, mixed)).slice(th.BOLD_OFFSET),
+    th.buildSettingsBlob(Object.assign({ statusBoldAll: 'perSlot' }, mixed))
+      .slice(th.BOLD_OFFSET, th.ALERTS_OFFSET),
     expected);
 });
 
@@ -646,7 +650,7 @@ test('packing with statusBoldAll "all" does not mutate the stored per-kind modes
 // (blob bytes 31/32), byte 29 + (k >> 2) at bits 2 * (k & 3).
 test('buildSettingsBlob: battery % (kind 16) packs its bold cell into byte 33', () => {
   const blob = th.buildSettingsBlob({ threshBatteryPctBoldMode: 'always' });
-  assert.equal(blob.length, 34);
+  assert.equal(blob.length, 35);
   assert.equal(blob[33], 2 << 0, 'batteryPct always in byte 33 bits 0-1');
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the other bold bytes stay at the warn default');
@@ -755,4 +759,195 @@ test('buildStatusLines keeps STATUS_LEVELS_UINT8 for an unknown watchInfo', () =
   statusLines.buildStatusLines(payload,
     { threshAqiWarn: '100', threshAqiDanger: '200' }, null);
   assert.deepEqual(payload.STATUS_LEVELS_UINT8, [1, 0]);
+});
+
+// --- the Alerts row: the rain look byte and the phone-baked metric entries ---------
+
+test('buildSettingsBlob: byte 34 carries the rain alert look in bits 0-1', () => {
+  assert.equal(th.ALERTS_OFFSET, 34);
+  assert.equal(th.buildSettingsBlob({})[34], 0, 'absent = text, the legacy look');
+  assert.equal(th.buildSettingsBlob({ rainAlertDisplay: 'text' })[34], 0);
+  assert.equal(th.buildSettingsBlob({ rainAlertDisplay: 'icon' })[34], 1);
+  assert.equal(th.buildSettingsBlob({ rainAlertDisplay: 'minutes' })[34], 2);
+  assert.equal(th.buildSettingsBlob({ rainAlertDisplay: 'bogus' })[34], 0, 'unknown = text');
+  // Bits 2-7 are reserved: whatever else is configured, they stay 0.
+  const busy = th.buildSettingsBlob({ rainAlertDisplay: 'minutes', statusBoldAll: 'all',
+    alertUv: true, alertUvDisplay: 'value', threshUvOn: true });
+  assert.equal(busy[34], 2);
+  // Which metric alerts are on never rides the Clay blob.
+  assert.deepEqual(th.buildSettingsBlob({ alertUv: true, alertWind: true }),
+    th.buildSettingsBlob({}));
+});
+
+// UV payload units are tenths; wind/gust km/h; *_DAY_PEAKS = [today's rest, tomorrow,
+// today's earlier hours] in payload units.
+test('alertValue judges the DAY: the highest value left today, whatever the slot shows', () => {
+  const morning = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [80, 80, 0] };
+  assert.equal(th.alertValue('uv', morning, {}), 8, 'Now-mode slot, no slot at all: still 8');
+  assert.equal(th.alertValue('uv', morning, { uvSlotDisplay: 'current' }), 8);
+  assert.equal(th.displayValue('uv', morning, { uvSlotDisplay: 'current' }), 2,
+    'guard: the slot itself shows the current 2');
+  // Falling below warn, tomorrow higher: the slot rolls to »8, the alert judges today's 5.
+  const evening = { UV_TREND_UINT8: [50], UV_DAY_PEAKS: [50, 80, 80] };
+  assert.equal(th.alertValue('uv', evening, { uvSlotDisplay: 'max' }), 5);
+  // Wind in the user's unit.
+  const wind = { WIND_TREND_UINT8: [20], WIND_DAY_PEAKS: [64, 30, 0] };
+  assert.equal(th.alertValue('wind', wind, {}), 64);
+  assert.equal(th.alertValue('wind', wind, { windUnits: 'mph' }), 40);
+  // Never below the current reading, even if the feed disagrees with itself.
+  assert.equal(th.alertValue('gust', { GUST_TREND_UINT8: [70], GUST_DAY_PEAKS: [60, 0, 0] }, {}), 70);
+});
+
+test('alertValue falls back to the current reading: no peaks, WAQI AQI, pollen', () => {
+  // No *_DAY_PEAKS (not fetched, or WAQI's current-only AQI): the reading itself.
+  assert.equal(th.alertValue('uv', { UV_TREND_UINT8: [70] }, {}), 7);
+  // Today's peak unknown while an Alert-mode slot shows tomorrow's »9: the alert
+  // still judges the current 7, never the (null-judged) next-day peak.
+  const noToday = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [null, 90, 0] };
+  assert.equal(th.displayValue('uv', noToday, { uvSlotDisplay: 'max' }), null,
+    'guard: the slot judges nothing here');
+  assert.equal(th.alertValue('uv', noToday, { uvSlotDisplay: 'max' }), 7);
+  assert.equal(th.alertValue('wind', { WIND_TREND_UINT8: [64] },
+    { windUnits: 'knots', windSlotDisplay: 'max' }), 35, 'the reading in the user\'s unit');
+  assert.equal(th.alertValue('aqi', { AQI_TREND: [152.4] }, { aqiSource: 'waqi' }), 152);
+  assert.equal(th.alertValue('aqi', { AQI_TREND: [40], AQI_DAY_PEAKS: [90, 50, 0] }, {}), 90);
+  // Pollen is a daily band: its level on the 0..3 half-step scale.
+  assert.equal(th.alertValue('pollen', { POLLEN_TODAY: '2-3' }, {}), 2.5);
+  assert.equal(th.alertValue('pollen', {}, {}), null);
+  // No reading, not an alert kind: null.
+  assert.equal(th.alertValue('uv', {}, {}), null);
+  assert.equal(th.alertValue('temp', { CURRENT_TEMP: 70 }, {}), null);
+  assert.equal(th.alertValue('steps', {}, {}), null);
+});
+
+test('alertLevel = alertValue against the resolved pair (seeds when blank)', () => {
+  const p = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [70, 80, 0] };
+  assert.equal(th.alertLevel('uv', p, {}), 1, '7 vs seed 6/8: warn');
+  assert.equal(th.alertLevel('uv', p, { threshUvWarn: '3', threshUvDanger: '7' }), 2);
+  assert.equal(th.alertLevel('uv', p, { threshUvWarn: '8', threshUvDanger: '9' }), 0);
+  // Highlight-agnostic: the switch only colours the slot.
+  assert.equal(th.alertLevel('uv', p, { threshUvOn: false }), 1);
+  assert.equal(th.alertLevel('pollen', { POLLEN_TODAY: '3' }, {}), 2, 'seed 2/3');
+  assert.equal(th.alertLevel('wind', { WIND_TREND_UINT8: [30] }, { windUnits: 'mph' }), 0,
+    '30 km/h = 19 mph vs the mph seed 25/40');
+  assert.equal(th.alertLevel('uv', {}, {}), null);
+});
+
+/**
+ * Decode a bakeAlerts byte array into {kind, level, value} entries.
+ * @param {number[]} bytes
+ * @returns {Object[]}
+ */
+function decodeAlerts(bytes) {
+  const out = [];
+  let i = 0;
+  while (i < bytes.length) {
+    const h = bytes[i++];
+    const n = h >> 5;
+    out.push({ kind: h & 7, level: (h >> 3) & 3,
+      value: String.fromCharCode.apply(null, bytes.slice(i, i + n)) });
+    i += n;
+  }
+  assert.equal(i, bytes.length, 'the entries tile the bytes exactly');
+  return out;
+}
+
+// Everything alerting: UV 8 (danger), wind 45 (warn), gust 90 (danger), AQI 152
+// (danger), pollen 2 (warn), on the seed pairs.
+const ALL_ALERTING = {
+  UV_TREND_UINT8: [80], UV_DAY_PEAKS: [80, 60, 0],
+  WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 20, 0],
+  GUST_TREND_UINT8: [90], GUST_DAY_PEAKS: [90, 20, 0],
+  AQI_TREND: [152],
+  POLLEN_TODAY: '2'
+};
+const ALL_ON = { alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true };
+
+test('bakeAlerts: the exact bytes for a UV-danger + wind-warn row', () => {
+  const p = { UV_TREND_UINT8: [30], UV_DAY_PEAKS: [85, 50, 0],
+    WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 20, 0] };
+  // Icons only: one header byte each. UV = kind 7, danger (2); wind = kind 2, warn (1).
+  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertWind: true }, 8),
+    [7 | (2 << 3), 2 | (1 << 3)]);
+  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertWind: true }, 8), [0x17, 0x0A]);
+  // UV with its value ("9" — 8.5 rounds like the slot prints it), wind icon-only.
+  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertUvDisplay: 'value', alertWind: true }, 8),
+    [7 | (2 << 3) | (1 << 5), 0x39, 2 | (1 << 3)]);
+  // Both with values: wind in the user's unit, no unit label.
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(p, { alertUv: true, alertUvDisplay: 'value',
+    alertWind: true, alertWindDisplay: 'value', windUnits: 'mph' }, 8)),
+  [{ kind: 7, level: 2, value: '9' }, { kind: 2, level: 1, value: '28' }],
+  'mph: 45 km/h = 28 mph, at the mph seed warn 25');
+});
+
+test('bakeAlerts: fixed order UV, wind, gust, AQI, pollen; disabled and quiet kinds absent', () => {
+  const all = decodeAlerts(th.bakeAlerts(ALL_ALERTING, Object.assign({ provider: 'dwd' }, ALL_ON), 19));
+  assert.deepEqual(all.map(e => e.kind), [7, 2, 3, 0, 1], 'UV, wind, gust, AQI, pollen');
+  assert.deepEqual(all.map(e => e.level), [2, 1, 2, 2, 1]);
+  assert.deepEqual(all.map(e => e.value), ['', '', '', '', ''], 'icon Look: no values');
+  // A disabled alert is absent even at danger; only === true switches one on.
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(ALL_ALERTING,
+    { alertUv: false, alertGust: true, alertAqi: 'true' }, 19)).map(e => e.kind), [3]);
+  // Level 0 (below warn) is absent.
+  const calm = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 20, 0], WIND_TREND_UINT8: [45] };
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(calm, { alertUv: true, alertWind: true }, 19))
+    .map(e => e.kind), [2], 'UV 3 stays quiet, wind 45 warns');
+  // Nothing alerting, no settings, no payload: no bytes.
+  assert.deepEqual(th.bakeAlerts(calm, { alertUv: true }, 19), []);
+  assert.deepEqual(th.bakeAlerts(ALL_ALERTING, null, 19), []);
+  assert.deepEqual(th.bakeAlerts(null, ALL_ON, 19), []);
+});
+
+test('bakeAlerts: values only for the kinds whose Look is value, printed like the slot', () => {
+  const s = Object.assign({}, ALL_ON, {
+    alertUvDisplay: 'value', alertWindDisplay: 'icon', alertGustDisplay: 'value',
+    alertAqiDisplay: 'value', alertPollenDisplay: 'value'
+  });
+  const e = decodeAlerts(th.bakeAlerts(ALL_ALERTING, s, 19));
+  assert.deepEqual(e.map(x => x.value), ['8', '', '90', '152', '2']);
+  // Pollen prints its DWD band, as the pollen slot does.
+  const half = decodeAlerts(th.bakeAlerts({ POLLEN_TODAY: '2-3' },
+    { alertPollen: true, alertPollenDisplay: 'value' }, 19));
+  assert.deepEqual(half, [{ kind: 1, level: 1, value: '2-3' }]);
+  // Every value byte is printable ASCII (the watch's walker rejects anything else).
+  th.bakeAlerts(ALL_ALERTING, s, 19).forEach((b, i, all) => {
+    if (i > 0) { assert.ok(b < 0x80, 'byte ' + i + ' of ' + all); }
+  });
+});
+
+test('bakeAlerts: tail-drops entries past the cap, pollen first (edge 8 / mid 19)', () => {
+  const values = Object.assign({}, ALL_ON, {
+    alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
+    alertAqiDisplay: 'value', alertPollenDisplay: 'value'
+  });
+  // All five with values: 5 headers + "8" "45" "90" "152" "2" = 14 B — fits mid.
+  const mid = th.bakeAlerts(ALL_ALERTING, values, 19);
+  assert.equal(mid.length, 14);
+  assert.deepEqual(decodeAlerts(mid).map(e => e.kind), [7, 2, 3, 0, 1]);
+  // Edge 8 B: UV+wind+gust with values = 2 + 3 + 3 = 8 B; AQI and pollen drop.
+  const edge = th.bakeAlerts(ALL_ALERTING, values, 8);
+  assert.equal(edge.length, 8);
+  assert.deepEqual(decodeAlerts(edge).map(e => e.kind), [7, 2, 3]);
+  // A prefix, never a later shorter entry: at 10 B the AQI entry (4 B) does not fit
+  // after the first three (8 B), and pollen (2 B) would — but is not taken: the watch
+  // fits its pixels by the same tail-drop rule.
+  const tight = th.bakeAlerts(ALL_ALERTING, values, 10);
+  assert.deepEqual(decodeAlerts(tight).map(e => e.kind), [7, 2, 3]);
+  // Icon-only: all five = 5 B, fits an edge slot.
+  assert.equal(th.bakeAlerts(ALL_ALERTING, ALL_ON, 8).length, 5);
+  // Never past the cap, for any cap.
+  for (let cap = 0; cap <= 19; cap++) {
+    assert.ok(th.bakeAlerts(ALL_ALERTING, values, cap).length <= cap, 'cap ' + cap);
+  }
+});
+
+test('alertKindCodes / alertValueKindCodes: enabled codes in the row order', () => {
+  assert.deepEqual(th.alertKindCodes({}), []);
+  assert.deepEqual(th.alertKindCodes(ALL_ON), ['uv', 'wind', 'gust', 'aqi', 'pollen']);
+  assert.deepEqual(th.alertKindCodes({ alertAqi: true, alertUv: true, alertWind: false }),
+    ['uv', 'aqi']);
+  assert.deepEqual(th.alertValueKindCodes({ alertAqi: true, alertAqiDisplay: 'value',
+    alertUv: true, alertUvDisplay: 'icon', alertWind: false, alertWindDisplay: 'value' }),
+  ['aqi'], 'a disabled alert\'s Look does not count');
+  assert.deepEqual(th.alertKindCodes(null), []);
 });

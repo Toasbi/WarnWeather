@@ -47,8 +47,12 @@ cc $CFLAGS -DWW_HOST_FAKE_TIME test/c/health_cache_test.c src/c/services/health_
 build/host/health_cache_test
 cc $CFLAGS test/c/radar_axis_test.c src/c/appendix/radar_axis.c -o build/host/radar_axis_test
 build/host/radar_axis_test
-cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/status_line_test
+# Built TWICE: with WW_ALERT_ROW (every platform but aplite — the SLOT_ALERTS entry
+# walk) and without it (aplite, whose walker must keep rejecting bytes on kind 11).
+cc $CFLAGS -DWW_ALERT_ROW test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/status_line_test
 build/host/status_line_test
+cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/status_line_test_aplite
+build/host/status_line_test_aplite
 cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o build/host/status_threshold_test
 build/host/status_threshold_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test

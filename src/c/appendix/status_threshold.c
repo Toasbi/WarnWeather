@@ -90,10 +90,12 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 }
 
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
-    // Three exact lengths, never a range: the pre-bold 29 and the 16-kind 33
-    // are readable because the bold bytes were appended (see status_threshold.h).
+    // Four exact lengths, never a range: the pre-bold 29, the 16-kind 33 and the
+    // pre-alerts 34 are readable because the bold bytes and the alerts byte were
+    // appended (see status_threshold.h).
     return blob != NULL
         && (len == THRESH_SETTINGS_BYTES
+            || len == THRESH_SETTINGS_BYTES_PRE_ALERTS
             || len == THRESH_SETTINGS_BYTES_PRE_KIND16
             || len == THRESH_SETTINGS_BYTES_PRE_BOLD);
 }
@@ -146,6 +148,15 @@ int status_threshold_bold_mode(const uint8_t *blob, size_t len, int kind) {
     if (off >= len) { return THRESH_BOLD_WARN; }
     int mode = (blob[off] >> (2 * (kind & 3))) & 3;
     return mode == 3 ? THRESH_BOLD_WARN : mode;   // 3 is reserved
+}
+
+int status_threshold_rain_display(const uint8_t *blob, size_t len) {
+    // Append-only like the bold bytes: a shorter accepted blob has no alerts
+    // byte, and "text" is exactly what the watch drew before the byte existed.
+    if (!status_threshold_settings_validate(blob, len)
+        || THRESH_ALERTS_OFFSET >= len) { return THRESH_RAIN_DISPLAY_TEXT; }
+    int mode = blob[THRESH_ALERTS_OFFSET] & 3;
+    return mode == 3 ? THRESH_RAIN_DISPLAY_TEXT : mode;   // 3 is reserved
 }
 
 bool status_threshold_is_bold(const uint8_t *blob, size_t len, int kind, int level) {

@@ -116,8 +116,9 @@ function build(settings, watchInfo, env) {
         // gate on every adapter; DWD's per-hour Steadman and Open-Meteo's
         // adoptFeels also skip the arithmetic when it is off.
         fetchFeels: forecastSeries.needsFeels(settings, watchInfo),
-        // The day-max slots that show a peak: only they keep a day record (a flash
-        // write per fetch) and widen their provider requests to the end of tomorrow.
+        // The day-max kinds whose peaks are wanted (a slot shows one, or the kind's
+        // alert is on): only they keep a day record (a flash write per fetch) and
+        // widen their provider requests to the end of tomorrow.
         dayPeakCodes: forecastSeries.dayPeakCodes(settings),
         // The Units tab's feels-like formula: it changes the baked FEELS_* values,
         // so it is in renderSignature too.

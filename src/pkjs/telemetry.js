@@ -7,6 +7,9 @@ var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
 // The radar source in effect ('rainbowkey' for Rainbow with "Use your own key" on).
 var radarSourceId = require('./weather/radar-source-id.js');
+// ALERT_KINDS + alertKindCodes / alertValueKindCodes — the bake's own reading of
+// the Alerts card, so the report and the watch cannot disagree on "which are on".
+var statusThresholds = require('./status-thresholds.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -66,6 +69,25 @@ function graphColorReport(settings, scope, role, suffix) {
     }
     return configUi.intToHex(
         lineStyle.colorPick(settings[lineStyle.graphColorKey(scope, role, suffix)]));
+}
+
+/**
+ * The metric alerts switched on, comma-joined in the row's fixed order ('' when
+ * none) — or undefined on an install whose blob holds no alert key at all (never
+ * opened the settings page since the Alerts card shipped), which the column reads
+ * as "default", like an unseeded threshPhoneBatteryBoldMode.
+ * @param {Object} safe Settings blob (never null).
+ * @param {function(Object): string[]} pick status-thresholds' alertKindCodes or
+ *     alertValueKindCodes.
+ * @returns {string|undefined} e.g. 'uv,wind', '' or undefined.
+ */
+function alertCodesReport(safe, pick) {
+    var kinds = statusThresholds.ALERT_KINDS;
+    var seeded = false;
+    for (var i = 0; i < kinds.length; i++) {
+        if (typeof safe['alert' + kinds[i].key] !== 'undefined') { seeded = true; }
+    }
+    return seeded ? pick(safe).join(',') : undefined;
 }
 
 /**
@@ -155,6 +177,14 @@ function buildSettingsSnapshot(settings, watchInfo) {
         provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
         rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
+        // The Alerts card: which metric alerts are on, which of those print their
+        // value, and the rain alert's look ('text' | 'icon' | 'minutes', raw like
+        // tempSlotDisplay — absent reads as the default 'text'). All three are
+        // z.string() in the ingest schema: a comma list, never an enum, so a new
+        // alert kind cannot 400 an old ingest's batch.
+        alertKinds: alertCodesReport(safe, statusThresholds.alertKindCodes),
+        alertValueKinds: alertCodesReport(safe, statusThresholds.alertValueKindCodes),
+        rainAlertDisplay: safe.rainAlertDisplay,
         // The battery saver's window — the saver's OWN pair, as it has always been;
         // the Nighttime card groups it with two other features but shares no hours
         // with them. Present only while the saver is on ("value in effect"), which is

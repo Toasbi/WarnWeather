@@ -46,10 +46,12 @@ test('defaults + the two flavors are the shipped status-bar set', () => {
     { statusForecastLeft: 'temp', statusForecastMid: 'city', statusForecastRight: 'aqi' });
   assert.deepEqual(catalog.LINES[1].defaults,
     { statusRadarLeft: 'uv', statusRadarMid: 'wind', statusRadarRight: 'gust' });
+  // The Alerts row owns the strip's left slot on every flavor (the calendar week
+  // gave up emery's; it stays selectable).
   assert.deepEqual(catalog.LINES[2].defaults,
-    { statusTopLeft: 'empty', statusTopMid: 'date', statusTopRight: 'battery' });
+    { statusTopLeft: 'alerts', statusTopMid: 'date', statusTopRight: 'battery' });
   assert.deepEqual(catalog.LINES[2].emeryDefaults,
-    { statusTopLeft: 'week', statusTopMid: 'date', statusTopRight: 'sun' });
+    { statusTopLeft: 'alerts', statusTopMid: 'date', statusTopRight: 'sun' });
   assert.deepEqual(catalog.LINES[3].defaults,
     { statusHealthLeft: 'steps', statusHealthMid: 'empty', statusHealthRight: 'sleep' });
   assert.deepEqual(catalog.LINES[3].hrDefaults,
@@ -63,9 +65,9 @@ test('slotDefault takes the emery and HR flavors; the other rows are flat', () =
   assert.equal(catalog.slotDefault('statusHealthRight', undefined), 'sleep');
   assert.equal(catalog.slotDefault('statusForecastRight', ENV_EMERY), 'aqi');
   // The top strip: three readings on emery, date + battery corner everywhere else.
-  assert.equal(catalog.slotDefault('statusTopLeft', ENV_EMERY), 'week');
+  assert.equal(catalog.slotDefault('statusTopLeft', ENV_EMERY), 'alerts');
   assert.equal(catalog.slotDefault('statusTopRight', ENV_EMERY), 'sun');
-  assert.equal(catalog.slotDefault('statusTopLeft', ENV_BASALT), 'empty');
+  assert.equal(catalog.slotDefault('statusTopLeft', ENV_BASALT), 'alerts');
   assert.equal(catalog.slotDefault('statusTopRight', ENV_BASALT), 'battery');
   assert.equal(catalog.slotDefault('statusTopRight', ENV_DIORITE), 'battery',
     'the split is display width, not colour or heart rate');
@@ -74,6 +76,11 @@ test('slotDefault takes the emery and HR flavors; the other rows are flat', () =
   assert.equal(catalog.slotDefault('statusTopRight', undefined), 'battery',
     'no env is not emery');
   assert.equal(catalog.slotDefault('nope', ENV_BASALT), undefined);
+  // The Alerts row is notAplite: its default there is Empty (the strip keeps the
+  // date + battery), so the page hydrates a value the slot sheet offers. Env-free
+  // callers (the fetch gates' selectedCodes) still read the table.
+  assert.equal(catalog.slotDefault('statusTopLeft', ENV_APLITE), 'empty');
+  assert.equal(catalog.slotDefault('statusTopLeft', undefined), 'alerts');
 });
 
 test('the top strip default is placeable in the slot it names', () => {
@@ -90,6 +97,58 @@ test('the top strip default is placeable in the slot it names', () => {
       `${env.platform}: "${code}" is not placeable in ${slotKey}`);
     });
   });
+});
+
+// The Alerts row: the first thing in every slot sheet (a one-item category right
+// under Empty), never on aplite, never top-right (the low-battery override owns it).
+test('alerts is the first item after Empty in every non-top-right slot', () => {
+  const s = { healthMode: 'all', radarMode: 'graph' };
+  ['statusTopLeft', 'statusTopMid', 'statusForecastLeft', 'statusHealthRight'].forEach((key) => {
+    const opts = catalog.slotOptions(s, ENV_BASALT,
+      { slotKey: key, position: key.endsWith('Mid') ? 'mid' : 'left' });
+    assert.deepEqual(opts[0], ['Empty', 'empty']);
+    assert.deepEqual(opts[1], ['Alerts', 'alerts'], key + ': a plain row, no group header');
+  });
+  const item = catalog.byCode('alerts');
+  assert.equal(item.category, 'alerts');
+  assert.equal(item.notAplite, true);
+  assert.equal(item.notTopRight, true);
+});
+
+test('alerts is excluded from statusTopRight and from every aplite slot', () => {
+  const s = { healthMode: 'all', radarMode: 'graph' };
+  const right = catalog.slotOptions(s, ENV_BASALT,
+    { slotKey: 'statusTopRight', position: 'right' }).map(o => o[1]);
+  assert.equal(right.indexOf('alerts'), -1, 'the battery override owns the top-right slot');
+  // ...but the other bars' right slots are fine: only statusTopRight has the override.
+  assert.ok(catalog.itemAvailable(catalog.byCode('alerts'), s, ENV_BASALT,
+    { slotKey: 'statusForecastRight', position: 'right' }));
+  assert.equal(catalog.resolveSelection('alerts', s, ENV_BASALT,
+    { slotKey: 'statusTopRight', position: 'right' }), 'empty');
+  // No slot context: not the top-right slot, so the gate passes (unlike topRightOnly).
+  assert.ok(catalog.itemAvailable(catalog.byCode('alerts'), s, ENV_BASALT));
+  // aplite: the lean status-row twin has no alert row.
+  const aplite = catalog.slotOptions(s, ENV_APLITE,
+    { slotKey: 'statusTopLeft', position: 'left' }).map(o => o[1]);
+  assert.equal(aplite.indexOf('alerts'), -1);
+  assert.equal(catalog.resolveSelection('alerts', s, ENV_APLITE,
+    { slotKey: 'statusTopLeft', position: 'left' }), 'empty');
+});
+
+// An enabled alert needs its metric's day peaks whether or not a slot shows the
+// metric (the alert judges the day) — dayMaxInUse is the fetch gate's answer.
+test('dayMaxInUse: an enabled alert counts as in use with no slot and a Now-mode slot', () => {
+  const noSlot = { statusRadarLeft: 'empty', statusForecastRight: 'empty' };
+  assert.equal(catalog.dayMaxInUse(noSlot, 'uv'), false);
+  assert.equal(catalog.dayMaxInUse(Object.assign({ alertUv: true }, noSlot), 'uv'), true);
+  assert.equal(catalog.dayMaxInUse(Object.assign({ alertUv: false }, noSlot), 'uv'), false);
+  assert.equal(catalog.dayMaxInUse({ alertWind: true, windSlotDisplay: 'current' }, 'wind'), true);
+  assert.equal(catalog.dayMaxInUse({ alertAqi: true }, 'aqi'), true);
+  assert.equal(catalog.dayMaxInUse({ alertAqi: true }, 'gust'), false, 'per kind');
+  // Only a real true: a stored string is not the toggle's value.
+  assert.equal(catalog.alertEnabled({ alertGust: 'true' }, 'gust'), false);
+  assert.equal(catalog.alertEnabled({ alertPollen: true }, 'pollen'), true);
+  assert.equal(catalog.alertEnabled(null, 'uv'), false);
 });
 
 test('availability gating', () => {

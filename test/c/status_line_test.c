@@ -198,6 +198,169 @@ static void slot_tests(void) {
            status_line_slots(b, STATUS_LINE_MAX_BYTES + 1, v), 0);
 }
 
+// --- SLOT_ALERTS entries ------------------------------------------------------
+//
+// The alerts slot is the one non-TEXT kind that carries bytes: one header byte per
+// active metric alert (bits 0-2 ThreshKind, 3-4 level, 5-7 value length) + that
+// many ASCII value bytes (status_line.h). The phone bakes them
+// (status-thresholds.js bakeAlerts); these pin what the walker lets through.
+
+// Lay a raw alerts slot (kind 11, icon NONE, `len` bytes) at buf+off.
+static size_t put_alerts(uint8_t *buf, size_t off, const uint8_t *bytes, uint8_t len) {
+    buf[off++] = SLOT_ALERTS;
+    buf[off++] = STATUS_ICON_NONE;
+    buf[off++] = len;
+    if (len) { memcpy(buf + off, bytes, len); off += len; }
+    return off;
+}
+
+static uint8_t alert_header(int kind, int level, int value_len) {
+    return (uint8_t)(kind | (level << STATUS_ALERT_LEVEL_SHIFT)
+                     | (value_len << STATUS_ALERT_LEN_SHIFT));
+}
+
+#if defined(WW_ALERT_ROW)
+static void alerts_tests(void) {
+    uint8_t b[64];
+    uint8_t e[24];
+    size_t n;
+    StatusSlotView v[STATUS_SLOT_COUNT];
+
+    expect("alerts.kind_is_11", SLOT_ALERTS, 11);
+    expect("alerts.kind_max", STATUS_SLOT_KIND_MAX, SLOT_ALERTS);
+
+    // Zero entries (nothing alerting right now) is legal, unlike an empty TEXT.
+    n = put_alerts(b, 0, NULL, 0);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.none.valid", status_line_validate(b, n), 1);
+    expect("alerts.none.slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("alerts.none.kind", v[0].kind, SLOT_ALERTS);
+    expect("alerts.none.len", v[0].value_len, 0);
+    expect("alerts.none.null", v[0].value == NULL, 1);
+
+    // Icon-only UV danger + wind warn: 2 header bytes, no values.
+    e[0] = alert_header(7, 2, 0);
+    e[1] = alert_header(2, 1, 0);
+    n = put_alerts(b, 0, e, 2);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_LIVE_BATTERY, STATUS_ICON_NONE, NULL);
+    expect("alerts.icons.slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("alerts.icons.len", v[0].value_len, 2);
+    expect("alerts.icons.bytes", memcmp(v[0].value, e, 2), 0);
+    expect("alerts.icons.next_slot", v[2].kind, SLOT_LIVE_BATTERY);
+
+    // The edge cap (8 B) is honoured to the byte: UV "8" + wind "45" + gust "90"
+    // = 2 + 3 + 3 = 8 B fills the edge slot exactly.
+    e[0] = alert_header(7, 2, 1); e[1] = '8';
+    e[2] = alert_header(2, 1, 2); e[3] = '4'; e[4] = '5';
+    e[5] = alert_header(3, 1, 2); e[6] = '9'; e[7] = '0';
+    n = put_alerts(b, 0, e, 8);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.edge8.valid", status_line_validate(b, n), 1);
+    // 9 B in an edge slot: over the cap.
+    e[8] = alert_header(0, 1, 0);
+    n = put_alerts(b, 0, e, 9);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.edge9.reject", status_line_validate(b, n), 0);
+
+    // The mid slot takes the mid cap: all five with values ("8","45","90","152","2")
+    // = 5 headers + 9 value bytes = 14 B; and a line of alerts in all three
+    // positions still fits the 48-B line cap.
+    e[0] = alert_header(7, 2, 1); e[1] = '8';
+    e[2] = alert_header(2, 1, 2); e[3] = '4'; e[4] = '5';
+    e[5] = alert_header(3, 1, 2); e[6] = '9'; e[7] = '0';
+    e[8] = alert_header(0, 2, 3); e[9] = '1'; e[10] = '5'; e[11] = '2';
+    e[12] = alert_header(1, 1, 1); e[13] = '2';
+    n = put_alerts(b, 0, e, 8);
+    n = put_alerts(b, n, e, 14);
+    n = put_alerts(b, n, e, 8);
+    expect("alerts.three.len", (int)n, 39);
+    expect("alerts.three.valid", status_line_validate(b, n), 1);
+    expect("alerts.three.slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("alerts.three.mid_len", v[1].value_len, 14);
+    expect("alerts.three.mid_bytes", memcmp(v[1].value, e, 14), 0);
+    // The mid cap is 19 like TEXT: 20 B rejects.
+    memset(e, 0, sizeof(e));
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_alerts(b, n, e, 19);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.mid19.valid", status_line_validate(b, n), 1);
+    n = put_slot(b, 0, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_alerts(b, n, e, 20);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.mid20.reject", status_line_validate(b, n), 0);
+
+    // A declared value length past value_len is a malformed line, not a
+    // truncated value: header says 3 value bytes, the slot carries 2.
+    e[0] = alert_header(0, 1, 3); e[1] = '1'; e[2] = '5';
+    n = put_alerts(b, 0, e, 3);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.value_past_len.reject", status_line_validate(b, n), 0);
+    // ...even when the following slot's bytes would "complete" it.
+    e[0] = alert_header(0, 1, 2); e[1] = '1';
+    n = put_alerts(b, 0, e, 2);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.value_into_next_slot.reject", status_line_validate(b, n), 0);
+    // A second entry whose length overruns is caught too.
+    e[0] = alert_header(7, 1, 0);
+    e[1] = alert_header(2, 1, 7); e[2] = '4';
+    n = put_alerts(b, 0, e, 3);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.second_overrun.reject", status_line_validate(b, n), 0);
+    // Value bytes are printable ASCII only.
+    e[0] = alert_header(7, 1, 1); e[1] = 0x01;
+    n = put_alerts(b, 0, e, 2);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.value_control.reject", status_line_validate(b, n), 0);
+    e[1] = 0xC2;
+    n = put_alerts(b, 0, e, 2);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.value_high.reject", status_line_validate(b, n), 0);
+
+    // Kind 12 does not exist yet: rejected like any kind past the ceiling.
+    n = put_slot(b, 0, (uint8_t)(SLOT_ALERTS + 1), STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("alerts.kind12.reject", status_line_validate(b, n), 0);
+}
+#else
+// aplite (no WW_ALERT_ROW): the phone never sends kind 11 there (catalog notAplite),
+// and the walker keeps the pre-alerts rule — no value bytes on a non-TEXT kind.
+static void alerts_tests(void) {
+    uint8_t b[64];
+    uint8_t e[4];
+    size_t n;
+    StatusSlotView v[STATUS_SLOT_COUNT];
+
+    expect("aplite.kind_max", STATUS_SLOT_KIND_MAX, SLOT_ALERTS);
+    n = put_alerts(b, 0, NULL, 0);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("aplite.alerts_empty.valid", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("aplite.alerts_empty.null", v[0].value == NULL, 1);
+    e[0] = alert_header(7, 2, 0);
+    n = put_alerts(b, 0, e, 1);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("aplite.alerts_bytes.reject", status_line_validate(b, n), 0);
+    // TEXT is untouched by the exclusion.
+    n = put_slot(b, 0, SLOT_TEXT, STATUS_ICON_TEMP, "12");
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    n = put_slot(b, n, SLOT_EMPTY, STATUS_ICON_NONE, NULL);
+    expect("aplite.text.slots", status_line_slots(b, n, v), STATUS_SLOT_COUNT);
+    expect("aplite.text.len", v[0].value_len, 2);
+    expect("aplite.text.bytes", memcmp(v[0].value, "12", 2), 0);
+}
+#endif
+
 // --- wind-direction sentinel -------------------------------------------------
 //
 // The arrow on a wind/gust slot rides as ONE trailing byte inside the slot's
@@ -306,6 +469,7 @@ static void iso_week_tests(void) {
 int main(void) {
     validate_tests();
     slot_tests();
+    alerts_tests();
     direction_tests();
     iso_week_tests();
     if (s_failures) { printf("%d status_line failure(s)\n", s_failures); return 1; }

@@ -132,3 +132,21 @@ test('build() returns every knob and a fresh object per call', () => {
   assert.deepEqual(Object.keys(a).sort(), KNOBS.slice().sort());
   assert.notEqual(a, b);
 });
+
+test('an enabled alert fetches its metric AND its day peaks with no slot showing it', () => {
+  const none = { statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
+    statusForecastRight: 'empty' };
+  const off = fetchOptions.build(none);
+  assert.equal(off.fetchUv, false, 'guard: no UV slot');
+  assert.equal(off.fetchAqi, false, 'guard: no AQI slot');
+  assert.deepEqual(off.dayPeakCodes, []);
+  const on = fetchOptions.build(Object.assign({ provider: 'dwd', alertUv: true, alertAqi: true,
+    alertWind: true, alertPollen: true }, none));
+  assert.equal(on.fetchUv, true);
+  assert.equal(on.fetchAqi, true);
+  assert.equal(on.fetchPollen, true);
+  assert.deepEqual(on.dayPeakCodes, ['uv', 'wind', 'aqi']);
+  // Still exactly forecast-series' predicates.
+  const s = Object.assign({ alertGust: true }, none);
+  assert.deepEqual(fetchOptions.build(s).dayPeakCodes, forecastSeries.dayPeakCodes(s));
+});

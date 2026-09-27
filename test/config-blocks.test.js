@@ -1166,9 +1166,10 @@ test('statusSlotDefault resolver: env-aware slot default sourced from the catalo
   assert.equal(fn({ hr: false }, { slotKey: 'statusHealthRight' }), 'sleep');
   assert.equal(fn({}, { slotKey: 'statusForecastRight' }), 'aqi');
   // The top strip carries the other flavor: three readings on emery, date + battery
-  // corner on the narrower displays.
-  assert.equal(fn({ platform: 'emery' }, { slotKey: 'statusTopLeft' }), 'week');
-  assert.equal(fn({ platform: 'basalt' }, { slotKey: 'statusTopLeft' }), 'empty');
+  // corner on the narrower displays — and the Alerts row left on both.
+  assert.equal(fn({ platform: 'emery' }, { slotKey: 'statusTopLeft' }), 'alerts');
+  assert.equal(fn({ platform: 'basalt' }, { slotKey: 'statusTopLeft' }), 'alerts');
+  assert.equal(fn({ platform: 'emery' }, { slotKey: 'statusTopRight' }), 'sun');
   assert.equal(fn({ platform: 'basalt' }, { slotKey: 'statusTopRight' }), 'battery');
 });
 

@@ -229,8 +229,9 @@ var METRICS = [
 ];
 
 /**
- * Whether a slot shows this metric's peak (provider.options.dayPeakCodes, built
- * per fetch by fetch-options.js; all of them when unset, or when the provider
+ * Whether a slot shows this metric's peak or its alert is on
+ * (provider.options.dayPeakCodes, built per fetch by fetch-options.js from
+ * status-line-catalog's dayMaxInUse; all of them when unset, or when the provider
  * carries no options — the fail-safe direction, like fetchFeels) — the gate on
  * its record, its payload triple and its providers' longer requests.
  *

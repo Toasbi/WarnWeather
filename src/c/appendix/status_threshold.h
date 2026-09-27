@@ -37,6 +37,14 @@
 //                       sixth bold byte).
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
+//      [34]             alerts options (THRESH_ALERTS_OFFSET). Bits 0-1: the
+//                       Alerts row's rain look (0 text — the legacy "Rain in
+//                       12'" countdown, 1 icon, 2 icon + minutes; 3 reserved,
+//                       reads as text). Bits 2-7 reserved (DWD official-warning
+//                       flags later) — written 0. Which METRIC alerts are on
+//                       never rides here: the phone bakes only the enabled,
+//                       active ones into the alerts slot's own bytes
+//                       (status_line.h SLOT_ALERTS).
 //    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 33 when the bold-only
 //    kinds (8..15) grew the bold area to 16 kinds, 33 -> 34 when battery %
 //    (kind 16) opened byte 33. (An interim 31-byte 8-kind bold format never
@@ -44,16 +52,20 @@
 //    appended into byte 33's second cell and cost NOTHING: the byte was already
 //    paid for, so THRESH_SETTINGS_BYTES and the accepted-length set below are
 //    unchanged. The two phone-battery kinds (18, 19) took byte 33's third and
-//    fourth cells on the same terms — still 34 bytes, still the same three
-//    accepted lengths. That EXHAUSTS the bold area: kind 20 is the first that
-//    widens the blob 34 -> 35 — and with it every Clay send — and it would add a
-//    fourth accepted length here for upgrading watches.
-//    Exactly three lengths are accepted: the current 34, the 16-kind 33, and
-//    the pre-bold 29. The UV step SHIFTED the health offsets, so a 27-byte blob
-//    would be misread and is rejected; the bold steps only APPEND, so a shorter
-//    accepted blob still describes every field before it and is read with the
-//    default bold mode for the kinds it lacks (a 33-byte blob reads kind 16 as
-//    the default). That matters on upgrade: the phone only force-resends its
+//    fourth cells on the same terms — still 34 bytes. That EXHAUSTED the bold
+//    area, and 34 -> 35 then appended the alerts byte right after it. So the
+//    alerts byte now ENDS the bold area: kind 20 is no longer a plain append —
+//    it needs a sixth bold byte AND must relocate the alerts byte, a LAYOUT
+//    change (a new accepted length and a reader that knows both positions).
+//    The _Static_assert below the offsets turns that into a compile error
+//    instead of kind 20's bold cell silently aliasing the rain look.
+//    Exactly four lengths are accepted: the current 35, the pre-alerts 34, the
+//    16-kind 33, and the pre-bold 29. The UV step SHIFTED the health offsets,
+//    so a 27-byte blob would be misread and is rejected; the bold and alerts
+//    steps only APPEND, so a shorter accepted blob still describes every field
+//    before it and is read with the default for what it lacks (a 33-byte blob
+//    reads kind 16 as the default bold mode, a 34-byte blob reads the rain look
+//    as text — today's look). That matters on upgrade: the phone only force-resends its
 //    settings when the watch reports NO config at all, so rejecting an old
 //    length would blank an existing user's highlighting until they happened to
 //    open the settings page.
@@ -67,16 +79,20 @@
 // the paired accessors by this is correctness, not tidiness; only the bold
 // cells run to THRESH_KIND_COUNT.
 #define THRESH_PAIRED_KIND_COUNT 8
-#define THRESH_SETTINGS_BYTES 34
+#define THRESH_SETTINGS_BYTES 35
 #define THRESH_COLORS_OFFSET 1
 #define THRESH_HEALTH_OFFSET 17
 #define THRESH_BOLD_OFFSET 29
+#define THRESH_ALERTS_OFFSET 34
 // The blob length before the bold bytes were appended — still accepted, and by
 // construction equal to the offset the bold bytes start at.
 #define THRESH_SETTINGS_BYTES_PRE_BOLD THRESH_BOLD_OFFSET
 // The 16-kind length before byte 33 (kinds 16..19) was appended — still
 // accepted; kinds 16+ read the default bold mode.
 #define THRESH_SETTINGS_BYTES_PRE_KIND16 33
+// The length before the alerts byte was appended — still accepted (every
+// install at upgrade time); the rain look reads as text.
+#define THRESH_SETTINGS_BYTES_PRE_ALERTS 34
 
 typedef enum {
     THRESH_AQI = 0,
@@ -121,6 +137,11 @@ typedef enum {
     THRESH_PHONE_BATTERY_PLAIN = 19,
 } ThreshKind;
 #define THRESH_WEATHER_KIND_MAX THRESH_GUST
+
+// The alerts byte ENDS the bold area (see the layout above): a kind appended past
+// the last bold cell would write its bold mode into the rain look.
+_Static_assert(THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT + 3) / 4) <= THRESH_ALERTS_OFFSET,
+               "a bold kind past byte 33 must relocate THRESH_ALERTS_OFFSET (layout change)");
 
 // The health trio computes its levels ON the watch from live health values; every
 // other kind (0..3 and UV) is phone-computed via the packed levels wire value.
@@ -194,6 +215,18 @@ uint16_t status_threshold_health_danger(const uint8_t *blob, size_t len, int kin
 // The kind's bold mode. Falls back to THRESH_BOLD_WARN (the shipped behaviour)
 // for an invalid blob, an out-of-range kind, or the reserved wire value 3.
 int status_threshold_bold_mode(const uint8_t *blob, size_t len, int kind);
+
+// The Alerts row's rain look — bits 0-1 of the alerts byte.
+typedef enum {
+    THRESH_RAIN_DISPLAY_TEXT = 0,      // the full countdown, "Rain in 12'" (legacy)
+    THRESH_RAIN_DISPLAY_ICON = 1,      // the drop alone
+    THRESH_RAIN_DISPLAY_MINUTES = 2,   // the drop + "12'"
+} ThreshRainDisplay;
+
+// The rain look from the alerts byte. THRESH_RAIN_DISPLAY_TEXT for an invalid
+// blob, a pre-alerts blob (34/33/29 B — an upgrading watch keeps today's look
+// until the phone resends its settings) and the reserved wire value 3.
+int status_threshold_rain_display(const uint8_t *blob, size_t len);
 
 // Whether a slot of `kind` drawn at `level` prints bold. Kind -1 (a slot with no
 // threshold-capable content) is never bold.

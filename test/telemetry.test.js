@@ -728,6 +728,11 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     threshPhoneBatteryBoldMode: 'always', configTheme: 'light', dayNightShading: true,
     healthMode: 'status', provider: 'openweathermap', fetchIntervalMin: '120',
     rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
+    // The Alerts card at its heaviest: every metric alert on, every one printing its
+    // value, and the rain look on its longest option.
+    alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true,
+    alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
+    alertAqiDisplay: 'value', alertPollenDisplay: 'value', rainAlertDisplay: 'minutes',
     sleepEndHour: '7',
     // The Nighttime card at its heaviest: every one of the three features on, each
     // reporting its own window. Theme switching is on 'manual' because that is its
@@ -1148,4 +1153,42 @@ test('a clock-step durationMs queues as null; a real one as-is', () => {
   assert.deepEqual(h.queue().map((r) => r.durationMs),
     [2300, null, null, null, max, 1234, null, null, null, null]);
   assert.ok(max <= 2147483647, 'the phone-side bound sits inside the int4 column');
+});
+
+// The Alerts card: which metric alerts are on (comma-joined in the row order), which
+// of those print their value, and the rain alert's look. Lockstep: all three are in
+// the Deno .strip() schema too (the set-equality test above also catches a one-sided
+// edit; this one names the keys).
+test('the Alerts card reports alertKinds, alertValueKinds and rainAlertDisplay', () => {
+  const unseeded = buildSettingsSnapshot({});
+  assert.ok('alertKinds' in unseeded && 'alertValueKinds' in unseeded
+    && 'rainAlertDisplay' in unseeded, 'the keys exist for the lockstep');
+  assert.equal(unseeded.alertKinds, undefined, 'an unseeded install reports no alert keys');
+  assert.equal(unseeded.alertValueKinds, undefined);
+  assert.equal(unseeded.rainAlertDisplay, undefined);
+
+  const none = buildSettingsSnapshot({ alertUv: false, alertUvDisplay: 'value',
+    rainAlertDisplay: 'text' });
+  assert.equal(none.alertKinds, '', 'seeded, none on');
+  assert.equal(none.alertValueKinds, '', 'a disabled alert\'s Look does not count');
+  assert.equal(none.rainAlertDisplay, 'text');
+
+  const some = buildSettingsSnapshot({ alertAqi: true, alertAqiDisplay: 'value',
+    alertUv: true, alertUvDisplay: 'icon', alertWind: false, rainAlertDisplay: 'minutes' });
+  assert.equal(some.alertKinds, 'uv,aqi', 'the row order, whatever the key order');
+  assert.equal(some.alertValueKinds, 'aqi');
+  assert.equal(some.rainAlertDisplay, 'minutes');
+});
+
+test('the Alerts card fields are declared in the Deno .strip() schema too', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const ts = fs.readFileSync(
+    path.resolve(__dirname, '..', 'supabase', 'functions', 'telemetry-ingest', 'handler.ts'), 'utf8');
+  const start = ts.indexOf('const settingsSchema');
+  const slice = ts.slice(start, ts.indexOf('.strip()', start));
+  ['alertKinds', 'alertValueKinds', 'rainAlertDisplay'].forEach((key) => {
+    assert.match(slice, new RegExp('^\\s*' + key + ':\\s*z\\.string\\(\\)\\.optional\\(\\)', 'm'),
+      key + ' must be an optional string in the ingest schema, or .strip() drops it');
+  });
 });

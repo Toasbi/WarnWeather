@@ -95,8 +95,11 @@ function buildWeatherOutboxPayload(payload) {
  *   cannot draw (FOURTH/FIFTH), so it is sized against aplite's own inbox.
  * @returns {Object} The outgoing AppMessage payload.
  */
-function buildHeaviestBundle(platform) {
+function buildHeaviestBundle(platform, slotCode) {
   const range = Array.from({ length: N }, function(_, i) { return i; });
+  // The slot item every configurable slot holds: 'city' (the recorded worst case), or
+  // another value-carrying item to prove it is no heavier (the Alerts row below).
+  const code = slotCode || 'city';
 
   // Base forecast payload as provider.getPayload emits it (pre-series): raw
   // whole-degree temps; applyForecastSeries encodes them to the 24 wire bytes.
@@ -123,7 +126,20 @@ function buildHeaviestBundle(platform) {
   // distinct third line + a distinct fourth line (three 24-byte trends) + rain
   // bars, on a platform that carries the fourth line (emery below — aplite's
   // bundle omits the FOURTH key entirely).
-  applyForecastSeries(payload, {
+  // The Alerts row at its heaviest: every metric alert on, every one printing its
+  // value, and every one alerting (UV 8, wind 60, gusts 90, AQI 152, pollen 2-3 — at
+  // or past each seed pair). The AQI and pollen readings are transient bake inputs.
+  const alertSettings = code !== 'alerts' ? {} : {
+    provider: 'dwd',
+    alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true,
+    alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
+    alertAqiDisplay: 'value', alertPollenDisplay: 'value'
+  };
+  if (code === 'alerts') {
+    payload.AQI_TREND = range.map(function() { return 152; });
+    payload.POLLEN_TODAY = '2-3';
+  }
+  applyForecastSeries(payload, Object.assign({
     secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', fifthLine: 'precip_prob',
     secondaryLineFill: false, barSource: 'rain', windScale: 'high',
     temperatureUnits: 'c', axisTimeFormat: '12h', timeShowAmPm: true,
@@ -135,11 +151,13 @@ function buildHeaviestBundle(platform) {
     // MID_TEXT_MAX off the long real-world city name above. statusTopMid
     // became selectable in the top-strip polish, so the top line's mid also
     // models a full 19-byte city.
-    statusForecastLeft: 'city', statusForecastRight: 'city',
-    statusRadarLeft: 'city', statusRadarMid: 'city', statusRadarRight: 'city',
-    statusTopLeft: 'city', statusTopMid: 'city', statusTopRight: 'city',
-    statusHealthLeft: 'city', statusHealthMid: 'city', statusHealthRight: 'city'
-  }, { platform: platform || 'emery' });
+    statusForecastLeft: code, statusForecastRight: code,
+    statusRadarLeft: code, statusRadarMid: code, statusRadarRight: code,
+    // statusTopRight stays 'city': the Alerts row is not placeable there (the
+    // low-battery override owns that slot), so it would only resolve to Empty.
+    statusTopLeft: code, statusTopMid: code, statusTopRight: 'city',
+    statusHealthLeft: code, statusHealthMid: code, statusHealthRight: code
+  }, alertSettings), { platform: platform || 'emery' });
 
   // Radar (DWD supplies it) — two 24-slot trends + a start epoch.
   payload.RAIN_RADAR_TREND_UINT8 = range.map(function() { return 7; });
@@ -214,6 +232,26 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
   // header + 25 B blob). Headroom 56 -> 24 B. Never sent to aplite.
   assert.equal(size, 576, 'update the recorded realistic bundle size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
+});
+
+// The Alerts row's entries ride the slot's own value bytes under the SAME per-position
+// caps as a TEXT slot (edge 8 / mid 19), so an alerts slot can never outweigh the city
+// slot the recorded heaviest bundles assume: swapping every city slot for a full
+// Alerts row (every alert alerting, every value printed) moves no recorded size.
+test('an Alerts row at its cap is never heavier than the City slot it replaces', () => {
+  ['emery', 'aplite'].forEach(function(platform) {
+    const city = dictSize(buildHeaviestBundle(platform));
+    const alerts = dictSize(buildHeaviestBundle(platform, 'alerts'));
+    assert.ok(alerts <= city, platform + ': alerts bundle ' + alerts + ' B > city ' + city + ' B');
+  });
+  // Guard: the alerts bundle really carries full rows (off aplite, where it resolves
+  // to Empty) — the mid slot at 16 B of entries, each edge slot at its full 8 B.
+  const line = buildHeaviestBundle('emery', 'alerts').STATUS_LINE_2_UINT8;   // the radar line
+  assert.equal(line[0], 11, 'kind SLOT_ALERTS');
+  assert.equal(line[2], 8, 'the left edge slot fills its 8 B cap');
+  assert.equal(line[3 + 8 + 2], 16, 'the mid slot: all five entries with values');
+  assert.equal(buildHeaviestBundle('aplite', 'alerts').STATUS_LINE_1_UINT8[0], 0,
+    'aplite: the Alerts row resolves to Empty');
 });
 
 // The radar limit notice (RAIN_RADAR_LIMITED, radar-wire.js limitedRadarTuples) is
@@ -328,7 +366,11 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // the smallest inbox) 21 -> 19 B.
   // 517 -> 519 when CLAY_CURVE_INSET_UINT8 grew 3 -> 5: feels-like and dew point
   // allowed on the third and fourth metric lines (headroom 19 -> 17 B).
-  assert.equal(size, 519, 'update the recorded Clay message size when its wire contract changes');
+  // 519 -> 520 when the threshold blob widened 34 -> 35: the alerts byte (the Alerts
+  // row's rain look, bits 0-1; bits 2-7 reserved). The metric alerts themselves ride
+  // the alerts SLOT's bytes on the weather message, inside the slot caps (headroom
+  // 17 -> 16 B).
+  assert.equal(size, 520, 'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 

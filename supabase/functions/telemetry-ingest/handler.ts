@@ -109,6 +109,12 @@ const settingsSchema = z
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
+    // The Alerts card (src/pkjs/telemetry.js): comma-joined alert codes ('' when
+    // none, absent on an install that never saw the card) and the rain look, raw.
+    // z.string(), not z.enum: a future alert kind or look must not 400 the batch.
+    alertKinds: z.string().optional(),
+    alertValueKinds: z.string().optional(),
+    rainAlertDisplay: z.string().optional(),
     // The battery saver's night window — its own pair, present only while the saver
     // is on, which is how the night_sleep flag in
     // supabase/reports/telemetry-dashboards.sql reads "battery saver on".
