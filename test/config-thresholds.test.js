@@ -26,6 +26,25 @@ function itemsByKey() {
 
 const STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
 const HEALTH_STEMS = ['Steps', 'Sleep', 'Distance'];
+// The alert kinds: their levels group is embedded in the pencil sheet AND the Alerts
+// card's alert<Stem> sheet as the SAME objects, so their group keys occur twice.
+const ALERT_STEMS = ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
+
+/**
+ * A levels-group key's occurrences: two for an alert kind (both sheets), one for a
+ * goal kind — and an alert kind's two must be one shared object, never a copy.
+ * @param {Object[]} its itemsByKey() entry.
+ * @param {string} stem Kind key stem.
+ * @param {string} key The messageKey, for messages.
+ */
+function assertGroupItem(its, stem, key) {
+  const expected = ALERT_STEMS.includes(stem) ? 2 : 1;
+  assert.ok(its && its.length === expected,
+    key + ': expected ' + expected + ' occurrence(s), got ' + (its ? its.length : 0));
+  if (expected === 2) {
+    assert.ok(its[1] === its[0], key + ': the pencil and alert sheets share one object');
+  }
+}
 const ENV = { thresholds: true, color: true, health: true };
 
 // The engine hands actions its stored-shape schema-default resolver as the 4th
@@ -40,13 +59,13 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
   const map = itemsByKey();
   STEMS.forEach(stem => {
     const on = map['thresh' + stem + 'On'];
-    assert.ok(on && on.length === 1, 'thresh' + stem + 'On missing');
+    assertGroupItem(on, stem, 'thresh' + stem + 'On');
     assert.equal(on[0].type, 'toggle');
     assert.equal(on[0].defaultValue, false);
     assert.equal(on[0].onChange, 'thresholdToggle');
 
     const warn = map['thresh' + stem + 'Warn'];
-    assert.ok(warn && warn.length === 1, 'thresh' + stem + 'Warn missing');
+    assertGroupItem(warn, stem, 'thresh' + stem + 'Warn');
     assert.equal(warn[0].type, 'range');
     assert.equal(warn[0].defaultValue, '');
     assert.equal(warn[0].dangerKey, 'thresh' + stem + 'Danger');
@@ -60,7 +79,7 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
     // The highlight-only rows still disable (not hide) on the toggle.
     ['WarnOutlineOn', 'WarnColor', 'DangerColor'].forEach(which => {
       const it = map['thresh' + stem + which];
-      assert.ok(it && it.length === 1, 'thresh' + stem + which + ' missing');
+      assertGroupItem(it, stem, 'thresh' + stem + which);
       assert.deepEqual(it[0].disabledWhen, { not: { key: 'thresh' + stem + 'On' } },
         'thresh' + stem + which + ' must disable (not hide) on its toggle');
     });
@@ -71,7 +90,7 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
     // Companion storage rows: hydrated + serialized, never drawn.
     ['Danger', 'Max'].forEach(which => {
       const it = map['thresh' + stem + which];
-      assert.ok(it && it.length === 1, 'thresh' + stem + which + ' missing');
+      assertGroupItem(it, stem, 'thresh' + stem + which);
       assert.equal(it[0].type, 'hidden');
       assert.equal(it[0].defaultValue, '');
     });
@@ -509,6 +528,23 @@ test('the sheet: the slider stays live while off; on seeds it; off keeps it', ()
     'the slider stays live with the highlight off');
   assert.ok(disabledRowWith(page.modal.innerHTML, 'threshAqiWarnOutlineOn'),
     'the outline toggle is muted again');
+});
+
+test('the page renders an Alerts card sheet: the levels group alone, live on the shared keys', () => {
+  const page = bootGeneratedPage();
+  page.clickTab('watch');
+  page.openEditSheet('alertUv');
+  const sheet = page.modal.innerHTML;
+  assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
+  assert.ok(/<div class="subhdr grp">[\s\S]*?Alert levels/.test(sheet),
+    'the sheet opens on the Alert levels sub-header');
+  assert.ok(sheet.indexOf('data-range="threshUvWarn"') !== -1, 'the slider renders');
+  assert.ok(sheet.indexOf('data-k="threshUvBoldMode"') === -1
+    && sheet.indexOf('data-k="uvSlotDisplay"') === -1,
+    'no slot rows: the alert sheet is levels-only');
+  // The same key the pencil sheet edits: flipping it here is flipping it there.
+  page.clickModalToggle('threshUvOn');
+  assert.equal(page.S.threshUvOn, true, 'the shared highlight switch stores');
 });
 
 test('the reset button blanks the pair, restores default colors, clears the scale max', () => {
@@ -1304,6 +1340,62 @@ test('Bold value is the first row of every slot sheet, threshold and bold-only a
       s.title + ' must open with its Bold row, got ' + (first.label || first.messageKey));
     assert.equal(first.label, 'Bold value', s.title + ' Bold row label');
   });
+});
+
+// --- the Alerts card's levels-only sheets --------------------------------------
+
+/** @returns {Object[]} Every alert<Stem> sheet section, in schema order. */
+function alertSheets() {
+  const out = [];
+  schema.tabs.forEach(t => (t.sections || []).forEach(s => {
+    if (s.sheetOnly && /^alert/.test(s.sheetId || '')) { out.push(s); }
+  }));
+  return out;
+}
+
+test('every alert sheet is its kind\'s levels group — the pencil sheet\'s own objects', () => {
+  const sheets = alertSheets();
+  assert.deepEqual(sheets.map(s => s.sheetId), ALERT_STEMS.map(stem => 'alert' + stem));
+  sheets.forEach((s) => {
+    const stem = s.sheetId.slice('alert'.length);
+    const head = s.items[0];
+    assert.equal(head.type, 'subheader', s.sheetId + ' opens with the group sub-header');
+    assert.equal(head.text, 'Alert levels');
+    assert.equal(head.toggleKey, 'thresh' + stem + 'On');
+    assert.deepEqual(head.labelAction,
+      { action: 'resetThresholds', arg: stem, label: 'Reset to defaults' });
+    // By reference, from the sub-header on: one set of objects, two sheets.
+    const pencil = sheetFor(stem).items;
+    const from = pencil.indexOf(head);
+    assert.ok(from > 0, s.sheetId + ': the pencil sheet embeds the same sub-header object');
+    assert.equal(pencil.length - from, s.items.length,
+      s.sheetId + ': the group closes the pencil sheet');
+    s.items.forEach((it, i) => assert.ok(pencil[from + i] === it,
+      s.sheetId + ' item ' + i + ' is the pencil sheet\'s object'));
+  });
+});
+
+test('alert sheets carry no slot rows (Bold, display mode, arrow, unit)', () => {
+  alertSheets().forEach((s) => {
+    s.items.forEach((it) => {
+      assert.ok(!/(BoldMode|SlotDisplay|SlotDirection|SlotUnit)$/.test(String(it.messageKey)),
+        s.sheetId + ' must not carry the slot row ' + it.messageKey);
+    });
+  });
+});
+
+test('the goal kinds get no alert sheet', () => {
+  const ids = alertSheets().map(s => s.sheetId);
+  HEALTH_STEMS.forEach(stem =>
+    assert.ok(!ids.includes('alert' + stem), 'no alert' + stem + ' sheet'));
+});
+
+test('the Bold-first pin covers the slot sheets only (its /^thresh/ filter)', () => {
+  // The pin above iterates sheetSections(), which the alert sheets must stay out of:
+  // they are levels-only, so they open with the group sub-header, not a Bold row.
+  const ids = sheetSections().map(s => s.sheetId);
+  assert.ok(ids.length > 0);
+  assert.ok(ids.every(id => /^thresh/.test(id)), 'no alert sheet among the slot sheets');
 });
 
 test('every bold-only kind gets a sheet whose Bold row is its FIRST control', () => {

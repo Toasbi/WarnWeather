@@ -312,6 +312,55 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'aplite (no thresholds env) badges nothing, B included');
 });
 
+test('alertLevelsHint prints the resolved pair, the unit and the highlight state', () => {
+  const hint = PConf.hintResolvers.get('alertLevelsHint');
+  assert.equal(typeof hint, 'function', 'hint resolver registered');
+  const env = { thresholds: true };
+  const uv = { keyStem: 'Uv' };
+  assert.equal(hint({}, env, uv), 'Warn 6 · Danger 8 · Highlight off',
+    'a blank pair reads as the kind\'s seed');
+  assert.equal(hint({ threshUvWarn: '5', threshUvDanger: '9' }, env, uv),
+    'Warn 5 · Danger 9 · Highlight off', 'a stored pair wins');
+  assert.equal(hint({ threshUvOn: true }, env, uv), 'Warn 6 · Danger 8 · Highlight on',
+    'on/off follows the stored switch');
+  assert.equal(hint({ windUnits: 'mph' }, env, { keyStem: 'Wind' }),
+    'Warn 25 mph · Danger 40 mph · Highlight off',
+    'wind speaks the slider\'s unit, on both numbers');
+  assert.equal(hint({}, { thresholds: false }, uv), null, 'aplite: no levels to describe');
+  assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
+});
+
+test('alertLevelBadge previews the highlight without the slot\'s bold B', () => {
+  const badge = PConf.badgeResolvers.get('alertLevelBadge');
+  assert.equal(typeof badge, 'function', 'badge resolver registered');
+  const env = { thresholds: true };
+  const uv = { keyStem: 'Uv' };
+  const on = badge({ threshUvOn: true }, env, uv);
+  assert.equal(on.label, 'Edit');
+  assert.equal(on.dots.length, 2, 'warn ring + danger fill');
+  assert.equal(on.dots[0].ring, true, 'the ring (warn) comes first');
+  assert.ok(!on.dots[1].ring, 'then the fill (danger)');
+  assert.equal(on.ariaNote, 'highlighting on');
+  assert.ok(!on.bold, 'no B: bold is a slot property');
+  const allBold = badge({ threshUvOn: true, statusBoldAll: 'all', threshUvBoldMode: 'always' },
+    env, uv);
+  assert.ok(!allBold.bold, 'not even under the master Bold row');
+  assert.equal(allBold.ariaNote, 'highlighting on', 'and no always-bold note');
+  const off = badge({ threshUvOn: false }, env, uv);
+  assert.deepEqual(off.dots, [], 'switch off: no dots');
+  assert.equal(off.ariaNote, '');
+  assert.equal(badge({}, env, { keyStem: 'Nope' }), null, 'unknown stem');
+  assert.equal(badge({}, env, { keyStem: 'Temp' }), null, 'bold-only stem');
+  assert.equal(badge({ threshUvOn: true }, { thresholds: false }, uv), null, 'aplite');
+});
+
+test('alertEditSheet opens the kind\'s levels-only sheet where highlighting exists', () => {
+  const sheet = PConf.sheetResolvers.get('alertEditSheet');
+  assert.equal(typeof sheet, 'function', 'sheet resolver registered');
+  assert.equal(sheet({}, { thresholds: true }, { keyStem: 'Uv' }), 'alertUv');
+  assert.equal(sheet({}, { thresholds: false }, { keyStem: 'Uv' }), null, 'aplite');
+});
+
 test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {
   const resolver = global.PConf.optionsResolvers.get('layoutPresetOptions');
   assert.equal(typeof resolver, 'function', 'resolver registered');

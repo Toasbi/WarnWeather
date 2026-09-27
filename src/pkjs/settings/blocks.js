@@ -302,6 +302,14 @@ if (typeof require !== 'undefined') {
         return null;
     });
 
+    // The Alerts card row's sheet (editSheetFrom, args.keyStem): the kind's
+    // levels-only sheet (schema.js alertSheet). Same env gate as the slot pencil —
+    // the sheet itself is gated THRESHOLD_WHEN.
+    PConf.sheetResolvers.register('alertEditSheet', function (S, env, args) {
+        if (!env || !env.thresholds || !args || !args.keyStem) { return null; }
+        return 'alert' + args.keyStem;
+    });
+
     // --- threshold sliders (the per-slot edit sheets' controls) ------------------
 
     /**
@@ -870,51 +878,121 @@ if (typeof require !== 'undefined') {
         return true;
     };
 
+    /**
+     * The pencil badge of one threshold kind — the state a slot's pencil and an
+     * Alerts-card row preview alike: a warn-color ring + danger-color dot while the
+     * kind's highlight is ENABLED (the contract's kindConfig — the rule the watch
+     * actually packs with), plus, for a slot, the bold 'B'.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused; callers gate on env.thresholds).
+     * @param {number} kindIndex Index into the contract's KINDS.
+     * @param {boolean} withBold Whether to preview the slot's always-bold state —
+     *     a slot property, so the Alerts card's rows pass false.
+     * @returns {Object} Badge state for the engine's editBadgeFrom.
+     */
+    function penStateForKind(S, env, kindIndex, withBold) {
+        var contract = thresholdContract();
+        var key = contract.KINDS[kindIndex].key;
+        var enabled = contract.kindConfig(S, kindIndex).enabled;
+        // EFFECTIVE always-bold, not the stored ladder alone: the Watch-tab
+        // master row packs every kind's bold cell as always at wire time
+        // (status-thresholds.js' settings-blob packer — not named here: this
+        // comment ships into the flat page, and a page-side occurrence of
+        // that name trips the never-called-from-page guard) without touching
+        // the stored per-kind values, and the badge previews what the watch
+        // will actually render — so the master lights every slot's B.
+        var boldAlways = withBold && (S.statusBoldAll === 'all'
+            || S['thresh' + key + 'BoldMode'] === 'always');
+        var notes = [];
+        if (enabled) { notes.push('highlighting on'); }
+        if (boldAlways) { notes.push('always bold'); }
+        var penWarn = thresholdDisplayColor(S, key, 'Warn');
+        return {
+            // The sheet-trigger BUTTON label. The slot sheet configures the whole
+            // slot (bold + thresholds), not just the warn/goal pair, so the button
+            // says what it does rather than naming one section.
+            // A disabled kind still gets the labeled button — it just badges no
+            // dots and adds no aria note, since there is no state to preview.
+            label: 'Edit',
+            ariaNote: notes.join(', '),
+            bold: boldAlways,
+            // The watch's own language: warn is an OUTLINE, danger is FILLED.
+            // No warn outline configured -> neutral gray ring (the enabled badge
+            // still reads; the ring hue just carries no color meaning then).
+            dots: enabled ? [
+                { color: penWarn === null ? '#8A8E97' : penWarn, ring: true },
+                { color: thresholdDisplayColor(S, key, 'Danger') }
+            ] : []
+        };
+    }
+
     // Pencil badge (engine item.editBadgeFrom): when the slot's current value is an
-    // ENABLED threshold kind, the pencil gains a warn-color ring + danger-color dot.
-    // Same env gate + code→kind mapping as the sheet resolver above; enabled comes
-    // from the contract's kindConfig — the rule the watch actually packs with.
+    // ENABLED threshold kind, the pencil gains a warn-color ring + danger-color dot,
+    // and a 'B' when the slot prints always-bold. Same env gate + code→kind mapping
+    // as the sheet resolver above.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
         var contract = thresholdContract();
         if (!contract) { return null; }
         var code = S[args.messageKey];
         for (var i = 0; i < contract.KINDS.length; i++) {
-            if (contract.KINDS[i].code !== code) { continue; }
-            var enabled = contract.kindConfig(S, i).enabled;
-            // EFFECTIVE always-bold, not the stored ladder alone: the Watch-tab
-            // master row packs every kind's bold cell as always at wire time
-            // (status-thresholds.js' settings-blob packer — not named here: this
-            // comment ships into the flat page, and a page-side occurrence of
-            // that name trips the never-called-from-page guard) without touching
-            // the stored per-kind values, and the badge previews what the watch
-            // will actually render — so the master lights every slot's B.
-            var boldAlways = S.statusBoldAll === 'all'
-                || S['thresh' + contract.KINDS[i].key + 'BoldMode'] === 'always';
-            var notes = [];
-            if (enabled) { notes.push('highlighting on'); }
-            if (boldAlways) { notes.push('always bold'); }
-            var penWarn = thresholdDisplayColor(S, contract.KINDS[i].key, 'Warn');
-            return {
-                // The slot's sheet-trigger BUTTON label. The sheet configures the
-                // whole slot now (bold + thresholds), not just the warn/goal pair,
-                // so the button says what it does rather than naming one section.
-                // A disabled kind still gets the labeled button — it just badges no
-                // dots and adds no aria note, since there is no state to preview.
-                label: 'Edit',
-                ariaNote: notes.join(', '),
-                bold: boldAlways,
-                // The watch's own language: warn is an OUTLINE, danger is FILLED.
-                // No warn outline configured -> neutral gray ring (the enabled badge
-                // still reads; the ring hue just carries no color meaning then).
-                dots: enabled ? [
-                    { color: penWarn === null ? '#8A8E97' : penWarn, ring: true },
-                    { color: thresholdDisplayColor(S, contract.KINDS[i].key, 'Danger') }
-                ] : []
-            };
+            if (contract.KINDS[i].code === code) { return penStateForKind(S, env, i, true); }
         }
         return null;
     });
+
+    /**
+     * The KINDS index of a kind that owns levels (a weather or goal kind, not a
+     * bold-only one), looked up by key stem.
+     * @param {Object} contract The status-thresholds API.
+     * @param {string} keyStem Kind key stem, e.g. 'Uv'.
+     * @returns {number} The index, or -1 for an unknown or bold-only stem.
+     */
+    function levelKindIndex(contract, keyStem) {
+        for (var i = 0; i < contract.KINDS.length; i++) {
+            if (contract.KINDS[i].key === keyStem && !contract.KINDS[i].boldOnly) { return i; }
+        }
+        return -1;
+    }
+
+    // The Alerts card row's badge (editBadgeFrom, args.keyStem): the slot pencil's
+    // ring + dot, without the 'B' — bold is how a SLOT prints, not part of the
+    // alert, and the row configures the alert only.
+    PConf.badgeResolvers.register('alertLevelBadge', function (S, env, args) {
+        if (!env || !env.thresholds) { return null; }
+        var contract = thresholdContract();
+        if (!contract) { return null; }
+        var i = levelKindIndex(contract, args && args.keyStem);
+        return i < 0 ? null : penStateForKind(S || {}, env, i, false);
+    });
+
+    /**
+     * The Alerts card row's hint: the kind's levels and whether it highlights, e.g.
+     * "Warn 40 kph · Danger 60 kph · Highlight off". The pair is the resolved one
+     * (the stored pair, else the seed — what the watch judges with), in the unit the
+     * kind's slider shows, so the row reads the numbers its sheet opens on. Only
+     * numbers and the range table's unit label are interpolated (the engine prints
+     * hints as raw HTML).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{keyStem: string}} args The row's kind key stem, e.g. 'Wind'.
+     * @returns {?string} The hint, or null where the levels do not exist (aplite,
+     *     an unknown stem) — the engine then falls back to the static hint.
+     */
+    function alertLevelsHint(S, env, args) {
+        if (!env || !env.thresholds) { return null; }
+        var contract = thresholdContract();
+        var stem = args && args.keyStem;
+        if (!contract || !THRESHOLD_RANGES[stem]) { return null; }
+        var st = S || {};
+        var pair = contract.resolvedPair(stem, st);
+        if (typeof pair.warn !== 'number' || typeof pair.danger !== 'number') { return null; }
+        var unit = THRESHOLD_RANGES[stem](st).unit;
+        var suffix = unit ? ' ' + unit : '';
+        return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix
+            + ' · Highlight ' + (st['thresh' + stem + 'On'] === true ? 'on' : 'off');
+    }
+    PConf.hintResolvers.register('alertLevelsHint', alertLevelsHint);
 
     var viewCycleLib = (typeof require !== 'undefined')
         ? require('../view-cycle.js') : window.VIEW_CYCLE;

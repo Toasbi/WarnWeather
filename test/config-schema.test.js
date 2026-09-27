@@ -22,6 +22,9 @@ function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').secti
 // generates them — listing 42 literals would just invite drift. THRESH_COLOR_KEYS is
 // reused by the color-defaults assertion below.
 const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
+// The kinds with an Alerts-card row and a levels-only alert<Stem> sheet, in the card's
+// row order (the goal kinds are not alerts).
+const ALERT_STEMS = ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
@@ -107,9 +110,22 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // dark-exclude-white vs. light-exclude-black.
   // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
   // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
+  // The five alert kinds' levels groups: embedded in the slot's pencil sheet
+  // (thresh<Stem>) AND the Alerts card's levels-only sheet (alert<Stem>) — the
+  // engine cannot open one sheet from another — as the SAME item objects, so each
+  // key appears twice but the two copies cannot drift (asserted below).
+  const alertLevelKeys = ALERT_STEMS.reduce((acc, stem) => acc.concat(
+    ['On', 'Warn', 'Danger', 'Max', 'WarnOutlineOn', 'WarnColor', 'DangerColor']
+      .map((suffix) => 'thresh' + stem + suffix)), []);
   assert.deepEqual(dups.sort(),
-    ['colorUSFederal', 'pressureScale', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
+    ['colorUSFederal', 'pressureScale', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale']
+      .concat(alertLevelKeys).sort(),
     'unexpected duplicates: ' + dups.join(','));
+  alertLevelKeys.forEach((k) => {
+    assert.equal(counts[k], 2, k + ' appears in the pencil sheet and the alert sheet');
+    const both = items.filter((i) => i.messageKey === k);
+    assert.ok(both[0] === both[1], k + ': the two sheets share one item object');
+  });
   assert.equal(counts.windScale, 12, 'windScale appears in twelve slots (4 contexts × 3 units)');
   assert.equal(counts.pressureScale, 4, 'pressureScale appears in four slots (one per line context)');
   assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
@@ -2066,9 +2082,15 @@ test('Status-slots tab (id watch) opens with a general status-bar intro, then th
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
       'Phone battery slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
+  // The Alerts card's levels-only sheets close the tab, in the card's row order:
+  // a sheetOnly section between two watchStatus groupCard sections would split
+  // the status card (renderBody merges only CONSECUTIVE groupCard sections).
+  assert.deepEqual(titles.slice(23),
+    ['UV index alert', 'Wind speed alert', 'Wind gusts alert',
+      'Air quality (AQI) alert', 'Pollen alert'],
+    'the five alert sheets close the tab, after the bold-only sheets');
   // Time and Calendar moved to the END of the Layout tab (order Time, Calendar) —
   // the Status-slots tab holds nothing but slot config now.
-  assert.deepEqual(titles.slice(23), [], 'no sections after the bold-only sheets');
   const layoutTitles = schema.tabs.find((t) => t.id === 'layout')
     .sections.map((s) => s.title).filter(Boolean);
   assert.deepEqual(layoutTitles.slice(-2), ['Time', 'Calendar'],
@@ -2105,15 +2127,22 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const threshSections = watch.sections.filter((s) => s.sheetOnly);
-  assert.equal(threshSections.length, 19,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only)');
+  assert.equal(threshSections.length, 24,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only) + 5 alert sheets');
   assert.deepEqual(threshSections.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
-      'threshDew', 'threshPhoneBattery'],
-    'sheet ids follow the thresh<Stem> convention the slot resolver derives');
+      'threshDew', 'threshPhoneBattery',
+      'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen'],
+    'sheet ids follow the thresh<Stem> convention the slot resolver derives; the '
+      + 'Alerts card\'s alert<Stem> sheets come last');
+  // LAST in the whole tab, not merely after the other sheets: nothing may follow
+  // them (a groupCard section after a sheetOnly one would split the status card).
+  assert.deepEqual(watch.sections.slice(-5).map((s) => s.sheetId),
+    ['alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen'],
+    'the alert sheets are the tab\'s last five sections');
   threshSections.forEach((sec, i) =>
     assert.deepEqual(sec.showWhen, { env: 'thresholds' },
       'threshold sheet ' + i + ' (' + sec.title + ') carries the platform gate'));

@@ -613,30 +613,34 @@ function unitRow(key, withUnit, without) {
             : 'Prints the unit after the value, not just the number.'
     };
 }
-// One level edit sheet (sheetOnly — opened from a status slot's pencil, never rendered
-// as a card): an Alert levels (or Goals) group of a "Highlight on the watch" toggle, a
-// zoned dual-thumb slider for the warn/danger pair, and the two color pickers. Values
-// live in the kind's DISPLAYED unit (wind unit / km-mi / hours); a blank pair means the
-// kind's seed pair (status-thresholds.js resolvedPair), and toggling off keeps the pair
-// — the switch alone is the highlight's on/off. The slider's
-// geometry, direction and live colors come from the thresholdRange resolver
-// (blocks.js), which reads the contract module (status-thresholds.js) — the same
-// source the watch packs with, so the UI can never disagree about which way is worse.
+// A kind's Alert levels (or Goals) group — the part of a level edit sheet that
+// configures the highlight, not the slot: the group sub-header (title, reset, the
+// "Highlight on the watch" switch), a zoned dual-thumb slider for the warn/danger
+// pair, and the outline toggle + two color pickers. Values live in the kind's
+// DISPLAYED unit (wind unit / km-mi / hours); a blank pair means the kind's seed
+// pair (status-thresholds.js resolvedPair), and toggling off keeps the pair — the
+// switch alone is the highlight's on/off. The slider's geometry, direction and
+// live colors come from the thresholdRange resolver (blocks.js), which reads the
+// contract module (status-thresholds.js) — the same source the watch packs with,
+// so the UI can never disagree about which way is worse.
 // `gate` (optional showWhen) hides kinds that can't appear in any slot (health
 // on aplite / with health off); color pickers additionally hide on B&W
 // (capability + bw theme).
+// The group is its own builder because it is shown in TWO sheets for the alert
+// kinds: the slot's pencil sheet (thresholdSection, below the slot's own rows) and
+// the Alerts card's levels-only sheet (alertSheet). The engine opens one sheet at
+// a time and cannot open a sheet from a sheet, so the levels are embedded in both
+// — as the SAME item objects, so the two copies cannot drift. Duplicate keys are
+// safe there: hydrate/serialize walk items flatly and idempotently, and only one
+// sheet renders at a time.
 /**
- * @param {string} title Sub-section title.
  * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
  * @param {string} hint Per-kind unit/scale hint (HTML allowed).
- * @param {Object} [gate] Extra showWhen for the whole sub-section.
- * @param {Object[]} [extraItems] Kind-specific display rows rendered between the Bold
- *     row and the Alert levels group, e.g. the wind slots' direction arrow. They
- *     configure the SLOT, not the highlight, so they sit above the group header —
- *     boldSection's extras play the same role on the level-less kinds.
- * @returns {Object} Schema section.
+ * @param {Object} [gate] Extra showWhen for the whole group.
+ * @returns {Object[]} The group's eight items: sub-header, switch, slider, the
+ *     two hidden companions, outline toggle, warn color, danger color.
  */
-function thresholdSection(title, keyStem, hint, gate, extraItems) {
+function levelsGroup(keyStem, hint, gate) {
     var onKey = 'thresh' + keyStem + 'On';
     // The health trio reads as GOALS you reach (celebration: green outline when
     // close, fill when reached) — the contract's goal flag drives the wording so it
@@ -674,6 +678,111 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
         joinPrevious: true,
         rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem}}
     };
+    // The group header: title, reset-to-defaults, and the master on/off switch
+    // that used to ride the sheet's title row. The intro hangs off it because it
+    // describes the LEVELS, not the slot rows above them in the pencil sheet.
+    var header = {
+        type: 'subheader',
+        text: goal ? 'Goals' : 'Alert levels',
+        toggleKey: onKey,
+        intro: goal ? GOAL_SHEET_INTRO : ALERT_LEVELS_INTRO,
+        // Reverts pair + colors + scale max to the kind's defaults (blocks.js
+        // action) — deliberately NOT the pencil sheet's Bold row, which is not part
+        // of the group.
+        labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
+    };
+    // Every plain item in the group carries the same gate; applying it in one pass
+    // (gateAll) means an item added above cannot forget its gate line. (The outline
+    // toggle and color pickers below set showWhen inline instead — they layer the
+    // B&W/outline rules on top of the gate.)
+    gateAll([header, toggle, range], gate);
+    return [header, toggle, range, {
+        // Companion storage for the slider's second thumb and its editable scale
+        // max: hydrated + serialized but never drawn (the range row renders both).
+        type: 'hidden',
+        messageKey: 'thresh' + keyStem + 'Danger',
+        defaultValue: ''
+    }, {
+        type: 'hidden',
+        messageKey: 'thresh' + keyStem + 'Max',
+        defaultValue: ''
+    }, {
+        // Warn is ALWAYS bold when crossed; the outline is the opt-in extra.
+        // Ownership splits by kind (onbuild.js): GOAL kinds derive the toggle
+        // from the stored warn color on every open; WEATHER kinds' STORED toggle
+        // owns the on/off state and rides every save — onbuild re-derives only
+        // to heal legacy colors and keep an auto color tracking the theme fg (a
+        // custom pick reads as outline-on either way). Writes go through the
+        // thresholdOutlineToggle hook: ON seeds the theme fg, OFF blanks it, and
+        // a blank warn color is the wire's no-outline sentinel. Shown on B&W too
+        // — outline vs no outline is meaningful without color choice, and there
+        // the fg seed is the only on-state.
+        type: 'toggle',
+        messageKey: 'thresh' + keyStem + 'WarnOutlineOn',
+        label: goal ? 'Outline on close' : 'Outline on warn',
+        hint: goal
+            ? 'Adds an outline to the slot when you get close to the goal.'
+            : 'Adds an outline to the slot from the warn level on.',
+        // Goal kinds celebrate with the outline ON out of the box; weather warn
+        // ships bold-only. (onLoad recomputes goal toggles from the stored color
+        // and weather colors from the stored toggle — see above — and the seeded
+        // store must agree with the color defaults below, which clay-settings
+        // hydrates for the WATCH blob too.)
+        defaultValue: goal,
+        joinPrevious: true,
+        onChange: 'thresholdOutlineToggle',
+        showWhen: gate || undefined,
+        disabledWhen: offWhen
+    }, {
+        // Colors hydrate UNSET: the DANGER color auto-tracks the theme fg until
+        // customized (onLoad, blocks.js thresholdAutoColor); the WARN color exists
+        // only while the outline toggle above is on. The contract's
+        // DEFAULT_*_COLOR ints are only the pack-time fallback for settings that
+        // never saw this page.
+        type: 'color',
+        messageKey: 'thresh' + keyStem + 'WarnColor',
+        label: goal ? 'Close outline color' : 'Warn outline color',
+        // '' = the no-outline wire sentinel, so goal kinds must NOT default to it:
+        // seedDefaults hydrates these values into the phone store verbatim, and
+        // the watch blob packs whatever is stored. Green = the celebration look.
+        defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
+        joinPrevious: true,
+        capabilities: ['COLOR'],
+        // colorWhen (gate + color-capable theme) composed with the outline
+        // toggle — not a hand-rebuilt copy of the same predicate.
+        showWhen: {all: [colorWhen, {key: 'thresh' + keyStem + 'WarnOutlineOn'}]},
+        disabledWhen: offWhen
+    }, {
+        type: 'color',
+        messageKey: 'thresh' + keyStem + 'DangerColor',
+        label: goal ? 'Goal fill color' : 'Danger color',
+        defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
+        joinPrevious: true,
+        capabilities: ['COLOR'],
+        showWhen: colorWhen,
+        disabledWhen: offWhen
+    }];
+}
+// One level edit sheet (sheetOnly — opened from a status slot's pencil, never rendered
+// as a card): the slot's Bold row, the kind's own display rows, then its Alert levels
+// (or Goals) group (levelsGroup above).
+/**
+ * @param {string} title Sub-section title.
+ * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
+ * @param {string} hint Per-kind unit/scale hint (HTML allowed).
+ * @param {Object} [gate] Extra showWhen for the whole sub-section.
+ * @param {Object[]} [extraItems] Kind-specific display rows rendered between the Bold
+ *     row and the Alert levels group, e.g. the wind slots' direction arrow. They
+ *     configure the SLOT, not the highlight, so they sit above the group header —
+ *     boldSection's extras play the same role on the level-less kinds.
+ * @param {Object[]} [group] The kind's levelsGroup when the caller shares it with an
+ *     alert sheet (built from keyStem/hint/gate here otherwise) — the same objects,
+ *     never a copy.
+ * @returns {Object} Schema section.
+ */
+function thresholdSection(title, keyStem, hint, gate, extraItems, group) {
+    var onKey = 'thresh' + keyStem + 'On';
+    var goal = STATUS_THRESHOLDS.isGoalKind(keyStem);
     // Slot-level, above the group: how boldly the slot prints. The ladder is
     // monotone — danger is always bold, the middle option adds the warn/close
     // level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
@@ -691,96 +800,49 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
         disabledWhen: BOLD_ALL_WHEN,
         optionDisabledWhen: {warn: {not: {key: onKey}}}
     };
-    // The group header: title, reset-to-defaults, and the master on/off switch
-    // that used to ride the sheet's title row. The intro hangs off it because it
-    // describes the LEVELS, not the Bold row above them.
-    var header = {
-        type: 'subheader',
-        text: goal ? 'Goals' : 'Alert levels',
-        toggleKey: onKey,
-        intro: goal ? GOAL_SHEET_INTRO : ALERT_LEVELS_INTRO,
-        // Reverts pair + colors + scale max to the kind's defaults (blocks.js
-        // action) — deliberately NOT the Bold row, which is not part of the group.
-        labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
-    };
     var extras = extraItems || [];
-    // Every plain item in the sheet carries the same sub-section gate; applying it
-    // in one pass (gateAll) means an item added above cannot forget its gate
-    // line. (The outline toggle and color pickers below set showWhen inline
-    // instead — they layer the B&W/outline rules on top of the gate.)
-    gateAll([toggle, range, bold, header].concat(extras), gate);
+    // The slot's rows carry the same gate as the group (gateAll, one pass).
+    gateAll([bold].concat(extras), gate);
     // Bold leads every slot sheet; the kind's own display rows follow it, and the
     // Alert levels / Goals group (header + toggle + slider + colors) closes the sheet.
     // sheetOf carries the section-level THRESHOLD_WHEN gate: on a watch that
     // can't render highlighting the sheet must not exist (belt-and-braces
     // behind the resolver's env gate).
-    return sheetOf(keyStem, title, [bold].concat(extras, [header, toggle, range, {
-            // Companion storage for the slider's second thumb and its editable scale
-            // max: hydrated + serialized but never drawn (the range row renders both).
-            type: 'hidden',
-            messageKey: 'thresh' + keyStem + 'Danger',
-            defaultValue: ''
-        }, {
-            type: 'hidden',
-            messageKey: 'thresh' + keyStem + 'Max',
-            defaultValue: ''
-        }, {
-            // Warn is ALWAYS bold when crossed; the outline is the opt-in extra.
-            // Ownership splits by kind (onbuild.js): GOAL kinds derive the toggle
-            // from the stored warn color on every open; WEATHER kinds' STORED toggle
-            // owns the on/off state and rides every save — onbuild re-derives only
-            // to heal legacy colors and keep an auto color tracking the theme fg (a
-            // custom pick reads as outline-on either way). Writes go through the
-            // thresholdOutlineToggle hook: ON seeds the theme fg, OFF blanks it, and
-            // a blank warn color is the wire's no-outline sentinel. Shown on B&W too
-            // — outline vs no outline is meaningful without color choice, and there
-            // the fg seed is the only on-state.
-            type: 'toggle',
-            messageKey: 'thresh' + keyStem + 'WarnOutlineOn',
-            label: goal ? 'Outline on close' : 'Outline on warn',
-            hint: goal
-                ? 'Adds an outline to the slot when you get close to the goal.'
-                : 'Adds an outline to the slot from the warn level on.',
-            // Goal kinds celebrate with the outline ON out of the box; weather warn
-            // ships bold-only. (onLoad recomputes goal toggles from the stored color
-            // and weather colors from the stored toggle — see above — and the seeded
-            // store must agree with the color defaults below, which clay-settings
-            // hydrates for the WATCH blob too.)
-            defaultValue: goal,
-            joinPrevious: true,
-            onChange: 'thresholdOutlineToggle',
-            showWhen: gate || undefined,
-            disabledWhen: offWhen
-        }, {
-            // Colors hydrate UNSET: the DANGER color auto-tracks the theme fg until
-            // customized (onLoad, blocks.js thresholdAutoColor); the WARN color exists
-            // only while the outline toggle above is on. The contract's
-            // DEFAULT_*_COLOR ints are only the pack-time fallback for settings that
-            // never saw this page.
-            type: 'color',
-            messageKey: 'thresh' + keyStem + 'WarnColor',
-            label: goal ? 'Close outline color' : 'Warn outline color',
-            // '' = the no-outline wire sentinel, so goal kinds must NOT default to it:
-            // seedDefaults hydrates these values into the phone store verbatim, and
-            // the watch blob packs whatever is stored. Green = the celebration look.
-            defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
-            joinPrevious: true,
-            capabilities: ['COLOR'],
-            // colorWhen (gate + color-capable theme) composed with the outline
-            // toggle — not a hand-rebuilt copy of the same predicate.
-            showWhen: {all: [colorWhen, {key: 'thresh' + keyStem + 'WarnOutlineOn'}]},
-            disabledWhen: offWhen
-        }, {
-            type: 'color',
-            messageKey: 'thresh' + keyStem + 'DangerColor',
-            label: goal ? 'Goal fill color' : 'Danger color',
-            defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
-            joinPrevious: true,
-            capabilities: ['COLOR'],
-            showWhen: colorWhen,
-            disabledWhen: offWhen
-        }]));
+    return sheetOf(keyStem, title,
+        [bold].concat(extras, group || levelsGroup(keyStem, hint, gate)));
 }
+// The Alerts card's levels-only sheet for one alert kind: the kind's levelsGroup and
+// nothing else — no Bold, display-mode, arrow or unit rows, which configure a SLOT,
+// while the card's row asks only "when does this alert fire". Handed the very group
+// objects the kind's pencil sheet (thresh<K>) embeds, so a level set in one sheet is
+// the level the other shows. Same capability gate as the pencil sheets.
+/**
+ * @param {string} keyStem Kind key stem, e.g. 'Uv' (sheetId alert<Stem>).
+ * @param {string} title The kind's sheet title, e.g. 'UV index'.
+ * @param {Object[]} group The kind's levelsGroup, shared with thresh<Stem>.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function alertSheet(keyStem, title, group) {
+    return {
+        sheetOnly: true,
+        sheetId: 'alert' + keyStem,
+        showWhen: THRESHOLD_WHEN,
+        title: title + ' alert',
+        items: group
+    };
+}
+// The five alert kinds' levels groups, built ONCE here and handed to both sheets of
+// each kind (thresholdSection's `group`, alertSheet). The goal kinds (steps, sleep,
+// distance) are not alerts — they build their group inside thresholdSection. The
+// hint lives here with the group: for Pollen it is the slider's scale note.
+var ALERT_LEVELS = {
+    Uv: levelsGroup('Uv', '', null),
+    Wind: levelsGroup('Wind', '', null),
+    Gust: levelsGroup('Gust', '', null),
+    Aqi: levelsGroup('Aqi', '', null),
+    Pollen: levelsGroup('Pollen',
+        'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.', null)
+};
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this
 // sheetId — but the Bold row is the sheet's only standing control: no group
@@ -1935,9 +1997,10 @@ module.exports = {
             subject: 'the AQI is',
             lead: 'Show the air quality index now, the highest it still gets today, or both.',
             coda: ' The peak needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.'
-        }, '42', '58')),
-        thresholdSection('Pollen', 'Pollen',
-            'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
+        }, '42', '58'), ALERT_LEVELS.Aqi),
+        // Pollen's scale hint rides its levels group (ALERT_LEVELS), shared with the
+        // Alerts card's sheet.
+        thresholdSection('Pollen', 'Pollen', '', null, null, ALERT_LEVELS.Pollen),
         // Wind and gust each carry their own direction arrow: the two slots often sit
         // side by side, and one arrow drawn twice is noise — so the choice is per kind,
         // not global. The phone bakes the arrow into the slot text (status-lines.js
@@ -1961,7 +2024,7 @@ module.exports = {
             // is not rearranged under its owner.
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('windSlotUnit', null, null)])),
+        }, unitRow('windSlotUnit', null, null)]), ALERT_LEVELS.Wind),
         thresholdSection('Wind gusts', 'Gust', '', null, dayMaxRows('gust', 'Gust selection', {
             keyStem: 'Gust',
             subject: 'gusts are',
@@ -1973,7 +2036,7 @@ module.exports = {
             label: 'Show wind direction',
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('gustSlotUnit', null, null)])),
+        }, unitRow('gustSlotUnit', null, null)]), ALERT_LEVELS.Gust),
         // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
@@ -1987,7 +2050,7 @@ module.exports = {
             subject: 'UV is',
             lead: 'Show the UV index now, the highest it still gets today, or both.',
             coda: ''
-        }, '3', '7')),
+        }, '3', '7'), ALERT_LEVELS.Uv),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
         thresholdSection('Sleep', 'Sleep',
@@ -2083,7 +2146,18 @@ module.exports = {
         // (blocks.js statusSlotEditSheet), so both pencils open this sheet and the
         // one mode packs into both cells. Android-only on the slot side; the sheet
         // needs no extra gate, because a slot that can't be chosen never opens it.
-        boldSection('Phone battery', 'PhoneBattery')]
+        boldSection('Phone battery', 'PhoneBattery'),
+        // The Alerts card's levels-only sheets (sheetOnly, opened from the card's
+        // rows), one per alert kind in the card's row order, embedding the SAME levels
+        // group as the kind's pencil sheet above. They close the tab's sections on
+        // purpose: renderBody merges CONSECUTIVE groupCard sections into one card, so
+        // a sheetOnly section sitting between two 'watchStatus' sections would split
+        // the status card in two.
+        alertSheet('Uv', 'UV index', ALERT_LEVELS.Uv),
+        alertSheet('Wind', 'Wind speed', ALERT_LEVELS.Wind),
+        alertSheet('Gust', 'Wind gusts', ALERT_LEVELS.Gust),
+        alertSheet('Aqi', 'Air quality (AQI)', ALERT_LEVELS.Aqi),
+        alertSheet('Pollen', 'Pollen', ALERT_LEVELS.Pollen)]
     }, {
         id: 'layout', label: 'Layout', sections: [{
             intro: 'How the watchface is arranged, and what a wrist-flick reveals — shown side by side in the preview. What a metric means or how it\'s coloured lives in its own tab.',
