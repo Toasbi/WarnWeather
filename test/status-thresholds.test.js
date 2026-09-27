@@ -98,16 +98,136 @@ test('parseThreshold: blank/junk are null; comma decimals, 0 and negatives parse
   assert.equal(th.parseThreshold('-2'), -2);
 });
 
-test('a kind is enabled only when both thresholds are set AND ordered', () => {
+test('a kind is enabled only when its stored toggle is on AND its pair is ordered', () => {
+  // The stored thresh<Kind>On owns the enable bit: an ordered pair alone no
+  // longer enables (it did while the page derived On from the pair).
+  const pair = { threshAqiWarn: '100', threshAqiDanger: '200' };
   assert.equal(th.kindConfig({}, 0).enabled, false);
-  assert.equal(th.kindConfig({ threshAqiWarn: '100' }, 0).enabled, false);
-  assert.equal(th.kindConfig({ threshAqiWarn: '100', threshAqiDanger: '200' }, 0).enabled, true);
-  assert.equal(th.kindConfig({ threshAqiWarn: '200', threshAqiDanger: '100' }, 0).enabled, false);
+  assert.equal(th.kindConfig(pair, 0).enabled, false, 'On absent: bit clear');
+  assert.equal(th.kindConfig(Object.assign({ threshAqiOn: false }, pair), 0).enabled, false,
+    'On false: bit clear, the pair is kept for the levels and the hold');
+  assert.equal(th.kindConfig(Object.assign({ threshAqiOn: true }, pair), 0).enabled, true);
+  // Only a real boolean true counts — a stringly 'true' is not the toggle.
+  assert.equal(th.kindConfig(Object.assign({ threshAqiOn: 'true' }, pair), 0).enabled, false);
+  // On + a blank pair enables on the SEED pair (a blank pair means the seed).
+  const seeded = th.kindConfig({ threshAqiOn: true, threshAqiWarn: '', threshAqiDanger: '' }, 0);
+  assert.deepEqual([seeded.enabled, seeded.warn, seeded.danger], [true, 100, 150]);
+  // A half or inverted pair resolves to the seed as a whole — never a mix.
+  const half = th.kindConfig({ threshAqiOn: true, threshAqiWarn: '120' }, 0);
+  assert.deepEqual([half.enabled, half.warn, half.danger], [true, 100, 150]);
+  const inverted = th.kindConfig(
+    { threshAqiOn: true, threshAqiWarn: '200', threshAqiDanger: '100' }, 0);
+  assert.deepEqual([inverted.enabled, inverted.warn, inverted.danger], [true, 100, 150]);
   // Goal kinds order upward since the celebration rework: close (warn slot) <= goal.
-  assert.equal(th.kindConfig({ threshStepsWarn: '8000', threshStepsDanger: '4000' }, 4).enabled, false);
-  assert.equal(th.kindConfig({ threshStepsWarn: '4000', threshStepsDanger: '8000' }, 4).enabled, true);
-  // Equal thresholds are a valid pair in either direction.
-  assert.equal(th.kindConfig({ threshAqiWarn: '100', threshAqiDanger: '100' }, 0).enabled, true);
+  const steps = th.kindConfig(
+    { threshStepsOn: true, threshStepsWarn: '4000', threshStepsDanger: '8000' }, 4);
+  assert.deepEqual([steps.enabled, steps.warn, steps.danger], [true, 4000, 8000]);
+  assert.equal(th.kindConfig({ threshStepsWarn: '4000', threshStepsDanger: '8000' }, 4).enabled,
+    false);
+  // Equal thresholds are a valid pair.
+  const equal = th.kindConfig(
+    { threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '100' }, 0);
+  assert.deepEqual([equal.enabled, equal.warn, equal.danger], [true, 100, 100]);
+});
+
+test('seedPair: the per-kind seeds, in display units, following the unit pickers', () => {
+  assert.deepEqual(th.seedPair('Uv', {}), { warn: 6, danger: 8 });
+  assert.deepEqual(th.seedPair('Pollen', {}), { warn: 2, danger: 3 });
+  assert.deepEqual(th.seedPair('Wind', {}), { warn: 40, danger: 60 }, 'kph by default');
+  assert.deepEqual(th.seedPair('Wind', { windUnits: 'kph' }), { warn: 40, danger: 60 });
+  assert.deepEqual(th.seedPair('Wind', { windUnits: 'mph' }), { warn: 25, danger: 40 });
+  assert.deepEqual(th.seedPair('Wind', { windUnits: 'knots' }), { warn: 20, danger: 30 });
+  assert.deepEqual(th.seedPair('Gust', { windUnits: 'kph' }), { warn: 60, danger: 90 });
+  assert.deepEqual(th.seedPair('Gust', { windUnits: 'mph' }), { warn: 40, danger: 55 });
+  assert.deepEqual(th.seedPair('Gust', { windUnits: 'knots' }), { warn: 30, danger: 50 });
+  // AQI: the European scale only for Open-Meteo with a non-US scale picked;
+  // WAQI and auto report US-style AQI whatever the picker says.
+  assert.deepEqual(th.seedPair('Aqi', {}), { warn: 100, danger: 150 });
+  assert.deepEqual(th.seedPair('Aqi', { aqiSource: 'openmeteo' }), { warn: 60, danger: 80 });
+  assert.deepEqual(th.seedPair('Aqi', { aqiSource: 'openmeteo', aqiScale: 'european' }),
+    { warn: 60, danger: 80 });
+  assert.deepEqual(th.seedPair('Aqi', { aqiSource: 'openmeteo', aqiScale: 'us' }),
+    { warn: 100, danger: 150 });
+  assert.deepEqual(th.seedPair('Aqi', { aqiSource: 'waqi', aqiScale: 'european' }),
+    { warn: 100, danger: 150 });
+  assert.deepEqual(th.seedPair('Aqi', { aqiSource: 'auto', aqiScale: 'european' }),
+    { warn: 100, danger: 150 });
+  assert.deepEqual(th.seedPair('Steps', {}), { warn: 8000, danger: 10000 });
+  assert.deepEqual(th.seedPair('Sleep', {}), { warn: 6.5, danger: 7.5 });
+  assert.deepEqual(th.seedPair('Distance', {}), { warn: 4, danger: 5 });
+  assert.deepEqual(th.seedPair('Distance', { distanceUnits: 'imperial' }),
+    { warn: 2.5, danger: 3 });
+  // No seed for a bold-only or unknown stem; absent settings are tolerated.
+  assert.deepEqual(th.seedPair('Temp', {}), { warn: null, danger: null });
+  assert.deepEqual(th.seedPair('Nope', {}), { warn: null, danger: null });
+  assert.deepEqual(th.seedPair('Wind', undefined), { warn: 40, danger: 60 });
+  // Every paired kind has an ordered seed — which is what makes the ungated
+  // level packing and the On-plus-blank enable rule well-defined.
+  th.KINDS.filter(k => !k.boldOnly).forEach((k) => {
+    const seed = th.seedPair(k.key, {});
+    assert.ok(th.pairOrdered(seed.warn, seed.danger), k.key + ' seed must be ordered');
+  });
+});
+
+test('resolvedPair: a stored ordered pair wins; blank, half or inverted resolves to the seed', () => {
+  assert.deepEqual(th.resolvedPair('Uv', { threshUvWarn: '7', threshUvDanger: '9' }),
+    { warn: 7, danger: 9, stored: true });
+  assert.deepEqual(th.resolvedPair('Uv', { threshUvWarn: '3,5', threshUvDanger: '3.5' }),
+    { warn: 3.5, danger: 3.5, stored: true }, 'comma decimals, equal pair');
+  assert.deepEqual(th.resolvedPair('Uv', { threshUvWarn: '0', threshUvDanger: '0' }),
+    { warn: 0, danger: 0, stored: true }, '0 is a set value, not unset');
+  const seed = { warn: 6, danger: 8, stored: false };
+  assert.deepEqual(th.resolvedPair('Uv', {}), seed, 'absent');
+  assert.deepEqual(th.resolvedPair('Uv', { threshUvWarn: '', threshUvDanger: '' }), seed,
+    'blank');
+  assert.deepEqual(th.resolvedPair('Uv', { threshUvWarn: '7' }), seed, 'half (warn only)');
+  assert.deepEqual(th.resolvedPair('Uv', { threshUvDanger: '0' }), seed, 'half (danger 0 only)');
+  assert.deepEqual(th.resolvedPair('Uv', { threshUvWarn: '9', threshUvDanger: '7' }), seed,
+    'inverted');
+  assert.deepEqual(th.resolvedPair('Uv', { threshUvWarn: 'x', threshUvDanger: '8' }), seed,
+    'junk');
+  // The seed follows the unit pickers live: a blank wind pair tracks windUnits.
+  assert.deepEqual(th.resolvedPair('Wind', { windUnits: 'mph' }),
+    { warn: 25, danger: 40, stored: false });
+  assert.deepEqual(th.resolvedPair('Wind', null), { warn: 40, danger: 60, stored: false });
+});
+
+test('holdWarn: the resolved warn for weather kinds, blind to the toggle; null otherwise', () => {
+  assert.equal(th.holdWarn('uv', {}), 6, 'seed');
+  assert.equal(th.holdWarn('uv', { threshUvWarn: '4', threshUvDanger: '9' }), 4, 'stored');
+  assert.equal(th.holdWarn('uv', { threshUvWarn: '4', threshUvDanger: '9', threshUvOn: false }),
+    4, 'the toggle does not touch the hold');
+  assert.equal(th.holdWarn('uv', { threshUvWarn: '9', threshUvDanger: '4' }), 6,
+    'an inverted pair holds on the seed');
+  assert.equal(th.holdWarn('wind', { windUnits: 'mph' }), 25);
+  assert.equal(th.holdWarn('gust', { windUnits: 'knots' }), 30);
+  assert.equal(th.holdWarn('aqi', { aqiSource: 'openmeteo', aqiScale: 'european' }), 60);
+  assert.equal(th.holdWarn('pollen', {}), 2);
+  // Goal, bold-only and unknown codes have no hold level.
+  assert.equal(th.holdWarn('steps', { threshStepsWarn: '1', threshStepsDanger: '2' }), null);
+  assert.equal(th.holdWarn('sleep', {}), null);
+  assert.equal(th.holdWarn('temp', { threshTempWarn: '10', threshTempDanger: '20' }), null);
+  assert.equal(th.holdWarn('city', {}), null);
+  assert.equal(th.holdWarn('nope', {}), null);
+  assert.equal(th.holdWarn(undefined, {}), null);
+});
+
+test('kindLevel: the shown value against the resolved pair, whatever the toggle says', () => {
+  const payload = { UV_TREND_UINT8: [70], AQI_TREND: [120], POLLEN_TODAY: '3' };
+  assert.equal(th.kindLevel('uv', payload, {}), 1, 'UV 7 against the seed 6/8');
+  assert.equal(th.kindLevel('uv', payload, { threshUvOn: false }), 1, 'toggle off: same level');
+  assert.equal(th.kindLevel('uv', payload, { threshUvWarn: '7', threshUvDanger: '7' }), 2,
+    'stored pair');
+  assert.equal(th.kindLevel('uv', { UV_TREND_UINT8: [40] }, {}), 0);
+  assert.equal(th.kindLevel('aqi', payload, {}), 1, 'AQI 120 against the US seed 100/150');
+  assert.equal(th.kindLevel('aqi', payload, { aqiSource: 'openmeteo' }), 2,
+    'the same 120 is danger against the EU seed 60/80');
+  assert.equal(th.kindLevel('pollen', payload, {}), 2, 'band 3 against the seed 2/3');
+  // No displayed number, or no weather kind: no level at all.
+  assert.equal(th.kindLevel('uv', {}, {}), null);
+  assert.equal(th.kindLevel('wind', {}, {}), null);
+  assert.equal(th.kindLevel('steps', payload, {}), null);
+  assert.equal(th.kindLevel('temp', { TEMP_TREND_UINT8: [250] }, {}), null);
 });
 
 test('displayValue mirrors the numbers status-lines.js displays', () => {
@@ -196,12 +316,12 @@ test('packWeatherLevels: tomorrow\'s marked peak never counts until it is today\
   assert.deepEqual(th.packWeatherLevels(evening,
     Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 0],
     'a lone "»9" is not highlighted');
-  // At today's peak 7 with a milder tomorrow: "7/»5" is judged on the 7 (warn);
-  // max mode shows only "»5", which is tomorrow's, so it stays normal.
-  const atPeak = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 50] };
-  assert.deepEqual(th.packWeatherLevels(atPeak,
-    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 1]);
-  assert.deepEqual(th.packWeatherLevels(atPeak,
+  // Falling below warn with a higher tomorrow: "5/»8" is judged on today's 5,
+  // and max mode's lone "»8" is tomorrow's, so it stays normal too.
+  const falling = { UV_TREND_UINT8: [50], UV_DAY_PEAKS: [50, 80, 80] };
+  assert.deepEqual(th.packWeatherLevels(falling,
+    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 0]);
+  assert.deepEqual(th.packWeatherLevels(falling,
     Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 0]);
   // Next morning the same peak is TODAY's (unmarked) and counts: "2/9" is danger.
   const morning = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [90, 60] };
@@ -209,9 +329,34 @@ test('packWeatherLevels: tomorrow\'s marked peak never counts until it is today\
     Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 2]);
 });
 
-test('packWeatherLevels: missing data or disabled kinds emit normal', () => {
+// Regression test for the silent-highlight bug: at a falling 7 (today's peak 8
+// already behind us) with a milder tomorrow, the slot used to roll to "7/»5" —
+// and max mode to a lone "»5", judged on nothing, so the highlight went SILENT
+// while the UV on screen was still above warn. Today's 7 now holds while it is
+// at or above warn: both modes print "7" and pack the warn level.
+test('packWeatherLevels: a falling value still at warn holds and stays highlighted in every mode', () => {
+  const settings = { threshUvWarn: '6', threshUvDanger: '8' };
+  const atPeak = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 50, 80] };
+  ['both', 'max'].forEach((mode) => {
+    const s = Object.assign({ uvSlotDisplay: mode }, settings);
+    assert.equal(statusLines.formatValue('uv', atPeak, s), '7', mode + ': today\'s 7 holds');
+    assert.deepEqual(th.packWeatherLevels(atPeak, s), [0, 1], mode + ': judged on the 7 (warn)');
+  });
+  // The hold rides the SEED warn too (6 for UV) when no pair is stored.
+  assert.deepEqual(th.packWeatherLevels(atPeak, { uvSlotDisplay: 'max' }), [0, 1]);
+});
+
+test('packWeatherLevels: only missing data emits normal — levels pack whatever the toggle', () => {
   assert.deepEqual(th.packWeatherLevels({}, { threshAqiWarn: '1', threshAqiDanger: '2' }), [0, 0]);
-  assert.deepEqual(th.packWeatherLevels({ AQI_TREND: [500] }, {}), [0, 0]);
+  // No stored pair: the seed (US 100/150) levels AQI 500 as danger...
+  assert.deepEqual(th.packWeatherLevels({ AQI_TREND: [500] }, {}), [2, 0]);
+  // ...and the highlight toggle does not gate the level: the watch gates the
+  // slot on the Clay blob's enable bit first, so an off kind still renders plain.
+  const pair = { threshAqiWarn: '100', threshAqiDanger: '200' };
+  [undefined, false, true].forEach((on) => {
+    assert.deepEqual(th.packWeatherLevels({ AQI_TREND: [150] },
+      Object.assign({ threshAqiOn: on }, pair)), [1, 0], 'threshAqiOn ' + on);
+  });
 });
 
 test('packWeatherLevels: UV thresholds with no UV series emit normal in every display mode', () => {
@@ -231,11 +376,13 @@ test('packWeatherLevels: UV thresholds with no UV series emit normal in every di
 test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health thresholds', () => {
   // Goal pairs order upward since the celebration rework (close <= goal).
   const blob = th.buildSettingsBlob({
-    threshAqiWarn: '100', threshAqiDanger: '200',
+    threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '200',
     threshAqiWarnColor: 0xFFAA00, threshAqiDangerColor: 0xFF0000,
-    threshStepsWarn: '4000', threshStepsDanger: '8000',
-    threshSleepWarn: '5', threshSleepDanger: '7.5',
-    threshDistanceWarn: '2', threshDistanceDanger: '5'
+    threshStepsOn: true, threshStepsWarn: '4000', threshStepsDanger: '8000',
+    threshSleepOn: true, threshSleepWarn: '5', threshSleepDanger: '7.5',
+    threshDistanceOn: true, threshDistanceWarn: '2', threshDistanceDanger: '5',
+    // An ordered pair with the toggle off sets no bit (wind, kind 2).
+    threshWindOn: false, threshWindWarn: '30', threshWindDanger: '50'
   });
   assert.equal(blob.length, 34);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
@@ -325,7 +472,7 @@ test('buildSettingsBlob: goal kinds resolve a stale black/white to the goal gree
 test('buildSettingsBlob: imperial distance thresholds convert mi -> 100 m units', () => {
   const blob = th.buildSettingsBlob({
     distanceUnits: 'imperial',
-    threshDistanceWarn: '1', threshDistanceDanger: '3'
+    threshDistanceOn: true, threshDistanceWarn: '1', threshDistanceDanger: '3'
   });
   assert.deepEqual(blob.slice(25, 29), [16, 0, 48, 0]); // round(1*16.0934)=16, round(3*16.0934)=48
   assert.equal(blob[0], 1 << 6);
@@ -341,30 +488,55 @@ test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds',
 
 // "0 and negative thresholds are legitimate; unset must stay distinguishable from zero" —
 // asserted through the real enable + pack path, not just parseThreshold() in isolation.
-test('a 0 threshold is SET (enables the kind) and packs as zero, unlike unset', () => {
-  // Weather kind: 0/0 is an ordered pair, so AQI is enabled and every reading >= 0 is danger.
-  const zeroAqi = { threshAqiWarn: '0', threshAqiDanger: '0' };
+test('a 0 threshold is SET (a real pair) and packs as zero, unlike unset', () => {
+  // Weather kind: 0/0 is an ordered pair, so AQI enables on it and every reading >= 0 is danger.
+  const zeroAqi = { threshAqiOn: true, threshAqiWarn: '0', threshAqiDanger: '0' };
   assert.equal(th.kindConfig(zeroAqi, 0).enabled, true, '0/0 must enable the kind');
   assert.equal(th.kindConfig(zeroAqi, 0).warn, 0, 'warn is the number 0, not null');
   assert.deepEqual(th.packWeatherLevels({ AQI_TREND: [0] }, zeroAqi), [2, 0], 'AQI 0 >= danger 0');
-  // A half-set pair with the OTHER field 0 stays disabled: 0 does not stand in for unset.
-  assert.equal(th.kindConfig({ threshAqiWarn: '0' }, 0).enabled, false);
-  assert.equal(th.kindConfig({ threshAqiDanger: '0' }, 0).enabled, false);
+  // A half-set pair with the OTHER field 0 is not a pair: 0 does not stand in for
+  // unset, the whole pair resolves to the seed (US 100/150) instead.
+  const halfWarn = th.kindConfig({ threshAqiOn: true, threshAqiWarn: '0' }, 0);
+  assert.deepEqual([halfWarn.warn, halfWarn.danger], [100, 150]);
+  const halfDanger = th.kindConfig({ threshAqiOn: true, threshAqiDanger: '0' }, 0);
+  assert.deepEqual([halfDanger.warn, halfDanger.danger], [100, 150]);
   // Goal kind through the blob: steps 0/100 is ordered (close <= goal since the
   // celebration rework) -> bit 4 set, and the close uint16 is a real zero —
   // indistinguishable in the bytes from "unset", which is exactly why the enabled
   // MASK is the only signal the watch may trust.
-  const blob = th.buildSettingsBlob({ threshStepsWarn: '0', threshStepsDanger: '100' });
+  const blob = th.buildSettingsBlob(
+    { threshStepsOn: true, threshStepsWarn: '0', threshStepsDanger: '100' });
   assert.equal(blob[0] & (1 << 4), 1 << 4, 'steps enabled with a 0 close threshold');
   assert.deepEqual(blob.slice(17, 21), [0, 0, 100, 0], 'close 0 / goal 100, LE uint16');
   // Sleep 0/0 likewise enables and packs zeroes...
-  const sleepBlob = th.buildSettingsBlob({ threshSleepWarn: '0', threshSleepDanger: '0' });
+  const sleepBlob = th.buildSettingsBlob(
+    { threshSleepOn: true, threshSleepWarn: '0', threshSleepDanger: '0' });
   assert.equal(sleepBlob[0] & (1 << 5), 1 << 5, 'sleep 0/0 enables the kind');
   assert.deepEqual(sleepBlob.slice(21, 25), [0, 0, 0, 0]);
-  // ...while leaving it unset does NOT set the bit, with the same zero bytes.
+  // ...while leaving it off does NOT set the bit, with the same zero bytes.
   const unsetBlob = th.buildSettingsBlob({});
   assert.equal(unsetBlob[0] & (1 << 5), 0, 'unset sleep must stay disabled');
   assert.deepEqual(unsetBlob.slice(21, 25), [0, 0, 0, 0]);
+});
+
+test('buildSettingsBlob: goal u16s carry the SEED when the toggle is on over a blank pair', () => {
+  const blob = th.buildSettingsBlob({
+    threshStepsOn: true, threshStepsWarn: '', threshStepsDanger: '',
+    threshSleepOn: true,
+    threshDistanceOn: true, distanceUnits: 'imperial'
+  });
+  assert.equal(blob[0], (1 << 4) | (1 << 5) | (1 << 6));
+  assert.deepEqual(blob.slice(17, 21), [8000 & 0xFF, 8000 >> 8, 10000 & 0xFF, 10000 >> 8],
+    'steps seed 8000/10000');
+  assert.deepEqual(blob.slice(21, 25), [390 & 0xFF, 390 >> 8, 450 & 0xFF, 450 >> 8],
+    'sleep seed 6.5/7.5 h -> minutes');
+  assert.deepEqual(blob.slice(25, 29), [40, 0, 48, 0], 'distance seed 2.5/3 mi -> 100 m units');
+  // Toggle off: no bit and zeroed u16s even with an ordered pair stored (the watch
+  // ignores them without the bit; zero keeps the bytes honest).
+  const off = th.buildSettingsBlob(
+    { threshStepsOn: false, threshStepsWarn: '4000', threshStepsDanger: '8000' });
+  assert.equal(off[0], 0);
+  assert.deepEqual(off.slice(17, 21), [0, 0, 0, 0]);
 });
 
 // thresh<Kind>BoldMode: 2 bits per kind in the two bold bytes. 'warn' packs to 0
@@ -430,9 +602,9 @@ test('buildSettingsBlob: statusBoldAll "all" packs always into every bold cell',
 
 test('statusBoldAll "all" leaves everything below the bold area byte-identical', () => {
   const settings = {
-    threshAqiWarn: '100', threshAqiDanger: '200',
+    threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '200',
     threshAqiWarnColor: 0xFFAA00,
-    threshStepsWarn: '4000', threshStepsDanger: '8000'
+    threshStepsOn: true, threshStepsWarn: '4000', threshStepsDanger: '8000'
   };
   const base = th.buildSettingsBlob(settings);
   const overridden = th.buildSettingsBlob(Object.assign({ statusBoldAll: 'all' }, settings));

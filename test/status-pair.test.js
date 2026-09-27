@@ -438,7 +438,7 @@ test('the UV threshold level is blind to the presentation settings', () => {
   const payloads = [
     { UV_TREND_UINT8: [20, 45, 70, 80], UV_DAY_PEAKS: [80, 100] },   // 2/8
     { UV_TREND_UINT8: [0], UV_DAY_PEAKS: [0, 90] },                  // 0/»9
-    { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 50] },                // 7/»5
+    { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 50] },                // 7 (held: >= warn 6)
     { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [90, 60] }                 // 2/9
   ];
   const styled = { uvSlotSeparator: 'brackets', uvSlotOrder: 'max',

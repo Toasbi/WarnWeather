@@ -1,8 +1,14 @@
 /**
- * Status-slot threshold highlighting: level computation for the 4 weather-
- * sourced kinds (phone-side, at weather-bake time) and the packed settings
- * blob (enabled bits + colors + health thresholds) the watch consumes for the
- * 3 health kinds.
+ * Status-slot alert levels: the per-kind warn/danger pairs (stored, else the
+ * kind's SEED pair — one resolution for the phone bake, the day-max hold rule
+ * and the settings page), the level computation for the weather-sourced kinds
+ * (phone-side, at weather-bake time) and the packed settings blob (enable bits
+ * + colors + health thresholds) the watch consumes for the 3 health kinds.
+ *
+ * Levels and highlighting are split: a weather kind's LEVEL is computed from
+ * its resolved pair whether or not its highlight is on, and the stored
+ * thresh<Kind>On toggle alone decides the blob[0] enable bit that tells the
+ * watch to colour the slot (see kindConfig).
  *
  * LOCKSTEP: kind order, level values, and blob layout mirror
  * src/c/appendix/status_threshold.h; test/status-thresholds-contract.test.js
@@ -13,7 +19,8 @@
   // buildSettingsBlob (the only rainTier consumer) is never called there.
   var rainTier = (typeof require !== 'undefined')
     ? require('./weather/rain-tier.js') : null;
-  // Same guard: displayValue (the only consumer) runs phone-side only.
+  // Same guard: displayValue (the only consumer, kindLevel reads it) runs
+  // phone-side only.
   var wireUnits = (typeof require !== 'undefined')
     ? require('./wire-units.js') : null;
 
@@ -138,17 +145,113 @@
   }
 
   /**
-   * Whether a warn/danger pair ENABLES a kind: both set and ordered — the value
+   * Whether a warn/danger pair is USABLE: both set and ordered — the value
    * rises toward the pair (danger at or above warn). THE one definition of the
-   * rule: kindConfig packs with it, and the settings page's toggle hook
-   * (blocks.js thresholdToggle) and onLoad derivation (onbuild.js) call it, so
-   * the UI can never disagree with what the watch packs.
+   * rule: resolvedPair takes a stored pair only when it holds, kindConfig
+   * re-checks it before setting an enable bit (defence in depth), and the
+   * settings page's toggle hook (blocks.js thresholdToggle) calls it, so the UI
+   * can never disagree with what the watch packs.
    * @param {?number} warn Parsed warn threshold (parseThreshold).
    * @param {?number} danger Parsed danger threshold.
    * @returns {boolean} True when the pair is complete and ordered.
    */
   function pairOrdered(warn, danger) {
     return warn !== null && danger !== null && danger >= warn;
+  }
+
+  // Seed pairs per key stem, in the kind's DISPLAY unit (the unit displayValue
+  // and the health packer compare against), resolved per call because wind,
+  // gusts, AQI and distance change scale with a settings picker. THE one table:
+  // the phone bake, the day-max hold rule and the settings page's slider seeds
+  // (blocks.js thresholdRangeCfg) all read it through seedPair, so a blank pair
+  // means the same numbers everywhere. Goal kinds: warn = "close" (~80% of the
+  // goal), danger = the goal.
+  var SEEDS = {
+    Uv: function () { return {warn: 6, danger: 8}; },
+    Pollen: function () { return {warn: 2, danger: 3}; },
+    Wind: function (s) {
+      if (s.windUnits === 'mph') { return {warn: 25, danger: 40}; }
+      if (s.windUnits === 'knots') { return {warn: 20, danger: 30}; }
+      return {warn: 40, danger: 60};
+    },
+    Gust: function (s) {
+      if (s.windUnits === 'mph') { return {warn: 40, danger: 55}; }
+      if (s.windUnits === 'knots') { return {warn: 30, danger: 50}; }
+      return {warn: 60, danger: 90};
+    },
+    Aqi: function (s) {
+      // The European scale applies only when Open-Meteo is the AQI source AND the
+      // scale picker says so; WAQI (and auto, which prefers it) reports US-style AQI.
+      return (s.aqiSource === 'openmeteo' && s.aqiScale !== 'us')
+        ? {warn: 60, danger: 80} : {warn: 100, danger: 150};
+    },
+    Steps: function () { return {warn: 8000, danger: 10000}; },
+    Sleep: function () { return {warn: 6.5, danger: 7.5}; },
+    Distance: function (s) {
+      return s.distanceUnits === 'imperial' ? {warn: 2.5, danger: 3} : {warn: 4, danger: 5};
+    }
+  };
+
+  /**
+   * A kind's seed pair — what a blank (or unusable) stored pair means.
+   * @param {string} keyStem Kind key stem, e.g. 'Wind'.
+   * @param {Object} settings Clay settings blob (windUnits, aqiSource, aqiScale,
+   *     distanceUnits).
+   * @returns {{warn: ?number, danger: ?number}} the seed in display units; both
+   *     null for a stem without one (the bold-only kinds, an unknown stem)
+   */
+  function seedPair(keyStem, settings) {
+    if (!Object.prototype.hasOwnProperty.call(SEEDS, keyStem)) {
+      return {warn: null, danger: null};
+    }
+    return SEEDS[keyStem](settings || {});
+  }
+
+  /**
+   * The pair a kind is judged against: the stored thresh<Stem>Warn/Danger when
+   * BOTH parse AND are ordered, else the seed pair — all or nothing, so a legacy
+   * half or inverted pair never mixes one stored number with one seed. The one
+   * rule for the phone bake, the hold rule and the settings page.
+   * @param {string} keyStem Kind key stem, e.g. 'Uv'.
+   * @param {Object} settings Clay settings blob
+   * @returns {{warn: ?number, danger: ?number, stored: boolean}} stored is true
+   *     when the stored pair won
+   */
+  function resolvedPair(keyStem, settings) {
+    var s = settings || {};
+    var warn = parseThreshold(s['thresh' + keyStem + 'Warn']);
+    var danger = parseThreshold(s['thresh' + keyStem + 'Danger']);
+    if (pairOrdered(warn, danger)) { return {warn: warn, danger: danger, stored: true}; }
+    var seed = seedPair(keyStem, s);
+    return {warn: seed.warn, danger: seed.danger, stored: false};
+  }
+
+  /**
+   * @param {*} code A status item code.
+   * @returns {?Object} the KINDS entry of a weather kind (neither goal nor
+   *     bold-only) with that code, else null
+   */
+  function weatherKindOf(code) {
+    for (var i = 0; i < KINDS.length; i += 1) {
+      if (KINDS[i].code === code) {
+        return (KINDS[i].goal || KINDS[i].boldOnly) ? null : KINDS[i];
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The warn level a day-max slot holds today's peak on (wire-units dayMaxShown's
+   * `warn`): the kind's resolved warn in display units. Deliberately blind to the
+   * highlight toggle — the slot is an alert whether or not it is coloured.
+   * @param {*} code A status item code.
+   * @param {Object} settings Clay settings blob
+   * @returns {?number} the warn for a weather kind; null for goal, bold-only and
+   *     unknown codes
+   */
+  function holdWarn(code, settings) {
+    var k = weatherKindOf(code);
+    return k ? resolvedPair(k.key, settings).warn : null;
   }
 
   /**
@@ -201,9 +304,13 @@
   }
 
   /**
-   * Resolve one kind's stored settings. enabled requires BOTH thresholds set
-   * AND ordered for the kind's direction (pack-time defense in depth — the
-   * config UI also rejects inverted pairs on entry).
+   * Resolve one kind's stored settings. warn/danger are the RESOLVED pair
+   * (resolvedPair: stored when usable, else the seed). enabled — the blob[0]
+   * bit that tells the watch to highlight the slot — is the stored toggle
+   * thresh<Kind>On === true AND an ordered pair (pack-time defence in depth; a
+   * resolved pair is ordered by construction). The toggle owns ONLY that bit
+   * (plus the goal u16s, zeroed when off): a weather kind's level is packed
+   * regardless (packWeatherLevels).
    * @param {Object} settings Clay settings blob
    * @param {number} kindIndex wire kind id (0..THRESH_KIND_COUNT - 1)
    * @returns {{enabled: boolean, warn: ?number, danger: ?number,
@@ -223,9 +330,8 @@
         boldMode: boldModeFor(settings, k)
       };
     }
-    var warn = parseThreshold(settings && settings['thresh' + k.key + 'Warn']);
-    var danger = parseThreshold(settings && settings['thresh' + k.key + 'Danger']);
-    var ordered = pairOrdered(warn, danger);
+    var pair = resolvedPair(k.key, settings);
+    var on = Boolean(settings) && settings['thresh' + k.key + 'On'] === true;
     // warnColor null = NO OUTLINE: warn renders as bold text only and the blob
     // carries the 0x00 none-sentinel. Weather kinds DEFAULT to none (only the
     // sheet's outline toggle stores a color); GOAL kinds default to the green
@@ -246,12 +352,12 @@
       warnColor = resolveAutoColor(
         colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR), settings, k.goal);
     }
-    // Bold mode is deliberately NOT gated on `ordered`: 'always' bolds a slot
-    // whose kind has no thresholds configured at all.
+    // Bold mode is deliberately NOT gated on `enabled`: 'always' bolds a slot
+    // whose kind has its highlight off.
     return {
-      enabled: ordered,
-      warn: warn,
-      danger: danger,
+      enabled: on && pairOrdered(pair.warn, pair.danger),
+      warn: pair.warn,
+      danger: pair.danger,
       warnColor: warnColor,
       dangerColor: resolveAutoColor(
         colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
@@ -282,18 +388,23 @@
    *
    * The day-max kinds (UV, wind, gusts, AQI) judge the highest of TODAY's
    * numbers shown. An unmarked peak is never below now by construction, so "2/8"
-   * is highlighted for the 8 (and "5/5", a peak still running, for 5); tomorrow's
-   * marked peak never counts until it is today's, so "8/»6" is judged on the 8
-   * and a lone "»9" not at all (null).
+   * is highlighted for the 8. The hold rule gets the kind's resolved warn
+   * (holdWarn), so today's peak stays on screen while it is at or above warn:
+   * a 7 falling from an 8 under warn 6 prints "7" in every mode and is judged
+   * on the 7 — the highlight can never go silent while today is still worth
+   * warning about. Tomorrow's marked peak shows only once today's is below warn
+   * (and behind us), and never counts until it is today's: "5/»8" is judged on
+   * the 5 and a lone "»8" not at all (null).
    * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
    * @param {Object} payload weather payload (pre-transform, trends present)
-   * @param {Object} settings Clay settings blob (windUnits, <kind>SlotDisplay)
+   * @param {Object} settings Clay settings blob (windUnits, <kind>SlotDisplay,
+   *     the kind's thresh pair and the seed-unit pickers)
    * @returns {number|null} displayed number, or null when unavailable
    */
   function displayValue(code, payload, settings) {
     var s = settings || {};
     if (wireUnits.isDayMaxKind(code)) {
-      return todaysShown(wireUnits.dayMaxShown(code, payload, s));
+      return todaysShown(wireUnits.dayMaxShown(code, payload, s, holdWarn(code, s)));
     }
     if (code === 'pollen') {
       var pt = payload.POLLEN_TODAY;
@@ -323,9 +434,33 @@
   }
 
   /**
+   * A weather kind's level for the value its slot shows, against the resolved
+   * pair — toggle-agnostic: the level says how high the value is, the highlight
+   * toggle only says whether the watch colours it.
+   * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
+   * @param {Object} payload weather payload (pre-transform, trends present)
+   * @param {Object} settings Clay settings blob
+   * @returns {?number} 0 normal / 1 warn / 2 danger; null when there is no
+   *     displayed number or the code is not a weather kind
+   */
+  function kindLevel(code, payload, settings) {
+    var k = weatherKindOf(code);
+    if (!k) { return null; }
+    var v = displayValue(code, payload, settings);
+    if (v === null) { return null; }
+    var pair = resolvedPair(k.key, settings);
+    return computeLevel(v, pair.warn, pair.danger);
+  }
+
+  /**
    * Pack the weather-kind levels into the STATUS_LEVELS_UINT8 wire bytes, LE
-   * (kinds 0..3 in byte 0 at bits 2k; UV in byte 1 at bits 0-1). Disabled kinds
-   * and missing data stay Normal.
+   * (kinds 0..3 in byte 0 at bits 2k; UV in byte 1 at bits 0-1). Every weather
+   * kind packs its level whether or not its highlight is on — only missing data
+   * stays Normal. That is watch-safe: status_row.c's slot_level checks the
+   * kind's blob[0] enable bit (Clay message) BEFORE it reads this level, so an
+   * un-highlighted kind still renders plain. And it keeps the highlight toggle
+   * off the weather message: flipping thresh<Kind>On changes only the Clay blob
+   * (sent immediately), so it needs no re-bake and stays out of renderSignature.
    * @param {Object} payload weather payload (pre-transform)
    * @param {Object} settings Clay settings blob
    * @returns {number[]} two-element byte array (2 wire bytes)
@@ -335,12 +470,9 @@
     for (var k = 0; k < KINDS.length; k++) {
       // Health kinds level on the watch; bold-only kinds have no pair to level.
       if (KINDS[k].goal || KINDS[k].boldOnly) { continue; }
-      var cfg = kindConfig(settings, k);
-      if (!cfg.enabled) { continue; }
-      var v = displayValue(KINDS[k].code, payload, settings);
-      if (v === null) { continue; }
-      packed |= computeLevel(v, cfg.warn, cfg.danger)
-        << weatherLevelShift(k);
+      var level = kindLevel(KINDS[k].code, payload, settings);
+      if (level === null) { continue; }
+      packed |= level << weatherLevelShift(k);
     }
     return [packed & 0xFF, (packed >> 8) & 0xFF];
   }
@@ -418,12 +550,17 @@
     DEFAULT_BOLD_MODE: DEFAULT_BOLD_MODE,
     parseThreshold: parseThreshold,
     pairOrdered: pairOrdered,
+    SEEDS: SEEDS,
+    seedPair: seedPair,
+    resolvedPair: resolvedPair,
+    holdWarn: holdWarn,
     isGoalKind: isGoalKind,
     DEFAULT_GOAL_COLOR: DEFAULT_GOAL_COLOR,
     DEFAULT_GOAL_HEX: DEFAULT_GOAL_HEX,
     kindConfig: kindConfig,
     computeLevel: computeLevel,
     displayValue: displayValue,
+    kindLevel: kindLevel,
     packWeatherLevels: packWeatherLevels,
     buildSettingsBlob: buildSettingsBlob,
     DEFAULT_WARN_COLOR: DEFAULT_WARN_COLOR,

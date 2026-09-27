@@ -226,17 +226,37 @@ test('uv slot display modes: current, the peak ahead, and slash-separated both',
     'current first, like the temp slot\'s actual/feels');
 });
 
-test('uv peak rolls to tomorrow\'s, marked », once today\'s is reached', () => {
-  // At the peak: nothing later today prints above the 7 now.
-  const atPeak = uvDayPayload({ UV_TREND_UINT8: [71, 68, 55], UV_DAY_PEAKS: [71, 95] });
+test('uv peak rolls to tomorrow\'s, marked », once today\'s is reached and below warn', () => {
+  // baseSettings stores no UV pair, so the hold uses the seed warn 6.
+  // At a peak of 5: nothing later today prints above it and 5 < warn.
+  const atPeak = uvDayPayload({ UV_TREND_UINT8: [50, 48, 40], UV_DAY_PEAKS: [50, 95] });
   assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'both' })),
-    '7/\u00BB10', 'never "7/7": the max half is tomorrow\'s 9.5 -> 10, marked');
+    '5/\u00BB10', 'never "5/5": the max half is tomorrow\'s 9.5 -> 10, marked');
   assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'max' })),
     '\u00BB10');
   // Late evening: today is spent, tomorrow's midday is the next peak.
   const late = uvDayPayload({ UV_TREND_UINT8: [0, 0], UV_DAY_PEAKS: [0, 60] });
   assert.equal(statusLines.formatValue('uv', late, baseSettings({ uvSlotDisplay: 'both' })),
     '0/\u00BB6');
+});
+
+test('uv holds today\'s peak while it is at or above warn, whatever the highlight toggle', () => {
+  // At a peak of 7 (seed warn 6): the slot is an alert, so the 7 stays \u2014 printed
+  // once in both modes \u2014 instead of rolling to tomorrow's \u00BB10.
+  const atPeak = uvDayPayload({ UV_TREND_UINT8: [71, 68, 55], UV_DAY_PEAKS: [71, 95] });
+  ['both', 'max'].forEach((mode) => {
+    assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: mode })),
+      '7', mode + ': held on the seed warn');
+    assert.equal(statusLines.formatValue('uv', atPeak,
+      baseSettings({ uvSlotDisplay: mode, threshUvOn: false })), '7',
+      mode + ': the highlight toggle off does not release the hold');
+    assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: mode,
+      threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8' })), '7',
+      mode + ': nor with a stored pair');
+  });
+  // A stored warn above the peak releases it: back to the rollover.
+  assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'both',
+    threshUvWarn: '8', threshUvDanger: '10' })), '7/\u00BB10');
 });
 
 test('uv modes fall back to the current reading when no peak ahead is known', () => {
@@ -260,8 +280,11 @@ test('uv modes fall back to the current reading when no peak ahead is known', ()
 
 test('worst realistic uv both-mode text fits the edge-slot byte cap untruncated', () => {
   // UV 11 now and at today's peak, 12 tomorrow: "11/»12" — » is 2 UTF-8 bytes.
+  // A stored warn above the peak (12/12, the slider's top) keeps the rollover, so
+  // the text under test is the widest one; at the seed warn 6 the 11 would hold.
   const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });
-  const text = statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both' }));
+  const text = statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both',
+    threshUvWarn: '12', threshUvDanger: '12' }));
   assert.equal(text, '11/\u00BB12');
   assert.equal(statusLines.utf8Encode(text).length, 7);
   assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX);
@@ -1063,8 +1086,10 @@ test('the next-day mark applies to the lone peak in max mode', () => {
 
 test('a styled UV pair too wide for an edge slot narrows step by step, order and mark kept', () => {
   const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });   // 11/»12
+  // A stored warn above the peak keeps the rollover (the seed warn 6 would hold the 11).
   const s = baseSettings({ uvSlotDisplay: 'both', uvSlotSeparator: 'brackets',
-    uvSlotOrder: 'max', uvSlotSeparatorSpaced: true });
+    uvSlotOrder: 'max', uvSlotSeparatorSpaced: true,
+    threshUvWarn: '12', threshUvDanger: '12' });
   assertPlainText(slotBytesFor('uv', p, s), RAQUO + '12(11)',
     'edge: "»12 (11)" is 9 B, so the spaces go and the brackets stay');
   assertPlainText(midSlotBytesFor('uv', p, s), RAQUO + '12 (11)', 'mid');

@@ -334,49 +334,50 @@ if (typeof require !== 'undefined') {
         return Math.ceil(Math.round((v / step) * 1e6) / 1e6) * step;
     }
 
-    // Per-kind slider geometry + seeds, in the kind's DISPLAY unit (the unit
+    // Per-kind slider geometry, in the kind's DISPLAY unit (the unit
     // status-thresholds.js compares against at bake/pack time). Resolved per render
     // so the General-tab unit pickers reshape the scales live. fixedMax marks the
-    // naturally-bounded kinds (no inline scale-max editor).
+    // naturally-bounded kinds (no inline scale-max editor). The SEED pairs are not
+    // here: they live in the contract (status-thresholds.js SEEDS / seedPair) — the
+    // one table the phone bake and the day-max hold rule resolve a blank pair
+    // against too, so the slider can never preview numbers the watch does not use.
     var THRESHOLD_RANGES = {
         Wind: function (S) {
-            if (S.windUnits === 'mph') { return {min: 0, max: 75, step: 5, seedWarn: 25, seedDanger: 40, unit: 'mph'}; }
-            if (S.windUnits === 'knots') { return {min: 0, max: 65, step: 5, seedWarn: 20, seedDanger: 30, unit: 'kn'}; }
-            return {min: 0, max: 120, step: 5, seedWarn: 40, seedDanger: 60, unit: 'kph'};
+            if (S.windUnits === 'mph') { return {min: 0, max: 75, step: 5, unit: 'mph'}; }
+            if (S.windUnits === 'knots') { return {min: 0, max: 65, step: 5, unit: 'kn'}; }
+            return {min: 0, max: 120, step: 5, unit: 'kph'};
         },
         Gust: function (S) {
-            if (S.windUnits === 'mph') { return {min: 0, max: 100, step: 5, seedWarn: 40, seedDanger: 55, unit: 'mph'}; }
-            if (S.windUnits === 'knots') { return {min: 0, max: 85, step: 5, seedWarn: 30, seedDanger: 50, unit: 'kn'}; }
-            return {min: 0, max: 160, step: 5, seedWarn: 60, seedDanger: 90, unit: 'kph'};
+            if (S.windUnits === 'mph') { return {min: 0, max: 100, step: 5, unit: 'mph'}; }
+            if (S.windUnits === 'knots') { return {min: 0, max: 85, step: 5, unit: 'kn'}; }
+            return {min: 0, max: 160, step: 5, unit: 'kph'};
         },
         Aqi: function (S) {
             // The European scale applies only when Open-Meteo is the AQI source AND the
             // scale picker says so; WAQI (and auto, which prefers it) reports US-style AQI.
             var eu = S.aqiSource === 'openmeteo' && S.aqiScale !== 'us';
             return eu
-                ? {min: 0, max: 150, step: 5, seedWarn: 60, seedDanger: 80, unit: ''}
-                : {min: 0, max: 300, step: 10, seedWarn: 100, seedDanger: 150, unit: ''};
+                ? {min: 0, max: 150, step: 5, unit: ''}
+                : {min: 0, max: 300, step: 10, unit: ''};
         },
         Pollen: function () {
-            return {min: 0, max: 3, step: 0.5, seedWarn: 2, seedDanger: 3, unit: '', fixedMax: true};
+            return {min: 0, max: 3, step: 0.5, unit: '', fixedMax: true};
         },
         Uv: function () {
             // The slot displays the rounded integer index, so whole steps; 12 covers
             // every real-world reading (extremes clamp against the top like any kind).
-            return {min: 0, max: 12, step: 1, seedWarn: 6, seedDanger: 8, unit: '', fixedMax: true};
+            return {min: 0, max: 12, step: 1, unit: '', fixedMax: true};
         },
-        // Goal kinds: seedWarn = "close" (~80% of the goal), seedDanger = the goal —
-        // ordered upward like the weather kinds since the celebration rework.
         Steps: function () {
-            return {min: 0, max: 20000, step: 250, seedWarn: 8000, seedDanger: 10000, unit: ''};
+            return {min: 0, max: 20000, step: 250, unit: ''};
         },
         Sleep: function () {
-            return {min: 0, max: 12, step: 0.5, seedWarn: 6.5, seedDanger: 7.5, unit: 'h', fixedMax: true};
+            return {min: 0, max: 12, step: 0.5, unit: 'h', fixedMax: true};
         },
         Distance: function (S) {
             return S.distanceUnits === 'imperial'
-                ? {min: 0, max: 12, step: 0.5, seedWarn: 2.5, seedDanger: 3, unit: 'mi'}
-                : {min: 0, max: 20, step: 0.5, seedWarn: 4, seedDanger: 5, unit: 'km'};
+                ? {min: 0, max: 12, step: 0.5, unit: 'mi'}
+                : {min: 0, max: 20, step: 0.5, unit: 'km'};
         }
     };
 
@@ -410,9 +411,11 @@ if (typeof require !== 'undefined') {
         var warnDisplay = thresholdDisplayColor(S, stem, 'Warn');
         var warnColor = warnDisplay === null ? '#8A8E97' : warnDisplay;
         var dangerColor = thresholdDisplayColor(S, stem, 'Danger');
-        var contractMod = thresholdContract();
-        var isGoal = Boolean(contractMod && contractMod.isGoalKind
-            && contractMod.isGoalKind(stem));
+        var isGoal = Boolean(contract && contract.isGoalKind
+            && contract.isGoalKind(stem));
+        // Seeds from the contract's table (what a blank pair means on the phone);
+        // without the contract the slider still renders, seeded at its two ends.
+        var seed = contract ? contract.seedPair(stem, S || {}) : {warn: base.min, danger: max};
         return {
             min: base.min, max: max, step: base.step, minSpan: base.step,
             // Direction axis retired (status-thresholds.js): every kind's value
@@ -420,7 +423,7 @@ if (typeof require !== 'undefined') {
             // dormant library feature no item sets.
             dir: 'above',
             unit: base.unit,
-            seedWarn: base.seedWarn, seedDanger: base.seedDanger,
+            seedWarn: seed.warn, seedDanger: seed.danger,
             maxEditable: !base.fixedMax,
             warnColor: warnColor, dangerColor: dangerColor,
             warnGlow: glowOf(warnColor), dangerGlow: glowOf(dangerColor),
@@ -483,9 +486,11 @@ if (typeof require !== 'undefined') {
         var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
         var ordered = contract.pairOrdered(warn, danger);
         if (ordered) { return; }
-        var cfg = thresholdRangeCfg(S, env, {keyStem: stem});
-        S['thresh' + stem + 'Warn'] = String(cfg.seedWarn);
-        S['thresh' + stem + 'Danger'] = String(cfg.seedDanger);
+        // The contract's seed pair — the same numbers the phone already resolves
+        // a blank pair to, so pinning them changes nothing the watch sees.
+        var seed = contract.seedPair(stem, S);
+        S['thresh' + stem + 'Warn'] = String(seed.warn);
+        S['thresh' + stem + 'Danger'] = String(seed.danger);
     });
 
     // "Warn outline" toggle (thresh<K>WarnOutlineOn): ON seeds the theme's text

@@ -388,6 +388,8 @@ test('applyForecastSeries bakes a genuine non-zero STATUS_LEVELS_UINT8 from real
   const settings = {
     provider: 'dwd', secondaryLine: 'off', thirdLine: 'off', barSource: 'off',
     windUnits: 'kph',
+    // No thresh<Kind>On on purpose: levels pack whatever the highlight toggle
+    // says (the watch gates each slot on the Clay blob's enable bit instead).
     threshAqiWarn: '100', threshAqiDanger: '200',     // 150 -> warn   (bits 0-1 = 01)
     threshPollenWarn: '2', threshPollenDanger: '3',   // '3' -> danger (bits 2-3 = 10)
     threshWindWarn: '40', threshWindDanger: '60',     // 10  -> normal (bits 4-5 = 00)

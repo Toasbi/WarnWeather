@@ -204,7 +204,8 @@ test('fixture uvIndex feeds the UV secondary line', () => {
 // End to end: provider series -> getPayload (localDayPeaks, tenths on the wire)
 // -> the baked slot text and level, UV_DAY_PEAKS stripped before send. The
 // fixture's numEntries comes from temps (3), while uvTrend keeps all 48 hours,
-// just like a live provider's longer UV reach.
+// just like a live provider's longer UV reach. No threshUvOn: the level packs
+// whatever the highlight toggle says (the watch gates it on the Clay enable bit).
 const UV_SLOT = { statusForecastLeft: 'uv', uvSlotDisplay: 'both', threshUvWarn: '6', threshUvDanger: '8',
   secondaryLine: 'wind', windScale: 'mid', barSource: 'off' };
 test('a 48 h fixture uvIndex bakes the day peaks into the UV slot text and level', () => {

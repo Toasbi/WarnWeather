@@ -343,14 +343,18 @@ function formatValue(code, payload, settings, slotKey, cap) {
   if (wireUnits.isDayMaxKind(code)) {
     // The day-max kinds' global per-kind display mode (each kind's Edit sheet),
     // the temp slot's pattern: absent = 'current'. 'max' is the day's peak
-    // (wire-units' dayMaxShown): today's while it is ahead or running, then
-    // tomorrow's once the reading drops below it, carrying the user's next-day
-    // mark; 'both' pairs the two in the user's order and separator. The text is
+    // (wire-units' dayMaxShown): today's while it is ahead, running, or at or
+    // above the kind's warn level (thresholds.holdWarn -- the stored pair, else
+    // its seed, whether or not the highlight is on: the slot is an alert, so a
+    // 7 falling from an 8 under warn 6 stays '7'), then tomorrow's, carrying the
+    // user's next-day mark; 'both' pairs the two in the user's order and
+    // separator, and a held today's peak equal to now prints once. The text is
     // status-pair's -- absent settings = current first, slash, '»' mark: 3/7,
-    // 5/»6. No peak ahead known falls back to the current reading alone, never
+    // 5/»8. No peak ahead known falls back to the current reading alone, never
     // '3/--'. UV and AQI are bare (their icon carries the context); wind and
     // gusts append their unit label when the whole text still fits ('12/30kph').
-    var shown = wireUnits.dayMaxShown(code, payload, settings);
+    var shown = wireUnits.dayMaxShown(code, payload, settings,
+      thresholds.holdWarn(code, settings));
     if (!shown) { return '--'; }
     // The unit gives way to the direction arrow (packLine appends it after the
     // text, only into a free byte): '12/30' + arrow, never '12/30kph' without one.
@@ -457,9 +461,12 @@ function directionSentinel(code, payload, settings, env, text) {
   // number, no arrow. (The caller passes the already-formatted text so this
   // check can never disagree with what the slot actually shows.)
   if (text === '--') { return 0; }
-  // Day max alone prints the peak, not the wind the arrow describes (the current
-  // hour's), so it draws none; Both keeps it, its first reading being now's.
-  var shown = wireUnits.dayMaxShown(code, payload, settings);
+  // Alert ('max') alone prints the peak, not the wind the arrow describes (the
+  // current hour's), so it draws none -- a held today's peak equal to now
+  // included, as for every peak it shows alone; Both keeps it, its first reading
+  // being now's. Same warn as formatValue, so the two never pick different peaks.
+  var shown = wireUnits.dayMaxShown(code, payload, settings,
+    thresholds.holdWarn(code, settings));
   if (shown && shown.now === null) { return 0; }
   var from = trendHead(payload && payload.WIND_DIR_TREND);
   if (typeof from !== 'number' || !isFinite(from)) { return 0; }

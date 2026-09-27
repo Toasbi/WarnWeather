@@ -292,6 +292,32 @@ test('enabling a WEATHER-kind threshold changes the render signature (forces a r
   });
 });
 
+// The highlight toggle is split from the levels: every weather kind's level is packed
+// whatever thresh<Kind>On says, and the toggle only flips the blob[0] enable bit on the
+// Clay message (immediate on close). So flipping it must NOT drop the weather caches —
+// while editing the pair it guards still must (the levels and the day-max hold read it).
+test('flipping a weather-kind highlight toggle does NOT change the signature; Warn/Danger still do', () => {
+  const pair = (kind) => ({ ['thresh' + kind.key + 'Warn']: '5',
+    ['thresh' + kind.key + 'Danger']: '10' });
+  thresholds.KINDS.filter(k => !k.boldOnly).forEach(kind => {
+    const key = 'thresh' + kind.key + 'On';
+    const base = pair(kind);
+    const off = renderSignature(Object.assign({ [key]: false }, base));
+    assert.equal(renderSignature(Object.assign({ [key]: true }, base)), off,
+      key + ' rides the Clay blob only — it must not force a weather refetch');
+    assert.equal(renderSignature(base), off, key + ' absent reads the same as false');
+  });
+  WEATHER_KINDS.forEach(kind => {
+    const on = { ['thresh' + kind.key + 'On']: true };
+    assert.notEqual(renderSignature(Object.assign({}, on, pair(kind))),
+      renderSignature(Object.assign({}, on, pair(kind), { ['thresh' + kind.key + 'Warn']: '6' })),
+      kind.key + ': a warn edit still re-bakes');
+    assert.notEqual(renderSignature(Object.assign({}, on, pair(kind))),
+      renderSignature(Object.assign({}, on, pair(kind), { ['thresh' + kind.key + 'Danger']: '11' })),
+      kind.key + ': a danger edit still re-bakes');
+  });
+});
+
 // Health thresholds are evaluated WATCH-side against the Clay-delivered blob, and the
 // threshold colors are applied by the watch on its next paint: both are already immediate
 // when the config closes, so dropping the weather caches for them would be pure waste.

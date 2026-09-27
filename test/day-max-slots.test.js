@@ -126,6 +126,68 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
     settings({ statusRadarLeft: 'wind', statusRadarMid: 'empty', statusRadarRight: 'empty',
       windSlotDirection: true, windSlotUnit: false, windSlotDisplay: 'max' }), env);
   assert.ok(noPeak[2] === 3 && noPeak[5] <= 0x10, 'current reading keeps its arrow');
+  // A today's peak HELD at warn (45 km/h against the seed 40, falling from an
+  // earlier 50) that equals now: Alert still shows it as a peak alone — no arrow —
+  // while Both collapses to the reading, which keeps its arrow.
+  const held = (extra) => {
+    const bytes = statusLines.packLine(radar,
+      { WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 60, 50], WIND_DIR_TREND: [270] },
+      settings(Object.assign({ statusRadarLeft: 'wind', statusRadarMid: 'empty',
+        statusRadarRight: 'empty', windSlotDirection: true, windSlotUnit: false }, extra)), env);
+    return bytes.slice(3, 3 + bytes[2]);
+  };
+  assert.equal(Buffer.from(held({ windSlotDisplay: 'max' })).toString('utf8'), '45',
+    'Alert: the held peak alone, no arrow');
+  const both = held({ windSlotDisplay: 'both' });
+  assert.equal(Buffer.from(both.slice(0, -1)).toString('utf8'), '45', 'Both: printed once');
+  assert.ok(last(both) <= 0x10, 'Both: the collapsed reading keeps its arrow');
+});
+
+// ---- the hold rule: today's peak stays while it is at or above warn ----------
+
+test('wind holds today\'s peak at warn in the user\'s unit (mph seed 25)', () => {
+  // 45 km/h = 28 mph now and at today's (falling: 50 earlier) peak, 60 tomorrow.
+  const p = { WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 60, 50] };
+  ['both', 'max'].forEach((mode) => {
+    const s = settings({ windUnits: 'mph', windSlotDisplay: mode, windSlotUnit: false });
+    assert.equal(statusLines.formatValue('wind', p, s), '28', mode + ': 28 mph >= 25 holds');
+    assert.equal(th.displayValue('wind', p, s), 28, mode + ': judged on the 28');
+  });
+  // 35 km/h = 22 mph is below the seed: rolls to tomorrow's 60 km/h = 37 mph.
+  const low = { WIND_TREND_UINT8: [35], WIND_DAY_PEAKS: [35, 60, 50] };
+  const s = settings({ windUnits: 'mph', windSlotDisplay: 'both', windSlotUnit: false });
+  assert.equal(statusLines.formatValue('wind', low, s), '22/' + RAQUO + '37');
+  assert.equal(th.displayValue('wind', low, settings({ windUnits: 'mph', windSlotDisplay: 'max' })),
+    null, 'a lone tomorrow\'s peak is not judged');
+});
+
+test('gust holds on the knots seed: the same km/h can hold in knots and roll in kph', () => {
+  // 56 km/h = 30 kn: at the knots seed 30, below the kph seed 60.
+  const p = { GUST_TREND_UINT8: [56], GUST_DAY_PEAKS: [56, 90, 70] };
+  const knots = settings({ windUnits: 'knots', gustSlotDisplay: 'max', gustSlotUnit: false });
+  assert.equal(statusLines.formatValue('gust', p, knots), '30');
+  assert.equal(th.displayValue('gust', p, knots), 30);
+  const kph = settings({ windUnits: 'kph', gustSlotDisplay: 'max', gustSlotUnit: false });
+  assert.equal(statusLines.formatValue('gust', p, kph), RAQUO + '90');
+  assert.equal(th.displayValue('gust', p, kph), null);
+});
+
+test('AQI holds on the European seed 60 for Open-Meteo, the US seed 100 elsewhere', () => {
+  const p = { AQI_TREND: [65], AQI_DAY_PEAKS: [65, 90, 80] };
+  const eu = { aqiSource: 'openmeteo', aqiScale: 'european' };
+  ['both', 'max'].forEach((mode) => {
+    const s = settings(Object.assign({ aqiSlotDisplay: mode }, eu));
+    assert.equal(statusLines.formatValue('aqi', p, s), '65', mode + ': held at the EU warn');
+    assert.equal(th.displayValue('aqi', p, s), 65, mode + ': judged on the 65, never null');
+    assert.deepEqual(th.packWeatherLevels(p, s), [1, 0], mode + ': warn against 60/80');
+  });
+  // The same numbers under the US seed roll to tomorrow's.
+  assert.equal(statusLines.formatValue('aqi', p, settings({ aqiSlotDisplay: 'both' })),
+    '65/' + RAQUO + '90');
+  assert.equal(th.displayValue('aqi', p, settings({ aqiSlotDisplay: 'max' })), null);
+  // A stored pair beats the seed: a warn of 70 releases the EU hold.
+  assert.equal(statusLines.formatValue('aqi', p, settings(Object.assign({ aqiSlotDisplay: 'max',
+    threshAqiWarn: '70', threshAqiDanger: '80' }, eu))), RAQUO + '90');
 });
 
 // ---- status-thresholds: the highlight ---------------------------------------
@@ -247,13 +309,17 @@ test('only the day-max kinds a slot shows keep a record and widen their requests
 });
 
 test('a day-max pair that cannot fit the slot prints the current reading, never a cut-off peak', () => {
-  // '152/»178' is 9 bytes: the 8-byte edge slot would cut it to '152/»17'.
+  // '152/»178' is 9 bytes: the 8-byte edge slot would cut it to '152/»17'. A
+  // stored warn above the peak keeps the rollover (at the seed 100 the 152 would
+  // simply hold), so the pair under test really is the too-wide one.
   const aqi = { AQI_TREND: [152], AQI_DAY_PEAKS: [152, 178, null] };
-  assert.equal(statusLines.formatValue('aqi', aqi, settings({ aqiSlotDisplay: 'both' })), '152');
-  assert.equal(statusLines.formatValue('aqi', aqi, settings({ aqiSlotDisplay: 'both' }),
+  const aqiBoth = settings({ aqiSlotDisplay: 'both', threshAqiWarn: '200', threshAqiDanger: '300' });
+  assert.equal(statusLines.formatValue('aqi', aqi, aqiBoth), '152');
+  assert.equal(statusLines.formatValue('aqi', aqi, aqiBoth,
     'statusForecastMid', catalog.CAPS.MID_TEXT_MAX), '152/»178', 'the roomy mid slot keeps it');
   const gust = { GUST_TREND_UINT8: [105], GUST_DAY_PEAKS: [105, 120, null] };
-  assert.equal(statusLines.formatValue('gust', gust, settings({ gustSlotDisplay: 'both' })), '105kph');
+  assert.equal(statusLines.formatValue('gust', gust, settings({ gustSlotDisplay: 'both',
+    threshGustWarn: '130', threshGustDanger: '150' })), '105kph');
   // Every day-max text on an edge slot fits it whole.
   [9, 99, 105, 499].forEach((now) => [10, 120, 500].forEach((peak) => ['max', 'both'].forEach((mode) => {
     const text = statusLines.formatValue('aqi', { AQI_TREND: [now], AQI_DAY_PEAKS: [now, peak, null] },

@@ -105,9 +105,12 @@ function renderSignature(settings) {
             settings[slotKey] === 'countdown' ? settings[slotKey + 'Countdown'] : '');
     }
     // The WEATHER threshold kinds are evaluated phone-side at weather-bake
-    // time (STATUS_LEVELS_UINT8), so enabling one only shows up after a refetch —
-    // without this the highlight would first appear on the next scheduled fetch
-    // (15 min default, or after the overnight pause). Selected by the SAME
+    // time (STATUS_LEVELS_UINT8, and the day-max hold rule reads the warn), so a
+    // pair edit only shows up after a refetch — without this the new level or
+    // slot text would first appear on the next scheduled fetch (15 min default,
+    // or after the overnight pause). The highlight toggle thresh<Kind>On does NOT
+    // join: levels pack whatever it says and it only flips the Clay blob's enable
+    // bit, which is already immediate. Selected by the SAME
     // predicate packWeatherLevels packs by (neither goal nor boldOnly), so a
     // kind the phone levels can never be omitted here — KINDS.slice(0, 4)
     // silently dropped UV when it joined as kind 7.

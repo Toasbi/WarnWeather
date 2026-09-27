@@ -31,9 +31,9 @@ test('Clay payload carries the 34-byte threshold settings blob', () => {
 
 test('the blob matches buildSettingsBlob for configured settings', () => {
   const s = Object.assign({}, BASE, {
-    threshAqiWarn: '100', threshAqiDanger: '200',
+    threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '200',
     threshAqiWarnColor: 0xFFAA00, threshAqiDangerColor: 0xFF0000,
-    threshStepsWarn: '4000', threshStepsDanger: '8000'
+    threshStepsOn: true, threshStepsWarn: '4000', threshStepsDanger: '8000'
   });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));

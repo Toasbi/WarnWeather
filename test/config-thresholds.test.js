@@ -486,7 +486,7 @@ test('the reset button blanks the pair, restores default colors, clears the scal
 test('an enabled kind shows the ring+dot swatch beside its slot control', () => {
   const page = bootGeneratedPage({
     provider: 'dwd',
-    threshAqiWarn: '50', threshAqiDanger: '100'
+    threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100'
   });
   page.clickTab('watch');
   const html = page.scroll.innerHTML;
@@ -566,7 +566,8 @@ test('an equal legacy pair renders separated, even pinned at a track end', () =>
 // --- badge resolver: env gate + picked colors --------------------------------
 test('thresholdPenState honors its env gate and the color pickers', () => {
   const resolver = PC.badgeResolvers.get('thresholdPenState');
-  const S = { statusForecastRight: 'aqi', threshAqiWarn: '50', threshAqiDanger: '100' };
+  const S = { statusForecastRight: 'aqi', threshAqiOn: true,
+    threshAqiWarn: '50', threshAqiDanger: '100' };
   const args = { messageKey: 'statusForecastRight' };
   assert.equal(resolver(S, { thresholds: false }, args), null, 'gated off without env.thresholds');
   // The sheet configures the whole slot now, so the button says "Edit" for every
@@ -581,12 +582,24 @@ test('thresholdPenState honors its env gate and the color pickers', () => {
   assert.deepEqual(resolver(picked, ENV, args),
     { label: 'Edit', ariaNote: 'highlighting on', bold: false,
       dots: [{ color: '#00AAFF', ring: true }, { color: '#5500FF' }] });
-  // A half pair (disabled kind) still gets its labeled button — just without the
-  // state dots or the aria note (the button must exist to configure the kind at all).
+  // The stored toggle owns the state (kindConfig.enabled = On && ordered): an
+  // ordered pair with the highlight off — or never switched on — still gets its
+  // labeled button, just without the state dots or the aria note (the button must
+  // exist to configure the kind at all).
+  const none = { label: 'Edit', ariaNote: '', bold: false, dots: [] };
+  assert.deepEqual(resolver(Object.assign({}, S, { threshAqiOn: false }), ENV, args), none,
+    'ordered pair, On false');
+  const absent = Object.assign({}, S);
+  delete absent.threshAqiOn;
+  assert.deepEqual(resolver(absent, ENV, args), none, 'ordered pair, On absent');
+  // A half pair with the toggle on highlights on the SEED pair (a blank or half
+  // pair means the seed), so the dots show.
   const half = resolver(Object.assign({}, S, { threshAqiDanger: '' }), ENV, args);
-  assert.deepEqual(half, { label: 'Edit', ariaNote: '', bold: false, dots: [] });
+  assert.equal(half.ariaNote, 'highlighting on');
+  assert.equal(half.dots.length, 2);
   const goalArgs = { messageKey: 'statusHealthLeft' };
-  const goalS = { statusHealthLeft: 'steps', threshStepsWarn: '4000', threshStepsDanger: '8000' };
+  const goalS = { statusHealthLeft: 'steps', threshStepsOn: true,
+    threshStepsWarn: '4000', threshStepsDanger: '8000' };
   const goalBadge = resolver(goalS, ENV, goalArgs);
   assert.equal(goalBadge.label, 'Edit', 'goal kinds get the same button label');
   assert.equal(goalBadge.dots.length, 2);
