@@ -683,12 +683,17 @@ test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown 
   assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the 20px band height');
 });
 
-// rainCountdownHorizon no longer has an Off option — a stray/legacy '0' value must not
-// suppress the band (the only remaining gates are radarMode==='off' and aplite).
-test('radarPreview always shows the countdown band once radar is on, regardless of rainCountdownHorizon', () => {
+// rainCountdownHorizon has its Off option back (the Alerts card's rain row): '0' means
+// the watch shows no rain alert, so the preview drops the band with it.
+test('radarPreview hides the countdown band when the countdown is Off (horizon 0)', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '0' }, { color: true });
-  assert.ok(svg.indexOf("Rain in 15'") >= 0, 'countdown text present despite a legacy rainCountdownHorizon of 0');
-  assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the band height');
+  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with the countdown Off');
+  assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'the frame keeps the no-band height');
+  const on = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, { color: true });
+  assert.ok(on.indexOf("Rain in 15'") >= 0, 'a 60-minute window shows the band');
+  // A numeric 0 (a hand-edited or imported blob) reads the same as the stored string.
+  const num = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: 0 }, { color: true });
+  assert.equal(num.indexOf("Rain in 15'"), -1, 'a numeric 0 hides it too');
 });
 
 test('radarPreview never shows the countdown band on aplite', () => {

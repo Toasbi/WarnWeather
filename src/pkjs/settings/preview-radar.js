@@ -260,15 +260,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             e += txt(sx + 8, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Lightning');
         }
         // Rain-countdown preview band: a status-strip mock ("Rain in 15'") above the
-        // chart, mirroring top_status_layer.c. Hidden when the countdown is Off, and
-        // never shown on aplite (which lacks the feature). Only the glyph is coloured,
-        // and it follows the radar colour the way rain_glyph_color() does: the watch
+        // chart, mirroring top_status_layer.c. Hidden when the countdown is Off (horizon
+        // '0', the Alerts card's rain row — the watch shows no alert then), and never
+        // shown on aplite (which lacks the feature). Only the glyph is coloured, and it
+        // follows the radar colour the way rain_glyph_color() does: the watch
         // reads palette_radar_color(tier), clamped to the palette's last stop, so a
         // Multicolor palette gives the green tier while the one-stop Solid palette gives
         // the Solid bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text
         // stays theme-fg and centred.
-        // Countdown shows for every non-off tier; the horizon no longer has an Off option.
-        if (isAplite) {
+        if (isAplite || String(state.rainCountdownHorizon) === '0') {
             return svgFrame(e, frameH);
         }
         // !isColor first: B&W / bw themes take rain_glyph_color()'s theme_fg() branch

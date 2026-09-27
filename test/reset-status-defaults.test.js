@@ -4,7 +4,8 @@ const {
   applyReset,
   clearPollenForProvider,
   dedupeStatusSlot,
-  resetCountdownDate
+  resetCountdownDate,
+  snapCountdownHorizon
 } = require('../src/pkjs/settings/reset-status-defaults.js');
 
 function todayValue() {
@@ -200,4 +201,28 @@ test('resetCountdownDate: already-countdown-to-countdown (no-op transition) leav
   const S = blob({ statusForecastLeft: 'countdown', statusForecastLeftCountdown: '2020-01-01' });
   resetCountdownDate(S, 'statusForecastLeft', 'countdown', 'countdown');
   assert.equal(S.statusForecastLeftCountdown, '2020-01-01');
+});
+
+// radarMode 'countdown' fetches the radar for the rain alert alone, so the Alerts
+// card's rain countdown may not stay Off there: entering the mode snaps '0' to '60'.
+test('snapCountdownHorizon: entering countdown mode turns an Off rain countdown back to 60 min', () => {
+  const S = { radarMode: 'countdown', rainCountdownHorizon: '0' };
+  snapCountdownHorizon(S, 'countdown');
+  assert.equal(S.rainCountdownHorizon, '60');
+  const numeric = { radarMode: 'countdown', rainCountdownHorizon: 0 };
+  snapCountdownHorizon(numeric, 'countdown');
+  assert.equal(numeric.rainCountdownHorizon, '60', 'a numeric 0 is Off too');
+});
+
+test('snapCountdownHorizon: a chosen window, or any other mode, is left alone', () => {
+  ['30', '60', '120', undefined].forEach((h) => {
+    const S = { rainCountdownHorizon: h };
+    snapCountdownHorizon(S, 'countdown');
+    assert.equal(S.rainCountdownHorizon, h, 'window ' + h + ' kept');
+  });
+  ['off', 'status', 'graph'].forEach((mode) => {
+    const S = { rainCountdownHorizon: '0' };
+    snapCountdownHorizon(S, mode);
+    assert.equal(S.rainCountdownHorizon, '0', 'Off kept in radarMode ' + mode);
+  });
 });

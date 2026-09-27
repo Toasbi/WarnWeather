@@ -13,7 +13,8 @@
 //      held by a sibling slot or itself unavailable.
 // Pack-time resolveSelection still maps stale/imported invalid codes to empty
 // (defense in depth); this hook exists so a user-driven toggle never leaves a
-// silently-empty slot behind.
+// silently-empty slot behind. The radarMode hook also keeps the rain countdown
+// on when the mode that exists only for it is picked (snapCountdownHorizon).
 /* global PConf, StatusLineCatalog */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -170,8 +171,24 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         clearPollenForProvider(S, newValue);
     });
 
+    /**
+     * radarMode 'countdown' fetches the radar for the rain alert alone, so a rain
+     * countdown left Off there would spend radar calls on nothing — the Alerts
+     * card's select disables its Off option in that mode, and this snaps a stored
+     * Off ('0') back to the default window when the mode is entered. Mutates S.
+     * @param {Object} S live settings state (radarMode already set to newValue)
+     * @param {*} newValue new radarMode value
+     * @returns {void}
+     */
+    function snapCountdownHorizon(S, newValue) {
+        if (newValue === 'countdown' && String(S.rainCountdownHorizon) === '0') {
+            S.rainCountdownHorizon = '60';
+        }
+    }
+
     PConf.onChange.register('resetStatusRadar', function (S, oldValue, newValue, env) {
         applyReset(S, 'radar', oldValue, newValue, env);
+        snapCountdownHorizon(S, newValue);
     });
     PConf.onChange.register('resetStatusHealth', function (S, oldValue, newValue, env) {
         applyReset(S, 'health', oldValue, newValue, env);
@@ -186,7 +203,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             applyReset: applyReset,
             clearPollenForProvider: clearPollenForProvider,
             dedupeStatusSlot: dedupeStatusSlot,
-            resetCountdownDate: resetCountdownDate
+            resetCountdownDate: resetCountdownDate,
+            snapCountdownHorizon: snapCountdownHorizon
         };
     }
 })();

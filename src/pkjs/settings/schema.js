@@ -843,6 +843,51 @@ var ALERT_LEVELS = {
     Pollen: levelsGroup('Pollen',
         'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.', null)
 };
+// The Alerts card's rain rows share one gate: the radar has to be fetching (any
+// radarMode but 'off') and the watch must not be aplite, which compiles the rain
+// radar — and with it the countdown — out (WW_RAIN_RADAR). The platform clause is
+// load-bearing since the rows moved off the Radar tab: that tab is env-hidden on
+// aplite, the Status slots tab is not.
+var RAIN_ALERT_WHEN = {all: [{key: 'radarMode', ne: 'off'}, {env: 'platform', ne: 'aplite'}]};
+// The Alerts card's two rows for one metric alert kind. The toggle puts the kind's
+// icon into the watch's Alerts row whenever today reaches its warn level (the phone
+// bakes the row — Phase 3; until then the switch only stores); its pencil opens the
+// levels-only sheet (alertSheet) on the SAME levels the slot's pencil sheet edits,
+// and its hint prints those levels live (blocks.js alertLevelsHint). The Look row
+// follows only while that alert is on — it has nothing to shape otherwise.
+/**
+ * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>, alert<Stem>Display).
+ * @param {string} label Row label, e.g. 'UV index'.
+ * @param {string} icon Registered PConf.icons id (status-slot-icons.js), e.g. 'uv'.
+ * @param {Object} [gate] Extra showWhen for both rows — Pollen's DWD-only provider.
+ * @returns {Object[]} The toggle row and its joined Look row.
+ */
+function alertRows(keyStem, label, icon, gate) {
+    var args = {keyStem: keyStem};
+    var toggleWhen = gate ? {all: [THRESHOLD_WHEN, gate]} : THRESHOLD_WHEN;
+    var lookWhen = {all: [THRESHOLD_WHEN, {key: 'alert' + keyStem}]};
+    if (gate) { lookWhen.all.push(gate); }
+    return [{
+        type: 'toggle',
+        messageKey: 'alert' + keyStem,
+        label: label,
+        icon: icon,
+        defaultValue: false,
+        showWhen: toggleWhen,
+        hintFrom: {resolver: 'alertLevelsHint', args: args},
+        editSheetFrom: {resolver: 'alertEditSheet', args: args},
+        editBadgeFrom: {resolver: 'alertLevelBadge', args: args}
+    }, {
+        type: 'segmented',
+        messageKey: 'alert' + keyStem + 'Display',
+        label: 'Look',
+        defaultValue: 'icon',
+        options: [['Icon', 'icon'], ['Icon + value', 'value']],
+        joinPrevious: true,
+        showWhen: lookWhen,
+        hint: 'Icon + value prints the value the alert fires on after the icon, e.g. UV 8 or 45 kph; fewer alerts fit the row that way.'
+    }];
+}
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this
 // sheetId — but the Bold row is the sheet's only standing control: no group
@@ -1705,7 +1750,7 @@ module.exports = {
                 defaultValue: 'graph',
                 hintByValue: {
                     off: 'Radar is hidden.',
-                    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar.',
+                    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar. Set the time window under Status slots → Alerts.',
                     status: 'Adds the Radar Status Bar.',
                     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
                 },
@@ -1853,15 +1898,11 @@ module.exports = {
                 attributes: {maxlength: 24},
                 hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
-            }, {
-                type: 'select',
-                messageKey: 'rainCountdownHorizon',
-                label: 'Rain countdown',
-                defaultValue: '60',
-                hint: 'Show a rain countdown in the Watch Status Bar when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
-                options: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
-                showWhen: {all: [{key: 'radarMode', ne: 'off'}, {env: 'platform', ne: 'aplite'}]}
             }]
+            // The rain countdown's time window (rainCountdownHorizon) used to close this
+            // section; it moved to the Status slots tab's Alerts card, next to the
+            // other alerts. One key, one row: the engine has no deep links, and two
+            // live copies of a key would be a first.
         }]
     }, {
         // aplite has no health sensors — the watch compiles the view out, so the whole
@@ -1940,6 +1981,62 @@ module.exports = {
                     showWhen: THRESHOLD_WHEN
                 }
             ]
+        }, {
+            // The Alerts card: the first in-card sub-header of the status card (it shares
+            // the groupCard, so it renders under the intro's Bold row — sections[0]
+            // stays the intro the tests key on). Every row carries its own gate; the
+            // section-level showWhen is only their union, because a section with an
+            // intro never counts as empty (engine buildSectionBody) — without it the
+            // sub-header and intro would outlive their rows on aplite, which has
+            // neither the rain radar nor the threshold machinery.
+            // TODO(Phase 3): the "Alerts row is not in any status bar yet" placement
+            // note goes here, once the 'alerts' slot item exists.
+            groupCard: 'watchStatus',
+            title: 'Alerts',
+            showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
+            intro: 'One icon per active alert in the Alerts row, highlighted like a status slot: an outline at warn, filled at danger, in that value\'s colors. Rain shows in the radar\'s rain color.',
+            items: [{
+                // Moved here from the Radar tab; key, default, gate and hint unchanged.
+                // Its Off option is back (132b577a had dropped it when radarMode took
+                // over the radar's on/off): the rain alert's on/off IS this select —
+                // there is no separate toggle. Downstream already takes a 0: the payload
+                // passes a stored '0' through and the watch treats a horizon <= 0 as
+                // "no alert". Off is inert while radarMode is 'countdown', because that
+                // mode fetches the radar solely for this alert — Off there would burn
+                // radar calls for nothing (the radarMode hook also snaps a stored '0'
+                // back to '60' on entering that mode, reset-status-defaults.js).
+                type: 'select',
+                messageKey: 'rainCountdownHorizon',
+                label: 'Rain countdown',
+                icon: 'rain',
+                defaultValue: '60',
+                hint: 'Show a rain countdown in the Watch Status Bar when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
+                options: [['Off', '0'], ['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
+                optionDisabledWhen: {'0': {key: 'radarMode', eq: 'countdown'}},
+                showWhen: RAIN_ALERT_WHEN
+            }, {
+                // How the rain alert draws. 'text' is today's "Rain in 12′", so an
+                // untouched upgrade looks the same. Stored only for now: it rides the
+                // Clay message to the watch in Phase 3.
+                type: 'segmented',
+                messageKey: 'rainAlertDisplay',
+                label: 'Rain alert look',
+                defaultValue: 'text',
+                options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
+                joinPrevious: true,
+                hint: 'Icon only, the icon with the minutes until the rain, or the full countdown text.',
+                showWhen: {all: [RAIN_ALERT_WHEN, {key: 'rainCountdownHorizon', ne: '0'}]}
+            }, {
+                type: 'staticText',
+                text: 'Turn on the rain radar (Radar tab) to get rain alerts.',
+                showWhen: {all: [{key: 'radarMode', eq: 'off'}, {env: 'platform', ne: 'aplite'}]}
+            }].concat(
+                alertRows('Uv', 'UV index', 'uv'),
+                alertRows('Wind', 'Wind speed', 'wind'),
+                alertRows('Gust', 'Wind gusts', 'gust'),
+                alertRows('Aqi', 'Air quality', 'aqi'),
+                // DWD is the only pollen source, as for the pollen slot itself.
+                alertRows('Pollen', 'Pollen', 'pollen', {key: 'provider', eq: 'dwd'}))
         }, {
             groupCard: 'watchStatus',
             title: 'Forecast Status Bar',

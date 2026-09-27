@@ -823,8 +823,9 @@ if (typeof require !== 'undefined') {
     // (the temp slot's Temp/Feels/Both and the day-max kinds' Now/Alert/Both pills
     // with the rows shaping their pair and UV's tomorrow mark, the wind/gust
     // direction arrows), the date formats and the Show-unit toggles
-    // (the Alert levels group's own reset deliberately covers only the levels).
-    // Deliberately untouched:
+    // (the Alert levels group's own reset deliberately covers only the levels),
+    // and the Alerts card's own rows: each alert kind's switch and Look, and the
+    // rain alert's look. Deliberately untouched:
     // thresholds, colors, outline toggles and scale maxes (every sheet has its own
     // reset button), and the countdown companion dates (inert once a slot leaves
     // 'countdown'). Silent beyond the re-render, like resetThresholds above — the
@@ -849,7 +850,10 @@ if (typeof require !== 'undefined') {
             'tempSlotSeparator', 'tempSlotSeparatorCustom', 'tempSlotSeparatorSpaced',
             'tempSlotOrder',
             'dateSlotMonthFormat',
-            'windSlotDirection', 'gustSlotDirection']
+            'windSlotDirection', 'gustSlotDirection',
+            // The Alerts card's rain look. The rain countdown's window stays: it
+            // is the radar's alert switch, not a status-bar look.
+            'rainAlertDisplay']
             // ...and every day-max kind's mode, pair and tomorrow-mark rows (UV,
             // wind, gusts, AQI), from the catalog's one table.
             .concat(statusLineCatalog.dayMaxSettingKeys());
@@ -869,7 +873,14 @@ if (typeof require !== 'undefined') {
         var contractMod = thresholdContract();
         if (contractMod) {
             for (var k = 0; k < contractMod.KINDS.length; k++) {
-                schemaKeys.push('thresh' + contractMod.KINDS[k].key + 'BoldMode');
+                var kind = contractMod.KINDS[k];
+                schemaKeys.push('thresh' + kind.key + 'BoldMode');
+                // The alert kinds are the level kinds that are neither bold-only
+                // nor goals — the same five the Alerts card lists (schema.js
+                // alertRows); each has a switch and a Look row there.
+                if (!kind.boldOnly && !kind.goal) {
+                    schemaKeys.push('alert' + kind.key, 'alert' + kind.key + 'Display');
+                }
             }
         }
         for (var n = 0; n < schemaKeys.length; n++) {

@@ -1824,6 +1824,28 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
   });
 });
 
+test('resetStatusSlots also resets the Alerts card: every alert switch and Look, and the rain look', () => {
+  const map = itemsByKey();
+  const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
+  const S = scrambledSlotState();
+  const STEMS = ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
+  STEMS.forEach(stem => { S['alert' + stem] = true; S['alert' + stem + 'Display'] = 'value'; });
+  S.rainAlertDisplay = 'minutes';
+  S.rainCountdownHorizon = '0';
+  PC.actions.resetStatusSlots(null, S, ENV, defaultOf);
+  STEMS.forEach(stem => {
+    assert.strictEqual(S['alert' + stem], false, stem + ' alert back off');
+    assert.equal(S['alert' + stem + 'Display'], 'icon', stem + ' Look back to Icon');
+  });
+  assert.equal(S.rainAlertDisplay, 'text', 'rain look back to the countdown text');
+  // The goal kinds have no alert rows, so the reset writes no alert keys for them.
+  ['Steps', 'Sleep', 'Distance'].forEach(stem => {
+    assert.ok(!('alert' + stem in S), 'no alert' + stem + ' key written');
+  });
+  // The window is the rain alert's own on/off switch (and radar's), not a bar look.
+  assert.equal(S.rainCountdownHorizon, '0', 'the rain countdown window is left alone');
+});
+
 test('the intro reset button resets a live page (slots + bold) on click', () => {
   const page = bootGeneratedPage({
     provider: 'dwd',
