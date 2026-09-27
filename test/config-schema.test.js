@@ -2144,9 +2144,10 @@ test('the Alerts card is watch.sections[1]: a watchStatus sub-section right afte
     assert.equal(showWhen.isVisible(sec, ctx(p)), true, 'shown on ' + p));
 });
 
-test('the Alerts card rows, in order: placement note, rain countdown, rain look, radar-off note, then two rows per alert kind', () => {
-  const rows = alertsSection().items.slice(1);   // [0] is the placement note (own test below)
+test('the Alerts card rows, in order: placement notes, rain countdown, rain look, radar-off note, then two rows per alert kind', () => {
+  const rows = alertsSection().items.slice(2);   // [0]/[1] are the placement notes (own tests below)
   assert.match(alertsSection().items[0].text, /^The Alerts row is not in any status bar yet/);
+  assert.match(alertsSection().items[1].text, /^The Default view hides the top bar/);
   const ids = rows.map((i) => i.messageKey || i.type);
   assert.deepEqual(ids, ['rainCountdownHorizon', 'rainAlertDisplay', 'staticText',
     'alertUv', 'alertUvDisplay', 'alertWind', 'alertWindDisplay', 'alertGust', 'alertGustDisplay',
@@ -2214,6 +2215,70 @@ test('the Alerts card placement note shows only while no status slot holds the A
   // aplite cannot place the item (notAplite), so it never nudges there.
   assert.equal(showWhen.isVisible(note, Object.assign({ env: env('aplite') }, none)), false,
     'no nudge on aplite');
+});
+
+// The placement note on the real hydrate path: unset slot keys resolve to their
+// catalog defaults (statusTopLeft 'alerts' on every non-aplite platform), which is
+// what keeps the nudge off a default install.
+test('the Alerts card placement note stays hidden on a default install, shows once top-left is moved off', () => {
+  const E = require('../src/pkjs/config-ui/lib/engine.js');
+  const note = alertsSection().items[0];
+  ['basalt', 'emery', 'chalk', 'diorite'].forEach((p) => {
+    const env = platform.computeEnv({ platform: p });
+    const fresh = E.hydrate(schema, {}, env);
+    assert.equal(fresh.statusTopLeft, 'alerts', p + ': the default places the row top-left');
+    assert.equal(showWhen.isVisible(note, Object.assign({ env }, fresh)), false, p + ': default install, no nudge');
+    const moved = E.hydrate(schema, { statusTopLeft: 'steps' }, env);
+    assert.equal(showWhen.isVisible(note, Object.assign({ env }, moved)), true, p + ': row unplaced, nudge shows');
+  });
+});
+
+test('the Alerts card strip-off note shows while the only Alerts placement is a top bar the Default view hides', () => {
+  const note = alertsSection().items[1];
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const slotKeys = catalog.allSlotKeys();
+  const top = slotKeys.filter((k) => catalog.lineOf(k).id === 'top');
+  const bars = slotKeys.filter((k) => catalog.lineOf(k).id !== 'top');
+  assert.equal(top.length, 3);
+  assert.equal(bars.length, 9);
+  assert.deepEqual(note, {
+    type: 'staticText',
+    text: 'The Default view hides the top bar, and with it the Alerts row — pick Alerts in another status bar below.',
+    showWhen: { all: [THRESHOLD_WHEN,
+      { any: top.map((key) => ({ key, eq: 'alerts' })) },
+      { not: { any: bars.map((key) => ({ key, eq: 'alerts' })) } },
+      { any: [
+        { all: [{ key: 'layoutPreset', eq: 'weatherOnly' }, { key: 'radarMode', ne: 'countdown' }] },
+        { all: [{ key: 'layoutPreset', eq: 'custom' }, { key: 'viewStripOff0' }] }
+      ] }] }
+  });
+  const env = (p) => platform.computeEnv({ platform: p });
+  const empty = {};
+  slotKeys.forEach((key) => { empty[key] = 'empty'; });
+  const ctx = (over, p) => Object.assign({ env: env(p || 'basalt'), layoutPreset: 'fullCal', radarMode: 'graph',
+    viewStripOff0: false }, empty, { statusTopLeft: 'alerts' }, over);
+  const shown = (over, p) => showWhen.isVisible(note, ctx(over, p));
+  // Weather only drops the Default view's top bar in every radar mode but countdown,
+  // which keeps it for the countdown (view-cycle.js buildViewCycle).
+  ['graph', 'status', 'off'].forEach((radarMode) =>
+    assert.equal(shown({ layoutPreset: 'weatherOnly', radarMode }), true, 'weatherOnly + ' + radarMode + ': note shows'));
+  assert.equal(shown({ layoutPreset: 'weatherOnly', radarMode: 'countdown' }), false,
+    'weatherOnly + countdown keeps the top bar: no note');
+  // Custom: view 0's own top-bar switch decides.
+  assert.equal(shown({ layoutPreset: 'custom', viewStripOff0: true }), true, 'custom + viewStripOff0: note shows');
+  assert.equal(shown({ layoutPreset: 'custom', viewStripOff0: false }), false, 'custom with the top bar: no note');
+  // Every other preset keeps the Default view's top bar.
+  ['fullCal', 'compactCal', 'compactDense', 'noCal'].forEach((layoutPreset) =>
+    assert.equal(shown({ layoutPreset, viewStripOff0: true }), false, layoutPreset + ': no note'));
+  // Any top slot counts as the lone placement; a copy in any other bar draws, so no note.
+  top.forEach((key) =>
+    assert.equal(shown({ layoutPreset: 'weatherOnly', statusTopLeft: 'empty', [key]: 'alerts' }), true,
+      key + ' alone under weatherOnly: note shows'));
+  bars.forEach((key) =>
+    assert.equal(shown({ layoutPreset: 'weatherOnly', [key]: 'alerts' }), false, key + ' also holds Alerts: no note'));
+  // Not placed at all: the first note speaks, this one stays out of its way.
+  assert.equal(shown({ layoutPreset: 'weatherOnly', statusTopLeft: 'empty' }), false, 'unplaced: the other note');
+  assert.equal(shown({ layoutPreset: 'weatherOnly' }, 'aplite'), false, 'no note on aplite');
 });
 
 test('rainCountdownHorizon lives only on the Alerts card — gone from the Radar tab', () => {

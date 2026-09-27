@@ -26,7 +26,11 @@
     "secondaryLineFill": false,
     "barSource": "off",
     "rainBarColor": "multicolor",
-    "radarColor": "white"
+    "radarColor": "white",
+    "alertUv": true,
+    "alertUvDisplay": "value",
+    "threshUvWarn": "6",
+    "threshUvDanger": "8"
   },
   "weather": {
     "city": "Windy Ridge",
@@ -37,6 +41,8 @@
     "precipPct": [10, 10, 15, 20, 25, 30, 20, 15, 10, 10,  5,  5,  5,  5,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5],
     "windKmh":   [28, 33, 38, 44, 50, 56, 61, 66, 64, 60, 55, 49, 44, 39, 35, 31, 28, 25, 23, 21, 19, 18, 16, 15],
     "gustKmh":   [40, 48, 55, 62, 70, 78, 82, 85, 66, 62, 57, 58, 52, 48, 44, 40, 36, 33, 30, 28, 26, 24, 22, 20],
+    "uvIndex":   [8.4, 8.1, 7.2, 6.0, 4.6, 3.1, 1.8, 0.8, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2, 0.9, 2.0],
+    "radarStartEpoch": 1780315200,
     "rainRadarExactMm": [
       0.0, 0.0, 1.0, 1.0, 1.0, 0.0,
       0.0, 0.0, 0.0, 0.0, 0.0, 0.0,

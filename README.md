@@ -34,8 +34,8 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; turn on *Use your own key* and enter your own Rainbow API key to run it as plain *Rainbow*, refreshed at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 * The radar says *Radar limit reached* when a radar source refuses requests over its limit, instead of claiming no rain
-* Rain countdown telling you when rain starts (or stops)
-* Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph — in the Radar tab
+* Rain countdown in the Alerts row telling you when rain starts (or stops)
+* Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph — in the Radar tab
 * Clouds, sun & lightning rows under the radar graph's time axis (on by default): cloud cover and sunshine per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
 
 **Health view** *(requires a health-capable watch; heart rate needs a heart-rate sensor)*
@@ -50,6 +50,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more
 * Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for calendar views (month + year) and no-calendar views (full date)
 * Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while it is at warn or higher
+* Alerts row: one icon for incoming rain and for every metric at its alert level, in any status bar you place it; each metric alert can print its value next to the icon, and rain shows as an icon, the minutes until it starts, or the full countdown text (not on Pebble Classic/Steel)
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches

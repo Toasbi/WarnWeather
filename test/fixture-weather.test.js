@@ -264,6 +264,36 @@ test('fixtures/uv-alert-hold.json holds today\'s 7 at warn, highlight on or off'
     { text: '7/»8', levels: [0, 0], enabled: true }, 'warn 8: rolls on to tomorrow\'s 8');
 });
 
+// fixtures/rain-countdown.json is the emulator sign-off scene for the Alerts row: rain
+// 10-25 min ahead (the watch resolves that entry itself from the radar tuples) plus a
+// UV alert at danger with its value, which the phone bakes into the top-left slot —
+// the Alerts item's default home. radarStartEpoch pins the radar window to the
+// emulator's clock (watch.now read as UTC); without it the window anchors to the
+// host-local startEpoch and can land wholly in the past, so no rain alert draws.
+test('fixtures/rain-countdown.json bakes one UV danger entry, value 8, into the top-left alerts slot', () => {
+  const { normalizeWeather } = require('../scripts/lib/fixture-time');
+  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const catalog = require('../src/pkjs/status-line-catalog.js');
+  const fx = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'fixtures', 'rain-countdown.json'), 'utf8'));
+  assert.equal(fx.weather.radarStartEpoch, Date.UTC(2026, 5, 1, 12) / 1000,
+    'the radar window starts at watch.now read as UTC');
+  normalizeWeather(fx);
+  assert.ok(getFixtureRadarTuples(fx).RAIN_RADAR_TREND_UINT8.some((b) => b > 0), 'rain in the radar window');
+  const uvKind = thresholds.KINDS.findIndex((k) => k.code === 'uv');
+  ['basalt', 'emery'].forEach((platform) => {
+    const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
+    const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
+    assert.equal(topLeft.kind, catalog.KINDS.ALERTS, platform + ': top-left is the alerts slot');
+    // One entry: header (bits 0-2 kind, 3-4 level, 5-7 value length) + the value.
+    const header = out.STATUS_LINE_3_UINT8[3];
+    assert.equal(topLeft.len, 2, platform + ': one entry, one value byte');
+    assert.deepEqual({ kind: header & 7, level: (header >> 3) & 3, len: header >> 5 },
+      { kind: uvKind, level: 2, len: 1 }, platform + ': a UV entry at danger');
+    assert.equal(topLeft.text.slice(1), '8', platform + ': printing 8 (today\'s 8.4)');
+  });
+});
+
 // fixture-weather.js reads currentTemp/precipPct/windKmh/etc from the fixture's weather
 // block onto the corresponding provider.*Trend field, but pressureHpa was never wired to
 // provider.pressureTrend — so PRESSURE_TREND stayed permanently empty on the fixture/dev

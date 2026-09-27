@@ -25,8 +25,8 @@ RAIN RADAR
   30 minutes; turn on "Use your own key" and enter your own Rainbow API key to refresh it at your
   own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 - "Radar limit reached" on the radar when a radar source refuses requests over its limit
-- Rain countdown telling you when rain starts (or stops)
-- Choose how much radar you see — Off, a rain countdown, a radar status line, or the full radar graph
+- Rain countdown in the Alerts row telling you when rain starts (or stops)
+- Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph
 - Clouds, sun and lightning rows under the radar graph for the next 2 hours
 
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
@@ -68,6 +68,10 @@ STATUS LINES
 - Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger
   level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while
   it is at warn or higher
+- Alerts row: one icon for incoming rain and for every metric at its alert level, in any
+  status bar you place it; each metric alert can print its value next to the icon, and rain
+  shows as an icon, the minutes until it starts, or the full countdown text (not on Pebble
+  Classic/Steel)
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches

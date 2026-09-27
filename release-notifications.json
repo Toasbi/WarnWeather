@@ -174,5 +174,9 @@
   "1.23.0": {
     "title": "Cloud cover, stripes, radar sky",
     "body": "The forecast graph can show cloud cover and a fourth metric, and any metric can be a shaded stripe along the top or below the zero line. The radar can add clouds, sun and lightning for the next two hours (Radar tab). (Not on Pebble Classic/Steel.)"
+  },
+  "1.24.0": {
+    "title": "Alerts row",
+    "body": "Alert icons for rain and for values at your alert levels, in any status bar — see Status slots → Alerts. (Not on Pebble Classic/Steel.)"
   }
 }
