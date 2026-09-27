@@ -73,9 +73,10 @@ function graphColorReport(settings, scope, role, suffix) {
 
 /**
  * The metric alerts switched on, comma-joined in the row's fixed order ('' when
- * none) — or undefined on an install whose blob holds no alert key at all (never
- * opened the settings page since the Alerts card shipped), which the column reads
- * as "default", like an unseeded threshPhoneBatteryBoldMode.
+ * none) — or undefined on an install whose blob holds no alert key at all, which
+ * the column reads as "default", like an unseeded threshPhoneBatteryBoldMode.
+ * (Only before the first 1.24 boot: seedDefaults backfills the alert keys' schema
+ * defaults on every boot, so a booted install reports '' from then on.)
  * @param {Object} safe Settings blob (never null).
  * @param {function(Object): string[]} pick status-thresholds' alertKindCodes or
  *     alertValueKindCodes.

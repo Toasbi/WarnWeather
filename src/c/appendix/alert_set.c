@@ -136,7 +136,12 @@ bool alert_set_rain_minutes(const char *countdown, char *out, size_t cap) {
     }
     if (!token || *token == '\0') { return false; }
     size_t o = 0;
-    if (raining && *token != '+' && o + 1 < cap) { out[o++] = '+'; }
+    // The '+' marks rain that is falling NOW ("for"). rain_countdown's capped
+    // token already carries one ("+99'" for anything past 99 min), which on an
+    // upcoming shower would read as "raining for 99+ min" — so the sign follows
+    // `raining`, never the token: "99'" ahead, "+99'" while it falls.
+    if (*token == '+') { token++; }
+    if (raining && o + 1 < cap) { out[o++] = '+'; }
     while (*token && o + 1 < cap) { out[o++] = *token++; }
     out[o] = '\0';
     return o > 0;

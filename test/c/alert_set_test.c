@@ -240,8 +240,10 @@ static void rain_minutes_tests(void) {
     expect_str("minutes.noun", out, "5'");
     alert_set_rain_minutes("Drizzle for 20'", out, sizeof(out));
     expect_str("minutes.for", out, "+20'");
+    // The capped token carries its own '+'; only rain falling NOW keeps the sign,
+    // so an upcoming shower past 99 min cannot read as "raining for 99+ min".
     alert_set_rain_minutes("Rain in +99'", out, sizeof(out));
-    expect_str("minutes.capped_in", out, "+99'");
+    expect_str("minutes.capped_in", out, "99'");
     alert_set_rain_minutes("Downpour for +99'", out, sizeof(out));
     expect_str("minutes.capped_for", out, "+99'");
     expect("minutes.empty", alert_set_rain_minutes("", out, sizeof(out)), 0);
