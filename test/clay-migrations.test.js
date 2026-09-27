@@ -1065,3 +1065,166 @@ test('resetAll marks the fourth-line style move done: the next blob is seeded wi
   mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
   assert.equal(mods.claySettings.read().fifthLineStyle, 'stripeTop');
 });
+
+// 1.24.0: thresh<K>On stops being page-derived state (onbuild re-derived it from the pair
+// on every open) and becomes the stored "highlight on" switch; the levels live on while it
+// is off. The one-time backfill sets On := the pair is ordered — the last truth the page
+// would have shown — and blanks a half/inverted pair (which resolves to the seed anyway).
+const thresholdsContract = require('../src/pkjs/status-thresholds.js');
+
+/**
+ * Load a fresh ledger over a fake store holding `blob`, with a spy on the blob save.
+ * @param {Object} blob The stored settings.
+ * @returns {{clayMigrations: Object, claySettings: Object, saves: Object, marker: Object}}
+ */
+function loadThresholdToggleCase(blob) {
+  installFakeStorage();
+  ['../src/pkjs/clay-settings', '../src/pkjs/clay-migrations'].forEach((p) => {
+    delete require.cache[require.resolve(p)];
+  });
+  const claySettings = require('../src/pkjs/clay-settings');
+  const clayMigrations = require('../src/pkjs/clay-migrations');
+  localStorage.setItem('clay-settings', JSON.stringify(blob));
+  const saves = { n: 0 };
+  const realSave = claySettings.save;
+  claySettings.save = function (obj) { saves.n++; return realSave.call(claySettings, obj); };
+  return { clayMigrations, claySettings, saves, marker: makeMarker() };
+}
+
+test('migrateThresholdHighlightToggles: each toggle follows its pair; broken pairs blank', () => {
+  const c = loadThresholdToggleCase({
+    // Ordered pair set in the old text fields, toggle never re-derived since → ON.
+    threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8',
+    // Blank pair (the old OFF blanked it) under a stale ON → OFF.
+    threshWindOn: true, threshWindWarn: '', threshWindDanger: '',
+    // AQI's wizard-seeded highlight (thresholdToggle wrote 100/150) → untouched.
+    threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '150',
+    // Half pair from the old text fields → blank pair + OFF.
+    threshSleepOn: true, threshSleepWarn: '7', threshSleepDanger: '',
+    // Inverted pair → blank pair + OFF.
+    threshGustOn: true, threshGustWarn: '8', threshGustDanger: '6',
+    // A goal kind's ordered (upward) pair counts like any other → ON.
+    threshStepsOn: false, threshStepsWarn: '8000', threshStepsDanger: '10000',
+    // Comma decimals parse as the page and the pack parse them.
+    threshDistanceOn: false, threshDistanceWarn: '4,5', threshDistanceDanger: '5'
+  });
+  c.clayMigrations.migrateThresholdHighlightToggles(c.marker.isDone, c.marker.mark);
+  const read = c.claySettings.read();
+  assert.strictEqual(read.threshUvOn, true, 'ordered pair + OFF → ON');
+  assert.deepEqual([read.threshUvWarn, read.threshUvDanger], ['6', '8'], 'its pair is kept');
+  assert.strictEqual(read.threshWindOn, false, 'blank pair + ON → OFF');
+  assert.deepEqual([read.threshWindWarn, read.threshWindDanger], ['', '']);
+  assert.strictEqual(read.threshAqiOn, true, 'wizard-seeded AQI stays ON');
+  assert.deepEqual([read.threshAqiWarn, read.threshAqiDanger], ['100', '150']);
+  assert.strictEqual(read.threshSleepOn, false, 'half pair → OFF');
+  assert.deepEqual([read.threshSleepWarn, read.threshSleepDanger], ['', ''], 'half pair blanked');
+  assert.strictEqual(read.threshGustOn, false, 'inverted pair → OFF');
+  assert.deepEqual([read.threshGustWarn, read.threshGustDanger], ['', ''], 'inverted pair blanked');
+  assert.strictEqual(read.threshStepsOn, true, 'ordered goal pair → ON');
+  assert.strictEqual(read.threshDistanceOn, true, 'comma decimal parses');
+  assert.equal(read.threshDistanceWarn, '4,5', 'a parsable pair is never rewritten');
+  // A kind with nothing stored already reads as off: no toggle is invented for it.
+  assert.ok(!('threshPollenOn' in read), 'absent toggle over an absent pair stays absent');
+  // Bold-only kinds own no pair and no toggle: nothing is invented for them.
+  thresholdsContract.KINDS.filter((k) => k.boldOnly).forEach((k) => {
+    assert.ok(!(('thresh' + k.key + 'On') in read), k.key + ': no toggle written');
+  });
+  assert.equal(c.saves.n, 1, 'one save for the whole sweep');
+  assert.equal(c.marker.state.done, true, 'marked synchronously');
+});
+
+test('migrateThresholdHighlightToggles: post-migration enable bits equal the pre-split pair rule', () => {
+  // The watch holds blob[0] as packed before the split (enabled = pair ordered); the
+  // migration must land every kind on the same bit under the new rule (On && ordered),
+  // or it would owe the watch a Clay resend it does not ask for.
+  const blob = {
+    threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8',
+    threshWindOn: true, threshWindWarn: '', threshWindDanger: '',
+    threshSleepOn: true, threshSleepWarn: '7', threshSleepDanger: '',
+    threshGustOn: false, threshGustWarn: '8', threshGustDanger: '6',
+    threshStepsOn: true, threshStepsWarn: '8000', threshStepsDanger: '10000'
+  };
+  const before = thresholdsContract.KINDS.map((k) => (k.boldOnly ? null
+    : thresholdsContract.pairOrdered(thresholdsContract.parseThreshold(blob['thresh' + k.key + 'Warn']),
+      thresholdsContract.parseThreshold(blob['thresh' + k.key + 'Danger']))));
+  const c = loadThresholdToggleCase(blob);
+  c.clayMigrations.migrateThresholdHighlightToggles(c.marker.isDone, c.marker.mark);
+  const read = c.claySettings.read();
+  thresholdsContract.KINDS.forEach((k, i) => {
+    if (k.boldOnly) { return; }
+    assert.equal(Boolean(thresholdsContract.kindConfig(read, i).enabled), before[i], k.key);
+  });
+});
+
+test('migrateThresholdHighlightToggles: idempotent once marked; nothing to change saves nothing', () => {
+  const c = loadThresholdToggleCase({ threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8' });
+  c.marker.mark();   // a later OFF over a kept pair is the user's, never re-derived
+  c.clayMigrations.migrateThresholdHighlightToggles(c.marker.isDone, c.marker.mark);
+  assert.strictEqual(c.claySettings.read().threshUvOn, false);
+  assert.equal(c.saves.n, 0, 'a marked ledger does not touch the blob');
+
+  // Unmarked, but every toggle already agrees with its pair: marked, no save.
+  const agree = loadThresholdToggleCase({
+    threshUvOn: true, threshUvWarn: '6', threshUvDanger: '8',
+    threshWindOn: false, threshWindWarn: '', threshWindDanger: ''
+  });
+  agree.clayMigrations.migrateThresholdHighlightToggles(agree.marker.isDone, agree.marker.mark);
+  assert.equal(agree.saves.n, 0, 'no save when nothing changes');
+  assert.equal(agree.marker.state.done, true, 'still marked');
+
+  // A second run over its own output changes nothing either.
+  const twice = loadThresholdToggleCase({ threshGustOn: true, threshGustWarn: '8', threshGustDanger: '6' });
+  twice.clayMigrations.migrateThresholdHighlightToggles(() => false, () => {});
+  const once = twice.claySettings.read();
+  twice.clayMigrations.migrateThresholdHighlightToggles(() => false, () => {});
+  assert.deepEqual(twice.claySettings.read(), once);
+  assert.equal(twice.saves.n, 1, 'only the first run saved');
+});
+
+test('the highlight-toggle backfill survives the boot order (seedDefaults, then the ledger)', () => {
+  // Fresh install: seedDefaults writes every toggle false and every pair '' → no-op.
+  let store = installFakeStorage();
+  let mods = loadUpgradeModules();
+  mods.claySettings.seedDefaults(COLORS);
+  const fresh = mods.claySettings.read();
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.deepEqual(mods.claySettings.read(), fresh, 'a fresh seeded blob is left exactly as seeded');
+  assert.equal(store[mods.KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY], '1', 'and marked');
+
+  // A pre-toggle blob holding only its pair: seedDefaults backfills On = false first
+  // (the trap that makes "absent" unobservable) — keyed on the pair, it still lands ON.
+  store = installFakeStorage();
+  mods = loadUpgradeModules();
+  store['clay-settings'] = JSON.stringify({ theme: 'dark', threshUvWarn: '5', threshUvDanger: '9' });
+  mods.claySettings.seedDefaults(COLORS);
+  // Every other marker set, so clayRequired below speaks for this migration alone.
+  Object.keys(mods.KEYS).forEach((name) => {
+    if (/_MIGRATION_KEY$/.test(name) && name !== 'THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY') {
+      store[mods.KEYS[name]] = '1';
+    }
+  });
+  assert.strictEqual(mods.claySettings.read().threshUvOn, false, 'sanity: the backfill wrote false');
+  const res = mods.clayMigrations.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
+  assert.strictEqual(mods.claySettings.read().threshUvOn, true, 'the ordered pair wins');
+  assert.equal(store[mods.KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY], '1', 'marked synchronously');
+  assert.equal(res.clayRequired, false, 'no Clay send: the watch already holds this enable bit');
+});
+
+test('resetAll marks the highlight-toggle backfill done: an OFF saved before the next boot stays OFF', () => {
+  // After "Reset watchface" the page can open and save before any boot: the wizard seeds
+  // AQI ON with its pair, the user switches it OFF (pair kept). Unmarked, the next boot
+  // would re-derive that OFF back to ON from the kept pair.
+  installFakeStorage();
+  const mods = loadUpgradeModules();
+  localStorage.setItem('clay-settings',
+    JSON.stringify({ threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '90' }));
+  mods.claySettings.resetAll();
+  assert.equal(localStorage.getItem(mods.KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY), '1');
+  localStorage.setItem('clay-settings',
+    JSON.stringify({ threshAqiOn: false, threshAqiWarn: '100', threshAqiDanger: '150' }));
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const read = mods.claySettings.read();
+  assert.strictEqual(read.threshAqiOn, false, 'the OFF survives the boot');
+  assert.deepEqual([read.threshAqiWarn, read.threshAqiDanger], ['100', '150'], 'the kept pair is still kept');
+});

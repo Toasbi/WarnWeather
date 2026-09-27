@@ -139,12 +139,16 @@ test('health-kind threshold rows are hidden on health-less platforms and with he
   });
 });
 
-// Defaults ship disabled: every kind starts with both thresholds blank, so
-// kindConfig() reports it disabled until the user opts in (no invented numbers).
+// Defaults ship disabled: every kind starts with its highlight toggle off and both
+// levels blank (= the kind's seed, resolved live — no invented numbers stored), so
+// kindConfig() reports it disabled until the user switches it on. The blank pair
+// alone would resolve ordered; the stored toggle is what keeps the bit clear.
 test('shipped defaults leave every kind disabled', () => {
   const map = itemsByKey();
   const S = {};
   STEMS.forEach(stem => {
+    S['thresh' + stem + 'On'] = map['thresh' + stem + 'On'][0].defaultValue;
+    assert.strictEqual(S['thresh' + stem + 'On'], false, stem + ' toggle ships off');
     S['thresh' + stem + 'Warn'] = map['thresh' + stem + 'Warn'][0].defaultValue;
     S['thresh' + stem + 'Danger'] = map['thresh' + stem + 'Danger'][0].defaultValue;
   });
@@ -255,16 +259,22 @@ test('resolver colors: auto tracks the theme fg, picks stick, garbage sanitized'
 
 // --- the toggle hook (blocks.js thresholdToggle) ----------------------------
 
-test('toggling on seeds an ordered pair in the current unit; off blanks it', () => {
+test('toggling on seeds an ordered pair in the current unit; off keeps the pair', () => {
   const hook = PC.onChange.get('thresholdToggle');
   assert.equal(typeof hook, 'function');
   const S = { windUnits: 'mph', threshWindWarn: '', threshWindDanger: '' };
   hook(S, false, true, ENV, 'threshWindOn');
   assert.equal(S.threshWindWarn, '25');
   assert.equal(S.threshWindDanger, '40');
+  // The toggle is stored state and switches only the highlight: the levels live on
+  // (the Alert-mode hold still reads the warn), so OFF leaves them exactly as set.
   hook(S, true, false, ENV, 'threshWindOn');
-  assert.equal(S.threshWindWarn, '');
-  assert.equal(S.threshWindDanger, '');
+  assert.equal(S.threshWindWarn, '25', 'off keeps the warn');
+  assert.equal(S.threshWindDanger, '40', 'off keeps the danger');
+  // Nor does OFF write a blank pair or seed one: a blank pair stays blank (= seed).
+  const blank = { threshUvWarn: '', threshUvDanger: '' };
+  hook(blank, true, false, ENV, 'threshUvOn');
+  assert.deepEqual(blank, { threshUvWarn: '', threshUvDanger: '' });
 });
 
 test('toggling on preserves a stored ordered pair, reseeds a broken one', () => {
@@ -280,13 +290,18 @@ test('toggling on preserves a stored ordered pair, reseeds a broken one', () => 
   assert.equal(broken.threshStepsDanger, '10000');
 });
 
-// --- derived toggle state (onbuild.js onLoad) -------------------------------
+// --- stored toggle state (onbuild.js onLoad) --------------------------------
 
-test('onLoad derives each toggle from its stored pair (the kindConfig rule)', () => {
+test('onLoad leaves the stored toggle alone and still heals colours', () => {
+  // The toggle is STORED state since the levels/highlight split: the page used to
+  // re-derive it from the pair on every open, which would now undo a user's OFF
+  // (the pair lives on while off). The pre-split backfill is the phone-side
+  // migration (clay-migrations.js migrateThresholdHighlightToggles).
   const S = {
-    threshStepsWarn: '2500', threshStepsDanger: '5000',   // ordered upward (goal) → on
-    threshWindWarn: '60', threshWindDanger: '40',         // inverted (above-worse) → off
-    threshSleepWarn: '7', threshSleepDanger: '',          // half pair → off
+    threshStepsOn: false, threshStepsWarn: '2500', threshStepsDanger: '5000', // ordered, stored off
+    threshWindOn: true, threshWindWarn: '', threshWindDanger: '',            // blank (= seed), stored on
+    threshSleepOn: true, threshSleepWarn: '7', threshSleepDanger: '',       // half pair, stored on
+    threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8',              // ordered, stored off
     location: ''
   };
   onbuild.onLoad({
@@ -295,10 +310,19 @@ test('onLoad derives each toggle from its stored pair (the kindConfig rule)', ()
     set: (k, v) => { S[k] = v; },
     getInitial: k => S[k]
   });
-  assert.equal(S.threshStepsOn, true);
-  assert.equal(S.threshWindOn, false);
-  assert.equal(S.threshSleepOn, false);
-  assert.equal(S.threshAqiOn, false, 'unset pair derives off');
+  assert.strictEqual(S.threshStepsOn, false, 'an OFF over an ordered pair survives the open');
+  assert.strictEqual(S.threshUvOn, false);
+  assert.strictEqual(S.threshWindOn, true, 'an ON over a blank pair survives the open');
+  assert.strictEqual(S.threshSleepOn, true);
+  assert.ok(!('threshAqiOn' in S), 'onLoad writes no toggle it was not given');
+  // The pairs are not touched either.
+  assert.equal(S.threshStepsWarn, '2500');
+  assert.equal(S.threshSleepWarn, '7');
+  assert.equal(S.threshSleepDanger, '');
+  // The colour healing still runs for every kind (dark default theme).
+  assert.equal(S.threshWindDangerColor, '#FFFFFF', 'weather danger auto → theme fg');
+  assert.equal(S.threshStepsWarnColor, '#55FF00', 'goal close colour seeded green');
+  assert.equal(S.threshStepsDangerColor, '#55FF00', 'goal fill colour seeded green');
 });
 
 test('onLoad derives auto colors from the theme; user picks survive', () => {
@@ -398,7 +422,7 @@ test('the generated page never references buildSettingsBlob outside its own modu
 // here would be one more thing to drift.
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
-test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds it', () => {
+test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds it; off keeps it', () => {
   const page = bootGeneratedPage();
   page.clickTab('watch');
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
@@ -448,7 +472,9 @@ test('the sheet: toggle off shows a disabled seeded slider; on enables and seeds
     'the reset-to-defaults button rides the group sub-header');
 
   page.clickModalToggle('threshAqiOn');
-  assert.equal(page.S.threshAqiWarn, '', 'toggling off blanks the pair');
+  assert.strictEqual(page.S.threshAqiOn, false, 'the stored toggle is off');
+  assert.equal(page.S.threshAqiWarn, '100', 'toggling off keeps the warn');
+  assert.equal(page.S.threshAqiDanger, '150', 'toggling off keeps the danger');
   assert.ok(/class="row stack[^"]*\bdis\b/.test(page.modal.innerHTML),
     'the slider is back to its disabled preview');
 });
@@ -471,9 +497,10 @@ test('the reset button blanks the pair, restores default colors, clears the scal
   };
   const writesBefore = page.modal.writes;
   page.modal.dispatch('click', { target: t });
-  // Blank, not seeded: the highlight toggle is derived from "is there a complete
-  // ordered pair?", so seeding real numbers would switch highlighting ON — the one
-  // thing a button labelled "Reset to defaults" must not do.
+  // Blank, not seeded: a blank pair IS the kind's seed (resolved live, so a wind
+  // pair follows windUnits again) — exactly what a fresh install stores — and the
+  // stored highlight toggle lands off with it.
+  assert.strictEqual(page.S.threshWindOn, false, 'highlight off, as on a fresh install');
   assert.equal(page.S.threshWindWarn, '', 'warn blanked');
   assert.equal(page.S.threshWindDanger, '', 'danger blanked');
   assert.equal(page.S.threshWindWarnColor, '', 'warn back to no outline (bold only)');
@@ -515,17 +542,30 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
     'no badge while every kind is disabled');
 });
 
-test('the derived toggle is on after hydrating a stored ordered pair', () => {
-  const page = bootGeneratedPage({
+test('the stored toggle round-trips through hydrate, independent of its pair', () => {
+  const on = bootGeneratedPage({
     provider: 'dwd',
-    threshAqiWarn: '50', threshAqiDanger: '100'
+    threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100'
   });
-  assert.equal(page.S.threshAqiOn, true, 'onLoad derived the toggle from the pair');
-  page.clickTab('watch');
-  page.openEditSheet('threshAqi');
-  assert.ok(page.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1,
+  assert.strictEqual(on.S.threshAqiOn, true, 'a stored ON hydrates as ON');
+  on.clickTab('watch');
+  on.openEditSheet('threshAqi');
+  assert.ok(on.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1,
     'the slider renders immediately with the stored values');
-  assert.ok(page.modal.innerHTML.indexOf('Warn 50') !== -1, 'stored warn on the chip');
+  assert.ok(on.modal.innerHTML.indexOf('Warn 50') !== -1, 'stored warn on the chip');
+  // An OFF over an ordered pair used to be re-derived ON on the next open.
+  const off = bootGeneratedPage({
+    provider: 'dwd',
+    threshAqiOn: false, threshAqiWarn: '50', threshAqiDanger: '100'
+  });
+  assert.strictEqual(off.S.threshAqiOn, false, 'a stored OFF stays OFF');
+  assert.equal(off.S.threshAqiWarn, '50', 'its pair is kept');
+  // And an ON over a blank pair stays ON: the blank resolves to the kind's seed.
+  const seeded = bootGeneratedPage({
+    provider: 'dwd',
+    threshUvOn: true, threshUvWarn: '', threshUvDanger: ''
+  });
+  assert.strictEqual(seeded.S.threshUvOn, true, 'a stored ON over a blank pair stays ON');
 });
 
 // --- serialize/hydrate round-trip of the hidden companions ------------------
@@ -1027,17 +1067,14 @@ test('the reset button leaves the Bold setting alone', () => {
   PC.actions.resetThresholds('Wind', S, ENV, SCHEMA_DEFAULT_OF);
   assert.equal(S.threshWindBoldMode, 'always', 'reset must not touch Bold');
   assert.equal(S.threshWindMax, '', 'reset still clears the scale max');
-  assert.equal(S.threshWindWarn, '', 'reset blanks the pair — that IS the off state');
+  assert.equal(S.threshWindWarn, '', 'reset blanks the pair — the kind\'s seed, as fresh');
 });
 
 test('reset lands on exactly what a fresh install has, highlight included', () => {
-  // "Reset to defaults" has to mean the shipped defaults. Seeding real numbers made
-  // the highlight switch itself ON, because the toggle is derived from "is there a
-  // complete ordered pair?" — so a user who had highlighting off got their slot
-  // outlined on the watch after pressing a button that promised defaults.
-  const parse = (v) => (v === '' || v === undefined || v === null ? null : Number(v));
-  const derivedOn = (S, stem) =>
-    parse(S['thresh' + stem + 'Warn']) !== null && parse(S['thresh' + stem + 'Danger']) !== null;
+  // "Reset to defaults" has to mean the shipped defaults: the levels back on the
+  // kind's seed (a blank pair) AND the stored highlight toggle off. The toggle is
+  // stored state now, so "off" is proven on the toggle itself — a blank pair alone
+  // resolves to an ordered seed and says nothing about the highlight.
 
   // Aqi is deliberately NOT in this list: its fresh-install state is highlight ON
   // — the first-run wizard seeds it (defaults-policy 'wizard-aqi-keeps-a-warn-signal')
@@ -1049,18 +1086,20 @@ test('reset lands on exactly what a fresh install has, highlight included', () =
     S['thresh' + stem + 'Danger'] = '20';
     S['thresh' + stem + 'Max'] = '200';
     PC.actions.resetThresholds(stem, S, ENV, SCHEMA_DEFAULT_OF);
-    assert.equal(derivedOn(S, stem), false,
+    assert.strictEqual(S['thresh' + stem + 'On'], false,
       stem + ': the highlight must be OFF after a reset, as on a fresh install');
+    assert.equal(S['thresh' + stem + 'Warn'], '', stem + ': warn back on the seed (blank)');
+    assert.equal(S['thresh' + stem + 'Danger'], '', stem + ': danger back on the seed (blank)');
+    assert.ok(!thresholds.kindConfig(S, thresholds.KINDS.findIndex(k => k.key === stem)).enabled,
+      stem + ': the packed enable bit is clear');
     assert.equal(S['thresh' + stem + 'Max'], '', stem + ': scale max cleared');
   });
 });
 
 test('reset flips the rendered highlight toggle off in the same render', () => {
-  // The On toggle is derived state, recomputed from the pair only on the NEXT page
-  // open (onbuild.js onLoad). Reset blanks the pair — the real off state — so it
-  // must also write the toggle, or the re-rendered sheet keeps showing "Highlight
-  // this value" ON with an enabled slider while what actually saves is highlight
-  // off: the exact silent-flip-on-next-open failure the reset fix was for, inverted.
+  // The On toggle is the stored highlight state, and reset lands it on its schema
+  // default (off) together with the blank pair — in the same render, so the
+  // re-rendered sheet never shows the switch ON while what saves is off.
   const S = { theme: 'dark', threshWindOn: true,
     threshWindWarn: '40', threshWindDanger: '60' };
   PC.actions.resetThresholds('Wind', S, ENV, SCHEMA_DEFAULT_OF);

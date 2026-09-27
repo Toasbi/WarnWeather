@@ -629,9 +629,10 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
     var goal = STATUS_THRESHOLDS.isGoalKind(keyStem);
     // While the highlight is OFF the slider + colors stay VISIBLE but disabled
     // (muted, inert — the sheet shows what turning it on offers; the blank pair
-    // renders the kind's seeds). The toggle itself is derived state (recomputed
-    // from the pair on every page open — see onbuild.js) and drives the pair
-    // through the thresholdToggle hook.
+    // renders the kind's seeds). The toggle itself is STORED state — the one
+    // source of "highlight on" (kindConfig's enable bit); pre-split blobs were
+    // backfilled from their pair by clay-migrations.js — and ON seeds the pair
+    // through the thresholdToggle hook when none is stored.
     var offWhen = {not: {key: onKey}};
     var colorWhen = gate ? {all: [gate, COLOR_THEME_WHEN]} : COLOR_THEME_WHEN;
     var toggle = {

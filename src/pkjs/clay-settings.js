@@ -73,6 +73,13 @@ function resetAll() {
     // Same reasoning for the 1.23.1 fourth-line style move: the next blob is seeded
     // with the new default 'x', so a 'stripeTop' saved from here on was picked.
     localStorage.setItem(KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, '1');
+    // And for the 1.24.0 highlight-toggle backfill, which re-derives thresh<K>On from
+    // the pair: the next blob is seeded with every toggle off and every pair blank,
+    // so any toggle saved from here on is the page's own truth. Unmarked, the page
+    // could open and save before the next boot (the wizard seeds AQI ON with its
+    // pair, the user switches it OFF — pair kept), and that boot would turn the OFF
+    // back ON.
+    localStorage.setItem(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY, '1');
     return keep;
 }
 

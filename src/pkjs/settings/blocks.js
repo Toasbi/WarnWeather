@@ -467,19 +467,20 @@ if (typeof require !== 'undefined') {
         }
     });
 
-    // Flipping "Highlight this value": OFF blanks the pair — a stored blank IS the
-    // disabled state, the exact wire contract the old text fields had, so nothing
-    // changes watch-side. ON reseeds the kind's defaults unless a valid ordered
-    // pair is already stored (the derived toggle landing on an upgraded install).
+    // Flipping "Highlight on the watch" (thresh<K>On). The toggle is STORED state
+    // and switches only the highlight — the levels live on without it (the
+    // Alert-mode hold keeps using the warn level, and the phone packs every
+    // weather kind's level; the watch gates them on the enable bit). So OFF
+    // leaves the pair alone: the stored false IS the state. ON pins the kind's
+    // seed pair into storage when no ordered pair is stored yet — a blank pair
+    // already MEANS the seed (resolvedPair), so this changes nothing the watch
+    // sees; it keeps the wizard's AQI rule landing the same numbers a hand flip
+    // does.
     PConf.onChange.register('thresholdToggle', function (S, oldValue, newValue, env, key) {
         var m = /^thresh([A-Za-z]+)On$/.exec(key || '');
         if (!m) { return; }
         var stem = m[1];
-        if (!newValue) {
-            S['thresh' + stem + 'Warn'] = '';
-            S['thresh' + stem + 'Danger'] = '';
-            return;
-        }
+        if (!newValue) { return; }
         var contract = thresholdContract();
         if (!contract) { return; }
         var warn = contract.parseThreshold(S['thresh' + stem + 'Warn']);
@@ -565,11 +566,11 @@ if (typeof require !== 'undefined') {
         var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(stem));
         // Every key with a schema default lands on it THROUGH the engine's resolver —
         // mirrored literals drift when the schema changes (see resetStatusSlots
-        // below). The blank pair (highlight OFF, exactly a fresh install: seeding
-        // real numbers would derive the toggle back ON), the cleared Max, and the
-        // goal-vs-weather outline color/toggle are all schema defaults; the On
-        // toggle rides along because onLoad re-derives it only on the NEXT open,
-        // and the re-rendered sheet must agree with the blanked pair immediately.
+        // below). The result is exactly a fresh install: the stored toggle OFF
+        // (resetting the levels switches the highlight off too), the blank pair
+        // (= the kind's seed, resolved live — a wind pair follows windUnits
+        // again), the cleared Max, and the goal-vs-weather outline color/toggle
+        // are all schema defaults.
         var keys = ['On', 'Warn', 'Danger', 'Max', 'WarnColor', 'WarnOutlineOn'];
         for (var d = 0; d < keys.length; d++) {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);

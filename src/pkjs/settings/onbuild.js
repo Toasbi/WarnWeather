@@ -7,15 +7,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
 (function () {
     /**
-     * The "Highlight this value" toggles are DERIVED state, recomputed on every
-     * open: on = the stored warn/danger pair is complete and ordered — the exact
-     * rule kindConfig() applies at pack time — so the toggle can never disagree
-     * with what the watch actually highlights (locationMode pattern below).
-     * Flipping it live is the thresholdToggle onChange hook in blocks.js.
+     * Heal each threshold kind's highlight colours on every open. The
+     * "Highlight on the watch" toggle itself (thresh<K>On) is STORED state and
+     * hydrates as-is: kindConfig() packs the enable bit from it (AND an ordered
+     * pair), and the levels live on while it is off, so deriving it from the
+     * pair here would undo a user's OFF on the next open. The one-time
+     * pair-derived backfill for blobs saved before the split is
+     * clay-migrations.js migrateThresholdHighlightToggles, which runs on the
+     * phone before the page can open. Flipping it live is the thresholdToggle
+     * onChange hook in blocks.js.
      * @param {{ get: function, set: function }} ctx onLoad context
      * @returns {void}
      */
-    function deriveThresholdToggles(ctx) {
+    function healThresholdColors(ctx) {
         // Node (tests): CommonJS require. Webview: the flat page exposes
         // window.StatusThresholds (resolved lazily at boot, after all scripts loaded).
         var contract = (typeof require !== 'undefined')
@@ -29,9 +33,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         var fg = auto ? auto.fgFor(ctx.get('theme')) : null;
         for (var i = 0; i < contract.KINDS.length; i++) {
             var kind = contract.KINDS[i];
-            var warn = contract.parseThreshold(ctx.get('thresh' + kind.key + 'Warn'));
-            var danger = contract.parseThreshold(ctx.get('thresh' + kind.key + 'Danger'));
-            ctx.set('thresh' + kind.key + 'On', contract.pairOrdered(warn, danger));
             if (auto) {
                 // WARN, weather kinds: the default is NO outline (bold text only) — an
                 // unset color stays '' and a legacy auto-fg value converts back to ''.
@@ -97,7 +98,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // leave it pre-checked on the next open.
         ctx.set('reset', false);
         ctx.set('locationMode', ctx.get('location') ? 'manual' : 'gps');
-        deriveThresholdToggles(ctx);
+        healThresholdColors(ctx);
         if (ctx.env && ctx.env.platform === 'aplite') {
             ctx.set('radarMode', 'off');
             ctx.set('healthMode', 'off');

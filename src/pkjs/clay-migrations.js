@@ -21,6 +21,7 @@ var claySettings = require('./clay-settings.js');
 var platformLib = require('./config-ui/lib/platform.js');   // isHrPlatform (emery + diorite)
 var lineStyle = require('./line-style');                    // graph-colour keys + built-ins
 var resolveInk = require('./resolve-ink.js');               // polarity + its colour defaults
+var thresholds = require('./status-thresholds.js');         // KINDS + the pair rules
 var KEYS = require('./storage-keys');
 
 var STORAGE_KEY = claySettings.STORAGE_KEY;
@@ -120,6 +121,11 @@ function runMigrations(opts) {
     migrateRadarProviderToMode(opts.defaultRadarProvider,
         isDone(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY),
         mark(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY));
+    // Marks synchronously and asks for no send: the enable bit it now reads from the
+    // stored toggle is the one the watch already holds (see the function).
+    migrateThresholdHighlightToggles(
+        isDone(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY),
+        mark(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY));
     // Marks synchronously: if the send it asks for NACKs, the outbox's uncommitted
     // last-sent cache still carries the new text on the next Clay send.
     var wantsClayNoRainText = migrateEmptyNoRainText(
@@ -779,6 +785,81 @@ function migrateRadarProviderToMode(defaultRadarProvider, isMigrationDone, markD
     markDone();
 }
 
+/**
+ * One-time 1.24.0 backfill of the "Highlight on the watch" toggles (thresh<K>On) from
+ * their pairs. Until 1.24.0 the toggle was page-derived state: every settings open
+ * rewrote it as "the stored warn/danger pair is complete and ordered", and the phone
+ * packed the blob[0] enable bit from the pair alone. From 1.24.0 on the STORED toggle
+ * owns the bit (status-thresholds.js kindConfig: On === true AND an ordered pair) and
+ * the pair lives on while it is off, so a blob whose toggle was never re-derived — a
+ * pair set in the old text fields and settings not opened since — would silently lose
+ * its highlight. For every kind with a pair (bold-only kinds have none): On := the
+ * pair is ordered, the last truth the page would have shown.
+ *
+ * Keyed on the PAIR, never on the toggle being absent: thresh<K>On has had a schema
+ * default (false) for releases, so seedDefaults — which runs before the ledger
+ * (index.js; the layoutPreset trap) — has long since written it into every blob and
+ * "absent" is not observable. The pair alone tells the three populations apart:
+ * highlight on (ordered pair) → true; highlight off (the old OFF blanked the pair) →
+ * false; AQI's wizard-seeded highlight (100/150 or 60/80 via the thresholdToggle hook)
+ * → true.
+ *
+ * A pair that is not ordered but not blank either — half ('7', '') from the old text
+ * fields, inverted, junk — is normalised to '' on both keys: the phone and the page
+ * already resolve it to the kind's seed as a whole (resolvedPair), while the slider
+ * fell back per value and would preview 'Warn 7' against a seed-6 hold. Blank is the
+ * one stored form of "the seed" from here on; no numbers are written into any blob.
+ *
+ * No Clay send: for every install the post-migration enable bit (On && ordered) equals
+ * the pre-split one (ordered), which the watch already holds. Idempotent; a fresh
+ * install (blank pairs, toggles false) is a no-op. "Reset watchface" re-sets this
+ * marker (clay-settings.js resetAll), because after a reset the page can save an OFF
+ * with its pair kept before the next boot would re-derive it back ON.
+ *
+ * @param {Function} isMigrationDone Returns true when the migration marker is set.
+ * @param {Function} markDone Records the migration as complete.
+ * @returns {void}
+ */
+function migrateThresholdHighlightToggles(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'threshold highlight toggles');
+    if (persistClay === null) { return; }
+    var changed = false;
+    for (var i = 0; i < thresholds.KINDS.length; i++) {
+        var kind = thresholds.KINDS[i];
+        if (kind.boldOnly) { continue; }
+        var onKey = 'thresh' + kind.key + 'On';
+        var warnKey = 'thresh' + kind.key + 'Warn';
+        var dangerKey = 'thresh' + kind.key + 'Danger';
+        var ordered = thresholds.pairOrdered(thresholds.parseThreshold(persistClay[warnKey]),
+            thresholds.parseThreshold(persistClay[dangerKey]));
+        // Write only when the stored value is not already the verdict. An absent
+        // toggle already reads as off (kindConfig wants === true), so it is left
+        // absent under an unusable pair.
+        var on = persistClay[onKey];
+        if (ordered ? on !== true : (on !== false && typeof on !== 'undefined')) {
+            persistClay[onKey] = ordered;
+            changed = true;
+        }
+        if (!ordered) {
+            var pairKeys = [warnKey, dangerKey];
+            for (var p = 0; p < pairKeys.length; p++) {
+                var raw = persistClay[pairKeys[p]];
+                // null/undefined read as blank already (parseThreshold); only a stored
+                // non-blank half of an unusable pair is rewritten.
+                if (raw !== '' && raw !== null && typeof raw !== 'undefined') {
+                    persistClay[pairKeys[p]] = '';
+                    changed = true;
+                }
+            }
+        }
+    }
+    if (changed) {
+        save(persistClay);
+        console.log('Migrated threshold highlight toggles from their pairs');
+    }
+    markDone();
+}
+
 module.exports = {
     runMigrations: runMigrations,
     migrateExistingInstallOnboarded: migrateExistingInstallOnboarded,
@@ -788,6 +869,7 @@ module.exports = {
     migrateStatusLineHealthDefaults: migrateStatusLineHealthDefaults,
     migrateStatusTopRightBattery: migrateStatusTopRightBattery,
     migrateRadarProviderToMode: migrateRadarProviderToMode,
+    migrateThresholdHighlightToggles: migrateThresholdHighlightToggles,
     migrateEmptyNoRainText: migrateEmptyNoRainText,
     migrateFifthLineStyleDefault: migrateFifthLineStyleDefault,
     migrateStripeMetricRuleResend: migrateStripeMetricRuleResend,
