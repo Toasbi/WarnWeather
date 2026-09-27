@@ -126,7 +126,7 @@ test('the Look reads its hint by value', () => {
   };
   page.modal.dispatch('click', { target: t });
   assert.equal(page.S.alertWindDisplay, 'value');
-  assert.ok(page.modal.innerHTML.indexOf('The value the alert fires on after the icon. Fewer alerts fit the row.') !== -1);
+  assert.ok(page.modal.innerHTML.indexOf('Adds the value the alert fires on after the icon. It needs more room') !== -1);
 });
 
 test('the rain sheet: switching it off greys the window and look and the row reads Off', () => {
@@ -190,7 +190,7 @@ test('the slot pencil sheet holds the Highlight switch and points at the Alerts 
   const hl = sheet.indexOf('data-k="threshUvOn"');
   assert.ok(bold !== -1, 'the slot rows stay');
   assert.ok(hl > bold, 'the Highlight switch sits after Bold');
-  assert.ok(sheet.indexOf('Outlines or fills this slot when the value reaches its alert levels — set under Alerts.') !== -1,
+  assert.ok(sheet.indexOf('Fills this slot from the danger level on, and outlines it from warn if “Outline on warn” is on — levels and colors are set under Alerts.') !== -1,
     'with its hint');
   page.clickModalToggle('threshUvOn');
   assert.strictEqual(page.S.threshUvOn, true, 'the switch stores');

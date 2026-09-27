@@ -107,7 +107,7 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
       assert.deepEqual(it[0].disabledWhen, alert ? undefined : { not: { key: 'thresh' + stem + 'On' } },
         'thresh' + stem + which + (alert ? ' is always live' : ' must disable (not hide) on its toggle'));
     });
-    assert.equal(on[0].label, alert ? 'Highlight' : 'Highlight on the watch', 'the toggle\'s label');
+    assert.equal(on[0].label, alert ? 'Highlight' : 'Goals', 'the toggle\'s label');
     // The reset button moved onto the group's sub-header — see "the group header
     // owns the title and the reset action" below.
 
@@ -515,7 +515,7 @@ test('the sheets: the levels and look stay live whatever the slot Highlight; on 
     'the outline toggle is live while the slot highlight is off');
   assert.ok(page.modal.innerHTML.indexOf('Warn 100') !== -1,
     'the slider shows the seed values');
-  assert.ok(page.modal.innerHTML.indexOf('Reaching warn') !== -1,
+  assert.ok(page.modal.innerHTML.indexOf('reaching warn') !== -1,
     'the sheet carries the Alert levels intro');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('data-zone="warn"') !== -1 && sheet.indexOf('data-zone="danger"') !== -1,
@@ -574,7 +574,7 @@ test('the page renders an Alerts card sheet: the alert switch, its Look, then th
     'the Alert sub-header carries the alert switch');
   assert.ok(sheet.indexOf('<span>Alert</span>') < sheet.indexOf('<span>Alert levels</span>'),
     'the Alert sub-header comes first');
-  assert.ok(sheet.indexOf('Shows an icon in the Alerts row whenever the UV index reaches your warn level or higher today.') !== -1,
+  assert.ok(sheet.indexOf('Shows an icon in the Alerts row when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.') !== -1,
     'with its intro');
   assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert levels') > sheet.indexOf('data-k="alertUvDisplay"'),
     'the levels group follows the Look');
@@ -1128,13 +1128,17 @@ test('the intro describes the group, so it hangs off the header, not the sheet',
     assert.match(String(headerFor(stem).intro), /\S/, stem + ' header carries no intro');
   });
   assert.match(headerFor('Wind').intro, /level/i);
-  assert.ok(headerFor('Wind').intro.indexOf('Reaching warn') !== -1, 'the weather intro');
+  assert.ok(headerFor('Wind').intro.indexOf('reaching warn') !== -1, 'the weather intro');
   assert.doesNotMatch(headerFor('Wind').intro, /threshold/i, 'the old vocabulary is gone');
   assert.match(headerFor('Steps').intro, /goal/i);
   // The goal slider is live with the switch off, so its intro must say the SWITCH is
   // what puts the levels on the watch — not the numbers alone.
   assert.match(headerFor('Steps').intro, /switch/i, 'Steps intro names the switch');
   assert.match(headerFor('Steps').intro, /on the watch/i, 'Steps intro says what the switch does');
+  // The close outline follows 'Outline on close', and B&W has no color pickers
+  // (settings audit #23).
+  assert.match(headerFor('Steps').intro, /getting close can add an outline/);
+  assert.match(headerFor('Steps').intro, /On color watches the colors are yours to change below\.$/);
   // The weather group has no switch: its look styles the alert icon always and the
   // slot only while the slot's Highlight is on — and the intro says so.
   assert.match(headerFor('Wind').intro, /alert icon/, 'the weather intro names the alert icon');
@@ -1154,7 +1158,8 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.equal(items.indexOf(boldFor(stem)), 0, stem + ' bold row leads');
     assert.deepEqual(items[1], {
       type: 'toggle', messageKey: 'thresh' + stem + 'On', label: 'Highlight',
-      hint: 'Outlines or fills this slot when the value reaches its alert levels — set under Alerts.',
+      hint: 'Fills this slot from the danger level on, and outlines it from warn if “Outline on warn”'
+        + ' is on — levels and colors are set under Alerts.',
       defaultValue: false, onChange: 'thresholdToggle'
     }, stem + ' Highlight follows Bold');
     assert.deepEqual(items[items.length - 1], {
@@ -1186,11 +1191,21 @@ test('the Bold middle option speaks the kind vocabulary, over one stored value',
   });
 });
 
-test('the Bold hint adds information instead of restating the options', () => {
-  const bold = boldFor('Wind');
-  assert.match(String(bold.hint), /\S/, 'bold row has no hint');
-  ['Off', 'Always'].forEach(word => {
-    assert.equal(bold.hint.indexOf(word), -1, 'hint restates the "' + word + '" option');
+test('the Bold hint explains the selected step only, and when the level bold applies', () => {
+  // One hint per step (hintByValue), never a list of all three. The level-driven bold
+  // — danger / a reached goal, and the middle step — needs the kind's level, which
+  // the watch zeroes while Highlight (Goals) is off (status_row.c slot_level), so the
+  // hints say "while … is on" (settings audit #8).
+  assert.equal(boldFor('Wind').hint, undefined, 'no all-options hint');
+  assert.deepEqual(boldFor('Wind').hintByValue, {
+    off: 'Danger still prints bold while Highlight is on.',
+    warn: 'Heavier text from the warn level on, while Highlight is on.',
+    always: 'Every status slot showing this value prints it in heavier text.'
+  });
+  assert.deepEqual(boldFor('Steps').hintByValue, {
+    off: 'A reached goal still prints bold while Goals are on.',
+    warn: 'Heavier text once you get close to the goal, while Goals are on.',
+    always: 'Every status slot showing this value prints it in heavier text.'
   });
 });
 
@@ -1206,7 +1221,7 @@ test('the outline toggle says what it outlines', () => {
     it => it.messageKey === 'threshWindWarnOutlineOn');
   assert.equal(wind.label, 'Outline on warn');
   assert.equal(wind.hint,
-    'Adds an outline from the warn level on, to the alert icon and to the highlighted slot.');
+    'Adds an outline from the warn level on, to the alert icon — and to the slot, while its Highlight is on.');
   const steps = sheetFor('Steps').items.find(
     it => it.messageKey === 'threshStepsWarnOutlineOn');
   assert.equal(steps.label, 'Outline on close');
@@ -1441,17 +1456,24 @@ test('every metric alert sheet: its one switch on an Alert sub-header, the Look,
   sheets.forEach((s) => {
     const stem = s.sheetId.slice('alert'.length);
     const key = 'alert' + stem;
+    // AQI's look-ahead depends on its source (WAQI has no forecast): its intro closes
+    // on the note the slot sheet carries too (settings audit #10).
+    const coda = stem === 'Aqi' ? ' Looking ahead needs the Open-Meteo AQI provider (General tab);'
+      + ' with WAQI the alert judges the current reading.' : '';
     assert.deepEqual(s.items.slice(0, 3), [{
       type: 'subheader', text: 'Alert', toggleKey: key,
-      intro: 'Shows an icon in the Alerts row whenever ' + SUBJECT[stem] + ' reaches your warn level or higher today.'
+      intro: 'Shows an icon in the Alerts row when ' + SUBJECT[stem] + ' reaches your warn level'
+        + ' at any point left today, so an afternoon peak shows from the morning on.' + coda
     }, {
       type: 'toggle', messageKey: key, label: 'Alert', defaultValue: false
     }, {
       type: 'segmented', messageKey: key + 'Display', label: 'Look', defaultValue: 'icon',
       options: [['Icon', 'icon'], ['Icon + value', 'value']],
-      // Only the value look explains itself; the default icon look has no hint.
+      // Only the value look explains itself — and what it costs (settings audit #7);
+      // the default icon look has no hint.
       hintByValue: {
-        value: 'The value the alert fires on after the icon. Fewer alerts fit the row.'
+        value: 'Adds the value the alert fires on after the icon. It needs more room: the row takes'
+          + ' the neighboring slot sooner, and shows icons only when even that is too narrow.'
       },
       disabledWhen: { not: { key } }
     }], s.sheetId + ': switch, then the Look (inert while off)');
@@ -1490,6 +1512,12 @@ test('the rain alert sheet: its switch (held on in Rain alert only), the time wi
   assert.equal(s.items[0].text, 'Rain alert');
   assert.equal(s.items[0].toggleKey, 'alertRain');
   assert.match(s.items[0].intro, /“Rain alert only” keeps it on\.$/, 'the intro says the mode holds it');
+  // When the watch shows it: raining now or due within the window, never in the
+  // Battery saver hours (rain_countdown.c; settings audit #14).
+  assert.match(s.items[0].intro, /while it rains at your location or rain is due within the time window below\./);
+  assert.match(s.items[0].intro, /Hidden during the Battery saver hours\./);
+  assert.equal(s.items[3].hint, 'Rain due further out than this doesn’t trigger the alert. Rain radar'
+    + ' forecasts change often, so a shorter window gives fewer false alarms.');
   assert.deepEqual(s.items[1], { type: 'toggle', messageKey: 'alertRain', label: 'Rain alert',
     defaultValue: true, disabledWhen: { key: 'radarMode', eq: 'countdown' } });
   // The 'Rain alert only' warning (its predicate is pinned by the page tests).
@@ -1502,10 +1530,13 @@ test('the rain alert sheet: its switch (held on in Rain alert only), the time wi
   assert.deepEqual(s.items[4], {
     type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Look', defaultValue: 'text',
     options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
-    // Only the minutes look needs explaining (the drop alone and the full text describe
-    // themselves, and the default look gets no hint by the style rule).
+    // The drop alone describes itself; the two longer looks say what they print and
+    // that they shrink on a crowded bar (settings audit #7/#13) — the default Text
+    // look too, because its name does not carry that.
     hintByValue: {
-      minutes: 'The drop with the minutes until the rain starts, or how long it keeps falling.'
+      minutes: 'The drop with the minutes until the rain starts, or +minutes while it rains.'
+        + ' Just the drop when the bar is short on room.',
+      text: 'Shortens to the minutes, then to the drop alone, when the bar is short on room.'
     },
     disabledWhen: off
   });
@@ -1560,7 +1591,9 @@ test('every bold-only kind gets a sheet whose Bold row is its FIRST control', ()
     assert.equal(bold.type, 'segmented');
     assert.equal(bold.label, 'Bold value');
     assert.equal(bold.defaultValue, 'off', stem + ' defaults to off');
-    assert.equal(bold.hint, 'Show this value in heavier text.', stem + ' hint');
+    assert.deepEqual(bold.hintByValue, { always: 'Every status slot showing this value prints it in heavier text.' },
+      stem + ' hint: Always only (Off, the default, needs none)');
+    assert.equal(bold.hint, undefined, stem + ' no all-options hint');
     assert.deepEqual(bold.disabledWhen, { key: 'statusBoldAll', eq: 'all' },
       stem + ' row mutes only under the master Bold values row');
   });
@@ -1623,13 +1656,14 @@ test('the Temp sheet puts its display-mode pills below the Bold row', () => {
   assert.equal(disp.label, 'Temperature selection');
   assert.deepEqual(disp.options,
     [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']]);
-  assert.match(String(disp.hint), /both/i, 'hint explains the Both mode');
-  assert.match(String(disp.hint), /feels/i, 'hint names the feels-like value');
-  // The pair's shape is a choice now, so the hint points at the rows below instead of
-  // promising one fixed "actual/feels-like" rendering.
-  assert.doesNotMatch(String(disp.hint), /actual\/feels/, 'hint no longer hard-codes the slash pair');
-  assert.match(String(disp.hint), /separator/i, 'hint points at the separator row');
-  assert.match(String(disp.hint), /order/i, 'hint points at the order row');
+  // One hint per SELECTED mode; the measured temperature (the default) needs none.
+  assert.equal(disp.hint, undefined, 'no all-options hint');
+  assert.equal(disp.hintByValue.actual, undefined, 'the default mode has no hint');
+  assert.match(disp.hintByValue.feels, /feels/i, 'Feels like names the feels-like value');
+  assert.match(disp.hintByValue.feels, /General → Units/, 'and where its formula is set');
+  // The pair's shape is a choice, so Both points at the rows below.
+  assert.match(disp.hintByValue.both, /separator/i, 'Both points at the separator row');
+  assert.match(disp.hintByValue.both, /order/i, 'Both points at the order row');
   // No gate of its own: it inherits the sheet's THRESHOLD_WHEN, so aplite (which
   // has no Edit sheets) deliberately never reaches it — feels-like is left out
   // there entirely (slot mode AND graph metric, see the forecastMetric resolver).
@@ -1647,20 +1681,25 @@ test('the UV sheet puts its display-mode pills between the Bold + Highlight rows
   assert.equal(disp.type, 'segmented');
   assert.equal(disp.defaultValue, 'current', 'shipped behaviour: the current index');
   assert.deepEqual(disp.options, [['Now', 'current'], ['Alert', 'max'], ['Both', 'both']]);
-  // The static hint is only the fallback for a page without the contract: the live one
-  // is the dayMaxHint resolver's (below), which quotes the warn level as a number.
-  assert.deepEqual(disp.hintFrom, { resolver: 'dayMaxHint', args: { keyStem: 'Uv',
-    subject: 'UV is', lead: 'Show the UV index now, the highest it still gets today, or both.',
-    coda: '' } });
-  assert.doesNotMatch(String(disp.hint), /\d/, 'the fallback names no number');
-  assert.match(String(disp.hint), /warn level/i, 'the fallback states the hold rule');
-  assert.match(String(disp.hint), /tomorrow/i, 'hint says the max rolls on to tomorrow');
-  // The mark is a choice now (uvSlotNextDayMark), so the hint points at it instead of
-  // quoting one glyph that may not be the one on screen.
-  assert.equal(String(disp.hint).indexOf('\u00BB'), -1, 'hint no longer hard-codes the \u00BB mark');
-  assert.match(String(disp.hint), /mark/i, 'hint says tomorrow\'s max is marked');
-  assert.match(String(disp.hint), /below/i, 'hint points at the rows that shape the reading');
-  assert.match(String(disp.hint), /highlight/i, 'hint says which value the highlight judges');
+  // The live hint is the dayMaxHint resolver's (below), which quotes the warn level as
+  // a number; the static per-mode hints are only its fallback for a page without the
+  // contract. Both explain the SELECTED mode alone, and Now (the default) gets none.
+  assert.equal(disp.hintFrom.resolver, 'dayMaxHint');
+  assert.equal(disp.hint, undefined, 'no all-modes hint');
+  assert.deepEqual(Object.keys(disp.hintByValue).sort(), ['both', 'max'], 'no Now hint');
+  ['max', 'both'].forEach((mode) => {
+    const h = disp.hintByValue[mode];
+    assert.doesNotMatch(h.replace('3/7', ''), /\d/, mode + ': the fallback names no level number');
+    assert.match(h, /below your warn level/, mode + ': the fallback states the hold rule');
+    assert.match(h, /tomorrow's peak shows instead/, mode + ': the max rolls on to tomorrow');
+    // The mark is a choice (uvSlotNextDayMark), so the hint points at it instead of
+    // quoting one glyph that may not be the one on screen.
+    assert.equal(h.indexOf('»'), -1, mode + ': no hard-coded » mark');
+    assert.match(h, /the mark chosen below/, mode + ': points at the mark row');
+    // What the slot SHOWS, not how it is highlighted (the Alerts sheet explains that).
+    assert.doesNotMatch(h, /highlight/i, mode + ': no highlighting sentence');
+  });
+  assert.match(disp.hintByValue.both, /like 3\/7/, 'Both shows the pair on the kind\'s samples');
   // It configures the SLOT, not the highlight, so it sits above the levels pointer
   // like the wind arrow — and stays live while the highlight is off. So do the rows
   // shaping how it reads (test/config-slot-pair.test.js), which follow it directly.
@@ -1673,7 +1712,7 @@ test('the UV sheet puts its display-mode pills between the Bold + Highlight rows
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
 });
 
-// --- dayMaxHint: the Now / Alert / Both hint quotes the hold level, live -----------
+// --- dayMaxHint: the SELECTED mode's hint, quoting the hold level live -------------
 
 /**
  * A day-max kind's pills hint, resolved through the real engine path (the row's
@@ -1688,91 +1727,92 @@ function dayMaxHintOf(prefix, S, value) {
   return PC.engine.resolveHint(item, S, ENV, value);
 }
 
+test('dayMaxHint: Now gets no hint; Alert and Both each explain themselves alone', () => {
+  // Now is the default and the pill says it: no hint (settings audit, owner rule).
+  catalog.DAY_MAX_KINDS.forEach((prefix) => {
+    assert.strictEqual(dayMaxHintOf(prefix, {}, 'current'), '', prefix + ' Now: no hint');
+  });
+  assert.equal(dayMaxHintOf('uv', {}, 'max'),
+    'Today\'s peak — the highest it gets for the rest of today. Once it has passed and UV is'
+    + ' below 6 (your warn level), tomorrow\'s peak shows instead, with the mark chosen below,'
+    + ' or the current reading if tomorrow\'s isn\'t known.');
+  assert.equal(dayMaxHintOf('uv', {}, 'both'),
+    'The reading now and today\'s peak, like 3/7 — one number while they\'re the same. Once'
+    + ' today\'s peak has passed and UV is below 6 (your warn level), tomorrow\'s peak shows'
+    + ' instead, with the mark chosen below, or the reading alone if tomorrow\'s isn\'t known.');
+});
+
 test('dayMaxHint: the hold level is the seed while the pair is blank, the stored warn once set', () => {
-  const lead = 'Show the UV index now, the highest it still gets today, or both.';
-  const seed = dayMaxHintOf('uv', {}, 'max');
-  assert.ok(seed.indexOf(lead) === 0, 'the kind\'s own first sentence leads');
-  assert.ok(seed.indexOf('while it is still ahead, and while UV is 6 or higher — the warn level set under Alerts.') !== -1,
-    'the seed warn (UV 6) is quoted: ' + seed);
-  assert.match(seed, /tomorrow's peak shows instead, marked as chosen below/);
-  assert.equal(dayMaxHintOf('uv', {}, 'both'), seed, 'Both reads the same rule');
+  assert.ok(dayMaxHintOf('uv', {}, 'max').indexOf('UV is below 6 (your warn level)') !== -1, 'the seed');
   // The slider writes both keys: the number follows the stored pair.
   const live = dayMaxHintOf('uv', { threshUvWarn: '7', threshUvDanger: '9' }, 'max');
-  assert.ok(live.indexOf('UV is 7 or higher') !== -1, live);
+  assert.ok(live.indexOf('UV is below 7 (your warn level)') !== -1, live);
   // A half/unordered pair means the seed, exactly as the phone's hold rule reads it.
   assert.ok(dayMaxHintOf('uv', { threshUvWarn: '7', threshUvDanger: '' }, 'max')
-    .indexOf('UV is 6 or higher') !== -1, 'half pair → the seed');
-  assert.ok(dayMaxHintOf('uv', { threshUvWarn: '9', threshUvDanger: '7' }, 'max')
-    .indexOf('UV is 6 or higher') !== -1, 'inverted pair → the seed');
-  assert.equal(dayMaxHintOf('uv', { threshUvWarn: '7', threshUvDanger: '9' }, 'max').indexOf('\u00BB'), -1,
-    'no hard-coded » mark');
+    .indexOf('UV is below 6 ') !== -1, 'half pair → the seed');
+  assert.ok(dayMaxHintOf('uv', { threshUvWarn: '9', threshUvDanger: '7' }, 'both')
+    .indexOf('UV is below 6 ') !== -1, 'inverted pair → the seed');
+  assert.equal(live.indexOf('»'), -1, 'no hard-coded » mark');
 });
 
 test('dayMaxHint: wind and gusts quote the level in the unit the slider shows', () => {
   const kph = dayMaxHintOf('wind', {}, 'max');
-  assert.ok(kph.indexOf('Show the wind speed now, the strongest it still gets today, or both.') === 0);
-  assert.ok(kph.indexOf('while the wind is 40 kph or higher') !== -1, kph);
+  assert.ok(kph.indexOf('the wind is below 40 kph (your warn level)') !== -1, kph);
   assert.ok(dayMaxHintOf('wind', { windUnits: 'mph' }, 'max')
-    .indexOf('while the wind is 25 mph or higher') !== -1, 'mph seed + unit');
+    .indexOf('the wind is below 25 mph') !== -1, 'mph seed + unit');
   assert.ok(dayMaxHintOf('wind', { windUnits: 'knots' }, 'max')
-    .indexOf('while the wind is 20 kn or higher') !== -1, 'knots seed + unit');
+    .indexOf('the wind is below 20 kn') !== -1, 'knots seed + unit');
   assert.ok(dayMaxHintOf('wind', { windUnits: 'mph', threshWindWarn: '30', threshWindDanger: '45' }, 'both')
-    .indexOf('while the wind is 30 mph or higher') !== -1, 'a stored pair, in its unit');
-  assert.ok(dayMaxHintOf('gust', {}, 'max').indexOf('while gusts are 60 kph or higher') !== -1);
-  assert.ok(dayMaxHintOf('gust', { windUnits: 'knots' }, 'max')
-    .indexOf('while gusts are 30 kn or higher') !== -1);
+    .indexOf('the wind is below 30 mph') !== -1, 'a stored pair, in its unit');
+  assert.ok(dayMaxHintOf('gust', {}, 'max').indexOf('gusts are below 60 kph') !== -1);
+  assert.ok(dayMaxHintOf('gust', { windUnits: 'knots' }, 'both').indexOf('gusts are below 30 kn') !== -1);
+  assert.ok(dayMaxHintOf('wind', {}, 'both').indexOf('like 12/30') !== -1, 'the wind sample pair');
 });
 
-test('dayMaxHint: AQI quotes the seed of its scale and closes on the source note', () => {
-  const coda = ' The peak needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.';
+test('dayMaxHint: AQI quotes the seed of its scale and adds the source note only where it bites', () => {
+  const waqi = ' Your AQI source (WAQI) has no forecast, so the current reading shows.';
   const us = dayMaxHintOf('aqi', {}, 'max');
-  assert.ok(us.indexOf('while the AQI is 100 or higher — the warn level') !== -1, 'US seed, no unit: ' + us);
-  assert.ok(us.slice(-coda.length) === coda, 'the source note closes the hint');
+  assert.ok(us.indexOf('the AQI is below 100 (your warn level)') !== -1, 'US seed, no unit: ' + us);
+  assert.ok(us.slice(-waqi.length) === waqi, 'an absent source reads as WAQI, the default');
+  assert.ok(dayMaxHintOf('aqi', { aqiSource: 'waqi' }, 'both').slice(-waqi.length) === waqi);
+  assert.match(dayMaxHintOf('aqi', { aqiSource: 'auto' }, 'max'),
+    / Auto mostly reads WAQI, which has no forecast — then the current reading shows\.$/);
   const eu = dayMaxHintOf('aqi', { aqiSource: 'openmeteo' }, 'max');
-  assert.ok(eu.indexOf('while the AQI is 60 or higher') !== -1, 'EU seed on Open-Meteo');
+  assert.ok(eu.indexOf('the AQI is below 60 (your warn level)') !== -1, 'EU seed on Open-Meteo');
+  assert.doesNotMatch(eu, /WAQI|forecast/, 'Open-Meteo can give a peak: no note');
   assert.ok(dayMaxHintOf('aqi', { aqiSource: 'openmeteo', aqiScale: 'us' }, 'max')
-    .indexOf('while the AQI is 100 or higher') !== -1, 'the US scale picker wins');
-  // Now mode: the lead and the note only — the hold/mark tail describes rows it hides.
-  assert.equal(dayMaxHintOf('aqi', {}, 'current'),
-    'Show the air quality index now, the highest it still gets today, or both.' + coda);
+    .indexOf('the AQI is below 100') !== -1, 'the US scale picker wins');
+  assert.strictEqual(dayMaxHintOf('aqi', {}, 'current'), '', 'Now: no hint, source note included');
 });
 
-test('dayMaxHint: Now mode gets the lead alone; the highlight sentence follows the switch', () => {
-  assert.equal(dayMaxHintOf('uv', { threshUvOn: true }, 'current'),
-    'Show the UV index now, the highest it still gets today, or both.',
-    'no hold/mark tail in Now mode — the mark row is hidden there');
-  const off = dayMaxHintOf('uv', {}, 'max');
-  assert.ok(/Highlighting is off — switch it on above to color it\.$/.test(off),
-    'switch off: the hint says so, and where the switch is: ' + off);
-  assert.equal(off.indexOf('Highlighting follows'), -1);
-  const on = dayMaxHintOf('uv', { threshUvOn: true }, 'max');
-  assert.ok(/Highlighting follows the number shown\.$/.test(on), on);
-  assert.equal(on.indexOf('Highlighting is off'), -1);
-  // The hold rule applies either way: the same number with the switch off or on.
-  assert.ok(off.indexOf('UV is 6 or higher') !== -1 && on.indexOf('UV is 6 or higher') !== -1);
-  // Only the truthy stored boolean counts, as for the enable bit.
-  assert.ok(dayMaxHintOf('uv', { threshUvOn: 'true' }, 'max').indexOf('Highlighting is off') !== -1);
+test('dayMaxHint: says nothing about highlighting, whatever the switch', () => {
+  // The hint is about what the slot SHOWS; the highlight is the Alerts sheet's to
+  // explain (settings audit #11/#24 — and tomorrow's marked peak is never judged).
+  [{}, { threshUvOn: true }].forEach((S) => ['max', 'both'].forEach((mode) => {
+    const h = dayMaxHintOf('uv', S, mode);
+    assert.doesNotMatch(h, /highlight/i, mode + ': ' + h);
+  }));
+  assert.equal(dayMaxHintOf('uv', {}, 'max'), dayMaxHintOf('uv', { threshUvOn: true }, 'max'),
+    'the same text with the switch off or on');
 });
 
 test('dayMaxHint: every day-max kind carries the live hint, with a numberless fallback', () => {
-  const expect = {
-    uv: { keyStem: 'Uv', subject: 'UV is' },
-    wind: { keyStem: 'Wind', subject: 'the wind is' },
-    gust: { keyStem: 'Gust', subject: 'gusts are' },
-    aqi: { keyStem: 'Aqi', subject: 'the AQI is' }
-  };
+  const subjects = { uv: 'UV is', wind: 'the wind is', gust: 'gusts are', aqi: 'the AQI is' };
+  const stems = { uv: 'Uv', wind: 'Wind', gust: 'Gust', aqi: 'Aqi' };
   catalog.DAY_MAX_KINDS.forEach(prefix => {
     const item = itemsByKey()[prefix + 'SlotDisplay'][0];
     assert.equal(item.hintFrom.resolver, 'dayMaxHint', prefix);
-    assert.equal(item.hintFrom.args.keyStem, expect[prefix].keyStem, prefix);
-    assert.equal(item.hintFrom.args.subject, expect[prefix].subject, prefix);
-    // Fallback = lead + the numberless tail + coda: it opens and closes like the live one.
-    assert.equal(item.hint.indexOf(item.hintFrom.args.lead), 0, prefix + ' fallback opens on the lead');
-    assert.equal(item.hint.slice(item.hint.length - item.hintFrom.args.coda.length),
-      item.hintFrom.args.coda, prefix + ' fallback closes on the coda');
-    assert.match(item.hint, /warn level set under Alerts/, prefix + ' fallback states the hold rule');
-    assert.doesNotMatch(item.hint, /\d/, prefix + ' fallback names no number');
-    assert.match(dayMaxHintOf(prefix, {}, 'max'), /\d/, prefix + ' live hint names the level');
+    assert.equal(item.hintFrom.args.keyStem, stems[prefix], prefix);
+    ['max', 'both'].forEach((mode) => {
+      // The fallback is the live template with the level named, not numbered.
+      const fallback = item.hintFrom.args.hints[mode].split('{level}').join('your warn level')
+        + (prefix === 'aqi' ? ' The peak needs the Open-Meteo AQI provider (General tab).' : '');
+      assert.equal(item.hintByValue[mode], fallback, prefix + ' ' + mode + ' fallback');
+      assert.ok(item.hintByValue[mode].indexOf(subjects[prefix] + ' below your warn level') !== -1,
+        prefix + ' ' + mode + ' fallback states the hold rule');
+      assert.match(dayMaxHintOf(prefix, {}, mode), new RegExp(subjects[prefix] + ' below \\d'),
+        prefix + ' ' + mode + ' live hint names the level');
+    });
   });
 });
 
@@ -1783,8 +1823,7 @@ test('dayMaxHint: the slot sheet quotes the level set in the Alerts sheet, live'
   page.openEditSheet('threshUv');
   assert.ok(page.modal.innerHTML.indexOf('data-hint-for="uvSlotDisplay"') !== -1,
     'the pills hint is marked for the in-place repaint');
-  assert.ok(page.modal.innerHTML.indexOf('UV is 6 or higher') !== -1, 'the seed level, rendered');
-  assert.ok(page.modal.innerHTML.indexOf('Highlighting is off') !== -1);
+  assert.ok(page.modal.innerHTML.indexOf('UV is below 6 (your warn level)') !== -1, 'the seed level, rendered');
   assert.equal(page.modal.innerHTML.indexOf('data-range="threshUvWarn"'), -1,
     'no slider here: the slot sheet only points at the Alerts sheet');
   page.openEditSheet('alertUv');
@@ -1794,10 +1833,23 @@ test('dayMaxHint: the slot sheet quotes the level set in the Alerts sheet, live'
   page.modal.dispatch('keydown', { target: th, key: 'ArrowRight', preventDefault() {} });
   assert.equal(page.S.threshUvWarn, '7', 'the warn moved one step');
   page.openEditSheet('threshUv');
-  page.clickModalToggle('threshUvOn');
-  assert.ok(page.modal.innerHTML.indexOf('UV is 7 or higher') !== -1, 'the slot sheet follows the level');
-  assert.ok(page.modal.innerHTML.indexOf('Highlighting follows the number shown.') !== -1,
-    'and the highlight switch');
+  assert.ok(page.modal.innerHTML.indexOf('UV is below 7 (your warn level)') !== -1, 'the slot sheet follows the level');
+});
+
+test('dayMaxHint: picking Alert on a Now slot brings the hint in', () => {
+  // Now renders no hint element at all, so the pill click itself has to render the
+  // Alert hint (not an in-place repaint of an element that is not there).
+  const page = bootGeneratedPage({ provider: 'dwd' });
+  page.openEditSheet('threshUv');
+  assert.equal(page.modal.innerHTML.indexOf('data-hint-for="uvSlotDisplay"'), -1, 'Now: no hint');
+  const t = {
+    getAttribute: n => (n === 'data-k' ? 'uvSlotDisplay' : (n === 'data-v' ? 'max' : null)),
+    closest: sel => (sel === '[data-v]' ? t : null)
+  };
+  page.modal.dispatch('click', { target: t });
+  assert.equal(page.S.uvSlotDisplay, 'max');
+  assert.ok(page.modal.innerHTML.indexOf('Today\'s peak — the highest it gets for the rest of today.') !== -1,
+    'the Alert hint renders');
 });
 
 test('the slot pencil resolves the bold-only sheet for every new kind', () => {
@@ -1856,7 +1908,10 @@ test('the master Bold values row leads the slot selects, thresholds-gated', () =
   // Same platform gate as the sheets: aplite compiles the bold machinery out.
   assert.deepEqual(master.showWhen, { env: 'thresholds' },
     'the master row must be hidden on aplite');
-  assert.match(String(master.hint), /heavier text/, 'master row explains itself');
+  // One hint per selected option: All says what it does, Per slot where the choice is.
+  assert.match(master.hintByValue.all, /heavier text/, 'All explains itself');
+  assert.match(master.hintByValue.perSlot, /Bold value/, 'Per slot points at the per-slot row');
+  assert.equal(master.hint, undefined, 'no all-options hint');
 });
 
 test('every per-slot Bold row carries the master-disable predicate', () => {

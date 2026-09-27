@@ -1659,9 +1659,9 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
   // rather than "also adds" deltas relative to the option above (user request).
   assert.deepEqual(item.hintByValue, {
     off: 'Radar is hidden.',
-    // The countdown's time window moved to the Status slots tab's Alerts card; the
-    // mode's hint points there.
-    countdown: 'Fetches the rain radar only for the Alerts row\'s rain alert. Set its time window under Status slots → Alerts.',
+    // The countdown's time window moved to the Status slots tab's Alerts card, and its
+    // place is each bar's Alerts select (settings audit #25); the hint points at both.
+    countdown: 'Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alerts setting (Status slots tab) sets where it shows; its time window is under Status slots → Alerts.',
     status: 'Adds the Radar Status Bar.',
     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
   });
@@ -1683,6 +1683,24 @@ test('mode hints mention bar/graph only — no view claims, no positions', () =>
   assert.match(health.status, /^Adds the Health Status Bar/);
   assert.equal(radar.graph, 'Adds the Radar Status Bar and the full radar rain graph.');
   assert.match(health.all, /^Adds the Health Status Bar and a health graph/);
+});
+
+test('the Weather only hint follows the radar mode, each describing the Default view it compiles', () => {
+  // view-cycle.js buildViewCycle draws a different Default view per radarMode (settings
+  // audit #12): the rain radar only with Graph, the radar bar only with Status, the top
+  // bar kept in Rain alert only, and no radar at all with Off.
+  const env = platform.computeEnv({ platform: 'basalt' });
+  const hint = (S) => hintOf('layoutPreset', Object.assign({ layoutPreset: 'weatherOnly' }, S), env);
+  assert.match(hint({}), /no top bar — the rain radar, clock/, 'absent radarMode reads as Graph, the default');
+  assert.equal(hint({ radarMode: 'graph' }), hint({}));
+  assert.match(hint({ radarMode: 'status' }), /no top bar — the clock, the weather and radar status bars/);
+  assert.doesNotMatch(hint({ radarMode: 'status' }), /rain radar/);
+  assert.match(hint({ radarMode: 'countdown' }), /^No calendar — the top bar, where the rain alert shows/);
+  assert.match(hint({ radarMode: 'off' }), /no top bar — the clock, weather and a big forecast/);
+  assert.doesNotMatch(hint({ radarMode: 'off' }), /radar/);
+  // Every other preset keeps its static per-value hint: the resolver answers null, so
+  // resolveHint hands back undefined and the row falls back to hintByValue.
+  assert.strictEqual(hintOf('layoutPreset', { layoutPreset: 'noCal', radarMode: 'off' }, env), undefined);
 });
 
 test('compactDense hint holds for every pairing (health OR radar), not just health', () => {
@@ -2129,7 +2147,7 @@ test('the Alerts card is watch.sections[0]: its own card, above the status card'
   assert.equal(sec.groupCard, undefined, 'a card of its own, not a sub-header of the status card');
   assert.equal(sec.title, 'Alerts');
   assert.equal(sec.sheetOnly, undefined, 'a card, not a sheet');
-  assert.match(sec.intro, /^One icon per active alert, highlighted like a status slot/);
+  assert.match(sec.intro, /^One icon per active alert — filled at danger, and outlined at warn if its “Outline on warn” is on\./);
   assert.ok(sec.intro.indexOf('data-action="resetAlerts"') !== -1, 'the intro carries the card reset');
   assert.ok(sec.intro.indexOf('class="txt-act-btn"') !== -1, 'as the shared text-action chip');
   // The union of its rows' platform gates: a section with an intro never counts as
@@ -2193,6 +2211,9 @@ test('each status bar has an Alerts placement select: Off / Left / Middle / Righ
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const H = 'While an alert is active the icons replace this slot, and the middle slot too when they need the room.';
   const HMID = 'While an alert is active the icons replace this slot, and the left slot too when they need the room.';
+  // The top strip's Right gives way to the low-battery warning (status_row.c
+  // alerts_layout; settings audit #4), and its hint says so.
+  const HTOP = H + ' While the low-battery warning shows, they move to the middle slot.';
   const RADAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
   const HEALTH = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
   [['Forecast Status Bar', 'statusForecastAlerts', 'off', null],
@@ -2205,7 +2226,7 @@ test('each status bar has an Alerts placement select: Off / Left / Middle / Righ
     assert.deepEqual(it, {
       type: 'select', messageKey: key, label: 'Alerts', defaultValue: dflt,
       options: [['Off', 'off'], ['Left', 'left'], ['Middle', 'middle'], ['Right', 'right']],
-      hintByValue: { left: H, middle: HMID, right: H },
+      hintByValue: { left: H, middle: HMID, right: key === 'statusTopAlerts' ? HTOP : H },
       showWhen: barWhen ? { all: [THRESHOLD_WHEN, barWhen] } : THRESHOLD_WHEN
     }, key);
   });
@@ -2370,7 +2391,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     .forEach((frag) => assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt slot sheet carries ' + frag));
   assert.equal(basaltSheet.indexOf('data-range="threshAqiWarn"'), -1, 'no levels in the slot sheet');
   const alertSheet = eng.renderEditModal(schema, watchCx('basalt', 'alertAqi'));
-  ['data-k="alertAqi"', 'Reaching warn', 'Alert levels', 'Air quality (AQI) alert',
+  ['data-k="alertAqi"', 'reaching warn', 'Alert levels', 'Air quality (AQI) alert',
     'data-range="threshAqiWarn"'].forEach((frag) =>
     assert.ok(alertSheet.indexOf(frag) !== -1, 'basalt alert sheet carries ' + frag));
   assert.equal(alertSheet.indexOf('data-k="threshAqiOn"'), -1, 'no highlight switch in the alert sheet');
@@ -2484,6 +2505,10 @@ test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
       assert.ok(!/kph|mph|\bkn\b/.test(String(item.hint)),
         row.key + ' hint must not name a wind unit the Units tab controls');
       assert.ok(String(item.hint).length > 20, row.key + ' still needs a real hint');
+      // The unit gives way to the direction arrow in a narrow slot (status-lines.js
+      // withUnit after the arrow byte), and the hint says so (settings audit #22).
+      assert.equal(item.hint, 'Prints the unit after the value when it fits — in a narrow left or'
+        + ' right slot, a pair plus the direction arrow leaves no room for it.', row.key);
     }
     // Bold leads every slot sheet (see the sheet-shape tests above), so the extras
     // cannot lead — and on the two threshold sheets the row configures the SLOT, not
@@ -3127,18 +3152,30 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
 
 test('every day-max display row carries the live dayMaxHint', () => {
   // The pills' hint quotes the kind's warn level (blocks.js dayMaxHint); the args are
-  // what the resolver interpolates around that number, so they are pinned verbatim.
+  // the per-mode templates the resolver fills that number into ('{level}'), so they
+  // are pinned verbatim — one sentence set per SELECTED mode, none for Now.
   const byKey = (k) => items.find((i) => i.messageKey === k);
+  const hints = (subject, sample) => ({
+    max: 'Today\'s peak — the highest it gets for the rest of today. Once it has passed and '
+      + subject + ' below {level}, tomorrow\'s peak shows instead, with the mark chosen below,'
+      + ' or the current reading if tomorrow\'s isn\'t known.',
+    both: 'The reading now and today\'s peak, like ' + sample + ' — one number while they\'re the'
+      + ' same. Once today\'s peak has passed and ' + subject + ' below {level}, tomorrow\'s peak'
+      + ' shows instead, with the mark chosen below, or the reading alone if tomorrow\'s isn\'t known.'
+  });
   assert.deepEqual(['uv', 'wind', 'gust', 'aqi'].map((p) => byKey(p + 'SlotDisplay').hintFrom), [
-    { resolver: 'dayMaxHint', args: { keyStem: 'Uv', subject: 'UV is',
-      lead: 'Show the UV index now, the highest it still gets today, or both.', coda: '' } },
-    { resolver: 'dayMaxHint', args: { keyStem: 'Wind', subject: 'the wind is',
-      lead: 'Show the wind speed now, the strongest it still gets today, or both.', coda: '' } },
-    { resolver: 'dayMaxHint', args: { keyStem: 'Gust', subject: 'gusts are',
-      lead: 'Show the gusts now, the strongest they still get today, or both.', coda: '' } },
-    { resolver: 'dayMaxHint', args: { keyStem: 'Aqi', subject: 'the AQI is',
-      lead: 'Show the air quality index now, the highest it still gets today, or both.',
-      coda: ' The peak needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.' } }
+    { resolver: 'dayMaxHint', args: { keyStem: 'Uv', hints: hints('UV is', '3/7') } },
+    { resolver: 'dayMaxHint', args: { keyStem: 'Wind', hints: hints('the wind is', '12/30') } },
+    { resolver: 'dayMaxHint', args: { keyStem: 'Gust', hints: hints('gusts are', '20/45') } },
+    { resolver: 'dayMaxHint', args: { keyStem: 'Aqi', hints: hints('the AQI is', '42/58'), notes: {
+      key: 'aqiSource',
+      fallback: 'waqi',
+      byValue: {
+        waqi: ' Your AQI source (WAQI) has no forecast, so the current reading shows.',
+        auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
+      },
+      generic: ' The peak needs the Open-Meteo AQI provider (General tab).'
+    } } }
   ]);
 });
 

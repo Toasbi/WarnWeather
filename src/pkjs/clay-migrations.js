@@ -792,7 +792,7 @@ function migrateRadarProviderToMode(defaultRadarProvider, isMigrationDone, markD
 }
 
 /**
- * One-time 1.24.0 backfill of the "Highlight on the watch" toggles (thresh<K>On) from
+ * One-time 1.24.0 backfill of the Highlight / Goals toggles (thresh<K>On) from
  * their pairs. Until 1.24.0 the toggle was page-derived state: every settings open
  * rewrote it as "the stored warn/danger pair is complete and ordered", and the phone
  * packed the blob[0] enable bit from the pair alone. From 1.24.0 on the STORED toggle

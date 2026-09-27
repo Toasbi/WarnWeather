@@ -398,24 +398,38 @@ function graphColorRow(row, joins) {
 // applies to the alert icon always and to the slot only while that switch is on. The
 // goal group keeps its switch (goal kinds have no alert). Neither claims the warn level
 // bolds the value — Bold is its own setting, so saying so here could simply be false.
-var ALERT_LEVELS_INTRO = 'Warn and danger levels for this value. Reaching warn ' +
+// The outline is "can add": it follows the group's 'Outline on warn' / 'Outline on
+// close' toggle (status_alerts.c / status_row.c draw no warn box on a 0x00 accent).
+var ALERT_LEVELS_INTRO = 'Warn and danger levels for this value: reaching warn ' +
     'can add an outline, reaching danger fills the alert icon — and the slot, while ' +
-    'its Highlight is on. The outline is optional — enable it below.';
+    'its Highlight is on.';
+// "On color watches": on B&W the outline and fill are drawn in the theme's ink and
+// the color pickers below are hidden.
 var GOAL_SHEET_INTRO = 'Close and goal levels for this value. The switch ' +
-    'celebrates them on the watch: getting close adds the green outline, reaching ' +
-    'the goal fills the slot. Colors are yours to change below.';
+    'celebrates them on the watch: getting close can add an outline, reaching ' +
+    'the goal fills the slot. On color watches the colors are yours to change below.';
 // The Bold row is a SLOT-level setting, not a level one: it leads the slot sheet
 // (above the Goals group; an alert kind's levels live in its Alerts sheet) and stays
 // live while the kind's highlight is switched off, because "Always" needs no levels
 // to mean something. Only the middle option does —
 // it goes inert (not away: removing it would let the options-snapping path
 // rewrite a stored 'warn' to 'off') until the kind's highlight is on.
-// The hint spells out what each step does — bare pills alone read as "bold
-// what?" — in the sheet's two voices (alert levels reached vs goals reached).
-var BOLD_HINT = 'Show this value in heavier text — never, from the warn ' +
-    'level on, or always. Danger is always bold.';
-var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to ' +
-    'the goal on, or always. A reached goal is always bold.';
+// The hint explains the SELECTED step only (hintByValue), in the sheet's two voices
+// (alert levels reached vs goals reached). The level-driven bold — danger / a reached
+// goal, and the middle step — reads the kind's level, which the watch zeroes while the
+// kind's Highlight (Goals) switch is off (status_row.c slot_level), so the hints say
+// "while … is on". 'Always' needs no levels, so its note is the per-kind scope.
+var BOLD_ALWAYS_HINT = 'Every status slot showing this value prints it in heavier text.';
+var BOLD_HINTS = {
+    off: 'Danger still prints bold while Highlight is on.',
+    warn: 'Heavier text from the warn level on, while Highlight is on.',
+    always: BOLD_ALWAYS_HINT
+};
+var GOAL_BOLD_HINTS = {
+    off: 'A reached goal still prints bold while Goals are on.',
+    warn: 'Heavier text once you get close to the goal, while Goals are on.',
+    always: BOLD_ALWAYS_HINT
+};
 // The wind/gust slots' direction arrow. The arrow flies DOWNWIND (the way the wind is
 // blowing), not the meteorological "comes from" bearing the providers report — the
 // phone flips it before baking — so the copy has to say which way it points, or half
@@ -530,28 +544,39 @@ function pairRows(prefix, first, second, orderOptions) {
  * numbers, never their presentation (status-thresholds.js displayValue).
  *
  * 'Alert' (stored 'max', the wire vocabulary is unchanged) names what the mode is for:
- * today's peak holds while it is still ahead AND while it sits at the kind's warn level
- * or higher, so a slot never goes quiet under a value that still warrants the warning.
- * The pills' hint states that level as a NUMBER, live (blocks.js dayMaxHint — it follows
- * the slider, the unit pickers and the AQI scale on the next render); the static hint
- * is only its fallback for a page without the contract module, so it names no number.
+ * today's peak holds while it is still ahead or happening now AND while it sits at the
+ * kind's warn level or higher, so a slot never goes quiet under a value that still
+ * warrants the warning. The pills' hint explains the SELECTED mode only — Now, the
+ * default, gets none — and is about what the slot SHOWS (the highlight is explained in
+ * the Alerts sheet). It states the warn level as a NUMBER, live (blocks.js dayMaxHint
+ * fills dayMaxHints' {level} from the slider, the unit pickers and the AQI
+ * source/scale on every render); the static hintByValue is its fallback for a page
+ * without the contract module, the same copy with the level named, not numbered.
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} label The pills' label, e.g. 'UV selection'.
- * @param {{keyStem: string, subject: string, lead: string, coda: string}} copy The
- *     hint's parts: the kind's threshold key stem ('Uv'), the hold sentence's subject
- *     ('UV is'), the kind's own first sentence, and a closing note ('' for none).
+ * @param {{keyStem: string, subject: string, notes: ?Object}} copy The kind's
+ *     threshold key stem ('Uv'), the hold sentence's subject ('UV is'), and (AQI only)
+ *     the source notes: dayMaxHint closes on byValue[S[key] || fallback] (a leading
+ *     space; no entry, no note), the static fallback on `generic`. null for none.
  * @param {string} now Sample current reading for the separator labels, e.g. '3'.
  * @param {string} max Sample peak, e.g. '7'.
  * @returns {Object[]} The rows, in sheet order.
  */
 function dayMaxRows(prefix, label, copy, now, max) {
+    var hints = dayMaxHints(copy.subject, now + '/' + max);
+    var args = {keyStem: copy.keyStem, hints: hints};
+    if (copy.notes) { args.notes = copy.notes; }
+    // The fallback cannot read the source, so it closes on the source-free note.
+    var coda = copy.notes ? copy.notes.generic : '';
     return [{
         type: 'segmented',
         messageKey: prefix + 'SlotDisplay',
         label: label,
-        hint: copy.lead + DAY_MAX_HINT_TAIL + copy.coda,
-        hintFrom: {resolver: 'dayMaxHint', args: {keyStem: copy.keyStem,
-            subject: copy.subject, lead: copy.lead, coda: copy.coda}},
+        hintByValue: {
+            max: fillDayMaxHint(hints.max, DAY_MAX_LEVEL_NAME) + coda,
+            both: fillDayMaxHint(hints.both, DAY_MAX_LEVEL_NAME) + coda
+        },
+        hintFrom: {resolver: 'dayMaxHint', args: args},
         defaultValue: 'current',
         options: [['Now', 'current'], ['Alert', 'max'], ['Both', 'both']]
     }].concat(pairRows(prefix, now, max, [['Now first', 'now'], ['Alert first', 'max']]), [{
@@ -567,10 +592,39 @@ function dayMaxRows(prefix, label, copy, now, max) {
         showWhen: {key: prefix + 'SlotDisplay', in: ['max', 'both']}
     }]);
 }
-// The static fallback for the part of every day-max hint after its first sentence —
-// the hold rule without its number (the live dayMaxHint resolver prints the kind's
-// warn level instead; this shows only on a page without the contract module).
-var DAY_MAX_HINT_TAIL = ' Today\'s peak stays on screen while it is still ahead, and while it is at or above the warn level set under Alerts. Under that, tomorrow\'s peak shows instead, marked as chosen below. Highlighting follows the number shown.';
+// What the static fallback puts where the live hint prints the number.
+var DAY_MAX_LEVEL_NAME = 'your warn level';
+/**
+ * A day-max kind's Alert and Both hints as templates, '{level}' standing for the
+ * warn level (dayMaxHint: '6 (your warn level)'; the fallback: DAY_MAX_LEVEL_NAME).
+ * Each claim is wire-units dayMaxShown's: today's peak (the rest of today, the
+ * current hour included) holds while ahead, running or at warn or higher — once it
+ * is neither ahead nor running it equals the reading, so "{subject} below {level}"
+ * is the high hold's own test; then tomorrow's peak shows, marked, or — unknown or
+ * never above 0 — the reading alone. Both collapses a held today's peak equal to the
+ * reading to one number.
+ * @param {string} subject The hold sentence's subject with its verb, e.g. 'UV is'.
+ * @param {string} sample The kind's sample pair, e.g. '3/7'.
+ * @returns {{max: string, both: string}} The two templates.
+ */
+function dayMaxHints(subject, sample) {
+    var rest = ' below {level}, tomorrow\'s peak shows instead, with the mark chosen below';
+    return {
+        max: 'Today\'s peak — the highest it gets for the rest of today. Once it has passed and '
+            + subject + rest + ', or the current reading if tomorrow\'s isn\'t known.',
+        both: 'The reading now and today\'s peak, like ' + sample + ' — one number while they\'re '
+            + 'the same. Once today\'s peak has passed and ' + subject + rest
+            + ', or the reading alone if tomorrow\'s isn\'t known.'
+    };
+}
+/**
+ * @param {string} template A dayMaxHints template.
+ * @param {string} level What stands in for '{level}'.
+ * @returns {string} The hint.
+ */
+function fillDayMaxHint(template, level) {
+    return template.split('{level}').join(level);
+}
 /**
  * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
  * formatter's own table, so each label shows where its mark lands (three lead the
@@ -617,12 +671,14 @@ function unitRow(key, withUnit, without) {
         hint: withUnit
             ? 'Prints the unit after the value: ' + withUnit + ' instead of ' +
                 without + '.'
-            : 'Prints the unit after the value, not just the number.'
+            // Wind and gusts: withUnit drops the unit when it doesn't fit, after the
+            // direction arrow's byte is reserved (status-lines.js) — so say when.
+            : 'Prints the unit after the value when it fits — in a narrow left or right slot, a pair plus the direction arrow leaves no room for it.'
     };
 }
 // A kind's Alert levels (or Goals) group — the part of a level edit sheet that
 // configures the levels and their look, not the slot: the group sub-header (title,
-// reset — and, for the GOAL kinds only, the "Highlight on the watch" switch), a zoned
+// reset — and, for the GOAL kinds only, the Goals switch), a zoned
 // dual-thumb slider for the warn/danger pair, and the outline toggle + two color
 // pickers. A weather kind's group has no switch: its highlight switch is the slot
 // sheet's 'Highlight' row (highlightToggle), and its outline + colors style the alert
@@ -671,7 +727,7 @@ function levelsGroup(keyStem, hint, gate) {
         type: 'toggle',
         messageKey: onKey,
         // Aria-only: the switch rides the group header, whose intro carries the meaning.
-        label: 'Highlight on the watch',
+        label: 'Goals',
         defaultValue: false,
         onChange: 'thresholdToggle'
     } : null;
@@ -733,7 +789,7 @@ function levelsGroup(keyStem, hint, gate) {
         label: goal ? 'Outline on close' : 'Outline on warn',
         hint: goal
             ? 'Adds an outline to the slot when you get close to the goal.'
-            : 'Adds an outline from the warn level on, to the alert icon and to the highlighted slot.',
+            : 'Adds an outline from the warn level on, to the alert icon — and to the slot, while its Highlight is on.',
         // Goal kinds celebrate with the outline ON out of the box; weather warn
         // ships bold-only. (onLoad recomputes goal toggles from the stored color
         // and weather colors from the stored toggle — see above — and the seeded
@@ -796,7 +852,8 @@ function thresholdSection(title, keyStem, hint, gate, extraItems, tail) {
     var onKey = 'thresh' + keyStem + 'On';
     var goal = STATUS_THRESHOLDS.isGoalKind(keyStem);
     // Slot-level, above the group: how boldly the slot prints. The ladder is
-    // monotone — danger is always bold, the middle option adds the warn/close
+    // monotone — danger is always bold (while the kind's highlight is on: a
+    // switched-off kind has no level), the middle option adds the warn/close
     // level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
     // Goal kinds relabel the middle option only; the stored value stays 'warn' so
     // the wire keeps one vocabulary. The row stays live while the kind's
@@ -806,7 +863,7 @@ function thresholdSection(title, keyStem, hint, gate, extraItems, tail) {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
         label: 'Bold value',
-        hint: goal ? GOAL_BOLD_HINT : BOLD_HINT,
+        hintByValue: goal ? GOAL_BOLD_HINTS : BOLD_HINTS,
         defaultValue: 'warn',
         options: [['Off', 'off'], [goal ? 'Close' : 'Warn', 'warn'], ['Always', 'always']],
         disabledWhen: BOLD_ALL_WHEN,
@@ -843,7 +900,9 @@ function highlightToggle(keyStem) {
         type: 'toggle',
         messageKey: 'thresh' + keyStem + 'On',
         label: 'Highlight',
-        hint: 'Outlines or fills this slot when the value reaches its alert levels — set under Alerts.',
+        // Fill at danger always; the warn outline only with the Alerts sheet's
+        // 'Outline on warn' (a 0x00 warn accent draws no box — status_row.c).
+        hint: 'Fills this slot from the danger level on, and outlines it from warn if “Outline on warn” is on — levels and colors are set under Alerts.',
         defaultValue: false,
         onChange: 'thresholdToggle'
     };
@@ -894,8 +953,11 @@ function rainAlertSheet() {
             type: 'subheader',
             text: 'Rain alert',
             toggleKey: 'alertRain',
-            intro: 'Shows the rain drop in the Alerts row while rain is on its way to your location. '
-                + 'The radar mode “Rain alert only” keeps it on.'
+            // The watch shows it while rain falls now, whatever the window, and hides
+            // it while the radar is snoozed for the Battery saver hours
+            // (rain_countdown.c rain_countdown_format).
+            intro: 'Shows the rain drop in the Alerts row while it rains at your location or rain is due within the time window below. '
+                + 'Hidden during the Battery saver hours. The radar mode “Rain alert only” keeps it on.'
         }, {
             // Aria-only: the switch rides the sub-header above.
             type: 'toggle',
@@ -910,7 +972,7 @@ function rainAlertSheet() {
             messageKey: 'rainCountdownHorizon',
             label: 'Time window',
             defaultValue: '60',
-            hint: 'Show a rain countdown in the Alerts row when there is rain at your location within the selected time frame.<br>Because rain radar data is changing frequently, using a lower time window shows fewer false positives.',
+            hint: 'Rain due further out than this doesn’t trigger the alert. Rain radar forecasts change often, so a shorter window gives fewer false alarms.',
             options: RAIN_WINDOW_OPTIONS,
             disabledWhen: offWhen
         }, {
@@ -923,11 +985,13 @@ function rainAlertSheet() {
             label: 'Look',
             defaultValue: 'text',
             options: RAIN_LOOK_OPTIONS,
-            // Only the look that needs explaining gets a hint: the drop alone and the
-            // full countdown text describe themselves (and "as before" would describe
-            // the default look, which the hint style forbids).
+            // The drop alone describes itself. The two longer looks say what they
+            // print and that they shrink on a crowded bar (alert_set_degrade: Text →
+            // minutes, then every value and the minutes drop, bar-wide) — news the
+            // default Text look's name does not carry, so it gets a hint too.
             hintByValue: {
-                minutes: 'The drop with the minutes until the rain starts, or how long it keeps falling.'
+                minutes: 'The drop with the minutes until the rain starts, or +minutes while it rains. Just the drop when the bar is short on room.',
+                text: 'Shortens to the minutes, then to the drop alone, when the bar is short on room.'
             },
             disabledWhen: offWhen
         }]
@@ -947,9 +1011,10 @@ function rainAlertSheet() {
  * @param {string} title The kind's sheet title, e.g. 'UV index'.
  * @param {string} subject The value the intro names, e.g. 'the UV index'.
  * @param {string} hint The levels slider's scale note ('' for none).
+ * @param {string} [coda] A closing sentence for the intro (leading space), '' for none.
  * @returns {Object} Schema section (sheetOnly).
  */
-function alertSheet(keyStem, title, subject, hint) {
+function alertSheet(keyStem, title, subject, hint, coda) {
     var key = 'alert' + keyStem;
     return {
         sheetOnly: true,
@@ -962,7 +1027,9 @@ function alertSheet(keyStem, title, subject, hint) {
             toggleKey: key,
             // "reaches … today": the entry fires on the highest value left today, so the
             // morning icon for an afternoon peak is by design (status-thresholds alertValue).
-            intro: 'Shows an icon in the Alerts row whenever ' + subject + ' reaches your warn level or higher today.'
+            // `coda` closes it for a kind whose look-ahead depends on its source (AQI).
+            intro: 'Shows an icon in the Alerts row when ' + subject + ' reaches your warn level '
+                + 'at any point left today, so an afternoon peak shows from the morning on.' + (coda || '')
         }, {
             // Aria-only: the switch rides the sub-header above.
             type: 'toggle',
@@ -976,9 +1043,11 @@ function alertSheet(keyStem, title, subject, hint) {
             defaultValue: 'icon',
             options: [['Icon', 'icon'], ['Icon + value', 'value']],
             // The icon-only look (the default) needs no hint; the value look says what
-            // it costs.
+            // it costs. Values never cost an entry: the row picks its slots at full
+            // width (status_row.c alerts_layout), so it takes the neighbor sooner, and
+            // a short row drops every value before any icon (alert_set_degrade).
             hintByValue: {
-                value: 'The value the alert fires on after the icon. Fewer alerts fit the row.'
+                value: 'Adds the value the alert fires on after the icon. It needs more room: the row takes the neighboring slot sooner, and shows icons only when even that is too narrow.'
             },
             disabledWhen: {not: {key: key}}
         }].concat(levelsGroup(keyStem, hint, null))
@@ -990,8 +1059,12 @@ var ALERT_KINDS = [
     {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', icon: 'uv'},
     {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', icon: 'wind'},
     {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', icon: 'gust'},
+    // AQI looks ahead only on an hourly forecast (AQI_DAY_PEAKS): WAQI — the default
+    // source, and Auto whenever a station answers — has none, so alertValue judges
+    // the current reading. The coda mirrors the slot sheet's source note.
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
-        icon: 'aqi'},
+        icon: 'aqi', coda: ' Looking ahead needs the Open-Meteo AQI provider (General tab); with WAQI '
+            + 'the alert judges the current reading.'},
     {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', icon: 'pollen',
         gate: {key: 'provider', eq: 'dwd'},
         hint: 'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'}
@@ -1057,6 +1130,9 @@ function alertCardItems() {
 // (status-thresholds.js barAlertPlace: the top strip Left — where the rain countdown
 // always took over — every other bar Off), so an untouched upgrade draws what it drew.
 var ALERT_PLACE_HINT = 'While an alert is active the icons replace this slot, and the middle slot too when they need the room.';
+// The top strip's Right: the low-battery warning keeps that slot (status_row.c
+// alerts_layout moves the row to the middle while battery_override holds).
+var ALERT_PLACE_TOP_RIGHT_HINT = ALERT_PLACE_HINT + ' While the low-battery warning shows, they move to the middle slot.';
 /**
  * @param {string} bar 'top' | 'forecast' | 'radar' | 'health' (BAR_ALERT_KEYS).
  * @param {?Object} barWhen The bar's own gate (RADAR_BAR_WHEN …), or null.
@@ -1077,7 +1153,7 @@ function alertPlaceRow(bar, barWhen) {
         hintByValue: {
             left: ALERT_PLACE_HINT,
             middle: 'While an alert is active the icons replace this slot, and the left slot too when they need the room.',
-            right: ALERT_PLACE_HINT
+            right: bar === 'top' ? ALERT_PLACE_TOP_RIGHT_HINT : ALERT_PLACE_HINT
         },
         showWhen: barWhen ? {all: [THRESHOLD_WHEN, barWhen]} : THRESHOLD_WHEN
     };
@@ -1181,7 +1257,8 @@ function boldSection(title, keyStem, gate, extraItems) {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
         label: 'Bold value',
-        hint: 'Show this value in heavier text.',
+        // Off is the default and needs no words; Always says how far it reaches.
+        hintByValue: {always: BOLD_ALWAYS_HINT},
         defaultValue: 'off',
         options: [['Off', 'off'], ['Always', 'always']],
         disabledWhen: BOLD_ALL_WHEN
@@ -2010,7 +2087,7 @@ module.exports = {
         // budget can't afford it), so the whole tab is env-hidden there (tab-level
         // showWhen; see platform.js radar env flag). Mirrors the health tab.
         id: 'radar', label: 'Radar', showWhen: {env: 'radar'}, sections: [{
-            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where it appears in the Layout tab.<br>',
+            intro: 'Rain radar is a second view — a precise short-term rain forecast for your location. Set where the view appears in the Layout tab.<br>',
             items: [{
                 type: 'radio',
                 messageKey: 'radarMode',
@@ -2018,7 +2095,9 @@ module.exports = {
                 defaultValue: 'graph',
                 hintByValue: {
                     off: 'Radar is hidden.',
-                    countdown: 'Fetches the rain radar only for the Alerts row\'s rain alert. Set its time window under Status slots → Alerts.',
+                    // No radar bar or graph in this mode: the alert's place is each bar's Alerts
+                    // select (Status slots tab), not the Layout tab the intro names.
+                    countdown: 'Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alerts setting (Status slots tab) sets where it shows; its time window is under Status slots → Alerts.',
                     status: 'Adds the Radar Status Bar.',
                     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
                 },
@@ -2227,10 +2306,13 @@ module.exports = {
             // has neither the rain radar nor the Alerts row. The reset chip reverts the
             // alerts' switches and looks and the rain time window (blocks.js
             // resetAlerts); the levels keep their own reset in each sheet, the
-            // placements ride the status card's reset.
+            // placements ride the status card's reset. The intro states the icon's look
+            // as the watch draws it (status_alerts.c): a danger box always, a warn box
+            // only on a set warn accent ('Outline on warn'), whatever the slot's
+            // Highlight; the rain drop is tinted per tier on color and never boxed.
             title: 'Alerts',
             showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
-            intro: 'One icon per active alert, highlighted like a status slot: an outline at warn, filled at danger, in that value\'s colors. Rain shows in the radar\'s rain color. Each status bar below chooses where they appear.'
+            intro: 'One icon per active alert — filled at danger, and outlined at warn if its “Outline on warn” is on. On color watches the rain drop takes the radar’s rain color. Each status bar below chooses where they appear.'
                 + ' <button type="button" class="txt-act-btn" data-action="resetAlerts">Reset alerts to defaults</button>',
             items: alertCardItems()
         }, {
@@ -2262,7 +2344,11 @@ module.exports = {
                     // "have", not "let": the ES5 guardrail (test/config-es5.test.js)
                     // greps for \blet\s in shipped pkjs source and cannot tell a
                     // string literal from a declaration.
-                    hint: 'Show every slot value in heavier text, or have each slot choose with its own Bold value setting.',
+                    // The selected option's meaning only; Per slot says where the choice is.
+                    hintByValue: {
+                        perSlot: 'Each slot’s edit sheet sets its own Bold value.',
+                        all: 'Every slot value prints in heavier text.'
+                    },
                     defaultValue: 'perSlot',
                     options: [['Per slot', 'perSlot'], ['All', 'all']],
                     showWhen: THRESHOLD_WHEN
@@ -2315,12 +2401,21 @@ module.exports = {
         // status slot whose selected value has thresholds — never rendered as cards here.
         // The AQI day max needs an hourly forecast, which only the Open-Meteo source
         // has: on WAQI's current reading every mode prints that reading alone. The
-        // note closes the hint (coda) so it reads in every mode, Now included.
+        // note closes the Alert and Both hints for the source that cannot give a
+        // peak — WAQI (the default, so an absent key reads as it), and Auto, which
+        // reads WAQI whenever a station answers; Open-Meteo gets none.
         thresholdSection('Air quality (AQI)', 'Aqi', '', null, dayMaxRows('aqi', 'AQI selection', {
             keyStem: 'Aqi',
             subject: 'the AQI is',
-            lead: 'Show the air quality index now, the highest it still gets today, or both.',
-            coda: ' The peak needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.'
+            notes: {
+                key: 'aqiSource',
+                fallback: 'waqi',
+                byValue: {
+                    waqi: ' Your AQI source (WAQI) has no forecast, so the current reading shows.',
+                    auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
+                },
+                generic: ' The peak needs the Open-Meteo AQI provider (General tab).'
+            }
         }, '42', '58'), [alertLevelsNote()]),
         // Pollen's scale hint rides its levels group, in the Alerts card's sheet.
         thresholdSection('Pollen', 'Pollen', '', null, null, [alertLevelsNote()]),
@@ -2332,9 +2427,7 @@ module.exports = {
         // Wind, gusts and AQI carry UV's display modes (dayMaxRows), each kind its own.
         thresholdSection('Wind speed', 'Wind', '', null, dayMaxRows('wind', 'Wind selection', {
             keyStem: 'Wind',
-            subject: 'the wind is',
-            lead: 'Show the wind speed now, the strongest it still gets today, or both.',
-            coda: ''
+            subject: 'the wind is'
         }, '12', '30').concat([{
             type: 'toggle',
             messageKey: 'windSlotDirection',
@@ -2350,9 +2443,7 @@ module.exports = {
         }, unitRow('windSlotUnit', null, null)]), [alertLevelsNote()]),
         thresholdSection('Wind gusts', 'Gust', '', null, dayMaxRows('gust', 'Gust selection', {
             keyStem: 'Gust',
-            subject: 'gusts are',
-            lead: 'Show the gusts now, the strongest they still get today, or both.',
-            coda: ''
+            subject: 'gusts are'
         }, '20', '45').concat([{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
@@ -2370,9 +2461,7 @@ module.exports = {
         // text only — the highlight judges the numbers, never their presentation.
         thresholdSection('UV index', 'Uv', '', null, dayMaxRows('uv', 'UV selection', {
             keyStem: 'Uv',
-            subject: 'UV is',
-            lead: 'Show the UV index now, the highest it still gets today, or both.',
-            coda: ''
+            subject: 'UV is'
         }, '3', '7'), [alertLevelsNote()]),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
@@ -2398,7 +2487,11 @@ module.exports = {
             type: 'segmented',
             messageKey: 'tempSlotDisplay',
             label: 'Temperature selection',
-            hint: 'Show the measured temperature, what it feels like, or both. For both, choose the separator and order below.',
+            // The selected mode only; the measured temperature (the default) needs none.
+            hintByValue: {
+                feels: 'What it feels like, by the formula set under General → Units.',
+                both: 'Both, like 12/10 — choose the separator and order below.'
+            },
             defaultValue: 'actual',
             options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']],
             // Picking Both clears the degree: "-12/-10" is already 7 of an edge
@@ -2474,7 +2567,7 @@ module.exports = {
         // card's row order: rain, then one per metric alert kind holding its switch,
         // its Look and its levels (the levels' one home).
         rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
-            return alertSheet(k.keyStem, k.title, k.subject, k.hint || '');
+            return alertSheet(k.keyStem, k.title, k.subject, k.hint || '', k.coda || '');
         }))
     }, {
         id: 'layout', label: 'Layout', sections: [{
@@ -2492,6 +2585,16 @@ module.exports = {
                     weatherOnly: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast. Flick to health.',
                     custom: 'Build each view yourself — pick its elements and graphs, then order, size and align them.'
                 },
+                // 'Weather only' draws a different Default view per radar mode
+                // (view-cycle.js buildViewCycle: WO_RADAR / WO_RADAR_S / NONE_FC_W /
+                // WO_PLAIN), so its hint follows radarMode; the static one above is the
+                // Graph text, the default mode's. Every other preset keeps hintByValue.
+                hintFrom: {resolver: 'weatherOnlyHint', args: {byRadar: {
+                    graph: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast. Flick to health.',
+                    status: 'No calendar and no top bar — the clock, the weather and radar status bars and a big forecast. Flick to health.',
+                    countdown: 'No calendar — the top bar, where the rain alert shows by default, then the clock, weather and a big forecast. Flick to health.',
+                    off: 'No calendar and no top bar — the clock, weather and a big forecast. Flick to health.'
+                }}},
                 // Compact-dense only differs from Compact when a health status row OR the
                 // radar status row is shown; with both off the two produce identical cycles,
                 // so it's hidden then. A stored compactDense lies DORMANT while hidden

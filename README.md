@@ -49,8 +49,10 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Status lines**
 * Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more
 * Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for calendar views (month + year) and no-calendar views (full date)
-* Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while it is at warn or higher
-* Alerts row: one icon for incoming rain and for every metric at its alert level, shown in place of a status bar's slots while an alert is active — each status bar chooses Off, Left, Middle or Right; each metric alert can print its value next to the icon, and rain shows as an icon, the minutes until it starts, or the full countdown text (not on Pebble Classic/Steel)
+* Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
+* Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)
+* Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while it is at warn or higher (not on Pebble Classic/Steel)
+* Alerts row: one icon for incoming rain and for every metric that reaches its alert level today (later hours included), shown in place of a status bar's slots while an alert is active — each status bar chooses Off, Left, Middle or Right; each metric alert can print its value next to the icon, and rain shows as an icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text; when a bar runs out of room, values and the rain text shorten first, then the last alerts are left out (not on Pebble Classic/Steel)
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches
@@ -92,8 +94,9 @@ Two things that both involve rain over time, but answer different questions:
   likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
   temperature status slot can also show the feels-like value, or both as `12/10`; the UV index
   slot can show today's highest UV still to come, or both as `3/7`; today's peak stays while it
-  is still ahead or at your warn level or higher, then tomorrow's shows instead, marked `»`
-  (`4/»8`). The wind, gust and air quality slots offer the same Alert mode (air quality with the Open-Meteo AQI provider, whose
+  is still ahead or happening now, and while it is at your warn level or higher, then
+  tomorrow's shows instead, marked `»` (`4/»8`), or just the current reading when tomorrow's
+  isn't known. The wind, gust and air quality slots offer the same Alert mode (air quality with the Open-Meteo AQI provider, whose
   hourly forecast it needs; WAQI reports the current reading only). How the pair is written
   is up to you: pick the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or
   without spaces around it (`12 / 10`), which value comes first, and how tomorrow's peak is

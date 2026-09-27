@@ -243,43 +243,40 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * A day-max kind's Now / Alert / Both hint, with the hold level as a number: the
-     * kind's resolved warn level (the stored pair, else its seed — the very number
-     * status-thresholds holdWarn hands the phone's hold rule) in the unit its slider
-     * shows. Re-resolved on every render, so it follows the slider, the General-tab
-     * unit pickers and the AQI source/scale with no dependency list — and in place
-     * after a keyboard nudge on a thumb, which commits without a render
-     * (range-control.js). Now mode gets the kind's lead alone: the hold/mark tail
-     * describes rows that mode hides. The warn level it names lives in the kind's
-     * Alerts sheet (the slot sheet only points there), so the hint sends the reader
-     * "under Alerts" for it; the highlight switch is this slot sheet's Highlight row,
-     * "above"; the tomorrow mark is still "below".
-     * The page's HTML is raw here (engine renderRow),
-     * so only numbers and the range table's unit label are interpolated — the rest is
-     * schema copy.
+     * A day-max kind's Now / Alert / Both hint — the SELECTED mode only, with the hold
+     * level as a number: the kind's resolved warn level (the stored pair, else its seed
+     * — the very number status-thresholds holdWarn hands the phone's hold rule) in the
+     * unit its slider shows, filled into the schema's template (schema.js dayMaxHints).
+     * Re-resolved on every render, so it follows the slider, the General-tab unit
+     * pickers and the AQI source/scale with no dependency list — and in place after a
+     * keyboard nudge on a thumb, which commits without a render (range-control.js).
+     * Now, the default, gets no hint: the pill says it. The hint is about what the slot
+     * SHOWS, so it says nothing about highlighting (the Alerts sheet explains that).
+     * AQI closes on its source's note when that source has no forecast to take a peak
+     * from (args.notes). The page's HTML is raw here (engine renderRow), so only
+     * numbers and the range table's unit label are interpolated — the rest is schema
+     * copy.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{value: string, keyStem: string, subject: string, lead: string,
-     *   coda: string}} args The row's shown mode + dayMaxRows' copy parts.
-     * @returns {?string} The hint, or null (static fallback) without the contract.
+     * @param {{value: string, keyStem: string, hints: {max: string, both: string},
+     *   notes: ?{key: string, fallback: string, byValue: Object}}} args The row's shown
+     *   mode + dayMaxRows' copy.
+     * @returns {?string} The hint ('' for none), or null (static fallback) without the
+     *     contract.
      */
     function dayMaxHint(S, env, args) {
+        if (args.value !== 'max' && args.value !== 'both') { return ''; }
         var contract = thresholdContract();
         var stem = args.keyStem;
-        if (!contract || !THRESHOLD_RANGES[stem]) { return null; }
-        var coda = args.coda || '';
-        if (args.value === 'current') { return args.lead + coda; }
-        var pair = contract.resolvedPair(stem, S || {});
+        if (!contract || !THRESHOLD_RANGES[stem] || !args.hints) { return null; }
+        var st = S || {};
+        var pair = contract.resolvedPair(stem, st);
         if (typeof pair.warn !== 'number') { return null; }
-        var unit = THRESHOLD_RANGES[stem](S || {}).unit;
-        var on = Boolean(S) && S['thresh' + stem + 'On'] === true;
-        return args.lead + ' Today\'s peak stays on screen while it is still ahead, and while '
-            + args.subject + ' ' + pair.warn + (unit ? ' ' + unit : '')
-            + ' or higher — the warn level set under Alerts. Under that, tomorrow\'s peak shows'
-            + ' instead, marked as chosen below. '
-            + (on ? 'Highlighting follows the number shown.'
-                : 'Highlighting is off — switch it on above to color it.')
-            + coda;
+        var unit = THRESHOLD_RANGES[stem](st).unit;
+        var level = pair.warn + (unit ? ' ' + unit : '') + ' (your warn level)';
+        var notes = args.notes;
+        var note = notes ? notes.byValue[st[notes.key] || notes.fallback] || '' : '';
+        return args.hints[args.value].split('{level}').join(level) + note;
     }
     // THRESHOLD_RANGES / thresholdContract sit further down this file: both are read at
     // render time, long after this file has loaded.
@@ -1103,6 +1100,24 @@ if (typeof require !== 'undefined') {
             + ' · ' + (optionLabel(a.looks, st.rainAlertDisplay) || optionLabel(a.looks, 'text'));
     }
     PConf.hintResolvers.register('rainAlertHint', rainAlertHint);
+
+    /**
+     * The layout preset's hint for 'Weather only', whose Default view differs per radar
+     * mode (view-cycle.js buildViewCycle): the schema's text for the stored radarMode,
+     * an absent one read as the radio's default ('graph'). Every other preset answers
+     * null, so its row keeps the static hintByValue.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{value: string, byRadar: Object}} args The row's shown preset + the
+     *     per-radarMode texts (schema.js).
+     * @returns {?string} The hint, or null for the static one.
+     */
+    function weatherOnlyHint(S, env, args) {
+        if (!args || args.value !== 'weatherOnly' || !args.byRadar) { return null; }
+        var mode = (S && S.radarMode) || 'graph';
+        return args.byRadar[mode] || null;
+    }
+    PConf.hintResolvers.register('weatherOnlyHint', weatherOnlyHint);
 
     var viewCycleLib = (typeof require !== 'undefined')
         ? require('../view-cycle.js') : window.VIEW_CYCLE;

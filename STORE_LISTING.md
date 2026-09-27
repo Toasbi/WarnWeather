@@ -63,16 +63,19 @@ STATUS LINES
       - watch battery icon
       - watch battery percentage
       - phone battery
-- Bold status values to make them stand out or easier to read
+- Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
+  (not on Pebble Classic/Steel)
 - Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger
   level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while
-  it is at warn or higher
-- Alerts row: one icon for incoming rain and for every metric at its alert level, shown in
-  place of a status bar's slots while an alert is active — each status bar chooses Off,
-  Left, Middle or Right; each metric alert can print its value next to the icon, and rain
-  shows as an icon, the minutes until it starts, or the full countdown text (not on Pebble
-  Classic/Steel)
+  it is at warn or higher (not on Pebble Classic/Steel)
+- Alerts row: one icon for incoming rain and for every metric that reaches its alert level
+  today (later hours included), shown in place of a status bar's slots while an alert is
+  active — each status bar chooses Off, Left, Middle or Right; each metric alert can print
+  its value next to the icon, and rain shows as an icon, the minutes until it starts (or,
+  while it rains, how long it keeps falling), or the full countdown text; when a bar runs
+  out of room, values and the rain text shorten first, then the last alerts are left out
+  (not on Pebble Classic/Steel)
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches
