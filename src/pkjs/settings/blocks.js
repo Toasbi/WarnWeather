@@ -242,6 +242,47 @@ if (typeof require !== 'undefined') {
         return lineStyleHint(S ? S[args.metricKey] : undefined, args.value);
     });
 
+    /**
+     * A day-max kind's Now / Alert / Both hint, with the hold level as a number: the
+     * kind's resolved warn level (the stored pair, else its seed — the very number
+     * status-thresholds holdWarn hands the phone's hold rule) in the unit its slider
+     * shows. Re-resolved on every render, so it follows the slider, the General-tab
+     * unit pickers and the AQI source/scale with no dependency list — and in place
+     * after a keyboard nudge on a thumb, which commits without a render
+     * (range-control.js). Now mode gets the kind's lead alone: the hold/mark tail
+     * describes rows that mode hides. The switch it points at rides the Alert levels
+     * header, which follows the display rows — hence "below", like the warn level.
+     * The page's HTML is raw here (engine renderRow),
+     * so only numbers and the range table's unit label are interpolated — the rest is
+     * schema copy.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{value: string, keyStem: string, subject: string, lead: string,
+     *   coda: string}} args The row's shown mode + dayMaxRows' copy parts.
+     * @returns {?string} The hint, or null (static fallback) without the contract.
+     */
+    function dayMaxHint(S, env, args) {
+        var contract = thresholdContract();
+        var stem = args.keyStem;
+        if (!contract || !THRESHOLD_RANGES[stem]) { return null; }
+        var coda = args.coda || '';
+        if (args.value === 'current') { return args.lead + coda; }
+        var pair = contract.resolvedPair(stem, S || {});
+        if (typeof pair.warn !== 'number') { return null; }
+        var unit = THRESHOLD_RANGES[stem](S || {}).unit;
+        var on = Boolean(S) && S['thresh' + stem + 'On'] === true;
+        return args.lead + ' Today\'s peak stays on screen while it is still ahead, and while '
+            + args.subject + ' ' + pair.warn + (unit ? ' ' + unit : '')
+            + ' or higher — the warn level set below. Under that, tomorrow\'s peak shows'
+            + ' instead, marked as chosen below. '
+            + (on ? 'Highlighting follows the number shown.'
+                : 'Highlighting is off — switch it on below to color it.')
+            + coda;
+    }
+    // THRESHOLD_RANGES / thresholdContract sit further down this file: both are read at
+    // render time, long after this file has loaded.
+    PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
+
     // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
     // for the slot's CURRENT value, when that value is a threshold kind. The catalog's
     // slot codes and the threshold contract's KINDS codes are the same vocabulary

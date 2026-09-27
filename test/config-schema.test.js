@@ -2131,15 +2131,15 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   });
 
   // Composition check: the health kinds' slider keeps the health gate (showWhen);
-  // the off-state is a DISABLE (disabledWhen), not a hide — and the color pickers
-  // keep COLOR + non-B&W-theme, unchanged.
+  // the slider is never muted by the highlight toggle (the warn level also sets the
+  // day-max hold) — and the color pickers keep COLOR + non-B&W-theme, unchanged.
   assert.deepEqual(byKey('threshStepsWarn').showWhen,
     { all: [{ env: 'health' }, { key: 'healthMode', ne: 'off' }] },
     'health kinds keep the health/healthMode item gate');
   assert.equal(byKey('threshAqiWarn').showWhen, undefined,
     'weather kinds carry no item gate — the section gate is what hides them on aplite');
-  assert.deepEqual(byKey('threshAqiWarn').disabledWhen, { not: { key: 'threshAqiOn' } },
-    'the off-state mutes the slider instead of hiding it');
+  assert.equal(byKey('threshAqiWarn').disabledWhen, undefined,
+    'the slider stays live while the highlight is off');
   THRESH_COLOR_KEYS.forEach((k) => {
     assert.deepEqual(byKey(k).capabilities, ['COLOR'], k + ' keeps the COLOR capability');
     assert.equal(showWhen.isVisible(byKey(k), { env: platform.computeEnv({ platform: 'basalt' }), theme: 'bw', healthMode: 'status' }), false,
@@ -2214,8 +2214,8 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     const who = i === 0 ? 'aplite' : 'basalt';
     THRESH_KEYS.forEach((k) => assert.equal(body.indexOf('data-k="' + k + '"'), -1,
       k + ' has no in-body control on ' + who + ' (sheet-only now)'));
-    assert.equal(body.indexOf('crossing the warn threshold'), -1,
-      who + ' body has no threshold intro (it moved into the sheets)');
+    assert.equal(body.indexOf('reaching warn'), -1,
+      who + ' body has no Alert levels intro (it lives in the sheets)');
   });
   // The pencil: basalt's default AQI forecast slot offers its sheet; aplite offers none.
   assert.ok(basaltBody.indexOf('data-edit-sheet="threshAqi"') !== -1,
@@ -2223,14 +2223,14 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   assert.equal(apliteBody.indexOf('data-edit-sheet'), -1,
     'aplite renders no pencil anywhere (env.thresholds is false)');
   // The sheet itself: full on basalt (Bold row + group header toggle + intro + a
-  // DISABLED slider preview while the toggle is off — behavior covered in
+  // LIVE slider even while the toggle is off — behavior covered in
   // config-thresholds.test.js), empty on aplite even if forced open.
   const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
-  ['data-k="threshAqiOn"', 'data-k="threshAqiBoldMode"', 'crossing the warn threshold',
+  ['data-k="threshAqiOn"', 'data-k="threshAqiBoldMode"', 'reaching warn', 'Alert levels',
     'Air quality (AQI) slot', 'data-range="threshAqiWarn"'].forEach((frag) =>
     assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt sheet carries ' + frag));
-  assert.ok(/class="row stack[^"]*\bdis\b/.test(basaltSheet),
-    'the slider renders disabled while the highlight toggle is off');
+  assert.ok(!/class="row stack[^"]*\bdis\b/.test(basaltSheet),
+    'the slider renders live while the highlight toggle is off');
   assert.equal(eng.renderEditModal(schema, watchCx('aplite', 'threshAqi')), '',
     'aplite renders an empty sheet even when forced open');
   // The rest of the Status-slots tab is untouched on aplite. (Time/Calendar live
@@ -2260,12 +2260,12 @@ test('the wind and gust sheets carry the direction toggle', () => {
     // must name the direction: the arrow flies downwind, not along the reported bearing.
     assert.match(String(item.hint), /arrow/i, key + ' explains what it draws');
     assert.match(String(item.hint), /blowing/i, key + ' says which way the arrow points');
-    // Bold still leads the sheet, and the extra row sits above the Thresholds group:
+    // Bold still leads the sheet, and the extra row sits above the Alert levels group:
     // it configures the slot, not the highlight.
     assert.match(String(sheet.items[0].messageKey), /BoldMode$/, id + ' must open with Bold');
     const hdr = sheet.items.findIndex((i) => i.type === 'subheader');
     assert.ok(sheet.items.indexOf(item) < hdr,
-      key + ' must sit above the Thresholds group header');
+      key + ' must sit above the Alert levels group header');
   });
 });
 
@@ -2342,13 +2342,13 @@ test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
     }
     // Bold leads every slot sheet (see the sheet-shape tests above), so the extras
     // cannot lead — and on the two threshold sheets the row configures the SLOT, not
-    // the highlight, so it stays above the Thresholds group header.
+    // the highlight, so it stays above the Alert levels group header.
     assert.match(String(sheet.items[0].messageKey), /BoldMode$/,
       row.sheetId + ' must open with Bold');
     const hdr = sheet.items.findIndex((i) => i.type === 'subheader');
     if (hdr !== -1) {
       assert.ok(sheet.items.indexOf(item) < hdr,
-        row.key + ' must sit above the Thresholds group header');
+        row.key + ' must sit above the Alert levels group header');
     }
   });
   // Temp is the one sheet with two display rows: the unit toggle follows the
@@ -2978,6 +2978,23 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
     assert.ok(['provider', 'location', 'locationMode', 'gpsCacheMin'].indexOf(i.messageKey) === -1,
       'the weather tab must not host watch key ' + i.messageKey);
   }));
+});
+
+test('every day-max display row carries the live dayMaxHint', () => {
+  // The pills' hint quotes the kind's warn level (blocks.js dayMaxHint); the args are
+  // what the resolver interpolates around that number, so they are pinned verbatim.
+  const byKey = (k) => items.find((i) => i.messageKey === k);
+  assert.deepEqual(['uv', 'wind', 'gust', 'aqi'].map((p) => byKey(p + 'SlotDisplay').hintFrom), [
+    { resolver: 'dayMaxHint', args: { keyStem: 'Uv', subject: 'UV is',
+      lead: 'Show the UV index now, the highest it still gets today, or both.', coda: '' } },
+    { resolver: 'dayMaxHint', args: { keyStem: 'Wind', subject: 'the wind is',
+      lead: 'Show the wind speed now, the strongest it still gets today, or both.', coda: '' } },
+    { resolver: 'dayMaxHint', args: { keyStem: 'Gust', subject: 'gusts are',
+      lead: 'Show the gusts now, the strongest they still get today, or both.', coda: '' } },
+    { resolver: 'dayMaxHint', args: { keyStem: 'Aqi', subject: 'the AQI is',
+      lead: 'Show the air quality index now, the highest it still gets today, or both.',
+      coda: ' The peak needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.' } }
+  ]);
 });
 
 test('the day-max sheets\' keys are exactly the catalog\'s dayMaxSettingKeys', () => {

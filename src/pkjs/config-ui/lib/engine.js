@@ -889,7 +889,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var stacked = item.type === 'text' || item.type === 'radio' || item.type === 'range'
       || item.type === 'rgb'
       || (item.type === 'color' && view.openColor === item.messageKey);
-    var hintHtml = hint ? '<div class="hint">' + hint + '</div>' : '';
+    // A derived (hintFrom) hint carries its row's key, so a commit that skips render()
+    // can still re-resolve it in place (boot's repaintDerivedHints). Static hints
+    // never change without a render, so they stay unmarked.
+    var hintHtml = hint ? '<div class="hint"'
+      + (item.hintFrom ? ' data-hint-for="' + esc(item.messageKey) + '"' : '')
+      + '>' + hint + '</div>' : '';
     // An optional small icon button beside the label (item.labelAction: {action, arg,
     // label}) dispatching through the shared [data-action] path — e.g. the threshold
     // slider's reset-to-defaults.
@@ -1490,7 +1495,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       ENV: ENV,
       findItem: findItem,
       resolveRangeItem: resolveRangeItem,
-      render: render
+      render: render,
+      repaintHints: repaintDerivedHints
     });
     // On open, focus the search box (searchSelect) or the selected/first option (select).
     function focusModal() {
@@ -1869,6 +1875,40 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           if (span.textContent !== label) { span.textContent = label; }
           aria = selectTriggerAria(item, label);
           if (trigs[i].getAttribute('aria-label') !== aria) { trigs[i].setAttribute('aria-label', aria); }
+        }
+      }
+    }
+
+    /**
+     * Re-resolve every derived (hintFrom) hint rendered in #scroll and #modal IN PLACE —
+     * only the hint element's markup changes, no node around it is replaced. For a commit
+     * that deliberately skips render(): a keyboard nudge on a range thumb (range-control.js)
+     * must keep focus on the thumb, yet a hint elsewhere in the sheet may read the value it
+     * just wrote (e.g. a day-max kind's hint quoting its warn level). Each hint is found by
+     * its data-hint-for key (renderRow marks derived hints only) and resolved the way
+     * renderItem does — the resolver's answer, else the static hintByValue/hint for the
+     * stored value. A hint that rendered empty has no element to find and waits for the
+     * next render, as do showWhen and blocks; the row's wrap layout, chosen from the hint's
+     * length at render time, is likewise left as it was.
+     *
+     * @returns {void}
+     */
+    function repaintDerivedHints() {
+      var hosts = [document.getElementById('scroll'), document.getElementById('modal')];
+      var ctx = evalCtx(), h, i, els, key, item, hint;
+      for (h = 0; h < hosts.length; h++) {
+        els = (hosts[h] && hosts[h].querySelectorAll)
+          ? hosts[h].querySelectorAll('.hint[data-hint-for]') : [];
+        for (i = 0; i < els.length; i++) {
+          key = els[i].getAttribute('data-hint-for');
+          item = findShownItem(SCHEMA, key, ctx);
+          if (!item || !item.hintFrom) { continue; }
+          hint = resolveHint(item, S, ENV, S[key]);
+          if (hint === undefined) {
+            hint = item.hintByValue ? (item.hintByValue[S[key]] || item.hint) : item.hint;
+          }
+          hint = hint == null ? '' : String(hint);
+          if (els[i].innerHTML !== hint) { els[i].innerHTML = hint; }
         }
       }
     }

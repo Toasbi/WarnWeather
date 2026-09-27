@@ -12,9 +12,14 @@
 //     display-snap) under its own args;
 //   - null/undefined falls back to the static hint, '' means "no hint", and an
 //     unregistered resolver id falls back too;
-//   - the hook reaches a row inside an edit sheet.
+//   - the hook reaches a row inside an edit sheet;
+//   - a derived hint carries its row's key (data-hint-for), and an arrow-key nudge on a
+//     range thumb — a commit that skips render() to keep the thumb focused —
+//     re-resolves it in place.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 // Shared dual-use modules must populate global.PConf before engine.js reads them.
 require('../lib/schema-walk.js');
 require('../lib/color.js');
@@ -52,8 +57,15 @@ function cxFor(S, extra) {
   }, extra || {});
 }
 
-/** @param {string} text Hint text. @returns {string} The hint markup the row prints. */
-function hintHtml(text) { return '<div class="hint">' + text + '</div>'; }
+/**
+ * @param {string} text Hint text.
+ * @param {string} [key] The row's messageKey — set for a hintFrom row, whose hint
+ *   element carries it (data-hint-for) for the in-place repaint.
+ * @returns {string} The hint markup the row prints.
+ */
+function hintHtml(text, key) {
+  return '<div class="hint"' + (key ? ' data-hint-for="' + key + '"' : '') + '>' + text + '</div>';
+}
 
 /** Register the demo resolver: the metric's scale, per the row's shown style. */
 function registerStyleScale() {
@@ -81,16 +93,16 @@ test('renderBody: the hooked row shows the resolver answer and follows the key i
   registerStyleScale();
   const S = E.hydrate(SCHEMA, {});
   let body = E.renderBody(SCHEMA, 't', cxFor(S));
-  assert.ok(body.indexOf(hintHtml('By rain chance')) >= 0, 'derived hint shown');
+  assert.ok(body.indexOf(hintHtml('By rain chance', 'style')) >= 0, 'derived hint shown');
   assert.equal(body.indexOf('STATIC'), -1, 'it replaces the static hint');
   assert.ok(body.indexOf(hintHtml('PLAIN')) >= 0, 'an unhooked row in the same section is unaffected');
   // The page re-renders after every change: a new metric re-words the style row's hint.
   S.metric = 'wind';
   body = E.renderBody(SCHEMA, 't', cxFor(S));
-  assert.ok(body.indexOf(hintHtml('By wind scale')) >= 0, 'follows the other key');
+  assert.ok(body.indexOf(hintHtml('By wind scale', 'style')) >= 0, 'follows the other key');
   S.style = 'dots';
   body = E.renderBody(SCHEMA, 't', cxFor(S));
-  assert.ok(body.indexOf(hintHtml('By wind scale, dotted')) >= 0, 'and its own value');
+  assert.ok(body.indexOf(hintHtml('By wind scale, dotted', 'style')) >= 0, 'and its own value');
 });
 
 test('resolveHint: args carry the messageKey and shown value UNDER hintFrom.args', () => {
@@ -125,17 +137,17 @@ test('renderBody: null falls back to the static hint, "" means no hint, a missin
   const S = E.hydrate(SCHEMA, {});
   E.hintResolvers.register('styleScale', function () { return null; });
   let body = E.renderBody(SCHEMA, 't', cxFor(S));
-  assert.ok(body.indexOf(hintHtml('STATIC')) >= 0, 'null -> static hint');
+  assert.ok(body.indexOf(hintHtml('STATIC', 'style')) >= 0, 'null -> static hint');
   S.style = 'dots';
   body = E.renderBody(SCHEMA, 't', cxFor(S));
-  assert.ok(body.indexOf(hintHtml('STATIC DOTS')) >= 0, 'null -> static hintByValue for the shown value');
+  assert.ok(body.indexOf(hintHtml('STATIC DOTS', 'style')) >= 0, 'null -> static hintByValue for the shown value');
   E.hintResolvers.register('styleScale', function () { return ''; });
   body = E.renderBody(SCHEMA, 't', cxFor(S));
   assert.equal(body.indexOf('STATIC'), -1, '"" -> no hint at all, not the static one');
   const SCH = JSON.parse(JSON.stringify(SCHEMA));
   SCH.tabs[0].sections[0].items[1].hintFrom = { resolver: 'missing' };
   body = E.renderBody(SCH, 't', cxFor(S));
-  assert.ok(body.indexOf(hintHtml('STATIC DOTS')) >= 0, 'unregistered resolver -> static hint, no crash');
+  assert.ok(body.indexOf(hintHtml('STATIC DOTS', 'style')) >= 0, 'unregistered resolver -> static hint, no crash');
 });
 
 test('renderEditModal: the hook reaches a row inside an edit sheet', () => {
@@ -143,5 +155,143 @@ test('renderEditModal: the hook reaches a row inside an edit sheet', () => {
   const S = E.hydrate(SCHEMA, {});
   S.metric = 'wind';
   const sheet = E.renderEditModal(SCHEMA, cxFor(S, { openEdit: 'sheetStyle' }));
-  assert.ok(sheet.indexOf(hintHtml('By wind scale')) >= 0, 'sheet row shows the derived hint');
+  assert.ok(sheet.indexOf(hintHtml('By wind scale', 'sheetStyle')) >= 0, 'sheet row shows the derived hint');
+});
+
+// --- the in-place repaint after a keyboard nudge ------------------------------------
+// The range keydown path commits WITHOUT render() (a render rebuilds the host and drops
+// focus from the thumb being arrowed), so a hint that reads the slider's value is
+// re-resolved in place instead. Proven through a real boot: the wiring is boot-local.
+
+const NUDGE_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+  { title: 'Body', items: [
+    { type: 'segmented', messageKey: 'mode', label: 'Mode', defaultValue: 'a',
+      hint: 'STATIC', hintFrom: { resolver: 'bandHint' }, options: [['A', 'a'], ['B', 'b']] },
+    { type: 'segmented', messageKey: 'other', label: 'Other', defaultValue: 'x',
+      hint: 'PLAIN', options: [['X', 'x'], ['Y', 'y']] },
+    { type: 'range', messageKey: 'band', label: 'Band', defaultValue: '40-180',
+      min: 30, max: 220, step: 5, minSpan: 50, unit: 'BPM' }
+  ] }
+] }] };
+
+const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div>)/g;
+
+/**
+ * Boot the engine bundle against a DOM shim whose #scroll counts full innerHTML writes
+ * (renders) apart from in-place hint repaints, which it splices into the markup.
+ * @returns {{scroll: Object, dispatch: function(string, Object): void}} Harness knobs.
+ */
+function bootNudgePage() {
+  const LIB = path.join(__dirname, '..', 'lib');
+  const BUNDLE = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js',
+    'range-control.js', 'engine.js']
+    .map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
+    + '\nPConf.engine.boot();';
+  const listeners = {};
+  let raw = '';
+  /** @param {string} key data-hint-for. @returns {Object} A hint element stub. */
+  function hintStub(key) {
+    const find = () => {
+      HINT_RE.lastIndex = 0;
+      let m;
+      while ((m = HINT_RE.exec(raw))) { if (m[2] === key) { return m; } }
+      return null;
+    };
+    const stub = { getAttribute: (n) => (n === 'data-hint-for' ? key : null) };
+    Object.defineProperty(stub, 'innerHTML', {
+      get() { const m = find(); return m ? m[4] : ''; },
+      set(v) {
+        const m = find();
+        raw = raw.slice(0, m.index) + m[1] + m[2] + m[3] + v + m[5] + raw.slice(m.index + m[0].length);
+        scroll.repaints += 1;
+      }
+    });
+    return stub;
+  }
+  const scroll = { className: '', scrollTop: 0, writes: 0, repaints: 0,
+    addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
+    querySelectorAll(sel) {
+      if (sel !== '.hint[data-hint-for]') { return []; }
+      const keys = [];
+      HINT_RE.lastIndex = 0;
+      let m;
+      while ((m = HINT_RE.exec(raw))) { keys.push(m[2]); }
+      return keys.map(hintStub);
+    } };
+  Object.defineProperty(scroll, 'innerHTML', {
+    get() { return raw; },
+    set(v) { raw = v; scroll.writes += 1; }
+  });
+  const modal = { innerHTML: '', style: {}, open: false,
+    classList: { add() {}, remove() {}, contains() { return false; } },
+    setAttribute() {}, addEventListener() {}, removeEventListener: () => {},
+    querySelector: () => null, querySelectorAll: () => [] };
+  const generic = () => ({ innerHTML: '', textContent: '', addEventListener() {} });
+  const ids = { scroll, modal, tabs: generic(), save: generic(), appTitle: generic(), toast: generic() };
+  const document = { getElementById: (id) => ids[id] || generic(), addEventListener() {},
+    querySelector: () => null };
+  const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
+    'INJECTED_USERDATA', 'INJECTED_RETURN', 'requestAnimationFrame', 'setTimeout', 'clearTimeout',
+    BUNDLE);
+  fn(document, NUDGE_SCHEMA, { color: true }, {}, {}, 'pebblejs://close#', () => 0, () => 0, () => {});
+  return {
+    scroll,
+    dispatch(type, ev) { (listeners[type] || []).forEach((l) => l(ev)); }
+  };
+}
+
+/**
+ * A focused thumb inside a plain range root, as the keydown handler reads them.
+ * @param {string} key data-range messageKey.
+ * @param {number} lo data-lo.
+ * @param {number} hi data-hi.
+ * @param {string} which 'lo' | 'hi'.
+ * @returns {Object} The thumb stub.
+ */
+function rangeThumb(key, lo, hi, which) {
+  const attrs = { 'data-range': key, 'data-lo': String(lo), 'data-hi': String(hi) };
+  const node = () => ({ style: {}, setAttribute() {}, innerHTML: '' });
+  const nodes = { '.rng-val': node(), '.rng-fill': node(),
+    '[data-range-thumb=lo]': node(), '[data-range-thumb=hi]': node() };
+  const root = { getAttribute: (n) => (n in attrs ? attrs[n] : null),
+    setAttribute(n, v) { attrs[n] = String(v); }, querySelector: (sel) => nodes[sel] || null };
+  const th = { getAttribute: (n) => (n === 'data-range-thumb' ? which : null),
+    closest: (sel) => (sel === '[data-range-thumb]' ? th : (sel === '.rng' ? root : null)) };
+  return th;
+}
+
+test('boot: an arrow-key nudge re-resolves the derived hints in place, without a render', () => {
+  const h = bootNudgePage();
+  // The bundle installs its own registries over global.PConf: register after boot, then
+  // render once (a pill tap on the other row) so the hooked row sees the resolver.
+  global.PConf.hintResolvers.register('bandHint', function (S, env, args) {
+    return 'Band starts at ' + String(S.band).split('-')[0] + (args.value === 'b' ? ' (B)' : '');
+  });
+  const pill = { getAttribute: (n) => ({ 'data-k': 'other', 'data-v': 'y' })[n] || null };
+  h.dispatch('click', { target: { closest: (sel) => (sel === '[data-v]' ? pill : null) } });
+  assert.ok(h.scroll.innerHTML.indexOf(hintHtml('Band starts at 40', 'mode')) >= 0,
+    'the derived hint is marked with its row key');
+  assert.ok(h.scroll.innerHTML.indexOf(hintHtml('PLAIN')) >= 0, 'a static hint stays unmarked');
+  const writes = h.scroll.writes;
+  let prevented = false;
+  h.dispatch('keydown', { target: rangeThumb('band', 40, 180, 'lo'), key: 'ArrowRight',
+    preventDefault() { prevented = true; } });
+  assert.ok(prevented, 'the nudge was handled');
+  assert.ok(h.scroll.innerHTML.indexOf(hintHtml('Band starts at 45', 'mode')) >= 0,
+    'the hint follows the nudged value');
+  assert.equal(h.scroll.writes, writes, 'no full render — the focused thumb survives');
+  assert.equal(h.scroll.repaints, 1, 'one hint element rewritten in place');
+  // An unchanged answer writes nothing: a nudge on a value no hint reads is free.
+  global.PConf.hintResolvers.register('bandHint', function () { return 'Fixed'; });
+  h.dispatch('keydown', { target: rangeThumb('band', 45, 180, 'hi'), key: 'ArrowLeft',
+    preventDefault() {} });
+  h.dispatch('keydown', { target: rangeThumb('band', 45, 175, 'hi'), key: 'ArrowLeft',
+    preventDefault() {} });
+  assert.equal(h.scroll.repaints, 2, 'rewritten once to the new answer, then left alone');
+  // A null answer falls back to the static hint, as a render would.
+  global.PConf.hintResolvers.register('bandHint', function () { return null; });
+  h.dispatch('keydown', { target: rangeThumb('band', 45, 170, 'hi'), key: 'ArrowLeft',
+    preventDefault() {} });
+  assert.ok(h.scroll.innerHTML.indexOf(hintHtml('STATIC', 'mode')) >= 0, 'null -> the static hint');
+  assert.equal(h.scroll.writes, writes, 'still no render');
 });

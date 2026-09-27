@@ -5,7 +5,7 @@
 // dropdown (four presets labelled by example, plus Custom), a custom-separator field the
 // Custom pick reveals, whether spaces flank the separator (one toggle over every preset),
 // and which value leads. UV adds the mark on a max that has rolled
-// on to tomorrow's peak, which shows in Day max as well as Both. The phone bakes all of
+// on to tomorrow's peak, which shows in Alert as well as Both. The phone bakes all of
 // it into the slot text (status-pair.js); the watch is not involved.
 //
 // The contract pinned here: the keys and stored values the formatter reads, defaults
@@ -59,7 +59,7 @@ const KINDS = [{
     ['Custom', 'custom']]
 }, {
   prefix: 'uv', sheetId: 'threshUv', samples: ['3', '7'],
-  order: [['Now first', 'now'], ['Max first', 'max']],
+  order: [['Now first', 'now'], ['Alert first', 'max']],
   modes: ['current', 'max', 'both'],
   separators: [['3/7', 'slash'], ['3(7)', 'brackets'], ['3·7', 'dot'], ['3|7', 'bar'],
     ['Custom', 'custom']]
@@ -76,7 +76,7 @@ test('each two-value sheet carries its pair rows right under the display pills',
         k.prefix + 'SlotSeparatorSpaced', k.prefix + 'SlotOrder'],
       k.sheetId + ': separator, custom separator, spacing, order — in that order');
   });
-  // UV's tomorrow mark closes its display group, still above the Thresholds header.
+  // UV's tomorrow mark closes its display group, still above the Alert levels header.
   const uvKeys = sheet('threshUv').items.map(it => it.messageKey || it.type);
   assert.equal(uvKeys[uvKeys.indexOf('uvSlotOrder') + 1], 'uvSlotNextDayMark');
   assert.equal(uvKeys[uvKeys.indexOf('uvSlotNextDayMark') + 1], 'subheader');
@@ -219,7 +219,7 @@ test('the pair rows show only in Both; the custom field only on a Custom pick', 
       key + ' hides on a fresh install'));
 });
 
-test('the tomorrow mark shows in Day max and Both — the two modes that print a max', () => {
+test('the tomorrow mark shows in Alert and Both — the two modes that print a max', () => {
   ['current', 'max', 'both', undefined].forEach((mode) => {
     assert.equal(showWhen.isVisible(item('uvSlotNextDayMark'), { uvSlotDisplay: mode, env: ENV }),
       mode === 'max' || mode === 'both', 'mode ' + mode);
@@ -329,9 +329,9 @@ test('Temp outside Both: no pair rows, and the sheet spaces exactly as before', 
   });
 });
 
-test('UV: the mark joins in Day max, the pair rows join in Both, the Thresholds header follows', () => {
+test('UV: the mark joins in Alert, the pair rows join in Both, the Alert levels header follows', () => {
   const max = openSheet({ uvSlotDisplay: 'max' }, 'threshUv').modal.innerHTML;
-  assert.equal(max.indexOf('data-select="uvSlotSeparator"'), -1, 'Day max prints no pair');
+  assert.equal(max.indexOf('data-select="uvSlotSeparator"'), -1, 'Alert prints no pair');
   assert.match(rowClass(max, 'uvSlotDisplay'), TIGHT, 'display row tightens onto the mark');
   assert.match(rowClass(max, 'uvSlotNextDayMark'), LOOSE, 'the header draws its own line');
 

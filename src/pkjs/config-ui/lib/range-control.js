@@ -602,6 +602,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    *   {function(Object, Object, Object): ?Object} ctx.resolveRangeItem The
    *     engine's rangeFrom resolver dispatch.
    *   {function(): void} ctx.render Full re-render.
+   *   {function(): void} [ctx.repaintHints] Re-resolve the derived (hintFrom) hints
+   *     in place, without a render — run after a keyboard nudge's commit.
    * @returns {{wireRangeEvents: Function, openMaxEdit: Function,
    *   commitMaxEdit: Function, isDragging: Function}}
    */
@@ -810,8 +812,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Keyboard: arrows nudge the focused thumb one step. This deliberately does NOT
       // call render() — render() rebuilds the host's DOM, which would drop focus from
       // the thumb the user is arrowing — so it paints the move in place instead, same
-      // as a drag frame. (Enter in the inline scale-max field commits via blur →
-      // focusout, that field's single commit path.)
+      // as a drag frame. A drag's release renders once and so refreshes every row that
+      // reads the value; a nudge has no release, so after its commit the derived hints
+      // (hintFrom — e.g. a day-max hint quoting the warn level) are re-resolved in place
+      // too, with the same no-replaced-node discipline. (Enter in the inline scale-max
+      // field commits via blur → focusout, that field's single commit path.)
       host.addEventListener('keydown', function (e) {
         var mi = e.target.closest && e.target.closest('[data-max-input]');
         if (mi) { if (e.key === 'Enter') { mi.blur(); } return; }
@@ -832,6 +837,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         var next = moveControl(current, which, current[which] + delta * rangeStep(item), item);
         paintRange(root, item, next);
         commitRange(item, next);
+        if (ctx.repaintHints) { ctx.repaintHints(); }
         e.preventDefault();
       });
     }

@@ -329,7 +329,7 @@ picking the shown swatch is what writes it.
 | `description` | string | HTML description rendered below the label |
 | `hint` | string | HTML hint rendered below the control |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
-| `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows only (not `button`/`sheet` chevron rows or `inline` cells). |
+| `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows only (not `button`/`sheet` chevron rows or `inline` cells). Also re-resolved in place after a keyboard nudge on a range thumb. |
 | `attributes.placeholder` | string | Placeholder text for `text` items |
 | `capabilities` | `["COLOR"]` | Clay-compatible sugar: hides the item on b&w platforms |
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
@@ -505,6 +505,13 @@ options-resolver registry above), so the hint follows every key the resolver rea
 to declare — the same reason `optionsFrom` lists and `showWhen` gates stay current. An
 unregistered resolver id, or a `null`/`undefined` answer, falls back to `hintByValue` for the
 shown value, then `hint`; an empty string is honoured as "no hint here".
+
+One commit skips the render on purpose: an arrow-key nudge on a range thumb paints the slider in
+place so the thumb keeps focus (range-control.js). So a derived hint is re-resolved in place
+after it instead — `renderRow` marks every derived hint element with `data-hint-for="<messageKey>"`,
+and the engine rewrites just that element's markup, replacing no node. WarnWeather's day-max
+hints (`dayMaxHint`) rely on it: they quote the warn level the slider below them sets. A hint
+that rendered empty (no element) and the row's wrap layout wait for the next full render.
 
 ### Action registry — PConf.actions
 

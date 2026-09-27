@@ -23,6 +23,9 @@ const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').re
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const unescHtml = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
   .replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+// A derived (hintFrom) hint as engine.js renderRow writes it; group 2 is its row key,
+// group 4 its markup (no nested divs in any hint the harness drives).
+const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div>)/g;
 
 /** A DOM-element stub for the handful of nodes boot() touches.
  *
@@ -31,6 +34,11 @@ const unescHtml = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').r
  * (relabelSelectTriggers). Its span-text / aria-label writes are spliced back into the
  * markup WITHOUT counting as an innerHTML write (they bump `relabels` instead), so a
  * test can tell an in-place relabel from a full re-render.
+ *
+ * `querySelectorAll('.hint[data-hint-for]')` likewise answers one stub per derived hint
+ * — the engine's in-place hint repaint after a keyboard nudge on a range thumb
+ * (repaintDerivedHints). Its innerHTML writes are spliced back the same way and bump
+ * `hintRepaints`, not `writes`.
  * @param {string} id element id
  * @returns {Object} stub exposing addEventListener/dispatch + an innerHTML counter
  */
@@ -69,13 +77,40 @@ function makeEl(id) {
       querySelector(sel) { return sel === 'span' ? span : null; }
     };
   }
+  // One derived-hint element, by its data-hint-for key.
+  function findHint(key) {
+    HINT_RE.lastIndex = 0;
+    let m;
+    while ((m = HINT_RE.exec(raw))) { if (unescHtml(m[2]) === key) { return m; } }
+    return null;
+  }
+  function hintStub(key) {
+    const stub = { getAttribute: n => (n === 'data-hint-for' ? key : null) };
+    Object.defineProperty(stub, 'innerHTML', {
+      get() { const m = findHint(key); return m ? m[4] : ''; },
+      set(v) {
+        const m = findHint(key);
+        if (!m) { return; }
+        raw = raw.slice(0, m.index) + m[1] + m[2] + m[3] + v + m[5] + raw.slice(m.index + m[0].length);
+        el.hintRepaints += 1;
+      }
+    });
+    return stub;
+  }
   const el = {
-    id, className: '', textContent: '', writes: 0, relabels: 0,
+    id, className: '', textContent: '', writes: 0, relabels: 0, hintRepaints: 0,
     addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
     dispatch(type, ev) { (handlers[type] || []).forEach(fn => fn(ev)); },
     types() { return Object.keys(handlers); },
     querySelector() { return null; },
     querySelectorAll(sel) {
+      if (sel === '.hint[data-hint-for]') {
+        const hints = [];
+        HINT_RE.lastIndex = 0;
+        let h;
+        while ((h = HINT_RE.exec(raw))) { hints.push(unescHtml(h[2])); }
+        return hints.map(hintStub);
+      }
       if (sel !== '.sel-wrap[data-select]') { return []; }
       const keys = [];
       TRIGGER_RE.lastIndex = 0;

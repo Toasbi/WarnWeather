@@ -383,29 +383,30 @@ function graphColorRow(row, joins) {
     if (joins) { item.joinPrevious = true; }
     return item;
 }
-// Shared intro lines at the top of every threshold edit sheet (the sheets are the only
-// place thresholds are explained now that the Watch-tab card is gone). Two voices: the
-// weather kinds cross THRESHOLDS upward; the health kinds fall short of GOALS
-// (`goal` in the contract) — same rises-toward-the-pair machinery, friendlier
-// words. Both state the
-// always-bold rule: warn = bold text (outline only if enabled below), danger = filled.
-// Neither intro claims the warn level bolds the value any more — Bold is its own
-// setting above, so saying so here could simply be false.
-var THRESHOLD_SHEET_INTRO = 'Highlight this value in its status slot: crossing the ' +
-    'warn threshold can add an outline; crossing the danger threshold fills the ' +
-    'slot. The warn outline is optional — enable it below.';
-var GOAL_SHEET_INTRO = 'Celebrate this goal in its status slot: getting close ' +
-    'adds the green outline; reaching the goal fills the slot. Colors are yours ' +
-    'to change below.';
-// The Bold row is a SLOT-level setting, not a threshold one: it sits above the
-// threshold group and stays live while that group is switched off, because
-// "Always" needs no thresholds to mean something. Only the middle option does —
+// Shared intro lines at the top of every level group in an edit sheet (the sheets are
+// the only place the levels are explained now that the Watch-tab card is gone). Two
+// voices: the weather kinds rise to ALERT LEVELS; the health kinds work toward GOALS
+// (`goal` in the contract) — same rises-toward-the-pair machinery, friendlier words.
+// Both lead with what the pair IS and only then say the switch is what puts it on the
+// watch: the slider stays live while the switch is off (the weather pair also sets the
+// day-max hold level, highlighting or not), so the intro must not read as if the
+// numbers were the highlight's alone. Neither claims the warn level bolds the value —
+// Bold is its own setting above, so saying so here could simply be false.
+var ALERT_LEVELS_INTRO = 'Warn and danger levels for this value. The switch ' +
+    'highlights them on the watch: reaching warn can add an outline, reaching ' +
+    'danger fills the slot. The outline is optional — enable it below.';
+var GOAL_SHEET_INTRO = 'Close and goal levels for this value. The switch ' +
+    'celebrates them on the watch: getting close adds the green outline, reaching ' +
+    'the goal fills the slot. Colors are yours to change below.';
+// The Bold row is a SLOT-level setting, not a level one: it sits above the
+// Alert levels group and stays live while that group's highlight is switched off,
+// because "Always" needs no levels to mean something. Only the middle option does —
 // it goes inert (not away: removing it would let the options-snapping path
-// rewrite a stored 'warn' to 'off') until the kind's thresholds are on.
+// rewrite a stored 'warn' to 'off') until the kind's highlight is on.
 // The hint spells out what each step does — bare pills alone read as "bold
-// what?" — in the sheet's two voices (thresholds crossed vs goals reached).
+// what?" — in the sheet's two voices (alert levels reached vs goals reached).
 var BOLD_HINT = 'Show this value in heavier text — never, from the warn ' +
-    'threshold on, or always. Danger is always bold.';
+    'level on, or always. Danger is always bold.';
 var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to ' +
     'the goal on, or always. A reached goal is always bold.';
 // The wind/gust slots' direction arrow. The arrow flies DOWNWIND (the way the wind is
@@ -413,7 +414,7 @@ var GOAL_BOLD_HINT = 'Show this value in heavier text — never, from close to '
 // phone flips it before baking — so the copy has to say which way it points, or half
 // the readers will read it backwards. Shared by both slots: one arrow, two kinds.
 var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
-    'wind is blowing now. Not while Day max shows a peak alone.';
+    'wind is blowing now. Not while Alert shows a peak alone.';
 // The two-value slots — Temperature and UV in their "Both" mode — print a pair in one
 // slot (12/10, 3/7). How the pair reads is chosen per kind, on the rows pairRows()
 // builds below that kind's display pills. The phone bakes the text (status-pair.js,
@@ -514,29 +515,40 @@ function pairRows(prefix, first, second, orderOptions) {
     }];
 }
 /**
- * A day-max slot kind's display rows (UV, wind, gusts, AQI): the Now / Day max / Both
+ * A day-max slot kind's display rows (UV, wind, gusts, AQI): the Now / Alert / Both
  * pills, the pair rows Both reveals (pairRows), and the mark on a max that has rolled
  * on to tomorrow's peak. Global per kind, baked phone-side (status-lines.js
  * formatValue; the numbers are wire-units' dayMaxShown) and on renderSignature(), so a
  * change re-bakes without waiting for the next fetch. The highlight follows the
  * numbers, never their presentation (status-thresholds.js displayValue).
+ *
+ * 'Alert' (stored 'max', the wire vocabulary is unchanged) names what the mode is for:
+ * today's peak holds while it is still ahead AND while it sits at the kind's warn level
+ * or higher, so a slot never goes quiet under a value that still warrants the warning.
+ * The pills' hint states that level as a NUMBER, live (blocks.js dayMaxHint — it follows
+ * the slider, the unit pickers and the AQI scale on the next render); the static hint
+ * is only its fallback for a page without the contract module, so it names no number.
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} label The pills' label, e.g. 'UV selection'.
- * @param {string} hint The pills' hint.
+ * @param {{keyStem: string, subject: string, lead: string, coda: string}} copy The
+ *     hint's parts: the kind's threshold key stem ('Uv'), the hold sentence's subject
+ *     ('UV is'), the kind's own first sentence, and a closing note ('' for none).
  * @param {string} now Sample current reading for the separator labels, e.g. '3'.
  * @param {string} max Sample peak, e.g. '7'.
  * @returns {Object[]} The rows, in sheet order.
  */
-function dayMaxRows(prefix, label, hint, now, max) {
+function dayMaxRows(prefix, label, copy, now, max) {
     return [{
         type: 'segmented',
         messageKey: prefix + 'SlotDisplay',
         label: label,
-        hint: hint,
+        hint: copy.lead + DAY_MAX_HINT_TAIL + copy.coda,
+        hintFrom: {resolver: 'dayMaxHint', args: {keyStem: copy.keyStem,
+            subject: copy.subject, lead: copy.lead, coda: copy.coda}},
         defaultValue: 'current',
-        options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
-    }].concat(pairRows(prefix, now, max, [['Now first', 'now'], ['Max first', 'max']]), [{
-        // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
+        options: [['Now', 'current'], ['Alert', 'max'], ['Both', 'both']]
+    }].concat(pairRows(prefix, now, max, [['Now first', 'now'], ['Alert first', 'max']]), [{
+        // The mark on a max that has rolled on to tomorrow's peak — in Alert AND
         // Both, the two modes that print a max. 'raquo' is the '»' the UV slot
         // printed before this row existed, so it stays the default.
         type: 'select',
@@ -548,8 +560,10 @@ function dayMaxRows(prefix, label, hint, now, max) {
         showWhen: {key: prefix + 'SlotDisplay', in: ['max', 'both']}
     }]);
 }
-// The part of every day-max hint after its first sentence.
-var DAY_MAX_HINT_TAIL = ' Today\'s peak shows until the value drops below it, then the max shows tomorrow\'s, marked as chosen below. Highlighting follows the highest of today\'s values shown; tomorrow\'s never counts.';
+// The static fallback for the part of every day-max hint after its first sentence —
+// the hold rule without its number (the live dayMaxHint resolver prints the kind's
+// warn level instead; this shows only on a page without the contract module).
+var DAY_MAX_HINT_TAIL = ' Today\'s peak stays on screen while it is still ahead, and while it is at or above the warn level set below. Under that, tomorrow\'s peak shows instead, marked as chosen below. Highlighting follows the number shown.';
 /**
  * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
  * formatter's own table, so each label shows where its mark lands (three lead the
@@ -599,11 +613,12 @@ function unitRow(key, withUnit, without) {
             : 'Prints the unit after the value, not just the number.'
     };
 }
-// One threshold-highlight edit sheet (sheetOnly — opened from a status slot's pencil,
-// never rendered as a card): a "Highlight this value" toggle, a zoned dual-thumb
-// slider for the warn/danger pair, and the two color pickers. Values live in the
-// kind's DISPLAYED unit (wind unit / km-mi / hours); toggling off stores both blank —
-// the same disabled-state wire contract the old text fields had. The slider's
+// One level edit sheet (sheetOnly — opened from a status slot's pencil, never rendered
+// as a card): an Alert levels (or Goals) group of a "Highlight on the watch" toggle, a
+// zoned dual-thumb slider for the warn/danger pair, and the two color pickers. Values
+// live in the kind's DISPLAYED unit (wind unit / km-mi / hours); a blank pair means the
+// kind's seed pair (status-thresholds.js resolvedPair), and toggling off keeps the pair
+// — the switch alone is the highlight's on/off. The slider's
 // geometry, direction and live colors come from the thresholdRange resolver
 // (blocks.js), which reads the contract module (status-thresholds.js) — the same
 // source the watch packs with, so the UI can never disagree about which way is worse.
@@ -616,7 +631,7 @@ function unitRow(key, withUnit, without) {
  * @param {string} hint Per-kind unit/scale hint (HTML allowed).
  * @param {Object} [gate] Extra showWhen for the whole sub-section.
  * @param {Object[]} [extraItems] Kind-specific display rows rendered between the Bold
- *     row and the Thresholds group, e.g. the wind slots' direction arrow. They
+ *     row and the Alert levels group, e.g. the wind slots' direction arrow. They
  *     configure the SLOT, not the highlight, so they sit above the group header —
  *     boldSection's extras play the same role on the level-less kinds.
  * @returns {Object} Schema section.
@@ -627,18 +642,22 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
     // close, fill when reached) — the contract's goal flag drives the wording so it
     // can never disagree with the packing.
     var goal = STATUS_THRESHOLDS.isGoalKind(keyStem);
-    // While the highlight is OFF the slider + colors stay VISIBLE but disabled
-    // (muted, inert — the sheet shows what turning it on offers; the blank pair
-    // renders the kind's seeds). The toggle itself is STORED state — the one
-    // source of "highlight on" (kindConfig's enable bit); pre-split blobs were
-    // backfilled from their pair by clay-migrations.js — and ON seeds the pair
-    // through the thresholdToggle hook when none is stored.
+    // The slider is ALWAYS live: the warn level is not the highlight's alone — the
+    // day-max kinds hold today's peak from it whether or not anything is coloured
+    // (wire-units dayMaxShown via status-thresholds holdWarn), so it must stay
+    // editable with the switch off. Only the highlight-only rows below (outline
+    // toggle + color pickers) go VISIBLE but disabled (muted, inert — the sheet
+    // shows what turning it on offers) while it is off. The toggle itself is
+    // STORED state — the one source of "highlight on" (kindConfig's enable bit);
+    // pre-split blobs were backfilled from their pair by clay-migrations.js — and
+    // ON seeds the pair through the thresholdToggle hook when none is stored.
     var offWhen = {not: {key: onKey}};
     var colorWhen = gate ? {all: [gate, COLOR_THEME_WHEN]} : COLOR_THEME_WHEN;
     var toggle = {
         type: 'toggle',
         messageKey: onKey,
-        label: 'Highlight this value',
+        // Aria-only: the switch rides the group header, whose intro carries the meaning.
+        label: 'Highlight on the watch',
         defaultValue: false,
         onChange: 'thresholdToggle'
     };
@@ -648,20 +667,19 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
         dangerKey: 'thresh' + keyStem + 'Danger',
         maxKey: 'thresh' + keyStem + 'Max',
         // Title + reset live on the group's sub-header now, so the row itself is
-        // label-less: repeating "Thresholds" directly under the header read as a
-        // stutter.
+        // label-less: repeating "Alert levels" directly under the header read as a
+        // stutter. No disabledWhen: see offWhen above.
         defaultValue: '',
         hint: hint,
         joinPrevious: true,
-        rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem}},
-        disabledWhen: offWhen
+        rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem}}
     };
     // Slot-level, above the group: how boldly the slot prints. The ladder is
     // monotone — danger is always bold, the middle option adds the warn/close
     // level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
     // Goal kinds relabel the middle option only; the stored value stays 'warn' so
     // the wire keeps one vocabulary. The row stays live while the kind's
-    // thresholds are off ("Always" needs none); it mutes wholesale only under the
+    // highlight is off ("Always" needs none); it mutes wholesale only under the
     // Watch-tab master row (BOLD_ALL_WHEN), which overrides it at pack time.
     var bold = {
         type: 'segmented',
@@ -675,12 +693,12 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
     };
     // The group header: title, reset-to-defaults, and the master on/off switch
     // that used to ride the sheet's title row. The intro hangs off it because it
-    // describes the THRESHOLDS, not the Bold row above them.
+    // describes the LEVELS, not the Bold row above them.
     var header = {
         type: 'subheader',
-        text: goal ? 'Goals' : 'Thresholds',
+        text: goal ? 'Goals' : 'Alert levels',
         toggleKey: onKey,
-        intro: goal ? GOAL_SHEET_INTRO : THRESHOLD_SHEET_INTRO,
+        intro: goal ? GOAL_SHEET_INTRO : ALERT_LEVELS_INTRO,
         // Reverts pair + colors + scale max to the kind's defaults (blocks.js
         // action) — deliberately NOT the Bold row, which is not part of the group.
         labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
@@ -692,7 +710,7 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
     // instead — they layer the B&W/outline rules on top of the gate.)
     gateAll([toggle, range, bold, header].concat(extras), gate);
     // Bold leads every slot sheet; the kind's own display rows follow it, and the
-    // Thresholds group (header + toggle + slider + colors) closes the sheet.
+    // Alert levels / Goals group (header + toggle + slider + colors) closes the sheet.
     // sheetOf carries the section-level THRESHOLD_WHEN gate: on a watch that
     // can't render highlighting the sheet must not exist (belt-and-braces
     // behind the resolver's env gate).
@@ -722,7 +740,7 @@ function thresholdSection(title, keyStem, hint, gate, extraItems) {
             label: goal ? 'Outline on close' : 'Outline on warn',
             hint: goal
                 ? 'Adds an outline to the slot when you get close to the goal.'
-                : 'Adds an outline to the slot when the warn threshold is reached.',
+                : 'Adds an outline to the slot from the warn level on.',
             // Goal kinds celebrate with the outline ON out of the box; weather warn
             // ships bold-only. (onLoad recomputes goal toggles from the stored color
             // and weather colors from the stored toggle — see above — and the seeded
@@ -1910,10 +1928,14 @@ module.exports = {
         // Threshold edit sheets (sheetOnly): reachable only through the pencil next to a
         // status slot whose selected value has thresholds — never rendered as cards here.
         // The AQI day max needs an hourly forecast, which only the Open-Meteo source
-        // has: on WAQI's current reading every mode prints that reading alone.
-        thresholdSection('Air quality (AQI)', 'Aqi', '', null, dayMaxRows('aqi', 'AQI selection',
-            'Show the air quality index now, the highest it still gets today, or both. The day max needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.'
-            + DAY_MAX_HINT_TAIL, '42', '58')),
+        // has: on WAQI's current reading every mode prints that reading alone. The
+        // note closes the hint (coda) so it reads in every mode, Now included.
+        thresholdSection('Air quality (AQI)', 'Aqi', '', null, dayMaxRows('aqi', 'AQI selection', {
+            keyStem: 'Aqi',
+            subject: 'the AQI is',
+            lead: 'Show the air quality index now, the highest it still gets today, or both.',
+            coda: ' The peak needs the Open-Meteo AQI provider (General tab); WAQI reports the current reading only.'
+        }, '42', '58')),
         thresholdSection('Pollen', 'Pollen',
             'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'),
         // Wind and gust each carry their own direction arrow: the two slots often sit
@@ -1922,9 +1944,12 @@ module.exports = {
         // appends a trailing sentinel byte), and both keys ride renderSignature(), so
         // flipping one re-bakes without waiting for the next fetch.
         // Wind, gusts and AQI carry UV's display modes (dayMaxRows), each kind its own.
-        thresholdSection('Wind speed', 'Wind', '', null, dayMaxRows('wind', 'Wind selection',
-            'Show the wind speed now, the strongest it still gets today, or both.' + DAY_MAX_HINT_TAIL,
-            '12', '30').concat([{
+        thresholdSection('Wind speed', 'Wind', '', null, dayMaxRows('wind', 'Wind selection', {
+            keyStem: 'Wind',
+            subject: 'the wind is',
+            lead: 'Show the wind speed now, the strongest it still gets today, or both.',
+            coda: ''
+        }, '12', '30').concat([{
             type: 'toggle',
             messageKey: 'windSlotDirection',
             label: 'Show wind direction',
@@ -1937,9 +1962,12 @@ module.exports = {
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
         }, unitRow('windSlotUnit', null, null)])),
-        thresholdSection('Wind gusts', 'Gust', '', null, dayMaxRows('gust', 'Gust selection',
-            'Show the gusts now, the strongest they still get today, or both.' + DAY_MAX_HINT_TAIL,
-            '20', '45').concat([{
+        thresholdSection('Wind gusts', 'Gust', '', null, dayMaxRows('gust', 'Gust selection', {
+            keyStem: 'Gust',
+            subject: 'gusts are',
+            lead: 'Show the gusts now, the strongest they still get today, or both.',
+            coda: ''
+        }, '20', '45').concat([{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
             label: 'Show wind direction',
@@ -1950,13 +1978,16 @@ module.exports = {
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
         // What each mode prints is wire-units' dayMaxShown.
-        // It sits above the Thresholds group like the wind arrow: it configures the
+        // It sits above the Alert levels group like the wind arrow: it configures the
         // slot, and the highlight follows it (the policy is status-thresholds.js
         // displayValue's). So do the rows shaping how it reads, which change the
         // text only — the highlight judges the numbers, never their presentation.
-        thresholdSection('UV index', 'Uv', '', null, dayMaxRows('uv', 'UV selection',
-            'Show the UV index now, the highest it still gets today, or both.' + DAY_MAX_HINT_TAIL,
-            '3', '7')),
+        thresholdSection('UV index', 'Uv', '', null, dayMaxRows('uv', 'UV selection', {
+            keyStem: 'Uv',
+            subject: 'UV is',
+            lead: 'Show the UV index now, the highest it still gets today, or both.',
+            coda: ''
+        }, '3', '7')),
         thresholdSection('Steps', 'Steps',
             'Steps per day.', HEALTH_SLOT_WHEN),
         thresholdSection('Sleep', 'Sleep',

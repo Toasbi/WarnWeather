@@ -188,6 +188,15 @@ test('aqi is a TEXT item (leaf icon) available on every platform and in slot opt
   assert.ok(codes.indexOf('aqi') !== -1, 'aqi offered in slot dropdown');
 });
 
+test('the day-max kinds are labelled by what they measure, not by a display mode', () => {
+  // The Now / Alert / Both pills on the Edit sheet pick what prints; the dropdown names
+  // the kind only — UV lost its old '/day max' suffix, the other three never had one.
+  assert.equal(catalog.byCode('uv').label, 'UV index');
+  catalog.DAY_MAX_KINDS.forEach((code) => {
+    assert.doesNotMatch(catalog.byCode(code).label, /max|alert/i, code + ' label names no mode');
+  });
+});
+
 test('dew point is a TEXT weather item with an icon id of its own', () => {
   const item = catalog.byCode('dew');
   assert.ok(item, 'dew item exists');
