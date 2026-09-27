@@ -1655,7 +1655,7 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
   assert.equal(item.defaultValue, 'graph');
   assert.deepEqual(item.options, [
     ['Off', 'off'],
-    ['Countdown only', 'countdown'],
+    ['Rain alert only', 'countdown'],
     ['Status bar', 'status'],
     ['Status + Graph', 'graph']
   ]);
@@ -1665,7 +1665,7 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
     off: 'Radar is hidden.',
     // The countdown's time window moved to the Status slots tab's Alerts card; the
     // mode's hint points there.
-    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar. Set the time window under Status slots → Alerts.',
+    countdown: 'Fetches the rain radar only for the Alerts row\'s rain alert. Set its time window under Status slots → Alerts.',
     status: 'Adds the Radar Status Bar.',
     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
   });
@@ -2178,7 +2178,7 @@ test('the Alerts card rows, in order: rain countdown, rain look, radar-off note,
       type: 'segmented', messageKey: 'alert' + stem + 'Display', label: 'Look', defaultValue: 'icon',
       options: [['Icon', 'icon'], ['Icon + value', 'value']], joinPrevious: true,
       showWhen: { all: [THRESHOLD_WHEN, { key: 'alert' + stem }].concat(dwd) },
-      hint: 'Icon + value prints the value the alert fires on after the icon, e.g. UV 8 or 45 kph; fewer alerts fit the row that way.'
+      hint: 'Prints the value the alert fires on after the icon. Fewer alerts fit the row that way.'
     }, stem + ' Look');
   });
   assert.ok(!ids.some((id) => /Steps|Sleep|Distance/.test(id)), 'the goal kinds get no alert rows');

@@ -97,7 +97,7 @@ test('the rain countdown row: its icon, and an Off option in its sheet', () => {
     'the rain look hides with the countdown Off');
 });
 
-test('radarMode Countdown only: Off is inert in the rain countdown sheet', () => {
+test('radarMode Rain alert only: Off is inert in the rain countdown sheet', () => {
   const page = watchTab({ radarMode: 'countdown' });
   page.openSelect('rainCountdownHorizon');
   const sheet = page.modal.innerHTML;
@@ -107,7 +107,7 @@ test('radarMode Countdown only: Off is inert in the rain countdown sheet', () =>
   assert.ok(sheet.indexOf('data-select-pick="30"') !== -1, 'the windows stay pickable');
 });
 
-test('entering radarMode Countdown only snaps an Off rain countdown back to 60 min (the live hook)', () => {
+test('entering radarMode Rain alert only snaps an Off rain countdown back to 60 min (the live hook)', () => {
   const page = bootGeneratedPage({ provider: 'dwd', radarMode: 'graph', rainCountdownHorizon: '0' });
   page.clickTab('radar');
   const t = {

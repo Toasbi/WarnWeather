@@ -885,7 +885,7 @@ function alertRows(keyStem, label, icon, gate) {
         options: [['Icon', 'icon'], ['Icon + value', 'value']],
         joinPrevious: true,
         showWhen: lookWhen,
-        hint: 'Icon + value prints the value the alert fires on after the icon, e.g. UV 8 or 45 kph; fewer alerts fit the row that way.'
+        hint: 'Prints the value the alert fires on after the icon. Fewer alerts fit the row that way.'
     }];
 }
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
@@ -1750,11 +1750,13 @@ module.exports = {
                 defaultValue: 'graph',
                 hintByValue: {
                     off: 'Radar is hidden.',
-                    countdown: 'Shows a “Rain in X′” countdown in the Watch Status Bar. Set the time window under Status slots → Alerts.',
+                    countdown: 'Fetches the rain radar only for the Alerts row\'s rain alert. Set its time window under Status slots → Alerts.',
                     status: 'Adds the Radar Status Bar.',
                     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
                 },
-                options: [['Off', 'off'], ['Countdown only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
+                // 'Rain alert only' — the VALUE stays 'countdown' (stored + telemetry): the
+                // mode fetches radar solely for the rain alert, which the Alerts row draws.
+                options: [['Off', 'off'], ['Rain alert only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
             }, {
                 type: 'select',

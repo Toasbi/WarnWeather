@@ -326,6 +326,11 @@ test('alertLevelsHint prints the resolved pair, the unit and the highlight state
   assert.equal(hint({ windUnits: 'mph' }, env, { keyStem: 'Wind' }),
     'Warn 25 mph · Danger 40 mph · Highlight off',
     'wind speaks the slider\'s unit, on both numbers');
+  // AQI seeds follow the scale: European (Open-Meteo, non-US) 60/80, US 100/150.
+  assert.equal(hint({ aqiSource: 'openmeteo', aqiScale: 'european' }, env, { keyStem: 'Aqi' }),
+    'Warn 60 · Danger 80 · Highlight off', 'the European AQI seed');
+  assert.equal(hint({ aqiSource: 'openmeteo', aqiScale: 'us' }, env, { keyStem: 'Aqi' }),
+    'Warn 100 · Danger 150 · Highlight off', 'the US AQI seed');
   assert.equal(hint({}, { thresholds: false }, uv), null, 'aplite: no levels to describe');
   assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
 });
