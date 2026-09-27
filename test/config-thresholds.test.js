@@ -551,7 +551,7 @@ test('the page renders an Alerts card sheet: the alert switch, its Look, then th
     'the Alert sub-header carries the alert switch');
   assert.ok(sheet.indexOf('<span>Alert</span>') < sheet.indexOf('<span>Alert levels</span>'),
     'the Alert sub-header comes first');
-  assert.ok(sheet.indexOf('Shows an icon in the Alerts row while the UV index is at your warn level or higher.') !== -1,
+  assert.ok(sheet.indexOf('Shows an icon in the Alerts row whenever the UV index reaches your warn level or higher today.') !== -1,
     'with its intro');
   assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert levels') > sheet.indexOf('data-k="alertUvDisplay"'),
     'the levels group follows the Look');
@@ -1409,14 +1409,14 @@ test('every metric alert sheet: its switch on an Alert sub-header, the Look, the
     const key = 'alert' + stem;
     assert.deepEqual(s.items.slice(0, 3), [{
       type: 'subheader', text: 'Alert', toggleKey: key,
-      intro: 'Shows an icon in the Alerts row while ' + SUBJECT[stem] + ' is at your warn level or higher.'
+      intro: 'Shows an icon in the Alerts row whenever ' + SUBJECT[stem] + ' reaches your warn level or higher today.'
     }, {
       type: 'toggle', messageKey: key, label: 'Alert', defaultValue: false
     }, {
       type: 'segmented', messageKey: key + 'Display', label: 'Look', defaultValue: 'icon',
       options: [['Icon', 'icon'], ['Icon + value', 'value']],
+      // Only the value look explains itself; the default icon look has no hint.
       hintByValue: {
-        icon: 'Just the icon.',
         value: 'The value the alert fires on after the icon. Fewer alerts fit the row.'
       },
       disabledWhen: { not: { key } }
@@ -1456,10 +1456,10 @@ test('the rain alert sheet: its switch (held on in Rain alert only), the time wi
   assert.deepEqual(s.items[3], {
     type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Look', defaultValue: 'text',
     options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
+    // Only the minutes look needs explaining (the drop alone and the full text describe
+    // themselves, and the default look gets no hint by the style rule).
     hintByValue: {
-      icon: 'Just the drop.',
-      minutes: 'The drop with the minutes until the rain starts, or how long it keeps falling.',
-      text: 'The full countdown, as before.'
+      minutes: 'The drop with the minutes until the rain starts, or how long it keeps falling.'
     },
     disabledWhen: off
   });

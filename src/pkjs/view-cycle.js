@@ -499,7 +499,8 @@ function buildViewCycle(presetKey, healthMode, radarMode, swapClockStatus) {
   var radarShowsView = (radarMode === 'status' || radarMode === 'graph');
   // "Weather only": the radar is part of the Default view (no radar flick), which has
   // no top bar; the health flicks are No calendar's. In countdown mode the Default view
-  // keeps its top bar: the "Rain in X′" countdown is drawn there and nowhere else.
+  // keeps its top bar: the rain alert is drawn there by default (the strip's Alerts
+  // placement is Left; another bar draws it only when its own placement is set).
   if (presetKey === 'weatherOnly') {
     var def = (radarMode === 'graph') ? WO_RADAR : (radarMode === 'status') ? WO_RADAR_S
       : (radarMode === 'countdown') ? NONE_FC_W : WO_PLAIN;

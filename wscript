@@ -197,8 +197,8 @@ def build(ctx):
         # phone never sends it the tuple. The tuple's inbox handler and its persist
         # accessors (app_message.c, persist.c) ride this macro too, so aplite's
         # image does not grow by a byte. The row's own code lives in two leaf files whose
-        # bodies sit behind the macro — appendix/alert_set.c (the pure entry set, fit
-        # and spill) and layers/status_alerts.c (glyph cache + paint) — so aplite
+        # bodies sit behind the macro — appendix/alert_set.c (the pure entry set, fit,
+        # slot choice and span) and layers/status_alerts.c (glyph cache + paint) — so aplite
         # compiles both to empty objects and pays zero bytes. Every other platform
         # defines WW_ALERT_ROW. Mirrors WW_THRESHOLD_HIGHLIGHT above.
         if platform != 'aplite':

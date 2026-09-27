@@ -885,10 +885,11 @@ function rainAlertSheet() {
             label: 'Look',
             defaultValue: 'text',
             options: RAIN_LOOK_OPTIONS,
+            // Only the look that needs explaining gets a hint: the drop alone and the
+            // full countdown text describe themselves (and "as before" would describe
+            // the default look, which the hint style forbids).
             hintByValue: {
-                icon: 'Just the drop.',
-                minutes: 'The drop with the minutes until the rain starts, or how long it keeps falling.',
-                text: 'The full countdown, as before.'
+                minutes: 'The drop with the minutes until the rain starts, or how long it keeps falling.'
             },
             disabledWhen: offWhen
         }]
@@ -920,7 +921,9 @@ function alertSheet(keyStem, title, subject, hint) {
             type: 'subheader',
             text: 'Alert',
             toggleKey: key,
-            intro: 'Shows an icon in the Alerts row while ' + subject + ' is at your warn level or higher.'
+            // "reaches … today": the entry fires on the highest value left today, so the
+            // morning icon for an afternoon peak is by design (status-thresholds alertValue).
+            intro: 'Shows an icon in the Alerts row whenever ' + subject + ' reaches your warn level or higher today.'
         }, {
             // Aria-only: the switch rides the sub-header above.
             type: 'toggle',
@@ -933,8 +936,9 @@ function alertSheet(keyStem, title, subject, hint) {
             label: 'Look',
             defaultValue: 'icon',
             options: [['Icon', 'icon'], ['Icon + value', 'value']],
+            // The icon-only look (the default) needs no hint; the value look says what
+            // it costs.
             hintByValue: {
-                icon: 'Just the icon.',
                 value: 'The value the alert fires on after the icon. Fewer alerts fit the row.'
             },
             disabledWhen: {not: {key: key}}
@@ -2156,15 +2160,10 @@ module.exports = {
         }, {
             groupCard: 'watchStatus',
             title: 'Watch Status Bar',
-            items: [
-                {
-                    // aplite compiles the Alerts row out (WW_ALERT_ROW), so the note
-                    // would describe nothing there.
-                    type: 'staticText',
-                    text: 'While an alert is active, the Alerts row replaces the chosen slot — and the middle one when it needs the room.',
-                    showWhen: {env: 'platform', ne: 'aplite'}
-                }
-            ].concat(barSlots('statusTop', null, true), [
+            // No takeover note here any more: the bar's own Alerts select below explains
+            // each placement by value, and a note above the slots said the same thing
+            // (and got the Middle case wrong).
+            items: barSlots('statusTop', null).concat([
                 alertPlaceRow('top', null),
                 {
                     type: 'toggle', messageKey: 'batteryLowOnly', label: 'Show battery below 10%',

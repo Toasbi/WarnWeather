@@ -2104,13 +2104,11 @@ test('Status-slots tab (id watch) opens with the Alerts card, then the status ca
     'the Layout tab ends with Time then Calendar');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
-  const note = wsb.find((i) => i.type === 'staticText' && /Alerts row/.test(i.text || ''));
-  assert.ok(note, 'Watch bar keeps its Alerts row note as a staticText');
-  // The row is a per-bar takeover: the note describes it replacing the chosen slot,
-  // and it stays aplite-hidden (WW_ALERT_ROW).
-  assert.equal(note.text,
-    'While an alert is active, the Alerts row replaces the chosen slot — and the middle one when it needs the room.');
-  assert.deepEqual(note.showWhen, { env: 'platform', ne: 'aplite' });
+  // The row is a per-bar takeover explained by the bar's own Alerts select (hint by
+  // value) — no separate note above the slots any more, and the old rain-takeover
+  // note is gone too.
+  assert.ok(!wsb.some((i) => i.type === 'staticText' && /Alerts row/.test(i.text || '')),
+    'no Alerts row note above the Watch bar slots');
   assert.ok(!wsb.some((i) => /incoming-rain alert/.test(i.text || '')), 'the takeover note is gone');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const countdownIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRightCountdown');

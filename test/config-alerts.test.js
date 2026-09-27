@@ -115,7 +115,9 @@ test('Edit opens the alert sheet; flipping its switch turns the row live — lev
 test('the Look reads its hint by value', () => {
   const page = watchTab({ alertWind: true });
   page.openEditSheet('alertWind');
-  assert.ok(page.modal.innerHTML.indexOf('<div class="hint">Just the icon.</div>') !== -1);
+  // The default (icon-only) look carries no hint — nothing to explain, and describing
+  // the default look is against the hint style; only the value look gets one.
+  assert.ok(page.modal.innerHTML.indexOf('Just the icon.') === -1, 'no hint for the icon look');
   const t = {
     getAttribute: n => (n === 'data-k' ? 'alertWindDisplay' : (n === 'data-v' ? 'value' : null)),
     closest: sel => (sel === '[data-v]' ? t : null)
@@ -205,8 +207,8 @@ test('each bar picks where its alerts show: the Watch Status Bar Left, the forec
   assert.equal(page.S.statusForecastAlerts, 'middle');
   assert.ok(rowOf(page.scroll.innerHTML, 'data-select="statusForecastAlerts"')
     .indexOf('and the left slot too when they need the room') !== -1, 'Middle borrows the left slot');
-  assert.ok(html.indexOf('While an alert is active, the Alerts row replaces the chosen slot') !== -1,
-    'the Watch Status Bar note describes the takeover');
+  assert.ok(html.indexOf('While an alert is active, the Alerts row replaces the chosen slot') === -1,
+    'no separate takeover note: the select\'s own hints explain each placement');
 });
 
 test('pollen alert row is DWD-only', () => {
