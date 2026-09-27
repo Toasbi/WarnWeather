@@ -197,8 +197,11 @@ def build(ctx):
         # the walker's entry check for the slot's bytes (appendix/status_line.c) took
         # the aplite image past its 21804 B launch guard (+112 B), so it rides this
         # macro too: aplite's walker keeps rejecting value bytes on every non-TEXT
-        # kind, exactly as before. Every other platform defines WW_ALERT_ROW. Mirrors
-        # WW_THRESHOLD_HIGHLIGHT above.
+        # kind, exactly as before. The row's own code lives in two leaf files whose
+        # bodies sit behind the macro — appendix/alert_set.c (the pure entry set, fit
+        # and spill) and layers/status_alerts.c (glyph cache + paint) — so aplite
+        # compiles both to empty objects and pays zero bytes. Every other platform
+        # defines WW_ALERT_ROW. Mirrors WW_THRESHOLD_HIGHLIGHT above.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_ALERT_ROW=1']
         # Configurable forecast curve insets (CLAY_CURVE_INSET_UINT8): the phone

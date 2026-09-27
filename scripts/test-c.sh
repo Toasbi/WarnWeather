@@ -55,6 +55,11 @@ cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/
 build/host/status_line_test_aplite
 cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o build/host/status_threshold_test
 build/host/status_threshold_test
+# The Alerts row's pure half (entry parse, rain merge, fit/spill/lane ladder). Its body
+# sits behind WW_ALERT_ROW (wscript: every platform but aplite), so the flag is required
+# here or the module compiles to nothing and the test fails to link.
+cc $CFLAGS -DWW_ALERT_ROW test/c/alert_set_test.c src/c/appendix/alert_set.c -o build/host/alert_set_test
+build/host/alert_set_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the

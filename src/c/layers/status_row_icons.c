@@ -7,6 +7,15 @@
 
 #define PRECISE_UNITS_PER_PX 8
 
+// The keep-fill recolour: the fill-authored RAIN_* drops (scripts/gen-rain-pdc.py:
+// white fill, stroke width 0) are drawn FILLED, so their fill takes the tint and
+// the stroke stays off — except on a light theme, where a pale tier colour on the
+// white strip needs a 1-px black edge to read at all.
+typedef struct {
+    GColor tint;
+    bool outline;
+} IconFill;
+
 // Glyph bounding box (in the PDC's point units), the height scale to apply, and the
 // grid-snap parameters. Each point is scaled so the glyph HEIGHT maps to target_h px,
 // then snapped to the 1px grid — which, for the 1px stroke, is the pixel-centre phase
@@ -17,6 +26,8 @@ typedef struct {
     int32_t sum_x, sum_y;                 // (min + max) per axis == 2× the master centre
     int32_t base_x, base_y;               // snapped origin (lands the min vertex on 4 = 0.5px)
     int16_t out_max_x, out_max_y;         // pass 2: max snapped output, for tight bounds
+    const IconFill *fill;                 // NULL = outline art (every status glyph);
+                                          // set = keep-fill art (the rain drops)
 } IconNorm;
 
 // Divide a / b (b > 0) rounding to nearest, half AWAY from zero. Odd in a.
@@ -58,11 +69,25 @@ static bool icon_bbox_cb(GDrawCommand *command, uint32_t index, void *context) {
 // centre — rather than rounding each point independently — keeps mirror vertices mirrored,
 // so octagons/curves stay symmetric instead of tilting a pixel when downscaled. The scale
 // itself rounds half-up (+den/2); the snap then quantises to the crisp phase.
+// Keep-fill art (b->fill set) is recoloured the other way round — fill tinted, stroke
+// off — and scaled and snapped by exactly the same rule.
 static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;
     IconNorm *b = (IconNorm *)context;
-    gdraw_command_set_stroke_color(command, theme_fg());
-    gdraw_command_set_fill_color(command, GColorClear);
+    if (b->fill) {
+        gdraw_command_set_fill_color(command, b->fill->tint);
+        if (b->fill->outline) {
+            // Stroke width is baked 0 by the generator: a colour alone would stay
+            // invisible, so the width has to be set as well.
+            gdraw_command_set_stroke_color(command, GColorBlack);
+            gdraw_command_set_stroke_width(command, 1);
+        } else {
+            gdraw_command_set_stroke_color(command, GColorClear);
+        }
+    } else {
+        gdraw_command_set_stroke_color(command, theme_fg());
+        gdraw_command_set_fill_color(command, GColorClear);
+    }
     uint16_t n = gdraw_command_get_num_points(command);
     for (uint16_t i = 0; i < n; i++) {
         GPoint p = gdraw_command_get_point(command, i);
@@ -80,11 +105,13 @@ static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *conte
     return true;
 }
 
-static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h) {
+static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h,
+                                    const IconFill *fill) {
     GDrawCommandImage *image = gdraw_command_image_create_with_resource(resource_id);
     if (!image) { return NULL; }
     GDrawCommandList *list = gdraw_command_image_get_command_list(image);
-    IconNorm b = { .min_x = INT16_MAX, .min_y = INT16_MAX, .max_x = INT16_MIN, .max_y = INT16_MIN };
+    IconNorm b = { .min_x = INT16_MAX, .min_y = INT16_MAX, .max_x = INT16_MIN, .max_y = INT16_MIN,
+                   .fill = fill };
     gdraw_command_list_iterate(list, icon_bbox_cb, &b);
     int glyph_h = b.max_y - b.min_y;
     if (glyph_h <= 0) { return image; }   // degenerate glyph; leave untouched
@@ -286,7 +313,14 @@ GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top
         h = phone_icon_h(icon_id, h, top_strip);
     }
     if (resource == 0) { return NULL; }
-    return icon_load(resource, h);
+    return icon_load(resource, h, NULL);
+}
+
+GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
+                                                GColor tint, bool outline) {
+    if (resource_id == 0 || target_h <= 0) { return NULL; }
+    IconFill fill = { .tint = tint, .outline = outline };
+    return icon_load(resource_id, target_h, &fill);
 }
 
 void status_row_icons_destroy(GDrawCommandImage *image) {
@@ -299,6 +333,15 @@ GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top
     (void) icon_id;
     (void) target_h;
     (void) top_strip;
+    return NULL;
+}
+
+GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
+                                                GColor tint, bool outline) {
+    (void) resource_id;
+    (void) target_h;
+    (void) tint;
+    (void) outline;
     return NULL;
 }
 

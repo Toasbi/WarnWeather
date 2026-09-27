@@ -461,6 +461,39 @@ static void highlight_extent_is_font_sized(void) {
     }
 }
 
+// status_slot_desired_w is the width rule status_row_layout claims the edges by,
+// exported for the Alerts row's spill pass — pinned here so a change to the rule
+// shows up as a failure in both consumers' test, not as a spill that disagrees
+// with the layout by a gap.
+static void slot_desired_w_pins(void) {
+    StatusSlotMeasure absent = { false, 10, 30, 8 };
+    expect("desired.absent", status_slot_desired_w(&absent), 0);
+    StatusSlotMeasure nothing = { true, 0, 0, 8 };
+    expect("desired.suffix_alone", status_slot_desired_w(&nothing), 0);
+    StatusSlotMeasure icon_only = { true, 11, 0, 0 };
+    expect("desired.icon_only", status_slot_desired_w(&icon_only), 11);
+    StatusSlotMeasure text_only = { true, 0, 30, 0 };
+    expect("desired.text_only", status_slot_desired_w(&text_only), 30);
+    StatusSlotMeasure icon_text = { true, 11, 30, 0 };
+    expect("desired.icon_text", status_slot_desired_w(&icon_text),
+           11 + STATUS_ROW_ICON_TEXT_GAP + 30);
+    // Suffix lane: its own gap after the text ...
+    StatusSlotMeasure suffixed = { true, 11, 30, 8 };
+    expect("desired.suffix_lane", status_slot_desired_w(&suffixed),
+           11 + STATUS_ROW_ICON_TEXT_GAP + 30 + STATUS_ROW_ICON_TEXT_GAP + 8);
+    // ... which collapses with the text lane, so the arrow abuts the icon.
+    StatusSlotMeasure icon_suffix = { true, 11, 0, 8 };
+    expect("desired.suffix_no_text", status_slot_desired_w(&icon_suffix), 11 + 8);
+    // Raw (un-normalised) measures: a negative field counts as nothing.
+    StatusSlotMeasure negative = { true, -5, 30, -3 };
+    expect("desired.negative_fields", status_slot_desired_w(&negative), 30);
+    // The layout agrees: a lone edge gets exactly this width.
+    StatusSlotPlace p[3];
+    StatusSlotMeasure row[3] = { { true, 11, 30, 8 }, { false, 0, 0, 0 }, { false, 0, 0, 0 } };
+    status_row_layout(138, row, p);
+    expect("desired.matches_layout", p[0].suffix_x + 8, status_slot_desired_w(&row[0]));
+}
+
 int main(void) {
     empty_row();
     typical_row();
@@ -478,6 +511,7 @@ int main(void) {
     suffix_zero_is_byte_identical();
     suffix_sweep_stays_in_bounds();
     highlight_extent_is_font_sized();
+    slot_desired_w_pins();
     if (s_failures) { printf("%d status_row_layout failure(s)\n", s_failures); return 1; }
     printf("status_row_layout OK\n");
     return 0;
