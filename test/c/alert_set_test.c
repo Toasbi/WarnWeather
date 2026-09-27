@@ -388,6 +388,79 @@ static void free_span_tests(void) {
     expect("span.collapsed", x1 - x0, 0);
 }
 
+// A RIGHT row gives the right slot back to the low-battery warning: it lays out as a
+// MIDDLE row, which borrows the LEFT slot when it needs room and never the right one.
+static void battery_place_tests(void) {
+    expect("place.right_battery", alert_set_place(THRESH_ALERTS_RIGHT, true),
+           THRESH_ALERTS_MIDDLE);
+    expect("place.right", alert_set_place(THRESH_ALERTS_RIGHT, false), THRESH_ALERTS_RIGHT);
+    expect("place.left_battery", alert_set_place(THRESH_ALERTS_LEFT, true), THRESH_ALERTS_LEFT);
+    expect("place.mid_battery", alert_set_place(THRESH_ALERTS_MIDDLE, true),
+           THRESH_ALERTS_MIDDLE);
+    expect("place.off_battery", alert_set_place(THRESH_ALERTS_OFF, true), THRESH_ALERTS_OFF);
+    // Whatever the row's width, the moved row never takes the battery's slot.
+    static const int needs[] = { 1, 30, 96, 97, 1000 };
+    for (size_t i = 0; i < sizeof(needs) / sizeof(needs[0]); i++) {
+        char name[48];
+        snprintf(name, sizeof(name), "place.battery_keeps_right.%d", needs[i]);
+        int mask = alert_set_choose_slots(alert_set_place(THRESH_ALERTS_RIGHT, true),
+                                          needs[i], W, 16, 40, 20, GAP);
+        expect(name, mask & ALERT_SLOT_RIGHT, 0);
+    }
+}
+
+// No entry fits the freed span: the taken slots come back and the bar lays out
+// exactly as it would without the row — never a blank gap where they were. The
+// sequence is status_row.c alerts_layout's, on the real layout: a LEFT row beside a
+// long right slot (City) borrows the middle slot and still has only 26 px.
+static void no_fit_tests(void) {
+    const int16_t d[3] = { 10, 10, 110 };
+    const int16_t entries[] = { 30 };
+    StatusSlotMeasure m[3];
+    StatusSlotMeasure orig[3];
+    for (int i = 0; i < 3; i++) { orig[i] = (StatusSlotMeasure){ true, 0, d[i], 0 }; }
+    StatusSlotPlace base[3];
+    status_row_layout(W, orig, base);
+
+    int mask = alert_set_choose_slots(THRESH_ALERTS_LEFT, entries[0], W, d[0], d[1], d[2], GAP);
+    expect("nofit.took_two", mask, ALERT_SLOT_LEFT | ALERT_SLOT_MID);
+    StatusSlotPlace out[3];
+    for (int i = 0; i < 3; i++) { m[i] = (mask & (1 << i)) ? (StatusSlotMeasure){0} : orig[i]; }
+    status_row_layout(W, m, out);
+    int visible = 0;
+    int16_t lo[3], hi[3];
+    for (int i = 0; i < 3; i++) {
+        lo[i] = out[i].icon_x;
+        hi[i] = (int16_t)(out[i].text_x + out[i].text_w);
+        if (out[i].visible) { visible |= 1 << i; }
+    }
+    int x0, x1;
+    alert_set_free_span(THRESH_ALERTS_LEFT, visible, W, GAP, lo, hi, &x0, &x1);
+    int fit = alert_set_fit(entries, 1, GAP, x1 - x0);
+    expect("nofit.fit", fit, 0);
+
+    int kept = alert_set_taken_slots(mask, fit);
+    expect("nofit.kept", kept, 0);
+    for (int i = 0; i < 3; i++) { m[i] = (kept & (1 << i)) ? (StatusSlotMeasure){0} : orig[i]; }
+    status_row_layout(W, m, out);
+    for (int i = 0; i < 3; i++) {
+        char name[48];
+        snprintf(name, sizeof(name), "nofit.slot%d.visible", i);
+        expect(name, out[i].visible, base[i].visible);
+        snprintf(name, sizeof(name), "nofit.slot%d.icon_x", i);
+        expect(name, out[i].icon_x, base[i].icon_x);
+        snprintf(name, sizeof(name), "nofit.slot%d.text_x", i);
+        expect(name, out[i].text_x, base[i].text_x);
+        snprintf(name, sizeof(name), "nofit.slot%d.text_w", i);
+        expect(name, out[i].text_w, base[i].text_w);
+    }
+
+    // One entry fitting keeps the takeover as chosen.
+    expect("taken.fits", alert_set_taken_slots(ALERT_SLOT_LEFT | ALERT_SLOT_MID, 1),
+           ALERT_SLOT_LEFT | ALERT_SLOT_MID);
+    expect("taken.none_chosen", alert_set_taken_slots(0, 0), 0);
+}
+
 static void row_x_tests(void) {
     expect("row_x.left", alert_set_row_x(THRESH_ALERTS_LEFT, 0, 46, W, 30), 0);
     // RIGHT hugs the span's right edge: the entries still read rain-first, left to
@@ -444,9 +517,12 @@ static void rain_minutes_tests(void) {
     alert_set_rain_minutes("Drizzle for 20'", out, sizeof(out));
     expect_str("minutes.for", out, "+20'");
     // The capped token carries its own '+'; only rain falling NOW keeps the sign,
-    // so an upcoming shower past 99 min cannot read as "raining for 99+ min".
+    // so an upcoming shower past 99 min cannot read as "raining for 99+ min" — nor
+    // as a false "99'": it reads ">99'".
     alert_set_rain_minutes("Rain in +99'", out, sizeof(out));
-    expect_str("minutes.capped_in", out, "99'");
+    expect_str("minutes.capped_in", out, ">99'");
+    alert_set_rain_minutes("Rain in 99'", out, sizeof(out));
+    expect_str("minutes.at_cap_in", out, "99'");
     alert_set_rain_minutes("Downpour for +99'", out, sizeof(out));
     expect_str("minutes.capped_for", out, "+99'");
     expect("minutes.empty", alert_set_rain_minutes("", out, sizeof(out)), 0);
@@ -468,6 +544,8 @@ int main(void) {
     choose_slots_tests();
     choose_matches_layout();
     free_span_tests();
+    battery_place_tests();
+    no_fit_tests();
     row_x_tests();
     degrade_tests();
     rain_minutes_tests();

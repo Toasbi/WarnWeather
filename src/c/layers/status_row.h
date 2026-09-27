@@ -29,7 +29,9 @@ void status_row_set_battery_override(StatusRow *row, bool active);
 // 3 right). While it is not Off and an alert is active, the row takes over the
 // anchor slot — plus one neighbour when it needs the room — and draws the alert
 // entries (the stored ALERT_ENTRIES metric alerts, rain in front) there; with no
-// alert active the bar draws exactly as without the feature. Owners push it from the
+// alert active the bar draws exactly as without the feature — and so it does when not
+// even one entry fits the freed span (the slots come back). A Right row lays out in
+// the middle while the battery override holds the right slot. Owners push it from the
 // thresholds blob (status_row_alerts_place) on every settings/weather refresh; a
 // change forces the next refresh to report one. Going Off frees the glyph cache.
 void status_row_set_alerts(StatusRow *row, int placement);

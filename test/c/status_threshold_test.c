@@ -574,6 +574,46 @@ static void health_value_tests(void) {
     expect("hv.steps_none_not_danger", steps_level, THRESH_LEVEL_NORMAL);
 }
 
+// The level a value is highlighted at follows the kind's enable bit ('Highlight
+// on the watch'): off -> NORMAL at warn and danger, on -> the level as given. The
+// Alerts row judges its entries through this, exactly like a slot of the kind —
+// and the bold ladder then sees NORMAL, so only Bold 'Always' still bolds.
+static void shown_level_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    blob[0] = (uint8_t)(1 << THRESH_UV);   // UV on, wind off
+
+    expect("shown.off_warn",
+           status_threshold_shown_level(blob, n, THRESH_WIND, THRESH_LEVEL_WARN),
+           THRESH_LEVEL_NORMAL);
+    expect("shown.off_danger",
+           status_threshold_shown_level(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER),
+           THRESH_LEVEL_NORMAL);
+    expect("shown.on_warn",
+           status_threshold_shown_level(blob, n, THRESH_UV, THRESH_LEVEL_WARN),
+           THRESH_LEVEL_WARN);
+    expect("shown.on_danger",
+           status_threshold_shown_level(blob, n, THRESH_UV, THRESH_LEVEL_DANGER),
+           THRESH_LEVEL_DANGER);
+    expect("shown.on_normal",
+           status_threshold_shown_level(blob, n, THRESH_UV, THRESH_LEVEL_NORMAL),
+           THRESH_LEVEL_NORMAL);
+    // An invalid blob has no switch on: nothing is highlighted.
+    expect("shown.bad_len",
+           status_threshold_shown_level(blob, 5, THRESH_UV, THRESH_LEVEL_DANGER),
+           THRESH_LEVEL_NORMAL);
+    // Highlight off, danger value: regular text under the default bold mode...
+    expect("shown.off_danger_not_bold",
+           status_threshold_is_bold(blob, n, THRESH_WIND,
+               status_threshold_shown_level(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER)), 0);
+    // ...and still bold under 'Always' (the 'Bold values: All' master packs this).
+    blob[THRESH_BOLD_OFFSET] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * THRESH_WIND));
+    expect("shown.off_always_bold",
+           status_threshold_is_bold(blob, n, THRESH_WIND,
+               status_threshold_shown_level(blob, n, THRESH_WIND, THRESH_LEVEL_WARN)), 1);
+}
+
 int main(void) {
     level_tests();
     kind_tests();
@@ -581,6 +621,7 @@ int main(void) {
     blob_tests();
     paired_bound_tests();
     bold_tests();
+    shown_level_tests();
     legacy_blob_tests();
     rain_display_tests();
     bar_alerts_tests();

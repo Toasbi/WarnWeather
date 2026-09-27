@@ -359,7 +359,10 @@ reproduce in a static compile-time fixture, so screenshot builds swap in two can
 - a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — a rain entry in
   every bar that shows the Alerts row (the strip by default; each bar's Alerts setting): its `tier` picks the drops and their colour, and its `text` is the exact
   "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" the 'text' rain look prints (the
-  'minutes' look shows its minute token, `15'` / `+20'`).
+  'minutes' look shows its minute token, `15'` / `+20'`). Like the real alert it shows
+  nothing while the fixture's settings switch the rain alert off (or radar off) or the
+  radar is snoozed. The minutes are canned, though: a time window shorter than them does
+  not hide the entry.
 
 Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`,
 and only some scenes via `SCENE_IDS` (the other frames stay as they are):

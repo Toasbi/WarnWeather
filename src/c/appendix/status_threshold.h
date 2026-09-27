@@ -270,6 +270,13 @@ typedef enum {
 // bar. An out-of-range bar is OFF.
 int status_threshold_bar_alerts(const uint8_t *blob, size_t len, int bar);
 
+// The level a value is HIGHLIGHTED at: `level` while the kind's 'Highlight on the
+// watch' switch (its enable bit) is on, THRESH_LEVEL_NORMAL while it is off —
+// exactly what a status slot of the kind shows. The Alerts row judges its entries
+// through this too, so an alert whose highlight is off is a plain icon (and plain
+// value text), as the slot prints plain text: the entry's presence is the alert.
+int status_threshold_shown_level(const uint8_t *blob, size_t len, int kind, int level);
+
 // Whether a slot of `kind` drawn at `level` prints bold. Kind -1 (a slot with no
 // threshold-capable content) is never bold.
 bool status_threshold_is_bold(const uint8_t *blob, size_t len, int kind, int level);

@@ -113,6 +113,15 @@ int alert_set_fit(const int16_t *widths, int n, int gap, int budget) {
     return fit;
 }
 
+int alert_set_taken_slots(int mask, int fit) {
+    return fit > 0 ? mask : 0;
+}
+
+int alert_set_place(int placement, bool battery_override) {
+    return (placement == THRESH_ALERTS_RIGHT && battery_override)
+        ? THRESH_ALERTS_MIDDLE : placement;
+}
+
 // What an edge slot claims off the row before the middle slot gets any: its width
 // and the gap that separates it — nothing for an absent slot, which leaves no gap.
 static int edge_reserve(int span, int gap) {
@@ -255,9 +264,16 @@ bool alert_set_rain_minutes(const char *countdown, char *out, size_t cap) {
     // The '+' marks rain that is falling NOW ("for"). rain_countdown's capped
     // token already carries one ("+99'" for anything past 99 min), which on an
     // upcoming shower would read as "raining for 99+ min" — so the sign follows
-    // `raining`, never the token: "99'" ahead, "+99'" while it falls.
-    if (*token == '+') { token++; }
-    if (raining && o + 1 < cap) { out[o++] = '+'; }
+    // `raining`, never the token. Ahead, the cap becomes '>' (">99'": rain further
+    // out than two digits can say, never a false "99'"); while it falls it stays
+    // "+99'", the '+' saying both "falling" and "at least".
+    bool capped = *token == '+';
+    if (capped) { token++; }
+    if (raining) {
+        if (o + 1 < cap) { out[o++] = '+'; }
+    } else if (capped && o + 1 < cap) {
+        out[o++] = '>';
+    }
     while (*token && o + 1 < cap) { out[o++] = *token++; }
     out[o] = '\0';
     return o > 0;

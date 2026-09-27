@@ -171,6 +171,10 @@ int status_threshold_bar_alerts(const uint8_t *blob, size_t len, int bar) {
     return (blob[THRESH_BAR_ALERTS_OFFSET] >> (2 * bar)) & 3;
 }
 
+int status_threshold_shown_level(const uint8_t *blob, size_t len, int kind, int level) {
+    return status_threshold_enabled(blob, len, kind) ? level : THRESH_LEVEL_NORMAL;
+}
+
 bool status_threshold_is_bold(const uint8_t *blob, size_t len, int kind, int level) {
     if (kind < 0) { return false; }
     if (level == THRESH_LEVEL_DANGER) { return true; }   // danger always wins

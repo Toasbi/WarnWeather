@@ -563,8 +563,10 @@ static void resolve_alerts(ResolvedAlerts *out) {
 }
 
 // Fold everything the Alerts row paints into the row signature, so a changed set is
-// a content change: which entries, their levels and baked values, the colour and
-// bold cell each one reads from the blob (a Clay save that only recolours must
+// a content change: which entries, their levels and baked values, the level each is
+// SHOWN at (NORMAL while its kind's highlight switch is off — flipping the switch on
+// the phone must repaint the row, as it does the slot) with the colour and bold cell
+// that shown level reads from the blob (a Clay save that only recolours must
 // repaint, as for a slot's accent8), the rain look, the drop's bucket and tier (its
 // glyph and tint), and the countdown text — but the text only when a look prints
 // it, or an icon-only rain alert would repaint every minute for nothing.
@@ -577,11 +579,16 @@ static uint16_t fold_alerts(uint16_t sig, const ResolvedAlerts *a) {
         sig = sig_fold(sig, head, sizeof(head));
         if (e->rain) { continue; }
         sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
-        uint8_t look[2] = {
-            status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
-                                    e->kind, e->level),
+        int shown = status_threshold_shown_level(s_thresh_scratch,
+                                                 (size_t)s_thresh_len, e->kind, e->level);
+        uint8_t look[3] = {
+            (uint8_t)shown,
+            shown != THRESH_LEVEL_NORMAL
+                ? status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
+                                          e->kind, shown)
+                : 0,
             (uint8_t)status_threshold_is_bold(s_thresh_scratch, (size_t)s_thresh_len,
-                                              e->kind, e->level)
+                                              e->kind, shown)
         };
         sig = sig_fold(sig, look, sizeof(look));
     }
@@ -987,14 +994,22 @@ static bool alerts_prepare(StatusRow *row, AlertsPass *a, int content_h, GFont f
 //     then does the tail go (alert_set_fit: pollen first, rain last).
 //  4. The row sits left-aligned (LEFT), centred on the row (MIDDLE) or against the
 //     right edge (RIGHT) inside the span (alert_set_row_x).
+// A RIGHT row moves to the MIDDLE while the low-battery warning holds the right
+// slot (alert_set_place), for every step above. And when not even the first entry
+// fits the freed span, the taken slots come back (alert_set_taken_slots): their
+// saved measures are restored and the bar lays out as if the row were not there —
+// a slot is replaced only by alerts it actually shows, never by a blank gap.
 static void alerts_layout(const StatusRow *row, AlertsPass *a,
                           StatusSlotMeasure measures[STATUS_SLOT_COUNT],
                           StatusSlotPlace places[STATUS_SLOT_COUNT], int16_t content_w) {
     const AlertSet *set = &a->r.set;
+    const int place = alert_set_place(row->alerts_place, row->battery_override);
     int need = alert_set_row_w(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
-    int mask = alert_set_choose_slots(row->alerts_place, need, content_w,
+    int mask = alert_set_choose_slots(place, need, content_w,
         status_slot_desired_w(&measures[0]), status_slot_desired_w(&measures[1]),
         status_slot_desired_w(&measures[2]), STATUS_ROW_GROUP_GAP);
+    StatusSlotMeasure saved[STATUS_SLOT_COUNT];
+    memcpy(saved, measures, sizeof(saved));
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (mask & (1 << i)) { measures[i] = (StatusSlotMeasure){0}; }
     }
@@ -1010,7 +1025,7 @@ static void alerts_layout(const StatusRow *row, AlertsPass *a,
     }
     int x0;
     int x1;
-    alert_set_free_span(row->alerts_place, visible, content_w, STATUS_ROW_GROUP_GAP,
+    alert_set_free_span(place, visible, content_w, STATUS_ROW_GROUP_GAP,
                         lo, hi, &x0, &x1);
     int budget = x1 - x0;
 
@@ -1019,8 +1034,16 @@ static void alerts_layout(const StatusRow *row, AlertsPass *a,
         need = alert_set_row_w(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
     }
     a->n = alert_set_fit(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP, budget);
+    if (alert_set_taken_slots(mask, a->n) != mask) {
+        // Nothing fits (a long City left beside the anchor, say): hand the slots
+        // back rather than paint a blank gap where they were. a->n stays 0, so the
+        // draw paints no entry.
+        memcpy(measures, saved, sizeof(saved));
+        status_row_layout(content_w, measures, places);
+        return;
+    }
     int w = alert_set_row_w(a->widths, a->n, STATUS_ALERTS_ENTRY_GAP);
-    a->x = (int16_t)alert_set_row_x(row->alerts_place, x0, x1, content_w, w);
+    a->x = (int16_t)alert_set_row_x(place, x0, x1, content_w, w);
 }
 #endif
 

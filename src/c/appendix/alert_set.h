@@ -102,6 +102,13 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier);
 // to load, with no text) takes no room and no gap — the draw skips it the same way.
 int alert_set_row_w(const int16_t *widths, int n, int gap);
 
+// The slots the row really keeps out of the layout: `mask` (alert_set_choose_slots)
+// while at least one entry fits (`fit`, alert_set_fit's answer), 0 when none does
+// — a slot is only ever replaced by alerts it actually shows, so an entry too wide
+// for the freed span hands the taken slots back to their own content instead of
+// leaving a blank gap.
+int alert_set_taken_slots(int mask, int fit);
+
 // How many entries fit `budget` px: the largest prefix whose alert_set_row_w() is
 // within it — entries drop from the TAIL (pollen first, rain last). 0 when not even
 // the first fits.
@@ -112,6 +119,13 @@ int alert_set_fit(const int16_t *widths, int n, int gap, int budget);
 #define ALERT_SLOT_LEFT  (1 << 0)
 #define ALERT_SLOT_MID   (1 << 1)
 #define ALERT_SLOT_RIGHT (1 << 2)
+
+// The placement the row lays out with this paint: the bar's own, except that a
+// RIGHT row moves to the MIDDLE while the bar's right slot shows the low-battery
+// warning (`battery_override` — the top strip only), so the warning keeps its slot
+// ('Show battery below 10%' promises it the top-right). A MIDDLE row never takes
+// the right slot (it borrows the left one), so nothing else has to give way.
+int alert_set_place(int placement, bool battery_override);
 
 // Which slots the Alerts row replaces for this paint (a ThreshAlertsPlace in
 // `placement`; 0 for OFF or an empty row). The anchor rule: LEFT takes the left
@@ -158,7 +172,8 @@ bool alert_set_degrade(int *rain_display, bool *values);
 
 // The rain entry's MINUTES lane from rain_countdown_format()'s text: the minute
 // token ("Rain in 12'" -> "12'"), marked "+" while it is raining now ("Rain for 20'"
-// -> "+20'"). A count already capped at "+99'" stays "+99'". Writes "" and returns
+// -> "+20'"). A count past rain_countdown's 99-minute cap ("+99'") reads ">99'" for
+// an upcoming shower and "+99'" while it falls. Writes "" and returns
 // false for a NULL/empty/token-less string. `out` NUL-terminated; cap >= 6 fits
 // every token.
 bool alert_set_rain_minutes(const char *countdown, char *out, size_t cap);

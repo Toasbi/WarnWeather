@@ -14,20 +14,22 @@
 // body sits behind the macro and compiles to an empty object there. Every call site
 // is guarded; these declarations emit nothing.
 //
-// Each entry is a MINI STATUS SLOT, `[icon][gap][text?]`, in the slot code's own
-// highlight vocabulary (status_row.c):
-//  - WARN   a rounded-rect OUTLINE in the kind's warn colour. Unconditional here —
-//           a slot at warn with no outline colour set shows bold text only, but an
-//           icon has no "bold", so the 0x00 no-outline sentinel outlines in the
-//           theme foreground instead of vanishing;
+// Each entry is a MINI STATUS SLOT, `[icon][gap][text?]`, highlighted EXACTLY like
+// its value's slot (status_row.c), at the slot's shown level
+// (status_threshold_shown_level — NORMAL while the kind's 'Highlight on the watch'
+// switch is off, so the entry is then a plain icon, its presence the alert):
+//  - WARN   a rounded-rect OUTLINE in the kind's warn colour — only while the
+//           kind's 'Outline on warn' is on. The 0x00 no-outline sentinel draws no
+//           box, as a warn slot draws none: the icon alone is the alert;
 //  - DANGER the box FILLED in the kind's danger colour + outline, the glyph
 //           re-stroked and the text drawn gcolor_legible_over() the fill;
 //  - rain   NO box: the drops drawn FILLED in the radar tier's colour (the look the
 //           strip's rain alert always had), the text in the foreground.
 // On B&W the escalation is polarity, as in the slots: warn = fg outline, danger =
 // fg box with the glyph and text in the background colour.
-// Text lanes use the row's font; a metric entry follows its kind's bold ladder
-// (status_threshold_is_bold — danger is always bold), the rain text never bolds.
+// Text lanes use the row's font; a metric value follows its kind's bold ladder at
+// the shown level (status_threshold_is_bold — danger bold, warn per the kind's Bold
+// mode, 'Always' even with the highlight off), the rain text never bolds.
 //
 // A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px each side of
 // the icon(+text) group, INSIDE the box — the outline's own pixel plus two of air,
