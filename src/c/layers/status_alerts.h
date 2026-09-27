@@ -29,15 +29,18 @@
 // Text lanes use the row's font; a metric entry follows its kind's bold ladder
 // (status_threshold_is_bold — danger is always bold), the rain text never bolds.
 //
-// A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px of air each
-// side of the icon(+text) group (a slot box's padding), so the widths the fit works
-// on are the ink the row paints — no box reaches into a neighbouring slot or past the
-// span. Vertically the box is the slots' font-derived extent plus
-// STATUS_ALERTS_BOX_PAD_Y px each side where the band has the room. Entries sit
-// STATUS_ALERTS_ENTRY_GAP px apart, footprint to footprint: two neighbouring boxes
-// keep that much air between their strokes.
-#define STATUS_ALERTS_BOX_PAD_X 2
-#define STATUS_ALERTS_BOX_PAD_Y 1
+// A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px each side of
+// the icon(+text) group, INSIDE the box — the outline's own pixel plus two of air,
+// so the icon never touches the stroke (the owner's ask: padding from the icon to
+// the border, not around the box). The widths the fit works on are therefore the
+// ink the row paints — no box reaches into a neighbouring slot or past the span.
+// Vertically the box is exactly the slots' font-derived extent (no extra rows —
+// STATUS_ALERTS_BOX_PAD_Y stays 0 by the owner's call; the hook is kept so a band
+// with room could grow it later). Entries sit STATUS_ALERTS_ENTRY_GAP px apart,
+// footprint to footprint: two neighbouring boxes keep that much air between their
+// strokes.
+#define STATUS_ALERTS_BOX_PAD_X 3
+#define STATUS_ALERTS_BOX_PAD_Y 0
 #define STATUS_ALERTS_ENTRY_GAP 2
 
 typedef struct StatusAlertsCache StatusAlertsCache;

@@ -175,17 +175,22 @@ void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
     }
 }
 
-// The kind's accent at `level`, drawable. An alert has no bold to fall back on, so
-// the slots' 0x00 "no outline" sentinel outlines in the foreground instead of
-// vanishing. On B&W the escalation is polarity, not hue (status_row.c's rule).
-static GColor alert_accent(const StatusAlertsText *text, const AlertEntry *e) {
+// The kind's accent byte at `level` — the slots' contract byte for byte: 0x00 at
+// WARN is the "no outline" sentinel (the kind's Outline-on-warn switch is off), so
+// a warn entry then draws its icon plain, the way a warn slot draws bold text only.
+// The icon's presence in the row IS the alert; the box is the emphasis the user
+// opted into. Danger never packs 0x00 (the phone falls back to the default red).
+static uint8_t alert_accent8(const StatusAlertsText *text, const AlertEntry *e) {
+    return status_threshold_color8(text->blob, text->blob_len, e->kind, e->level);
+}
+
+// The drawable colour for a non-zero accent byte. On B&W the escalation is
+// polarity, not hue (status_row.c's rule): every accent is the foreground.
+static GColor accent_color(uint8_t c8) {
 #ifdef PBL_COLOR
-    uint8_t c8 = status_threshold_color8(text->blob, text->blob_len, e->kind, e->level);
-    if (c8 == 0) { return theme_fg(); }
     return theme_pick((GColor){ .argb = c8 }, theme_fg());
 #else
-    (void)text;
-    (void)e;
+    (void)c8;
     return theme_fg();
 #endif
 }
@@ -228,10 +233,17 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
 
         GColor ink = fg;
         bool danger = !e->rain && e->level == THRESH_LEVEL_DANGER;
-        if (!e->rain) {
+        // A metric entry is boxed at DANGER always (the filled box) and at WARN only
+        // when its kind's outline is switched on — a 0x00 accent byte is the slots'
+        // no-outline sentinel, and an alert honours it the same way (the icon alone
+        // is the alert). The padding is measured in either way, so the row's widths
+        // do not shift when a box appears.
+        uint8_t c8 = e->rain ? 0 : alert_accent8(text, e);
+        bool boxed = !e->rain && (danger || c8 != 0);
+        if (boxed) {
             // The box IS the footprint: the padding was measured in, so it spans
-            // exactly [x, x + w). Its height is the slots' font-derived extent grown
-            // by a row each side where the band allows (status_highlight_extent_pad).
+            // exactly [x, x + w). Its height is the slots' font-derived extent
+            // (status_highlight_extent_pad with a 0 pad is that extent, clamped).
             StatusHighlightExtent v = status_highlight_extent_pad(
                 status_highlight_extent(place->band.origin.y, place->band.size.h,
                     place->glyph_cy, place->content_h, place->top_strip,
@@ -239,7 +251,7 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
                 place->band.origin.y, place->band.size.h, place->top_strip,
                 STATUS_ALERTS_BOX_PAD_Y);
             GRect box = GRect(x, v.y, w, v.h);
-            GColor accent = alert_accent(text, e);
+            GColor accent = accent_color(c8);
             if (danger) {
                 graphics_context_set_fill_color(ctx, accent);
                 graphics_fill_rect(ctx, box, 2, GCornersAll);
