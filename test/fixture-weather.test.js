@@ -234,6 +234,36 @@ test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow
   assert.deepEqual(o.STATUS_LEVELS_UINT8, [0, 0], "tomorrow's peak still never counts");
 });
 
+// fixtures/uv-alert-hold.json is the emulator sign-off scene for the hold rule
+// (wire-units' dayMaxShown, "high"): 15:24, UV 7 now and no more for the rest of
+// today, 8.4 at noon tomorrow (the series reaches the day after's midnight, so
+// tomorrow's peak is known). The fixture path has no day record, so "running" is
+// unknown and only the warn level can hold today's 7 — which it does, printed once,
+// in the top-left slot. Before the rule the slot rolled to "7/»8" and packed no
+// level, silencing the highlight while UV sat at warn.
+test('fixtures/uv-alert-hold.json holds today\'s 7 at warn, highlight on or off', () => {
+  const { normalizeWeather } = require('../scripts/lib/fixture-time');
+  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const fx = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'fixtures', 'uv-alert-hold.json'), 'utf8'));
+  normalizeWeather(fx);
+  const bake = (over) => {
+    const s = Object.assign({}, fx.claySettings, over);
+    const out = getFixtureWeatherPayload(fx, s, { platform: 'basalt' });
+    return { text: decodeLine(out.STATUS_LINE_3_UINT8)[0].text, levels: out.STATUS_LEVELS_UINT8,
+      enabled: Boolean(thresholds.buildSettingsBlob(s)[0] & 0x80) };
+  };
+  assert.deepEqual(bake({}), { text: '7', levels: [0, 1], enabled: true },
+    'held at warn 6, printed once, the UV level at warn (bits 8-9)');
+  // The switch only gates the colour: the text and the packed level stay; the
+  // Clay blob's UV enable bit is what clears.
+  assert.deepEqual(bake({ threshUvOn: false }), { text: '7', levels: [0, 1], enabled: false },
+    'switch off: still "7", level still packed, enable bit clear');
+  // A warn above today's 7 releases the hold: tomorrow's known peak takes over.
+  assert.deepEqual(bake({ threshUvWarn: '8', threshUvDanger: '10' }),
+    { text: '7/»8', levels: [0, 0], enabled: true }, 'warn 8: rolls on to tomorrow\'s 8');
+});
+
 // fixture-weather.js reads currentTemp/precipPct/windKmh/etc from the fixture's weather
 // block onto the corresponding provider.*Trend field, but pressureHpa was never wired to
 // provider.pressureTrend — so PRESSURE_TREND stayed permanently empty on the fixture/dev
