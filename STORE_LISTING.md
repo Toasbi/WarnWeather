@@ -65,8 +65,9 @@ STATUS LINES
       - phone battery
 - Bold status values to make them stand out or easier to read
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
-- Threshold highlighting: bold, outline, or fill a status slot when its value crosses a
-  warn or danger level you set
+- Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger
+  level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while
+  it is at warn or higher
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches

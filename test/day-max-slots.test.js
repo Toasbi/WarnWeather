@@ -1,5 +1,5 @@
-// test/day-max-slots.test.js — the UV slot's day max (Now / Day max / Both) on the
-// wind, gust and AQI slots: the numbers wire-units picks, the text status-lines
+// test/day-max-slots.test.js — the UV slot's day max (Now / Alert / Both, with
+// today's peak held while ahead, running or at warn) on the wind, gust and AQI slots: the numbers wire-units picks, the text status-lines
 // bakes, the highlight status-thresholds judges, and the peaks getPayload emits.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -47,7 +47,8 @@ test('wind runs the UV rule on the km/h series, in the user\'s unit', () => {
   // Converted BEFORE the comparison: 30 km/h = 19 mph, 45 km/h = 28 mph.
   assert.deepEqual(windShown([12], [30, 45, null], 'both', 'mph'),
     { now: 7, peak: 19, nextDay: false });
-  // At the day's strongest with nothing earlier known: rolls on to tomorrow's.
+  // At the day's strongest with nothing earlier known and no warn level passed:
+  // rolls on to tomorrow's.
   assert.deepEqual(windShown([30], [30, 45, null], 'both', 'kph'),
     { now: 30, peak: 45, nextDay: true });
   // ...but a peak still running (no earlier hour printed more) holds — and, equal
@@ -71,7 +72,7 @@ test('AQI runs the same rule on the AQI forecast, and a null reading is no readi
 
 // ---- status-lines: the slot text -------------------------------------------
 
-test('wind and gust slots print Now / Day max / Both, each on its own settings', () => {
+test('wind and gust slots print Now / Alert / Both, each on its own settings', () => {
   const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null],
     GUST_TREND_UINT8: [20], GUST_DAY_PEAKS: [52, 60, null] };
   const f = (code, extra) => statusLines.formatValue(code, p, settings(extra));
@@ -106,7 +107,7 @@ test('the AQI day max runs on the Open-Meteo forecast and degrades to the readin
   assert.equal(statusLines.formatValue('aqi', { AQI_TREND: [] }, settings({ aqiSlotDisplay: 'max' })), '--');
 });
 
-test('the wind arrow stays in Both (its first reading is now) and leaves Day max alone', () => {
+test('the wind arrow stays in Both (its first reading is now) and leaves Alert alone', () => {
   const radar = catalog.LINES.filter((l) => l.id === 'radar')[0];
   const env = { color: true, round: false, platform: 'basalt', health: true, radar: true };
   const slot = (extra) => {
@@ -119,8 +120,8 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
   const last = (b) => b[b.length - 1];
   assert.ok(last(slot({ windSlotDisplay: 'both' })) <= 0x10, 'Both keeps the arrow');
   assert.equal(Buffer.from(slot({ windSlotDisplay: 'max' })).toString('utf8'), '30',
-    'Day max: the peak alone, no arrow');
-  // No peak known: Day max prints the current reading, which the arrow describes.
+    'Alert: the peak alone, no arrow');
+  // No peak known: Alert prints the current reading, which the arrow describes.
   const noPeak = statusLines.packLine(radar,
     { WIND_TREND_UINT8: [12], WIND_DIR_TREND: [270] },
     settings({ statusRadarLeft: 'wind', statusRadarMid: 'empty', statusRadarRight: 'empty',
@@ -368,7 +369,7 @@ test('wind and gust records keep to a few km; UV keeps its regional radius', () 
   assert.equal(byKey[KEYS.WIND_DAY_RECORD_KEY].t, LOCAL_9AM + 3600, 'wind: another place, fresh');
 });
 
-test('getPayload skips the peaks of kinds no slot shows in Day max or Both', () => {
+test('getPayload skips the peaks of kinds no slot shows in Alert or Both', () => {
   const out = provider({ windTrend: new Array(48).fill(5), uvTrend: new Array(48).fill(3),
     dayPeakCodes: ['uv'] }).getPayload();
   assert.ok('UV_DAY_PEAKS' in out);
@@ -410,7 +411,7 @@ test('the unit gives way to the direction arrow on an edge slot', () => {
     settings({ windSlotDisplay: 'both', windSlotDirection: true })), '12/30');
   assert.equal(statusLines.formatValue('wind', p,
     settings({ windSlotDisplay: 'both', windSlotDirection: false })), '12/30kph');
-  // Day max alone draws no arrow, so the unit keeps its byte.
+  // Alert alone draws no arrow, so the unit keeps its byte.
   assert.equal(statusLines.formatValue('wind', p,
     settings({ windSlotDisplay: 'max', windSlotDirection: true })), '30kph');
 });

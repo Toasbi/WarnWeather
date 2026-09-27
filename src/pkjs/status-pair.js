@@ -2,8 +2,8 @@
 //
 // Two kinds of slot can show two readings at once: Temperature in 'both' mode
 // (actual and feels-like), and the day-max kinds -- UV, wind, gusts and AQI -- in
-// 'both' mode (now and the day's peak: today's until the reading drops below it,
-// then tomorrow's).
+// 'both' mode (now and the day's peak: today's while it is still ahead, running,
+// or at the kind's warn level or higher, then tomorrow's).
 // Which reading comes first, what stands between the two (and whether spaces flank
 // it), and how UV marks a peak that is tomorrow's are per-kind settings (each
 // kind's Edit sheet); this module turns them into the text status-lines.js bakes. Phone-side only: the watch

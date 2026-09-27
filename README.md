@@ -49,7 +49,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Status lines**
 * Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more
 * Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for calendar views (month + year) and no-calendar views (full date)
-* Threshold highlighting: bold, outline, or fill a status slot when a metric crosses a warn or danger level you set
+* Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while it is at warn or higher
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches
@@ -90,9 +90,9 @@ Two things that both involve rain over time, but answer different questions:
   dithering) (defaults: line, dots, x, x; style selection is
   likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
   temperature status slot can also show the feels-like value, or both as `12/10`; the UV index
-  slot can show today's highest UV still to come, or both as `3/7`; today's peak stays until the
-  UV drops below it, then tomorrow's shows instead, marked `»` (`4/»8`). The wind, gust and air
-  quality slots offer the same day max (air quality with the Open-Meteo AQI provider, whose
+  slot can show today's highest UV still to come, or both as `3/7`; today's peak stays while it
+  is still ahead or at your warn level or higher, then tomorrow's shows instead, marked `»`
+  (`4/»8`). The wind, gust and air quality slots offer the same Alert mode (air quality with the Open-Meteo AQI provider, whose
   hourly forecast it needs; WAQI reports the current reading only). How the pair is written
   is up to you: pick the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or
   without spaces around it (`12 / 10`), which value comes first, and how tomorrow's peak is

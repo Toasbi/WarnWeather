@@ -88,9 +88,9 @@ function dayMaxPayloadKeys() {
  *   - ahead: it prints above `now`;
  *   - running: `now` prints it and no hour since the reading last printed below
  *     it printed more. So a peak of 5 from 13:00 to 15:00 shows through those
- *     hours and gives way when the reading drops below it; a second, lower peak
- *     after a cloudy noon runs the same way, while the same 5 on the way down from
- *     a 6 is already behind us. Telling "running" from "behind us" takes today's
+ *     hours and, unless it is high (below), gives way when the reading drops
+ *     below it; a second, lower peak after a cloudy noon runs the same way, while
+ *     the same 5 on the way down from a 6 is already behind us. Telling "running" from "behind us" takes today's
  *     earlier hours back to that dip (the third peak); without them, today's
  *     gives way as soon as nothing later prints above `now`;
  *   - high: it is at or above the kind's warn level (`warn`) — the slot is an

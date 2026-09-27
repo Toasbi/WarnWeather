@@ -56,8 +56,9 @@ module.exports = {
     LAST_UPDATE_CHECK_KEY: 'last_update_check',
     WU_HOURLY_CACHE_KEY: 'wuHourlyCache',
     // The UV / wind / gust / AQI forecast for today's hours already begun, kept
-    // across fetches, so each slot's day max knows whether today's peak is still
-    // ahead, running or behind (weather/day-peaks.js). One record per metric.
+    // across fetches, so each slot's day max (the Alert / Both modes) knows whether
+    // today's peak is still ahead, running or behind (weather/day-peaks.js); the
+    // third hold ground, at or above warn, needs no record. One record per metric.
     UV_DAY_RECORD_KEY: 'uvDayRecord',
     WIND_DAY_RECORD_KEY: 'windDayRecord',
     GUST_DAY_RECORD_KEY: 'gustDayRecord',

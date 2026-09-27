@@ -80,7 +80,7 @@ test('uvShown: without today\'s earlier hours, today\'s peak gives way once noth
   assert.deepEqual(uvShown([0, 0], [0, 95], 'both'), S(0, 10, true));
 });
 
-test('uvShown: today\'s peak holds until the reading drops below it', () => {
+test('uvShown: a running peak holds until the reading drops below it, unless it is at warn', () => {
   // The owner's day: UV 5 from 13:00 to 15:00, 6 tomorrow. dayPeaks' third entry
   // is the peak of today's hours before the current one (the UV day record).
   const at = (now, rest, earlier, mode, warn) => uvShown([now], [rest, 60, earlier], mode, warn);

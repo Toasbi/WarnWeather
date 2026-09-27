@@ -1,7 +1,9 @@
 // test/day-peaks.test.js — the UV forecast of today's hours already begun,
 // kept across fetches so the UV slot's day max can hold today's peak while it
 // runs (a peak of 5 from 13:00 to 15:00 shows until the reading drops below it)
-// and give way to tomorrow's once it is behind us. Times are LOCAL clock times so
+// and give way to tomorrow's once it is behind us. These run with no warn level
+// passed, so the running rule is judged alone; the third hold ground (at or above
+// warn) is wire-units' and is pinned in test/wire-units.test.js. Times are LOCAL clock times so
 // the day edges land the same in any host time zone.
 'use strict';
 const test = require('node:test');
@@ -142,7 +144,7 @@ function both(payload) {
   return uv.now + '/' + (uv.nextDay ? '»' : '') + uv.peak;
 }
 
-test('the owner\'s day: 5 holds from 13:00 until the reading drops below it at 15:00', () => {
+test('the owner\'s day: 5 runs from 13:00 until the reading drops below it at 15:00 (no warn)', () => {
   const p = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
   assert.equal(both(fetchAt(p, 0)), '0/5', '00:10: nothing earlier, the peak ahead');
   assert.equal(both(fetchAt(p, 11)), '4/5', '11:10: ahead');

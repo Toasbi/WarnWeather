@@ -286,7 +286,7 @@ app code.
 
 `subheader` items split ONE section into several visually-titled groups — use them when a
 section holds rows that answer to different scopes (the threshold sheets keep a slot-level
-`Bold` row outside the thresholds group). Fields: `text` (the heading), optional `intro`
+`Bold` row outside the Alert levels group). Fields: `text` (the heading), optional `intro`
 (HTML shown under the heading, like a section `intro`), optional `labelAction`, and optional
 `toggleKey`. `toggleKey` names a `toggle` item **in the same section**, which then renders as a
 switch on the header instead of as a row of its own — while keeping its normal place in
