@@ -50,9 +50,10 @@ test('wind runs the UV rule on the km/h series, in the user\'s unit', () => {
   // At the day's strongest with nothing earlier known: rolls on to tomorrow's.
   assert.deepEqual(windShown([30], [30, 45, null], 'both', 'kph'),
     { now: 30, peak: 45, nextDay: true });
-  // ...but a peak still running (no earlier hour printed more) holds.
+  // ...but a peak still running (no earlier hour printed more) holds — and, equal
+  // to now, prints once: the reading alone.
   assert.deepEqual(windShown([30], [30, 45, 22], 'both', 'kph'),
-    { now: 30, peak: 30, nextDay: false });
+    { now: 30, peak: null, nextDay: false });
   // Current mode and absent peaks both print the reading alone.
   assert.deepEqual(windShown([12], [30, 45, null], 'current', 'kph'),
     { now: 12, peak: null, nextDay: false });

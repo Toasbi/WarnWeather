@@ -84,25 +84,37 @@ function dayMaxPayloadKeys() {
  *
  * `peak` is today's peak (the highest the rest of the local day reaches, until
  * 23:59) while it holds, and after that tomorrow's, flagged `nextDay` so the slot
- * can mark it. Today's holds while it is still ahead — it prints above `now` —
- * and while it is running: `now` prints it and no hour since the reading last
- * printed below it printed more. So a peak of 5 from 13:00 to 15:00 shows
- * through those hours ("5/5") and gives way when the reading drops below it; a
- * second, lower peak after a cloudy noon runs the same way, while the same 5 on
- * the way down from a 6 is already behind us. Telling "running" from "behind us"
- * takes today's earlier hours back to that dip (the third peak); without them,
- * today's gives way as soon as nothing later prints above `now`. A day that
- * never prints above 0 has no peak to hold. All comparisons are on the whole
- * numbers the slot prints.
+ * can mark it. Today's holds on any of three grounds:
+ *   - ahead: it prints above `now`;
+ *   - running: `now` prints it and no hour since the reading last printed below
+ *     it printed more. So a peak of 5 from 13:00 to 15:00 shows through those
+ *     hours and gives way when the reading drops below it; a second, lower peak
+ *     after a cloudy noon runs the same way, while the same 5 on the way down from
+ *     a 6 is already behind us. Telling "running" from "behind us" takes today's
+ *     earlier hours back to that dip (the third peak); without them, today's
+ *     gives way as soon as nothing later prints above `now`;
+ *   - high: it is at or above the kind's warn level (`warn`) — the slot is an
+ *     alert, not a record, so a 7 falling from an 8 keeps the 7 on screen (and
+ *     the highlight judging it) while it is still worth warning about, instead
+ *     of rolling to tomorrow's peak and going quiet.
+ * Only once none of those holds does tomorrow's peak show. A day that never
+ * prints above 0 has no peak to hold (so a warn of 0 cannot pin a "0" all
+ * evening). All comparisons are on the whole numbers the slot prints.
  * The peaks come in pre-computed (*_DAY_PEAKS, provider.js getPayload, off the
  * longer PEAK_HOURS series and the kind's day record), so only frozen payload inputs
  * are read — no clock — and re-baking an old snapshot reproduces the same text
  * (status-rebake.js; one stored before the third peak existed reads it as unknown).
  *
+ * A held today's peak that equals `now` prints once: in 'both' mode the pair
+ * collapses to `now` alone ("7", not "7/7") — `peak` comes back null, so the text
+ * and the highlight both read `now`, which is that same number. 'max' mode keeps
+ * `now` null and `peak` set, as for every other peak it shows alone.
+ *
  * The worked example is UV; wind and gusts compare in the user's wind unit (so
- * "the reading dropped below the peak" is judged on the numbers on screen), and
- * AQI_DAY_PEAKS rides only an Open-Meteo forecast (on WAQI's current reading it is
- * absent, and every mode prints the reading alone).
+ * "the reading dropped below the peak" is judged on the numbers on screen, and
+ * `warn` must come in that unit too), and AQI_DAY_PEAKS rides only an Open-Meteo
+ * forecast (on WAQI's current reading it is absent, and every mode prints the
+ * reading alone).
  *
  * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {Object} payload Weather payload (the kind's trend + *_DAY_PEAKS, where
@@ -111,12 +123,16 @@ function dayMaxPayloadKeys() {
  *     such hour came before the current one).
  * @param {Object} settings Clay settings blob (<code>SlotDisplay: 'max' / 'both' ask
  *     for the peak, anything else — absent = 'current' — does not; windUnits).
+ * @param {?number} [warn] The kind's warn level in DISPLAY units, resolved by the
+ *     caller (this module stays a leaf: status-thresholds reads the stored pair
+ *     and its seed). Absent, null or non-finite: no "high" hold.
  * @returns {?{now: ?number, peak: ?number, nextDay: boolean}} null when there is
- *     no reading at all. `peak` is null when the mode does not show one or no peak is
- *     known (today's behind us, tomorrow's not covered), and every mode then falls
- *     back to `now` alone; `now` is null only in 'max' mode when a peak is shown.
+ *     no reading at all. `peak` is null when the mode does not show one, no peak is
+ *     known (today's behind us, tomorrow's not covered), or a held today's peak
+ *     equals `now` in 'both' mode; every mode then falls back to `now` alone.
+ *     `now` is null only in 'max' mode when a peak is shown.
  */
-function dayMaxShown(code, payload, settings) {
+function dayMaxShown(code, payload, settings, warn) {
     var reader = DAY_MAX_READERS[code];
     var s = settings || {};
     var head = reader && payload ? trendHead(payload[reader.trend]) : null;
@@ -131,8 +147,11 @@ function dayMaxShown(code, payload, settings) {
     var today = peak(0);
     var next = peak(1);
     var earlier = peak(2);
-    var running = earlier !== null && today !== null && today > 0 && today >= earlier;
-    if (today !== null && (today > shown.now || running)) {
+    var known = today !== null && today > 0;
+    var ahead = today !== null && today > shown.now;
+    var running = known && earlier !== null && today >= earlier;
+    var high = known && typeof warn === 'number' && isFinite(warn) && today >= warn;
+    if (ahead || running || high) {
         shown.peak = today;
     } else if (next !== null && next > 0) {
         // (A tomorrow that never prints above 0 has no peak either — often a feed
@@ -143,7 +162,12 @@ function dayMaxShown(code, payload, settings) {
     } else {
         return shown;
     }
-    if (mode === 'max') { shown.now = null; }
+    if (mode === 'max') {
+        shown.now = null;
+    } else if (!shown.nextDay && shown.peak === shown.now) {
+        // 'both' prints a held today == now once: "7", not "7/7".
+        shown.peak = null;
+    }
     return shown;
 }
 
