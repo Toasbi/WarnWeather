@@ -278,17 +278,42 @@ test('the weather bake is identical across themes and the area-fill toggle', () 
 // only reaches the watch through a refetch. Without these keys in the signature,
 // shouldForceFetch stays false for a threshold-only edit and the user sees nothing until
 // the next scheduled fetch (fetchIntervalMin, 15 min default — or after the night pause).
-test('enabling a WEATHER-kind threshold changes the render signature (forces a refetch)', () => {
+// The pair is signed as the phone RESOLVES it (status-thresholds resolvedPair: the
+// stored pair when it is ordered, else the kind's seed), because that is what the bake
+// reads — so only a change in the numbers the bake sees forces a refetch.
+test('setting a WEATHER-kind pair changes the render signature (forces a refetch)', () => {
   WEATHER_KINDS.forEach(kind => {
-    ['Warn', 'Danger'].forEach(which => {
-      const key = 'thresh' + kind.key + which;
-      const before = renderSignature({});
-      const after = renderSignature({ [key]: '100' });
-      assert.notEqual(after, before, key + ' must be part of the render signature');
-      // And an edit of an already-set value counts too (raising warn re-bakes the levels).
-      assert.notEqual(renderSignature({ [key]: '100' }), renderSignature({ [key]: '150' }),
-        key + ' must react to a changed value, not merely to being present');
-    });
+    const warnKey = 'thresh' + kind.key + 'Warn';
+    const dangerKey = 'thresh' + kind.key + 'Danger';
+    // 101/151 is no kind's seed (AQI's US seed is 100/150 — a stored pair equal to the
+    // seed rightly reads the same as a blank one, since the bake sees the same numbers).
+    const before = renderSignature({});
+    const stored = renderSignature({ [warnKey]: '101', [dangerKey]: '151' });
+    assert.notEqual(stored, before, kind.key + ': a stored ordered pair must join the signature');
+    // And an edit of an already-set value counts too (raising warn re-bakes the levels).
+    assert.notEqual(stored, renderSignature({ [warnKey]: '121', [dangerKey]: '151' }),
+      warnKey + ' must react to a changed value, not merely to being present');
+    assert.notEqual(stored, renderSignature({ [warnKey]: '101', [dangerKey]: '181' }),
+      dangerKey + ' must react to a changed value, not merely to being present');
+    // A half pair resolves to the seed, exactly as the bake reads it — no refetch.
+    assert.equal(renderSignature({ [warnKey]: '101' }), before,
+      kind.key + ': a half pair reads as the seed, like an absent pair');
+  });
+});
+
+// Turning the highlight ON over a blank pair pins the SEED strings into storage
+// (blocks.js thresholdToggle) — the numbers the bake reads do not change, so it must
+// not force a refetch either (spec decision 6: the switch never forces a refetch).
+test('storing the seed pair over a blank one leaves the signature unchanged', () => {
+  WEATHER_KINDS.forEach(kind => {
+    const seed = thresholds.seedPair(kind.key, {});
+    const pinned = {
+      ['thresh' + kind.key + 'Warn']: String(seed.warn),
+      ['thresh' + kind.key + 'Danger']: String(seed.danger),
+      ['thresh' + kind.key + 'On']: true
+    };
+    assert.equal(renderSignature(pinned), renderSignature({}),
+      kind.key + ': the seed pinned as strings reads the same as a blank pair');
   });
 });
 

@@ -445,6 +445,16 @@ if (typeof require !== 'undefined') {
             var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
             if (warn !== null && warn > max) { max = ceilToStep(warn, base.step); }
             if (danger !== null && danger > max) { max = ceilToStep(danger, base.step); }
+            // The pair the phone actually holds on must sit on the scale too
+            // (resolvedPair: the stored pair when it is ordered, else the seed).
+            // With a blank pair and a stored scale max below the seed — the
+            // slider's max editor is live while the highlight is off, and older
+            // installs kept a Max from before OFF stopped blanking the pair — the
+            // slider would clamp the seed it previews to that max while the hold
+            // rule and the hint use the real seed: three readings of one rule.
+            var held = contract.resolvedPair(stem, S || {});
+            if (held.warn !== null && held.warn > max) { max = ceilToStep(held.warn, base.step); }
+            if (held.danger !== null && held.danger > max) { max = ceilToStep(held.danger, base.step); }
         }
         // A null warn color (no outline configured) draws the slider's warn pieces
         // in a neutral gray: the zone still shows WHERE warn spans, while the copy +

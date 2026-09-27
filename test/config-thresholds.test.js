@@ -236,6 +236,17 @@ test('scale max: override honored, garbage ignored, always grows to fit stored v
   const shrunk = B.thresholdRangeCfg(
     { threshStepsMax: '10000', threshStepsWarn: '15000' }, ENV, { keyStem: 'Steps' });
   assert.equal(shrunk.max, 15000, 'an override below a stored threshold loses');
+  // A blank pair means the SEED on the phone (resolvedPair), and the slider previews
+  // that seed — so an override below the seed must lose too, or the slider would clamp
+  // the seed it shows while the hold rule and the hint use the real one.
+  const clampedSeed = B.thresholdRangeCfg(
+    { windUnits: 'kph', threshWindMax: '30', threshWindWarn: '', threshWindDanger: '' },
+    ENV, { keyStem: 'Wind' });
+  assert.deepEqual([clampedSeed.seedWarn, clampedSeed.seedDanger], [40, 60], 'kph wind seed');
+  assert.ok(clampedSeed.max >= 60, 'the scale grows to hold the seed pair: ' + clampedSeed.max);
+  assert.equal(clampedSeed.seedWarn, thresholds.holdWarn('wind',
+    { windUnits: 'kph', threshWindMax: '30', threshWindWarn: '', threshWindDanger: '' }),
+    'the slider seed is the number the phone holds on');
   // Bounded kinds ignore stray max keys entirely.
   const sleep = B.thresholdRangeCfg({ threshSleepMax: '40' }, ENV, { keyStem: 'Sleep' });
   assert.equal(sleep.max, 12);

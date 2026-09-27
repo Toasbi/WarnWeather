@@ -117,11 +117,17 @@ function renderSignature(settings) {
     // Deliberately NOT the health kinds (goal: true — evaluated watch-side from
     // the Clay-delivered blob, already immediate) and NOT the threshold colours
     // (Clay-delivered, applied on the next paint): a refetch there is pure waste.
+    // Signed as the RESOLVED pair — the numbers the bake reads (resolvedPair:
+    // the stored pair when it is ordered, else the kind's seed) — not the raw
+    // strings: turning the highlight ON over a blank pair pins the seed strings
+    // into storage (blocks.js thresholdToggle), and signing '' -> '6' would
+    // force a refetch that bakes the very same numbers. The seed's own inputs
+    // (windUnits, aqiSource, aqiScale) are signed above.
     var kinds = statusThresholds.KINDS;
     for (var w = 0; w < kinds.length; w++) {
         if (kinds[w].goal || kinds[w].boldOnly) { continue; }
-        parts.push(settings['thresh' + kinds[w].key + 'Warn'],
-            settings['thresh' + kinds[w].key + 'Danger']);
+        var held = statusThresholds.resolvedPair(kinds[w].key, settings);
+        parts.push(held.warn, held.danger);
     }
     return parts.join('|');
 }
