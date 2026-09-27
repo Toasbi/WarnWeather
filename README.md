@@ -50,7 +50,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Configurable status slots on every view: fill each slot from a catalog of metrics — weather, dew point, air quality, pollen, wind, health, watch battery (glyph or percentage), phone battery, a countdown to any date, and more
 * Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for calendar views (month + year) and no-calendar views (full date)
 * Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while it is at warn or higher
-* Alerts row: one icon for incoming rain and for every metric at its alert level, in any status bar you place it; each metric alert can print its value next to the icon, and rain shows as an icon, the minutes until it starts, or the full countdown text (not on Pebble Classic/Steel)
+* Alerts row: one icon for incoming rain and for every metric at its alert level, shown in place of a status bar's slots while an alert is active — each status bar chooses Off, Left, Middle or Right; each metric alert can print its value next to the icon, and rain shows as an icon, the minutes until it starts, or the full countdown text (not on Pebble Classic/Steel)
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches

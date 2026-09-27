@@ -68,8 +68,9 @@ STATUS LINES
 - Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger
   level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while
   it is at warn or higher
-- Alerts row: one icon for incoming rain and for every metric at its alert level, in any
-  status bar you place it; each metric alert can print its value next to the icon, and rain
+- Alerts row: one icon for incoming rain and for every metric at its alert level, shown in
+  place of a status bar's slots while an alert is active — each status bar chooses Off,
+  Left, Middle or Right; each metric alert can print its value next to the icon, and rain
   shows as an icon, the minutes until it starts, or the full countdown text (not on Pebble
   Classic/Steel)
 

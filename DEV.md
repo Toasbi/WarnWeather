@@ -357,7 +357,7 @@ reproduce in a static compile-time fixture, so screenshot builds swap in two can
 
 - `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
 - a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — a rain entry in
-  every Alerts row: its `tier` picks the drops and their colour, and its `text` is the exact
+  every bar that shows the Alerts row (the strip by default; each bar's Alerts setting): its `tier` picks the drops and their colour, and its `text` is the exact
   "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'" the 'text' rain look prints (the
   'minutes' look shows its minute token, `15'` / `+20'`).
 

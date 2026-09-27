@@ -395,7 +395,7 @@ test('a top stripe joins the signature only while it squeezes a feels/dew curve'
   assert.equal(withStyle(rain, {}), withStyle(rain, { thirdLineStyle: 'stripeTop' }), 'no feels/dew drawn');
 });
 
-// The metric alerts change the bake (the alerts slot's entries) AND the fetch set (an
+// The metric alerts change the bake (the ALERT_ENTRIES_UINT8 tuple) AND the fetch set (an
 // enabled alert fetches its metric and day peaks), so switching one — or its Look —
 // must force a refetch. The rain look rides the Clay blob (byte 34) and must not.
 test('each alert<Kind> and, while on, its Look change the render signature', () => {

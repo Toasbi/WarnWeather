@@ -266,12 +266,14 @@ test('fixtures/uv-alert-hold.json holds today\'s 7 at warn, highlight on or off'
 
 // fixtures/rain-countdown.json is the emulator sign-off scene for the Alerts row: rain
 // 10-25 min ahead (the watch resolves that entry itself from the radar tuples) plus a
-// UV alert at danger with its value, which the phone bakes into the row's own entry
-// tuple (ALERT_ENTRIES_UINT8); the strip shows the row in its left slot by default.
+// UV alert at danger and a wind alert at warn, both with their values, which the phone
+// bakes into the row's own entry tuple (ALERT_ENTRIES_UINT8) in the fixed order UV,
+// wind; the strip shows the row in its left slot by default. Two metric entries at two
+// levels put a filled (danger) box beside an outlined (warn) one in the frame.
 // radarStartEpoch pins the radar window to the emulator's clock (watch.now read as
 // UTC); without it the window anchors to the host-local startEpoch and can land
 // wholly in the past, so no rain alert draws.
-test('fixtures/rain-countdown.json bakes one UV danger entry, value 8, into ALERT_ENTRIES_UINT8', () => {
+test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_ENTRIES_UINT8', () => {
   const { normalizeWeather } = require('../scripts/lib/fixture-time');
   const thresholds = require('../src/pkjs/status-thresholds.js');
   const catalog = require('../src/pkjs/status-line-catalog.js');
@@ -282,15 +284,18 @@ test('fixtures/rain-countdown.json bakes one UV danger entry, value 8, into ALER
   normalizeWeather(fx);
   assert.ok(getFixtureRadarTuples(fx).RAIN_RADAR_TREND_UINT8.some((b) => b > 0), 'rain in the radar window');
   const uvKind = thresholds.KINDS.findIndex((k) => k.code === 'uv');
+  const windKind = thresholds.KINDS.findIndex((k) => k.code === 'wind');
+  // header: bits 0-2 kind, 3-4 level, 5-7 value length; the value bytes follow it.
+  const header = (b) => ({ kind: b & 7, level: (b >> 3) & 3, len: b >> 5 });
   ['basalt', 'emery'].forEach((platform) => {
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
-    // One entry: header (bits 0-2 kind, 3-4 level, 5-7 value length) + the value.
     const bytes = out.ALERT_ENTRIES_UINT8;
-    assert.equal(bytes.length, 2, platform + ': one entry, one value byte');
-    const header = bytes[0];
-    assert.deepEqual({ kind: header & 7, level: (header >> 3) & 3, len: header >> 5 },
-      { kind: uvKind, level: 2, len: 1 }, platform + ': a UV entry at danger');
+    assert.equal(bytes.length, 5, platform + ': UV (1 + 1 value byte) + wind (1 + 2 value bytes)');
+    assert.deepEqual(header(bytes[0]), { kind: uvKind, level: 2, len: 1 }, platform + ': a UV entry at danger');
     assert.equal(String.fromCharCode(bytes[1]), '8', platform + ': printing 8 (today\'s 8.4)');
+    assert.deepEqual(header(bytes[2]), { kind: windKind, level: 1, len: 2 },
+      platform + ': a wind entry at warn (50 <= 66 < 80)');
+    assert.equal(String.fromCharCode(bytes[3], bytes[4]), '66', platform + ': today\'s 66 km/h peak');
     // The status lines carry no entries: the top-left slot is its shipped default.
     const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
     assert.notEqual(topLeft.kind, 11, platform + ': no alerts slot kind any more');

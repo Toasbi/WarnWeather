@@ -97,15 +97,17 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   (the AppMessage channel is half-duplex, so back-to-back sends collide), and commit the
   last-sent cache only in the ACK callback so a NACK retries next time.
 - **Keep the bundled message within the watch's inbox — `inbox_size` is 536 B on aplite
-  and 600 B everywhere else (`src/c/appendix/app_message.c`).** Because all changed
+  and 640 B everywhere else (`src/c/appendix/app_message.c`).** Because all changed
   categories ride in one send, a new or enlarged payload key has to keep the *heaviest*
   bundle under budget on every platform. On aplite the buffer is allocated from its
   already-tiny heap, so 536 B is a hard ceiling there — you can't just bump it; the other
-  platforms have heap to spare, which is why they got a bigger inbox when the fourth
-  metric line (never sent to aplite) arrived. An overflow is dropped silently
+  platforms have heap to spare, which is why they got a bigger inbox: 600 B when the
+  fourth metric line arrived, then 640 B when the Alerts row's `ALERT_ENTRIES_UINT8`
+  tuple (7 B header + a 20 B entry cap) joined the status category. Aplite draws
+  neither, is never sent either payload, and keeps 536 B. An overflow is dropped silently
   (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!"). Worst realistic case is DWD with all
-  four metric lines active, the radar's sky rows on and City in every status slot = 576 B
-  of 600 B (24 B headroom);
+  four metric lines active, the radar's sky rows on, City in every status slot and a
+  full Alerts-row entry tuple = 603 B of 640 B (37 B headroom);
   aplite's heaviest bundle, without the lines it cannot draw, is 473 B of 536 B (see
   `test/inbox-size.test.js` — the authoritative computation, which records the bundle
   sizes exactly per platform; keep them in sync). That headroom was 10 B until the settings-derived
@@ -116,10 +118,13 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   per-line marker-style bytes), both of which now ride the Clay/settings message.
   `test/inbox-size.test.js` guards both the weather and Clay
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
-  treat bumping `inbox_size` as a last resort. Before spending weather-message bytes, ask
+  treat bumping `inbox_size` as a last resort (the 640 B step was the owner's call for
+  a feature-sized tuple that has no settings-side home — the Alerts row's entries are
+  weather-derived — and it stays off aplite). Before spending weather-message bytes, ask
   whether the value is settings-derived — if it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
-  520 B — the thresholds blob grew to 35 B for the Alerts row's rain look — sized
+  521 B — the thresholds blob grew to 36 B for the Alerts row's rain look and its
+  per-bar placement byte — sized
   against aplite's 536 B inbox as the conservative floor, and the test enforces a 10 B
   headroom floor on each bundle), so check `test/inbox-size.test.js` either way.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the

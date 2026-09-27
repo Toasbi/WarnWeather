@@ -30,7 +30,11 @@
     "alertUv": true,
     "alertUvDisplay": "value",
     "threshUvWarn": "6",
-    "threshUvDanger": "8"
+    "threshUvDanger": "8",
+    "alertWind": true,
+    "alertWindDisplay": "value",
+    "threshWindWarn": "50",
+    "threshWindDanger": "80"
   },
   "weather": {
     "city": "Windy Ridge",
