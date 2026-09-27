@@ -250,9 +250,10 @@ if (typeof require !== 'undefined') {
      * unit pickers and the AQI source/scale with no dependency list — and in place
      * after a keyboard nudge on a thumb, which commits without a render
      * (range-control.js). Now mode gets the kind's lead alone: the hold/mark tail
-     * describes rows that mode hides. The warn level and the highlight switch it names
-     * live in the kind's Alerts sheet (the slot sheet only points there), so the hint
-     * sends the reader "under Alerts" for both; the tomorrow mark is still "below".
+     * describes rows that mode hides. The warn level it names lives in the kind's
+     * Alerts sheet (the slot sheet only points there), so the hint sends the reader
+     * "under Alerts" for it; the highlight switch is this slot sheet's Highlight row,
+     * "above"; the tomorrow mark is still "below".
      * The page's HTML is raw here (engine renderRow),
      * so only numbers and the range table's unit label are interpolated — the rest is
      * schema copy.
@@ -277,7 +278,7 @@ if (typeof require !== 'undefined') {
             + ' or higher — the warn level set under Alerts. Under that, tomorrow\'s peak shows'
             + ' instead, marked as chosen below. '
             + (on ? 'Highlighting follows the number shown.'
-                : 'Highlighting is off — switch it on under Alerts to color it.')
+                : 'Highlighting is off — switch it on above to color it.')
             + coda;
     }
     // THRESHOLD_RANGES / thresholdContract sit further down this file: both are read at
@@ -519,7 +520,8 @@ if (typeof require !== 'undefined') {
         }
     });
 
-    // Flipping "Highlight on the watch" (thresh<K>On). The toggle is STORED state
+    // Flipping a kind's highlight switch (thresh<K>On — a weather kind's slot-sheet
+    // 'Highlight' row, a goal kind's Goals header). The toggle is STORED state
     // and switches only the highlight — the levels live on without it (the
     // Alert-mode hold keeps using the warn level, and the phone packs every
     // weather kind's level; the watch gates them on the enable bit). So OFF
@@ -618,12 +620,15 @@ if (typeof require !== 'undefined') {
         var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(stem));
         // Every key with a schema default lands on it THROUGH the engine's resolver —
         // mirrored literals drift when the schema changes (see resetStatusSlots
-        // below). The result is exactly a fresh install: the stored toggle OFF
-        // (resetting the levels switches the highlight off too), the blank pair
-        // (= the kind's seed, resolved live — a wind pair follows windUnits
-        // again), the cleared Max, and the goal-vs-weather outline color/toggle
-        // are all schema defaults.
-        var keys = ['On', 'Warn', 'Danger', 'Max', 'WarnColor', 'WarnOutlineOn'];
+        // below). The result is exactly a fresh install: a goal kind's stored
+        // toggle OFF (its switch rides this group's header, so resetting the goals
+        // switches it off too), the blank pair (= the kind's seed, resolved live — a
+        // wind pair follows windUnits again), the cleared Max, and the
+        // goal-vs-weather outline color/toggle are all schema defaults. A weather
+        // kind's highlight switch is NOT in this group — it is the slot sheet's
+        // Highlight row — so its levels reset leaves it alone, as it leaves Bold.
+        var keys = ['Warn', 'Danger', 'Max', 'WarnColor', 'WarnOutlineOn'];
+        if (goal) { keys.unshift('On'); }
         for (var d = 0; d < keys.length; d++) {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
         }
@@ -643,7 +648,8 @@ if (typeof require !== 'undefined') {
         // shared with the wizard finish); this caller contributes only the veto
         // scoping it to THIS kind's threshold-family keys, Bold deliberately
         // excluded (the reset leaves Bold alone — its row sits outside the
-        // Thresholds group). Unlike the wizard, no not-still-default guard:
+        // Thresholds group), and so is a weather kind's highlight switch (the slot
+        // sheet's Highlight row). Unlike the wizard, no not-still-default guard:
         // reset IS the user discarding their choices for this kind.
         var policy = (typeof require !== 'undefined')
             ? require('./defaults-policy.js')
@@ -652,7 +658,8 @@ if (typeof require !== 'undefined') {
             policy.applyDefaults({wizard: true, env: env, choices: S}, {
                 mayWrite: function (name) {
                     return name.indexOf('thresh' + stem) === 0
-                        && name !== 'thresh' + stem + 'BoldMode';
+                        && name !== 'thresh' + stem + 'BoldMode'
+                        && (goal || name !== 'thresh' + stem + 'On');
                 },
                 getHook: function (name) {
                     return PConf.onChange && PConf.onChange.get
@@ -1025,8 +1032,7 @@ if (typeof require !== 'undefined') {
 
     /**
      * The Alerts card row's hint for a metric alert: "Off" while its switch is off,
-     * else the kind's levels and whether the slots highlight them, e.g. "Warn 40 kph
-     * · Danger 60 kph · Highlight off". The pair is the resolved one (the stored
+     * else the kind's levels, e.g. "Warn 40 kph · Danger 60 kph". The pair is the resolved one (the stored
      * pair, else the seed — what the watch judges with), in the unit the kind's
      * slider shows, so the row reads the numbers its sheet opens on. Only numbers and
      * the range table's unit label are interpolated (the engine prints hints as raw
@@ -1048,8 +1054,7 @@ if (typeof require !== 'undefined') {
         if (typeof pair.warn !== 'number' || typeof pair.danger !== 'number') { return null; }
         var unit = THRESHOLD_RANGES[stem](st).unit;
         var suffix = unit ? ' ' + unit : '';
-        return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix
-            + ' · Highlight ' + (st['thresh' + stem + 'On'] === true ? 'on' : 'off');
+        return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;
     }
     PConf.hintResolvers.register('alertLevelsHint', alertLevelsHint);
 

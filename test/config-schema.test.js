@@ -2346,7 +2346,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     const who = i === 0 ? 'aplite' : 'basalt';
     THRESH_KEYS.forEach((k) => assert.equal(body.indexOf('data-k="' + k + '"'), -1,
       k + ' has no in-body control on ' + who + ' (sheet-only now)'));
-    assert.equal(body.indexOf('reaching warn'), -1,
+    assert.equal(body.indexOf('Warn and danger levels for this value'), -1,
       who + ' body has no Alert levels intro (it lives in the sheets)');
   });
   // The pencil: basalt's default AQI forecast slot offers its sheet; aplite offers none.
@@ -2354,22 +2354,23 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
     'basalt renders a pencil for the AQI forecast slot');
   assert.equal(apliteBody.indexOf('data-edit-sheet'), -1,
     'aplite renders no pencil anywhere (env.thresholds is false)');
-  // The sheet itself: full on basalt (Bold row + group header toggle + intro + a
-  // LIVE slider even while the toggle is off — behavior covered in
-  // config-thresholds.test.js), empty on aplite even if forced open.
-  // The slot sheet holds the slot rows and points at the Alerts sheet, which holds
-  // the levels (an alert kind's one home for them).
+  // The sheet itself: full on basalt (Bold row + Highlight switch + the pointer;
+  // behavior covered in config-thresholds.test.js), empty on aplite even if forced
+  // open. The slot sheet holds the slot rows — its Highlight switch included — and
+  // points at the Alerts sheet, which holds the levels (an alert kind's one home for
+  // them) under its one switch, the Alert.
   const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
-  ['data-k="threshAqiBoldMode"', 'Air quality (AQI) slot',
-    '<div class="info-box">Alert levels and the highlight switch are set under Alerts on the Status slots tab.</div>']
+  ['data-k="threshAqiBoldMode"', 'data-k="threshAqiOn"', 'Air quality (AQI) slot',
+    '<div class="info-box">Alert levels and colors are set under Alerts on the Status slots tab.</div>']
     .forEach((frag) => assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt slot sheet carries ' + frag));
   assert.equal(basaltSheet.indexOf('data-range="threshAqiWarn"'), -1, 'no levels in the slot sheet');
   const alertSheet = eng.renderEditModal(schema, watchCx('basalt', 'alertAqi'));
-  ['data-k="threshAqiOn"', 'reaching warn', 'Alert levels', 'Air quality (AQI) alert',
+  ['data-k="alertAqi"', 'Reaching warn', 'Alert levels', 'Air quality (AQI) alert',
     'data-range="threshAqiWarn"'].forEach((frag) =>
     assert.ok(alertSheet.indexOf(frag) !== -1, 'basalt alert sheet carries ' + frag));
+  assert.equal(alertSheet.indexOf('data-k="threshAqiOn"'), -1, 'no highlight switch in the alert sheet');
   assert.ok(!/class="row stack[^"]*\bdis\b/.test(alertSheet),
-    'the slider renders live while the highlight toggle is off');
+    'the slider renders live');
   assert.equal(eng.renderEditModal(schema, watchCx('aplite', 'threshAqi')), '',
     'aplite renders an empty sheet even when forced open');
   // The rest of the Status-slots tab is untouched on aplite. (Time/Calendar live

@@ -55,9 +55,11 @@ build/host/status_threshold_test
 # takeover: which slots it replaces, the span they leave, where the row sits). Its body
 # sits behind WW_ALERT_ROW (wscript: every platform but aplite), so the flag is required
 # here or the module compiles to nothing and the test fails to link. Linked with the
-# row layout so the slot choice's placement model is held against the real layout.
+# row layout so the slot choice's placement model is held against the real layout, and
+# with the thresholds blob reader the entry's box is judged through.
 cc $CFLAGS -DWW_ALERT_ROW test/c/alert_set_test.c src/c/appendix/alert_set.c \
-   src/c/layers/status_row_layout.c -o build/host/alert_set_test
+   src/c/appendix/status_threshold.c src/c/layers/status_row_layout.c \
+   -o build/host/alert_set_test
 build/host/alert_set_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test

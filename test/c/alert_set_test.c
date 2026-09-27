@@ -508,6 +508,52 @@ static void degrade_tests(void) {
     expect("degrade.null", alert_set_degrade(NULL, &values), 0);
 }
 
+// The alert's box is its OWN look, judged at the entry's real level: the kind's slot
+// 'Highlight' switch (its enable bit) never changes it. FILL at danger; OUTLINE at
+// warn only while the kind's warn accent is non-zero ('Outline on warn'); the rain
+// drop is never boxed.
+static void box_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV] = 0xF8;       // UV warn outline on
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV + 1] = 0xF0;   // UV danger colour
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND + 1] = 0xE0; // wind: no warn outline
+    AlertEntry uv_warn = { .kind = THRESH_UV, .level = THRESH_LEVEL_WARN };
+    AlertEntry uv_danger = { .kind = THRESH_UV, .level = THRESH_LEVEL_DANGER };
+    AlertEntry wind_warn = { .kind = THRESH_WIND, .level = THRESH_LEVEL_WARN };
+    AlertEntry wind_danger = { .kind = THRESH_WIND, .level = THRESH_LEVEL_DANGER };
+    AlertEntry rain = { .rain = true, .rain_bucket = 2, .rain_tier = 3 };
+    uint8_t c8 = 0xAA;
+    for (int on = 0; on < 2; on++) {
+        // The enable bits: every kind's slot Highlight off, then on — same answers.
+        blob[0] = on ? 0xFF : 0x00;
+        char name[48];
+        snprintf(name, sizeof(name), "box.uv_warn.%d", on);
+        expect(name, alert_set_box(blob, n, &uv_warn, &c8), ALERT_BOX_OUTLINE);
+        expect(name, c8, 0xF8);
+        snprintf(name, sizeof(name), "box.uv_danger.%d", on);
+        expect(name, alert_set_box(blob, n, &uv_danger, &c8), ALERT_BOX_FILL);
+        expect(name, c8, 0xF0);
+        snprintf(name, sizeof(name), "box.wind_warn_no_outline.%d", on);
+        expect(name, alert_set_box(blob, n, &wind_warn, &c8), ALERT_BOX_NONE);
+        expect(name, c8, 0);
+        snprintf(name, sizeof(name), "box.wind_danger.%d", on);
+        expect(name, alert_set_box(blob, n, &wind_danger, &c8), ALERT_BOX_FILL);
+        expect(name, c8, 0xE0);
+        snprintf(name, sizeof(name), "box.rain.%d", on);
+        expect(name, alert_set_box(blob, n, &rain, &c8), ALERT_BOX_NONE);
+        expect(name, c8, 0);
+        // ...and the value bolds on the kind's own ladder at the real level: danger
+        // always, warn per its Bold mode (default Warn) — never the switch.
+        snprintf(name, sizeof(name), "box.bold_warn.%d", on);
+        expect(name, status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), 1);
+        snprintf(name, sizeof(name), "box.bold_danger.%d", on);
+        expect(name, status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+    }
+    expect("box.null", alert_set_box(blob, n, NULL, NULL), ALERT_BOX_NONE);
+}
+
 static void rain_minutes_tests(void) {
     char out[8];
     expect("minutes.in", alert_set_rain_minutes("Rain in 12'", out, sizeof(out)), 1);
@@ -548,6 +594,7 @@ int main(void) {
     no_fit_tests();
     row_x_tests();
     degrade_tests();
+    box_tests();
     rain_minutes_tests();
     if (s_failures) { printf("%d alert_set failure(s)\n", s_failures); return 1; }
     printf("alert_set OK\n");

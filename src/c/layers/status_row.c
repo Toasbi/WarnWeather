@@ -563,13 +563,12 @@ static void resolve_alerts(ResolvedAlerts *out) {
 }
 
 // Fold everything the Alerts row paints into the row signature, so a changed set is
-// a content change: which entries, their levels and baked values, the level each is
-// SHOWN at (NORMAL while its kind's highlight switch is off — flipping the switch on
-// the phone must repaint the row, as it does the slot) with the colour and bold cell
-// that shown level reads from the blob (a Clay save that only recolours must
-// repaint, as for a slot's accent8), the rain look, the drop's bucket and tier (its
-// glyph and tint), and the countdown text — but the text only when a look prints
-// it, or an icon-only rain alert would repaint every minute for nothing.
+// a content change: which entries, their levels and baked values, the colour and
+// bold cell each one reads from the blob at its level (a Clay save that only
+// recolours must repaint, as for a slot's accent8; the kind's slot Highlight switch
+// does not touch an entry, so it is not folded), the rain look, the drop's bucket
+// and tier (its glyph and tint), and the countdown text — but the text only when a
+// look prints it, or an icon-only rain alert would repaint every minute for nothing.
 static uint16_t fold_alerts(uint16_t sig, const ResolvedAlerts *a) {
     sig = sig_fold(sig, &a->set.count, 1);
     for (int i = 0; i < a->set.count; i++) {
@@ -579,16 +578,11 @@ static uint16_t fold_alerts(uint16_t sig, const ResolvedAlerts *a) {
         sig = sig_fold(sig, head, sizeof(head));
         if (e->rain) { continue; }
         sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
-        int shown = status_threshold_shown_level(s_thresh_scratch,
-                                                 (size_t)s_thresh_len, e->kind, e->level);
-        uint8_t look[3] = {
-            (uint8_t)shown,
-            shown != THRESH_LEVEL_NORMAL
-                ? status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
-                                          e->kind, shown)
-                : 0,
+        uint8_t look[2] = {
+            status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
+                                    e->kind, e->level),
             (uint8_t)status_threshold_is_bold(s_thresh_scratch, (size_t)s_thresh_len,
-                                              e->kind, shown)
+                                              e->kind, e->level)
         };
         sig = sig_fold(sig, look, sizeof(look));
     }

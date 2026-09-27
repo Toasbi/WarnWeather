@@ -14,10 +14,10 @@
 // body sits behind the macro and compiles to an empty object there. Every call site
 // is guarded; these declarations emit nothing.
 //
-// Each entry is a MINI STATUS SLOT, `[icon][gap][text?]`, highlighted EXACTLY like
-// its value's slot (status_row.c), at the slot's shown level
-// (status_threshold_shown_level — NORMAL while the kind's 'Highlight on the watch'
-// switch is off, so the entry is then a plain icon, its presence the alert):
+// Each entry is a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a highlighted
+// slot of its kind at the entry's REAL level (alert_set_box) — the alert's own look,
+// which the kind's slot 'Highlight' switch does not touch (that switch styles only
+// the slot):
 //  - WARN   a rounded-rect OUTLINE in the kind's warn colour — only while the
 //           kind's 'Outline on warn' is on. The 0x00 no-outline sentinel draws no
 //           box, as a warn slot draws none: the icon alone is the alert;
@@ -28,8 +28,8 @@
 // On B&W the escalation is polarity, as in the slots: warn = fg outline, danger =
 // fg box with the glyph and text in the background colour.
 // Text lanes use the row's font; a metric value follows its kind's bold ladder at
-// the shown level (status_threshold_is_bold — danger bold, warn per the kind's Bold
-// mode, 'Always' even with the highlight off), the rain text never bolds.
+// the entry's level (status_threshold_is_bold — danger bold, warn per the kind's
+// Bold mode, 'Always'), the rain text never bolds.
 //
 // A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px each side of
 // the icon(+text) group, INSIDE the box — the outline's own pixel plus two of air,
@@ -87,7 +87,9 @@ typedef struct {
 
 // Width of every entry of `set` into widths_out[0..count-1]: icon + (text ?
 // STATUS_ROW_ICON_TEXT_GAP + text : 0), plus 2 * STATUS_ALERTS_BOX_PAD_X for a boxed
-// (metric) entry, where the text is the entry's lane under
+// (metric) entry — whose group is measured by its ink (a last icon's one-column
+// overhang in, a last text's trailing letter spacing out), so its air to the box
+// stroke is equal on both sides — where the text is the entry's lane under
 // `text` (a metric value when text->values, the rain minutes or full countdown per
 // text->rain_display). 0 for an entry with neither a glyph nor text. Needs the
 // glyphs, so status_alerts_ensure() runs first. Feed the widths to alert_set_fit().

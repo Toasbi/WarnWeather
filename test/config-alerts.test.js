@@ -88,7 +88,7 @@ test('six rows of one shape: icon + label, the live state, Edit — no switch on
     assert.equal(html.indexOf('data-edit-sheet="alert' + stem + '"'), -1, stem + ' has no alert row'));
 });
 
-test('Edit opens the alert sheet; flipping its switch turns the row live — levels and dots', () => {
+test('Edit opens the alert sheet; flipping its one switch turns the row live — levels and dots', () => {
   const page = watchTab({ threshUvDangerColor: '#FF0000' });
   page.openEditSheet('alertUv');
   const sheet = page.modal.innerHTML;
@@ -98,18 +98,20 @@ test('Edit opens the alert sheet; flipping its switch turns the row live — lev
   assert.ok(/<div class="row[^"]*\bdis\b[^"]*">(?:(?!<div class="row)[\s\S])*?data-k="alertUvDisplay"/.test(sheet),
     'the Look is inert while the alert is off');
   assert.ok(sheet.indexOf('data-range="threshUvWarn"') !== -1, 'the levels live in this sheet');
+  assert.equal(sheet.indexOf('data-k="threshUvOn"'), -1,
+    'the ONE switch: the slot highlight lives in the slot sheet');
+  assert.ok(sheet.indexOf('<span>Alert levels</span>') !== -1, 'the Alert levels header renders');
+  assert.equal(sheet.indexOf('<span>Alert levels</span><button class="sw'), -1,
+    'and carries no switch');
   page.clickModalToggle('alertUv');
   assert.strictEqual(page.S.alertUv, true, 'the switch stores');
   assert.ok(!/<div class="row[^"]*\bdis\b[^"]*">(?:(?!<div class="row)[\s\S])*?data-k="alertUvDisplay"/.test(page.modal.innerHTML),
     'the Look goes live');
   const row = rowOf(page.scroll.innerHTML, 'data-edit-sheet="alertUv"');
-  assert.ok(row.indexOf('<div class="hint">Warn 6 · Danger 8 · Highlight off</div>') !== -1,
-    'the card row prints the live levels: ' + row);
+  assert.ok(row.indexOf('<div class="hint">Warn 6 · Danger 8</div>') !== -1,
+    'the card row prints the live levels, and nothing about the slot highlight: ' + row);
   assert.ok(row.indexOf('pen-dot ring') !== -1 && row.indexOf('pen-dot fill" style="--th-c:#FF0000"') !== -1,
     'and the alert\'s colour dots');
-  page.clickModalToggle('threshUvOn');
-  assert.ok(rowOf(page.scroll.innerHTML, 'data-edit-sheet="alertUv"')
-    .indexOf('Warn 6 · Danger 8 · Highlight on') !== -1, 'the highlight state follows too');
 });
 
 test('the Look reads its hint by value', () => {
@@ -176,16 +178,24 @@ test('radar off: the rain row hides and the radar-off note shows as an info box'
   assert.equal(on.indexOf('Turn on the rain radar'), -1, 'no note while the radar runs');
 });
 
-test('the slot pencil sheet points at the Alerts card instead of holding the levels', () => {
+test('the slot pencil sheet holds the Highlight switch and points at the Alerts card for the levels', () => {
   const page = watchTab();
   page.openEditSheet('threshUv');
   const sheet = page.modal.innerHTML;
-  assert.ok(sheet.indexOf('<div class="static info"><div class="info-box">Alert levels and the highlight switch are set under Alerts on the Status slots tab.</div></div>') !== -1,
+  assert.ok(sheet.indexOf('<div class="static info"><div class="info-box">Alert levels and colors are set under Alerts on the Status slots tab.</div></div>') !== -1,
     'the info-box pointer');
   assert.equal(sheet.indexOf('Alert levels</span>'), -1, 'no levels group');
   assert.equal(sheet.indexOf('data-range="threshUvWarn"'), -1, 'no slider');
-  assert.equal(sheet.indexOf('data-k="threshUvOn"'), -1, 'no highlight switch');
-  assert.ok(sheet.indexOf('data-k="threshUvBoldMode"') !== -1, 'the slot rows stay');
+  const bold = sheet.indexOf('data-k="threshUvBoldMode"');
+  const hl = sheet.indexOf('data-k="threshUvOn"');
+  assert.ok(bold !== -1, 'the slot rows stay');
+  assert.ok(hl > bold, 'the Highlight switch sits after Bold');
+  assert.ok(sheet.indexOf('Outlines or fills this slot when the value reaches its alert levels — set under Alerts.') !== -1,
+    'with its hint');
+  page.clickModalToggle('threshUvOn');
+  assert.strictEqual(page.S.threshUvOn, true, 'the switch stores');
+  assert.equal(page.S.threshUvWarn, '6', 'switching on pins the seed pair');
+  assert.notStrictEqual(page.S.alertUv, true, 'and leaves the alert alone');
   // A goal kind is not an alert: its slot sheet keeps its levels.
   const steps = watchTab({ healthMode: 'status', statusHealthLeft: 'steps' });
   steps.openEditSheet('threshSteps');

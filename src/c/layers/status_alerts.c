@@ -20,6 +20,13 @@
 #define RAIN_KEY_FLAG 0x80
 // rain_countdown_format()'s buffer contract: "Downpour for +99'" + NUL fits 20.
 #define LANE_CAP 20
+// A status glyph inks one column past its bounds: icon_load (status_row_icons.c)
+// snaps its vertices to pixel centres 0.5 .. w + 0.5 px, and the 1-px stroke covers
+// both end columns — w + 1 columns of ink for bounds w.
+#define GLYPH_INK_OVERHANG 1
+// A text lane's measured width (graphics_text_layout_get_content_size) ends in the
+// font's one blank column of letter spacing after its last glyph.
+#define TEXT_TRAIL_SPACING 1
 
 struct StatusAlertsCache {
     GDrawCommandImage *images[ALERT_SET_MAX];
@@ -125,20 +132,11 @@ static GDrawCommandImage *image_for(const StatusAlertsCache *cache, const AlertE
     return slot >= 0 ? cache->images[slot] : NULL;
 }
 
-// The level a metric entry is HIGHLIGHTED at — its slot's rule, byte for byte
-// (status_threshold_shown_level): the baked level while the kind's 'Highlight on
-// the watch' switch is on, NORMAL while it is off, so the entry is then a plain
-// icon and plain value text whose presence alone is the alert. The rain drop is
-// not a threshold kind: always NORMAL (its tint is the tier's).
-static int shown_level(const AlertEntry *e, const StatusAlertsText *text) {
-    if (e->rain) { return THRESH_LEVEL_NORMAL; }
-    return status_threshold_shown_level(text->blob, text->blob_len, e->kind, e->level);
-}
-
 // The entry's text lane into `buf` ("" = none), and the font it prints in: a
-// metric value bolds exactly as its slot would (status_threshold_is_bold at the
-// shown level — danger bold, warn per the kind's Bold mode, and Bold 'Always',
-// which the 'Bold values: All' master packs, even with the highlight off).
+// metric value bolds on its kind's ladder at the entry's real level
+// (status_threshold_is_bold — danger bold, warn per the kind's Bold mode, and Bold
+// 'Always', which the 'Bold values: All' master packs). The slot's Highlight switch
+// does not touch it: the alert's look is its own (alert_set_box).
 static GFont lane_text(const AlertEntry *e, const StatusAlertsText *text,
                        char *buf, size_t cap) {
     buf[0] = '\0';
@@ -156,8 +154,7 @@ static GFont lane_text(const AlertEntry *e, const StatusAlertsText *text,
         memcpy(buf, e->value, n);
         buf[n] = '\0';
     }
-    return status_threshold_is_bold(text->blob, text->blob_len, e->kind,
-                                    shown_level(e, text))
+    return status_threshold_is_bold(text->blob, text->blob_len, e->kind, e->level)
         ? text->bold : text->font;
 }
 
@@ -184,21 +181,16 @@ void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
             ? (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + text_w : 0));
         // The box's padding is part of the footprint — but only around something:
         // an entry with nothing to draw stays 0 wide and is skipped with its gap.
-        if (w > 0 && !e->rain) { w = (int16_t)(w + 2 * STATUS_ALERTS_BOX_PAD_X); }
+        // Inside a box the group is measured by its INK, so the air to the stroke is
+        // the same on both sides: the icon's ink starts on its left bounds column,
+        // but a last icon inks GLYPH_INK_OVERHANG past its bounds and a last text
+        // lane ends in TEXT_TRAIL_SPACING of blank letter spacing.
+        if (w > 0 && !e->rain) {
+            w = (int16_t)(w + 2 * STATUS_ALERTS_BOX_PAD_X
+                + (text_w > 0 ? -TEXT_TRAIL_SPACING : GLYPH_INK_OVERHANG));
+        }
         widths_out[i] = w;
     }
-}
-
-// The kind's accent byte at the entry's SHOWN `level` — the slots' contract byte
-// for byte: 0x00 at WARN is the "no outline" sentinel (the kind's Outline-on-warn
-// switch is off), so a warn entry then draws its icon plain, the way a warn slot
-// draws no box. The icon's presence in the row IS the alert; the box is the
-// emphasis the user opted into. Danger never packs 0x00 (the phone falls back to
-// the default red). NORMAL — the rain drop, or the highlight switched off — has no
-// accent: 0, no box.
-static uint8_t alert_accent8(const StatusAlertsText *text, const AlertEntry *e, int level) {
-    if (level == THRESH_LEVEL_NORMAL) { return 0; }
-    return status_threshold_color8(text->blob, text->blob_len, e->kind, level);
 }
 
 // The drawable colour for a non-zero accent byte. On B&W the escalation is
@@ -246,21 +238,23 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
         int16_t icon_x = (int16_t)(x + pad);
         int16_t text_x = (int16_t)(icon_x + icon_w
             + (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
-        int16_t text_w = (int16_t)(x + w - pad - text_x);
+        // A metric entry's measure dropped the text's trailing letter spacing; the
+        // frame gets it back (it is blank, inside the pad), so the text never
+        // ellipsises against the width it was measured at.
+        int16_t text_w = (int16_t)(x + w - pad - text_x
+            + (e->rain ? 0 : TEXT_TRAIL_SPACING));
 
         GColor ink = fg;
-        // Everything below reads the SHOWN level (NORMAL while the kind's highlight
-        // is off), so the entry is highlighted exactly like its slot.
-        int level = shown_level(e, text);
-        bool danger = level == THRESH_LEVEL_DANGER;
         // A metric entry is boxed at DANGER always (the filled box) and at WARN only
         // when its kind's outline is switched on — a 0x00 accent byte is the slots'
         // no-outline sentinel, and an alert honours it the same way (the icon alone
-        // is the alert). The padding is measured in either way, so the row's widths
-        // do not shift when a box appears.
-        uint8_t c8 = alert_accent8(text, e, level);
-        bool boxed = !e->rain && (danger || c8 != 0);
-        if (boxed) {
+        // is the alert). Judged at the entry's real level (alert_set_box): the slot's
+        // Highlight switch does not touch the alert. The padding is measured in
+        // either way, so the row's widths do not shift when a box appears.
+        uint8_t c8 = 0;
+        int box = alert_set_box(text->blob, text->blob_len, e, &c8);
+        bool danger = box == ALERT_BOX_FILL;
+        if (box != ALERT_BOX_NONE) {
             // The box IS the footprint: the padding was measured in, so it spans
             // exactly [x, x + w). Its height is the slots' font-derived extent
             // (status_highlight_extent_pad with a 0 pad is that extent, clamped).

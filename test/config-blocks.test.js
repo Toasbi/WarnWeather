@@ -312,7 +312,7 @@ test('thresholdPenState reports EFFECTIVE always-bold via badge.bold', () => {
     'aplite (no thresholds env) badges nothing, B included');
 });
 
-test('alertLevelsHint: "Off" while the alert is off, else the resolved pair, the unit and the highlight state', () => {
+test('alertLevelsHint: "Off" while the alert is off, else the resolved pair and the unit — never the slot highlight', () => {
   const hint = PConf.hintResolvers.get('alertLevelsHint');
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const env = { thresholds: true };
@@ -321,20 +321,20 @@ test('alertLevelsHint: "Off" while the alert is off, else the resolved pair, the
   assert.equal(hint({ alertUv: false, threshUvOn: true }, env, uv), 'Off',
     'Off whatever the highlight says: the row describes the alert');
   const on = (S) => Object.assign({ alertUv: true, alertWind: true, alertAqi: true }, S);
-  assert.equal(hint(on({}), env, uv), 'Warn 6 · Danger 8 · Highlight off',
+  assert.equal(hint(on({}), env, uv), 'Warn 6 · Danger 8',
     'a blank pair reads as the kind\'s seed');
   assert.equal(hint(on({ threshUvWarn: '5', threshUvDanger: '9' }), env, uv),
-    'Warn 5 · Danger 9 · Highlight off', 'a stored pair wins');
-  assert.equal(hint(on({ threshUvOn: true }), env, uv), 'Warn 6 · Danger 8 · Highlight on',
-    'on/off follows the stored switch');
+    'Warn 5 · Danger 9', 'a stored pair wins');
+  assert.equal(hint(on({ threshUvOn: true }), env, uv), 'Warn 6 · Danger 8',
+    'the slot\'s Highlight switch lives in the slot sheet and is not the alert\'s state');
   assert.equal(hint(on({ windUnits: 'mph' }), env, { keyStem: 'Wind' }),
-    'Warn 25 mph · Danger 40 mph · Highlight off',
+    'Warn 25 mph · Danger 40 mph',
     'wind speaks the slider\'s unit, on both numbers');
   // AQI seeds follow the scale: European (Open-Meteo, non-US) 60/80, US 100/150.
   assert.equal(hint(on({ aqiSource: 'openmeteo', aqiScale: 'european' }), env, { keyStem: 'Aqi' }),
-    'Warn 60 · Danger 80 · Highlight off', 'the European AQI seed');
+    'Warn 60 · Danger 80', 'the European AQI seed');
   assert.equal(hint(on({ aqiSource: 'openmeteo', aqiScale: 'us' }), env, { keyStem: 'Aqi' }),
-    'Warn 100 · Danger 150 · Highlight off', 'the US AQI seed');
+    'Warn 100 · Danger 150', 'the US AQI seed');
   assert.equal(hint(on({}), { thresholds: false }, uv), null, 'aplite: no levels to describe');
   assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
 });

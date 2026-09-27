@@ -97,6 +97,22 @@ int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out);
 // tier-0 segment. Call once per parse.
 void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier);
 
+// How an entry is boxed: nothing, an outline, or a filled box.
+typedef enum {
+    ALERT_BOX_NONE = 0,
+    ALERT_BOX_OUTLINE = 1,
+    ALERT_BOX_FILL = 2,
+} AlertBox;
+
+// The box an entry draws, with its accent byte (the kind's colour at the entry's
+// level) in *c8_out (0 with no box). A metric entry is judged at its REAL level —
+// the alert's own look, which the kind's slot 'Highlight' switch (its enable bit)
+// does not touch: FILL at DANGER, OUTLINE at WARN while the kind's accent byte is
+// non-zero ('Outline on warn' on — 0x00 is the slots' no-outline sentinel, and the
+// icon alone is then the alert). The rain entry is never boxed: its drop takes
+// the tier's tint.
+int alert_set_box(const uint8_t *blob, size_t len, const AlertEntry *e, uint8_t *c8_out);
+
 // Width of the first `n` entries laid out left to right: their widths plus `gap`
 // between each pair of VISIBLE neighbours. A zero-width entry (a glyph that failed
 // to load, with no text) takes no room and no gap — the draw skips it the same way.
