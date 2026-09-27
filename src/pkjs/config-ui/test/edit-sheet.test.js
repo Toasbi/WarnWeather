@@ -341,6 +341,45 @@ test('the row before a hosted toggle takes its divider from the row actually ren
     'the suppressed toggle\'s joinPrevious must not strip the divider above it');
 });
 
+// A TOGGLE row can carry the pencil too — the Alerts card's rows are "show this alert"
+// switches whose Edit opens the levels sheet. renderRow's .rgt.has-pen cell is generic
+// over the control, so the switch sits where the select trigger sits above: the badge
+// leads it, the Edit button trails it.
+const TOGGLE_PEN_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+  { title: 'Main', items: [
+    { type: 'toggle', messageKey: 'alertWind', label: 'Wind speed', defaultValue: false,
+      editSheetFrom: { resolver: 'alertSheetTest', args: { keyStem: 'Wind' } },
+      editBadgeFrom: { resolver: 'penBadge', args: { keyStem: 'Wind' } } }
+  ] },
+  { sheetOnly: true, sheetId: 'alertWindSheet', title: 'Wind speed alert', items: [
+    { type: 'text', messageKey: 'windWarn', label: 'Warn above', defaultValue: '' }
+  ] }
+] }] };
+global.PConf.sheetResolvers.register('alertSheetTest', function (S, env, args) {
+  return 'alert' + args.keyStem + 'Sheet';
+});
+
+test('a toggle row with editSheetFrom + editBadgeFrom: badge, switch, then Edit', () => {
+  const S = E.hydrate(TOGGLE_PEN_SCHEMA, {});
+  const html = E.renderBody(TOGGLE_PEN_SCHEMA, 't', cxFor(S));
+  assert.ok(html.indexOf('<div class="rgt has-pen">') !== -1, 'the swatch+control+Edit cell');
+  assert.ok(/thr-swatch[\s\S]*?data-k="alertWind"[\s\S]*?data-edit-sheet="alertWindSheet"/.test(html),
+    'badge leads the switch, Edit trails it');
+  assert.equal(html.split('pen-dot').length - 1, 2, 'both badge dots rendered');
+  assert.ok(html.indexOf('aria-label="Edit settings for the Wind speed value (highlighting on)"') !== -1,
+    'the Edit button is announced with the row label and the badge note');
+  // The switch keeps its own hook: a switch click toggles, only the Edit button opens.
+  assert.ok(html.indexOf('data-toggle="1"') !== -1, 'the switch is still a toggle control');
+  // The sheet the Edit button names is the one renderEditModal opens for that id.
+  const modal = E.renderEditModal(TOGGLE_PEN_SCHEMA, cxFor(S, { openEdit: 'alertWindSheet' }));
+  assert.ok(modal.indexOf('Wind speed alert') !== -1 && modal.indexOf('data-k="windWarn"') !== -1,
+    'the Edit target resolves to the sheet');
+  // The pencil follows the switch's value like any row: it is there on and off.
+  S.alertWind = true;
+  assert.ok(E.renderBody(TOGGLE_PEN_SCHEMA, 't', cxFor(S)).indexOf('data-edit-sheet="alertWindSheet"') !== -1,
+    'still offered with the switch on');
+});
+
 // --- type:'sheet': a first-class trigger row, for a sheet that belongs to no single
 // control (the graph-colors sheet) rather than to one slot's value ---
 

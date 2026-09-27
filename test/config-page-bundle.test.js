@@ -243,6 +243,24 @@ test('the Weather tab kit reaches the generated page in dependency order', () =>
   });
 });
 
+// The status-slot row glyphs are the quietest omission of all: an item.icon naming an
+// unregistered id prints nothing, by design, so a status-slot-icons.js dropped from
+// APP_FILES would just leave the rows bare on a real phone. Pin the file and each of its
+// register() calls into the generated page.
+test('status-slot-icons.js reaches the generated page and registers all six glyphs', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const at = appFiles.findIndex((f) => f.endsWith('settings/status-slot-icons.js'));
+  assert.notEqual(at, -1, 'status-slot-icons.js is not in APP_FILES');
+  const src = page();
+  ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen'].forEach((id) => {
+    assert.ok(src.indexOf("icons.register('" + id + "'") !== -1,
+      'no register(\'' + id + '\' in page.generated.js — status-slot-icons.js did not reach the page');
+  });
+  // And what it registers is what the module exports (the map the tests read).
+  const icons = require('../src/pkjs/settings/status-slot-icons.js');
+  assert.deepEqual(Object.keys(icons).sort(), ['aqi', 'gust', 'pollen', 'rain', 'uv', 'wind']);
+});
+
 // The update-interval budget modules are the same silent-no-op shape: blocks.js and
 // onbuild.js read PConf.tomorrowioBudget / rainbowBudget / intervalBudget, and
 // rainbow-budget.js and interval-budget.js read their predecessors WHILE THEIR OWN IIFE

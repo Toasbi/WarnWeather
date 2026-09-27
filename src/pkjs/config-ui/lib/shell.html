@@ -244,6 +244,10 @@
   .lbl-act { display: inline-flex; border: none; background: none; color: var(--muted); cursor: pointer; padding: 3px; border-radius: 6px; line-height: 0; transition: color .15s, background .15s; }
   .lbl .lbl-act { vertical-align: -3px; margin: -3px 0 -3px 5px; }
   .lbl-act:active { color: var(--link); background: rgba(250,74,53,0.12); }
+  /* a row's leading glyph (item.icon via PConf.icons): drawn in currentColor, so it
+     takes the muted chrome colour here and follows the theme flip with it */
+  .lbl-ico { display: inline-flex; vertical-align: -3px; margin-right: 7px; color: var(--muted); line-height: 0; }
+  .lbl-ico svg { width: 16px; height: 16px; }
   select { -webkit-appearance: none; appearance: none; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); border-radius: 9px; padding: 8px 32px 8px 13px; font: 600 13.5px 'Inter', sans-serif; cursor: pointer; outline: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; transition: border-color .15s; }
   select:focus { border-color: #FA4A35; }
   body.light select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%235A5F6A'/%3E%3C/svg%3E"); }

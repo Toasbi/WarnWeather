@@ -55,6 +55,13 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/preview-radar.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-diagnostics.js'),
   path.join(ROOT, 'src/pkjs/settings/preview-layout.js'),
+  // The status-slot row glyphs, registered into PConf.icons at IIFE time. It reads
+  // nothing but PConf.icons (engine.js, a lib file, already ran), so any slot after
+  // the lib files would do; it sits with the other page-only registrars, ahead of
+  // blocks.js, and is only looked up at render time. Dropping it throws nothing —
+  // an unregistered icon id just prints no glyph — so
+  // test/config-page-bundle.test.js pins its register() calls into the page.
+  path.join(ROOT, 'src/pkjs/settings/status-slot-icons.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),

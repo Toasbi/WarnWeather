@@ -61,6 +61,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // --- block registry --- fn(S, env, userData) -> htmlString for a schema block.
   PConf.blocks = makeRegistry();
 
+  // --- icon registry --- a row opts into a small leading glyph by id (item.icon: id);
+  // register(id, svgString) stores an inline-SVG fragment, printed before the row's label
+  // by labelIconHtml below. Fn-less: the entry IS the markup, not a renderer. TRUST
+  // BOUNDARY: like a block's HTML the fragment is printed UNESCAPED, so only page code
+  // registers here — never a string built from settings, userData or a fetched value.
+  // Draw with currentColor so the glyph follows the label chrome's colour and the theme.
+  PConf.icons = makeRegistry();
+
   // --- options-resolver registry --- a select/searchSelect/radio item opts into a
   // multi-key derived option list by name (item.optionsFrom.resolver: id) without the
   // engine knowing what the derivation logic is.
@@ -861,6 +869,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * The row's leading glyph (item.icon, resolved through PConf.icons), or '' when the
+   * item names none or the id is unregistered — a missing icon drops out silently,
+   * exactly like an unregistered block. The fragment is trusted page markup and goes
+   * out unescaped (see the registry); the wrapper is aria-hidden because the label
+   * beside it already says what the row is.
+   *
+   * @param {Object} item Schema item (icon: registered icon id).
+   * @returns {string} '<span class="lbl-ico" …>fragment</span>', or ''.
+   */
+  function labelIconHtml(item) {
+    var svg = item.icon && PConf.icons.get(item.icon);
+    return svg ? '<span class="lbl-ico" aria-hidden="true">' + svg + '</span>' : '';
+  }
+
+  /**
    * Wrap a control in a row with label/hint chrome. Stacked for
    * text/radio/open-color; otherwise inline (left/right).
    *
@@ -902,9 +925,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // A row may legitimately carry no label — the threshold slider's title lives
     // on its group sub-header instead, and repeating it here read as a stutter.
     // Drop the whole box then (esc(undefined) used to print "undefined"), unless
-    // a labelAction still needs somewhere to sit.
-    var label = (item.label || labelAct)
-      ? '<div class="lbl">' + (item.label ? esc(item.label) : '') + labelAct + '</div>'
+    // a labelAction still needs somewhere to sit. An item.icon leads the label text
+    // (labelIconHtml) on every row shape that keeps the box.
+    var labelIco = labelIconHtml(item);
+    var label = (item.label || labelAct || labelIco)
+      ? '<div class="lbl">' + labelIco + (item.label ? esc(item.label) : '') + labelAct + '</div>'
       : '';
     // Status-line slot pickers are compact rows: the .slot modifier tightens the vertical
     // rhythm so consecutive slot rows sit closer together. Status slots are plain selects
@@ -1003,7 +1028,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * rule in shell.html (var(--link)), which the card-header chevron uses too: hard-coded
    * here it stayed at the DARK link color when the page flipped to the light theme.
    *
-   * @param {Object} item Schema item; uses `label` and the optional `hint`.
+   * @param {Object} item Schema item; uses `label` and the optional `hint` / `icon`.
    * @param {string} attr Data attribute the click delegate matches ('data-action' or
    *   'data-edit-sheet').
    * @param {string} value That attribute's value — the action id or the sheet id.
@@ -1013,7 +1038,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function chevronRow(item, attr, value, noDivider) {
     var hint = item.hint ? '<div class="hint">' + item.hint + '</div>' : '';
     return '<div class="row' + nbClass(noDivider) + '" ' + attr + '="' + esc(value) + '" style="cursor:pointer">'
-      + '<div class="lft"><div class="lbl">' + esc(item.label) + '</div>' + hint + '</div>'
+      + '<div class="lft"><div class="lbl">' + labelIconHtml(item) + esc(item.label) + '</div>' + hint + '</div>'
       + '<div class="rgt"><span class="chev">&#9656;</span></div></div>';
   }
 
@@ -2198,7 +2223,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     serialize: PConf.engine.serialize, hydrate: PConf.engine.hydrate, boot: PConf.engine.boot,
     initialCollapsed: PConf.engine.initialCollapsed, initialTab: PConf.engine.initialTab,
-    blocks: PConf.blocks, hooks: PConf.hooks, onChange: PConf.onChange,
+    blocks: PConf.blocks, icons: PConf.icons, hooks: PConf.hooks, onChange: PConf.onChange,
     esc: PConf.engine.esc, renderControl: PConf.engine.renderControl, renderRow: PConf.engine.renderRow,
     renderSelectOptions: PConf.engine.renderSelectOptions,
     renderSelectModal: PConf.engine.renderSelectModal,

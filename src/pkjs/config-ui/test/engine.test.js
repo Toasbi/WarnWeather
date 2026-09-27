@@ -576,6 +576,63 @@ test('renderBody: button and sheet rows share ONE chevron, coloured by class not
   assert.ok(html.indexOf('Runs it.') >= 0, 'the button row keeps its hint');
 });
 
+// item.icon: a registered PConf.icons fragment leads the label text inside .lbl on every
+// row shape — a value row (select, toggle) through renderRow and a button/sheet row
+// through chevronRow — and an unregistered id drops out without a trace.
+const ICON_SVG = '<svg viewBox="0 0 24 24"><path d="M1 1h2" stroke="currentColor"/></svg>';
+const ICON_SPAN = '<div class="lbl"><span class="lbl-ico" aria-hidden="true">' + ICON_SVG + '</span>';
+
+test('item.icon: a registered glyph leads the label on select, toggle and chevron rows', () => {
+  global.PConf.icons.register('testDrop', ICON_SVG);
+  const select = E.renderRow({ type: 'select', messageKey: 's', label: 'Rain countdown', icon: 'testDrop',
+    options: [['30', '30'], ['60', '60']] }, { value: '60' });
+  assert.ok(select.indexOf(ICON_SPAN + 'Rain countdown</div>') >= 0,
+    'select row: the span sits right after <div class="lbl">, before the label text');
+  const toggle = E.renderRow({ type: 'toggle', messageKey: 't', label: 'UV index', icon: 'testDrop' },
+    { value: true });
+  assert.ok(toggle.indexOf(ICON_SPAN + 'UV index</div>') >= 0, 'toggle row carries it too');
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'button', action: 'doIt', label: 'Do it', icon: 'testDrop' },
+      { type: 'sheet', sheetId: 'more', label: 'More', icon: 'testDrop' }
+    ] },
+    { sheetOnly: true, sheetId: 'more', title: 'More', items: [
+      { type: 'toggle', messageKey: 'f', defaultValue: false } ] }
+  ] }] };
+  const S = E.hydrate(SCH, {});
+  const html = E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, openColor: null,
+    collapsed: {}, evalCtx: Object.assign({}, S, { env: {} }) });
+  assert.ok(html.indexOf(ICON_SPAN + 'Do it</div>') >= 0, 'button chevron row');
+  assert.ok(html.indexOf(ICON_SPAN + 'More</div>') >= 0, 'sheet chevron row');
+});
+
+test('item.icon: an unregistered id prints nothing; no icon field prints nothing', () => {
+  const unknown = E.renderRow({ type: 'toggle', messageKey: 't', label: 'Flag', icon: 'noSuchIcon' },
+    { value: false });
+  assert.equal(unknown.indexOf('lbl-ico'), -1, 'no empty span for an unregistered id');
+  assert.ok(unknown.indexOf('<div class="lbl">Flag</div>') >= 0, 'the label renders as before');
+  const plain = E.renderRow({ type: 'toggle', messageKey: 't', label: 'Flag' }, { value: false });
+  assert.equal(plain.indexOf('lbl-ico'), -1);
+  // The label-less slider row keeps dropping its .lbl box entirely.
+  const bare = E.renderRow({ type: 'toggle', messageKey: 't' }, { value: false });
+  assert.equal(bare.indexOf('class="lbl"'), -1, 'no label, no action, no icon -> no box');
+});
+
+test('item.icon: the fragment is printed verbatim — the registry is trusted page markup', () => {
+  // Unescaped like a block's HTML: the registry is fed by page code only (never by
+  // settings or fetched data), so the engine prints what it was given. The <script>
+  // case documents that trust boundary rather than endorsing it.
+  global.PConf.icons.register('testRaw', '<svg><g data-x="a&b"></g></svg>');
+  const raw = E.renderRow({ type: 'toggle', messageKey: 't', label: 'L', icon: 'testRaw' }, { value: false });
+  assert.ok(raw.indexOf('<svg><g data-x="a&b"></g></svg>') >= 0, 'not HTML-escaped');
+  assert.equal(raw.indexOf('&lt;svg'), -1);
+  global.PConf.icons.register('testScript', '<svg></svg><script>x()</script>');
+  const scripted = E.renderRow({ type: 'toggle', messageKey: 't', label: 'L', icon: 'testScript' },
+    { value: false });
+  assert.ok(scripted.indexOf('<svg></svg><script>x()</script>') >= 0,
+    'a registered fragment is trusted as-is, <script> included');
+});
+
 test('renderSelectOptions: empty query lists all; current value flagged on', () => {
   const item = { messageKey: 'c', options: [['United States','US'],['Germany','DE'],['Spain','ES']] };
   const all = E.renderSelectOptions(item, 'DE', '');
@@ -1312,6 +1369,41 @@ test('boot(): closing an edit sheet collapses a palette expanded inside it', () 
   clickMatching(r.modalListeners.click, '[data-select-close]', {});
   clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'more' });
   assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'the sheet reopens collapsed');
+});
+
+// A toggle row carrying the pencil (the Alerts card's "show this alert" switches): the
+// switch and the Edit button share one row, and the #scroll delegate tells them apart —
+// the switch flips the value in place, the Edit button opens the sheet.
+const TOGGLE_PEN_SCHEMA = {
+  appName: 'X', versionLabel: 'v0',
+  tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'toggle', messageKey: 'alertUv', label: 'UV index', defaultValue: false,
+        editSheetFrom: { resolver: 'togglePenSheet' },
+        editBadgeFrom: { resolver: 'togglePenBadge' } }
+    ] },
+    { sheetOnly: true, sheetId: 'alertUvSheet', title: 'UV index alert', items: [
+      { type: 'text', messageKey: 'uvWarn', label: 'Warn above', defaultValue: '' }
+    ] }
+  ] }]
+};
+
+test('boot(): on a toggle row the switch flips in place and the Edit button opens the sheet', () => {
+  const r = bootWithCapturedListeners(TOGGLE_PEN_SCHEMA, {});
+  // boot() re-ran engine.js, which rebuilt the registries on the shared global.PConf —
+  // register against the live ones (they are what the booted page renders through).
+  global.PConf.sheetResolvers.register('togglePenSheet', () => 'alertUvSheet');
+  global.PConf.badgeResolvers.register('togglePenBadge', () => ({ label: 'Edit', dots: [{ color: '#FF5500' }] }));
+  clickMatching(r.listeners.click, '[data-toggle]', { 'data-k': 'alertUv', 'data-toggle': '1' });
+  assert.equal(r.getValue('alertUv'), true, 'the switch toggled the value');
+  assert.equal(r.modal.innerHTML.indexOf('UV index alert'), -1, 'a switch click opens no sheet');
+  assert.ok(r.scroll.innerHTML.indexOf('data-edit-sheet="alertUvSheet"') >= 0,
+    'the re-rendered row offers its Edit button beside the switch');
+  assert.ok(r.scroll.innerHTML.indexOf('pen-dot fill') >= 0, 'with the badge');
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'alertUvSheet' });
+  assert.ok(r.modal.innerHTML.indexOf('UV index alert') >= 0, 'the Edit button opened the sheet');
+  assert.ok(r.modal.innerHTML.indexOf('data-k="uvWarn"') >= 0, 'with its fields');
+  assert.equal(r.getValue('alertUv'), true, 'opening the sheet left the switch alone');
 });
 
 // A `select` row INSIDE an edit sheet: its options open in the same dialog, over the

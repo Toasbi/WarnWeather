@@ -26,6 +26,7 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [Hidden-item serialization rule](#hidden-item-serialization-rule)
 5. [Registries and hooks](#registries-and-hooks)
    - [Block registry — PConf.blocks](#block-registry--pconfblocks)
+   - [Icon registry — PConf.icons](#icon-registry--pconficons)
    - [Options-resolver registry — PConf.optionsResolvers](#options-resolver-registry--pconfoptionsresolvers)
    - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
    - [Hint-resolver registry — PConf.hintResolvers](#hint-resolver-registry--pconfhintresolvers)
@@ -330,6 +331,7 @@ picking the shown swatch is what writes it.
 | `hint` | string | HTML hint rendered below the control |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
 | `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows only (not `button`/`sheet` chevron rows or `inline` cells). Also re-resolved in place after a keyboard nudge on a range thumb. |
+| `icon` | string | Id of a glyph in the [icon registry](#icon-registry--pconficons), printed before the label text on a value row and on a `button`/`sheet` row alike. An unregistered id prints nothing. |
 | `attributes.placeholder` | string | Placeholder text for `text` items |
 | `capabilities` | `["COLOR"]` | Clay-compatible sugar: hides the item on b&w platforms |
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
@@ -434,6 +436,24 @@ Registering to the same `id` twice overwrites the first registration. Requesting
 
 `userData` carries whatever the app puts there — typically last-fetch timestamps, connection stats,
 or any other data that must travel from PKJS into the page without going through settings storage.
+
+### Icon registry — PConf.icons
+
+An item with an `icon: id` field gets a small glyph in front of its label. The registry holds
+the markup itself, not a renderer:
+
+```js
+PConf.icons.register('rain', '<svg viewBox="0 0 24 24"><path d="…" fill="currentColor"/></svg>');
+```
+
+The engine wraps the fragment in `<span class="lbl-ico" aria-hidden="true">` (the label beside
+it names the row) and sizes it to 16 px. Draw in `currentColor` — stroke, fill or both — so the
+glyph takes the label chrome's muted colour and follows the theme flip; a hard-coded colour
+stays put when the page turns light.
+
+The fragment is printed **unescaped**, exactly like a block's HTML: register only markup your
+page code owns, never a string built from settings, `userData` or anything fetched. As with
+blocks, registering an id twice overwrites it, and an unregistered id renders nothing.
 
 ### Options-resolver registry — PConf.optionsResolvers
 
