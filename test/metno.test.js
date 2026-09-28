@@ -256,6 +256,24 @@ test('metno maps cloud_area_fraction into cloudTrend', () => {
   assert.equal(mapped.cloudTrend.length, 24);
 });
 
+test('metno weighs the cloud layers, thin high cloud at half, capped at the total', () => {
+  const layers = (low, medium, high, total) => ({ instant: {
+    cloud_area_fraction_low: low, cloud_area_fraction_medium: medium,
+    cloud_area_fraction_high: high, cloud_area_fraction: total } });
+  const body = forecastBody(26, HOUR0, {
+    0: layers(0, 0, 100, 100),
+    1: layers(100, 0, 0, 100),
+    2: layers(50, 60, 76, 77),
+    3: { instant: { cloud_area_fraction_low: 0, cloud_area_fraction: 70 } }
+  });
+  const mapped = metno.mapResponse(body, NOW);
+  assert.equal(mapped.cloudTrend[0], 50, 'a veil of high cloud alone draws half');
+  assert.equal(mapped.cloudTrend[1], 100);
+  assert.equal(mapped.cloudTrend[2], 77, 'never above the total');
+  assert.equal(mapped.cloudTrend[3], 70, 'without all three layers, the total');
+  assert.equal(mapped.cloudTrend[4], 0);
+});
+
 // Dew point and wind bearing both come from instant.details on the /complete
 // endpoint already in use — no request change. Dew converts °C → °F (the repo's
 // internal temperature unit, matching currentTemp/feelsTrend); the bearing stays

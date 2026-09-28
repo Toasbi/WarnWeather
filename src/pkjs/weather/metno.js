@@ -1,6 +1,7 @@
 var WeatherProvider = require('./provider.js');
 var metnoHeaders = require('./metno-headers.js');
 var feelsLikeF = require('./feels-like.js').feelsLikeF;
+var weightedCloudCover = require('./cloud-cover.js').weightedCloudCover;
 
 var hourlyWindow = require('./hourly-window.js');
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
@@ -158,8 +159,12 @@ function mapResponse(json, nowEpoch) {
         feelsTrend.push(feels === null ? tempF : feels);
         pressureTrend.push(typeof instant.air_pressure_at_sea_level === 'number'
             ? instant.air_pressure_at_sea_level : 0);
-        cloudTrend.push(typeof instant.cloud_area_fraction === 'number'
-            ? instant.cloud_area_fraction : 0);   // total cloud cover, %
+        // Cloud cover, %: the /complete layers weighted by cloud-cover.js (thin
+        // high cloud counts half); an hour without them keeps its total, one
+        // with neither reads as clear sky.
+        cloudTrend.push(weightedCloudCover(instant.cloud_area_fraction_low,
+            instant.cloud_area_fraction_medium, instant.cloud_area_fraction_high,
+            instant.cloud_area_fraction));
         // Dew point and bearing degrade to null, not 0, and keep their slot so the
         // series stays hour-aligned: 0 is a valid bearing (due north) and 0 °F a
         // plausible dew point, so a fabricated zero would render as a lie. A null

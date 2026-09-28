@@ -392,9 +392,11 @@ test('open-meteo tolerates a response with no pressure_msl', () => {
 });
 
 // ---- Cloud cover ---------------------------------------------------------
-test('open-meteo requests cloud_cover on the pinned main request', () => {
-  assert.ok(openmeteo.buildForecastUrl(52.52, 13.41).includes('cloud_cover'),
-    'forecast URL must request cloud_cover');
+test('open-meteo requests cloud_cover and its layers on the pinned main request', () => {
+  const main = hourlyFields(openmeteo.buildForecastUrl(52.52, 13.41));
+  ['cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high'].forEach((f) => {
+    assert.ok(main.includes(f), 'forecast URL must request ' + f);
+  });
 });
 
 test('open-meteo maps hourly cloud_cover into cloudTrend, a null hour as 0', () => {
@@ -405,6 +407,37 @@ test('open-meteo maps hourly cloud_cover into cloudTrend, a null hour as 0', () 
   assert.equal(mapped.cloudTrend[0], 0);
   assert.equal(mapped.cloudTrend[1], 0, 'null bucket zero-fills');
   assert.equal(mapped.cloudTrend[2], 8);
+});
+
+test('open-meteo weighs the cloud layers, thin high cloud at half, capped at the total', () => {
+  const json = sampleResponse();
+  const n = json.hourly.time.length;
+  json.hourly.cloud_cover = Array(n).fill(100);
+  json.hourly.cloud_cover_low = Array(n).fill(0);
+  json.hourly.cloud_cover_mid = Array(n).fill(0);
+  json.hourly.cloud_cover_high = Array(n).fill(100);
+  // Slot 1: overcast low cloud stays full. Slot 2: layers that sum above the
+  // model's total are capped at it. Slot 3: no layer split, the total stands.
+  json.hourly.cloud_cover_low[1] = 100;
+  [json.hourly.cloud_cover_low[2], json.hourly.cloud_cover_mid[2],
+    json.hourly.cloud_cover_high[2], json.hourly.cloud_cover[2]] = [50, 60, 76, 77];
+  json.hourly.cloud_cover_mid[3] = null;
+  json.hourly.cloud_cover[3] = 70;
+  const mapped = mapResponse(json, BASE);
+  assert.equal(mapped.cloudTrend.length, 24);
+  assert.equal(mapped.cloudTrend[0], 50, 'a veil of high cloud alone draws half');
+  assert.equal(mapped.cloudTrend[1], 100);
+  assert.equal(mapped.cloudTrend[2], 77, 'never above the total');
+  assert.equal(mapped.cloudTrend[3], 70, 'a missing layer: the total');
+  assert.equal(mapped.cloudTrend[23], 50);
+  // The layers are read at the bucket's own index, not the slot's: from an
+  // 18:10 anchor slot 0 is bucket 18, clear of the low cloud before it.
+  const later = sampleResponse();
+  later.hourly.cloud_cover = Array(n).fill(100);
+  later.hourly.cloud_cover_low = later.hourly.time.map((_, i) => (i < 18 ? 100 : 0));
+  later.hourly.cloud_cover_mid = Array(n).fill(0);
+  later.hourly.cloud_cover_high = Array(n).fill(100);
+  assert.deepEqual(mapResponse(later, BASE + 18 * 3600 + 600).cloudTrend.slice(0, 3), [50, 50, 50]);
 });
 
 // Optional like pressure: a response without it keeps the forecast, cloud line off.

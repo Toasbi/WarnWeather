@@ -11,7 +11,7 @@
 // cloud and sun): `cloud_cover` is TOTAL cover, where a thin veil of high cloud
 // counts 100 %, and `sunshine_duration` already reads a whole sunny quarter hour
 // at a direct beam of 180 W/m², a fifth of a clear sky's. So the cloud row is
-// the three layers combined with high cloud at half weight (weightedCloudCover),
+// the three layers combined with high cloud at half weight (cloud-cover.js),
 // and the sun row is sun STRENGTH: the direct beam against what a clear sky
 // gives at that solar elevation (sunShare), full from 80 % of it.
 //
@@ -24,6 +24,7 @@
 // draws exactly the level chosen here.
 
 var SunCalc = require('suncalc');
+var cloudCover = require('./cloud-cover.js');
 var WeatherProvider = require('./provider.js');
 var radarWire = require('./radar-wire.js');
 
@@ -41,11 +42,6 @@ var STRIPE_LEVELS = 4;
 // entry is the LARGEST byte of its level, floor(k * 250 / 4): a rounded 63 or
 // 188 would draw one level too high. test/radar-sky.test.js round-trips them.
 var LEVEL_BYTES = [0, 62, 125, 187, 250];
-// How much a high-cloud layer counts toward the cloud row: thin cirrus that
-// the sun shines through reads as total cover in `cloud_cover`. Half weight cut
-// the full cloud row during strong sun from 32 % of those quarter hours to 6 %
-// in the satellite comparison, while overcast skies still draw full.
-var HIGH_CLOUD_WEIGHT = 0.5;
 // The share of a clear sky's direct beam that already draws a full sun row,
 // fitted in the same satellite comparison (2888 daytime quarter hours): a
 // clear day through ordinary haze falls somewhat short of the model's beam and
@@ -127,45 +123,6 @@ function shareToLevelByte(share) {
     var n = reading(share);
     if (n === null || n <= 0) { return 0; }
     return LEVEL_BYTES[Math.min(STRIPE_LEVELS, Math.floor(n * STRIPE_LEVELS + 0.5))];
-}
-
-/**
- * A cloud-cover percentage as a 0..1 fraction, clamped.
- * @param {number} pct Percent.
- * @returns {number} Fraction 0..1.
- */
-function coverFraction(pct) {
-    return Math.max(0, Math.min(1, pct / 100));
-}
-
-/**
- * The cloud row's cover: the low, mid and high layers combined as independent
- * overlaps, 100 * (1 - (1 - L)(1 - M)(1 - HIGH_CLOUD_WEIGHT * H)), so a sky of
- * thin high cloud alone draws half. Capped at the model's own total cover:
- * treating the layers as independent can sum above the total the model reports
- * for overlapping layers (4 % of hours in a 15-city sample, e.g. layers
- * 50/60/76 % over a 77 % total), and the half weight is meant to lower the row,
- * never to raise it. When any layer is missing or not a number the model has
- * no layer split for that bucket, and the total cover stands in as it is;
- * without that either, the sky reads clear.
- * @param {*} low Low cloud cover, percent.
- * @param {*} mid Mid cloud cover, percent.
- * @param {*} high High cloud cover, percent.
- * @param {*} total Total cloud cover, percent (the fallback).
- * @returns {number} Weighted cover, percent 0..100.
- */
-function weightedCloudCover(low, mid, high, total) {
-    var l = reading(low);
-    var m = reading(mid);
-    var h = reading(high);
-    var t = reading(total);
-    var totalPct = t === null ? null : Math.max(0, Math.min(100, t));
-    if (l === null || m === null || h === null) {
-        return totalPct === null ? 0 : totalPct;
-    }
-    var weighted = 100 * (1 - (1 - coverFraction(l)) * (1 - coverFraction(m))
-        * (1 - HIGH_CLOUD_WEIGHT * coverFraction(h)));
-    return totalPct === null ? weighted : Math.min(weighted, totalPct);
 }
 
 /**
@@ -261,7 +218,7 @@ function mapOpenMeteoSky(json, slotZeroEpoch, lat, lon) {
         var sunEnd = start + (k + 1) * SLOT_SECONDS;
         var sunIdx = byTime[sunEnd];
         if (idx !== undefined || sunIdx !== undefined) { found += 1; }
-        sky.clouds.push(shareToLevelByte(weightedCloudCover(pick('cloud_cover_low', idx),
+        sky.clouds.push(shareToLevelByte(cloudCover.weightedCloudCover(pick('cloud_cover_low', idx),
             pick('cloud_cover_mid', idx), pick('cloud_cover_high', idx), pick('cloud_cover', idx)) / 100));
         sky.suns.push(shareToLevelByte(sunShare(pick('direct_normal_irradiance', sunIdx),
             solarElevationDeg(sunEnd - SLOT_SECONDS / 2, lat, lon))));
@@ -424,14 +381,12 @@ module.exports = {
     NUM_SLOTS: NUM_SLOTS,
     FULL_SCALE: FULL_SCALE,
     LEVEL_BYTES: LEVEL_BYTES,
-    HIGH_CLOUD_WEIGHT: HIGH_CLOUD_WEIGHT,
     SUN_FULL_CLEAR_SHARE: SUN_FULL_CLEAR_SHARE,
     SUN_MIN_ELEVATION_DEG: SUN_MIN_ELEVATION_DEG,
     LIGHTNING_POTENTIAL_MIN: LIGHTNING_POTENTIAL_MIN,
     skyStartFor: skyStartFor,
     buildOpenMeteoSkyUrl: buildOpenMeteoSkyUrl,
     shareToLevelByte: shareToLevelByte,
-    weightedCloudCover: weightedCloudCover,
     clearSkyDni: clearSkyDni,
     solarElevationDeg: solarElevationDeg,
     sunShare: sunShare,

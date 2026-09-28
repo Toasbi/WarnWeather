@@ -71,8 +71,10 @@ var WeatherProvider = function() {
     // the pressure line stays off and the status slot shows '--'. Transient:
     // consumed by forecast-series + formatValue, never wired.
     this.pressureTrend = [];
-    // Total cloud cover, percent 0..100, one entry per hourly slot. Not every
-    // provider exposes it (Yandex doesn't); empty → the cloud line stays off.
+    // Cloud cover, percent 0..100, one entry per hourly slot: the total, or
+    // where the provider reports the layers (Open-Meteo, Met.no) the layers
+    // with thin high cloud at half weight (cloud-cover.js). Not every provider
+    // exposes it (Yandex doesn't); empty → the cloud line stays off.
     // Transient: consumed by forecast-series, never wired.
     this.cloudTrend = [];
     // Feels-like (apparent temperature, °F) — API-sourced or Steadman-computed
