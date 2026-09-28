@@ -3174,8 +3174,7 @@ test('every day-max display row carries the live dayMaxHint', () => {
       byValue: {
         waqi: ' Your AQI provider (WAQI) has no forecast, so the current reading shows.',
         auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
-      },
-      generic: ' The peak needs the Open-Meteo AQI provider (General tab).'
+      }
     } } }
   ]);
 });

@@ -29,6 +29,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var isBwTheme = resolveInkLib.isBwTheme;
     var previewStripe = (typeof require !== 'undefined')
         ? require('./preview-stripe.js') : window.PreviewStripe;
+    var thresholds = (typeof require !== 'undefined')
+        ? require('../status-thresholds.js') : window.StatusThresholds;
 
     // The radar sky rows' sample (radar-sky.js, rain_radar_layer.c draw_radar_sky):
     // eight quarter hours over the two-hour window — clouds thickening into the
@@ -138,19 +140,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var k = h / DROP_INK_H;
         return '<path transform="translate(' + (gx - 6 * k) + ',' + (gy - 3 * k) + ') scale(' + k + ')"'
             + ' d="' + DROP_PATH + '" fill="' + color + '"></path>';
-    }
-
-    /**
-     * The top bar's Alerts placement (status-thresholds.js barAlertPlace — an absent
-     * value is Left), resolved lazily: in the flat page status-thresholds.js is
-     * concatenated after this file, so window.StatusThresholds exists only at render.
-     * @param {Object} state Live settings.
-     * @returns {string} 'off' | 'left' | 'middle' | 'right'.
-     */
-    function topAlertPlace(state) {
-        var contract = (typeof require !== 'undefined') ? require('../status-thresholds.js')
-            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
-        return contract ? contract.barAlertPlace(state, 'top') : 'left';
     }
 
     /**
@@ -298,7 +287,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // palette gives the green tier while the one-stop Solid palette gives the Solid
         // bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text stays
         // theme-fg.
-        var place = topAlertPlace(state);
+        var place = thresholds.barAlertPlace(state, 'top');
         if (isAplite || state.alertRain === false || place === 'off') {
             return svgFrame(e, frameH);
         }

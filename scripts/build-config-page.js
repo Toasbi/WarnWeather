@@ -16,6 +16,13 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/country-defaults.js'),
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
+  // The threshold contract (window.StatusThresholds). It reads no page global at load
+  // time, but preview-radar.js, blocks.js and onbuild.js each bind it while their OWN
+  // top-level body runs, so it must precede all three. Out of order the binding is
+  // undefined and the first sheet, badge or preview that reads it throws on a real
+  // phone while every Node test still passes through require() —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/status-thresholds.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
   // The runtime's radar-source resolver (Rainbow + "Use your own key" -> 'rainbowkey'),
   // which rainbow-budget.js reads as PConf.radarSourceId at load.
@@ -89,16 +96,11 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/support.js'),
   path.join(ROOT, 'src/pkjs/settings/theme-convert.js'),
   path.join(ROOT, 'src/pkjs/settings/reset-status-defaults.js'),
-  // status-thresholds.js: the flat page has no require(), so blocks.js/onbuild.js
-  // read window.StatusThresholds from it — lazily (at render/boot time), so its
-  // position here only has to be somewhere in the bundle.
-  path.join(ROOT, 'src/pkjs/status-thresholds.js'),
   path.join(ROOT, 'src/pkjs/settings/notices-panel.js'),
   // The Weather tab kit (live graphs / 5-day / saved locations), nine
   // files. Order is load-bearing within the group for all but
-  // vendor-suncalc.js (window.SunCalc is read lazily at render time, so
-  // like status-thresholds.js above it only has to be somewhere in the
-  // bundle): each of the others publishes a window global its dependents
+  // vendor-suncalc.js (window.SunCalc is read lazily at render time, so it
+  // only has to be somewhere in the bundle): each of the others publishes a window global its dependents
   // read at IIFE time — weather-tab-model.js → WeatherTabModel (read by
   // data/readouts/charts); weather-tab-icons.js and weather-tab-readouts.js
   // → read by charts; weather-tab-interact.js → WeatherTabInteract, whose

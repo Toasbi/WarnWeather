@@ -50,6 +50,12 @@ if (typeof require !== 'undefined') {
     // behind it, so the dot cannot show a colour the sheet would not open on.
     var rangeControl = (typeof require !== 'undefined')
         ? require('../config-ui/lib/range-control.js') : PConf.rangeControl;
+    // The threshold contract (status-thresholds.js): the kinds, their seed pairs, the
+    // colour and warn-look rules — the module the watch's blob is packed from, so the
+    // sheets, badges and hints read the numbers and colours the watch uses.
+    // scripts/build-config-page.js concatenates it AHEAD of this file.
+    var thresholds = (typeof require !== 'undefined')
+        ? require('../status-thresholds.js') : window.StatusThresholds;
 
         // Slot-dropdown options resolver: derives a status-line slot's option list from the
     // catalog (Tasks 2 + 17) — Empty first, availability-gated, sibling+excludeCodes filtered.
@@ -261,25 +267,23 @@ if (typeof require !== 'undefined') {
      * @param {{value: string, keyStem: string, hints: {max: string, both: string},
      *   notes: ?{key: string, fallback: string, byValue: Object}}} args The row's shown
      *   mode + dayMaxRows' copy.
-     * @returns {?string} The hint ('' for none), or null (static fallback) without the
-     *     contract.
+     * @returns {?string} The hint ('' for none), or null (no hint) for a stem without
+     *     levels.
      */
     function dayMaxHint(S, env, args) {
         if (args.value !== 'max' && args.value !== 'both') { return ''; }
-        var contract = thresholdContract();
         var stem = args.keyStem;
-        if (!contract || !THRESHOLD_RANGES[stem] || !args.hints) { return null; }
+        if (!THRESHOLD_RANGES[stem] || !args.hints) { return null; }
         var st = S || {};
-        var pair = contract.resolvedPair(stem, st);
-        if (typeof pair.warn !== 'number') { return null; }
+        var pair = thresholds.resolvedPair(stem, st);
         var unit = THRESHOLD_RANGES[stem](st).unit;
         var level = pair.warn + (unit ? ' ' + unit : '') + ' (your warn level)';
         var notes = args.notes;
         var note = notes ? notes.byValue[st[notes.key] || notes.fallback] || '' : '';
         return args.hints[args.value].split('{level}').join(level) + note;
     }
-    // THRESHOLD_RANGES / thresholdContract sit further down this file: both are read at
-    // render time, long after this file has loaded.
+    // THRESHOLD_RANGES sits further down this file: it is read at render time, long
+    // after this file has loaded.
     PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
 
     // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
@@ -287,32 +291,17 @@ if (typeof require !== 'undefined') {
     // slot codes and the threshold contract's KINDS codes are the same vocabulary
     // ('wind', 'aqi', 'steps', ...), so the contract IS the mapping — no hand-copied
     // list to drift. env gate mirrors the sheets' own showWhen (aplite compiles the
-    // highlight out). Resolved lazily: in the flat page status-thresholds.js is
-    // concatenated AFTER this file, so window.StatusThresholds only exists at render
-    // time, not at load time (thresholdContract() below wraps exactly that).
+    // highlight out).
     PConf.sheetResolvers.register('statusSlotEditSheet', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
-        var contract = thresholdContract();
-        if (!contract) { return null; }
         var code = S[args.messageKey];
-        for (var i = 0; i < contract.KINDS.length; i++) {
-            if (contract.KINDS[i].code === code) { return 'thresh' + contract.KINDS[i].key; }
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            if (thresholds.KINDS[i].code === code) { return 'thresh' + thresholds.KINDS[i].key; }
         }
         return null;
     });
 
     // --- threshold sliders (the per-slot edit sheets' controls) ------------------
-
-    /**
-     * The threshold contract module, resolved lazily for the same concat-order
-     * reason statusSlotEditSheet documents above.
-     * @returns {?Object} status-thresholds API, or null when unavailable.
-     */
-    function thresholdContract() {
-        return (typeof require !== 'undefined')
-            ? require('../status-thresholds.js')
-            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
-    }
 
     /**
      * Normalize a stored color (0xRRGGBB int or '#RRGGBB' string) to '#RRGGBB' —
@@ -434,14 +423,13 @@ if (typeof require !== 'undefined') {
      */
     function thresholdRangeCfg(S, env, args) {
         var stem = args.keyStem;
-        var contract = thresholdContract();
         var base = THRESHOLD_RANGES[stem](S || {});
         var max = base.max;
-        if (contract && !base.fixedMax) {
-            var override = contract.parseThreshold(S['thresh' + stem + 'Max']);
+        if (!base.fixedMax) {
+            var override = thresholds.parseThreshold(S['thresh' + stem + 'Max']);
             if (override !== null && override > base.min) { max = ceilToStep(override, base.step); }
-            var warn = contract.parseThreshold(S['thresh' + stem + 'Warn']);
-            var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
+            var warn = thresholds.parseThreshold(S['thresh' + stem + 'Warn']);
+            var danger = thresholds.parseThreshold(S['thresh' + stem + 'Danger']);
             if (warn !== null && warn > max) { max = ceilToStep(warn, base.step); }
             if (danger !== null && danger > max) { max = ceilToStep(danger, base.step); }
             // The pair the phone actually holds on must sit on the scale too
@@ -451,7 +439,7 @@ if (typeof require !== 'undefined') {
             // installs kept a Max from before OFF stopped blanking the pair — the
             // slider would clamp the seed it previews to that max while the hold
             // rule and the hint use the real seed: three readings of one rule.
-            var held = contract.resolvedPair(stem, S || {});
+            var held = thresholds.resolvedPair(stem, S || {});
             if (held.warn !== null && held.warn > max) { max = ceilToStep(held.warn, base.step); }
             if (held.danger !== null && held.danger > max) { max = ceilToStep(held.danger, base.step); }
         }
@@ -461,11 +449,9 @@ if (typeof require !== 'undefined') {
         var warnDisplay = thresholdDisplayColor(S, stem, 'Warn', env);
         var warnColor = warnDisplay === null ? '#8A8E97' : warnDisplay;
         var dangerColor = thresholdDisplayColor(S, stem, 'Danger', env);
-        var isGoal = Boolean(contract && contract.isGoalKind
-            && contract.isGoalKind(stem));
-        // Seeds from the contract's table (what a blank pair means on the phone);
-        // without the contract the slider still renders, seeded at its two ends.
-        var seed = contract ? contract.seedPair(stem, S || {}) : {warn: base.min, danger: max};
+        var isGoal = thresholds.isGoalKind(stem);
+        // Seeds from the contract's table: what a blank pair means on the phone.
+        var seed = thresholds.seedPair(stem, S || {});
         return {
             min: base.min, max: max, step: base.step, minSpan: base.step,
             // Direction axis retired (status-thresholds.js): every kind's value
@@ -532,15 +518,13 @@ if (typeof require !== 'undefined') {
         if (!m) { return; }
         var stem = m[1];
         if (!newValue) { return; }
-        var contract = thresholdContract();
-        if (!contract) { return; }
-        var warn = contract.parseThreshold(S['thresh' + stem + 'Warn']);
-        var danger = contract.parseThreshold(S['thresh' + stem + 'Danger']);
-        var ordered = contract.pairOrdered(warn, danger);
+        var warn = thresholds.parseThreshold(S['thresh' + stem + 'Warn']);
+        var danger = thresholds.parseThreshold(S['thresh' + stem + 'Danger']);
+        var ordered = thresholds.pairOrdered(warn, danger);
         if (ordered) { return; }
         // The contract's seed pair — the same numbers the phone already resolves
         // a blank pair to, so pinning them changes nothing the watch sees.
-        var seed = contract.seedPair(stem, S);
+        var seed = thresholds.seedPair(stem, S);
         S['thresh' + stem + 'Warn'] = String(seed.warn);
         S['thresh' + stem + 'Danger'] = String(seed.danger);
     });
@@ -551,10 +535,7 @@ if (typeof require !== 'undefined') {
     // to. The key stays unset in the phone store: defaultFrom items are never
     // seeded, and the item's sticky: false keeps a save from writing this value.
     PConf.defaultsResolvers.register('warnLookDefault', function (env, args) {
-        var contract = thresholdContract();
-        var isColor = env ? env.color : undefined;
-        if (!contract) { return isColor === false ? 'outline' : 'fill'; }
-        return contract.warnLookDefault(args && args.keyStem, isColor);
+        return thresholds.warnLookDefault(args && args.keyStem, env ? env.color : undefined);
     });
 
     /**
@@ -671,11 +652,8 @@ if (typeof require !== 'undefined') {
         }
         if (bwDayScreen(S, env)) { return thresholdAutoFg(S.theme); }
         if (which === 'Danger' && thresholdColorIsUnset(raw)) {
-            var contractMod = thresholdContract();
-            if (contractMod) {
-                return contractMod.isGoalKind(stem)
-                    ? contractMod.DEFAULT_GOAL_HEX : contractMod.DEFAULT_DANGER_HEX;
-            }
+            return thresholds.isGoalKind(stem)
+                ? thresholds.DEFAULT_GOAL_HEX : thresholds.DEFAULT_DANGER_HEX;
         }
         if (thresholdColorIsAuto(raw)) { return thresholdAutoFg(S.theme); }
         return colorHexOf(raw, 0x000000);
@@ -689,8 +667,7 @@ if (typeof require !== 'undefined') {
     PConf.actions = PConf.actions || {};
     PConf.actions.resetThresholds = function (stem, S, env, defaultOf) {
         if (!stem || !S || !THRESHOLD_RANGES[stem] || !defaultOf) { return false; }
-        var contractMod = thresholdContract();
-        var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(stem));
+        var goal = thresholds.isGoalKind(stem);
         // Every key with a schema default lands on it THROUGH the engine's resolver —
         // mirrored literals drift when the schema changes (see resetStatusSlots
         // below). The result is exactly a fresh install: a goal kind's stored
@@ -711,7 +688,7 @@ if (typeof require !== 'undefined') {
         // contract's red (weather) or green (goal). Write that eagerly, so the
         // reset shows the colour the watch will draw straight away.
         S['thresh' + stem + 'DangerColor'] = goal
-            ? contractMod.DEFAULT_GOAL_HEX : contractMod.DEFAULT_DANGER_HEX;
+            ? thresholds.DEFAULT_GOAL_HEX : thresholds.DEFAULT_DANGER_HEX;
         // "Fresh install" is more than the schema: finishing the first-run wizard
         // applies the defaults-policy table, so the reset lands on those rows too —
         // AQI's highlight-on, seeded through the very hooks
@@ -949,16 +926,13 @@ if (typeof require !== 'undefined') {
         for (var u = 0; u < statusLineCatalog.UNIT_TOGGLES.length; u++) {
             schemaKeys.push(statusLineCatalog.UNIT_TOGGLES[u].key);
         }
-        var contractMod = thresholdContract();
-        if (contractMod) {
-            for (var k = 0; k < contractMod.KINDS.length; k++) {
-                var kd = contractMod.KINDS[k];
-                schemaKeys.push('thresh' + kd.key + 'BoldMode');
-                if (!kd.boldOnly && !kd.goal) { schemaKeys.push('thresh' + kd.key + 'On'); }
-            }
-            for (var b = 0; b < contractMod.BAR_ALERT_KEYS.length; b++) {
-                schemaKeys.push(contractMod.BAR_ALERT_KEYS[b].key);
-            }
+        for (var k = 0; k < thresholds.KINDS.length; k++) {
+            var kd = thresholds.KINDS[k];
+            schemaKeys.push('thresh' + kd.key + 'BoldMode');
+            if (!kd.boldOnly && !kd.goal) { schemaKeys.push('thresh' + kd.key + 'On'); }
+        }
+        for (var b = 0; b < thresholds.BAR_ALERT_KEYS.length; b++) {
+            schemaKeys.push(thresholds.BAR_ALERT_KEYS[b].key);
         }
         for (var n = 0; n < schemaKeys.length; n++) {
             S[schemaKeys[n]] = defaultOf(schemaKeys[n]);
@@ -987,13 +961,10 @@ if (typeof require !== 'undefined') {
     PConf.actions.resetAlerts = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf) { return false; }
         var keys = ['alertRain', 'rainAlertDisplay', 'rainCountdownHorizon'];
-        var contractMod = thresholdContract();
-        if (contractMod) {
-            for (var k = 0; k < contractMod.KINDS.length; k++) {
-                var kind = contractMod.KINDS[k];
-                if (!kind.boldOnly && !kind.goal) {
-                    keys.push('alert' + kind.key, 'alert' + kind.key + 'Display');
-                }
+        for (var k = 0; k < thresholds.KINDS.length; k++) {
+            var kind = thresholds.KINDS[k];
+            if (!kind.boldOnly && !kind.goal) {
+                keys.push('alert' + kind.key, 'alert' + kind.key + 'Display');
             }
         }
         for (var n = 0; n < keys.length; n++) {
@@ -1014,8 +985,7 @@ if (typeof require !== 'undefined') {
      * @returns {?{color: string, ring: (boolean|undefined)}} The pip, or null for none.
      */
     function warnPip(S, env, stem) {
-        var contract = thresholdContract();
-        var look = contract.warnLookFor(S, stem, env ? env.color : undefined);
+        var look = thresholds.warnLookFor(S, stem, env ? env.color : undefined);
         if (look === 'none') { return null; }
         var color = thresholdDisplayColor(S, stem, 'Warn', env);
         if (color === null) { return null; }
@@ -1048,9 +1018,8 @@ if (typeof require !== 'undefined') {
      * @returns {Object} Badge state for the engine's editBadgeFrom.
      */
     function penStateForKind(S, env, kindIndex) {
-        var contract = thresholdContract();
-        var key = contract.KINDS[kindIndex].key;
-        var enabled = contract.kindConfig(S, kindIndex).enabled;
+        var key = thresholds.KINDS[kindIndex].key;
+        var enabled = thresholds.kindConfig(S, kindIndex).enabled;
         // EFFECTIVE always-bold, not the stored ladder alone: the Watch-tab
         // master row packs every kind's bold cell as always at wire time
         // (status-thresholds.js' settings-blob packer — not named here: this
@@ -1083,11 +1052,9 @@ if (typeof require !== 'undefined') {
     // as the sheet resolver above.
     PConf.badgeResolvers.register('thresholdPenState', function (S, env, args) {
         if (!env || !env.thresholds) { return null; }
-        var contract = thresholdContract();
-        if (!contract) { return null; }
         var code = S[args.messageKey];
-        for (var i = 0; i < contract.KINDS.length; i++) {
-            if (contract.KINDS[i].code === code) { return penStateForKind(S, env, i); }
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            if (thresholds.KINDS[i].code === code) { return penStateForKind(S, env, i); }
         }
         return null;
     });
@@ -1095,13 +1062,12 @@ if (typeof require !== 'undefined') {
     /**
      * The KINDS index of a kind that owns levels (a weather or goal kind, not a
      * bold-only one), looked up by key stem.
-     * @param {Object} contract The status-thresholds API.
      * @param {string} keyStem Kind key stem, e.g. 'Uv'.
      * @returns {number} The index, or -1 for an unknown or bold-only stem.
      */
-    function levelKindIndex(contract, keyStem) {
-        for (var i = 0; i < contract.KINDS.length; i++) {
-            if (contract.KINDS[i].key === keyStem && !contract.KINDS[i].boldOnly) { return i; }
+    function levelKindIndex(keyStem) {
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            if (thresholds.KINDS[i].key === keyStem && !thresholds.KINDS[i].boldOnly) { return i; }
         }
         return -1;
     }
@@ -1129,8 +1095,7 @@ if (typeof require !== 'undefined') {
             return {label: 'Edit', ariaNote: rainOn ? '' : 'off', dots: []};
         }
         if (!env || !env.thresholds) { return null; }
-        var contract = thresholdContract();
-        if (!contract || levelKindIndex(contract, stem) < 0) { return null; }
+        if (levelKindIndex(stem) < 0) { return null; }
         if (st['alert' + stem] !== true) { return {label: 'Edit', ariaNote: 'off', dots: []}; }
         return {label: 'Edit', ariaNote: '', dots: levelDots(st, env, stem)};
     }
@@ -1151,13 +1116,11 @@ if (typeof require !== 'undefined') {
      */
     function alertLevelsHint(S, env, args) {
         if (!env || !env.thresholds) { return null; }
-        var contract = thresholdContract();
         var stem = args && args.keyStem;
-        if (!contract || !THRESHOLD_RANGES[stem]) { return null; }
+        if (!THRESHOLD_RANGES[stem]) { return null; }
         var st = S || {};
         if (st['alert' + stem] !== true) { return 'Off'; }
-        var pair = contract.resolvedPair(stem, st);
-        if (typeof pair.warn !== 'number' || typeof pair.danger !== 'number') { return null; }
+        var pair = thresholds.resolvedPair(stem, st);
         var unit = THRESHOLD_RANGES[stem](st).unit;
         var suffix = unit ? ' ' + unit : '';
         return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;

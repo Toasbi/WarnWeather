@@ -1770,16 +1770,16 @@ test('the UV sheet puts its display-mode pills between the Bold + Highlight rows
   assert.equal(disp.type, 'segmented');
   assert.equal(disp.defaultValue, 'current', 'shipped behaviour: the current index');
   assert.deepEqual(disp.options, [['Now', 'current'], ['Alert', 'max'], ['Both', 'both']]);
-  // The live hint is the dayMaxHint resolver's (below), which quotes the warn level as
-  // a number; the static per-mode hints are only its fallback for a page without the
-  // contract. Both explain the SELECTED mode alone, and Now (the default) gets none.
+  // The hint is the dayMaxHint resolver's alone (below), which quotes the warn level as
+  // a number — the page always carries the contract, so there is no static fallback.
+  // It explains the SELECTED mode alone, and Now (the default) gets none.
   assert.equal(disp.hintFrom.resolver, 'dayMaxHint');
   assert.equal(disp.hint, undefined, 'no all-modes hint');
-  assert.deepEqual(Object.keys(disp.hintByValue).sort(), ['both', 'max'], 'no Now hint');
+  assert.equal(disp.hintByValue, undefined, 'no static fallback');
+  assert.strictEqual(dayMaxHintOf('uv', {}, 'current'), '', 'no Now hint');
   ['max', 'both'].forEach((mode) => {
-    const h = disp.hintByValue[mode];
-    assert.doesNotMatch(h.replace('3/7', ''), /\d/, mode + ': the fallback names no level number');
-    assert.match(h, /below your warn level/, mode + ': the fallback states the hold rule');
+    const h = dayMaxHintOf('uv', {}, mode);
+    assert.match(h, /below 6 \(your warn level\)/, mode + ': the hint states the hold rule');
     assert.match(h, /tomorrow's peak shows instead/, mode + ': the max rolls on to tomorrow');
     // The mark is a choice (uvSlotNextDayMark), so the hint points at it instead of
     // quoting one glyph that may not be the one on screen.
@@ -1788,7 +1788,7 @@ test('the UV sheet puts its display-mode pills between the Bold + Highlight rows
     // What the slot SHOWS, not how it is highlighted (the Alerts sheet explains that).
     assert.doesNotMatch(h, /highlight/i, mode + ': no highlighting sentence');
   });
-  assert.match(disp.hintByValue.both, /like 3\/7/, 'Both shows the pair on the kind\'s samples');
+  assert.match(dayMaxHintOf('uv', {}, 'both'), /like 3\/7/, 'Both shows the pair on the kind\'s samples');
   // It configures the SLOT, not the highlight, so it sits above the levels pointer
   // like the wind arrow — and stays live while the highlight is off. So do the rows
   // shaping how it reads (test/config-slot-pair.test.js), which follow it directly.
@@ -1885,20 +1885,17 @@ test('dayMaxHint: says nothing about highlighting, whatever the switch', () => {
     'the same text with the switch off or on');
 });
 
-test('dayMaxHint: every day-max kind carries the live hint, with a numberless fallback', () => {
+test('dayMaxHint: every day-max kind carries the live hint, and no static fallback', () => {
   const subjects = { uv: 'UV is', wind: 'the wind is', gust: 'gusts are', aqi: 'the AQI is' };
   const stems = { uv: 'Uv', wind: 'Wind', gust: 'Gust', aqi: 'Aqi' };
   catalog.DAY_MAX_KINDS.forEach(prefix => {
     const item = itemsByKey()[prefix + 'SlotDisplay'][0];
     assert.equal(item.hintFrom.resolver, 'dayMaxHint', prefix);
     assert.equal(item.hintFrom.args.keyStem, stems[prefix], prefix);
+    // The page always carries the contract (the bundle-order pin in
+    // test/config-page-bundle.test.js), so the resolver always answers.
+    assert.equal(item.hintByValue, undefined, prefix + ': no static fallback');
     ['max', 'both'].forEach((mode) => {
-      // The fallback is the live template with the level named, not numbered.
-      const fallback = item.hintFrom.args.hints[mode].split('{level}').join('your warn level')
-        + (prefix === 'aqi' ? ' The peak needs the Open-Meteo AQI provider (General tab).' : '');
-      assert.equal(item.hintByValue[mode], fallback, prefix + ' ' + mode + ' fallback');
-      assert.ok(item.hintByValue[mode].indexOf(subjects[prefix] + ' below your warn level') !== -1,
-        prefix + ' ' + mode + ' fallback states the hold rule');
       assert.match(dayMaxHintOf(prefix, {}, mode), new RegExp(subjects[prefix] + ' below \\d'),
         prefix + ' ' + mode + ' live hint names the level');
     });

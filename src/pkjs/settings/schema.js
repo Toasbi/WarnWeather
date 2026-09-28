@@ -594,34 +594,26 @@ function pairRows(prefix, first, second, orderOptions) {
  * kind's warn level or higher, so a slot never goes quiet under a value that still
  * warrants the warning. The pills' hint explains the SELECTED mode only — Now, the
  * default, gets none — and is about what the slot SHOWS (the highlight is explained in
- * the Alerts sheet). It states the warn level as a NUMBER, live (blocks.js dayMaxHint
+ * the Alerts sheet). It states the warn level as a NUMBER, live: blocks.js dayMaxHint
  * fills dayMaxHints' {level} from the slider, the unit pickers and the AQI
- * source/scale on every render); the static hintByValue is its fallback for a page
- * without the contract module, the same copy with the level named, not numbered.
+ * source/scale on every render.
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} label The pills' label, e.g. 'UV selection'.
  * @param {{keyStem: string, subject: string, notes: ?Object}} copy The kind's
  *     threshold key stem ('Uv'), the hold sentence's subject ('UV is'), and (AQI only)
  *     the source notes: dayMaxHint closes on byValue[S[key] || fallback] (a leading
- *     space; no entry, no note), the static fallback on `generic`. null for none.
+ *     space; no entry, no note). null for none.
  * @param {string} now Sample current reading for the separator labels, e.g. '3'.
  * @param {string} max Sample peak, e.g. '7'.
  * @returns {Object[]} The rows, in sheet order.
  */
 function dayMaxRows(prefix, label, copy, now, max) {
-    var hints = dayMaxHints(copy.subject, now + '/' + max);
-    var args = {keyStem: copy.keyStem, hints: hints};
+    var args = {keyStem: copy.keyStem, hints: dayMaxHints(copy.subject, now + '/' + max)};
     if (copy.notes) { args.notes = copy.notes; }
-    // The fallback cannot read the source, so it closes on the source-free note.
-    var coda = copy.notes ? copy.notes.generic : '';
     return [{
         type: 'segmented',
         messageKey: prefix + 'SlotDisplay',
         label: label,
-        hintByValue: {
-            max: fillDayMaxHint(hints.max, DAY_MAX_LEVEL_NAME) + coda,
-            both: fillDayMaxHint(hints.both, DAY_MAX_LEVEL_NAME) + coda
-        },
         hintFrom: {resolver: 'dayMaxHint', args: args},
         defaultValue: 'current',
         options: [['Now', 'current'], ['Alert', 'max'], ['Both', 'both']]
@@ -638,11 +630,9 @@ function dayMaxRows(prefix, label, copy, now, max) {
         showWhen: {key: prefix + 'SlotDisplay', in: ['max', 'both']}
     }]);
 }
-// What the static fallback puts where the live hint prints the number.
-var DAY_MAX_LEVEL_NAME = 'your warn level';
 /**
  * A day-max kind's Alert and Both hints as templates, '{level}' standing for the
- * warn level (dayMaxHint: '6 (your warn level)'; the fallback: DAY_MAX_LEVEL_NAME).
+ * warn level (dayMaxHint: '6 (your warn level)').
  * Each claim is wire-units dayMaxShown's: today's peak (the rest of today, the
  * current hour included) holds while ahead, running or at warn or higher — once it
  * is neither ahead nor running it equals the reading, so "{subject} below {level}"
@@ -662,14 +652,6 @@ function dayMaxHints(subject, sample) {
             + 'the same. Once today\'s peak has passed and ' + subject + rest
             + ', or the reading alone if tomorrow\'s isn\'t known.'
     };
-}
-/**
- * @param {string} template A dayMaxHints template.
- * @param {string} level What stands in for '{level}'.
- * @returns {string} The hint.
- */
-function fillDayMaxHint(template, level) {
-    return template.split('{level}').join(level);
 }
 /**
  * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
@@ -2468,8 +2450,7 @@ module.exports = {
                 byValue: {
                     waqi: ' Your AQI provider (WAQI) has no forecast, so the current reading shows.',
                     auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
-                },
-                generic: ' The peak needs the Open-Meteo AQI provider (General tab).'
+                }
             }
         }, '42', '58'), [alertLevelsNote()]),
         // Pollen's scale hint rides its levels group, in the Alerts card's sheet.

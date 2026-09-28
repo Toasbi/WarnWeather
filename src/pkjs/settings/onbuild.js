@@ -6,6 +6,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : { hooks: { onLoad: function () {}, onSubmit: function () {} } };
 
 (function () {
+    // The threshold contract (status-thresholds.js), concatenated ahead of this file
+    // in the flat page (scripts/build-config-page.js APP_FILES).
+    var thresholds = (typeof require !== 'undefined')
+        ? require('../status-thresholds.js') : window.StatusThresholds;
+
     /**
      * Heal each threshold kind's highlight colours on every open. The
      * highlight toggle itself (thresh<K>On — a weather kind's slot-sheet
@@ -21,19 +26,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function healThresholdColors(ctx) {
-        // Node (tests): CommonJS require. Webview: the flat page exposes
-        // window.StatusThresholds (resolved lazily at boot, after all scripts loaded).
-        var contract = (typeof require !== 'undefined')
-            ? require('../status-thresholds.js')
-            : (typeof window !== 'undefined' ? window.StatusThresholds : null);
-        if (!contract) { return; }
         // Auto colors (see blocks.js thresholdAutoColor): a never-customized color
         // tracks the current theme's text color, re-derived on every open so a theme
         // switch updates it. blocks.js is bundled/required before this hook runs.
         var auto = PConf.thresholdAutoColor;
         var fg = auto ? auto.fgFor(ctx.get('theme')) : null;
-        for (var i = 0; i < contract.KINDS.length; i++) {
-            var kind = contract.KINDS[i];
+        for (var i = 0; i < thresholds.KINDS.length; i++) {
+            var kind = thresholds.KINDS[i];
             if (auto) {
                 // WARN: a never-customized colour — unset, the old parseResponse
                 // bug's null, or an fg value — is AUTO and tracks the theme fg
@@ -42,7 +41,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 // a blank warn colour no longer means "no outline" (the one-time
                 // conversion of that old meaning is migrations/v1_24.js
                 // migrateWarnLook). A user pick survives untouched.
-                var goalHex = contract.DEFAULT_GOAL_HEX;
+                var goalHex = thresholds.DEFAULT_GOAL_HEX;
                 var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
                 if (auto.isAuto(rawWarn)) {
                     ctx.set('thresh' + kind.key + 'WarnColor', kind.goal ? goalHex : fg);
@@ -55,7 +54,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 var rawDanger = ctx.get('thresh' + kind.key + 'DangerColor');
                 if (kind.goal ? auto.isAuto(rawDanger) : auto.isUnset(rawDanger)) {
                     ctx.set('thresh' + kind.key + 'DangerColor',
-                        kind.goal ? goalHex : contract.DEFAULT_DANGER_HEX);
+                        kind.goal ? goalHex : thresholds.DEFAULT_DANGER_HEX);
                 }
             }
         }
