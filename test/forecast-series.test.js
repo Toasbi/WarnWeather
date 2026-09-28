@@ -432,10 +432,10 @@ function decodeStatusLine(bytes) {
 test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the transient deletes', () => {
   const realRemember = statusRebake.rememberBakeInputs;
   const seen = [];
-  statusRebake.rememberBakeInputs = function(payload, settings, watchInfo) {
+  statusRebake.rememberBakeInputs = function(payload, watchInfo) {
     // Snapshot the argument as it looked AT THE CALL: the real module clones it,
     // and the payload it is handed is mutated and pruned moments later.
-    seen.push({ payload: Object.assign({}, payload), settings, watchInfo });
+    seen.push({ payload: Object.assign({}, payload), watchInfo, argc: arguments.length });
   };
   const payload = {
     CURRENT_TEMP: 68, CITY: 'Bonn', SUN_EVENTS: [1, 0, 0, 0, 0],
@@ -458,7 +458,7 @@ test('applyForecastSeries stashes the bake inputs BEFORE the bake and before the
   }
 
   assert.equal(seen.length, 1, 'stashed exactly once per bake');
-  assert.equal(seen[0].settings, settings, 'settings by reference');
+  assert.equal(seen[0].argc, 2, 'no settings: a re-bake pairs the live ones');
   assert.equal(seen[0].watchInfo, watchInfo, 'watchInfo by reference');
 
   // BEFORE the bake: the packed lines do not exist on the payload yet, so the

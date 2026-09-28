@@ -60,12 +60,15 @@
 //     itself from the kind byte. A snapshot restored across midnight therefore
 //     pushes "3d" where the watch still shows "4d": the value the next fetch
 //     would have pushed anyway, a correction and never stale text.
-//   * Settings are deliberately NOT part of the stored blob. The restored
-//     payload is paired with the LIVE settings (deps.getSettings) at re-bake
-//     time, which is both smaller and more correct: a save that changes anything
-//     the bake reads forces a fetch (render-signature.js), so in the steady state
-//     the two agree, and in the brief window where they don't, the live blob is
-//     what the next fetch would bake with.
+//   * Settings are part of NEITHER snapshot, in memory or on flash. Every
+//     re-bake pairs the stored payload with the LIVE settings (deps.getSettings),
+//     which is both smaller and more correct: the live blob is what the next
+//     fetch would bake with. A save replaces the settings object outright
+//     (index.js reads a fresh one), and the forced fetch it starts can fail
+//     (offline, a provider error, an auth backoff), so inputs that kept the
+//     settings of their own bake would re-assert a switched-off alert or an old
+//     level until some later fetch succeeded -- and would bake differently
+//     depending on whether PKJS had restarted in between.
 //
 // The blob is version-stamped and shape-checked on the way back in, so one
 // written by an older build (different key set) degrades to "no snapshot"
@@ -98,8 +101,8 @@ var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
 var SNAPSHOT_VERSION = 3;
 
 var deps = {};        // injected environment (see init)
-var snapshot = null;  // last bake inputs ({payload, settings, watchInfo}) from THIS PKJS life
-var restored = null;  // ({payload, watchInfo}) read back from flash at init, the restart backstop
+var snapshot = null;  // last bake inputs ({payload, watchInfo}) from THIS PKJS life
+var restored = null;  // the same shape, read back from flash at init: the restart backstop
 var lastWritten = null;   // last serialized snapshot, to skip no-op flash writes
 
 /**
@@ -270,27 +273,27 @@ function currentSettings() {
 }
 
 /**
- * The inputs a micro-send re-bakes from: this PKJS life's own snapshot when a
- * fetch has already baked, else the one restored from flash at init().
+ * The inputs a micro-send re-bakes from: the stored payload and watchInfo of
+ * this PKJS life's own snapshot when a fetch has already baked, else of the one
+ * restored from flash at init() — paired, on either path, with the LIVE
+ * settings blob (see the header for why never the bake's own).
  *
- * The restored half deliberately carries no settings of its own — it pairs the
- * stored payload with the LIVE settings blob. Without a settings supplier
- * there is nothing safe to bake against (re-baking against defaults would push
- * text matching neither the watch nor the user's config), so that degrades to
- * "no snapshot" as well.
+ * Without a settings supplier there is nothing safe to bake against
+ * (re-baking against defaults would push text matching neither the watch nor
+ * the user's config), so that degrades to "no snapshot" as well.
  *
  * @returns {{payload: Object, settings: Object, watchInfo: (Object|null)}|null} Bake inputs, or null.
  */
 function bakeInputs() {
+    var src = snapshot || restored;
     var settings;
-    if (snapshot) { return snapshot; }
-    if (!restored) { return null; }
+    if (!src) { return null; }
     settings = currentSettings();
     if (!settings) { return null; }
     return {
-        payload: restored.payload,
+        payload: src.payload,
         settings: settings,
-        watchInfo: restored.watchInfo
+        watchInfo: src.watchInfo
     };
 }
 
@@ -300,23 +303,20 @@ function bakeInputs() {
  * so the clone predates both the bake's own mutations and the transient-key
  * deletions that follow it.
  *
- * The payload is cloned because it is about to be mutated and pruned; settings
- * and watchInfo are held by reference — the bake only reads them, and every
- * change to a setting the bake reads forces a fetch (render-signature.js),
- * which refreshes this snapshot anyway. The
- * same inputs also go to flash (minus the settings) so a trigger that lands
- * after the next PKJS restart still has something to re-bake.
+ * The payload is cloned because it is about to be mutated and pruned;
+ * watchInfo is held by reference — the bake only reads it. The settings are
+ * not taken at all: every re-bake reads the live ones (bakeInputs). The same
+ * inputs also go to flash so a trigger that lands after the next PKJS restart
+ * still has something to re-bake.
  *
  * @param {Object} payload Weather payload, still carrying its transient bake keys.
- * @param {Object} settings Clay settings.
  * @param {Object|null} watchInfo getActiveWatchInfo() result, or null.
  * @returns {void}
  */
-function rememberBakeInputs(payload, settings, watchInfo) {
+function rememberBakeInputs(payload, watchInfo) {
     if (!payload) { return; }
     snapshot = {
         payload: shallowClone(payload),
-        settings: settings,
         watchInfo: watchInfo
     };
     persistSnapshot(payload, watchInfo);

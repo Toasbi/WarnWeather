@@ -444,8 +444,9 @@ function applyForecastSeries(payload, settings, watchInfo) {
     // later trigger (a phone-battery event) re-bakes the status lines without
     // a fetch, and by
     // then both the bake's own mutations and the transient-key deletions below
-    // have happened. Order matters — this must precede buildStatusLines.
-    statusRebake.rememberBakeInputs(payload, settings, watchInfo);
+    // have happened. Order matters — this must precede buildStatusLines. No
+    // settings: a re-bake reads the live ones.
+    statusRebake.rememberBakeInputs(payload, watchInfo);
     // Bake the packed status lines while the transient trend arrays are
     // still on the payload (they die a few lines below).
     statusLines.buildStatusLines(payload, settings, watchInfo);
