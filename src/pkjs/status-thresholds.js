@@ -1,9 +1,16 @@
 /**
- * Status-slot alert levels: the per-kind warn/danger pairs (stored, else the
- * kind's SEED pair — one resolution for the phone bake, the day-max hold rule
- * and the settings page), the level computation for the weather-sourced kinds
- * (phone-side, at weather-bake time) and the packed settings blob (enable bits
- * + colors + health thresholds) the watch consumes for the 3 health kinds.
+ * Status-slot alert levels:
+ *  - the per-kind warn/danger pairs (stored, else the kind's SEED pair — one
+ *    resolution for the phone bake, the day-max hold rule and the settings
+ *    page), with the highlight colours and warn look each kind resolves to;
+ *  - the weather kinds' levels (STATUS_LEVELS_UINT8) and the Alerts row's
+ *    metric entries (ALERT_ENTRIES_UINT8), both judged phone-side at
+ *    weather-bake time;
+ *  - the packed settings blob (CLAY_THRESHOLDS_UINT8, buildSettingsBlob): the
+ *    8 paired kinds' highlight enable bits and warn/danger colours, the health
+ *    trio's thresholds (the watch levels those kinds itself), every kind's
+ *    2-bit bold cell, the Alerts row's rain look and per-bar placement, and
+ *    each paired kind's warn look.
  *
  * Levels and highlighting are split: a weather kind's LEVEL is computed from
  * its resolved pair whether or not its highlight is on, and the stored
@@ -11,8 +18,9 @@
  * watch to colour the slot (see kindConfig).
  *
  * LOCKSTEP: kind order, level values, and blob layout mirror
- * src/c/appendix/status_threshold.h; test/status-thresholds-contract.test.js
- * enforces it. ES5 only (aplite PKJS).
+ * src/c/appendix/status_threshold.h, the alert entries alert_set.h;
+ * test/status-thresholds-contract.test.js and
+ * test/alert-entries-contract.test.js enforce it. ES5 only (aplite PKJS).
  */
 (function() {
   // Guarded: in the flat concatenated config page there is no require();
