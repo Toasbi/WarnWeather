@@ -1,11 +1,11 @@
 module.exports = {
     // The newest release-notification version already shown (release-notifications.js).
     MAX_NOTIFIED_VERSION_KEY: 'max_notified_version',
-    // Marker keys for the Clay-settings migrations (clay-migrations.js's
-    // runMigrations). APPEND-ONLY: a shipped marker string is the on-flash record
+    // Marker keys for the Clay-settings migrations (migrations/registry.js, run by
+    // clay-migrations.js). APPEND-ONLY: a shipped marker string is the on-flash record
     // that a migration ran, so it is never reused, renamed or renumbered. Part of a
-    // migration's identity — listed here to honor the one-registry rule; the bodies
-    // live in clay-migrations.js.
+    // migration's identity — listed here to honor the one-registry rule; the entries
+    // and their bodies live under migrations/.
     WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY: 'v1.34.0_weekend_holiday_color_migration',
     HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY: 'v1.4.0_holiday_white_to_toggle_migration',
     HOLIDAY_REGION_KEY_MIGRATION_KEY: 'v1.4.0_holiday_region_key_migration',
@@ -22,9 +22,14 @@ module.exports = {
     NORAIN_DEFAULT_TEXT_MIGRATION_KEY: 'v1.23.0_norain_default_text_migration',
     FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY: 'v1.23.1_fifth_line_style_default_migration',
     STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY: 'v1.23.1_stripe_metric_rule_resend_migration',
-    THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY: 'v1.24.0_threshold_highlight_toggle_migration',
-    RAIN_HORIZON_OFF_MIGRATION_KEY: 'v1.24.0_rain_horizon_off_migration',
-    WARN_LOOK_MIGRATION_KEY: 'v1.24.0_warn_look_migration',
+    // The 1.24.0 alert-levels move (highlight toggles, warn look, rain window Off).
+    // Dev builds of 1.24.0 ran its three steps under three markers, never released:
+    // 'v1.24.0_threshold_highlight_toggle_migration', 'v1.24.0_rain_horizon_off_migration'
+    // and this string, the last of them to land. It is kept on purpose: an install that
+    // holds it ran all three, and a re-run there would read settings saved on the 1.24.0
+    // page as 1.23 shapes (a highlight switched off with its pair kept would come back
+    // on). migrations/v1_24.js has the details.
+    ALERT_LEVELS_MIGRATION_KEY: 'v1.24.0_warn_look_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

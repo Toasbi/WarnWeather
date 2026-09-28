@@ -384,7 +384,7 @@ test('onLoad leaves the stored toggle alone and still heals colours', () => {
   // The toggle is STORED state since the levels/highlight split: the page used to
   // re-derive it from the pair on every open, which would now undo a user's OFF
   // (the pair lives on while off). The pre-split backfill is the phone-side
-  // migration (clay-migrations.js migrateThresholdHighlightToggles).
+  // migration (migrations/v1_24.js migrateThresholdHighlightToggles).
   const S = {
     threshStepsOn: false, threshStepsWarn: '2500', threshStepsDanger: '5000', // ordered, stored off
     threshWindOn: true, threshWindWarn: '', threshWindDanger: '',            // blank (= seed), stored on
@@ -2207,7 +2207,7 @@ test('the temp slot keeps Both and the degree sign apart, in both directions', (
 test("a goal kind's legacy null warn color heals to the auto green on page open", () => {
   // The old parseResponse stored hexToInt('') = NaN -> JSON null for a turned-off
   // goal outline. Since the warn look, "off" is threshSleepWarnLook 'none' (written
-  // for exactly those blobs by clay-migrations.js migrateWarnLook), and a blank or
+  // for exactly those blobs by migrations/v1_24.js migrateWarnLook), and a blank or
   // null colour is auto: the goal green.
   ['', null, undefined].forEach((raw) => {
     const S = { theme: 'dark', threshSleepWarn: '360', threshSleepDanger: '480',

@@ -437,7 +437,7 @@
     // second line — and the third and fourth metric lines as x marks. None is a
     // stripe, so every default suits every metric (a stripe needs an intensity
     // metric, metricAllowsStripe below). The fourth debuted as a top stripe
-    // until 1.23.1; clay-migrations.js' migrateFifthLineStyleDefault moves the
+    // until 1.23.1; migrations/line-styles.js' migrateFifthLineStyleDefault moves the
     // seeded 'stripeTop' of a fourth line that is off onto 'x'. persist.c's
     // persist_get_fifth_line_style mirrors this default for an unset slot.
     var LINE_STYLE_DEFAULTS = {

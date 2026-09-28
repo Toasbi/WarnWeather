@@ -1,11 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {
-  installFakeStorage, COLORS, makeMarker, SHIPPED_MARKERS, seedUpgradedInstall,
-  bootUpgradedInstall, loadUpgradeModules, shippedPageFillPick, PRE_RETUNE_LIGHT,
-  seedPreRetuneInstall, seedThemedInstall
-} = require('./helpers/clay-harness.js');
+const { installFakeStorage, COLORS } = require('./helpers/clay-harness.js');
 
 test('seedDefaults writes defaults when none stored', () => {
   installFakeStorage();

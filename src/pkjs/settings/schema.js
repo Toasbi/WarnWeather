@@ -764,7 +764,7 @@ function levelsGroup(keyStem, hint, gate) {
     // kind's rows never do: they style its alert icon too, which the slot's switch
     // does not touch. The toggle itself is STORED state — the one source of
     // "highlight on" (kindConfig's enable bit); pre-split blobs were backfilled from
-    // their pair by clay-migrations.js — and ON seeds the pair through the
+    // their pair by migrations/v1_24.js — and ON seeds the pair through the
     // thresholdToggle hook when none is stored.
     var offWhen = goal ? {not: {key: onKey}} : undefined;
     var colorWhen = gate ? {all: [gate, COLOR_THEME_WHEN]} : COLOR_THEME_WHEN;
@@ -823,7 +823,7 @@ function levelsGroup(keyStem, hint, gate) {
         // The warn look — the box drawn at the warn level (a goal kind's "close"),
         // for the slot while its highlight is on AND for the kind's alert icon.
         // It replaced the 'Outline on warn' toggle (thresh<K>WarnOutlineOn, read
-        // once by clay-migrations.js migrateWarnLook). The default is per
+        // once by migrations/v1_24.js migrateWarnLook). The default is per
         // PLATFORM (status-thresholds.js warnLookDefault through the blocks.js
         // defaultFrom resolver): fill on a colour watch, outline on a B&W one —
         // a B&W warn fill would be the danger fill — and outline for goal kinds.

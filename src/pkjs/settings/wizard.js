@@ -126,9 +126,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Not "the config has no keys": PKJS seeds the full defaults blob on the first boot,
      * before any settings page can open, so a fresh install never arrives empty. Existing
      * installs are marked onboarded by a one-time phone-side migration
-     * (clay-migrations.js migrateExistingInstallOnboarded), so only a fresh install — or
-     * one just reset — still reads false here. An empty config (a reset, reopened in the
-     * same PKJS session) has no onboardingDone and opens it too.
+     * (migrations/onboarding.js migrateExistingInstallOnboarded), so only a fresh
+     * install — or one just reset — still reads false here. An empty config (a reset,
+     * reopened in the same PKJS session) has no onboardingDone and opens it too.
      * @param {?Object} cfg Raw injected saved config.
      * @returns {boolean} True to auto-open.
      */

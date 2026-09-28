@@ -92,7 +92,7 @@
   // warn FILL (the colour-watch default look, in the theme's text colour) and the
   // danger fill stay apart. The settings page writes it too (onbuild.js heal,
   // blocks.js resetThresholds) and the 1.24.0 move turned the old auto text colour
-  // into it (clay-migrations.js migrateWarnLook). A stored black or white is a pick
+  // into it (migrations/v1_24.js migrateWarnLook). A stored black or white is a pick
   // meaning "the text colour" (resolveAutoColor). (The warn colour has no such
   // constant: unset is AUTO — the theme's text colour, see kindConfig.)
   var DEFAULT_DANGER_COLOR = 0xFF0000;

@@ -261,7 +261,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // Returns the credentials it deliberately kept (API keys), so the forced
         // fetch below still has one to fetch with instead of failing on an empty
         // key the user never actually removed.
-        var preserved = claySettings.resetAll();
+        var preserved = claySettings.resetAll(clayMigrations.RESET_SAFE_MARKERS);
         // Storage stays EMPTY on purpose: the next boot reads the absent blob as a
         // fresh install (hadExistingInstall false), so the onboarding migration
         // leaves onboardingDone false and the wizard reopens (wizard.js
@@ -373,8 +373,8 @@ Pebble.addEventListener('ready',
         }
         catch (ex) { /* keep the safe default */ }
         // Every marker-gated migration runs inside clay-migrations.runMigrations
-        // (bodies, marker keys and gating live together there); the Clay-colour
-        // ones commit their markers only on the Clay ACK below.
+        // (the ledger is migrations/registry.js); the ones marked 'ack' commit
+        // their markers only on the Clay ACK below.
         var migrations = clayMigrations.runMigrations({
             platform: statusMigrationPlatform,
             colors: DEFAULT_HOLIDAY_COLORS,

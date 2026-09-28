@@ -341,7 +341,7 @@ test('the built-in no-rain text is one string: payload default, schema default, 
     'the watch falls back to the same text');
   const layer = fs.readFileSync(path.join(__dirname, '..', 'src', 'c', 'layers', 'rain_radar_layer.c'), 'utf8');
   assert.ok(layer.indexOf('radar_empty_text(') !== -1, 'and the radar layer draws through it');
-  const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'clay-migrations.js'), 'utf8');
+  const migrations = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'migrations', 'radar.js'), 'utf8');
   assert.ok(migrations.indexOf('"' + DEFAULT_NORAIN_TEXT + '"') !== -1, 'and the 1.23.0 migration moves to it');
 });
 

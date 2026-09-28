@@ -206,7 +206,7 @@ test("a goal kind's legacy null warn color is AUTO at pack time — the off stat
   // hexToInt('') = NaN, which JSON persisted as null. Since the warn look, the
   // colour no longer carries on/off: null, '' and absent all pack as the auto goal
   // green, and "no box" is threshSleepWarnLook 'none' — which the one-time
-  // migration (clay-migrations.js migrateWarnLook) wrote for exactly those blobs.
+  // migration (migrations/v1_24.js migrateWarnLook) wrote for exactly those blobs.
   const pair = { threshSleepWarn: '360', threshSleepDanger: '480' };
   const nul = Object.assign({}, BASE, pair, { threshSleepWarnColor: null });
   const blank = Object.assign({}, BASE, pair, { threshSleepWarnColor: '' });

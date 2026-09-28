@@ -14,7 +14,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * pair), and the levels live on while it is off, so deriving it from the
      * pair here would undo a user's OFF on the next open. The one-time
      * pair-derived backfill for blobs saved before the split is
-     * clay-migrations.js migrateThresholdHighlightToggles, which runs on the
+     * migrations/v1_24.js migrateThresholdHighlightToggles, which runs on the
      * phone before the page can open. Flipping it live is the thresholdToggle
      * onChange hook in blocks.js.
      * @param {{ get: function, set: function }} ctx onLoad context
@@ -40,7 +40,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
                 // (weather) or the goal green (goal). Whether warn draws a box at
                 // all is the kind's warn look (thresh<K>WarnLook), not the colour:
                 // a blank warn colour no longer means "no outline" (the one-time
-                // conversion of that old meaning is clay-migrations.js
+                // conversion of that old meaning is migrations/v1_24.js
                 // migrateWarnLook). A user pick survives untouched.
                 var goalHex = contract.DEFAULT_GOAL_HEX;
                 var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
