@@ -2,9 +2,9 @@
 // test/config-schema-golden.test.js — pins the settings page's schema, byte for byte, to
 // test/config-schema.golden.json, and what the level rows' resolvers make of it on every
 // platform. The schema is plain data built once at load, so a refactor of its builders
-// (schema.js levelsGroup / thresholdSection and friends) can prove it changed nothing the
-// page sees. How the golden is built, and how to rewrite it after a deliberate change:
-// test/helpers/config-schema-golden.js.
+// (schema.js levelRows / goalSlotSheet / alertSlotSheet and friends) can prove it
+// changed nothing the page sees. How the golden is built, and how to rewrite it after a
+// deliberate change: test/helpers/config-schema-golden.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const golden = require('./helpers/config-schema-golden.js');

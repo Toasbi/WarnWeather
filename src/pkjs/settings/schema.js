@@ -217,8 +217,8 @@ var HEALTH_BAR_WHEN = {all: [{env: 'health'}, {key: 'healthMode', in: ['status',
 var COLOR_THEME_WHEN = {key: 'theme', nin: ['bw', 'bw-light']};
 
 /**
- * Gate every item that has no showWhen of its own — the shared one-pass idiom
- * of the two sheet builders: an item added later cannot forget its gate line,
+ * Gate every item that has no showWhen of its own — the sheet and group
+ * builders' one-pass idiom: an item added later cannot forget its gate line,
  * and a caller-supplied row that brings its own showWhen keeps it.
  * @param {Object[]} items Schema items (mutated).
  * @param {?Object} gate showWhen predicate, or null for no gate.
@@ -234,9 +234,9 @@ function gateAll(items, gate) {
 }
 
 /**
- * The shared sheet envelope both builders return: a sheetOnly section reachable
- * only through a slot's pencil, keyed thresh<Stem>, gated on the thresholds
- * capability (aplite compiles the machinery out).
+ * The shared sheet envelope every slot-sheet builder returns: a sheetOnly
+ * section reachable only through a slot's pencil, keyed thresh<Stem>, gated on
+ * the thresholds capability (aplite compiles the machinery out).
  * @param {string} keyStem Kind key stem, e.g. 'City'.
  * @param {string} title Catalog label of the slot kind.
  * @param {Object[]} items The sheet's rows.
@@ -960,6 +960,9 @@ function alertSlotSheet(keyStem, extraItems) {
     for (i = 0; i < ALERT_KINDS.length; i++) {
         if (ALERT_KINDS[i].keyStem === keyStem) { title = ALERT_KINDS[i].title; }
     }
+    // Runs once at load: a caller naming a kind ALERT_KINDS lacks fails the build/tests
+    // here rather than shipping a sheet titled 'null slot'.
+    if (title === null) { throw new Error('alertSlotSheet: no ALERT_KINDS entry for ' + keyStem); }
     // The middle option needs a level: the slot's Highlight OR the kind's alert, whose
     // value bolds on this ladder too (status_alerts.c) — inert only while neither is on.
     var noLevelWhen = {all: [{not: {key: 'thresh' + keyStem + 'On'}}, {not: {key: 'alert' + keyStem}}]};
