@@ -169,6 +169,38 @@ test('seedPair: the per-kind seeds, in display units, following the unit pickers
   });
 });
 
+test('scaleVariant: the one key the seeds and the slider geometry are tabled under', () => {
+  const v = th.scaleVariant;
+  ['Wind', 'Gust'].forEach((stem) => {
+    assert.equal(v(stem, {}), 'kph', stem + ': kph by default');
+    assert.equal(v(stem, { windUnits: 'kph' }), 'kph');
+    assert.equal(v(stem, { windUnits: 'mph' }), 'mph');
+    assert.equal(v(stem, { windUnits: 'knots' }), 'kn');
+  });
+  // AQI: European only for Open-Meteo with a non-US scale picked.
+  assert.equal(v('Aqi', {}), 'us');
+  assert.equal(v('Aqi', { aqiSource: 'openmeteo' }), 'eu');
+  assert.equal(v('Aqi', { aqiSource: 'openmeteo', aqiScale: 'european' }), 'eu');
+  assert.equal(v('Aqi', { aqiSource: 'openmeteo', aqiScale: 'us' }), 'us');
+  assert.equal(v('Aqi', { aqiSource: 'waqi', aqiScale: 'european' }), 'us');
+  assert.equal(v('Aqi', { aqiSource: 'auto', aqiScale: 'european' }), 'us');
+  assert.equal(v('Distance', {}), 'km');
+  assert.equal(v('Distance', { distanceUnits: 'imperial' }), 'mi');
+  ['Uv', 'Pollen', 'Steps', 'Sleep', 'Temp'].forEach((stem) => assert.equal(v(stem, {}), '', stem));
+  assert.equal(v('Wind', undefined), 'kph', 'absent settings are tolerated');
+  // Every variant a paired kind can take has a seed — the table is plain data keyed
+  // by it, so a variant without a row would be a crash, not a wrong number.
+  const pickers = [];
+  [undefined, 'kph', 'mph', 'knots'].forEach((windUnits) =>
+    [undefined, 'metric', 'imperial'].forEach((distanceUnits) =>
+      [undefined, 'waqi', 'auto', 'openmeteo'].forEach((aqiSource) =>
+        [undefined, 'european', 'us'].forEach((aqiScale) =>
+          pickers.push({ windUnits, distanceUnits, aqiSource, aqiScale })))));
+  th.KINDS.filter((k) => !k.boldOnly).forEach((k) => pickers.forEach((s) => {
+    assert.ok(th.SEEDS[k.key][v(k.key, s)], k.key + ' has a seed for ' + v(k.key, s));
+  }));
+});
+
 test('resolvedPair: a stored ordered pair wins; blank, half or inverted resolves to the seed', () => {
   assert.deepEqual(th.resolvedPair('Uv', { threshUvWarn: '7', threshUvDanger: '9' }),
     { warn: 7, danger: 9, stored: true });

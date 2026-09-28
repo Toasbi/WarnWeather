@@ -268,6 +268,22 @@ test('AQI scale: European only when Open-Meteo is the source and the picker says
   });
 });
 
+test('every unit and scale variant a kind can take has slider geometry around its seed', () => {
+  // The slider table is plain data keyed by the contract's scaleVariant, like the
+  // seed table: a variant without a row would throw at render, not draw a wrong scale.
+  [undefined, 'kph', 'mph', 'knots'].forEach((windUnits) =>
+    [undefined, 'metric', 'imperial'].forEach((distanceUnits) =>
+      [undefined, 'waqi', 'auto', 'openmeteo'].forEach((aqiSource) =>
+        [undefined, 'european', 'us'].forEach((aqiScale) => STEMS.forEach((stem) => {
+          const S = { windUnits, distanceUnits, aqiSource, aqiScale };
+          const cfg = B.thresholdRangeCfg(S, ENV, { keyStem: stem });
+          const seed = thresholds.seedPair(stem, S);
+          assert.deepEqual([cfg.seedWarn, cfg.seedDanger], [seed.warn, seed.danger]);
+          assert.ok(cfg.min <= seed.warn && seed.danger <= cfg.max,
+            stem + ' ' + JSON.stringify(S) + ': the seed sits on the track');
+        })))));
+});
+
 test('bounded kinds have no scale-max editor; unbounded kinds do', () => {
   ['Pollen', 'Sleep'].forEach(stem => {
     assert.equal(B.thresholdRangeCfg({}, ENV, { keyStem: stem }).maxEditable, false, stem);

@@ -209,52 +209,62 @@
     return warn !== null && danger !== null && danger >= warn;
   }
 
-  // Seed pairs per key stem, in the kind's DISPLAY unit (the unit displayValue
-  // and the health packer compare against), resolved per call because wind,
-  // gusts, AQI and distance change scale with a settings picker. THE one table:
-  // the phone bake, the day-max hold rule and the settings page's slider seeds
-  // (blocks.js thresholdRangeCfg) all read it through seedPair, so a blank pair
-  // means the same numbers everywhere. Goal kinds: warn = "close" (~80% of the
-  // goal), danger = the goal.
-  var SEEDS = {
-    Uv: function () { return {warn: 6, danger: 8}; },
-    Pollen: function () { return {warn: 2, danger: 3}; },
-    Wind: function (s) {
-      if (s.windUnits === 'mph') { return {warn: 25, danger: 40}; }
-      if (s.windUnits === 'knots') { return {warn: 20, danger: 30}; }
-      return {warn: 40, danger: 60};
-    },
-    Gust: function (s) {
-      if (s.windUnits === 'mph') { return {warn: 40, danger: 55}; }
-      if (s.windUnits === 'knots') { return {warn: 30, danger: 50}; }
-      return {warn: 60, danger: 90};
-    },
-    Aqi: function (s) {
-      // The European scale applies only when Open-Meteo is the AQI source AND the
-      // scale picker says so; WAQI (and auto, which prefers it) reports US-style AQI.
-      return (s.aqiSource === 'openmeteo' && s.aqiScale !== 'us')
-        ? {warn: 60, danger: 80} : {warn: 100, danger: 150};
-    },
-    Steps: function () { return {warn: 8000, danger: 10000}; },
-    Sleep: function () { return {warn: 6.5, danger: 7.5}; },
-    Distance: function (s) {
-      return s.distanceUnits === 'imperial' ? {warn: 2.5, danger: 3} : {warn: 4, danger: 5};
+  /**
+   * Which unit or scale a kind's numbers are in, as the settings select it — the key
+   * its seed pair (SEEDS) and the settings page's slider geometry (blocks.js
+   * THRESHOLD_RANGES) are tabled under, so the two can never branch on the pickers
+   * apart. Wind and gusts follow the wind unit, distance the distance unit, and AQI
+   * its scale: European only when Open-Meteo is the AQI source AND its scale picker
+   * says so — WAQI (and Auto, which prefers it) reports US-style AQI. Every other
+   * kind has the one variant ''.
+   * @param {string} keyStem Kind key stem, e.g. 'Wind'.
+   * @param {Object} settings Clay settings blob (windUnits, aqiSource, aqiScale,
+   *     distanceUnits).
+   * @returns {string} 'kph' | 'mph' | 'kn' | 'us' | 'eu' | 'km' | 'mi' | ''
+   */
+  function scaleVariant(keyStem, settings) {
+    var s = settings || {};
+    if (keyStem === 'Wind' || keyStem === 'Gust') {
+      if (s.windUnits === 'mph') { return 'mph'; }
+      return s.windUnits === 'knots' ? 'kn' : 'kph';
     }
+    if (keyStem === 'Aqi') {
+      return (s.aqiSource === 'openmeteo' && s.aqiScale !== 'us') ? 'eu' : 'us';
+    }
+    if (keyStem === 'Distance') { return s.distanceUnits === 'imperial' ? 'mi' : 'km'; }
+    return '';
+  }
+
+  // Seed pairs per key stem and scaleVariant, in the kind's DISPLAY unit (the unit
+  // displayValue and the health packer compare against). THE one table: the phone
+  // bake, the day-max hold rule and the settings page's slider seeds (blocks.js
+  // thresholdRangeCfg) all read it through seedPair, so a blank pair means the same
+  // numbers everywhere. Goal kinds: warn = "close" (~80% of the goal), danger = the
+  // goal.
+  var SEEDS = {
+    Uv: {'': {warn: 6, danger: 8}},
+    Pollen: {'': {warn: 2, danger: 3}},
+    Wind: {kph: {warn: 40, danger: 60}, mph: {warn: 25, danger: 40}, kn: {warn: 20, danger: 30}},
+    Gust: {kph: {warn: 60, danger: 90}, mph: {warn: 40, danger: 55}, kn: {warn: 30, danger: 50}},
+    Aqi: {us: {warn: 100, danger: 150}, eu: {warn: 60, danger: 80}},
+    Steps: {'': {warn: 8000, danger: 10000}},
+    Sleep: {'': {warn: 6.5, danger: 7.5}},
+    Distance: {km: {warn: 4, danger: 5}, mi: {warn: 2.5, danger: 3}}
   };
 
   /**
    * A kind's seed pair — what a blank (or unusable) stored pair means.
    * @param {string} keyStem Kind key stem, e.g. 'Wind'.
-   * @param {Object} settings Clay settings blob (windUnits, aqiSource, aqiScale,
-   *     distanceUnits).
-   * @returns {{warn: ?number, danger: ?number}} the seed in display units; both
-   *     null for a stem without one (the bold-only kinds, an unknown stem)
+   * @param {Object} settings Clay settings blob (the scaleVariant pickers).
+   * @returns {{warn: ?number, danger: ?number}} a fresh copy of the seed in display
+   *     units; both null for a stem without one (the bold-only kinds, an unknown stem)
    */
   function seedPair(keyStem, settings) {
     if (!Object.prototype.hasOwnProperty.call(SEEDS, keyStem)) {
       return {warn: null, danger: null};
     }
-    return SEEDS[keyStem](settings || {});
+    var seed = SEEDS[keyStem][scaleVariant(keyStem, settings)];
+    return {warn: seed.warn, danger: seed.danger};
   }
 
   /**
@@ -889,6 +899,7 @@
     parseThreshold: parseThreshold,
     pairOrdered: pairOrdered,
     SEEDS: SEEDS,
+    scaleVariant: scaleVariant,
     seedPair: seedPair,
     resolvedPair: resolvedPair,
     holdWarn: holdWarn,

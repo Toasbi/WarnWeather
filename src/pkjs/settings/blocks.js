@@ -280,14 +280,14 @@ if (typeof require !== 'undefined') {
         if (!THRESHOLD_RANGES[stem] || !args.hints) { return null; }
         var st = S || {};
         var pair = thresholds.resolvedPair(stem, st);
-        var unit = THRESHOLD_RANGES[stem](st).unit;
+        var unit = rangeOf(stem, st).unit;
         var level = pair.warn + (unit ? ' ' + unit : '') + ' (your warn level)';
         var notes = args.notes;
         var note = notes ? notes.byValue[st[notes.key] || notes.fallback] || '' : '';
         return args.hints[args.value].split('{level}').join(level) + note;
     }
-    // THRESHOLD_RANGES sits further down this file: it is read at render time, long
-    // after this file has loaded.
+    // THRESHOLD_RANGES / rangeOf sit further down this file: both are read at render
+    // time, long after this file has loaded.
     PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
 
     // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
@@ -368,51 +368,52 @@ if (typeof require !== 'undefined') {
     }
 
     // Per-kind slider geometry, in the kind's DISPLAY unit (the unit
-    // status-thresholds.js compares against at bake/pack time). Resolved per render
-    // so the General-tab unit pickers reshape the scales live. fixedMax marks the
-    // naturally-bounded kinds (no inline scale-max editor). The SEED pairs are not
-    // here: they live in the contract (status-thresholds.js SEEDS / seedPair) — the
-    // one table the phone bake and the day-max hold rule resolve a blank pair
-    // against too, so the slider can never preview numbers the watch does not use.
+    // status-thresholds.js compares against at bake/pack time), keyed by the
+    // contract's scaleVariant — the same key its seed table uses, so the slider and
+    // the seeds cannot read the unit and AQI-scale pickers apart. Looked up per render
+    // (rangeOf) so the General-tab unit pickers reshape the scales live. fixedMax
+    // marks the naturally-bounded kinds (no inline scale-max editor). The SEED pairs
+    // are not here: they live in the contract (status-thresholds.js SEEDS /
+    // seedPair) — the one table the phone bake and the day-max hold rule resolve a
+    // blank pair against too, so the slider can never preview numbers the watch does
+    // not use.
     var THRESHOLD_RANGES = {
-        Wind: function (S) {
-            if (S.windUnits === 'mph') { return {min: 0, max: 75, step: 5, unit: 'mph'}; }
-            if (S.windUnits === 'knots') { return {min: 0, max: 65, step: 5, unit: 'kn'}; }
-            return {min: 0, max: 120, step: 5, unit: 'kph'};
+        Wind: {
+            kph: {min: 0, max: 120, step: 5, unit: 'kph'},
+            mph: {min: 0, max: 75, step: 5, unit: 'mph'},
+            kn: {min: 0, max: 65, step: 5, unit: 'kn'}
         },
-        Gust: function (S) {
-            if (S.windUnits === 'mph') { return {min: 0, max: 100, step: 5, unit: 'mph'}; }
-            if (S.windUnits === 'knots') { return {min: 0, max: 85, step: 5, unit: 'kn'}; }
-            return {min: 0, max: 160, step: 5, unit: 'kph'};
+        Gust: {
+            kph: {min: 0, max: 160, step: 5, unit: 'kph'},
+            mph: {min: 0, max: 100, step: 5, unit: 'mph'},
+            kn: {min: 0, max: 85, step: 5, unit: 'kn'}
         },
-        Aqi: function (S) {
-            // The European scale applies only when Open-Meteo is the AQI source AND the
-            // scale picker says so; WAQI (and auto, which prefers it) reports US-style AQI.
-            var eu = S.aqiSource === 'openmeteo' && S.aqiScale !== 'us';
-            return eu
-                ? {min: 0, max: 150, step: 5, unit: ''}
-                : {min: 0, max: 300, step: 10, unit: ''};
+        Aqi: {
+            us: {min: 0, max: 300, step: 10, unit: ''},
+            eu: {min: 0, max: 150, step: 5, unit: ''}
         },
-        Pollen: function () {
-            return {min: 0, max: 3, step: 0.5, unit: '', fixedMax: true};
-        },
-        Uv: function () {
-            // The slot displays the rounded integer index, so whole steps; 12 covers
-            // every real-world reading (extremes clamp against the top like any kind).
-            return {min: 0, max: 12, step: 1, unit: '', fixedMax: true};
-        },
-        Steps: function () {
-            return {min: 0, max: 20000, step: 250, unit: ''};
-        },
-        Sleep: function () {
-            return {min: 0, max: 12, step: 0.5, unit: 'h', fixedMax: true};
-        },
-        Distance: function (S) {
-            return S.distanceUnits === 'imperial'
-                ? {min: 0, max: 12, step: 0.5, unit: 'mi'}
-                : {min: 0, max: 20, step: 0.5, unit: 'km'};
+        Pollen: {'': {min: 0, max: 3, step: 0.5, unit: '', fixedMax: true}},
+        // The slot displays the rounded integer index, so whole steps; 12 covers
+        // every real-world reading (extremes clamp against the top like any kind).
+        Uv: {'': {min: 0, max: 12, step: 1, unit: '', fixedMax: true}},
+        Steps: {'': {min: 0, max: 20000, step: 250, unit: ''}},
+        Sleep: {'': {min: 0, max: 12, step: 0.5, unit: 'h', fixedMax: true}},
+        Distance: {
+            km: {min: 0, max: 20, step: 0.5, unit: 'km'},
+            mi: {min: 0, max: 12, step: 0.5, unit: 'mi'}
         }
     };
+
+    /**
+     * A kind's slider geometry for the unit and scale the settings select.
+     * @param {string} stem Kind key stem with a THRESHOLD_RANGES entry.
+     * @param {Object} S Live settings state.
+     * @returns {{min: number, max: number, step: number, unit: string,
+     *     fixedMax: (boolean|undefined)}} The geometry (shared: read, never mutate).
+     */
+    function rangeOf(stem, S) {
+        return THRESHOLD_RANGES[stem][thresholds.scaleVariant(stem, S)];
+    }
 
     /**
      * Range resolver for the threshold sliders (engine item.rangeFrom): per-kind
@@ -427,7 +428,7 @@ if (typeof require !== 'undefined') {
      */
     function thresholdRangeCfg(S, env, args) {
         var stem = args.keyStem;
-        var base = THRESHOLD_RANGES[stem](S || {});
+        var base = rangeOf(stem, S || {});
         var max = base.max;
         if (!base.fixedMax) {
             var override = thresholds.parseThreshold(S['thresh' + stem + 'Max']);
@@ -1076,7 +1077,7 @@ if (typeof require !== 'undefined') {
         var st = S || {};
         if (st['alert' + stem] !== true) { return 'Off'; }
         var pair = thresholds.resolvedPair(stem, st);
-        var unit = THRESHOLD_RANGES[stem](st).unit;
+        var unit = rangeOf(stem, st).unit;
         var suffix = unit ? ' ' + unit : '';
         return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;
     }
