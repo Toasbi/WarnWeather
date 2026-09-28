@@ -99,6 +99,35 @@ test('Reset watchface after a NACKed migration send leaves no marker in the wipe
     'a marker written now would skip that migration on the fresh install');
 });
 
+// The reset-safe markers are set by the reset path in index.js, which hands resetAll
+// the ledger's list. Without them the next boot would run those migrations against
+// what the page saved after the reset: a cleared no-rain text restored, a picked
+// fourth-line stripeTop moved to 'x', a highlight switched off turned back on.
+test('Reset watchface marks the reset-safe migrations done in the wiped store', (t) => {
+  const h = installIndexRuntime({ now: new Date(2026, 8, 23, 12, 0, 0).getTime() });
+  t.after(h.restore);
+  h.quietNetwork();
+  const KEYS = seedLightUpgrade(h);
+  const resetSafe = h.mod('clay-migrations.js').RESET_SAFE_MARKERS;
+
+  h.policy = () => 'ack';
+  h.boot().ready({});
+  h.closeSettings({ reset: true });
+  assert.equal(h.store['clay-settings'], undefined, 'the reset wiped the settings');
+  assert.deepEqual([KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY,
+    KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY],
+  ['v1.23.0_norain_default_text_migration', 'v1.23.1_fifth_line_style_default_migration',
+    'v1.24.0_warn_look_migration'], 'the reset-safe marker strings are the shipped ones');
+  assert.deepEqual(resetSafe.slice().sort(), [KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY,
+    KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY].sort(),
+  'the ledger marks exactly these on a reset');
+  resetSafe.forEach((key) => {
+    assert.equal(h.store[key], '1', key + ' is marked done after the reset');
+  });
+  assert.equal(h.store[KEYS.LIGHT_SOLID_BARS_MIGRATION_KEY], undefined,
+    'a migration that is not reset-safe still runs on the fresh install');
+});
+
 // A boot whose migrations need a Clay send, with Theme switching on: ready() sends
 // the migration Clay and then runs the first scheduler tick synchronously, before
 // any ACK can arrive. That tick's flip reconcile must not push the same ~500 B

@@ -33,13 +33,17 @@ var PRESERVED_SETTING_KEYS = ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', '
  * The exception is PRESERVED_SETTING_KEYS plus the scraped Weather Underground
  * key: see the note there for why credentials survive a reset.
  *
- * @param {string[]} [resetSafeMarkers] Migration markers to set after the wipe
+ * @param {string[]} resetSafeMarkers Migration markers to set after the wipe
  *   (clay-migrations.js RESET_SAFE_MARKERS; passed in so this module never
- *   requires the ledger).
+ *   requires the ledger). Required: a caller that drops it would silently let
+ *   the next boot re-run those migrations over the page's post-reset save.
  * @returns {Object} The preserved credentials, so the caller can keep the live
  *   in-memory settings usable until the next boot re-seeds them.
  */
 function resetAll(resetSafeMarkers) {
+    if (!Array.isArray(resetSafeMarkers)) {
+        throw new Error('resetAll needs the reset-safe migration markers');
+    }
     var blob = read() || {};
     var keep = {};
     var kept = false;
@@ -71,7 +75,7 @@ function resetAll(resetSafeMarkers) {
     if (wuKey) { localStorage.setItem(KEYS.WU_API_KEY, wuKey); }
     // Migrations that would misread a blob the page saves before the next boot are
     // marked done; the ledger says which (each entry's markOnReset says why).
-    for (i = 0; resetSafeMarkers && i < resetSafeMarkers.length; i++) {
+    for (i = 0; i < resetSafeMarkers.length; i++) {
         localStorage.setItem(resetSafeMarkers[i], '1');
     }
     return keep;
