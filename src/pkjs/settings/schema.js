@@ -1753,7 +1753,7 @@ module.exports = {
                 messageKey: 'radarSky',
                 label: 'Clouds, sun & lightning',
                 defaultValue: true,
-                hint: 'Two thin stripes under the radar\'s time axis for the next two hours. Top: cloud cover, where thin high cloud counts half. Bottom: sun strength, full when the sun is as strong as under a clear sky. A bolt marks expected thunderstorms. Uses Open-Meteo, whatever the radar source.',
+                hint: 'Two thin stripes under the radar\'s time axis show the next two hours, one cell per quarter hour.<br>Top, clouds: a full stripe means overcast. Thin high cloud, which the sun shines through, counts half.<br>Bottom, sun: a full stripe means sunshine as strong as on a clear day at that time of day, so a low morning sun can be full too.<br>Thin cloud can let the sun through, so both stripes can show at once. A bolt marks expected thunderstorms. Uses Open-Meteo, whatever the radar source.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 // Custom quiet-state text: drawn in the radar GRAPH when the nowcast
