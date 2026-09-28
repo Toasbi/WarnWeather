@@ -1361,34 +1361,39 @@ test('the alert-levels move is not safe over settings saved on the 1.24.0 page, 
 // --- 1.24.0: seed pairs back to blank (migrations/seed-pairs.js) ---------------------
 // The page used to pin the seed pair into storage when a highlight or Goals switch came
 // on over a blank pair (and the wizard did so for AQI); a pinned pair then kept the
-// unit it was pinned under. The entry blanks every pair equal to the seed of the
-// variant in effect, which resolves to the very same numbers.
+// unit it was pinned under. The entry blanks every pair equal to one of its kind's seeds,
+// in any unit or AQI scale; blank resolves to the seed in effect.
 const SEED_PAIRS = KEYS.SEED_PAIR_BLANK_MIGRATION_KEY;
 const { renderSignature } = require('../src/pkjs/render-signature.js');
+const pairOf = (read, stem) => [read['thresh' + stem + 'Warn'], read['thresh' + stem + 'Danger']];
+const resolved = (stem, blob) => {
+  const p = thresholdsContract.resolvedPair(stem, blob);
+  return [p.warn, p.danger];
+};
 
-// Pins the old page could have left, next to pairs it must not touch.
+// Pins the old page could have left under the unit in effect, next to pairs it must not
+// touch.
 const PINNED_AND_MOVED = {
   windUnits: 'mph', distanceUnits: 'imperial', aqiSource: 'waqi',
   threshUvOn: true, threshUvWarn: '6', threshUvDanger: '8',             // seed → blank
   threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '150',      // US seed (WAQI) → blank
   threshWindOn: true, threshWindWarn: '25', threshWindDanger: '40',     // mph seed → blank
-  threshGustOn: true, threshGustWarn: '60', threshGustDanger: '90',     // kph seed under mph → kept
+  threshGustOn: true, threshGustWarn: '40', threshGustDanger: '50',     // moved → kept
   threshSleepOn: true, threshSleepWarn: '6,5', threshSleepDanger: '7.5', // comma decimal seed → blank
   threshDistanceWarn: '2.5', threshDistanceDanger: '3',                 // mi seed, switch off → blank
   threshStepsOn: true, threshStepsWarn: '8000', threshStepsDanger: '9000', // moved → kept
   threshPollenWarn: '2', threshPollenDanger: ''                         // half pair → kept
 };
 
-test('seed pairs: a pair equal to the seed in effect goes blank; every other pair stays', () => {
+test('seed pairs: a pair equal to the seed in effect goes blank; a moved or half pair stays', () => {
   const L = loadLedger(PINNED_AND_MOVED);
   const res = L.run(SEED_PAIRS);
   const read = L.read();
-  const pair = (stem) => [read['thresh' + stem + 'Warn'], read['thresh' + stem + 'Danger']];
   ['Uv', 'Aqi', 'Wind', 'Sleep', 'Distance'].forEach((stem) =>
-    assert.deepEqual(pair(stem), ['', ''], stem + ': the seed pin goes blank'));
-  assert.deepEqual(pair('Gust'), ['60', '90'], 'a pair pinned under another unit is kept');
-  assert.deepEqual(pair('Steps'), ['8000', '9000'], 'a moved pair is kept');
-  assert.deepEqual(pair('Pollen'), ['2', ''], 'a half pair is kept');
+    assert.deepEqual(pairOf(read, stem), ['', ''], stem + ': the seed pin goes blank'));
+  assert.deepEqual(pairOf(read, 'Gust'), ['40', '50'], 'a moved pair is kept');
+  assert.deepEqual(pairOf(read, 'Steps'), ['8000', '9000'], 'a moved goal is kept');
+  assert.deepEqual(pairOf(read, 'Pollen'), ['2', ''], 'a half pair is kept');
   ['Uv', 'Aqi', 'Wind', 'Gust', 'Sleep', 'Steps'].forEach((stem) =>
     assert.strictEqual(read['thresh' + stem + 'On'], true, stem + ': the switch is not touched'));
   assert.equal(res.clayRequired, false, 'nothing the watch receives changes');
@@ -1396,11 +1401,12 @@ test('seed pairs: a pair equal to the seed in effect goes blank; every other pai
   assert.equal(L.saves.n, 1);
 });
 
-test('seed pairs: the watch receives the same bytes and the refetch signature stays put', () => {
+test('seed pairs: a pin under the unit in effect leaves the bytes and the refetch signature put', () => {
   // Also the owner's dev install, whose page pinned seeds under the branch's own rules.
   [PINNED_AND_MOVED, SAVED_ON_THE_1_24_PAGE,
     Object.assign({}, PINNED_AND_MOVED, { windUnits: 'knots', aqiSource: 'openmeteo',
-      threshAqiWarn: '60', threshAqiDanger: '80', threshGustWarn: '30', threshGustDanger: '50' })
+      threshAqiWarn: '60', threshAqiDanger: '80', threshWindWarn: '20', threshWindDanger: '30',
+      threshGustWarn: '30', threshGustDanger: '50' })
   ].forEach((blob, n) => {
     const L = loadLedger(blob);
     L.claySettings.seedDefaults(COLORS);
@@ -1417,6 +1423,112 @@ test('seed pairs: the watch receives the same bytes and the refetch signature st
       const b = thresholdsContract.resolvedPair(k.key, before);
       assert.deepEqual([a.warn, a.danger], [b.warn, b.danger], n + ' ' + k.key + ': the same levels');
     });
+  });
+});
+
+// Pins that no longer match the install's unit: the wizard's US AQI pin on an install
+// since moved to Open-Meteo (European scale by default), highlights switched on in kph
+// and in knots on an install now in mph.
+const PINNED_UNDER_ANOTHER_UNIT = {
+  windUnits: 'mph', aqiSource: 'openmeteo',
+  threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '150',   // US seed on the EU scale
+  threshWindOn: true, threshWindWarn: '40', threshWindDanger: '60',  // kph seed under mph
+  threshGustWarn: '30', threshGustDanger: '50'                       // knots seed under mph
+};
+
+test('seed pairs: a pin under another unit or AQI scale goes blank and takes the seed in effect', () => {
+  const L = loadLedger(PINNED_UNDER_ANOTHER_UNIT);
+  L.claySettings.seedDefaults(COLORS);
+  const before = L.read();
+  const res = L.run(SEED_PAIRS);
+  const after = L.read();
+  ['Aqi', 'Wind', 'Gust'].forEach((stem) =>
+    assert.deepEqual(pairOf(after, stem), ['', ''], stem + ': another unit\'s seed goes blank'));
+  assert.deepEqual(resolved('Aqi', before), [100, 150], 'the pin was judged on the EU scale');
+  assert.deepEqual(resolved('Aqi', after), [60, 80], 'the European seed, not the US pin');
+  assert.deepEqual(resolved('Wind', after), [25, 40], 'the mph seed, not 40/60 read as mph');
+  assert.deepEqual(resolved('Gust', after), [40, 55], 'the mph seed, not the knots pair');
+  // A weather kind's pair rides no Clay byte: the phone bakes its levels, so the next
+  // fetch carries the move and no Clay send is due.
+  [{ color: true }, { color: false }].forEach((env) => {
+    assert.deepEqual(thresholdsContract.buildSettingsBlob(after, env),
+      thresholdsContract.buildSettingsBlob(before, env), 'CLAY_THRESHOLDS_UINT8');
+  });
+  assert.equal(res.clayRequired, false, 'no Clay byte moves');
+  assert.notEqual(renderSignature(after), renderSignature(before), 'the bake reads new levels');
+  assert.equal(L.store[SEED_PAIRS], '1', 'marked now');
+});
+
+test('seed pairs: a pair that mixes two units\' seeds, or was moved off one, stays', () => {
+  const blob = {
+    windUnits: 'mph', aqiSource: 'openmeteo', distanceUnits: 'imperial',
+    threshWindWarn: '40', threshWindDanger: '40',            // kph warn, mph danger
+    threshAqiWarn: '60', threshAqiDanger: '150',             // EU warn, US danger
+    threshGustWarn: '60', threshGustDanger: '91',            // kph seed, danger moved
+    threshDistanceOn: true, threshDistanceWarn: '2.5', threshDistanceDanger: '5' // mi close, km goal
+  };
+  const L = loadLedger(blob);
+  const res = L.run(SEED_PAIRS);
+  const read = L.read();
+  ['Wind', 'Aqi', 'Gust', 'Distance'].forEach((stem) =>
+    assert.deepEqual(pairOf(read, stem), pairOf(blob, stem), stem + ': kept'));
+  assert.equal(res.clayRequired, false);
+  assert.equal(L.saves.n, 0, 'nothing to save');
+  assert.equal(L.store[SEED_PAIRS], '1', 'marked now');
+});
+
+test('seed pairs: goal kinds — only Distance has a seed per unit, and its move asks for a Clay send', () => {
+  // Steps and sleep have one seed each, so their pin resolves to the same goal blank.
+  // Distance has a km and a mi seed, and the watch levels the health trio itself from
+  // the Clay blob's u16s, so a switched-on goal pinned in km on a miles install moves
+  // bytes the watch holds.
+  const L = loadLedger({
+    distanceUnits: 'imperial',
+    threshStepsOn: true, threshStepsWarn: '8000', threshStepsDanger: '10000',
+    threshSleepOn: true, threshSleepWarn: '6.5', threshSleepDanger: '7.5',
+    threshDistanceOn: true, threshDistanceWarn: '4', threshDistanceDanger: '5'   // km seed under mi
+  });
+  L.claySettings.seedDefaults(COLORS);
+  const before = L.read();
+  const res = L.run(SEED_PAIRS);
+  const after = L.read();
+  ['Steps', 'Sleep', 'Distance'].forEach((stem) =>
+    assert.deepEqual(pairOf(after, stem), ['', ''], stem + ': the seed pin goes blank'));
+  assert.deepEqual(resolved('Steps', after), resolved('Steps', before), 'steps: the same goal');
+  assert.deepEqual(resolved('Sleep', after), resolved('Sleep', before), 'sleep: the same goal');
+  assert.deepEqual(resolved('Distance', after), [2.5, 3], 'the mile seed, not 4/5 read as miles');
+  const off = thresholdsContract.HEALTH_OFFSET + 4 * 2;   // Distance, kind 6
+  const u16s = (s) => {
+    const b = thresholdsContract.buildSettingsBlob(s);
+    return [b[off] | (b[off + 1] << 8), b[off + 2] | (b[off + 3] << 8)];
+  };
+  assert.deepEqual(u16s(before), [64, 80], '4/5 mi in 100 m units');
+  assert.deepEqual(u16s(after), [40, 48], '2.5/3 mi in 100 m units');
+  assert.equal(res.clayRequired, true, 'the moved goal is resent');
+  assert.equal(L.store[SEED_PAIRS], '1', 'marked now, like the alert-levels send');
+});
+
+test('seed pairs: a blanked Distance pin asks for no send when no Clay byte moves', () => {
+  [
+    // Goals off: the u16s pack 0 either way.
+    { distanceUnits: 'imperial', threshDistanceOn: false,
+      threshDistanceWarn: '4', threshDistanceDanger: '5' },
+    // The km seed on a km install: the same numbers blank.
+    { distanceUnits: 'metric', threshDistanceOn: true,
+      threshDistanceWarn: '4', threshDistanceDanger: '5' },
+    // The mi seed pinned on a miles install.
+    { distanceUnits: 'imperial', threshDistanceOn: true,
+      threshDistanceWarn: '2.5', threshDistanceDanger: '3' }
+  ].forEach((blob, n) => {
+    const L = loadLedger(blob);
+    L.claySettings.seedDefaults(COLORS);
+    const before = L.read();
+    const res = L.run(SEED_PAIRS);
+    const after = L.read();
+    assert.deepEqual(pairOf(after, 'Distance'), ['', ''], n + ': blanked');
+    assert.deepEqual(thresholdsContract.buildSettingsBlob(after),
+      thresholdsContract.buildSettingsBlob(before), n + ': CLAY_THRESHOLDS_UINT8');
+    assert.equal(res.clayRequired, false, n + ': no send');
   });
 });
 
@@ -1479,8 +1591,9 @@ test('every registry entry has a unique marker declared in storage-keys.js, and 
     assert.equal(typeof e.run, 'function', e.key + ': run');
   });
   const values = Object.keys(KEYS).map((n) => KEYS[n]);
-  DEV_1_24_MARKERS.slice(0, 2).forEach((k) => assert.equal(values.indexOf(k), -1,
-    k + ': a never-released dev marker is not declared'));
+  // The seed-pair entry's first string ran only on dev builds, under a narrower rule.
+  DEV_1_24_MARKERS.slice(0, 2).concat(['v1.24.0_seed_pair_blank_migration']).forEach((k) =>
+    assert.equal(values.indexOf(k), -1, k + ': a never-released dev marker is not declared'));
 });
 
 test('the ledger order and marker policies are pinned: a released entry never moves or changes policy', () => {
@@ -1501,12 +1614,12 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v1.23.1_fifth_line_style_default_migration', 'now', true],
     ['v1.23.1_stripe_metric_rule_resend_migration', 'ack', false],
     ['v1.24.0_warn_look_migration', 'now', true],
-    ['v1.24.0_seed_pair_blank_migration', 'now', true]
+    ['v1.24.0_seed_pair_any_unit_migration', 'now', true]
   ]);
   const clayMigrations = require('../src/pkjs/clay-migrations');
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
-    'v1.24.0_seed_pair_blank_migration']);
+    'v1.24.0_seed_pair_any_unit_migration']);
 });
 
 test('the registry runner reproduces the pre-registry runner on every golden boot', () => {

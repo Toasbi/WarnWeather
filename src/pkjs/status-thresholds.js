@@ -270,6 +270,24 @@
   }
 
   /**
+   * Every seed pair a kind has, one per scaleVariant, whichever is in effect — what a
+   * pair pinned under any unit or AQI scale can hold (migrations/seed-pairs.js).
+   * @param {string} keyStem Kind key stem, e.g. 'Wind'.
+   * @returns {Array<{warn: number, danger: number}>} fresh copies in display units;
+   *     empty for a stem without a seed (the bold-only kinds, an unknown stem)
+   */
+  function allSeedPairs(keyStem) {
+    if (!Object.prototype.hasOwnProperty.call(SEEDS, keyStem)) { return []; }
+    var out = [];
+    for (var variant in SEEDS[keyStem]) {
+      if (Object.prototype.hasOwnProperty.call(SEEDS[keyStem], variant)) {
+        out.push({warn: SEEDS[keyStem][variant].warn, danger: SEEDS[keyStem][variant].danger});
+      }
+    }
+    return out;
+  }
+
+  /**
    * The pair a kind is judged against: the stored thresh<Stem>Warn/Danger when
    * BOTH parse AND are ordered, else the seed pair — all or nothing, so a legacy
    * half or inverted pair never mixes one stored number with one seed. The one
@@ -956,6 +974,7 @@
     pairOrdered: pairOrdered,
     scaleVariant: scaleVariant,
     seedPair: seedPair,
+    allSeedPairs: allSeedPairs,
     resolvedPair: resolvedPair,
     shownDayMax: shownDayMax,
     isGoalKind: isGoalKind,

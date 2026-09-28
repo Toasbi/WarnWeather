@@ -119,7 +119,7 @@ test('Reset watchface marks the reset-safe migrations done in the wiped store', 
     KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY,
     KEYS.SEED_PAIR_BLANK_MIGRATION_KEY],
   ['v1.23.0_norain_default_text_migration', 'v1.23.1_fifth_line_style_default_migration',
-    'v1.24.0_warn_look_migration', 'v1.24.0_seed_pair_blank_migration'],
+    'v1.24.0_warn_look_migration', 'v1.24.0_seed_pair_any_unit_migration'],
   'the reset-safe marker strings are the shipped ones');
   assert.deepEqual(resetSafe.slice().sort(), [KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY,
     KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY,

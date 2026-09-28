@@ -101,10 +101,11 @@ module.exports = [
       run: v124.migrateAlertLevels },
     // 1.24.0, and MUST run after the alert-levels entry above: that one derives each
     // highlight switch from its pair, and a pair blanked first would read as highlight
-    // off. Asks for no send: a pair equal to its seed and a blank one resolve to the
-    // same numbers, so nothing the watch receives changes. Reset-safe: the next blob
-    // is seeded with blank pairs and the page no longer pins a seed, so a seed-equal
-    // pair saved before the next boot was dragged there.
+    // off. Marks now though it can ask for a send: only for a switched-on Distance goal
+    // pinned in the other unit, the one blanked pair that moves a Clay byte (see the
+    // body, and clay-migrations.js on the scheduler). Reset-safe: the next blob is
+    // seeded with blank pairs and the page no longer pins a seed, so a seed-equal pair
+    // saved before the next boot was dragged there.
     { key: KEYS.SEED_PAIR_BLANK_MIGRATION_KEY, markOn: 'now', markOnReset: true,
       run: seedPairs.migrateSeedPairsToBlank }
 ];
