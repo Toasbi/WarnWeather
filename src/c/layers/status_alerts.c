@@ -202,18 +202,23 @@ static int16_t icon_width(GDrawCommandImage *image) {
 // overhang in, a last text's trailing letter spacing out), so its air to the box
 // stroke is equal on both sides — where the text is the entry's lane under `text`
 // (a metric value when text->values, the rain minutes or full countdown per
-// text->rain_display). 0 for an entry with neither a glyph nor text. Needs the
-// glyphs, so status_alerts_ensure() runs first.
+// text->rain_display). 0 for an entry with neither a glyph nor text. The parts the
+// width is summed from go into cells_out[i], for the paint. Needs the glyphs, so
+// status_alerts_ensure() runs first.
 static void status_alerts_measure(const StatusAlertsCache *cache, const AlertSet *set,
-                                  const StatusAlertsText *text, int16_t *widths_out) {
+                                  const StatusAlertsText *text, int16_t *widths_out,
+                                  StatusAlertsCell *cells_out) {
     for (int i = 0; i < set->count; i++) {
         const AlertEntry *e = &set->entries[i];
         char buf[LANE_CAP];
         GFont font = lane_text(e, text, entry_look(e, text).bold, buf, sizeof(buf));
-        int16_t icon_w = icon_width(image_for(cache, e));
-        int16_t text_w = text_width(buf, font);
-        int16_t w = (int16_t)(icon_w + (text_w > 0
-            ? (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + text_w : 0));
+        StatusAlertsCell *c = &cells_out[i];
+        c->icon_w = icon_width(image_for(cache, e));
+        c->text_w = text_width(buf, font);
+        // A boxed entry's content sits inside its padding; the rain drop has none.
+        c->pad = e->rain ? 0 : STATUS_ALERTS_BOX_PAD_X;
+        int16_t w = (int16_t)(c->icon_w + (c->text_w > 0
+            ? (c->icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + c->text_w : 0));
         // The box's padding is part of the footprint — but only around something:
         // an entry with nothing to draw stays 0 wide and is skipped with its gap.
         // Inside a box the group is measured by its INK, so the air to the stroke is
@@ -221,8 +226,8 @@ static void status_alerts_measure(const StatusAlertsCache *cache, const AlertSet
         // but a last icon inks GLYPH_INK_OVERHANG past its bounds and a last text
         // lane ends in TEXT_TRAIL_SPACING of blank letter spacing.
         if (w > 0 && !e->rain) {
-            w = (int16_t)(w + 2 * STATUS_ALERTS_BOX_PAD_X
-                + (text_w > 0 ? -TEXT_TRAIL_SPACING : GLYPH_INK_OVERHANG));
+            w = (int16_t)(w + 2 * c->pad
+                + (c->text_w > 0 ? -TEXT_TRAIL_SPACING : GLYPH_INK_OVERHANG));
         }
         widths_out[i] = w;
     }
@@ -298,7 +303,7 @@ static bool prepare(StatusAlertsRow *row, StatusAlertsPass *p, const StatusAlert
         .values = true,
         .rain_text = p->r.rain_text[0] != '\0' ? p->r.rain_text : NULL
     };
-    status_alerts_measure(row->cache, set, &p->text, p->widths);
+    status_alerts_measure(row->cache, set, &p->text, p->widths, p->cells);
     return true;
 }
 
@@ -335,7 +340,7 @@ void status_alerts_layout(StatusAlertsRow *row, StatusAlertsPass *pass,
 
     while (need > budget
             && alert_set_degrade(&pass->text.rain_display, &pass->text.values)) {
-        status_alerts_measure(row->cache, set, &pass->text, pass->widths);
+        status_alerts_measure(row->cache, set, &pass->text, pass->widths, pass->cells);
         need = alert_set_row_w(pass->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
     }
     pass->n = alert_set_fit(pass->widths, set->count, STATUS_ALERTS_ENTRY_GAP, budget);
@@ -365,21 +370,18 @@ void status_alerts_paint(GContext *ctx, const StatusAlertsRow *row,
         int16_t w = pass->widths[i];
         if (w <= 0) { continue; }   // no room, no gap (alert_set_row_w)
         const AlertEntry *e = &set->entries[i];
+        const StatusAlertsCell *c = &pass->cells[i];
         GDrawCommandImage *image = image_for(cache, e);
-        int16_t icon_w = icon_width(image);
         const ThreshLook look = entry_look(e, text);
         char buf[LANE_CAP];
         GFont font = lane_text(e, text, look.bold, buf, sizeof(buf));
-        // A boxed entry's content sits inside its padding; the rain drop has none.
-        int16_t pad = e->rain ? 0 : STATUS_ALERTS_BOX_PAD_X;
-        int16_t icon_x = (int16_t)(x + pad);
-        int16_t text_x = (int16_t)(icon_x + icon_w
-            + (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
-        // A metric entry's measure dropped the text's trailing letter spacing; the
-        // frame gets it back (it is blank, inside the pad), so the text never
-        // ellipsises against the width it was measured at.
-        int16_t text_w = (int16_t)(x + w - pad - text_x
-            + (e->rain ? 0 : TEXT_TRAIL_SPACING));
+        int16_t icon_x = (int16_t)(x + c->pad);
+        int16_t text_x = (int16_t)(icon_x + c->icon_w
+            + (c->icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
+        // The frame is the lane's whole measured width: the trailing letter spacing
+        // a boxed footprint leaves out is blank and sits inside the pad, so the text
+        // never ellipsises against the width it was measured at.
+        int16_t text_w = c->text_w;
 
         GColor ink = theme_fg();
         // A metric entry is boxed at DANGER always (filled) and at WARN per its

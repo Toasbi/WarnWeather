@@ -97,12 +97,21 @@ typedef struct {
     int rain_display;                          // ThreshRainDisplay, from the blob
 } StatusAlertsEntries;
 
+// One entry's measured parts, kept beside its footprint so the paint places the
+// entry from the numbers the fit judged instead of working them back out of it.
+typedef struct {
+    int16_t icon_w;   // the glyph's bounds width; 0 = no glyph
+    int16_t text_w;   // the lane's measured width; 0 = no text
+    uint8_t pad;      // air each side inside the box: STATUS_ALERTS_BOX_PAD_X, rain 0
+} StatusAlertsCell;
+
 // The Alerts row's share of one draw, on the caller's stack: status_alerts_layout()
 // fills it, status_alerts_paint() reads it. Only status_alerts.c reads the fields.
 typedef struct {
     StatusAlertsEntries r;
     StatusAlertsText text;             // the lanes after the ladder
     int16_t widths[ALERT_SET_MAX];     // each entry's footprint at those lanes
+    StatusAlertsCell cells[ALERT_SET_MAX];   // and the parts it was summed from
     int n;                             // entries that fit (alert_set_fit); 0 = none
     int16_t x;                         // left edge of the row inside the content
 } StatusAlertsPass;
