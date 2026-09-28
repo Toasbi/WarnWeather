@@ -1753,7 +1753,7 @@ module.exports = {
                 messageKey: 'radarSky',
                 label: 'Clouds, sun & lightning',
                 defaultValue: true,
-                hint: 'Adds two thin stripes under the radar\'s time axis: cloud cover and sunshine for the next two hours, with a lightning bolt where thunderstorms are expected. Uses Open-Meteo, whatever the radar source.',
+                hint: 'Two thin stripes under the radar\'s time axis for the next two hours. Top: cloud cover, where thin high cloud counts half. Bottom: sun strength, full when the sun is as strong as under a clear sky. A bolt marks expected thunderstorms. Uses Open-Meteo, whatever the radar source.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }, {
                 // Custom quiet-state text: drawn in the radar GRAPH when the nowcast

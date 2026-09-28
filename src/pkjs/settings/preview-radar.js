@@ -31,13 +31,35 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         ? require('./preview-stripe.js') : window.PreviewStripe;
 
     // The radar sky rows' sample (radar-sky.js, rain_radar_layer.c draw_radar_sky):
-    // eight quarter hours over the two-hour window — clouds thickening into the
-    // shower with a thunderstorm at its peak, sun on either side.
-    var SKY_CLOUD_PCT = [30, 60, 90, 100, 100, 70, 40, 20];
-    var SKY_SUN_PCT = [70, 40, 0, 0, 0, 20, 60, 80];
+    // eight quarter hours over the two-hour window, as percentages of what the rows
+    // draw — the weighted cloud cover and the sun's strength against a clear sky.
+    // A veil of thin high cloud first, which the cloud row counts half while the sun
+    // still shines at full strength through it; then clouds thickening into the
+    // shower with a thunderstorm at its peak; then breaking up, the last quarter hour
+    // under 12.5 % cloud (which draws nothing) and in full sun again. The two rows
+    // are independent, not sun = 100 - cloud: that is what the watch shows too.
+    var SKY_CLOUD_PCT = [45, 50, 80, 100, 100, 70, 30, 5];
+    var SKY_SUN_PCT = [100, 90, 35, 0, 0, 10, 60, 100];
     var SKY_BOLT = [false, false, false, true, true, false, false, false];
     // radar_sky.h's bolt glyph, 5 x 7, bit 4 = the leftmost column.
     var BOLT_ROWS = [0x03, 0x06, 0x0C, 0x1F, 0x06, 0x0C, 0x18];
+
+    /**
+     * A sky-row percentage's stripe level as the watch draws it: the phone sends
+     * the NEAREST of the four levels (radar-sky.js shareToLevelByte, level =
+     * floor(share * 4 + 0.5)), which the watch's chart_stripe_level reads back
+     * unchanged. The webview cannot load radar-sky.js (it is not in the page
+     * bundle), so this is a mirror; test/radar-sky-preview.test.js pins the two
+     * together.
+     * @param {*} pct Percent of the full row (missing, non-numeric or negative
+     *   draws nothing; above 100 is full).
+     * @returns {number} Level 0..4.
+     */
+    function skyLevel(pct) {
+        var share = Number(pct) / 100;
+        if (!isFinite(share) || share <= 0) { return 0; }
+        return Math.min(4, Math.floor(share * 4 + 0.5));
+    }
 
     /**
      * The sky rows' colours per polarity — rain_radar_layer.c's RADAR_SKY_*_COLOR.
@@ -182,11 +204,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             for (var q = 0; q < SKY_CLOUD_PCT.length; q += 1) {
                 var qx = PX0 + q * 3 * step, qw = 3 * step;
                 e += previewStripe.cell(isColor, qx, skyY, qw, SKY_H * unit, sc.cloud,
-                    previewStripe.levelOfByte(Math.round(SKY_CLOUD_PCT[q] * 2.5)), ink.bg, 'rsd',
-                    unit, PX0);
+                    skyLevel(SKY_CLOUD_PCT[q]), ink.bg, 'rsd', unit, PX0);
                 e += previewStripe.cell(isColor, qx, skyY + (SKY_H + 1) * unit, qw, SKY_H * unit,
-                    sc.sun, previewStripe.levelOfByte(Math.round(SKY_SUN_PCT[q] * 2.5)), ink.bg,
-                    'rsd', unit, PX0);
+                    sc.sun, skyLevel(SKY_SUN_PCT[q]), ink.bg, 'rsd', unit, PX0);
             }
             // The bolts in watch pixels, placed as draw_radar_sky places them: centred
             // on the quarter hour and on the two rows, clipped to the band and plot.
@@ -287,6 +307,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     PConf.blocks.register('radarPreview', radarPreview);
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { radarPreview: radarPreview };
+        module.exports = { radarPreview: radarPreview, skyLevel: skyLevel };
     }
 })();
