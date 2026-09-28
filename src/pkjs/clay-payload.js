@@ -261,14 +261,15 @@ function buildClayPayload(settings, watchInfo, now) {
     payload.CLAY_NIGHT_LIGHT_UINT8 = nightLight.buildNightLightBytes(settings);
 
     // Threshold-highlight settings (enabled bits + colors + health-kind
-    // thresholds) — settings-derived, so they ride the Clay message. Omitted for a
+    // thresholds + warn looks, whose default follows env.color) — settings-derived,
+    // so they ride the Clay message. Omitted for a
     // watch that compiles the highlight out (aplite): its settings screen hides the
     // whole threshold card and its inbox handler for this tuple is gone, so the
     // 34 B (27 blob + tuple header) stay out of its Clay bundle. An unknown platform
     // is treated as capable (computeEnv), so a missing watchInfo never drops it.
     // (env computed at the top of this function, beside the cycle branch.)
     if (env.thresholds) {
-        payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings);
+        payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings, env);
         // Date-slot formats [monthYear, fullDate] — settings-derived, so they ride
         // the Clay message. Gated with the threshold blob: the pickers live on the
         // Date slot's edit sheet, which shares this env gate, and an aplite watch

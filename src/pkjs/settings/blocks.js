@@ -1,5 +1,5 @@
 // src/pkjs/settings/blocks.js — ES5, WebView. WarnWeather's threshold-sheet
-// machinery (ranges, auto colors, the toggle/outline hooks, the two reset
+// machinery (ranges, auto colors, the toggle hook, the warn-look default, the two reset
 // actions, the sheet/badge resolvers) and the small option/default/recommend
 // resolvers. The BLOCK RENDERERS live one file per concern —
 // preview-forecast.js, preview-radar.js, preview-diagnostics.js and
@@ -455,9 +455,9 @@ if (typeof require !== 'undefined') {
             if (held.warn !== null && held.warn > max) { max = ceilToStep(held.warn, base.step); }
             if (held.danger !== null && held.danger > max) { max = ceilToStep(held.danger, base.step); }
         }
-        // A null warn color (no outline configured) draws the slider's warn pieces
-        // in a neutral gray: the zone still shows WHERE warn spans, while the copy +
-        // outline toggle make clear the watch renders bold text only there.
+        // A null warn color (warn look 'none') draws the slider's warn pieces in a
+        // neutral gray: the zone still shows WHERE warn spans, while the copy +
+        // warn look make clear the watch draws no box there.
         var warnDisplay = thresholdDisplayColor(S, stem, 'Warn');
         var warnColor = warnDisplay === null ? '#8A8E97' : warnDisplay;
         var dangerColor = thresholdDisplayColor(S, stem, 'Danger');
@@ -545,19 +545,15 @@ if (typeof require !== 'undefined') {
         S['thresh' + stem + 'Danger'] = String(seed.danger);
     });
 
-    // "Warn outline" toggle (thresh<K>WarnOutlineOn): ON seeds the theme's text
-    // color so the outline is immediately visible and editable, OFF blanks the
-    // color — a blank warn color IS the no-outline wire state (the blob's 0x00
-    // sentinel; the watch then renders warn as bold text only). Goal kinds derive
-    // the toggle from the stored color on every open; weather kinds' STORED toggle
-    // owns the state, with auto colors following it — see onbuild.js.
-    PConf.onChange.register('thresholdOutlineToggle', function (S, oldValue, newValue, env, key) {
-        var m = /^thresh([A-Za-z]+)WarnOutlineOn$/.exec(key || '');
-        if (!m) { return; }
-        var contractMod = thresholdContract();
-        var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(m[1]));
-        S['thresh' + m[1] + 'WarnColor'] = newValue
-            ? (goal ? contractMod.DEFAULT_GOAL_HEX : thresholdAutoFg(S.theme)) : '';
+    // A kind's warn look default (thresh<K>WarnLook's defaultFrom): the contract's
+    // warnLookDefault — fill on a colour watch, outline on a B&W one, outline for the
+    // goal kinds — so the page shows exactly what the packer resolves an unset key
+    // to (defaultFrom items are never seeded into the phone store).
+    PConf.defaultsResolvers.register('warnLookDefault', function (env, args) {
+        var contract = thresholdContract();
+        var isColor = env ? env.color : undefined;
+        if (!contract) { return isColor === false ? 'outline' : 'fill'; }
+        return contract.warnLookDefault(args && args.keyStem, isColor);
     });
 
     // "Auto" threshold colors: a color the user never customized tracks the THEME's
@@ -597,9 +593,10 @@ if (typeof require !== 'undefined') {
      */
     function thresholdDisplayColor(S, stem, which) {
         var raw = S['thresh' + stem + which + 'Color'];
-        // WARN: unset means NO OUTLINE (bold only) — report null so callers render
-        // their neutral no-outline state instead of a color.
-        if (which === 'Warn' && (raw === '' || raw === null || typeof raw === 'undefined')) {
+        // WARN with the look 'none' draws no box (bold only) — report null so
+        // callers render their neutral no-box state instead of a color. Any other
+        // look paints the colour, an unset one auto (the theme fg).
+        if (which === 'Warn' && S['thresh' + stem + 'WarnLook'] === 'none') {
             return null;
         }
         if (thresholdColorIsAuto(raw)) { return thresholdAutoFg(S.theme); }
@@ -621,10 +618,11 @@ if (typeof require !== 'undefined') {
         // toggle OFF (its switch rides this group's header, so resetting the goals
         // switches it off too), the blank pair (= the kind's seed, resolved live — a
         // wind pair follows windUnits again), the cleared Max, and the
-        // goal-vs-weather outline color/toggle are all schema defaults. A weather
+        // goal-vs-weather warn color and the platform's warn look are all schema
+        // defaults. A weather
         // kind's highlight switch is NOT in this group — it is the slot sheet's
         // Highlight row — so its levels reset leaves it alone, as it leaves Bold.
-        var keys = ['Warn', 'Danger', 'Max', 'WarnColor', 'WarnOutlineOn'];
+        var keys = ['Warn', 'Danger', 'Max', 'WarnColor', 'WarnLook'];
         if (goal) { keys.unshift('On'); }
         for (var d = 0; d < keys.length; d++) {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
@@ -637,7 +635,7 @@ if (typeof require !== 'undefined') {
         S['thresh' + stem + 'DangerColor'] = goal ? contractMod.DEFAULT_GOAL_HEX : fg;
         // "Fresh install" is more than the schema: finishing the first-run wizard
         // applies the defaults-policy table, so the reset lands on those rows too —
-        // AQI's highlight-on-with-warn-outline, seeded through the very hooks
+        // AQI's highlight-on, seeded through the very hooks
         // flipping the controls by hand would run. (A wizard-SKIPPED install never
         // got them; converging its reset on the intended out-of-box state is the
         // deliberate choice here.) applyDefaults is the policy module's one
@@ -827,7 +825,7 @@ if (typeof require !== 'undefined') {
     // this card), and the card's other rows: 'Show battery below 10%'
     // (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration
     // (vibe) and icon (btIcons). Deliberately untouched:
-    // thresholds, colors, outline toggles and scale maxes (every sheet has its own
+    // thresholds, colors, warn looks and scale maxes (every sheet has its own
     // reset button), the alerts themselves (the Alerts card has its own reset,
     // resetAlerts below), and the countdown companion dates (inert once a slot
     // leaves 'countdown'). Silent beyond the re-render, like resetThresholds above —

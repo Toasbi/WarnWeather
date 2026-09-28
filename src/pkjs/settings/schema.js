@@ -398,8 +398,8 @@ function graphColorRow(row, joins) {
 // applies to the alert icon always and to the slot only while that switch is on. The
 // goal group keeps its switch (goal kinds have no alert). Neither claims the warn level
 // bolds the value — Bold is its own setting, so saying so here could simply be false.
-// The outline is "can add": it follows the group's 'Outline on warn' / 'Outline on
-// close' toggle (status_alerts.c / status_row.c draw no warn box on a 0x00 accent).
+// The warn box is "can add": it follows the group's warn look (thresh<K>WarnLook —
+// none / outline / fill; status_threshold.h ThreshWarnLook).
 var ALERT_LEVELS_INTRO = 'Warn and danger levels for this value: reaching warn ' +
     'can add an outline, reaching danger fills the alert icon — and the slot, while ' +
     'its Highlight is on.';
@@ -679,9 +679,9 @@ function unitRow(key, withUnit, without) {
 // A kind's Alert levels (or Goals) group — the part of a level edit sheet that
 // configures the levels and their look, not the slot: the group sub-header (title,
 // reset — and, for the GOAL kinds only, the Goals switch), a zoned
-// dual-thumb slider for the warn/danger pair, and the outline toggle + two color
+// dual-thumb slider for the warn/danger pair, and the warn look + two color
 // pickers. A weather kind's group has no switch: its highlight switch is the slot
-// sheet's 'Highlight' row (highlightToggle), and its outline + colors style the alert
+// sheet's 'Highlight' row (highlightToggle), and its warn look + colors style the alert
 // icon whether or not that is on, so they are always live. Values live in the kind's
 // DISPLAYED unit (wind unit / km-mi / hours); a blank pair means the kind's seed
 // pair (status-thresholds.js resolvedPair), and toggling off keeps the pair — the
@@ -701,7 +701,7 @@ function unitRow(key, withUnit, without) {
  * @param {string} hint Per-kind unit/scale hint (HTML allowed).
  * @param {Object} [gate] Extra showWhen for the whole group.
  * @returns {Object[]} The group's items: sub-header, (goal kinds only) the switch,
- *     slider, the two hidden companions, outline toggle, warn color, danger color.
+ *     slider, the two hidden companions, warn look, warn color, danger color.
  */
 function levelsGroup(keyStem, hint, gate) {
     var onKey = 'thresh' + keyStem + 'On';
@@ -713,7 +713,7 @@ function levelsGroup(keyStem, hint, gate) {
     // day-max kinds hold today's peak from it whether or not anything is coloured
     // (wire-units dayMaxShown via status-thresholds holdWarn), so it must stay
     // editable with the switch off. For a GOAL kind the highlight-only rows below
-    // (outline toggle + color pickers) go VISIBLE but disabled (muted, inert — the
+    // (warn look + color pickers) go VISIBLE but disabled (muted, inert — the
     // sheet shows what turning it on offers) while its switch is off. A weather
     // kind's rows never do: they style its alert icon too, which the slot's switch
     // does not touch. The toggle itself is STORED state — the one source of
@@ -758,9 +758,9 @@ function levelsGroup(keyStem, hint, gate) {
         labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
     };
     // Every plain item in the group carries the same gate; applying it in one pass
-    // (gateAll) means an item added above cannot forget its gate line. (The outline
-    // toggle and color pickers below set showWhen inline instead — they layer the
-    // B&W/outline rules on top of the gate.)
+    // (gateAll) means an item added above cannot forget its gate line. (The warn
+    // look and color pickers below set showWhen inline instead — they layer the
+    // B&W/look rules on top of the gate.)
     var lead = toggle ? [header, toggle, range] : [header, range];
     gateAll(lead, gate);
     return lead.concat([{
@@ -774,50 +774,40 @@ function levelsGroup(keyStem, hint, gate) {
         messageKey: 'thresh' + keyStem + 'Max',
         defaultValue: ''
     }, {
-        // Warn is ALWAYS bold when crossed; the outline is the opt-in extra.
-        // Ownership splits by kind (onbuild.js): GOAL kinds derive the toggle
-        // from the stored warn color on every open; WEATHER kinds' STORED toggle
-        // owns the on/off state and rides every save — onbuild re-derives only
-        // to heal legacy colors and keep an auto color tracking the theme fg (a
-        // custom pick reads as outline-on either way). Writes go through the
-        // thresholdOutlineToggle hook: ON seeds the theme fg, OFF blanks it, and
-        // a blank warn color is the wire's no-outline sentinel. Shown on B&W too
-        // — outline vs no outline is meaningful without color choice, and there
-        // the fg seed is the only on-state.
-        type: 'toggle',
-        messageKey: 'thresh' + keyStem + 'WarnOutlineOn',
-        label: goal ? 'Outline on close' : 'Outline on warn',
-        hint: goal
-            ? 'Adds an outline to the slot when you get close to the goal.'
-            : 'Adds an outline from the warn level on, to the alert icon — and to the slot, while its Highlight is on.',
-        // Goal kinds celebrate with the outline ON out of the box; weather warn
-        // ships bold-only. (onLoad recomputes goal toggles from the stored color
-        // and weather colors from the stored toggle — see above — and the seeded
-        // store must agree with the color defaults below, which clay-settings
-        // hydrates for the WATCH blob too.)
-        defaultValue: goal,
+        // The warn look — the box drawn at the warn level (a goal kind's "close"),
+        // for the slot while its highlight is on AND for the kind's alert icon.
+        // It replaced the 'Outline on warn' toggle (thresh<K>WarnOutlineOn, read
+        // once by clay-migrations.js migrateWarnLook). The default is per
+        // PLATFORM (status-thresholds.js warnLookDefault through the blocks.js
+        // defaultFrom resolver): fill on a colour watch, outline on a B&W one —
+        // a B&W warn fill would be the danger fill — and outline for goal kinds.
+        // defaultFrom items are never seeded, so an absent key packs through the
+        // same resolver phone-side (buildSettingsBlob, with the watch's env).
+        // Shown on B&W too: none vs outline is meaningful without colour choice.
+        type: 'segmented',
+        messageKey: 'thresh' + keyStem + 'WarnLook',
+        label: goal ? 'Look when close' : 'Warn look',
+        options: [['None', 'none'], ['Outline', 'outline'], ['Fill', 'fill']],
+        defaultFrom: {resolver: 'warnLookDefault', args: {keyStem: keyStem}},
         joinPrevious: true,
-        onChange: 'thresholdOutlineToggle',
         showWhen: gate || undefined,
         disabledWhen: offWhen
     }, {
-        // Colors hydrate UNSET: the DANGER color auto-tracks the theme fg until
-        // customized (onLoad, blocks.js thresholdAutoColor); the WARN color exists
-        // only while the outline toggle above is on. The contract's
-        // DEFAULT_*_COLOR ints are only the pack-time fallback for settings that
-        // never saw this page.
+        // Colors hydrate UNSET = AUTO: they track the theme fg (weather) or the
+        // goal green (goal) until customized (onLoad, blocks.js
+        // thresholdAutoColor), and the packer resolves an unset one the same way.
+        // The contract's DEFAULT_DANGER_COLOR is only the pack-time fallback for
+        // settings that never saw this page.
         type: 'color',
         messageKey: 'thresh' + keyStem + 'WarnColor',
-        label: goal ? 'Close outline color' : 'Warn outline color',
-        // '' = the no-outline wire sentinel, so goal kinds must NOT default to it:
-        // seedDefaults hydrates these values into the phone store verbatim, and
-        // the watch blob packs whatever is stored. Green = the celebration look.
+        label: goal ? 'Close color' : 'Warn color',
+        // Green = the celebration look; weather kinds start on the theme fg.
         defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
         joinPrevious: true,
         capabilities: ['COLOR'],
-        // colorWhen (gate + color-capable theme) composed with the outline
-        // toggle — not a hand-rebuilt copy of the same predicate.
-        showWhen: {all: [colorWhen, {key: 'thresh' + keyStem + 'WarnOutlineOn'}]},
+        // colorWhen (gate + color-capable theme) composed with the warn look — a
+        // look of 'none' draws no box to colour.
+        showWhen: {all: [colorWhen, {not: {key: 'thresh' + keyStem + 'WarnLook', eq: 'none'}}]},
         disabledWhen: offWhen
     }, {
         type: 'color',

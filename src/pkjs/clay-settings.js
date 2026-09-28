@@ -84,6 +84,11 @@ function resetAll() {
     // at 60 and the page no longer offers the Off option it rewrites, so there is
     // nothing for it to move from here on.
     localStorage.setItem(KEYS.RAIN_HORIZON_OFF_MIGRATION_KEY, '1');
+    // And for the 1.24.0 warn-look move, which reads the retired 'Outline on warn'
+    // toggle and a blank warn colour: the next blob is seeded without the look (a
+    // per-platform default) and a blank colour now means auto, so a page save made
+    // before the next boot must not be read as the old no-outline state.
+    localStorage.setItem(KEYS.WARN_LOOK_MIGRATION_KEY, '1');
     return keep;
 }
 

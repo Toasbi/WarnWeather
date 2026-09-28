@@ -24,8 +24,9 @@
 //      [0]              enabled bitmask (bit k = kind k enabled) — exactly the
 //                       8 PAIRED kinds; bold-only kinds (8..15) have no bit
 //      [1 + 2k]         warn color,   GColor8 byte, k = 0..7 — 0x00 (alpha 00,
-//                       impossible for an opaque GColor8) = NO OUTLINE: warn
-//                       renders as bold text only, the weather-kind default
+//                       impossible for an opaque GColor8) = NO BOX: the phone
+//                       packs it exactly for the warn look 'none' (below), so a
+//                       blob without the look bytes still reads right
 //      [2 + 2k]         danger color, GColor8 byte, k = 0..7
 //      [17 + 4h + 0..1] warn threshold,   LE uint16, h = kind - THRESH_STEPS,
 //                       health trio only (UV levels are phone-computed)
@@ -52,6 +53,15 @@
 //                       (ThreshAlertsPlace). While an alert is active the row
 //                       replaces that slot of the bar (and the neighbouring one
 //                       when it needs the room).
+//      [36 + (k >> 2)]  warn look (ThreshWarnLook) per PAIRED kind, 2 bits at
+//                       bits 2 * (k & 3) — kinds 0..7 = bytes 36..37
+//                       (THRESH_WARN_LOOK_OFFSET): the box drawn at the WARN
+//                       level (a goal kind's "close"), for the status slot and
+//                       the alert icon alike — 0 none, 1 outline, 2 fill (3
+//                       reserved, reads as outline). A blob without these bytes
+//                       (36 B and shorter) derives the look from the warn color
+//                       byte: 0x00 -> none, any colour -> outline — exactly what
+//                       the watch drew before the bytes existed.
 //    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 33 when the bold-only
 //    kinds (8..15) grew the bold area to 16 kinds, 33 -> 34 when battery %
 //    (kind 16) opened byte 33. (An interim 31-byte 8-kind bold format never
@@ -63,19 +73,22 @@
 //    area, and 34 -> 36 then appended the two alert bytes right after it (the
 //    rain look, then the per-bar placement). So the alert bytes now END the
 //    blob behind a full bold area: kind 20 is no longer a plain append — it
-//    needs a sixth bold byte AND must relocate BOTH alert bytes, a LAYOUT
-//    change (a new accepted length and a reader that knows both positions).
-//    The _Static_assert below the offsets turns that into a compile error
-//    instead of kind 20's bold cell silently aliasing the rain look.
-//    Exactly five lengths are accepted: the current 36, 35 (the rain look
-//    without the placement byte), the pre-alerts 34, the 16-kind 33, and the
-//    pre-bold 29. The UV step SHIFTED the health offsets, so a 27-byte blob
+//    needs a sixth bold byte AND must relocate BOTH alert bytes (and the warn
+//    look bytes behind them), a LAYOUT change (a new accepted length and a
+//    reader that knows every position). The _Static_asserts below the offsets
+//    turn that into a compile error instead of kind 20's bold cell silently
+//    aliasing the rain look. 36 -> 38 appended the two warn-look bytes, which
+//    cover the 8 PAIRED kinds only (a ninth paired kind would need a third
+//    byte — also asserted below).
+//    Exactly six lengths are accepted: the current 38, 36 (no warn look), 35
+//    (the rain look without the placement byte), the pre-alerts 34, the
+//    16-kind 33, and the pre-bold 29. The UV step SHIFTED the health offsets, so a 27-byte blob
 //    would be misread and is rejected; the bold and alert steps only APPEND,
 //    so a shorter accepted blob still describes every field before it and is
 //    read with the default for what it lacks (a 33-byte blob reads kind 16 as
 //    the default bold mode, a 34-byte blob reads the rain look as text, a
 //    35-byte one the placement as top strip left — the rain takeover the strip
-//    always had). That matters on upgrade: the phone only force-resends its
+//    always had, a 36-byte one the warn look from the warn color byte). That matters on upgrade: the phone only force-resends its
 //    settings when the watch reports NO config at all, so rejecting an old
 //    length would blank an existing user's highlighting until they happened to
 //    open the settings page.
@@ -89,12 +102,13 @@
 // the paired accessors by this is correctness, not tidiness; only the bold
 // cells run to THRESH_KIND_COUNT.
 #define THRESH_PAIRED_KIND_COUNT 8
-#define THRESH_SETTINGS_BYTES 36
+#define THRESH_SETTINGS_BYTES 38
 #define THRESH_COLORS_OFFSET 1
 #define THRESH_HEALTH_OFFSET 17
 #define THRESH_BOLD_OFFSET 29
 #define THRESH_ALERTS_OFFSET 34
 #define THRESH_BAR_ALERTS_OFFSET 35
+#define THRESH_WARN_LOOK_OFFSET 36
 // The blob length before the bold bytes were appended — still accepted, and by
 // construction equal to the offset the bold bytes start at.
 #define THRESH_SETTINGS_BYTES_PRE_BOLD THRESH_BOLD_OFFSET
@@ -107,6 +121,9 @@
 // The length before the per-bar placement byte was appended — still accepted;
 // the placement reads as top strip left, every other bar off.
 #define THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS 35
+// The length before the two warn-look bytes were appended — still accepted; the
+// look derives from the warn color byte (0x00 none, else outline).
+#define THRESH_SETTINGS_BYTES_PRE_WARN_LOOK 36
 
 typedef enum {
     THRESH_AQI = 0,
@@ -158,8 +175,14 @@ typedef enum {
 _Static_assert(THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT + 3) / 4) <= THRESH_ALERTS_OFFSET,
                "a bold kind past byte 33 must relocate the alert bytes (layout change)");
 _Static_assert(THRESH_BAR_ALERTS_OFFSET == THRESH_ALERTS_OFFSET + 1
-               && THRESH_SETTINGS_BYTES == THRESH_BAR_ALERTS_OFFSET + 1,
-               "the two alert bytes sit side by side at the end of the blob");
+               && THRESH_WARN_LOOK_OFFSET == THRESH_BAR_ALERTS_OFFSET + 1,
+               "the two alert bytes sit side by side, the warn look right behind them");
+// The warn look covers the PAIRED kinds, 4 per byte, and ends the blob.
+_Static_assert(THRESH_SETTINGS_BYTES
+               == THRESH_WARN_LOOK_OFFSET + (THRESH_PAIRED_KIND_COUNT + 3) / 4,
+               "a paired kind past 7 needs a third warn-look byte (layout change)");
+_Static_assert(THRESH_SETTINGS_BYTES_PRE_WARN_LOOK == THRESH_WARN_LOOK_OFFSET,
+               "the pre-warn-look length is where the warn-look bytes start");
 
 // The health trio computes its levels ON the watch from live health values; every
 // other kind (0..3 and UV) is phone-computed via the packed levels wire value.
@@ -245,6 +268,21 @@ typedef enum {
 // blob, a pre-alerts blob (34/33/29 B — an upgrading watch keeps today's look
 // until the phone resends its settings) and the reserved wire value 3.
 int status_threshold_rain_display(const uint8_t *blob, size_t len);
+
+// The box a paired kind draws at the WARN level (a goal kind's "close"), for its
+// status slot and its alert icon. The danger level is always filled.
+typedef enum {
+    THRESH_WARN_LOOK_NONE = 0,      // no box — the level shows only as bold text
+    THRESH_WARN_LOOK_OUTLINE = 1,   // rounded-rect outline in the warn colour
+    THRESH_WARN_LOOK_FILL = 2,      // filled in the warn colour, legible ink over it
+} ThreshWarnLook;
+
+// The kind's warn look. A blob without the look bytes (36 B and shorter) derives
+// it from the warn color byte — 0x00 (the old no-outline sentinel) -> NONE, any
+// colour -> OUTLINE — which is what those watches drew. The reserved wire value 3
+// reads as OUTLINE. NONE for an invalid blob and for a kind without a pair (the
+// bold-only kinds, out of range).
+int status_threshold_warn_look(const uint8_t *blob, size_t len, int kind);
 
 // The status bars, in the order of their 2-bit cells in the placement byte.
 typedef enum {

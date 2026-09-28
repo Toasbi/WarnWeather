@@ -385,14 +385,18 @@ test('alertLevelBadge: the alert\'s colours while it is on, no bold B; rain gets
   assert.equal(off.label, 'Edit');
   assert.deepEqual(off.dots, [], 'alert off: no dots, whatever the highlight says');
   assert.equal(off.ariaNote, 'off');
-  // On: the entry's outline (warn) and fill (danger). With 'Outline on warn' off the
-  // watch draws no box at warn, so the ring is the neutral no-outline gray the slot
-  // pencil uses — never a theme-fg ring previewing an outline that never appears.
-  const on = badge({ alertUv: true, theme: 'dark', threshUvDangerColor: '#FF0000' }, env, uv);
+  // On: the entry's warn box and fill (danger). With the warn look 'none' the watch
+  // draws no box at warn, so the ring is the neutral no-box gray the slot pencil uses
+  // — never a theme-fg ring previewing a box that never appears. Any other look
+  // rings in the warn colour, an unset one auto (the theme fg).
+  const on = badge({ alertUv: true, theme: 'dark', threshUvDangerColor: '#FF0000',
+    threshUvWarnLook: 'none' }, env, uv);
   assert.equal(on.dots.length, 2, 'warn ring + danger fill');
-  assert.deepEqual(on.dots[0], { color: '#8A8E97', ring: true }, 'no outline: the neutral gray ring');
-  assert.deepEqual(badge({ alertUv: true, theme: 'light' }, env, uv).dots[0],
+  assert.deepEqual(on.dots[0], { color: '#8A8E97', ring: true }, 'no box: the neutral gray ring');
+  assert.deepEqual(badge({ alertUv: true, theme: 'light', threshUvWarnLook: 'none' }, env, uv).dots[0],
     { color: '#8A8E97', ring: true }, 'on the light theme too');
+  assert.deepEqual(badge({ alertUv: true, theme: 'dark', threshUvWarnLook: 'fill' }, env, uv).dots[0],
+    { color: '#FFFFFF', ring: true }, 'a box with an unset colour: the theme fg');
   assert.ok(!on.dots[1].ring, 'then the fill (danger)');
   assert.equal(on.dots[1].color, '#FF0000');
   assert.equal(on.ariaNote, '');

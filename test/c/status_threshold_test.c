@@ -147,10 +147,11 @@ static void blob_tests(void) {
     blob[THRESH_HEALTH_OFFSET + 3] = 0x0F;
 
     expect("blob.valid", status_threshold_settings_validate(blob, sizeof(blob)), 1);
-    // sizeof - 1 = 35 (pre-placement), sizeof - 2 = 34 (pre-alerts) and
-    // sizeof - 3 = 33 (16-kind) are accepted legacy lengths, not truncations (see
-    // legacy_blob_tests); the nearest genuinely short length is 32.
-    expect("blob.short", status_threshold_settings_validate(blob, sizeof(blob) - 4), 0);
+    // sizeof - 2 = 36 (pre-warn-look), 35 (pre-placement), 34 (pre-alerts) and
+    // 33 (16-kind) are accepted legacy lengths, not truncations (see
+    // legacy_blob_tests); the nearest genuinely short lengths are 37 and 32.
+    expect("blob.short", status_threshold_settings_validate(blob, sizeof(blob) - 1), 0);
+    expect("blob.short32", status_threshold_settings_validate(blob, sizeof(blob) - 6), 0);
     expect("blob.null", status_threshold_settings_validate(NULL, sizeof(blob)), 0);
     expect("blob.aqi_on", status_threshold_enabled(blob, sizeof(blob), THRESH_AQI), 1);
     expect("blob.wind_off", status_threshold_enabled(blob, sizeof(blob), THRESH_WIND), 0);
@@ -332,10 +333,10 @@ static void bold_tests(void) {
            status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY_PLAIN, THRESH_LEVEL_NORMAL), 1);
 
     // The blob width is pinned: byte 33's four cells cover kinds 16..19, and
-    // the only widening since is the two alert bytes (34 -> 36) — every extra
-    // byte rides the Clay message on every settings send (see
-    // test/inbox-size.test.js).
-    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 36);
+    // the only widenings since are the two alert bytes (34 -> 36) and the two
+    // warn-look bytes (36 -> 38) — every extra byte rides the Clay message on
+    // every settings send (see test/inbox-size.test.js).
+    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 38);
     expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 20);
     expect("bold.top_kind_inside_bold_area",
            THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2) < THRESH_ALERTS_OFFSET, 1);
@@ -346,7 +347,8 @@ static void bold_tests(void) {
     expect("bold.byte33_is_the_last_bold_byte",
            THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2), THRESH_ALERTS_OFFSET - 1);
     expect("bold.alerts_bytes_follow", THRESH_BAR_ALERTS_OFFSET, THRESH_ALERTS_OFFSET + 1);
-    expect("bold.bar_alerts_byte_is_last", THRESH_BAR_ALERTS_OFFSET, THRESH_SETTINGS_BYTES - 1);
+    expect("bold.warn_look_follows", THRESH_WARN_LOOK_OFFSET, THRESH_BAR_ALERTS_OFFSET + 1);
+    expect("bold.warn_look_ends_blob", THRESH_WARN_LOOK_OFFSET + 2, THRESH_SETTINGS_BYTES);
     expect("bold.byte33_full", THRESH_KIND_COUNT % 4, 0);
 
     // Degrade safely: the reserved wire value, a bad blob and a slot with no
@@ -408,13 +410,19 @@ static void legacy_blob_tests(void) {
     // blob reads invalid until the phone re-syncs the 33-B one.
     expect("legacy.reject_31", status_threshold_settings_validate(blob, 31), 0);
     expect("legacy.reject_32", status_threshold_settings_validate(blob, 32), 0);
-    // The accepted set is exactly {36, 35, 34, 33, 29}. A 37-byte blob is a blob
-    // from a FUTURE, wider format: reject it until that widening actually
-    // happens (see status_threshold.h).
+    // The accepted set is exactly {38, 36, 35, 34, 33, 29}. 37 is half a
+    // warn-look area and 39 a blob from a FUTURE, wider format: reject both until
+    // such a widening actually happens (see status_threshold.h).
     expect("legacy.accept_36", status_threshold_settings_validate(blob, 36), 1);
     expect("legacy.accept_35", status_threshold_settings_validate(blob, 35), 1);
     expect("legacy.accept_34", status_threshold_settings_validate(blob, 34), 1);
     expect("legacy.reject_37", status_threshold_settings_validate(blob, 37), 0);
+    {
+        uint8_t wide[40];
+        memset(wide, 0, sizeof(wide));
+        expect("legacy.accept_38", status_threshold_settings_validate(wide, 38), 1);
+        expect("legacy.reject_39", status_threshold_settings_validate(wide, 39), 0);
+    }
 
     // A 33-byte blob (16-kind bold era, every current install at upgrade time)
     // keeps kinds 0..15's bold settings and reads kind 16 as the default.
@@ -538,6 +546,82 @@ static void bar_alerts_tests(void) {
            status_threshold_bar_alerts(NULL, n, THRESH_BAR_HEALTH), THRESH_ALERTS_OFF);
 }
 
+// The warn-look bytes [36..37]: 2 bits per PAIRED kind (kind k at byte 36 +
+// (k >> 2), bits 2 * (k & 3)), 0 none / 1 outline / 2 fill. A blob without them
+// (36 B and shorter) derives the look from the warn color byte.
+static void warn_look_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    expect("look.offset_pinned", THRESH_WARN_LOOK_OFFSET, 36);
+    expect("look.pre_pinned", THRESH_SETTINGS_BYTES_PRE_WARN_LOOK, 36);
+    expect("look.enum", THRESH_WARN_LOOK_NONE * 100 + THRESH_WARN_LOOK_OUTLINE * 10
+           + THRESH_WARN_LOOK_FILL, 12);
+    // All zero: every paired kind none, even with a warn colour set.
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI] = 0xFF;
+    for (int k = 0; k < THRESH_PAIRED_KIND_COUNT; k++) {
+        expect("look.zero_none", status_threshold_warn_look(blob, n, k), THRESH_WARN_LOOK_NONE);
+    }
+    // aqi fill, pollen outline, wind none, gust fill | steps outline, sleep fill,
+    // distance none, uv outline.
+    blob[THRESH_WARN_LOOK_OFFSET] = (uint8_t)(THRESH_WARN_LOOK_FILL
+        | (THRESH_WARN_LOOK_OUTLINE << 2) | (THRESH_WARN_LOOK_NONE << 4)
+        | (THRESH_WARN_LOOK_FILL << 6));
+    blob[THRESH_WARN_LOOK_OFFSET + 1] = (uint8_t)(THRESH_WARN_LOOK_OUTLINE
+        | (THRESH_WARN_LOOK_FILL << 2) | (THRESH_WARN_LOOK_NONE << 4)
+        | (THRESH_WARN_LOOK_OUTLINE << 6));
+    expect("look.aqi", status_threshold_warn_look(blob, n, THRESH_AQI), THRESH_WARN_LOOK_FILL);
+    expect("look.pollen", status_threshold_warn_look(blob, n, THRESH_POLLEN), THRESH_WARN_LOOK_OUTLINE);
+    expect("look.wind", status_threshold_warn_look(blob, n, THRESH_WIND), THRESH_WARN_LOOK_NONE);
+    expect("look.gust", status_threshold_warn_look(blob, n, THRESH_GUST), THRESH_WARN_LOOK_FILL);
+    expect("look.steps", status_threshold_warn_look(blob, n, THRESH_STEPS), THRESH_WARN_LOOK_OUTLINE);
+    expect("look.sleep", status_threshold_warn_look(blob, n, THRESH_SLEEP), THRESH_WARN_LOOK_FILL);
+    expect("look.distance", status_threshold_warn_look(blob, n, THRESH_DISTANCE), THRESH_WARN_LOOK_NONE);
+    expect("look.uv", status_threshold_warn_look(blob, n, THRESH_UV), THRESH_WARN_LOOK_OUTLINE);
+    // The reserved value 3 reads as outline.
+    blob[THRESH_WARN_LOOK_OFFSET] = 0x03;
+    expect("look.reserved", status_threshold_warn_look(blob, n, THRESH_AQI), THRESH_WARN_LOOK_OUTLINE);
+    // Non-paired kinds (bold-only, out of range) own no look: none.
+    blob[THRESH_WARN_LOOK_OFFSET] = 0xFF;
+    blob[THRESH_WARN_LOOK_OFFSET + 1] = 0xFF;
+    expect("look.temp_none", status_threshold_warn_look(blob, n, THRESH_TEMP), THRESH_WARN_LOOK_NONE);
+    expect("look.phone_none",
+           status_threshold_warn_look(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_WARN_LOOK_NONE);
+    expect("look.neg_none", status_threshold_warn_look(blob, n, -1), THRESH_WARN_LOOK_NONE);
+    expect("look.oob_none", status_threshold_warn_look(blob, n, THRESH_KIND_COUNT), THRESH_WARN_LOOK_NONE);
+    // The look bytes never leak into the alert bytes next door, nor they into it.
+    expect("look.rain_no_alias", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_TEXT);
+    expect("look.bars_no_alias", status_threshold_bar_alerts(blob, n, THRESH_BAR_TOP), THRESH_ALERTS_OFF);
+    blob[THRESH_WARN_LOOK_OFFSET] = 0;
+    blob[THRESH_BAR_ALERTS_OFFSET] = 0xFF;
+    blob[THRESH_ALERTS_OFFSET] = 0xFF;
+    expect("look.alerts_no_alias", status_threshold_warn_look(blob, n, THRESH_AQI), THRESH_WARN_LOOK_NONE);
+    // Legacy lengths derive from the warn color byte: 0x00 none, else outline —
+    // whatever the (absent) look bytes would have said.
+    memset(blob, 0, sizeof(blob));
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI] = 0xFF;       // aqi: white warn outline
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_STEPS] = 0xCC;     // steps: green close outline
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND + 1] = 0xF0;  // wind: danger colour only
+    blob[THRESH_WARN_LOOK_OFFSET] = 0xAA;                     // would read fill if 38 B
+    size_t lens[] = { THRESH_SETTINGS_BYTES_PRE_WARN_LOOK, THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS,
+                      THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_SETTINGS_BYTES_PRE_KIND16,
+                      THRESH_SETTINGS_BYTES_PRE_BOLD };
+    for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
+        expect("look.legacy_aqi_outline",
+               status_threshold_warn_look(blob, lens[i], THRESH_AQI), THRESH_WARN_LOOK_OUTLINE);
+        expect("look.legacy_steps_outline",
+               status_threshold_warn_look(blob, lens[i], THRESH_STEPS), THRESH_WARN_LOOK_OUTLINE);
+        expect("look.legacy_wind_none",
+               status_threshold_warn_look(blob, lens[i], THRESH_WIND), THRESH_WARN_LOOK_NONE);
+        expect("look.legacy_temp_none",
+               status_threshold_warn_look(blob, lens[i], THRESH_TEMP), THRESH_WARN_LOOK_NONE);
+    }
+    // Invalid input: none, never a read past the end.
+    expect("look.bad_len", status_threshold_warn_look(blob, 37, THRESH_AQI), THRESH_WARN_LOOK_NONE);
+    expect("look.len27", status_threshold_warn_look(blob, 27, THRESH_AQI), THRESH_WARN_LOOK_NONE);
+    expect("look.null", status_threshold_warn_look(NULL, n, THRESH_AQI), THRESH_WARN_LOOK_NONE);
+}
+
 static void health_value_tests(void) {
     // Wire-unit conversion for the watch-side comparison (spec: "C-side:
     // threshold comparison for steps/sleep/distance against health values").
@@ -584,6 +668,7 @@ int main(void) {
     legacy_blob_tests();
     rain_display_tests();
     bar_alerts_tests();
+    warn_look_tests();
     health_value_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }
     printf("status_threshold_test OK\n");

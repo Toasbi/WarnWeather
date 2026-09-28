@@ -36,7 +36,7 @@ test('the duplicated PhoneBattery key writes ONE bold mode into BOTH cells', () 
   // kind 19 -> byte 33, bits 2 * (19 & 3) = 6-7
   Object.keys(th.BOLD_MODES).forEach((mode) => {
     const blob = th.buildSettingsBlob({ threshPhoneBatteryBoldMode: mode });
-    assert.equal(blob.length, 36, mode + ': the duplicate must not widen the blob');
+    assert.equal(blob.length, 38, mode + ': the duplicate must not widen the blob');
     assert.equal((blob[33] >> 4) & 3, th.BOLD_MODES[mode], mode + ': phoneBattery cell (kind 18)');
     assert.equal((blob[33] >> 6) & 3, th.BOLD_MODES[mode], mode + ': phoneBatteryPlain cell (kind 19)');
     // The byte-mates (battery % and dew) keep the warn default.
@@ -58,7 +58,7 @@ test('the phone-battery cells share byte 33 with battery % and dew without bleed
     threshDewBoldMode: 'off',             // kind 17 -> bits 2-3
     threshPhoneBatteryBoldMode: 'off'     // kinds 18 AND 19 -> bits 4-5, 6-7
   });
-  assert.equal(blob.length, 36, 'byte 33 was already paid for — no widening');
+  assert.equal(blob.length, 38, 'byte 33 was already paid for — no widening');
   assert.equal(blob[33], (2 << 0) | (1 << 2) | (1 << 4) | (1 << 6));
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the earlier bold bytes stay at the warn default');
@@ -384,7 +384,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
     // An ordered pair with the toggle off sets no bit (wind, kind 2).
     threshWindOn: false, threshWindWarn: '30', threshWindDanger: '50'
   });
-  assert.equal(blob.length, 36);
+  assert.equal(blob.length, 38);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
@@ -434,8 +434,12 @@ test('buildSettingsBlob: consistent auto colours, picks and the no-outline marke
   for (const theme of ['dark', 'light']) {
     assert.deepEqual(aqiBytes({ theme, threshAqiWarnColor: 0xFFAA00,
       threshAqiDangerColor: 0xFF0000 }), [0xF8, 0xF0], theme + ': picks are never touched');
-    assert.equal(aqiBytes({ theme, threshAqiWarnColor: '', threshAqiDangerColor: 0 })[0], 0x00,
-      theme + ': a blank warn is still the no-outline marker');
+    // A blank warn colour is AUTO now — the theme's text colour — and the no-box
+    // marker 0x00 is the warn look 'none' alone.
+    assert.equal(aqiBytes({ theme, threshAqiWarnColor: '', threshAqiDangerColor: 0 })[0],
+      theme === 'light' ? 0xC0 : 0xFF, theme + ': a blank warn is the theme fg');
+    assert.equal(aqiBytes({ theme, threshAqiWarnColor: 0xFFAA00, threshAqiWarnLook: 'none' })[0],
+      0x00, theme + ': look none is the no-box marker, whatever the colour');
   }
   // Absent danger on a weather kind is still the contract's red fallback.
   assert.equal(aqiBytes({ theme: 'dark' })[1], 0xF0);
@@ -482,10 +486,62 @@ test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds',
   const blob = th.buildSettingsBlob({});
   assert.equal(blob[0], 0);
   // 12 health-threshold bytes, the five bold bytes (0 = the default warn mode),
-  // the alerts byte (0 = the rain alert's legacy text look), then the placement
-  // byte: top strip left (1), every other bar off — the pre-1.24 picture.
+  // the alerts byte (0 = the rain alert's legacy text look), the placement byte:
+  // top strip left (1), every other bar off — the pre-1.24 picture — then the two
+  // warn-look bytes at the colour-watch defaults: aqi/pollen/wind/gust fill (0xAA),
+  // steps/sleep/distance outline + uv fill (0x95).
   assert.deepEqual(blob.slice(17),
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0xAA, 0x95]);
+});
+
+// Bytes 36..37: the warn look per PAIRED kind, 2 bits each in KINDS order (0 none,
+// 1 outline, 2 fill). An unset look takes the platform default — the packer is
+// handed the watch's env for exactly that.
+test('buildSettingsBlob: warn looks pack 2 bits per paired kind, defaults per platform', () => {
+  const O = th.WARN_LOOK_OFFSET;
+  assert.equal(O, 36);
+  assert.deepEqual(th.buildSettingsBlob({}, { color: true }).slice(O), [0xAA, 0x95], 'colour');
+  assert.deepEqual(th.buildSettingsBlob({}).slice(O), [0xAA, 0x95], 'no env = colour');
+  assert.deepEqual(th.buildSettingsBlob({}, { color: false }).slice(O), [0x55, 0x55],
+    'B&W: outline everywhere — a warn fill would be the danger fill');
+  const picked = th.buildSettingsBlob({
+    threshAqiWarnLook: 'none', threshPollenWarnLook: 'outline', threshWindWarnLook: 'fill',
+    threshGustWarnLook: 'none', threshStepsWarnLook: 'fill', threshSleepWarnLook: 'none',
+    threshDistanceWarnLook: 'outline', threshUvWarnLook: 'none'
+  }, { color: false });
+  assert.deepEqual(picked.slice(O), [0 | (1 << 2) | (2 << 4) | (0 << 6),
+    2 | (0 << 2) | (1 << 4) | (0 << 6)], 'a stored look wins on any platform');
+  // Unknown values fall back to the default; bold-only kinds own no look cell.
+  assert.deepEqual(th.buildSettingsBlob({ threshAqiWarnLook: 'bogus',
+    threshTempWarnLook: 'none' }).slice(O), [0xAA, 0x95]);
+  // The look never touches the alert bytes before it.
+  const busy = th.buildSettingsBlob({ threshAqiWarnLook: 'none', threshUvWarnLook: 'none' });
+  assert.deepEqual([busy[th.ALERTS_OFFSET], busy[th.BAR_ALERTS_OFFSET]], [0, 1]);
+});
+
+// The warn colour byte keeps a real colour whenever there IS a box, so a watch
+// without the look bytes (it reads 0x00 as "no outline") still draws one; 0x00 is
+// the 'none' look alone. Unset is auto: theme fg for weather, goal green for goals.
+test('buildSettingsBlob: the warn colour byte is 0x00 exactly for the none look', () => {
+  const warnByte = (settings, k, env) => th.buildSettingsBlob(settings, env)[1 + 2 * k];
+  ['outline', 'fill'].forEach((look) => {
+    assert.equal(warnByte({ theme: 'dark', threshWindWarnLook: look }, 2), 0xFF,
+      look + ': unset warn on dark = white');
+    assert.equal(warnByte({ theme: 'light', threshWindWarnLook: look }, 2), 0xC0,
+      look + ': unset warn on light = black');
+    assert.equal(warnByte({ theme: 'dark', threshWindWarnLook: look, threshWindWarnColor: null }, 2),
+      0xFF, look + ': the old null is auto too');
+    assert.equal(warnByte({ threshStepsWarnLook: look }, 4), 0xDC, look + ': goal unset = green');
+    assert.equal(warnByte({ threshStepsWarnLook: look, threshStepsWarnColor: '' }, 4), 0xDC,
+      look + ': a goal blank is auto green now, not "off"');
+  });
+  assert.equal(warnByte({ theme: 'dark' }, 2, { color: false }), 0xFF, 'B&W default outline: fg');
+  assert.equal(warnByte({ threshWindWarnLook: 'none', threshWindWarnColor: 0xFFAA00 }, 2), 0x00);
+  assert.equal(warnByte({ threshStepsWarnLook: 'none' }, 4), 0x00, 'goal none: 0x00');
+  assert.equal(th.kindConfig({ threshWindWarnLook: 'none' }, 2).warnColor, null);
+  assert.equal(th.kindConfig({}, 2, false).warnLook, 'outline');
+  assert.equal(th.kindConfig({}, 2).warnLook, 'fill');
+  assert.equal(th.kindConfig({}, 8).warnLook, null, 'bold-only kinds have no look');
 });
 
 // "0 and negative thresholds are legitimate; unset must stay distinguishable from zero" —
@@ -545,7 +601,7 @@ test('buildSettingsBlob: goal u16s carry the SEED when the toggle is on over a b
 // so a never-configured kind reproduces the shipped bold-from-warn behaviour.
 test('buildSettingsBlob: unset bold modes pack as warn (all-zero bold bytes)', () => {
   const blob = th.buildSettingsBlob({});
-  assert.equal(blob.length, 36);
+  assert.equal(blob.length, 38);
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, th.ALERTS_OFFSET), [0, 0, 0, 0, 0]);
 });
 
@@ -651,7 +707,7 @@ test('packing with statusBoldAll "all" does not mutate the stored per-kind modes
 // (blob bytes 31/32), byte 29 + (k >> 2) at bits 2 * (k & 3).
 test('buildSettingsBlob: battery % (kind 16) packs its bold cell into byte 33', () => {
   const blob = th.buildSettingsBlob({ threshBatteryPctBoldMode: 'always' });
-  assert.equal(blob.length, 36);
+  assert.equal(blob.length, 38);
   assert.equal(blob[33], 2 << 0, 'batteryPct always in byte 33 bits 0-1');
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the other bold bytes stay at the warn default');

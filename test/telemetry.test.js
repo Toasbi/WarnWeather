@@ -707,7 +707,9 @@ test('the six graph colour fields are optional STRINGS in the Deno .strip() sche
 // (3600 before them; their pair presentation is deliberately not reported). The
 // Alerts row's per-bar placement code and rain switch (alertBars, alertRain) are
 // 37 B (3912 before them): 3949 B, headroom 147; the custom-layout envelope 4059 B,
-// headroom 37 — why alertBars is a four-letter code, not a spelled-out list.
+// headroom 37 — why alertBars is a four-letter code, not a spelled-out list. The
+// eight-letter warn-look code (warnLooks) is 23 B: 3972 B, headroom 124; the
+// custom-layout envelope 4082 B, headroom 14.
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const fs = require('fs');
   const path = require('path');
@@ -1204,6 +1206,19 @@ test('the Alerts card reports alertBars and alertRain', () => {
   assert.equal(buildSettingsSnapshot({ alertRain: true }).alertRain, true);
 });
 
+// The warn box per paired kind: one letter per kind in wire order, RESOLVED with the
+// platform default — fill on a colour watch, outline on B&W and for the goal kinds.
+test('warnLooks reports the resolved warn look per paired kind', () => {
+  assert.equal(buildSettingsSnapshot({}).warnLooks, 'ffffooof',
+    'untouched colour watch (watchInfo absent reads as basalt)');
+  assert.equal(buildSettingsSnapshot({}, { platform: 'diorite' }).warnLooks, 'oooooooo',
+    'untouched B&W watch: outline everywhere');
+  assert.equal(buildSettingsSnapshot({ threshAqiWarnLook: 'none', threshStepsWarnLook: 'fill',
+    threshUvWarnLook: 'outline' }, { platform: 'emery' }).warnLooks, 'nffffooo');
+  assert.equal(buildSettingsSnapshot({ threshWindWarnLook: 'bogus' }).warnLooks, 'ffffooof',
+    'an unknown value reports the default the watch draws');
+});
+
 test('the Alerts card fields are declared in the Deno .strip() schema too', () => {
   const fs = require('fs');
   const path = require('path');
@@ -1219,4 +1234,6 @@ test('the Alerts card fields are declared in the Deno .strip() schema too', () =
     'alertBars must be an optional string in the ingest schema, or .strip() drops it');
   assert.match(slice, /^\s*alertRain:\s*z\.boolean\(\)\.optional\(\)/m,
     'alertRain must be an optional boolean in the ingest schema, or .strip() drops it');
+  assert.match(slice, /^\s*warnLooks:\s*z\.string\(\)\.optional\(\)/m,
+    'warnLooks must be an optional string in the ingest schema, or .strip() drops it');
 });

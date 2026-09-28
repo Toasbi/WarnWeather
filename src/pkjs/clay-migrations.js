@@ -126,6 +126,11 @@ function runMigrations(opts) {
     migrateThresholdHighlightToggles(
         isDone(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY),
         mark(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY));
+    // Marks synchronously and asks for no send: it keeps each install's old warn
+    // box, which the watch already draws from the colour byte (see the function).
+    migrateWarnLook(
+        isDone(KEYS.WARN_LOOK_MIGRATION_KEY),
+        mark(KEYS.WARN_LOOK_MIGRATION_KEY));
     // Marks synchronously: if the send it asks for NACKs, the outbox's uncommitted
     // last-sent cache still carries the new text on the next Clay send.
     var wantsClayNoRainText = migrateEmptyNoRainText(
@@ -867,6 +872,66 @@ function migrateThresholdHighlightToggles(isMigrationDone, markDone) {
 }
 
 /**
+ * One-time 1.24.0 move of the retired 'Outline on warn' / 'Outline on close' toggle
+ * (thresh<K>WarnOutlineOn) onto the warn look (thresh<K>WarnLook: none / outline /
+ * fill). The look has a per-PLATFORM default (status-thresholds.js warnLookDefault:
+ * fill on colour watches, outline on B&W, outline for the goal kinds) and is never
+ * seeded, so only the installs whose old box differs from "absent → default" get a
+ * stored look:
+ *  - a WEATHER kind whose outline was on keeps its outline — the stored toggle true,
+ *    or a stored warn colour (an int, or a non-empty '#RRGGBB'): before the toggle
+ *    existed, and until the page next re-derived it, the colour alone drew the box.
+ *    Every other weather kind stays absent and takes the new default (the owner's
+ *    "switch to fill").
+ *  - a GOAL kind whose outline was off keeps no box ('none') — the stored toggle
+ *    false, or the blank warn colour ('' or the old parseResponse bug's null) that
+ *    was the wire's no-outline state.
+ * Keyed on the stored VALUES, never on absence (seedDefaults runs first and writes
+ * the old toggle's and colour's defaults: weather false / '', goal true / green —
+ * both land on "leave absent"). A look already stored is the page's own truth and is
+ * left alone. The old toggle is not deleted: nothing reads it any more.
+ *
+ * No Clay send: the watch keeps drawing each install's old box from the warn colour
+ * byte until the next Clay send carries the look bytes. "Reset watchface" marks this
+ * done (clay-settings.js resetAll): after a reset a blank colour means auto.
+ *
+ * @param {function(): boolean} isMigrationDone marker probe
+ * @param {function()} markDone marker setter
+ * @returns {void}
+ */
+function migrateWarnLook(isMigrationDone, markDone) {
+    var persistClay = loadForMigration(isMigrationDone, 'warn look');
+    if (persistClay === null) { return; }
+    var changed = false;
+    for (var i = 0; i < thresholds.KINDS.length; i++) {
+        var kind = thresholds.KINDS[i];
+        if (kind.boldOnly) { continue; }
+        var lookKey = 'thresh' + kind.key + 'WarnLook';
+        if (Object.prototype.hasOwnProperty.call(thresholds.WARN_LOOKS, persistClay[lookKey])) {
+            continue;
+        }
+        var outlineOn = persistClay['thresh' + kind.key + 'WarnOutlineOn'];
+        var rawWarn = persistClay['thresh' + kind.key + 'WarnColor'];
+        var look = null;
+        if (kind.goal) {
+            if (outlineOn === false || rawWarn === '' || rawWarn === null) { look = 'none'; }
+        } else if (outlineOn === true || typeof rawWarn === 'number'
+                   || (typeof rawWarn === 'string' && rawWarn !== '')) {
+            look = 'outline';
+        }
+        if (look !== null) {
+            persistClay[lookKey] = look;
+            changed = true;
+        }
+    }
+    if (changed) {
+        save(persistClay);
+        console.log('Migrated the warn outline toggles to warn looks');
+    }
+    markDone();
+}
+
+/**
  * One-time 1.24.0 move of the rain window's retired Off option. Until 132b577a the
  * Radar tab's rain countdown offered 'Off' (rainCountdownHorizon '0'); the rain
  * alert's own switch (alertRain) replaced it, but a stored '0' was never moved: the
@@ -907,6 +972,7 @@ function migrateRainHorizonOff(isMigrationDone, markDone) {
 module.exports = {
     runMigrations: runMigrations,
     migrateRainHorizonOff: migrateRainHorizonOff,
+    migrateWarnLook: migrateWarnLook,
     migrateExistingInstallOnboarded: migrateExistingInstallOnboarded,
     migrateWeekendHolidayColors: migrateWeekendHolidayColors,
     migrateHolidayWhiteToToggle: migrateHolidayWhiteToToggle,

@@ -112,6 +112,27 @@ function alertBarsReport(safe) {
 }
 
 /**
+ * Each paired threshold kind's warn look, one letter per kind in the wire order
+ * (status-thresholds KINDS: aqi, pollen, wind, gust, steps, sleep, distance, uv) —
+ * n none, o outline, f fill. RESOLVED, the platform default included
+ * (warnLookFor), so it reports the box the watch draws: 'ffffooof' is an untouched
+ * colour watch, 'oooooooo' an untouched B&W one. Eight characters, not a list: the
+ * heaviest custom-layout envelope had 37 B of headroom before it.
+ * @param {Object} safe Settings blob (never null).
+ * @param {boolean} isColor Whether the watch has a colour display.
+ * @returns {string} e.g. 'ffffooof'.
+ */
+function warnLooksReport(safe, isColor) {
+    var out = '';
+    var kinds = statusThresholds.KINDS;
+    for (var i = 0; i < kinds.length; i++) {
+        if (kinds[i].boldOnly) { continue; }
+        out += statusThresholds.warnLookFor(safe, kinds[i].key, isColor).charAt(0);
+    }
+    return out;
+}
+
+/**
  * Build a compact, allowlisted settings snapshot for telemetry.
  *
  * @param {Object} settings Clay settings object.
@@ -210,6 +231,10 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // switch — on by default like radarSky: a missing key is on.
         alertBars: alertBarsReport(safe),
         alertRain: safe.alertRain !== false,
+        // The warn box per paired kind (see warnLooksReport). The platform decides the
+        // default, and watchInfo absent reads as basalt (colour), as for the colours.
+        warnLooks: warnLooksReport(safe, configUi.isColorPlatform(
+            (watchInfo && watchInfo.platform) ? watchInfo.platform : 'basalt')),
         // The battery saver's window — the saver's OWN pair, as it has always been;
         // the Nighttime card groups it with two other features but shares no hours
         // with them. Present only while the saver is on ("value in effect"), which is

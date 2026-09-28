@@ -157,7 +157,7 @@ const STATUS_SEGMENTS = [
       statusForecastLeft: 'temp', statusForecastMid: 'wind', statusForecastRight: 'uv',
       statusTopLeft: 'gust', statusTopMid: 'steps', statusTopRight: 'sleep',
       threshWindOn: true, threshWindWarn: '15', threshWindDanger: '40',
-      threshWindWarnOutlineOn: true, threshWindWarnColor: '#FFAA00',
+      threshWindWarnLook: 'outline', threshWindWarnColor: '#FFAA00',
       threshGustOn: true, threshGustWarn: '20', threshGustDanger: '30',
       threshGustDangerColor: '#FF0000' },
     // emery has the HR sensor; aplite has no health at all -> weather-only top strip.

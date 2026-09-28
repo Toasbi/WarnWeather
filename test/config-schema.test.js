@@ -39,7 +39,7 @@ const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
 const BOLD_ONLY_STEMS = ['Temp', 'Pressure', 'Sun', 'Date', 'Week', 'City', 'Countdown', 'Hr', 'BatteryPct', 'Dew',
   'PhoneBattery'];
 const BOLD_ONLY_KEYS = BOLD_ONLY_STEMS.map((stem) => 'thresh' + stem + 'BoldMode');
-const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnOutlineOn', 'Warn', 'Danger', 'Max'])
+const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 'Max'])
   .concat(THRESH_COLOR_KEYS)
   .concat(BOLD_ONLY_KEYS)
   // Per-kind display rows that ride a threshold sheet: the wind/gust direction arrows,
@@ -120,7 +120,7 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   assert.deepEqual(dups.sort(),
     ['colorUSFederal', 'pressureScale', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  ALERT_STEMS.forEach((stem) => ['On', 'Warn', 'Danger', 'Max', 'WarnOutlineOn', 'WarnColor', 'DangerColor']
+  ALERT_STEMS.forEach((stem) => ['On', 'Warn', 'Danger', 'Max', 'WarnLook', 'WarnColor', 'DangerColor']
     .forEach((suffix) => assert.equal(counts['thresh' + stem + suffix], 1,
       'thresh' + stem + suffix + ' appears once (the Alerts sheet)')));
   assert.equal(counts.windScale, 12, 'windScale appears in twelve slots (4 contexts × 3 units)');

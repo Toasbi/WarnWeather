@@ -375,7 +375,9 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // 520 -> 521 when it widened 35 -> 36: the per-bar Alerts placement byte (2 bits
   // per status bar). The metric alerts themselves ride the weather message
   // (ALERT_ENTRIES_UINT8, recorded above). Headroom 16 -> 15 B.
-  assert.equal(size, 521, 'update the recorded Clay message size when its wire contract changes');
+  // 521 -> 523 when it widened 36 -> 38: the two warn-look bytes (2 bits per paired
+  // kind — none / outline / fill, the box at the warn level). Headroom 15 -> 13 B.
+  assert.equal(size, 523,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });
 

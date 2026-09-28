@@ -50,7 +50,9 @@ const BOLD_TOP = {
   threshDateBoldMode: 'always',
   threshSunBoldMode: 'always'
 };
-const AQI_HIGHLIGHT = { threshAqiOn: true, threshAqiWarnOutlineOn: true };
+// The warn box is the kind's warn look, whose platform default already draws one —
+// the rule switches the highlight on and nothing else.
+const AQI_HIGHLIGHT = { threshAqiOn: true };
 // Steps rides into the top row, so on emery it is bolded with the rest of that row —
 // the top-row bold names the row's DEFAULT kinds, and this rule is what changes one.
 const HEALTH_SLOTS = {

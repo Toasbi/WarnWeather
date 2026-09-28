@@ -21,14 +21,36 @@ const BASE = {
   healthMode: 'all', theme: 'dark'
 };
 
-test('Clay payload carries the 36-byte threshold settings blob', () => {
+test('Clay payload carries the 38-byte threshold settings blob', () => {
   const payload = buildClayPayload(BASE, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
   assert.ok(Array.isArray(payload.CLAY_THRESHOLDS_UINT8));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 36);
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 38);
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0], 0); // nothing configured
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[34], 0); // rain look: text, today's
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[35], 1); // Alerts row: the strip left, today's
+  // Warn looks: the colour-watch defaults (weather fill, goal outline).
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0xAA, 0x95]);
+});
+
+// The warn look's default is per PLATFORM, so the payload hands the packer the
+// watch's env: a B&W watch outlines where a colour one fills (a B&W warn fill would
+// look exactly like danger). A stored look is sent as picked on either.
+test('the warn looks ride bytes 36-37 with the watch platform\'s default', () => {
+  const at = new Date('2026-07-22T00:00:00Z');
+  ['diorite', 'flint'].forEach((platform) => {
+    const payload = buildClayPayload(BASE, { platform }, at);
+    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0x55, 0x55], platform);
+    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8,
+      thresholds.buildSettingsBlob(BASE, { color: false }), platform + ': the packer, with env');
+  });
+  ['basalt', 'chalk', 'emery'].forEach((platform) => {
+    assert.deepEqual(buildClayPayload(BASE, { platform }, at).CLAY_THRESHOLDS_UINT8.slice(36),
+      [0xAA, 0x95], platform);
+  });
+  const picked = Object.assign({}, BASE, { threshUvWarnLook: 'fill', threshAqiWarnLook: 'none' });
+  assert.deepEqual(buildClayPayload(picked, { platform: 'diorite' }, at)
+    .CLAY_THRESHOLDS_UINT8.slice(36), [0x54, 0x95], 'picks win on B&W too');
 });
 
 // Where each bar shows the Alerts row rides byte 35, so a change reaches the watch
@@ -68,8 +90,8 @@ test('the blob matches buildSettingsBlob for configured settings', () => {
 
 test('aplite gets no threshold blob at all (it compiles the highlight out)', () => {
   // aplite has no WW_THRESHOLD_HIGHLIGHT: its status-row twin cannot draw the
-  // highlight and its inbox handler for this tuple is gone, so the 43 B
-  // (36-byte blob + 7 B tuple header) must not ride its Clay bundle.
+  // highlight and its inbox handler for this tuple is gone, so the 45 B
+  // (38-byte blob + 7 B tuple header) must not ride its Clay bundle.
   const payload = buildClayPayload(BASE, { platform: 'aplite' },
     new Date('2026-07-22T00:00:00Z'));
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_THRESHOLDS_UINT8'), false);
@@ -85,7 +107,7 @@ test('the dew bold cell fits byte 33 without widening the blob', () => {
   const s = Object.assign({}, BASE, { threshDewBoldMode: 'always' });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 36,
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 38,
     'kinds 17-19 share byte 33 with kind 16 — no widening');
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
   // The cell lands where the contract says, and leaves its byte-mates alone.
@@ -118,7 +140,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   const s = Object.assign({}, BASE, { threshPhoneBatteryBoldMode: 'always' });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 36,
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 38,
     'the phone battery must not grow the Clay bundle by a byte');
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
   const byte33 = payload.CLAY_THRESHOLDS_UINT8[33];
@@ -134,7 +156,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   });
   const fullPayload = buildClayPayload(full, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 36);
+  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 38);
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[33], 0xAA, 'all four cells = always');
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[34], 0, 'no bold cell spills into the alerts byte');
 });
@@ -155,17 +177,17 @@ test('the phone-battery slots pack their own cells, not the city cell they resem
 test('an unknown/absent watchInfo still gets the blob (never hide a real feature)', () => {
   [null, undefined, {}].forEach((wi) => {
     const payload = buildClayPayload(BASE, wi, new Date('2026-07-22T00:00:00Z'));
-    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 36, String(wi));
+    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 38, String(wi));
+    // Unknown platform = colour, like every capability: the colour defaults.
+    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0xAA, 0x95], String(wi));
   });
 });
 
-test("a goal kind's outline-off sentinel ('') survives the settings save round-trip", () => {
-  // Turning a goal kind's outline toggle OFF stores '' as its warn color — the
-  // explicit no-outline sentinel, distinct from null/undefined ("never touched",
-  // which reseeds the default green outline). The page response passes through
-  // parseResponse (colors hex->int) and JSON persistence on its way to storage;
-  // if '' comes out as anything else (hexToInt('') is NaN, which JSON turns into
-  // null), the watch keeps outlining and the settings page re-enables the toggle.
+test("a goal kind's blank warn color ('') survives the settings save round-trip", () => {
+  // A blank warn color is the page's "auto" (the goal green). The page response
+  // passes through parseResponse (colors hex->int) and JSON persistence on its way
+  // to storage; '' must come out as '' (hexToInt('') is NaN, which JSON would turn
+  // into null — the old bug), so what the watch is told cannot change on save.
   const configUi = require('../src/pkjs/config-ui');
   const schema = require('../src/pkjs/settings/schema.js');
   const inst = configUi.createConfig({ schema, page: '' });
@@ -179,21 +201,20 @@ test("a goal kind's outline-off sentinel ('') survives the settings save round-t
     'the save round-trip must not change what the watch is told');
 });
 
-test("a goal kind's legacy null warn color (the old NaN bug's footprint) packs as outline-off", () => {
+test("a goal kind's legacy null warn color is AUTO at pack time — the off state is the none look", () => {
   // Before the '' sentinel fix, turning a goal outline off stored
-  // hexToInt('') = NaN, which JSON persisted as null. A never-touched key is
-  // ABSENT from the blob (JSON drops undefined), never null — so a stored null
-  // can only mean "the user turned this off under the old code" and must heal
-  // to the explicit-off state, not fall back to the default green.
-  const off = Object.assign({}, BASE,
-    { threshSleepWarn: '360', threshSleepDanger: '480', threshSleepWarnColor: null });
-  const explicit = Object.assign({}, BASE,
-    { threshSleepWarn: '360', threshSleepDanger: '480', threshSleepWarnColor: '' });
-  assert.deepEqual(thresholds.buildSettingsBlob(off), thresholds.buildSettingsBlob(explicit),
-    'null must pack exactly like the explicit off-sentinel');
-  // An ABSENT goal warn color still means never-touched: the default green.
-  const untouched = Object.assign({}, BASE,
-    { threshSleepWarn: '360', threshSleepDanger: '480' });
-  assert.notDeepEqual(thresholds.buildSettingsBlob(untouched), thresholds.buildSettingsBlob(off),
-    'absent still falls back to the default goal outline');
+  // hexToInt('') = NaN, which JSON persisted as null. Since the warn look, the
+  // colour no longer carries on/off: null, '' and absent all pack as the auto goal
+  // green, and "no box" is threshSleepWarnLook 'none' — which the one-time
+  // migration (clay-migrations.js migrateWarnLook) wrote for exactly those blobs.
+  const pair = { threshSleepWarn: '360', threshSleepDanger: '480' };
+  const nul = Object.assign({}, BASE, pair, { threshSleepWarnColor: null });
+  const blank = Object.assign({}, BASE, pair, { threshSleepWarnColor: '' });
+  const untouched = Object.assign({}, BASE, pair);
+  assert.deepEqual(thresholds.buildSettingsBlob(nul), thresholds.buildSettingsBlob(untouched));
+  assert.deepEqual(thresholds.buildSettingsBlob(blank), thresholds.buildSettingsBlob(untouched));
+  assert.equal(thresholds.buildSettingsBlob(nul)[1 + 2 * 5], 0xDC, 'the goal green');
+  const none = thresholds.buildSettingsBlob(Object.assign({}, nul, { threshSleepWarnLook: 'none' }));
+  assert.equal(none[1 + 2 * 5], 0x00, 'the none look is the no-box marker');
+  assert.equal((none[37] >> 2) & 3, thresholds.WARN_LOOKS.none);
 });

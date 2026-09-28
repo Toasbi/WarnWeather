@@ -209,12 +209,12 @@ test('finishing the wizard on emery bolds the Watch + Forecast rows and hands AQ
 
   BOLD_KEYS.forEach((k) => assert.equal(ctx.S[k], 'always', k));
   assert.equal(ctx.S.threshAqiOn, true, 'AQI highlighting on');
-  assert.equal(ctx.S.threshAqiWarnOutlineOn, true, 'AQI warn outline on');
+  assert.equal(ctx.S.threshAqiWarnLook, 'fill', 'AQI warn box: the colour watch\'s default look');
   // threshStepsBoldMode rides with the slot swap: steps replaces sunrise/sunset in
   // the top row, so it has to be bold like the rest of that row.
   assert.equal(ctx.S.threshStepsBoldMode, 'always', 'the promoted steps slot is bold too');
   assert.deepEqual(Object.keys(written).sort(),
-    BOLD_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopRight',
+    BOLD_KEYS.concat(['threshAqiOn', 'statusTopRight',
       'statusHealthLeft', 'threshStepsBoldMode']).sort(),
     'the report names exactly the keys it wrote');
 });
@@ -236,7 +236,7 @@ test('finishing the wizard on a narrow watch bolds the Forecast row and fills th
   assert.notEqual(ctx.S.threshStepsBoldMode, 'always',
     'and no bold rides along — it would be the only heavy value in that strip');
   assert.deepEqual(Object.keys(written).sort(),
-    BOLD_FORECAST_KEYS.concat(['threshAqiOn', 'threshAqiWarnOutlineOn', 'statusTopLeft',
+    BOLD_FORECAST_KEYS.concat(['threshAqiOn', 'statusTopLeft',
       'statusHealthLeft']).sort(),
     'the report names exactly the keys it wrote');
 });
@@ -245,15 +245,12 @@ test('the AQI seeding runs through the settings page\'s own hooks, not hand-pick
   const ctx = wizCtx();
   W.applyWizardDefaults(ctx, 'save');
 
-  // What flipping the two toggles by hand on the settings page produces.
+  // What flipping the highlight switch by hand on the settings page produces.
   const hand = wizCtx();
   hand.S.threshAqiOn = true;
   PConf.onChange.get('thresholdToggle')(hand.S, false, true, hand.ENV, 'threshAqiOn');
-  hand.S.threshAqiWarnOutlineOn = true;
-  PConf.onChange.get('thresholdOutlineToggle')(hand.S, false, true, hand.ENV, 'threshAqiWarnOutlineOn');
 
   assert.notEqual(hand.S.threshAqiWarn, '', 'guard: the hook really seeds a pair');
-  assert.notEqual(hand.S.threshAqiWarnColor, '', 'guard: the hook really seeds an outline color');
   assert.equal(ctx.S.threshAqiWarn, hand.S.threshAqiWarn);
   assert.equal(ctx.S.threshAqiDanger, hand.S.threshAqiDanger);
   assert.equal(ctx.S.threshAqiWarnColor, hand.S.threshAqiWarnColor);

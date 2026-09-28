@@ -105,18 +105,18 @@
             when: {wizard: true},
             why: 'Permanent bold costs air quality its alarm: a reading that is always '
                 + 'heavy cannot get heavier when the air turns bad. Switching its '
-                + 'highlight on with the warn outline hands that reading back a signal '
-                + 'the weight can no longer carry.',
-            set: {threshAqiOn: true, threshAqiWarnOutlineOn: true},
-            // Both keys are the visible half of a pair: the stored warn/danger
-            // numbers and the outline colour come from the settings page's own
-            // onChange hooks (blocks.js). Write these two THROUGH those hooks
-            // rather than storing them directly, and the seeded companions are
-            // identical to what flipping the toggle by hand produces — no
-            // hand-picked threshold numbers living in a second place.
+                + 'highlight on hands that reading back a signal the weight can no '
+                + 'longer carry.',
+            // The warn box is the kind's warn look, whose platform default (fill on
+            // colour, outline on B&W) already draws one — nothing to set for it.
+            set: {threshAqiOn: true},
+            // The key is the visible half of a pair: the stored warn/danger numbers
+            // come from the settings page's own onChange hook (blocks.js). Write it
+            // THROUGH that hook rather than storing the pair directly, and the
+            // seeded companions are identical to what flipping the switch by hand
+            // produces — no hand-picked threshold numbers living in a second place.
             seedVia: {
-                threshAqiOn: 'thresholdToggle',
-                threshAqiWarnOutlineOn: 'thresholdOutlineToggle'
+                threshAqiOn: 'thresholdToggle'
             }
         },
         {

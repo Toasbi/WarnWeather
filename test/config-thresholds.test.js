@@ -101,12 +101,22 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
     // A goal kind's highlight-only rows still disable (not hide) on the toggle; a
     // weather kind's are always live — they style its alert icon too, which the
     // slot's Highlight switch does not touch.
-    ['WarnOutlineOn', 'WarnColor', 'DangerColor'].forEach(which => {
+    ['WarnLook', 'WarnColor', 'DangerColor'].forEach(which => {
       const it = map['thresh' + stem + which];
       assertGroupItem(it, stem, 'thresh' + stem + which);
       assert.deepEqual(it[0].disabledWhen, alert ? undefined : { not: { key: 'thresh' + stem + 'On' } },
         'thresh' + stem + which + (alert ? ' is always live' : ' must disable (not hide) on its toggle'));
     });
+    // The warn look: none / outline / fill, its default resolved per platform by the
+    // contract (weather fill on colour, outline on B&W; goal outline) — never seeded.
+    const look = map['thresh' + stem + 'WarnLook'][0];
+    assert.deepEqual(look.options.map(o => o[1]), ['none', 'outline', 'fill']);
+    assert.deepEqual(look.defaultFrom, { resolver: 'warnLookDefault', args: { keyStem: stem } });
+    assert.equal(look.defaultValue, undefined, 'defaultFrom only');
+    assert.equal(PC.engine.resolveDefaultFrom(look, { color: true }), alert ? 'fill' : 'outline',
+      stem + ' colour default');
+    assert.equal(PC.engine.resolveDefaultFrom(look, { color: false }), 'outline', stem + ' B&W default');
+    assert.equal(map['thresh' + stem + 'WarnOutlineOn'], undefined, 'the old toggle is gone');
     assert.equal(on[0].label, alert ? 'Highlight' : 'Goals', 'the toggle\'s label');
     // The reset button moved onto the group's sub-header — see "the group header
     // owns the title and the reset action" below.
@@ -151,11 +161,9 @@ test('threshold color pickers are COLOR + bw-theme gated (goal kinds: + toggle),
       assert.deepEqual(it.disabledWhen, alert ? undefined : { not: { key: 'thresh' + stem + 'On' } },
         it.messageKey + (alert ? ' is always live (it styles the alert icon too)'
           : ' must disable (not hide) while the highlight is off'));
-      // Weather kinds hydrate '' (warn: the no-outline sentinel; danger: auto ->
-      // onLoad derives the theme fg). Goal kinds hydrate the green celebration
-      // default — '' would read as outline-off in the seeded store, which is
-      // exactly the bug that shipped the first cut of the rework (MEASURED:
-      // bold-but-no-outline on the emulator).
+      // Weather kinds hydrate '' (auto -> onLoad derives the theme fg, the packer
+      // resolves it the same way). Goal kinds hydrate the green celebration
+      // default. Whether warn draws a box is the warn look, not the colour.
       const goal = ['Steps', 'Sleep', 'Distance'].indexOf(stem) >= 0;
       assert.equal(it.defaultValue, goal ? '#55FF00' : '',
         it.messageKey + ' default');
@@ -298,14 +306,17 @@ test('scale max: override honored, garbage ignored, always grows to fit stored v
 });
 
 test('resolver colors: auto tracks the theme fg, picks stick, garbage sanitized', () => {
-  // Unset WARN = no outline: the slider draws its warn pieces in the neutral gray
-  // (the zone still shows where warn spans). Unset DANGER = auto theme fg.
+  // Warn look 'none' = no box: the slider draws its warn pieces in the neutral gray
+  // (the zone still shows where warn spans). Unset colours = auto theme fg.
   const dflt = B.thresholdRangeCfg({}, ENV, { keyStem: 'Wind' });
-  assert.equal(dflt.warnColor, '#8A8E97');
+  assert.equal(dflt.warnColor, '#FFFFFF', 'unset warn colour = auto theme fg');
   assert.equal(dflt.dangerColor, '#FFFFFF');
   assert.equal(dflt.dangerText, '#20232A', 'white auto fill takes dark ink');
-  const light = B.thresholdRangeCfg({ theme: 'light' }, ENV, { keyStem: 'Wind' });
-  assert.equal(light.warnColor, '#8A8E97', 'no-outline neutral is theme-independent');
+  const none = B.thresholdRangeCfg({ threshWindWarnLook: 'none' }, ENV, { keyStem: 'Wind' });
+  assert.equal(none.warnColor, '#8A8E97', 'look none: the neutral gray');
+  const light = B.thresholdRangeCfg({ theme: 'light', threshWindWarnLook: 'none' }, ENV,
+    { keyStem: 'Wind' });
+  assert.equal(light.warnColor, '#8A8E97', 'no-box neutral is theme-independent');
   assert.equal(light.dangerText, '#FFFFFF', 'black auto fill takes white ink');
   // User picks — the old orange/red defaults included — are ordinary colors now.
   const picked = B.thresholdRangeCfg(
@@ -404,27 +415,25 @@ test('onLoad derives auto colors from the theme; user picks survive', () => {
     });
     return S;
   }
-  // Fresh install, dark (default) theme: DANGER lands on the theme fg; WARN stays
-  // blank — no outline is the warn default (bold text only) — and the derived
-  // outline toggle reads off.
+  // Fresh install, dark (default) theme: WARN and DANGER both land on the theme fg —
+  // whether warn draws a box is the warn look, not the colour — and no outline
+  // toggle is derived any more.
   const dark = loaded({});
-  assert.equal(dark.threshAqiWarnColor, '');
-  assert.equal(dark.threshAqiWarnOutlineOn, false);
-  // Goal kinds seed the green celebration colors (outline on) instead.
+  assert.equal(dark.threshAqiWarnColor, '#FFFFFF');
+  assert.equal(dark.threshAqiDangerColor, '#FFFFFF');
+  assert.equal(dark.threshAqiWarnOutlineOn, undefined, 'the retired toggle is never written');
+  // Goal kinds seed the green celebration colors instead.
   assert.equal(dark.threshStepsWarnColor, '#55FF00');
-  assert.equal(dark.threshStepsWarnOutlineOn, true);
   assert.equal(dark.threshStepsDangerColor, '#55FF00');
-  // A STALE pre-outline-toggle auto value (theme fg) converts to blank — those
-  // installs get the new bold-only default; danger still re-derives per theme.
+  // A STALE auto value (the other theme's fg) re-derives for this theme.
   const light = loaded({ theme: 'light', threshAqiWarnColor: '#FFFFFF' });
-  assert.equal(light.threshAqiWarnColor, '');
-  assert.equal(light.threshAqiWarnOutlineOn, false);
+  assert.equal(light.threshAqiWarnColor, '#000000');
+  // A blank goal colour is auto too now (green), not "outline off".
+  assert.equal(loaded({ threshStepsWarnColor: '' }).threshStepsWarnColor, '#55FF00');
   // A user pick is never touched — the contract's orange/red included (nobody
-  // shipped with them as page defaults, so they are ordinary picks) — and it means
-  // the outline toggle reads ON.
+  // shipped with them as page defaults, so they are ordinary picks).
   const custom = loaded({ theme: 'light', threshAqiWarnColor: '#00AAFF' });
   assert.equal(custom.threshAqiWarnColor, '#00AAFF');
-  assert.equal(custom.threshAqiWarnOutlineOn, true);
   const orange = loaded({ threshAqiWarnColor: '#FFAA00', threshAqiDangerColor: '#FF0000' });
   assert.equal(orange.threshAqiWarnColor, '#FFAA00');
   assert.equal(orange.threshAqiDangerColor, '#FF0000');
@@ -487,7 +496,7 @@ test('the generated page never references buildSettingsBlob outside its own modu
 // here would be one more thing to drift.
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 
-// A row carrying the given data-k, muted (row class `dis`) — the outline toggle's row.
+// A row carrying the given data-k, muted (row class `dis`) — e.g. the warn look's row.
 const disabledRowWith = (html, key) => new RegExp('<div class="row[^"]*\\bdis\\b[^"]*">'
   + '(?:(?!<div class="row)[\\s\\S])*?data-k="' + key + '"').test(html);
 
@@ -505,14 +514,14 @@ test('the sheets: the levels and look stay live whatever the slot Highlight; on 
     < page.modal.innerHTML.indexOf('<div class="subhdr grp"><span>Alert levels'),
     'the alert\'s Look row sits above the levels group header');
   // The slider is LIVE on the seeds (default cfg is WAQI → US AQI), and so are the
-  // outline toggle and colors: they style the alert icon whether or not the slot is
+  // warn look and colors: they style the alert icon whether or not the slot is
   // highlighted.
   assert.ok(page.modal.innerHTML.indexOf('data-range="threshAqiWarn"') !== -1,
     'the slider renders while the highlight is off');
   assert.ok(!/class="row stack[^"]*\bdis\b/.test(page.modal.innerHTML),
     'the slider row is live');
-  assert.ok(!disabledRowWith(page.modal.innerHTML, 'threshAqiWarnOutlineOn'),
-    'the outline toggle is live while the slot highlight is off');
+  assert.ok(!disabledRowWith(page.modal.innerHTML, 'threshAqiWarnLook'),
+    'the warn look is live while the slot highlight is off');
   assert.ok(page.modal.innerHTML.indexOf('Warn 100') !== -1,
     'the slider shows the seed values');
   assert.ok(page.modal.innerHTML.indexOf('reaching warn') !== -1,
@@ -545,22 +554,22 @@ test('the sheets: the levels and look stay live whatever the slot Highlight; on 
   page.openEditSheet('alertAqi');
   assert.ok(!/class="row stack[^"]*\bdis\b/.test(page.modal.innerHTML),
     'the slider stays live with the highlight off');
-  assert.ok(!disabledRowWith(page.modal.innerHTML, 'threshAqiWarnOutlineOn'),
-    'and so does the outline toggle');
+  assert.ok(!disabledRowWith(page.modal.innerHTML, 'threshAqiWarnLook'),
+    'and so does the warn look');
 });
 
 // A goal kind keeps its switch on the Goals header, and its highlight-only rows mute
 // while it is off.
-test('the goal sheet: the switch rides the Goals header and mutes the outline while off', () => {
+test('the goal sheet: the switch rides the Goals header and mutes the warn look while off', () => {
   const page = bootGeneratedPage({ healthMode: 'status', statusHealthLeft: 'steps' });
   page.clickTab('watch');
   page.openEditSheet('threshSteps');
   assert.ok(/<div class="subhdr grp"><span>Goals<\/span>[\s\S]*?data-k="threshStepsOn"/.test(page.modal.innerHTML),
     'the switch rides the Goals sub-header');
-  assert.ok(disabledRowWith(page.modal.innerHTML, 'threshStepsWarnOutlineOn'),
-    'the outline toggle is muted while the goals are off');
+  assert.ok(disabledRowWith(page.modal.innerHTML, 'threshStepsWarnLook'),
+    'the warn look is muted while the goals are off');
   page.clickModalToggle('threshStepsOn');
-  assert.ok(!disabledRowWith(page.modal.innerHTML, 'threshStepsWarnOutlineOn'),
+  assert.ok(!disabledRowWith(page.modal.innerHTML, 'threshStepsWarnLook'),
     'and live once they are on');
 });
 
@@ -610,8 +619,8 @@ test('the reset button blanks the pair, restores default colors, clears the scal
   assert.strictEqual(page.S.threshWindOn, false, 'highlight off, as on a fresh install');
   assert.equal(page.S.threshWindWarn, '', 'warn blanked');
   assert.equal(page.S.threshWindDanger, '', 'danger blanked');
-  assert.equal(page.S.threshWindWarnColor, '', 'warn back to no outline (bold only)');
-  assert.equal(page.S.threshWindWarnOutlineOn, false, 'outline toggle back off');
+  assert.equal(page.S.threshWindWarnColor, '', 'warn colour back to auto');
+  assert.equal(page.S.threshWindWarnLook, 'fill', 'warn look back to the colour watch\'s default');
   assert.equal(page.S.threshWindDangerColor, '#FFFFFF', 'danger color back to the auto theme fg');
   assert.equal(page.S.threshWindMax, '', 'scale-max override cleared');
   assert.ok(page.modal.writes > writesBefore, 'the reset re-rendered the sheet');
@@ -723,8 +732,12 @@ test('thresholdPenState honors its env gate and the color pickers', () => {
   // with the threshold meaning carried by shape: warn rings, danger fills.
   assert.deepEqual(resolver(S, ENV, args),
     { label: 'Edit', ariaNote: 'highlighting on', bold: false,
+      dots: [{ color: '#FFFFFF', ring: true }, { color: '#FFFFFF' }] },
+    'an unset warn colour rings in the auto theme fg');
+  assert.deepEqual(resolver(Object.assign({}, S, { threshAqiWarnLook: 'none' }), ENV, args),
+    { label: 'Edit', ariaNote: 'highlighting on', bold: false,
       dots: [{ color: '#8A8E97', ring: true }, { color: '#FFFFFF' }] },
-    'no-outline warn shows the neutral ring');
+    'the none look shows the neutral ring');
   const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF' });
   assert.deepEqual(resolver(picked, ENV, args),
     { label: 'Edit', ariaNote: 'highlighting on', bold: false,
@@ -1216,17 +1229,15 @@ test('the middle Bold option goes inert while the kind thresholds are off', () =
   });
 });
 
-test('the outline toggle says what it outlines', () => {
-  const wind = levelsSheetFor('Wind').items.find(
-    it => it.messageKey === 'threshWindWarnOutlineOn');
-  assert.equal(wind.label, 'Outline on warn');
-  assert.equal(wind.hint,
-    'Adds an outline from the warn level on, to the alert icon — and to the slot, while its Highlight is on.');
-  const steps = sheetFor('Steps').items.find(
-    it => it.messageKey === 'threshStepsWarnOutlineOn');
-  assert.equal(steps.label, 'Outline on close');
-  assert.equal(steps.hint,
-    'Adds an outline to the slot when you get close to the goal.');
+test('the warn look sits where the outline toggle sat: right after the levels', () => {
+  const wind = levelsSheetFor('Wind').items;
+  const wi = wind.findIndex(it => it.messageKey === 'threshWindWarnLook');
+  assert.equal(wind[wi].type, 'segmented');
+  assert.equal(wind[wi - 1].messageKey, 'threshWindMax', 'after the slider\'s companions');
+  assert.equal(wind[wi + 1].messageKey, 'threshWindWarnColor', 'before the colours');
+  const steps = sheetFor('Steps').items;
+  const si = steps.findIndex(it => it.messageKey === 'threshStepsWarnLook');
+  assert.equal(steps[si + 1].messageKey, 'threshStepsWarnColor');
 });
 
 test('the reset button leaves the Bold setting alone', () => {
@@ -1280,19 +1291,18 @@ test('a weather kind levels reset leaves its slot Highlight switch alone', () =>
 });
 
 test('Aqi reset lands on the wizard-seeded fresh-install look, not schema-off', () => {
-  // Every install that finishes the first-run wizard gets AQI's warn outline ON
-  // (defaults-policy 'wizard-aqi-keeps-a-warn-signal') — that IS the out-of-box
-  // look. The same row's highlight switch is the slot sheet's Highlight row now,
-  // outside this group, so the levels reset leaves it as it was.
+  // The wizard's AQI row (defaults-policy 'wizard-aqi-keeps-a-warn-signal') only
+  // switches the highlight on — the warn box is the look's platform default. That
+  // switch is the slot sheet's Highlight row, outside this group, so the levels
+  // reset leaves it as it was.
   const S = { theme: 'dark', threshAqiOn: false,
     threshAqiWarn: '42', threshAqiDanger: '77', threshAqiMax: '400' };
   PC.actions.resetThresholds('Aqi', S, ENV, SCHEMA_DEFAULT_OF);
   assert.strictEqual(S.threshAqiOn, false, 'the slot Highlight is not this group\'s');
   assert.equal(S.threshAqiWarn, '', 'the pair is back on the seed (blank)');
   assert.equal(S.threshAqiDanger, '', 'the pair is back on the seed (blank)');
-  assert.strictEqual(S.threshAqiWarnOutlineOn, true, 'the warn outline is on out of the box');
-  assert.equal(S.threshAqiWarnColor, '#FFFFFF',
-    'the outline color is the theme fg, as the toggle hook seeds it');
+  assert.equal(S.threshAqiWarnLook, 'fill', 'the warn look is back on the platform default');
+  assert.equal(S.threshAqiWarnColor, '', 'the warn color is back on auto (the theme fg)');
   assert.equal(S.threshAqiMax, '', 'the scale max is still cleared');
   // Bold stays out of it — the reset deliberately leaves Bold alone (pinned above),
   // so the wizard's threshAqiBoldMode row must NOT be applied here.
@@ -1307,73 +1317,28 @@ test("a kind's reset never reaches outside that kind (the policy veto's scope)",
   const S = { theme: 'dark', threshWindOn: true,
     threshWindWarn: '40', threshWindDanger: '60' };
   PC.actions.resetThresholds('Wind', S, ENV, SCHEMA_DEFAULT_OF);
-  ['statusTopRight', 'statusHealthLeft', 'threshAqiOn', 'threshAqiWarnOutlineOn',
+  ['statusTopRight', 'statusHealthLeft', 'threshAqiOn', 'threshAqiWarnLook',
     'threshStepsBoldMode', 'threshWindBoldMode', 'threshTempBoldMode'].forEach((key) => {
     assert.ok(!(key in S), key + ' must not be written by a Wind reset');
   });
 });
 
-test('a weather-kind outline survives the next page open (stored toggle disambiguates)', () => {
-  // thresholdOutlineToggle ON seeds the theme fg — but the fg is also what a LEGACY
-  // auto warn color looks like, and onLoad converts auto colors back to '' (no
-  // outline) for weather kinds. The stored outline toggle rides the save, so it is
-  // what tells "the user turned this on" apart from "pre-toggle residue": with it
-  // true the outline must survive the reopen (and keep tracking the theme fg);
-  // without it the auto color still converts to ''. On B&W there is no color picker
-  // at all, so fg-seeded is the ONLY on-state — losing it loses the feature there.
-  const outlineHook = PC.onChange.get('thresholdOutlineToggle');
-  const S = { theme: 'dark', threshWindOn: true,
-    threshWindWarn: '40', threshWindDanger: '60' };
-  outlineHook(S, false, true, ENV, 'threshWindWarnOutlineOn');
-  S.threshWindWarnOutlineOn = true;   // the engine stores the toggle value itself
-  assert.equal(S.threshWindWarnColor, '#FFFFFF', 'precondition: ON seeds the dark fg');
-
-  // Simulate the next settings open over the saved state.
-  const ctx = { env: { platform: 'basalt' },
-    get: (k) => S[k], set: (k, v) => { S[k] = v; }, getInitial: (k) => S[k] };
-  onbuild.onLoad(ctx);
-  assert.strictEqual(S.threshWindWarnOutlineOn, true,
-    'the outline the user turned on must still be on');
-  assert.equal(S.threshWindWarnColor, '#FFFFFF', 'the auto color keeps tracking the fg');
-
-  // Theme switched between opens: the auto color follows the new theme's fg.
-  S.theme = 'light';
-  onbuild.onLoad(ctx);
-  assert.strictEqual(S.threshWindWarnOutlineOn, true);
-  assert.equal(S.threshWindWarnColor, '#000000', 'auto fg re-derives for the light theme');
-
-  // And WITHOUT the stored toggle, a legacy auto color still converts to no-outline.
-  const legacy = { theme: 'dark', threshWindWarn: '40', threshWindDanger: '60',
-    threshWindWarnColor: '#FFFFFF' };
-  onbuild.onLoad({ env: { platform: 'basalt' },
-    get: (k) => legacy[k], set: (k, v) => { legacy[k] = v; }, getInitial: (k) => legacy[k] });
-  assert.equal(legacy.threshWindWarnColor, '', 'legacy residue still reads as no outline');
-  assert.strictEqual(legacy.threshWindWarnOutlineOn, false);
-
-  // A STORED false behaves the same: the toggle owns the weather-kind state, so
-  // auto residue next to an explicit off reads as off, never as a pick.
-  const off = { theme: 'dark', threshWindWarnOutlineOn: false,
-    threshWindWarn: '40', threshWindDanger: '60', threshWindWarnColor: '#FFFFFF' };
-  onbuild.onLoad({ env: { platform: 'basalt' },
-    get: (k) => off[k], set: (k, v) => { off[k] = v; }, getInitial: (k) => off[k] });
-  assert.equal(off.threshWindWarnColor, '', 'stored-off + auto residue stays no-outline');
-  assert.strictEqual(off.threshWindWarnOutlineOn, false);
-});
-
-test('a stored-ON weather toggle heals a blank or null warn color back to the fg', () => {
-  // The toggle owns the state, so ON beside an empty-ish color — a state no UI
-  // flow produces, but a hand-edited or partially-healed blob could — re-seeds
-  // the fg and keeps the outline, rather than silently flipping the user's
-  // deliberate ON back off.
-  ['', null].forEach((rawColor) => {
-    const S = { theme: 'dark', threshWindWarnOutlineOn: true,
-      threshWindWarn: '40', threshWindDanger: '60', threshWindWarnColor: rawColor };
-    onbuild.onLoad({ env: { platform: 'basalt' },
-      get: (k) => S[k], set: (k, v) => { S[k] = v; }, getInitial: (k) => S[k] });
-    assert.equal(S.threshWindWarnColor, '#FFFFFF',
-      JSON.stringify(rawColor) + ': the fg is re-seeded');
-    assert.strictEqual(S.threshWindWarnOutlineOn, true,
-      JSON.stringify(rawColor) + ': the outline stays on');
+test('onLoad keeps an auto warn color tracking the theme fg and never touches the look', () => {
+  // The warn look decides whether warn draws a box; the colour only paints it. So an
+  // auto warn colour — blank, the old null, or an fg value — heals to the CURRENT
+  // theme's fg on every open, whatever the look, and the look itself is left alone.
+  ['', null, '#FFFFFF', '#000000'].forEach((rawColor) => {
+    ['none', 'outline', 'fill', undefined].forEach((look) => {
+      const S = { theme: 'dark', threshWindWarnColor: rawColor, threshWindWarnLook: look };
+      const ctx = { env: { platform: 'basalt' },
+        get: (k) => S[k], set: (k, v) => { S[k] = v; }, getInitial: (k) => S[k] };
+      onbuild.onLoad(ctx);
+      assert.equal(S.threshWindWarnColor, '#FFFFFF', JSON.stringify(rawColor) + ' ' + look);
+      assert.strictEqual(S.threshWindWarnLook, look, 'the look is untouched');
+      S.theme = 'light';
+      onbuild.onLoad(ctx);
+      assert.equal(S.threshWindWarnColor, '#000000', 'auto re-derives for the light theme');
+    });
   });
 });
 
@@ -1488,7 +1453,7 @@ test('every metric alert sheet: its one switch on an Alert sub-header, the Look,
     // Highlight switch says.
     const range = s.items.find(it => it.type === 'range');
     assert.equal(range.disabledWhen, undefined, s.sheetId + ' slider never mutes');
-    ['WarnOutlineOn', 'WarnColor', 'DangerColor'].forEach((which) => {
+    ['WarnLook', 'WarnColor', 'DangerColor'].forEach((which) => {
       const it = s.items.find(x => x.messageKey === 'thresh' + stem + which);
       assert.equal(it.disabledWhen, undefined, s.sheetId + ' ' + which + ' never mutes');
     });
@@ -2115,22 +2080,19 @@ test('the temp slot keeps Both and the degree sign apart, in both directions', (
   assert.equal(d.tempSlotUnit, true);
 });
 
-test("a goal kind's legacy null warn color heals to outline-off on page open", () => {
-  // The old parseResponse stored hexToInt('') = NaN -> JSON null for an
-  // explicitly turned-off goal outline. Never-touched keys are absent, not null,
-  // so null can only be that bug's footprint: it must land on the off state the
-  // user chose, not reseed the default green.
-  const healed = { theme: 'dark', threshSleepWarn: '360', threshSleepDanger: '480',
-    threshSleepWarnColor: null };
-  onbuild.onLoad({ env: { platform: 'basalt' },
-    get: (k) => healed[k], set: (k, v) => { healed[k] = v; }, getInitial: (k) => healed[k] });
-  assert.equal(healed.threshSleepWarnColor, '', 'null normalizes to the explicit-off sentinel');
-  assert.strictEqual(healed.threshSleepWarnOutlineOn, false);
-
-  // An ABSENT color is a genuinely never-touched install: default green, outline on.
-  const fresh = { theme: 'dark', threshSleepWarn: '360', threshSleepDanger: '480' };
-  onbuild.onLoad({ env: { platform: 'basalt' },
-    get: (k) => fresh[k], set: (k, v) => { fresh[k] = v; }, getInitial: (k) => fresh[k] });
-  assert.equal(fresh.threshSleepWarnColor, '#55FF00', 'absent still seeds the goal default');
-  assert.strictEqual(fresh.threshSleepWarnOutlineOn, true);
+test("a goal kind's legacy null warn color heals to the auto green on page open", () => {
+  // The old parseResponse stored hexToInt('') = NaN -> JSON null for a turned-off
+  // goal outline. Since the warn look, "off" is threshSleepWarnLook 'none' (written
+  // for exactly those blobs by clay-migrations.js migrateWarnLook), and a blank or
+  // null colour is auto: the goal green.
+  ['', null, undefined].forEach((raw) => {
+    const S = { theme: 'dark', threshSleepWarn: '360', threshSleepDanger: '480',
+      threshSleepWarnColor: raw, threshSleepWarnLook: 'none' };
+    onbuild.onLoad({ env: { platform: 'basalt' },
+      get: (k) => S[k], set: (k, v) => { S[k] = v; }, getInitial: (k) => S[k] });
+    assert.equal(S.threshSleepWarnColor, '#55FF00', JSON.stringify(raw) + ': the auto green');
+    assert.equal(S.threshSleepWarnLook, 'none', 'the none look survives the open');
+    assert.equal(S.threshSleepWarnOutlineOn, undefined, 'no outline toggle is derived');
+  });
 });
+

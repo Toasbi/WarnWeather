@@ -33,9 +33,11 @@
   // FOUR 2-bit cells (kinds 16..19): dew point (17) and the two phone-battery
   // kinds (18, 19) all appended into it for free — and it is FULL, with the alert
   // bytes right behind it. So a twenty-first kind (index 20) is no plain append
-  // any more: it needs a sixth bold byte AND both alert bytes relocated, a layout
-  // change on both ends (the C header's _Static_assert trips).
-  var SETTINGS_BYTES = 36;
+  // any more: it needs a sixth bold byte AND both alert bytes (and the warn-look
+  // bytes behind them) relocated, a layout change on both ends (the C header's
+  // _Static_assert trips). 36 -> 38 appended the two warn-look bytes, so exactly
+  // {38, 36, 35, 34, 33, 29} are accepted now.
+  var SETTINGS_BYTES = 38;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
   var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
@@ -55,6 +57,12 @@
   ];
   // statusXxxAlerts -> the 2-bit wire value (ThreshAlertsPlace).
   var BAR_ALERT_PLACES = {off: 0, left: 1, middle: 2, right: 3};
+  // The warn look per PAIRED kind (the box at the warn level — a goal kind's
+  // "close" — for its status slot and its alert icon): 2 bits per kind, kind k at
+  // byte WARN_LOOK_OFFSET + (k >> 2), bits 2 * (k & 3) — bytes 36..37.
+  var WARN_LOOK_OFFSET = 36;
+  // thresh<Kind>WarnLook -> the 2-bit wire value (ThreshWarnLook).
+  var WARN_LOOKS = {none: 0, outline: 1, fill: 2};
 
   // rainAlertDisplay -> the 2-bit wire value. 'text' is 0 — the full "Rain in
   // 12'" countdown the strip drew before the Alerts row — so an absent setting
@@ -80,9 +88,9 @@
   // same 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 scale the threshold is entered on.
   var POLLEN_BANDS = ['0', '0-1', '1', '1-2', '2', '2-3', '3'];
 
-  // Exported for the config-UI schema (Task 8), which needs the same two
-  // values as its defaultValue for the warn/danger color pickers.
-  var DEFAULT_WARN_COLOR = 0xFFAA00;
+  // The pack-time danger fallback for a weather kind whose colour never passed
+  // through the settings page. (The warn colour has no such constant: unset is
+  // AUTO — the theme's text colour, see kindConfig.)
   var DEFAULT_DANGER_COLOR = 0xFF0000;
   // Goal kinds celebrate instead of warn: crossing "close" (the warn slot) outlines
   // in this green, reaching the goal (the danger slot) fills with it. 0x55FF00 =
@@ -323,6 +331,38 @@
   }
 
   /**
+   * The warn look a kind takes while its thresh<Kind>WarnLook is unset: goal kinds
+   * the outline (their green "close" ring), weather kinds a fill on a colour watch
+   * and an outline on a B&W one — there a warn fill would be the danger fill (both
+   * solid in the one ink), so the outline is the only look that keeps the two
+   * levels apart. The settings page's defaultFrom resolver (blocks.js
+   * warnLookDefault) calls this too, so the page and the packer always agree.
+   * @param {string} keyStem Kind key stem, e.g. 'Uv'.
+   * @param {boolean} [isColor] Whether the watch has a colour display; anything
+   *     but false (an unknown platform included) counts as colour.
+   * @returns {string} 'outline' | 'fill'
+   */
+  function warnLookDefault(keyStem, isColor) {
+    if (isGoalKind(keyStem)) { return 'outline'; }
+    return isColor === false ? 'outline' : 'fill';
+  }
+
+  /**
+   * A kind's warn look: the stored thresh<Kind>WarnLook when it is a known look,
+   * else warnLookDefault. The one resolution for the packer and the telemetry code.
+   * @param {Object} settings Clay settings blob
+   * @param {string} keyStem Kind key stem, e.g. 'Uv'.
+   * @param {boolean} [isColor] Whether the watch has a colour display (see
+   *     warnLookDefault).
+   * @returns {string} 'none' | 'outline' | 'fill'
+   */
+  function warnLookFor(settings, keyStem, isColor) {
+    var raw = settings && settings['thresh' + keyStem + 'WarnLook'];
+    return Object.prototype.hasOwnProperty.call(WARN_LOOKS, raw)
+      ? raw : warnLookDefault(keyStem, isColor);
+  }
+
+  /**
    * @param {Object} settings Clay settings blob
    * @param {Object} k KINDS entry
    * @returns {string} the kind's stored bold mode, DEFAULT_BOLD_MODE when unset
@@ -341,12 +381,17 @@
    * resolved pair is ordered by construction). The toggle owns ONLY that bit
    * (plus the goal u16s, zeroed when off): a weather kind's level is packed
    * regardless (packWeatherLevels).
+   * warnLook is the resolved look (warnLookFor); warnColor is null exactly when
+   * it is 'none'.
    * @param {Object} settings Clay settings blob
    * @param {number} kindIndex wire kind id (0..THRESH_KIND_COUNT - 1)
+   * @param {boolean} [isColor] Whether the watch has a colour display (the warn
+   *     look's default, see warnLookDefault); anything but false counts as colour.
    * @returns {{enabled: boolean, warn: ?number, danger: ?number,
-   *            warnColor: ?number, dangerColor: ?number, boldMode: string}}
+   *            warnLook: ?string, warnColor: ?number, dangerColor: ?number,
+   *            boldMode: string}}
    */
-  function kindConfig(settings, kindIndex) {
+  function kindConfig(settings, kindIndex, isColor) {
     var k = KINDS[kindIndex];
     if (k.boldOnly) {
       // Bold-only kinds own no thresholds, colors, or health pair — boldMode is
@@ -356,38 +401,31 @@
       // anything.
       return {
         enabled: false, warn: null, danger: null,
-        warnColor: null, dangerColor: null,
+        warnLook: null, warnColor: null, dangerColor: null,
         boldMode: boldModeFor(settings, k)
       };
     }
     var pair = resolvedPair(k.key, settings);
     var on = Boolean(settings) && settings['thresh' + k.key + 'On'] === true;
-    // warnColor null = NO OUTLINE: warn renders as bold text only and the blob
-    // carries the 0x00 none-sentinel. Weather kinds DEFAULT to none (only the
-    // sheet's outline toggle stores a color); GOAL kinds default to the green
-    // outline — for them '' (toggle turned off) means none, while never-touched
-    // settings fall back to DEFAULT_GOAL_COLOR, matching the page's
-    // outline-on-by-default. A stored NULL counts as off too: it is the old
-    // parseResponse bug's footprint for exactly that '' (hexToInt('') = NaN,
-    // persisted as null) — a never-touched key is ABSENT from the blob, never
-    // null. Danger falls back green for goals, red for weather.
+    // The warn LOOK decides whether warn draws a box; the colour only paints it.
+    // warnColor null = look 'none': the blob carries the 0x00 sentinel, which is
+    // also what a watch WITHOUT the look bytes reads as "no outline" — so any
+    // other look keeps a real colour in that byte and an older watch still draws
+    // its outline. An unset colour ('' / null / absent, or garbage) is AUTO:
+    // the packed theme's text colour for weather kinds, the goal green for goal
+    // kinds (resolveAutoColor, fed black). Danger falls back green for goals,
+    // red for weather.
+    var warnLook = warnLookFor(settings, k.key, isColor);
     var rawWarn = settings && settings['thresh' + k.key + 'WarnColor'];
-    var warnColor;
-    if (rawWarn === '' || rawWarn === null
-        || (typeof rawWarn === 'undefined' && !k.goal)) {
-      warnColor = null;
-    } else if (typeof rawWarn === 'undefined') {
-      warnColor = DEFAULT_GOAL_COLOR;
-    } else {
-      warnColor = resolveAutoColor(
-        colorInt(rawWarn, k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_WARN_COLOR), settings, k.goal);
-    }
+    var warnColor = warnLook === 'none' ? null
+      : resolveAutoColor(colorInt(rawWarn, 0x000000), settings, k.goal);
     // Bold mode is deliberately NOT gated on `enabled`: 'always' bolds a slot
     // whose kind has its highlight off.
     return {
       enabled: on && pairOrdered(pair.warn, pair.danger),
       warn: pair.warn,
       danger: pair.danger,
+      warnLook: warnLook,
       warnColor: warnColor,
       dangerColor: resolveAutoColor(
         colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
@@ -717,16 +755,21 @@
    * which METRIC alerts are on never rides here — the phone bakes only the
    * active ones into their own weather tuple (bakeAlerts). Byte
    * BAR_ALERTS_OFFSET carries where each bar shows the row (barAlertPlace).
+   * Bytes WARN_LOOK_OFFSET.. carry each paired kind's warn look (warnLookFor),
+   * whose default depends on the watch's display — hence env.
    * @param {Object} settings Clay settings blob
-   * @returns {number[]} SETTINGS_BYTES-long array (currently 36 bytes)
+   * @param {{color: boolean}} [env] platform env (config-ui platform.js
+   *     computeEnv); absent = a colour watch
+   * @returns {number[]} SETTINGS_BYTES-long array (currently 38 bytes)
    */
-  function buildSettingsBlob(settings) {
+  function buildSettingsBlob(settings, env) {
     var blob = [];
     var i;
     var boldAll = Boolean(settings && settings.statusBoldAll === 'all');
+    var isColor = !env || env.color !== false;
     for (i = 0; i < SETTINGS_BYTES; i++) { blob.push(0); }
     for (var k = 0; k < KINDS.length; k++) {
-      var cfg = kindConfig(settings, k);
+      var cfg = kindConfig(settings, k, isColor);
       blob[BOLD_OFFSET + (k >> 2)] |=
         (boldAll ? BOLD_MODES.always : BOLD_MODES[cfg.boldMode]) << (2 * (k & 3));
       // Bold-only kinds pack ONLY their bold cell: blob[0]'s 8 enable bits and
@@ -736,6 +779,7 @@
       blob[COLORS_OFFSET + 2 * k] = cfg.warnColor === null
         ? 0 : rainTier.rgbToGColor8(cfg.warnColor);   // 0x00 = no-outline sentinel
       blob[COLORS_OFFSET + 2 * k + 1] = rainTier.rgbToGColor8(cfg.dangerColor);
+      blob[WARN_LOOK_OFFSET + (k >> 2)] |= WARN_LOOKS[cfg.warnLook] << (2 * (k & 3));
       if (k >= 4 && k <= 6) {   // the health trio only — UV (7) has no blob entry
         var off = HEALTH_OFFSET + 4 * (k - 4);
         var warn = cfg.enabled ? healthWire(k, cfg.warn, settings) : 0;
@@ -764,6 +808,10 @@
     BOLD_OFFSET: BOLD_OFFSET,
     ALERTS_OFFSET: ALERTS_OFFSET,
     BAR_ALERTS_OFFSET: BAR_ALERTS_OFFSET,
+    WARN_LOOK_OFFSET: WARN_LOOK_OFFSET,
+    WARN_LOOKS: WARN_LOOKS,
+    warnLookDefault: warnLookDefault,
+    warnLookFor: warnLookFor,
     BAR_ALERT_KEYS: BAR_ALERT_KEYS,
     BAR_ALERT_PLACES: BAR_ALERT_PLACES,
     barAlertPlace: barAlertPlace,
@@ -791,7 +839,6 @@
     alertKindCodes: alertKindCodes,
     alertValueKindCodes: alertValueKindCodes,
     buildSettingsBlob: buildSettingsBlob,
-    DEFAULT_WARN_COLOR: DEFAULT_WARN_COLOR,
     DEFAULT_DANGER_COLOR: DEFAULT_DANGER_COLOR
   };
 

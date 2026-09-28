@@ -1301,3 +1301,115 @@ test('resetAll marks the rain-window move done', () => {
   mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
   assert.equal(mods.claySettings.read().rainCountdownHorizon, '0', 'the marked ledger leaves it');
 });
+
+// --- 1.24.0: the 'Outline on warn' toggle becomes the warn look ----------------------
+
+test('migrateWarnLook: a weather outline that was on stays an outline; a goal outline that was off becomes none', () => {
+  const c = loadThresholdToggleCase({
+    // Weather kinds: the stored toggle on → outline.
+    threshWindWarnOutlineOn: true, threshWindWarnColor: 0xFFFFFF,
+    // A pre-toggle (or not-yet-re-derived) blob: the colour alone drew the box.
+    threshGustWarnOutlineOn: false, threshGustWarnColor: 0x00AAFF,
+    threshUvWarnColor: '#FFAA00',
+    // Outline off (blank colour) → left absent: the platform default (fill on colour).
+    threshAqiWarnOutlineOn: false, threshAqiWarnColor: '',
+    threshPollenWarnColor: null,
+    // Goal kinds: outline off → none, by the toggle or by the blank / null colour.
+    threshStepsWarnOutlineOn: false, threshStepsWarnColor: '',
+    threshSleepWarnOutlineOn: true, threshSleepWarnColor: null,
+    // Goal outline on (the default) → left absent: the goal default is outline.
+    threshDistanceWarnOutlineOn: true, threshDistanceWarnColor: 0x55FF00
+  });
+  c.clayMigrations.migrateWarnLook(c.marker.isDone, c.marker.mark);
+  const read = c.claySettings.read();
+  assert.equal(read.threshWindWarnLook, 'outline', 'toggle on');
+  assert.equal(read.threshGustWarnLook, 'outline', 'a picked colour drew the outline');
+  assert.equal(read.threshUvWarnLook, 'outline', 'a hex colour too');
+  assert.equal(read.threshAqiWarnLook, undefined, 'outline off: the platform default');
+  assert.equal(read.threshPollenWarnLook, undefined, 'the old null: the platform default');
+  assert.equal(read.threshStepsWarnLook, 'none', 'goal toggle off');
+  assert.equal(read.threshSleepWarnLook, 'none', 'goal null colour (the old bug) was off');
+  assert.equal(read.threshDistanceWarnLook, undefined, 'goal outline on: the default');
+  assert.equal(read.threshTempWarnLook, undefined, 'bold-only kinds own no look');
+  assert.strictEqual(read.threshWindWarnOutlineOn, true, 'the old toggle is left in place');
+  assert.equal(c.saves.n, 1);
+  assert.equal(c.marker.state.done, true, 'marked synchronously');
+  // What the watch is told matches what it drew before: outline where there was one,
+  // no box for the goal kinds that had none.
+  const th = require('../src/pkjs/status-thresholds.js');
+  assert.equal(th.warnLookFor(read, 'Wind', false), 'outline');
+  assert.equal(th.warnLookFor(read, 'Steps', true), 'none');
+});
+
+test('migrateWarnLook: a stored look is the page\'s own truth; idempotent; a marked ledger is a no-op', () => {
+  const kept = loadThresholdToggleCase({ threshWindWarnOutlineOn: true, threshWindWarnLook: 'fill',
+    threshStepsWarnOutlineOn: false, threshStepsWarnLook: 'outline' });
+  kept.clayMigrations.migrateWarnLook(kept.marker.isDone, kept.marker.mark);
+  assert.equal(kept.claySettings.read().threshWindWarnLook, 'fill');
+  assert.equal(kept.claySettings.read().threshStepsWarnLook, 'outline');
+  assert.equal(kept.saves.n, 0, 'nothing to save');
+  assert.equal(kept.marker.state.done, true);
+
+  const twice = loadThresholdToggleCase({ threshWindWarnOutlineOn: true, threshStepsWarnColor: '' });
+  twice.clayMigrations.migrateWarnLook(() => false, () => {});
+  const once = twice.claySettings.read();
+  twice.clayMigrations.migrateWarnLook(() => false, () => {});
+  assert.deepEqual(twice.claySettings.read(), once);
+  assert.equal(twice.saves.n, 1, 'only the first run saved');
+
+  const marked = loadThresholdToggleCase({ threshWindWarnOutlineOn: true });
+  marked.marker.mark();
+  marked.clayMigrations.migrateWarnLook(marked.marker.isDone, marked.marker.mark);
+  assert.equal(marked.claySettings.read().threshWindWarnLook, undefined, 'the marked ledger leaves it');
+});
+
+test('the warn-look move survives the boot order: a fresh seeded blob is a no-op, a legacy one moves', () => {
+  // Fresh install: seedDefaults writes weather warn colours '' and goal ones green,
+  // and no look (defaultFrom items are never seeded) → nothing to move.
+  let store = installFakeStorage();
+  let mods = loadUpgradeModules();
+  mods.claySettings.seedDefaults(COLORS);
+  const fresh = mods.claySettings.read();
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.deepEqual(mods.claySettings.read(), fresh, 'a fresh seeded blob is left exactly as seeded');
+  assert.equal(fresh.threshWindWarnLook, undefined, 'the look is never seeded');
+  assert.equal(store[mods.KEYS.WARN_LOOK_MIGRATION_KEY], '1', 'and marked');
+
+  // An existing 1.23 blob: weather outline on, a goal outline off — seedDefaults runs
+  // first and backfills only absent keys, so the stored values still decide.
+  store = installFakeStorage();
+  mods = loadUpgradeModules();
+  store['clay-settings'] = JSON.stringify({ theme: 'dark',
+    threshAqiWarnOutlineOn: true, threshAqiWarnColor: 0xFFFFFF,
+    threshSleepWarnOutlineOn: false, threshSleepWarnColor: '' });
+  mods.claySettings.seedDefaults(COLORS);
+  Object.keys(mods.KEYS).forEach((name) => {
+    if (/_MIGRATION_KEY$/.test(name) && name !== 'WARN_LOOK_MIGRATION_KEY') {
+      store[mods.KEYS[name]] = '1';
+    }
+  });
+  const res = mods.clayMigrations.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
+  const read = mods.claySettings.read();
+  assert.equal(read.threshAqiWarnLook, 'outline');
+  assert.equal(read.threshSleepWarnLook, 'none');
+  assert.equal(read.threshWindWarnLook, undefined, 'untouched kinds take the platform default');
+  assert.equal(store[mods.KEYS.WARN_LOOK_MIGRATION_KEY], '1', 'marked synchronously');
+  assert.equal(res.clayRequired, false, 'no Clay send of its own');
+});
+
+test('resetAll marks the warn-look move done: a blank colour saved after it means auto', () => {
+  installFakeStorage();
+  const mods = loadUpgradeModules();
+  localStorage.setItem('clay-settings', JSON.stringify({ threshStepsWarnColor: '' }));
+  mods.claySettings.resetAll();
+  assert.equal(localStorage.getItem(mods.KEYS.WARN_LOOK_MIGRATION_KEY), '1');
+  // The page saves before the next boot: a goal colour left blank (auto green) and a
+  // weather toggle residue must not be re-read as the old outline states.
+  localStorage.setItem('clay-settings', JSON.stringify({ threshStepsWarnColor: '',
+    threshWindWarnOutlineOn: true }));
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  const read = mods.claySettings.read();
+  assert.equal(read.threshStepsWarnLook, undefined, 'the marked ledger leaves the goal kind');
+  assert.equal(read.threshWindWarnLook, undefined, 'and the weather kind');
+});
