@@ -15,7 +15,7 @@
 // NOT LINKED ON APLITE: the row is aplite-absent (WW_ALERT_ROW in wscript), so the
 // .c body sits behind that macro and compiles to an empty object there. These
 // declarations stay visible everywhere (they emit nothing); every CALL site is
-// guarded.
+// guarded, or in a file aplite never compiles (status_row.c's lean twin replaces it).
 //
 // Where the entries come from:
 //  - the metric alerts are baked by the phone into their own weather tuple,
@@ -27,6 +27,13 @@
 // Fixed order: rain, then the metric entries in wire order (UV, wind, gust, AQI,
 // pollen — the phone's order), so the fit's tail-drop loses pollen first and rain
 // never.
+
+// The two macros gate different wire concerns (WW_THRESHOLD_HIGHLIGHT the thresholds
+// blob and levels word, WW_ALERT_ROW the entries tuple), but the row cannot stand
+// without the first: its entries are judged and painted by the threshold looks.
+#if defined(WW_ALERT_ROW) && !defined(WW_THRESHOLD_HIGHLIGHT)
+#error "WW_ALERT_ROW needs WW_THRESHOLD_HIGHLIGHT: the Alerts row paints the threshold looks"
+#endif
 
 #define ALERT_SET_MAX 6   // rain + the five metric kinds
 

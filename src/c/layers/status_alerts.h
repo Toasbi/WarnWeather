@@ -11,8 +11,9 @@
 // and hands the placed entries here.
 //
 // NOT LINKED ON APLITE: the row is aplite-absent (WW_ALERT_ROW in wscript) — the .c
-// body sits behind the macro and compiles to an empty object there. Every call site
-// is guarded; these declarations emit nothing.
+// body sits behind the macro and compiles to an empty object there. Its one caller,
+// status_row.c, is never compiled on aplite (wscript builds status_row_aplite.c
+// instead); these declarations emit nothing.
 //
 // Each entry is a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a highlighted
 // slot of its kind at the entry's REAL level (status_threshold_look) — the alert's own

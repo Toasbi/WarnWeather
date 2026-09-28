@@ -13,10 +13,6 @@
 #include "../appendix/status_threshold.h"
 #include "../windows/layout.h"   // LayoutTier (row_font)
 #include "../services/watch_services.h"
-// The Alerts row's modules, included unguarded although every use below sits behind
-// WW_ALERT_ROW: waf's dependency scanner does not evaluate -D macros, so a guarded
-// include is invisible to it (night_light.c records the flaky build that caused).
-// A header emits no code.
 #include "status_alerts.h"
 #include "../appendix/alert_set.h"
 #include "../appendix/rain_countdown.h"
@@ -29,6 +25,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// Never compiled on aplite — wscript builds status_row_aplite.c in its place — and
+// every other platform has both features, so nothing below is guarded on them.
+#if !defined(WW_ALERT_ROW) || !defined(WW_THRESHOLD_HIGHLIGHT)
+#error "status_row.c needs WW_ALERT_ROW and WW_THRESHOLD_HIGHLIGHT; aplite builds its twin"
+#endif
 
 #define STATUS_ROW_MARGIN 2
 // Icon height as a fraction of the status text's content height. Bumped 5/9 -> 6/9
@@ -70,14 +72,12 @@ struct StatusRow {
     GColor glyph_fg;
     uint16_t content_sig;
     bool uses_live_health;
-#if defined(WW_ALERT_ROW)
     // The Alerts row's glyph cache: allocated by the first draw that has entries to
     // show, freed by the first refresh that finds the bar's placement Off
     // (derive_alerts_place) and with the row. Its glyphs come and go with their
     // alerts (status_alerts_ensure), so an idle Alerts row keeps only the cache struct.
     StatusAlertsCache *alerts;
     uint8_t alerts_place;   // ThreshAlertsPlace, derived from the blob on every refresh
-#endif
 };
 
 // Main-app drawing and refresh callbacks are serialized, so all row instances can
@@ -157,7 +157,6 @@ static GFont row_font(uint8_t tier, uint8_t line_id) {
     }
 }
 
-#if defined(WW_THRESHOLD_HIGHLIGHT)
 // The bold companion of row_font(), for slots whose threshold is crossed — the
 // calendar's today-highlight pattern (CALENDAR_FONT_KEY_BOLD) applied to slots. The
 // Gothic bolds share their regular siblings' metrics (MEASURED for 18 in
@@ -188,7 +187,6 @@ static GFont row_font_bold(uint8_t tier, uint8_t line_id) {
 #endif
     }
 }
-#endif
 
 static void format_status_date(bool full_date, char *buf, size_t cap) {
     struct tm tm_now = watch_services_localtime();
@@ -495,7 +493,6 @@ static void resolve_row(const StatusRow *row, const StatusSlotView views[STATUS_
     }
 }
 
-#if defined(WW_ALERT_ROW)
 // The Alerts row resolved for one pass: the entries (the phone-baked metric alerts,
 // with the watch-resolved rain entry in front) and what their text lanes print.
 // The metric entries' values point into `bytes` — the stored tuple is read into the
@@ -555,7 +552,6 @@ static uint16_t fold_alerts(uint16_t sig, const ResolvedAlerts *a) {
     }
     return sig;
 }
-#endif
 
 StatusRow *status_row_create(uint8_t line_id) {
     StatusRow *row = malloc(sizeof(StatusRow));
@@ -580,9 +576,7 @@ void status_row_destroy(StatusRow *row) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         status_row_icons_destroy(row->glyphs[i]);
     }
-#if defined(WW_ALERT_ROW)
     status_alerts_destroy(row->alerts);
-#endif
     free(row);
     s_row_count--;
 #ifndef PBL_PLATFORM_APLITE
@@ -615,7 +609,6 @@ bool status_row_uses_live_health(const StatusRow *row) {
     return row && row->uses_live_health;
 }
 
-#if defined(WW_ALERT_ROW)
 // Read the bar's Alerts placement from the thresholds blob the pass just loaded:
 // the row's own cell of the placement byte. Every refresh reads it, so every
 // checkpoint that re-resolves the row — a settings save's among them — also picks
@@ -636,7 +629,6 @@ static void derive_alerts_place(StatusRow *row) {
 bool status_row_uses_alerts(const StatusRow *row) {
     return row && row->alerts_place != THRESH_ALERTS_OFF;
 }
-#endif
 
 // The slot kinds whose value is read from HealthService — the ones that put a row
 // into the minute handler's health work. A POSITIVE list on purpose: it used to be
@@ -666,12 +658,10 @@ bool status_row_refresh(StatusRow *row) {
     // the Alerts placement below is current even when the line has nothing to render.
     StatusSlotView views[STATUS_SLOT_COUNT];
     const bool has_line = load_pass(row->line_id, views) > 0;
-#if defined(WW_ALERT_ROW)
     derive_alerts_place(row);
     // Folded whatever it is, Off included: the same entries moved from the left to
     // the right are a new paint, and so is a row that stops drawing them.
     sig = sig_fold(sig, &row->alerts_place, 1);
-#endif
     // All three slots, always — including the ones the Alerts row may take over at
     // paint time: which slots it takes is a paint decision (it depends on measured
     // widths), not a content rule, and a signature describing only part of the row
@@ -739,7 +729,6 @@ bool status_row_refresh(StatusRow *row) {
                 row->uses_live_health = true;
             }
         }
-#if defined(WW_ALERT_ROW)
         // The Alerts row's entries fold only while the bar has a placement — Off
         // draws none of them, so they are not this row's content.
         if (row->alerts_place != THRESH_ALERTS_OFF) {
@@ -747,7 +736,6 @@ bool status_row_refresh(StatusRow *row) {
             resolve_alerts(&alerts);
             sig = fold_alerts(sig, &alerts);
         }
-#endif
     }
     if (has_drawn_sun) {
         uint8_t sun_event_start_type = (uint8_t)persist_get_sun_event_start_type();
@@ -866,7 +854,6 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     return GRect((int16_t)(x0 + lo - 2), v.y, (int16_t)((hi - lo) + 4), v.h);
 }
 
-#if defined(WW_ALERT_ROW)
 // The Alerts row's share of one draw pass: its resolved entries, the text lanes they
 // print (after the lane ladder), their measured widths, how many of them fit and
 // where the row starts (content-relative, like a StatusSlotPlace).
@@ -952,7 +939,6 @@ static void alerts_layout(const StatusRow *row, AlertsPass *a,
     a->x = (int16_t)alert_set_row_x(row->alerts_place, row->battery_override,
                                     x0, x1, content_w, w);
 }
-#endif
 
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (!row || !ctx) { return; }
@@ -979,7 +965,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     }
 
     StatusSlotPlace places[STATUS_SLOT_COUNT];
-#if defined(WW_ALERT_ROW)
     // The Alerts row, measured against the three slots: with a placement and an
     // active alert it takes its slots out of the layout; otherwise the bar lays out
     // exactly as it would without the feature.
@@ -991,9 +976,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     } else {
         status_row_layout(content_w, measures, places);
     }
-#else
-    status_row_layout(content_w, measures, places);
-#endif
 
     int text_y_rel = row_text_y(row, font);
     int text_y = row->bounds.origin.y + text_y_rel;
@@ -1016,7 +998,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         inks[i] = status_highlight_paint(ctx, box, slots[i].look);
     }
 
-#if defined(WW_ALERT_ROW)
     // The Alerts row paints its entries itself — each its own mini slot with its own
     // box — from the left edge alerts_layout gave it. The slots it replaced were
     // zeroed out of the layout, so neither pass here touches them.
@@ -1032,7 +1013,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         status_alerts_draw(ctx, row->alerts, &alerts.r.set, alerts.n, alerts.widths,
                            &alerts.text, &place);
     }
-#endif
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible) { continue; }

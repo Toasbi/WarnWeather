@@ -5,7 +5,8 @@
 
 // Host test for the Alerts row's pure half (appendix/alert_set.c). Built with
 // -DWW_ALERT_ROW, the flag wscript sets on every platform but aplite — without it
-// the module body is compiled out and nothing here would link.
+// the module body is compiled out and nothing here would link — and the
+// WW_THRESHOLD_HIGHLIGHT alert_set.h requires beside it.
 
 static int s_failures = 0;
 

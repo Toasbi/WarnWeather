@@ -13,7 +13,8 @@
 // NOT LINKED ON APLITE: aplite paints its status rows from the lean
 // layers/status_row_aplite.c twin, which carries no highlighting, so the whole
 // feature is compiled out there (WW_THRESHOLD_HIGHLIGHT in wscript) and
-// --gc-sections reaps this module. Keep every caller behind that macro.
+// --gc-sections reaps this module. Keep every caller behind that macro, or in a
+// file aplite never compiles (status_row.c: wscript builds its twin instead).
 //
 // Wire formats:
 //  - STATUS_LEVELS_UINT8 (weather message, 2 bytes LE): packed per-kind levels
