@@ -100,7 +100,7 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier);
 // The box an entry draws (a ThreshBox), with its accent byte (the kind's colour at
 // the entry's level) in *c8_out (0 with no box). A metric entry is judged at its
 // REAL level through status_threshold_box — the same decision the kind's slot
-// makes, so the two cannot disagree — but the kind's slot 'Highlight' switch (its
+// makes, so the two cannot disagree — but the kind's slot 'Alert highlighting' switch (its
 // enable bit) does not touch it: FILL at DANGER, and at WARN whatever the kind's
 // warn look says (none / outline / fill). The rain entry is never boxed: its drop
 // takes the tier's tint.

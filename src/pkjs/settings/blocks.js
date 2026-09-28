@@ -518,7 +518,7 @@ if (typeof require !== 'undefined') {
     });
 
     // Flipping a kind's highlight switch (thresh<K>On — a weather kind's slot-sheet
-    // 'Highlight' row, a goal kind's Goals header). The toggle is STORED state
+    // 'Alert highlighting' row, a goal kind's Goals header). The toggle is STORED state
     // and switches only the highlight — the levels live on without it (the
     // Alert-mode hold keeps using the warn level, and the phone packs every
     // weather kind's level; the watch gates them on the enable bit). So OFF

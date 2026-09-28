@@ -16,7 +16,7 @@
 //
 // Each entry is a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a highlighted
 // slot of its kind at the entry's REAL level (alert_set_box) — the alert's own look,
-// which the kind's slot 'Highlight' switch does not touch (that switch styles only
+// which the kind's slot 'Alert highlighting' switch does not touch (that switch styles only
 // the slot):
 //  - WARN   the kind's warn look (status_threshold_box — the slot's own rule):
 //           none = no box, the icon alone is the alert; outline = a rounded-rect

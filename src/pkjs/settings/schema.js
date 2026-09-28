@@ -394,7 +394,7 @@ function graphColorRow(row, joins) {
 // sets the day-max hold level, highlighting or not), so the intro must not read as if
 // the numbers were the highlight's alone. The weather group has NO switch of its own —
 // it sits in the kind's Alert sheet, whose 'Alert' switch shows the icon, while the
-// slot's 'Highlight' switch lives in the slot sheet — so its intro says the look
+// slot's 'Alert highlighting' switch lives in the slot sheet — so its intro says the look
 // applies to the alert icon always and to the slot only while that switch is on. The
 // goal group keeps its switch (goal kinds have no alert). Neither claims the warn level
 // bolds the value — Bold is its own setting, so saying so here could simply be false.
@@ -402,8 +402,8 @@ function graphColorRow(row, joins) {
 // status_threshold.h ThreshWarnLook), so the intro points at that row rather than
 // naming one of its looks.
 var ALERT_LEVELS_INTRO = 'Warn and danger levels for this value: reaching warn ' +
-    'draws the warn look below, reaching danger fills the alert icon — and the slot, ' +
-    'while its Highlight is on.';
+    'draws the warn look below, reaching danger fills the alert icon — and the status ' +
+    'slot, while its Alert highlighting is on.';
 // "On color watches": on B&W the looks are drawn in the theme's ink and the color
 // pickers below are hidden.
 var GOAL_SHEET_INTRO = 'Close and goal levels for this value. The switch ' +
@@ -467,8 +467,8 @@ var BOLD_ALWAYS_HINT = 'Every status slot showing this value prints it in heavie
 // A weather kind's Bold row also sets the weight of its alert's value (status_alerts.c
 // bolds an entry on the kind's ladder at its real level, Highlight or not).
 var BOLD_HINTS = {
-    off: 'Danger still prints bold: in the slot while Highlight is on, and in the alert when it shows the value.',
-    warn: 'Heavier text from the warn level on: in the slot while Highlight is on, and in the alert when it shows the value.',
+    off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
+    warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
     always: BOLD_ALWAYS_HINT
 };
 var GOAL_BOLD_HINTS = {
@@ -727,7 +727,7 @@ function unitRow(key, withUnit, without) {
 // reset — and, for the GOAL kinds only, the Goals switch), a zoned
 // dual-thumb slider for the warn/danger pair, and the warn look + two color
 // pickers. A weather kind's group has no switch: its highlight switch is the slot
-// sheet's 'Highlight' row (highlightToggle), and its warn look + colors style the alert
+// sheet's 'Alert highlighting' row (highlightToggle), and its warn look + colors style the alert
 // icon whether or not that is on, so they are always live. Values live in the kind's
 // DISPLAYED unit (wind unit / km-mi / hours); a blank pair means the kind's seed
 // pair (status-thresholds.js resolvedPair), and toggling off keeps the pair — the
@@ -943,13 +943,13 @@ function thresholdSection(title, keyStem, hint, gate, extraItems, tail) {
 // thresholdToggle hook when none is stored, as the goal header's switch does.
 /**
  * @param {string} keyStem Kind key stem, e.g. 'Uv' (thresh<Stem>On).
- * @returns {Object} The slot sheet's 'Highlight' toggle.
+ * @returns {Object} The slot sheet's 'Alert highlighting' toggle.
  */
 function highlightToggle(keyStem) {
     return {
         type: 'toggle',
         messageKey: 'thresh' + keyStem + 'On',
-        label: 'Highlight',
+        label: 'Alert highlighting',
         // Fill at danger always; at warn the Alerts sheet's warn look (none /
         // outline / fill — status_threshold_box).
         hint: 'Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.',

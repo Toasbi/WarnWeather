@@ -71,7 +71,7 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
     const on = map['thresh' + stem + 'On'];
     const alert = ALERT_STEMS.includes(stem);
     if (alert) {
-      // A weather kind's highlight switch is the SLOT sheet's 'Highlight' row: one
+      // A weather kind's highlight switch is the SLOT sheet's 'Alert highlighting' row: one
       // occurrence, in thresh<Stem>, not in the alert sheet's levels group.
       assert.ok(on && on.length === 1, 'thresh' + stem + 'On: exactly one occurrence');
       let home = null;
@@ -117,7 +117,7 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
       stem + ' colour default');
     assert.equal(PC.engine.resolveDefaultFrom(look, { color: false }), 'outline', stem + ' B&W default');
     assert.equal(map['thresh' + stem + 'WarnOutlineOn'], undefined, 'the old toggle is gone');
-    assert.equal(on[0].label, alert ? 'Highlight' : 'Goals', 'the toggle\'s label');
+    assert.equal(on[0].label, alert ? 'Alert highlighting' : 'Goals', 'the toggle\'s label');
     // The reset button moved onto the group's sub-header — see "the group header
     // owns the title and the reset action" below.
 
@@ -1266,9 +1266,9 @@ test('the intro describes the group, so it hangs off the header, not the sheet',
   assert.match(headerFor('Wind').intro, /reaching warn draws the warn look below/);
   assert.match(headerFor('Steps').intro, /On color watches the colors are yours to change below\.$/);
   // The weather group has no switch: its look styles the alert icon always and the
-  // slot only while the slot's Highlight is on — and the intro says so.
+  // slot only while the slot's Alert highlighting is on — and the intro says so.
   assert.match(headerFor('Wind').intro, /alert icon/, 'the weather intro names the alert icon');
-  assert.match(headerFor('Wind').intro, /while its Highlight is on/, 'and the slot switch');
+  assert.match(headerFor('Wind').intro, /status slot, while its Alert highlighting is on/, 'and the slot switch');
 });
 
 test('Bold sits above the group and is never gated by the master toggle', () => {
@@ -1283,7 +1283,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     const items = sheetFor(stem).items;
     assert.equal(items.indexOf(boldFor(stem)), 0, stem + ' bold row leads');
     assert.deepEqual(items[1], {
-      type: 'toggle', messageKey: 'thresh' + stem + 'On', label: 'Highlight',
+      type: 'toggle', messageKey: 'thresh' + stem + 'On', label: 'Alert highlighting',
       hint: 'Fills this slot from the danger level on and draws the warn look from warn — levels,'
         + ' look and colors are set under Alerts.',
       defaultValue: false, onChange: 'thresholdToggle'
@@ -1326,8 +1326,8 @@ test('the Bold hint explains the selected step only, and when the level bold app
   // A weather kind's ladder also weights its alert's value (status_alerts.c), so
   // its hints name both places.
   assert.deepEqual(boldFor('Wind').hintByValue, {
-    off: 'Danger still prints bold: in the slot while Highlight is on, and in the alert when it shows the value.',
-    warn: 'Heavier text from the warn level on: in the slot while Highlight is on, and in the alert when it shows the value.',
+    off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
+    warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
     always: 'Every status slot showing this value prints it in heavier text.'
   });
   assert.deepEqual(boldFor('Steps').hintByValue, {

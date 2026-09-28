@@ -509,7 +509,7 @@ static void degrade_tests(void) {
 }
 
 // The alert's box is its OWN look, judged at the entry's real level: the kind's slot
-// 'Highlight' switch (its enable bit) never changes it. FILL at danger; at warn the
+// 'Alert highlighting' switch (its enable bit) never changes it. FILL at danger; at warn the
 // kind's warn look (none / outline / fill) — through status_threshold_box, the
 // slot's own decision; the rain drop is never boxed.
 static void box_tests(void) {

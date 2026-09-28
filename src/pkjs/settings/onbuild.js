@@ -9,7 +9,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     /**
      * Heal each threshold kind's highlight colours on every open. The
      * highlight toggle itself (thresh<K>On — a weather kind's slot-sheet
-     * 'Highlight' row, a goal kind's Goals switch) is STORED state and
+     * 'Alert highlighting' row, a goal kind's Goals switch) is STORED state and
      * hydrates as-is: kindConfig() packs the enable bit from it (AND an ordered
      * pair), and the levels live on while it is off, so deriving it from the
      * pair here would undo a user's OFF on the next open. The one-time
