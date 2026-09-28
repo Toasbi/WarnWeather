@@ -43,9 +43,9 @@
 //
 //   * The snapshot is rewritten at EVERY bake (rememberBakeInputs runs
 //     immediately before buildStatusLines), and the status lines the watch has
-//     on flash came from the send that carried that same bake. So a re-bake
-//     reproduces the text the watch is ALREADY displaying for every slot but
-//     the battery one.
+//     on flash came from the send that carried that same bake. So, under
+//     unchanged settings, a re-bake reproduces the text the watch is ALREADY
+//     displaying for every slot but the battery one.
 //   * Every weather-derived slot (temp/feels, city, uv, wind, gust, pressure,
 //     dew, aqi, pollen, plus the wind-direction sentinel byte), the packed
 //     STATUS_LEVELS_UINT8 threshold byte and the Alerts row's
@@ -70,7 +70,10 @@
 //     (offline, a provider error, an auth backoff), so inputs that kept the
 //     settings of their own bake would re-assert a switched-off alert or an old
 //     level until some later fetch succeeded -- and would bake differently
-//     depending on whether PKJS had restarted in between.
+//     depending on whether PKJS had restarted in between. The one seam: the AQI
+//     source and scale change what the payload itself holds (the feed's
+//     numbers), so until the save's forced fetch lands, a re-bake judges the
+//     old scale's AQI against the new scale's levels.
 //
 // The blob is version-stamped and shape-checked on the way back in, so one
 // written by an older build (different key set) degrades to "no snapshot"
