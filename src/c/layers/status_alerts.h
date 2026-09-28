@@ -34,7 +34,10 @@
 // background colour.
 // Text lanes use the row's font; a metric value follows its kind's bold ladder at
 // the entry's level (the look's bold bit — danger bold, warn per the kind's Bold
-// mode, 'Always'), the rain text never bolds.
+// mode, 'Always'), the rain text never bolds. A TOMORROW entry is the same mini slot
+// at tomorrow's level, its text lane carrying the alert's mark around the value
+// ("»8", "8*" — alert_set_lane): the mark alone with the Icon look, and it outlasts
+// the lane ladder's values-off step, so a tomorrow alert never reads as today's.
 //
 // A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px each side of
 // the icon(+text) group, INSIDE the box — the outline's own pixel plus two of air,
@@ -65,10 +68,11 @@ typedef struct {
 void status_alerts_release(StatusAlertsRow *row);
 
 // Refresh-time: fold everything the row paints into the row's content signature, so
-// a changed set is a content change — which entries, their levels and baked values,
-// the look each one reads from `blob` (the thresholds settings blob, already judged:
-// len 0 = none) at its level, the rain look, the drop's bucket and tier, and the
-// countdown text while a look prints it. Folds nothing while the placement is Off.
+// a changed set is a content change — which entries, their levels, days (today's, or
+// tomorrow's with its mark) and baked values, the look each one reads from `blob`
+// (the thresholds settings blob, already judged: len 0 = none) at its level, the rain
+// look, the drop's bucket and tier, and the countdown text while a look prints it.
+// Folds nothing while the placement is Off.
 // The rain entry is re-derived from the radar cache on every call (O(1), flash-free),
 // which is why a row whose placement is not Off is refreshed on the minute tick.
 uint16_t status_alerts_fold(const StatusAlertsRow *row, uint16_t sig,
@@ -83,7 +87,8 @@ typedef struct {
     size_t blob_len;
     int rain_display;       // ThreshRainDisplay: none / the minutes / the full text
     bool values;            // print the metric entries' baked values; the lane
-                            // ladder (alert_set_degrade) turns it off
+                            // ladder (alert_set_degrade) turns it off — tomorrow's
+                            // marks stay
     const char *rain_text;  // rain_countdown_format()'s text; NULL when no rain
 } StatusAlertsText;
 

@@ -154,11 +154,15 @@ static GDrawCommandImage *image_for(const StatusAlertsCache *cache, const AlertE
     return slot >= 0 ? cache->images[slot] : NULL;
 }
 
-// The entry's text lane into `buf` ("" = none), and the font it prints in: a
-// metric value prints bold when its look says so (`bold` — the kind's ladder at
-// the entry's real level: danger bold, warn per the kind's Bold mode, and Bold
-// 'Always', which the 'Bold values: All' master packs); the rain text never bolds.
-// The slot's Highlight switch does not touch it: the alert's look is its own.
+// The entry's text lane into `buf` ("" = none), and the font it prints in. A metric
+// entry's lane is alert_set_lane's: its value while text->values, inside tomorrow's
+// mark ("»8", "8*") — the mark alone with the Icon look or once the ladder drops the
+// values, so it is measured, boxed and fitted as part of the text like a value. It
+// prints bold when its look says so (`bold` — the kind's ladder at the entry's real
+// level: danger bold, warn per the kind's Bold mode, and Bold 'Always', which the
+// 'Bold values: All' master packs), the mark with it, as the slot bolds its "»8";
+// the rain text never bolds. The slot's Highlight switch does not touch it: the
+// alert's look is its own.
 static GFont lane_text(const AlertEntry *e, const StatusAlertsText *text, bool bold,
                        char *buf, size_t cap) {
     buf[0] = '\0';
@@ -171,11 +175,7 @@ static GFont lane_text(const AlertEntry *e, const StatusAlertsText *text, bool b
         }
         return text->font;
     }
-    if (text->values && e->value_len > 0 && e->value) {
-        size_t n = e->value_len < cap - 1 ? e->value_len : cap - 1;
-        memcpy(buf, e->value, n);
-        buf[n] = '\0';
-    }
+    alert_set_lane(e, text->values, buf, cap);
     return bold ? text->bold : text->font;
 }
 
@@ -201,8 +201,10 @@ static int16_t icon_width(GDrawCommandImage *image) {
 // (metric) entry — whose group is measured by its ink (a last icon's one-column
 // overhang in, a last text's trailing letter spacing out), so its air to the box
 // stroke is equal on both sides — where the text is the entry's lane under `text`
-// (a metric value when text->values, the rain minutes or full countdown per
-// text->rain_display). 0 for an entry with neither a glyph nor text. The parts the
+// (a metric value when text->values, inside a tomorrow entry's mark, which stays
+// without it; the rain minutes or full countdown per text->rain_display). So a
+// tomorrow entry's box wraps icon + mark + value as a today entry's wraps icon +
+// value. 0 for an entry with neither a glyph nor text. The parts the
 // width is summed from go into cells_out[i], for the paint. Needs the glyphs, so
 // status_alerts_ensure() runs first.
 static void status_alerts_measure(const StatusAlertsCache *cache, const AlertSet *set,
@@ -255,9 +257,10 @@ static void resolve(StatusAlertsEntries *out, const uint8_t *blob, size_t len) {
 // The fold covers the look each entry reads from the blob at its level
 // (status_threshold_look — a Clay save that only recolours or re-looks must repaint,
 // as for a slot's look; the kind's slot Highlight switch does not touch an entry, so
-// it is not folded) and the drop's bucket and tier (its glyph and tint). The
-// countdown text only when a look prints it, or an icon-only rain alert would
-// repaint every minute for nothing.
+// it is not folded), its day — today's, or tomorrow's with its mark, so a flip
+// between the two or a new mark repaints even when the value and level stay — and
+// the drop's bucket and tier (its glyph and tint). The countdown text only when a
+// look prints it, or an icon-only rain alert would repaint every minute for nothing.
 uint16_t status_alerts_fold(const StatusAlertsRow *row, uint16_t sig,
                             const uint8_t *blob, size_t len) {
     if (!row || row->place == THRESH_ALERTS_OFF) { return sig; }
@@ -266,7 +269,7 @@ uint16_t status_alerts_fold(const StatusAlertsRow *row, uint16_t sig,
     sig = sig_fold(sig, &a.set.count, 1);
     for (int i = 0; i < a.set.count; i++) {
         const AlertEntry *e = &a.set.entries[i];
-        uint8_t head[5] = { (uint8_t)e->rain, e->kind, e->level, e->rain_bucket,
+        uint8_t head[6] = { (uint8_t)e->rain, e->kind, e->level, e->day, e->rain_bucket,
                             e->rain_tier };
         sig = sig_fold(sig, head, sizeof(head));
         if (e->rain) { continue; }

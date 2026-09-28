@@ -78,8 +78,9 @@
 #define STATUS_ALERT_DAY_MASK 0x07
 #define STATUS_ALERT_LEN_MAX 7
 // The day codes (bits 4-6). Tomorrow's is the mark the alert's "Tomorrow's mark"
-// picked on the phone, drawn with the entry's text lane: a prefix before the value
-// ("»8", ">8", "+8"), a suffix after it ("8*"), or nothing — with the Icon look too.
+// picked on the phone, drawn with the entry's text lane (alert_set_lane): a prefix
+// before the value ("»8", ">8", "+8"), a suffix after it ("8*"), or nothing — with
+// the Icon look too.
 #define STATUS_ALERT_DAY_TODAY 0
 #define STATUS_ALERT_MARK_RAQUO 1    // "»" before the value
 #define STATUS_ALERT_MARK_GT 2       // ">" before
@@ -179,11 +180,26 @@ int alert_set_row_x(int place, bool battery, int x0, int x1, int content_w, int 
 
 // One step down the text-lane ladder, run before any entry is dropped: the rain
 // text shortens to its minutes first ("Rain in 12'" -> "12'"), then every lane goes
-// (metric values off, rain icon only). Returns false once there is nothing left to
-// shorten — the caller then tail-drops. `rain_display` is a ThreshRainDisplay; any
-// value that is not ICON or MINUTES reads as TEXT, as status_threshold_rain_display
-// would read it.
+// (metric values off, rain icon only). A tomorrow entry's mark is not a value and
+// stays (alert_set_lane), so the row never reads a tomorrow alert as today's.
+// Returns false once there is nothing left to shorten — the caller then tail-drops.
+// `rain_display` is a ThreshRainDisplay; any value that is not ICON or MINUTES reads
+// as TEXT, as status_threshold_rain_display would read it.
 bool alert_set_degrade(int *rain_display, bool *values);
+
+// A metric entry's text lane, what the row prints after its icon, into `out`
+// (NUL-terminated; "" = none): the baked value while `values` (the lane ladder's
+// flag), wrapped in tomorrow's mark — the slot's "Tomorrow's peak mark" texts
+// (status-pair.js NEXT_DAY_MARKS): "»8", ">8", "+8", "8*", or "8" unmarked. Today's
+// entry prints its value alone. The mark is no value: it stays when `values` is off
+// or the Look is Icon (no value bytes), so the lane is then the mark alone ("»", "*",
+// or "" unmarked). "»" is U+00BB in UTF-8 — Latin-1, which the Gothic fonts carry,
+// as the slot's own "»8" relies on. Each part is written whole or not at all, so a
+// short `cap` never splits the "»" or prints a cut number; cap >= 10 fits every lane
+// (a 2-byte mark + STATUS_ALERT_LEN_MAX value bytes + NUL). The rain entry has no
+// lane here (status_alerts.c builds its countdown): it writes "". Returns the bytes
+// written.
+size_t alert_set_lane(const AlertEntry *e, bool values, char *out, size_t cap);
 
 // The rain entry's MINUTES lane from rain_countdown_format()'s text: the minute
 // token ("Rain in 12'" -> "12'"), marked "+" while it is raining now ("Rain for 20'"

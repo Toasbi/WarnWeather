@@ -1,4 +1,5 @@
 #include "alert_set.h"
+#include <string.h>
 
 // Only the BODY is guarded, the include stays above it: waf's dependency scanner
 // does not evaluate -D macros, so an include inside the guard would be invisible to
@@ -195,6 +196,42 @@ bool alert_set_degrade(int *rain_display, bool *values) {
         return true;
     }
     return false;
+}
+
+// Tomorrow's marks by day code (STATUS_ALERT_DAY_TODAY, then STATUS_ALERT_MARK_*):
+// what stands before the value and what after it. The slot's own marks
+// (status-pair.js NEXT_DAY_MARKS); scripts/check-alert-lane-lockstep.js holds the
+// two ends together. Separate literals, so the "»" bytes never run into a digit.
+_Static_assert(STATUS_ALERT_DAY_TODAY == 0 && STATUS_ALERT_MARK_RAQUO == 1
+               && STATUS_ALERT_MARK_GT == 2 && STATUS_ALERT_MARK_PLUS == 3
+               && STATUS_ALERT_MARK_STAR == 4 && STATUS_ALERT_MARK_NONE == 5,
+               "MARK_PRE/MARK_POST are indexed by the day code");
+static const char *const MARK_PRE[STATUS_ALERT_MARK_NONE + 1] = {
+    "", "\xC2\xBB", ">", "+", "", ""
+};
+static const char *const MARK_POST[STATUS_ALERT_MARK_NONE + 1] = {
+    "", "", "", "", "*", ""
+};
+
+// Append `n` bytes of `s` at `*o` when all of them fit before the NUL; else nothing.
+static void lane_put(char *out, size_t cap, size_t *o, const char *s, size_t n) {
+    if (*o + n >= cap) { return; }
+    memcpy(out + *o, s, n);
+    *o += n;
+}
+
+size_t alert_set_lane(const AlertEntry *e, bool values, char *out, size_t cap) {
+    if (!out || cap == 0) { return 0; }
+    out[0] = '\0';
+    if (!e || e->rain) { return 0; }
+    // The parse already reads the unused codes as unmarked; a hand-built entry too.
+    int day = e->day <= STATUS_ALERT_MARK_NONE ? e->day : STATUS_ALERT_MARK_NONE;
+    size_t o = 0;
+    lane_put(out, cap, &o, MARK_PRE[day], strlen(MARK_PRE[day]));
+    if (values && e->value) { lane_put(out, cap, &o, e->value, e->value_len); }
+    lane_put(out, cap, &o, MARK_POST[day], strlen(MARK_POST[day]));
+    out[o] = '\0';
+    return o;
 }
 
 bool alert_set_rain_minutes(const char *countdown, char *out, size_t cap) {

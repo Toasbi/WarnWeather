@@ -176,6 +176,27 @@ static void bytes_ok_tests(void) {
     expect("ok.len_max", alert_set_bytes_ok(e, n), 1);
     e[n++] = '3';
     expect("ok.len_past_max.reject", alert_set_bytes_ok(e, n), 0);
+
+    // Atomic: one bad byte anywhere rejects the WHOLE tuple, however good the entries
+    // before it (app_message.c then keeps the last good entries, never a prefix). A
+    // well-formed tomorrow entry first, then a value byte that is not printable.
+    n = 0;
+    e[n++] = header(THRESH_UV, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_RAQUO); e[n++] = '9';
+    e[n++] = header(THRESH_WIND, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_STAR); e[n++] = '6';
+    expect("ok.tomorrow_pair", alert_set_bytes_ok(e, n), 1);
+    e[n++] = 0x1F;
+    expect("ok.tomorrow_then_bad.reject", alert_set_bytes_ok(e, n), 0);
+    // A tomorrow entry's value is capped like today's: the mark adds no byte to it.
+    n = 0;
+    e[n++] = header(THRESH_AQI, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_PLUS);
+    for (int k = 0; k <= STATUS_ALERT_LEN_MAX; k++) { e[n++] = '1'; }
+    expect("ok.tomorrow_len_past_max.reject", alert_set_bytes_ok(e, n), 0);
+    // Every header byte is valid whatever its day code, the unused 6 and 7 included
+    // (they parse as unmarked): the day never makes a tuple malformed.
+    for (int day = 0; day <= STATUS_ALERT_DAY_MASK; day++) {
+        e[0] = header(THRESH_UV, THRESH_LEVEL_WARN, day); e[1] = '7';
+        expect("ok.any_day", alert_set_bytes_ok(e, 2), 1);
+    }
 }
 
 static void icon_tests(void) {
@@ -552,6 +573,111 @@ static void degrade_tests(void) {
     expect("degrade.null", alert_set_degrade(NULL, &values), 0);
 }
 
+// The lane of the first entry `bytes` parses to, with `values` as the ladder has it.
+static const char *lane_of(const uint8_t *bytes, size_t len, bool values, char *out,
+                           size_t cap) {
+    AlertSet set;
+    if (alert_set_parse(bytes, len, &set) < 1) { out[0] = '\0'; return out; }
+    alert_set_lane(&set.entries[0], values, out, cap);
+    return out;
+}
+
+// alert_set_lane: the text a metric entry prints after its icon — today's value
+// alone, tomorrow's inside its mark, the mark alone without a value. The same texts
+// as the slot's "Tomorrow's peak mark" (the lockstep script checks every code against
+// status-pair.js; these pin the bytes).
+static void lane_tests(void) {
+    char out[16];
+    // Every day code with the value "8": today's plain, then », >, +, * and none.
+    // ("»" and "8" are separate literals: "\xBB8" would read as one hex escape.)
+    static const char *const with_value[] = { "8", ("\xC2\xBB" "8"), ">8", "+8", "8*", "8" };
+    // ...and with no value (the Icon look): the mark alone.
+    static const char *const icon_only[] = { "", "\xC2\xBB", ">", "+", "*", "" };
+    for (int day = STATUS_ALERT_DAY_TODAY; day <= STATUS_ALERT_MARK_NONE; day++) {
+        char name[40];
+        uint8_t v[] = { header(THRESH_UV, THRESH_LEVEL_DANGER, day), '8' };
+        snprintf(name, sizeof(name), "lane.value.day%d", day);
+        expect_str(name, lane_of(v, sizeof(v), true, out, sizeof(out)), with_value[day]);
+        snprintf(name, sizeof(name), "lane.value.len.day%d", day);
+        AlertSet set;
+        alert_set_parse(v, sizeof(v), &set);
+        expect(name, (long)alert_set_lane(&set.entries[0], true, out, sizeof(out)),
+               (long)strlen(with_value[day]));
+        uint8_t icon[] = { header(THRESH_WIND, THRESH_LEVEL_WARN, day) };
+        snprintf(name, sizeof(name), "lane.icon.day%d", day);
+        expect_str(name, lane_of(icon, sizeof(icon), true, out, sizeof(out)), icon_only[day]);
+        // The ladder's values-off step keeps the mark: the lane is the Icon look's.
+        snprintf(name, sizeof(name), "lane.values_off.day%d", day);
+        expect_str(name, lane_of(v, sizeof(v), false, out, sizeof(out)), icon_only[day]);
+    }
+    // The widest values, each mark around the whole of it.
+    uint8_t gust[] = { header(THRESH_GUST, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_RAQUO),
+                       '2', '5', '5' };
+    expect_str("lane.gust255", lane_of(gust, sizeof(gust), true, out, sizeof(out)),
+               "\xC2\xBB" "255");
+    uint8_t pollen[] = { header(THRESH_POLLEN, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_STAR),
+                         '2', '-', '3' };
+    expect_str("lane.pollen_star", lane_of(pollen, sizeof(pollen), true, out, sizeof(out)),
+               "2-3*");
+    // The unused day codes read as tomorrow's, unmarked — and a hand-built entry past
+    // them too.
+    uint8_t d6[] = { header(THRESH_UV, THRESH_LEVEL_WARN, 6), '7' };
+    expect_str("lane.day6", lane_of(d6, sizeof(d6), true, out, sizeof(out)), "7");
+    AlertEntry odd = { .kind = THRESH_UV, .level = THRESH_LEVEL_WARN, .day = 200,
+                       .value_len = 1, .value = "7" };
+    alert_set_lane(&odd, true, out, sizeof(out));
+    expect_str("lane.day_out_of_range", out, "7");
+
+    // Several entries: each lane is its own entry's (the value runs to the next header).
+    uint8_t row[] = {
+        header(THRESH_UV, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_GT), '9',
+        header(THRESH_WIND, THRESH_LEVEL_WARN, STATUS_ALERT_DAY_TODAY), '5', '8',
+        header(THRESH_AQI, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_PLUS),
+    };
+    AlertSet set;
+    expect("lane.row.count", alert_set_parse(row, sizeof(row), &set), 3);
+    static const char *const row_lanes[] = { ">9", "58", "+" };
+    for (int i = 0; i < 3; i++) {
+        char name[24];
+        snprintf(name, sizeof(name), "lane.row.%d", i);
+        alert_set_lane(&set.entries[i], true, out, sizeof(out));
+        expect_str(name, out, row_lanes[i]);
+    }
+
+    // The ladder run to its end — every lane shortened as far as it goes — leaves a
+    // tomorrow entry its mark and a today entry nothing: the two never look alike.
+    int rd = THRESH_RAIN_DISPLAY_TEXT;
+    bool values = true;
+    while (alert_set_degrade(&rd, &values)) { }
+    expect("lane.degraded.values_off", values, 0);
+    alert_set_lane(&set.entries[0], values, out, sizeof(out));
+    expect_str("lane.degraded.tomorrow_keeps_mark", out, ">");
+    alert_set_lane(&set.entries[1], values, out, sizeof(out));
+    expect_str("lane.degraded.today_empty", out, "");
+    // The rain entry prepended in front has no lane here (status_alerts.c builds its
+    // countdown), whatever the flag.
+    alert_set_prepend_rain(&set, true, 2, 3);
+    strcpy(out, "junk");
+    expect("lane.rain.len", (long)alert_set_lane(&set.entries[0], true, out, sizeof(out)), 0);
+    expect_str("lane.rain", out, "");
+
+    // Each part whole or not at all: the widest lane (a 2-byte mark + 7 value bytes)
+    // fits 10 bytes with its NUL; one byte fewer keeps the mark and drops the value
+    // rather than cut the number; a buffer too short for the "»" never splits it.
+    uint8_t wide[] = { header(THRESH_AQI, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_RAQUO),
+                       '1', '2', '3', '4', '5', '6', '7' };
+    expect_str("lane.cap10", lane_of(wide, sizeof(wide), true, out, 10),
+               "\xC2\xBB" "1234567");
+    expect_str("lane.cap9", lane_of(wide, sizeof(wide), true, out, 9), "\xC2\xBB");
+    expect_str("lane.cap2_raquo", lane_of(wide, sizeof(wide), true, out, 2), "");
+    uint8_t gt[] = { header(THRESH_UV, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_GT), '9' };
+    expect_str("lane.cap2_gt", lane_of(gt, sizeof(gt), true, out, 2), ">");
+    expect("lane.null_entry", (long)alert_set_lane(NULL, true, out, sizeof(out)), 0);
+    expect_str("lane.null_entry.out", out, "");
+    expect("lane.null_out", (long)alert_set_lane(&set.entries[1], true, NULL, 8), 0);
+    expect("lane.cap0", (long)alert_set_lane(&set.entries[1], true, out, 0), 0);
+}
+
 // The rain entry draws no box and never bolds. status_alerts.c judges every entry
 // through status_threshold_look (pinned in status_threshold_test.c), the rain entry
 // included, and the prepended entry is ALERT_KIND_RAIN at NORMAL: no ThreshKind, so
@@ -619,6 +745,7 @@ int main(void) {
     take_invariant_sweep();
     row_x_tests();
     degrade_tests();
+    lane_tests();
     rain_look_tests();
     rain_minutes_tests();
     if (s_failures) { printf("%d alert_set failure(s)\n", s_failures); return 1; }

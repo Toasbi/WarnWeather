@@ -62,6 +62,14 @@ cc $CFLAGS -DWW_ALERT_ROW -DWW_THRESHOLD_HIGHLIGHT test/c/alert_set_test.c src/c
    src/c/appendix/status_threshold.c src/c/layers/status_row_layout.c \
    -o build/host/alert_set_test
 build/host/alert_set_test
+# A tomorrow alert and a slot showing tomorrow's peak print the same mark: dump every
+# metric text lane the watch builds (per day code, value and values flag) and check
+# each against the phone's slot text (scripts/check-alert-lane-lockstep.js).
+cc $CFLAGS -DWW_ALERT_ROW -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/c/appendix/alert_set.c \
+   src/c/appendix/status_threshold.c src/c/layers/status_row_layout.c \
+   -o build/host/alert_lane_dump
+build/host/alert_lane_dump > build/host/alert_lane.txt
+node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the

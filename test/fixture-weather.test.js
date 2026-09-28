@@ -305,6 +305,48 @@ test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_E
   });
 });
 
+// fixtures/uv-alert-tomorrow.json is the emulator sign-off scene for an alert that
+// looks ahead: 16:10, UV 4.2 now and falling, so nothing left today reaches warn 6,
+// while tomorrow peaks at 8.4 at noon (the series reaches the day after, so tomorrow's
+// peak is known). With Days "Today + tomorrow" the UV alert is active for TOMORROW at
+// danger, marked »; the wind alert stays today's (58 km/h at 18:00, warn 50). The
+// forecast bar's UV slot in Max mode rolls to the same tomorrow, so the frame shows
+// the alert's »8 beside the slot's »8 — one number, one mark.
+test('fixtures/uv-alert-tomorrow.json bakes a tomorrow UV entry (» 8, danger) + today\'s wind 58', () => {
+  const { normalizeWeather } = require('../scripts/lib/fixture-time');
+  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const { decodeAlerts } = require('./helpers/alert-entries.js');
+  const fx = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'fixtures', 'uv-alert-tomorrow.json'), 'utf8'));
+  normalizeWeather(fx);
+  const uvKind = thresholds.KINDS.findIndex((k) => k.code === 'uv');
+  const windKind = thresholds.KINDS.findIndex((k) => k.code === 'wind');
+  const wind = { kind: windKind, level: 1, day: 0, mark: null, value: '58' };
+  const bake = (platform, over) => getFixtureWeatherPayload(fx,
+    Object.assign({}, fx.claySettings, over), { platform });
+  ['basalt', 'emery'].forEach((platform) => {
+    const out = bake(platform, {});
+    assert.equal(out.ALERT_ENTRIES_UINT8.length, 5, platform + ': UV (1 + 1) + wind (1 + 2)');
+    assert.deepEqual(decodeAlerts(out.ALERT_ENTRIES_UINT8), [
+      { kind: uvKind, level: 2, day: 1, mark: 'raquo', value: '8' },
+      wind
+    ], platform + ': tomorrow\'s UV 8.4 at danger, marked »; today\'s wind at warn');
+    assert.equal(decodeLine(out.STATUS_LINE_1_UINT8)[2].text, '»8',
+      platform + ': the UV slot names the same tomorrow');
+    // The alert's own mark, which the slot's does not follow.
+    const star = bake(platform, { alertUvNextDayMark: 'star' });
+    assert.deepEqual(decodeAlerts(star.ALERT_ENTRIES_UINT8)[0],
+      { kind: uvKind, level: 2, day: 4, mark: 'star', value: '8' }, platform + ': 8*');
+    assert.equal(decodeLine(star.STATUS_LINE_1_UINT8)[2].text, '»8', platform + ': slot unchanged');
+    // The Icon look still marks the day (the watch draws the » alone).
+    assert.deepEqual(decodeAlerts(bake(platform, { alertUvDisplay: 'icon' }).ALERT_ENTRIES_UINT8)[0],
+      { kind: uvKind, level: 2, day: 1, mark: 'raquo', value: '' }, platform + ': icon, marked');
+    // Days "Today": nothing left today reaches warn, so only the wind alert is active.
+    assert.deepEqual(decodeAlerts(bake(platform, { alertUvDays: 'today' }).ALERT_ENTRIES_UINT8),
+      [wind], platform + ': no UV entry for today');
+  });
+});
+
 // fixture-weather.js reads currentTemp/precipPct/windKmh/etc from the fixture's weather
 // block onto the corresponding provider.*Trend field, but pressureHpa was never wired to
 // provider.pressureTrend — so PRESSURE_TREND stayed permanently empty on the fixture/dev
