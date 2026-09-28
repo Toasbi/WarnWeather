@@ -86,16 +86,6 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier) {
     set->count = (uint8_t)(count + 1);
 }
 
-int alert_set_box(const uint8_t *blob, size_t len, const AlertEntry *e, uint8_t *c8_out) {
-    int box = (e && !e->rain)
-        ? status_threshold_box(blob, len, e->kind, e->level) : THRESH_BOX_NONE;
-    if (c8_out) {
-        *c8_out = box == THRESH_BOX_NONE
-            ? 0 : status_threshold_color8(blob, len, e->kind, e->level);
-    }
-    return box;
-}
-
 int alert_set_row_w(const int16_t *widths, int n, int gap) {
     int w = 0;
     bool any = false;

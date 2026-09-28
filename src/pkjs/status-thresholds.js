@@ -649,7 +649,7 @@
    * Pack the weather-kind levels into the STATUS_LEVELS_UINT8 wire bytes, LE
    * (kinds 0..3 in byte 0 at bits 2k; UV in byte 1 at bits 0-1). Every weather
    * kind packs its level whether or not its highlight is on — only missing data
-   * stays Normal. That is watch-safe: status_row.c's slot_level checks the
+   * stays Normal. That is watch-safe: status_threshold_slot_level checks the
    * kind's blob[0] enable bit (Clay message) BEFORE it reads this level, so an
    * un-highlighted kind still renders plain. And it keeps the highlight toggle
    * off the weather message: flipping thresh<Kind>On changes only the Clay blob

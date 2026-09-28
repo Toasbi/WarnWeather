@@ -57,7 +57,8 @@ typedef struct {
     uint8_t value_len;     // bytes at `value`, 0..STATUS_ALERT_LEN_MAX
     const char *value;     // INTO the slot bytes, NOT NUL-terminated; NULL when
                            // value_len is 0 (the kind's Look is 'icon' on the phone)
-    bool rain;             // the watch-resolved rain entry; kind/level/value unused
+    bool rain;             // the watch-resolved rain entry: kind 0 at NORMAL (whose
+                           // look draws no box — status_threshold_look), no value
     uint8_t rain_bucket;   // 1 drizzle, 2 rain, 3 downpour (rain_tier_to_bucket3)
     uint8_t rain_tier;     // radar tier 1..5 of the segment's peak — the drop's tint
 } AlertEntry;
@@ -96,15 +97,6 @@ int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out);
 // to 1..3 — the caller passes rain_tier_to_bucket3(tier), which is 0 only for a
 // tier-0 segment. Call once per parse.
 void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier);
-
-// The box an entry draws (a ThreshBox), with its accent byte (the kind's colour at
-// the entry's level) in *c8_out (0 with no box). A metric entry is judged at its
-// REAL level through status_threshold_box — the same decision the kind's slot
-// makes, so the two cannot disagree — but the kind's slot 'Alert highlighting' switch (its
-// enable bit) does not touch it: FILL at DANGER, and at WARN whatever the kind's
-// warn look says (none / outline / fill). The rain entry is never boxed: its drop
-// takes the tier's tint.
-int alert_set_box(const uint8_t *blob, size_t len, const AlertEntry *e, uint8_t *c8_out);
 
 // Width of the first `n` entries laid out left to right: their widths plus `gap`
 // between each pair of VISIBLE neighbours. A zero-width entry (a glyph that failed

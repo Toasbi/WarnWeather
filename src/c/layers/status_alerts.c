@@ -133,11 +133,11 @@ static GDrawCommandImage *image_for(const StatusAlertsCache *cache, const AlertE
 }
 
 // The entry's text lane into `buf` ("" = none), and the font it prints in: a
-// metric value bolds on its kind's ladder at the entry's real level
-// (status_threshold_is_bold — danger bold, warn per the kind's Bold mode, and Bold
-// 'Always', which the 'Bold values: All' master packs). The slot's Highlight switch
-// does not touch it: the alert's look is its own (alert_set_box).
-static GFont lane_text(const AlertEntry *e, const StatusAlertsText *text,
+// metric value prints bold when its look says so (`bold` — the kind's ladder at
+// the entry's real level: danger bold, warn per the kind's Bold mode, and Bold
+// 'Always', which the 'Bold values: All' master packs); the rain text never bolds.
+// The slot's Highlight switch does not touch it: the alert's look is its own.
+static GFont lane_text(const AlertEntry *e, const StatusAlertsText *text, bool bold,
                        char *buf, size_t cap) {
     buf[0] = '\0';
     if (e->rain) {
@@ -154,8 +154,14 @@ static GFont lane_text(const AlertEntry *e, const StatusAlertsText *text,
         memcpy(buf, e->value, n);
         buf[n] = '\0';
     }
-    return status_threshold_is_bold(text->blob, text->blob_len, e->kind, e->level)
-        ? text->bold : text->font;
+    return bold ? text->bold : text->font;
+}
+
+// The entry's look at its REAL level (status_threshold_look — the decision its
+// kind's slot makes at the same level). The rain entry poses as kind 0 at NORMAL,
+// which draws no box, and lane_text never bolds it.
+static ThreshLook entry_look(const AlertEntry *e, const StatusAlertsText *text) {
+    return status_threshold_look(text->blob, text->blob_len, e->kind, e->level);
 }
 
 static int16_t text_width(const char *s, GFont font) {
@@ -174,7 +180,7 @@ void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
     for (int i = 0; i < set->count; i++) {
         const AlertEntry *e = &set->entries[i];
         char buf[LANE_CAP];
-        GFont font = lane_text(e, text, buf, sizeof(buf));
+        GFont font = lane_text(e, text, entry_look(e, text).bold, buf, sizeof(buf));
         int16_t icon_w = icon_width(image_for(cache, e));
         int16_t text_w = text_width(buf, font);
         int16_t w = (int16_t)(icon_w + (text_w > 0
@@ -232,8 +238,9 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
         const AlertEntry *e = &set->entries[i];
         GDrawCommandImage *image = image_for(cache, e);
         int16_t icon_w = icon_width(image);
+        const ThreshLook look = entry_look(e, text);
         char buf[LANE_CAP];
-        GFont font = lane_text(e, text, buf, sizeof(buf));
+        GFont font = lane_text(e, text, look.bold, buf, sizeof(buf));
         // A boxed entry's content sits inside its padding; the rain drop has none.
         int16_t pad = e->rain ? 0 : STATUS_ALERTS_BOX_PAD_X;
         int16_t icon_x = (int16_t)(x + pad);
@@ -247,15 +254,12 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
 
         GColor ink = fg;
         // A metric entry is boxed at DANGER always (filled) and at WARN per its
-        // kind's warn look — none (the icon alone is the alert), outline or fill —
-        // through status_threshold_box, the decision its slot makes too. Judged at
-        // the entry's real level (alert_set_box): the slot's Highlight switch does
-        // not touch the alert. The padding is measured in either way, so the row's
+        // kind's warn look — none (the icon alone is the alert), outline or fill.
+        // Judged at the entry's real level: the slot's Highlight switch does not
+        // touch the alert. The padding is measured in either way, so the row's
         // widths do not shift when a box appears.
-        uint8_t c8 = 0;
-        int box = alert_set_box(text->blob, text->blob_len, e, &c8);
-        bool filled = box == THRESH_BOX_FILL;
-        if (box != THRESH_BOX_NONE) {
+        bool filled = look.box == THRESH_BOX_FILL;
+        if (look.box != THRESH_BOX_NONE) {
             // The box IS the footprint: the padding was measured in, so it spans
             // exactly [x, x + w). Its height is the slots' font-derived extent
             // (status_highlight_extent_pad with a 0 pad is that extent, clamped).
@@ -266,7 +270,7 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
                 place->band.origin.y, place->band.size.h, place->top_strip,
                 STATUS_ALERTS_BOX_PAD_Y);
             GRect box = GRect(x, v.y, w, v.h);
-            GColor accent = accent_color(c8);
+            GColor accent = accent_color(look.color8);
             if (filled) {
                 graphics_context_set_fill_color(ctx, accent);
                 graphics_fill_rect(ctx, box, 2, GCornersAll);

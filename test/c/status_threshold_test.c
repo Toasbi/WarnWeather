@@ -650,8 +650,9 @@ static void health_value_tests(void) {
     // status_threshold_level() itself has no -1 guard (a raw 0 legitimately
     // reads Danger under below-is-worse — see "below.danger" above, and low
     // steps early in the day is an accepted product quirk); the consumer
-    // (status_row.c's slot_level()) is responsible for intercepting a negative
-    // health_value() result before ever calling status_threshold_level(). This
+    // (status_threshold_slot_level(), pinned end to end in slot_level_tests) is
+    // responsible for intercepting a negative health_value() result before ever
+    // calling status_threshold_level(). This
     // reproduces that exact two-step contract for steps: before the fix,
     // health_value_tests's old "hv.steps_neg" clamped -3 to 0, and 0 fed
     // straight into status_threshold_level(..., below_is_worse=true) below
@@ -664,9 +665,13 @@ static void health_value_tests(void) {
     expect("hv.steps_none_not_danger", steps_level, THRESH_LEVEL_NORMAL);
 }
 
+static int box_of(const uint8_t *blob, size_t len, int kind, int level) {
+    return status_threshold_look(blob, len, kind, level).box;
+}
+
 // The box decision both draw paths (slot + alert icon) share: NORMAL none,
-// DANGER fill whatever the look, WARN exactly the look; the blob form reads the
-// kind's look and matches the pure form for every level x look.
+// DANGER fill whatever the look, WARN exactly the look; the look reads the
+// kind's warn look from the blob and matches the pure form for every level x look.
 static void box_tests(void) {
     expect("box.enum", THRESH_BOX_NONE * 100 + THRESH_BOX_OUTLINE * 10 + THRESH_BOX_FILL, 12);
     int looks[] = { THRESH_WARN_LOOK_NONE, THRESH_WARN_LOOK_OUTLINE, THRESH_WARN_LOOK_FILL };
@@ -698,20 +703,20 @@ static void box_tests(void) {
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0x00;
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_POLLEN] = 0xFF;
     expect("box.blob_aqi_none",
-           status_threshold_box(blob, n, THRESH_AQI, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+           box_of(blob, n, THRESH_AQI, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
     expect("box.blob_pollen_outline",
-           status_threshold_box(blob, n, THRESH_POLLEN, THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
+           box_of(blob, n, THRESH_POLLEN, THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
     expect("box.blob_wind_fill_zero_colour",
-           status_threshold_box(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), THRESH_BOX_FILL);
+           box_of(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), THRESH_BOX_FILL);
     expect("box.blob_steps_outline",
-           status_threshold_box(blob, n, THRESH_STEPS, THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
+           box_of(blob, n, THRESH_STEPS, THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
     expect("box.blob_aqi_danger_fill",
-           status_threshold_box(blob, n, THRESH_AQI, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
+           box_of(blob, n, THRESH_AQI, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
     expect("box.blob_aqi_normal_none",
-           status_threshold_box(blob, n, THRESH_AQI, THRESH_LEVEL_NORMAL), THRESH_BOX_NONE);
+           box_of(blob, n, THRESH_AQI, THRESH_LEVEL_NORMAL), THRESH_BOX_NONE);
     for (int k = 0; k < THRESH_PAIRED_KIND_COUNT; k++) {
         for (int lv = THRESH_LEVEL_NORMAL; lv <= THRESH_LEVEL_DANGER; lv++) {
-            expect("box.blob_matches_pure", status_threshold_box(blob, n, k, lv),
+            expect("box.blob_matches_pure", box_of(blob, n, k, lv),
                    status_threshold_box_for(lv, status_threshold_warn_look(blob, n, k)));
         }
     }
@@ -719,21 +724,178 @@ static void box_tests(void) {
     // colour's 0x00 still means no box (derived inside the look accessor only),
     // any colour an outline.
     expect("box.legacy_wind_none",
-           status_threshold_box(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_WIND,
-                                THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+           box_of(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_WIND, THRESH_LEVEL_WARN),
+           THRESH_BOX_NONE);
     expect("box.legacy_pollen_outline",
-           status_threshold_box(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_POLLEN,
-                                THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
+           box_of(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_POLLEN, THRESH_LEVEL_WARN),
+           THRESH_BOX_OUTLINE);
     // A kind without a pair has no look: no box at warn; danger still fills.
     expect("box.temp_warn_none",
-           status_threshold_box(blob, n, THRESH_TEMP, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+           box_of(blob, n, THRESH_TEMP, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+    expect("box.temp_danger_fill",
+           box_of(blob, n, THRESH_TEMP, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
     expect("box.invalid_warn_none",
-           status_threshold_box(NULL, n, THRESH_AQI, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+           box_of(NULL, n, THRESH_AQI, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+}
+
+static void expect_look(const char *name, int on, const uint8_t *blob, size_t len,
+                        int kind, int level, int box, int bold, int color8) {
+    ThreshLook l = status_threshold_look(blob, len, kind, level);
+    char full[64];
+    snprintf(full, sizeof(full), "%s.on%d.box", name, on);
+    expect(full, l.box, box);
+    snprintf(full, sizeof(full), "%s.on%d.bold", name, on);
+    expect(full, l.bold, bold);
+    snprintf(full, sizeof(full), "%s.on%d.color8", name, on);
+    expect(full, l.color8, color8);
+}
+
+// The whole look, as both draw paths ask for it: the box above, the bold ladder and
+// the raw accent byte of the (kind, level) cell. The look never reads the enable
+// bit — an alert entry is judged at its real level whatever its kind's slot
+// Highlight switch says; the switch reaches a slot only through its level
+// (slot_level_tests).
+static void look_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV] = 0xF8;        // UV warn colour
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV + 1] = 0xF0;    // UV danger colour
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0xFF;      // wind warn colour
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND + 1] = 0xE0;  // wind danger colour
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_GUST] = 0xC0;      // gust warn colour
+    // Looks: wind none, gust fill (byte 36, kinds 2 and 3); UV outline (byte 37,
+    // kind 7 at bits 6-7).
+    blob[THRESH_WARN_LOOK_OFFSET] = (uint8_t)((THRESH_WARN_LOOK_NONE << 4)
+        | (THRESH_WARN_LOOK_FILL << 6));
+    blob[THRESH_WARN_LOOK_OFFSET + 1] = (uint8_t)(THRESH_WARN_LOOK_OUTLINE << 6);
+    // Bold: gust Off (danger only), UV Always; wind keeps the default Warn.
+    blob[THRESH_BOLD_OFFSET] = (uint8_t)(THRESH_BOLD_OFF << (2 * THRESH_GUST));
+    blob[THRESH_BOLD_OFFSET + 1] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * (THRESH_UV & 3)));
+    for (int on = 0; on < 2; on++) {
+        // Every kind's enable bit off, then on: the same looks.
+        blob[0] = on ? 0xFF : 0x00;
+        expect_look("look.uv_warn_outline", on, blob, n, THRESH_UV, THRESH_LEVEL_WARN,
+                    THRESH_BOX_OUTLINE, 1, 0xF8);
+        expect_look("look.uv_danger_fill", on, blob, n, THRESH_UV, THRESH_LEVEL_DANGER,
+                    THRESH_BOX_FILL, 1, 0xF0);
+        // Bold 'Always' reaches the normal zone; NORMAL draws no box and has no
+        // colour cell (the safe 0xFF fallback).
+        expect_look("look.uv_normal_always_bold", on, blob, n, THRESH_UV,
+                    THRESH_LEVEL_NORMAL, THRESH_BOX_NONE, 1, 0xFF);
+        // Warn look 'none': no box, yet the default ladder still bolds the warn.
+        expect_look("look.wind_warn_none_bold", on, blob, n, THRESH_WIND, THRESH_LEVEL_WARN,
+                    THRESH_BOX_NONE, 1, 0xFF);
+        expect_look("look.wind_danger_fill", on, blob, n, THRESH_WIND, THRESH_LEVEL_DANGER,
+                    THRESH_BOX_FILL, 1, 0xE0);
+        expect_look("look.wind_normal_plain", on, blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL,
+                    THRESH_BOX_NONE, 0, 0xFF);
+        // Warn look 'fill' under Bold Off: filled, not bold — danger alone bolds.
+        expect_look("look.gust_warn_fill_not_bold", on, blob, n, THRESH_GUST,
+                    THRESH_LEVEL_WARN, THRESH_BOX_FILL, 0, 0xC0);
+        expect_look("look.gust_danger_bold", on, blob, n, THRESH_GUST, THRESH_LEVEL_DANGER,
+                    THRESH_BOX_FILL, 1, 0x00);
+    }
+    // Every field is exactly its accessor, for every paired kind, level and look.
+    for (int look = 0; look < 4; look++) {
+        uint8_t all = (uint8_t)(look | (look << 2) | (look << 4) | (look << 6));
+        blob[THRESH_WARN_LOOK_OFFSET] = all;
+        blob[THRESH_WARN_LOOK_OFFSET + 1] = all;
+        for (int k = 0; k < THRESH_PAIRED_KIND_COUNT; k++) {
+            for (int lv = THRESH_LEVEL_NORMAL; lv <= THRESH_LEVEL_DANGER; lv++) {
+                ThreshLook l = status_threshold_look(blob, n, k, lv);
+                expect("look.box_is_box_for", l.box,
+                       status_threshold_box_for(lv, status_threshold_warn_look(blob, n, k)));
+                expect("look.bold_is_is_bold", l.bold,
+                       status_threshold_is_bold(blob, n, k, lv));
+                expect("look.color8_is_color8", l.color8,
+                       status_threshold_color8(blob, n, k, lv));
+            }
+        }
+    }
+    // Kind -1 (no threshold-capable content) is plain; an invalid blob draws no
+    // warn box but keeps the default Warn ladder, the accessors' own fallbacks.
+    expect_look("look.no_kind", 1, blob, n, -1, THRESH_LEVEL_NORMAL, THRESH_BOX_NONE, 0, 0xFF);
+    expect_look("look.invalid_blob", 1, NULL, n, THRESH_UV, THRESH_LEVEL_WARN,
+                THRESH_BOX_NONE, 1, 0xFF);
+}
+
+// A status slot's level: NORMAL while the kind's enable bit is off (the slot's
+// Highlight switch) — the look then draws no box — else the weather kinds' packed
+// level or the health kinds' live reading against the blob's pair.
+static void slot_level_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    // Steps close 8000 / goal 10000; sleep warn and danger both 0, so any real
+    // reading — even 0 — would sit at the goal.
+    size_t steps_off = THRESH_HEALTH_OFFSET + 4 * (THRESH_STEPS - THRESH_STEPS);
+    blob[steps_off] = 8000 & 0xFF;
+    blob[steps_off + 1] = 8000 >> 8;
+    blob[steps_off + 2] = 10000 & 0xFF;
+    blob[steps_off + 3] = 10000 >> 8;
+    // Wind warn (1), UV danger (2) in the levels word.
+    int levels = (THRESH_LEVEL_WARN << (2 * THRESH_WIND)) | (THRESH_LEVEL_DANGER << 8);
+
+    // Every switch off: NORMAL, whatever the levels word or the reading says.
+    expect("slot.off_wind", status_threshold_slot_level(blob, n, levels, THRESH_WIND, -1),
+           THRESH_LEVEL_NORMAL);
+    expect("slot.off_uv", status_threshold_slot_level(blob, n, levels, THRESH_UV, -1),
+           THRESH_LEVEL_NORMAL);
+    expect("slot.off_steps",
+           status_threshold_slot_level(blob, n, levels, THRESH_STEPS, 12000),
+           THRESH_LEVEL_NORMAL);
+    // ... so the slot's look is plain, while an alert entry at the real level
+    // still gets its box (look_tests).
+    expect("slot.off_no_box",
+           box_of(blob, n, THRESH_UV,
+                  status_threshold_slot_level(blob, n, levels, THRESH_UV, -1)),
+           THRESH_BOX_NONE);
+    expect("slot.off_alert_still_boxed",
+           box_of(blob, n, THRESH_UV, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
+
+    blob[0] = 0xFF;   // every switch on
+    expect("slot.wind_warn", status_threshold_slot_level(blob, n, levels, THRESH_WIND, -1),
+           THRESH_LEVEL_WARN);
+    expect("slot.uv_danger", status_threshold_slot_level(blob, n, levels, THRESH_UV, -1),
+           THRESH_LEVEL_DANGER);
+    expect("slot.gust_normal", status_threshold_slot_level(blob, n, levels, THRESH_GUST, -1),
+           THRESH_LEVEL_NORMAL);
+    // Reserved wire value 3 clamps to danger (status_threshold_weather_level).
+    expect("slot.aqi_reserved", status_threshold_slot_level(blob, n, 3, THRESH_AQI, -1),
+           THRESH_LEVEL_DANGER);
+    // A weather kind ignores the health reading.
+    expect("slot.weather_ignores_health",
+           status_threshold_slot_level(blob, n, 0, THRESH_WIND, 99999), THRESH_LEVEL_NORMAL);
+    // Health: the reading against the pair, inclusive at both edges.
+    expect("slot.steps_below", status_threshold_slot_level(blob, n, 0, THRESH_STEPS, 7999),
+           THRESH_LEVEL_NORMAL);
+    expect("slot.steps_close", status_threshold_slot_level(blob, n, 0, THRESH_STEPS, 8000),
+           THRESH_LEVEL_WARN);
+    expect("slot.steps_goal", status_threshold_slot_level(blob, n, 0, THRESH_STEPS, 10000),
+           THRESH_LEVEL_DANGER);
+    // -1 (unavailable, or no HealthService) is never highlighted — not even
+    // against a 0/0 pair, where a real 0 reading would sit at the goal.
+    expect("slot.sleep_zero_goal", status_threshold_slot_level(blob, n, 0, THRESH_SLEEP, 0),
+           THRESH_LEVEL_DANGER);
+    expect("slot.sleep_unavailable",
+           status_threshold_slot_level(blob, n, 0, THRESH_SLEEP, -1), THRESH_LEVEL_NORMAL);
+    // No pair, no level: kind -1, the bold-only kinds, an invalid blob.
+    expect("slot.no_kind", status_threshold_slot_level(blob, n, 0xFFFF, -1, 5),
+           THRESH_LEVEL_NORMAL);
+    expect("slot.bold_only", status_threshold_slot_level(blob, n, 0xFFFF, THRESH_TEMP, 5),
+           THRESH_LEVEL_NORMAL);
+    expect("slot.invalid_blob",
+           status_threshold_slot_level(NULL, n, levels, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
+    expect("slot.bad_len",
+           status_threshold_slot_level(blob, 36, levels, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
 }
 
 int main(void) {
     level_tests();
     box_tests();
+    look_tests();
+    slot_level_tests();
     kind_tests();
     weather_byte_tests();
     blob_tests();

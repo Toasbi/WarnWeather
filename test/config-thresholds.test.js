@@ -1425,7 +1425,7 @@ test('the Bold middle option speaks the kind vocabulary, over one stored value',
 test('the Bold hint explains the selected step only, and when the level bold applies', () => {
   // One hint per step (hintByValue), never a list of all three. The level-driven bold
   // — danger / a reached goal, and the middle step — needs the kind's level, which
-  // the watch zeroes while Highlight (Goals) is off (status_row.c slot_level), so the
+  // the watch zeroes while Highlight (Goals) is off (status_threshold_slot_level), so the
   // hints say "while … is on" (settings audit #8).
   assert.equal(boldFor('Wind').hint, undefined, 'no all-options hint');
   // A weather kind's ladder also weights its alert's value (status_alerts.c), so

@@ -423,7 +423,7 @@ function graphColorRow(row, joins) {
 // `boldHints` explain the Bold row's SELECTED step only, in the sheet's voice (alert
 // levels reached vs goals reached). The level-driven bold — danger / a reached goal,
 // and the middle step — reads the kind's level, which the watch zeroes while the kind's
-// Highlight (Goals) switch is off (status_row.c slot_level), so the hints say "while …
+// Highlight (Goals) switch is off (status_threshold_slot_level), so the hints say "while …
 // is on". 'Always' needs no levels, so its note is the per-kind scope, shared with the
 // level-less kinds' Bold rows (boldSection).
 var BOLD_ALWAYS_HINT = 'Every status slot showing this value prints it in heavier text.';
@@ -985,7 +985,7 @@ function highlightToggle(keyStem) {
         messageKey: 'thresh' + keyStem + 'On',
         label: 'Alert highlighting',
         // Fill at danger always; at warn the Alerts sheet's warn look (none /
-        // outline / fill — status_threshold_box).
+        // outline / fill — status_threshold_look).
         hint: 'Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.',
         defaultValue: false
     };

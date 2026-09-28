@@ -185,7 +185,7 @@ static inline bool status_threshold_is_health_kind(int kind) {
 
 typedef enum {
     THRESH_LEVEL_NORMAL = 0,
-    THRESH_LEVEL_WARN = 1,     // boxed per the kind's warn look (status_threshold_box)
+    THRESH_LEVEL_WARN = 1,     // boxed per the kind's warn look (status_threshold_look)
     THRESH_LEVEL_DANGER = 2,   // outline + filled background, legible ink
 } ThreshLevel;
 
@@ -277,8 +277,7 @@ typedef enum {
 // bold-only kinds, out of range).
 int status_threshold_warn_look(const uint8_t *blob, size_t len, int kind);
 
-// How a status slot or an alert icon is boxed at its level — ONE decision for
-// both draw paths, so a slot and its alert icon cannot disagree.
+// How a status slot or an alert icon is boxed at its level (ThreshLook.box).
 typedef enum {
     THRESH_BOX_NONE = 0,      // no box
     THRESH_BOX_OUTLINE = 1,   // rounded-rect outline in the level's colour
@@ -291,12 +290,6 @@ typedef enum {
 // (whatever the look), WARN exactly the look — an out-of-range look reads as
 // OUTLINE, the accessor's rule for the reserved wire value.
 int status_threshold_box_for(int level, int look);
-
-// status_threshold_box_for() with the kind's look read from the blob
-// (status_threshold_warn_look). Callers gate the slot on its Highlight switch by
-// handing in the level it resolved (NORMAL while the kind is off); an alert
-// entry hands in its real level.
-int status_threshold_box(const uint8_t *blob, size_t len, int kind, int level);
 
 // The status bars, in the order of their 2-bit cells in the placement byte.
 typedef enum {
@@ -325,3 +318,31 @@ int status_threshold_bar_alerts(const uint8_t *blob, size_t len, int bar);
 // Whether a slot of `kind` drawn at `level` prints bold. Kind -1 (a slot with no
 // threshold-capable content) is never bold.
 bool status_threshold_is_bold(const uint8_t *blob, size_t len, int kind, int level);
+
+// What a highlighted cell of `kind` draws at `level` — ONE decision for both draw
+// paths, so a status slot and the alert icon of its kind cannot disagree at the same
+// level. The slot hands in the level status_threshold_slot_level() resolved (NORMAL
+// while its kind's Highlight switch is off); an alert entry hands in its real level,
+// which the switch does not touch.
+typedef struct {
+    uint8_t box;      // ThreshBox: status_threshold_box_for() under the kind's warn look
+    uint8_t bold;     // status_threshold_is_bold(): 1 = the bold companion font
+    uint8_t color8;   // status_threshold_color8(): the RAW GColor8 byte behind the box
+                      // (the drawable colour is the SDK side's theme pick)
+} ThreshLook;
+// Three bytes, no padding: the status row folds a look into its content signature
+// byte for byte.
+_Static_assert(sizeof(ThreshLook) == 3, "ThreshLook must stay three padding-free bytes");
+
+ThreshLook status_threshold_look(const uint8_t *blob, size_t len, int kind, int level);
+
+// The level (ThreshLevel) a status slot of `kind` is highlighted at; kind -1 (no
+// threshold-capable content) and every kind whose Highlight switch (its enable bit)
+// is off are NORMAL. A weather kind reads the phone-computed `levels_word`
+// (STATUS_LEVELS_UINT8); a health kind compares `health_value` — the caller's
+// status_threshold_health_value() reading, or -1 — against the blob's pair, and -1
+// (unavailable, or no HealthService) is never highlighted. The caller reads health
+// only for a health kind (status_threshold_is_health_kind) and passes -1 otherwise,
+// which keeps the HealthService reads on the SDK side.
+int status_threshold_slot_level(const uint8_t *blob, size_t len, int levels_word,
+                                int kind, int health_value);

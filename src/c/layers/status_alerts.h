@@ -15,10 +15,10 @@
 // is guarded; these declarations emit nothing.
 //
 // Each entry is a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a highlighted
-// slot of its kind at the entry's REAL level (alert_set_box) — the alert's own look,
-// which the kind's slot 'Alert highlighting' switch does not touch (that switch styles only
-// the slot):
-//  - WARN   the kind's warn look (status_threshold_box — the slot's own rule):
+// slot of its kind at the entry's REAL level (status_threshold_look) — the alert's own
+// look, which the kind's slot 'Alert highlighting' switch does not touch (that switch
+// styles only the slot):
+//  - WARN   the kind's warn look (the slot's own rule):
 //           none = no box, the icon alone is the alert; outline = a rounded-rect
 //           OUTLINE in the kind's warn colour; fill = the DANGER look below, in
 //           the warn colour;
@@ -30,8 +30,8 @@
 // box (danger, or a warn look of fill) is fg with the glyph and text in the
 // background colour.
 // Text lanes use the row's font; a metric value follows its kind's bold ladder at
-// the entry's level (status_threshold_is_bold — danger bold, warn per the kind's
-// Bold mode, 'Always'), the rain text never bolds.
+// the entry's level (the look's bold bit — danger bold, warn per the kind's Bold
+// mode, 'Always'), the rain text never bolds.
 //
 // A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px each side of
 // the icon(+text) group, INSIDE the box — the outline's own pixel plus two of air,

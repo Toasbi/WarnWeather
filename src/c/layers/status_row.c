@@ -407,33 +407,21 @@ static int load_pass(uint8_t line_id, StatusSlotView out[STATUS_SLOT_COUNT]) {
     return len;
 }
 
-// Highlight level (ThreshLevel) for one resolved slot, keyed by its ThreshKind
-// (-1 = no threshold-capable content). Callers resolve the kind via
-// status_threshold_kind_for_slot ONCE per slot and hand it to this, the bold
-// predicate, and the accessor reads — the lookup sits on the per-draw hot
-// path. Weather kinds read the phone-computed packed byte (the watch has no
-// raw AQI/wind ints); health kinds compare live health_summary values against
-// the Clay-sent thresholds in their wire units (steps / minutes / 100 m).
-static uint8_t slot_level(int kind) {
-    if (kind < 0
-        || !status_threshold_enabled(s_thresh_scratch, (size_t)s_thresh_len, kind)) {
-        return THRESH_LEVEL_NORMAL;
-    }
-    if (!status_threshold_is_health_kind(kind)) {
-        return (uint8_t)status_threshold_weather_level(s_levels_word, kind);
-    }
+// The live reading a slot of `kind` (a ThreshKind, -1 = no threshold-capable
+// content) is judged against, in the blob's wire units (steps / minutes / 100 m) —
+// or -1 for every non-health kind and on a watch without HealthService. The half of
+// the slot's level that needs health_summary, which the host-compiled
+// status_threshold_slot_level() must not call.
+static int slot_health_value(int kind) {
 #if defined(PBL_HEALTH)
-    int value = status_threshold_health_value(kind,
-        health_summary_steps(), health_summary_sleep_seconds(),
-        health_summary_distance_m());
-    if (value < 0) { return THRESH_LEVEL_NORMAL; }   // unavailable: never highlight
-    return (uint8_t)status_threshold_level(value,
-        status_threshold_health_warn(s_thresh_scratch, (size_t)s_thresh_len, kind),
-        status_threshold_health_danger(s_thresh_scratch, (size_t)s_thresh_len, kind),
-        status_threshold_below_is_worse(kind));
+    if (status_threshold_is_health_kind(kind)) {
+        return status_threshold_health_value(kind, health_summary_steps(),
+            health_summary_sleep_seconds(), health_summary_distance_m());
+    }
 #else
-    return THRESH_LEVEL_NORMAL;
+    (void)kind;
 #endif
+    return -1;
 }
 
 // Warn/danger accent for a slot, from the RAW GColor8 byte its (kind, level) cell
@@ -442,7 +430,7 @@ static uint8_t slot_level(int kind) {
 // warn look of fill — drawn solid, as picked) — the user hues only apply on the
 // color path. Takes the byte rather than re-reading it so the caller's raw value
 // and the drawable colour can never disagree. Whether there IS a box is not this
-// colour's business: that is the resolver's `box` (status_threshold_box).
+// colour's business: that is the resolver's `look.box` (status_threshold_look).
 static GColor highlight_color(uint8_t color8) {
 #ifdef PBL_COLOR
     return theme_pick((GColor){ .argb = color8 }, theme_fg());
@@ -469,11 +457,9 @@ typedef struct {
     GFont          font;                    // regular, or the bold companion
     char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
     int8_t  dir;                            // wind sector 0..15, -1 = none
-    uint8_t level;                          // ThreshLevel
-    uint8_t bold;                           // resolved bold bit (its own setting)
-    uint8_t box;                            // ThreshBox at `level` (the warn look)
+    uint8_t level;                          // ThreshLevel, gated on the Highlight switch
+    ThreshLook look;                        // box, bold bit and RAW accent byte at `level`
     GColor  accent;                         // theme-picked outline/fill colour
-    uint8_t accent8;                        // the RAW blob byte behind `accent`
 } ResolvedSlot;
 
 // Resolve slot `i` of an already-loaded pass (load_pass filled `view`). `base` is
@@ -490,33 +476,27 @@ static void resolve_slot(const StatusRow *row, int i, GFont base,
     // two loops, which is why the first cut made it a field.)
     const int thresh_kind = status_threshold_kind_for_slot(out->slot.kind,
                                                               out->slot.icon);
-    out->level = slot_level(thresh_kind);
-    // Bold is its own per-kind setting, NOT a function of the level alone:
-    // danger always prints bold, "warn" adds the warn level (the shipped
-    // default), "always" bolds the normal zone too — even for a kind whose
-    // thresholds are switched off entirely, so slot_level()'s NORMAL says
-    // nothing here. Predicate + wire layout live in status_threshold.c.
-    out->bold = (uint8_t)status_threshold_is_bold(s_thresh_scratch,
-        (size_t)s_thresh_len, thresh_kind, out->level);
+    // NORMAL while the kind's Highlight switch is off; weather kinds read the
+    // phone-computed levels word (the watch has no raw AQI/wind ints), health kinds
+    // compare the live reading against the Clay-sent pair.
+    out->level = (uint8_t)status_threshold_slot_level(s_thresh_scratch,
+        (size_t)s_thresh_len, s_levels_word, thresh_kind, slot_health_value(thresh_kind));
+    // The box (none at NORMAL, filled at DANGER, the kind's warn look at WARN), the
+    // bold bit and the accent byte — the function the alert icon of the same kind
+    // asks at its level, so the two cannot disagree. Bold is its own per-kind
+    // setting, NOT a function of the level alone: "always" bolds the normal zone
+    // too, even for a kind whose thresholds are switched off entirely. ALWAYS
+    // resolved, for every slot and every level: an accent nobody paints costs one
+    // blob read, while one left unwritten on some paths is the uninitialised-read
+    // bug this struct exists to make impossible.
+    out->look = status_threshold_look(s_thresh_scratch, (size_t)s_thresh_len,
+                                      thresh_kind, out->level);
     // A crossed slot renders BOLD — the calendar's today-highlight pattern applied
     // to slots. The bold Gothic shares its regular sibling's metrics, so only
     // glyph WIDTHS change, which is why the font has to travel with the slot:
     // whoever measures must measure with the font that will be drawn.
-    out->font = out->bold ? row_font_bold(row->tier, row->line_id) : base;
-    // The box: none at NORMAL (which is also every level of a kind whose
-    // Highlight is off — slot_level gates on the enable bit), filled at DANGER,
-    // and at WARN the kind's warn look. The alert icon of the same kind asks the
-    // same function (alert_set_box), so the two cannot disagree.
-    out->box = (uint8_t)status_threshold_box(s_thresh_scratch, (size_t)s_thresh_len,
-                                             thresh_kind, out->level);
-    // ALWAYS resolved, for every slot and every level — an accent nobody paints
-    // costs one blob read, while an accent left unwritten on some paths is the
-    // uninitialised-read bug this struct exists to make impossible. The raw byte
-    // is kept alongside the picked colour for the content signature: a recolour
-    // is judged on the byte the phone sent, before theme_pick resolves it.
-    out->accent8 = status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
-                                           thresh_kind, out->level);
-    out->accent = highlight_color(out->accent8);
+    out->font = out->look.bold ? row_font_bold(row->tier, row->line_id) : base;
+    out->accent = highlight_color(out->look.color8);
 }
 
 // Resolve a whole row: load the pass, then resolve all three slots against it.
@@ -570,13 +550,13 @@ static void resolve_alerts(ResolvedAlerts *out) {
 }
 
 // Fold everything the Alerts row paints into the row signature, so a changed set is
-// a content change: which entries, their levels and baked values, the colour, bold
-// cell and box (the warn look) each one reads from the blob at its level (a Clay
-// save that only recolours or re-looks must repaint, as for a slot's accent8 and
-// box; the kind's slot Highlight switch
-// does not touch an entry, so it is not folded), the rain look, the drop's bucket
-// and tier (its glyph and tint), and the countdown text — but the text only when a
-// look prints it, or an icon-only rain alert would repaint every minute for nothing.
+// a content change: which entries, their levels and baked values, the look each one
+// reads from the blob at its level (status_threshold_look — a Clay save that only
+// recolours or re-looks must repaint, as for a slot's look; the kind's slot Highlight
+// switch does not touch an entry, so it is not folded), the rain look, the drop's
+// bucket and tier (its glyph and tint), and the countdown text — but the text only
+// when a look prints it, or an icon-only rain alert would repaint every minute for
+// nothing.
 static uint16_t fold_alerts(uint16_t sig, const ResolvedAlerts *a) {
     sig = sig_fold(sig, &a->set.count, 1);
     for (int i = 0; i < a->set.count; i++) {
@@ -586,14 +566,9 @@ static uint16_t fold_alerts(uint16_t sig, const ResolvedAlerts *a) {
         sig = sig_fold(sig, head, sizeof(head));
         if (e->rain) { continue; }
         sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
-        uint8_t look[3] = {
-            status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
-                                    e->kind, e->level),
-            (uint8_t)status_threshold_is_bold(s_thresh_scratch, (size_t)s_thresh_len,
-                                              e->kind, e->level),
-            (uint8_t)alert_set_box(s_thresh_scratch, (size_t)s_thresh_len, e, NULL)
-        };
-        sig = sig_fold(sig, look, sizeof(look));
+        ThreshLook look = status_threshold_look(s_thresh_scratch, (size_t)s_thresh_len,
+                                                e->kind, e->level);
+        sig = sig_fold(sig, (const uint8_t *)&look, sizeof(look));
     }
     uint8_t display = (uint8_t)a->rain_display;
     sig = sig_fold(sig, &display, 1);
@@ -734,9 +709,9 @@ bool status_row_refresh(StatusRow *row) {
             uint8_t dir_byte = (uint8_t)r->dir;
             sig = sig_fold(sig, &dir_byte, 1);
             // Fold the highlight level so a crossing (new levels byte, a health
-            // value moving, changed settings) is itself a content change; the
-            // RESOLVED bold bit so a bold-mode-only settings change (e.g.
-            // Always on a kind whose thresholds are off — no level moves)
+            // value moving, changed settings) is itself a content change, and the
+            // whole look: the RESOLVED bold bit so a bold-mode-only settings change
+            // (e.g. Always on a kind whose thresholds are off — no level moves)
             // repaints now instead of riding the next minute tick; the resolved
             // BOX because a Clay save that only changes the warn look (none /
             // outline / fill) moves neither of those; and the RAW accent byte
@@ -744,9 +719,7 @@ bool status_row_refresh(StatusRow *row) {
             // others, and the box would keep its old colour until unrelated
             // content happened to move.
             sig = sig_fold(sig, &r->level, 1);
-            sig = sig_fold(sig, &r->bold, 1);
-            sig = sig_fold(sig, &r->box, 1);
-            sig = sig_fold(sig, &r->accent8, 1);
+            sig = sig_fold(sig, (const uint8_t *)&r->look, sizeof(r->look));
             if (slot->kind != SLOT_EMPTY && slot->icon == STATUS_ICON_DRAWN_SUN) {
                 has_drawn_sun = true;
             }
@@ -1100,14 +1073,14 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 
     // Threshold-highlight pass: paint each crossed slot's box — an outline, or a
     // filled box + outline — UNDER its icon + text (calendar today-box
-    // precedent), as the resolver's `box` says: filled at danger, and at warn the
+    // precedent), as the resolver's `look.box` says: filled at danger, and at warn the
     // kind's warn look (none: the bold text IS the highlight, no box). Paint-only
     // — no allocations.
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        if (!places[i].visible || slots[i].box == THRESH_BOX_NONE) { continue; }
+        if (!places[i].visible || slots[i].look.box == THRESH_BOX_NONE) { continue; }
         GRect box = slot_highlight_box(row, &places[i], &measures[i], x0, glyph_cy,
                                        content_h, slots[i].text);
-        if (slots[i].box == THRESH_BOX_FILL) {
+        if (slots[i].look.box == THRESH_BOX_FILL) {
             graphics_context_set_fill_color(ctx, slots[i].accent);
             graphics_fill_rect(ctx, box, 2, GCornersAll);
         }
@@ -1141,7 +1114,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         // the highlight pass above filled the box with, so ink and fill cannot
         // disagree and the blob colour is read once per draw rather than once per
         // pass.
-        const bool filled = slots[i].box == THRESH_BOX_FILL;
+        const bool filled = slots[i].look.box == THRESH_BOX_FILL;
         GColor ink = filled ? gcolor_legible_over(slots[i].accent) : theme_fg();
         graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);

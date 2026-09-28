@@ -193,16 +193,36 @@ int status_threshold_box_for(int level, int look) {
     }
 }
 
-int status_threshold_box(const uint8_t *blob, size_t len, int kind, int level) {
-    // Only WARN depends on the look; skip the blob read otherwise.
-    if (level != THRESH_LEVEL_WARN) { return status_threshold_box_for(level, 0); }
-    return status_threshold_box_for(level, status_threshold_warn_look(blob, len, kind));
-}
-
 bool status_threshold_is_bold(const uint8_t *blob, size_t len, int kind, int level) {
     if (kind < 0) { return false; }
     if (level == THRESH_LEVEL_DANGER) { return true; }   // danger always wins
     int mode = status_threshold_bold_mode(blob, len, kind);
     if (mode == THRESH_BOLD_ALWAYS) { return true; }
     return mode == THRESH_BOLD_WARN && level == THRESH_LEVEL_WARN;
+}
+
+ThreshLook status_threshold_look(const uint8_t *blob, size_t len, int kind, int level) {
+    // Only WARN depends on the warn look; skip the blob read otherwise.
+    int warn_look = level == THRESH_LEVEL_WARN
+        ? status_threshold_warn_look(blob, len, kind) : THRESH_WARN_LOOK_NONE;
+    ThreshLook look = {
+        .box = (uint8_t)status_threshold_box_for(level, warn_look),
+        .bold = (uint8_t)status_threshold_is_bold(blob, len, kind, level),
+        .color8 = status_threshold_color8(blob, len, kind, level),
+    };
+    return look;
+}
+
+int status_threshold_slot_level(const uint8_t *blob, size_t len, int levels_word,
+                                int kind, int health_value) {
+    // The enable bit answers false for kind -1 and the bold-only kinds, too.
+    if (!status_threshold_enabled(blob, len, kind)) { return THRESH_LEVEL_NORMAL; }
+    if (!status_threshold_is_health_kind(kind)) {
+        return status_threshold_weather_level(levels_word, kind);
+    }
+    if (health_value < 0) { return THRESH_LEVEL_NORMAL; }   // unavailable: never highlight
+    return status_threshold_level(health_value,
+        status_threshold_health_warn(blob, len, kind),
+        status_threshold_health_danger(blob, len, kind),
+        status_threshold_below_is_worse(kind));
 }
