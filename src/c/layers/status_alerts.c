@@ -160,8 +160,8 @@ static GFont lane_text(const AlertEntry *e, const StatusAlertsText *text, bool b
 }
 
 // The entry's look at its REAL level (status_threshold_look — the decision its
-// kind's slot makes at the same level). The rain entry poses as kind 0 at NORMAL,
-// which draws no box, and lane_text never bolds it.
+// kind's slot makes at the same level). The rain entry is ALERT_KIND_RAIN at
+// NORMAL, which draws no box and never bolds.
 static ThreshLook entry_look(const AlertEntry *e, const StatusAlertsText *text) {
     return status_threshold_look(text->blob, text->blob_len, e->kind, e->level);
 }

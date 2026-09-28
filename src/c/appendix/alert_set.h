@@ -30,6 +30,13 @@
 
 #define ALERT_SET_MAX 6   // rain + the five metric kinds
 
+// The rain entry's kind, in memory only (it never rides the tuple): no ThreshKind
+// (all < THRESH_KIND_COUNT), so every accessor a kind reaches answers its
+// out-of-range default — no icon (alert_set_icon), and at NORMAL no box, no bold
+// and the fallback colour byte (status_threshold_look). As kind 0 it posed as AQI,
+// whose Bold 'Always' made the rain look bold.
+#define ALERT_KIND_RAIN 0xFF
+
 // ALERT_ENTRIES_UINT8 (weather message, status category): one entry per ACTIVE
 // metric alert, in the fixed order UV, wind, gust, AQI, pollen (the phone bakes
 // only enabled alerts at warn or higher — status-thresholds.js bakeAlerts — and
@@ -54,13 +61,14 @@
 #define STATUS_ALERT_LEN_MAX 7
 
 typedef struct {
-    uint8_t kind;          // ThreshKind of a metric entry (AQI, pollen, wind, gust, UV)
+    uint8_t kind;          // ThreshKind of a metric entry (AQI, pollen, wind, gust,
+                           // UV); ALERT_KIND_RAIN for the rain entry
     uint8_t level;         // ThreshLevel of a metric entry: WARN or DANGER
     uint8_t value_len;     // bytes at `value`, 0..STATUS_ALERT_LEN_MAX
     const char *value;     // INTO the slot bytes, NOT NUL-terminated; NULL when
                            // value_len is 0 (the kind's Look is 'icon' on the phone)
-    bool rain;             // the watch-resolved rain entry: kind 0 at NORMAL (whose
-                           // look draws no box — status_threshold_look), no value
+    bool rain;             // the watch-resolved rain entry: ALERT_KIND_RAIN at
+                           // NORMAL (whose look draws no box), no value
     uint8_t rain_bucket;   // 1 drizzle, 2 rain, 3 downpour (rain_tier_to_bucket3)
     uint8_t rain_tier;     // radar tier 1..5 of the segment's peak — the drop's tint
 } AlertEntry;

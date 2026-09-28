@@ -508,23 +508,29 @@ static void degrade_tests(void) {
     expect("degrade.null", alert_set_degrade(NULL, &values), 0);
 }
 
-// The rain entry draws no box. status_alerts.c judges every entry through
-// status_threshold_look (pinned in status_threshold_test.c), the rain entry
-// included, and the prepended entry poses as kind 0 at NORMAL — a level that draws
-// no box whatever kind 0's (AQI's) enable bit, colours and warn look say.
+// The rain entry draws no box and never bolds. status_alerts.c judges every entry
+// through status_threshold_look (pinned in status_threshold_test.c), the rain entry
+// included, and the prepended entry is ALERT_KIND_RAIN at NORMAL: no ThreshKind, so
+// no kind's settings reach it. As kind 0 it read AQI's Bold 'Always' as its own.
 static void rain_look_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0xFF, sizeof(blob));   // every switch on, every colour set
     blob[THRESH_WARN_LOOK_OFFSET] = THRESH_WARN_LOOK_FILL;   // AQI: warn fills
+    blob[THRESH_BOLD_OFFSET] = (uint8_t)(0xFC | THRESH_BOLD_ALWAYS);   // AQI: always bold
     AlertSet set;
     alert_set_parse(blob, 0, &set);
     alert_set_prepend_rain(&set, true, 2, 3);
     const AlertEntry *rain = &set.entries[0];
-    expect("rain_look.kind", rain->kind, 0);
+    expect("rain_look.kind", rain->kind, ALERT_KIND_RAIN);
+    expect("rain_look.no_threshold_kind", rain->kind >= THRESH_KIND_COUNT, 1);
+    expect("rain_look.no_icon", alert_set_icon(rain->kind), STATUS_ICON_NONE);
     expect("rain_look.level", rain->level, THRESH_LEVEL_NORMAL);
-    expect("rain_look.no_box",
-           status_threshold_look(blob, sizeof(blob), rain->kind, rain->level).box,
-           THRESH_BOX_NONE);
+    ThreshLook look = status_threshold_look(blob, sizeof(blob), rain->kind, rain->level);
+    expect("rain_look.no_box", look.box, THRESH_BOX_NONE);
+    expect("rain_look.no_bold", look.bold, 0);
+    // The AQI it used to pose as does bold here: the case the kind now avoids.
+    expect("rain_look.aqi_bolds",
+           status_threshold_look(blob, sizeof(blob), THRESH_AQI, THRESH_LEVEL_NORMAL).bold, 1);
 }
 
 static void rain_minutes_tests(void) {

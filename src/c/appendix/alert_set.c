@@ -76,7 +76,7 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier) {
     if (tier < 0) { tier = 0; }
     if (tier > UINT8_MAX) { tier = UINT8_MAX; }
     AlertEntry *e = &set->entries[0];
-    e->kind = 0;
+    e->kind = ALERT_KIND_RAIN;
     e->level = THRESH_LEVEL_NORMAL;
     e->value_len = 0;
     e->value = NULL;
