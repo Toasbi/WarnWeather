@@ -657,10 +657,12 @@
   // is its index there; `key` is the settings stem: alert<Key> switches the alert
   // on, alert<Key>Display ('icon' | 'value') picks whether its number rides after
   // the icon. THE alert vocabulary: which alerts exist, their order and how their
-  // two settings read live here alone, and every reader — the bake, the fetch
-  // gates, the render signature, telemetry, the settings page — goes through
-  // alertSettings / enabledAlerts below. The settings page's presentation list
-  // (schema.js, its labels and sheet copy) is pinned to this order by a test.
+  // two settings read live here alone. Every reader outside this module — the
+  // fetch gates, the render signature, telemetry, the settings page — goes
+  // through alertOn / alertKindCodes / alertValueKindCodes below, and the bake
+  // through enabledAlerts; all of them rest on alertOn, the one reading of the
+  // switch. The settings page's presentation list (schema.js, its labels and sheet
+  // copy) is pinned to this order by a test.
   var ALERT_KINDS = [
     { code: 'uv', key: 'Uv' },
     { code: 'wind', key: 'Wind' },
@@ -685,35 +687,26 @@
   }
 
   /**
-   * One metric alert's two settings, read the one way: on only for a stored
-   * boolean true (a stored string is not the toggle's value), and the value shown
-   * only while it is on — an alert that is off bakes nothing, whatever its Look.
-   * @param {Object} settings Clay settings blob
-   * @param {*} code An ALERT_KINDS code.
-   * @returns {{on: boolean, showValue: boolean}} both false for a code with no alert
-   */
-  function alertSettings(settings, code) {
-    for (var i = 0; i < ALERT_KINDS.length; i++) {
-      if (ALERT_KINDS[i].code !== code) { continue; }
-      var stem = 'alert' + ALERT_KINDS[i].key;
-      var on = Boolean(settings) && settings[stem] === true;
-      return {on: on, showValue: on && settings[stem + 'Display'] === 'value'};
-    }
-    return {on: false, showValue: false};
-  }
-
-  /**
+   * A metric alert's switch, read the one way: on only for a stored boolean true
+   * (a stored string is not the toggle's value).
    * @param {Object} settings Clay settings blob
    * @param {*} code An ALERT_KINDS code.
    * @returns {boolean} whether that metric alert is switched on (false for a code
    *     with no alert)
    */
   function alertOn(settings, code) {
-    return alertSettings(settings, code).on;
+    for (var i = 0; i < ALERT_KINDS.length; i++) {
+      if (ALERT_KINDS[i].code === code) {
+        return Boolean(settings) && settings['alert' + ALERT_KINDS[i].key] === true;
+      }
+    }
+    return false;
   }
 
   /**
-   * The switched-on metric alerts, in the row's fixed order.
+   * The switched-on metric alerts, in the row's fixed order, with whether each
+   * Look prints the value. The Look is read only for an alert that is on: one
+   * that is off bakes nothing, whatever its Look.
    * @param {Object} settings Clay settings blob
    * @returns {Array<{code: string, kindId: number, showValue: boolean}>} [] when
    *     none is on
@@ -721,9 +714,10 @@
   function enabledAlerts(settings) {
     var out = [];
     for (var i = 0; i < ALERT_KINDS.length; i++) {
-      var code = ALERT_KINDS[i].code;
-      var st = alertSettings(settings, code);
-      if (st.on) { out.push({code: code, kindId: kindId(code), showValue: st.showValue}); }
+      var a = ALERT_KINDS[i];
+      if (!alertOn(settings, a.code)) { continue; }
+      out.push({code: a.code, kindId: kindId(a.code),
+        showValue: settings['alert' + a.key + 'Display'] === 'value'});
     }
     return out;
   }
