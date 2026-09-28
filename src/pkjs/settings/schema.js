@@ -2416,7 +2416,7 @@ module.exports = {
             // say — the Alert levels intro for the warn look and danger fill, the Rain
             // sheet for the rain icon's colour. "reaches your warn level today" is
             // bakeAlerts' test on dayMaxToday; "up to two slots" is the placement's
-            // anchor plus the one neighbour it borrows (alert_set_choose_slots).
+            // anchor plus the one neighbour it borrows (alert_set_take).
             title: 'Alerts',
             showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
             intro: 'Alerts show a metric only when it matters, instead of in a slot all day. An alert is active when a value '

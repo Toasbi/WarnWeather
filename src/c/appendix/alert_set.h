@@ -4,11 +4,13 @@
 #include <stdbool.h>
 #include "status_line.h"
 #include "status_threshold.h"
+#include "../layers/status_row_layout.h"
 
 // The Alerts row's entry set: which alerts the row shows, in which order, how many
 // of them fit, and which slots of its bar it takes over. Pure integer code — deliberately no <pebble.h> (nor rain_tier.h,
 // which pulls it in), so the module host-compiles (scripts/test-c.sh) like
-// status_threshold.c. The SDK side — glyphs, text, paint — is layers/status_alerts.c.
+// status_threshold.c, linked with the row layout it asks where the slots go. The SDK
+// side — glyphs, text, paint — is layers/status_alerts.c.
 //
 // NOT LINKED ON APLITE: the row is aplite-absent (WW_ALERT_ROW in wscript), so the
 // .c body sits behind that macro and compiles to an empty object there. These
@@ -103,65 +105,42 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier);
 // to load, with no text) takes no room and no gap — the draw skips it the same way.
 int alert_set_row_w(const int16_t *widths, int n, int gap);
 
-// The slots the row really keeps out of the layout: `mask` (alert_set_choose_slots)
-// while at least one entry fits (`fit`, alert_set_fit's answer), 0 when none does
-// — a slot is only ever replaced by alerts it actually shows, so an entry too wide
-// for the freed span hands the taken slots back to their own content instead of
-// leaving a blank gap.
-int alert_set_taken_slots(int mask, int fit);
-
 // How many entries fit `budget` px: the largest prefix whose alert_set_row_w() is
 // within it — entries drop from the TAIL (pollen first, rain last). 0 when not even
 // the first fits.
 int alert_set_fit(const int16_t *widths, int n, int gap, int budget);
 
-// The slots of a bar the Alerts row takes over, as a bitmask over the slot indices
-// (0 left, 1 middle, 2 right — status_line.h's order).
-#define ALERT_SLOT_LEFT  (1 << 0)
-#define ALERT_SLOT_MID   (1 << 1)
-#define ALERT_SLOT_RIGHT (1 << 2)
-
-// The placement the row lays out with this paint: the bar's own, except that a
-// RIGHT row moves to the MIDDLE while the bar's right slot shows the low-battery
-// warning (`battery_override` — the top strip only), so the warning keeps its slot
-// ('Show battery below 10%' promises it the top-right). A MIDDLE row never takes
-// the right slot (it borrows the left one), so nothing else has to give way.
-int alert_set_place(int placement, bool battery_override);
-
-// Which slots the Alerts row replaces for this paint (a ThreshAlertsPlace in
-// `placement`; 0 for OFF or an empty row). The anchor rule: LEFT takes the left
-// slot, RIGHT the right slot, MIDDLE the middle slot — and each borrows ONE
-// neighbour when the row (`need_w` px, at its full lanes) does not fit the room its
-// anchor leaves: LEFT and RIGHT the middle slot, MIDDLE the LEFT slot (the right one
-// usually holds the battery). Never more than two; a neighbour that is absent is not
-// borrowed (it frees nothing). Whatever still does not fit the two-slot span is the
-// lane ladder's and the tail-drop's business.
+// The takeover: lay the bar out (`out`) without the slots the Alerts row replaces,
+// and give the span [*x0, *x1) they leave it. Returns the slots taken as a bitmask
+// over the slot indices (bit 0 left, 1 middle, 2 right — status_line.h's order).
 //
-// `span_l/m/r` are the three slots' desired widths (status_slot_desired_w — 0 for an
-// absent slot), `content_w` the row's width and `gap` the gap between slot groups.
-// "The room its anchor leaves" follows the row layout's own placement: the edge
-// slots sit at their edges, the middle slot is centred on the row (clamped clear of
-// a present edge), so a LEFT row has the span up to the centred middle slot and a
-// RIGHT row the span after it. test/c/alert_set_test.c holds this model against the
-// real layout (status_row_layout) so the two cannot drift.
-int alert_set_choose_slots(int placement, int need_w, int content_w,
-                           int span_l, int span_m, int span_r, int gap);
-
-// The span the row may paint in once the chosen slots are gone and the rest are
-// laid out: from the nearest slot still visible on the anchor's left (its right edge
-// + `gap`; the row's left edge when none) to the nearest one still visible on its
-// right (its left edge - `gap`; content_w when none). `visible` is a bitmask like
-// the one above; `lo[i]`/`hi[i]` are slot i's placed ink extent [lo, hi), read only
-// for visible slots. A span narrower than 0 comes back as x1 == x0.
-void alert_set_free_span(int placement, int visible, int content_w, int gap,
-                         const int16_t lo[3], const int16_t hi[3], int *x0, int *x1);
+// `place` is the bar's ThreshAlertsPlace, `need` the row's width at its full lanes
+// (alert_set_row_w) and `m` the three slots' measures, left untouched. LEFT takes the
+// left slot, RIGHT the right one, MIDDLE the middle one, and the rest lay out where
+// they would anyway (the middle slot stays centred). When the row does not fit the
+// span that leaves, it borrows ONE neighbour if that one still shows: LEFT and RIGHT
+// the middle slot, MIDDLE the left one. An absent or squeezed-out slot frees nothing.
+// Whatever still does not fit is the lane ladder's and the tail-drop's business.
+// While the right slot shows the low-battery warning (`battery`, the top strip only)
+// a RIGHT row lays out as a MIDDLE one, which never borrows the right slot, so the
+// warning keeps the slot 'Show battery below 10%' promises it.
+//
+// The span runs from the nearest slot still showing left of the anchor (its ink end
+// + the group gap; the row's left edge when none) to the nearest one right of it (its
+// ink start - the gap; content_w when none), and never inverts. `need` <= 0 (no entry
+// has any width) takes nothing: `out` is the plain layout, the span still the
+// anchor's. Off takes nothing either, and its span is the whole row.
+int alert_set_take(int place, bool battery, int need, int16_t content_w,
+                   const StatusSlotMeasure m[3], StatusSlotPlace out[3], int *x0, int *x1);
 
 // Left edge of a row `w` px wide inside the span [x0, x1): LEFT hugs x0, RIGHT
 // hugs x1 (the entries keep their fixed order — rain first — but the group sits
 // against the right edge), MIDDLE centres on the ROW's centre (content_w / 2, the
-// middle slot's own rule) clamped into the span. A row wider than its span starts
-// at x0 — the fit has already cut it to the span, so this only guards rounding.
-int alert_set_row_x(int placement, int x0, int x1, int content_w, int w);
+// middle slot's own rule) clamped into the span. `place` and `battery` as
+// alert_set_take() reads them: a RIGHT row beside the battery warning centres. A
+// row wider than its span starts at x0 — the fit has already cut it to the span, so
+// this only guards rounding.
+int alert_set_row_x(int place, bool battery, int x0, int x1, int content_w, int w);
 
 // One step down the text-lane ladder, run before any entry is dropped: the rain
 // text shortens to its minutes first ("Rain in 12'" -> "12'"), then every lane goes

@@ -113,115 +113,68 @@ int alert_set_fit(const int16_t *widths, int n, int gap, int budget) {
     return fit;
 }
 
-int alert_set_taken_slots(int mask, int fit) {
-    return fit > 0 ? mask : 0;
+// The slot each ThreshAlertsPlace anchors at (-1: Off), and the one neighbour it
+// borrows when its own slot leaves too little room: LEFT and RIGHT the middle slot,
+// MIDDLE the left one (the right slot usually holds the battery).
+_Static_assert(THRESH_ALERTS_OFF == 0 && THRESH_ALERTS_LEFT == 1
+               && THRESH_ALERTS_MIDDLE == 2 && THRESH_ALERTS_RIGHT == 3,
+               "ANCHOR/NEIGHBOUR are indexed by ThreshAlertsPlace");
+static const int8_t ANCHOR[4] = { -1, 0, 1, 2 };
+static const int8_t NEIGHBOUR[4] = { -1, 1, 0, 1 };
+
+// The placement the row lays out with this paint: the bar's own, except that a RIGHT
+// row moves to the MIDDLE while the right slot shows the low-battery warning.
+// Anything that is not a placement reads as Off.
+static int effective_place(int place, bool battery) {
+    if (place < THRESH_ALERTS_OFF || place > THRESH_ALERTS_RIGHT) { return THRESH_ALERTS_OFF; }
+    return (place == THRESH_ALERTS_RIGHT && battery) ? THRESH_ALERTS_MIDDLE : place;
 }
 
-int alert_set_place(int placement, bool battery_override) {
-    return (placement == THRESH_ALERTS_RIGHT && battery_override)
-        ? THRESH_ALERTS_MIDDLE : placement;
-}
-
-// What an edge slot claims off the row before the middle slot gets any: its width
-// and the gap that separates it — nothing for an absent slot, which leaves no gap.
-static int edge_reserve(int span, int gap) {
-    return span > 0 ? span + gap : 0;
-}
-
-// The middle slot's left edge as the row layout places it: centred on the row,
-// clamped into [lo, hi - w] (the room the present edges leave it). `w` is already
-// capped to that room, as the layout shrinks a middle slot to fit it.
-static int mid_x(int content_w, int w, int lo, int hi) {
-    int x = (content_w - w) / 2;
-    if (x < lo) { x = lo; }          // the layout's clamp order, so the two agree
-    if (x > hi - w) { x = hi - w; }  // to the pixel even where they could conflict
-    return x;
-}
-
-int alert_set_choose_slots(int placement, int need_w, int content_w,
-                           int span_l, int span_m, int span_r, int gap) {
-    if (need_w <= 0) { return 0; }
-    int room;
-    int anchor;
-    int neighbour;
-    int neighbour_span;
-    switch (placement) {
-        case THRESH_ALERTS_LEFT: {
-            // The left slot gone: the row runs from the left edge to the middle slot,
-            // which stays centred (bounded on its right by the right slot).
-            int hi = content_w - edge_reserve(span_r, gap);
-            if (span_m > 0) {
-                int w = span_m < hi ? span_m : hi;
-                room = mid_x(content_w, w, 0, hi) - gap;
-            } else {
-                room = hi;
-            }
-            anchor = ALERT_SLOT_LEFT;
-            neighbour = ALERT_SLOT_MID;
-            neighbour_span = span_m;
-            break;
-        }
-        case THRESH_ALERTS_RIGHT: {
-            // The mirror: from the centred middle slot to the right edge.
-            int lo = edge_reserve(span_l, gap);
-            if (span_m > 0) {
-                int w = span_m < content_w - lo ? span_m : content_w - lo;
-                room = content_w - (mid_x(content_w, w, lo, content_w) + w + gap);
-            } else {
-                room = content_w - lo;
-            }
-            anchor = ALERT_SLOT_RIGHT;
-            neighbour = ALERT_SLOT_MID;
-            neighbour_span = span_m;
-            break;
-        }
-        case THRESH_ALERTS_MIDDLE:
-            // Between the two edges; the left one is the one to borrow.
-            room = content_w - edge_reserve(span_l, gap) - edge_reserve(span_r, gap);
-            anchor = ALERT_SLOT_MID;
-            neighbour = ALERT_SLOT_LEFT;
-            neighbour_span = span_l;
-            break;
-        default:
-            return 0;
+// Lay the bar out without the slots in `taken`, then measure the span the rest leave
+// around `anchor` (-1: the whole row).
+static void lay_out(int anchor, int taken, int16_t content_w, const StatusSlotMeasure m[3],
+                    StatusSlotPlace out[3], int *x0, int *x1) {
+    StatusSlotMeasure kept[3];
+    for (int i = 0; i < 3; i++) {
+        kept[i] = (taken & (1 << i)) ? (StatusSlotMeasure){0} : m[i];
     }
-    if (need_w <= room || neighbour_span <= 0) { return anchor; }
-    return anchor | neighbour;
-}
-
-// The slot index a placement anchors at; -1 for OFF (or anything unknown).
-static int anchor_index(int placement) {
-    switch (placement) {
-        case THRESH_ALERTS_LEFT:   return 0;
-        case THRESH_ALERTS_MIDDLE: return 1;
-        case THRESH_ALERTS_RIGHT:  return 2;
-        default:                   return -1;
-    }
-}
-
-void alert_set_free_span(int placement, int visible, int content_w, int gap,
-                         const int16_t lo[3], const int16_t hi[3], int *x0, int *x1) {
-    int a = anchor_index(placement);
+    status_row_layout(content_w, kept, out);
+    const int gap = STATUS_ROW_GROUP_GAP;
     int left = 0;
     int right = content_w;
-    if (a >= 0) {
-        // Only the nearest visible slot on each side bounds the span; slots are laid
-        // out left to right, so the nearest left one has the largest right edge.
-        for (int i = 0; i < a; i++) {
-            if ((visible & (1 << i)) && hi[i] + gap > left) { left = hi[i] + gap; }
-        }
-        for (int i = 2; i > a; i--) {
-            if ((visible & (1 << i)) && lo[i] - gap < right) { right = lo[i] - gap; }
-        }
+    for (int i = 0; i < 3; i++) {
+        if (anchor < 0 || !out[i].visible) { continue; }
+        int16_t lo;
+        int16_t hi;
+        status_slot_ink(&out[i], &m[i], &lo, &hi);
+        // Slots lie left to right, so the nearest one on each side is the tightest. The
+        // anchor itself (still shown when nothing was taken) bounds neither side.
+        if (i < anchor && hi + gap > left) { left = hi + gap; }
+        if (i > anchor && lo - gap < right) { right = lo - gap; }
     }
     if (right < left) { right = left; }
     *x0 = left;
     *x1 = right;
 }
 
-int alert_set_row_x(int placement, int x0, int x1, int content_w, int w) {
+int alert_set_take(int place, bool battery, int need, int16_t content_w,
+                   const StatusSlotMeasure m[3], StatusSlotPlace out[3], int *x0, int *x1) {
+    place = effective_place(place, battery);
+    int anchor = ANCHOR[place];
+    int taken = (need > 0 && anchor >= 0) ? 1 << anchor : 0;
+    lay_out(anchor, taken, content_w, m, out, x0, x1);
+    // Borrow the neighbour only when the row does not fit the span it really has, and
+    // only if the neighbour still shows: an absent or squeezed-out slot frees nothing.
+    if (taken && need > *x1 - *x0 && out[NEIGHBOUR[place]].visible) {
+        taken |= 1 << NEIGHBOUR[place];
+        lay_out(anchor, taken, content_w, m, out, x0, x1);
+    }
+    return taken;
+}
+
+int alert_set_row_x(int place, bool battery, int x0, int x1, int content_w, int w) {
     int x;
-    switch (placement) {
+    switch (effective_place(place, battery)) {
         case THRESH_ALERTS_RIGHT:  x = x1 - w; break;
         case THRESH_ALERTS_MIDDLE: x = (content_w - w) / 2; break;
         default:                   x = x0; break;

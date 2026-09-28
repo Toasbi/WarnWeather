@@ -72,18 +72,15 @@ static void place_group(const StatusSlotMeasure *m, const GroupFit *fit,
         : 0;
 }
 
-// Desired group width (icon + gap + text + gap + suffix). Exported (status_row_layout.h)
-// so the Alerts row's slot choice sizes its neighbours by this rule rather than a
-// re-derived copy; a negative field counts as 0, as status_row_layout's own
-// normalisation would make it.
-int16_t status_slot_desired_w(const StatusSlotMeasure *m) {
+// Desired group width (icon + gap + text + gap + suffix) for a normalized
+// (non-negative) measure.
+static int16_t desired_group_w(const StatusSlotMeasure *m) {
     if (!m->present) { return 0; }
-    int16_t icon = m->icon_w > 0 ? m->icon_w : 0;
-    int16_t text = m->text_w > 0 ? m->text_w : 0;
-    int16_t suffix = m->suffix_w > 0 ? m->suffix_w : 0;
+    int16_t icon = m->icon_w;
+    int16_t text = m->text_w;
     if (icon <= 0 && text <= 0) { return 0; }
     int16_t gap = (icon > 0 && text > 0) ? STATUS_ROW_ICON_TEXT_GAP : 0;
-    return (int16_t)(icon + gap + text + suffix_lane_w(suffix, text));
+    return (int16_t)(icon + gap + text + suffix_lane_w(m->suffix_w, text));
 }
 
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
@@ -106,8 +103,8 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     // the middle slot takes the remaining span. Only when both edges together
     // out-desire the row do they split it max-min-fairly (neither truncates
     // while the other has surplus).
-    int16_t d0 = status_slot_desired_w(&normalized[0]);
-    int16_t d2 = status_slot_desired_w(&normalized[2]);
+    int16_t d0 = desired_group_w(&normalized[0]);
+    int16_t d2 = desired_group_w(&normalized[2]);
     int16_t b0, b2;
     if (d0 > 0 && d2 > 0) {
         if (d0 + d2 <= content_w) {

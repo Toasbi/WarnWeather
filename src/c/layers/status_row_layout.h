@@ -32,14 +32,6 @@ typedef struct {
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
                        StatusSlotPlace out[3]);
 
-// The width a slot asks for before any squeeze: icon | gap | text | gap | suffix,
-// each gap collapsing when a side of it is empty (the suffix abuts the icon when
-// there is no text). 0 for an absent slot, or one with neither icon nor text — a
-// suffix never renders alone. This is the rule status_row_layout claims the edges
-// by; the Alerts row's slot choice (alert_set_choose_slots) reuses it to size the
-// slots it shares a row with, so the two can never drift.
-int16_t status_slot_desired_w(const StatusSlotMeasure *m);
-
 // A placed slot's ink extent [lo, hi), content-relative like the place itself: from
 // the group's left edge to its last ink — the suffix while the text shows (the arrow
 // draws only with its reading), else the text's end, else the icon's. `m` is the

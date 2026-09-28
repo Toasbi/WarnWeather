@@ -909,52 +909,31 @@ static bool alerts_prepare(StatusRow *row, AlertsPass *a, int content_h, GFont f
     return true;
 }
 
-// The takeover (spec 4.1): choose the slots the row replaces, lay out the rest as
-// usual, then fit the row into the span they leave.
-//  1. alert_set_choose_slots — the anchor slot of the bar's placement, plus one
-//     neighbour when the row at its FULL lanes does not fit the anchor's room
-//     (LEFT/RIGHT borrow the middle slot, MIDDLE the left one; never more).
-//  2. Those slots' measures are zeroed and status_row_layout places the remaining
-//     ones exactly where they would sit anyway — a slot the row did not take draws
-//     normally, in its usual place (the middle one stays centred).
-//  3. The span is what the placed slots leave around the anchor
-//     (alert_set_free_span). Within it the lanes degrade before any entry drops
-//     (rain text -> minutes, then every value off; alert_set_degrade), and only
-//     then does the tail go (alert_set_fit: pollen first, rain last).
-//  4. The row sits left-aligned (LEFT), centred on the row (MIDDLE) or against the
+// The takeover (spec 4.1): lay the bar out without the slots the row replaces, then
+// fit the row into the span they leave.
+//  1. alert_set_take — the anchor slot of the bar's placement, plus one neighbour
+//     when the row at its FULL lanes does not fit the span the anchor leaves
+//     (LEFT/RIGHT borrow the middle slot, MIDDLE the left one; never more). The
+//     slots it keeps sit exactly where they would anyway (the middle one stays
+//     centred), and a RIGHT row lays out as a MIDDLE one while the low-battery
+//     warning holds the right slot.
+//  2. Within the span the lanes degrade before any entry drops (rain text ->
+//     minutes, then every value off; alert_set_degrade), and only then does the
+//     tail go (alert_set_fit: pollen first, rain last).
+//  3. The row sits left-aligned (LEFT), centred on the row (MIDDLE) or against the
 //     right edge (RIGHT) inside the span (alert_set_row_x).
-// A RIGHT row moves to the MIDDLE while the low-battery warning holds the right
-// slot (alert_set_place), for every step above. And when not even the first entry
-// fits the freed span, the taken slots come back (alert_set_taken_slots): their
-// saved measures are restored and the bar lays out as if the row were not there —
-// a slot is replaced only by alerts it actually shows, never by a blank gap.
+// And when not even the first entry fits, the taken slots come back: the bar lays
+// out as if the row were not there — a slot is replaced only by alerts it actually
+// shows, never by a blank gap.
 static void alerts_layout(const StatusRow *row, AlertsPass *a,
-                          StatusSlotMeasure measures[STATUS_SLOT_COUNT],
+                          const StatusSlotMeasure measures[STATUS_SLOT_COUNT],
                           StatusSlotPlace places[STATUS_SLOT_COUNT], int16_t content_w) {
     const AlertSet *set = &a->r.set;
-    const int place = alert_set_place(row->alerts_place, row->battery_override);
     int need = alert_set_row_w(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
-    int mask = alert_set_choose_slots(place, need, content_w,
-        status_slot_desired_w(&measures[0]), status_slot_desired_w(&measures[1]),
-        status_slot_desired_w(&measures[2]), STATUS_ROW_GROUP_GAP);
-    StatusSlotMeasure saved[STATUS_SLOT_COUNT];
-    memcpy(saved, measures, sizeof(saved));
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        if (mask & (1 << i)) { measures[i] = (StatusSlotMeasure){0}; }
-    }
-    status_row_layout(content_w, measures, places);
-
-    int visible = 0;
-    int16_t lo[STATUS_SLOT_COUNT];
-    int16_t hi[STATUS_SLOT_COUNT];
-    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        status_slot_ink(&places[i], &measures[i], &lo[i], &hi[i]);
-        if (places[i].visible) { visible |= 1 << i; }
-    }
     int x0;
     int x1;
-    alert_set_free_span(place, visible, content_w, STATUS_ROW_GROUP_GAP,
-                        lo, hi, &x0, &x1);
+    alert_set_take(row->alerts_place, row->battery_override, need, content_w,
+                   measures, places, &x0, &x1);
     int budget = x1 - x0;
 
     while (need > budget && alert_set_degrade(&a->text.rain_display, &a->text.values)) {
@@ -962,16 +941,16 @@ static void alerts_layout(const StatusRow *row, AlertsPass *a,
         need = alert_set_row_w(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
     }
     a->n = alert_set_fit(a->widths, set->count, STATUS_ALERTS_ENTRY_GAP, budget);
-    if (alert_set_taken_slots(mask, a->n) != mask) {
+    if (a->n == 0) {
         // Nothing fits (a long City left beside the anchor, say): hand the slots
         // back rather than paint a blank gap where they were. a->n stays 0, so the
         // draw paints no entry.
-        memcpy(measures, saved, sizeof(saved));
         status_row_layout(content_w, measures, places);
         return;
     }
     int w = alert_set_row_w(a->widths, a->n, STATUS_ALERTS_ENTRY_GAP);
-    a->x = (int16_t)alert_set_row_x(place, x0, x1, content_w, w);
+    a->x = (int16_t)alert_set_row_x(row->alerts_place, row->battery_override,
+                                    x0, x1, content_w, w);
 }
 #endif
 
