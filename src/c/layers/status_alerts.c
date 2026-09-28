@@ -10,10 +10,14 @@
 #include "status_icon_weight.h"
 #include "status_row_icons.h"
 #include "status_row_layout.h"
+#include "status_sig.h"
 #include "../appendix/palette.h"
+#include "../appendix/persist.h"
 #include "../appendix/rain_countdown.h"
+#include "../appendix/rain_tier.h"
 #include "../appendix/status_threshold.h"
 #include "../appendix/theme.h"
+#include "../services/watch_services.h"
 
 #if defined(WW_ALERT_ROW)
 
@@ -40,7 +44,9 @@ struct StatusAlertsCache {
     bool rain_outline;
 };
 
-StatusAlertsCache *status_alerts_create(void) {
+// NULL on OOM: the row then draws as without the feature until a later draw
+// manages to allocate.
+static StatusAlertsCache *cache_create(void) {
     StatusAlertsCache *cache = malloc(sizeof(StatusAlertsCache));
     if (cache) { memset(cache, 0, sizeof(*cache)); }
     return cache;
@@ -52,13 +58,17 @@ static void evict(StatusAlertsCache *cache, int slot) {
     cache->keys[slot] = 0;
 }
 
-void status_alerts_destroy(StatusAlertsCache *cache) {
-    if (!cache) { return; }
-    for (int i = 0; i < ALERT_SET_MAX; i++) { evict(cache, i); }
-    free(cache);
+void status_alerts_release(StatusAlertsRow *row) {
+    if (!row || !row->cache) { return; }
+    for (int i = 0; i < ALERT_SET_MAX; i++) { evict(row->cache, i); }
+    free(row->cache);
+    row->cache = NULL;
 }
 
-GColor status_alerts_rain_tint(int tier) {
+// The rain drops' tint for a radar tier: the radar palette's colour on a colour
+// theme, the foreground on B&W (palette_radar_color() hands B&W the strip's own
+// background there, which would paint the drops invisibly).
+static GColor status_alerts_rain_tint(int tier) {
 #ifdef PBL_COLOR
     if (!theme_is_bw()) { return palette_radar_color(tier); }
 #endif
@@ -92,10 +102,20 @@ static uint32_t rain_resource(uint8_t bucket) {
     }
 }
 
-void status_alerts_ensure(StatusAlertsCache *cache, const AlertSet *set,
-                          int target_h, bool top_strip, GColor fg,
-                          GColor rain_tint, bool rain_outline) {
-    if (!cache || !set) { return; }
+// Make the cache hold exactly the glyphs `set` needs: load each entry's PDC at
+// `target_h` (the row's icon tier; metric icons through status_row_icons_load, the
+// rain drops through status_row_icons_load_filled) and EVICT every cached glyph no
+// longer in the set — the rain-glyph model: resident only while its alert is up, so
+// an idle row holds no heap at all. The foreground (the metric icons' stroke), the
+// rain entry's tint and the light theme's edge on the drops are part of the cache
+// key: a theme or tier change reloads just the glyphs it affects. Runs before every
+// measure; a steady state is all cache hits.
+static void status_alerts_ensure(StatusAlertsCache *cache, const AlertSet *set,
+                                 int target_h, bool top_strip) {
+    GColor fg = theme_fg();
+    int rain_tier = (set->count > 0 && set->entries[0].rain) ? set->entries[0].rain_tier : 0;
+    GColor rain_tint = status_alerts_rain_tint(rain_tier);
+    bool rain_outline = theme_is_light();
     // What a glyph was built for is part of its key: the tier's size and the
     // foreground stroke for every glyph, the tint and light-theme edge for the drops.
     bool env = target_h != cache->target_h || top_strip != cache->top_strip
@@ -176,9 +196,16 @@ static int16_t icon_width(GDrawCommandImage *image) {
     return image ? gdraw_command_image_get_bounds_size(image).w : 0;
 }
 
-void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
-                           const StatusAlertsText *text, int16_t *widths_out) {
-    if (!cache || !set || !text || !widths_out) { return; }
+// Width of every entry of `set` into widths_out[0..count-1]: icon + (text ?
+// STATUS_ROW_ICON_TEXT_GAP + text : 0), plus 2 * STATUS_ALERTS_BOX_PAD_X for a boxed
+// (metric) entry — whose group is measured by its ink (a last icon's one-column
+// overhang in, a last text's trailing letter spacing out), so its air to the box
+// stroke is equal on both sides — where the text is the entry's lane under `text`
+// (a metric value when text->values, the rain minutes or full countdown per
+// text->rain_display). 0 for an entry with neither a glyph nor text. Needs the
+// glyphs, so status_alerts_ensure() runs first.
+static void status_alerts_measure(const StatusAlertsCache *cache, const AlertSet *set,
+                                  const StatusAlertsText *text, int16_t *widths_out) {
     for (int i = 0; i < set->count; i++) {
         const AlertEntry *e = &set->entries[i];
         char buf[LANE_CAP];
@@ -201,15 +228,141 @@ void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
     }
 }
 
-void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet *set,
-                        int n, const int16_t *widths, const StatusAlertsText *text,
-                        const StatusAlertsPlace *place) {
-    if (!ctx || !cache || !set || !widths || !text || !place) { return; }
-    if (n > set->count) { n = set->count; }
-    int16_t x = place->x;
-    int16_t band_bottom = (int16_t)(place->band.origin.y + place->band.size.h);
+// Resolve the entries against the thresholds `blob` (the rain look): the metric
+// entries from the stored tuple (one flash read — app_message.c has already checked
+// it with alert_set_bytes_ok), the rain entry derived here, every pass, from the
+// radar cache rain_countdown_refresh() keeps — O(1) and flash-free — which is why a
+// row with a placement must be refreshed on the minute tick and after a radar rescan
+// (status_row_uses_alerts). The tier is collapsed to its drop bucket HERE, on the SDK
+// side: rain_tier.h pulls <pebble.h>, which the pure alert_set.c must not (it
+// host-compiles).
+static void resolve(StatusAlertsEntries *out, const uint8_t *blob, size_t len) {
+    int n = persist_get_alert_entries(out->bytes, sizeof(out->bytes));
+    alert_set_parse(out->bytes, n > 0 ? (size_t)n : 0, &out->set);
+    bool rain = rain_countdown_format(out->rain_text, sizeof(out->rain_text),
+                                      watch_services_now());
+    if (!rain) { out->rain_text[0] = '\0'; }
+    int tier = rain ? rain_countdown_peak_tier() : 0;
+    alert_set_prepend_rain(&out->set, rain, rain_tier_to_bucket3(tier), tier);
+    out->rain_display = status_threshold_rain_display(blob, len);
+}
+
+// The fold covers the look each entry reads from the blob at its level
+// (status_threshold_look — a Clay save that only recolours or re-looks must repaint,
+// as for a slot's look; the kind's slot Highlight switch does not touch an entry, so
+// it is not folded) and the drop's bucket and tier (its glyph and tint). The
+// countdown text only when a look prints it, or an icon-only rain alert would
+// repaint every minute for nothing.
+uint16_t status_alerts_fold(const StatusAlertsRow *row, uint16_t sig,
+                            const uint8_t *blob, size_t len) {
+    if (!row || row->place == THRESH_ALERTS_OFF) { return sig; }
+    StatusAlertsEntries a;
+    resolve(&a, blob, len);
+    sig = sig_fold(sig, &a.set.count, 1);
+    for (int i = 0; i < a.set.count; i++) {
+        const AlertEntry *e = &a.set.entries[i];
+        uint8_t head[5] = { (uint8_t)e->rain, e->kind, e->level, e->rain_bucket,
+                            e->rain_tier };
+        sig = sig_fold(sig, head, sizeof(head));
+        if (e->rain) { continue; }
+        sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
+        ThreshLook look = status_threshold_look(blob, len, e->kind, e->level);
+        sig = sig_fold(sig, (const uint8_t *)&look, sizeof(look));
+    }
+    uint8_t display = (uint8_t)a.rain_display;
+    sig = sig_fold(sig, &display, 1);
+    if (a.rain_display != THRESH_RAIN_DISPLAY_ICON) {
+        sig = sig_fold(sig, (const uint8_t *)a.rain_text, strlen(a.rain_text));
+    }
+    return sig;
+}
+
+// Resolve and measure the entries at their full lanes. False = nothing to draw (no
+// alert active, or OOM for the cache): the bar then lays out exactly as it would
+// without the feature. Also where the glyph cache lives: created by the first pass
+// that has an entry to draw, and emptied (status_alerts_ensure evicts what the set no
+// longer holds) by every pass after.
+static bool prepare(StatusAlertsRow *row, StatusAlertsPass *p, const StatusAlertsEnv *env) {
+    resolve(&p->r, env->blob, env->blob_len);
+    const AlertSet *set = &p->r.set;
+    if (!row->cache && set->count > 0) { row->cache = cache_create(); }
+    if (!row->cache) { return false; }
+    status_alerts_ensure(row->cache, set, env->icon_h, env->top_strip);
+    if (set->count == 0) { return false; }
+    p->text = (StatusAlertsText){
+        .font = env->font,
+        .bold = env->bold,
+        .blob = env->blob,
+        .blob_len = env->blob_len,
+        .rain_display = p->r.rain_display,
+        .values = true,
+        .rain_text = p->r.rain_text[0] != '\0' ? p->r.rain_text : NULL
+    };
+    status_alerts_measure(row->cache, set, &p->text, p->widths);
+    return true;
+}
+
+// The takeover (spec 4.1): lay the bar out without the slots the row replaces, then
+// fit the row into the span they leave.
+//  1. alert_set_take — the anchor slot of the bar's placement, plus one neighbour
+//     when the row at its FULL lanes does not fit the span the anchor leaves
+//     (LEFT/RIGHT borrow the middle slot, MIDDLE the left one; never more). The
+//     slots it keeps sit exactly where they would anyway (the middle one stays
+//     centred), and a RIGHT row lays out as a MIDDLE one while the low-battery
+//     warning holds the right slot.
+//  2. Within the span the lanes degrade before any entry drops (rain text ->
+//     minutes, then every value off; alert_set_degrade), and only then does the
+//     tail go (alert_set_fit: pollen first, rain last).
+//  3. The row sits left-aligned (LEFT), centred on the row (MIDDLE) or against the
+//     right edge (RIGHT) inside the span (alert_set_row_x).
+// And when not even the first entry fits, the taken slots come back: the bar lays
+// out as if the row were not there — a slot is replaced only by alerts it actually
+// shows, never by a blank gap.
+void status_alerts_layout(StatusAlertsRow *row, StatusAlertsPass *pass,
+                          const StatusAlertsEnv *env, const StatusSlotMeasure m[3],
+                          StatusSlotPlace places[3], int16_t content_w) {
+    pass->n = 0;
+    if (row->place == THRESH_ALERTS_OFF || !prepare(row, pass, env)) {
+        status_row_layout(content_w, m, places);
+        return;
+    }
+    const AlertSet *set = &pass->r.set;
+    int need = alert_set_row_w(pass->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
+    int x0;
+    int x1;
+    alert_set_take(row->place, env->battery, need, content_w, m, places, &x0, &x1);
+    int budget = x1 - x0;
+
+    while (need > budget
+            && alert_set_degrade(&pass->text.rain_display, &pass->text.values)) {
+        status_alerts_measure(row->cache, set, &pass->text, pass->widths);
+        need = alert_set_row_w(pass->widths, set->count, STATUS_ALERTS_ENTRY_GAP);
+    }
+    pass->n = alert_set_fit(pass->widths, set->count, STATUS_ALERTS_ENTRY_GAP, budget);
+    if (pass->n == 0) {
+        // Nothing fits (a long City left beside the anchor, say): hand the slots
+        // back rather than paint a blank gap where they were. pass->n stays 0, so
+        // the paint draws no entry.
+        status_row_layout(content_w, m, places);
+        return;
+    }
+    int w = alert_set_row_w(pass->widths, pass->n, STATUS_ALERTS_ENTRY_GAP);
+    pass->x = (int16_t)alert_set_row_x(row->place, env->battery, x0, x1, content_w, w);
+}
+
+// Each entry paints as its own mini slot with its own box. The slots the row replaced
+// were zeroed out of the layout, so neither of the row's slot passes touches them.
+void status_alerts_paint(GContext *ctx, const StatusAlertsRow *row,
+                         const StatusAlertsPass *pass, const StatusAlertsEnv *env) {
+    if (!ctx || !row || !pass || !env || pass->n <= 0 || !row->cache) { return; }
+    const StatusAlertsCache *cache = row->cache;
+    const AlertSet *set = &pass->r.set;
+    const StatusAlertsText *text = &pass->text;
+    int n = pass->n > set->count ? set->count : pass->n;
+    int16_t x = (int16_t)(env->x + pass->x);
+    int16_t band_bottom = (int16_t)(env->band.origin.y + env->band.size.h);
     for (int i = 0; i < n; i++) {
-        int16_t w = widths[i];
+        int16_t w = pass->widths[i];
         if (w <= 0) { continue; }   // no room, no gap (alert_set_row_w)
         const AlertEntry *e = &set->entries[i];
         GDrawCommandImage *image = image_for(cache, e);
@@ -239,8 +392,8 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
             // The box IS the footprint: the padding was measured in, so it spans
             // exactly [x, x + w). Its height is the slots' font-derived extent.
             StatusHighlightExtent v = status_highlight_extent(
-                place->band.origin.y, place->band.size.h, place->glyph_cy,
-                place->content_h, place->top_strip,
+                env->band.origin.y, env->band.size.h, env->glyph_cy,
+                env->content_h, env->top_strip,
                 text_w > 0 && buf[0] != '\0' && status_text_has_descender(buf));
             ink = status_highlight_paint(ctx, GRect(x, v.y, w, v.h), look);
         }
@@ -250,12 +403,12 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
             int weight = e->rain ? STATUS_ICON_WEIGHT_CENTRE
                                  : status_icon_weight_pct(alert_set_icon(e->kind));
             status_highlight_draw_glyph(ctx, image,
-                GPoint(icon_x, status_icon_top_y(place->glyph_cy, gs.h, weight)), ink);
+                GPoint(icon_x, status_icon_top_y(env->glyph_cy, gs.h, weight)), ink);
         }
         if (text_w > 0 && buf[0] != '\0') {
             graphics_context_set_text_color(ctx, ink);
             graphics_draw_text(ctx, buf, font,
-                GRect(text_x, place->text_y, text_w, (int16_t)(band_bottom - place->text_y)),
+                GRect(text_x, env->text_y, text_w, (int16_t)(band_bottom - env->text_y)),
                 GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
         }
         x = (int16_t)(x + w + STATUS_ALERTS_ENTRY_GAP);
