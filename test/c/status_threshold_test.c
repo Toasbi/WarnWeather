@@ -551,6 +551,38 @@ static void bar_alerts_tests(void) {
            status_threshold_bar_alerts(NULL, n, THRESH_BAR_HEALTH), THRESH_ALERTS_OFF);
 }
 
+// A status row reads the placement of its LINE's bar (status_row.c): each line maps
+// to its own cell, although the two enums order the four differently, and an
+// unknown line reads Off.
+static void bar_of_line_tests(void) {
+    expect("line.top", status_threshold_bar_of_line(STATUS_LINE_TOP), THRESH_BAR_TOP);
+    expect("line.forecast",
+           status_threshold_bar_of_line(STATUS_LINE_FORECAST), THRESH_BAR_FORECAST);
+    expect("line.radar", status_threshold_bar_of_line(STATUS_LINE_RADAR), THRESH_BAR_RADAR);
+    expect("line.health", status_threshold_bar_of_line(STATUS_LINE_HEALTH), THRESH_BAR_HEALTH);
+    expect("line.oob", status_threshold_bar_of_line(STATUS_LINE_COUNT), -1);
+    expect("line.neg", status_threshold_bar_of_line(-1), -1);
+
+    // Through the accessor, one distinct placement per bar: every line lands on its
+    // own cell and no other.
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    blob[THRESH_BAR_ALERTS_OFFSET] = (uint8_t)(THRESH_ALERTS_LEFT
+        | (THRESH_ALERTS_MIDDLE << 2) | (THRESH_ALERTS_RIGHT << 4) | (THRESH_ALERTS_OFF << 6));
+    expect("line.top_cell", status_threshold_bar_alerts(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_TOP)), THRESH_ALERTS_LEFT);
+    expect("line.forecast_cell", status_threshold_bar_alerts(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_FORECAST)), THRESH_ALERTS_MIDDLE);
+    expect("line.radar_cell", status_threshold_bar_alerts(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_RADAR)), THRESH_ALERTS_RIGHT);
+    expect("line.health_cell", status_threshold_bar_alerts(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_HEALTH)), THRESH_ALERTS_OFF);
+    blob[THRESH_BAR_ALERTS_OFFSET] = 0xFF;
+    expect("line.oob_cell_off", status_threshold_bar_alerts(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_COUNT)), THRESH_ALERTS_OFF);
+}
+
 // The warn-look bytes [36..37]: 2 bits per PAIRED kind (kind k at byte 36 +
 // (k >> 2), bits 2 * (k & 3)), 0 none / 1 outline / 2 fill. A blob without them
 // (34 B and shorter) derives the look from the warn color byte.
@@ -904,6 +936,7 @@ int main(void) {
     legacy_blob_tests();
     rain_display_tests();
     bar_alerts_tests();
+    bar_of_line_tests();
     warn_look_tests();
     health_value_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }

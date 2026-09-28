@@ -17,7 +17,6 @@
 
 #include "c/windows/layout.h"
 #include "c/appendix/status_line.h"
-#include "c/appendix/status_threshold.h"
 #include "c/layers/status_row.h"
 #include "c/layers/status_bar.h"
 
@@ -177,26 +176,9 @@ bool status_row_uses_live_health(const StatusRow *row) {
 
 #if defined(WW_ALERT_ROW)
 static bool s_uses_alerts[STATUS_LINE_COUNT];
-// The placement byte as stored (per ThreshBar), what each bar pushed into its row
-// (per line id), when it did, and how often the blob was read.
-static int s_stored_place[THRESH_BAR_COUNT];
-static int s_row_place[STATUS_LINE_COUNT];
-static int s_set_alerts_seq[STATUS_LINE_COUNT];
-static int s_place_reads;
 
 bool status_row_uses_alerts(const StatusRow *row) {
     return row && s_uses_alerts[row->line_id];
-}
-
-void status_row_set_alerts(StatusRow *row, int placement) {
-    if (!row) { return; }
-    s_row_place[row->line_id] = placement;
-    s_set_alerts_seq[row->line_id] = ++s_sequence;
-}
-
-int status_row_alerts_place(int bar) {
-    s_place_reads++;
-    return (bar >= 0 && bar < THRESH_BAR_COUNT) ? s_stored_place[bar] : -1;
 }
 #endif
 
@@ -433,63 +415,6 @@ static void tick_alerts_refreshes_visible_alert_rows(void) {
     status_bar_destroy_all();
     memset(s_uses_alerts, 0, sizeof(s_uses_alerts));
 }
-
-// Each bar pushes ITS cell of the placement byte into its row — the forecast bar
-// the forecast cell, and so on, whichever band the view gives it — before the
-// refresh that paints it, at create and on every refresh_all (the settings /
-// weather checkpoint). The minute tick and a view change never re-read the blob.
-static void placement_follows_the_stored_byte(void) {
-    Layer parent = {0};
-    s_refresh_changed = true;
-    memset(s_row_place, 0xff, sizeof(s_row_place));
-    s_stored_place[THRESH_BAR_TOP] = THRESH_ALERTS_LEFT;
-    s_stored_place[THRESH_BAR_FORECAST] = THRESH_ALERTS_RIGHT;
-    s_stored_place[THRESH_BAR_RADAR] = THRESH_ALERTS_MIDDLE;
-    s_stored_place[THRESH_BAR_HEALTH] = THRESH_ALERTS_OFF;
-
-    ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
-    MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
-    status_bar_create_all(&parent, &spec, &L);
-    const int fc = STATUS_LINE_FORECAST;
-    expect_int("place.create.forecast", s_row_place[fc], THRESH_ALERTS_RIGHT);
-    expect_int("place.create.before_refresh", s_set_alerts_seq[fc] < s_refresh_seq[fc], 1);
-#if defined(WW_RAIN_RADAR)
-    expect_int("place.create.radar", s_row_place[STATUS_LINE_RADAR], THRESH_ALERTS_MIDDLE);
-#endif
-#if defined(PBL_HEALTH)
-    expect_int("place.create.health", s_row_place[STATUS_LINE_HEALTH], THRESH_ALERTS_OFF);
-#endif
-    // The strip is not a band bar: its cell is top_status_layer's to push.
-    expect_int("place.create.not_top", s_row_place[STATUS_LINE_TOP], -1);
-
-    // A settings save moves the byte: refresh_all pushes the new cell, then refreshes.
-    s_stored_place[THRESH_BAR_FORECAST] = THRESH_ALERTS_OFF;
-    s_stored_place[THRESH_BAR_RADAR] = THRESH_ALERTS_LEFT;
-    reset_records();
-    status_bar_refresh_all();
-    expect_int("place.refresh.forecast", s_row_place[fc], THRESH_ALERTS_OFF);
-    expect_int("place.refresh.before_refresh", s_set_alerts_seq[fc] < s_refresh_seq[fc], 1);
-#if defined(WW_RAIN_RADAR)
-    expect_int("place.refresh.radar", s_row_place[STATUS_LINE_RADAR], THRESH_ALERTS_LEFT);
-    // The radar bar keeps ITS cell in the lower band too.
-    ViewSpec dense = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_RADAR, LAYOUT_TIER_COMPACT);
-    status_bar_apply_view(&dense, &L);
-    status_bar_refresh_all();
-    expect_int("place.lower_band.radar", s_row_place[STATUS_LINE_RADAR], THRESH_ALERTS_LEFT);
-#endif
-
-    // The per-minute pass and a view change leave the blob alone.
-    s_uses_alerts[fc] = true;
-    int reads = s_place_reads;
-    status_bar_tick_alerts(&spec);
-    ViewSpec full = spec_of(3, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_FULL);
-    status_bar_apply_view(&full, &L);
-    expect_int("place.tick_and_view_no_read", s_place_reads, reads);
-
-    status_bar_destroy_all();
-    memset(s_uses_alerts, 0, sizeof(s_uses_alerts));
-    memset(s_stored_place, 0, sizeof(s_stored_place));
-}
 #endif
 
 #if defined(WW_RAIN_RADAR)
@@ -630,7 +555,6 @@ int main(void) {
     live_health_gate();
 #if defined(WW_ALERT_ROW)
     tick_alerts_refreshes_visible_alert_rows();
-    placement_follows_the_stored_byte();
 #endif
 #if defined(WW_RAIN_RADAR)
     radar_bar_is_a_first_class_bar();

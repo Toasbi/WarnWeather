@@ -72,11 +72,11 @@ struct StatusRow {
     bool uses_live_health;
 #if defined(WW_ALERT_ROW)
     // The Alerts row's glyph cache: allocated by the first draw that has entries to
-    // show, freed as soon as the bar's placement goes Off (status_row_set_alerts)
-    // and with the row. Its glyphs come and go with their alerts
-    // (status_alerts_ensure), so an idle Alerts row keeps only the cache struct.
+    // show, freed by the first refresh that finds the bar's placement Off
+    // (derive_alerts_place) and with the row. Its glyphs come and go with their
+    // alerts (status_alerts_ensure), so an idle Alerts row keeps only the cache struct.
     StatusAlertsCache *alerts;
-    uint8_t alerts_place;   // ThreshAlertsPlace, pushed by the owner
+    uint8_t alerts_place;   // ThreshAlertsPlace, derived from the blob on every refresh
 #endif
 };
 
@@ -385,10 +385,10 @@ static void load_thresholds(void) {
     s_levels_word = persist_get_status_levels();
 }
 
-// Load everything a refresh/draw/measure pass resolves against: the line's packed
-// blob into the shared scratch, walked ONCE into all three slot views, AND the
-// threshold settings + packed levels. Returns the blob length, or 0 when there is
-// nothing renderable (absent key, or a malformed blob) — `out` is then
+// Load everything a refresh/draw/measure pass resolves against: the threshold
+// settings + packed levels, AND the line's packed blob into the shared scratch,
+// walked ONCE into all three slot views. Returns the blob length, or 0 when there
+// is nothing renderable (absent key, or a malformed blob) — `out` is then
 // indeterminate and must not be read. Every caller loads exactly once per pass
 // and consumes the views before returning, which is what keeps the views (which
 // alias s_blob_scratch) valid: see the contract in status_line.h.
@@ -397,14 +397,16 @@ static void load_thresholds(void) {
 // resolve_slot() needs, so a pass cannot reach a slot resolution without the
 // thresholds behind it — which is exactly what the (since retired) right-slot
 // width query used to do: it loaded the blob, skipped load_thresholds(), and so measured with the
-// regular font a slot the draw pass then painted bold.
+// regular font a slot the draw pass then painted bold. The thresholds come first
+// and load whatever the line holds: the refresh derives the bar's Alerts placement
+// from them even for a line with nothing to render.
 static int load_pass(uint8_t line_id, StatusSlotView out[STATUS_SLOT_COUNT]) {
+    load_thresholds();
     int len = persist_get_status_line(line_id, s_blob_scratch, sizeof(s_blob_scratch));
     if (len <= 0) { return 0; }
     if (status_line_slots(s_blob_scratch, (size_t)len, out) != STATUS_SLOT_COUNT) {
         return 0;
     }
-    load_thresholds();
     return len;
 }
 
@@ -482,19 +484,15 @@ static void resolve_slot(const StatusRow *row, int i, GFont base,
     out->font = out->look.bold ? row_font_bold(row->tier, row->line_id) : base;
 }
 
-// Resolve a whole row: load the pass, then resolve all three slots against it.
-// Returns STATUS_SLOT_COUNT, or 0 when the line has nothing renderable (`out` is
-// then indeterminate and must not be read). The refresh path's resolver — the
-// draw path loads and resolves per slot itself, so it can keep the packed views
-// for ensure_glyphs().
-static int resolve_row(const StatusRow *row, ResolvedSlot out[STATUS_SLOT_COUNT]) {
-    StatusSlotView views[STATUS_SLOT_COUNT];
-    if (load_pass(row->line_id, views) == 0) { return 0; }
+// Resolve all three slots of an already-loaded pass (load_pass filled `views`). The
+// refresh path's resolver — the draw path resolves per slot itself, so it can
+// measure each one as it goes.
+static void resolve_row(const StatusRow *row, const StatusSlotView views[STATUS_SLOT_COUNT],
+                        ResolvedSlot out[STATUS_SLOT_COUNT]) {
     GFont base = row_font(row->tier, row->line_id);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         resolve_slot(row, i, base, &views[i], &out[i]);
     }
-    return STATUS_SLOT_COUNT;
 }
 
 #if defined(WW_ALERT_ROW)
@@ -618,27 +616,21 @@ bool status_row_uses_live_health(const StatusRow *row) {
 }
 
 #if defined(WW_ALERT_ROW)
-void status_row_set_alerts(StatusRow *row, int placement) {
-    if (!row) { return; }
-    if (placement < THRESH_ALERTS_OFF || placement > THRESH_ALERTS_RIGHT) {
-        placement = THRESH_ALERTS_OFF;
-    }
-    if (row->alerts_place == placement) { return; }
-    row->alerts_place = (uint8_t)placement;
-    row->content_sig = 0;   // the takeover moved: the next refresh reports a change
+// Read the bar's Alerts placement from the thresholds blob the pass just loaded:
+// the row's own cell of the placement byte. Every refresh reads it, so every
+// checkpoint that re-resolves the row — a settings save's among them — also picks
+// up a moved placement, and nothing outside the row has to push it in.
+static void derive_alerts_place(StatusRow *row) {
+    // load_thresholds() normalises an invalid blob to len 0, which the accessor
+    // answers with the pre-placement default (strip left, the rest off).
+    row->alerts_place = (uint8_t)status_threshold_bar_alerts(s_thresh_scratch,
+        (size_t)s_thresh_len, status_threshold_bar_of_line(row->line_id));
     // Off: give the cache and whatever glyphs it still holds back now rather than
     // at row teardown. Any other placement keeps it — the same entries draw there.
-    if (placement == THRESH_ALERTS_OFF && row->alerts) {
+    if (row->alerts_place == THRESH_ALERTS_OFF && row->alerts) {
         status_alerts_destroy(row->alerts);
         row->alerts = NULL;
     }
-}
-
-int status_row_alerts_place(int bar) {
-    // load_thresholds() normalises an invalid blob to len 0, which the accessor
-    // answers with the pre-placement default (strip left, the rest off).
-    load_thresholds();
-    return status_threshold_bar_alerts(s_thresh_scratch, (size_t)s_thresh_len, bar);
 }
 
 bool status_row_uses_alerts(const StatusRow *row) {
@@ -670,12 +662,23 @@ bool status_row_refresh(StatusRow *row) {
     uint16_t sig = 5381;
     bool has_drawn_sun = false;
     row->uses_live_health = false;
-    ResolvedSlot resolved[STATUS_SLOT_COUNT];
+    // The pass load comes first: it reads the thresholds whatever the line holds, so
+    // the Alerts placement below is current even when the line has nothing to render.
+    StatusSlotView views[STATUS_SLOT_COUNT];
+    const bool has_line = load_pass(row->line_id, views) > 0;
+#if defined(WW_ALERT_ROW)
+    derive_alerts_place(row);
+    // Folded whatever it is, Off included: the same entries moved from the left to
+    // the right are a new paint, and so is a row that stops drawing them.
+    sig = sig_fold(sig, &row->alerts_place, 1);
+#endif
     // All three slots, always — including the ones the Alerts row may take over at
     // paint time: which slots it takes is a paint decision (it depends on measured
     // widths), not a content rule, and a signature describing only part of the row
     // would let a slot that moved while replaced come back stale.
-    if (resolve_row(row, resolved) > 0) {
+    if (has_line) {
+        ResolvedSlot resolved[STATUS_SLOT_COUNT];
+        resolve_row(row, views, resolved);
         for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
             const ResolvedSlot *r = &resolved[i];
             const StatusSlotView *slot = &r->slot;
@@ -737,13 +740,11 @@ bool status_row_refresh(StatusRow *row) {
             }
         }
 #if defined(WW_ALERT_ROW)
-        // The Alerts row folds only while the bar has a placement — Off draws none
-        // of it, so its entries are not this row's content. The placement is folded
-        // too: the same entries moved from the left to the right are a new paint.
+        // The Alerts row's entries fold only while the bar has a placement — Off
+        // draws none of them, so they are not this row's content.
         if (row->alerts_place != THRESH_ALERTS_OFF) {
             ResolvedAlerts alerts;
             resolve_alerts(&alerts);
-            sig = sig_fold(sig, &row->alerts_place, 1);
             sig = fold_alerts(sig, &alerts);
         }
 #endif
@@ -899,8 +900,8 @@ static int16_t place_end(const StatusSlotPlace *p, const StatusSlotMeasure *m) {
 //
 // Also where the glyph cache lives: created by the first pass that has an entry to
 // draw, and emptied (status_alerts_ensure evicts what the set no longer holds) by
-// every pass after, so an idle row holds no glyph heap. It is freed when the
-// placement goes Off (status_row_set_alerts) and with the row.
+// every pass after, so an idle row holds no glyph heap. It is freed by the refresh
+// that finds the placement Off (derive_alerts_place) and with the row.
 static bool alerts_prepare(StatusRow *row, AlertsPass *a, int content_h, GFont font) {
     resolve_alerts(&a->r);
     const AlertSet *set = &a->r.set;

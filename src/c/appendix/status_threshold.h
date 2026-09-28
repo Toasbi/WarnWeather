@@ -300,6 +300,22 @@ typedef enum {
 } ThreshBar;
 #define THRESH_BAR_COUNT 4
 
+// The bar a status line belongs to: its cell in the placement byte. A map, not a
+// cast, because neither order can move to make it an identity: ThreshBar is the
+// byte's wire cell order, StatusLineId the lines' persist slots. A bar's line does
+// not change with the band the view gives it, so the radar bar keeps its placement
+// in the upper and the lower band alike. Any other id is -1, which
+// status_threshold_bar_alerts() answers Off.
+static inline int status_threshold_bar_of_line(int line_id) {
+    switch (line_id) {
+        case STATUS_LINE_TOP:      return THRESH_BAR_TOP;
+        case STATUS_LINE_FORECAST: return THRESH_BAR_FORECAST;
+        case STATUS_LINE_RADAR:    return THRESH_BAR_RADAR;
+        case STATUS_LINE_HEALTH:   return THRESH_BAR_HEALTH;
+        default:                   return -1;
+    }
+}
+
 // Where a bar's Alerts row sits while an alert is active — the slot it replaces.
 typedef enum {
     THRESH_ALERTS_OFF = 0,

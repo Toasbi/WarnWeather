@@ -6,9 +6,9 @@
 // AlertSet (appendix/alert_set.h — the pure half: which entries, in which order, how
 // many fit, which slots they take). The row is a per-bar takeover: while an alert is
 // active it replaces the bar's left, middle or right slot (the bar's placement,
-// status_row_set_alerts), plus one neighbour when it needs the room. status_row.c
-// resolves the set, chooses the slots, runs the fit and hands the placed entries
-// here.
+// which status_row.c reads from the thresholds blob), plus one neighbour when it
+// needs the room. status_row.c resolves the set, chooses the slots, runs the fit
+// and hands the placed entries here.
 //
 // NOT LINKED ON APLITE: the row is aplite-absent (WW_ALERT_ROW in wscript) — the .c
 // body sits behind the macro and compiles to an empty object there. Every call site

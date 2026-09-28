@@ -9,7 +9,6 @@
 #include "c/appendix/rain_countdown.h"
 #include "c/appendix/snooze.h"
 #include "c/appendix/status_line.h"
-#include "c/appendix/status_threshold.h"   // THRESH_BAR_TOP (the strip's Alerts placement)
 #include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 #include "c/windows/layout.h"   // LayoutTier (status_row tier param)
@@ -303,14 +302,10 @@ void top_status_layer_tick() {
 
 void top_status_layer_refresh() {
     // Date formatting lives in status_row.c's format_status_date (SLOT_LIVE_DATE);
-    // the rain alert is an Alerts-row entry the row resolves itself; this owner only
-    // keeps the battery override, the strip's Alerts placement and the icon state in
-    // sync. The placement is re-read here, not in the tick: it moves only with a
-    // settings save, and every save reaches this refresh.
+    // the rain alert is an Alerts-row entry, and the strip's Alerts placement is read
+    // from the thresholds blob, both by the row itself; this owner only keeps the
+    // battery override and the icon state in sync.
     update_battery_override();   // config may have flipped battery_low_only
-#if defined(WW_ALERT_ROW)
-    status_row_set_alerts(s_row, status_row_alerts_place(THRESH_BAR_TOP));
-#endif
     status_icons_refresh();
     if (status_row_refresh(s_row)) {
         layer_mark_dirty(s_top_status_layer);

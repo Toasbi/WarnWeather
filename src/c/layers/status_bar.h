@@ -69,8 +69,6 @@ void status_bar_destroy_all(void);
 void status_bar_apply_view(const ViewSpec *spec, const MainLayout *L);
 
 // Re-resolve and repaint every bar — the settings / weather / flick checkpoint.
-// Where the Alerts row exists this is also where each bar's placement is re-read
-// from the thresholds blob (status_row_set_alerts), as it is at create.
 void status_bar_refresh_all(void);
 
 // True when any VISIBLE bar's active packed line holds a live health slot. Gates
