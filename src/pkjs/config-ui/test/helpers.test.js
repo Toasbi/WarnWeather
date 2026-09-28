@@ -77,3 +77,14 @@ test('deriveDefaults/deriveColorKeys are schema-driven (colors as ints)', () => 
   assert.deepEqual(defaults.deriveDefaults(FIXTURE), { mode: 'a', flag: false, tint: 0xFF0055 });
   assert.deepEqual(defaults.deriveColorKeys(FIXTURE), ['tint']);
 });
+
+test('deriveDefaults never seeds a defaultFrom item, even one that also has a defaultValue', () => {
+  // The seed backfill would otherwise pin a key the page leaves absent on purpose
+  // (defaultFrom.sticky: false), freezing one watch's default for every watch.
+  const SCH = { tabs: [{ sections: [{ items: [
+    { type: 'select', messageKey: 'plain', defaultValue: 'a' },
+    { type: 'select', messageKey: 'slot', defaultFrom: { resolver: 'x' } },
+    { type: 'segmented', messageKey: 'look', defaultValue: 'fill', defaultFrom: { resolver: 'x', sticky: false } }
+  ] }] }] };
+  assert.deepEqual(defaults.deriveDefaults(SCH), { plain: 'a' });
+});

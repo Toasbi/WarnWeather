@@ -28,6 +28,7 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [Block registry — PConf.blocks](#block-registry--pconfblocks)
    - [Icon registry — PConf.icons](#icon-registry--pconficons)
    - [Options-resolver registry — PConf.optionsResolvers](#options-resolver-registry--pconfoptionsresolvers)
+   - [Defaults-resolver registry — PConf.defaultsResolvers](#defaults-resolver-registry--pconfdefaultsresolvers)
    - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
    - [Hint-resolver registry — PConf.hintResolvers](#hint-resolver-registry--pconfhintresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
@@ -191,7 +192,8 @@ configUi.intToHex(n)                 // 0xFFFFFF → '#FFFFFF'
 configUi.hexToInt(h)                 // '#FFFFFF' → 16777215
 
 // Schema introspection
-configUi.deriveDefaults(schema)      // { messageKey: defaultValue, … } — colors as ints
+configUi.deriveDefaults(schema)      // { messageKey: defaultValue, … } — colors as ints;
+                                     // `defaultFrom` items are left out (resolved per watch)
 configUi.deriveColorKeys(schema)     // ['key', …] — all type:'color' messageKeys
 
 // Page injection
@@ -333,6 +335,7 @@ picking the shown swatch is what writes it.
 | `type` | string | One of the fifteen types above |
 | `messageKey` | string | Serialization key — must match the AppMessage/C key |
 | `defaultValue` | any | Default value. Color defaults are ints (e.g. `0xFFFFFF`). |
+| `defaultFrom` | `{ resolver, args?, sticky? }` | A per-watch default from a named [defaults resolver](#defaults-resolver-registry--pconfdefaultsresolvers), used instead of `defaultValue`. Never seeded by `deriveDefaults`. `sticky: false` leaves the key out of the save blob while it holds that default. |
 | `options` | `[label, value][]` | Choices for `select`, `segmented`, `radio` |
 | `optionDisabledWhen` | `{ value: showWhen }` | Renders individual `segmented`/`radio` options inert while their condition holds. Prefer this over gating the list itself with `optionsFrom`: an option that disappears is snapped away, silently rewriting a stored value the user never touched. |
 | `displayFrom` | `{ resolver, args }` | Paints a DERIVED value from a named [display resolver](#display-resolver-registry--pconfdisplayresolvers) while the stored value stays untouched. Read by `color` only; ignored on an `inline` item. |
@@ -416,7 +419,9 @@ load-bearing values gating real shipped features.
 
 An item hidden by `showWhen` or `capabilities` **retains its current value and is still serialized**
 — exactly like Clay's `inject.js` `.hide()`. The serializer walks the full schema regardless of
-visibility, so the output blob stays complete and the C side is not affected.
+visibility, so the output blob stays complete and the C side is not affected. The one key it
+leaves out on purpose is a `defaultFrom` item marked `sticky: false` that still holds its
+default (see [Defaults-resolver registry](#defaults-resolver-registry--pconfdefaultsresolvers)).
 
 ---
 
@@ -492,6 +497,40 @@ a key is typed into a text field. When that happens depends on the control that 
   A trigger whose stored value is no longer among its options is left alone until the next full
   render snaps it. The option sheet is rebuilt whenever it opens, so it is always current.
   Anything else a text key feeds (hints, `showWhen`, blocks) catches up at the next full render.
+
+### Defaults-resolver registry — PConf.defaultsResolvers
+
+A keyed item with a `defaultFrom: { resolver: id, args, sticky }` field takes its default from a
+named resolver instead of a static `defaultValue`, for a default that depends on the watch (a
+heart-rate slot on an HR watch, a look that only reads well on a colour screen):
+
+```js
+// Returns the default VALUE for this watch (one value, not a list).
+PConf.defaultsResolvers.register('warnLookDefault', function (env, args) {
+  return (env && env.color === false) ? 'outline' : 'fill';
+});
+```
+
+The resolver gets the page's `env` and `defaultFrom.args`, never the settings state. It runs at
+hydrate (a key the saved blob lacks takes it), at the display-snap (a select value that fell out
+of its option list lands on it) and for the `defaultOf` handed to actions. `deriveDefaults`
+skips every `defaultFrom` item, so a seeded store never holds one. An unregistered id resolves
+to `undefined`: the key stays unset.
+
+`sticky` decides what a save does with a key that still holds its default:
+
+- **omitted or `true`**: hydrate put the resolved default into the state, and `serialize` writes
+  it back like any value. After the first save the key is stored, so the saving watch's default
+  is frozen as a value, and another watch sharing the phone's store reads it too. Fine for a
+  default that only has to be sensible on first open (WarnWeather's status slots).
+- **`false`**: `serialize` leaves the key out while its value equals the default resolved for
+  the page's `env` (strict equality in the page's shape, so a colour default compares as
+  `'#RRGGBB'`). The key stays absent, as long as the host saves the blob whole (as
+  `getSettings` does) and does not seed it, so it keeps resolving per watch. A different value
+  is a pick and is saved as usual. The flip side: a pick that equals the saving watch's default
+  is not remembered, and follows each watch's default like an untouched key. Use it when
+  "absent" is itself the contract, e.g. an app packer that resolves an unset key per platform
+  (WarnWeather's warn looks).
 
 ### Display-resolver registry — PConf.displayResolvers
 

@@ -75,10 +75,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // fn(S, env, args) returns [[label, value], ...]; see resolveOptionsFrom below.
   PConf.optionsResolvers = makeRegistry();
 
-  // --- defaults-resolver registry --- a select item opts into a platform-aware default
+  // --- defaults-resolver registry --- a keyed item opts into a platform-aware default
   // by name (item.defaultFrom.resolver: id), resolved at hydrate + snap time. Separate
   // from optionsResolvers because a defaults resolver returns a single value, not a list.
-  // fn(env, args) -> defaultValue; see resolveDefaultFrom below.
+  // fn(env, args) -> defaultValue; see resolveDefaultFrom below. defaultFrom.sticky:
+  // false keeps a value equal to that default OUT of the save blob (serialize), so the
+  // key stays absent and resolves per watch again instead of freezing the saving one's.
   PConf.defaultsResolvers = makeRegistry();
 
   // --- recommend-resolver registry --- a select item flags its "best for you" option by name
@@ -178,6 +180,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * A schema item's default in the shape the page holds it in S: resolveDefaultFrom
+   * (env-aware), with a number color default as '#RRGGBB'. hydrate seeds S with it,
+   * serialize compares a non-sticky defaultFrom value against it, and boot hands it to
+   * reset-style actions (defaultAsStored) — one shape, so the three always agree.
+   * @param {Object} item Schema item.
+   * @param {Object} [env] Platform env, passed to any defaultFrom resolver.
+   * @returns {*} The stored-shape default (undefined if the item has none).
+   */
+  function storedDefault(item, env) {
+    var dv = resolveDefaultFrom(item, env);
+    return (item.type === 'color' && typeof dv === 'number') ? intToHex(dv) : dv;
+  }
+
+  /**
    * Build the initial settings state from a schema's defaults, with injected
    * (saved) values taking precedence. Number color defaults become hex strings.
    *
@@ -190,9 +206,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var S = {};
     eachItem(schema, function (it) {
       if (!it.messageKey) { return; }
-      var dv = resolveDefaultFrom(it, env);
+      var dv = storedDefault(it, env);
       if (typeof dv === 'undefined') { return; }
-      S[it.messageKey] = (it.type === 'color' && typeof dv === 'number') ? intToHex(dv) : dv;
+      S[it.messageKey] = dv;
     });
     return Object.assign(S, injected || {});
   }
@@ -215,15 +231,26 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * Flatten settings state into the messageKey->value blob sent back to the
-   * watch. staticText items (no real value) are skipped.
+   * watch. staticText items (no real value) are skipped, and so is a
+   * `defaultFrom: {sticky: false}` item whose value equals its default resolved
+   * for THIS env: hydrate put that default into S, so writing it back would store
+   * the saving watch's default as though it were a pick, and the host that saves
+   * the blob wholesale would then serve it to every watch. Left absent, the key
+   * resolves per watch again; a value that differs is a pick and is kept.
    *
    * @param {Object} schema Config schema.
    * @param {Object} S Settings state.
+   * @param {Object} [env] Platform env — the one hydrate resolved S with.
    * @returns {Object} Blob of messageKey -> value.
    */
-  function serialize(schema, S) {
+  function serialize(schema, S, env) {
     var out = {};
-    eachItem(schema, function (it) { if (it.messageKey && it.type !== 'staticText') { out[it.messageKey] = S[it.messageKey]; } });
+    eachItem(schema, function (it) {
+      if (!it.messageKey || it.type === 'staticText') { return; }
+      if (it.defaultFrom && it.defaultFrom.sticky === false
+          && S[it.messageKey] === storedDefault(it, env)) { return; }
+      out[it.messageKey] = S[it.messageKey];
+    });
     return out;
   }
 
@@ -1505,9 +1532,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      */
     function defaultAsStored(key) {
       var item = findItem(key);
-      if (!item) { return undefined; }
-      var dv = resolveDefaultFrom(item, ENV);
-      return (item.type === 'color' && typeof dv === 'number') ? intToHex(dv) : dv;
+      return item ? storedDefault(item, ENV) : undefined;
     }
     // The messageKey of the trigger to restore focus to when the modal closes. Stored by key
     // (not the DOM node) because render() replaces #scroll's innerHTML, detaching any node
@@ -2168,7 +2193,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // Save: run submit hooks, serialize, flash the toast, then return to the watch.
     function save() {
       PConf.hooks.runSubmit(hookCtx);
-      var blob = serialize(SCHEMA, S);
+      var blob = serialize(SCHEMA, S, ENV);
       var el = document.getElementById('toast');
       el.textContent = 'Settings saved ✓';
       el.classList.add('show');

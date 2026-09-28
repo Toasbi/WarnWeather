@@ -45,6 +45,58 @@ test('serialize: every messageKey incl. showWhen-hidden; staticText skipped; col
   assert.equal(out.tint, '#FF0055');
 });
 
+// defaultFrom.sticky: false — a key whose default is resolved per watch stays OUT of the
+// save blob while it holds that default, so the host keeps resolving it per watch instead
+// of storing the saving watch's default as a pick.
+test('serialize: a sticky:false defaultFrom key is omitted while it equals its env default', () => {
+  global.PConf.defaultsResolvers.register('fakeLook', function (env) {
+    return (env && env.color === false) ? 'outline' : 'fill';
+  });
+  global.PConf.defaultsResolvers.register('fakeTint', function (env) {
+    return (env && env.color === false) ? 0xFFFFFF : 0xFF0055;
+  });
+  const SCH = { tabs: [{ sections: [{ items: [
+    { type: 'segmented', messageKey: 'look', options: [['None', 'none'], ['Outline', 'outline'], ['Fill', 'fill']],
+      defaultFrom: { resolver: 'fakeLook', sticky: false } },
+    { type: 'color', messageKey: 'tint', defaultFrom: { resolver: 'fakeTint', sticky: false } },
+    { type: 'segmented', messageKey: 'stuck', options: [['Outline', 'outline'], ['Fill', 'fill']],
+      defaultFrom: { resolver: 'fakeLook' } }
+  ] }] }] };
+  const COLOUR = { color: true };
+  const BW = { color: false };
+  const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+  // Untouched: hydrate fills the resolved default into S, serialize leaves it out
+  // (the colour default compares in the page's '#RRGGBB' shape).
+  const S = E.hydrate(SCH, {}, COLOUR);
+  assert.equal(S.look, 'fill', 'the page still shows the default');
+  assert.equal(S.tint, '#FF0055');
+  const fresh = E.serialize(SCH, S, COLOUR);
+  assert.ok(!has(fresh, 'look'), 'a default look is not saved');
+  assert.ok(!has(fresh, 'tint'), 'a default colour is not saved');
+  assert.equal(fresh.stuck, 'fill', 'a sticky defaultFrom key (the default) is still saved');
+
+  // A pick that differs from the default is saved; one that equals it is not.
+  S.look = 'outline';
+  S.tint = '#00AAFF';
+  assert.equal(E.serialize(SCH, S, COLOUR).look, 'outline', 'a non-default pick is saved');
+  assert.equal(E.serialize(SCH, S, COLOUR).tint, '#00AAFF');
+  S.look = 'fill';
+  assert.ok(!has(E.serialize(SCH, S, COLOUR), 'look'), 'picking the default back is not saved');
+
+  // "Default" is the env's: the same value is a pick on a watch whose default differs.
+  assert.equal(E.serialize(SCH, S, BW).look, 'fill', 'fill is a pick on the B&W watch');
+  const bw = E.hydrate(SCH, {}, BW);
+  assert.equal(bw.look, 'outline');
+  assert.ok(!has(E.serialize(SCH, bw, BW), 'look'), 'the B&W default is not saved either');
+
+  // A stored value equal to the default (saved before the key went non-sticky) is
+  // dropped by the next save, so the key resolves per watch from then on.
+  assert.ok(!has(E.serialize(SCH, E.hydrate(SCH, { look: 'fill' }, COLOUR), COLOUR), 'look'));
+  assert.equal(E.serialize(SCH, E.hydrate(SCH, { look: 'none' }, COLOUR), COLOUR).look, 'none',
+    'a stored pick survives the round trip');
+});
+
 test('blocks registry: register/get; unknown id -> undefined', () => {
   E.blocks.register('demo', (state) => '<b>' + state.mode + '</b>');
   assert.equal(typeof E.blocks.get('demo'), 'function');
