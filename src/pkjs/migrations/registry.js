@@ -92,11 +92,11 @@ module.exports = [
     // radarMode. Marks now though it asks for a send on every existing install (see
     // clay-migrations.js on the scheduler). Reset-safe, three times over. The next blob
     // is seeded with every highlight toggle off and every pair blank, so a toggle saved
-    // before the next boot is the page's own truth: unmarked, the wizard seeds AQI ON
-    // with its pair, the user switches it OFF (pair kept), and that boot turns it back
-    // ON. The page no longer offers the rain window's Off, so there is nothing to move.
-    // And a blank warn colour now means auto, so a page save must not be read as the
-    // old no-outline state.
+    // before the next boot is the page's own truth: unmarked, that boot would read the
+    // wizard's AQI ON over its blank pair as OFF, and a pair the user dragged and then
+    // switched OFF (pair kept) would come back ON. The page no longer offers the rain
+    // window's Off, so there is nothing to move. And a blank warn colour now means auto,
+    // so a page save must not be read as the old no-outline state.
     { key: KEYS.ALERT_LEVELS_MIGRATION_KEY, markOn: 'now', markOnReset: true,
       run: v124.migrateAlertLevels },
     // 1.24.0, and MUST run after the alert-levels entry above: that one derives each

@@ -101,13 +101,13 @@ var APP_FILES = [
   // The Weather tab kit (live graphs / 5-day / saved locations), nine
   // files. Order is load-bearing within the group for all but
   // vendor-suncalc.js (window.SunCalc is read lazily at render time, so it
-  // only has to be somewhere in the bundle): each of the others publishes a window global its dependents
-  // read at IIFE time — weather-tab-model.js → WeatherTabModel (read by
-  // data/readouts/charts); weather-tab-icons.js and weather-tab-readouts.js
-  // → read by charts; weather-tab-interact.js → WeatherTabInteract, whose
-  // settle curve weather-tab-css.js bakes into its stylesheet string; and
-  // weather-tab.js reads five of them (Model, Data, Charts, Css, Interact)
-  // while its own top-level body runs.
+  // only has to be somewhere in the bundle): each of the others publishes a
+  // window global its dependents read at IIFE time — weather-tab-model.js →
+  // WeatherTabModel (read by data/readouts/charts); weather-tab-icons.js and
+  // weather-tab-readouts.js → read by charts; weather-tab-interact.js →
+  // WeatherTabInteract, whose settle curve weather-tab-css.js bakes into its
+  // stylesheet string; and weather-tab.js reads five of them (Model, Data,
+  // Charts, Css, Interact) while its own top-level body runs.
   path.join(ROOT, 'src/pkjs/settings/vendor-suncalc.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-model.js'),
   path.join(ROOT, 'src/pkjs/settings/weather-tab-data.js'),

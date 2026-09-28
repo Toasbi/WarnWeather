@@ -612,8 +612,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     var COMPLETING_NAVS = {save: true, tweak: true};
 
     /**
-     * The conditional-defaults table. Resolved lazily so the flat settings page's file order
-     * never matters (same dual-context pattern as blocks.js's status-thresholds lookup).
+     * The conditional-defaults table. Resolved lazily, on purpose, so the flat settings
+     * page's file order never matters (unlike blocks.js, which binds the status-thresholds
+     * contract once at load and has its bundle position pinned by a test).
      * WEBVIEW REQUIREMENT: the flat page has no require(), so settings/defaults-policy.js must
      * be listed in scripts/build-config-page.js's APP_FILES for window.DefaultsPolicy to exist
      * at all. Without it the wizard simply derives nothing — Node tests take the require()
