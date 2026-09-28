@@ -649,7 +649,22 @@ test('the warn look row: label, the selected look\'s hint, and the B&W wording',
     'outline keeps its colour hint at night');
   const stepsArgs = v => Object.assign({ value: v }, steps.hintFrom.args);
   assert.match(hint({ theme: 'light', themeAuto: true, themeNight: 'bw-light' }, ENV, stepsArgs('fill')),
-    /close color.*At night \(black-and-white theme\) this looks the same as a reached goal\.$/);
+    /close color.*At night \(black-and-white theme\).*looks the same as a reached goal\./);
+
+  // A colour screen where Fill's two colours are the same: that fill IS the danger /
+  // reached-goal box, and the hint says so. A goal kind's defaults are both the goal
+  // green; a weather warn pick can equal its danger (unset danger = red).
+  assert.equal(hint({ theme: 'dark', threshStepsWarnColor: '#55FF00', threshStepsDangerColor: '#55FF00' },
+    ENV, stepsArgs('fill')), steps.hintByValue.fill + ' ' + steps.hintFrom.args.sameColor,
+    'goal defaults: close fill looks like a reached goal');
+  assert.match(steps.hintFrom.args.sameColor, /looks like a reached goal/);
+  assert.equal(hint({ theme: 'dark', threshWindWarnColor: '#FF0000', threshWindDangerColor: '' },
+    ENV, args('fill')), wind.hintByValue.fill + ' ' + wind.hintFrom.args.sameColor,
+    'a red warn pick against the red danger default');
+  assert.equal(hint({ theme: 'dark', threshWindWarnColor: '', threshWindDangerColor: '' },
+    ENV, args('fill')), null, 'default warn (text colour) and default danger (red) differ');
+  assert.equal(hint({ theme: 'dark', threshWindWarnColor: '#FF0000', threshWindDangerColor: '' },
+    ENV, args('outline')), null, 'only Fill can be mistaken for danger');
 
   // Rendered: the colour watch opens on Fill with its hint; a B&W watch on Outline.
   const colour = bootGeneratedPage({ provider: 'dwd' });
@@ -1311,8 +1326,8 @@ test('the Bold hint explains the selected step only, and when the level bold app
   // A weather kind's ladder also weights its alert's value (status_alerts.c), so
   // its hints name both places.
   assert.deepEqual(boldFor('Wind').hintByValue, {
-    off: 'Danger still prints bold: in the slot while Highlight is on, and in its alert’s value.',
-    warn: 'Heavier text from the warn level on: in the slot while Highlight is on, and in its alert’s value.',
+    off: 'Danger still prints bold: in the slot while Highlight is on, and in the alert when it shows the value.',
+    warn: 'Heavier text from the warn level on: in the slot while Highlight is on, and in the alert when it shows the value.',
     always: 'Every status slot showing this value prints it in heavier text.'
   });
   assert.deepEqual(boldFor('Steps').hintByValue, {

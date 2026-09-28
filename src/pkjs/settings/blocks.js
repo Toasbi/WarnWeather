@@ -584,6 +584,9 @@ if (typeof require !== 'undefined') {
     //  - a colour day theme with a B&W night theme (Theme switching on): the row's
     //    own hint (`base`, its hintByValue) plus the `night` note for that look — by
     //    day the box is in the picked colour, at night a fill matches danger;
+    //  - a colour screen where Fill's two colours resolve to the SAME one (a goal
+    //    kind's defaults are both the goal green; a warn pick can equal danger): the
+    //    `sameColor` note too — that fill IS the danger / reached-goal box;
     //  - otherwise null — the row's own hintByValue.
     // A look a set has no line for (none) falls back the same way. The watch still
     // draws what was picked (status_row.c).
@@ -595,13 +598,21 @@ if (typeof require !== 'undefined') {
             return typeof bwText === 'string' ? bwText : null;
         }
         var st = S || {};
-        var note = args.night && args.night[value];
         var base = args.base && args.base[value];
-        if (st.themeAuto === true && isBwTheme(st.themeNight)
-            && typeof note === 'string' && typeof base === 'string') {
-            return base + ' ' + note;
+        if (typeof base !== 'string') { return null; }
+        var parts = [base];
+        var note = args.night && args.night[value];
+        if (st.themeAuto === true && isBwTheme(st.themeNight) && typeof note === 'string') {
+            parts.push(note);
         }
-        return null;
+        if (value === 'fill' && args.keyStem && typeof args.sameColor === 'string') {
+            var warnHex = thresholdDisplayColor(st, args.keyStem, 'Warn', env);
+            var dangerHex = thresholdDisplayColor(st, args.keyStem, 'Danger', env);
+            if (warnHex && dangerHex && String(warnHex).toUpperCase() === String(dangerHex).toUpperCase()) {
+                parts.push(args.sameColor);
+            }
+        }
+        return parts.length > 1 ? parts.join(' ') : null;
     });
 
     // "Auto" threshold colors: a WARN color the user never customized tracks the

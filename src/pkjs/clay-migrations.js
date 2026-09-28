@@ -126,11 +126,13 @@ function runMigrations(opts) {
     migrateThresholdHighlightToggles(
         isDone(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY),
         mark(KEYS.THRESHOLD_HIGHLIGHT_TOGGLE_MIGRATION_KEY));
-    // Marks synchronously and asks for no send: it keeps each install's old warn
-    // box, which the watch already draws from the colour byte (see the function).
-    migrateWarnLook(
+    // Marks synchronously and asks for one send on every existing install: the watch
+    // must get the look bytes and the red danger even where storage did not change
+    // (see the function; a NACK leaves the blob in the outbox's uncommitted cache).
+    var wantsClayWarnLook = migrateWarnLook(
         isDone(KEYS.WARN_LOOK_MIGRATION_KEY),
-        mark(KEYS.WARN_LOOK_MIGRATION_KEY));
+        mark(KEYS.WARN_LOOK_MIGRATION_KEY),
+        opts.hadExistingInstall);
     // Marks synchronously: if the send it asks for NACKs, the outbox's uncommitted
     // last-sent cache still carries the new text on the next Clay send.
     var wantsClayNoRainText = migrateEmptyNoRainText(
@@ -174,7 +176,7 @@ function runMigrations(opts) {
     return {
         clayRequired: Boolean(wantsClayColors || wantsClayToggle || wantsClayLightRetune
                               || wantsClaySolidBars || wantsClayNightColors || wantsClayNoRainText
-                              || wantsClayStripeRule || wantsClayRainHorizon),
+                              || wantsClayStripeRule || wantsClayRainHorizon || wantsClayWarnLook),
         commitDeferredMarkers: function () {
             if (wantsClayColors) { mark(KEYS.WEEKEND_HOLIDAY_COLOR_MIGRATION_KEY)(); }
             if (wantsClayToggle) { mark(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY)(); }
@@ -898,16 +900,24 @@ function migrateThresholdHighlightToggles(isMigrationDone, markDone) {
  * a pick ("the text colour"), and unset means red (onbuild.js, kindConfig). Goal
  * kinds keep their green.
  *
- * No Clay send: the watch keeps drawing each install's old boxes from the colour
- * bytes until the next Clay send carries the look bytes and the new danger colour.
+ * Asks for ONE Clay send on every existing install it runs on — even when nothing in
+ * storage changes: the watch still holds the pre-1.24 blob without the look bytes,
+ * so it would keep drawing the old boxes (no box where the outline was off, a white
+ * danger) while the page already shows the new defaults (fill, red). Marks
+ * synchronously anyway: a NACKed send leaves the outbox's uncommitted last-sent cache
+ * holding the new blob, so the next Clay send carries it (as migrateRainHorizonOff).
  * "Reset watchface" marks this done (clay-settings.js resetAll): after a reset a
  * blank colour means auto (warn) or red (danger).
  *
+ * A FRESH install (no blob before this boot's seedDefaults) asks for nothing: its boot
+ * already sends the whole settings blob.
+ *
  * @param {function(): boolean} isMigrationDone marker probe
  * @param {function()} markDone marker setter
- * @returns {void}
+ * @param {boolean} [hadExistingInstall] a blob was stored before this boot's seedDefaults
+ * @returns {boolean} True when it ran on an existing install (a Clay send is due).
  */
-function migrateWarnLook(isMigrationDone, markDone) {
+function migrateWarnLook(isMigrationDone, markDone, hadExistingInstall) {
     /**
      * @param {*} v Stored colour (0xRRGGBB int or '#RRGGBB' string).
      * @returns {boolean} True for black or white — the old auto text colour.
@@ -919,7 +929,7 @@ function migrateWarnLook(isMigrationDone, markDone) {
         return u === '#000000' || u === '#FFFFFF';
     }
     var persistClay = loadForMigration(isMigrationDone, 'warn look');
-    if (persistClay === null) { return; }
+    if (persistClay === null) { return false; }
     var changed = false;
     for (var i = 0; i < thresholds.KINDS.length; i++) {
         var kind = thresholds.KINDS[i];
@@ -953,6 +963,7 @@ function migrateWarnLook(isMigrationDone, markDone) {
         console.log('Migrated the warn outline toggles to warn looks, danger to red');
     }
     markDone();
+    return Boolean(hadExistingInstall);
 }
 
 /**

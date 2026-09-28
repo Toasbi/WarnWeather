@@ -1421,7 +1421,23 @@ test('the warn-look move survives the boot order: a fresh seeded blob is a no-op
   assert.equal(read.threshSleepWarnLook, 'none');
   assert.equal(read.threshWindWarnLook, undefined, 'untouched kinds take the platform default');
   assert.equal(store[mods.KEYS.WARN_LOOK_MIGRATION_KEY], '1', 'marked synchronously');
-  assert.equal(res.clayRequired, false, 'no Clay send of its own');
+  assert.equal(res.clayRequired, true,
+    'one Clay send: the watch still holds the pre-1.24 blob without the look bytes');
+  const again = mods.clayMigrations.runMigrations({
+    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
+  assert.equal(again.clayRequired, false, 'a marked migration never asks again');
+});
+
+test('migrateWarnLook asks for a Clay send on an existing install even when storage does not change', () => {
+  // Every outline off, danger unset: nothing to write — but the watch still draws the
+  // old boxes from its pre-1.24 blob until the look bytes and the red danger arrive.
+  const c = loadThresholdToggleCase({ threshWindWarnOutlineOn: false });
+  assert.equal(c.clayMigrations.migrateWarnLook(c.marker.isDone, c.marker.mark, true), true);
+  assert.equal(c.saves.n, 0, 'nothing to save');
+  assert.equal(c.marker.state.done, true, 'marked synchronously');
+  const fresh = loadThresholdToggleCase({ threshWindWarnOutlineOn: false });
+  assert.equal(fresh.clayMigrations.migrateWarnLook(fresh.marker.isDone, fresh.marker.mark, false), false,
+    'a fresh install sends its whole blob at boot anyway');
 });
 
 test('resetAll marks the warn-look move done: a blank colour saved after it means auto', () => {

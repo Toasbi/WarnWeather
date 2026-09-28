@@ -425,7 +425,7 @@ var WARN_LOOK_HINTS = {
 };
 var WARN_LOOK_BW_HINTS = {
     outline: 'A thin frame in the text color.',
-    fill: 'A solid box in the text color, with the value knocked out. On ' +
+    fill: 'A solid box in the text color, with the value in the background color. On ' +
         'black-and-white screens this looks the same as danger.'
 };
 var GOAL_LOOK_HINTS = {
@@ -435,7 +435,7 @@ var GOAL_LOOK_HINTS = {
 };
 var GOAL_LOOK_BW_HINTS = {
     outline: 'A thin frame in the text color.',
-    fill: 'A solid box in the text color, with the value knocked out. On ' +
+    fill: 'A solid box in the text color, with the value in the background color. On ' +
         'black-and-white screens this looks the same as a reached goal.'
 };
 var WARN_LOOK_NIGHT_NOTES = {
@@ -444,6 +444,13 @@ var WARN_LOOK_NIGHT_NOTES = {
 var GOAL_LOOK_NIGHT_NOTES = {
     fill: 'At night (black-and-white theme) this looks the same as a reached goal.'
 };
+// Appended to the colour-screen Fill hint when the two colours resolve to the same
+// one (a goal kind's defaults are both the goal green; a warn pick can equal danger):
+// then the fill IS the danger / reached-goal box.
+var WARN_LOOK_SAME_COLOR_NOTE = 'Warn and danger use the same color, so this looks like ' +
+    'danger — pick a different warn color.';
+var GOAL_LOOK_SAME_COLOR_NOTE = 'Close and goal use the same color, so this looks like ' +
+    'a reached goal — pick a different close color.';
 // The Bold row is a SLOT-level setting, not a level one: it leads the slot sheet
 // (above the Goals group; an alert kind's levels live in its Alerts sheet) and stays
 // live while the kind's highlight is switched off, because "Always" needs no levels
@@ -460,8 +467,8 @@ var BOLD_ALWAYS_HINT = 'Every status slot showing this value prints it in heavie
 // A weather kind's Bold row also sets the weight of its alert's value (status_alerts.c
 // bolds an entry on the kind's ladder at its real level, Highlight or not).
 var BOLD_HINTS = {
-    off: 'Danger still prints bold: in the slot while Highlight is on, and in its alert’s value.',
-    warn: 'Heavier text from the warn level on: in the slot while Highlight is on, and in its alert’s value.',
+    off: 'Danger still prints bold: in the slot while Highlight is on, and in the alert when it shows the value.',
+    warn: 'Heavier text from the warn level on: in the slot while Highlight is on, and in the alert when it shows the value.',
     always: BOLD_ALWAYS_HINT
 };
 var GOAL_BOLD_HINTS = {
@@ -832,9 +839,11 @@ function levelsGroup(keyStem, hint, gate) {
         defaultFrom: {resolver: 'warnLookDefault', args: {keyStem: keyStem}},
         hintByValue: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
         hintFrom: {resolver: 'warnLookHint', args: {
+            keyStem: keyStem,
             bw: goal ? GOAL_LOOK_BW_HINTS : WARN_LOOK_BW_HINTS,
             night: goal ? GOAL_LOOK_NIGHT_NOTES : WARN_LOOK_NIGHT_NOTES,
-            base: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS
+            base: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
+            sameColor: goal ? GOAL_LOOK_SAME_COLOR_NOTE : WARN_LOOK_SAME_COLOR_NOTE
         }},
         joinPrevious: true,
         showWhen: gate || undefined,
