@@ -18,15 +18,17 @@
 // slot of its kind at the entry's REAL level (alert_set_box) — the alert's own look,
 // which the kind's slot 'Highlight' switch does not touch (that switch styles only
 // the slot):
-//  - WARN   a rounded-rect OUTLINE in the kind's warn colour — only while the
-//           kind's 'Outline on warn' is on. The 0x00 no-outline sentinel draws no
-//           box, as a warn slot draws none: the icon alone is the alert;
+//  - WARN   the kind's warn look (status_threshold_box — the slot's own rule):
+//           none = no box, the icon alone is the alert; outline = a rounded-rect
+//           OUTLINE in the kind's warn colour; fill = the DANGER look below, in
+//           the warn colour;
 //  - DANGER the box FILLED in the kind's danger colour + outline, the glyph
 //           re-stroked and the text drawn gcolor_legible_over() the fill;
 //  - rain   NO box: the drops drawn FILLED in the radar tier's colour (the look the
 //           strip's rain alert always had), the text in the foreground.
-// On B&W the escalation is polarity, as in the slots: warn = fg outline, danger =
-// fg box with the glyph and text in the background colour.
+// On B&W the escalation is polarity, as in the slots: an outline is fg, a filled
+// box (danger, or a warn look of fill) is fg with the glyph and text in the
+// background colour.
 // Text lanes use the row's font; a metric value follows its kind's bold ladder at
 // the entry's level (status_threshold_is_bold — danger bold, warn per the kind's
 // Bold mode, 'Always'), the rain text never bolds.

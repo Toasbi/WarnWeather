@@ -87,18 +87,12 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier) {
 }
 
 int alert_set_box(const uint8_t *blob, size_t len, const AlertEntry *e, uint8_t *c8_out) {
-    uint8_t c8 = 0;
-    int box = ALERT_BOX_NONE;
-    if (e && !e->rain
-        && (e->level == THRESH_LEVEL_WARN || e->level == THRESH_LEVEL_DANGER)) {
-        c8 = status_threshold_color8(blob, len, e->kind, e->level);
-        if (e->level == THRESH_LEVEL_DANGER) {
-            box = ALERT_BOX_FILL;
-        } else if (c8 != 0) {
-            box = ALERT_BOX_OUTLINE;
-        }
+    int box = (e && !e->rain)
+        ? status_threshold_box(blob, len, e->kind, e->level) : THRESH_BOX_NONE;
+    if (c8_out) {
+        *c8_out = box == THRESH_BOX_NONE
+            ? 0 : status_threshold_color8(blob, len, e->kind, e->level);
     }
-    if (c8_out) { *c8_out = box == ALERT_BOX_NONE ? 0 : c8; }
     return box;
 }
 

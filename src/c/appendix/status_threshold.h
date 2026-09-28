@@ -192,7 +192,7 @@ static inline bool status_threshold_is_health_kind(int kind) {
 
 typedef enum {
     THRESH_LEVEL_NORMAL = 0,
-    THRESH_LEVEL_WARN = 1,     // rounded-rect outline
+    THRESH_LEVEL_WARN = 1,     // boxed per the kind's warn look (status_threshold_box)
     THRESH_LEVEL_DANGER = 2,   // outline + filled background, legible ink
 } ThreshLevel;
 
@@ -283,6 +283,27 @@ typedef enum {
 // reads as OUTLINE. NONE for an invalid blob and for a kind without a pair (the
 // bold-only kinds, out of range).
 int status_threshold_warn_look(const uint8_t *blob, size_t len, int kind);
+
+// How a status slot or an alert icon is boxed at its level — ONE decision for
+// both draw paths, so a slot and its alert icon cannot disagree.
+typedef enum {
+    THRESH_BOX_NONE = 0,      // no box
+    THRESH_BOX_OUTLINE = 1,   // rounded-rect outline in the level's colour
+    THRESH_BOX_FILL = 2,      // filled in the level's colour + the outline; the
+                              // glyph restroked and the text drawn
+                              // gcolor_legible_over() the fill
+} ThreshBox;
+
+// The box for a ThreshLevel under a ThreshWarnLook: NORMAL none, DANGER fill
+// (whatever the look), WARN exactly the look — an out-of-range look reads as
+// OUTLINE, the accessor's rule for the reserved wire value.
+int status_threshold_box_for(int level, int look);
+
+// status_threshold_box_for() with the kind's look read from the blob
+// (status_threshold_warn_look). Callers gate the slot on its Highlight switch by
+// handing in the level it resolved (NORMAL while the kind is off); an alert
+// entry hands in its real level.
+int status_threshold_box(const uint8_t *blob, size_t len, int kind, int level);
 
 // The status bars, in the order of their 2-bit cells in the placement byte.
 typedef enum {

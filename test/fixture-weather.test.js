@@ -269,7 +269,9 @@ test('fixtures/uv-alert-hold.json holds today\'s 7 at warn, highlight on or off'
 // UV alert at danger and a wind alert at warn, both with their values, which the phone
 // bakes into the row's own entry tuple (ALERT_ENTRIES_UINT8) in the fixed order UV,
 // wind; the strip shows the row in its left slot by default. Two metric entries at two
-// levels put a filled (danger) box beside an outlined (warn) one in the frame.
+// levels put the danger box beside the warn look (fill on colour, outline on B&W) in
+// the frame; the forecast bar's gust (warn) and UV (danger) slots, Highlight on, show
+// the same two looks on slots.
 // radarStartEpoch pins the radar window to the emulator's clock (watch.now read as
 // UTC); without it the window anchors to the host-local startEpoch and can land
 // wholly in the past, so no rain alert draws.

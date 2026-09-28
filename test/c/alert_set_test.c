@@ -509,49 +509,85 @@ static void degrade_tests(void) {
 }
 
 // The alert's box is its OWN look, judged at the entry's real level: the kind's slot
-// 'Highlight' switch (its enable bit) never changes it. FILL at danger; OUTLINE at
-// warn only while the kind's warn accent is non-zero ('Outline on warn'); the rain
-// drop is never boxed.
+// 'Highlight' switch (its enable bit) never changes it. FILL at danger; at warn the
+// kind's warn look (none / outline / fill) — through status_threshold_box, the
+// slot's own decision; the rain drop is never boxed.
 static void box_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
     size_t n = sizeof(blob);
-    blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV] = 0xF8;       // UV warn outline on
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV] = 0xF8;       // UV warn colour
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV + 1] = 0xF0;   // UV danger colour
-    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND + 1] = 0xE0; // wind: no warn outline
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0xFF;     // wind warn colour (unused: none)
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND + 1] = 0xE0; // wind danger colour
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_GUST] = 0xC0;     // gust warn colour
+    // Looks: wind none, gust fill (byte 36, kinds 2 and 3); UV outline (byte 37,
+    // kind 7 at bits 6-7).
+    blob[THRESH_WARN_LOOK_OFFSET] = (uint8_t)((THRESH_WARN_LOOK_NONE << 4)
+        | (THRESH_WARN_LOOK_FILL << 6));
+    blob[THRESH_WARN_LOOK_OFFSET + 1] = (uint8_t)(THRESH_WARN_LOOK_OUTLINE << 6);
     AlertEntry uv_warn = { .kind = THRESH_UV, .level = THRESH_LEVEL_WARN };
     AlertEntry uv_danger = { .kind = THRESH_UV, .level = THRESH_LEVEL_DANGER };
     AlertEntry wind_warn = { .kind = THRESH_WIND, .level = THRESH_LEVEL_WARN };
     AlertEntry wind_danger = { .kind = THRESH_WIND, .level = THRESH_LEVEL_DANGER };
+    AlertEntry gust_warn = { .kind = THRESH_GUST, .level = THRESH_LEVEL_WARN };
     AlertEntry rain = { .rain = true, .rain_bucket = 2, .rain_tier = 3 };
     uint8_t c8 = 0xAA;
     for (int on = 0; on < 2; on++) {
         // The enable bits: every kind's slot Highlight off, then on — same answers.
         blob[0] = on ? 0xFF : 0x00;
         char name[48];
-        snprintf(name, sizeof(name), "box.uv_warn.%d", on);
-        expect(name, alert_set_box(blob, n, &uv_warn, &c8), ALERT_BOX_OUTLINE);
+        snprintf(name, sizeof(name), "box.uv_warn_outline.%d", on);
+        expect(name, alert_set_box(blob, n, &uv_warn, &c8), THRESH_BOX_OUTLINE);
         expect(name, c8, 0xF8);
         snprintf(name, sizeof(name), "box.uv_danger.%d", on);
-        expect(name, alert_set_box(blob, n, &uv_danger, &c8), ALERT_BOX_FILL);
+        expect(name, alert_set_box(blob, n, &uv_danger, &c8), THRESH_BOX_FILL);
         expect(name, c8, 0xF0);
-        snprintf(name, sizeof(name), "box.wind_warn_no_outline.%d", on);
-        expect(name, alert_set_box(blob, n, &wind_warn, &c8), ALERT_BOX_NONE);
+        snprintf(name, sizeof(name), "box.wind_warn_none.%d", on);
+        expect(name, alert_set_box(blob, n, &wind_warn, &c8), THRESH_BOX_NONE);
         expect(name, c8, 0);
         snprintf(name, sizeof(name), "box.wind_danger.%d", on);
-        expect(name, alert_set_box(blob, n, &wind_danger, &c8), ALERT_BOX_FILL);
+        expect(name, alert_set_box(blob, n, &wind_danger, &c8), THRESH_BOX_FILL);
         expect(name, c8, 0xE0);
+        snprintf(name, sizeof(name), "box.gust_warn_fill.%d", on);
+        expect(name, alert_set_box(blob, n, &gust_warn, &c8), THRESH_BOX_FILL);
+        expect(name, c8, 0xC0);
         snprintf(name, sizeof(name), "box.rain.%d", on);
-        expect(name, alert_set_box(blob, n, &rain, &c8), ALERT_BOX_NONE);
+        expect(name, alert_set_box(blob, n, &rain, &c8), THRESH_BOX_NONE);
         expect(name, c8, 0);
         // ...and the value bolds on the kind's own ladder at the real level: danger
-        // always, warn per its Bold mode (default Warn) — never the switch.
+        // always, warn per its Bold mode (default Warn) — never the switch, never
+        // the look (a warn with no box still prints bold).
         snprintf(name, sizeof(name), "box.bold_warn.%d", on);
         expect(name, status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), 1);
         snprintf(name, sizeof(name), "box.bold_danger.%d", on);
         expect(name, status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
     }
-    expect("box.null", alert_set_box(blob, n, NULL, NULL), ALERT_BOX_NONE);
+    // The slot and the alert icon share one decision: for every metric kind, level
+    // and look, alert_set_box answers exactly status_threshold_box.
+    int kinds[] = { THRESH_AQI, THRESH_POLLEN, THRESH_WIND, THRESH_GUST, THRESH_UV };
+    for (int look = 0; look < 4; look++) {
+        uint8_t all = (uint8_t)(look | (look << 2) | (look << 4) | (look << 6));
+        blob[THRESH_WARN_LOOK_OFFSET] = all;
+        blob[THRESH_WARN_LOOK_OFFSET + 1] = all;
+        for (int k = 0; k < 5; k++) {
+            for (int lv = THRESH_LEVEL_WARN; lv <= THRESH_LEVEL_DANGER; lv++) {
+                AlertEntry e = { .kind = (uint8_t)kinds[k], .level = (uint8_t)lv };
+                expect("box.matches_slot", alert_set_box(blob, n, &e, NULL),
+                       status_threshold_box(blob, n, kinds[k], lv));
+            }
+        }
+    }
+    // A legacy 36-byte blob keeps its old answer: the warn colour's 0x00 draws no
+    // box, any colour an outline.
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0x00;
+    expect("box.legacy_wind_none",
+           alert_set_box(blob, THRESH_SETTINGS_BYTES_PRE_WARN_LOOK, &wind_warn, &c8),
+           THRESH_BOX_NONE);
+    expect("box.legacy_uv_outline",
+           alert_set_box(blob, THRESH_SETTINGS_BYTES_PRE_WARN_LOOK, &uv_warn, &c8),
+           THRESH_BOX_OUTLINE);
+    expect("box.null", alert_set_box(blob, n, NULL, NULL), THRESH_BOX_NONE);
 }
 
 static void rain_minutes_tests(void) {

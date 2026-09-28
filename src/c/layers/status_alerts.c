@@ -193,8 +193,9 @@ void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
     }
 }
 
-// The drawable colour for a non-zero accent byte. On B&W the escalation is
-// polarity, not hue (status_row.c's rule): every accent is the foreground.
+// The drawable colour for an accent byte. On B&W the escalation is polarity, not
+// hue (status_row.c's rule): every accent is the foreground — so a warn look of
+// fill draws a solid foreground box there, as picked.
 static GColor accent_color(uint8_t c8) {
 #ifdef PBL_COLOR
     return theme_pick((GColor){ .argb = c8 }, theme_fg());
@@ -210,7 +211,7 @@ static bool glyph_stroke_cb(GDrawCommand *command, uint32_t index, void *context
     return true;
 }
 
-// Restroke a cached outline glyph for a danger fill, and back (status_row.c's
+// Restroke a cached outline glyph for a filled box, and back (status_row.c's
 // glyph_set_stroke): the cache holds the foreground between draws.
 static void glyph_set_stroke(GDrawCommandImage *image, GColor color) {
     gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
@@ -245,16 +246,16 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
             + (e->rain ? 0 : TEXT_TRAIL_SPACING));
 
         GColor ink = fg;
-        // A metric entry is boxed at DANGER always (the filled box) and at WARN only
-        // when its kind's outline is switched on — a 0x00 accent byte is the slots'
-        // no-outline sentinel, and an alert honours it the same way (the icon alone
-        // is the alert). Judged at the entry's real level (alert_set_box): the slot's
-        // Highlight switch does not touch the alert. The padding is measured in
-        // either way, so the row's widths do not shift when a box appears.
+        // A metric entry is boxed at DANGER always (filled) and at WARN per its
+        // kind's warn look — none (the icon alone is the alert), outline or fill —
+        // through status_threshold_box, the decision its slot makes too. Judged at
+        // the entry's real level (alert_set_box): the slot's Highlight switch does
+        // not touch the alert. The padding is measured in either way, so the row's
+        // widths do not shift when a box appears.
         uint8_t c8 = 0;
         int box = alert_set_box(text->blob, text->blob_len, e, &c8);
-        bool danger = box == ALERT_BOX_FILL;
-        if (box != ALERT_BOX_NONE) {
+        bool filled = box == THRESH_BOX_FILL;
+        if (box != THRESH_BOX_NONE) {
             // The box IS the footprint: the padding was measured in, so it spans
             // exactly [x, x + w). Its height is the slots' font-derived extent
             // (status_highlight_extent_pad with a 0 pad is that extent, clamped).
@@ -266,7 +267,7 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
                 STATUS_ALERTS_BOX_PAD_Y);
             GRect box = GRect(x, v.y, w, v.h);
             GColor accent = accent_color(c8);
-            if (danger) {
+            if (filled) {
                 graphics_context_set_fill_color(ctx, accent);
                 graphics_fill_rect(ctx, box, 2, GCornersAll);
                 ink = gcolor_legible_over(accent);
@@ -279,10 +280,10 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
             GSize gs = gdraw_command_image_get_bounds_size(image);
             int weight = e->rain ? STATUS_ICON_WEIGHT_CENTRE
                                  : status_icon_weight_pct(alert_set_icon(e->kind));
-            if (danger) { glyph_set_stroke(image, ink); }
+            if (filled) { glyph_set_stroke(image, ink); }
             gdraw_command_image_draw(ctx, image,
                 GPoint(icon_x, status_icon_top_y(place->glyph_cy, gs.h, weight)));
-            if (danger) { glyph_set_stroke(image, fg); }
+            if (filled) { glyph_set_stroke(image, fg); }
         }
         if (text_w > 0 && buf[0] != '\0') {
             graphics_context_set_text_color(ctx, ink);

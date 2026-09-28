@@ -186,6 +186,22 @@ int status_threshold_warn_look(const uint8_t *blob, size_t len, int kind) {
     return look == 3 ? THRESH_WARN_LOOK_OUTLINE : look;   // 3 is reserved
 }
 
+int status_threshold_box_for(int level, int look) {
+    if (level == THRESH_LEVEL_DANGER) { return THRESH_BOX_FILL; }
+    if (level != THRESH_LEVEL_WARN) { return THRESH_BOX_NONE; }
+    switch (look) {
+        case THRESH_WARN_LOOK_NONE: return THRESH_BOX_NONE;
+        case THRESH_WARN_LOOK_FILL: return THRESH_BOX_FILL;
+        default:                    return THRESH_BOX_OUTLINE;
+    }
+}
+
+int status_threshold_box(const uint8_t *blob, size_t len, int kind, int level) {
+    // Only WARN depends on the look; skip the blob read otherwise.
+    if (level != THRESH_LEVEL_WARN) { return status_threshold_box_for(level, 0); }
+    return status_threshold_box_for(level, status_threshold_warn_look(blob, len, kind));
+}
+
 bool status_threshold_is_bold(const uint8_t *blob, size_t len, int kind, int level) {
     if (kind < 0) { return false; }
     if (level == THRESH_LEVEL_DANGER) { return true; }   // danger always wins

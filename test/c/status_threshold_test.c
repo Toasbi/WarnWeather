@@ -658,8 +658,75 @@ static void health_value_tests(void) {
     expect("hv.steps_none_not_danger", steps_level, THRESH_LEVEL_NORMAL);
 }
 
+// The box decision both draw paths (slot + alert icon) share: NORMAL none,
+// DANGER fill whatever the look, WARN exactly the look; the blob form reads the
+// kind's look and matches the pure form for every level x look.
+static void box_tests(void) {
+    expect("box.enum", THRESH_BOX_NONE * 100 + THRESH_BOX_OUTLINE * 10 + THRESH_BOX_FILL, 12);
+    int looks[] = { THRESH_WARN_LOOK_NONE, THRESH_WARN_LOOK_OUTLINE, THRESH_WARN_LOOK_FILL };
+    for (int i = 0; i < 3; i++) {
+        expect("box.normal_none",
+               status_threshold_box_for(THRESH_LEVEL_NORMAL, looks[i]), THRESH_BOX_NONE);
+        expect("box.danger_fill",
+               status_threshold_box_for(THRESH_LEVEL_DANGER, looks[i]), THRESH_BOX_FILL);
+    }
+    expect("box.warn_none",
+           status_threshold_box_for(THRESH_LEVEL_WARN, THRESH_WARN_LOOK_NONE), THRESH_BOX_NONE);
+    expect("box.warn_outline",
+           status_threshold_box_for(THRESH_LEVEL_WARN, THRESH_WARN_LOOK_OUTLINE), THRESH_BOX_OUTLINE);
+    expect("box.warn_fill",
+           status_threshold_box_for(THRESH_LEVEL_WARN, THRESH_WARN_LOOK_FILL), THRESH_BOX_FILL);
+    expect("box.warn_reserved", status_threshold_box_for(THRESH_LEVEL_WARN, 3), THRESH_BOX_OUTLINE);
+    expect("box.bad_level", status_threshold_box_for(7, THRESH_WARN_LOOK_FILL), THRESH_BOX_NONE);
+
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    // aqi none, pollen outline, wind fill, gust fill | steps outline (goal close).
+    blob[THRESH_WARN_LOOK_OFFSET] = (uint8_t)(THRESH_WARN_LOOK_NONE
+        | (THRESH_WARN_LOOK_OUTLINE << 2) | (THRESH_WARN_LOOK_FILL << 4)
+        | (THRESH_WARN_LOOK_FILL << 6));
+    blob[THRESH_WARN_LOOK_OFFSET + 1] = (uint8_t)THRESH_WARN_LOOK_OUTLINE;
+    // The warn colour bytes say nothing about the box on a 38-byte blob: a 0x00
+    // warn colour under 'fill' still fills.
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0x00;
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_POLLEN] = 0xFF;
+    expect("box.blob_aqi_none",
+           status_threshold_box(blob, n, THRESH_AQI, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+    expect("box.blob_pollen_outline",
+           status_threshold_box(blob, n, THRESH_POLLEN, THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
+    expect("box.blob_wind_fill_zero_colour",
+           status_threshold_box(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), THRESH_BOX_FILL);
+    expect("box.blob_steps_outline",
+           status_threshold_box(blob, n, THRESH_STEPS, THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
+    expect("box.blob_aqi_danger_fill",
+           status_threshold_box(blob, n, THRESH_AQI, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
+    expect("box.blob_aqi_normal_none",
+           status_threshold_box(blob, n, THRESH_AQI, THRESH_LEVEL_NORMAL), THRESH_BOX_NONE);
+    for (int k = 0; k < THRESH_PAIRED_KIND_COUNT; k++) {
+        for (int lv = THRESH_LEVEL_NORMAL; lv <= THRESH_LEVEL_DANGER; lv++) {
+            expect("box.blob_matches_pure", status_threshold_box(blob, n, k, lv),
+                   status_threshold_box_for(lv, status_threshold_warn_look(blob, n, k)));
+        }
+    }
+    // A legacy 36-byte blob: the warn colour's 0x00 still means no box (derived
+    // inside the look accessor only), any colour an outline.
+    expect("box.legacy_wind_none",
+           status_threshold_box(blob, THRESH_SETTINGS_BYTES_PRE_WARN_LOOK, THRESH_WIND,
+                                THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+    expect("box.legacy_pollen_outline",
+           status_threshold_box(blob, THRESH_SETTINGS_BYTES_PRE_WARN_LOOK, THRESH_POLLEN,
+                                THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
+    // A kind without a pair has no look: no box at warn; danger still fills.
+    expect("box.temp_warn_none",
+           status_threshold_box(blob, n, THRESH_TEMP, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+    expect("box.invalid_warn_none",
+           status_threshold_box(NULL, n, THRESH_AQI, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+}
+
 int main(void) {
     level_tests();
+    box_tests();
     kind_tests();
     weather_byte_tests();
     blob_tests();

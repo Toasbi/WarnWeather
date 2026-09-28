@@ -34,7 +34,13 @@
     "alertWind": true,
     "alertWindDisplay": "value",
     "threshWindWarn": "50",
-    "threshWindDanger": "80"
+    "threshWindDanger": "80",
+    "statusForecastMid": "gust",
+    "statusForecastRight": "uv",
+    "threshGustOn": true,
+    "threshGustWarn": "10",
+    "threshGustDanger": "200",
+    "threshUvOn": true
   },
   "weather": {
     "city": "Windy Ridge",

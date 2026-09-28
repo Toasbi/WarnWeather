@@ -438,10 +438,11 @@ static uint8_t slot_level(int kind) {
 
 // Warn/danger accent for a slot, from the RAW GColor8 byte its (kind, level) cell
 // holds in the settings blob. On effective B&W (real hardware or the bw/bw-light
-// theme) the escalation is polarity, not hue: outline fg, danger fill fg — the
-// user hues only apply on the color path. Takes the byte rather than re-reading
-// it so the caller's raw value and the drawable colour can never disagree — the
-// 0x00 no-outline sentinel is judged on the byte, the box is painted with this.
+// theme) the escalation is polarity, not hue: outline fg, fill fg (danger, or a
+// warn look of fill — drawn solid, as picked) — the user hues only apply on the
+// color path. Takes the byte rather than re-reading it so the caller's raw value
+// and the drawable colour can never disagree. Whether there IS a box is not this
+// colour's business: that is the resolver's `box` (status_threshold_box).
 static GColor highlight_color(uint8_t color8) {
 #ifdef PBL_COLOR
     return theme_pick((GColor){ .argb = color8 }, theme_fg());
@@ -470,6 +471,7 @@ typedef struct {
     int8_t  dir;                            // wind sector 0..15, -1 = none
     uint8_t level;                          // ThreshLevel
     uint8_t bold;                           // resolved bold bit (its own setting)
+    uint8_t box;                            // ThreshBox at `level` (the warn look)
     GColor  accent;                         // theme-picked outline/fill colour
     uint8_t accent8;                        // the RAW blob byte behind `accent`
 } ResolvedSlot;
@@ -501,12 +503,17 @@ static void resolve_slot(const StatusRow *row, int i, GFont base,
     // glyph WIDTHS change, which is why the font has to travel with the slot:
     // whoever measures must measure with the font that will be drawn.
     out->font = out->bold ? row_font_bold(row->tier, row->line_id) : base;
+    // The box: none at NORMAL (which is also every level of a kind whose
+    // Highlight is off — slot_level gates on the enable bit), filled at DANGER,
+    // and at WARN the kind's warn look. The alert icon of the same kind asks the
+    // same function (alert_set_box), so the two cannot disagree.
+    out->box = (uint8_t)status_threshold_box(s_thresh_scratch, (size_t)s_thresh_len,
+                                             thresh_kind, out->level);
     // ALWAYS resolved, for every slot and every level — an accent nobody paints
     // costs one blob read, while an accent left unwritten on some paths is the
     // uninitialised-read bug this struct exists to make impossible. The raw byte
-    // is kept alongside the picked colour because the two answer different
-    // questions: the 0x00 no-outline sentinel lives in the byte, and only the byte
-    // can still be seen once theme_pick has turned it into something drawable.
+    // is kept alongside the picked colour for the content signature: a recolour
+    // is judged on the byte the phone sent, before theme_pick resolves it.
     out->accent8 = status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
                                            thresh_kind, out->level);
     out->accent = highlight_color(out->accent8);
@@ -563,9 +570,10 @@ static void resolve_alerts(ResolvedAlerts *out) {
 }
 
 // Fold everything the Alerts row paints into the row signature, so a changed set is
-// a content change: which entries, their levels and baked values, the colour and
-// bold cell each one reads from the blob at its level (a Clay save that only
-// recolours must repaint, as for a slot's accent8; the kind's slot Highlight switch
+// a content change: which entries, their levels and baked values, the colour, bold
+// cell and box (the warn look) each one reads from the blob at its level (a Clay
+// save that only recolours or re-looks must repaint, as for a slot's accent8 and
+// box; the kind's slot Highlight switch
 // does not touch an entry, so it is not folded), the rain look, the drop's bucket
 // and tier (its glyph and tint), and the countdown text — but the text only when a
 // look prints it, or an icon-only rain alert would repaint every minute for nothing.
@@ -578,11 +586,12 @@ static uint16_t fold_alerts(uint16_t sig, const ResolvedAlerts *a) {
         sig = sig_fold(sig, head, sizeof(head));
         if (e->rain) { continue; }
         sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
-        uint8_t look[2] = {
+        uint8_t look[3] = {
             status_threshold_color8(s_thresh_scratch, (size_t)s_thresh_len,
                                     e->kind, e->level),
             (uint8_t)status_threshold_is_bold(s_thresh_scratch, (size_t)s_thresh_len,
-                                              e->kind, e->level)
+                                              e->kind, e->level),
+            (uint8_t)alert_set_box(s_thresh_scratch, (size_t)s_thresh_len, e, NULL)
         };
         sig = sig_fold(sig, look, sizeof(look));
     }
@@ -728,14 +737,15 @@ bool status_row_refresh(StatusRow *row) {
             // value moving, changed settings) is itself a content change; the
             // RESOLVED bold bit so a bold-mode-only settings change (e.g.
             // Always on a kind whose thresholds are off — no level moves)
-            // repaints now instead of riding the next minute tick; and the RAW
-            // accent byte because a Clay save that only recolours warn/danger —
-            // or flips the 0x00 no-outline sentinel — moves neither of the other
-            // two, and the box would keep its old colour until unrelated content
-            // happened to move. The raw byte, NOT the theme-picked GColor: the
-            // sentinel is invisible once theme_pick has resolved it.
+            // repaints now instead of riding the next minute tick; the resolved
+            // BOX because a Clay save that only changes the warn look (none /
+            // outline / fill) moves neither of those; and the RAW accent byte
+            // because a save that only recolours warn/danger moves none of the
+            // others, and the box would keep its old colour until unrelated
+            // content happened to move.
             sig = sig_fold(sig, &r->level, 1);
             sig = sig_fold(sig, &r->bold, 1);
+            sig = sig_fold(sig, &r->box, 1);
             sig = sig_fold(sig, &r->accent8, 1);
             if (slot->kind != SLOT_EMPTY && slot->icon == STATUS_ICON_DRAWN_SUN) {
                 has_drawn_sun = true;
@@ -894,7 +904,7 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
         ? (int16_t)(x0 + place->text_x + place->text_w)
         : (int16_t)(x0 + place->icon_x + m->icon_w);
     // The wind arrow is the slot's LAST ink, past the text — a box that stopped at
-    // the text would let a danger fill clip it. Gated on text_visible for exactly
+    // the text would let a fill clip it. Gated on text_visible for exactly
     // the condition the arrow itself draws under, so the box never reserves room
     // for ink that isn't there; suffix_w is 0 on every other slot, so no plain slot
     // widens by so much as a pixel.
@@ -916,7 +926,7 @@ static bool glyph_stroke_cb(GDrawCommand *command, uint32_t index, void *context
 }
 
 // Restroke every command in a cached PDC glyph (fills are cleared at load —
-// see status_row_icons.c) so a danger-filled slot's icon stays legible.
+// see status_row_icons.c) so a filled slot's icon stays legible.
 static void glyph_set_stroke(GDrawCommandImage *image, GColor color) {
     gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
                                glyph_stroke_cb, &color);
@@ -1088,21 +1098,16 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         + status_glyph_center_y(text_y_rel, content_h);
     int16_t x0 = (int16_t)(row->bounds.origin.x + STATUS_ROW_MARGIN);
 
-    // Threshold-highlight pass: paint each crossed slot's outline (warn) or
-    // filled box + outline (danger) UNDER its icon + text (calendar today-box
-    // precedent). Paint-only — no allocations.
+    // Threshold-highlight pass: paint each crossed slot's box — an outline, or a
+    // filled box + outline — UNDER its icon + text (calendar today-box
+    // precedent), as the resolver's `box` says: filled at danger, and at warn the
+    // kind's warn look (none: the bold text IS the highlight, no box). Paint-only
+    // — no allocations.
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        if (!places[i].visible || slots[i].level == THRESH_LEVEL_NORMAL) { continue; }
+        if (!places[i].visible || slots[i].box == THRESH_BOX_NONE) { continue; }
         GRect box = slot_highlight_box(row, &places[i], &measures[i], x0, glyph_cy,
                                        content_h, slots[i].text);
-        // WARN with the 0x00 no-outline sentinel (the default — see
-        // status_threshold.h): the bold text IS the highlight; draw no box. The
-        // sentinel is judged on the RAW blob byte the resolver kept, not on the
-        // theme-picked accent beside it, so B/W builds honor it too.
-        if (slots[i].level == THRESH_LEVEL_WARN && slots[i].accent8 == 0) {
-            continue;
-        }
-        if (slots[i].level == THRESH_LEVEL_DANGER) {
+        if (slots[i].box == THRESH_BOX_FILL) {
             graphics_context_set_fill_color(ctx, slots[i].accent);
             graphics_fill_rect(ctx, box, 2, GCornersAll);
         }
@@ -1130,14 +1135,14 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible) { continue; }
-        // Danger slots flip their ink legible over the fill (the calendar's
-        // today pattern); warn and normal keep the theme foreground. The accent
-        // is the resolver's — the same value the highlight pass above filled the
-        // box with, so ink and fill cannot disagree and the blob colour is read
-        // once per draw rather than once per pass.
-        GColor ink = slots[i].level == THRESH_LEVEL_DANGER
-            ? gcolor_legible_over(slots[i].accent)
-            : theme_fg();
+        // Filled slots (danger, or a warn look of fill) flip their ink legible
+        // over the fill (the calendar's today pattern); outlined and plain slots
+        // keep the theme foreground. The accent is the resolver's — the same value
+        // the highlight pass above filled the box with, so ink and fill cannot
+        // disagree and the blob colour is read once per draw rather than once per
+        // pass.
+        const bool filled = slots[i].box == THRESH_BOX_FILL;
+        GColor ink = filled ? gcolor_legible_over(slots[i].accent) : theme_fg();
         graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
         if (slots[i].slot.kind == SLOT_LIVE_BATTERY) {
@@ -1145,10 +1150,9 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                                     BATTERY_GLYPH_W, BATTERY_GLYPH_H), ink);
         } else if (row->glyphs[i]) {
             GSize gs = gdraw_command_image_get_bounds_size(row->glyphs[i]);
-            // Recolor the cached PDC for a danger fill, then restore — the
+            // Recolor the cached PDC for a filled box, then restore — the
             // glyph cache (ensure_glyphs) holds theme_fg between draws.
-            bool recolored = slots[i].level == THRESH_LEVEL_DANGER;
-            if (recolored) { glyph_set_stroke(row->glyphs[i], ink); }
+            if (filled) { glyph_set_stroke(row->glyphs[i], ink); }
             // Seat the glyph on the cap centre at its per-icon optical-centre
             // weight (status_icon_weight.h). Every weight ships at 50 today,
             // which reduces this to the historical `glyph_cy - gs.h / 2`.
@@ -1157,7 +1161,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
             gdraw_command_image_draw(ctx, row->glyphs[i],
                 GPoint(icon_x, status_icon_top_y(glyph_cy, gs.h,
                     status_icon_weight_pct(row->glyph_icons[i]))));
-            if (recolored) { glyph_set_stroke(row->glyphs[i], theme_fg()); }
+            if (filled) { glyph_set_stroke(row->glyphs[i], theme_fg()); }
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;
@@ -1190,7 +1194,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         // Gated on text_visible so the arrow follows its reading: a slot squeezed
         // until its number is gone would otherwise show a bare heading with nothing
         // to modify. (The phone applies the same rule at bake time — no number, no
-        // sentinel.) `ink`, not theme_fg(): a danger-highlighted wind slot draws its
+        // sentinel.) `ink`, not theme_fg(): a filled wind slot draws its
         // text and its glyph legible OVER the fill, and an arrow in the foreground
         // colour would disappear into it.
         if (places[i].text_visible && slots[i].dir >= 0 && s_arrow_path) {
