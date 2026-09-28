@@ -411,31 +411,16 @@
   }
 
   /**
-   * Whether a metric's alert is switched on (alert<Kind>, the Alerts card). An
-   * enabled alert needs its metric and the day's peaks fetched whether or not a
-   * slot shows the metric: the alert judges the day (status-thresholds.js
-   * alertValue). The five fetch gates ask this next to their slot check.
-   * @param {Object} settings Clay settings blob.
-   * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi' | 'pollen'.
-   * @returns {boolean}
-   */
-  function alertEnabled(settings, code) {
-    if (!settings || typeof code !== 'string') { return false; }
-    return settings['alert' + code.charAt(0).toUpperCase() + code.slice(1)] === true;
-  }
-
-  /**
-   * Whether a day-max kind needs its day peaks: it sits in a status slot whose
-   * display mode prints one, or its alert is on (an alert judges the highest value
-   * left today, whatever any slot shows). The phone keeps that kind's day record
-   * and fetches its longer series only then.
+   * Whether a day-max kind's slot needs its day peaks: it sits in a status slot
+   * whose display mode prints one. The slot half of the fetch gate — the metric
+   * alerts, which judge the day whatever any slot shows, join it in
+   * forecast-series.js dayPeakCodes, so this catalog stays alert-agnostic.
    * @param {Object} settings Clay settings blob.
    * @param {string} kind A DAY_MAX_KINDS entry.
    * @returns {boolean}
    */
   function dayMaxInUse(settings, kind) {
     if (!settings) { return false; }
-    if (alertEnabled(settings, kind)) { return true; }
     var mode = settings[kind + 'SlotDisplay'];
     return (mode === 'max' || mode === 'both') && selectedCodes(settings).indexOf(kind) !== -1;
   }
@@ -447,8 +432,7 @@
     allSlotKeys: allSlotKeys, slotDefault: slotDefault,
     lineOf: lineOf, siblingHolds: siblingHolds,
     UNIT_TOGGLES: UNIT_TOGGLES, unitToggleDefault: unitToggleDefault,
-    DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse,
-    alertEnabled: alertEnabled
+    DAY_MAX_KINDS: DAY_MAX_KINDS, dayMaxSettingKeys: dayMaxSettingKeys, dayMaxInUse: dayMaxInUse
   };
 
   // Dual-context export - mirror the exact tail of src/pkjs/view-cycle.js.

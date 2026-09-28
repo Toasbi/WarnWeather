@@ -92,20 +92,19 @@ test('the top strip default is placeable in the slot it names', () => {
   });
 });
 
-// An enabled alert needs its metric's day peaks whether or not a slot shows the
-// metric (the alert judges the day) — dayMaxInUse is the fetch gate's answer.
-test('dayMaxInUse: an enabled alert counts as in use with no slot and a Now-mode slot', () => {
+// dayMaxInUse is the SLOT half of the day-peaks gate: a slot shows the kind in a mode
+// that prints a peak. The catalog is alert-agnostic — an enabled alert joins the gate
+// in forecast-series.js dayPeakCodes (through the threshold contract), not here.
+test('dayMaxInUse: a slot in a peak mode, and nothing about alerts', () => {
   const noSlot = { statusRadarLeft: 'empty', statusForecastRight: 'empty' };
   assert.equal(catalog.dayMaxInUse(noSlot, 'uv'), false);
-  assert.equal(catalog.dayMaxInUse(Object.assign({ alertUv: true }, noSlot), 'uv'), true);
-  assert.equal(catalog.dayMaxInUse(Object.assign({ alertUv: false }, noSlot), 'uv'), false);
-  assert.equal(catalog.dayMaxInUse({ alertWind: true, windSlotDisplay: 'current' }, 'wind'), true);
-  assert.equal(catalog.dayMaxInUse({ alertAqi: true }, 'aqi'), true);
-  assert.equal(catalog.dayMaxInUse({ alertAqi: true }, 'gust'), false, 'per kind');
-  // Only a real true: a stored string is not the toggle's value.
-  assert.equal(catalog.alertEnabled({ alertGust: 'true' }, 'gust'), false);
-  assert.equal(catalog.alertEnabled({ alertPollen: true }, 'pollen'), true);
-  assert.equal(catalog.alertEnabled(null, 'uv'), false);
+  assert.equal(catalog.dayMaxInUse({ statusTopMid: 'uv', uvSlotDisplay: 'max' }, 'uv'), true);
+  assert.equal(catalog.dayMaxInUse({ statusTopMid: 'uv', uvSlotDisplay: 'both' }, 'uv'), true);
+  assert.equal(catalog.dayMaxInUse({ statusTopMid: 'uv', uvSlotDisplay: 'current' }, 'uv'), false);
+  assert.equal(catalog.dayMaxInUse(Object.assign({ alertUv: true }, noSlot), 'uv'), false,
+    'an alert alone is not a slot');
+  assert.equal(catalog.dayMaxInUse(null, 'uv'), false);
+  assert.equal(catalog.alertEnabled, undefined, 'the catalog exports no alert reader');
 });
 
 test('availability gating', () => {

@@ -41,8 +41,8 @@ var DEFAULTS = {
     // watch just receives FEELS_TREND / FEELS_CURRENT.
     feelsFormula: feelsLike.FORMULA_PROVIDER,
     // The status slots' day max (day-peaks.js): which metric codes a slot shows a
-    // peak for (status-line-catalog's dayMaxInUse). null = every metric wanted —
-    // the fail-safe direction, like fetchFeels.
+    // peak for or an alert judges (forecast-series.js dayPeakCodes). null = every
+    // metric wanted — the fail-safe direction, like fetchFeels.
     dayPeakCodes: null,
     // The user's wind unit ('kph' | 'mph' | 'knots') the wind/gust day records
     // judge a dip in (day-peaks' recall).

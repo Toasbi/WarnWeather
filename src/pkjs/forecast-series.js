@@ -4,6 +4,9 @@ var configUi = require('./config-ui');        // isLineStylePlatform — the WW_
 var statusLines = require('./status-lines.js');
 var statusRebake = require('./status-rebake.js');
 var statusCatalog = require('./status-line-catalog.js');
+// alertOn — whether a metric's alert is switched on, which the fetch gates below add to
+// what the slots and lines ask for.
+var statusThresholds = require('./status-thresholds.js');
 var wireUnits = require('./wire-units.js');     // dayMaxPayloadKeys — the day-max kinds' transient keys
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
 
@@ -534,6 +537,21 @@ function applyForecastSeries(payload, settings, watchInfo) {
 }
 
 /**
+ * Whether the watch wants a metric outside the forecast lines: a status slot shows
+ * it (unfetched, the slot bakes empty), or its alert is switched on. An enabled
+ * alert needs the metric with no slot showing it — the Alerts card invites exactly
+ * that user, and unfetched the alert can never fire. The status half of every
+ * metric fetch gate below; each adds its own line or provider rule.
+ * @param {Object} settings Clay settings (non-null).
+ * @param {string} code 'uv' | 'aqi' | 'pollen'.
+ * @returns {boolean}
+ */
+function metricWanted(settings, code) {
+    return statusThresholds.alertOn(settings, code)
+        || statusCatalog.selectedCodes(settings).indexOf(code) !== -1;
+}
+
+/**
  * Whether UV is on a forecast line, in a status slot or switched on as an alert,
  * so providers fetch it.
  * @param {Object} settings Clay settings.
@@ -543,17 +561,14 @@ function needsUv(settings) {
     if (!settings) { return false; }
     if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv'
         || settings.fourthLine === 'uv' || settings.fifthLine === 'uv') { return true; }
-    // An enabled alert needs the metric with no slot showing it — the Alerts card
-    // invites exactly that user, and without the fetch the alert can never fire.
-    if (statusCatalog.alertEnabled(settings, 'uv')) { return true; }
-    // A status-line UV slot must extend the fetch gate or it bakes empty.
-    return statusCatalog.selectedCodes(settings).indexOf('uv') !== -1;
+    return metricWanted(settings, 'uv');
 }
 
 /**
- * The day-max kinds that need the day's peaks (status-line-catalog's
- * dayMaxInUse): a slot shows one, or the kind's alert is on. The provider keeps a
- * day record and fetches the longer series for these only. Every input is in
+ * The day-max kinds that need the day's peaks: a slot shows one
+ * (status-line-catalog's dayMaxInUse), or the kind's alert is on — an alert judges
+ * the highest value left today, whatever any slot shows. The provider keeps a day
+ * record and fetches the longer series for these only. Every input is in
  * renderSignature, so switching a slot to Alert or an alert on forces the refetch
  * that starts its record.
  * @param {Object} settings Clay settings.
@@ -561,7 +576,7 @@ function needsUv(settings) {
  */
 function dayPeakCodes(settings) {
     return statusCatalog.DAY_MAX_KINDS.filter(function (kind) {
-        return statusCatalog.dayMaxInUse(settings, kind);
+        return statusThresholds.alertOn(settings, kind) || statusCatalog.dayMaxInUse(settings, kind);
     });
 }
 
@@ -574,8 +589,7 @@ function dayPeakCodes(settings) {
  */
 function needsAqi(settings) {
     if (!settings) { return false; }
-    if (statusCatalog.alertEnabled(settings, 'aqi')) { return true; }
-    return statusCatalog.selectedCodes(settings).indexOf('aqi') !== -1;
+    return metricWanted(settings, 'aqi');
 }
 
 /**
@@ -602,8 +616,7 @@ function needsFeels(settings, watchInfo) {
  */
 function needsPollen(settings) {
     if (!settings || settings.provider !== 'dwd') { return false; }
-    if (statusCatalog.alertEnabled(settings, 'pollen')) { return true; }
-    return statusCatalog.selectedCodes(settings).indexOf('pollen') !== -1;
+    return metricWanted(settings, 'pollen');
 }
 
 module.exports = {
