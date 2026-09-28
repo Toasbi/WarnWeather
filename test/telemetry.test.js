@@ -1165,20 +1165,18 @@ test('a clock-step durationMs queues as null; a real one as-is', () => {
 });
 
 // The Alerts card: which metric alerts are on (comma-joined in the row order), which
-// of those print their value, and the rain alert's look. Lockstep: all three are in
-// the Deno .strip() schema too (the set-equality test above also catches a one-sided
-// edit; this one names the keys).
+// of those print their value, and the rain alert's look — all three what the watch is
+// sent, never undefined: the codes come from the alert bake's own calls and the look
+// resolves like the blob byte, so an absent key reports the default in effect.
 test('the Alerts card reports alertKinds, alertValueKinds and rainAlertDisplay', () => {
-  const unseeded = buildSettingsSnapshot({});
-  assert.ok('alertKinds' in unseeded && 'alertValueKinds' in unseeded
-    && 'rainAlertDisplay' in unseeded, 'the keys exist for the lockstep');
-  assert.equal(unseeded.alertKinds, undefined, 'an unseeded install reports no alert keys');
-  assert.equal(unseeded.alertValueKinds, undefined);
-  assert.equal(unseeded.rainAlertDisplay, undefined);
+  const fresh = buildSettingsSnapshot({});
+  assert.equal(fresh.alertKinds, '', 'no alert key: none on');
+  assert.equal(fresh.alertValueKinds, '');
+  assert.equal(fresh.rainAlertDisplay, 'text', 'no look stored: the countdown text');
 
   const none = buildSettingsSnapshot({ alertUv: false, alertUvDisplay: 'value',
     rainAlertDisplay: 'text' });
-  assert.equal(none.alertKinds, '', 'seeded, none on');
+  assert.equal(none.alertKinds, '', 'none on');
   assert.equal(none.alertValueKinds, '', 'a disabled alert\'s Look does not count');
   assert.equal(none.rainAlertDisplay, 'text');
 
@@ -1187,6 +1185,34 @@ test('the Alerts card reports alertKinds, alertValueKinds and rainAlertDisplay',
   assert.equal(some.alertKinds, 'uv,aqi', 'the row order, whatever the key order');
   assert.equal(some.alertValueKinds, 'aqi');
   assert.equal(some.rainAlertDisplay, 'minutes');
+});
+
+// The rain look reported is the one the watch draws: the blob's alerts byte and the
+// report both resolve through rainDisplayFor, so an unknown value cannot read as a
+// look the watch never got.
+test('rainAlertDisplay agrees with the rain look the blob sends', () => {
+  const thresholds = require('../src/pkjs/status-thresholds.js');
+  [undefined, 'text', 'icon', 'minutes', 'bogus', 3].forEach((look) => {
+    const settings = { rainAlertDisplay: look };
+    const reported = buildSettingsSnapshot(settings).rainAlertDisplay;
+    assert.strictEqual(thresholds.RAIN_DISPLAY[reported],
+      thresholds.buildSettingsBlob(settings)[thresholds.ALERTS_OFFSET], String(look));
+  });
+  assert.equal(buildSettingsSnapshot({ rainAlertDisplay: 'bogus' }).rainAlertDisplay, 'text');
+});
+
+// alertBars and warnLooks spell each value by its FIRST LETTER, so two values of one
+// vocabulary sharing an initial would read as one value in the dashboards. A new look
+// or placement that collides needs a new code, not a charAt(0).
+test('the one-letter codes are unambiguous: first letters are unique per vocabulary', () => {
+  const thresholds = require('../src/pkjs/status-thresholds.js');
+  [['WARN_LOOKS', thresholds.WARN_LOOKS], ['BAR_ALERT_PLACES', thresholds.BAR_ALERT_PLACES]
+  ].forEach((row) => {
+    const initials = Object.keys(row[1]).map((v) => v.charAt(0));
+    assert.ok(initials.length >= 3, row[0] + ' has its values');
+    assert.deepEqual(initials.filter((c, i) => initials.indexOf(c) !== i), [],
+      row[0] + ' values must not share a first letter: ' + Object.keys(row[1]).join(', '));
+  });
 });
 
 // Where each bar places the Alerts row (a four-letter code in bar order) and the

@@ -756,13 +756,26 @@
   }
 
   /**
+   * The Alerts row's rain look (rainAlertDisplay), resolved to a RAIN_DISPLAY
+   * key: the stored look when it is a known one, else 'text' — the countdown the
+   * strip drew before the Alerts row. The one resolution for the packer and the
+   * telemetry code, so the default lives here alone.
+   * @param {Object} settings Clay settings blob
+   * @returns {string} 'text' | 'icon' | 'minutes'
+   */
+  function rainDisplayFor(settings) {
+    var raw = settings && settings.rainAlertDisplay;
+    return Object.prototype.hasOwnProperty.call(RAIN_DISPLAY, raw) ? raw : 'text';
+  }
+
+  /**
    * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
    * The statusBoldAll master row ('all') overrides the PACKED bold cell of
    * every kind to BOLD_MODES.always at build time only — the stored
    * thresh<Kind>BoldMode values are never modified, so 'perSlot' restores
    * them on the next build. Enable bits, colors, and health u16s are
    * untouched by the master.
-   * Byte ALERTS_OFFSET carries the Alerts row's rain look (rainAlertDisplay);
+   * Byte ALERTS_OFFSET carries the Alerts row's rain look (rainDisplayFor);
    * which METRIC alerts are on never rides here — the phone bakes only the
    * active ones into their own weather tuple (bakeAlerts). Byte
    * BAR_ALERTS_OFFSET carries where each bar shows the row (barAlertPlace).
@@ -801,9 +814,7 @@
         blob[off + 3] = (danger >> 8) & 0xFF;
       }
     }
-    var rain = settings && settings.rainAlertDisplay;
-    blob[ALERTS_OFFSET] = Object.prototype.hasOwnProperty.call(RAIN_DISPLAY, rain)
-      ? RAIN_DISPLAY[rain] : RAIN_DISPLAY.text;
+    blob[ALERTS_OFFSET] = RAIN_DISPLAY[rainDisplayFor(settings)];
     for (var b = 0; b < BAR_ALERT_KEYS.length; b++) {
       blob[BAR_ALERTS_OFFSET] |=
         BAR_ALERT_PLACES[barAlertPlace(settings, BAR_ALERT_KEYS[b].bar)] << (2 * b);
@@ -827,6 +838,7 @@
     BAR_ALERT_PLACES: BAR_ALERT_PLACES,
     barAlertPlace: barAlertPlace,
     RAIN_DISPLAY: RAIN_DISPLAY,
+    rainDisplayFor: rainDisplayFor,
     ALERT_KINDS: ALERT_KINDS,
     BOLD_MODES: BOLD_MODES,
     DEFAULT_BOLD_MODE: DEFAULT_BOLD_MODE,

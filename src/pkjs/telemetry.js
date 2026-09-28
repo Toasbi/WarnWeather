@@ -7,8 +7,9 @@ var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
 // The radar source in effect ('rainbowkey' for Rainbow with "Use your own key" on).
 var radarSourceId = require('./weather/radar-source-id.js');
-// ALERT_KINDS + alertKindCodes / alertValueKindCodes — the bake's own reading of
-// the Alerts card, so the report and the watch cannot disagree on "which are on".
+// alertKindCodes / alertValueKindCodes, rainDisplayFor, barAlertPlace and warnLookFor —
+// the bake's and the packer's own reading of the Alerts card and the warn looks, so the
+// report and the watch cannot disagree on what is on or how it looks.
 var statusThresholds = require('./status-thresholds.js');
 
 /**
@@ -72,33 +73,16 @@ function graphColorReport(settings, scope, role, suffix) {
 }
 
 /**
- * The metric alerts switched on, comma-joined in the row's fixed order ('' when
- * none) — or undefined on an install whose blob holds no alert key at all, which
- * the column reads as "default", like an unseeded threshPhoneBatteryBoldMode.
- * (Only before the first 1.24 boot: seedDefaults backfills the alert keys' schema
- * defaults on every boot, so a booted install reports '' from then on.)
- * @param {Object} safe Settings blob (never null).
- * @param {function(Object): string[]} pick status-thresholds' alertKindCodes or
- *     alertValueKindCodes.
- * @returns {string|undefined} e.g. 'uv,wind', '' or undefined.
- */
-function alertCodesReport(safe, pick) {
-    var kinds = statusThresholds.ALERT_KINDS;
-    var seeded = false;
-    for (var i = 0; i < kinds.length; i++) {
-        if (typeof safe['alert' + kinds[i].key] !== 'undefined') { seeded = true; }
-    }
-    return seeded ? pick(safe).join(',') : undefined;
-}
-
-/**
  * Where each status bar shows the Alerts row: one letter per bar in the bars' wire
  * order (top, forecast, radar, health) — o off, l left, m middle, r right. So
  * 'looo' is an untouched install (the strip left, the rest off), 'oooo' every bar
- * off, 'loro' the strip left and the radar bar right. Absent keys resolve to their defaults, the placement the watch
- * actually draws (status-thresholds barAlertPlace). Four characters, never a
- * 'top:left,radar:right' list: the heaviest envelope sits 34 B under the ingest's
- * MAX_BODY_BYTES, and four bars at 'middle' spelled out would cost 50 B more.
+ * off, 'loro' the strip left and the radar bar right. Absent keys resolve to their
+ * defaults, the placement the watch actually draws (status-thresholds barAlertPlace).
+ * Four characters, never a 'top:left,radar:right' list: the ingest copies the settings
+ * header into every row a batch writes, and four bars at 'middle' spelled out would
+ * cost about 50 B more per row (the size ledger is in test/telemetry.test.js). The
+ * letters stay unambiguous only while no two BAR_ALERT_PLACES share an initial, which
+ * that test file pins.
  * @param {Object} safe Settings blob (never null).
  * @returns {string} e.g. 'looo' on an untouched install.
  */
@@ -116,8 +100,8 @@ function alertBarsReport(safe) {
  * (status-thresholds KINDS: aqi, pollen, wind, gust, steps, sleep, distance, uv) —
  * n none, o outline, f fill. RESOLVED, the platform default included
  * (warnLookFor), so it reports the box the watch draws: 'ffffooof' is an untouched
- * colour watch, 'oooooooo' an untouched B&W one. Eight characters, not a list: the
- * heaviest custom-layout envelope had 37 B of headroom before it.
+ * colour watch, 'oooooooo' an untouched B&W one. Eight characters, not a list, for
+ * alertBarsReport's reason; WARN_LOOKS' initials are pinned unique the same way.
  * @param {Object} safe Settings blob (never null).
  * @param {boolean} isColor Whether the watch has a colour display.
  * @returns {string} e.g. 'ffffooof'.
@@ -188,9 +172,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
         uvSlotNextDayMark: safe.uvSlotNextDayMark,
         // The wind, gust and AQI slots' display mode ('current' | 'max' | 'both'),
         // raw like uvSlotDisplay. Their pair presentation (separator, spacing,
-        // order, next-day mark) is NOT reported: fifteen more fields would spend
-        // most of the envelope's headroom, and UV's picks above already show
-        // how people shape a day-max pair.
+        // order, next-day mark) is NOT reported: fifteen more fields would ride
+        // the settings header the ingest copies into every row of a batch, and
+        // UV's picks above already show how people shape a day-max pair.
         windSlotDisplay: safe.windSlotDisplay,
         gustSlotDisplay: safe.gustSlotDisplay,
         aqiSlotDisplay: safe.aqiSlotDisplay,
@@ -219,14 +203,16 @@ function buildSettingsSnapshot(settings, watchInfo) {
         provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
         rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
-        // The Alerts card: which metric alerts are on, which of those print their
-        // value, and the rain alert's look ('text' | 'icon' | 'minutes', raw like
-        // tempSlotDisplay — absent reads as the default 'text'). All three are
+        // The Alerts card: which metric alerts are on and which of those print their
+        // value, each comma-joined in the row's fixed order ('' when none, e.g.
+        // 'uv,wind'), read through the same calls the alert bake makes; and the rain
+        // alert's look ('text' | 'icon' | 'minutes') RESOLVED like the blob byte the
+        // watch reads, so an absent or unknown look reports 'text'. All three are
         // z.string() in the ingest schema: a comma list, never an enum, so a new
         // alert kind cannot 400 an old ingest's batch.
-        alertKinds: alertCodesReport(safe, statusThresholds.alertKindCodes),
-        alertValueKinds: alertCodesReport(safe, statusThresholds.alertValueKindCodes),
-        rainAlertDisplay: safe.rainAlertDisplay,
+        alertKinds: statusThresholds.alertKindCodes(safe).join(','),
+        alertValueKinds: statusThresholds.alertValueKindCodes(safe).join(','),
+        rainAlertDisplay: statusThresholds.rainDisplayFor(safe),
         // Where each bar places the row (see alertBarsReport), and the rain alert's
         // switch — on by default like radarSky: a missing key is on.
         alertBars: alertBarsReport(safe),

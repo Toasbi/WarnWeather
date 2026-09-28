@@ -110,7 +110,7 @@ const settingsSchema = z
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
     // The Alerts card (src/pkjs/telemetry.js): comma-joined alert codes ('' when
-    // none, absent on an install that never saw the card) and the rain look, raw.
+    // none) and the rain look, resolved as the watch draws it ('text' when unset).
     // z.string(), not z.enum: a future alert kind or look must not 400 the batch.
     alertKinds: z.string().optional(),
     alertValueKinds: z.string().optional(),
