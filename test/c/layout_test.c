@@ -2929,7 +2929,8 @@ typedef struct { int cal_ink_end; int box_top; int cap_top; bool has_cal_and_row
 // Topmost row of the row's threshold-highlight box: the cap centre minus the box's font
 // reach (glyph_below + descender_h), clamped to the band top — MIRRORS the `above` side
 // of status_highlight_extent() in src/c/layers/status_row_layout.c, the same way
-// status_cap_top above mirrors the seat.
+// status_cap_top above mirrors the seat. (A plain-digit box out of rows BELOW lowers its
+// top to keep its air symmetric; it can never rise above this, so the bound stays safe.)
 static int status_box_top(int band_y, int band_h, int content_h) {
     int cap_cy = band_y + status_glyph_center_y(status_seat_y(band_h, content_h), content_h);
     int above = status_glyph_below(content_h) + status_descender_h(content_h);

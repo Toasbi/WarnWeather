@@ -170,13 +170,14 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 // (MEASURED, the complaint this fixes). Font-derived targets instead:
 //
 //   above the cap:  reach = glyph_below + descender_h  (half a cap + tail depth as air)
-//   below the cap:  reach again — cap_cy + reach is exactly the deepest tail row, so a
-//                   tail's last row lands ON the bottom stroke (touching, no air row —
-//                   air under the tail read as the box hanging low; user-tuned)
+//   below the cap:  with a tail, reach again — cap_cy + reach is exactly the deepest
+//                   tail row, so a tail's last row lands ON the bottom stroke
+//                   (touching, no air row — air under the tail read as the box hanging
+//                   low; user-tuned); plain digits mirror the air above (see below)
 //
-// On the clamp-free bands this gives one box per font — 14 / 18 / 22 px for Gothic
-// 14 / 18 / 24, tail or no tail — whatever band the row rides, which is the whole
-// point: noCal, full and compact now frame their text identically.
+// On the clamp-free bands this gives one box per font — 15 / 19 / 22 px for Gothic
+// 14 / 18 / 24 (14 / 18 / 22 with a tail) — whatever band the row rides, which is the
+// whole point: noCal, full and compact now frame their text identically.
 //
 // Clamps are PER SIDE, so a short band shaves only the side that lacks room instead of
 // shrinking both symmetrically (the old rule cost the top strip 2*lift):
@@ -192,6 +193,22 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 // symmetric badge — because a reserve under text that has no tail reads as the box
 // hanging heavy at the bottom (MEASURED complaint on the strip, whose top half is
 // clamped to 1 px of cap air by the screen edge while the reserve kept 4 px below).
+//
+// The mirror is of the AIR around the digits' INK, not of the extent around cap_cy.
+// cap_cy is an edge with glyph_below ink rows under it and cap_h - glyph_below over
+// it, and glyph_below rounds half UP (status_metrics.h — load-bearing for the icons),
+// so at an odd cap — Gothic 14's 9 rows, Gothic 18's 11 — the ink has ONE MORE row
+// below the edge than above it (`skew`; 0 at Gothic 24's even 14). Mirroring the
+// extent (below = above) therefore left one air row fewer under the digits than over
+// them: 2/1 in a full-tier bar, and on the 168px strip, whose top is pinned to 0 air
+// by the screen edge, the bottom stroke landed ON the digits' last row (MEASURED on
+// basalt and diorite: box rows 0..11 around ink rows 1..11). `below = above + skew`
+// gives equal air both sides — 0/0 on that strip, the outline just clear of the ink.
+// Every shipping band has the extra row (several boxes now end on the band's last
+// row), so no box moves its top; if a band ever lacks it, the top gives the row back
+// instead, keeping the air equal at the largest value that fits. Accepted
+// consequence: in an unclamped odd-cap band a plain-digit box ends one row below a
+// tail box beside it (their tops agree), since the tail box stops on the tail tip.
 //
 // The strip's bottom floor: its ink floor (band_h - STATUS_TOP_STRIP_LIFT) plus the
 // STATUS_STRIP_CAL_GAP rows layout.c now leaves above the calendar, minus 1 so box and
@@ -216,18 +233,26 @@ StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
     int cap = cap_cy;                            // defensive: a cap outside the
     if (cap < band_top) { cap = band_top; }      // band collapses the box at the
     if (cap > band_bottom) { cap = band_bottom; }// nearest edge, never overflows
-    int reach = status_glyph_below(content_h) + status_descender_h(content_h);
+    int ink_below = status_glyph_below(content_h);
+    int reach = ink_below + status_descender_h(content_h);
+    // Ink rows under cap_cy minus ink rows over it: 1 at an odd cap, 0 at an even one.
+    int skew = 2 * ink_below - status_cap_h(content_h);
     int above = reach;
     if (above > cap - band_top) { above = cap - band_top; }
     // Tail text reaches exactly `reach` below the cap centre, so `below = reach` puts the
     // tail's last row ON the outline's bottom stroke — deliberately touching, no air: the
-    // user-preferred look (an air row under the tail read as the box hanging low). In an
-    // unclamped band `above == reach` too, so tail and no-tail boxes come out the SAME
-    // height there; they only differ where the top is clamped (the strip), where the
-    // no-tail box mirrors its tight top and the tail box keeps the rows the tail needs.
-    int below = has_tail ? reach : above;
-    if (below > bottom_limit - cap) { below = bottom_limit - cap; }
+    // user-preferred look (an air row under the tail read as the box hanging low).
+    // No-tail text mirrors the air over its ink (`above + skew`, see above); a box with
+    // no top half (a cap on the band top) frames nothing and stays empty.
+    int below = has_tail ? reach : (above > 0 ? above + skew : 0);
+    if (below > bottom_limit - cap) {
+        below = bottom_limit - cap;
+        // Out of rows below: a plain-digit box hands the top the same cut, so its air
+        // stays equal on both sides (a tail box keeps its top — its bottom is the tail).
+        if (!has_tail && above > below - skew) { above = below - skew; }
+    }
     if (below < 0) { below = 0; }                // lifted cap under a tiny band
+    if (above < 0) { above = 0; }
     StatusHighlightExtent e = { (int16_t)(cap - above), (int16_t)(above + below) };
     return e;
 }

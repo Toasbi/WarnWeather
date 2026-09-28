@@ -359,11 +359,14 @@ static void suffix_sweep_stays_in_bounds(void) {
 // FONT, not the band (status_row_layout.c has the full derivation). Above the cap it
 // reserves reach = glyph_below + descender_h; below the cap it depends on the TEXT:
 // a slot with a descender glyph keeps `reach` below so the tail's last row lands ON
-// the bottom stroke (touching, no air — user-tuned), a plain-digit slot mirrors its
-// clamped top half instead — a symmetric badge. In an unclamped band the two coincide
-// (above == reach), so tail and no-tail boxes are the same height there. Clamps
-// are per side; the top strip's bottom floor is its ink floor + STATUS_STRIP_CAL_GAP
-// - 1, one guaranteed blank row above the calendar's first painted row. cap_cy below
+// the bottom stroke (touching, no air — user-tuned), a plain-digit slot mirrors the
+// AIR over its ink instead — a symmetric badge. The digits' ink straddles cap_cy one
+// row low at an odd cap (Gothic 14 / 18: `skew` 1; Gothic 24: 0), so a no-tail box
+// reaches `above + skew` below: one row deeper than a tail box in an unclamped band.
+// Clamps are per side (a no-tail box out of rows below gives the top the same cut, so
+// its air stays equal); the top strip's bottom floor is its ink floor +
+// STATUS_STRIP_CAL_GAP - 1, one guaranteed blank row above the calendar's first
+// painted row. cap_cy below
 // is status_glyph_center_y()'s value for the real shipping (band_h, font) pairs;
 // every shipping band is clamp-free, so cap_cy == band_h/2 (truncating on odd bands).
 // (test/c/layout_test.c::seating_no_lift pins that clamp-free property itself.)
@@ -377,42 +380,98 @@ static void expect_extent(const char *name, int16_t band_top, int16_t band_h,
     expect_named(name, ".h", e.h, want_h);
 }
 
+// Blank rows between an extent's strokes and the DIGITS' ink it frames — the numbers
+// the owner reads. The ink is the cap box status_metrics.h models: it ends on the
+// content-box bottom, glyph_below rows under cap_cy, and is status_cap_h rows tall.
+// Stroke rows are the extent's first and last rows (graphics_draw_round_rect of the
+// GRect). Negative = the stroke sits ON (or inside) the ink.
+static int ink_air_above(StatusHighlightExtent e, int cap_cy, int content_h) {
+    int ink_top = cap_cy + status_glyph_below(content_h) - status_cap_h(content_h);
+    return ink_top - e.y - 1;
+}
+
+static int ink_air_below(StatusHighlightExtent e, int cap_cy, int content_h) {
+    int ink_last = cap_cy + status_glyph_below(content_h) - 1;
+    return (e.y + e.h - 1) - ink_last - 1;
+}
+
+// Pin a plain-digit box's air over / under its ink per font and band.
+static void expect_air(const char *name, int16_t band_top, int16_t band_h,
+                       int16_t cap_cy, int16_t content_h, bool strip,
+                       int want_above, int want_below) {
+    StatusHighlightExtent e = status_highlight_extent(band_top, band_h, cap_cy,
+                                                      content_h, strip, false);
+    expect_named(name, ".air_above", ink_air_above(e, cap_cy, content_h), want_above);
+    expect_named(name, ".air_below", ink_air_below(e, cap_cy, content_h), want_below);
+}
+
 static void highlight_extent_is_font_sized(void) {
     // Shipping bands, no-tail (symmetric) and tail (descender reserve) per row. reach =
     // 7 / 9 / 11 at Gothic 14 / 18 / 24. The retired band-sized box handed the
     // none-tier boxes their full 22 / 30 px (~8 px of padding around an 11 / 14 px cap
-    // — the original complaint).
-    expect_extent("hl.basalt.fullCal", 0, 20, 10, 14, false, false, 3, 14);
+    // — the original complaint). Every no-tail box is one row taller than before at
+    // Gothic 14 / 18 (the odd caps) and unchanged at Gothic 24; no top edge moved.
+    expect_extent("hl.basalt.fullCal", 0, 20, 10, 14, false, false, 3, 15);
     expect_extent("hl.basalt.fullCal.tail", 0, 20, 10, 14, false, true, 3, 14);
-    expect_extent("hl.emery.fullCal", 0, 20, 10, 18, false, false, 1, 18);
+    expect_extent("hl.emery.fullCal", 0, 20, 10, 18, false, false, 1, 19);
     expect_extent("hl.emery.fullCal.tail", 0, 20, 10, 18, false, true, 1, 18);
-    expect_extent("hl.basalt.noCal", 0, 22, 11, 18, false, false, 2, 18);
+    expect_extent("hl.basalt.noCal", 0, 22, 11, 18, false, false, 2, 19);
     expect_extent("hl.basalt.noCal.tail", 0, 22, 11, 18, false, true, 2, 18);
     expect_extent("hl.emery.noCal", 0, 30, 15, 24, false, false, 4, 22);
     expect_extent("hl.emery.noCal.tail", 0, 30, 15, 24, false, true, 4, 22);
-    expect_extent("hl.basalt.compactCal", 0, 17, 8, 18, false, false, 0, 16);
+    expect_extent("hl.basalt.compactCal", 0, 17, 8, 18, false, false, 0, 17);
     expect_extent("hl.basalt.compactCal.tail", 0, 17, 8, 18, false, true, 0, 17);
     expect_extent("hl.emery.compactCal", 0, 21, 10, 24, false, false, 0, 20);
     expect_extent("hl.emery.compactCal.tail", 0, 21, 10, 24, false, true, 0, 21);
-    expect_extent("hl.basalt.dense.upper", 0, 15, 7, 14, false, false, 0, 14);
+    expect_extent("hl.basalt.dense.upper", 0, 15, 7, 14, false, false, 0, 15);
     expect_extent("hl.basalt.dense.upper.tail", 0, 15, 7, 14, false, true, 0, 14);
-    expect_extent("hl.emery.dense.upper", 0, 20, 10, 18, false, false, 1, 18);
+    expect_extent("hl.emery.dense.upper", 0, 20, 10, 18, false, false, 1, 19);
     expect_extent("hl.emery.dense.upper.tail", 0, 20, 10, 18, false, true, 1, 18);
     // Offset band — geometry is band-relative.
     expect_extent("hl.dense.lower.offset", 40, 20, 50, 14, false, true, 43, 14);
+
+    // The same shipping bands in the unit the owner reads: equal air over and under
+    // the digits' ink. Before, every odd-cap box (Gothic 14 / 18) had one row fewer
+    // below than above — 2/1, 3/2 — because the extent was mirrored about cap_cy,
+    // which sits half a row above the ink's true centre there.
+    expect_air("air.basalt.fullCal", 0, 20, 10, 14, false, 2, 2);
+    expect_air("air.emery.fullCal", 0, 20, 10, 18, false, 3, 3);
+    expect_air("air.basalt.noCal", 0, 22, 11, 18, false, 3, 3);
+    expect_air("air.emery.noCal", 0, 30, 15, 24, false, 3, 3);
+    expect_air("air.basalt.compactCal", 0, 17, 8, 18, false, 2, 2);
+    expect_air("air.emery.compactCal", 0, 21, 10, 24, false, 2, 2);
+    expect_air("air.basalt.dense.upper", 0, 15, 7, 14, false, 2, 2);
+    expect_air("air.emery.dense.upper", 0, 20, 10, 18, false, 3, 3);
 
     // TOP STRIP: cap lifted STATUS_TOP_STRIP_LIFT; bottom floor = ink floor +
     // STATUS_STRIP_CAL_GAP - 1. The floor is platform-compiled (test-c.sh builds this
     // test for both), so the strip cases are per-platform: emery's 2-row gap houses
     // the tail with 1 px of air; the 168px floor is 1 short — the tail tip overlaps
     // the bottom stroke (still 2 px better than the old symmetric clamp's overshoot).
+    // Plain digits get 0/0 on both: the screen edge pins the top stroke directly over
+    // the first ink row, so 0 is the most air a box can mirror there without moving
+    // the line (1/1 would need STATUS_TOP_STRIP_LIFT 1 — a text move, not a box one).
 #ifdef PBL_PLATFORM_EMERY
     expect_extent("hl.strip", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, false, 0, 16);
     expect_extent("hl.strip.tail", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, true, 0, 19);
+    expect_air("air.strip", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, 0, 0);
 #else
-    expect_extent("hl.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, false, 0, 12);
+    // The owner's complaint: box rows 0..11 around digit ink on rows 1..11 — the top
+    // stroke flush on the digits and the bottom stroke ON their last row (-1). One
+    // more row below (the floor allows two) puts the stroke just clear: 0/0.
+    expect_extent("hl.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, false, 0, 13);
     expect_extent("hl.strip.tail", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, true, 0, 14);
+    expect_air("air.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, 0, 0);
 #endif
+
+    // Out of rows below: a no-tail box gives the top the same cut, so the air stays
+    // equal. Gothic 18 at cap_cy 10 in a 17-row band (ink rows 5..15): the bottom
+    // stops at the band (below 7 of the 9 + 1 it wants), the top follows to 6 — 0/0,
+    // both strokes just clear of the ink, where the extent mirror gave 3/0.
+    expect_extent("hl.bottom_clamped", 0, 17, 10, 18, false, false, 4, 13);
+    expect_air("air.bottom_clamped", 0, 17, 10, 18, false, 0, 0);
+    // ... and a tail box keeps its top: its bottom is the tail, not a mirror.
+    expect_extent("hl.bottom_clamped.tail", 0, 17, 10, 18, false, true, 1, 16);
 
     // Degenerate: a cap outside the band clamps to the nearest edge and the box keeps
     // only the side with room (never overflows the band). No-tail mirrors the clamped
@@ -431,26 +490,32 @@ static void highlight_extent_is_font_sized(void) {
     expect("tail.null", status_text_has_descender(0), 0);
 
     // Property sweep: contained in the band, never taller than the font target, a
-    // no-tail box never deeper below the cap than above it, and the strip's box never
-    // crosses its floor (when the cap itself is above that floor).
+    // no-tail box never deeper below the cap than above it plus the ink's skew — and,
+    // wherever it has a top half, with EQUAL air over and under the digits' ink — and
+    // the strip's box never crosses its floor (when the cap itself is above that floor).
     for (int c = 14; c <= 24; c += (c == 14 ? 4 : 6)) {   // Gothic 14, 18, 24
         int reach = status_glyph_below(c) + status_descender_h(c);
+        int skew = 2 * status_glyph_below(c) - status_cap_h(c);
         for (int16_t band_h = 1; band_h <= 40; band_h++) {
             for (int16_t cap = 0; cap <= band_h; cap++) {
                 for (int mode = 0; mode < 4; mode++) {
                     bool strip = (mode & 1) != 0;
                     bool tail = (mode & 2) != 0;
                     int16_t top = 7;
+                    int cap_cy = top + cap;
                     StatusHighlightExtent e = status_highlight_extent(
-                        top, band_h, (int16_t)(top + cap), (int16_t)c, strip, tail);
+                        top, band_h, (int16_t)cap_cy, (int16_t)c, strip, tail);
                     int limit = top + band_h
                         - (strip ? STATUS_TOP_STRIP_LIFT - STATUS_STRIP_CAL_GAP + 1 : 0);
                     bool in_band = e.y >= top && e.y + e.h <= top + band_h;
-                    bool sized = e.h <= 2 * reach;
-                    bool balanced = tail
-                        || (e.y + e.h) - (top + cap) <= (top + cap) - e.y;
-                    bool floor_ok = (top + cap > limit) || (e.y + e.h <= limit);
-                    if (!in_band || !sized || !balanced || !floor_ok) {
+                    bool sized = e.h <= 2 * reach + skew;
+                    int ext_above = cap_cy - e.y;
+                    int ext_below = (e.y + e.h) - cap_cy;
+                    bool balanced = tail || ext_below <= ext_above + skew;
+                    bool symmetric = tail || ext_above <= 0
+                        || ink_air_above(e, cap_cy, c) == ink_air_below(e, cap_cy, c);
+                    bool floor_ok = (cap_cy > limit) || (e.y + e.h <= limit);
+                    if (!in_band || !sized || !balanced || !symmetric || !floor_ok) {
                         printf("FAIL hl.sweep c=%d band_h=%d cap=%d strip=%d tail=%d"
                                " -> y=%d h=%d\n", c, band_h, cap, strip, tail, e.y, e.h);
                         s_failures++;
@@ -475,8 +540,8 @@ static void expect_padded(const char *name, int16_t band_top, int16_t band_h,
 }
 
 static void highlight_extent_pad_pins(void) {
-    // Clamp-free bands: one row each side (slot box 3/14 -> 2/16).
-    expect_padded("pad.basalt.fullCal", 0, 20, 10, 14, false, false, 2, 16);
+    // Clamp-free bands: one row each side (slot box 3/15 -> 2/17).
+    expect_padded("pad.basalt.fullCal", 0, 20, 10, 14, false, false, 2, 17);
     expect_padded("pad.emery.noCal", 0, 30, 15, 24, false, false, 3, 24);
     expect_padded("pad.offset", 40, 20, 50, 14, false, true, 42, 16);
     // Top already on the band edge: only the bottom grows; a tail box that already
@@ -488,7 +553,7 @@ static void highlight_extent_pad_pins(void) {
     expect_padded("pad.strip", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, false, 0, 17);
     expect_padded("pad.strip.tail", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, true, 0, 20);
 #else
-    expect_padded("pad.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, false, 0, 13);
+    expect_padded("pad.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, false, 0, 14);
     expect_padded("pad.strip.tail", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, true, 0, 14);
 #endif
     // pad 0 is the identity.
