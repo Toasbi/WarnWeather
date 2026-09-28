@@ -17,12 +17,13 @@
 //
 // THE SCHEDULER DEPENDENCY. A 'now' entry that asks for a send (the no-rain text, the
 // 1.24.0 alert levels) is marked before that send can land, so a NACK does not re-run
-// it. Its re-delivery is channel-scheduler.js's: the migration send's NACK runs
-// onStartupClayNack -> forgetHolidayDaySent, which drops the stored day stamp, so the
-// next tick's day-change resend (this session's, or the next boot's first) carries the
-// settings again, once a minute until one is ACKed; and the outbox commits its last-sent
-// cache only on an ACK, so that send still sees the change. Stop forgetting the day
-// stamp on that NACK and those entries have to move to markOn 'ack'.
+// it. Its re-delivery is channel-scheduler.js's: the migration send's NACK, like every
+// scheduler Clay NACK, runs forgetHolidayDaySent (its sendClay wrapper), which drops
+// the stored day stamp, so the next tick's day-change resend (this session's, or the
+// next boot's first) carries the settings again, once a minute until one is ACKed; and
+// the outbox commits its last-sent cache only on an ACK, so that send still sees the
+// change. Stop forgetting the day stamp on that NACK and those entries have to move to
+// markOn 'ack'.
 
 var claySettings = require('./clay-settings.js');
 var REGISTRY = require('./migrations/registry.js');

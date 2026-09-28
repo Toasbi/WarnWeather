@@ -181,3 +181,28 @@ test('Clay, re-bake and fetch never share the channel: each waits for the one be
   assert.ok('FORECAST_START' in h.held[2].dict, 'the fetch\'s weather send');
   assert.equal(h.uncaught.length, 0);
 });
+
+test('a NACKed config-close Clay is re-delivered by the next minute tick', (t) => {
+  // The Clay NACKs (a collision, a Bluetooth hiccup) but the forced fetch after
+  // it still lands, so without a retry the watch ran the new alert entries
+  // against the old thresholds blob until the next midnight or the next save.
+  let nackClay = false;
+  const { h } = bootBaked(t, {}, {
+    onSend: (d) => (nackClay && !isWeatherMessage(d) ? 'nack' : 'ack'),
+  });
+  nackClay = true;
+  const before = h.sends.length;
+  const clay = () => h.sends.slice(before).filter((d) => !isWeatherMessage(d));
+  h.saveSettings({ alertWind: true, statusForecastAlerts: 'left' });
+  h.advance(5 * 1000);
+  nackClay = false;
+  assert.equal(clay().length, 1, 'the close sent Clay once, and it NACKed');
+  assert.equal(h.count(FETCHED), 2, 'the forced fetch still landed');
+
+  h.minutes(1);
+  assert.equal(clay().length, 2, 'the next tick re-delivered the settings');
+  assert.deepEqual(clay()[1].CLAY_THRESHOLDS_UINT8, clay()[0].CLAY_THRESHOLDS_UINT8,
+    'the same blob, with the new Alerts placement');
+  h.minutes(2);
+  assert.equal(clay().length, 2, 'its ACK ended the retries');
+});

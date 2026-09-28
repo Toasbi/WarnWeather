@@ -374,6 +374,48 @@ test('config close: a NACKed re-bake still runs the overlay clear', function () 
     assert.equal(h.calls.startFetch.length, 0);
 });
 
+// Every scheduler Clay NACK arms the same retry (sendClay): the config close's
+// used to arm none, so its settings waited for the next midnight while the
+// forced fetch after it still landed — alert entries against an old blob.
+
+test('a NACKed config-close Clay is retried by the next tick, until one is ACKed', function () {
+    resetStore();
+    var h = makeHarness();
+    localStorage.setItem(KEYS.LAST_HOLIDAY_DAY_KEY, '2026-6-7');   // today already sent
+    h.scheduler.onConfigClosed({ forceFetch: true });
+    h.nackClay();
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), null, 'the NACK armed the retry');
+    h.flushTimers();
+    assert.deepEqual(h.calls.startFetch, [true], 'and held back neither the re-bake nor the fetch');
+
+    h.scheduler.start();               // the next minute tick
+    assert.equal(h.calls.sendClay.length, 2, 'the tick re-delivers the settings');
+    h.nackClay();
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'and keeps retrying while it NACKs');
+    h.ackClay();
+    assert.equal(localStorage.getItem(KEYS.LAST_HOLIDAY_DAY_KEY), '2026-6-7');
+    h.flushTimers();
+    assert.equal(h.calls.sendClay.length, 3, 'an ACK ends the retries');
+    assert.equal(h.calls.resendStatus.length, 1, 'the retry is a Clay send only');
+});
+
+test('a NACKed config-close Clay is retried with Theme switching on, too', function () {
+    resetStore();
+    var h = makeThemeHarness();
+    h.stampToday();
+    h.themeId.value = 'light';
+    h.scheduler.start();
+    h.ackClay();                       // the first tick's reconcile send
+    h.scheduler.onConfigClosed({ forceFetch: false });
+    h.nackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'the next tick resends though no theme flipped');
+    h.ackClay();
+    h.tick();
+    assert.equal(h.calls.sendClay.length, 3, 'and its ACK restores both stamps');
+});
+
 test('scenario 5: startup Clay stamps today; first tick suppresses resend; a rollover resends once', function () {
     resetStore();
     var h = makeHarness();
@@ -441,6 +483,7 @@ function makeThemeHarness() {
             calls.sendClay.push({ onSuccess: onSuccess, onFailure: onFailure });
         },
         startFetch: function (force) { calls.startFetch.push(force); },
+        resendStatus: function (reason, onSuccess) { if (onSuccess) { onSuccess(); } },
         shouldFetchNow: function () { return false; },
         refreshHolidays: function () { calls.refreshHolidays++; },
         checkForUpdate: function () { calls.checkForUpdate++; },
@@ -509,7 +552,7 @@ test('theme flip: a NACKed flip send retries on the next tick', function () {
     assert.equal(h.calls.sendClay.length, 2);
     h.nackClay();
     h.tick();
-    assert.equal(h.calls.sendClay.length, 3, 'NACK forgets the stamp, the flip retries');
+    assert.equal(h.calls.sendClay.length, 3, 'NACK forgets the stamps, the next tick retries the flip');
     h.ackClay();
     h.tick();
     assert.equal(h.calls.sendClay.length, 3, 'ACKed retry ends the loop');
