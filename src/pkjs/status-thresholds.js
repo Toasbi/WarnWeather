@@ -88,9 +88,13 @@
   // same 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 scale the threshold is entered on.
   var POLLEN_BANDS = ['0', '0-1', '1', '1-2', '2', '2-3', '3'];
 
-  // The pack-time danger fallback for a weather kind whose colour never passed
-  // through the settings page. (The warn colour has no such constant: unset is
-  // AUTO — the theme's text colour, see kindConfig.)
+  // A weather kind's danger colour while it is unset: red, on every theme, so a
+  // warn FILL (the colour-watch default look, in the theme's text colour) and the
+  // danger fill stay apart. The settings page writes it too (onbuild.js heal,
+  // blocks.js resetThresholds) and the 1.24.0 move turned the old auto text colour
+  // into it (clay-migrations.js migrateWarnLook). A stored black or white is a pick
+  // meaning "the text colour" (resolveAutoColor). (The warn colour has no such
+  // constant: unset is AUTO — the theme's text colour, see kindConfig.)
   var DEFAULT_DANGER_COLOR = 0xFF0000;
   // Goal kinds celebrate instead of warn: crossing "close" (the warn slot) outlines
   // in this green, reaching the goal (the danger slot) fills with it. 0x55FF00 =
@@ -102,6 +106,9 @@
   // instead of restating the hex.
   var DEFAULT_GOAL_HEX =
     '#' + ('00000' + DEFAULT_GOAL_COLOR.toString(16).toUpperCase()).slice(-6);
+  // The danger red in the same stored shape, derived the same way.
+  var DEFAULT_DANGER_HEX =
+    '#' + ('00000' + DEFAULT_DANGER_COLOR.toString(16).toUpperCase()).slice(-6);
 
   // Index in this array IS the wire kind id (ThreshKind). key is the settings
   // key stem: thresh<key>Warn / thresh<key>Danger / thresh<key>WarnColor /
@@ -839,7 +846,8 @@
     alertKindCodes: alertKindCodes,
     alertValueKindCodes: alertValueKindCodes,
     buildSettingsBlob: buildSettingsBlob,
-    DEFAULT_DANGER_COLOR: DEFAULT_DANGER_COLOR
+    DEFAULT_DANGER_COLOR: DEFAULT_DANGER_COLOR,
+    DEFAULT_DANGER_HEX: DEFAULT_DANGER_HEX
   };
 
   // Dual-context export — mirror the tail of src/pkjs/status-line-catalog.js.

@@ -23,7 +23,8 @@
 //   3. The threshold highlight colours (thresh<Kind>WarnColor/DangerColor) that
 //      hold a foreground value — the page's "auto, track the theme fg" state
 //      (blocks.js thresholdAutoColor), which onbuild.js otherwise re-derives
-//      only on the NEXT page open. '' (no outline) and real picks are left alone.
+//      only on the NEXT page open; for a weather danger colour, the "text colour"
+//      pick. '' (unset) and real picks are left alone.
 //
 // Every colour rule matches BOTH encodings a settings object carries: the page's
 // live S holds '#RRGGBB' strings, while the phone's stored blob holds 0xRRGGBB

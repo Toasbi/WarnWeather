@@ -1363,6 +1363,32 @@ test('migrateWarnLook: a stored look is the page\'s own truth; idempotent; a mar
   assert.equal(marked.claySettings.read().threshWindWarnLook, undefined, 'the marked ledger leaves it');
 });
 
+test('migrateWarnLook: a weather danger that held the old auto text colour turns red', () => {
+  // The page wrote the theme fg into every untouched danger colour; with warn filled
+  // in that colour by default the two levels would draw the same box.
+  const c = loadThresholdToggleCase({
+    threshWindDangerColor: 0xFFFFFF,       // the saved blob's int encoding
+    threshGustDangerColor: 0x000000,       // light theme's fg
+    threshUvDangerColor: '#ffffff',        // a string, any case
+    threshAqiDangerColor: 0x5500FF,        // a pick
+    threshPollenDangerColor: '',           // unset: red at pack time already
+    threshStepsDangerColor: 0xFFFFFF       // a goal kind keeps its own rule
+  });
+  c.clayMigrations.migrateWarnLook(c.marker.isDone, c.marker.mark);
+  const read = c.claySettings.read();
+  assert.equal(read.threshWindDangerColor, 0xFF0000, 'white int → red int');
+  assert.equal(read.threshGustDangerColor, 0xFF0000, 'black int → red int');
+  assert.equal(read.threshUvDangerColor, '#FF0000', 'a string keeps its encoding');
+  assert.equal(read.threshAqiDangerColor, 0x5500FF, 'a pick is left alone');
+  assert.equal(read.threshPollenDangerColor, '', 'unset stays unset');
+  assert.equal(read.threshStepsDangerColor, 0xFFFFFF, 'goal kinds are not touched');
+  assert.equal(c.saves.n, 1);
+  const th = require('../src/pkjs/status-thresholds.js');
+  const wind = th.kindConfig(read, th.KINDS.findIndex(k => k.key === 'Wind'), true);
+  assert.equal(wind.dangerColor, 0xFF0000, 'the watch gets red');
+  assert.notEqual(wind.warnColor, wind.dangerColor, 'and warn stays apart from it');
+});
+
 test('the warn-look move survives the boot order: a fresh seeded blob is a no-op, a legacy one moves', () => {
   // Fresh install: seedDefaults writes weather warn colours '' and goal ones green,
   // and no look (defaultFrom items are never seeded) → nothing to move.

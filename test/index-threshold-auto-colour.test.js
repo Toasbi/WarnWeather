@@ -54,10 +54,13 @@ SCENARIOS.forEach((sc) => {
     const ST = h.mod('status-thresholds.js');
     const stored = JSON.parse(h.store['clay-settings']);
     const ink = sc.face === 'dark' ? '#ffffff' : '#000000';
+    // The 1.24.0 warn-look move turns a weather danger that held the old auto
+    // text colour into the contract's red (clay-migrations.js migrateWarnLook).
+    assert.equal(stored.threshWindDangerColor, '#FF0000', 'the old auto danger is red now');
+    assert.equal(stored.threshUvDangerColor, '#FF0000', 'either text colour');
     const expected = ST.buildSettingsBlob(Object.assign({}, stored, {
       theme: sc.face,
-      threshWindWarnColor: ink, threshWindDangerColor: ink,
-      threshUvWarnColor: ink, threshUvDangerColor: ink,
+      threshWindWarnColor: ink, threshUvWarnColor: ink,
     }));
     assert.deepEqual(bytes, Array.from(expected), 'every auto colour packs as the face\'s text colour');
     // The paired kinds' warn/danger colour bytes start right after the version byte.

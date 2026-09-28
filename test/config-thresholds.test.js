@@ -307,17 +307,27 @@ test('scale max: override honored, garbage ignored, always grows to fit stored v
 
 test('resolver colors: auto tracks the theme fg, picks stick, garbage sanitized', () => {
   // Warn look 'none' = no box: the slider draws its warn pieces in the neutral gray
-  // (the zone still shows where warn spans). Unset colours = auto theme fg.
+  // (the zone still shows where warn spans). An unset warn colour = auto theme fg;
+  // an unset danger colour = the contract's red.
   const dflt = B.thresholdRangeCfg({}, ENV, { keyStem: 'Wind' });
   assert.equal(dflt.warnColor, '#FFFFFF', 'unset warn colour = auto theme fg');
-  assert.equal(dflt.dangerColor, '#FFFFFF');
-  assert.equal(dflt.dangerText, '#20232A', 'white auto fill takes dark ink');
+  assert.equal(dflt.dangerColor, '#FF0000', 'unset danger colour = red');
+  const whiteDanger = B.thresholdRangeCfg({ threshWindDangerColor: '#FFFFFF' }, ENV, { keyStem: 'Wind' });
+  assert.equal(whiteDanger.dangerColor, '#FFFFFF', 'a white danger pick = the theme fg');
+  assert.equal(whiteDanger.dangerText, '#20232A', 'white fill takes dark ink');
+  const bwDay = B.thresholdRangeCfg({ theme: 'bw', threshWindWarnColor: '#00AAFF' }, ENV,
+    { keyStem: 'Wind' });
+  assert.deepEqual([bwDay.warnColor, bwDay.dangerColor], ['#FFFFFF', '#FFFFFF'],
+    'a B&W day theme draws both levels in the text colour, as the watch does');
   const none = B.thresholdRangeCfg({ threshWindWarnLook: 'none' }, ENV, { keyStem: 'Wind' });
   assert.equal(none.warnColor, '#8A8E97', 'look none: the neutral gray');
   const light = B.thresholdRangeCfg({ theme: 'light', threshWindWarnLook: 'none' }, ENV,
     { keyStem: 'Wind' });
   assert.equal(light.warnColor, '#8A8E97', 'no-box neutral is theme-independent');
-  assert.equal(light.dangerText, '#FFFFFF', 'black auto fill takes white ink');
+  const lightBlack = B.thresholdRangeCfg({ theme: 'light', threshWindDangerColor: '#FFFFFF' }, ENV,
+    { keyStem: 'Wind' });
+  assert.equal(lightBlack.dangerColor, '#000000', 'a text-colour danger follows the theme');
+  assert.equal(lightBlack.dangerText, '#FFFFFF', 'black fill takes white ink');
   // User picks — the old orange/red defaults included — are ordinary colors now.
   const picked = B.thresholdRangeCfg(
     { threshWindWarnColor: '#00aaff', threshWindDangerColor: '#FFFF00' }, ENV, { keyStem: 'Wind' });
@@ -396,7 +406,7 @@ test('onLoad leaves the stored toggle alone and still heals colours', () => {
   assert.equal(S.threshSleepWarn, '7');
   assert.equal(S.threshSleepDanger, '');
   // The colour healing still runs for every kind (dark default theme).
-  assert.equal(S.threshWindDangerColor, '#FFFFFF', 'weather danger auto → theme fg');
+  assert.equal(S.threshWindDangerColor, '#FF0000', 'an unset weather danger → red');
   assert.equal(S.threshStepsWarnColor, '#55FF00', 'goal close colour seeded green');
   assert.equal(S.threshStepsDangerColor, '#55FF00', 'goal fill colour seeded green');
 });
@@ -415,12 +425,16 @@ test('onLoad derives auto colors from the theme; user picks survive', () => {
     });
     return S;
   }
-  // Fresh install, dark (default) theme: WARN and DANGER both land on the theme fg —
-  // whether warn draws a box is the warn look, not the colour — and no outline
-  // toggle is derived any more.
+  // Fresh install, dark (default) theme: WARN lands on the theme fg — whether warn
+  // draws a box is the warn look, not the colour — and DANGER on the contract's red,
+  // so a warn fill never looks like danger. No outline toggle is derived any more.
   const dark = loaded({});
   assert.equal(dark.threshAqiWarnColor, '#FFFFFF');
-  assert.equal(dark.threshAqiDangerColor, '#FFFFFF');
+  assert.equal(dark.threshAqiDangerColor, '#FF0000');
+  // A stored black or white danger is a pick ("the text colour"): left alone, on
+  // either theme (the packer follows it across themes).
+  const textDanger = loaded({ theme: 'light', threshAqiDangerColor: '#FFFFFF' });
+  assert.equal(textDanger.threshAqiDangerColor, '#FFFFFF');
   assert.equal(dark.threshAqiWarnOutlineOn, undefined, 'the retired toggle is never written');
   // Goal kinds seed the green celebration colors instead.
   assert.equal(dark.threshStepsWarnColor, '#55FF00');
@@ -595,6 +609,67 @@ test('the page renders an Alerts card sheet: the alert switch, its Look, then th
     'nor the slot\'s Highlight switch: the Alert is this sheet\'s one switch');
 });
 
+// The warn look row: 'Warn look' / 'Close look', a hint for the SELECTED look only,
+// and — on a B&W watch or B&W day theme — the text-colour wording, whose Fill line
+// says it matches danger there; a B&W NIGHT theme only appends that note to Fill.
+test('the warn look row: label, the selected look\'s hint, and the B&W wording', () => {
+  const lookFor = stem => sheetFor(stem).items.concat(levelsSheetFor(stem).items)
+    .filter(it => it.messageKey === 'thresh' + stem + 'WarnLook')[0];
+  const wind = lookFor('Wind');
+  const steps = lookFor('Steps');
+  assert.equal(wind.label, 'Warn look');
+  assert.equal(steps.label, 'Close look');
+  assert.equal(wind.hint, undefined, 'no all-options hint');
+  assert.deepEqual(Object.keys(wind.hintByValue), ['none', 'outline', 'fill']);
+  assert.equal(wind.hintFrom.resolver, 'warnLookHint');
+  assert.match(wind.hintByValue.none, /Bold row/, 'none says where the bold comes from');
+  assert.match(steps.hintByValue.none, /Bold row above/);
+  assert.match(wind.hintByValue.fill, /contrasting color/);
+  assert.match(wind.hintFrom.args.bw.fill, /looks the same as danger\.$/);
+  assert.match(steps.hintFrom.args.bw.fill, /looks the same as a reached goal\.$/);
+  assert.equal(wind.hintFrom.args.bw.none, undefined, 'none reads the same on B&W');
+
+  const hint = PC.hintResolvers.get('warnLookHint');
+  const args = v => Object.assign({ value: v }, wind.hintFrom.args);
+  assert.equal(hint({ theme: 'dark' }, ENV, args('fill')), null, 'colour: the row\'s own hint');
+  assert.equal(hint({ theme: 'bw' }, ENV, args('fill')), wind.hintFrom.args.bw.fill, 'B&W theme');
+  assert.equal(hint({ theme: 'bw-light' }, ENV, args('outline')), wind.hintFrom.args.bw.outline);
+  assert.equal(hint({ theme: 'dark', themeAuto: false, themeNight: 'bw' }, ENV, args('fill')), null,
+    'a night theme that never switches in');
+  assert.equal(hint({ theme: 'dark' }, Object.assign({}, ENV, { color: false }), args('fill')),
+    wind.hintFrom.args.bw.fill, 'a B&W watch');
+  assert.equal(hint({ theme: 'bw' }, ENV, args('none')), null, 'none keeps its own hint');
+
+  // A colour DAY theme with a B&W NIGHT theme: by day the box is in the picked colour
+  // (the picker shows), so the colour hint stands and fill adds the night note.
+  const night = hint({ theme: 'dark', themeAuto: true, themeNight: 'bw' }, ENV, args('fill'));
+  assert.equal(night, wind.hintByValue.fill + ' ' + wind.hintFrom.args.night.fill, 'a B&W night theme');
+  assert.match(night, /At night \(black-and-white theme\) this looks the same as danger\.$/);
+  assert.equal(hint({ theme: 'dark', themeAuto: true, themeNight: 'bw' }, ENV, args('outline')), null,
+    'outline keeps its colour hint at night');
+  const stepsArgs = v => Object.assign({ value: v }, steps.hintFrom.args);
+  assert.match(hint({ theme: 'light', themeAuto: true, themeNight: 'bw-light' }, ENV, stepsArgs('fill')),
+    /close color.*At night \(black-and-white theme\) this looks the same as a reached goal\.$/);
+
+  // Rendered: the colour watch opens on Fill with its hint; a B&W watch on Outline.
+  const colour = bootGeneratedPage({ provider: 'dwd' });
+  colour.clickTab('watch');
+  colour.openEditSheet('alertUv');
+  assert.ok(colour.modal.innerHTML.indexOf('<button class="on" data-k="threshUvWarnLook" data-v="fill">') !== -1,
+    'colour watch: Fill selected by default');
+  assert.ok(colour.modal.innerHTML.indexOf('data-hint-for="threshUvWarnLook">' + wind.hintByValue.fill + '<') !== -1,
+    'with the Fill hint');
+  assert.ok(colour.modal.innerHTML.indexOf('>Warn color<') !== -1, 'and the Warn color picker');
+  const bw = bootGeneratedPage({ provider: 'dwd' }, 'diorite');
+  bw.clickTab('watch');
+  bw.openEditSheet('alertUv');
+  assert.ok(bw.modal.innerHTML.indexOf('<button class="on" data-k="threshUvWarnLook" data-v="outline">') !== -1,
+    'B&W watch: Outline selected by default');
+  assert.ok(bw.modal.innerHTML.indexOf('data-hint-for="threshUvWarnLook">' + wind.hintFrom.args.bw.outline + '<') !== -1,
+    'with the text-colour wording');
+  assert.equal(bw.modal.innerHTML.indexOf('data-k="threshUvWarnColor"'), -1, 'no colour picker on B&W');
+});
+
 test('the reset button blanks the pair, restores default colors, clears the scale max', () => {
   // Wind, not Aqi: the wizard seeds no wind row, so its fresh-install state is the
   // plain schema one — blank pair, highlight off. Aqi's wizard-seeded landing has
@@ -621,7 +696,7 @@ test('the reset button blanks the pair, restores default colors, clears the scal
   assert.equal(page.S.threshWindDanger, '', 'danger blanked');
   assert.equal(page.S.threshWindWarnColor, '', 'warn colour back to auto');
   assert.equal(page.S.threshWindWarnLook, 'fill', 'warn look back to the colour watch\'s default');
-  assert.equal(page.S.threshWindDangerColor, '#FFFFFF', 'danger color back to the auto theme fg');
+  assert.equal(page.S.threshWindDangerColor, '#FF0000', 'danger color back to red');
   assert.equal(page.S.threshWindMax, '', 'scale-max override cleared');
   assert.ok(page.modal.writes > writesBefore, 'the reset re-rendered the sheet');
 });
@@ -629,7 +704,7 @@ test('the reset button blanks the pair, restores default colors, clears the scal
 test('an enabled kind shows the ring+dot swatch beside its slot control', () => {
   const page = bootGeneratedPage({
     provider: 'dwd',
-    threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100'
+    threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100', threshAqiWarnLook: 'outline'
   });
   page.clickTab('watch');
   const html = page.scroll.innerHTML;
@@ -651,6 +726,23 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
   // The swatch is a preview, not a control: outside the button, nothing to press.
   assert.ok(/thr-swatch[\s\S]*?data-select=/.test(cell), 'swatch leads the dropdown');
   assert.ok(!/thr-btn[^>]*>[\s\S]*?pen-dot/.test(cell), 'dots must not sit inside the button');
+
+  // The warn pip follows the look: the colour watch's default fill is a filled dot
+  // leading the danger dot, and 'none' drops the pip (the watch draws no warn box).
+  const fillCell = (look) => {
+    const p = bootGeneratedPage(Object.assign({ provider: 'dwd',
+      threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '100' }, look));
+    p.clickTab('watch');
+    const h = p.scroll.innerHTML;
+    const a = h.indexOf('data-edit-sheet="threshAqi"');
+    return h.slice(h.lastIndexOf('<div class="rgt has-pen">', a), a + 300);
+  };
+  const fill = fillCell({});
+  assert.equal(fill.indexOf('pen-dot ring'), -1, 'default fill: no ring');
+  assert.equal(fill.split('pen-dot fill').length - 1, 2, 'default fill: two filled dots');
+  const none = fillCell({ threshAqiWarnLook: 'none' });
+  assert.equal(none.indexOf('pen-dot ring'), -1, 'none: no ring');
+  assert.equal(none.split('pen-dot fill').length - 1, 1, 'none: the danger dot alone');
 
   const off = bootGeneratedPage();
   off.clickTab('watch');
@@ -729,16 +821,21 @@ test('thresholdPenState honors its env gate and the color pickers', () => {
   // The sheet configures the whole slot now, so the button says "Edit" for every
   // kind instead of naming one of its sections. The badge speaks the LIBRARY's
   // app-neutral vocabulary — a label, an aria note, and an ordered dot list —
-  // with the threshold meaning carried by shape: warn rings, danger fills.
+  // with the threshold meaning carried by shape: the warn pip takes the kind's
+  // warn look (ring = outline, dot = fill, absent = none), danger fills.
   assert.deepEqual(resolver(S, ENV, args),
     { label: 'Edit', ariaNote: 'highlighting on', bold: false,
-      dots: [{ color: '#FFFFFF', ring: true }, { color: '#FFFFFF' }] },
-    'an unset warn colour rings in the auto theme fg');
+      dots: [{ color: '#FFFFFF' }, { color: '#FF0000' }] },
+    'the colour watch\'s default fill: a dot in the auto theme fg, then the red danger');
+  assert.deepEqual(resolver(S, Object.assign({}, ENV, { color: false }), args).dots,
+    [{ color: '#FFFFFF', ring: true }, { color: '#FFFFFF' }],
+    'the B&W watch\'s default outline: a ring');
   assert.deepEqual(resolver(Object.assign({}, S, { threshAqiWarnLook: 'none' }), ENV, args),
     { label: 'Edit', ariaNote: 'highlighting on', bold: false,
-      dots: [{ color: '#8A8E97', ring: true }, { color: '#FFFFFF' }] },
-    'the none look shows the neutral ring');
-  const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF' });
+      dots: [{ color: '#FF0000' }] },
+    'the none look drops the warn pip');
+  const picked = Object.assign({}, S, { threshAqiWarnColor: '#00AAFF', threshAqiDangerColor: '#5500FF',
+    threshAqiWarnLook: 'outline' });
   assert.deepEqual(resolver(picked, ENV, args),
     { label: 'Edit', ariaNote: 'highlighting on', bold: false,
       dots: [{ color: '#00AAFF', ring: true }, { color: '#5500FF' }] });
@@ -1148,9 +1245,10 @@ test('the intro describes the group, so it hangs off the header, not the sheet',
   // what puts the levels on the watch — not the numbers alone.
   assert.match(headerFor('Steps').intro, /switch/i, 'Steps intro names the switch');
   assert.match(headerFor('Steps').intro, /on the watch/i, 'Steps intro says what the switch does');
-  // The close outline follows 'Outline on close', and B&W has no color pickers
+  // The close box follows the Close look row, and B&W has no color pickers
   // (settings audit #23).
-  assert.match(headerFor('Steps').intro, /getting close can add an outline/);
+  assert.match(headerFor('Steps').intro, /getting close draws the close look below/);
+  assert.match(headerFor('Wind').intro, /reaching warn draws the warn look below/);
   assert.match(headerFor('Steps').intro, /On color watches the colors are yours to change below\.$/);
   // The weather group has no switch: its look styles the alert icon always and the
   // slot only while the slot's Highlight is on — and the intro says so.
@@ -1171,8 +1269,8 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     assert.equal(items.indexOf(boldFor(stem)), 0, stem + ' bold row leads');
     assert.deepEqual(items[1], {
       type: 'toggle', messageKey: 'thresh' + stem + 'On', label: 'Highlight',
-      hint: 'Fills this slot from the danger level on, and outlines it from warn if “Outline on warn”'
-        + ' is on — levels and colors are set under Alerts.',
+      hint: 'Fills this slot from the danger level on and draws the warn look from warn — levels,'
+        + ' look and colors are set under Alerts.',
       defaultValue: false, onChange: 'thresholdToggle'
     }, stem + ' Highlight follows Bold');
     assert.deepEqual(items[items.length - 1], {
@@ -1210,9 +1308,11 @@ test('the Bold hint explains the selected step only, and when the level bold app
   // the watch zeroes while Highlight (Goals) is off (status_row.c slot_level), so the
   // hints say "while … is on" (settings audit #8).
   assert.equal(boldFor('Wind').hint, undefined, 'no all-options hint');
+  // A weather kind's ladder also weights its alert's value (status_alerts.c), so
+  // its hints name both places.
   assert.deepEqual(boldFor('Wind').hintByValue, {
-    off: 'Danger still prints bold while Highlight is on.',
-    warn: 'Heavier text from the warn level on, while Highlight is on.',
+    off: 'Danger still prints bold: in the slot while Highlight is on, and in its alert’s value.',
+    warn: 'Heavier text from the warn level on: in the slot while Highlight is on, and in its alert’s value.',
     always: 'Every status slot showing this value prints it in heavier text.'
   });
   assert.deepEqual(boldFor('Steps').hintByValue, {
@@ -1222,11 +1322,18 @@ test('the Bold hint explains the selected step only, and when the level bold app
   });
 });
 
-test('the middle Bold option goes inert while the kind thresholds are off', () => {
-  STEMS.forEach(stem => {
+test('the middle Bold option goes inert only while nothing gives the kind a level', () => {
+  // Goal kinds: their Goals switch. Weather kinds: the slot's Highlight OR the
+  // kind's alert — the alert's value bolds on the same ladder (audit #9).
+  HEALTH_STEMS.forEach(stem => {
     assert.deepEqual(boldFor(stem).optionDisabledWhen,
       { warn: { not: { key: 'thresh' + stem + 'On' } } }, stem);
   });
+  ALERT_STEMS.forEach(stem => {
+    assert.deepEqual(boldFor(stem).optionDisabledWhen,
+      { warn: { all: [{ not: { key: 'thresh' + stem + 'On' } }, { not: { key: 'alert' + stem } }] } }, stem);
+  });
+  assert.equal(HEALTH_STEMS.length + ALERT_STEMS.length, STEMS.length, 'every kind covered');
 });
 
 test('the warn look sits where the outline toggle sat: right after the levels', () => {

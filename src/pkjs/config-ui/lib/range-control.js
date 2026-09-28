@@ -403,8 +403,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * The readout chip pair above a threshold slider — warn outlined in the warn
-   * color, danger filled with the danger color, echoing how the watch draws the
-   * two levels on the status slot itself.
+   * color, danger filled with the danger color: a readout of the two levels, not a
+   * preview of the warn look (none / outline / fill), which the sheet row sets.
    * @param {Object} item Resolved range item (colors + unit).
    * @param {{warn:number, danger:number}} r Current values.
    * @returns {string} Chips row HTML.

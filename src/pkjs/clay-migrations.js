@@ -891,21 +891,45 @@ function migrateThresholdHighlightToggles(isMigrationDone, markDone) {
  * both land on "leave absent"). A look already stored is the page's own truth and is
  * left alone. The old toggle is not deleted: nothing reads it any more.
  *
- * No Clay send: the watch keeps drawing each install's old box from the warn colour
- * byte until the next Clay send carries the look bytes. "Reset watchface" marks this
- * done (clay-settings.js resetAll): after a reset a blank colour means auto.
+ * The same move gives a WEATHER kind's danger the contract's red where it held the
+ * old auto text colour (a stored black or white, int or '#RRGGBB'): the page used to
+ * write the theme fg there, and with warn now filled in that colour by default the
+ * two levels would draw the same box. From here on a stored black or white danger is
+ * a pick ("the text colour"), and unset means red (onbuild.js, kindConfig). Goal
+ * kinds keep their green.
+ *
+ * No Clay send: the watch keeps drawing each install's old boxes from the colour
+ * bytes until the next Clay send carries the look bytes and the new danger colour.
+ * "Reset watchface" marks this done (clay-settings.js resetAll): after a reset a
+ * blank colour means auto (warn) or red (danger).
  *
  * @param {function(): boolean} isMigrationDone marker probe
  * @param {function()} markDone marker setter
  * @returns {void}
  */
 function migrateWarnLook(isMigrationDone, markDone) {
+    /**
+     * @param {*} v Stored colour (0xRRGGBB int or '#RRGGBB' string).
+     * @returns {boolean} True for black or white — the old auto text colour.
+     */
+    function isTextColor(v) {
+        if (typeof v === 'number') { return v === 0x000000 || v === 0xFFFFFF; }
+        if (typeof v !== 'string') { return false; }
+        var u = v.toUpperCase();
+        return u === '#000000' || u === '#FFFFFF';
+    }
     var persistClay = loadForMigration(isMigrationDone, 'warn look');
     if (persistClay === null) { return; }
     var changed = false;
     for (var i = 0; i < thresholds.KINDS.length; i++) {
         var kind = thresholds.KINDS[i];
         if (kind.boldOnly) { continue; }
+        var dangerKey = 'thresh' + kind.key + 'DangerColor';
+        if (!kind.goal && isTextColor(persistClay[dangerKey])) {
+            persistClay[dangerKey] = typeof persistClay[dangerKey] === 'number'
+                ? thresholds.DEFAULT_DANGER_COLOR : thresholds.DEFAULT_DANGER_HEX;
+            changed = true;
+        }
         var lookKey = 'thresh' + kind.key + 'WarnLook';
         if (Object.prototype.hasOwnProperty.call(thresholds.WARN_LOOKS, persistClay[lookKey])) {
             continue;
@@ -926,7 +950,7 @@ function migrateWarnLook(isMigrationDone, markDone) {
     }
     if (changed) {
         save(persistClay);
-        console.log('Migrated the warn outline toggles to warn looks');
+        console.log('Migrated the warn outline toggles to warn looks, danger to red');
     }
     markDone();
 }

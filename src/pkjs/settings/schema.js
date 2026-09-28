@@ -398,31 +398,70 @@ function graphColorRow(row, joins) {
 // applies to the alert icon always and to the slot only while that switch is on. The
 // goal group keeps its switch (goal kinds have no alert). Neither claims the warn level
 // bolds the value — Bold is its own setting, so saying so here could simply be false.
-// The warn box is "can add": it follows the group's warn look (thresh<K>WarnLook —
-// none / outline / fill; status_threshold.h ThreshWarnLook).
+// The warn box is the group's warn look (thresh<K>WarnLook — none / outline / fill;
+// status_threshold.h ThreshWarnLook), so the intro points at that row rather than
+// naming one of its looks.
 var ALERT_LEVELS_INTRO = 'Warn and danger levels for this value: reaching warn ' +
-    'can add an outline, reaching danger fills the alert icon — and the slot, while ' +
-    'its Highlight is on.';
-// "On color watches": on B&W the outline and fill are drawn in the theme's ink and
-// the color pickers below are hidden.
+    'draws the warn look below, reaching danger fills the alert icon — and the slot, ' +
+    'while its Highlight is on.';
+// "On color watches": on B&W the looks are drawn in the theme's ink and the color
+// pickers below are hidden.
 var GOAL_SHEET_INTRO = 'Close and goal levels for this value. The switch ' +
-    'celebrates them on the watch: getting close can add an outline, reaching ' +
+    'celebrates them on the watch: getting close draws the close look below, reaching ' +
     'the goal fills the slot. On color watches the colors are yours to change below.';
+// The warn look's hints — the SELECTED look only (hintByValue), in the two voices.
+// 'none' adds where the remaining signal comes from (the Bold row, which lives in the
+// slot sheet for a weather kind and above the Goals group for a goal kind). On a B&W
+// watch or a B&W day theme the warnLookHint resolver (blocks.js) answers from the
+// `bw` set instead: there the box is drawn in the text colour, the pickers are
+// hidden, and a fill is the danger (or reached-goal) fill. With only the NIGHT theme
+// B&W (Theme switching on) the day hint stands and the `night` note is appended — by
+// day the box is in the picked colour. The watch still draws what was picked
+// (status_row.c).
+var WARN_LOOK_HINTS = {
+    none: 'No box at warn — bold text still follows the Bold row in the slot’s sheet.',
+    outline: 'A thin frame in the warn color.',
+    fill: 'A solid box in the warn color, with the value in a contrasting color.'
+};
+var WARN_LOOK_BW_HINTS = {
+    outline: 'A thin frame in the text color.',
+    fill: 'A solid box in the text color, with the value knocked out. On ' +
+        'black-and-white screens this looks the same as danger.'
+};
+var GOAL_LOOK_HINTS = {
+    none: 'No box when close — bold text still follows the Bold row above.',
+    outline: 'A thin frame in the close color.',
+    fill: 'A solid box in the close color, with the value in a contrasting color.'
+};
+var GOAL_LOOK_BW_HINTS = {
+    outline: 'A thin frame in the text color.',
+    fill: 'A solid box in the text color, with the value knocked out. On ' +
+        'black-and-white screens this looks the same as a reached goal.'
+};
+var WARN_LOOK_NIGHT_NOTES = {
+    fill: 'At night (black-and-white theme) this looks the same as danger.'
+};
+var GOAL_LOOK_NIGHT_NOTES = {
+    fill: 'At night (black-and-white theme) this looks the same as a reached goal.'
+};
 // The Bold row is a SLOT-level setting, not a level one: it leads the slot sheet
 // (above the Goals group; an alert kind's levels live in its Alerts sheet) and stays
 // live while the kind's highlight is switched off, because "Always" needs no levels
 // to mean something. Only the middle option does —
 // it goes inert (not away: removing it would let the options-snapping path
-// rewrite a stored 'warn' to 'off') until the kind's highlight is on.
+// rewrite a stored 'warn' to 'off') while nothing gives the kind a level: a goal
+// kind's Goals switch, or a weather kind's slot Highlight or its alert.
 // The hint explains the SELECTED step only (hintByValue), in the sheet's two voices
 // (alert levels reached vs goals reached). The level-driven bold — danger / a reached
 // goal, and the middle step — reads the kind's level, which the watch zeroes while the
 // kind's Highlight (Goals) switch is off (status_row.c slot_level), so the hints say
 // "while … is on". 'Always' needs no levels, so its note is the per-kind scope.
 var BOLD_ALWAYS_HINT = 'Every status slot showing this value prints it in heavier text.';
+// A weather kind's Bold row also sets the weight of its alert's value (status_alerts.c
+// bolds an entry on the kind's ladder at its real level, Highlight or not).
 var BOLD_HINTS = {
-    off: 'Danger still prints bold while Highlight is on.',
-    warn: 'Heavier text from the warn level on, while Highlight is on.',
+    off: 'Danger still prints bold: in the slot while Highlight is on, and in its alert’s value.',
+    warn: 'Heavier text from the warn level on: in the slot while Highlight is on, and in its alert’s value.',
     always: BOLD_ALWAYS_HINT
 };
 var GOAL_BOLD_HINTS = {
@@ -784,20 +823,28 @@ function levelsGroup(keyStem, hint, gate) {
         // defaultFrom items are never seeded, so an absent key packs through the
         // same resolver phone-side (buildSettingsBlob, with the watch's env).
         // Shown on B&W too: none vs outline is meaningful without colour choice.
+        // A weather kind's row is always live (it styles the alert icon too); a
+        // goal kind's goes inert with its Goals switch, like its colours.
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'WarnLook',
-        label: goal ? 'Look when close' : 'Warn look',
+        label: goal ? 'Close look' : 'Warn look',
         options: [['None', 'none'], ['Outline', 'outline'], ['Fill', 'fill']],
         defaultFrom: {resolver: 'warnLookDefault', args: {keyStem: keyStem}},
+        hintByValue: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
+        hintFrom: {resolver: 'warnLookHint', args: {
+            bw: goal ? GOAL_LOOK_BW_HINTS : WARN_LOOK_BW_HINTS,
+            night: goal ? GOAL_LOOK_NIGHT_NOTES : WARN_LOOK_NIGHT_NOTES,
+            base: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS
+        }},
         joinPrevious: true,
         showWhen: gate || undefined,
         disabledWhen: offWhen
     }, {
-        // Colors hydrate UNSET = AUTO: they track the theme fg (weather) or the
+        // An unset warn color is AUTO: it tracks the theme fg (weather) or the
         // goal green (goal) until customized (onLoad, blocks.js
         // thresholdAutoColor), and the packer resolves an unset one the same way.
-        // The contract's DEFAULT_DANGER_COLOR is only the pack-time fallback for
-        // settings that never saw this page.
+        // An unset danger color is the contract's red (weather; DEFAULT_DANGER_HEX)
+        // or the goal green — written on open, and the packer's fallback too.
         type: 'color',
         messageKey: 'thresh' + keyStem + 'WarnColor',
         label: goal ? 'Close color' : 'Warn color',
@@ -857,7 +904,11 @@ function thresholdSection(title, keyStem, hint, gate, extraItems, tail) {
         defaultValue: 'warn',
         options: [['Off', 'off'], [goal ? 'Close' : 'Warn', 'warn'], ['Always', 'always']],
         disabledWhen: BOLD_ALL_WHEN,
-        optionDisabledWhen: {warn: {not: {key: onKey}}}
+        // The middle step needs a level: a goal kind's comes from its Goals switch;
+        // a weather kind's from its slot's Highlight OR its alert, whose value
+        // bolds on this ladder too (status_alerts.c) — inert only while neither is on.
+        optionDisabledWhen: {warn: goal ? {not: {key: onKey}}
+            : {all: [{not: {key: onKey}}, {not: {key: 'alert' + keyStem}}]}}
     };
     // A weather kind's highlight switch sits right under Bold (a goal kind's rides
     // its Goals header).
@@ -877,8 +928,8 @@ function thresholdSection(title, keyStem, hint, gate, extraItems, tail) {
 }
 // A weather kind's slot highlight switch — the watch's enable bit for the kind
 // (kindConfig), which styles its STATUS SLOTS only: the alert icon has its own switch
-// (alert<Stem>, in the Alerts sheet) and draws its outline and fill whether or not
-// this is on. It lives in the slot sheet because that is what it styles; the levels
+// (alert<Stem>, in the Alerts sheet) and draws its warn look and danger fill whether
+// or not this is on. It lives in the slot sheet because that is what it styles; the levels
 // and colors it uses live in the Alerts sheet. ON seeds the pair through the
 // thresholdToggle hook when none is stored, as the goal header's switch does.
 /**
@@ -890,9 +941,9 @@ function highlightToggle(keyStem) {
         type: 'toggle',
         messageKey: 'thresh' + keyStem + 'On',
         label: 'Highlight',
-        // Fill at danger always; the warn outline only with the Alerts sheet's
-        // 'Outline on warn' (a 0x00 warn accent draws no box — status_row.c).
-        hint: 'Fills this slot from the danger level on, and outlines it from warn if “Outline on warn” is on — levels and colors are set under Alerts.',
+        // Fill at danger always; at warn the Alerts sheet's warn look (none /
+        // outline / fill — status_threshold_box).
+        hint: 'Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.',
         defaultValue: false,
         onChange: 'thresholdToggle'
     };
@@ -2294,15 +2345,16 @@ module.exports = {
             // section with an intro never counts as empty (engine buildSectionBody) —
             // without it the title and intro would outlive their rows on aplite, which
             // has neither the rain radar nor the Alerts row. The reset chip reverts the
-            // alerts' switches and looks and the rain time window (blocks.js
-            // resetAlerts); the levels keep their own reset in each sheet, the
+            // alerts' switches and display looks and the rain time window (blocks.js
+            // resetAlerts); the levels, warn looks and colours keep their own reset in each sheet, the
             // placements ride the status card's reset. The intro states the icon's look
-            // as the watch draws it (status_alerts.c): a danger box always, a warn box
-            // only on a set warn accent ('Outline on warn'), whatever the slot's
-            // Highlight; the rain drop is tinted per tier on color and never boxed.
+            // as the watch draws it (status_alerts.c): a danger fill always, at warn
+            // the kind's warn look, whatever the slot's Highlight; the rain drop is
+            // tinted per tier on color and never boxed. It does not describe the
+            // default look (the owner's copy rule) — each alert sheet's row shows it.
             title: 'Alerts',
             showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
-            intro: 'One icon per active alert — filled at danger, and outlined at warn if its “Outline on warn” is on. On color watches the rain drop takes the radar’s rain color. Each status bar below chooses where they appear.'
+            intro: 'One icon per active alert — filled at danger; at warn it takes the alert’s warn look. On color watches the rain drop takes the radar’s rain color. Each status bar below chooses where they appear.'
                 + ' <button type="button" class="txt-act-btn" data-action="resetAlerts">Reset alerts to defaults</button>',
             items: alertCardItems()
         }, {

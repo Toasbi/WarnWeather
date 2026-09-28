@@ -458,9 +458,9 @@ if (typeof require !== 'undefined') {
         // A null warn color (warn look 'none') draws the slider's warn pieces in a
         // neutral gray: the zone still shows WHERE warn spans, while the copy +
         // warn look make clear the watch draws no box there.
-        var warnDisplay = thresholdDisplayColor(S, stem, 'Warn');
+        var warnDisplay = thresholdDisplayColor(S, stem, 'Warn', env);
         var warnColor = warnDisplay === null ? '#8A8E97' : warnDisplay;
-        var dangerColor = thresholdDisplayColor(S, stem, 'Danger');
+        var dangerColor = thresholdDisplayColor(S, stem, 'Danger', env);
         var isGoal = Boolean(contract && contract.isGoalKind
             && contract.isGoalKind(stem));
         // Seeds from the contract's table (what a blank pair means on the phone);
@@ -556,16 +556,64 @@ if (typeof require !== 'undefined') {
         return contract.warnLookDefault(args && args.keyStem, isColor);
     });
 
-    // "Auto" threshold colors: a color the user never customized tracks the THEME's
-    // text color — outline-vs-fill already carries the warn/danger distinction, and
-    // the fg color beats a fixed hue for contrast on the page and the watch
-    // (watch-side rendering gets its own calibration pass later). ONLY an unset
-    // value or one of the two fg values counts as auto (re-derived on every page
-    // open — onbuild.js onLoad); every other color, the contract's orange/red
-    // included, is a user pick and is left alone. The contract DEFAULT_*_COLOR
-    // constants remain solely the pack-time fallback for a blob built from settings
-    // that never passed through this page. Exposed on PConf because the flat page
-    // has no require().
+    /**
+     * @param {*} theme stored theme setting
+     * @returns {boolean} true for the two black-and-white themes
+     */
+    function isBwTheme(theme) {
+        return theme === 'bw' || theme === 'bw-light';
+    }
+
+    /**
+     * Whether the watch draws black-and-white by DAY: a B&W watch, or a B&W day
+     * theme — the case the colour pickers are hidden for (schema.js
+     * COLOR_THEME_WHEN) and every highlight is drawn in the text colour.
+     * @param {Object} S Live settings state.
+     * @param {Object} [env] Platform env (env.color false on a B&W watch).
+     * @returns {boolean} true when the day look is black-and-white.
+     */
+    function bwDayScreen(S, env) {
+        if (env && env.color === false) { return true; }
+        return isBwTheme((S || {}).theme);
+    }
+
+    // The warn look's hint (thresh<K>WarnLook's hintFrom), for the SELECTED look:
+    //  - a B&W watch or B&W day theme: the row's `bw` set (schema.js
+    //    WARN_LOOK_BW_HINTS / GOAL_LOOK_BW_HINTS) — the box is drawn in the text
+    //    colour, the pickers are hidden, and a fill is the danger (reached-goal) fill;
+    //  - a colour day theme with a B&W night theme (Theme switching on): the row's
+    //    own hint (`base`, its hintByValue) plus the `night` note for that look — by
+    //    day the box is in the picked colour, at night a fill matches danger;
+    //  - otherwise null — the row's own hintByValue.
+    // A look a set has no line for (none) falls back the same way. The watch still
+    // draws what was picked (status_row.c).
+    PConf.hintResolvers.register('warnLookHint', function (S, env, args) {
+        if (!args) { return null; }
+        var value = args.value;
+        if (bwDayScreen(S, env)) {
+            var bwText = args.bw && args.bw[value];
+            return typeof bwText === 'string' ? bwText : null;
+        }
+        var st = S || {};
+        var note = args.night && args.night[value];
+        var base = args.base && args.base[value];
+        if (st.themeAuto === true && isBwTheme(st.themeNight)
+            && typeof note === 'string' && typeof base === 'string') {
+            return base + ' ' + note;
+        }
+        return null;
+    });
+
+    // "Auto" threshold colors: a WARN color the user never customized tracks the
+    // THEME's text color — it beats a fixed hue for contrast on the page and the
+    // watch. ONLY an unset value or one of the two fg values counts as auto
+    // (re-derived on every page open — onbuild.js onLoad); every other color is a
+    // user pick and is left alone. A weather kind's DANGER color is not auto: unset,
+    // it is the contract's red (DEFAULT_DANGER_HEX), because the default warn look
+    // on a colour watch is a fill in the text color and danger must stay apart from
+    // it; a stored black or white there is a pick meaning "the text color". Goal
+    // kinds keep the goal green for both. Exposed on PConf because the flat page has
+    // no require().
     var AUTO_FG_DARK = '#FFFFFF', AUTO_FG_LIGHT = '#000000';
     /**
      * @param {*} theme stored theme setting ('dark'|'light'|'bw'|'bw-light')
@@ -579,19 +627,29 @@ if (typeof require !== 'undefined') {
      * @returns {boolean} true when the value should keep tracking the theme fg
      */
     function thresholdColorIsAuto(value) {
-        if (value === null || typeof value === 'undefined' || value === '') { return true; }
+        if (thresholdColorIsUnset(value)) { return true; }
         var v = colorHexOf(value, 0x000000);   // garbage normalizes to a pool value
         return v === AUTO_FG_DARK || v === AUTO_FG_LIGHT;
     }
     /**
-     * The color the page should DRAW for a kind's warn/danger pieces: the theme fg
-     * while the stored value is auto, the user's pick otherwise.
+     * @param {*} value stored color setting
+     * @returns {boolean} true when nothing is stored ('' / null / absent)
+     */
+    function thresholdColorIsUnset(value) {
+        return value === null || typeof value === 'undefined' || value === '';
+    }
+    /**
+     * The color the page should DRAW for a kind's warn/danger pieces — what the
+     * watch draws by day: the theme fg on a B&W watch or B&W day theme (every
+     * highlight is in the text color there), else the pick; an unset danger is the
+     * contract's red (goal: green), any other auto value the theme fg.
      * @param {Object} S Live settings state.
      * @param {string} stem Kind key stem, e.g. 'Steps'.
      * @param {string} which 'Warn' | 'Danger'.
-     * @returns {string} '#RRGGBB'.
+     * @param {Object} [env] Platform env (env.color false on a B&W watch).
+     * @returns {?string} '#RRGGBB', or null for a warn look of 'none'.
      */
-    function thresholdDisplayColor(S, stem, which) {
+    function thresholdDisplayColor(S, stem, which, env) {
         var raw = S['thresh' + stem + which + 'Color'];
         // WARN with the look 'none' draws no box (bold only) — report null so
         // callers render their neutral no-box state instead of a color. Any other
@@ -599,17 +657,26 @@ if (typeof require !== 'undefined') {
         if (which === 'Warn' && S['thresh' + stem + 'WarnLook'] === 'none') {
             return null;
         }
+        if (bwDayScreen(S, env)) { return thresholdAutoFg(S.theme); }
+        if (which === 'Danger' && thresholdColorIsUnset(raw)) {
+            var contractMod = thresholdContract();
+            if (contractMod) {
+                return contractMod.isGoalKind(stem)
+                    ? contractMod.DEFAULT_GOAL_HEX : contractMod.DEFAULT_DANGER_HEX;
+            }
+        }
         if (thresholdColorIsAuto(raw)) { return thresholdAutoFg(S.theme); }
         return colorHexOf(raw, 0x000000);
     }
-    PConf.thresholdAutoColor = { fgFor: thresholdAutoFg, isAuto: thresholdColorIsAuto };
+    PConf.thresholdAutoColor = {
+        fgFor: thresholdAutoFg, isAuto: thresholdColorIsAuto, isUnset: thresholdColorIsUnset
+    };
 
     // Reset-to-defaults for one threshold kind (the small button beside the slider's
     // label). Returns true so the engine re-renders.
     PConf.actions = PConf.actions || {};
     PConf.actions.resetThresholds = function (stem, S, env, defaultOf) {
         if (!stem || !S || !THRESHOLD_RANGES[stem] || !defaultOf) { return false; }
-        var fg = thresholdAutoFg(S.theme);
         var contractMod = thresholdContract();
         var goal = Boolean(contractMod && contractMod.isGoalKind && contractMod.isGoalKind(stem));
         // Every key with a schema default lands on it THROUGH the engine's resolver —
@@ -628,11 +695,11 @@ if (typeof require !== 'undefined') {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
         }
         // The ONE deliberate divergence from the schema: DangerColor's stored
-        // default is '' (= auto, re-derived to the theme fg on every page open by
-        // onbuild), but the PACK-time fallback for '' is the contract's red — so a
-        // reset-then-save would flash red until the next open. Write eagerly what
-        // the next onLoad would derive anyway: theme fg for weather, green for goal.
-        S['thresh' + stem + 'DangerColor'] = goal ? contractMod.DEFAULT_GOAL_HEX : fg;
+        // default is '' (= unset), which the next page open (onbuild) fills with the
+        // contract's red (weather) or green (goal). Write that eagerly, so the
+        // reset shows the colour the watch will draw straight away.
+        S['thresh' + stem + 'DangerColor'] = goal
+            ? contractMod.DEFAULT_GOAL_HEX : contractMod.DEFAULT_DANGER_HEX;
         // "Fresh install" is more than the schema: finishing the first-run wizard
         // applies the defaults-policy table, so the reset lands on those rows too —
         // AQI's highlight-on, seeded through the very hooks
@@ -735,8 +802,9 @@ if (typeof require !== 'undefined') {
     // kind owns exactly two colours.
     //
     // The last dot of a multi-dot row is drawn as a ring purely so several chips read
-    // as several colours instead of one bar; unlike the threshold badge's ring — which
-    // is the watch's own outline/filled language — it carries no meaning of its own.
+    // as several colours instead of one bar; unlike the threshold badge's ring — the
+    // watch's own outline (a warn look) against its fill — it carries no meaning of
+    // its own.
     //
     // Polarity: the sheet's pickers gate on the RAW `theme` value, so the badge must
     // fold nothing either — hence themePolarity true even when a B&W-polarity watch is
@@ -887,12 +955,13 @@ if (typeof require !== 'undefined') {
     };
 
     // Reset-to-defaults for the Alerts card (the text button in its intro — schema.js
-    // alertCardItems): every alert's switch and look back to its schema default, via
+    // alertCardItems): every alert's switch and display look (Icon / Icon + value)
+    // back to its schema default, via
     // the engine's resolver like resetStatusSlots above. The metric alerts are the
     // level kinds that are neither bold-only nor goals — the five the card lists;
     // rain's are alertRain (on), rainAlertDisplay and its time window
     // (rainCountdownHorizon — it lives in the Rain sheet and prints on the card row).
-    // Deliberately untouched: the levels and colours (each sheet's Alert levels header
+    // Deliberately untouched: the levels, warn looks and colours (each sheet's Alert levels header
     // has its own reset, which also serves the slots' highlight) and each bar's
     // placement (the status card's reset).
     /**
@@ -922,18 +991,50 @@ if (typeof require !== 'undefined') {
     };
 
     /**
-     * The pencil badge of one threshold kind's slot: a warn-color ring + danger-color
-     * dot while the kind's highlight is ENABLED (the contract's kindConfig — the rule
-     * the watch actually packs with), plus the bold 'B'. (The Alerts card's rows
-     * badge the alert instead — alertLevelBadge.)
+     * The warn pip of a threshold badge, in the watch's own language: the kind's
+     * warn look decides the shape — no pip for 'none' (the watch draws no box at
+     * warn), a ring for 'outline', a filled dot for 'fill' — painted in the warn
+     * colour (the theme text colour while it is auto). The look is the contract's
+     * resolution (warnLookFor), so an unset key previews the platform default.
      * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused; callers gate on env.thresholds).
+     * @param {Object} env Platform env (env.color picks the default look).
+     * @param {string} stem Kind key stem, e.g. 'Uv'.
+     * @returns {?{color: string, ring: (boolean|undefined)}} The pip, or null for none.
+     */
+    function warnPip(S, env, stem) {
+        var contract = thresholdContract();
+        var look = contract.warnLookFor(S, stem, env ? env.color : undefined);
+        if (look === 'none') { return null; }
+        var color = thresholdDisplayColor(S, stem, 'Warn', env);
+        if (color === null) { return null; }
+        return look === 'outline' ? {color: color, ring: true} : {color: color};
+    }
+
+    /**
+     * The badge dots of an enabled kind: the warn pip (warnPip — absent for the
+     * 'none' look) then the danger dot (danger always fills).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {string} stem Kind key stem.
+     * @returns {Object[]} Ordered dot list.
+     */
+    function levelDots(S, env, stem) {
+        var pip = warnPip(S, env, stem);
+        var danger = {color: thresholdDisplayColor(S, stem, 'Danger', env)};
+        return pip ? [pip, danger] : [danger];
+    }
+
+    /**
+     * The pencil badge of one threshold kind's slot: the warn pip + danger-color
+     * dot (levelDots) while the kind's highlight is ENABLED (the contract's
+     * kindConfig — the rule the watch actually packs with), plus the bold 'B'.
+     * (The Alerts card's rows badge the alert instead — alertLevelBadge.)
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (callers gate on env.thresholds; env.color
+     *     picks the default warn look).
      * @param {number} kindIndex Index into the contract's KINDS.
      * @returns {Object} Badge state for the engine's editBadgeFrom.
      */
-    // The badge ring for a kind whose warn outline is off: a neutral gray, so the
-    // ring still reads but carries no colour meaning (the watch draws no warn box).
-    var NO_OUTLINE_RING = '#8A8E97';
     function penStateForKind(S, env, kindIndex) {
         var contract = thresholdContract();
         var key = contract.KINDS[kindIndex].key;
@@ -950,7 +1051,6 @@ if (typeof require !== 'undefined') {
         var notes = [];
         if (enabled) { notes.push('highlighting on'); }
         if (boldAlways) { notes.push('always bold'); }
-        var penWarn = thresholdDisplayColor(S, key, 'Warn');
         return {
             // The sheet-trigger BUTTON label. The slot sheet configures the whole
             // slot (bold + thresholds), not just the warn/goal pair, so the button
@@ -960,13 +1060,8 @@ if (typeof require !== 'undefined') {
             label: 'Edit',
             ariaNote: notes.join(', '),
             bold: boldAlways,
-            // The watch's own language: warn is an OUTLINE, danger is FILLED.
-            // No warn outline configured -> neutral gray ring (the enabled badge
-            // still reads; the ring hue just carries no color meaning then).
-            dots: enabled ? [
-                { color: penWarn === null ? NO_OUTLINE_RING : penWarn, ring: true },
-                { color: thresholdDisplayColor(S, key, 'Danger') }
-            ] : []
+            // The watch's own language: warn in its look, danger FILLED.
+            dots: enabled ? levelDots(S, env, key) : []
         };
     }
 
@@ -1002,10 +1097,9 @@ if (typeof require !== 'undefined') {
     /**
      * The Alerts card row's badge (editBadgeFrom, args.keyStem): the colours the
      * watch draws that alert in, while its Alert switch is ON (no dots at all while
-     * it is off) — a ring in the warn colour (the entry's outline at warn; with
-     * 'Outline on warn' off the watch draws no box at warn, so the ring is the
-     * neutral no-outline gray penStateForKind uses) and a dot in the danger colour
-     * (the filled box). No 'B': bold is how a SLOT prints, not part of the alert.
+     * it is off) — the warn pip in the kind's warn look (no pip for 'none', a
+     * ring for 'outline', a dot for 'fill' — warnPip, shared with the slot
+     * pencil) and a dot in the danger colour (the filled box). No 'B': bold is how a SLOT prints, not part of the alert.
      * The alert switch decides, not the slot's Highlight switch: the entries take
      * the kind's colours either way. Rain draws in the radar's colours and never
      * boxes, so its row has no dots, only the Edit button every row carries.
@@ -1026,15 +1120,7 @@ if (typeof require !== 'undefined') {
         var contract = thresholdContract();
         if (!contract || levelKindIndex(contract, stem) < 0) { return null; }
         if (st['alert' + stem] !== true) { return {label: 'Edit', ariaNote: 'off', dots: []}; }
-        var warn = thresholdDisplayColor(st, stem, 'Warn');
-        return {
-            label: 'Edit',
-            ariaNote: '',
-            dots: [
-                {color: warn === null ? NO_OUTLINE_RING : warn, ring: true},
-                {color: thresholdDisplayColor(st, stem, 'Danger')}
-            ]
-        };
+        return {label: 'Edit', ariaNote: '', dots: levelDots(st, env, stem)};
     }
     PConf.badgeResolvers.register('alertLevelBadge', alertLevelBadge);
 

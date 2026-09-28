@@ -22,7 +22,7 @@ var NO_THEME_POLARITY_PLATFORMS = { aplite: true };
 // Platforms where the watch compiles status-slot threshold highlighting out (no
 // WW_THRESHOLD_HIGHLIGHT): aplite (Pebble Classic/Steel). Its status rows are
 // painted by the frozen lean twin layers/status_row_aplite.c, which cannot draw a
-// warn outline or a danger fill, and the image had no room for the feature (21800 B
+// warn look or a danger fill, and the image had no room for the feature (21800 B
 // launch guard). The whole threshold card is hidden there, so aplite is never
 // offered thresholds that would silently do nothing. Keep in lockstep with the C
 // `#if defined(WW_THRESHOLD_HIGHLIGHT)` guards (wscript defines the macro for every
@@ -87,7 +87,7 @@ function isThemePolarityPlatform(platform) { return !NO_THEME_POLARITY_PLATFORMS
  * (WW_THRESHOLD_HIGHLIGHT). Unknown platforms are treated as capable so a missing
  * watchInfo never hides a real feature.
  * @param {string} platform Platform name (e.g. 'basalt', 'aplite').
- * @returns {boolean} True if the platform can draw the warn outline / danger fill.
+ * @returns {boolean} True if the platform can draw the warn look / danger fill.
  */
 function isThresholdPlatform(platform) { return !NO_THRESHOLD_PLATFORMS[platform]; }
 /**

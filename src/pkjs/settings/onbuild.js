@@ -35,21 +35,27 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         for (var i = 0; i < contract.KINDS.length; i++) {
             var kind = contract.KINDS[i];
             if (auto) {
-                // WARN and DANGER alike: a never-customized colour — unset, the old
-                // parseResponse bug's null, or an fg value — is AUTO and tracks the
-                // theme fg (weather) or the goal green (goal). Whether warn draws a
-                // box at all is the kind's warn look (thresh<K>WarnLook), not the
-                // colour: a blank warn colour no longer means "no outline" (the
-                // one-time conversion of that old meaning is clay-migrations.js
+                // WARN: a never-customized colour — unset, the old parseResponse
+                // bug's null, or an fg value — is AUTO and tracks the theme fg
+                // (weather) or the goal green (goal). Whether warn draws a box at
+                // all is the kind's warn look (thresh<K>WarnLook), not the colour:
+                // a blank warn colour no longer means "no outline" (the one-time
+                // conversion of that old meaning is clay-migrations.js
                 // migrateWarnLook). A user pick survives untouched.
                 var goalHex = contract.DEFAULT_GOAL_HEX;
                 var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
                 if (auto.isAuto(rawWarn)) {
                     ctx.set('thresh' + kind.key + 'WarnColor', kind.goal ? goalHex : fg);
                 }
+                // DANGER: a goal kind's is auto like its warn (green). A weather
+                // kind's only while UNSET, and then it is the contract's red — a
+                // warn fill in the text colour must not look like danger. A stored
+                // black or white is a pick ("the text colour", which the packer
+                // follows across themes), so it is left alone.
                 var rawDanger = ctx.get('thresh' + kind.key + 'DangerColor');
-                if (auto.isAuto(rawDanger)) {
-                    ctx.set('thresh' + kind.key + 'DangerColor', kind.goal ? goalHex : fg);
+                if (kind.goal ? auto.isAuto(rawDanger) : auto.isUnset(rawDanger)) {
+                    ctx.set('thresh' + kind.key + 'DangerColor',
+                        kind.goal ? goalHex : contract.DEFAULT_DANGER_HEX);
                 }
             }
         }

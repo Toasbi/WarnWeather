@@ -2147,7 +2147,8 @@ test('the Alerts card is watch.sections[0]: its own card, above the status card'
   assert.equal(sec.groupCard, undefined, 'a card of its own, not a sub-header of the status card');
   assert.equal(sec.title, 'Alerts');
   assert.equal(sec.sheetOnly, undefined, 'a card, not a sheet');
-  assert.match(sec.intro, /^One icon per active alert — filled at danger, and outlined at warn if its “Outline on warn” is on\./);
+  assert.match(sec.intro, /^One icon per active alert — filled at danger; at warn it takes the alert’s warn look\. On color/);
+  assert.ok(sec.intro.indexOf('by default') === -1, 'the intro does not describe the default look');
   assert.ok(sec.intro.indexOf('data-action="resetAlerts"') !== -1, 'the intro carries the card reset');
   assert.ok(sec.intro.indexOf('class="txt-act-btn"') !== -1, 'as the shared text-action chip');
   // The union of its rows' platform gates: a section with an intro never counts as

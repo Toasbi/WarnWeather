@@ -110,8 +110,11 @@ test('Edit opens the alert sheet; flipping its one switch turns the row live —
   const row = rowOf(page.scroll.innerHTML, 'data-edit-sheet="alertUv"');
   assert.ok(row.indexOf('<div class="hint">Warn 6 · Danger 8</div>') !== -1,
     'the card row prints the live levels, and nothing about the slot highlight: ' + row);
-  assert.ok(row.indexOf('pen-dot ring') !== -1 && row.indexOf('pen-dot fill" style="--th-c:#FF0000"') !== -1,
-    'and the alert\'s colour dots');
+  // The colour watch's default warn look is a fill, so the warn pip is a filled dot
+  // (the auto theme fg on the dark theme) — no ring — beside the danger dot.
+  assert.ok(row.indexOf('pen-dot ring') === -1 && row.indexOf('pen-dot fill" style="--th-c:#FFFFFF"') !== -1
+    && row.indexOf('pen-dot fill" style="--th-c:#FF0000"') !== -1,
+    'and the alert\'s colour dots: ' + row);
 });
 
 test('the Look reads its hint by value', () => {
@@ -190,7 +193,7 @@ test('the slot pencil sheet holds the Highlight switch and points at the Alerts 
   const hl = sheet.indexOf('data-k="threshUvOn"');
   assert.ok(bold !== -1, 'the slot rows stay');
   assert.ok(hl > bold, 'the Highlight switch sits after Bold');
-  assert.ok(sheet.indexOf('Fills this slot from the danger level on, and outlines it from warn if “Outline on warn” is on — levels and colors are set under Alerts.') !== -1,
+  assert.ok(sheet.indexOf('Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.') !== -1,
     'with its hint');
   page.clickModalToggle('threshUvOn');
   assert.strictEqual(page.S.threshUvOn, true, 'the switch stores');
