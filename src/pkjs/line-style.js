@@ -27,7 +27,7 @@
     var rainTier = (typeof require !== 'undefined')
         ? require('./weather/rain-tier') : null;
     var resolveInk = resolveInkLib.resolveInk;
-    var isBwTheme = resolveInkLib.isBwTheme;
+    var drawsColor = resolveInkLib.drawsColor;
     var isLightPolarity = resolveInkLib.isLightPolarity;
     var effectiveTheme = resolveInkLib.effectiveTheme;
 
@@ -621,7 +621,7 @@
         var theme = effectiveTheme((settings || {}).theme || 'dark', Boolean(caps.themePolarity));
         return {
             theme: theme,
-            isColor: Boolean(caps.color) && !isBwTheme(theme),
+            isColor: drawsColor(caps, theme),
             suffix: isLightPolarity(theme) ? 'Light' : 'Dark'
         };
     }

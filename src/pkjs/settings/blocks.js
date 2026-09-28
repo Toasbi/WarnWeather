@@ -40,6 +40,10 @@ if (typeof require !== 'undefined') {
     // window.LineStyle exists by the time the page boots.
     var lineStyle = (typeof require !== 'undefined')
         ? require('../line-style.js') : window.LineStyle;
+    // The theme vocabulary (polarity, B&W, whether the watch draws colour), concatenated
+    // ahead of line-style.js and so of this file.
+    var resolveInk = (typeof require !== 'undefined')
+        ? require('../resolve-ink.js') : window.ResolveInk;
     // The page bundle's single-source int<->hex (config-ui/lib/color.js, concatenated
     // ahead of every app file), rather than a fourth local copy of the same six digits.
     var intToHex = (typeof require !== 'undefined')
@@ -538,27 +542,6 @@ if (typeof require !== 'undefined') {
         return thresholds.warnLookDefault(args && args.keyStem, env ? env.color : undefined);
     });
 
-    /**
-     * @param {*} theme stored theme setting
-     * @returns {boolean} true for the two black-and-white themes
-     */
-    function isBwTheme(theme) {
-        return theme === 'bw' || theme === 'bw-light';
-    }
-
-    /**
-     * Whether the watch draws black-and-white by DAY: a B&W watch, or a B&W day
-     * theme — the case the colour pickers are hidden for (schema.js
-     * COLOR_THEME_WHEN) and every highlight is drawn in the text colour.
-     * @param {Object} S Live settings state.
-     * @param {Object} [env] Platform env (env.color false on a B&W watch).
-     * @returns {boolean} true when the day look is black-and-white.
-     */
-    function bwDayScreen(S, env) {
-        if (env && env.color === false) { return true; }
-        return isBwTheme((S || {}).theme);
-    }
-
     // The warn look's hint (thresh<K>WarnLook's hintFrom), for the SELECTED look:
     //  - a B&W watch or B&W day theme: the row's `bw` set (schema.js
     //    WARN_LOOK_BW_HINTS / GOAL_LOOK_BW_HINTS) — the box is drawn in the text
@@ -575,16 +558,18 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('warnLookHint', function (S, env, args) {
         if (!args) { return null; }
         var value = args.value;
-        if (bwDayScreen(S, env)) {
+        var st = S || {};
+        // By DAY: the case the colour pickers are hidden for (schema.js
+        // COLOR_THEME_WHEN) and every highlight is drawn in the text colour.
+        if (!resolveInk.drawsColor(env, st.theme)) {
             var bwText = args.bw && args.bw[value];
             return typeof bwText === 'string' ? bwText : null;
         }
-        var st = S || {};
         var base = args.base && args.base[value];
         if (typeof base !== 'string') { return null; }
         var parts = [base];
         var note = args.night && args.night[value];
-        if (st.themeAuto === true && isBwTheme(st.themeNight) && typeof note === 'string') {
+        if (st.themeAuto === true && resolveInk.isBwTheme(st.themeNight) && typeof note === 'string') {
             parts.push(note);
         }
         if (value === 'fill' && args.keyStem && typeof args.sameColor === 'string') {
@@ -597,45 +582,14 @@ if (typeof require !== 'undefined') {
         return parts.length > 1 ? parts.join(' ') : null;
     });
 
-    // "Auto" threshold colors: a WARN color the user never customized tracks the
-    // THEME's text color — it beats a fixed hue for contrast on the page and the
-    // watch. ONLY an unset value or one of the two fg values counts as auto
-    // (re-derived on every page open — onbuild.js onLoad); every other color is a
-    // user pick and is left alone. A weather kind's DANGER color is not auto: unset,
-    // it is the contract's red (DEFAULT_DANGER_HEX), because the default warn look
-    // on a colour watch is a fill in the text color and danger must stay apart from
-    // it; a stored black or white there is a pick meaning "the text color". Goal
-    // kinds keep the goal green for both. Exposed on PConf because the flat page has
-    // no require().
-    var AUTO_FG_DARK = '#FFFFFF', AUTO_FG_LIGHT = '#000000';
     /**
-     * @param {*} theme stored theme setting ('dark'|'light'|'bw'|'bw-light')
-     * @returns {string} the theme's text color as '#RRGGBB'
-     */
-    function thresholdAutoFg(theme) {
-        return (theme === 'light' || theme === 'bw-light') ? AUTO_FG_LIGHT : AUTO_FG_DARK;
-    }
-    /**
-     * @param {*} value stored color setting
-     * @returns {boolean} true when the value should keep tracking the theme fg
-     */
-    function thresholdColorIsAuto(value) {
-        if (thresholdColorIsUnset(value)) { return true; }
-        var v = colorHexOf(value, 0x000000);   // garbage normalizes to a pool value
-        return v === AUTO_FG_DARK || v === AUTO_FG_LIGHT;
-    }
-    /**
-     * @param {*} value stored color setting
-     * @returns {boolean} true when nothing is stored ('' / null / absent)
-     */
-    function thresholdColorIsUnset(value) {
-        return value === null || typeof value === 'undefined' || value === '';
-    }
-    /**
-     * The color the page should DRAW for a kind's warn/danger pieces — what the
-     * watch draws by day: the theme fg on a B&W watch or B&W day theme (every
-     * highlight is in the text color there), else the pick; an unset danger is the
-     * contract's red (goal: green), any other auto value the theme fg.
+     * The colour the page DRAWS for a kind's warn/danger pieces (slider zones, badge
+     * dots, the colour pickers' swatches) — what the watch draws by day: the theme's
+     * text colour on a B&W watch or B&W day theme (every highlight is in the text
+     * colour there), else the contract's colour rule (status-thresholds.js
+     * thresholdColor — the one the packer and the on-open heal use too). So an unset
+     * colour previews its auto value, and a black or white pick previews what the
+     * watch turns it into (the text colour; the goal green for a goal kind).
      * @param {Object} S Live settings state.
      * @param {string} stem Kind key stem, e.g. 'Steps'.
      * @param {string} which 'Warn' | 'Danger'.
@@ -643,24 +597,29 @@ if (typeof require !== 'undefined') {
      * @returns {?string} '#RRGGBB', or null for a warn look of 'none'.
      */
     function thresholdDisplayColor(S, stem, which, env) {
-        var raw = S['thresh' + stem + which + 'Color'];
         // WARN with the look 'none' draws no box (bold only) — report null so
-        // callers render their neutral no-box state instead of a color. Any other
-        // look paints the colour, an unset one auto (the theme fg).
+        // callers render their neutral no-box state instead of a color.
         if (which === 'Warn' && S['thresh' + stem + 'WarnLook'] === 'none') {
             return null;
         }
-        if (bwDayScreen(S, env)) { return thresholdAutoFg(S.theme); }
-        if (which === 'Danger' && thresholdColorIsUnset(raw)) {
-            return thresholds.isGoalKind(stem)
-                ? thresholds.DEFAULT_GOAL_HEX : thresholds.DEFAULT_DANGER_HEX;
-        }
-        if (thresholdColorIsAuto(raw)) { return thresholdAutoFg(S.theme); }
-        return colorHexOf(raw, 0x000000);
+        return intToHex(resolveInk.drawsColor(env, S.theme)
+            ? thresholds.thresholdColor(S, stem, which) : thresholds.textColor(S));
     }
-    PConf.thresholdAutoColor = {
-        fgFor: thresholdAutoFg, isAuto: thresholdColorIsAuto, isUnset: thresholdColorIsUnset
-    };
+    // The warn and danger pickers paint the same resolution (engine.js' displayFrom
+    // hook), not the raw stored value: after a reset stores the schema's unset '', or
+    // a pick the watch resolves differently (a goal kind's black or white is its
+    // green), the swatch still shows what the watch draws. Clicking a swatch still
+    // writes the pick under the picker's own key.
+    /**
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env.
+     * @param {{keyStem: string, which: string}} args The picker's kind and colour.
+     * @returns {?string} '#RRGGBB' to paint, or null to fall back to the stored value.
+     */
+    PConf.displayResolvers.register('thresholdColor', function (S, env, args) {
+        if (!S || !args || !args.keyStem) { return null; }
+        return thresholdDisplayColor(S, args.keyStem, args.which, env);
+    });
 
     // Reset-to-defaults for one threshold kind (the small button beside the slider's
     // label). Returns true so the engine re-renders.
@@ -673,22 +632,18 @@ if (typeof require !== 'undefined') {
         // below). The result is exactly a fresh install: a goal kind's stored
         // toggle OFF (its switch rides this group's header, so resetting the goals
         // switches it off too), the blank pair (= the kind's seed, resolved live — a
-        // wind pair follows windUnits again), the cleared Max, and the
-        // goal-vs-weather warn color and the platform's warn look are all schema
-        // defaults. A weather
-        // kind's highlight switch is NOT in this group — it is the slot sheet's
-        // Highlight row — so its levels reset leaves it alone, as it leaves Bold.
-        var keys = ['Warn', 'Danger', 'Max', 'WarnColor', 'WarnLook'];
+        // wind pair follows windUnits again), the cleared Max, the goal-vs-weather
+        // colours and the platform's warn look are all schema defaults. A weather
+        // colour's default is unset, which the pickers and zones already show as
+        // what the watch draws (thresholdDisplayColor), and the next open's heal
+        // stores. A weather kind's highlight switch is NOT in this group — it is
+        // the slot sheet's Highlight row — so its levels reset leaves it alone, as
+        // it leaves Bold.
+        var keys = ['Warn', 'Danger', 'Max', 'WarnColor', 'DangerColor', 'WarnLook'];
         if (goal) { keys.unshift('On'); }
         for (var d = 0; d < keys.length; d++) {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
         }
-        // The ONE deliberate divergence from the schema: DangerColor's stored
-        // default is '' (= unset), which the next page open (onbuild) fills with the
-        // contract's red (weather) or green (goal). Write that eagerly, so the
-        // reset shows the colour the watch will draw straight away.
-        S['thresh' + stem + 'DangerColor'] = goal
-            ? thresholds.DEFAULT_GOAL_HEX : thresholds.DEFAULT_DANGER_HEX;
         // "Fresh install" is more than the schema: finishing the first-run wizard
         // applies the defaults-policy table, so the reset lands on those rows too —
         // AQI's highlight-on, seeded through the very hooks

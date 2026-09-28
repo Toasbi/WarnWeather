@@ -835,16 +835,18 @@ function levelsGroup(keyStem, hint, gate) {
         showWhen: gate || undefined,
         disabledWhen: offWhen
     }, {
-        // An unset warn color is AUTO: it tracks the theme fg (weather) or the
-        // goal green (goal) until customized (onLoad, blocks.js
-        // thresholdAutoColor), and the packer resolves an unset one the same way.
-        // An unset danger color is the contract's red (weather; DEFAULT_DANGER_HEX)
-        // or the goal green — written on open, and the packer's fallback too.
+        // An unset (or black / white) colour is AUTO — status-thresholds.js
+        // thresholdColor, the one rule for the packer, the page and the on-open heal
+        // (onbuild.js): the warn colour the theme fg (weather) or the goal green
+        // (goal), the danger colour the contract's red (weather; DEFAULT_DANGER_HEX)
+        // or the goal green. The heal writes that resolution on open, and the two
+        // pickers paint it (displayFrom) until then.
         type: 'color',
         messageKey: 'thresh' + keyStem + 'WarnColor',
         label: goal ? 'Close color' : 'Warn color',
         // Green = the celebration look; weather kinds start on the theme fg.
         defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
+        displayFrom: {resolver: 'thresholdColor', args: {keyStem: keyStem, which: 'Warn'}},
         joinPrevious: true,
         capabilities: ['COLOR'],
         // colorWhen (gate + color-capable theme) composed with the warn look — a
@@ -856,6 +858,7 @@ function levelsGroup(keyStem, hint, gate) {
         messageKey: 'thresh' + keyStem + 'DangerColor',
         label: goal ? 'Goal fill color' : 'Danger color',
         defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
+        displayFrom: {resolver: 'thresholdColor', args: {keyStem: keyStem, which: 'Danger'}},
         joinPrevious: true,
         capabilities: ['COLOR'],
         showWhen: colorWhen,

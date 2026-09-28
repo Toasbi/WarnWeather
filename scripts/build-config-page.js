@@ -16,13 +16,6 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/country-defaults.js'),
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
-  // The threshold contract (window.StatusThresholds). It reads no page global at load
-  // time, but preview-radar.js, blocks.js and onbuild.js each bind it while their OWN
-  // top-level body runs, so it must precede all three. Out of order the binding is
-  // undefined and the first sheet, badge or preview that reads it throws on a real
-  // phone while every Node test still passes through require() —
-  // test/config-page-bundle.test.js pins the order.
-  path.join(ROOT, 'src/pkjs/status-thresholds.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
   // The runtime's radar-source resolver (Rainbow + "Use your own key" -> 'rainbowkey'),
   // which rainbow-budget.js reads as PConf.radarSourceId at load.
@@ -42,6 +35,14 @@ var APP_FILES = [
   // test/config-page-bundle.test.js pins all three into the generated page.
   path.join(ROOT, 'src/pkjs/pebble-colors.js'),
   path.join(ROOT, 'src/pkjs/resolve-ink.js'),
+  // The threshold contract (window.StatusThresholds). Same load-bearing order on both
+  // sides: it reads window.ResolveInk (the text colour's polarity) while its own
+  // top-level body runs, and preview-radar.js, blocks.js and onbuild.js each bind it
+  // while THEIRS run, so it sits between resolve-ink.js and all three. Out of order a
+  // binding is undefined and the first sheet, badge or preview that reads it throws on
+  // a real phone while every Node test still passes through require() —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/status-thresholds.js'),
   // theme-flip.js publishes window.ThemeFlip (the polarity-flip rules);
   // theme-convert.js reads it at IIFE time to register the onChange hooks.
   path.join(ROOT, 'src/pkjs/theme-flip.js'),

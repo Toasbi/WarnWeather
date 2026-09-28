@@ -26,7 +26,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
-    var isBwTheme = resolveInkLib.isBwTheme;
+    var drawsColor = resolveInkLib.drawsColor;
     var previewStripe = (typeof require !== 'undefined')
         ? require('./preview-stripe.js') : window.PreviewStripe;
     var thresholds = (typeof require !== 'undefined')
@@ -152,7 +152,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     function radarPreview(state, env, userData) {
         // Effective color: a color display renders as color only when the theme isn't
         // Black & White — a bw/bw-light theme reuses the exact preview a B&W watch gets.
-        var isColor = !(env && !env.color) && !isBwTheme(state.theme);
+        var isColor = drawsColor(env, state.theme);
         var ink = previewInk(state.theme);
         var radarMode = state.radarMode || 'graph';
         if (radarMode === 'off') {

@@ -21,10 +21,10 @@
 //   2. The rain-bar and radar-graph color modes (multicolor <-> Solid). The
 //      pair itself lives in resolve-ink.js (barColorDefault / BAR_COLOR_KEYS).
 //   3. The threshold highlight colours (thresh<Kind>WarnColor/DangerColor) that
-//      hold a foreground value — the page's "auto, track the theme fg" state
-//      (blocks.js thresholdAutoColor), which onbuild.js otherwise re-derives
-//      only on the NEXT page open; for a weather danger colour, the "text colour"
-//      pick. '' (unset) and real picks are left alone.
+//      hold a foreground value — auto, "track the theme fg" (status-thresholds.js
+//      thresholdColor), which onbuild.js otherwise re-derives only on the NEXT
+//      page open; for a weather danger colour, the "text colour" pick. '' (unset)
+//      and real picks are left alone.
 //
 // Every colour rule matches BOTH encodings a settings object carries: the page's
 // live S holds '#RRGGBB' strings, while the phone's stored blob holds 0xRRGGBB
@@ -39,8 +39,6 @@
     // page bundle (build-config-page.js's APP_FILES puts resolve-ink.js first).
     var resolveInk = (typeof require !== 'undefined')
         ? require('./resolve-ink.js') : window.ResolveInk;
-    // dark and bw are both white-on-black; light and bw-light are both black-on-white.
-    var POLARITY = { dark: 'dark', bw: 'dark', light: 'light', 'bw-light': 'light' };
     // Each polarity's default foreground, in both encodings (see the header).
     var FG_HEX = { dark: '#FFFFFF', light: '#000000' };
     var FG_INT = { dark: 0xFFFFFF, light: 0x000000 };
@@ -92,8 +90,10 @@
      * @returns {void}
      */
     function applyThemeConvert(S, oldTheme, newTheme) {
-        var oldPolarity = POLARITY[oldTheme] || 'dark';
-        var newPolarity = POLARITY[newTheme] || 'dark';
+        // dark and bw are both white-on-black; light and bw-light are both
+        // black-on-white; anything else reads as dark.
+        var oldPolarity = resolveInk.isLightPolarity(oldTheme) ? 'light' : 'dark';
+        var newPolarity = resolveInk.isLightPolarity(newTheme) ? 'light' : 'dark';
         if (oldPolarity === newPolarity) {
             return;
         }

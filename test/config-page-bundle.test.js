@@ -321,16 +321,19 @@ test('the Rainbow key Test reaches the generated page after key-test.js', () => 
 
 // The threshold contract is bound ONCE, at load: preview-radar.js, blocks.js and
 // onbuild.js each read window.StatusThresholds while their own IIFE body runs (no lazy
-// lookup, no no-contract fallback). Concatenated after any of them, that binding is
-// undefined and the first sheet, badge, hint or radar preview that reads it throws on a
-// real phone while every Node test passes through require().
-test('the threshold contract reaches the generated page ahead of every file that binds it', () => {
+// lookup, no no-contract fallback), and the contract itself reads window.ResolveInk
+// while its own runs. Concatenated out of that order, a binding is undefined and the
+// first sheet, badge, hint or radar preview that reads it throws on a real phone while
+// every Node test passes through require().
+test('the threshold contract reaches the generated page between resolve-ink and every file that binds it', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith(suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
+  assert.ok(idx('pkjs/resolve-ink.js') < idx('pkjs/status-thresholds.js'),
+    'resolve-ink.js must precede status-thresholds.js, which reads window.ResolveInk at IIFE time');
   ['settings/preview-radar.js', 'settings/blocks.js', 'settings/onbuild.js'].forEach((file) => {
     assert.ok(idx('pkjs/status-thresholds.js') < idx(file),
       'status-thresholds.js must precede ' + file + ', which reads window.StatusThresholds at IIFE time');

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const COLORS = require('../src/pkjs/pebble-colors.js');
-const { resolveInk, isLightPolarity, isBwTheme, effectiveTheme, barColorDefault,
+const { resolveInk, isLightPolarity, isBwTheme, drawsColor, effectiveTheme, barColorDefault,
   BAR_COLOR_KEYS } = require('../src/pkjs/resolve-ink.js');
 
 test('light theme: exact white flips to black', () => {
@@ -35,6 +35,22 @@ test('isBwTheme: true for bw and bw-light, false for dark and light', () => {
   assert.equal(isBwTheme('bw-light'), true);
   assert.equal(isBwTheme('dark'), false);
   assert.equal(isBwTheme('light'), false);
+});
+
+test('drawsColor: a colour display on a colour theme only', () => {
+  ['dark', 'light'].forEach((theme) => {
+    assert.equal(drawsColor({ color: true }, theme), true, theme + ' on colour');
+    assert.equal(drawsColor({ color: false }, theme), false, theme + ' on a B&W display');
+  });
+  ['bw', 'bw-light'].forEach((theme) => {
+    assert.equal(drawsColor({ color: true }, theme), false, theme + ' on colour');
+    assert.equal(drawsColor({ color: false }, theme), false, theme + ' on a B&W display');
+  });
+  // Only an explicit false is a B&W display: an absent env or flag reads as colour,
+  // the packer's rule for a blob packed without an env.
+  assert.equal(drawsColor(undefined, 'dark'), true);
+  assert.equal(drawsColor({}, 'dark'), true);
+  assert.equal(drawsColor(undefined, 'bw'), false);
 });
 
 test('effectiveTheme: polarity-capable platform leaves every theme unchanged', () => {

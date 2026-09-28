@@ -473,6 +473,42 @@ test('buildSettingsBlob: goal kinds resolve a stale black/white to the goal gree
   }
 });
 
+test('thresholdColor: THE colour rule — auto per theme and kind, a pick as is, look-blind', () => {
+  const c = (settings, stem, which) => th.thresholdColor(settings, stem, which);
+  // Unset: warn is the text colour (weather) or green (goal); danger red or green.
+  assert.equal(c({}, 'Uv', 'Warn'), 0xFFFFFF);
+  assert.equal(c({ theme: 'light' }, 'Uv', 'Warn'), 0x000000);
+  assert.equal(c({ theme: 'bw-light' }, 'Uv', 'Warn'), 0x000000, 'polarity, not colour-ness');
+  assert.equal(c({ theme: 'light' }, 'Uv', 'Danger'), 0xFF0000);
+  assert.equal(c({}, 'Steps', 'Warn'), th.DEFAULT_GOAL_COLOR);
+  assert.equal(c({}, 'Steps', 'Danger'), th.DEFAULT_GOAL_COLOR);
+  // Black or white, in either encoding: the text colour for weather, green for goals.
+  ['#000000', '#ffffff', 0x000000, 0xFFFFFF].forEach((v) => {
+    assert.equal(c({ theme: 'dark', threshWindDangerColor: v }, 'Wind', 'Danger'), 0xFFFFFF, String(v));
+    assert.equal(c({ theme: 'light', threshWindWarnColor: v }, 'Wind', 'Warn'), 0x000000, String(v));
+    assert.equal(c({ threshSleepDangerColor: v }, 'Sleep', 'Danger'), th.DEFAULT_GOAL_COLOR, String(v));
+  });
+  // A pick is kept; garbage takes the unset fallback.
+  assert.equal(c({ threshAqiWarnColor: '#00aaff' }, 'Aqi', 'Warn'), 0x00AAFF);
+  assert.equal(c({ threshAqiDangerColor: 0x5500FF }, 'Aqi', 'Danger'), 0x5500FF);
+  assert.equal(c({ threshAqiDangerColor: 'garbage' }, 'Aqi', 'Danger'), 0xFF0000);
+  // Independent of the warn look: 'none' still has a colour a later box would paint.
+  assert.equal(c({ threshUvWarnLook: 'none', threshUvWarnColor: '#FFAA00' }, 'Uv', 'Warn'), 0xFFAA00);
+  // kindConfig is thresholdColor, with a null warn for the none look.
+  const s = { theme: 'light', threshUvWarnColor: '', threshUvDangerColor: '#FFFFFF' };
+  const uv = th.KINDS.findIndex((k) => k.key === 'Uv');
+  assert.equal(th.kindConfig(s, uv).warnColor, c(s, 'Uv', 'Warn'));
+  assert.equal(th.kindConfig(s, uv).dangerColor, c(s, 'Uv', 'Danger'));
+  assert.equal(th.kindConfig(Object.assign({ threshUvWarnLook: 'none' }, s), uv).warnColor, null);
+});
+
+test('isAutoColor: unset, unparseable, black or white — in either encoding', () => {
+  [undefined, null, '', 'garbage', 0, 0xFFFFFF, '#000000', '#ffffff', '#FFFFFF', 'FFFFFF']
+    .forEach((v) => assert.equal(th.isAutoColor(v), true, JSON.stringify(v)));
+  [0xFF0000, '#FF0000', '#00aaff', 0x55FF00, '#555555']
+    .forEach((v) => assert.equal(th.isAutoColor(v), false, JSON.stringify(v)));
+});
+
 test('buildSettingsBlob: imperial distance thresholds convert mi -> 100 m units', () => {
   const blob = th.buildSettingsBlob({
     distanceUnits: 'imperial',

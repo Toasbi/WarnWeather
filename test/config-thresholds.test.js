@@ -433,10 +433,23 @@ test('onLoad derives auto colors from the theme; user picks survive', () => {
   const dark = loaded({});
   assert.equal(dark.threshAqiWarnColor, '#FFFFFF');
   assert.equal(dark.threshAqiDangerColor, '#FF0000');
-  // A stored black or white danger is a pick ("the text colour"): left alone, on
-  // either theme (the packer follows it across themes).
+  // A stored black or white danger is the pick "the text colour": it heals to the
+  // text colour of the theme in effect — what the packer draws for it — so the picker
+  // never shows a colour the watch does not draw (a black pick on a dark theme showed
+  // black while the badge, slider and watch used white).
   const textDanger = loaded({ theme: 'light', threshAqiDangerColor: '#FFFFFF' });
-  assert.equal(textDanger.threshAqiDangerColor, '#FFFFFF');
+  assert.equal(textDanger.threshAqiDangerColor, '#000000');
+  assert.equal(loaded({ threshAqiDangerColor: '#000000' }).threshAqiDangerColor, '#FFFFFF',
+    'black danger on the dark theme → white');
+  assert.equal(loaded({ threshAqiDangerColor: 0x000000 }).threshAqiDangerColor, '#FFFFFF',
+    'the stored int shape heals the same way');
+  // A goal kind's black or white pick is its green on the watch (the packer's rule),
+  // so it heals to green rather than showing white or black in the page.
+  const goalWhite = loaded({ threshStepsWarnColor: '#FFFFFF', threshStepsDangerColor: '#000000' });
+  assert.equal(goalWhite.threshStepsWarnColor, '#55FF00');
+  assert.equal(goalWhite.threshStepsDangerColor, '#55FF00');
+  // An unparseable weather danger packs as the red fallback, so it heals to red.
+  assert.equal(loaded({ threshAqiDangerColor: 'garbage' }).threshAqiDangerColor, '#FF0000');
   assert.equal(dark.threshAqiWarnOutlineOn, undefined, 'the retired toggle is never written');
   // Goal kinds seed the green celebration colors instead.
   assert.equal(dark.threshStepsWarnColor, '#55FF00');
@@ -453,6 +466,48 @@ test('onLoad derives auto colors from the theme; user picks survive', () => {
   const orange = loaded({ threshAqiWarnColor: '#FFAA00', threshAqiDangerColor: '#FF0000' });
   assert.equal(orange.threshAqiWarnColor, '#FFAA00');
   assert.equal(orange.threshAqiDangerColor, '#FF0000');
+});
+
+test('the on-open heal, the page\'s colours and the packer follow ONE colour rule', () => {
+  // For every colour shape a stored blob can hold, on every theme: the heal leaves the
+  // bytes the watch receives unchanged, stores exactly what the page previews, and
+  // that is the colour the packer resolves (status-thresholds.js thresholdColor).
+  const shapes = [undefined, '', null, 0x000000, 0xFFFFFF, '#000000', '#ffffff', 0xFF0000,
+    '#00AAFF', '#55ff00', 'garbage'];
+  ['dark', 'light', 'bw', 'bw-light'].forEach((theme) => STEMS.forEach((stem) => shapes.forEach((v) => {
+    ['Warn', 'Danger'].forEach((which) => {
+      const key = 'thresh' + stem + which + 'Color';
+      const S = { theme };
+      if (v !== undefined) { S[key] = v; }
+      const before = thresholds.buildSettingsBlob(Object.assign({}, S), { color: true });
+      onbuild.onLoad({ env: { platform: 'basalt' }, get: k => S[k], set: (k, x) => { S[k] = x; },
+        getInitial: k => S[k] });
+      const label = theme + ' ' + key + '=' + JSON.stringify(v);
+      assert.deepEqual(thresholds.buildSettingsBlob(S, { color: true }), before, label + ': same bytes');
+      const drawn = PC.color.intToHex(thresholds.thresholdColor(S, stem, which));
+      if (thresholds.isAutoColor(v)) {
+        assert.equal(S[key], drawn, label + ': the heal stores what the watch draws');
+      }
+      const shown = PC.displayResolvers.get('thresholdColor')(S, { color: true },
+        { keyStem: stem, which: which });
+      if (theme === 'dark' || theme === 'light') {
+        assert.equal(shown, drawn, label + ': the picker shows it too');
+      } else {
+        assert.equal(shown, theme === 'bw' ? '#FFFFFF' : '#000000', label + ': B&W draws the text colour');
+      }
+    });
+  })));
+});
+
+test('a goal kind\'s white pick previews the goal green the watch draws (not white)', () => {
+  const cfg = PC.rangeResolvers.get('thresholdRange')(
+    { threshStepsWarnColor: '#FFFFFF', threshStepsDangerColor: '#000000' }, ENV, { keyStem: 'Steps' });
+  assert.equal(cfg.warnColor, thresholds.DEFAULT_GOAL_HEX);
+  assert.equal(cfg.dangerColor, thresholds.DEFAULT_GOAL_HEX);
+  // A weather danger picked black on the dark theme previews the text colour, white.
+  const uv = PC.rangeResolvers.get('thresholdRange')({ threshUvDangerColor: '#000000' }, ENV,
+    { keyStem: 'Uv' });
+  assert.equal(uv.dangerColor, '#FFFFFF');
 });
 
 // --- the engine's role/zone mapping -----------------------------------------
@@ -713,9 +768,17 @@ test('the reset button blanks the pair, restores default colors, clears the scal
   assert.equal(page.S.threshWindDanger, '', 'danger blanked');
   assert.equal(page.S.threshWindWarnColor, '', 'warn colour back to auto');
   assert.equal(page.S.threshWindWarnLook, 'fill', 'warn look back to the colour watch\'s default');
-  assert.equal(page.S.threshWindDangerColor, '#FF0000', 'danger color back to red');
+  assert.equal(page.S.threshWindDangerColor, '', 'danger colour back to its schema default, unset');
   assert.equal(page.S.threshWindMax, '', 'scale-max override cleared');
   assert.ok(page.modal.writes > writesBefore, 'the reset re-rendered the sheet');
+  // The pickers paint what the watch draws for the unset colours straight away (the
+  // contract's thresholdColor): the text colour for warn, red for danger.
+  page.openEditSheet('alertWind');
+  const html = page.modal.innerHTML;
+  assert.ok(html.indexOf('data-color="threshWindWarnColor"><b style="background:#FFFFFF">') !== -1,
+    'the warn picker shows the dark theme\'s text colour');
+  assert.ok(html.indexOf('data-color="threshWindDangerColor"><b style="background:#FF0000">') !== -1,
+    'the danger picker shows the red');
 });
 
 test('an enabled kind shows the ring+dot swatch beside its slot control', () => {

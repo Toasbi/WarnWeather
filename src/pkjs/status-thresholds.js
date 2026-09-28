@@ -23,6 +23,11 @@
   // phone-side only.
   var wireUnits = (typeof require !== 'undefined')
     ? require('./wire-units.js') : null;
+  // The theme-polarity vocabulary, for the text colour an auto highlight colour
+  // resolves to. The flat page concatenates resolve-ink.js ahead of this file
+  // (scripts/build-config-page.js APP_FILES), so its global exists at load there.
+  var resolveInk = (typeof require !== 'undefined')
+    ? require('./resolve-ink.js') : window.ResolveInk;
 
   // One widening per release that shipped a new length, each appended to the
   // 29-byte pre-bold layout: 1.11.0 shipped 33 (the bold area for kinds 0..15);
@@ -90,11 +95,11 @@
 
   // A weather kind's danger colour while it is unset: red, on every theme, so a
   // warn FILL (the colour-watch default look, in the theme's text colour) and the
-  // danger fill stay apart. The settings page writes it too (onbuild.js heal,
-  // blocks.js resetThresholds) and the 1.24.0 move turned the old auto text colour
+  // danger fill stay apart. The settings page's open writes it too (onbuild.js heal,
+  // through thresholdColor) and the 1.24.0 move turned the old auto text colour
   // into it (migrations/v1_24.js migrateWarnLook). A stored black or white is a pick
   // meaning "the text colour" (resolveAutoColor). (The warn colour has no such
-  // constant: unset is AUTO — the theme's text colour, see kindConfig.)
+  // constant: unset is AUTO — the theme's text colour, see thresholdColor.)
   var DEFAULT_DANGER_COLOR = 0xFF0000;
   // Goal kinds celebrate instead of warn: crossing "close" (the warn slot) outlines
   // in this green, reaching the goal (the danger slot) fills with it. 0x55FF00 =
@@ -315,16 +320,26 @@
   }
 
   /**
-   * Resolve the settings page's "auto" highlight colour for the theme this blob is
-   * packed FOR. The page stores auto as a concrete black or white (the theme text
-   * colour it last derived, blocks.js thresholdColorIsAuto) and re-derives it on
-   * every open, but a blob nobody re-saved keeps the old one: 1.11-1.19 never
-   * converted it when Theme changed, so a light-then-dark install holds black
-   * under a dark theme, and packing that verbatim draws a black outline and fill on
-   * the black face -- invisible. So black and white are resolved here, the way the
-   * page resolves them: to the packed theme's text colour for weather kinds
-   * (settings.theme, which theme-schedule's night copy sets to the night theme),
-   * to the goal green for goal kinds. Every other colour is a pick, returned as is.
+   * The theme's text colour: black on the light polarity, white on the dark one.
+   * What an auto weather colour resolves to, and what a B&W screen draws every
+   * highlight in.
+   * @param {Object} settings Clay settings blob (theme)
+   * @returns {number} 0x000000 or 0xFFFFFF
+   */
+  function textColor(settings) {
+    return resolveInk.isLightPolarity(settings && settings.theme) ? 0x000000 : 0xFFFFFF;
+  }
+
+  /**
+   * Resolve an "auto" highlight colour for the theme this blob is packed FOR. The
+   * settings page stores auto as a concrete black or white (the colour it last
+   * resolved, onbuild.js heal) and re-derives it on every open, but a blob nobody
+   * re-saved keeps the old one: 1.11-1.19 never converted it when Theme changed, so
+   * a light-then-dark install holds black under a dark theme, and packing that
+   * verbatim draws a black outline and fill on the black face -- invisible. So black
+   * and white are resolved here: to the packed theme's text colour for weather kinds
+   * (settings.theme, which theme-schedule's night copy sets to the night theme), to
+   * the goal green for goal kinds. Every other colour is a pick, returned as is.
    * @param {number} c 0xRRGGBB colour, already parsed by colorInt
    * @param {Object} settings Clay settings blob (theme)
    * @param {boolean} goal Whether the kind is a goal kind (the health trio)
@@ -332,9 +347,46 @@
    */
   function resolveAutoColor(c, settings, goal) {
     if (c !== 0x000000 && c !== 0xFFFFFF) { return c; }
-    if (goal) { return DEFAULT_GOAL_COLOR; }
-    var theme = settings && settings.theme;
-    return (theme === 'light' || theme === 'bw-light') ? 0x000000 : 0xFFFFFF;
+    return goal ? DEFAULT_GOAL_COLOR : textColor(settings);
+  }
+
+  /**
+   * THE colour rule for a kind's warn or danger colour: what the watch paints the
+   * box in, independent of the warn look (a look of 'none' paints nothing, but the
+   * colour it would paint stays defined, so a later switch to a box finds it). An
+   * unset or unparseable value (isAutoColor) is AUTO: the warn colour the theme's
+   * text colour (weather) or the goal green (goal); the danger colour the contract's
+   * red (weather) or the goal green. A stored black or white resolves as auto too
+   * (resolveAutoColor), whichever colour it is — for a weather danger it is the pick
+   * "the text colour". Any other colour is the pick itself. The packer (kindConfig),
+   * the settings page's swatches and zones, and its on-open heal all resolve through
+   * here, so the three cannot disagree.
+   * @param {Object} settings Clay settings blob (theme, thresh<Stem><which>Color)
+   * @param {string} keyStem Kind key stem, e.g. 'Uv'.
+   * @param {string} which 'Warn' | 'Danger'.
+   * @returns {number} 0xRRGGBB colour
+   */
+  function thresholdColor(settings, keyStem, which) {
+    var goal = isGoalKind(keyStem);
+    var fallback = which !== 'Danger' ? 0x000000
+      : (goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR);
+    return resolveAutoColor(
+      colorInt(settings && settings['thresh' + keyStem + which + 'Color'], fallback),
+      settings, goal);
+  }
+
+  /**
+   * Whether a stored highlight colour is AUTO rather than a pick: unset ('' / null /
+   * absent), unparseable, or black or white (an int or a '#RRGGBB' string, either
+   * case). thresholdColor resolves every such value per theme and kind, so the
+   * settings page rewrites it to that resolution on open (onbuild.js heal) and the
+   * picker shows what the watch draws.
+   * @param {*} raw Stored colour.
+   * @returns {boolean} True when the value is auto.
+   */
+  function isAutoColor(raw) {
+    var c = colorInt(raw, null);
+    return c === null || c === 0x000000 || c === 0xFFFFFF;
   }
 
   /**
@@ -418,18 +470,12 @@
     }
     var pair = resolvedPair(k.key, settings);
     var on = Boolean(settings) && settings['thresh' + k.key + 'On'] === true;
-    // The warn LOOK decides whether warn draws a box; the colour only paints it.
-    // warnColor null = look 'none': the blob carries the 0x00 sentinel, which is
-    // also what a watch WITHOUT the look bytes reads as "no outline" — so any
-    // other look keeps a real colour in that byte and an older watch still draws
-    // its outline. An unset colour ('' / null / absent, or garbage) is AUTO:
-    // the packed theme's text colour for weather kinds, the goal green for goal
-    // kinds (resolveAutoColor, fed black). Danger falls back green for goals,
-    // red for weather.
+    // The warn LOOK decides whether warn draws a box; the colour (thresholdColor)
+    // only paints it. warnColor null = look 'none': the blob carries the 0x00
+    // sentinel, which is also what a watch WITHOUT the look bytes reads as "no
+    // outline" — so any other look keeps a real colour in that byte and an older
+    // watch still draws its outline.
     var warnLook = warnLookFor(settings, k.key, isColor);
-    var rawWarn = settings && settings['thresh' + k.key + 'WarnColor'];
-    var warnColor = warnLook === 'none' ? null
-      : resolveAutoColor(colorInt(rawWarn, 0x000000), settings, k.goal);
     // Bold mode is deliberately NOT gated on `enabled`: 'always' bolds a slot
     // whose kind has its highlight off.
     return {
@@ -437,10 +483,8 @@
       warn: pair.warn,
       danger: pair.danger,
       warnLook: warnLook,
-      warnColor: warnColor,
-      dangerColor: resolveAutoColor(
-        colorInt(settings && settings['thresh' + k.key + 'DangerColor'],
-                 k.goal ? DEFAULT_GOAL_COLOR : DEFAULT_DANGER_COLOR), settings, k.goal),
+      warnColor: warnLook === 'none' ? null : thresholdColor(settings, k.key, 'Warn'),
+      dangerColor: thresholdColor(settings, k.key, 'Danger'),
       boldMode: boldModeFor(settings, k)
     };
   }
@@ -851,6 +895,9 @@
     isGoalKind: isGoalKind,
     DEFAULT_GOAL_COLOR: DEFAULT_GOAL_COLOR,
     DEFAULT_GOAL_HEX: DEFAULT_GOAL_HEX,
+    textColor: textColor,
+    thresholdColor: thresholdColor,
+    isAutoColor: isAutoColor,
     kindConfig: kindConfig,
     computeLevel: computeLevel,
     displayValue: displayValue,

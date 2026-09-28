@@ -10,52 +10,49 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // in the flat page (scripts/build-config-page.js APP_FILES).
     var thresholds = (typeof require !== 'undefined')
         ? require('../status-thresholds.js') : window.StatusThresholds;
+    // The page bundle's single-source int -> '#RRGGBB' (config-ui/lib/color.js,
+    // concatenated ahead of every app file).
+    var intToHex = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
+    var COLOR_ROLES = ['Warn', 'Danger'];
 
     /**
-     * Heal each threshold kind's highlight colours on every open. The
-     * highlight toggle itself (thresh<K>On — a weather kind's slot-sheet
-     * 'Alert highlighting' row, a goal kind's Goals switch) is STORED state and
-     * hydrates as-is: kindConfig() packs the enable bit from it (AND an ordered
-     * pair), and the levels live on while it is off, so deriving it from the
-     * pair here would undo a user's OFF on the next open. The one-time
-     * pair-derived backfill for blobs saved before the split is
-     * migrations/v1_24.js migrateThresholdHighlightToggles, which runs on the
-     * phone before the page can open. Flipping it live is the thresholdToggle
-     * onChange hook in blocks.js.
+     * Heal each threshold kind's highlight colours on every open, so the pickers
+     * show what the watch draws. A colour that is AUTO (status-thresholds.js
+     * isAutoColor: unset, the old parseResponse bug's null, unparseable, or black or
+     * white) is rewritten to what the contract's colour rule (thresholdColor)
+     * resolves it to under the current theme: the text colour for a weather warn
+     * colour and for a weather danger picked black or white, the contract's red for
+     * an unset weather danger, the goal green for a goal kind's two. Re-derived on
+     * every open, so a theme switch carries it along; a user pick survives
+     * untouched. Whether warn draws a box at all is the kind's warn look
+     * (thresh<K>WarnLook), not the colour: a blank warn colour no longer means "no
+     * outline" (the one-time conversion of that old meaning is migrations/v1_24.js
+     * migrateWarnLook).
+     *
+     * The highlight toggle (thresh<K>On — a weather kind's slot-sheet 'Alert
+     * highlighting' row, a goal kind's Goals switch) is STORED state and hydrates
+     * as-is: kindConfig() packs the enable bit from it (AND an ordered pair), and
+     * the levels live on while it is off, so deriving it from the pair here would
+     * undo a user's OFF on the next open. The one-time pair-derived backfill for
+     * blobs saved before the split is migrations/v1_24.js
+     * migrateThresholdHighlightToggles, which runs on the phone before the page can
+     * open. Flipping it live is the thresholdToggle onChange hook in blocks.js.
      * @param {{ get: function, set: function }} ctx onLoad context
      * @returns {void}
      */
     function healThresholdColors(ctx) {
-        // Auto colors (see blocks.js thresholdAutoColor): a never-customized color
-        // tracks the current theme's text color, re-derived on every open so a theme
-        // switch updates it. blocks.js is bundled/required before this hook runs.
-        var auto = PConf.thresholdAutoColor;
-        var fg = auto ? auto.fgFor(ctx.get('theme')) : null;
+        var theme = ctx.get('theme');
         for (var i = 0; i < thresholds.KINDS.length; i++) {
             var kind = thresholds.KINDS[i];
-            if (auto) {
-                // WARN: a never-customized colour — unset, the old parseResponse
-                // bug's null, or an fg value — is AUTO and tracks the theme fg
-                // (weather) or the goal green (goal). Whether warn draws a box at
-                // all is the kind's warn look (thresh<K>WarnLook), not the colour:
-                // a blank warn colour no longer means "no outline" (the one-time
-                // conversion of that old meaning is migrations/v1_24.js
-                // migrateWarnLook). A user pick survives untouched.
-                var goalHex = thresholds.DEFAULT_GOAL_HEX;
-                var rawWarn = ctx.get('thresh' + kind.key + 'WarnColor');
-                if (auto.isAuto(rawWarn)) {
-                    ctx.set('thresh' + kind.key + 'WarnColor', kind.goal ? goalHex : fg);
-                }
-                // DANGER: a goal kind's is auto like its warn (green). A weather
-                // kind's only while UNSET, and then it is the contract's red — a
-                // warn fill in the text colour must not look like danger. A stored
-                // black or white is a pick ("the text colour", which the packer
-                // follows across themes), so it is left alone.
-                var rawDanger = ctx.get('thresh' + kind.key + 'DangerColor');
-                if (kind.goal ? auto.isAuto(rawDanger) : auto.isUnset(rawDanger)) {
-                    ctx.set('thresh' + kind.key + 'DangerColor',
-                        kind.goal ? goalHex : thresholds.DEFAULT_DANGER_HEX);
-                }
+            if (kind.boldOnly) { continue; }   // no colours to heal
+            for (var r = 0; r < COLOR_ROLES.length; r++) {
+                var key = 'thresh' + kind.key + COLOR_ROLES[r] + 'Color';
+                var raw = ctx.get(key);
+                if (!thresholds.isAutoColor(raw)) { continue; }
+                var s = {theme: theme};
+                s[key] = raw;
+                ctx.set(key, intToHex(thresholds.thresholdColor(s, kind.key, COLOR_ROLES[r])));
             }
         }
     }
