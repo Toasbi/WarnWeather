@@ -144,6 +144,34 @@ test('alertRain false sends CLAY_RAIN_COUNTDOWN_HORIZON 0; absent or true keeps 
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
 });
 
+// The horizon reads the window and switch through the contract (status-thresholds.js
+// rainAlert, the one home of their defaults) and folds radar mode 'off' in itself.
+// The sent value is the one the inline rule computed before that move, on every
+// combination of the three settings.
+test('CLAY_RAIN_COUNTDOWN_HORIZON matches the inline rule it replaced on every combination', () => {
+  const inline = (s) => {
+    let rc = parseInt(s.rainCountdownHorizon, 10);
+    if (isNaN(rc)) { rc = 60; }
+    if ((s.radarMode || 'graph') === 'off') { rc = 0; }
+    if (s.alertRain === false) { rc = 0; }
+    return rc;
+  };
+  const ABSENT = {};
+  const put = (s, k, v) => { if (v !== ABSENT) { s[k] = v; } };
+  [ABSENT, '30', '60', '120', '0', 45, '', 'x', null].forEach((h) => {
+    [ABSENT, 'graph', 'countdown', 'off'].forEach((mode) => {
+      [ABSENT, true, false, 'false'].forEach((on) => {
+        const s = baseSettings();
+        put(s, 'rainCountdownHorizon', h);
+        put(s, 'radarMode', mode);
+        put(s, 'alertRain', on);
+        assert.strictEqual(buildClayPayload(s, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, inline(s),
+          JSON.stringify([h, mode, on]));
+      });
+    });
+  });
+});
+
 test('maps topViewMode to CLAY_TOP_VIEW_MODE int (full=0, compact=1, none=2), default compact', () => {
   assert.strictEqual(buildClayPayload(baseSettings(), null, NOW).CLAY_TOP_VIEW_MODE, 1); // unset → compact
   const full = baseSettings(); full.topViewMode = 'full';

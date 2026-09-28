@@ -414,6 +414,42 @@ test('each alert<Kind> and, while on, its Look change the render signature', () 
   });
 });
 
+// The alert segment signs the bake's own code lists (alertKindCodes, then
+// alertValueKindCodes) where it once walked the kinds by hand. Only its format
+// changed: over every combination of the five switches and Looks, two settings sign
+// alike exactly when the per-kind encoding it replaced says they do.
+test('the alert segment tells apart exactly the settings the per-kind encoding did', () => {
+  const perKind = (s) => thresholds.ALERT_KINDS.map((a) => {
+    const on = s['alert' + a.key] === true;
+    return (on ? 'on' : '') + '/' + (on && s['alert' + a.key + 'Display'] === 'value' ? 'value' : '');
+  }).join('|');
+  const ON = [undefined, true, 'true'];
+  const LOOK = [undefined, 'icon', 'value'];
+  const toSig = new Map();
+  const toOld = new Map();
+  const walk = (k, s) => {
+    if (k === thresholds.ALERT_KINDS.length) {
+      const old = perKind(s);
+      const sig = renderSignature(s);
+      if (toSig.has(old)) { assert.equal(toSig.get(old), sig, 'one per-kind state, one signature'); }
+      if (toOld.has(sig)) { assert.equal(toOld.get(sig), old, 'one signature, one per-kind state'); }
+      toSig.set(old, sig);
+      toOld.set(sig, old);
+      return;
+    }
+    const key = 'alert' + thresholds.ALERT_KINDS[k].key;
+    ON.forEach((on) => LOOK.forEach((look) => {
+      const next = Object.assign({}, s);
+      if (on !== undefined) { next[key] = on; }
+      if (look !== undefined) { next[key + 'Display'] = look; }
+      walk(k + 1, next);
+    }));
+  };
+  walk(0, {});
+  // Three states per kind (off, on, on with the value): 3^5.
+  assert.equal(toSig.size, Math.pow(3, thresholds.ALERT_KINDS.length));
+});
+
 test('the alert keys each occupy their own signature slot', () => {
   const seen = new Set();
   thresholds.ALERT_KINDS.forEach((a) => {

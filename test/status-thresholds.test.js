@@ -1118,3 +1118,77 @@ test('alertKindCodes / alertValueKindCodes: enabled codes in the row order', () 
   ['aqi'], 'a disabled alert\'s Look does not count');
   assert.deepEqual(th.alertKindCodes(null), []);
 });
+
+test('alertSettings / alertOn: keyed by code, on only for a stored true, the value only while on', () => {
+  th.ALERT_KINDS.forEach((a) => {
+    const on = 'alert' + a.key;
+    const look = on + 'Display';
+    assert.deepEqual(th.alertSettings({ [on]: true }, a.code), { on: true, showValue: false }, a.code);
+    assert.deepEqual(th.alertSettings({ [on]: true, [look]: 'value' }, a.code),
+      { on: true, showValue: true }, a.code + ' value');
+    assert.deepEqual(th.alertSettings({ [on]: true, [look]: 'icon' }, a.code),
+      { on: true, showValue: false }, a.code + ' icon');
+    assert.deepEqual(th.alertSettings({ [look]: 'value' }, a.code), { on: false, showValue: false },
+      a.code + ': off shows no value, whatever its Look');
+    assert.equal(th.alertOn({ [on]: 'true' }, a.code), false, a.code + ': a stored string is not the toggle');
+    assert.equal(th.alertOn({ [on]: false }, a.code), false);
+    assert.equal(th.alertOn({ [on]: true }, a.code), true);
+  });
+  assert.equal(th.alertOn(null, 'uv'), false);
+  assert.equal(th.alertOn(undefined, 'uv'), false);
+  // A code with no alert reads off, even when a key of that shape is stored.
+  assert.equal(th.alertOn({ alertSteps: true }, 'steps'), false, 'goal kind');
+  assert.equal(th.alertOn({ alertTemp: true }, 'temp'), false, 'bold-only kind');
+  assert.equal(th.alertOn({ alertUv: true }, 'Uv'), false, 'keyed by code, not stem');
+  assert.equal(th.alertOn({ alertUv: true }, undefined), false);
+  // Per kind: one alert's switch never turns another's on.
+  assert.equal(th.alertOn({ alertAqi: true }, 'gust'), false);
+});
+
+test('enabledAlerts: the switched-on alerts in row order, each with its wire kind id', () => {
+  assert.deepEqual(th.enabledAlerts({}), []);
+  assert.deepEqual(th.enabledAlerts(null), []);
+  assert.deepEqual(th.enabledAlerts({ alertPollen: true, alertUv: true, alertUvDisplay: 'value',
+    alertWind: false, alertGust: 'true', alertAqiDisplay: 'value' }), [
+    { code: 'uv', kindId: 7, showValue: true },
+    { code: 'pollen', kindId: 1, showValue: false }
+  ]);
+  th.enabledAlerts(ALL_ON).forEach((a) => {
+    assert.equal(th.KINDS[a.kindId].code, a.code, a.code + ': kindId is its KINDS index');
+  });
+  assert.deepEqual(th.enabledAlerts(ALL_ON).map(a => a.code), th.ALERT_KINDS.map(a => a.code));
+});
+
+test('rainAlert: owns the three rain defaults — on, the text look, a 60 min window', () => {
+  const dflt = { on: true, look: 'text', horizonMin: 60 };
+  assert.deepEqual(th.rainAlert({}), dflt);
+  assert.deepEqual(th.rainAlert(null), dflt);
+  assert.deepEqual(th.rainAlert(undefined), dflt);
+  // The switch: only a stored false is off (absent = the countdown every install had).
+  assert.equal(th.rainAlert({ alertRain: false }).on, false);
+  assert.equal(th.rainAlert({ alertRain: true }).on, true);
+  assert.equal(th.rainAlert({ alertRain: 'false' }).on, true, 'a string is not the toggle');
+  // The STORED switch: radar mode 'off' is the Clay packer's fold, not the contract's.
+  assert.equal(th.rainAlert({ radarMode: 'off' }).on, true);
+  // The look: a RAIN_DISPLAY key, else text.
+  ['text', 'icon', 'minutes'].forEach(v => assert.equal(th.rainAlert({ rainAlertDisplay: v }).look, v));
+  ['bogus', 3, null, 'toString'].forEach(v =>
+    assert.equal(th.rainAlert({ rainAlertDisplay: v }).look, 'text', String(v)));
+  // The window: the stored minutes as an int (string or number), else 60. A stored
+  // '0' (the retired Off) stays 0 — the migration moves it, the contract does not.
+  assert.equal(th.rainAlert({ rainCountdownHorizon: '120' }).horizonMin, 120);
+  assert.equal(th.rainAlert({ rainCountdownHorizon: 30 }).horizonMin, 30);
+  assert.equal(th.rainAlert({ rainCountdownHorizon: '0' }).horizonMin, 0);
+  ['', 'x', null].forEach(v =>
+    assert.equal(th.rainAlert({ rainCountdownHorizon: v }).horizonMin, 60, String(v)));
+});
+
+test('isWeatherKind: exactly the kinds the phone levels (neither goal nor bold-only)', () => {
+  assert.deepEqual(th.KINDS.filter(th.isWeatherKind).map(k => k.code),
+    ['aqi', 'pollen', 'wind', 'gust', 'uv']);
+  assert.equal(th.isWeatherKind(null), false);
+  assert.equal(th.isWeatherKind(undefined), false);
+  // Every metric alert is one.
+  th.ALERT_KINDS.forEach((a) =>
+    assert.ok(th.isWeatherKind(th.KINDS.find(k => k.code === a.code)), a.code));
+});

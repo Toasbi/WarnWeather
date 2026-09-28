@@ -202,13 +202,13 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_HEALTH_MODE": ['off', 'status', 'all', 'slot'].indexOf(settings.healthMode || 'off'),
         "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30,
         "CLAY_RAIN_COUNTDOWN_HORIZON": (function() {
-            var rc = parseInt(settings.rainCountdownHorizon, 10);
-            if (isNaN(rc)) { rc = 60; }
-            if ((settings.radarMode || 'graph') === 'off') { rc = 0; }
-            // The rain alert's switch (Alerts card; absent = on, the countdown
-            // every install had): off sends horizon 0, the watch's "no countdown".
-            if (settings.alertRain === false) { rc = 0; }
-            return rc;
+            // The rain alert's window and switch, resolved by the contract that owns
+            // their defaults. Switched off it sends horizon 0, the watch's "no
+            // countdown" — and so does a radar that fetches nothing (radar mode 'off'),
+            // which folds in here rather than into the switch.
+            var rain = statusThresholds.rainAlert(settings);
+            if ((settings.radarMode || 'graph') === 'off' || !rain.on) { return 0; }
+            return rain.horizonMin;
         })(),
         // Health-graph HR line scale, packed lo | (hi << 8) — both ends are <= 220,
         // so each fits a byte and the pair rides one key instead of two. The watch

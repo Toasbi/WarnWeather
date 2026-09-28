@@ -286,15 +286,25 @@
   }
 
   /**
+   * Whether a kind is a WEATHER kind: neither a goal kind (the health trio levels
+   * on the watch) nor a bold-only one (no pair to level). The phone levels exactly
+   * these at bake time, so the level packer, the day-max hold rule and the render
+   * signature's pair loop all select by this one predicate.
+   * @param {?Object} k A KINDS entry.
+   * @returns {boolean}
+   */
+  function isWeatherKind(k) {
+    return Boolean(k) && !k.goal && !k.boldOnly;
+  }
+
+  /**
    * @param {*} code A status item code.
-   * @returns {?Object} the KINDS entry of a weather kind (neither goal nor
-   *     bold-only) with that code, else null
+   * @returns {?Object} the KINDS entry of a weather kind (isWeatherKind) with that
+   *     code, else null
    */
   function weatherKindOf(code) {
     for (var i = 0; i < KINDS.length; i += 1) {
-      if (KINDS[i].code === code) {
-        return (KINDS[i].goal || KINDS[i].boldOnly) ? null : KINDS[i];
-      }
+      if (KINDS[i].code === code) { return isWeatherKind(KINDS[i]) ? KINDS[i] : null; }
     }
     return null;
   }
@@ -600,8 +610,7 @@
   function packWeatherLevels(payload, settings) {
     var packed = 0;
     for (var k = 0; k < KINDS.length; k++) {
-      // Health kinds level on the watch; bold-only kinds have no pair to level.
-      if (KINDS[k].goal || KINDS[k].boldOnly) { continue; }
+      if (!isWeatherKind(KINDS[k])) { continue; }
       var level = kindLevel(KINDS[k].code, payload, settings);
       if (level === null) { continue; }
       packed |= level << weatherLevelShift(k);
@@ -613,7 +622,11 @@
   // rain alert in front of them). `code` is the KINDS code, so the wire kind id
   // is its index there; `key` is the settings stem: alert<Key> switches the alert
   // on, alert<Key>Display ('icon' | 'value') picks whether its number rides after
-  // the icon.
+  // the icon. THE alert vocabulary: which alerts exist, their order and how their
+  // two settings read live here alone, and every reader — the bake, the fetch
+  // gates, the render signature, telemetry, the settings page — goes through
+  // alertSettings / enabledAlerts below. The settings page's presentation list
+  // (schema.js, its labels and sheet copy) is pinned to this order by a test.
   var ALERT_KINDS = [
     { code: 'uv', key: 'Uv' },
     { code: 'wind', key: 'Wind' },
@@ -621,6 +634,10 @@
     { code: 'aqi', key: 'Aqi' },
     { code: 'pollen', key: 'Pollen' }
   ];
+
+  // The rain alert's window while none is stored or it does not parse, in minutes.
+  // Its switch and look defaults sit in rainAlert, the one reading of all three.
+  var RAIN_HORIZON_DEFAULT_MIN = 60;
 
   /**
    * @param {string} code A KINDS code.
@@ -634,12 +651,70 @@
   }
 
   /**
+   * One metric alert's two settings, read the one way: on only for a stored
+   * boolean true (a stored string is not the toggle's value), and the value shown
+   * only while it is on — an alert that is off bakes nothing, whatever its Look.
    * @param {Object} settings Clay settings blob
-   * @param {Object} a ALERT_KINDS entry
-   * @returns {boolean} whether the alert is switched on
+   * @param {*} code An ALERT_KINDS code.
+   * @returns {{on: boolean, showValue: boolean}} both false for a code with no alert
    */
-  function alertOn(settings, a) {
-    return Boolean(settings) && settings['alert' + a.key] === true;
+  function alertSettings(settings, code) {
+    for (var i = 0; i < ALERT_KINDS.length; i++) {
+      if (ALERT_KINDS[i].code !== code) { continue; }
+      var stem = 'alert' + ALERT_KINDS[i].key;
+      var on = Boolean(settings) && settings[stem] === true;
+      return {on: on, showValue: on && settings[stem + 'Display'] === 'value'};
+    }
+    return {on: false, showValue: false};
+  }
+
+  /**
+   * @param {Object} settings Clay settings blob
+   * @param {*} code An ALERT_KINDS code.
+   * @returns {boolean} whether that metric alert is switched on (false for a code
+   *     with no alert)
+   */
+  function alertOn(settings, code) {
+    return alertSettings(settings, code).on;
+  }
+
+  /**
+   * The switched-on metric alerts, in the row's fixed order.
+   * @param {Object} settings Clay settings blob
+   * @returns {Array<{code: string, kindId: number, showValue: boolean}>} [] when
+   *     none is on
+   */
+  function enabledAlerts(settings) {
+    var out = [];
+    for (var i = 0; i < ALERT_KINDS.length; i++) {
+      var code = ALERT_KINDS[i].code;
+      var st = alertSettings(settings, code);
+      if (st.on) { out.push({code: code, kindId: kindId(code), showValue: st.showValue}); }
+    }
+    return out;
+  }
+
+  /**
+   * The rain alert's three settings resolved, with their defaults in this one
+   * place: the switch (alertRain) is ON unless stored false — the countdown every
+   * install had before the Alerts card; the look (rainAlertDisplay) is a
+   * RAIN_DISPLAY key, else 'text' — the "Rain in 12'" the strip always drew; the
+   * window (rainCountdownHorizon) is the stored minutes, else
+   * RAIN_HORIZON_DEFAULT_MIN. The switch is the STORED one: radar mode 'off'
+   * silencing the alert is the Clay packer's fold (clay-payload.js), not part of
+   * it.
+   * @param {Object} settings Clay settings blob
+   * @returns {{on: boolean, look: string, horizonMin: number}}
+   */
+  function rainAlert(settings) {
+    var s = settings || {};
+    var look = s.rainAlertDisplay;
+    var horizon = parseInt(s.rainCountdownHorizon, 10);
+    return {
+      on: s.alertRain !== false,
+      look: Object.prototype.hasOwnProperty.call(RAIN_DISPLAY, look) ? look : 'text',
+      horizonMin: isNaN(horizon) ? RAIN_HORIZON_DEFAULT_MIN : horizon
+    };
   }
 
   /**
@@ -719,17 +794,16 @@
   function bakeAlerts(payload, settings, cap) {
     var out = [];
     if (!payload || !settings) { return out; }
-    for (var i = 0; i < ALERT_KINDS.length; i++) {
-      var a = ALERT_KINDS[i];
-      if (!alertOn(settings, a)) { continue; }
+    var alerts = enabledAlerts(settings);
+    for (var i = 0; i < alerts.length; i++) {
+      var a = alerts[i];
       var level = alertLevel(a.code, payload, settings);
       if (level === null || level < 1) { continue; }
-      var text = settings['alert' + a.key + 'Display'] === 'value'
-        ? alertValueText(a.code, alertValue(a.code, payload, settings)) : '';
+      var text = a.showValue ? alertValueText(a.code, alertValue(a.code, payload, settings)) : '';
       // Tail-drop: a prefix of the fixed order, never a later entry that happens
       // to be shorter — the watch fits the row by the same rule.
       if (out.length + 1 + text.length > cap) { break; }
-      out.push(kindId(a.code) | (level << ALERT_LEVEL_SHIFT) | (text.length << ALERT_LEN_SHIFT));
+      out.push(a.kindId | (level << ALERT_LEVEL_SHIFT) | (text.length << ALERT_LEN_SHIFT));
       for (var c = 0; c < text.length; c++) { out.push(text.charCodeAt(c)); }
     }
     return out;
@@ -740,11 +814,7 @@
    * @returns {string[]} the codes whose alert is switched on, fixed order
    */
   function alertKindCodes(settings) {
-    var out = [];
-    for (var i = 0; i < ALERT_KINDS.length; i++) {
-      if (alertOn(settings, ALERT_KINDS[i])) { out.push(ALERT_KINDS[i].code); }
-    }
-    return out;
+    return enabledAlerts(settings).map(function (a) { return a.code; });
   }
 
   /**
@@ -752,14 +822,9 @@
    * @returns {string[]} the switched-on alerts whose Look prints the value
    */
   function alertValueKindCodes(settings) {
-    var out = [];
-    for (var i = 0; i < ALERT_KINDS.length; i++) {
-      var a = ALERT_KINDS[i];
-      if (alertOn(settings, a) && settings['alert' + a.key + 'Display'] === 'value') {
-        out.push(a.code);
-      }
-    }
-    return out;
+    return enabledAlerts(settings)
+      .filter(function (a) { return a.showValue; })
+      .map(function (a) { return a.code; });
   }
 
   /**
@@ -809,26 +874,13 @@
   }
 
   /**
-   * The Alerts row's rain look (rainAlertDisplay), resolved to a RAIN_DISPLAY
-   * key: the stored look when it is a known one, else 'text' — the countdown the
-   * strip drew before the Alerts row. The one resolution for the packer and the
-   * telemetry code, so the default lives here alone.
-   * @param {Object} settings Clay settings blob
-   * @returns {string} 'text' | 'icon' | 'minutes'
-   */
-  function rainDisplayFor(settings) {
-    var raw = settings && settings.rainAlertDisplay;
-    return Object.prototype.hasOwnProperty.call(RAIN_DISPLAY, raw) ? raw : 'text';
-  }
-
-  /**
    * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
    * The statusBoldAll master row ('all') overrides the PACKED bold cell of
    * every kind to BOLD_MODES.always at build time only — the stored
    * thresh<Kind>BoldMode values are never modified, so 'perSlot' restores
    * them on the next build. Enable bits, colors, and health u16s are
    * untouched by the master.
-   * Byte ALERTS_OFFSET carries the Alerts row's rain look (rainDisplayFor);
+   * Byte ALERTS_OFFSET carries the Alerts row's rain look (rainAlert's look);
    * which METRIC alerts are on never rides here — the phone bakes only the
    * active ones into their own weather tuple (bakeAlerts). Byte
    * BAR_ALERTS_OFFSET carries where each bar shows the row (barAlertPlace).
@@ -867,7 +919,7 @@
         blob[off + 3] = (danger >> 8) & 0xFF;
       }
     }
-    blob[ALERTS_OFFSET] = RAIN_DISPLAY[rainDisplayFor(settings)];
+    blob[ALERTS_OFFSET] = RAIN_DISPLAY[rainAlert(settings).look];
     for (var b = 0; b < BAR_ALERT_KEYS.length; b++) {
       blob[BAR_ALERTS_OFFSET] |=
         BAR_ALERT_PLACES[barAlertPlace(settings, BAR_ALERT_KEYS[b].bar)] << (2 * b);
@@ -891,8 +943,11 @@
     BAR_ALERT_PLACES: BAR_ALERT_PLACES,
     barAlertPlace: barAlertPlace,
     RAIN_DISPLAY: RAIN_DISPLAY,
-    rainDisplayFor: rainDisplayFor,
+    rainAlert: rainAlert,
     ALERT_KINDS: ALERT_KINDS,
+    alertSettings: alertSettings,
+    alertOn: alertOn,
+    enabledAlerts: enabledAlerts,
     BOLD_MODES: BOLD_MODES,
     DEFAULT_BOLD_MODE: DEFAULT_BOLD_MODE,
     parseThreshold: parseThreshold,
@@ -903,6 +958,7 @@
     resolvedPair: resolvedPair,
     holdWarn: holdWarn,
     isGoalKind: isGoalKind,
+    isWeatherKind: isWeatherKind,
     DEFAULT_GOAL_COLOR: DEFAULT_GOAL_COLOR,
     DEFAULT_GOAL_HEX: DEFAULT_GOAL_HEX,
     textColor: textColor,

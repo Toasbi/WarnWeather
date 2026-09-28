@@ -1204,7 +1204,7 @@ test('the Alerts card reports alertKinds, alertValueKinds and rainAlertDisplay',
 });
 
 // The rain look reported is the one the watch draws: the blob's alerts byte and the
-// report both resolve through rainDisplayFor, so an unknown value cannot read as a
+// report both resolve through rainAlert, so an unknown value cannot read as a
 // look the watch never got.
 test('rainAlertDisplay agrees with the rain look the blob sends', () => {
   const thresholds = require('../src/pkjs/status-thresholds.js');

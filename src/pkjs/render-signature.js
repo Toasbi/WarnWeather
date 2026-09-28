@@ -111,7 +111,7 @@ function renderSignature(settings) {
     // or after the overnight pause). The highlight toggle thresh<Kind>On does NOT
     // join: levels pack whatever it says and it only flips the Clay blob's enable
     // bit, which is already immediate. Selected by the SAME
-    // predicate packWeatherLevels packs by (neither goal nor boldOnly), so a
+    // predicate packWeatherLevels packs by (isWeatherKind), so a
     // kind the phone levels can never be omitted here — KINDS.slice(0, 4)
     // silently dropped UV when it joined as kind 7.
     // Deliberately NOT the health kinds (goal: true — evaluated watch-side from
@@ -125,7 +125,7 @@ function renderSignature(settings) {
     // aqiScale) are signed above.
     var kinds = statusThresholds.KINDS;
     for (var w = 0; w < kinds.length; w++) {
-        if (kinds[w].goal || kinds[w].boldOnly) { continue; }
+        if (!statusThresholds.isWeatherKind(kinds[w])) { continue; }
         var held = statusThresholds.resolvedPair(kinds[w].key, settings);
         parts.push(held.warn, held.danger);
     }
@@ -133,17 +133,14 @@ function renderSignature(settings) {
     // ALERT_ENTRIES_UINT8 entries, status-thresholds.js bakeAlerts) and the fetch set (an
     // enabled alert fetches its metric and day peaks with no slot showing it), and
     // alert<Kind>Display changes the baked bytes (a value after the icon). Signed as
-    // what the bake reads — on or not, and the Look only while on — so the page
+    // what the bake reads, through the bake's own calls — the switched-on codes, then
+    // those whose Look shows the value (the Look only while on) — so the page
     // hydrating an absent key to its default forces no fetch. rainAlertDisplay, the
     // four per-bar placements (statusXxxAlerts) and the rain switch (alertRain) do
     // NOT join: the look and the placements ride the Clay blob (bytes 34 and 35),
     // the switch the Clay horizon (0 when off) — all already immediate.
-    var alerts = statusThresholds.ALERT_KINDS;
-    for (var a = 0; a < alerts.length; a++) {
-        var on = settings['alert' + alerts[a].key] === true;
-        parts.push(on ? 'on' : '',
-            on && settings['alert' + alerts[a].key + 'Display'] === 'value' ? 'value' : '');
-    }
+    parts.push(statusThresholds.alertKindCodes(settings).join(','),
+        statusThresholds.alertValueKindCodes(settings).join(','));
     return parts.join('|');
 }
 

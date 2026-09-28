@@ -7,8 +7,8 @@ var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
 // The radar source in effect ('rainbowkey' for Rainbow with "Use your own key" on).
 var radarSourceId = require('./weather/radar-source-id.js');
-// alertKindCodes / alertValueKindCodes, rainDisplayFor, barAlertPlace and warnLookFor —
-// the bake's and the packer's own reading of the Alerts card and the warn looks, so the
+// alertKindCodes / alertValueKindCodes, rainAlert, barAlertPlace and warnLookFor — the
+// bake's and the packer's own reading of the Alerts card and the warn looks, so the
 // report and the watch cannot disagree on what is on or how it looks.
 var statusThresholds = require('./status-thresholds.js');
 
@@ -212,11 +212,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // alert kind cannot 400 an old ingest's batch.
         alertKinds: statusThresholds.alertKindCodes(safe).join(','),
         alertValueKinds: statusThresholds.alertValueKindCodes(safe).join(','),
-        rainAlertDisplay: statusThresholds.rainDisplayFor(safe),
+        rainAlertDisplay: statusThresholds.rainAlert(safe).look,
         // Where each bar places the row (see alertBarsReport), and the rain alert's
-        // switch — on by default like radarSky: a missing key is on.
+        // STORED switch — on by default like radarSky: a missing key is on. Not the
+        // horizon the watch is sent, which radar mode 'off' also zeroes.
         alertBars: alertBarsReport(safe),
-        alertRain: safe.alertRain !== false,
+        alertRain: statusThresholds.rainAlert(safe).on,
         // The warn box per paired kind (see warnLooksReport). The platform decides the
         // default, and watchInfo absent reads as basalt (colour), as for the colours.
         warnLooks: warnLooksReport(safe, configUi.isColorPlatform(
