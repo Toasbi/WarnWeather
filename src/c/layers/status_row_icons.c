@@ -70,7 +70,7 @@ static bool icon_bbox_cb(GDrawCommand *command, uint32_t index, void *context) {
 // so octagons/curves stay symmetric instead of tilting a pixel when downscaled. The scale
 // itself rounds half-up (+den/2); the snap then quantises to the crisp phase.
 // Keep-fill art (b->fill set) is recoloured the other way round — fill tinted, stroke
-// off — and scaled and snapped by exactly the same rule.
+// off — and snapped by the same rule (its scale maps the viewbox: icon_load).
 static bool icon_normalize_cb(GDrawCommand *command, uint32_t index, void *context) {
     (void) index;
     IconNorm *b = (IconNorm *)context;
@@ -118,8 +118,18 @@ static GDrawCommandImage *icon_load(uint32_t resource_id, int target_h,
     int glyph_w = b.max_x - b.min_x;
     // Scale so the glyph's height maps to target_h px. Points are in 1/8-px units, so the
     // numerator carries the ×8; the max point then lands at target_h * 8 units == target_h px.
+    // Keep-fill art maps its authored VIEWBOX to target_h instead of its ink: the three rain
+    // buckets share one 25-px viewbox and one drop size (the count is the intensity), so
+    // scaling the ink would blow a one-row glyph's drops up to the full height and shrink
+    // the two-row downpour's to ~57 % of them.
+    int span = glyph_h;
+    if (fill) {
+        GSize vb = gdraw_command_image_get_bounds_size(image);
+        int vspan = (vb.h > vb.w ? vb.h : vb.w) * PRECISE_UNITS_PER_PX;
+        if (vspan > 0) { span = vspan; }
+    }
     b.num = (int32_t)target_h * PRECISE_UNITS_PER_PX;
-    b.den = glyph_h;
+    b.den = span;
     b.sum_x = (int32_t)b.min_x + b.max_x;
     b.sum_y = (int32_t)b.min_y + b.max_y;
     // Origin phased so the min vertex lands on 4 (0.5 px) — a pixel centre, so the 1px
@@ -316,11 +326,18 @@ GDrawCommandImage *status_row_icons_load(uint8_t icon_id, int target_h, bool top
     return icon_load(resource, h, NULL);
 }
 
+// The drops' viewbox square, as a percent of the tier's icon height. The retired
+// strip takeover scaled the viewbox into a square a little taller than the tier's
+// icons (13 px over a 10-px tier on the 144-px screens, 15 over 13 on emery); 120 %
+// gives emery's 15 exactly, and the 144-px screens' 12 snaps to the same 6-px drop
+// as the strip's 13 did.
+#define RAIN_BOX_PCT 120
+
 GDrawCommandImage *status_row_icons_load_filled(uint32_t resource_id, int target_h,
                                                 GColor tint, bool outline) {
     if (resource_id == 0 || target_h <= 0) { return NULL; }
     IconFill fill = { .tint = tint, .outline = outline };
-    return icon_load(resource_id, target_h, &fill);
+    return icon_load(resource_id, (target_h * RAIN_BOX_PCT) / 100, &fill);
 }
 
 void status_row_icons_destroy(GDrawCommandImage *image) {
