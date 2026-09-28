@@ -1138,7 +1138,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda) {
             options: [['Icon', 'icon'], ['Icon + value', 'value']],
             // The icon-only look (the default) needs no hint; the value look says what
             // it costs. Values never cost an entry: the row picks its slots at full
-            // width (status_row.c alerts_layout), so it takes the neighbor sooner, and
+            // width (status_alerts_layout), so it takes the neighbor sooner, and
             // a short row drops every value before any icon (alert_set_degrade).
             hintByValue: {
                 value: 'Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow.'
@@ -1234,8 +1234,8 @@ function alertCardItems() {
 // (status-thresholds.js barAlertPlace: the top strip Left — where the rain countdown
 // always took over — every other bar Off), so an untouched upgrade draws what it drew.
 var ALERT_PLACE_HINT = 'While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.';
-// The top strip's Right: the low-battery warning keeps that slot (status_row.c
-// alerts_layout moves the row to the middle while battery_override holds).
+// The top strip's Right: the low-battery warning keeps that slot (status_alerts.c
+// lays the row out in the middle while battery_override holds).
 var ALERT_PLACE_TOP_RIGHT_HINT = ALERT_PLACE_HINT + ' While the low-battery warning shows, it moves to the middle slot.';
 /**
  * @param {string} bar 'top' | 'forecast' | 'radar' | 'health' (BAR_ALERT_KEYS).

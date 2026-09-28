@@ -696,7 +696,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 
     // The rain-countdown rescan comes FIRST, before anything paints: the countdown is
-    // pure data that every Alerts row's refresh reads (status_row.c resolve_alerts), and
+    // pure data that every Alerts row's refresh reads (status_alerts.c resolve), and
     // the status rows are signature-gated (an unchanged signature repaints nothing), so
     // a row refreshed ahead of the rescan would keep showing the old rain entry until
     // the next minute tick. The radar payload (or the snooze latch/release) is the

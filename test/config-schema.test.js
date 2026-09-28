@@ -2235,8 +2235,8 @@ test('each status bar has an Alerts placement select: Off / Left / Middle / Righ
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const H = 'While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.';
   const HMID = 'While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.';
-  // The top strip's Right gives way to the low-battery warning (status_row.c
-  // alerts_layout; settings audit #4), and its hint says so.
+  // The top strip's Right gives way to the low-battery warning (status_alerts.c
+  // status_alerts_layout; settings audit #4), and its hint says so.
   const HTOP = H + ' While the low-battery warning shows, it moves to the middle slot.';
   const RADAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
   const HEALTH = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
