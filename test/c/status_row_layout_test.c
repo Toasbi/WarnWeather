@@ -526,73 +526,6 @@ static void highlight_extent_is_font_sized(void) {
     }
 }
 
-// status_highlight_extent_pad: the Alerts row's entry boxes are the slot box plus a
-// row of air each side — where the band has it. A side the band (or the strip's
-// calendar floor) already clamps keeps its extent; the other side still grows.
-static void expect_padded(const char *name, int16_t band_top, int16_t band_h,
-                          int16_t cap_cy, int16_t content_h, bool strip, bool tail,
-                          int want_y, int want_h) {
-    StatusHighlightExtent e = status_highlight_extent_pad(
-        status_highlight_extent(band_top, band_h, cap_cy, content_h, strip, tail),
-        band_top, band_h, strip, 1);
-    expect_named(name, ".y", e.y, want_y);
-    expect_named(name, ".h", e.h, want_h);
-}
-
-static void highlight_extent_pad_pins(void) {
-    // Clamp-free bands: one row each side (slot box 3/15 -> 2/17).
-    expect_padded("pad.basalt.fullCal", 0, 20, 10, 14, false, false, 2, 17);
-    expect_padded("pad.emery.noCal", 0, 30, 15, 24, false, false, 3, 24);
-    expect_padded("pad.offset", 40, 20, 50, 14, false, true, 42, 16);
-    // Top already on the band edge: only the bottom grows; a tail box that already
-    // reaches the band bottom stays as it is.
-    expect_padded("pad.basalt.compactCal", 0, 17, 8, 18, false, false, 0, 17);
-    expect_padded("pad.basalt.compactCal.tail", 0, 17, 8, 18, false, true, 0, 17);
-    // The strip: its floor, not the band, bounds the bottom.
-#ifdef PBL_PLATFORM_EMERY
-    expect_padded("pad.strip", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, false, 0, 17);
-    expect_padded("pad.strip.tail", 0, 21, 10 - STATUS_TOP_STRIP_LIFT, 24, true, true, 0, 20);
-#else
-    expect_padded("pad.strip", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, false, 0, 14);
-    expect_padded("pad.strip.tail", 0, 17, 8 - STATUS_TOP_STRIP_LIFT, 18, true, true, 0, 14);
-#endif
-    // pad 0 is the identity.
-    StatusHighlightExtent same = status_highlight_extent_pad(
-        (StatusHighlightExtent){ 3, 14 }, 0, 20, false, 0);
-    expect("pad.zero.y", same.y, 3);
-    expect("pad.zero.h", same.h, 14);
-
-    // Property sweep: the padded box contains the slot box, grows each side by at
-    // most the pad, and never leaves the band or crosses the strip's floor.
-    for (int c = 14; c <= 24; c += (c == 14 ? 4 : 6)) {
-        for (int16_t band_h = 1; band_h <= 40; band_h++) {
-            for (int16_t cap = 0; cap <= band_h; cap++) {
-                for (int mode = 0; mode < 4; mode++) {
-                    bool strip = (mode & 1) != 0;
-                    bool tail = (mode & 2) != 0;
-                    int16_t top = 7;
-                    StatusHighlightExtent e = status_highlight_extent(
-                        top, band_h, (int16_t)(top + cap), (int16_t)c, strip, tail);
-                    StatusHighlightExtent p = status_highlight_extent_pad(
-                        e, top, band_h, strip, 2);
-                    int limit = top + band_h
-                        - (strip ? STATUS_TOP_STRIP_LIFT - STATUS_STRIP_CAL_GAP + 1 : 0);
-                    bool contains = p.y <= e.y && p.y + p.h >= e.y + e.h;
-                    bool bounded = e.y - p.y <= 2 && (p.y + p.h) - (e.y + e.h) <= 2;
-                    bool in_band = p.y >= top
-                        && p.y + p.h <= (e.y + e.h > limit ? e.y + e.h : limit);
-                    if (!contains || !bounded || !in_band) {
-                        printf("FAIL pad.sweep c=%d band_h=%d cap=%d strip=%d tail=%d"
-                               " -> %d/%d from %d/%d\n", c, band_h, cap, strip, tail,
-                               p.y, p.h, e.y, e.h);
-                        s_failures++;
-                    }
-                }
-            }
-        }
-    }
-}
-
 // status_slot_desired_w is the width rule status_row_layout claims the edges by,
 // exported for the Alerts row's slot choice — pinned here so a change to the rule
 // shows up as a failure in both consumers' test, not as a takeover that disagrees
@@ -643,7 +576,6 @@ int main(void) {
     suffix_zero_is_byte_identical();
     suffix_sweep_stays_in_bounds();
     highlight_extent_is_font_sized();
-    highlight_extent_pad_pins();
     slot_desired_w_pins();
     if (s_failures) { printf("%d status_row_layout failure(s)\n", s_failures); return 1; }
     printf("status_row_layout OK\n");

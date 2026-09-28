@@ -50,14 +50,6 @@ StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
                                               int16_t cap_cy, int16_t content_h,
                                               bool top_strip, bool has_tail);
 
-// `e` (a status_highlight_extent result for the same band) grown by up to `pad` rows
-// on each side, each side stopping at the band's top / its bottom limit (the strip's
-// calendar floor on the top strip). The Alerts row's entry boxes use it for their
-// 1-px vertical padding.
-StatusHighlightExtent status_highlight_extent_pad(StatusHighlightExtent e,
-                                                  int16_t band_top, int16_t band_h,
-                                                  bool top_strip, int16_t pad);
-
 // True when the rendered slot text contains a descender glyph (g j p q y) — drives
 // the box's conditional descender reserve.
 bool status_text_has_descender(const char *text);

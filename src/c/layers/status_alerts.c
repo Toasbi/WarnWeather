@@ -236,14 +236,11 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
         // when a box appears.
         if (look.box != THRESH_BOX_NONE) {
             // The box IS the footprint: the padding was measured in, so it spans
-            // exactly [x, x + w). Its height is the slots' font-derived extent
-            // (status_highlight_extent_pad with a 0 pad is that extent, clamped).
-            StatusHighlightExtent v = status_highlight_extent_pad(
-                status_highlight_extent(place->band.origin.y, place->band.size.h,
-                    place->glyph_cy, place->content_h, place->top_strip,
-                    text_w > 0 && buf[0] != '\0' && status_text_has_descender(buf)),
-                place->band.origin.y, place->band.size.h, place->top_strip,
-                STATUS_ALERTS_BOX_PAD_Y);
+            // exactly [x, x + w). Its height is the slots' font-derived extent.
+            StatusHighlightExtent v = status_highlight_extent(
+                place->band.origin.y, place->band.size.h, place->glyph_cy,
+                place->content_h, place->top_strip,
+                text_w > 0 && buf[0] != '\0' && status_text_has_descender(buf));
             ink = status_highlight_paint(ctx, GRect(x, v.y, w, v.h), look);
         }
 
