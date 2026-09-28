@@ -333,7 +333,7 @@
      * THE CASCADE LIVES HERE, at resolve time, and nowhere else — the settings page must
      * never write one graph-colour key on behalf of another, or a carried tint and a chosen
      * one become the same bytes and intent stops being answerable (ADR-0003 §4). Blobs the
-     * 1.15.0 page already wrote that way are healed on upgrade by clay-settings.js'
+     * 1.15.0 page already wrote that way are healed on upgrade by migrations/graph-colors.js'
      * migrateCarriedGraphNightTints.
      *
      * Returning null rather than the base is deliberate: nightAreaColorsFor answers null
