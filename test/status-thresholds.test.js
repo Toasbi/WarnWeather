@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const th = require('../src/pkjs/status-thresholds.js');
 const statusLines = require('../src/pkjs/status-lines.js');
+const { packedLevel, judged } = require('./helpers/weather-levels.js');
 
 test('kind order is the wire order (index = ThreshKind)', () => {
   assert.deepEqual(th.KINDS.map(k => k.code),
@@ -197,7 +198,9 @@ test('scaleVariant: the one key the seeds and the slider geometry are tabled und
         [undefined, 'european', 'us'].forEach((aqiScale) =>
           pickers.push({ windUnits, distanceUnits, aqiSource, aqiScale })))));
   th.KINDS.filter((k) => !k.boldOnly).forEach((k) => pickers.forEach((s) => {
-    assert.ok(th.SEEDS[k.key][v(k.key, s)], k.key + ' has a seed for ' + v(k.key, s));
+    const seed = th.seedPair(k.key, s);
+    assert.ok(typeof seed.warn === 'number' && typeof seed.danger === 'number',
+      k.key + ' has a seed for ' + v(k.key, s));
   }));
 });
 
@@ -224,39 +227,33 @@ test('resolvedPair: a stored ordered pair wins; blank, half or inverted resolves
   assert.deepEqual(th.resolvedPair('Wind', null), { warn: 40, danger: 60, stored: false });
 });
 
-test('holdWarn: the resolved warn for weather kinds, blind to the toggle; null otherwise', () => {
-  assert.equal(th.holdWarn('uv', {}), 6, 'seed');
-  assert.equal(th.holdWarn('uv', { threshUvWarn: '4', threshUvDanger: '9' }), 4, 'stored');
-  assert.equal(th.holdWarn('uv', { threshUvWarn: '4', threshUvDanger: '9', threshUvOn: false }),
-    4, 'the toggle does not touch the hold');
-  assert.equal(th.holdWarn('uv', { threshUvWarn: '9', threshUvDanger: '4' }), 6,
+test('shownDayMax: today\'s peak holds on the resolved warn, blind to the toggle', () => {
+  // UV falling from an 8: now 7, the rest of today 7, tomorrow 9. Alert mode shows
+  // the 7 while it is at or above warn, else tomorrow's »9.
+  const p = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [70, 90, 80] };
+  const held = { now: null, peak: 7, nextDay: false };
+  const rolled = { now: null, peak: 9, nextDay: true };
+  const max = (extra) => th.shownDayMax('uv', p, Object.assign({ uvSlotDisplay: 'max' }, extra));
+  assert.deepEqual(max({}), held, 'the seed warn 6');
+  assert.deepEqual(max({ threshUvWarn: '7', threshUvDanger: '9' }), held, 'a stored warn 7');
+  assert.deepEqual(max({ threshUvWarn: '8', threshUvDanger: '9' }), rolled, 'a stored warn 8');
+  assert.deepEqual(max({ threshUvWarn: '7', threshUvDanger: '9', threshUvOn: false }), held,
+    'the toggle does not touch the hold');
+  assert.deepEqual(max({ threshUvWarn: '9', threshUvDanger: '4' }), held,
     'an inverted pair holds on the seed');
-  assert.equal(th.holdWarn('wind', { windUnits: 'mph' }), 25);
-  assert.equal(th.holdWarn('gust', { windUnits: 'knots' }), 30);
-  assert.equal(th.holdWarn('aqi', { aqiSource: 'openmeteo', aqiScale: 'european' }), 60);
-  assert.equal(th.holdWarn('pollen', {}), 2);
-  // Goal, bold-only and unknown codes have no hold level.
-  assert.equal(th.holdWarn('steps', { threshStepsWarn: '1', threshStepsDanger: '2' }), null);
-  assert.equal(th.holdWarn('sleep', {}), null);
-  assert.equal(th.holdWarn('temp', { threshTempWarn: '10', threshTempDanger: '20' }), null);
-  assert.equal(th.holdWarn('city', {}), null);
-  assert.equal(th.holdWarn('nope', {}), null);
-  assert.equal(th.holdWarn(undefined, {}), null);
+  // The warn is in the user's unit: 38 km/h is 21 kn, at the knots seed 20 and
+  // below the kph seed 40.
+  const w = { WIND_TREND_UINT8: [38], WIND_DAY_PEAKS: [38, 80, 50] };
+  assert.equal(th.shownDayMax('wind', w, { windUnits: 'knots', windSlotDisplay: 'max' }).nextDay,
+    false);
+  assert.equal(th.shownDayMax('wind', w, { windUnits: 'kph', windSlotDisplay: 'max' }).nextDay,
+    true);
+  // Only the day-max kinds have a pick: pollen, goal, bold-only and unknown codes none.
+  const all = Object.assign({ POLLEN_TODAY: '3' }, p);
+  ['pollen', 'steps', 'sleep', 'temp', 'city', 'nope', undefined].forEach((code) =>
+    assert.equal(th.shownDayMax(code, all, { threshStepsWarn: '1', threshStepsDanger: '2' }),
+      null, String(code)));
 });
-
-/**
- * One weather kind's 2-bit level off packWeatherLevels' wire bytes: kinds 0..3 at
- * bits 2k of byte 0, UV (kind 7) at bits 0-1 of byte 1.
- * @param {string} code A weather kind's code.
- * @param {Object} payload
- * @param {Object} settings
- * @returns {number} 0 normal / 1 warn / 2 danger
- */
-function packedLevel(code, payload, settings) {
-  const k = th.KINDS.findIndex((x) => x.code === code);
-  const bytes = th.packWeatherLevels(payload, settings);
-  return ((bytes[0] | (bytes[1] << 8)) >> (k <= 3 ? 2 * k : 8)) & 3;
-}
 
 test('packWeatherLevels: each kind\'s shown value against its resolved pair, whatever the toggle says', () => {
   const payload = { UV_TREND_UINT8: [70], AQI_TREND: [120], POLLEN_TODAY: '3' };
@@ -279,19 +276,19 @@ test('packWeatherLevels: each kind\'s shown value against its resolved pair, wha
   [0, 0]);
 });
 
-test('displayValue mirrors the numbers status-lines.js displays', () => {
+test('the highlight judges the numbers status-lines.js displays', () => {
   const payload = { AQI_TREND: [153.4], WIND_TREND_UINT8: [50], GUST_TREND_UINT8: [90], POLLEN_TODAY: '2-3' };
-  assert.equal(th.displayValue('aqi', payload, {}), 153);
+  assert.equal(judged('aqi', payload, {}), 153);
   // POLLEN_TODAY is a DWD band STRING, not a number; '2-3' maps to 2.5.
-  assert.equal(th.displayValue('pollen', payload, {}), 2.5);
-  assert.equal(th.displayValue('pollen', { POLLEN_TODAY: '1' }, {}), 1);
-  assert.equal(th.displayValue('pollen', { POLLEN_TODAY: '0-1' }, {}), 0.5);
-  assert.equal(th.displayValue('wind', payload, { windUnits: 'kph' }), 50);
-  assert.equal(th.displayValue('wind', payload, { windUnits: 'mph' }), 31);   // round(50/1.60934)
-  assert.equal(th.displayValue('gust', payload, { windUnits: 'knots' }), 49); // round(90/1.852)
-  assert.equal(th.displayValue('aqi', {}, {}), null);
-  assert.equal(th.displayValue('pollen', { POLLEN_TODAY: null }, {}), null);
-  assert.equal(th.displayValue('pollen', { POLLEN_TODAY: 'n/a' }, {}), null); // unknown band
+  assert.equal(judged('pollen', payload, {}), 2.5);
+  assert.equal(judged('pollen', { POLLEN_TODAY: '1' }, {}), 1);
+  assert.equal(judged('pollen', { POLLEN_TODAY: '0-1' }, {}), 0.5);
+  assert.equal(judged('wind', payload, { windUnits: 'kph' }), 50);
+  assert.equal(judged('wind', payload, { windUnits: 'mph' }), 31);   // round(50/1.60934)
+  assert.equal(judged('gust', payload, { windUnits: 'knots' }), 49); // round(90/1.852)
+  assert.equal(judged('aqi', {}, {}), null);
+  assert.equal(judged('pollen', { POLLEN_TODAY: null }, {}), null);
+  assert.equal(judged('pollen', { POLLEN_TODAY: 'n/a' }, {}), null); // unknown band
 });
 
 // Binding test for the feature's central correctness requirement: a threshold compares
@@ -299,24 +296,24 @@ test('displayValue mirrors the numbers status-lines.js displays', () => {
 // divisors (1.60934 / 1.852) from status-lines.js, and the assertions above pin only the
 // literals 31/49 — so a change to the formatter's rounding (or a new unit) would silently
 // desync the highlight from the on-screen number with every test still green. Pin
-// displayValue to the FORMATTER'S OUTPUT instead. formatValue appends the unit label
+// the judged number to the FORMATTER'S OUTPUT instead. formatValue appends the unit label
 // ("31mph" / "27kn" / "50kph"), so the displayed number is its leading integer.
-test('displayValue is pinned to what status-lines actually displays (wind, gust, aqi)', () => {
+test('the judged number is pinned to what status-lines actually displays (wind, gust, aqi)', () => {
   const payload = { WIND_TREND_UINT8: [50], GUST_TREND_UINT8: [90], AQI_TREND: [153.4] };
   ['kph', 'mph', 'knots'].forEach(unit => {
     ['wind', 'gust'].forEach(code => {
       const shown = statusLines.formatValue(code, payload, { windUnits: unit });
       assert.match(shown, /^\d+(kph|mph|kn)$/,
         code + ' in ' + unit + ' must format as <integer><unit>, got "' + shown + '"');
-      assert.equal(th.displayValue(code, payload, { windUnits: unit }), parseInt(shown, 10),
+      assert.equal(judged(code, payload, { windUnits: unit }), parseInt(shown, 10),
         code + ' threshold must compare against the displayed number (' + unit + ': "' + shown + '")');
     });
   });
   const aqiShown = statusLines.formatValue('aqi', payload, {});
-  assert.equal(th.displayValue('aqi', payload, {}), parseInt(aqiShown, 10),
+  assert.equal(judged('aqi', payload, {}), parseInt(aqiShown, 10),
     'AQI threshold must compare against the displayed number ("' + aqiShown + '")');
   // Pollen is deliberately NOT bindable this way: formatValue shows the DWD band string
-  // ('2-3'), while displayValue maps it to the numeric level 2.5 the threshold is entered
+  // ('2-3'), while the highlight judges its numeric level 2.5 the threshold is entered
   // on — parseInt('2-3') would be 2. The band -> level mapping is covered above.
 });
 
@@ -437,7 +434,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
-  // Goal kinds with UNSET colors pack DEFAULT_GOAL_COLOR (0x55FF00 -> GColor8 0xDC)
+  // Goal kinds with UNSET colors pack the goal green (0x55FF00 -> GColor8 0xDC)
   // for both slots — the green celebration default, not the warn-none sentinel.
   assert.equal(blob[1 + 2 * 4], 0xDC, 'steps close color defaults green');
   assert.equal(blob[2 + 2 * 4], 0xDC, 'steps goal color defaults green');
@@ -529,13 +526,14 @@ test('thresholdColor: THE colour rule — auto per theme and kind, a pick as is,
   assert.equal(c({ theme: 'light' }, 'Uv', 'Warn'), 0x000000);
   assert.equal(c({ theme: 'bw-light' }, 'Uv', 'Warn'), 0x000000, 'polarity, not colour-ness');
   assert.equal(c({ theme: 'light' }, 'Uv', 'Danger'), 0xFF0000);
-  assert.equal(c({}, 'Steps', 'Warn'), th.DEFAULT_GOAL_COLOR);
-  assert.equal(c({}, 'Steps', 'Danger'), th.DEFAULT_GOAL_COLOR);
+  const GOAL_GREEN = 0x55FF00;   // GColorBrightGreen
+  assert.equal(c({}, 'Steps', 'Warn'), GOAL_GREEN);
+  assert.equal(c({}, 'Steps', 'Danger'), GOAL_GREEN);
   // Black or white, in either encoding: the text colour for weather, green for goals.
   ['#000000', '#ffffff', 0x000000, 0xFFFFFF].forEach((v) => {
     assert.equal(c({ theme: 'dark', threshWindDangerColor: v }, 'Wind', 'Danger'), 0xFFFFFF, String(v));
     assert.equal(c({ theme: 'light', threshWindWarnColor: v }, 'Wind', 'Warn'), 0x000000, String(v));
-    assert.equal(c({ threshSleepDangerColor: v }, 'Sleep', 'Danger'), th.DEFAULT_GOAL_COLOR, String(v));
+    assert.equal(c({ threshSleepDangerColor: v }, 'Sleep', 'Danger'), GOAL_GREEN, String(v));
   });
   // A pick is kept; garbage takes the unset fallback.
   assert.equal(c({ threshAqiWarnColor: '#00aaff' }, 'Aqi', 'Warn'), 0x00AAFF);
@@ -1176,16 +1174,15 @@ test('alertKindCodes / alertValueKindCodes: enabled codes in the row order', () 
   assert.deepEqual(th.alertKindCodes(null), []);
 });
 
-test('alertSettings / alertOn: keyed by code, on only for a stored true, the value only while on', () => {
+test('alertOn / alertValueKindCodes: keyed by code, on only for a stored true, the value only while on', () => {
   th.ALERT_KINDS.forEach((a) => {
     const on = 'alert' + a.key;
     const look = on + 'Display';
-    assert.deepEqual(th.alertSettings({ [on]: true }, a.code), { on: true, showValue: false }, a.code);
-    assert.deepEqual(th.alertSettings({ [on]: true, [look]: 'value' }, a.code),
-      { on: true, showValue: true }, a.code + ' value');
-    assert.deepEqual(th.alertSettings({ [on]: true, [look]: 'icon' }, a.code),
-      { on: true, showValue: false }, a.code + ' icon');
-    assert.deepEqual(th.alertSettings({ [look]: 'value' }, a.code), { on: false, showValue: false },
+    assert.deepEqual(th.alertValueKindCodes({ [on]: true }), [], a.code);
+    assert.deepEqual(th.alertValueKindCodes({ [on]: true, [look]: 'value' }), [a.code],
+      a.code + ' value');
+    assert.deepEqual(th.alertValueKindCodes({ [on]: true, [look]: 'icon' }), [], a.code + ' icon');
+    assert.deepEqual(th.alertValueKindCodes({ [look]: 'value' }), [],
       a.code + ': off shows no value, whatever its Look');
     assert.equal(th.alertOn({ [on]: 'true' }, a.code), false, a.code + ': a stored string is not the toggle');
     assert.equal(th.alertOn({ [on]: false }, a.code), false);
@@ -1202,18 +1199,14 @@ test('alertSettings / alertOn: keyed by code, on only for a stored true, the val
   assert.equal(th.alertOn({ alertAqi: true }, 'gust'), false);
 });
 
-test('enabledAlerts: the switched-on alerts in row order, each with its wire kind id', () => {
-  assert.deepEqual(th.enabledAlerts({}), []);
-  assert.deepEqual(th.enabledAlerts(null), []);
-  assert.deepEqual(th.enabledAlerts({ alertPollen: true, alertUv: true, alertUvDisplay: 'value',
-    alertWind: false, alertGust: 'true', alertAqiDisplay: 'value' }), [
-    { code: 'uv', kindId: 7, showValue: true },
-    { code: 'pollen', kindId: 1, showValue: false }
-  ]);
-  th.enabledAlerts(ALL_ON).forEach((a) => {
-    assert.equal(th.KINDS[a.kindId].code, a.code, a.code + ': kindId is its KINDS index');
-  });
-  assert.deepEqual(th.enabledAlerts(ALL_ON).map(a => a.code), th.ALERT_KINDS.map(a => a.code));
+test('the switched-on alerts ride in row order, each entry under its wire kind id', () => {
+  const s = { alertPollen: true, alertUv: true, alertUvDisplay: 'value',
+    alertWind: false, alertGust: 'true', alertAqiDisplay: 'value' };
+  assert.deepEqual(th.alertKindCodes(s), ['uv', 'pollen']);
+  assert.deepEqual(th.alertValueKindCodes(s), ['uv']);
+  // An entry's kind id is its code's KINDS index, in ALERT_KINDS order.
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(ALL_ALERTING, ALL_ON)).map((e) => th.KINDS[e.kind].code),
+    th.ALERT_KINDS.map((a) => a.code));
 });
 
 test('rainAlert: owns the three rain defaults — on, the text look, a 60 min window', () => {

@@ -15,6 +15,7 @@ const wireUnits = require('../src/pkjs/wire-units.js');
 const statusLines = require('../src/pkjs/status-lines.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
 const th = require('../src/pkjs/status-thresholds.js');
+const { packedLevel, judged } = require('./helpers/weather-levels.js');
 const http = require('../src/pkjs/weather/http.js');
 const aq = require('../src/pkjs/weather/air-quality.js');
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
@@ -152,14 +153,14 @@ test('wind holds today\'s peak at warn in the user\'s unit (mph seed 25)', () =>
   ['both', 'max'].forEach((mode) => {
     const s = settings({ windUnits: 'mph', windSlotDisplay: mode, windSlotUnit: false });
     assert.equal(statusLines.formatValue('wind', p, s), '28', mode + ': 28 mph >= 25 holds');
-    assert.equal(th.displayValue('wind', p, s), 28, mode + ': judged on the 28');
+    assert.equal(packedLevel('wind', p, s), 1, mode + ': judged on the 28 (mph seed 25/40)');
   });
   // 35 km/h = 22 mph is below the seed: rolls to tomorrow's 60 km/h = 37 mph.
   const low = { WIND_TREND_UINT8: [35], WIND_DAY_PEAKS: [35, 60, 50] };
   const s = settings({ windUnits: 'mph', windSlotDisplay: 'both', windSlotUnit: false });
   assert.equal(statusLines.formatValue('wind', low, s), '22/' + RAQUO + '37');
-  assert.equal(th.displayValue('wind', low, settings({ windUnits: 'mph', windSlotDisplay: 'max' })),
-    null, 'a lone tomorrow\'s peak is not judged');
+  assert.equal(packedLevel('wind', low, settings({ windUnits: 'mph', windSlotDisplay: 'max' })), 0,
+    'a lone tomorrow\'s »37, past warn 25, is not judged');
 });
 
 test('gust holds on the knots seed: the same km/h can hold in knots and roll in kph', () => {
@@ -167,10 +168,10 @@ test('gust holds on the knots seed: the same km/h can hold in knots and roll in 
   const p = { GUST_TREND_UINT8: [56], GUST_DAY_PEAKS: [56, 90, 70] };
   const knots = settings({ windUnits: 'knots', gustSlotDisplay: 'max', gustSlotUnit: false });
   assert.equal(statusLines.formatValue('gust', p, knots), '30');
-  assert.equal(th.displayValue('gust', p, knots), 30);
+  assert.equal(packedLevel('gust', p, knots), 1, 'judged on the 30 (knots seed 30/50)');
   const kph = settings({ windUnits: 'kph', gustSlotDisplay: 'max', gustSlotUnit: false });
   assert.equal(statusLines.formatValue('gust', p, kph), RAQUO + '90');
-  assert.equal(th.displayValue('gust', p, kph), null);
+  assert.equal(packedLevel('gust', p, kph), 0, 'the lone »90, at the kph danger 90, is not judged');
 });
 
 test('AQI holds on the European seed 60 for Open-Meteo, the US seed 100 elsewhere', () => {
@@ -179,16 +180,18 @@ test('AQI holds on the European seed 60 for Open-Meteo, the US seed 100 elsewher
   ['both', 'max'].forEach((mode) => {
     const s = settings(Object.assign({ aqiSlotDisplay: mode }, eu));
     assert.equal(statusLines.formatValue('aqi', p, s), '65', mode + ': held at the EU warn');
-    assert.equal(th.displayValue('aqi', p, s), 65, mode + ': judged on the 65, never null');
-    assert.deepEqual(th.packWeatherLevels(p, s), [1, 0], mode + ': warn against 60/80');
+    assert.deepEqual(th.packWeatherLevels(p, s), [1, 0],
+      mode + ': judged on the 65, never nothing: warn against 60/80');
   });
   // The same numbers under the US seed roll to tomorrow's.
   assert.equal(statusLines.formatValue('aqi', p, settings({ aqiSlotDisplay: 'both' })),
     '65/' + RAQUO + '90');
-  assert.equal(th.displayValue('aqi', p, settings({ aqiSlotDisplay: 'max' })), null);
-  // A stored pair beats the seed: a warn of 70 releases the EU hold.
-  assert.equal(statusLines.formatValue('aqi', p, settings(Object.assign({ aqiSlotDisplay: 'max',
-    threshAqiWarn: '70', threshAqiDanger: '80' }, eu))), RAQUO + '90');
+  // A stored pair beats the seed: a warn of 70 releases the EU hold, and the lone
+  // »90 it rolls to, past that pair's danger 80, is not judged.
+  const released = settings(Object.assign({ aqiSlotDisplay: 'max',
+    threshAqiWarn: '70', threshAqiDanger: '80' }, eu));
+  assert.equal(statusLines.formatValue('aqi', p, released), RAQUO + '90');
+  assert.equal(packedLevel('aqi', p, released), 0);
 });
 
 // ---- status-thresholds: the highlight ---------------------------------------
@@ -197,14 +200,17 @@ test('wind, gust and AQI highlights judge the highest of today\'s numbers shown'
   const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null],
     GUST_TREND_UINT8: [30], GUST_DAY_PEAKS: [30, 60, null],
     AQI_TREND: [42], AQI_DAY_PEAKS: [58, 61, null] };
-  assert.equal(th.displayValue('wind', p, settings()), 12, 'Now mode: the reading');
-  assert.equal(th.displayValue('wind', p, settings({ windSlotDisplay: 'both' })), 30);
-  assert.equal(th.displayValue('wind', p, settings({ windSlotDisplay: 'both', windUnits: 'mph' })), 19);
-  // "30/»60": tomorrow's peak never counts; a lone "»60" is not judged at all.
-  assert.equal(th.displayValue('gust', p, settings({ gustSlotDisplay: 'both' })), 30);
-  assert.equal(th.displayValue('gust', p, settings({ gustSlotDisplay: 'max' })), null);
-  assert.equal(th.displayValue('aqi', p, settings({ aqiSlotDisplay: 'max' })), 58);
-  assert.equal(th.displayValue('aqi', { AQI_TREND: [] }, settings()), null);
+  assert.equal(judged('wind', p, settings()), 12, 'Now mode: the reading');
+  assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both' })), 30);
+  assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both', windUnits: 'mph' })), 19);
+  // "30/»60": tomorrow's peak never counts; a lone "»60" is not judged at all. (On
+  // the kph seed 60/90, where a judged 60 would be warn.)
+  assert.equal(statusLines.formatValue('gust', p, settings({ gustSlotDisplay: 'both',
+    gustSlotUnit: false })), '30/' + RAQUO + '60');
+  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'both' })), 0);
+  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'max' })), 0);
+  assert.equal(judged('aqi', p, settings({ aqiSlotDisplay: 'max' })), 58);
+  assert.equal(judged('aqi', { AQI_TREND: [] }, settings()), null);
 });
 
 // ---- getPayload + the AQI feed ----------------------------------------------

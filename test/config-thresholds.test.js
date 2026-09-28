@@ -316,8 +316,8 @@ test('scale max: override honored, garbage ignored, always grows to fit stored v
     ENV, { keyStem: 'Wind' });
   assert.deepEqual([clampedSeed.seedWarn, clampedSeed.seedDanger], [40, 60], 'kph wind seed');
   assert.ok(clampedSeed.max >= 60, 'the scale grows to hold the seed pair: ' + clampedSeed.max);
-  assert.equal(clampedSeed.seedWarn, thresholds.holdWarn('wind',
-    { windUnits: 'kph', threshWindMax: '30', threshWindWarn: '', threshWindDanger: '' }),
+  assert.equal(clampedSeed.seedWarn, thresholds.resolvedPair('Wind',
+    { windUnits: 'kph', threshWindMax: '30', threshWindWarn: '', threshWindDanger: '' }).warn,
     'the slider seed is the number the phone holds on');
   // Bounded kinds ignore stray max keys entirely.
   const sleep = B.thresholdRangeCfg({ threshSleepMax: '40' }, ENV, { keyStem: 'Sleep' });

@@ -275,9 +275,9 @@ test('directions match the C module: the JS axis is retired, the C stub is false
   });
 });
 
-test('DEFAULT_GOAL_HEX is the stored-shape twin of DEFAULT_GOAL_COLOR', () => {
+test('DEFAULT_GOAL_HEX is the stored-shape twin of the packed goal green', () => {
   // Every settings-page site that seeds/resets the goal green reads this export;
-  // the derivation pins the two representations to one value forever.
+  // the derivation pins it to the colour an unset goal kind packs, forever.
   assert.equal(th.DEFAULT_GOAL_HEX, '#55FF00');
-  assert.equal(parseInt(th.DEFAULT_GOAL_HEX.slice(1), 16), th.DEFAULT_GOAL_COLOR);
+  assert.equal(parseInt(th.DEFAULT_GOAL_HEX.slice(1), 16), th.thresholdColor({}, 'Steps', 'Warn'));
 });
