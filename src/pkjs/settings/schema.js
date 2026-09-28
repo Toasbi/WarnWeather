@@ -442,12 +442,12 @@ var ALERT_VOICE = {
     // colour rows in levelRows).
     colorDefault: '',
     boldWarnLabel: 'Warn',
-    // A weather kind's Bold row also sets the weight of its alert's value
-    // (status_alerts.c bolds an entry on the kind's ladder at its real level,
-    // Highlight or not).
+    // A weather kind's Bold row also sets the weight of its alert's value, the one
+    // the 'Icon + value' look prints next to the alert icon (status_alerts.c bolds an
+    // entry on the kind's ladder at its real level, Highlight or not).
     boldHints: {
-        off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
-        warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
+        off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
+        warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
         always: BOLD_ALWAYS_HINT
     },
     chips: {warn: 'Warn', danger: 'Danger'},
@@ -1042,8 +1042,12 @@ function rainAlertSheet() {
             toggleKey: 'alertRain',
             // The watch shows it while rain falls now, whatever the window, and hides
             // it while the radar is snoozed for the Battery saver hours
-            // (rain_countdown.c rain_countdown_format).
-            intro: 'Shows the rain drop in the Alerts row while it rains at your location or rain is due within the time window below. '
+            // (rain_countdown.c rain_countdown_format). The colour follows
+            // status_alerts_rain_tint: the radar's tier colour only on a colour watch
+            // under a colour theme — a B&W theme (day or night) draws it in the text
+            // colour, so the sentence names the theme, not just the watch.
+            intro: 'Shows the rain icon in the alert row while it rains at your location or rain is due within the time window below. '
+                + 'On a color watch the rain icon takes the radar’s rain color, except with a B&W theme. '
                 + 'Hidden during the Battery saver hours. The radar mode “Rain alert only” keeps it on.'
         }, {
             // Aria-only: the switch rides the sub-header above.
@@ -1072,13 +1076,15 @@ function rainAlertSheet() {
             label: 'Look',
             defaultValue: dflt.look,
             options: RAIN_LOOK_OPTIONS,
-            // The drop alone describes itself. The two longer looks say what they
+            // The icon alone describes itself. The two longer looks say what they
             // print and that they shrink on a crowded bar (alert_set_degrade: Text →
             // minutes, then every value and the minutes drop, bar-wide) — news the
-            // default Text look's name does not carry, so it gets a hint too.
+            // default Text look's name does not carry, so it gets a hint too. While it
+            // rains the '+' number counts the minutes until the rain stops
+            // (rain_countdown_format's "for" token, alert_set_rain_minutes' sign).
             hintByValue: {
-                minutes: 'The drop with the minutes until the rain starts, or +minutes while it rains. Just the drop when the bar is short on room.',
-                text: 'Shortens to the minutes, then to the drop alone, when the bar is short on room.'
+                minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. Just the icon when the bar is short on room.',
+                text: 'Shortens to the minutes, then to the rain icon alone, when the bar is short on room.'
             },
             disabledWhen: offWhen
         }]
@@ -1097,11 +1103,12 @@ function rainAlertSheet() {
  * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>, alert<Stem>Display).
  * @param {string} title The kind's sheet title, e.g. 'UV index'.
  * @param {string} subject The value the intro names, e.g. 'the UV index'.
+ * @param {string} iconName The kind's alert icon as the intro names it, e.g. 'UV'.
  * @param {string} hint The levels slider's scale note ('' for none).
  * @param {string} [coda] A closing sentence for the intro (leading space), '' for none.
  * @returns {Object} Schema section (sheetOnly).
  */
-function alertSheet(keyStem, title, subject, hint, coda) {
+function alertSheet(keyStem, title, subject, iconName, hint, coda) {
     var key = 'alert' + keyStem;
     return {
         sheetOnly: true,
@@ -1115,7 +1122,7 @@ function alertSheet(keyStem, title, subject, hint, coda) {
             // "reaches … today": the entry fires on the highest value left today, so the
             // morning icon for an afternoon peak is by design (status-thresholds alertReading).
             // `coda` closes it for a kind whose look-ahead depends on its source (AQI).
-            intro: 'Shows an icon in the Alerts row when ' + subject + ' reaches your warn level '
+            intro: 'Shows the ' + iconName + ' icon in the alert row when ' + subject + ' reaches your warn level '
                 + 'at any point left today, so an afternoon peak shows from the morning on.' + (coda || '')
         }, {
             // Aria-only: the switch rides the sub-header above.
@@ -1134,30 +1141,35 @@ function alertSheet(keyStem, title, subject, hint, coda) {
             // width (status_row.c alerts_layout), so it takes the neighbor sooner, and
             // a short row drops every value before any icon (alert_set_degrade).
             hintByValue: {
-                value: 'Adds the value the alert fires on after the icon. It needs more room: the row takes the neighboring slot sooner, and shows icons only when even that is too narrow.'
+                value: 'Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow.'
             },
             disabledWhen: {not: {key: key}}
         }].concat(levelRows(keyStem, ALERT_VOICE, hint, null))
     };
 }
 // The Alerts card's rows and sheets, in the card's order. `title` names both of a
-// kind's sheets (its alert sheet here, its slot sheet — alertSlotSheet); `subject`
-// feeds the alert sheet's intro; Pollen is DWD's alone, like the pollen slot itself.
+// kind's sheets (its alert sheet here, its slot sheet — alertSlotSheet); `subject` and
+// `iconName` feed the alert sheet's intro; Pollen is DWD's alone, like the pollen slot
+// itself.
 // The page's presentation of the contract's metric alerts (status-thresholds.js
 // ALERT_KINDS, which owns which alerts exist and their order):
 // test/config-schema.test.js pins this list's stems to that order.
 var ALERT_KINDS = [
-    {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', icon: 'uv'},
-    {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', icon: 'wind'},
-    {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', icon: 'gust'},
+    {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', iconName: 'UV',
+        icon: 'uv'},
+    {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', iconName: 'wind',
+        icon: 'wind'},
+    {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', iconName: 'gust',
+        icon: 'gust'},
     // AQI looks ahead only on an hourly forecast (AQI_DAY_PEAKS): WAQI — the default
     // source, and Auto whenever a station answers — has none, so alertReading judges
     // the current reading. The coda mirrors the slot sheet's source note.
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
-        icon: 'aqi', coda: ' Looking ahead needs the Open-Meteo AQI provider (General tab); with WAQI '
+        iconName: 'air quality', icon: 'aqi',
+        coda: ' Looking ahead needs the Open-Meteo AQI provider (General tab); with WAQI '
             + 'the alert judges the current reading.'},
-    {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', icon: 'pollen',
-        gate: {key: 'provider', eq: 'dwd'},
+    {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', iconName: 'pollen',
+        icon: 'pollen', gate: {key: 'provider', eq: 'dwd'},
         hint: 'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'}
 ];
 /**
@@ -1196,7 +1208,7 @@ function alertCardItems() {
             // Nothing moves the alerts for the user: the note names the gap and the fix.
             type: 'staticText',
             style: 'info',
-            text: 'Your Default view has no Watch Status Bar, so alerts won’t show there — pick a place in another status bar’s Alerts setting.',
+            text: 'Your Default view has no Watch Status Bar, so the alert row won’t show there — pick a place in another status bar’s Alert row setting.',
             showWhen: {all: [{env: 'platform', ne: 'aplite'}, DEFAULT_VIEW_NO_ALERTS_WHEN]}
         },
         alertRow('alertRain', 'Rain', 'rain', RAIN_ALERT_WHEN,
@@ -1215,20 +1227,20 @@ function alertCardItems() {
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
     }));
 }
-// The per-bar Alerts placement: while an alert is active its icons REPLACE the chosen
-// slot of that bar, and a second one when they need the room (the middle slot for Left
-// and Right, the left slot for Middle — the right one usually holds the battery). Rides
-// the Clay message (thresholds blob byte 35); the default is the contract's own
+// The per-bar alert row placement: while an alert is active the alert row REPLACES the
+// chosen slot of that bar, and a second one when it needs the room (the middle slot for
+// Left and Right, the left slot for Middle — the right one usually holds the battery).
+// Rides the Clay message (thresholds blob byte 35); the default is the contract's own
 // (status-thresholds.js barAlertPlace: the top strip Left — where the rain countdown
 // always took over — every other bar Off), so an untouched upgrade draws what it drew.
-var ALERT_PLACE_HINT = 'While an alert is active the icons replace this slot, and the middle slot too when they need the room.';
+var ALERT_PLACE_HINT = 'While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.';
 // The top strip's Right: the low-battery warning keeps that slot (status_row.c
 // alerts_layout moves the row to the middle while battery_override holds).
-var ALERT_PLACE_TOP_RIGHT_HINT = ALERT_PLACE_HINT + ' While the low-battery warning shows, they move to the middle slot.';
+var ALERT_PLACE_TOP_RIGHT_HINT = ALERT_PLACE_HINT + ' While the low-battery warning shows, it moves to the middle slot.';
 /**
  * @param {string} bar 'top' | 'forecast' | 'radar' | 'health' (BAR_ALERT_KEYS).
  * @param {?Object} barWhen The bar's own gate (RADAR_BAR_WHEN …), or null.
- * @returns {Object} The bar's 'Alerts' select.
+ * @returns {Object} The bar's 'Alert row' select.
  */
 function alertPlaceRow(bar, barWhen) {
     var key = null, i;
@@ -1238,20 +1250,20 @@ function alertPlaceRow(bar, barWhen) {
     return {
         type: 'select',
         messageKey: key,
-        label: 'Alerts',
+        label: 'Alert row',
         defaultValue: STATUS_THRESHOLDS.barAlertPlace(null, bar),
         options: [['Off', 'off'], ['Left', 'left'], ['Middle', 'middle'], ['Right', 'right']],
         // No hint for Off: there is nothing to explain.
         hintByValue: {
             left: ALERT_PLACE_HINT,
-            middle: 'While an alert is active the icons replace this slot, and the left slot too when they need the room.',
+            middle: 'While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.',
             right: bar === 'top' ? ALERT_PLACE_TOP_RIGHT_HINT : ALERT_PLACE_HINT
         },
         showWhen: barWhen ? {all: [THRESHOLD_WHEN, barWhen]} : THRESHOLD_WHEN
     };
 }
 /**
- * "This bar shows the Alerts row" as a showWhen predicate that resolves exactly as
+ * "This bar shows the alert row" as a showWhen predicate that resolves exactly as
  * status-thresholds.js barAlertPlace does: a bar whose default is Off (every bar but
  * the top strip) places alerts only on a stored Left/Middle/Right, while the top strip
  * — default Left — places them on anything but an explicit Off (absent or unknown
@@ -1304,7 +1316,7 @@ var DEFAULT_VIEW_NO_ALERTS_WHEN = {any: [
         {not: {any: [seatPlacesAlertsWhen('viewUpper0'), seatPlacesAlertsWhen('viewLower0')]}}]}
 ]};
 // Radar mode 'Rain alert only' fetches the radar for the rain alert alone, yet no bar
-// that exists in that mode places the Alerts row — the top strip, the forecast bar,
+// that exists in that mode places the alert row — the top strip, the forecast bar,
 // and the health bar while it exists (the radar bar never shows in this mode, so its
 // stored placement does not count). Shown in the Rain alert sheet and under the
 // radar mode control.
@@ -1320,7 +1332,7 @@ function rainAlertUnshownNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'No status bar shows alerts, so the rain alert won’t appear. Pick a place in a status bar’s Alerts setting.',
+        text: 'No status bar shows the alert row, so the rain alert won’t appear. Pick a place in a status bar’s Alert row setting.',
         showWhen: RAIN_ALERT_UNSHOWN_WHEN
     };
 }
@@ -2187,14 +2199,14 @@ module.exports = {
                 defaultValue: 'graph',
                 hintByValue: {
                     off: 'Radar is hidden.',
-                    // No radar bar or graph in this mode: the alert's place is each bar's Alerts
-                    // select (Status slots tab), not the Layout tab the intro names.
-                    countdown: 'Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alerts setting (Status slots tab) sets where it shows; its time window is under Status slots → Alerts.',
+                    // No radar bar or graph in this mode: the alert's place is each bar's Alert
+                    // row select (Status slots tab), not the Layout tab the intro names.
+                    countdown: 'Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alert row setting (Status slots tab) sets where the alert row shows; the rain alert’s time window is under Status slots → Alerts.',
                     status: 'Adds the Radar Status Bar.',
                     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
                 },
                 // 'Rain alert only' — the VALUE stays 'countdown' (stored + telemetry): the
-                // mode fetches radar solely for the rain alert, which the Alerts row draws.
+                // mode fetches radar solely for the rain alert, which the alert row draws.
                 options: [['Off', 'off'], ['Rain alert only', 'countdown'], ['Status bar', 'status'], ['Status + Graph', 'graph']],
                 onChange: 'resetStatusRadar'
             }, rainAlertUnshownNote(), {
@@ -2390,22 +2402,27 @@ module.exports = {
         id: 'watch', label: 'Status slots', sections: [{
             // The Alerts card: a card of its own, ABOVE the status card. Six rows of one
             // shape (alertCardItems — icon, label, the alert's live state, Edit); every
-            // switch, level and look lives in the alert's sheet. Where the icons show is
-            // per bar (each bar's 'Alerts' select in the card below). Every row carries
-            // its own gate; the section-level showWhen is only their union, because a
-            // section with an intro never counts as empty (engine buildSectionBody) —
-            // without it the title and intro would outlive their rows on aplite, which
-            // has neither the rain radar nor the Alerts row. The reset chip reverts the
-            // alerts' switches and display looks and the rain time window (blocks.js
-            // resetAlerts); the levels, warn looks and colours keep their own reset in each sheet, the
-            // placements ride the status card's reset. The intro states the icon's look
-            // as the watch draws it (status_alerts.c): a danger fill always, at warn
-            // the kind's warn look, whatever the slot's Highlight; the rain drop is
-            // tinted per tier on color and never boxed. It does not describe the
-            // default look (the owner's copy rule) — each alert sheet's row shows it.
+            // switch, level and look lives in the alert's sheet. Where the alert row shows
+            // is per bar (each bar's 'Alert row' select in the card below). Every row
+            // carries its own gate; the section-level showWhen is only their union,
+            // because a section with an intro never counts as empty (engine
+            // buildSectionBody) — without it the title and intro would outlive their rows
+            // on aplite, which has neither the rain radar nor the alert row. The reset
+            // chip reverts the alerts' switches and display looks and the rain time window
+            // (blocks.js resetAlerts); the levels, warn looks and colours keep their own
+            // reset in each sheet, the placements ride the status card's reset. The intro
+            // says what an alert is and where its icon goes, in the owner's glossary
+            // words (alert, alert icon, alert row); how an icon looks is each sheet's to
+            // say — the Alert levels intro for the warn look and danger fill, the Rain
+            // sheet for the rain icon's colour. "reaches your warn level today" is
+            // bakeAlerts' test on dayMaxToday; "up to two slots" is the placement's
+            // anchor plus the one neighbour it borrows (alert_set_choose_slots).
             title: 'Alerts',
             showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
-            intro: 'One icon per active alert — filled at danger; at warn it takes the alert’s warn look. On color watches the rain drop takes the radar’s rain color. Each status bar below chooses where they appear.'
+            intro: 'Alerts show a metric only when it matters, instead of in a slot all day. An alert is active when a value '
+                + 'reaches your warn level today, or rain is on its way; its icon then appears in the alert row, which takes '
+                + 'over up to two slots of a status bar. The rest of the time those slots show what you picked. Each status '
+                + 'bar’s Alert row setting below chooses where.'
                 + ' <button type="button" class="txt-act-btn" data-action="resetAlerts">Reset alerts to defaults</button>',
             items: alertCardItems()
         }, {
@@ -2462,7 +2479,7 @@ module.exports = {
         }, {
             groupCard: 'watchStatus',
             title: 'Watch Status Bar',
-            // No takeover note here any more: the bar's own Alerts select below explains
+            // No takeover note here any more: the bar's own Alert row select below explains
             // each placement by value, and a note above the slots said the same thing
             // (and got the Middle case wrong).
             items: barSlots('statusTop', null).concat([
@@ -2656,7 +2673,7 @@ module.exports = {
         // card's row order: rain, then one per metric alert kind holding its switch,
         // its Look and its levels (the levels' one home).
         rainAlertSheet()].concat(ALERT_KINDS.map(function (k) {
-            return alertSheet(k.keyStem, k.title, k.subject, k.hint || '', k.coda || '');
+            return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '');
         }))
     }, {
         id: 'layout', label: 'Layout', sections: [{
@@ -2684,7 +2701,7 @@ module.exports = {
                 hintFrom: {resolver: 'weatherOnlyHint', args: {byRadar: {
                     graph: 'No calendar and no top bar — the rain radar, clock, weather and a big forecast.',
                     status: 'No calendar and no top bar — the clock, the weather and radar status bars and a big forecast.',
-                    countdown: 'No calendar — the top bar, where the rain alert shows by default, then the clock, weather and a big forecast.',
+                    countdown: 'No calendar — the top bar, where the alert row shows by default, then the clock, weather and a big forecast.',
                     off: 'No calendar and no top bar — the clock, weather and a big forecast.'
                 }}},
                 // Compact-dense only differs from Compact when a health status row OR the

@@ -275,12 +275,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             e += txt(sx + 8, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Lightning');
         }
         // Rain-alert preview band: a Watch Status Bar mock above the chart showing the
-        // rain entry as the Alerts row draws it there (status_alerts.c) — its Look
+        // rain entry as the alert row draws it there (status_alerts.c) — its Look
         // (the contract's rainAlert, as the blob packs it: the drop alone, the drop +
-        // "15'", or the drop + "Rain in 15'"), placed per the strip's Alerts setting
+        // "15'", or the drop + "Rain in 15'"), placed per the strip's Alert row setting
         // (barAlertPlace: left-aligned for Left, centred for Middle, right-aligned for
         // Right). Hidden while the rain alert is switched off (its Alerts sheet), while
-        // the strip's Alerts is Off (the strip draws no rain entry then), and never
+        // the strip's Alert row is Off (the strip draws no rain entry then), and never
         // shown on aplite (which lacks the feature). Only the drop is coloured, and it
         // follows the radar colour the way status_alerts_rain_tint() does: the watch reads
         // palette_radar_color(tier), clamped to the palette's last stop, so a Multicolor

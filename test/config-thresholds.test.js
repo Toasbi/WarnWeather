@@ -668,7 +668,7 @@ test('the page renders an Alerts card sheet: the alert switch, its Look, then th
     'the Alert sub-header carries the alert switch');
   assert.ok(sheet.indexOf('<span>Alert</span>') < sheet.indexOf('<span>Alert levels</span>'),
     'the Alert sub-header comes first');
-  assert.ok(sheet.indexOf('Shows an icon in the Alerts row when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.') !== -1,
+  assert.ok(sheet.indexOf('Shows the UV icon in the alert row when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.') !== -1,
     'with its intro');
   assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert levels') > sheet.indexOf('data-k="alertUvDisplay"'),
     'the levels group follows the Look');
@@ -1431,8 +1431,8 @@ test('the Bold hint explains the selected step only, and when the level bold app
   // A weather kind's ladder also weights its alert's value (status_alerts.c), so
   // its hints name both places.
   assert.deepEqual(boldFor('Wind').hintByValue, {
-    off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
-    warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
+    off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
+    warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
     always: 'Every status slot showing this value prints it in heavier text.'
   });
   assert.deepEqual(boldFor('Steps').hintByValue, {
@@ -1644,6 +1644,8 @@ test('every metric alert sheet: its one switch on an Alert sub-header, the Look,
   assert.deepEqual(sheets.map(s => s.sheetId), ALERT_STEMS.map(stem => 'alert' + stem));
   const SUBJECT = { Uv: 'the UV index', Wind: 'the wind speed', Gust: 'the gust speed',
     Aqi: 'the air quality index', Pollen: 'the pollen index' };
+  // Each intro names the kind's alert icon and the alert row (the owner's glossary).
+  const ICON = { Uv: 'UV', Wind: 'wind', Gust: 'gust', Aqi: 'air quality', Pollen: 'pollen' };
   sheets.forEach((s) => {
     const stem = s.sheetId.slice('alert'.length);
     const key = 'alert' + stem;
@@ -1653,7 +1655,7 @@ test('every metric alert sheet: its one switch on an Alert sub-header, the Look,
       + ' with WAQI the alert judges the current reading.' : '';
     assert.deepEqual(s.items.slice(0, 3), [{
       type: 'subheader', text: 'Alert', toggleKey: key,
-      intro: 'Shows an icon in the Alerts row when ' + SUBJECT[stem] + ' reaches your warn level'
+      intro: 'Shows the ' + ICON[stem] + ' icon in the alert row when ' + SUBJECT[stem] + ' reaches your warn level'
         + ' at any point left today, so an afternoon peak shows from the morning on.' + coda
     }, {
       type: 'toggle', messageKey: key, label: 'Alert', defaultValue: false
@@ -1663,8 +1665,8 @@ test('every metric alert sheet: its one switch on an Alert sub-header, the Look,
       // Only the value look explains itself — and what it costs (settings audit #7);
       // the default icon look has no hint.
       hintByValue: {
-        value: 'Adds the value the alert fires on after the icon. It needs more room: the row takes'
-          + ' the neighboring slot sooner, and shows icons only when even that is too narrow.'
+        value: 'Adds the value the alert fires on after the icon. It needs more room: the alert row takes'
+          + ' the neighboring slot sooner, and shows only the alert icons when even that is too narrow.'
       },
       disabledWhen: { not: { key } }
     }], s.sheetId + ': switch, then the Look (inert while off)');
@@ -1707,6 +1709,11 @@ test('the rain alert sheet: its switch (held on in Rain alert only), the time wi
   // Battery saver hours (rain_countdown.c; settings audit #14).
   assert.match(s.items[0].intro, /while it rains at your location or rain is due within the time window below\./);
   assert.match(s.items[0].intro, /Hidden during the Battery saver hours\./);
+  assert.match(s.items[0].intro, /^Shows the rain icon in the alert row /, 'the glossary\'s words');
+  // status_alerts_rain_tint: the radar colour only under a colour theme on a colour
+  // watch — a B&W theme draws the icon in the text colour (review set-5).
+  assert.match(s.items[0].intro,
+    / On a color watch the rain icon takes the radar’s rain color, except with a B&W theme\. /);
   assert.equal(s.items[3].hint, 'Rain due further out than this doesn’t trigger the alert. Rain radar'
     + ' forecasts change often, so a shorter window gives fewer false alarms.');
   assert.deepEqual(s.items[1], { type: 'toggle', messageKey: 'alertRain', label: 'Rain alert',
@@ -1714,20 +1721,21 @@ test('the rain alert sheet: its switch (held on in Rain alert only), the time wi
   // The 'Rain alert only' warning (its predicate is pinned by the page tests).
   assert.equal(s.items[2].type, 'staticText');
   assert.equal(s.items[2].style, 'info');
-  assert.equal(s.items[2].text, 'No status bar shows alerts, so the rain alert won’t appear. Pick a place in a status bar’s Alerts setting.');
+  assert.equal(s.items[2].text, 'No status bar shows the alert row, so the rain alert won’t appear. Pick a place in a status bar’s Alert row setting.');
   assert.equal(s.items[3].messageKey, 'rainCountdownHorizon');
   assert.equal(s.items[3].label, 'Time window');
   assert.deepEqual(s.items[3].disabledWhen, off);
   assert.deepEqual(s.items[4], {
     type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Look', defaultValue: 'text',
     options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
-    // The drop alone describes itself; the two longer looks say what they print and
+    // The icon alone describes itself; the two longer looks say what they print and
     // that they shrink on a crowded bar (settings audit #7/#13) — the default Text
-    // look too, because its name does not carry that.
+    // look too, because its name does not carry that. While it rains the '+' number is
+    // the minutes until the rain stops (review set-7).
     hintByValue: {
-      minutes: 'The drop with the minutes until the rain starts, or +minutes while it rains.'
-        + ' Just the drop when the bar is short on room.',
-      text: 'Shortens to the minutes, then to the drop alone, when the bar is short on room.'
+      minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes'
+        + ' until it stops. Just the icon when the bar is short on room.',
+      text: 'Shortens to the minutes, then to the rain icon alone, when the bar is short on room.'
     },
     disabledWhen: off
   });

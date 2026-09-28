@@ -3796,7 +3796,7 @@
                 "defaultValue": "graph",
                 "hintByValue": {
                   "off": "Radar is hidden.",
-                  "countdown": "Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alerts setting (Status slots tab) sets where it shows; its time window is under Status slots → Alerts.",
+                  "countdown": "Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alert row setting (Status slots tab) sets where the alert row shows; the rain alert’s time window is under Status slots → Alerts.",
                   "status": "Adds the Radar Status Bar.",
                   "graph": "Adds the Radar Status Bar and the full radar rain graph."
                 },
@@ -3823,7 +3823,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "No status bar shows alerts, so the rain alert won’t appear. Pick a place in a status bar’s Alerts setting.",
+                "text": "No status bar shows the alert row, so the rain alert won’t appear. Pick a place in a status bar’s Alert row setting.",
                 "showWhen": {
                   "all": [
                     {
@@ -4253,12 +4253,12 @@
                 }
               ]
             },
-            "intro": "One icon per active alert — filled at danger; at warn it takes the alert’s warn look. On color watches the rain drop takes the radar’s rain color. Each status bar below chooses where they appear. <button type=\"button\" class=\"txt-act-btn\" data-action=\"resetAlerts\">Reset alerts to defaults</button>",
+            "intro": "Alerts show a metric only when it matters, instead of in a slot all day. An alert is active when a value reaches your warn level today, or rain is on its way; its icon then appears in the alert row, which takes over up to two slots of a status bar. The rest of the time those slots show what you picked. Each status bar’s Alert row setting below chooses where. <button type=\"button\" class=\"txt-act-btn\" data-action=\"resetAlerts\">Reset alerts to defaults</button>",
             "items": [
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default view has no Watch Status Bar, so alerts won’t show there — pick a place in another status bar’s Alerts setting.",
+                "text": "Your Default view has no Watch Status Bar, so the alert row won’t show there — pick a place in another status bar’s Alert row setting.",
                 "showWhen": {
                   "all": [
                     {
@@ -4801,7 +4801,7 @@
               {
                 "type": "select",
                 "messageKey": "statusForecastAlerts",
-                "label": "Alerts",
+                "label": "Alert row",
                 "defaultValue": "off",
                 "options": [
                   [
@@ -4822,9 +4822,9 @@
                   ]
                 ],
                 "hintByValue": {
-                  "left": "While an alert is active the icons replace this slot, and the middle slot too when they need the room.",
-                  "middle": "While an alert is active the icons replace this slot, and the left slot too when they need the room.",
-                  "right": "While an alert is active the icons replace this slot, and the middle slot too when they need the room."
+                  "left": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.",
+                  "middle": "While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.",
+                  "right": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room."
                 },
                 "showWhen": {
                   "env": "thresholds"
@@ -5051,7 +5051,7 @@
               {
                 "type": "select",
                 "messageKey": "statusRadarAlerts",
-                "label": "Alerts",
+                "label": "Alert row",
                 "defaultValue": "off",
                 "options": [
                   [
@@ -5072,9 +5072,9 @@
                   ]
                 ],
                 "hintByValue": {
-                  "left": "While an alert is active the icons replace this slot, and the middle slot too when they need the room.",
-                  "middle": "While an alert is active the icons replace this slot, and the left slot too when they need the room.",
-                  "right": "While an alert is active the icons replace this slot, and the middle slot too when they need the room."
+                  "left": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.",
+                  "middle": "While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.",
+                  "right": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room."
                 },
                 "showWhen": {
                   "all": [
@@ -5319,7 +5319,7 @@
               {
                 "type": "select",
                 "messageKey": "statusHealthAlerts",
-                "label": "Alerts",
+                "label": "Alert row",
                 "defaultValue": "off",
                 "options": [
                   [
@@ -5340,9 +5340,9 @@
                   ]
                 ],
                 "hintByValue": {
-                  "left": "While an alert is active the icons replace this slot, and the middle slot too when they need the room.",
-                  "middle": "While an alert is active the icons replace this slot, and the left slot too when they need the room.",
-                  "right": "While an alert is active the icons replace this slot, and the middle slot too when they need the room."
+                  "left": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.",
+                  "middle": "While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.",
+                  "right": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room."
                 },
                 "showWhen": {
                   "all": [
@@ -5491,7 +5491,7 @@
               {
                 "type": "select",
                 "messageKey": "statusTopAlerts",
-                "label": "Alerts",
+                "label": "Alert row",
                 "defaultValue": "left",
                 "options": [
                   [
@@ -5512,9 +5512,9 @@
                   ]
                 ],
                 "hintByValue": {
-                  "left": "While an alert is active the icons replace this slot, and the middle slot too when they need the room.",
-                  "middle": "While an alert is active the icons replace this slot, and the left slot too when they need the room.",
-                  "right": "While an alert is active the icons replace this slot, and the middle slot too when they need the room. While the low-battery warning shows, they move to the middle slot."
+                  "left": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.",
+                  "middle": "While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.",
+                  "right": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room. While the low-battery warning shows, it moves to the middle slot."
                 },
                 "showWhen": {
                   "env": "thresholds"
@@ -5579,8 +5579,8 @@
                 "messageKey": "threshAqiBoldMode",
                 "label": "Bold value",
                 "hintByValue": {
-                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
-                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
+                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
                 "defaultValue": "warn",
@@ -5810,8 +5810,8 @@
                 "messageKey": "threshPollenBoldMode",
                 "label": "Bold value",
                 "hintByValue": {
-                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
-                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
+                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
                 "defaultValue": "warn",
@@ -5877,8 +5877,8 @@
                 "messageKey": "threshWindBoldMode",
                 "label": "Bold value",
                 "hintByValue": {
-                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
-                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
+                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
                 "defaultValue": "warn",
@@ -6114,8 +6114,8 @@
                 "messageKey": "threshGustBoldMode",
                 "label": "Bold value",
                 "hintByValue": {
-                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
-                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
+                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
                 "defaultValue": "warn",
@@ -6351,8 +6351,8 @@
                 "messageKey": "threshUvBoldMode",
                 "label": "Bold value",
                 "hintByValue": {
-                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
-                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.",
+                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
                 "defaultValue": "warn",
@@ -8051,7 +8051,7 @@
                 "type": "subheader",
                 "text": "Rain alert",
                 "toggleKey": "alertRain",
-                "intro": "Shows the rain drop in the Alerts row while it rains at your location or rain is due within the time window below. Hidden during the Battery saver hours. The radar mode “Rain alert only” keeps it on."
+                "intro": "Shows the rain icon in the alert row while it rains at your location or rain is due within the time window below. On a color watch the rain icon takes the radar’s rain color, except with a B&W theme. Hidden during the Battery saver hours. The radar mode “Rain alert only” keeps it on."
               },
               {
                 "type": "toggle",
@@ -8066,7 +8066,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "No status bar shows alerts, so the rain alert won’t appear. Pick a place in a status bar’s Alerts setting.",
+                "text": "No status bar shows the alert row, so the rain alert won’t appear. Pick a place in a status bar’s Alert row setting.",
                 "showWhen": {
                   "all": [
                     {
@@ -8170,8 +8170,8 @@
                   ]
                 ],
                 "hintByValue": {
-                  "minutes": "The drop with the minutes until the rain starts, or +minutes while it rains. Just the drop when the bar is short on room.",
-                  "text": "Shortens to the minutes, then to the drop alone, when the bar is short on room."
+                  "minutes": "The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. Just the icon when the bar is short on room.",
+                  "text": "Shortens to the minutes, then to the rain icon alone, when the bar is short on room."
                 },
                 "disabledWhen": {
                   "not": {
@@ -8193,7 +8193,7 @@
                 "type": "subheader",
                 "text": "Alert",
                 "toggleKey": "alertUv",
-                "intro": "Shows an icon in the Alerts row when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
+                "intro": "Shows the UV icon in the alert row when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
               },
               {
                 "type": "toggle",
@@ -8217,7 +8217,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the row takes the neighboring slot sooner, and shows icons only when even that is too narrow."
+                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
                 },
                 "disabledWhen": {
                   "not": {
@@ -8389,7 +8389,7 @@
                 "type": "subheader",
                 "text": "Alert",
                 "toggleKey": "alertWind",
-                "intro": "Shows an icon in the Alerts row when the wind speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
+                "intro": "Shows the wind icon in the alert row when the wind speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
               },
               {
                 "type": "toggle",
@@ -8413,7 +8413,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the row takes the neighboring slot sooner, and shows icons only when even that is too narrow."
+                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
                 },
                 "disabledWhen": {
                   "not": {
@@ -8585,7 +8585,7 @@
                 "type": "subheader",
                 "text": "Alert",
                 "toggleKey": "alertGust",
-                "intro": "Shows an icon in the Alerts row when the gust speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
+                "intro": "Shows the gust icon in the alert row when the gust speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
               },
               {
                 "type": "toggle",
@@ -8609,7 +8609,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the row takes the neighboring slot sooner, and shows icons only when even that is too narrow."
+                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
                 },
                 "disabledWhen": {
                   "not": {
@@ -8781,7 +8781,7 @@
                 "type": "subheader",
                 "text": "Alert",
                 "toggleKey": "alertAqi",
-                "intro": "Shows an icon in the Alerts row when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead needs the Open-Meteo AQI provider (General tab); with WAQI the alert judges the current reading."
+                "intro": "Shows the air quality icon in the alert row when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead needs the Open-Meteo AQI provider (General tab); with WAQI the alert judges the current reading."
               },
               {
                 "type": "toggle",
@@ -8805,7 +8805,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the row takes the neighboring slot sooner, and shows icons only when even that is too narrow."
+                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
                 },
                 "disabledWhen": {
                   "not": {
@@ -8977,7 +8977,7 @@
                 "type": "subheader",
                 "text": "Alert",
                 "toggleKey": "alertPollen",
-                "intro": "Shows an icon in the Alerts row when the pollen index reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
+                "intro": "Shows the pollen icon in the alert row when the pollen index reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
               },
               {
                 "type": "toggle",
@@ -9001,7 +9001,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the row takes the neighboring slot sooner, and shows icons only when even that is too narrow."
+                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
                 },
                 "disabledWhen": {
                   "not": {
@@ -9189,7 +9189,7 @@
                     "byRadar": {
                       "graph": "No calendar and no top bar — the rain radar, clock, weather and a big forecast.",
                       "status": "No calendar and no top bar — the clock, the weather and radar status bars and a big forecast.",
-                      "countdown": "No calendar — the top bar, where the rain alert shows by default, then the clock, weather and a big forecast.",
+                      "countdown": "No calendar — the top bar, where the alert row shows by default, then the clock, weather and a big forecast.",
                       "off": "No calendar and no top bar — the clock, weather and a big forecast."
                     }
                   }

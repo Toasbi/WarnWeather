@@ -1660,8 +1660,8 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
   assert.deepEqual(item.hintByValue, {
     off: 'Radar is hidden.',
     // The countdown's time window moved to the Status slots tab's Alerts card, and its
-    // place is each bar's Alerts select (settings audit #25); the hint points at both.
-    countdown: 'Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alerts setting (Status slots tab) sets where it shows; its time window is under Status slots → Alerts.',
+    // place is each bar's Alert row select (settings audit #25); the hint points at both.
+    countdown: 'Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alert row setting (Status slots tab) sets where the alert row shows; the rain alert’s time window is under Status slots → Alerts.',
     status: 'Adds the Radar Status Bar.',
     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
   });
@@ -1695,7 +1695,7 @@ test('the Weather only hint follows the radar mode, each describing the Default 
   assert.equal(hint({ radarMode: 'graph' }), hint({}));
   assert.match(hint({ radarMode: 'status' }), /no top bar — the clock, the weather and radar status bars/);
   assert.doesNotMatch(hint({ radarMode: 'status' }), /rain radar/);
-  assert.match(hint({ radarMode: 'countdown' }), /^No calendar — the top bar, where the rain alert shows/);
+  assert.match(hint({ radarMode: 'countdown' }), /^No calendar — the top bar, where the alert row shows by default/);
   assert.match(hint({ radarMode: 'off' }), /no top bar — the clock, weather and a big forecast/);
   assert.doesNotMatch(hint({ radarMode: 'off' }), /radar/);
   // Every other preset keeps its static per-value hint: the resolver answers null, so
@@ -2122,11 +2122,11 @@ test('Status-slots tab (id watch) opens with the Alerts card, then the status ca
     'the Layout tab ends with Time then Calendar');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
-  // The row is a per-bar takeover explained by the bar's own Alerts select (hint by
+  // The row is a per-bar takeover explained by the bar's own Alert row select (hint by
   // value) — no separate note above the slots any more, and the old rain-takeover
   // note is gone too.
-  assert.ok(!wsb.some((i) => i.type === 'staticText' && /Alerts row/.test(i.text || '')),
-    'no Alerts row note above the Watch bar slots');
+  assert.ok(!wsb.some((i) => i.type === 'staticText' && /alerts? row/i.test(i.text || '')),
+    'no alert row note above the Watch bar slots');
   assert.ok(!wsb.some((i) => /incoming-rain alert/.test(i.text || '')), 'the takeover note is gone');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const countdownIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRightCountdown');
@@ -2147,7 +2147,13 @@ test('the Alerts card is watch.sections[0]: its own card, above the status card'
   assert.equal(sec.groupCard, undefined, 'a card of its own, not a sub-header of the status card');
   assert.equal(sec.title, 'Alerts');
   assert.equal(sec.sheetOnly, undefined, 'a card, not a sheet');
-  assert.match(sec.intro, /^One icon per active alert — filled at danger; at warn it takes the alert’s warn look\. On color/);
+  // The owner's glossary intro: what Alerts do, when an alert is active, and where its
+  // icon goes. How an icon looks is left to the sheets (the rain colour to the Rain
+  // sheet, the warn look and danger fill to each Alert levels intro).
+  assert.equal(sec.intro.split(' <button')[0], 'Alerts show a metric only when it matters, instead of in a slot all day.'
+    + ' An alert is active when a value reaches your warn level today, or rain is on its way; its icon then'
+    + ' appears in the alert row, which takes over up to two slots of a status bar. The rest of the time those'
+    + ' slots show what you picked. Each status bar’s Alert row setting below chooses where.');
   assert.ok(sec.intro.indexOf('by default') === -1, 'the intro does not describe the default look');
   assert.ok(sec.intro.indexOf('data-action="resetAlerts"') !== -1, 'the intro carries the card reset');
   assert.ok(sec.intro.indexOf('class="txt-act-btn"') !== -1, 'as the shared text-action chip');
@@ -2167,7 +2173,7 @@ test('the Alerts card rows: six of one shape (rain, then the metric alerts) and 
   const all = alertsSection().items;
   assert.equal(all[0].type, 'staticText');
   assert.equal(all[0].style, 'info');
-  assert.equal(all[0].text, 'Your Default view has no Watch Status Bar, so alerts won’t show there — pick a place in another status bar’s Alerts setting.');
+  assert.equal(all[0].text, 'Your Default view has no Watch Status Bar, so the alert row won’t show there — pick a place in another status bar’s Alert row setting.');
   const rows = all.slice(1);
   assert.deepEqual(rows.map((i) => i.sheetId || i.type),
     ['alertRain', 'staticText', 'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen']);
@@ -2227,11 +2233,11 @@ test('rainCountdownHorizon lives only in the rain alert sheet — gone from the 
 
 test('each status bar has an Alerts placement select: Off / Left / Middle / Right, the strip Left, the rest Off', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  const H = 'While an alert is active the icons replace this slot, and the middle slot too when they need the room.';
-  const HMID = 'While an alert is active the icons replace this slot, and the left slot too when they need the room.';
+  const H = 'While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.';
+  const HMID = 'While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.';
   // The top strip's Right gives way to the low-battery warning (status_row.c
   // alerts_layout; settings audit #4), and its hint says so.
-  const HTOP = H + ' While the low-battery warning shows, they move to the middle slot.';
+  const HTOP = H + ' While the low-battery warning shows, it moves to the middle slot.';
   const RADAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
   const HEALTH = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
   [['Forecast Status Bar', 'statusForecastAlerts', 'off', null],
@@ -2242,7 +2248,7 @@ test('each status bar has an Alerts placement select: Off / Left / Middle / Righ
     const it = bar.items.find((i) => i.messageKey === key);
     assert.ok(it, title + ' carries ' + key);
     assert.deepEqual(it, {
-      type: 'select', messageKey: key, label: 'Alerts', defaultValue: dflt,
+      type: 'select', messageKey: key, label: 'Alert row', defaultValue: dflt,
       options: [['Off', 'off'], ['Left', 'left'], ['Middle', 'middle'], ['Right', 'right']],
       hintByValue: { left: H, middle: HMID, right: key === 'statusTopAlerts' ? HTOP : H },
       showWhen: barWhen ? { all: [THRESHOLD_WHEN, barWhen] } : THRESHOLD_WHEN

@@ -62,7 +62,7 @@ test('the Alerts card is a card of its own, opening the tab above the status car
   const bold = html.indexOf('data-k="statusBoldAll"');
   assert.ok(html.slice(alerts + 1, bold).indexOf('<div class="card nohdr">') !== -1,
     'the status card (its intro and Bold row) follows as a card of its own');
-  assert.ok(html.indexOf('One icon per active alert') > alerts, 'the card intro');
+  assert.ok(html.indexOf('Alerts show a metric only when it matters') > alerts, 'the card intro');
   assert.ok(html.indexOf('data-action="resetAlerts"') > alerts, 'with its own reset chip');
   assert.equal(html.indexOf('<div class="subhdr">Alerts</div>'), -1, 'no longer a status-card sub-header');
 });
@@ -211,7 +211,7 @@ test('each bar picks where its alerts show: the Watch Status Bar Left, the forec
   const html = page.scroll.innerHTML;
   const top = rowOf(html, 'data-select="statusTopAlerts"');
   assert.ok(top.indexOf('<span>Left</span>') !== -1, 'the strip defaults to Left');
-  assert.ok(top.indexOf('the icons replace this slot, and the middle slot too') !== -1, 'with its hint');
+  assert.ok(top.indexOf('the alert row replaces this slot, and the middle slot too') !== -1, 'with its hint');
   const forecast = rowOf(html, 'data-select="statusForecastAlerts"');
   assert.ok(forecast.indexOf('<span>Off</span>') !== -1, 'the forecast bar defaults to Off');
   assert.equal(forecast.indexOf('class="hint"'), -1, 'no hint for Off');
@@ -219,7 +219,7 @@ test('each bar picks where its alerts show: the Watch Status Bar Left, the forec
   page.pickOption('statusForecastAlerts', 'middle');
   assert.equal(page.S.statusForecastAlerts, 'middle');
   assert.ok(rowOf(page.scroll.innerHTML, 'data-select="statusForecastAlerts"')
-    .indexOf('and the left slot too when they need the room') !== -1, 'Middle borrows the left slot');
+    .indexOf('and the left slot too when it needs the room') !== -1, 'Middle borrows the left slot');
   assert.ok(html.indexOf('While an alert is active, the Alerts row replaces the chosen slot') === -1,
     'no separate takeover note: the select\'s own hints explain each placement');
 });
@@ -234,10 +234,10 @@ test('pollen alert row is DWD-only', () => {
 test('aplite: the whole Alerts card and every placement select are absent', () => {
   const html = watchTab({ alertUv: true }, 'aplite').scroll.innerHTML;
   assert.equal(html.indexOf('<span class="ttl">Alerts</span>'), -1, 'no card');
-  assert.equal(html.indexOf('One icon per active alert'), -1, 'no intro');
+  assert.equal(html.indexOf('Alerts show a metric only when it matters'), -1, 'no intro');
   assert.equal(html.indexOf('Turn on the rain radar'), -1, 'no radar note');
   assert.equal(html.indexOf('data-edit-sheet="alert'), -1, 'no alert rows');
-  assert.equal(html.indexOf('Alerts</div>'), -1, 'no placement select');
+  assert.equal(html.indexOf('Alert row</div>'), -1, 'no placement select');
   assert.ok(html.indexOf('<div class="subhdr">Forecast Status Bar</div>') !== -1, 'the bars still render');
 });
 
@@ -270,8 +270,8 @@ test('the status card reset reverts every bar\'s placement on a live page', () =
   assert.strictEqual(page.S.alertUv, true, 'the alerts are the Alerts card\'s');
 });
 
-const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so alerts won’t show there';
-const UNSHOWN_NOTE = 'No status bar shows alerts, so the rain alert won’t appear.';
+const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so the alert row won’t show there';
+const UNSHOWN_NOTE = 'No status bar shows the alert row, so the rain alert won’t appear.';
 
 test('no Watch Status Bar on the Default view and no bar there placing alerts: the card says so', () => {
   const shows = (cfg) => watchTab(cfg).scroll.innerHTML.indexOf(NO_TOP_NOTE) !== -1;
