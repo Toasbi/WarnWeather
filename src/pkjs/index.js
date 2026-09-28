@@ -117,6 +117,8 @@ var fetchCycle = createFetchCycle({
 var scheduler = createChannelScheduler({
     sendClay: sendClaySettings,
     startFetch: function (force) { fetchCycle.start(force); },
+    // The config close's status re-bake: no fetch, the live settings.
+    resendStatus: statusRebake.resendStatus,
     shouldFetchNow: fetchCycle.shouldFetchNow,
     refreshHolidays: refreshHolidays,
     checkForUpdate: onSchedulerTick,
@@ -322,11 +324,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
         // (including radar) so the next fetch resends every category.
         outbox.clearWeatherCaches();
     }
-    // Send Clay settings, then (when forced) fetch after that send settles. The
-    // scheduler chains the fetch into the Clay-send callbacks and defers it past
-    // the webview teardown, so it never rides the half-duplex channel
-    // back-to-back with the Clay send; it also runs the overlay clear only when
-    // no fetch is forced.
+    // Send Clay settings, then re-bake the status category from the last payload
+    // against the settings just saved, then (when forced) fetch. The scheduler
+    // chains each step into the callbacks of the one before and defers the chain
+    // past the webview teardown, so no two ride the half-duplex channel
+    // back-to-back; it also runs the overlay clear only when no fetch is forced.
     scheduler.onConfigClosed({
         forceFetch: decision.forceFetch,
         clearNotice: decision.clearNotice

@@ -18,6 +18,7 @@ var storageKeys = require('./storage-keys.js');
  * @param {Object} deps Injected behavior + environment.
  * @param {function(Function=, Function=):void} deps.sendClay Deduping Clay send; calls onSuccess after ACK (or immediately when unchanged), onFailure on NACK.
  * @param {function(boolean):void} deps.startFetch Run a weather fetch; the boolean is the force flag.
+ * @param {function(string, Function=, Function=):void} deps.resendStatus Re-bake the status category from the last bake's payload against the live settings and send it (status-rebake.js); calls onSuccess after ACK (or immediately when unchanged or there is nothing to re-bake), onFailure on NACK.
  * @param {function():boolean} deps.shouldFetchNow True when a non-forced refresh is due.
  * @param {function():void} deps.refreshHolidays Ensure holiday data is cached; new data comes back through onHolidaysUpdated.
  * @param {function():void} deps.checkForUpdate Once-per-day appstore update check.
@@ -227,39 +228,47 @@ function createChannelScheduler(deps) {
     }
 
     /**
-     * Force-fetch weather one tick after the config webview closed, past the
-     * webview teardown, and only from inside the Clay-send callbacks so it never
-     * rides the channel alongside the Clay send.
+     * Handle a config-webview close. Three sends, each chained into both
+     * callbacks of the one before it so none rides the half-duplex channel
+     * alongside another:
      *
-     * @returns {void}
-     */
-    function scheduleConfigCloseFetch() {
-        deps.setTimeout(function () {
-            console.log('Force fetch!');
-            deps.startFetch(true);
-        }, 0);
-    }
-
-    /**
-     * Handle a config-webview close: send Clay, then (when forceFetch) chain a
-     * deferred force-fetch into both callbacks, or (when clearNotice, and no
-     * force-fetch) chain a deferred overlay clear into both callbacks.
+     *   1. Clay.
+     *   2. One tick later, the status re-bake (deps.resendStatus). The status
+     *      category — the slot text, the highlight levels, the Alerts row's
+     *      entries — is baked phone-side from the last fetch's payload, so a
+     *      status-only edit (an alert switched off, a level moved, a Look, a
+     *      highlight switched on over a level word an older build packed)
+     *      reaches the watch here, without waiting on the network: the forced
+     *      fetch below can fail (offline, a provider error, an auth backoff),
+     *      and a failed fetch re-bakes nothing. It runs on EVERY close — the
+     *      outbox's change detector turns it into a no-op when the status bytes
+     *      are unchanged, and it still sends when index.js just dropped the
+     *      weather caches (needsRefetch). The forced fetch then bakes fresher
+     *      data over it when it succeeds.
+     *   3. Then (when forceFetch) the forced fetch, or (when clearNotice, and no
+     *      forced fetch) the overlay clear.
+     *
+     * The tick before step 2 clears the webview teardown: the AppMessage
+     * channel is briefly unavailable then, so being inside the Clay callback is
+     * necessary but not sufficient.
      *
      * @param {{forceFetch: boolean, clearNotice: boolean=}} opts Config-close options.
      * @returns {void}
      */
     function onConfigClosed(opts) {
-        var afterClay;
+        var next = null;
+        var afterClay = function () {
+            deps.setTimeout(function () {
+                deps.resendStatus('config-close', next, next);
+            }, 0);
+        };
         if (opts.forceFetch) {
-            afterClay = scheduleConfigCloseFetch;
-        } else if (opts.clearNotice && deps.clearNoticeOnWatch) {
-            // Push the overlay clear one tick out, inside the Clay-send callback:
-            // the AppMessage channel is briefly unavailable during webview teardown,
-            // so (like scheduleConfigCloseFetch) being in the callback is necessary
-            // but not sufficient — the setTimeout(0) clears the teardown window.
-            afterClay = function () {
-                deps.setTimeout(function () { deps.clearNoticeOnWatch(); }, 0);
+            next = function () {
+                console.log('Force fetch!');
+                deps.startFetch(true);
             };
+        } else if (opts.clearNotice && deps.clearNoticeOnWatch) {
+            next = function () { deps.clearNoticeOnWatch(); };
         }
         sendClay(afterClay, afterClay);
     }

@@ -17,27 +17,38 @@ function resetStore() { for (var k in store) { delete store[k]; } }
 // A test harness: recording fake deps + a controllable clock + a manual timer
 // queue. flushTimers() runs exactly the timers queued at call time (not ones
 // they re-arm), so cadence tests advance one tick per flush.
-function makeHarness() {
+//
+// resendStatus answers at once, as the real one does with no snapshot or an
+// unchanged status category, unless opts.holdResend keeps its callbacks for the
+// test to answer (ackResend/nackResend). `order` logs every channel event.
+function makeHarness(opts) {
+    opts = opts || {};
     var timers = [];
     var shouldFetch = false;
     var clock = { value: new Date(2026, 6, 7, 12, 0, 0) }; // month index 6 = July
     var calls = {
-        sendClay: [], startFetch: [],
+        sendClay: [], startFetch: [], resendStatus: [], order: [],
         refreshHolidays: 0, checkForUpdate: 0,
         clearClayCache: 0, clearWeatherCaches: 0,
         clearNoticeOnWatch: 0
     };
     var deps = {
         sendClay: function (onSuccess, onFailure) {
+            calls.order.push('clay');
             calls.sendClay.push({ onSuccess: onSuccess, onFailure: onFailure });
         },
-        startFetch: function (force) { calls.startFetch.push(force); },
+        startFetch: function (force) { calls.order.push('fetch'); calls.startFetch.push(force); },
+        resendStatus: function (reason, onSuccess, onFailure) {
+            calls.order.push('status:' + reason);
+            calls.resendStatus.push({ reason: reason, onSuccess: onSuccess, onFailure: onFailure });
+            if (!opts.holdResend && typeof onSuccess === 'function') { onSuccess(); }
+        },
         shouldFetchNow: function () { return shouldFetch; },
         refreshHolidays: function () { calls.refreshHolidays++; },
         checkForUpdate: function () { calls.checkForUpdate++; },
         clearClayCache: function () { calls.clearClayCache++; },
         clearWeatherCaches: function () { calls.clearWeatherCaches++; },
-        clearNoticeOnWatch: function () { calls.clearNoticeOnWatch++; },
+        clearNoticeOnWatch: function () { calls.order.push('clear'); calls.clearNoticeOnWatch++; },
         setTimeout: function (fn, ms) { timers.push({ fn: fn, ms: ms }); return timers.length; },
         now: function () { return clock.value; }
     };
@@ -57,6 +68,14 @@ function makeHarness() {
         },
         nackClay: function () {
             var last = calls.sendClay[calls.sendClay.length - 1];
+            if (last && last.onFailure) { last.onFailure(); }
+        },
+        ackResend: function () {
+            var last = calls.resendStatus[calls.resendStatus.length - 1];
+            if (last && last.onSuccess) { last.onSuccess(); }
+        },
+        nackResend: function () {
+            var last = calls.resendStatus[calls.resendStatus.length - 1];
             if (last && last.onFailure) { last.onFailure(); }
         }
     };
@@ -194,31 +213,38 @@ test('scenario 4e: a storage reset drops the pending migration commit', function
     assert.equal(ackRuns, 0, 'no markers written into the wiped store');
 });
 
-test('scenario 6: config close with forceFetch -> Clay sent, fetch deferred via setTimeout(0)', function () {
+test('scenario 6: config close with forceFetch -> Clay sent, re-bake + fetch deferred via setTimeout(0)', function () {
     resetStore();
     var h = makeHarness();
     h.scheduler.onConfigClosed({ forceFetch: true });
     assert.equal(h.calls.sendClay.length, 1, 'Clay sent on config close');
     assert.equal(h.calls.startFetch.length, 0, 'no synchronous fetch');
-    assert.equal(h.timers.length, 0, 'fetch not scheduled until the Clay callback runs');
+    assert.equal(h.timers.length, 0, 'nothing scheduled until the Clay callback runs');
 
     h.ackClay();
+    assert.equal(h.calls.resendStatus.length, 0, 'no synchronous re-bake inside the ACK callback');
     assert.equal(h.calls.startFetch.length, 0, 'still no synchronous fetch inside the ACK callback');
-    assert.equal(h.timers.length, 1, 'ACK callback schedules a deferred fetch');
+    assert.equal(h.timers.length, 1, 'ACK callback schedules the deferred re-bake');
     assert.equal(h.timers[0].ms, 0, 'deferred with setTimeout(..., 0) to clear the webview teardown');
 
     h.flushTimers();
-    assert.equal(h.calls.startFetch.length, 1, 'deferred fetch fires after the timer');
+    assert.equal(h.calls.resendStatus.length, 1, 'the status re-bake runs after the timer');
+    assert.equal(h.calls.resendStatus[0].reason, 'config-close');
+    assert.equal(h.calls.startFetch.length, 1, 'the fetch follows the settled re-bake');
     assert.equal(h.calls.startFetch[0], true, 'config-close fetch is forced');
+    assert.deepEqual(h.calls.order, ['clay', 'status:config-close', 'fetch']);
 });
 
-test('scenario 6b: config close without forceFetch -> Clay sent, no fetch ever', function () {
+test('scenario 6b: config close without forceFetch -> Clay sent, status re-baked, no fetch ever', function () {
     resetStore();
     var h = makeHarness();
     h.scheduler.onConfigClosed({ forceFetch: false });
     assert.equal(h.calls.sendClay.length, 1, 'Clay still sent');
     h.ackClay();
-    assert.equal(h.timers.length, 0, 'no deferred fetch scheduled');
+    h.flushTimers();
+    assert.equal(h.calls.resendStatus.length, 1,
+        'a save that forces no fetch still re-bakes (a Clay-only highlight switch, lvl-1)');
+    assert.equal(h.timers.length, 0, 'nothing else scheduled');
     assert.equal(h.calls.startFetch.length, 0, 'no fetch');
 });
 
@@ -231,12 +257,14 @@ test('scenario 6c: config close with clearNotice, no force -> Clay sent, clear d
 
     h.ackClay();
     assert.equal(h.calls.clearNoticeOnWatch, 0, 'still no synchronous clear inside the ACK callback');
-    assert.equal(h.timers.length, 1, 'ACK callback schedules a deferred clear');
+    assert.equal(h.timers.length, 1, 'ACK callback schedules the deferred re-bake + clear');
     assert.equal(h.timers[0].ms, 0, 'deferred with setTimeout(..., 0) to clear the webview teardown');
 
     h.flushTimers();
     assert.equal(h.calls.clearNoticeOnWatch, 1, 'deferred clear fires after the timer');
     assert.equal(h.calls.startFetch.length, 0, 'clearNotice path never fetches');
+    assert.deepEqual(h.calls.order, ['clay', 'status:config-close', 'clear'],
+        'the clear waits for the re-bake');
 });
 
 test('scenario 6d: config close with forceFetch AND clearNotice -> forceFetch wins, clear never runs', function () {
@@ -268,6 +296,7 @@ test('scenario 6f: clearNotice with no clearNoticeOnWatch dep -> does not throw'
             deps._last = { onSuccess: onSuccess, onFailure: onFailure };
         },
         startFetch: function () {},
+        resendStatus: function (reason, onSuccess) { if (onSuccess) { onSuccess(); } },
         shouldFetchNow: function () { return false; },
         refreshHolidays: function () {},
         checkForUpdate: function () {},
@@ -288,6 +317,61 @@ test('scenario 6f: clearNotice with no clearNoticeOnWatch dep -> does not throw'
         var pending = timers.splice(0, timers.length);
         pending.forEach(function (t) { t.fn(); });
     });
+});
+
+// --- the config close's status re-bake ---------------------------------------
+// Alert switches, levels and Looks change only phone-baked status bytes, so the
+// close re-bakes them from the last payload before the forced fetch: that fetch
+// can fail and a failed fetch re-bakes nothing. Clay, re-bake and fetch share the
+// half-duplex channel, so each waits for the one before to settle.
+
+test('config close: the forced fetch waits for the re-bake to settle, never beside it', function () {
+    resetStore();
+    var h = makeHarness({ holdResend: true });
+    h.scheduler.onConfigClosed({ forceFetch: true });
+    h.ackClay();
+    h.flushTimers();
+    assert.equal(h.calls.resendStatus.length, 1, 're-bake in flight');
+    assert.equal(h.calls.startFetch.length, 0, 'no fetch while the status send is in flight');
+    h.flushTimers();
+    assert.equal(h.calls.startFetch.length, 0, 'not on a later tick either');
+    h.ackResend();
+    assert.deepEqual(h.calls.startFetch, [true], 'the ACK starts the forced fetch');
+    assert.deepEqual(h.calls.order, ['clay', 'status:config-close', 'fetch']);
+});
+
+test('config close: a NACKed re-bake still runs the forced fetch', function () {
+    resetStore();
+    var h = makeHarness({ holdResend: true });
+    h.scheduler.onConfigClosed({ forceFetch: true });
+    h.ackClay();
+    h.flushTimers();
+    h.nackResend();
+    assert.deepEqual(h.calls.startFetch, [true], 'the fetch may still heal the watch');
+});
+
+test('config close: a NACKed Clay still re-bakes the status and fetches', function () {
+    resetStore();
+    var h = makeHarness({ holdResend: true });
+    h.scheduler.onConfigClosed({ forceFetch: true });
+    h.nackClay();
+    assert.equal(h.calls.resendStatus.length, 0, 'deferred past the webview teardown');
+    h.flushTimers();
+    assert.equal(h.calls.resendStatus.length, 1);
+    h.ackResend();
+    assert.deepEqual(h.calls.order, ['clay', 'status:config-close', 'fetch']);
+});
+
+test('config close: a NACKed re-bake still runs the overlay clear', function () {
+    resetStore();
+    var h = makeHarness({ holdResend: true });
+    h.scheduler.onConfigClosed({ forceFetch: false, clearNotice: true });
+    h.ackClay();
+    h.flushTimers();
+    assert.equal(h.calls.clearNoticeOnWatch, 0, 'the clear waits for the re-bake');
+    h.nackResend();
+    assert.equal(h.calls.clearNoticeOnWatch, 1);
+    assert.equal(h.calls.startFetch.length, 0);
 });
 
 test('scenario 5: startup Clay stamps today; first tick suppresses resend; a rollover resends once', function () {

@@ -2,12 +2,14 @@
 // from remembered bake inputs.
 //
 // The forecast pipeline hands its bake inputs here immediately before
-// buildStatusLines (rememberBakeInputs); any later trigger — today a
-// phone-battery event, tomorrow anything else with a phone-side value in a
-// status slot — re-bakes those inputs against the CURRENT settings and pushes
-// only the status keys (resendStatus). A version-stamped flash snapshot backs
-// the in-memory inputs across PKJS restarts (PKJS dies whenever the user
-// leaves the watchface).
+// buildStatusLines (rememberBakeInputs); any later trigger re-bakes those
+// inputs against the CURRENT settings and pushes only the status keys
+// (resendStatus). Two triggers today: a phone-battery event, and every
+// settings save (channel-scheduler's config close), which is how a status-only
+// edit — an alert switched off, a level moved, a Look — reaches the watch at
+// once, network or not. A version-stamped flash snapshot backs the in-memory
+// inputs across PKJS restarts (PKJS dies whenever the user leaves the
+// watchface).
 //
 // This lived inside phone-battery.js, which inverted a dependency — the
 // weather pipeline (forecast-series.js) had to require a BATTERY module just
@@ -19,9 +21,9 @@
 // The micro-send mechanics: `buildStatusLines()` runs inside the
 // forecast bake and consumes transient payload keys that are deleted right
 // after, so a re-bake needs the bake *inputs*: forecast-series.js hands them
-// over via rememberBakeInputs() immediately before the bake. On a battery
-// event we re-bake a fresh clone of that snapshot and push only the five
-// status keys through the normal outbox. change-detector's categorySubset()
+// over via rememberBakeInputs() immediately before the bake. On a trigger we
+// re-bake a fresh clone of that snapshot and push only the status category's
+// keys through the normal outbox. change-detector's categorySubset()
 // returns null for a category whose keys are all absent and ChangeDetector
 // skips those outright, so a partial payload sends the 'status' category alone
 // — no new outbox API, and no fetch, which is the point: a user with an
@@ -325,10 +327,20 @@ function rememberBakeInputs(payload, watchInfo) {
 /**
  * Re-bake the stored snapshot and push only the status keys.
  *
+ * The callbacks are the outbox's own: onSuccess after the ACK, or at once when
+ * the status bytes match the last-sent ones; onFailure on a NACK. A caller that
+ * chains the next send behind this one (the config close) can rely on exactly
+ * one of them running, so onSuccess also runs at once when there is no
+ * snapshot to re-bake, and onFailure when the bake throws — a broken re-bake
+ * must not strand the forced fetch queued behind it, which may yet heal the
+ * watch.
+ *
  * @param {string} reason Log label for why the resend fired.
+ * @param {Function} [onSuccess] Called after ACK, or at once when nothing is sent.
+ * @param {Function} [onFailure] Called on NACK, or when the bake throws.
  * @returns {boolean} True when a send was attempted.
  */
-function resendStatus(reason) {
+function resendStatus(reason, onSuccess, onFailure) {
     var inputs = bakeInputs();
     var payload;
     var build;
@@ -340,18 +352,26 @@ function resendStatus(reason) {
         // since install, or the stored blob was unusable): there is nothing to
         // re-bake, and the next fetch carries the value anyway.
         console.log('status-rebake: no bake snapshot yet, skipping ' + reason + ' send.');
+        if (typeof onSuccess === 'function') { onSuccess(); }
         return false;
     }
     payload = shallowClone(inputs.payload);
     build = deps.buildStatusLines || statusLines.buildStatusLines;
-    build(payload, inputs.settings, inputs.watchInfo);
+    try {
+        build(payload, inputs.settings, inputs.watchInfo);
+    }
+    catch (ex) {
+        console.log('status-rebake: re-bake failed, skipping ' + reason + ' send: ' + ex.message);
+        if (typeof onFailure === 'function') { onFailure(ex); }
+        return false;
+    }
     for (i = 0; i < STATUS_KEYS.length; i += 1) {
         if (Object.prototype.hasOwnProperty.call(payload, STATUS_KEYS[i])) {
             outgoing[STATUS_KEYS[i]] = payload[STATUS_KEYS[i]];
         }
     }
     console.log('status-rebake: status micro-send (' + reason + ').');
-    (deps.sendWeather || outbox.sendWeather)(outgoing);
+    (deps.sendWeather || outbox.sendWeather)(outgoing, onSuccess, onFailure);
     return true;
 }
 
@@ -375,7 +395,7 @@ function invalidatePersisted() {
  *
  * @param {Object} [options] Injected environment; every field has a default.
  * @param {function():Object} [options.getSettings] Current Clay settings supplier.
- * @param {function(Object):void} [options.sendWeather] Outbox send (default: outbox.sendWeather).
+ * @param {function(Object, Function=, Function=):void} [options.sendWeather] Outbox send (default: outbox.sendWeather).
  * @param {function(Object, Object, Object):Object} [options.buildStatusLines] Baker (default: status-lines).
  * @returns {void}
  */
