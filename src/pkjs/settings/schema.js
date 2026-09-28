@@ -827,8 +827,12 @@ function levelsGroup(keyStem, hint, gate) {
         // PLATFORM (status-thresholds.js warnLookDefault through the blocks.js
         // defaultFrom resolver): fill on a colour watch, outline on a B&W one —
         // a B&W warn fill would be the danger fill — and outline for goal kinds.
-        // defaultFrom items are never seeded, so an absent key packs through the
-        // same resolver phone-side (buildSettingsBlob, with the watch's env).
+        // The key stays ABSENT unless the user picks a look other than the saving
+        // watch's default: defaultFrom items are never seeded, and sticky: false
+        // keeps a save from writing the hydrated default back (engine.js
+        // serialize). So one phone driving a colour and a B&W watch packs each
+        // its own default, through the same resolver phone-side
+        // (buildSettingsBlob, with the watch's env).
         // Shown on B&W too: none vs outline is meaningful without colour choice.
         // A weather kind's row is always live (it styles the alert icon too); a
         // goal kind's goes inert with its Goals switch, like its colours.
@@ -836,7 +840,7 @@ function levelsGroup(keyStem, hint, gate) {
         messageKey: 'thresh' + keyStem + 'WarnLook',
         label: goal ? 'Close look' : 'Warn look',
         options: [['None', 'none'], ['Outline', 'outline'], ['Fill', 'fill']],
-        defaultFrom: {resolver: 'warnLookDefault', args: {keyStem: keyStem}},
+        defaultFrom: {resolver: 'warnLookDefault', args: {keyStem: keyStem}, sticky: false},
         hintByValue: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
         hintFrom: {resolver: 'warnLookHint', args: {
             keyStem: keyStem,

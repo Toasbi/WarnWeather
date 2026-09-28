@@ -548,7 +548,8 @@ if (typeof require !== 'undefined') {
     // A kind's warn look default (thresh<K>WarnLook's defaultFrom): the contract's
     // warnLookDefault — fill on a colour watch, outline on a B&W one, outline for the
     // goal kinds — so the page shows exactly what the packer resolves an unset key
-    // to (defaultFrom items are never seeded into the phone store).
+    // to. The key stays unset in the phone store: defaultFrom items are never
+    // seeded, and the item's sticky: false keeps a save from writing this value.
     PConf.defaultsResolvers.register('warnLookDefault', function (env, args) {
         var contract = thresholdContract();
         var isColor = env ? env.color : undefined;

@@ -877,9 +877,11 @@ function migrateThresholdHighlightToggles(isMigrationDone, markDone) {
  * One-time 1.24.0 move of the retired 'Outline on warn' / 'Outline on close' toggle
  * (thresh<K>WarnOutlineOn) onto the warn look (thresh<K>WarnLook: none / outline /
  * fill). The look has a per-PLATFORM default (status-thresholds.js warnLookDefault:
- * fill on colour watches, outline on B&W, outline for the goal kinds) and is never
- * seeded, so only the installs whose old box differs from "absent → default" get a
- * stored look:
+ * fill on colour watches, outline on B&W, outline for the goal kinds) and stays
+ * absent until the user picks a look that differs from it: it is never seeded, and
+ * a page save leaves a look equal to the saving watch's default out of the blob
+ * (the item's defaultFrom is sticky: false, engine.js serialize). So only the
+ * installs whose old box differs from "absent → default" get a stored look:
  *  - a WEATHER kind whose outline was on keeps its outline — the stored toggle true,
  *    or a stored warn colour (an int, or a non-empty '#RRGGBB'): before the toggle
  *    existed, and until the page next re-derived it, the colour alone drew the box.

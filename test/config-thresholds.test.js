@@ -108,10 +108,12 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
         'thresh' + stem + which + (alert ? ' is always live' : ' must disable (not hide) on its toggle'));
     });
     // The warn look: none / outline / fill, its default resolved per platform by the
-    // contract (weather fill on colour, outline on B&W; goal outline) — never seeded.
+    // contract (weather fill on colour, outline on B&W; goal outline) — never seeded,
+    // and never saved while it holds that default (sticky: false).
     const look = map['thresh' + stem + 'WarnLook'][0];
     assert.deepEqual(look.options.map(o => o[1]), ['none', 'outline', 'fill']);
-    assert.deepEqual(look.defaultFrom, { resolver: 'warnLookDefault', args: { keyStem: stem } });
+    assert.deepEqual(look.defaultFrom,
+      { resolver: 'warnLookDefault', args: { keyStem: stem }, sticky: false });
     assert.equal(look.defaultValue, undefined, 'defaultFrom only');
     assert.equal(PC.engine.resolveDefaultFrom(look, { color: true }), alert ? 'fill' : 'outline',
       stem + ' colour default');

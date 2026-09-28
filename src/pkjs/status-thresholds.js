@@ -343,7 +343,11 @@
    * and an outline on a B&W one — there a warn fill would be the danger fill (both
    * solid in the one ink), so the outline is the only look that keeps the two
    * levels apart. The settings page's defaultFrom resolver (blocks.js
-   * warnLookDefault) calls this too, so the page and the packer always agree.
+   * warnLookDefault) calls this too, so the page and the packer always agree,
+   * and the page never stores the look it resolves here (the item's defaultFrom
+   * is sticky: false): the key stays unset until a pick differs from the saving
+   * watch's default, so a phone shared by a colour and a B&W watch still packs
+   * each one's own default.
    * @param {string} keyStem Kind key stem, e.g. 'Uv'.
    * @param {boolean} [isColor] Whether the watch has a colour display; anything
    *     but false (an unknown platform included) counts as colour.

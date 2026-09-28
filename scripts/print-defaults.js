@@ -369,15 +369,16 @@ const RESOLVER_PROSE = {
 };
 
 /**
- * @returns {string[]} Section 3: the defaultFrom keys, which no saved blob contains.
+ * @returns {string[]} Section 3: the defaultFrom keys, which no seeded blob contains.
  */
 function renderUnseeded() {
   const rows = unseededItems();
   const out = heading('3 · NOT SEEDED INTO THE SETTINGS BLOB — resolved per watch instead');
   out.push(...wrap('deriveDefaults() deliberately skips every `defaultFrom` item, so these '
     + rows.length + ' keys DO NOT EXIST in stored settings until the user saves the settings '
-    + 'page. The trap: reading one straight off the blob gives undefined on a watch nobody has '
-    + 'configured. Resolve it instead (status-line-catalog.slotDefault / '
+    + 'page (a `sticky: false` one, the warn looks, not even then unless picked off that '
+    + 'watch\'s default). The trap: reading one straight off the blob gives undefined on a watch '
+    + 'nobody has configured. Resolve it instead (status-line-catalog.slotDefault / '
     + 'engine.resolveDefaultFrom), which is what the values below are.', WIDTH, '  '));
   const byResolver = {};
   rows.forEach((row) => {
