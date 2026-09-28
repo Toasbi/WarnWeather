@@ -6666,7 +6666,11 @@
                 "rangeFrom": {
                   "resolver": "thresholdRange",
                   "args": {
-                    "keyStem": "Steps"
+                    "keyStem": "Steps",
+                    "chips": {
+                      "warn": "Close",
+                      "danger": "Goal"
+                    }
                   }
                 },
                 "showWhen": {
@@ -6725,19 +6729,21 @@
                   "resolver": "warnLookHint",
                   "args": {
                     "keyStem": "Steps",
-                    "bw": {
-                      "outline": "A thin frame in the text color.",
-                      "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
-                    },
-                    "night": {
-                      "fill": "At night (black-and-white theme) this looks the same as a reached goal."
-                    },
-                    "base": {
-                      "none": "No box when close — bold text still follows the Bold row above.",
-                      "outline": "A thin frame in the close color.",
-                      "fill": "A solid box in the close color, with the value in a contrasting color."
-                    },
-                    "sameColor": "Close and goal use the same color, so this looks like a reached goal — pick a different close color."
+                    "copy": {
+                      "base": {
+                        "none": "No box when close — bold text still follows the Bold row above.",
+                        "outline": "A thin frame in the close color.",
+                        "fill": "A solid box in the close color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as a reached goal."
+                      },
+                      "sameColor": "Close and goal use the same color, so this looks like a reached goal — pick a different close color."
+                    }
                   }
                 },
                 "joinPrevious": true,
@@ -6963,7 +6969,11 @@
                 "rangeFrom": {
                   "resolver": "thresholdRange",
                   "args": {
-                    "keyStem": "Sleep"
+                    "keyStem": "Sleep",
+                    "chips": {
+                      "warn": "Close",
+                      "danger": "Goal"
+                    }
                   }
                 },
                 "showWhen": {
@@ -7022,19 +7032,21 @@
                   "resolver": "warnLookHint",
                   "args": {
                     "keyStem": "Sleep",
-                    "bw": {
-                      "outline": "A thin frame in the text color.",
-                      "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
-                    },
-                    "night": {
-                      "fill": "At night (black-and-white theme) this looks the same as a reached goal."
-                    },
-                    "base": {
-                      "none": "No box when close — bold text still follows the Bold row above.",
-                      "outline": "A thin frame in the close color.",
-                      "fill": "A solid box in the close color, with the value in a contrasting color."
-                    },
-                    "sameColor": "Close and goal use the same color, so this looks like a reached goal — pick a different close color."
+                    "copy": {
+                      "base": {
+                        "none": "No box when close — bold text still follows the Bold row above.",
+                        "outline": "A thin frame in the close color.",
+                        "fill": "A solid box in the close color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as a reached goal."
+                      },
+                      "sameColor": "Close and goal use the same color, so this looks like a reached goal — pick a different close color."
+                    }
                   }
                 },
                 "joinPrevious": true,
@@ -7260,7 +7272,11 @@
                 "rangeFrom": {
                   "resolver": "thresholdRange",
                   "args": {
-                    "keyStem": "Distance"
+                    "keyStem": "Distance",
+                    "chips": {
+                      "warn": "Close",
+                      "danger": "Goal"
+                    }
                   }
                 },
                 "showWhen": {
@@ -7319,19 +7335,21 @@
                   "resolver": "warnLookHint",
                   "args": {
                     "keyStem": "Distance",
-                    "bw": {
-                      "outline": "A thin frame in the text color.",
-                      "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
-                    },
-                    "night": {
-                      "fill": "At night (black-and-white theme) this looks the same as a reached goal."
-                    },
-                    "base": {
-                      "none": "No box when close — bold text still follows the Bold row above.",
-                      "outline": "A thin frame in the close color.",
-                      "fill": "A solid box in the close color, with the value in a contrasting color."
-                    },
-                    "sameColor": "Close and goal use the same color, so this looks like a reached goal — pick a different close color."
+                    "copy": {
+                      "base": {
+                        "none": "No box when close — bold text still follows the Bold row above.",
+                        "outline": "A thin frame in the close color.",
+                        "fill": "A solid box in the close color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as a reached goal."
+                      },
+                      "sameColor": "Close and goal use the same color, so this looks like a reached goal — pick a different close color."
+                    }
                   }
                 },
                 "joinPrevious": true,
@@ -8228,7 +8246,11 @@
                 "rangeFrom": {
                   "resolver": "thresholdRange",
                   "args": {
-                    "keyStem": "Uv"
+                    "keyStem": "Uv",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
                   }
                 }
               },
@@ -8276,19 +8298,21 @@
                   "resolver": "warnLookHint",
                   "args": {
                     "keyStem": "Uv",
-                    "bw": {
-                      "outline": "A thin frame in the text color.",
-                      "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-                    },
-                    "night": {
-                      "fill": "At night (black-and-white theme) this looks the same as danger."
-                    },
-                    "base": {
-                      "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                      "outline": "A thin frame in the warn color.",
-                      "fill": "A solid box in the warn color, with the value in a contrasting color."
-                    },
-                    "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    "copy": {
+                      "base": {
+                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                        "outline": "A thin frame in the warn color.",
+                        "fill": "A solid box in the warn color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as danger."
+                      },
+                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    }
                   }
                 },
                 "joinPrevious": true
@@ -8418,7 +8442,11 @@
                 "rangeFrom": {
                   "resolver": "thresholdRange",
                   "args": {
-                    "keyStem": "Wind"
+                    "keyStem": "Wind",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
                   }
                 }
               },
@@ -8466,19 +8494,21 @@
                   "resolver": "warnLookHint",
                   "args": {
                     "keyStem": "Wind",
-                    "bw": {
-                      "outline": "A thin frame in the text color.",
-                      "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-                    },
-                    "night": {
-                      "fill": "At night (black-and-white theme) this looks the same as danger."
-                    },
-                    "base": {
-                      "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                      "outline": "A thin frame in the warn color.",
-                      "fill": "A solid box in the warn color, with the value in a contrasting color."
-                    },
-                    "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    "copy": {
+                      "base": {
+                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                        "outline": "A thin frame in the warn color.",
+                        "fill": "A solid box in the warn color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as danger."
+                      },
+                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    }
                   }
                 },
                 "joinPrevious": true
@@ -8608,7 +8638,11 @@
                 "rangeFrom": {
                   "resolver": "thresholdRange",
                   "args": {
-                    "keyStem": "Gust"
+                    "keyStem": "Gust",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
                   }
                 }
               },
@@ -8656,19 +8690,21 @@
                   "resolver": "warnLookHint",
                   "args": {
                     "keyStem": "Gust",
-                    "bw": {
-                      "outline": "A thin frame in the text color.",
-                      "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-                    },
-                    "night": {
-                      "fill": "At night (black-and-white theme) this looks the same as danger."
-                    },
-                    "base": {
-                      "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                      "outline": "A thin frame in the warn color.",
-                      "fill": "A solid box in the warn color, with the value in a contrasting color."
-                    },
-                    "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    "copy": {
+                      "base": {
+                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                        "outline": "A thin frame in the warn color.",
+                        "fill": "A solid box in the warn color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as danger."
+                      },
+                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    }
                   }
                 },
                 "joinPrevious": true
@@ -8798,7 +8834,11 @@
                 "rangeFrom": {
                   "resolver": "thresholdRange",
                   "args": {
-                    "keyStem": "Aqi"
+                    "keyStem": "Aqi",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
                   }
                 }
               },
@@ -8846,19 +8886,21 @@
                   "resolver": "warnLookHint",
                   "args": {
                     "keyStem": "Aqi",
-                    "bw": {
-                      "outline": "A thin frame in the text color.",
-                      "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-                    },
-                    "night": {
-                      "fill": "At night (black-and-white theme) this looks the same as danger."
-                    },
-                    "base": {
-                      "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                      "outline": "A thin frame in the warn color.",
-                      "fill": "A solid box in the warn color, with the value in a contrasting color."
-                    },
-                    "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    "copy": {
+                      "base": {
+                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                        "outline": "A thin frame in the warn color.",
+                        "fill": "A solid box in the warn color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as danger."
+                      },
+                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    }
                   }
                 },
                 "joinPrevious": true
@@ -8988,7 +9030,11 @@
                 "rangeFrom": {
                   "resolver": "thresholdRange",
                   "args": {
-                    "keyStem": "Pollen"
+                    "keyStem": "Pollen",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
                   }
                 }
               },
@@ -9036,19 +9082,21 @@
                   "resolver": "warnLookHint",
                   "args": {
                     "keyStem": "Pollen",
-                    "bw": {
-                      "outline": "A thin frame in the text color.",
-                      "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-                    },
-                    "night": {
-                      "fill": "At night (black-and-white theme) this looks the same as danger."
-                    },
-                    "base": {
-                      "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                      "outline": "A thin frame in the warn color.",
-                      "fill": "A solid box in the warn color, with the value in a contrasting color."
-                    },
-                    "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    "copy": {
+                      "base": {
+                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                        "outline": "A thin frame in the warn color.",
+                        "fill": "A solid box in the warn color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as danger."
+                      },
+                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    }
                   }
                 },
                 "joinPrevious": true

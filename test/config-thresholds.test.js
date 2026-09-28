@@ -93,8 +93,9 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
     assert.equal(warn[0].defaultValue, '');
     assert.equal(warn[0].dangerKey, 'thresh' + stem + 'Danger');
     assert.equal(warn[0].maxKey, 'thresh' + stem + 'Max');
-    assert.deepEqual(warn[0].rangeFrom,
-      { resolver: 'thresholdRange', args: { keyStem: stem } });
+    // The chips' words ride the args, in the group's voice.
+    assert.deepEqual(warn[0].rangeFrom, { resolver: 'thresholdRange', args: { keyStem: stem,
+      chips: alert ? { warn: 'Warn', danger: 'Danger' } : { warn: 'Close', danger: 'Goal' } } });
     // The slider is ALWAYS live: the warn level also sets the day-max hold, which
     // applies whether or not the highlight is on — so no gate, not even a mute.
     assert.equal(warn[0].disabledWhen, undefined,
@@ -692,28 +693,32 @@ test('the warn look row: label, the selected look\'s hint, and the B&W wording',
   assert.equal(wind.hint, undefined, 'no all-options hint');
   assert.deepEqual(Object.keys(wind.hintByValue), ['none', 'outline', 'fill']);
   assert.equal(wind.hintFrom.resolver, 'warnLookHint');
+  // The resolver gets the voice's whole look copy; its base IS the row's own hints.
+  assert.deepEqual(Object.keys(wind.hintFrom.args), ['keyStem', 'copy']);
+  assert.equal(wind.hintFrom.args.copy.base, wind.hintByValue);
+  assert.equal(steps.hintFrom.args.copy.base, steps.hintByValue);
   assert.match(wind.hintByValue.none, /Bold row/, 'none says where the bold comes from');
   assert.match(steps.hintByValue.none, /Bold row above/);
   assert.match(wind.hintByValue.fill, /contrasting color/);
-  assert.match(wind.hintFrom.args.bw.fill, /looks the same as danger\.$/);
-  assert.match(steps.hintFrom.args.bw.fill, /looks the same as a reached goal\.$/);
-  assert.equal(wind.hintFrom.args.bw.none, undefined, 'none reads the same on B&W');
+  assert.match(wind.hintFrom.args.copy.bw.fill, /looks the same as danger\.$/);
+  assert.match(steps.hintFrom.args.copy.bw.fill, /looks the same as a reached goal\.$/);
+  assert.equal(wind.hintFrom.args.copy.bw.none, undefined, 'none reads the same on B&W');
 
   const hint = PC.hintResolvers.get('warnLookHint');
   const args = v => Object.assign({ value: v }, wind.hintFrom.args);
   assert.equal(hint({ theme: 'dark' }, ENV, args('fill')), null, 'colour: the row\'s own hint');
-  assert.equal(hint({ theme: 'bw' }, ENV, args('fill')), wind.hintFrom.args.bw.fill, 'B&W theme');
-  assert.equal(hint({ theme: 'bw-light' }, ENV, args('outline')), wind.hintFrom.args.bw.outline);
+  assert.equal(hint({ theme: 'bw' }, ENV, args('fill')), wind.hintFrom.args.copy.bw.fill, 'B&W theme');
+  assert.equal(hint({ theme: 'bw-light' }, ENV, args('outline')), wind.hintFrom.args.copy.bw.outline);
   assert.equal(hint({ theme: 'dark', themeAuto: false, themeNight: 'bw' }, ENV, args('fill')), null,
     'a night theme that never switches in');
   assert.equal(hint({ theme: 'dark' }, Object.assign({}, ENV, { color: false }), args('fill')),
-    wind.hintFrom.args.bw.fill, 'a B&W watch');
+    wind.hintFrom.args.copy.bw.fill, 'a B&W watch');
   assert.equal(hint({ theme: 'bw' }, ENV, args('none')), null, 'none keeps its own hint');
 
   // A colour DAY theme with a B&W NIGHT theme: by day the box is in the picked colour
   // (the picker shows), so the colour hint stands and fill adds the night note.
   const night = hint({ theme: 'dark', themeAuto: true, themeNight: 'bw' }, ENV, args('fill'));
-  assert.equal(night, wind.hintByValue.fill + ' ' + wind.hintFrom.args.night.fill, 'a B&W night theme');
+  assert.equal(night, wind.hintByValue.fill + ' ' + wind.hintFrom.args.copy.night.fill, 'a B&W night theme');
   assert.match(night, /At night \(black-and-white theme\) this looks the same as danger\.$/);
   assert.equal(hint({ theme: 'dark', themeAuto: true, themeNight: 'bw' }, ENV, args('outline')), null,
     'outline keeps its colour hint at night');
@@ -725,11 +730,11 @@ test('the warn look row: label, the selected look\'s hint, and the B&W wording',
   // reached-goal box, and the hint says so. A goal kind's defaults are both the goal
   // green; a weather warn pick can equal its danger (unset danger = red).
   assert.equal(hint({ theme: 'dark', threshStepsWarnColor: '#55FF00', threshStepsDangerColor: '#55FF00' },
-    ENV, stepsArgs('fill')), steps.hintByValue.fill + ' ' + steps.hintFrom.args.sameColor,
+    ENV, stepsArgs('fill')), steps.hintByValue.fill + ' ' + steps.hintFrom.args.copy.sameColor,
     'goal defaults: close fill looks like a reached goal');
-  assert.match(steps.hintFrom.args.sameColor, /looks like a reached goal/);
+  assert.match(steps.hintFrom.args.copy.sameColor, /looks like a reached goal/);
   assert.equal(hint({ theme: 'dark', threshWindWarnColor: '#FF0000', threshWindDangerColor: '' },
-    ENV, args('fill')), wind.hintByValue.fill + ' ' + wind.hintFrom.args.sameColor,
+    ENV, args('fill')), wind.hintByValue.fill + ' ' + wind.hintFrom.args.copy.sameColor,
     'a red warn pick against the red danger default');
   assert.equal(hint({ theme: 'dark', threshWindWarnColor: '', threshWindDangerColor: '' },
     ENV, args('fill')), null, 'default warn (text colour) and default danger (red) differ');
@@ -750,7 +755,7 @@ test('the warn look row: label, the selected look\'s hint, and the B&W wording',
   bw.openEditSheet('alertUv');
   assert.ok(bw.modal.innerHTML.indexOf('<button class="on" data-k="threshUvWarnLook" data-v="outline">') !== -1,
     'B&W watch: Outline selected by default');
-  assert.ok(bw.modal.innerHTML.indexOf('data-hint-for="threshUvWarnLook">' + wind.hintFrom.args.bw.outline + '<') !== -1,
+  assert.ok(bw.modal.innerHTML.indexOf('data-hint-for="threshUvWarnLook">' + wind.hintFrom.args.copy.bw.outline + '<') !== -1,
     'with the text-colour wording');
   assert.equal(bw.modal.innerHTML.indexOf('data-k="threshUvWarnColor"'), -1, 'no colour picker on B&W');
 });

@@ -769,7 +769,10 @@ function levelsGroup(keyStem, hint, gate) {
         defaultValue: '',
         hint: hint,
         joinPrevious: true,
-        rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem}}
+        // The chips' words ride the args: the resolver owns the numbers, the sheet
+        // the wording.
+        rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem,
+            chips: goal ? {warn: 'Close', danger: 'Goal'} : {warn: 'Warn', danger: 'Danger'}}}
     };
     // The group header: title, reset-to-defaults, and (goal kinds) the master on/off
     // switch that used to ride the sheet's title row. The intro hangs off it because
@@ -823,13 +826,12 @@ function levelsGroup(keyStem, hint, gate) {
         options: [['None', 'none'], ['Outline', 'outline'], ['Fill', 'fill']],
         defaultFrom: {resolver: 'warnLookDefault', args: {keyStem: keyStem}, sticky: false},
         hintByValue: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
-        hintFrom: {resolver: 'warnLookHint', args: {
-            keyStem: keyStem,
+        hintFrom: {resolver: 'warnLookHint', args: {keyStem: keyStem, copy: {
+            base: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
             bw: goal ? GOAL_LOOK_BW_HINTS : WARN_LOOK_BW_HINTS,
             night: goal ? GOAL_LOOK_NIGHT_NOTES : WARN_LOOK_NIGHT_NOTES,
-            base: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
             sameColor: goal ? GOAL_LOOK_SAME_COLOR_NOTE : WARN_LOOK_SAME_COLOR_NOTE
-        }},
+        }}},
         joinPrevious: true,
         showWhen: gate || undefined,
         disabledWhen: offWhen

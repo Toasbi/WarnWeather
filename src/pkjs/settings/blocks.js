@@ -424,7 +424,10 @@ if (typeof require !== 'undefined') {
      * off the track.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {{keyStem: string}} args Kind key stem, e.g. 'Steps'.
+     * @param {{keyStem: string, chips: ({warn: string, danger: string}|undefined)}} args
+     *     Kind key stem, e.g. 'Steps', and the chips' words in the group's voice
+     *     (schema.js levelsGroup); without them the slider says Warn / Danger
+     *     (range-control.js).
      * @returns {Object} Config the engine merges over the schema item.
      */
     function thresholdRangeCfg(S, env, args) {
@@ -455,7 +458,7 @@ if (typeof require !== 'undefined') {
         var warnDisplay = thresholdDisplayColor(S, stem, 'Warn', env);
         var warnColor = warnDisplay === null ? '#8A8E97' : warnDisplay;
         var dangerColor = thresholdDisplayColor(S, stem, 'Danger', env);
-        var isGoal = thresholds.isGoalKind(stem);
+        var chips = args.chips || {};
         // Seeds from the contract's table: what a blank pair means on the phone.
         var seed = thresholds.seedPair(stem, S || {});
         return {
@@ -470,9 +473,10 @@ if (typeof require !== 'undefined') {
             warnColor: warnColor, dangerColor: dangerColor,
             warnGlow: glowOf(warnColor), dangerGlow: glowOf(dangerColor),
             dangerText: chipTextOn(dangerColor),
-            // Chip/aria wording: goal kinds celebrate (Close / Goal), weather warns.
-            warnLabel: isGoal ? 'Close' : 'Warn',
-            dangerLabel: isGoal ? 'Goal' : 'Danger'
+            // Chip/aria wording, the voice's: goal kinds celebrate (Close / Goal),
+            // weather warns.
+            warnLabel: chips.warn,
+            dangerLabel: chips.danger
         };
     }
     PConf.rangeResolvers.register('thresholdRange', thresholdRangeCfg);
@@ -518,9 +522,10 @@ if (typeof require !== 'undefined') {
         return thresholds.warnLookDefault(args && args.keyStem, env ? env.color : undefined);
     });
 
-    // The warn look's hint (thresh<K>WarnLook's hintFrom), for the SELECTED look:
-    //  - a B&W watch or B&W day theme: the row's `bw` set (schema.js
-    //    WARN_LOOK_BW_HINTS / GOAL_LOOK_BW_HINTS) — the box is drawn in the text
+    // The warn look's hint (thresh<K>WarnLook's hintFrom), for the SELECTED look,
+    // from the look copy the row passes as `copy` (schema.js WARN_LOOK_* /
+    // GOAL_LOOK_*, in the group's voice):
+    //  - a B&W watch or B&W day theme: its `bw` set — the box is drawn in the text
     //    colour, the pickers are hidden, and a fill is the danger (reached-goal) fill;
     //  - a colour day theme with a B&W night theme (Theme switching on): the row's
     //    own hint (`base`, its hintByValue) plus the `night` note for that look — by
@@ -532,27 +537,28 @@ if (typeof require !== 'undefined') {
     // A look a set has no line for (none) falls back the same way. The watch still
     // draws what was picked (status_row.c).
     PConf.hintResolvers.register('warnLookHint', function (S, env, args) {
-        if (!args) { return null; }
+        var copy = args && args.copy;
+        if (!copy) { return null; }
         var value = args.value;
         var st = S || {};
         // By DAY: the case the colour pickers are hidden for (schema.js
         // COLOR_THEME_WHEN) and every highlight is drawn in the text colour.
         if (!resolveInk.drawsColor(env, st.theme)) {
-            var bwText = args.bw && args.bw[value];
+            var bwText = copy.bw && copy.bw[value];
             return typeof bwText === 'string' ? bwText : null;
         }
-        var base = args.base && args.base[value];
+        var base = copy.base && copy.base[value];
         if (typeof base !== 'string') { return null; }
         var parts = [base];
-        var note = args.night && args.night[value];
+        var note = copy.night && copy.night[value];
         if (st.themeAuto === true && resolveInk.isBwTheme(st.themeNight) && typeof note === 'string') {
             parts.push(note);
         }
-        if (value === 'fill' && args.keyStem && typeof args.sameColor === 'string') {
+        if (value === 'fill' && args.keyStem && typeof copy.sameColor === 'string') {
             var warnHex = thresholdDisplayColor(st, args.keyStem, 'Warn', env);
             var dangerHex = thresholdDisplayColor(st, args.keyStem, 'Danger', env);
             if (warnHex && dangerHex && String(warnHex).toUpperCase() === String(dangerHex).toUpperCase()) {
-                parts.push(args.sameColor);
+                parts.push(copy.sameColor);
             }
         }
         return parts.length > 1 ? parts.join(' ') : null;
