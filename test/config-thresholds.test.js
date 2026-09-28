@@ -84,7 +84,8 @@ test('every threshold kind has toggle + slider + hidden companions wired up', ()
     }
     assert.equal(on[0].type, 'toggle');
     assert.equal(on[0].defaultValue, false);
-    assert.equal(on[0].onChange, 'thresholdToggle');
+    // Plain stored state: switching it writes no numbers (a blank pair IS the seed).
+    assert.equal(on[0].onChange, undefined);
 
     const warn = map['thresh' + stem + 'Warn'];
     assertGroupItem(warn, stem, 'thresh' + stem + 'Warn');
@@ -361,37 +362,32 @@ test('resolver colors: auto tracks the theme fg, picks stick, garbage sanitized'
   assert.equal(evil.warnColor, '#FFFFFF');
 });
 
-// --- the toggle hook (blocks.js thresholdToggle) ----------------------------
+// --- the highlight switch writes no numbers ---------------------------------
 
-test('toggling on seeds an ordered pair in the current unit; off keeps the pair', () => {
-  const hook = PC.onChange.get('thresholdToggle');
-  assert.equal(typeof hook, 'function');
-  const S = { windUnits: 'mph', threshWindWarn: '', threshWindDanger: '' };
-  hook(S, false, true, ENV, 'threshWindOn');
-  assert.equal(S.threshWindWarn, '25');
-  assert.equal(S.threshWindDanger, '40');
-  // The toggle is stored state and switches only the highlight: the levels live on
-  // (the Alert-mode hold still reads the warn), so OFF leaves them exactly as set.
-  hook(S, true, false, ENV, 'threshWindOn');
-  assert.equal(S.threshWindWarn, '25', 'off keeps the warn');
-  assert.equal(S.threshWindDanger, '40', 'off keeps the danger');
-  // Nor does OFF write a blank pair or seed one: a blank pair stays blank (= seed).
-  const blank = { threshUvWarn: '', threshUvDanger: '' };
-  hook(blank, true, false, ENV, 'threshUvOn');
-  assert.deepEqual(blank, { threshUvWarn: '', threshUvDanger: '' });
-});
-
-test('toggling on preserves a stored ordered pair, reseeds a broken one', () => {
-  const hook = PC.onChange.get('thresholdToggle');
-  // Goal kinds order upward since the celebration rework: close <= goal.
-  const kept = { threshStepsWarn: '4000', threshStepsDanger: '8000' };
-  hook(kept, false, true, ENV, 'threshStepsOn');
-  assert.equal(kept.threshStepsWarn, '4000', 'valid pair untouched');
-  // A legacy below-ordered pair (goal under close) is broken now → reseed.
-  const broken = { threshStepsWarn: '8000', threshStepsDanger: '4000' };
-  hook(broken, false, true, ENV, 'threshStepsOn');
-  assert.equal(broken.threshStepsWarn, '8000');
-  assert.equal(broken.threshStepsDanger, '10000');
+test('switching a highlight on writes no numbers: a blank pair keeps following the unit', () => {
+  // A blank pair IS the kind's seed for the unit and AQI scale in effect
+  // (resolvedPair), for the bake, the hold rule, the slider and the hints alike, so the
+  // switch has nothing to store beside itself — and pinning the seed would freeze the
+  // unit it was pinned under (a wind 40/60 read as mph after a switch to mph).
+  assert.equal(PC.onChange.get('thresholdToggle'), undefined, 'no hook behind the switch');
+  const page = bootGeneratedPage({ provider: 'dwd' });
+  page.openEditSheet('threshWind');
+  page.clickModalToggle('threshWindOn');
+  assert.strictEqual(page.S.threshWindOn, true);
+  assert.equal(page.S.threshWindWarn, '', 'no warn pinned');
+  assert.equal(page.S.threshWindDanger, '', 'no danger pinned');
+  assert.ok(thresholds.kindConfig(page.S, thresholds.KINDS.findIndex((k) => k.key === 'Wind')).enabled,
+    'the blank pair resolves to the seed, so the highlight is on');
+  assert.deepEqual(thresholds.resolvedPair('Wind', page.S), { warn: 40, danger: 60, stored: false });
+  page.S.windUnits = 'mph';
+  assert.deepEqual(thresholds.resolvedPair('Wind', page.S), { warn: 25, danger: 40, stored: false },
+    'the levels follow the unit');
+  // A stored pair, broken or not, is left exactly as it was.
+  page.S.threshWindWarn = '60';
+  page.S.threshWindDanger = '30';
+  page.clickModalToggle('threshWindOn');
+  page.clickModalToggle('threshWindOn');
+  assert.deepEqual([page.S.threshWindWarn, page.S.threshWindDanger], ['60', '30']);
 });
 
 // --- stored toggle state (onbuild.js onLoad) --------------------------------
@@ -587,7 +583,7 @@ const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const disabledRowWith = (html, key) => new RegExp('<div class="row[^"]*\\bdis\\b[^"]*">'
   + '(?:(?!<div class="row)[\\s\\S])*?data-k="' + key + '"').test(html);
 
-test('the sheets: the levels and look stay live whatever the slot Highlight; on seeds it; off keeps it', () => {
+test('the sheets: the levels and look stay live whatever the slot Highlight, which writes no numbers', () => {
   const page = bootGeneratedPage();
   page.clickTab('watch');
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
@@ -628,16 +624,17 @@ test('the sheets: the levels and look stay live whatever the slot Highlight; on 
     && sheet.indexOf('data-action-arg="Aqi"') !== -1,
     'the reset-to-defaults button rides the group sub-header');
 
-  // The slot sheet's Highlight switch: ON pins the seed pair, OFF keeps it.
+  // The slot sheet's Highlight switch is its own stored state: neither ON nor OFF
+  // touches the pair, which stays blank (= the seed for the AQI scale in effect).
   page.openEditSheet('threshAqi');
   page.clickModalToggle('threshAqiOn');
   assert.equal(page.S.threshAqiOn, true);
-  assert.equal(page.S.threshAqiWarn, '100');
-  assert.equal(page.S.threshAqiDanger, '150');
+  assert.equal(page.S.threshAqiWarn, '', 'toggling on pins no warn');
+  assert.equal(page.S.threshAqiDanger, '', 'toggling on pins no danger');
   page.clickModalToggle('threshAqiOn');
   assert.strictEqual(page.S.threshAqiOn, false, 'the stored toggle is off');
-  assert.equal(page.S.threshAqiWarn, '100', 'toggling off keeps the warn');
-  assert.equal(page.S.threshAqiDanger, '150', 'toggling off keeps the danger');
+  assert.equal(page.S.threshAqiWarn, '', 'toggling off leaves the warn');
+  assert.equal(page.S.threshAqiDanger, '', 'toggling off leaves the danger');
   page.openEditSheet('alertAqi');
   assert.ok(!/class="row stack[^"]*\bdis\b/.test(page.modal.innerHTML),
     'the slider stays live with the highlight off');
@@ -1367,7 +1364,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
       type: 'toggle', messageKey: 'thresh' + stem + 'On', label: 'Alert highlighting',
       hint: 'Fills this slot from the danger level on and draws the warn look from warn — levels,'
         + ' look and colors are set under Alerts.',
-      defaultValue: false, onChange: 'thresholdToggle'
+      defaultValue: false
     }, stem + ' Highlight follows Bold');
     assert.deepEqual(items[items.length - 1], {
       type: 'staticText', style: 'info',

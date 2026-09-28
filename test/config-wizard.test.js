@@ -241,19 +241,33 @@ test('finishing the wizard on a narrow watch bolds the Forecast row and fills th
     'the report names exactly the keys it wrote');
 });
 
-test('the AQI seeding runs through the settings page\'s own hooks, not hand-picked numbers', () => {
+test('the wizard\'s AQI highlight == a hand flip: the switch alone, the pair left blank', () => {
+  const thresholds = require('../src/pkjs/status-thresholds.js');
   const ctx = wizCtx();
   W.applyWizardDefaults(ctx, 'save');
 
-  // What flipping the highlight switch by hand on the settings page produces.
+  // What flipping the highlight switch by hand on the settings page produces: the
+  // switch carries no hook, so the stored switch and nothing else.
   const hand = wizCtx();
+  const toggles = [];
+  require('../src/pkjs/config-ui/lib/schema-walk.js').eachItem(schema, (it) => {
+    if (it.messageKey === 'threshAqiOn') { toggles.push(it); }
+  });
+  assert.equal(toggles.length, 1, 'guard: the one switch');
+  assert.equal(toggles[0].onChange, undefined, 'guard: it runs no hook a hand flip would add');
   hand.S.threshAqiOn = true;
-  PConf.onChange.get('thresholdToggle')(hand.S, false, true, hand.ENV, 'threshAqiOn');
 
-  assert.notEqual(hand.S.threshAqiWarn, '', 'guard: the hook really seeds a pair');
-  assert.equal(ctx.S.threshAqiWarn, hand.S.threshAqiWarn);
-  assert.equal(ctx.S.threshAqiDanger, hand.S.threshAqiDanger);
-  assert.equal(ctx.S.threshAqiWarnColor, hand.S.threshAqiWarnColor);
+  ['threshAqiOn', 'threshAqiWarn', 'threshAqiDanger', 'threshAqiWarnColor',
+    'threshAqiDangerColor', 'threshAqiWarnLook'].forEach((k) => {
+    assert.deepEqual(ctx.S[k], hand.S[k], k);
+  });
+  assert.equal(ctx.S.threshAqiWarn, '', 'no pinned warn');
+  assert.equal(ctx.S.threshAqiDanger, '', 'no pinned danger');
+  // A blank pair is the seed for the AQI scale in effect, live: WAQI's US scale now,
+  // Open-Meteo's European one after the user switches the AQI provider.
+  assert.deepEqual(thresholds.resolvedPair('Aqi', ctx.S), { warn: 100, danger: 150, stored: false });
+  ctx.S.aqiSource = 'openmeteo';
+  assert.deepEqual(thresholds.resolvedPair('Aqi', ctx.S), { warn: 60, danger: 80, stored: false });
 });
 
 test('the health slots move only where health can actually report', () => {

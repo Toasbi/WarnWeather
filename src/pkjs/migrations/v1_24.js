@@ -30,8 +30,9 @@ var thresholds = require('../status-thresholds.js');   // KINDS + the pair rules
  * Keyed on the PAIR, never on the toggle being absent: thresh<K>On has had a schema
  * default (false) for releases, so "absent" is not observable. The pair alone tells the
  * three populations apart: highlight on (ordered pair) → true; highlight off (the old
- * OFF blanked the pair) → false; AQI's wizard-seeded highlight (100/150 or 60/80 via
- * the thresholdToggle hook) → true.
+ * OFF blanked the pair) → false; AQI's wizard-seeded highlight (100/150 or 60/80, the
+ * seed the 1.23 page's switch pinned) → true. Those pins go back to blank right after,
+ * in the next ledger entry (migrations/seed-pairs.js).
  *
  * A pair that is not ordered but not blank either — half ('7', '') from the old text
  * fields, inverted, junk — is normalised to '' on both keys: the phone and the page

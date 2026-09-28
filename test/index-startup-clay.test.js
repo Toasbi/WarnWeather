@@ -102,7 +102,8 @@ test('Reset watchface after a NACKed migration send leaves no marker in the wipe
 // The reset-safe markers are set by the reset path in index.js, which hands resetAll
 // the ledger's list. Without them the next boot would run those migrations against
 // what the page saved after the reset: a cleared no-rain text restored, a picked
-// fourth-line stripeTop moved to 'x', a highlight switched off turned back on.
+// fourth-line stripeTop moved to 'x', a highlight switched off turned back on, a
+// level pair dragged onto its seed blanked.
 test('Reset watchface marks the reset-safe migrations done in the wiped store', (t) => {
   const h = installIndexRuntime({ now: new Date(2026, 8, 23, 12, 0, 0).getTime() });
   t.after(h.restore);
@@ -115,11 +116,14 @@ test('Reset watchface marks the reset-safe migrations done in the wiped store', 
   h.closeSettings({ reset: true });
   assert.equal(h.store['clay-settings'], undefined, 'the reset wiped the settings');
   assert.deepEqual([KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY,
-    KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY],
+    KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY,
+    KEYS.SEED_PAIR_BLANK_MIGRATION_KEY],
   ['v1.23.0_norain_default_text_migration', 'v1.23.1_fifth_line_style_default_migration',
-    'v1.24.0_warn_look_migration'], 'the reset-safe marker strings are the shipped ones');
+    'v1.24.0_warn_look_migration', 'v1.24.0_seed_pair_blank_migration'],
+  'the reset-safe marker strings are the shipped ones');
   assert.deepEqual(resetSafe.slice().sort(), [KEYS.NORAIN_DEFAULT_TEXT_MIGRATION_KEY,
-    KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY].sort(),
+    KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY, KEYS.ALERT_LEVELS_MIGRATION_KEY,
+    KEYS.SEED_PAIR_BLANK_MIGRATION_KEY].sort(),
   'the ledger marks exactly these on a reset');
   resetSafe.forEach((key) => {
     assert.equal(h.store[key], '1', key + ' is marked done after the reset');

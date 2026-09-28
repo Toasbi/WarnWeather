@@ -246,10 +246,8 @@ function renderRules() {
   const out = heading('1 · SITUATIONAL RULES — defaults that depend on the moment');
   out.push(...wrap('Each row below applies only when its conditions hold, and later rows win. '
     + 'Add or change one in the RULES table of src/pkjs/settings/defaults-policy.js; nothing '
-    + 'applies them on its own — the wizard resolves the table on its finish button. A value '
-    + 'marked "via <hook>" is written through the settings page\'s own onChange hook, so the '
-    + 'companions it seeds (a threshold pair, an outline colour) are identical to what flipping '
-    + 'that control by hand produces.', WIDTH, '  '));
+    + 'applies them on its own — the wizard resolves the table on its finish button.',
+    WIDTH, '  '));
   policy.RULES.forEach((rule, i) => {
     out.push('');
     out.push('  [' + (i + 1) + '] ' + rule.id);
@@ -259,11 +257,9 @@ function renderRules() {
       : 'always (no conditions)'));
     out.push(...field('      ', 'why', rule.why));
     const set = rule.set || {};
-    const via = rule.seedVia || {};
     Object.keys(set).forEach((key, n) => {
-      const seed = via[key] ? '   via ' + via[key] + ' hook' : '';
       out.push('      ' + (n === 0 ? 'sets   ' : '       ') + key.padEnd(24) + ' '
-        + fmt(set[key]).padEnd(8) + seed);
+        + fmt(set[key]));
     });
   });
   return out.map((l) => l.trimEnd());

@@ -197,10 +197,9 @@
   /**
    * Whether a warn/danger pair is USABLE: both set and ordered — the value
    * rises toward the pair (danger at or above warn). THE one definition of the
-   * rule: resolvedPair takes a stored pair only when it holds, kindConfig
-   * re-checks it before setting an enable bit (defence in depth), and the
-   * settings page's toggle hook (blocks.js thresholdToggle) calls it, so the UI
-   * can never disagree with what the watch packs.
+   * rule: resolvedPair takes a stored pair only when it holds, and kindConfig
+   * re-checks it before setting an enable bit (defence in depth), so the page,
+   * which reads the resolved pair, can never disagree with what the watch packs.
    * @param {?number} warn Parsed warn threshold (parseThreshold).
    * @param {?number} danger Parsed danger threshold.
    * @returns {boolean} True when the pair is complete and ordered.

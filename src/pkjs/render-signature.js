@@ -119,10 +119,10 @@ function renderSignature(settings) {
     // (Clay-delivered, applied on the next paint): a refetch there is pure waste.
     // Signed as the RESOLVED pair — the numbers the bake reads (resolvedPair:
     // the stored pair when it is ordered, else the kind's seed) — not the raw
-    // strings: turning the highlight ON over a blank pair pins the seed strings
-    // into storage (blocks.js thresholdToggle), and signing '' -> '6' would
-    // force a refetch that bakes the very same numbers. The seed's own inputs
-    // (windUnits, aqiSource, aqiScale) are signed above.
+    // strings: a pair dragged onto the seed and a blank one bake the same
+    // numbers, and a unit or AQI-scale change moves a blank pair's numbers with
+    // no stored string changing. The seed's own inputs (windUnits, aqiSource,
+    // aqiScale) are signed above.
     var kinds = statusThresholds.KINDS;
     for (var w = 0; w < kinds.length; w++) {
         if (kinds[w].goal || kinds[w].boldOnly) { continue; }

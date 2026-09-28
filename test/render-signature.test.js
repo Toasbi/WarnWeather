@@ -301,9 +301,9 @@ test('setting a WEATHER-kind pair changes the render signature (forces a refetch
   });
 });
 
-// Turning the highlight ON over a blank pair pins the SEED strings into storage
-// (blocks.js thresholdToggle) — the numbers the bake reads do not change, so it must
-// not force a refetch either (spec decision 6: the switch never forces a refetch).
+// A pair stored equal to the seed (dragged onto it, or pinned by a page before 1.24.0)
+// bakes the same numbers as a blank one — so the 1.24.0 migration that blanks such a
+// pair (migrations/seed-pairs.js) must not force a refetch either.
 test('storing the seed pair over a blank one leaves the signature unchanged', () => {
   WEATHER_KINDS.forEach(kind => {
     const seed = thresholds.seedPair(kind.key, {});

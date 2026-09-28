@@ -746,8 +746,8 @@ function levelsGroup(keyStem, hint, gate) {
     // kind's rows never do: they style its alert icon too, which the slot's switch
     // does not touch. The toggle itself is STORED state — the one source of
     // "highlight on" (kindConfig's enable bit); pre-split blobs were backfilled from
-    // their pair by migrations/v1_24.js — and ON seeds the pair through the
-    // thresholdToggle hook when none is stored.
+    // their pair by migrations/v1_24.js. It writes no numbers: a blank pair already
+    // means the kind's seed, which follows the unit and AQI-scale pickers.
     var offWhen = goal ? {not: {key: onKey}} : undefined;
     var colorWhen = gate ? {all: [gate, COLOR_THEME_WHEN]} : COLOR_THEME_WHEN;
     // Goal kinds only: a weather kind's switch is the slot sheet's highlightToggle.
@@ -756,8 +756,7 @@ function levelsGroup(keyStem, hint, gate) {
         messageKey: onKey,
         // Aria-only: the switch rides the group header, whose intro carries the meaning.
         label: 'Goals',
-        defaultValue: false,
-        onChange: 'thresholdToggle'
+        defaultValue: false
     } : null;
     var range = {
         type: 'range',
@@ -928,8 +927,8 @@ function thresholdSection(title, keyStem, hint, gate, extraItems, tail) {
 // (kindConfig), which styles its STATUS SLOTS only: the alert icon has its own switch
 // (alert<Stem>, in the Alerts sheet) and draws its warn look and danger fill whether
 // or not this is on. It lives in the slot sheet because that is what it styles; the levels
-// and colors it uses live in the Alerts sheet. ON seeds the pair through the
-// thresholdToggle hook when none is stored, as the goal header's switch does.
+// and colors it uses live in the Alerts sheet. Like the goal header's switch, it writes
+// no numbers: a blank pair already means the kind's seed.
 /**
  * @param {string} keyStem Kind key stem, e.g. 'Uv' (thresh<Stem>On).
  * @returns {Object} The slot sheet's 'Alert highlighting' toggle.
@@ -942,8 +941,7 @@ function highlightToggle(keyStem) {
         // Fill at danger always; at warn the Alerts sheet's warn look (none /
         // outline / fill — status_threshold_box).
         hint: 'Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.',
-        defaultValue: false,
-        onChange: 'thresholdToggle'
+        defaultValue: false
     };
 }
 // The five alert kinds' slot sheets end on this pointer instead of the levels group:

@@ -37,7 +37,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * undo a user's OFF on the next open. The one-time pair-derived backfill for
      * blobs saved before the split is migrations/v1_24.js
      * migrateThresholdHighlightToggles, which runs on the phone before the page can
-     * open. Flipping it live is the thresholdToggle onChange hook in blocks.js.
+     * open.
      * @param {{ get: function, set: function }} ctx onLoad context
      * @returns {void}
      */

@@ -1857,8 +1857,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // A disabled switch (a hosted toggle under its disabledWhen, renderToggle)
         // swallows the tap: the setting is held by another one for now.
         if (t.getAttribute('disabled') != null) { return true; }
-        // Toggles fire their onChange like any other control (e.g. thresholdToggle
-        // seeding/blanking a kind's warn+danger pair).
+        // Toggles fire their onChange like any other control (e.g. themeAutoPreset
+        // seeding the night theme when the automatic switch comes on).
         var tgK = t.getAttribute('data-k');
         setValue(tgK, !S[tgK]);
         render(); return true;

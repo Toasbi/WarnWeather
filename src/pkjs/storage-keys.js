@@ -30,6 +30,10 @@ module.exports = {
     // page as 1.23 shapes (a highlight switched off with its pair kept would come back
     // on). migrations/v1_24.js has the details.
     ALERT_LEVELS_MIGRATION_KEY: 'v1.24.0_warn_look_migration',
+    // 1.24.0: a stored level pair equal to the kind's seed goes back to blank, so the
+    // levels switched on (or seeded by the wizard) before the pin was dropped follow
+    // the unit and AQI-scale pickers again (migrations/seed-pairs.js).
+    SEED_PAIR_BLANK_MIGRATION_KEY: 'v1.24.0_seed_pair_blank_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

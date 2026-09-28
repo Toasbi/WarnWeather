@@ -34,6 +34,7 @@ var graphColors = require('./graph-colors.js');
 var lightTheme = require('./light-theme.js');
 var lineStyles = require('./line-styles.js');
 var v124 = require('./v1_24.js');
+var seedPairs = require('./seed-pairs.js');
 
 module.exports = [
     // 1.20.0. Marks on every boot that finds it unset, fresh installs included (see the
@@ -97,5 +98,13 @@ module.exports = [
     // And a blank warn colour now means auto, so a page save must not be read as the
     // old no-outline state.
     { key: KEYS.ALERT_LEVELS_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: v124.migrateAlertLevels }
+      run: v124.migrateAlertLevels },
+    // 1.24.0, and MUST run after the alert-levels entry above: that one derives each
+    // highlight switch from its pair, and a pair blanked first would read as highlight
+    // off. Asks for no send: a pair equal to its seed and a blank one resolve to the
+    // same numbers, so nothing the watch receives changes. Reset-safe: the next blob
+    // is seeded with blank pairs and the page no longer pins a seed, so a seed-equal
+    // pair saved before the next boot was dragged there.
+    { key: KEYS.SEED_PAIR_BLANK_MIGRATION_KEY, markOn: 'now', markOnReset: true,
+      run: seedPairs.migrateSeedPairsToBlank }
 ];

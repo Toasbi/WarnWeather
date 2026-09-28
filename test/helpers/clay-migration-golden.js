@@ -15,8 +15,14 @@ const REGISTRY = require('../../src/pkjs/migrations/registry.js');
 
 const COLORS = { white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF };
 
-// Every marker a 1.23.1 install holds: the whole ledger but the 1.24.0 entry.
-const THROUGH_1_23_1 = REGISTRY.map((e) => e.key).filter((k) => k !== KEYS.ALERT_LEVELS_MIGRATION_KEY);
+// The entries added after the golden was recorded. The golden pins what the
+// pre-registry runner did, so every scenario runs with these already marked (they
+// never run, and never show among the markers a run sets); their own tests cover them.
+const AFTER_GOLDEN = [KEYS.SEED_PAIR_BLANK_MIGRATION_KEY];
+
+// Every marker a 1.23.1 install holds: the whole ledger but the 1.24.0 entries.
+const THROUGH_1_23_1 = REGISTRY.map((e) => e.key).filter((k) =>
+  k !== KEYS.ALERT_LEVELS_MIGRATION_KEY && AFTER_GOLDEN.indexOf(k) === -1);
 
 // A 1.23.1 blob carrying every shape the 1.24.0 moves convert, plus shapes the
 // already-marked older entries would have moved (the no-rain text, the stripe).
@@ -105,7 +111,7 @@ function blobDiff(pre, post) {
 function runScenario(store, claySettings, clayMigrations, scenario) {
   const markers = () => Object.keys(store).filter((k) => /_migration$/.test(k)).sort();
   if (scenario.blob) { store['clay-settings'] = JSON.stringify(scenario.blob); }
-  scenario.marked.forEach((k) => { store[k] = '1'; });
+  scenario.marked.concat(AFTER_GOLDEN).forEach((k) => { store[k] = '1'; });
   claySettings.seedDefaults(COLORS);
   const pre = claySettings.read();
   const before = markers();
@@ -121,4 +127,4 @@ function runScenario(store, claySettings, clayMigrations, scenario) {
     });
 }
 
-module.exports = { SCENARIOS, runScenario, BLOB_1_23_1, THROUGH_1_23_1 };
+module.exports = { SCENARIOS, runScenario, BLOB_1_23_1, THROUGH_1_23_1, AFTER_GOLDEN };

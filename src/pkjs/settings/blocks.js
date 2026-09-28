@@ -1,5 +1,5 @@
 // src/pkjs/settings/blocks.js — ES5, WebView. WarnWeather's threshold-sheet
-// machinery (ranges, auto colors, the toggle hook, the warn-look default, the two reset
+// machinery (ranges, auto colors, the warn-look default, the two reset
 // actions, the sheet/badge resolvers) and the small option/default/recommend
 // resolvers. The BLOCK RENDERERS live one file per concern —
 // preview-forecast.js, preview-radar.js, preview-diagnostics.js and
@@ -506,32 +506,6 @@ if (typeof require !== 'undefined') {
         } else if (newValue) {
             if (S.tempSlotDisplay === 'both') { S.tempSlotDisplay = 'actual'; }
         }
-    });
-
-    // Flipping a kind's highlight switch (thresh<K>On — a weather kind's slot-sheet
-    // 'Alert highlighting' row, a goal kind's Goals header). The toggle is STORED state
-    // and switches only the highlight — the levels live on without it (the
-    // Alert-mode hold keeps using the warn level, and the phone packs every
-    // weather kind's level; the watch gates them on the enable bit). So OFF
-    // leaves the pair alone: the stored false IS the state. ON pins the kind's
-    // seed pair into storage when no ordered pair is stored yet — a blank pair
-    // already MEANS the seed (resolvedPair), so this changes nothing the watch
-    // sees; it keeps the wizard's AQI rule landing the same numbers a hand flip
-    // does.
-    PConf.onChange.register('thresholdToggle', function (S, oldValue, newValue, env, key) {
-        var m = /^thresh([A-Za-z]+)On$/.exec(key || '');
-        if (!m) { return; }
-        var stem = m[1];
-        if (!newValue) { return; }
-        var warn = thresholds.parseThreshold(S['thresh' + stem + 'Warn']);
-        var danger = thresholds.parseThreshold(S['thresh' + stem + 'Danger']);
-        var ordered = thresholds.pairOrdered(warn, danger);
-        if (ordered) { return; }
-        // The contract's seed pair — the same numbers the phone already resolves
-        // a blank pair to, so pinning them changes nothing the watch sees.
-        var seed = thresholds.seedPair(stem, S);
-        S['thresh' + stem + 'Warn'] = String(seed.warn);
-        S['thresh' + stem + 'Danger'] = String(seed.danger);
     });
 
     // A kind's warn look default (thresh<K>WarnLook's defaultFrom): the contract's

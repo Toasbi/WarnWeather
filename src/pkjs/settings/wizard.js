@@ -665,7 +665,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @param {Object} ctx onReady ctx ({S, ENV, schema}).
      * @param {string} key Setting messageKey.
      * @param {Object} meta The key's flattened rule meta from applyDefaults
-     *     ({value, seedVia, dependsOn, overrules}).
+     *     ({value, dependsOn, overrules}).
      * @returns {boolean} True when writing is safe.
      */
     function policyMayWrite(ctx, key, meta) {
@@ -696,13 +696,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * existing save path persists them alongside everything else the wizard derived. A nav
      * that doesn't finish the wizard (Skip, Back, Next) writes nothing.
      *
-     * A key the rule marks `seedVia` is written THROUGH that same onChange hook the settings
-     * page uses, so its companions — a threshold pair, an outline colour — come out identical
-     * to flipping the control by hand. No threshold numbers are picked here.
-     *
-     * The execution semantics — flattening, `set` order, dependsOn anchoring, the seedVia
-     * write-through — live in the policy module's applyDefaults, its one interpreter; this
-     * caller only contributes the guard deciding whether a value may land (policyMayWrite).
+     * The execution semantics — flattening, `set` order, dependsOn anchoring — live in the
+     * policy module's applyDefaults, its one interpreter; this caller only contributes the
+     * guard deciding whether a value may land (policyMayWrite).
      *
      * @param {Object} ctx onReady ctx ({S, ENV, schema}).
      * @param {string} nav The footer button pressed ('save'|'tweak'|'skip'|'next'|'back').
@@ -722,10 +718,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // The whole live state doubles as `choices`: every wizard pick and every stored
         // setting is already in it, so a future rule keyed on any of them just works.
         return policy.applyDefaults({wizard: true, env: ctx.ENV, choices: ctx.S}, {
-            mayWrite: function (key, meta) { return policyMayWrite(ctx, key, meta); },
-            getHook: function (name) {
-                return PConf.onChange && PConf.onChange.get ? PConf.onChange.get(name) : null;
-            }
+            mayWrite: function (key, meta) { return policyMayWrite(ctx, key, meta); }
         });
     }
 

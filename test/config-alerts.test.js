@@ -197,7 +197,7 @@ test('the slot pencil sheet holds the Highlight switch and points at the Alerts 
     'with its hint');
   page.clickModalToggle('threshUvOn');
   assert.strictEqual(page.S.threshUvOn, true, 'the switch stores');
-  assert.equal(page.S.threshUvWarn, '6', 'switching on pins the seed pair');
+  assert.equal(page.S.threshUvWarn, '', 'switching on pins no numbers: blank is the seed');
   assert.notStrictEqual(page.S.alertUv, true, 'and leaves the alert alone');
   // A goal kind is not an alert: its slot sheet keeps its levels.
   const steps = watchTab({ healthMode: 'status', statusHealthLeft: 'steps' });
