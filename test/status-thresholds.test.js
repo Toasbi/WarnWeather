@@ -1148,13 +1148,23 @@ test('bakeAlerts: tail-drops entries past the 20 B cap, pollen first', () => {
   const wide = Object.assign({}, ALL_ALERTING, { AQI_TREND: [1234567], POLLEN_TODAY: '2-3' });
   assert.deepEqual(decodeAlerts(th.bakeAlerts(wide, values)).map(e => e.value),
     ['8', '45', '90', '1234567', '2-3']);
-  // ...and a two-digit UV on top is 21 B: pollen, the tail, drops. (Only the last
-  // entry can overflow with today's five kinds, so the watch's rule — a prefix of
-  // the fixed order, never a later, shorter entry — has no case to show here.)
+  // ...and a two-digit UV on top is 21 B: pollen, the tail, drops.
   const over = Object.assign({}, wide, { UV_TREND_UINT8: [120], UV_DAY_PEAKS: [120, 60, 0] });
   const dropped = th.bakeAlerts(over, values);
   assert.equal(dropped.length, 17);
   assert.deepEqual(decodeAlerts(dropped).map(e => e.kind), [7, 2, 3, 0]);
+  // The row stays a prefix of the fixed order: the first entry that does not fit
+  // ends it, even when a later, shorter one would. A 7-digit UV and AQI: UV + wind
+  // + gust = 8 + 3 + 3 = 14 B, AQI's 8 B would make 22 — AQI drops, and pollen's
+  // 2 B (16 in all) is NOT taken in its place. The watch fits its pixels by the
+  // same rule (alert_set_fit: the largest prefix), so a crowded row loses its tail
+  // on both ends, never a middle entry.
+  const prefix = Object.assign({}, ALL_ALERTING, {
+    UV_TREND_UINT8: [12345670], UV_DAY_PEAKS: [12345670, 0, 0], AQI_TREND: [1234567]
+  });
+  const stopped = th.bakeAlerts(prefix, values);
+  assert.equal(stopped.length, 14);
+  assert.deepEqual(decodeAlerts(stopped).map(e => e.kind), [7, 2, 3], 'AQI ends the row; pollen is not taken');
   // A value past ALERT_LEN_MAX bytes rides as the icon alone.
   const huge = Object.assign({}, ALL_ALERTING, { AQI_TREND: [12345678] });
   assert.deepEqual(decodeAlerts(th.bakeAlerts(huge, values)).map(e => e.value),
