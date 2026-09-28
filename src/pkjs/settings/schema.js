@@ -386,14 +386,20 @@ function graphColorRow(row, joins) {
     if (joins) { item.joinPrevious = true; }
     return item;
 }
-// Shared intro lines at the top of every level group in an edit sheet (the sheets are
-// the only place the levels are explained now that the Watch-tab card is gone). Two
-// voices: the weather kinds rise to ALERT LEVELS; the health kinds work toward GOALS
-// (`goal` in the contract) — same rises-toward-the-pair machinery, friendlier words.
-// Both lead with what the pair IS: the slider is always live (the weather pair also
-// sets the day-max hold level, highlighting or not), so the intro must not read as if
-// the numbers were the highlight's alone. The weather group has NO switch of its own —
-// it sits in the kind's Alert sheet, whose 'Alert' switch shows the icon, while the
+// A kind's level group speaks in one of two voices, and the CALLER picks it: the
+// weather kinds rise to ALERT LEVELS (ALERT_VOICE, in the kind's Alerts sheet); the
+// health kinds work toward GOALS (GOAL_VOICE, in their slot sheet) — same
+// rises-toward-the-pair machinery, friendlier words. A voice record carries every word
+// the group, its slider's chips (the thresholdRange resolver, blocks.js) and the slot's
+// Bold row say, so the builders below hold no copy and never ask which kind they build.
+// The contract's goal flag (status-thresholds.js isGoalKind) packs the same three
+// kinds; test/config-thresholds.test.js pins the labels to it.
+//
+// The intros are the only place the levels are explained now that the Watch-tab card
+// is gone. Both lead with what the pair IS: the slider is always live (the weather pair
+// also sets the day-max hold level, highlighting or not), so the intro must not read as
+// if the numbers were the highlight's alone. The weather group has NO switch of its own
+// — it sits in the kind's Alert sheet, whose 'Alert' switch shows the icon, while the
 // slot's 'Alert highlighting' switch lives in the slot sheet — so its intro says the look
 // applies to the alert icon always and to the slot only while that switch is on. The
 // goal group keeps its switch (goal kinds have no alert). Neither claims the warn level
@@ -401,80 +407,107 @@ function graphColorRow(row, joins) {
 // The warn box is the group's warn look (thresh<K>WarnLook — none / outline / fill;
 // status_threshold.h ThreshWarnLook), so the intro points at that row rather than
 // naming one of its looks.
-var ALERT_LEVELS_INTRO = 'Warn and danger levels for this value: reaching warn ' +
-    'draws the warn look below, reaching danger fills the alert icon — and the status ' +
-    'slot, while its Alert highlighting is on.';
-// "On color watches": on B&W the looks are drawn in the theme's ink and the color
-// pickers below are hidden.
-var GOAL_SHEET_INTRO = 'Close and goal levels for this value. The switch ' +
-    'celebrates them on the watch: getting close draws the close look below, reaching ' +
-    'the goal fills the slot. On color watches the colors are yours to change below.';
-// The warn look's hints — the SELECTED look only (hintByValue), in the two voices.
-// 'none' adds where the remaining signal comes from (the Bold row, which lives in the
-// slot sheet for a weather kind and above the Goals group for a goal kind). On a B&W
-// watch or a B&W day theme the warnLookHint resolver (blocks.js) answers from the
-// `bw` set instead: there the box is drawn in the text colour, the pickers are
-// hidden, and a fill is the danger (or reached-goal) fill. With only the NIGHT theme
-// B&W (Theme switching on) the day hint stands and the `night` note is appended — by
-// day the box is in the picked colour. The watch still draws what was picked
-// (status_row.c).
-var WARN_LOOK_HINTS = {
-    none: 'No box at warn — bold text still follows the Bold row in the slot’s sheet.',
-    outline: 'A thin frame in the warn color.',
-    fill: 'A solid box in the warn color, with the value in a contrasting color.'
-};
-var WARN_LOOK_BW_HINTS = {
-    outline: 'A thin frame in the text color.',
-    fill: 'A solid box in the text color, with the value in the background color. On ' +
-        'black-and-white screens this looks the same as danger.'
-};
-var GOAL_LOOK_HINTS = {
-    none: 'No box when close — bold text still follows the Bold row above.',
-    outline: 'A thin frame in the close color.',
-    fill: 'A solid box in the close color, with the value in a contrasting color.'
-};
-var GOAL_LOOK_BW_HINTS = {
-    outline: 'A thin frame in the text color.',
-    fill: 'A solid box in the text color, with the value in the background color. On ' +
-        'black-and-white screens this looks the same as a reached goal.'
-};
-var WARN_LOOK_NIGHT_NOTES = {
-    fill: 'At night (black-and-white theme) this looks the same as danger.'
-};
-var GOAL_LOOK_NIGHT_NOTES = {
-    fill: 'At night (black-and-white theme) this looks the same as a reached goal.'
-};
-// Appended to the colour-screen Fill hint when the two colours resolve to the same
-// one (a goal kind's defaults are both the goal green; a warn pick can equal danger):
-// then the fill IS the danger / reached-goal box.
-var WARN_LOOK_SAME_COLOR_NOTE = 'Warn and danger use the same color, so this looks like ' +
-    'danger — pick a different warn color.';
-var GOAL_LOOK_SAME_COLOR_NOTE = 'Close and goal use the same color, so this looks like ' +
-    'a reached goal — pick a different close color.';
-// The Bold row is a SLOT-level setting, not a level one: it leads the slot sheet
-// (above the Goals group; an alert kind's levels live in its Alerts sheet) and stays
-// live while the kind's highlight is switched off, because "Always" needs no levels
-// to mean something. Only the middle option does —
-// it goes inert (not away: removing it would let the options-snapping path
-// rewrite a stored 'warn' to 'off') while nothing gives the kind a level: a goal
-// kind's Goals switch, or a weather kind's slot Highlight or its alert.
-// The hint explains the SELECTED step only (hintByValue), in the sheet's two voices
-// (alert levels reached vs goals reached). The level-driven bold — danger / a reached
-// goal, and the middle step — reads the kind's level, which the watch zeroes while the
-// kind's Highlight (Goals) switch is off (status_row.c slot_level), so the hints say
-// "while … is on". 'Always' needs no levels, so its note is the per-kind scope.
+//
+// `look` is the warn look's hints — the SELECTED look only. `base` is the row's own
+// hintByValue; 'none' adds where the remaining signal comes from (the Bold row, which
+// lives in the slot sheet for a weather kind and above the Goals group for a goal
+// kind). The warnLookHint resolver (blocks.js) answers from the rest: on a B&W watch
+// or a B&W day theme from `bw` — there the box is drawn in the text colour, the pickers
+// are hidden, and a fill is the danger (or reached-goal) fill; with only the NIGHT
+// theme B&W (Theme switching on) the day hint stands and the `night` note is appended —
+// by day the box is in the picked colour; and `sameColor` is appended to the colour
+// screen's Fill hint when the two colours resolve to the same one (a goal kind's
+// defaults are both the goal green; a warn pick can equal danger): then the fill IS
+// the danger / reached-goal box. The watch still draws what was picked (status_row.c).
+//
+// `boldHints` explain the Bold row's SELECTED step only, in the sheet's voice (alert
+// levels reached vs goals reached). The level-driven bold — danger / a reached goal,
+// and the middle step — reads the kind's level, which the watch zeroes while the kind's
+// Highlight (Goals) switch is off (status_row.c slot_level), so the hints say "while …
+// is on". 'Always' needs no levels, so its note is the per-kind scope, shared with the
+// level-less kinds' Bold rows (boldSection).
 var BOLD_ALWAYS_HINT = 'Every status slot showing this value prints it in heavier text.';
-// A weather kind's Bold row also sets the weight of its alert's value (status_alerts.c
-// bolds an entry on the kind's ladder at its real level, Highlight or not).
-var BOLD_HINTS = {
-    off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
-    warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
-    always: BOLD_ALWAYS_HINT
+var ALERT_VOICE = {
+    header: 'Alert levels',
+    // No switch on the group: a weather kind's highlight switch is the slot sheet's
+    // 'Alert highlighting' row (highlightToggle), and its alert's switch heads the
+    // Alert sheet.
+    switchLabel: null,
+    intro: 'Warn and danger levels for this value: reaching warn ' +
+        'draws the warn look below, reaching danger fills the alert icon — and the status ' +
+        'slot, while its Alert highlighting is on.',
+    lookLabel: 'Warn look',
+    colorLabels: {warn: 'Warn color', danger: 'Danger color'},
+    // Unset = AUTO: the theme fg for warn, the contract's red for danger (see the
+    // colour rows in levelRows).
+    colorDefault: '',
+    boldWarnLabel: 'Warn',
+    // A weather kind's Bold row also sets the weight of its alert's value
+    // (status_alerts.c bolds an entry on the kind's ladder at its real level,
+    // Highlight or not).
+    boldHints: {
+        off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
+        warn: 'Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the alert when it shows the value.',
+        always: BOLD_ALWAYS_HINT
+    },
+    chips: {warn: 'Warn', danger: 'Danger'},
+    look: {
+        base: {
+            none: 'No box at warn — bold text still follows the Bold row in the slot’s sheet.',
+            outline: 'A thin frame in the warn color.',
+            fill: 'A solid box in the warn color, with the value in a contrasting color.'
+        },
+        bw: {
+            outline: 'A thin frame in the text color.',
+            fill: 'A solid box in the text color, with the value in the background color. On ' +
+                'black-and-white screens this looks the same as danger.'
+        },
+        night: {
+            fill: 'At night (black-and-white theme) this looks the same as danger.'
+        },
+        sameColor: 'Warn and danger use the same color, so this looks like ' +
+            'danger — pick a different warn color.'
+    }
 };
-var GOAL_BOLD_HINTS = {
-    off: 'A reached goal still prints bold while Goals are on.',
-    warn: 'Heavier text once you get close to the goal, while Goals are on.',
-    always: BOLD_ALWAYS_HINT
+var GOAL_VOICE = {
+    header: 'Goals',
+    // Aria-only: the switch rides the group header, whose intro carries the meaning.
+    switchLabel: 'Goals',
+    // "On color watches": on B&W the looks are drawn in the theme's ink and the color
+    // pickers below are hidden.
+    intro: 'Close and goal levels for this value. The switch ' +
+        'celebrates them on the watch: getting close draws the close look below, reaching ' +
+        'the goal fills the slot. On color watches the colors are yours to change below.',
+    lookLabel: 'Close look',
+    colorLabels: {warn: 'Close color', danger: 'Goal fill color'},
+    // Green = the celebration look, for both levels.
+    colorDefault: STATUS_THRESHOLDS.DEFAULT_GOAL_HEX,
+    // Relabels the middle option only; the stored value stays 'warn' so the wire keeps
+    // one vocabulary.
+    boldWarnLabel: 'Close',
+    boldHints: {
+        off: 'A reached goal still prints bold while Goals are on.',
+        warn: 'Heavier text once you get close to the goal, while Goals are on.',
+        always: BOLD_ALWAYS_HINT
+    },
+    chips: {warn: 'Close', danger: 'Goal'},
+    look: {
+        base: {
+            none: 'No box when close — bold text still follows the Bold row above.',
+            outline: 'A thin frame in the close color.',
+            fill: 'A solid box in the close color, with the value in a contrasting color.'
+        },
+        bw: {
+            outline: 'A thin frame in the text color.',
+            fill: 'A solid box in the text color, with the value in the background color. On ' +
+                'black-and-white screens this looks the same as a reached goal.'
+        },
+        night: {
+            fill: 'At night (black-and-white theme) this looks the same as a reached goal.'
+        },
+        sameColor: 'Close and goal use the same color, so this looks like ' +
+            'a reached goal — pick a different close color.'
+    }
 };
 // The wind/gust slots' direction arrow. The arrow flies DOWNWIND (the way the wind is
 // blowing), not the meteorological "comes from" bearing the providers report — the
@@ -706,7 +739,7 @@ function unitRow(key, withUnit, without) {
 }
 // A kind's Alert levels (or Goals) group — the part of a level edit sheet that
 // configures the levels and their look, not the slot: the group sub-header (title,
-// reset — and, for the GOAL kinds only, the Goals switch), a zoned
+// reset — and, in the goal voice only, the Goals switch), a zoned
 // dual-thumb slider for the warn/danger pair, and the warn look + two color
 // pickers. A weather kind's group has no switch: its highlight switch is the slot
 // sheet's 'Alert highlighting' row (highlightToggle), and its warn look + colors style the alert
@@ -721,22 +754,23 @@ function unitRow(key, withUnit, without) {
 // on aplite / with health off); color pickers additionally hide on B&W
 // (capability + bw theme).
 // The group has ONE home per kind: the goal kinds' slot pencil sheet
-// (thresholdSection, below the slot's own rows), and for the five alert kinds the
+// (goalSlotSheet, below the slot's Bold row), and for the five alert kinds the
 // Alerts card's sheet (alertSheet) — their slot sheets carry a pointer there instead
-// (alertLevelsNote), so every key renders in exactly one place.
+// (alertSlotSheet's alertLevelsNote), so every key renders in exactly one place.
 /**
  * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
- * @param {string} hint Per-kind unit/scale hint (HTML allowed).
- * @param {Object} [gate] Extra showWhen for the whole group.
- * @returns {Object[]} The group's items: sub-header, (goal kinds only) the switch,
- *     slider, the two hidden companions, warn look, warn color, danger color.
+ * @param {Object} voice GOAL_VOICE or ALERT_VOICE: every word the group says, and
+ *     whether it carries a switch of its own.
+ * @param {string} hint Per-kind unit/scale hint under the slider (HTML allowed; '' for
+ *     none).
+ * @param {?Object} gate Extra showWhen for the whole group, or null.
+ * @param {Object} [offWhen] When the highlight-only rows (warn look + color pickers)
+ *     go inert: a goal group's own switch being off. Absent for an alert group,
+ *     whose rows style the alert icon too and so are always live.
+ * @returns {Object[]} The group's items: sub-header, (a voice with a switch) the
+ *     switch, slider, the two hidden companions, warn look, warn color, danger color.
  */
-function levelsGroup(keyStem, hint, gate) {
-    var onKey = 'thresh' + keyStem + 'On';
-    // The health trio reads as GOALS you reach (celebration: green outline when
-    // close, fill when reached) — the contract's goal flag drives the wording so it
-    // can never disagree with the packing.
-    var goal = STATUS_THRESHOLDS.isGoalKind(keyStem);
+function levelRows(keyStem, voice, hint, gate, offWhen) {
     // The slider is ALWAYS live: the warn level is not the highlight's alone — the
     // day-max kinds hold today's peak from it whether or not anything is coloured
     // (wire-units dayMaxShown via status-thresholds holdWarn), so it must stay
@@ -748,50 +782,48 @@ function levelsGroup(keyStem, hint, gate) {
     // "highlight on" (kindConfig's enable bit); pre-split blobs were backfilled from
     // their pair by migrations/v1_24.js. It writes no numbers: a blank pair already
     // means the kind's seed, which follows the unit and AQI-scale pickers.
-    var offWhen = goal ? {not: {key: onKey}} : undefined;
+    var switchKey = voice.switchLabel ? 'thresh' + keyStem + 'On' : undefined;
     var colorWhen = gate ? {all: [gate, COLOR_THEME_WHEN]} : COLOR_THEME_WHEN;
-    // Goal kinds only: a weather kind's switch is the slot sheet's highlightToggle.
-    var toggle = goal ? {
-        type: 'toggle',
-        messageKey: onKey,
-        // Aria-only: the switch rides the group header, whose intro carries the meaning.
-        label: 'Goals',
-        defaultValue: false
-    } : null;
-    var range = {
+    // The group header: title, reset-to-defaults, and (goal voice) the master on/off
+    // switch that used to ride the sheet's title row. The intro hangs off it because
+    // it describes the LEVELS, not the rows above them in the sheet.
+    var lead = [{
+        type: 'subheader',
+        text: voice.header,
+        toggleKey: switchKey,
+        intro: voice.intro,
+        // Reverts pair + colors + scale max to the kind's defaults (blocks.js
+        // action) — deliberately NOT the pencil sheet's Bold row, which is not part
+        // of the group.
+        labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
+    }];
+    if (switchKey) {
+        lead.push({
+            type: 'toggle',
+            messageKey: switchKey,
+            label: voice.switchLabel,
+            defaultValue: false
+        });
+    }
+    lead.push({
         type: 'range',
         messageKey: 'thresh' + keyStem + 'Warn',
         dangerKey: 'thresh' + keyStem + 'Danger',
         maxKey: 'thresh' + keyStem + 'Max',
         // Title + reset live on the group's sub-header now, so the row itself is
         // label-less: repeating "Alert levels" directly under the header read as a
-        // stutter. No disabledWhen: see offWhen above.
+        // stutter. No disabledWhen: see the top of this function.
         defaultValue: '',
         hint: hint,
         joinPrevious: true,
-        // The chips' words ride the args: the resolver owns the numbers, the sheet
+        // The chips' words ride the args: the resolver owns the numbers, the voice
         // the wording.
-        rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem,
-            chips: goal ? {warn: 'Close', danger: 'Goal'} : {warn: 'Warn', danger: 'Danger'}}}
-    };
-    // The group header: title, reset-to-defaults, and (goal kinds) the master on/off
-    // switch that used to ride the sheet's title row. The intro hangs off it because
-    // it describes the LEVELS, not the rows above them in the sheet.
-    var header = {
-        type: 'subheader',
-        text: goal ? 'Goals' : 'Alert levels',
-        toggleKey: goal ? onKey : undefined,
-        intro: goal ? GOAL_SHEET_INTRO : ALERT_LEVELS_INTRO,
-        // Reverts pair + colors + scale max to the kind's defaults (blocks.js
-        // action) — deliberately NOT the pencil sheet's Bold row, which is not part
-        // of the group.
-        labelAction: {action: 'resetThresholds', arg: keyStem, label: 'Reset to defaults'}
-    };
+        rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem, chips: voice.chips}}
+    });
     // Every plain item in the group carries the same gate; applying it in one pass
     // (gateAll) means an item added above cannot forget its gate line. (The warn
     // look and color pickers below set showWhen inline instead — they layer the
     // B&W/look rules on top of the gate.)
-    var lead = toggle ? [header, toggle, range] : [header, range];
     gateAll(lead, gate);
     return lead.concat([{
         // Companion storage for the slider's second thumb and its editable scale
@@ -822,16 +854,11 @@ function levelsGroup(keyStem, hint, gate) {
         // goal kind's goes inert with its Goals switch, like its colours.
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'WarnLook',
-        label: goal ? 'Close look' : 'Warn look',
+        label: voice.lookLabel,
         options: [['None', 'none'], ['Outline', 'outline'], ['Fill', 'fill']],
         defaultFrom: {resolver: 'warnLookDefault', args: {keyStem: keyStem}, sticky: false},
-        hintByValue: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
-        hintFrom: {resolver: 'warnLookHint', args: {keyStem: keyStem, copy: {
-            base: goal ? GOAL_LOOK_HINTS : WARN_LOOK_HINTS,
-            bw: goal ? GOAL_LOOK_BW_HINTS : WARN_LOOK_BW_HINTS,
-            night: goal ? GOAL_LOOK_NIGHT_NOTES : WARN_LOOK_NIGHT_NOTES,
-            sameColor: goal ? GOAL_LOOK_SAME_COLOR_NOTE : WARN_LOOK_SAME_COLOR_NOTE
-        }}},
+        hintByValue: voice.look.base,
+        hintFrom: {resolver: 'warnLookHint', args: {keyStem: keyStem, copy: voice.look}},
         joinPrevious: true,
         showWhen: gate || undefined,
         disabledWhen: offWhen
@@ -844,9 +871,8 @@ function levelsGroup(keyStem, hint, gate) {
         // pickers paint it (displayFrom) until then.
         type: 'color',
         messageKey: 'thresh' + keyStem + 'WarnColor',
-        label: goal ? 'Close color' : 'Warn color',
-        // Green = the celebration look; weather kinds start on the theme fg.
-        defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
+        label: voice.colorLabels.warn,
+        defaultValue: voice.colorDefault,
         displayFrom: {resolver: 'thresholdColor', args: {keyStem: keyStem, which: 'Warn'}},
         joinPrevious: true,
         capabilities: ['COLOR'],
@@ -857,8 +883,8 @@ function levelsGroup(keyStem, hint, gate) {
     }, {
         type: 'color',
         messageKey: 'thresh' + keyStem + 'DangerColor',
-        label: goal ? 'Goal fill color' : 'Danger color',
-        defaultValue: goal ? STATUS_THRESHOLDS.DEFAULT_GOAL_HEX : '',
+        label: voice.colorLabels.danger,
+        defaultValue: voice.colorDefault,
         displayFrom: {resolver: 'thresholdColor', args: {keyStem: keyStem, which: 'Danger'}},
         joinPrevious: true,
         capabilities: ['COLOR'],
@@ -866,64 +892,79 @@ function levelsGroup(keyStem, hint, gate) {
         disabledWhen: offWhen
     }]);
 }
-// One level edit sheet (sheetOnly — opened from a status slot's pencil, never rendered
-// as a card): the slot's Bold row, a weather kind's Highlight switch, the kind's own
-// display rows, then its Goals group (levelsGroup above) — or, for an alert kind, the
-// pointer to its Alerts sheet.
+// The Bold row is a SLOT-level setting, not a level one: it leads the slot sheet
+// (above the Goals group; an alert kind's levels live in its Alerts sheet) and says
+// how boldly the slot prints. The ladder is monotone — danger is always bold (while
+// the kind's highlight is on: a switched-off kind has no level), the middle option
+// adds the warn/close level, "Always" adds the normal zone too (status_threshold.h
+// ThreshBold). The row stays live while the kind's highlight is off, because "Always"
+// needs no levels to mean something; it mutes wholesale only under the Watch-tab
+// master row (BOLD_ALL_WHEN), which overrides it at pack time. Only the middle option
+// needs a level — it goes inert (not away: removing it would let the options-snapping
+// path rewrite a stored 'warn' to 'off') while nothing gives the kind one, which the
+// caller states: the sheet knows where its kind's level comes from.
 /**
- * @param {string} title Sub-section title.
- * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
- * @param {string} hint Per-kind unit/scale hint (HTML allowed).
- * @param {Object} [gate] Extra showWhen for the whole sub-section.
- * @param {Object[]} [extraItems] Kind-specific display rows rendered between the Bold
- *     row and the levels group (or its pointer), e.g. the wind slots' direction arrow.
- *     They configure the SLOT, not the highlight, so they sit above the group —
- *     boldSection's extras play the same role on the level-less kinds.
- * @param {Object[]} [tail] Rows closing the sheet INSTEAD of the kind's levels group
- *     (built from keyStem/hint/gate otherwise) — the alert kinds pass the pointer to
- *     the Alerts card (alertLevelsNote), where their levels live.
- * @returns {Object} Schema section.
+ * @param {string} keyStem Kind key stem, e.g. 'Uv' (thresh<Stem>BoldMode).
+ * @param {Object} voice GOAL_VOICE or ALERT_VOICE: the middle option's label and the
+ *     hints.
+ * @param {Object} noLevelWhen showWhen-style predicate: nothing gives the kind a level,
+ *     so the middle option goes inert.
+ * @returns {Object} The slot sheet's Bold row.
  */
-function thresholdSection(title, keyStem, hint, gate, extraItems, tail) {
-    var onKey = 'thresh' + keyStem + 'On';
-    var goal = STATUS_THRESHOLDS.isGoalKind(keyStem);
-    // Slot-level, above the group: how boldly the slot prints. The ladder is
-    // monotone — danger is always bold (while the kind's highlight is on: a
-    // switched-off kind has no level), the middle option adds the warn/close
-    // level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
-    // Goal kinds relabel the middle option only; the stored value stays 'warn' so
-    // the wire keeps one vocabulary. The row stays live while the kind's
-    // highlight is off ("Always" needs none); it mutes wholesale only under the
-    // Watch-tab master row (BOLD_ALL_WHEN), which overrides it at pack time.
-    var bold = {
+function boldRow(keyStem, voice, noLevelWhen) {
+    return {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
         label: 'Bold value',
-        hintByValue: goal ? GOAL_BOLD_HINTS : BOLD_HINTS,
+        hintByValue: voice.boldHints,
         defaultValue: 'warn',
-        options: [['Off', 'off'], [goal ? 'Close' : 'Warn', 'warn'], ['Always', 'always']],
+        options: [['Off', 'off'], [voice.boldWarnLabel, 'warn'], ['Always', 'always']],
         disabledWhen: BOLD_ALL_WHEN,
-        // The middle step needs a level: a goal kind's comes from its Goals switch;
-        // a weather kind's from its slot's Highlight OR its alert, whose value
-        // bolds on this ladder too (status_alerts.c) — inert only while neither is on.
-        optionDisabledWhen: {warn: goal ? {not: {key: onKey}}
-            : {all: [{not: {key: onKey}}, {not: {key: 'alert' + keyStem}}]}}
+        optionDisabledWhen: {warn: noLevelWhen}
     };
-    // A weather kind's highlight switch sits right under Bold (a goal kind's rides
-    // its Goals header).
-    var lead = goal ? [bold] : [bold, highlightToggle(keyStem)];
-    var extras = extraItems || [];
+}
+// A goal kind's level edit sheet (sheetOnly — opened from a status slot's pencil,
+// never rendered as a card): the slot's Bold row, then its Goals group. sheetOf
+// carries the section-level THRESHOLD_WHEN gate: on a watch that can't render
+// highlighting the sheet must not exist (belt-and-braces behind the resolver's env
+// gate).
+/**
+ * @param {string} title Catalog label of the slot kind, e.g. 'Steps'.
+ * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
+ * @param {string} hint Per-kind unit/scale hint for the slider (HTML allowed).
+ * @param {?Object} gate Extra showWhen for the whole sheet, or null.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function goalSlotSheet(title, keyStem, hint, gate) {
+    // The Goals switch is the kind's one source of a level: the group's
+    // highlight-only rows and the Bold row's middle option both go inert with it.
+    var offWhen = {not: {key: 'thresh' + keyStem + 'On'}};
     // The slot's rows carry the same gate as the group (gateAll, one pass).
-    gateAll(lead.concat(extras), gate);
-    // Bold leads every slot sheet; a weather kind's Highlight follows it, then the
-    // kind's own display rows, and the Goals group (header + toggle + slider +
-    // colors) — or, for an alert kind, the pointer to its Alerts sheet — closes the
-    // sheet.
-    // sheetOf carries the section-level THRESHOLD_WHEN gate: on a watch that
-    // can't render highlighting the sheet must not exist (belt-and-braces
-    // behind the resolver's env gate).
-    return sheetOf(keyStem, title,
-        lead.concat(extras, tail || levelsGroup(keyStem, hint, gate)));
+    return sheetOf(keyStem, title, gateAll([boldRow(keyStem, GOAL_VOICE, offWhen)], gate)
+        .concat(levelRows(keyStem, GOAL_VOICE, hint, gate, offWhen)));
+}
+// An alert kind's slot edit sheet: the slot's Bold row, its 'Alert highlighting'
+// switch right under it, the kind's own display rows, then the pointer to its Alerts
+// sheet, where its levels live. Titled from ALERT_KINDS, like that sheet. No gate: an
+// alert kind's slot exists wherever the thresholds do (sheetOf's THRESHOLD_WHEN).
+/**
+ * @param {string} keyStem Alert kind key stem (an ALERT_KINDS entry), e.g. 'Uv'.
+ * @param {Object[]} [extraItems] Kind-specific display rows between the Highlight
+ *     switch and the pointer, e.g. the wind slots' direction arrow. They configure the
+ *     SLOT, not the highlight — boldSection's extras play the same role on the
+ *     level-less kinds.
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function alertSlotSheet(keyStem, extraItems) {
+    var title = null, i;
+    for (i = 0; i < ALERT_KINDS.length; i++) {
+        if (ALERT_KINDS[i].keyStem === keyStem) { title = ALERT_KINDS[i].title; }
+    }
+    // The middle option needs a level: the slot's Highlight OR the kind's alert, whose
+    // value bolds on this ladder too (status_alerts.c) — inert only while neither is on.
+    var noLevelWhen = {all: [{not: {key: 'thresh' + keyStem + 'On'}}, {not: {key: 'alert' + keyStem}}]};
+    return sheetOf(keyStem, title, [boldRow(keyStem, ALERT_VOICE, noLevelWhen), highlightToggle(keyStem)]
+        .concat(extraItems || [], [alertLevelsNote()]));
 }
 // A weather kind's slot highlight switch — the watch's enable bit for the kind
 // (kindConfig), which styles its STATUS SLOTS only: the alert icon has its own switch
@@ -1093,14 +1134,15 @@ function alertSheet(keyStem, title, subject, hint, coda) {
                 value: 'Adds the value the alert fires on after the icon. It needs more room: the row takes the neighboring slot sooner, and shows icons only when even that is too narrow.'
             },
             disabledWhen: {not: {key: key}}
-        }].concat(levelsGroup(keyStem, hint, null))
+        }].concat(levelRows(keyStem, ALERT_VOICE, hint, null))
     };
 }
-// The Alerts card's rows and sheets, in the card's order. `subject` feeds the
-// sheet intro; Pollen is DWD's alone, like the pollen slot itself. The page's
-// presentation of the contract's metric alerts (status-thresholds.js ALERT_KINDS,
-// which owns which alerts exist and their order): test/config-schema.test.js pins
-// this list's stems to that order.
+// The Alerts card's rows and sheets, in the card's order. `title` names both of a
+// kind's sheets (its alert sheet here, its slot sheet — alertSlotSheet); `subject`
+// feeds the alert sheet's intro; Pollen is DWD's alone, like the pollen slot itself.
+// The page's presentation of the contract's metric alerts (status-thresholds.js
+// ALERT_KINDS, which owns which alerts exist and their order):
+// test/config-schema.test.js pins this list's stems to that order.
 var ALERT_KINDS = [
     {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', icon: 'uv'},
     {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', icon: 'wind'},
@@ -2452,7 +2494,7 @@ module.exports = {
         // note closes the Alert and Both hints for the source that cannot give a
         // peak — WAQI (the default, so an absent key reads as it), and Auto, which
         // reads WAQI whenever a station answers; Open-Meteo gets none.
-        thresholdSection('Air quality (AQI)', 'Aqi', '', null, dayMaxRows('aqi', 'AQI selection', {
+        alertSlotSheet('Aqi', dayMaxRows('aqi', 'AQI selection', {
             keyStem: 'Aqi',
             subject: 'the AQI is',
             notes: {
@@ -2463,16 +2505,16 @@ module.exports = {
                     auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
                 }
             }
-        }, '42', '58'), [alertLevelsNote()]),
+        }, '42', '58')),
         // Pollen's scale hint rides its levels group, in the Alerts card's sheet.
-        thresholdSection('Pollen', 'Pollen', '', null, null, [alertLevelsNote()]),
+        alertSlotSheet('Pollen'),
         // Wind and gust each carry their own direction arrow: the two slots often sit
         // side by side, and one arrow drawn twice is noise — so the choice is per kind,
         // not global. The phone bakes the arrow into the slot text (status-lines.js
         // appends a trailing sentinel byte), and both keys ride renderSignature(), so
         // flipping one re-bakes without waiting for the next fetch.
         // Wind, gusts and AQI carry UV's display modes (dayMaxRows), each kind its own.
-        thresholdSection('Wind speed', 'Wind', '', null, dayMaxRows('wind', 'Wind selection', {
+        alertSlotSheet('Wind', dayMaxRows('wind', 'Wind selection', {
             keyStem: 'Wind',
             subject: 'the wind is'
         }, '12', '30').concat([{
@@ -2487,8 +2529,8 @@ module.exports = {
             // is not rearranged under its owner.
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('windSlotUnit', null, null)]), [alertLevelsNote()]),
-        thresholdSection('Wind gusts', 'Gust', '', null, dayMaxRows('gust', 'Gust selection', {
+        }, unitRow('windSlotUnit', null, null)])),
+        alertSlotSheet('Gust', dayMaxRows('gust', 'Gust selection', {
             keyStem: 'Gust',
             subject: 'gusts are'
         }, '20', '45').concat([{
@@ -2497,7 +2539,7 @@ module.exports = {
             label: 'Show wind direction',
             defaultValue: false,
             hint: WIND_DIRECTION_HINT
-        }, unitRow('gustSlotUnit', null, null)]), [alertLevelsNote()]),
+        }, unitRow('gustSlotUnit', null, null)])),
         // The UV slot's display mode — the temp slot's tempSlotDisplay pattern: global
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
@@ -2506,16 +2548,13 @@ module.exports = {
         // the slot, and the highlight follows it (the policy is status-thresholds.js
         // displayValue's). So do the rows shaping how it reads, which change the
         // text only — the highlight judges the numbers, never their presentation.
-        thresholdSection('UV index', 'Uv', '', null, dayMaxRows('uv', 'UV selection', {
+        alertSlotSheet('Uv', dayMaxRows('uv', 'UV selection', {
             keyStem: 'Uv',
             subject: 'UV is'
-        }, '3', '7'), [alertLevelsNote()]),
-        thresholdSection('Steps', 'Steps',
-            'Steps per day.', HEALTH_SLOT_WHEN),
-        thresholdSection('Sleep', 'Sleep',
-            'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
-        thresholdSection('Walked distance', 'Distance',
-            'Distance walked per day.', HEALTH_SLOT_WHEN),
+        }, '3', '7')),
+        goalSlotSheet('Steps', 'Steps', 'Steps per day.', HEALTH_SLOT_WHEN),
+        goalSlotSheet('Sleep', 'Sleep', 'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
+        goalSlotSheet('Walked distance', 'Distance', 'Distance walked per day.', HEALTH_SLOT_WHEN),
         // Bold-only sheets for the level-less slot kinds (same pencil, one row —
         // plus the display rows a few kinds add below it: Temp's mode and pair,
         // the units, the date formats). Order and labels mirror the contract's

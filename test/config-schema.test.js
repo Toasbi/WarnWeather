@@ -18,8 +18,8 @@ const byKey = (k) => items.filter((i) => i.messageKey === k)[0];
 function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').sections[0].items; }
 
 // Threshold highlighting adds six keys per kind (7 kinds: the toggle, the pair, the
-// scale max, two colors), generated the same way schema.js's thresholdSection()
-// generates them — listing 42 literals would just invite drift. THRESH_COLOR_KEYS is
+// scale max, two colors), generated the same way schema.js's sheet builders
+// generate them — listing 42 literals would just invite drift. THRESH_COLOR_KEYS is
 // reused by the color-defaults assertion below.
 const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
 // The kinds with an Alerts-card row and an alert<Stem> sheet (their switch, Look and
@@ -2091,9 +2091,9 @@ test('Status-slots tab (id watch) opens with the Alerts card, then the status ca
     'four status bars follow the Alerts card in order');
   // The per-slot edit sheets (sheetOnly, opened from a slot's Edit button — never
   // cards) sit between the bars and Time in the sections array (see
-  // thresholdSection). Each is titled after the SLOT: it configures the slot's
-  // bold mode as well as its thresholds/goals, so the goal-vs-threshold split
-  // lives on the group header inside, not in the sheet title.
+  // alertSlotSheet / goalSlotSheet). Each is titled after the SLOT: it configures
+  // the slot's bold mode as well as its thresholds/goals, so the goal-vs-threshold
+  // split lives on the group header inside, not in the sheet title.
   assert.deepEqual(titles.slice(5, 13),
     ['Air quality (AQI) slot', 'Pollen slot', 'Wind speed slot',
       'Wind gusts slot', 'UV index slot', 'Steps slot', 'Sleep slot',
@@ -2644,20 +2644,20 @@ test('no other slot sheet carries a Show unit toggle', () => {
       s.sheetId + ' must not offer a unit toggle (the watch formats that kind)'));
 });
 
-// thresholdSection applies its sub-section gate in one pass so a row added later cannot
-// forget its gate line — but an extra row may bring its OWN showWhen, and the pass must
-// not clobber it (boldSection's idiom). Only the gated sheets (the health kinds) have a
-// gate to apply, and none of them carries an extra row today, so the guarantee is not
-// observable from the built schema: guard the idiom at the source instead.
-test('thresholdSection gates its extra rows without clobbering their own showWhen', () => {
+// goalSlotSheet applies its sheet gate in one pass so a row added later cannot forget
+// its gate line — but a row may bring its OWN showWhen, and the pass must not clobber
+// it (boldSection's idiom). Only the gated sheets (the health kinds) have a gate to
+// apply, and none of their rows brings a showWhen of its own today, so the guarantee
+// is not observable from the built schema: guard the idiom at the source instead.
+test('goalSlotSheet gates its slot rows without clobbering their own showWhen', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const src = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'pkjs', 'settings', 'schema.js'), 'utf8');
-  const body = src.slice(src.indexOf('function thresholdSection('),
-    src.indexOf('function boldSection('));
+  const body = src.slice(src.indexOf('function goalSlotSheet('),
+    src.indexOf('function alertSlotSheet('));
   assert.ok(body.indexOf('gateAll(') !== -1,
-    'thresholdSection must gate through the shared gateAll pass');
+    'goalSlotSheet must gate through the shared gateAll pass');
   const gateAllBody = src.slice(src.indexOf('function gateAll('),
     src.indexOf('function sheetOf('));
   assert.ok(gateAllBody.indexOf('item.showWhen = item.showWhen || gate') !== -1,

@@ -425,9 +425,9 @@ if (typeof require !== 'undefined') {
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {{keyStem: string, chips: ({warn: string, danger: string}|undefined)}} args
-     *     Kind key stem, e.g. 'Steps', and the chips' words in the group's voice
-     *     (schema.js levelsGroup); without them the slider says Warn / Danger
-     *     (range-control.js).
+     *     Kind key stem, e.g. 'Steps', and the chips' words from the group's voice
+     *     (schema.js GOAL_VOICE / ALERT_VOICE); without them the slider says Warn /
+     *     Danger (range-control.js).
      * @returns {Object} Config the engine merges over the schema item.
      */
     function thresholdRangeCfg(S, env, args) {
@@ -523,8 +523,8 @@ if (typeof require !== 'undefined') {
     });
 
     // The warn look's hint (thresh<K>WarnLook's hintFrom), for the SELECTED look,
-    // from the look copy the row passes as `copy` (schema.js WARN_LOOK_* /
-    // GOAL_LOOK_*, in the group's voice):
+    // from the group voice's look copy the row passes as `copy` (schema.js
+    // GOAL_VOICE / ALERT_VOICE `look`):
     //  - a B&W watch or B&W day theme: its `bw` set — the box is drawn in the text
     //    colour, the pickers are hidden, and a fill is the danger (reached-goal) fill;
     //  - a colour day theme with a B&W night theme (Theme switching on): the row's

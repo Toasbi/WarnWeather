@@ -1320,6 +1320,28 @@ test('the group header owns the title and the reset action', () => {
   assert.equal(headerFor('Steps').text, 'Goals');
 });
 
+// Each sheet builder picks its voice record (schema.js GOAL_VOICE / ALERT_VOICE), so
+// nothing ties the page's words to the contract but this: the kinds the watch packs
+// as goals (isGoalKind: green defaults, an outline look) are the kinds worded as goals,
+// and the rest are the alert kinds.
+test('each kind speaks the contract\'s voice: goals for its goal kinds, alert levels for the rest', () => {
+  assert.deepEqual(STEMS.filter(stem => !thresholds.isGoalKind(stem)).sort(), ALERT_STEMS.slice().sort());
+  STEMS.forEach(stem => {
+    const goal = thresholds.isGoalKind(stem);
+    const row = key => levelsSheetFor(stem).items.find(it => it.messageKey === 'thresh' + stem + key);
+    assert.equal(headerFor(stem).text, goal ? 'Goals' : 'Alert levels', stem + ' header');
+    assert.equal(row('WarnLook').label, goal ? 'Close look' : 'Warn look', stem + ' look');
+    assert.deepEqual([row('WarnColor').label, row('DangerColor').label],
+      goal ? ['Close color', 'Goal fill color'] : ['Warn color', 'Danger color'], stem + ' colour labels');
+    assert.deepEqual([row('WarnColor').defaultValue, row('DangerColor').defaultValue],
+      goal ? [thresholds.DEFAULT_GOAL_HEX, thresholds.DEFAULT_GOAL_HEX] : ['', ''], stem + ' colour defaults');
+    assert.deepEqual(row('Warn').rangeFrom.args.chips,
+      goal ? { warn: 'Close', danger: 'Goal' } : { warn: 'Warn', danger: 'Danger' }, stem + ' chips');
+    assert.equal(boldFor(stem).options[1][0], goal ? 'Close' : 'Warn', stem + ' Bold middle option');
+    assert.match(boldFor(stem).hintByValue.warn, goal ? /goal/ : /warn level/, stem + ' Bold hint');
+  });
+});
+
 test('the slider no longer carries the group title or the reset action', () => {
   STEMS.forEach(stem => {
     const range = levelsSheetFor(stem).items.find(it => it.type === 'range');
