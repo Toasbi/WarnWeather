@@ -119,14 +119,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   // --- display-resolver registry --- a keyed item opts into a DERIVED display value by
   // name (item.displayFrom: {resolver, args}); fn(S, env, args) returns the value to
-  // PAINT while the stored value stays untouched, so a key that inherits its effective
-  // value from a sibling can still show what it actually renders as. Read at render time,
-  // like the badge resolver. Two readers today: `color` items via displayFrom (the graph
-  // night tint, which cascades from the fill colour at resolve time; args get the item's
-  // messageKey merged under them) and collapsible sections via titleFrom (the collapsed
-  // card header's value; args pass through verbatim — sections have no messageKey).
-  // Writes are unaffected: a control still stores under its own messageKey, so picking
-  // the shown value pins it.
+  // PAINT while the stored value stays untouched, so a key whose effective value is
+  // resolved elsewhere (from other keys, the theme or the platform) still shows what it
+  // actually renders as. Read at render time, like the badge resolver. Two ways in:
+  // `color` items via displayFrom (args get the item's messageKey merged under them) and
+  // collapsible sections via titleFrom (the collapsed card header's value; args pass
+  // through verbatim — sections have no messageKey). Writes are unaffected: a control
+  // still stores under its own messageKey, so picking the shown value pins it.
   PConf.displayResolvers = makeRegistry();
 
   // --- hint-resolver registry --- a value row opts into a DERIVED hint by name
@@ -524,8 +523,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * The value a row should PAINT, via the item's named display resolver — undefined when
    * the item opts out or the resolver is missing, in which case the control falls back to
    * the stored value. The stored value is never rewritten: this is a display override for
-   * a key whose effective value is derived elsewhere (a colour that cascades from a
-   * sibling key), and picking the shown value through the normal control still writes it.
+   * a key whose effective value is resolved elsewhere, and picking the shown value through
+   * the normal control still writes it.
    *
    * `args` gets the item's own messageKey merged UNDER displayFrom.args, matching the
    * sheet/badge resolvers, so a resolver shared by many rows needs no per-row args.
@@ -1148,7 +1147,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       view.disabledOptions = disabledOptionValues(item, cx.evalCtx);
     }
     // displayFrom: the row paints a DERIVED value while storing under its own key —
-    // for a setting whose effective value cascades from a sibling until it is pinned.
+    // for a setting whose effective value is resolved elsewhere, so it shows what renders.
     if (item.displayFrom) {
       view.displayValue = resolveDisplayValue(item, cx.S, cx.ENV);
     }
