@@ -1512,11 +1512,10 @@ test('Aqi reset lands on the wizard-seeded fresh-install look, not schema-off', 
   assert.ok(!('threshAqiBoldMode' in S), 'reset must not write the Bold mode');
 });
 
-test("a kind's reset never reaches outside that kind (the policy veto's scope)", () => {
-  // The defaults-policy table also carries rows for OTHER kinds and for the
-  // status-bar layout (the health-slot swap); resetThresholds' mayWrite veto is
-  // all that keeps a Wind-sheet reset from applying them through applyDefaults.
-  // Foreign keys must stay ABSENT, not merely unchanged.
+test("a kind's reset never reaches outside that kind", () => {
+  // The defaults-policy table carries rows for other kinds and for the status-bar
+  // layout (the health-slot swap); a Wind-sheet reset writes its own group's schema
+  // defaults and nothing else. Foreign keys must stay ABSENT, not merely unchanged.
   const S = { theme: 'dark', threshWindOn: true,
     threshWindWarn: '40', threshWindDanger: '60' };
   PC.actions.resetThresholds('Wind', S, ENV, SCHEMA_DEFAULT_OF);

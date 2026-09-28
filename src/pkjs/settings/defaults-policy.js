@@ -20,8 +20,8 @@
 // disagree with. Adding a conditional default is adding a row, never adding an
 // `if` somewhere else. Nothing here is applied on its own: a caller reads its
 // context's values (resolveDefaults) or has them written onto live state through
-// applyDefaults — the ONE interpreter of the execution vocabulary below, shared
-// by the wizard finish and the threshold reset so the semantics cannot fork.
+// applyDefaults — the ONE interpreter of the execution vocabulary below (the
+// wizard finish writes through it), so the semantics cannot fork.
 //
 // THE `when` VOCABULARY (an unlisted key throws — a typo must not read as a
 // condition that quietly never matches):
@@ -370,15 +370,14 @@
      * Write the matching rules' values onto a live settings state — THE one
      * interpreter of the table's execution vocabulary (later-rules-win
      * flattening, `set`-order application, dependsOn anchoring, seedVia
-     * write-through, per-key veto). Both consumers go through here — the
-     * wizard's finish (wizard.js applyWizardDefaults) and the per-kind
-     * threshold reset (blocks.js resetThresholds) — so the vocabulary cannot
-     * drift into two dialects.
+     * write-through, per-key veto). The wizard's finish (wizard.js
+     * applyWizardDefaults) goes through here, so the vocabulary cannot drift
+     * into two dialects.
      *
      * ctx.choices doubles as the live state: values are written into it and
-     * seedVia hooks run against it. Both consumers already work that way —
-     * every stored setting (and wizard pick) is in it, so a rule keyed on any
-     * of them just works.
+     * seedVia hooks run against it. The wizard already works that way — every
+     * stored setting (and wizard pick) is in it, so a rule keyed on any of them
+     * just works.
      *
      * @param {Object} ctx Resolver context ({wizard, env, choices}); `choices`
      *     is mutated.

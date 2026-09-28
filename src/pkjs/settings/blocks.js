@@ -645,35 +645,10 @@ if (typeof require !== 'undefined') {
         for (var d = 0; d < keys.length; d++) {
             S['thresh' + stem + keys[d]] = defaultOf('thresh' + stem + keys[d]);
         }
-        // "Fresh install" is more than the schema: finishing the first-run wizard
-        // applies the defaults-policy table, so the reset lands on those rows too —
-        // AQI's highlight-on, seeded through the very hooks
-        // flipping the controls by hand would run. (A wizard-SKIPPED install never
-        // got them; converging its reset on the intended out-of-box state is the
-        // deliberate choice here.) applyDefaults is the policy module's one
-        // interpreter (set order, dependsOn anchoring, seedVia write-through —
-        // shared with the wizard finish); this caller contributes only the veto
-        // scoping it to THIS kind's threshold-family keys, Bold deliberately
-        // excluded (the reset leaves Bold alone — its row sits outside the
-        // Thresholds group), and so is a weather kind's highlight switch (the slot
-        // sheet's Highlight row). Unlike the wizard, no not-still-default guard:
-        // reset IS the user discarding their choices for this kind.
-        var policy = (typeof require !== 'undefined')
-            ? require('./defaults-policy.js')
-            : (typeof window !== 'undefined' ? window.DefaultsPolicy : null);
-        if (policy) {
-            policy.applyDefaults({wizard: true, env: env, choices: S}, {
-                mayWrite: function (name) {
-                    return name.indexOf('thresh' + stem) === 0
-                        && name !== 'thresh' + stem + 'BoldMode'
-                        && (goal || name !== 'thresh' + stem + 'On');
-                },
-                getHook: function (name) {
-                    return PConf.onChange && PConf.onChange.get
-                        ? PConf.onChange.get(name) : null;
-                }
-            });
-        }
+        // The first-run wizard's defaults-policy table has no row for any of these
+        // keys (its threshold rows are Bold modes and a weather kind's highlight
+        // switch, both outside this group), so the schema defaults ARE the
+        // out-of-box state and nothing else lands here.
         return true;
     };
 
