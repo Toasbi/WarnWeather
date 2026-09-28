@@ -2176,7 +2176,7 @@ test('the Alerts card rows: six of one shape (rain, then the metric alerts) and 
     hintFrom: { resolver: 'rainAlertHint', args: {
       windows: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
       looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']] } },
-    editBadgeFrom: { resolver: 'alertLevelBadge', args: { keyStem: 'Rain' } }
+    editBadgeFrom: { resolver: 'rainAlertBadge' }
   });
   // The window and look lists the hint prints are the ones the rain sheet offers.
   assert.deepEqual(rows[0].hintFrom.args.windows, byKey('rainCountdownHorizon').options);
@@ -2199,6 +2199,23 @@ test('the Alerts card rows: six of one shape (rain, then the metric alerts) and 
   });
   assert.ok(!rows.some((r) => /Steps|Sleep|Distance/.test(r.sheetId || '')), 'the goal kinds get no alert rows');
   assert.ok(!rows.some((r) => r.messageKey), 'no control on the card: every row only opens a sheet');
+});
+
+// schema.js keeps its own presentation list of the metric alerts (labels, icons, sheet
+// copy — they really do differ per kind), but which alerts exist and their order are
+// the contract's (status-thresholds.js ALERT_KINDS, the order the watch's row draws
+// them in): the card's rows and the tab's alert sheets follow it, stem for stem.
+test('the Alerts card rows and the alert sheets follow the contract\'s ALERT_KINDS order', () => {
+  const thresholds = require('../src/pkjs/status-thresholds.js');
+  const stems = thresholds.ALERT_KINDS.map((a) => a.key);
+  const sheetIds = stems.map((stem) => 'alert' + stem);
+  const rows = alertsSection().items.filter((i) => i.type === 'sheet' && i.sheetId !== 'alertRain');
+  assert.deepEqual(rows.map((r) => r.sheetId), sheetIds, 'the card\'s metric rows');
+  assert.deepEqual(rows.map((r) => r.hintFrom.args.keyStem), stems, 'each row\'s hint names its own kind');
+  assert.deepEqual(rows.map((r) => r.editBadgeFrom.args.keyStem), stems, 'each row\'s badge names its own kind');
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  assert.deepEqual(watch.sections.filter((s) => s.sheetOnly && /^alert/.test(s.sheetId))
+    .map((s) => s.sheetId), ['alertRain'].concat(sheetIds), 'the sheets, rain first');
 });
 
 test('rainCountdownHorizon lives only in the rain alert sheet — gone from the Radar tab', () => {

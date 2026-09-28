@@ -976,11 +976,15 @@ var RAIN_LOOK_OPTIONS = [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text
  * "no rain alert" — so the window keeps its value for when the switch comes back.
  * Radar mode 'Rain alert only' ('countdown') fetches the radar for this alert alone,
  * so there the switch is held on: disabled, and forced on by the radarMode hook
- * (reset-status-defaults.js forceRainAlert) when that mode is entered.
+ * (reset-status-defaults.js forceRainAlert) when that mode is entered. The three
+ * defaults are the contract's (status-thresholds.js rainAlert — what the phone packs
+ * for an absent key), so the page hydrating a key and the packer reading it absent
+ * never disagree.
  * @returns {Object} Schema section (sheetOnly).
  */
 function rainAlertSheet() {
     var offWhen = {not: {key: 'alertRain'}};
+    var dflt = STATUS_THRESHOLDS.rainAlert(null);
     return {
         sheetOnly: true,
         sheetId: 'alertRain',
@@ -1000,7 +1004,7 @@ function rainAlertSheet() {
             type: 'toggle',
             messageKey: 'alertRain',
             label: 'Rain alert',
-            defaultValue: true,
+            defaultValue: dflt.on,
             disabledWhen: {key: 'radarMode', eq: 'countdown'}
         }, rainAlertUnshownNote(), {
             // The countdown's window, key and default unchanged since it lived on the
@@ -1008,7 +1012,7 @@ function rainAlertSheet() {
             type: 'select',
             messageKey: 'rainCountdownHorizon',
             label: 'Time window',
-            defaultValue: '60',
+            defaultValue: String(dflt.horizonMin),
             hint: 'Rain due further out than this doesn’t trigger the alert. Rain radar forecasts change often, so a shorter window gives fewer false alarms.',
             options: RAIN_WINDOW_OPTIONS,
             disabledWhen: offWhen
@@ -1020,7 +1024,7 @@ function rainAlertSheet() {
             type: 'segmented',
             messageKey: 'rainAlertDisplay',
             label: 'Look',
-            defaultValue: 'text',
+            defaultValue: dflt.look,
             options: RAIN_LOOK_OPTIONS,
             // The drop alone describes itself. The two longer looks say what they
             // print and that they shrink on a crowded bar (alert_set_degrade: Text →
@@ -1091,7 +1095,10 @@ function alertSheet(keyStem, title, subject, hint, coda) {
     };
 }
 // The Alerts card's rows and sheets, in the card's order. `subject` feeds the
-// sheet intro; Pollen is DWD's alone, like the pollen slot itself.
+// sheet intro; Pollen is DWD's alone, like the pollen slot itself. The page's
+// presentation of the contract's metric alerts (status-thresholds.js ALERT_KINDS,
+// which owns which alerts exist and their order): test/config-schema.test.js pins
+// this list's stems to that order.
 var ALERT_KINDS = [
     {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', icon: 'uv'},
     {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', icon: 'wind'},
@@ -1115,10 +1122,10 @@ var ALERT_KINDS = [
  * @param {string} icon Registered PConf.icons id (status-slot-icons.js).
  * @param {Object} showWhen The row's gate.
  * @param {Object} hintFrom The live-state hint resolver ({resolver, args}).
- * @param {string} keyStem The badge resolver's kind ('Rain' for the rain row).
+ * @param {Object} editBadgeFrom The badge resolver ({resolver, args}).
  * @returns {Object} Schema item.
  */
-function alertRow(sheetId, label, icon, showWhen, hintFrom, keyStem) {
+function alertRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFrom) {
     return {
         type: 'sheet',
         sheetId: sheetId,
@@ -1126,7 +1133,7 @@ function alertRow(sheetId, label, icon, showWhen, hintFrom, keyStem) {
         icon: icon,
         showWhen: showWhen,
         hintFrom: hintFrom,
-        editBadgeFrom: {resolver: 'alertLevelBadge', args: {keyStem: keyStem}}
+        editBadgeFrom: editBadgeFrom
     };
 }
 /**
@@ -1147,7 +1154,7 @@ function alertCardItems() {
         },
         alertRow('alertRain', 'Rain', 'rain', RAIN_ALERT_WHEN,
             {resolver: 'rainAlertHint', args: {windows: RAIN_WINDOW_OPTIONS, looks: RAIN_LOOK_OPTIONS}},
-            'Rain'),
+            {resolver: 'rainAlertBadge'}),
         {
             type: 'staticText',
             style: 'info',
@@ -1157,7 +1164,8 @@ function alertCardItems() {
     ].concat(ALERT_KINDS.map(function (k) {
         return alertRow('alert' + k.keyStem, k.label, k.icon,
             k.gate ? {all: [THRESHOLD_WHEN, k.gate]} : THRESHOLD_WHEN,
-            {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem}}, k.keyStem);
+            {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem}},
+            {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
     }));
 }
 // The per-bar Alerts placement: while an alert is active its icons REPLACE the chosen

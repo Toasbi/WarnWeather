@@ -357,6 +357,8 @@ test('alertLevelsHint: "Off" while the alert is off, else the resolved pair and 
     'Warn 100 · Danger 150', 'the US AQI seed');
   assert.equal(hint(on({}), { thresholds: false }, uv), null, 'aplite: no levels to describe');
   assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
+  assert.equal(hint({ alertSteps: true }, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
+  assert.equal(hint({ alertUv: 'true' }, env, uv), 'Off', 'a stored string is not the switch');
 });
 
 test('rainAlertHint: "Off" while the rain alert is off, else its window and look by their labels', () => {
@@ -376,7 +378,7 @@ test('rainAlertHint: "Off" while the rain alert is off, else its window and look
     'Within 60 min · Text', 'a value outside the lists reads as the default');
 });
 
-test('alertLevelBadge: the alert\'s colours while it is on, no bold B; rain gets the Edit button alone', () => {
+test('alertLevelBadge: the alert\'s colours while it is on, no bold B', () => {
   const badge = PConf.badgeResolvers.get('alertLevelBadge');
   assert.equal(typeof badge, 'function', 'badge resolver registered');
   const env = { thresholds: true };
@@ -416,13 +418,24 @@ test('alertLevelBadge: the alert\'s colours while it is on, no bold B; rain gets
   assert.equal(picked.dots[0].color, '#00AAFF', 'a picked warn colour paints the pip');
   const allBold = badge({ alertUv: true, statusBoldAll: 'all', threshUvBoldMode: 'always' }, env, uv);
   assert.ok(!allBold.bold, 'not even under the master Bold row');
-  // Rain draws in the radar's colours and never boxes: the button only.
-  assert.deepEqual(badge({}, env, { keyStem: 'Rain' }), { label: 'Edit', ariaNote: '', dots: [] });
-  assert.deepEqual(badge({ alertRain: false }, env, { keyStem: 'Rain' }),
-    { label: 'Edit', ariaNote: 'off', dots: [] });
   assert.equal(badge({}, env, { keyStem: 'Nope' }), null, 'unknown stem');
   assert.equal(badge({}, env, { keyStem: 'Temp' }), null, 'bold-only stem');
+  assert.equal(badge({ alertSteps: true }, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
+  assert.equal(badge({}, env, { keyStem: 'Rain' }), null, 'rain has its own resolver');
+  assert.equal(badge({ alertUv: 'true' }, env, uv).ariaNote, 'off', 'a stored string is not the switch');
   assert.equal(badge({ alertUv: true }, { thresholds: false }, uv), null, 'aplite');
+});
+
+test('rainAlertBadge: the Edit button alone, the aria note following the switch (on unless stored off)', () => {
+  const badge = PConf.badgeResolvers.get('rainAlertBadge');
+  assert.equal(typeof badge, 'function', 'badge resolver registered');
+  // Rain draws in the radar's colours and never boxes: the button only.
+  assert.deepEqual(badge({}, {}), { label: 'Edit', ariaNote: '', dots: [] });
+  assert.deepEqual(badge(null, {}), { label: 'Edit', ariaNote: '', dots: [] }, 'absent = on');
+  assert.deepEqual(badge({ alertRain: true }, {}), { label: 'Edit', ariaNote: '', dots: [] });
+  assert.deepEqual(badge({ alertRain: false }, {}), { label: 'Edit', ariaNote: 'off', dots: [] });
+  // Ungated: the row is radar- and platform-gated itself.
+  assert.deepEqual(badge({}, { thresholds: false }), { label: 'Edit', ariaNote: '', dots: [] });
 });
 
 test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {

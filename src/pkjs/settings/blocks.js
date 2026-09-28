@@ -55,8 +55,9 @@ if (typeof require !== 'undefined') {
     var rangeControl = (typeof require !== 'undefined')
         ? require('../config-ui/lib/range-control.js') : PConf.rangeControl;
     // The threshold contract (status-thresholds.js): the kinds, their seed pairs, the
-    // colour and warn-look rules — the module the watch's blob is packed from, so the
-    // sheets, badges and hints read the numbers and colours the watch uses.
+    // colour and warn-look rules and the alert vocabulary — the module the watch's
+    // blob is packed and its alerts baked from, so the sheets, badges and hints read
+    // the numbers, colours and switches the watch uses.
     // scripts/build-config-page.js concatenates it AHEAD of this file.
     var thresholds = (typeof require !== 'undefined')
         ? require('../status-thresholds.js') : window.StatusThresholds;
@@ -834,7 +835,7 @@ if (typeof require !== 'undefined') {
         for (var k = 0; k < thresholds.KINDS.length; k++) {
             var kd = thresholds.KINDS[k];
             schemaKeys.push('thresh' + kd.key + 'BoldMode');
-            if (!kd.boldOnly && !kd.goal) { schemaKeys.push('thresh' + kd.key + 'On'); }
+            if (thresholds.isWeatherKind(kd)) { schemaKeys.push('thresh' + kd.key + 'On'); }
         }
         for (var b = 0; b < thresholds.BAR_ALERT_KEYS.length; b++) {
             schemaKeys.push(thresholds.BAR_ALERT_KEYS[b].key);
@@ -849,7 +850,7 @@ if (typeof require !== 'undefined') {
     // alertCardItems): every alert's switch and display look (Icon / Icon + value)
     // back to its schema default, via
     // the engine's resolver like resetStatusSlots above. The metric alerts are the
-    // level kinds that are neither bold-only nor goals — the five the card lists;
+    // contract's ALERT_KINDS — the five the card lists;
     // rain's are alertRain (on), rainAlertDisplay and its time window
     // (rainCountdownHorizon — it lives in the Rain sheet and prints on the card row).
     // Deliberately untouched: the levels, warn looks and colours (each sheet's Alert levels header
@@ -866,11 +867,9 @@ if (typeof require !== 'undefined') {
     PConf.actions.resetAlerts = function (arg, S, env, defaultOf) {
         if (!S || !defaultOf) { return false; }
         var keys = ['alertRain', 'rainAlertDisplay', 'rainCountdownHorizon'];
-        for (var k = 0; k < thresholds.KINDS.length; k++) {
-            var kind = thresholds.KINDS[k];
-            if (!kind.boldOnly && !kind.goal) {
-                keys.push('alert' + kind.key, 'alert' + kind.key + 'Display');
-            }
+        for (var k = 0; k < thresholds.ALERT_KINDS.length; k++) {
+            var stem = thresholds.ALERT_KINDS[k].key;
+            keys.push('alert' + stem, 'alert' + stem + 'Display');
         }
         for (var n = 0; n < keys.length; n++) {
             S[keys[n]] = defaultOf(keys[n]);
@@ -965,46 +964,55 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * The KINDS index of a kind that owns levels (a weather or goal kind, not a
-     * bold-only one), looked up by key stem.
-     * @param {string} keyStem Kind key stem, e.g. 'Uv'.
-     * @returns {number} The index, or -1 for an unknown or bold-only stem.
+     * The contract's metric alert behind an Alerts card row, found by the row's key
+     * stem (the schema builds each row's sheet and keys from it).
+     * @param {*} keyStem Kind key stem, e.g. 'Uv'.
+     * @returns {?{code: string, key: string}} Its ALERT_KINDS entry, or null for a
+     *     stem with no metric alert.
      */
-    function levelKindIndex(keyStem) {
-        for (var i = 0; i < thresholds.KINDS.length; i++) {
-            if (thresholds.KINDS[i].key === keyStem && !thresholds.KINDS[i].boldOnly) { return i; }
+    function alertKindOf(keyStem) {
+        for (var i = 0; i < thresholds.ALERT_KINDS.length; i++) {
+            if (thresholds.ALERT_KINDS[i].key === keyStem) { return thresholds.ALERT_KINDS[i]; }
         }
-        return -1;
+        return null;
     }
 
     /**
-     * The Alerts card row's badge (editBadgeFrom, args.keyStem): the colours the
-     * watch draws that alert in, while its Alert switch is ON (no dots at all while
-     * it is off) — the warn pip in the kind's warn look (no pip for 'none', a
-     * ring for 'outline', a dot for 'fill' — warnPip, shared with the slot
-     * pencil) and a dot in the danger colour (the filled box). No 'B': bold is how a SLOT prints, not part of the alert.
-     * The alert switch decides, not the slot's Highlight switch: the entries take
-     * the kind's colours either way. Rain draws in the radar's colours and never
-     * boxes, so its row has no dots, only the Edit button every row carries.
+     * The Alerts card row's badge for a metric alert (editBadgeFrom, args.keyStem):
+     * the colours the watch draws that alert in, while its Alert switch is ON (no
+     * dots at all while it is off) — the warn pip in the kind's warn look (no pip
+     * for 'none', a ring for 'outline', a dot for 'fill' — warnPip, shared with the
+     * slot pencil) and a dot in the danger colour (the filled box). No 'B': bold is
+     * how a SLOT prints, not part of the alert. The alert switch decides, not the
+     * slot's Highlight switch: the entries take the kind's colours either way.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {{keyStem: string}} args The row's alert: a level kind's stem, or 'Rain'.
+     * @param {{keyStem: string}} args The row's alert, by its kind's key stem.
      * @returns {?Object} Badge state, or null where the alert cannot exist (aplite,
-     *     an unknown or level-less stem).
+     *     a stem with no metric alert).
      */
     function alertLevelBadge(S, env, args) {
-        var st = S || {};
-        var stem = args && args.keyStem;
-        if (stem === 'Rain') {
-            var rainOn = st.alertRain !== false;
-            return {label: 'Edit', ariaNote: rainOn ? '' : 'off', dots: []};
-        }
         if (!env || !env.thresholds) { return null; }
-        if (levelKindIndex(stem) < 0) { return null; }
-        if (st['alert' + stem] !== true) { return {label: 'Edit', ariaNote: 'off', dots: []}; }
-        return {label: 'Edit', ariaNote: '', dots: levelDots(st, env, stem)};
+        var metric = alertKindOf(args && args.keyStem);
+        if (!metric) { return null; }
+        var st = S || {};
+        if (!thresholds.alertOn(st, metric.code)) { return {label: 'Edit', ariaNote: 'off', dots: []}; }
+        return {label: 'Edit', ariaNote: '', dots: levelDots(st, env, metric.key)};
     }
     PConf.badgeResolvers.register('alertLevelBadge', alertLevelBadge);
+
+    /**
+     * The Alerts card's Rain row badge (editBadgeFrom): the Edit button every row
+     * carries, and no dots — rain draws in the radar's colours and never boxes.
+     * Only the aria note follows the switch (the contract's rainAlert: on unless
+     * stored off). Ungated here: the row itself is radar- and platform-gated.
+     * @param {Object} S Live settings state.
+     * @returns {Object} Badge state.
+     */
+    function rainAlertBadge(S) {
+        return {label: 'Edit', ariaNote: thresholds.rainAlert(S).on ? '' : 'off', dots: []};
+    }
+    PConf.badgeResolvers.register('rainAlertBadge', rainAlertBadge);
 
     /**
      * The Alerts card row's hint for a metric alert: "Off" while its switch is off,
@@ -1017,16 +1025,16 @@ if (typeof require !== 'undefined') {
      * @param {Object} env Platform env.
      * @param {{keyStem: string}} args The row's kind key stem, e.g. 'Wind'.
      * @returns {?string} The hint, or null where the levels do not exist (aplite,
-     *     an unknown stem) — the engine then falls back to the static hint.
+     *     a stem with no metric alert) — the engine then falls back to the static hint.
      */
     function alertLevelsHint(S, env, args) {
         if (!env || !env.thresholds) { return null; }
-        var stem = args && args.keyStem;
-        if (!THRESHOLD_RANGES[stem]) { return null; }
+        var metric = alertKindOf(args && args.keyStem);
+        if (!metric) { return null; }
         var st = S || {};
-        if (st['alert' + stem] !== true) { return 'Off'; }
-        var pair = thresholds.resolvedPair(stem, st);
-        var unit = rangeOf(stem, st).unit;
+        if (!thresholds.alertOn(st, metric.code)) { return 'Off'; }
+        var pair = thresholds.resolvedPair(metric.key, st);
+        var unit = rangeOf(metric.key, st).unit;
         var suffix = unit ? ' ' + unit : '';
         return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;
     }
@@ -1049,7 +1057,9 @@ if (typeof require !== 'undefined') {
      * The Alerts card's Rain row hint: "Off" while the rain alert's switch is off,
      * else its time window and look by the labels its sheet offers them under, e.g.
      * "Within 60 min · Text". The lists come from the schema through args (one
-     * copy of each); a value outside them reads as the sheet's default.
+     * copy of each); the switch, the look and the defaults come from the contract
+     * (rainAlert), so a window outside the list (a legacy '0') reads as the
+     * default window and an unknown look as the look the watch then draws.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused: the row itself is platform-gated).
      * @param {{windows: Array<Array<string>>, looks: Array<Array<string>>}} args The
@@ -1058,10 +1068,14 @@ if (typeof require !== 'undefined') {
      */
     function rainAlertHint(S, env, args) {
         var st = S || {};
-        if (st.alertRain === false) { return 'Off'; }
+        var rain = thresholds.rainAlert(st);
+        if (!rain.on) { return 'Off'; }
         var a = args || {};
-        return (optionLabel(a.windows, st.rainCountdownHorizon) || optionLabel(a.windows, '60'))
-            + ' · ' + (optionLabel(a.looks, st.rainAlertDisplay) || optionLabel(a.looks, 'text'));
+        // The window as the sheet's select shows it — the stored pick, not its parse —
+        // and the contract's default window for one outside the list.
+        return (optionLabel(a.windows, st.rainCountdownHorizon)
+                || optionLabel(a.windows, thresholds.rainAlert(null).horizonMin))
+            + ' · ' + optionLabel(a.looks, rain.look);
     }
     PConf.hintResolvers.register('rainAlertHint', rainAlertHint);
 
