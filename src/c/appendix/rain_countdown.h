@@ -14,8 +14,11 @@ void rain_countdown_refresh(time_t now);
 // month text. O(1) and flash-free on a normal tick; the sole exception is a
 // single self-heal rescan the moment a cached segment ends, to chain to the
 // next segment in the same data. Minutes over 99 render as `+99'`, so the count
-// never exceeds 2 digits. `out_size` should be >= 20 (longest: `Downpour for +99'`).
+// never exceeds 2 digits. `out_size` should be >= RAIN_COUNTDOWN_TEXT_CAP.
 bool rain_countdown_format(char *out, size_t out_size, time_t now);
+
+// rain_countdown_format()'s buffer size: the longest alert, `Downpour for +99'`, + NUL.
+#define RAIN_COUNTDOWN_TEXT_CAP 20
 
 // Radar tier (1..5) of the cached segment's peak intensity, or 0 when no segment is
 // cached / snoozed. Meaningful when rain_countdown_format() returned true; the layer

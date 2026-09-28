@@ -11,6 +11,7 @@
 #include "status_row_icons.h"
 #include "status_row_layout.h"
 #include "../appendix/palette.h"
+#include "../appendix/rain_countdown.h"
 #include "../appendix/status_threshold.h"
 #include "../appendix/theme.h"
 
@@ -19,8 +20,8 @@
 // Rain entries are keyed apart from the metric icons (StatusIconId, all < 0x80):
 // the flag bit plus the drop bucket, so drizzle -> rain swaps the glyph.
 #define RAIN_KEY_FLAG 0x80
-// rain_countdown_format()'s buffer contract: "Downpour for +99'" + NUL fits 20.
-#define LANE_CAP 20
+// A text lane's buffer: the longest lane is the full rain countdown.
+#define LANE_CAP RAIN_COUNTDOWN_TEXT_CAP
 // A status glyph inks one column past its bounds: icon_load (status_row_icons.c)
 // snaps its vertices to pixel centres 0.5 .. w + 0.5 px, and the 1-px stroke covers
 // both end columns — w + 1 columns of ink for bounds w.

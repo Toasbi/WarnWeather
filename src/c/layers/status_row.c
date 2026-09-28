@@ -443,7 +443,7 @@ typedef struct {
     char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
     int8_t  dir;                            // wind sector 0..15, -1 = none
     uint8_t level;                          // ThreshLevel, gated on the Highlight switch
-    ThreshLook look;                        // box, bold bit and RAW accent byte at `level`
+    ThreshLook look;                        // box, bold bit, RAW accent byte at `level`
 } ResolvedSlot;
 
 // Resolve slot `i` of an already-loaded pass (load_pass filled `view`). `base` is
@@ -498,18 +498,15 @@ static int resolve_row(const StatusRow *row, ResolvedSlot out[STATUS_SLOT_COUNT]
 }
 
 #if defined(WW_ALERT_ROW)
-// rain_countdown_format()'s buffer contract: "Downpour for +99'" + NUL.
-#define RAIN_TEXT_CAP 20
-
 // The Alerts row resolved for one pass: the entries (the phone-baked metric alerts,
 // with the watch-resolved rain entry in front) and what their text lanes print.
 // The metric entries' values point into `bytes` — the stored tuple is read into the
 // struct itself — so the set lives exactly as long as this struct, a pass-local.
 typedef struct {
-    uint8_t bytes[ALERT_ENTRIES_MAX_BYTES];   // the stored ALERT_ENTRIES tuple
+    uint8_t bytes[ALERT_ENTRIES_MAX_BYTES];    // the stored ALERT_ENTRIES tuple
     AlertSet set;
-    char rain_text[RAIN_TEXT_CAP];   // the countdown text; "" when no rain entry
-    int rain_display;                // ThreshRainDisplay, from the settings blob
+    char rain_text[RAIN_COUNTDOWN_TEXT_CAP];   // countdown text; "" = no rain entry
+    int rain_display;                          // ThreshRainDisplay, from the blob
 } ResolvedAlerts;
 
 // Resolve the Alerts row against an already-loaded pass (load_pass: the thresholds
