@@ -221,11 +221,18 @@ test('dayMaxToday: today\'s remaining peak through the kind\'s reader, never bel
   assert.equal(wu.dayMaxToday('uv', { UV_DAY_PEAKS: [60, 0, 0] }, {}), 6);
 });
 
-test('dayMaxToday: null without today\'s peak — the caller falls back to the reading', () => {
+test('dayMaxToday: the current reading without today\'s peak, whatever the slot shows', () => {
   const wu = require('../src/pkjs/wire-units.js');
-  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20] }, {}), null, 'no peaks fetched');
-  assert.equal(wu.dayMaxToday('aqi', { AQI_TREND: [120] }, {}), null, 'WAQI: current only');
-  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [null, 50, 0] }, {}), null);
+  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20] }, {}), 2, 'no peaks fetched');
+  assert.equal(wu.dayMaxToday('aqi', { AQI_TREND: [120.4] }, {}), 120, 'WAQI: current only');
+  // Today unknown while an Alert-mode slot would show tomorrow's »5: the reading.
+  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [null, 50, 0] },
+    { uvSlotDisplay: 'max' }), 2);
+  assert.equal(wu.dayMaxToday('wind', { WIND_TREND_UINT8: [64] },
+    { windUnits: 'knots', windSlotDisplay: 'max' }), 35, 'in the user\'s unit');
+  // Neither a peak nor a reading, or no day-max kind: null.
+  assert.equal(wu.dayMaxToday('uv', { UV_TREND_UINT8: [] }, {}), null);
+  assert.equal(wu.dayMaxToday('uv', { UV_DAY_PEAKS: [null, 50, 0] }, {}), null);
   assert.equal(wu.dayMaxToday('pollen', { POLLEN_TODAY: '2' }, {}), null, 'not a day-max kind');
   assert.equal(wu.dayMaxToday('uv', null, {}), null);
 });

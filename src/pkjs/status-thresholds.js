@@ -19,8 +19,8 @@
   // buildSettingsBlob (the only rainTier consumer) is never called there.
   var rainTier = (typeof require !== 'undefined')
     ? require('./weather/rain-tier.js') : null;
-  // Same guard: displayValue and the alert bake (its only consumers) run
-  // phone-side only.
+  // Same guard: its only consumers — the day-max pick (shownDayMax), the levels
+  // and the alert bake — run phone-side only.
   var wireUnits = (typeof require !== 'undefined')
     ? require('./wire-units.js') : null;
   // The theme-polarity vocabulary, for the text colour an auto highlight colour
@@ -74,12 +74,6 @@
   // and a pre-upgrade watch (no byte 34 at all) both keep today's look.
   var RAIN_DISPLAY = {text: 0, icon: 1, minutes: 2};
 
-  // ALERT_ENTRIES_UINT8 entry header (alert_set.h): bits 0-2 the ThreshKind, bits 3-4
-  // the level, bits 5-7 the value length.
-  var ALERT_LEVEL_SHIFT = 3;
-  var ALERT_LEN_SHIFT = 5;
-  var ALERT_LEN_MAX = 7;
-
   // thresh<Kind>BoldMode -> ThreshBold (src/c/appendix/status_threshold.h). The
   // ladder is monotone over the level: danger is bold under every mode, 'warn'
   // adds the warn level, 'always' adds the normal zone too. 'warn' is 0 so a
@@ -88,9 +82,10 @@
   var DEFAULT_BOLD_MODE = 'warn';
 
   // DWD pollen reaches the phone as one of these display BANDS (a string, see
-  // src/pkjs/weather/pollen.js), NOT a 0-3 number — Number('2-3') is NaN. Map
-  // the band to its numeric level (index i -> i/2) so half-bands compare on the
-  // same 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 scale the threshold is entered on.
+  // src/pkjs/weather/pollen.js), NOT a 0-3 number — Number('2-3') is NaN.
+  // pollenToday maps a band to its numeric level (index i -> i/2) so half-bands
+  // compare on the same 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 scale the threshold is
+  // entered on.
   var POLLEN_BANDS = ['0', '0-1', '1', '1-2', '2', '2-3', '3'];
 
   // A weather kind's danger colour while it is unset: red, on every theme, so a
@@ -324,6 +319,25 @@
   }
 
   /**
+   * What a day-max slot (UV, wind, gusts, AQI) shows: wire-units' dayMaxShown with
+   * the hold rule's warn (holdWarn), so today's peak stays on screen while it is at
+   * or above the kind's warn. The ONE place the hold is applied: the slot's text and
+   * its wind arrow (status-lines packLine reads this once per slot and hands it to
+   * both) and the highlight (displayValue) all judge this same pick, so none of
+   * them can hold on a different warn.
+   * @param {*} code A status item code.
+   * @param {Object} payload weather payload (pre-transform, trends present)
+   * @param {Object} settings Clay settings blob (<code>SlotDisplay, windUnits, the
+   *     kind's thresh pair and the seed-unit pickers)
+   * @returns {?{now: ?number, peak: ?number, nextDay: boolean}} dayMaxShown's pick;
+   *     null without a reading, or for a code that is no day-max kind
+   */
+  function shownDayMax(code, payload, settings) {
+    if (!wireUnits.isDayMaxKind(code)) { return null; }
+    return wireUnits.dayMaxShown(code, payload, settings, holdWarn(code, settings));
+  }
+
+  /**
    * @param {*} v color setting (0xRRGGBB int; '#RRGGBB' string tolerated)
    * @param {number} fallback default when unset/unparseable
    * @returns {number} 0xRRGGBB int
@@ -523,9 +537,24 @@
   }
 
   /**
+   * Today's DWD pollen reading: POLLEN_TODAY, a POLLEN_BANDS string, with its
+   * level (the band's index / 2 — 7 bands -> 0, 0.5, 1, ... 3).
+   * @param {Object} payload weather payload (pre-transform)
+   * @returns {?{band: string, level: number}} the band as the pollen slot prints
+   *     it and the number thresholds compare; null when there is no reading or it
+   *     is no known band
+   */
+  function pollenToday(payload) {
+    var pt = payload.POLLEN_TODAY;
+    if (pt === null || typeof pt === 'undefined') { return null; }
+    var idx = POLLEN_BANDS.indexOf(String(pt));
+    return idx < 0 ? null : {band: POLLEN_BANDS[idx], level: idx / 2};
+  }
+
+  /**
    * The number the user SEES for a weather kind — thresholds compare against
-   * the displayed value. The readers are SHARED with status-lines.js through
-   * wire-units (dayMaxShown), so the two cannot round apart or
+   * the displayed value. The day-max pick is SHARED with status-lines.js
+   * (shownDayMax, over wire-units' readers), so the two cannot round apart or
    * disagree on which peak is shown.
    *
    * The day-max kinds (UV, wind, gusts, AQI) judge the highest of TODAY's
@@ -544,16 +573,12 @@
    * @returns {number|null} displayed number, or null when unavailable
    */
   function displayValue(code, payload, settings) {
-    var s = settings || {};
     if (wireUnits.isDayMaxKind(code)) {
-      return todaysShown(wireUnits.dayMaxShown(code, payload, s, holdWarn(code, s)));
+      return todaysShown(shownDayMax(code, payload, settings));
     }
     if (code === 'pollen') {
-      var pt = payload.POLLEN_TODAY;
-      if (pt === null || typeof pt === 'undefined') { return null; }
-      // POLLEN_TODAY is a DWD band string, not a number — map it to its level.
-      var idx = POLLEN_BANDS.indexOf(String(pt));
-      return idx < 0 ? null : idx / 2;   // 7 bands -> 0,0.5,1,1.5,2,2.5,3
+      var pollen = pollenToday(payload);
+      return pollen ? pollen.level : null;
     }
     return null;
   }
@@ -576,22 +601,22 @@
   }
 
   /**
-   * A weather kind's level for the value its slot shows, against the resolved
-   * pair — toggle-agnostic: the level says how high the value is, the highlight
-   * toggle only says whether the watch colours it.
-   * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
-   * @param {Object} payload weather payload (pre-transform, trends present)
+   * A weather kind's level for a number, against the kind's resolved pair (seeds
+   * when blank) — toggle-agnostic: the level says how high the value is, the
+   * highlight toggle only says whether the watch colours it. The slot levels
+   * (packWeatherLevels, on the number the slot shows) and the Alerts row
+   * (bakeAlerts, on the day's) both judge here.
+   * @param {*} code A status item code.
+   * @param {?number} value the number in the kind's display unit
    * @param {Object} settings Clay settings blob
-   * @returns {?number} 0 normal / 1 warn / 2 danger; null when there is no
-   *     displayed number or the code is not a weather kind
+   * @returns {?number} 0 normal / 1 warn / 2 danger; null without a number or for
+   *     a code that is no weather kind
    */
-  function kindLevel(code, payload, settings) {
+  function levelOf(code, value, settings) {
     var k = weatherKindOf(code);
-    if (!k) { return null; }
-    var v = displayValue(code, payload, settings);
-    if (v === null) { return null; }
+    if (!k || value === null) { return null; }
     var pair = resolvedPair(k.key, settings);
-    return computeLevel(v, pair.warn, pair.danger);
+    return computeLevel(value, pair.warn, pair.danger);
   }
 
   /**
@@ -611,7 +636,8 @@
     var packed = 0;
     for (var k = 0; k < KINDS.length; k++) {
       if (!isWeatherKind(KINDS[k])) { continue; }
-      var level = kindLevel(KINDS[k].code, payload, settings);
+      var code = KINDS[k].code;
+      var level = levelOf(code, displayValue(code, payload, settings), settings);
       if (level === null) { continue; }
       packed |= level << weatherLevelShift(k);
     }
@@ -718,91 +744,67 @@
   }
 
   /**
-   * The number a metric alert judges: the day, not the slot. For the day-max
-   * kinds that is the highest value left TODAY, the current hour included
-   * (wire-units' dayMaxToday — independent of the kind's slot display mode, so
-   * a Now-mode slot or no slot at all still gets the morning "UV reaches 8
-   * today" alert); a kind without day peaks in the payload (not fetched, WAQI's
-   * AQI) and pollen (a daily band) fall back to the current reading, judged as
-   * the slot judges it (displayValue).
-   * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi' | 'pollen'
-   * @param {Object} payload weather payload (pre-transform, trends present)
-   * @param {Object} settings Clay settings blob
-   * @returns {number|null} the number in display units, null when unavailable
-   *     or the code has no alert
-   */
-  function alertValue(code, payload, settings) {
-    if (!weatherKindOf(code) || !payload) { return null; }
-    var s = settings || {};
-    if (wireUnits.isDayMaxKind(code)) {
-      var today = wireUnits.dayMaxToday(code, payload, s);
-      if (today !== null) { return today; }
-      // The current reading ALONE — read without the slot's display mode, which
-      // in Alert mode would hand back tomorrow's marked peak (judged as null) when
-      // today's is unknown. Only the unit picker matters to the number.
-      var shown = wireUnits.dayMaxShown(code, payload, {windUnits: s.windUnits});
-      return shown ? shown.now : null;
-    }
-    return displayValue(code, payload, s);
-  }
-
-  /**
-   * A metric alert's level: alertValue against the kind's resolved pair (the
-   * same pair the slot highlight judges by; seeds when blank).
-   * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi' | 'pollen'
-   * @param {Object} payload weather payload (pre-transform, trends present)
-   * @param {Object} settings Clay settings blob
-   * @returns {?number} 0 normal / 1 warn / 2 danger; null without a value
-   */
-  function alertLevel(code, payload, settings) {
-    var k = weatherKindOf(code);
-    var v = alertValue(code, payload, settings);
-    if (!k || v === null) { return null; }
-    var pair = resolvedPair(k.key, settings);
-    return computeLevel(v, pair.warn, pair.danger);
-  }
-
-  /**
-   * An alert's value text as the kind's slot prints its number, without a unit
-   * (the icon carries it): UV, wind, gusts in the user's wind unit and AQI as
-   * whole numbers, pollen as its DWD band ('2-3').
+   * What a metric alert judges and prints: the day, not the slot. A day-max kind
+   * judges the highest value left TODAY, the current hour included (wire-units'
+   * dayMaxToday — independent of the kind's slot display mode, so a Now-mode slot
+   * or no slot at all still gets the morning "UV reaches 8 today" alert; without
+   * day peaks in the payload, as for WAQI's AQI, the current reading) and prints
+   * it whole, as its slot prints the number (wind and gusts in the user's wind
+   * unit). Pollen, a daily band, judges the band's level and prints the band
+   * ('2-3'), as the pollen slot does.
    * @param {string} code An ALERT_KINDS code.
-   * @param {number} v alertValue's number
-   * @returns {string} ASCII text, '' when it would not fit an entry
+   * @param {Object} payload weather payload (pre-transform, trends present)
+   * @param {Object} settings Clay settings blob (windUnits)
+   * @returns {?{value: number, text: string}} the number in display units and its
+   *     text without a unit (the icon carries it); null when unavailable
    */
-  function alertValueText(code, v) {
-    var text = code === 'pollen'
-      ? (POLLEN_BANDS[Math.round(v * 2)] || '') : String(Math.round(v));
-    return (text.length <= ALERT_LEN_MAX && /^[\x20-\x7E]*$/.test(text)) ? text : '';
+  function alertReading(code, payload, settings) {
+    if (code === 'pollen') {
+      var pollen = pollenToday(payload);
+      return pollen ? {value: pollen.level, text: pollen.band} : null;
+    }
+    var v = wireUnits.dayMaxToday(code, payload, settings);
+    return v === null ? null : {value: v, text: String(Math.round(v))};
   }
 
+  // ALERT_ENTRIES_UINT8 (alert_set.h): per entry one header byte — bits 0-2 the
+  // ThreshKind, bits 3-4 the level, bits 5-7 the value length, at most
+  // ALERT_LEN_MAX — then that many ASCII value bytes; the whole tuple at most
+  // ALERT_ENTRIES_MAX_BYTES, what the watch accepts and its inbox budgets for
+  // (test/inbox-size.test.js). All five metric alerts with their widest realistic
+  // values are 19 B, so nothing is dropped today.
+  // test/alert-entries-contract.test.js pins all four to the C header.
+  var ALERT_LEVEL_SHIFT = 3;
+  var ALERT_LEN_SHIFT = 5;
+  var ALERT_LEN_MAX = 7;
+  var ALERT_ENTRIES_MAX_BYTES = 20;
+
   /**
-   * Bake the Alerts row's metric entries (ALERT_ENTRIES_UINT8, alert_set.h): one entry
-   * per ACTIVE metric alert — switched on (alert<Key>) and at warn or higher —
-   * in the fixed order UV, wind, gust, AQI, pollen. Each entry is one header
-   * byte (bits 0-2 ThreshKind, 3-4 level, 5-7 value length) + that many ASCII
-   * value bytes, which are there only when the kind's Look is 'value'
-   * (alert<Key>Display). Entries that would push the bytes past `cap` are
-   * dropped from the TAIL (pollen first) — the rule the watch applies to its
-   * pixels — so the tuple never outgrows what the watch's inbox budgets for it
-   * (ALERT_ENTRIES_MAX_BYTES, test/inbox-size.test.js).
+   * Bake the Alerts row's metric entries (ALERT_ENTRIES_UINT8): one entry per
+   * ACTIVE metric alert — switched on (alert<Key>) and at warn or higher on its
+   * reading (alertReading) — in the fixed order UV, wind, gust, AQI, pollen. The
+   * value bytes are there only when the kind's Look is 'value' (alert<Key>Display)
+   * and the text is printable ASCII of at most ALERT_LEN_MAX bytes. Entries that
+   * would push the bytes past ALERT_ENTRIES_MAX_BYTES are dropped from the TAIL
+   * (pollen first) — the rule the watch applies to its pixels.
    * @param {Object} payload weather payload (pre-transform, trends present)
    * @param {Object} settings Clay settings blob
-   * @param {number} cap the tuple's byte cap (status-lines.js: 20)
    * @returns {number[]} the entry bytes, [] when nothing is alerting
    */
-  function bakeAlerts(payload, settings, cap) {
+  function bakeAlerts(payload, settings) {
     var out = [];
     if (!payload || !settings) { return out; }
     var alerts = enabledAlerts(settings);
     for (var i = 0; i < alerts.length; i++) {
       var a = alerts[i];
-      var level = alertLevel(a.code, payload, settings);
+      var reading = alertReading(a.code, payload, settings);
+      var level = levelOf(a.code, reading ? reading.value : null, settings);
       if (level === null || level < 1) { continue; }
-      var text = a.showValue ? alertValueText(a.code, alertValue(a.code, payload, settings)) : '';
+      var text = a.showValue ? reading.text : '';
+      if (text.length > ALERT_LEN_MAX || !/^[\x20-\x7E]*$/.test(text)) { text = ''; }
       // Tail-drop: a prefix of the fixed order, never a later entry that happens
       // to be shorter — the watch fits the row by the same rule.
-      if (out.length + 1 + text.length > cap) { break; }
+      if (out.length + 1 + text.length > ALERT_ENTRIES_MAX_BYTES) { break; }
       out.push(a.kindId | (level << ALERT_LEVEL_SHIFT) | (text.length << ALERT_LEN_SHIFT));
       for (var c = 0; c < text.length; c++) { out.push(text.charCodeAt(c)); }
     }
@@ -957,6 +959,7 @@
     seedPair: seedPair,
     resolvedPair: resolvedPair,
     holdWarn: holdWarn,
+    shownDayMax: shownDayMax,
     isGoalKind: isGoalKind,
     isWeatherKind: isWeatherKind,
     DEFAULT_GOAL_COLOR: DEFAULT_GOAL_COLOR,
@@ -967,10 +970,11 @@
     kindConfig: kindConfig,
     computeLevel: computeLevel,
     displayValue: displayValue,
-    kindLevel: kindLevel,
     packWeatherLevels: packWeatherLevels,
-    alertValue: alertValue,
-    alertLevel: alertLevel,
+    ALERT_LEVEL_SHIFT: ALERT_LEVEL_SHIFT,
+    ALERT_LEN_SHIFT: ALERT_LEN_SHIFT,
+    ALERT_LEN_MAX: ALERT_LEN_MAX,
+    ALERT_ENTRIES_MAX_BYTES: ALERT_ENTRIES_MAX_BYTES,
     bakeAlerts: bakeAlerts,
     alertKindCodes: alertKindCodes,
     alertValueKindCodes: alertValueKindCodes,

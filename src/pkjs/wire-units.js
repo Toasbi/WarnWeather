@@ -174,30 +174,31 @@ function dayMaxShown(code, payload, settings, warn) {
 /**
  * The highest number a day-max kind prints for the rest of TODAY, the current hour
  * included, in the display unit — what the Alerts row judges (status-thresholds'
- * alertValue), whatever the kind's slot shows: an alert warns about the day, so a
+ * alertReading), whatever the kind's slot shows: an alert warns about the day, so a
  * user with a Now-mode slot (or no slot at all) still gets the morning "UV reaches 8
  * today". Reads *_DAY_PEAKS[0] through the kind's own reader, so it rounds exactly
  * like the slot, and never answers below the current reading (peaks[0] covers the
  * current hour already; the max only guards a feed that disagrees with itself).
+ * Without today's peak in the payload (not fetched, WAQI's AQI, today's unknown) it
+ * answers the current reading alone — never the slot's pick, which in Alert mode
+ * would be tomorrow's marked peak.
  *
  * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {Object} payload Weather payload (the kind's trend + *_DAY_PEAKS).
  * @param {Object} settings Clay settings blob (windUnits).
- * @returns {?number} Today's remaining peak; null when the kind has no day peak in
- *     the payload (not fetched, WAQI's AQI, a non-day-max code) — the caller then
- *     falls back to the current reading.
+ * @returns {?number} Today's remaining peak, else the current reading; null when
+ *     there is neither, or for a non-day-max code.
  */
 function dayMaxToday(code, payload, settings) {
     var reader = isDayMaxKind(code) ? DAY_MAX_READERS[code] : null;
-    var peaks = reader && payload ? payload[reader.peaks] : null;
-    if (!peaks || typeof peaks[0] !== 'number' || !isFinite(peaks[0])) { return null; }
+    if (!reader || !payload) { return null; }
     var s = settings || {};
-    var today = reader.shown(peaks[0], s);
     var head = trendHead(payload[reader.trend]);
-    if (typeof head === 'number' && isFinite(head)) {
-        today = Math.max(today, reader.shown(head, s));
-    }
-    return today;
+    var now = (typeof head === 'number' && isFinite(head)) ? reader.shown(head, s) : null;
+    var peaks = payload[reader.peaks];
+    if (!peaks || typeof peaks[0] !== 'number' || !isFinite(peaks[0])) { return now; }
+    var today = reader.shown(peaks[0], s);
+    return now === null ? today : Math.max(today, now);
 }
 
 /**

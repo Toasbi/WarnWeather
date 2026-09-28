@@ -296,9 +296,11 @@ function phoneBatterySupported() {
  *   Only the per-kind unit and the two-value pairs' fit rule (status-pair.js)
  *   consult it -- the value itself is still truncated by the caller, which owns
  *   the wire.
+ * @param {?Object} [dayMax] A day-max kind's pick, thresholds.shownDayMax -- packLine
+ *   reads it once per slot for the text and the arrow; absent = read here.
  * @returns {string} display text, '--' when the value is unavailable
  */
-function formatValue(code, payload, settings, slotKey, cap) {
+function formatValue(code, payload, settings, slotKey, cap, dayMax) {
   var v;
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
@@ -343,18 +345,18 @@ function formatValue(code, payload, settings, slotKey, cap) {
   if (wireUnits.isDayMaxKind(code)) {
     // The day-max kinds' global per-kind display mode (each kind's Edit sheet),
     // the temp slot's pattern: absent = 'current'. 'max' is the day's peak
-    // (wire-units' dayMaxShown): today's while it is ahead, running, or at or
-    // above the kind's warn level (thresholds.holdWarn -- the stored pair, else
-    // its seed, whether or not the highlight is on: the slot is an alert, so a
-    // 7 falling from an 8 under warn 6 stays '7'), then tomorrow's, carrying the
+    // (thresholds.shownDayMax): today's while it is ahead, running, or at or
+    // above the kind's warn level (the stored pair, else its seed, whether or
+    // not the highlight is on: the slot is an alert, so a 7 falling from an 8
+    // under warn 6 stays '7'), then tomorrow's, carrying the
     // user's next-day mark; 'both' pairs the two in the user's order and
     // separator, and a held today's peak equal to now prints once. The text is
     // status-pair's -- absent settings = current first, slash, '»' mark: 3/7,
     // 5/»8. No peak ahead known falls back to the current reading alone, never
     // '3/--'. UV and AQI are bare (their icon carries the context); wind and
     // gusts append their unit label when the whole text still fits ('12/30kph').
-    var shown = wireUnits.dayMaxShown(code, payload, settings,
-      thresholds.holdWarn(code, settings));
+    var shown = typeof dayMax === 'undefined'
+      ? thresholds.shownDayMax(code, payload, settings) : dayMax;
     if (!shown) { return '--'; }
     // The unit gives way to the direction arrow (packLine appends it after the
     // text, only into a free byte): '12/30' + arrow, never '12/30kph' without one.
@@ -446,9 +448,11 @@ function textCap(slotIndex) {
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
  * @param {string} text the slot's already-formatted display text
+ * @param {?Object} dayMax the slot's day-max pick (thresholds.shownDayMax), the
+ *   one its text was formatted from
  * @returns {number} 0x01..0x10, or 0 when no arrow should be drawn
  */
-function directionSentinel(code, payload, settings, env, text) {
+function directionSentinel(code, payload, settings, env, text, dayMax) {
   // Never on aplite: its lean status-row twin has no arrow and would draw the
   // control byte as a glyph box.
   if (!settings || !env || env.platform === 'aplite') { return 0; }
@@ -464,10 +468,9 @@ function directionSentinel(code, payload, settings, env, text) {
   // Alert ('max') alone prints the peak, not the wind the arrow describes (the
   // current hour's), so it draws none -- a held today's peak equal to now
   // included, as for every peak it shows alone; Both keeps it, its first reading
-  // being now's. Same warn as formatValue, so the two never pick different peaks.
-  var shown = wireUnits.dayMaxShown(code, payload, settings,
-    thresholds.holdWarn(code, settings));
-  if (shown && shown.now === null) { return 0; }
+  // being now's. The pick is the one the text was formatted from, so the two
+  // never judge different peaks.
+  if (dayMax && dayMax.now === null) { return 0; }
   var from = trendHead(payload && payload.WIND_DIR_TREND);
   if (typeof from !== 'number' || !isFinite(from)) { return 0; }
   // Normalize into [0,360) before the flip so no input can push the byte outside
@@ -542,10 +545,13 @@ function packLine(line, payload, settings, env) {
       bytes.push(catalog.KINDS.TEXT, icon, weekBytes.length);
       for (var wb = 0; wb < weekBytes.length; wb++) { bytes.push(weekBytes[wb]); }
     } else if (item.kind === catalog.KINDS.TEXT) {
+      // A day-max kind's pick (null for every other kind), read once: the text
+      // and the wind arrow below must judge the same peak.
+      var dayMax = thresholds.shownDayMax(code, payload, settings);
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.
-      var text = formatValue(code, payload, settings, key, textCap(s));
+      var text = formatValue(code, payload, settings, key, textCap(s), dayMax);
       var valueBytes = utf8Truncate(utf8Encode(text), textCap(s));
       // Wind-direction arrow: one trailing sentinel byte, appended AFTER the
       // truncation so it can never be split or push the slot past its cap, and
@@ -553,7 +559,7 @@ function packLine(line, payload, settings, env) {
       // watch's blob validator needs no change and the arrow rides inside the
       // slot's already-paid-for text bytes -- zero wire cost. The watch strips
       // the byte before measuring or drawing the text.
-      var dirByte = directionSentinel(code, payload, settings, env, text);
+      var dirByte = directionSentinel(code, payload, settings, env, text, dayMax);
       if (dirByte && valueBytes.length < textCap(s)) { valueBytes.push(dirByte); }
       bytes.push(item.kind, icon, valueBytes.length);
       for (var b = 0; b < valueBytes.length; b++) { bytes.push(valueBytes[b]); }
@@ -563,11 +569,6 @@ function packLine(line, payload, settings, env) {
   }
   return bytes;
 }
-
-// The Alerts row's entry tuple cap (alert_set.h ALERT_ENTRIES_MAX_BYTES): all
-// five metric alerts with their widest values are 19 B, so nothing is dropped
-// today; the cap is what the watch's inbox budgets for (test/inbox-size.test.js).
-var ALERT_ENTRIES_CAP = 20;
 
 /**
  * Add STATUS_LINE_1..4_UINT8, the packed STATUS_LEVELS_UINT8 threshold bytes and
@@ -611,7 +612,7 @@ function buildStatusLines(payload, settings, watchInfo) {
     // radar cache. The row is compiled out on exactly the platforms the highlight
     // is (WW_ALERT_ROW and WW_THRESHOLD_HIGHLIGHT: every platform but aplite), so
     // this gate is the right one, and aplite's inbox never budgets for the tuple.
-    payload.ALERT_ENTRIES_UINT8 = thresholds.bakeAlerts(payload, settings, ALERT_ENTRIES_CAP);
+    payload.ALERT_ENTRIES_UINT8 = thresholds.bakeAlerts(payload, settings);
   }
   return payload;
 }
@@ -646,7 +647,6 @@ var SOURCE_KEYS = [
 module.exports = {
   buildStatusLines: buildStatusLines,
   SOURCE_KEYS: SOURCE_KEYS,
-  ALERT_ENTRIES_CAP: ALERT_ENTRIES_CAP,
   packLine: packLine,
   formatValue: formatValue,
   formatCountdown: formatCountdown,

@@ -1366,7 +1366,7 @@ test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, icon-only b
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
   // UV danger (kind 7, level 2), wind warn (kind 2, level 1), no value bytes.
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [7 | (2 << 3), 2 | (1 << 3)]);
-  assert.deepEqual(p.ALERT_ENTRIES_UINT8, thresholds.bakeAlerts(alertPayload(), s, 20));
+  assert.deepEqual(p.ALERT_ENTRIES_UINT8, thresholds.bakeAlerts(alertPayload(), s));
 });
 
 test('buildStatusLines: all four with values fit the tuple, in the fixed order', () => {
@@ -1378,7 +1378,7 @@ test('buildStatusLines: all four with values fit the tuple, in the fixed order',
     [2 | (1 << 3) | (2 << 5)], ch('45'),
     [3 | (2 << 3) | (2 << 5)], ch('90'),
     [0 | (2 << 3) | (3 << 5)], ch('152')));
-  assert.ok(p.ALERT_ENTRIES_UINT8.length <= statusLines.ALERT_ENTRIES_CAP);
+  assert.ok(p.ALERT_ENTRIES_UINT8.length <= thresholds.ALERT_ENTRIES_MAX_BYTES);
 });
 
 test('buildStatusLines: nothing alerting sends an empty ALERT_ENTRIES_UINT8', () => {
@@ -1431,5 +1431,5 @@ test('the entry cap holds all five alerts with their widest values', () => {
   let n = 0;
   for (let i = 0; i < bytes.length; i += 1 + (bytes[i] >> 5)) { n++; }
   assert.equal(n, 5);
-  assert.ok(bytes.length <= statusLines.ALERT_ENTRIES_CAP, bytes.length + ' B');
+  assert.ok(bytes.length <= thresholds.ALERT_ENTRIES_MAX_BYTES, bytes.length + ' B');
 });

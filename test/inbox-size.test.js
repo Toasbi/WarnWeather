@@ -89,9 +89,9 @@ function buildWeatherOutboxPayload(payload) {
   return outgoing;
 }
 
-// The Alerts row's entry tuple cap (status-lines.js ALERT_ENTRIES_CAP, alert_set.h
+// The Alerts row's entry tuple cap (status-thresholds.js and alert_set.h
 // ALERT_ENTRIES_MAX_BYTES): the bundle budgets the tuple at it.
-const ALERT_ENTRIES_CAP = require('../src/pkjs/status-lines').ALERT_ENTRIES_CAP;
+const ALERT_ENTRIES_CAP = require('../src/pkjs/status-thresholds').ALERT_ENTRIES_MAX_BYTES;
 
 /**
  * Build the heaviest single AppMessage the phone can emit (DWD + wind).

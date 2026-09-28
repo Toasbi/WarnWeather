@@ -24,23 +24,26 @@ function cDefine(name) {
   return Number(m[1]);
 }
 
+const th = require('../src/pkjs/status-thresholds.js');
+
 test('the entry header layout is in lockstep with alert_set.h', () => {
   assert.equal(cDefine('STATUS_ALERT_KIND_MASK'), 0x07);
   assert.equal(cDefine('STATUS_ALERT_LEVEL_SHIFT'), 3);
   assert.equal(cDefine('STATUS_ALERT_LEVEL_MASK'), 3);
   assert.equal(cDefine('STATUS_ALERT_LEN_SHIFT'), 5);
   assert.equal(cDefine('STATUS_ALERT_LEN_MAX'), 7);
-  const th = require('../src/pkjs/status-thresholds.js');
+  assert.equal(th.ALERT_LEVEL_SHIFT, cDefine('STATUS_ALERT_LEVEL_SHIFT'));
+  assert.equal(th.ALERT_LEN_SHIFT, cDefine('STATUS_ALERT_LEN_SHIFT'));
+  assert.equal(th.ALERT_LEN_MAX, cDefine('STATUS_ALERT_LEN_MAX'));
   const bytes = th.bakeAlerts({ UV_TREND_UINT8: [80] },
-    { alertUv: true, alertUvDisplay: 'value' }, 20);
+    { alertUv: true, alertUvDisplay: 'value' });
   assert.deepEqual(bytes, [7 | (2 << cDefine('STATUS_ALERT_LEVEL_SHIFT'))
     | (1 << cDefine('STATUS_ALERT_LEN_SHIFT')), '8'.charCodeAt(0)]);
 });
 
 test('the phone bakes the tuple under the cap the watch accepts', () => {
-  const statusLines = require('../src/pkjs/status-lines.js');
   assert.equal(cDefine('ALERT_ENTRIES_MAX_BYTES'), 20);
-  assert.equal(statusLines.ALERT_ENTRIES_CAP, cDefine('ALERT_ENTRIES_MAX_BYTES'));
+  assert.equal(th.ALERT_ENTRIES_MAX_BYTES, cDefine('ALERT_ENTRIES_MAX_BYTES'));
 });
 
 test('ALERT_ENTRIES_UINT8 is a declared message key, appended after the shipped ones', () => {

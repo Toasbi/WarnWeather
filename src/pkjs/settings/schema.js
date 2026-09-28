@@ -1067,7 +1067,7 @@ function alertSheet(keyStem, title, subject, hint, coda) {
             text: 'Alert',
             toggleKey: key,
             // "reaches … today": the entry fires on the highest value left today, so the
-            // morning icon for an afternoon peak is by design (status-thresholds alertValue).
+            // morning icon for an afternoon peak is by design (status-thresholds alertReading).
             // `coda` closes it for a kind whose look-ahead depends on its source (AQI).
             intro: 'Shows an icon in the Alerts row when ' + subject + ' reaches your warn level '
                 + 'at any point left today, so an afternoon peak shows from the morning on.' + (coda || '')
@@ -1104,7 +1104,7 @@ var ALERT_KINDS = [
     {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', icon: 'wind'},
     {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', icon: 'gust'},
     // AQI looks ahead only on an hourly forecast (AQI_DAY_PEAKS): WAQI — the default
-    // source, and Auto whenever a station answers — has none, so alertValue judges
+    // source, and Auto whenever a station answers — has none, so alertReading judges
     // the current reading. The coda mirrors the slot sheet's source note.
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
         icon: 'aqi', coda: ' Looking ahead needs the Open-Meteo AQI provider (General tab); with WAQI '
