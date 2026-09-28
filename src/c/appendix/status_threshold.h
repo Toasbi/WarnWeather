@@ -59,39 +59,38 @@
 //                       level (a goal kind's "close"), for the status slot and
 //                       the alert icon alike — 0 none, 1 outline, 2 fill (3
 //                       reserved, reads as outline). A blob without these bytes
-//                       (36 B and shorter) derives the look from the warn color
+//                       (34 B and shorter) derives the look from the warn color
 //                       byte: 0x00 -> none, any colour -> outline — exactly what
 //                       the watch drew before the bytes existed.
-//    Widened 27 -> 29 bytes when UV became kind 7, 29 -> 33 when the bold-only
-//    kinds (8..15) grew the bold area to 16 kinds, 33 -> 34 when battery %
-//    (kind 16) opened byte 33. (An interim 31-byte 8-kind bold format never
-//    shipped, so it validates as garbage, not as legacy.) Dew point (kind 17)
-//    appended into byte 33's second cell and cost NOTHING: the byte was already
-//    paid for, so THRESH_SETTINGS_BYTES and the accepted-length set below are
-//    unchanged. The two phone-battery kinds (18, 19) took byte 33's third and
-//    fourth cells on the same terms — still 34 bytes. That EXHAUSTED the bold
-//    area, and 34 -> 36 then appended the two alert bytes right after it (the
-//    rain look, then the per-bar placement). So the alert bytes now END the
-//    blob behind a full bold area: kind 20 is no longer a plain append — it
-//    needs a sixth bold byte AND must relocate BOTH alert bytes (and the warn
-//    look bytes behind them), a LAYOUT change (a new accepted length and a
-//    reader that knows every position). The _Static_asserts below the offsets
+//    One widening per release that shipped a new length, each on top of the
+//    29-byte pre-bold layout:
+//      - 1.11.0: 33 B, the bold area for kinds 0..15 (bytes 29..32).
+//      - 1.12.0: 34 B, battery % (kind 16) opened byte 33; dew point (17) and the
+//        two phone-battery kinds (18, 19) later took its other three cells for
+//        free, which EXHAUSTED the bold area.
+//      - 1.24.0: 38 B, the two alert bytes (the rain look, the per-bar
+//        placement) and the two warn-look bytes, which cover the 8 PAIRED kinds
+//        only (a ninth paired kind would need a third byte — asserted below).
+//    The alert bytes sit right behind the full bold area, so kind 20 is no plain
+//    append — it needs a sixth bold byte AND must relocate BOTH alert bytes (and
+//    the warn-look bytes behind them), a LAYOUT change (a new accepted length and
+//    a reader that knows every position). The _Static_asserts below the offsets
 //    turn that into a compile error instead of kind 20's bold cell silently
-//    aliasing the rain look. 36 -> 38 appended the two warn-look bytes, which
-//    cover the 8 PAIRED kinds only (a ninth paired kind would need a third
-//    byte — also asserted below).
-//    Exactly six lengths are accepted: the current 38, 36 (no warn look), 35
-//    (the rain look without the placement byte), the pre-alerts 34, the
-//    16-kind 33, and the pre-bold 29. The UV step SHIFTED the health offsets, so a 27-byte blob
-//    would be misread and is rejected; the bold and alert steps only APPEND,
-//    so a shorter accepted blob still describes every field before it and is
-//    read with the default for what it lacks (a 33-byte blob reads kind 16 as
-//    the default bold mode, a 34-byte blob reads the rain look as text, a
-//    35-byte one the placement as top strip left — the rain takeover the strip
-//    always had, a 36-byte one the warn look from the warn color byte). That matters on upgrade: the phone only force-resends its
-//    settings when the watch reports NO config at all, so rejecting an old
-//    length would blank an existing user's highlighting until they happened to
-//    open the settings page.
+//    aliasing the rain look.
+//    Exactly four lengths are accepted: the current 38, the pre-alerts 34, the
+//    16-kind 33, and the pre-bold 29. The interim 31-byte (8-kind bold), 35-byte
+//    (the rain look without the placement) and 36-byte (no warn look) formats
+//    never shipped — they existed only on feature branches — so they validate as
+//    garbage, not as legacy. The UV step (27 -> 29) SHIFTED the health offsets,
+//    so a 27-byte blob would be misread and is rejected; every step since only
+//    APPENDS, so a shorter accepted blob still describes every field before it
+//    and is read with the default for what it lacks (a 33-byte blob reads kind
+//    16 as the default bold mode; a 34-byte one reads the rain look as text, the
+//    placement as top strip left — the rain takeover the strip always had — and
+//    the warn look from the warn color byte). That matters on upgrade: the
+//    phone only force-resends its settings when the watch reports NO config at
+//    all, so rejecting an old length would blank an existing user's
+//    highlighting until they happened to open the settings page.
 //    Health threshold wire units: steps = steps, sleep = MINUTES,
 //    distance = 100 m units (the status row's own display resolution).
 
@@ -115,15 +114,11 @@
 // The 16-kind length before byte 33 (kinds 16..19) was appended — still
 // accepted; kinds 16+ read the default bold mode.
 #define THRESH_SETTINGS_BYTES_PRE_KIND16 33
-// The length before the alerts byte was appended — still accepted (every
-// install at upgrade time); the rain look reads as text.
+// The length before the alert and warn-look bytes were appended — still
+// accepted (every install at upgrade time): the rain look reads as text, the
+// placement as top strip left with every other bar off, and the warn look
+// derives from the warn color byte (0x00 none, else outline).
 #define THRESH_SETTINGS_BYTES_PRE_ALERTS 34
-// The length before the per-bar placement byte was appended — still accepted;
-// the placement reads as top strip left, every other bar off.
-#define THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS 35
-// The length before the two warn-look bytes were appended — still accepted; the
-// look derives from the warn color byte (0x00 none, else outline).
-#define THRESH_SETTINGS_BYTES_PRE_WARN_LOOK 36
 
 typedef enum {
     THRESH_AQI = 0,
@@ -181,8 +176,6 @@ _Static_assert(THRESH_BAR_ALERTS_OFFSET == THRESH_ALERTS_OFFSET + 1
 _Static_assert(THRESH_SETTINGS_BYTES
                == THRESH_WARN_LOOK_OFFSET + (THRESH_PAIRED_KIND_COUNT + 3) / 4,
                "a paired kind past 7 needs a third warn-look byte (layout change)");
-_Static_assert(THRESH_SETTINGS_BYTES_PRE_WARN_LOOK == THRESH_WARN_LOOK_OFFSET,
-               "the pre-warn-look length is where the warn-look bytes start");
 
 // The health trio computes its levels ON the watch from live health values; every
 // other kind (0..3 and UV) is phone-computed via the packed levels wire value.
@@ -277,7 +270,7 @@ typedef enum {
     THRESH_WARN_LOOK_FILL = 2,      // filled in the warn colour, legible ink over it
 } ThreshWarnLook;
 
-// The kind's warn look. A blob without the look bytes (36 B and shorter) derives
+// The kind's warn look. A blob without the look bytes (34 B and shorter) derives
 // it from the warn color byte — 0x00 (the old no-outline sentinel) -> NONE, any
 // colour -> OUTLINE — which is what those watches drew. The reserved wire value 3
 // reads as OUTLINE. NONE for an invalid blob and for a kind without a pair (the
@@ -323,7 +316,7 @@ typedef enum {
 } ThreshAlertsPlace;
 
 // The Alerts row's placement for `bar` (a ThreshBar) — a ThreshAlertsPlace.
-// A blob without the placement byte (35/34/33/29 B, or invalid) answers what the
+// A blob without the placement byte (34/33/29 B, or invalid) answers what the
 // watch drew before the byte existed: THRESH_ALERTS_LEFT for the top strip (the
 // rain countdown's takeover of its left slot), THRESH_ALERTS_OFF for every other
 // bar. An out-of-range bar is OFF.

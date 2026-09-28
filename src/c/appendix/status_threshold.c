@@ -90,14 +90,11 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 }
 
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
-    // Six exact lengths, never a range: the pre-bold 29, the 16-kind 33, the
-    // pre-alerts 34, the pre-placement 35 and the pre-warn-look 36 are readable
-    // because the bold bytes, the two alert bytes and the two warn-look bytes
-    // were appended (see status_threshold.h).
+    // Four exact lengths, never a range: the pre-bold 29, the 16-kind 33 and
+    // the pre-alerts 34 are readable because the bold bytes, the two alert
+    // bytes and the two warn-look bytes were appended (see status_threshold.h).
     return blob != NULL
         && (len == THRESH_SETTINGS_BYTES
-            || len == THRESH_SETTINGS_BYTES_PRE_WARN_LOOK
-            || len == THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS
             || len == THRESH_SETTINGS_BYTES_PRE_ALERTS
             || len == THRESH_SETTINGS_BYTES_PRE_KIND16
             || len == THRESH_SETTINGS_BYTES_PRE_BOLD);

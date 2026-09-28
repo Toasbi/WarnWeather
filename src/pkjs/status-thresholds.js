@@ -24,19 +24,19 @@
   var wireUnits = (typeof require !== 'undefined')
     ? require('./wire-units.js') : null;
 
-  // 27 -> 29 when UV became kind 7; 29 -> 33 when the bold-only kinds (8..15)
-  // widened the bold area to 16 kinds; 33 -> 34 when battery % (kind 16) opened
-  // byte 33; 34 -> 36 when the two alert bytes were appended (the rain look, then
-  // the per-bar placement). (The interim 31-byte, 8-kind-bold format never
-  // shipped — it existed only on an unmerged branch — so exactly
-  // {36, 35, 34, 33, 29} are accepted; see status_threshold.h.) Byte 33 holds
-  // FOUR 2-bit cells (kinds 16..19): dew point (17) and the two phone-battery
-  // kinds (18, 19) all appended into it for free — and it is FULL, with the alert
-  // bytes right behind it. So a twenty-first kind (index 20) is no plain append
-  // any more: it needs a sixth bold byte AND both alert bytes (and the warn-look
-  // bytes behind them) relocated, a layout change on both ends (the C header's
-  // _Static_assert trips). 36 -> 38 appended the two warn-look bytes, so exactly
-  // {38, 36, 35, 34, 33, 29} are accepted now.
+  // One widening per release that shipped a new length, each appended to the
+  // 29-byte pre-bold layout: 1.11.0 shipped 33 (the bold area for kinds 0..15);
+  // 1.12.0 shipped 34 (battery %, kind 16, opened byte 33); 1.24.0 ships 38 (the
+  // two alert bytes — the rain look, the per-bar placement — and the two
+  // warn-look bytes). So exactly {38, 34, 33, 29} are accepted; the interim 31-,
+  // 35- and 36-byte formats never shipped — they existed only on feature
+  // branches — so they validate as garbage, not as legacy (see
+  // status_threshold.h). Byte 33 holds FOUR 2-bit cells (kinds 16..19): dew point
+  // (17) and the two phone-battery kinds (18, 19) all appended into it for free —
+  // and it is FULL, with the alert bytes right behind it. So a twenty-first kind
+  // (index 20) is no plain append any more: it needs a sixth bold byte AND both
+  // alert bytes (and the warn-look bytes behind them) relocated, a layout change
+  // on both ends (the C header's _Static_assert trips).
   var SETTINGS_BYTES = 38;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)

@@ -45,17 +45,15 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
 // Byte 33 is a whole byte holding four 2-bit cells (kinds 16..19), and battery %
 // only claimed the first. Every kind appended into the remaining three was free:
 // the blob's width is paid for on the Clay message (7 B tuple header +
-// SETTINGS_BYTES, recorded in test/inbox-size.test.js). The widenings since are the
-// two alert bytes (34 -> 36), appended right AFTER the bold area — so the bold area
-// now ends where the alert bytes begin — and the two warn-look bytes (36 -> 38).
+// SETTINGS_BYTES, recorded in test/inbox-size.test.js). The only widening since is
+// 1.24.0's 34 -> 38: the two alert bytes, appended right AFTER the bold area — so
+// the bold area now ends where the alert bytes begin — and the two warn-look bytes.
 test('the bold-only kinds sharing byte 33 never widen the blob', () => {
   assert.equal(cEnum('THRESH_DEW'), 17, 'dew is the second cell of byte 33');
   assert.equal(th.BOLD_OFFSET + (cEnum('THRESH_DEW') >> 2), 33,
     'the dew bold cell shares byte 33 with battery %');
-  assert.equal(th.SETTINGS_BYTES, 38, 'the alert and warn-look bytes are the widenings past 34');
+  assert.equal(th.SETTINGS_BYTES, 38, 'the alert and warn-look bytes are the widening past 34');
   assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 38);
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_WARN_LOOK'), 36);
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS'), 35);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
   // Capacity, stated once: the bold area runs to the end of byte 33, and kinds
@@ -177,14 +175,12 @@ test('the phone-battery kinds are 18/19 and share one settings key', () => {
 });
 
 // Kinds 18 and 19 took byte 33's LAST two 2-bit cells without widening the blob;
-// the widenings since are the two alert bytes (34 -> 36), which added exactly two
-// accepted lengths (34 pre-alerts, 35 pre-placement) for upgrading watches, and the
-// two warn-look bytes (36 -> 38), which added one more (36 pre-warn-look).
-test('kinds 18/19 fill byte 33; the alert and warn-look bytes add exactly three accepted lengths', () => {
+// the only widening since is 1.24.0's 34 -> 38 (the two alert bytes and the two
+// warn-look bytes), which added exactly one accepted length — 34, pre-alerts — for
+// upgrading watches. Its interim 35- and 36-byte steps never shipped.
+test('kinds 18/19 fill byte 33; the alert and warn-look bytes add exactly one accepted length', () => {
   assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 38);
   assert.equal(th.SETTINGS_BYTES, 38);
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_WARN_LOOK'), 36);
-  assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS'), 35);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
   assert.equal(cDefine('THRESH_BOLD_OFFSET'), 29);
@@ -197,20 +193,18 @@ test('kinds 18/19 fill byte 33; the alert and warn-look bytes add exactly three 
   });
   assert.equal(2 * (iconedKind & 3), 4, 'phoneBattery is byte 33 bits 4-5');
   assert.equal(2 * (plainKind & 3), 6, 'phoneBatteryPlain is byte 33 bits 6-7');
-  // The watch accepts exactly SIX blob lengths — 38, 36 (pre-warn-look), 35
-  // (pre-placement), 34 (pre-alerts), 33 (pre-kind-16), 29 (pre-bold). A seventh
-  // entry in status_threshold.c's validator would mean another widening.
+  // The watch accepts exactly FOUR blob lengths — 38, 34 (pre-alerts), 33
+  // (pre-kind-16), 29 (pre-bold). A fifth entry in status_threshold.c's validator
+  // would mean another shipped widening.
   const validator = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'c', 'appendix', 'status_threshold.c'), 'utf8')
     .split('bool status_threshold_settings_validate')[1].split('}')[0];
   const lengths = [...validator.matchAll(/len\s*==\s*(THRESH_SETTINGS_BYTES[A-Z0-9_]*)/g)]
     .map(m => m[1]);
   assert.deepEqual(lengths,
-    ['THRESH_SETTINGS_BYTES', 'THRESH_SETTINGS_BYTES_PRE_WARN_LOOK',
-      'THRESH_SETTINGS_BYTES_PRE_BAR_ALERTS',
-      'THRESH_SETTINGS_BYTES_PRE_ALERTS', 'THRESH_SETTINGS_BYTES_PRE_KIND16',
-      'THRESH_SETTINGS_BYTES_PRE_BOLD'],
-    'exactly the six known lengths');
+    ['THRESH_SETTINGS_BYTES', 'THRESH_SETTINGS_BYTES_PRE_ALERTS',
+      'THRESH_SETTINGS_BYTES_PRE_KIND16', 'THRESH_SETTINGS_BYTES_PRE_BOLD'],
+    'exactly the four known lengths');
   // Byte 33 is FULL, and the alert bytes sit right behind it: kind 20 needs a
   // sixth bold byte AND both alert bytes relocated — a layout change. Stated as an
   // equality so the next append trips this test.

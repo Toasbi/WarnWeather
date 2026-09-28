@@ -578,14 +578,14 @@ static void box_tests(void) {
             }
         }
     }
-    // A legacy 36-byte blob keeps its old answer: the warn colour's 0x00 draws no
-    // box, any colour an outline.
+    // A pre-alerts 34-byte blob (every install at upgrade time) keeps its old
+    // answer: the warn colour's 0x00 draws no box, any colour an outline.
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0x00;
     expect("box.legacy_wind_none",
-           alert_set_box(blob, THRESH_SETTINGS_BYTES_PRE_WARN_LOOK, &wind_warn, &c8),
+           alert_set_box(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, &wind_warn, &c8),
            THRESH_BOX_NONE);
     expect("box.legacy_uv_outline",
-           alert_set_box(blob, THRESH_SETTINGS_BYTES_PRE_WARN_LOOK, &uv_warn, &c8),
+           alert_set_box(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, &uv_warn, &c8),
            THRESH_BOX_OUTLINE);
     expect("box.null", alert_set_box(blob, n, NULL, NULL), THRESH_BOX_NONE);
 }
