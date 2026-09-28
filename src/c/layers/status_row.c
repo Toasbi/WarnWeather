@@ -853,24 +853,17 @@ static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
 static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *place,
                                 const StatusSlotMeasure *m, int16_t x0, int cap_cy,
                                 int content_h, const char *text) {
-    int16_t start = (int16_t)(x0 + (m->icon_w > 0 ? place->icon_x : place->text_x));
-    int16_t end = place->text_visible
-        ? (int16_t)(x0 + place->text_x + place->text_w)
-        : (int16_t)(x0 + place->icon_x + m->icon_w);
-    // The wind arrow is the slot's LAST ink, past the text — a box that stopped at
-    // the text would let a fill clip it. Gated on text_visible for exactly
-    // the condition the arrow itself draws under, so the box never reserves room
-    // for ink that isn't there; suffix_w is 0 on every other slot, so no plain slot
-    // widens by so much as a pixel.
-    if (m->suffix_w > 0 && place->text_visible) {
-        int16_t suffix_end = (int16_t)(x0 + place->suffix_x + m->suffix_w);
-        if (suffix_end > end) { end = suffix_end; }
-    }
+    // status_slot_ink reaches to the wind arrow, the slot's LAST ink past the text, so a
+    // fill cannot clip it; and only while the arrow draws, so the box never reserves
+    // room for ink that isn't there (suffix_w is 0 on every other slot).
+    int16_t lo;
+    int16_t hi;
+    status_slot_ink(place, m, &lo, &hi);
     StatusHighlightExtent v = status_highlight_extent(
         row->bounds.origin.y, row->bounds.size.h, (int16_t)cap_cy,
         (int16_t)content_h, row->line_id == STATUS_LINE_TOP,
         place->text_visible && status_text_has_descender(text));
-    return GRect((int16_t)(start - 2), v.y, (int16_t)((end - start) + 4), v.h);
+    return GRect((int16_t)(x0 + lo - 2), v.y, (int16_t)((hi - lo) + 4), v.h);
 }
 
 #if defined(WW_ALERT_ROW)
@@ -884,15 +877,6 @@ typedef struct {
     StatusAlertsText text;
     int16_t widths[ALERT_SET_MAX];
 } AlertsPass;
-
-// A placed slot's ink extent end: its suffix lane, else its text, else its icon —
-// the right edge slot_highlight_box() frames. (Its start is always icon_x:
-// place_group puts the group there whether or not it has an icon.)
-static int16_t place_end(const StatusSlotPlace *p, const StatusSlotMeasure *m) {
-    if (m->suffix_w > 0 && p->text_visible) { return (int16_t)(p->suffix_x + m->suffix_w); }
-    if (p->text_visible) { return (int16_t)(p->text_x + p->text_w); }
-    return (int16_t)(p->icon_x + m->icon_w);
-}
 
 // Resolve and measure the Alerts row at its full lanes. False = nothing to draw
 // (no alert active, or OOM for the cache): the bar then lays out exactly as it
@@ -964,8 +948,7 @@ static void alerts_layout(const StatusRow *row, AlertsPass *a,
     int16_t lo[STATUS_SLOT_COUNT];
     int16_t hi[STATUS_SLOT_COUNT];
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        lo[i] = places[i].icon_x;
-        hi[i] = place_end(&places[i], &measures[i]);
+        status_slot_ink(&places[i], &measures[i], &lo[i], &hi[i]);
         if (places[i].visible) { visible |= 1 << i; }
     }
     int x0;

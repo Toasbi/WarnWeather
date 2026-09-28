@@ -40,6 +40,14 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 // slots it shares a row with, so the two can never drift.
 int16_t status_slot_desired_w(const StatusSlotMeasure *m);
 
+// A placed slot's ink extent [lo, hi), content-relative like the place itself: from
+// the group's left edge to its last ink — the suffix while the text shows (the arrow
+// draws only with its reading), else the text's end, else the icon's. `m` is the
+// measure the slot was laid out with. Meaningful for a visible slot only. The one
+// extent both the threshold-highlight box and the Alerts row's span are cut from.
+void status_slot_ink(const StatusSlotPlace *place, const StatusSlotMeasure *m,
+                     int16_t *lo, int16_t *hi);
+
 // Vertical extent (top edge + height) of a slot's threshold-highlight box.
 typedef struct {
     int16_t y;

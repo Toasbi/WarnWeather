@@ -559,6 +559,38 @@ static void slot_desired_w_pins(void) {
     expect("desired.matches_layout", p[0].suffix_x + 8, status_slot_desired_w(&row[0]));
 }
 
+// status_slot_ink is the extent both the highlight box and the Alerts row's span are
+// cut from: the group's start to its last DRAWN ink.
+static void slot_ink_pins(void) {
+    StatusSlotPlace p[3];
+    int16_t lo;
+    int16_t hi;
+    // Icon + text: from the icon to the text's end.
+    StatusSlotMeasure plain[3] = { { true, 11, 30, 0 }, { false, 0, 0, 0 }, { false, 0, 0, 0 } };
+    status_row_layout(138, plain, p);
+    status_slot_ink(&p[0], &plain[0], &lo, &hi);
+    expect("ink.plain.lo", lo, 0);
+    expect("ink.plain.hi", hi, 11 + STATUS_ROW_ICON_TEXT_GAP + 30);
+    // The wind arrow is the last ink, past the text: a lone edge's ink is its whole group.
+    StatusSlotMeasure arrow[3] = { { true, 11, 30, 8 }, { false, 0, 0, 0 }, { false, 0, 0, 0 } };
+    status_row_layout(138, arrow, p);
+    status_slot_ink(&p[0], &arrow[0], &lo, &hi);
+    expect("ink.arrow.hi", hi, 11 + STATUS_ROW_ICON_TEXT_GAP + 30 + STATUS_ROW_ICON_TEXT_GAP + 8);
+    // Squeezed to its glyph, the slot draws neither reading nor arrow: the ink stops at
+    // the glyph although the layout still reserves the arrow's lane.
+    status_row_layout(22, arrow, p);
+    expect("ink.bare_glyph.text_cut", p[0].visible && !p[0].text_visible, 1);
+    status_slot_ink(&p[0], &arrow[0], &lo, &hi);
+    expect("ink.bare_glyph.lo", lo, 0);
+    expect("ink.bare_glyph.hi", hi, 11);
+    // Text only, in the middle: the group starts where the text does.
+    StatusSlotMeasure mid[3] = { { false, 0, 0, 0 }, { true, 0, 40, 0 }, { false, 0, 0, 0 } };
+    status_row_layout(140, mid, p);
+    status_slot_ink(&p[1], &mid[1], &lo, &hi);
+    expect("ink.text_only.lo", lo, 50);
+    expect("ink.text_only.hi", hi, 90);
+}
+
 int main(void) {
     empty_row();
     typical_row();
@@ -577,6 +609,7 @@ int main(void) {
     suffix_sweep_stays_in_bounds();
     highlight_extent_is_font_sized();
     slot_desired_w_pins();
+    slot_ink_pins();
     if (s_failures) { printf("%d status_row_layout failure(s)\n", s_failures); return 1; }
     printf("status_row_layout OK\n");
     return 0;

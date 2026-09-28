@@ -154,6 +154,22 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     place_group(&normalized[1], &mid, mid_x, &out[1]);
 }
 
+void status_slot_ink(const StatusSlotPlace *place, const StatusSlotMeasure *m,
+                     int16_t *lo, int16_t *hi) {
+    // place_group starts the group at icon_x whether or not it has an icon (with no
+    // icon, text_x is the same x), so that is always the first ink.
+    *lo = place->icon_x;
+    if (!place->text_visible) {
+        *hi = (int16_t)(place->icon_x + m->icon_w);
+    } else if (m->suffix_w > 0) {
+        // The wind arrow is the slot's LAST ink, past the text. It draws only while
+        // its reading does, hence inside the text_visible branch.
+        *hi = (int16_t)(place->suffix_x + m->suffix_w);
+    } else {
+        *hi = (int16_t)(place->text_x + place->text_w);
+    }
+}
+
 // Seat a threshold-highlight box on the glyph CAP CENTRE, sized from the FONT, and
 // clamp it to the band per side.
 //
