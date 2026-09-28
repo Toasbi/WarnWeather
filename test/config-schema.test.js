@@ -3177,15 +3177,19 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
 test('every day-max display row carries the live dayMaxHint', () => {
   // The pills' hint quotes the kind's warn level (blocks.js dayMaxHint); the args are
   // the per-mode templates the resolver fills that number into ('{level}'), so they
-  // are pinned verbatim — one sentence set per SELECTED mode, none for Now.
+  // are pinned verbatim — one sentence set per SELECTED mode, none for Now. Both close
+  // on the same highlighting sentence: a tomorrow's peak is judged at its own level.
   const byKey = (k) => items.find((i) => i.messageKey === k);
+  const highlight = ' With Alert highlighting on, tomorrow\'s peak is highlighted at the level it'
+    + ' reaches, like today\'s.';
   const hints = (subject, sample) => ({
     max: 'Today\'s peak — the highest it gets for the rest of today. Once it has passed and '
       + subject + ' below {level}, tomorrow\'s peak shows instead, with the mark chosen below,'
-      + ' or the current reading if tomorrow\'s isn\'t known.',
+      + ' or the current reading if tomorrow\'s isn\'t known.' + highlight,
     both: 'The reading now and today\'s peak, like ' + sample + ' — one number while they\'re the'
       + ' same. Once today\'s peak has passed and ' + subject + ' below {level}, tomorrow\'s peak'
       + ' shows instead, with the mark chosen below, or the reading alone if tomorrow\'s isn\'t known.'
+      + highlight
   });
   assert.deepEqual(['uv', 'wind', 'gust', 'aqi'].map((p) => byKey(p + 'SlotDisplay').hintFrom), [
     { resolver: 'dayMaxHint', args: { keyStem: 'Uv', hints: hints('UV is', '3/7') } },

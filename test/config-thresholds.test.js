@@ -1895,8 +1895,12 @@ test('the UV sheet puts its display-mode pills between the Bold + Highlight rows
     // quoting one glyph that may not be the one on screen.
     assert.equal(h.indexOf('»'), -1, mode + ': no hard-coded » mark');
     assert.match(h, /the mark chosen below/, mode + ': points at the mark row');
-    // What the slot SHOWS, not how it is highlighted (the Alerts sheet explains that).
-    assert.doesNotMatch(h, /highlight/i, mode + ': no highlighting sentence');
+    // What the slot SHOWS, not how it is highlighted (the Alerts sheet explains that),
+    // save one sentence: a tomorrow's peak is highlighted at its own level too.
+    assert.equal(h.match(/highlight/gi).length, 2, mode + ': one highlighting sentence ('
+      + '"Alert highlighting" + "highlighted")');
+    assert.match(h, /With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches/,
+      mode + ': tomorrow\'s peak is highlighted at its own level');
   });
   assert.match(dayMaxHintOf('uv', {}, 'both'), /like 3\/7/, 'Both shows the pair on the kind\'s samples');
   // It configures the SLOT, not the highlight, so it sits above the levels pointer
@@ -1934,11 +1938,14 @@ test('dayMaxHint: Now gets no hint; Alert and Both each explain themselves alone
   assert.equal(dayMaxHintOf('uv', {}, 'max'),
     'Today\'s peak — the highest it gets for the rest of today. Once it has passed and UV is'
     + ' below 6 (your warn level), tomorrow\'s peak shows instead, with the mark chosen below,'
-    + ' or the current reading if tomorrow\'s isn\'t known.');
+    + ' or the current reading if tomorrow\'s isn\'t known. With Alert highlighting on,'
+    + ' tomorrow\'s peak is highlighted at the level it reaches, like today\'s.');
   assert.equal(dayMaxHintOf('uv', {}, 'both'),
     'The reading now and today\'s peak, like 3/7 — one number while they\'re the same. Once'
     + ' today\'s peak has passed and UV is below 6 (your warn level), tomorrow\'s peak shows'
-    + ' instead, with the mark chosen below, or the reading alone if tomorrow\'s isn\'t known.');
+    + ' instead, with the mark chosen below, or the reading alone if tomorrow\'s isn\'t known.'
+    + ' With Alert highlighting on, tomorrow\'s peak is highlighted at the level it reaches,'
+    + ' like today\'s.');
 });
 
 test('dayMaxHint: the hold level is the seed while the pair is blank, the stored warn once set', () => {
@@ -1984,15 +1991,24 @@ test('dayMaxHint: AQI quotes the seed of its scale and adds the source note only
   assert.strictEqual(dayMaxHintOf('aqi', {}, 'current'), '', 'Now: no hint, source note included');
 });
 
-test('dayMaxHint: says nothing about highlighting, whatever the switch', () => {
+test('dayMaxHint: says one thing about highlighting, the same whatever the switch', () => {
   // The hint is about what the slot SHOWS; the highlight is the Alerts sheet's to
-  // explain (settings audit #11/#24 — and tomorrow's marked peak is never judged).
-  [{}, { threshUvOn: true }].forEach((S) => ['max', 'both'].forEach((mode) => {
+  // explain (settings audit #11/#24) — save that a tomorrow's peak, which only these
+  // modes show, is highlighted at its own level too. The sentence names the switch
+  // ("With Alert highlighting on"), so it reads true with the switch off as well.
+  const sentence = 'With Alert highlighting on, tomorrow\'s peak is highlighted at the level it'
+    + ' reaches, like today\'s.';
+  [{}, { threshUvOn: false }, { threshUvOn: true }].forEach((S) => ['max', 'both'].forEach((mode) => {
     const h = dayMaxHintOf('uv', S, mode);
-    assert.doesNotMatch(h, /highlight/i, mode + ': ' + h);
+    assert.equal(h.split(sentence).length, 2, mode + ': the sentence once: ' + h);
+    assert.doesNotMatch(h.split(sentence).join(''), /highlight/i, mode + ': and nothing else about it');
   }));
-  assert.equal(dayMaxHintOf('uv', {}, 'max'), dayMaxHintOf('uv', { threshUvOn: true }, 'max'),
-    'the same text with the switch off or on');
+  ['max', 'both'].forEach((mode) => {
+    assert.equal(dayMaxHintOf('uv', {}, mode), dayMaxHintOf('uv', { threshUvOn: true }, mode),
+      mode + ': the same text with the switch off or on');
+  });
+  // AQI's source note follows it: the highlighting sentence belongs to the mode.
+  assert.match(dayMaxHintOf('aqi', {}, 'max'), /like today's\. Your AQI provider \(WAQI\)/);
 });
 
 test('dayMaxHint: every day-max kind carries the live hint, and no static fallback', () => {

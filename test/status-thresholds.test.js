@@ -354,26 +354,43 @@ test('packWeatherLevels: a UV slot showing a peak is judged on the highest value
     'no day peaks: the slot falls back to the current value, and so does its level');
 });
 
-test('packWeatherLevels: tomorrow\'s marked peak never counts until it is today\'s', () => {
+test('packWeatherLevels: tomorrow\'s marked peak is judged at its own level, like the alert row\'s', () => {
   const settings = { threshUvWarn: '6', threshUvDanger: '8' };
-  // Evening, today spent: "0/»9" is judged on today's 0, not tomorrow's 9.
+  const both = Object.assign({ uvSlotDisplay: 'both' }, settings);
+  const max = Object.assign({ uvSlotDisplay: 'max' }, settings);
+  // Evening, today spent: "0/»9" and a lone "»9" are both judged on tomorrow's 9.
   const evening = { UV_TREND_UINT8: [0], UV_DAY_PEAKS: [0, 90] };
-  assert.deepEqual(th.packWeatherLevels(evening,
-    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 0]);
-  assert.deepEqual(th.packWeatherLevels(evening,
-    Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 0],
-    'a lone "»9" is not highlighted');
-  // Falling below warn with a higher tomorrow: "5/»8" is judged on today's 5,
-  // and max mode's lone "»8" is tomorrow's, so it stays normal too.
-  const falling = { UV_TREND_UINT8: [50], UV_DAY_PEAKS: [50, 80, 80] };
-  assert.deepEqual(th.packWeatherLevels(falling,
-    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 0]);
-  assert.deepEqual(th.packWeatherLevels(falling,
-    Object.assign({ uvSlotDisplay: 'max' }, settings)), [0, 0]);
-  // Next morning the same peak is TODAY's (unmarked) and counts: "2/9" is danger.
+  assert.equal(statusLines.formatValue('uv', evening, both), '0/»9');
+  assert.deepEqual(th.packWeatherLevels(evening, both), [0, 2], '"0/»9" at danger for its 9');
+  assert.deepEqual(th.packWeatherLevels(evening, max), [0, 2], 'a lone "»9" at danger');
+  // Falling below warn with a higher tomorrow: "5/»7" is warn for its 7, and so is
+  // max mode's lone "»7" — the level the UV alert's tomorrow entry carries too.
+  const falling = { UV_TREND_UINT8: [50], UV_DAY_PEAKS: [50, 70, 80] };
+  assert.equal(statusLines.formatValue('uv', falling, both), '5/»7');
+  assert.deepEqual(th.packWeatherLevels(falling, both), [0, 1]);
+  assert.deepEqual(th.packWeatherLevels(falling, max), [0, 1]);
+  const alertTomorrow = { alertUv: true, alertUvDays: 'tomorrow' };
+  assert.equal(decodeAlerts(th.bakeAlerts(falling, Object.assign({}, max, alertTomorrow)))[0].level, 1,
+    'slot and alert agree: tomorrow\'s 7 is warn in both');
+  // A quiet tomorrow stays normal: "5/»3" and "»3" judge the 3.
+  const quiet = { UV_TREND_UINT8: [50], UV_DAY_PEAKS: [50, 30, 80] };
+  assert.deepEqual(th.packWeatherLevels(quiet, both), [0, 0]);
+  assert.deepEqual(th.packWeatherLevels(quiet, max), [0, 0]);
+  // Next morning the same peak is TODAY's (unmarked): "2/9" is danger for its 9.
   const morning = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [90, 60] };
-  assert.deepEqual(th.packWeatherLevels(morning,
-    Object.assign({ uvSlotDisplay: 'both' }, settings)), [0, 2]);
+  assert.deepEqual(th.packWeatherLevels(morning, both), [0, 2]);
+});
+
+test('packWeatherLevels: Both judges the higher of the reading and tomorrow\'s peak beside it', () => {
+  // Today's peak unknown: nothing holds the reading, so a 7 at warn can sit beside
+  // tomorrow's peak. "7/»5" stays warn for its 7; "7/»9" is danger for its 9.
+  const both = { uvSlotDisplay: 'both', threshUvWarn: '6', threshUvDanger: '8' };
+  const lower = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [null, 50, 0] };
+  assert.equal(statusLines.formatValue('uv', lower, both), '7/»5');
+  assert.deepEqual(th.packWeatherLevels(lower, both), [0, 1]);
+  const higher = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [null, 90, 0] };
+  assert.equal(statusLines.formatValue('uv', higher, both), '7/»9');
+  assert.deepEqual(th.packWeatherLevels(higher, both), [0, 2]);
 });
 
 // Regression test for the silent-highlight bug: at a falling 7 (today's peak 8
@@ -1016,10 +1033,10 @@ test('an alert falls back to the current reading: no peaks, WAQI AQI, pollen', (
   // No *_DAY_PEAKS (not fetched, or WAQI's current-only AQI): the reading itself.
   assert.equal(alertText('uv', { UV_TREND_UINT8: [70] }, {}), '7');
   // Today's peak unknown while an Alert-mode slot shows tomorrow's »9: the alert
-  // still judges the current 7, never the (unjudged) next-day peak.
+  // still judges the current 7 (today wins), never the slot's next-day peak.
   const noToday = { UV_TREND_UINT8: [70], UV_DAY_PEAKS: [null, 90, 0] };
-  assert.equal(packedLevel('uv', noToday, { uvSlotDisplay: 'max' }), 0,
-    'guard: the slot\'s lone »9, past the danger seed 8, is judged on nothing');
+  assert.equal(packedLevel('uv', noToday, { uvSlotDisplay: 'max' }), 2,
+    'guard: the slot\'s lone »9 is danger on the seed 6/8 (its own level)');
   assert.equal(alertText('uv', noToday, { uvSlotDisplay: 'max' }), '7');
   assert.equal(alertText('wind', { WIND_TREND_UINT8: [64] },
     { windUnits: 'knots', windSlotDisplay: 'max' }), '35', 'the reading in the user\'s unit');

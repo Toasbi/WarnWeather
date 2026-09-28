@@ -627,9 +627,10 @@ function pairRows(prefix, first, second, orderOptions) {
  * kind's warn level or higher, so a slot never goes quiet under a value that still
  * warrants the warning. The pills' hint explains the SELECTED mode only — Now, the
  * default, gets none — and is about what the slot SHOWS (the highlight is explained in
- * the Alerts sheet). It states the warn level as a NUMBER, live: blocks.js dayMaxHint
- * fills dayMaxHints' {level} from the slider, the unit pickers and the AQI
- * source/scale on every render.
+ * the Alerts sheet), save one sentence: a tomorrow's peak, which only these two modes
+ * show, is highlighted at its own level too. It states the warn level as a NUMBER,
+ * live: blocks.js dayMaxHint fills dayMaxHints' {level} from the slider, the unit
+ * pickers and the AQI source/scale on every render.
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} label The pills' label, e.g. 'UV selection'.
  * @param {{keyStem: string, subject: string, notes: ?Object}} copy The kind's
@@ -671,19 +672,23 @@ function dayMaxRows(prefix, label, copy, now, max) {
  * is neither ahead nor running it equals the reading, so "{subject} below {level}"
  * is the high hold's own test; then tomorrow's peak shows, marked, or — unknown or
  * never above 0 — the reading alone. Both collapses a held today's peak equal to the
- * reading to one number.
+ * reading to one number. The closing sentence is status-thresholds displayValue's: a
+ * shown tomorrow's peak is judged at its own level, as today's is, and the slot's
+ * 'Alert highlighting' switch (the row above the pills) decides whether it shows.
  * @param {string} subject The hold sentence's subject with its verb, e.g. 'UV is'.
  * @param {string} sample The kind's sample pair, e.g. '3/7'.
  * @returns {{max: string, both: string}} The two templates.
  */
 function dayMaxHints(subject, sample) {
     var rest = ' below {level}, tomorrow\'s peak shows instead, with the mark chosen below';
+    var highlight = ' With Alert highlighting on, tomorrow\'s peak is highlighted at the level it '
+        + 'reaches, like today\'s.';
     return {
         max: 'Today\'s peak — the highest it gets for the rest of today. Once it has passed and '
-            + subject + rest + ', or the current reading if tomorrow\'s isn\'t known.',
+            + subject + rest + ', or the current reading if tomorrow\'s isn\'t known.' + highlight,
         both: 'The reading now and today\'s peak, like ' + sample + ' — one number while they\'re '
             + 'the same. Once today\'s peak has passed and ' + subject + rest
-            + ', or the reading alone if tomorrow\'s isn\'t known.'
+            + ', or the reading alone if tomorrow\'s isn\'t known.' + highlight
     };
 }
 /**

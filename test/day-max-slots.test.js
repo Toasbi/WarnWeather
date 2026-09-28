@@ -159,8 +159,11 @@ test('wind holds today\'s peak at warn in the user\'s unit (mph seed 25)', () =>
   const low = { WIND_TREND_UINT8: [35], WIND_DAY_PEAKS: [35, 60, 50] };
   const s = settings({ windUnits: 'mph', windSlotDisplay: 'both', windSlotUnit: false });
   assert.equal(statusLines.formatValue('wind', low, s), '22/' + RAQUO + '37');
-  assert.equal(packedLevel('wind', low, settings({ windUnits: 'mph', windSlotDisplay: 'max' })), 0,
-    'a lone tomorrow\'s »37, past warn 25, is not judged');
+  // Tomorrow's 37 mph is judged at its own level (warn: 25 <= 37 < 40), alone or
+  // beside today's 22.
+  assert.equal(packedLevel('wind', low, s), 1, '"22/»37" is warn for its 37');
+  assert.equal(packedLevel('wind', low, settings({ windUnits: 'mph', windSlotDisplay: 'max' })), 1,
+    'a lone tomorrow\'s »37 is warn in mph');
 });
 
 test('gust holds on the knots seed: the same km/h can hold in knots and roll in kph', () => {
@@ -171,7 +174,7 @@ test('gust holds on the knots seed: the same km/h can hold in knots and roll in 
   assert.equal(packedLevel('gust', p, knots), 1, 'judged on the 30 (knots seed 30/50)');
   const kph = settings({ windUnits: 'kph', gustSlotDisplay: 'max', gustSlotUnit: false });
   assert.equal(statusLines.formatValue('gust', p, kph), RAQUO + '90');
-  assert.equal(packedLevel('gust', p, kph), 0, 'the lone »90, at the kph danger 90, is not judged');
+  assert.equal(packedLevel('gust', p, kph), 2, 'the lone »90 is danger at the kph danger 90');
 });
 
 test('AQI holds on the European seed 60 for Open-Meteo, the US seed 100 elsewhere', () => {
@@ -187,28 +190,28 @@ test('AQI holds on the European seed 60 for Open-Meteo, the US seed 100 elsewher
   assert.equal(statusLines.formatValue('aqi', p, settings({ aqiSlotDisplay: 'both' })),
     '65/' + RAQUO + '90');
   // A stored pair beats the seed: a warn of 70 releases the EU hold, and the lone
-  // »90 it rolls to, past that pair's danger 80, is not judged.
+  // »90 it rolls to is danger on that pair's own 80.
   const released = settings(Object.assign({ aqiSlotDisplay: 'max',
     threshAqiWarn: '70', threshAqiDanger: '80' }, eu));
   assert.equal(statusLines.formatValue('aqi', p, released), RAQUO + '90');
-  assert.equal(packedLevel('aqi', p, released), 0);
+  assert.equal(packedLevel('aqi', p, released), 2);
 });
 
 // ---- status-thresholds: the highlight ---------------------------------------
 
-test('wind, gust and AQI highlights judge the highest of today\'s numbers shown', () => {
+test('wind, gust and AQI highlights judge the highest number shown, tomorrow\'s included', () => {
   const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null],
     GUST_TREND_UINT8: [30], GUST_DAY_PEAKS: [30, 60, null],
     AQI_TREND: [42], AQI_DAY_PEAKS: [58, 61, null] };
   assert.equal(judged('wind', p, settings()), 12, 'Now mode: the reading');
   assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both' })), 30);
   assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both', windUnits: 'mph' })), 19);
-  // "30/»60": tomorrow's peak never counts; a lone "»60" is not judged at all. (On
-  // the kph seed 60/90, where a judged 60 would be warn.)
+  // "30/»60" and a lone "»60" are judged on tomorrow's 60, at its own level: warn
+  // on the kph seed 60/90, as the gust alert's tomorrow entry would be.
   assert.equal(statusLines.formatValue('gust', p, settings({ gustSlotDisplay: 'both',
     gustSlotUnit: false })), '30/' + RAQUO + '60');
-  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'both' })), 0);
-  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'max' })), 0);
+  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'both' })), 1);
+  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'max' })), 1);
   assert.equal(judged('aqi', p, settings({ aqiSlotDisplay: 'max' })), 58);
   assert.equal(judged('aqi', { AQI_TREND: [] }, settings()), null);
 });

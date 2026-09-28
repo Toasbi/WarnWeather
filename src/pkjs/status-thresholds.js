@@ -602,15 +602,15 @@
    * (shownDayMax, over wire-units' readers), so the two cannot round apart or
    * disagree on which peak is shown.
    *
-   * The day-max kinds (UV, wind, gusts, AQI) judge the highest of TODAY's
-   * numbers shown. An unmarked peak is never below now by construction, so "2/8"
-   * is highlighted for the 8. The hold rule gets the kind's resolved warn
+   * The day-max kinds (UV, wind, gusts, AQI) judge the highest number the slot
+   * shows (judgedShown). An unmarked peak is never below now by construction, so
+   * "2/8" is highlighted for the 8. The hold rule gets the kind's resolved warn
    * (holdWarn), so today's peak stays on screen while it is at or above warn:
    * a 7 falling from an 8 under warn 6 prints "7" in every mode and is judged
    * on the 7 — the highlight can never go silent while today is still worth
    * warning about. Tomorrow's marked peak shows only once today's is below warn
-   * (and behind us), and never counts until it is today's: "5/»8" is judged on
-   * the 5 and a lone "»8" not at all (null).
+   * (and behind us), and is then judged at its own level, like the alert row's
+   * tomorrow entry (bakeAlerts): a lone "»8" on the 8, "5/»8" on the 8 too.
    * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
    * @param {Object} payload weather payload (pre-transform, trends present)
    * @param {Object} settings Clay settings blob (windUnits, <kind>SlotDisplay,
@@ -619,7 +619,7 @@
    */
   function displayValue(code, payload, settings) {
     if (wireUnits.isDayMaxKind(code)) {
-      return todaysShown(shownDayMax(code, payload, settings));
+      return judgedShown(shownDayMax(code, payload, settings));
     }
     if (code === 'pollen') {
       var pollen = pollenToday(payload);
@@ -629,14 +629,22 @@
   }
 
   /**
-   * The highest of today's numbers a day-max slot shows (displayValue's policy).
+   * The number a day-max slot's highlight judges (displayValue's policy): the
+   * highest it shows. Today's pick: today's peak when shown, else the current
+   * reading. Tomorrow's marked peak: that peak, or the current reading beside it
+   * ("5/»8", Both) when that is higher. The hold rule rolls to tomorrow only once
+   * today's peak is below warn, so the reading is below warn too and the level is
+   * tomorrow's; the higher of the two only matters when today's peak is unknown or
+   * below the reading (a feed that disagrees with itself) — then nothing held the
+   * reading, whatever its level. The level is monotone in the number (an ordered
+   * pair), so the higher number is the higher level.
    * @param {?{now: ?number, peak: ?number, nextDay: boolean}} shown wire-units' pick
-   * @returns {number|null} today's peak when shown, else the current reading
-   *     (null when only tomorrow's peak is on screen, or no reading at all)
+   * @returns {number|null} the judged number; null without a reading
    */
-  function todaysShown(shown) {
+  function judgedShown(shown) {
     if (!shown) { return null; }
-    return (shown.peak === null || shown.nextDay) ? shown.now : shown.peak;
+    if (!shown.nextDay) { return shown.peak === null ? shown.now : shown.peak; }
+    return shown.now === null ? shown.peak : Math.max(shown.now, shown.peak);
   }
 
   // Bit position of a weather kind's 2-bit level in the packed levels value:

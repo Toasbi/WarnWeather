@@ -262,7 +262,9 @@ if (typeof require !== 'undefined') {
      * pickers and the AQI source/scale with no dependency list — and in place after a
      * keyboard nudge on a thumb, which commits without a render (range-control.js).
      * Now, the default, gets no hint: the pill says it. The hint is about what the slot
-     * SHOWS, so it says nothing about highlighting (the Alerts sheet explains that).
+     * SHOWS (the Alerts sheet explains the highlight), save the templates' one sentence
+     * that a tomorrow's peak is highlighted at its own level too — the same words with
+     * the switch on or off, as it opens "With Alert highlighting on".
      * AQI closes on its source's note when that source has no forecast to take a peak
      * from (args.notes). The page's HTML is raw here (engine renderRow), so only
      * numbers and the range table's unit label are interpolated — the rest is schema

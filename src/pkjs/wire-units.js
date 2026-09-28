@@ -96,7 +96,9 @@ function dayMaxPayloadKeys() {
  *   - high: it is at or above the kind's warn level (`warn`) — the slot is an
  *     alert, not a record, so a 7 falling from an 8 keeps the 7 on screen (and
  *     the highlight judging it) while it is still worth warning about, instead
- *     of rolling to tomorrow's peak and going quiet.
+ *     of rolling to tomorrow's peak, which the highlight judges at its own level
+ *     (status-thresholds displayValue) — a milder tomorrow would silence today's
+ *     warning.
  * Only once none of those holds does tomorrow's peak show. A day that never
  * prints above 0 has no peak to hold (so a warn of 0 cannot pin a "0" all
  * evening). All comparisons are on the whole numbers the slot prints.

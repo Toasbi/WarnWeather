@@ -95,8 +95,8 @@ Two things that both involve rain over time, but answer different questions:
   temperature status slot can also show the feels-like value, or both as `12/10`; the UV index
   slot can show today's highest UV still to come, or both as `3/7`; today's peak stays while it
   is still ahead or happening now, and while it is at your warn level or higher, then
-  tomorrow's shows instead, marked `»` (`4/»8`), or just the current reading when tomorrow's
-  isn't known. The wind, gust and air quality slots offer the same Alert mode (air quality with the Open-Meteo AQI provider, whose
+  tomorrow's shows instead, marked `»` (`4/»8`) and, with Alert highlighting on, highlighted at
+  the level it reaches, or just the current reading when tomorrow's isn't known. The wind, gust and air quality slots offer the same Alert mode (air quality with the Open-Meteo AQI provider, whose
   hourly forecast it needs; WAQI reports the current reading only). How the pair is written
   is up to you: pick the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or
   without spaces around it (`12 / 10`), which value comes first, and how tomorrow's peak is

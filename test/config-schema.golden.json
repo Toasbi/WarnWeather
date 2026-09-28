@@ -5635,8 +5635,8 @@
                   "args": {
                     "keyStem": "Aqi",
                     "hints": {
-                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and the AQI is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known.",
-                      "both": "The reading now and today's peak, like 42/58 — one number while they're the same. Once today's peak has passed and the AQI is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known."
+                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and the AQI is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's.",
+                      "both": "The reading now and today's peak, like 42/58 — one number while they're the same. Once today's peak has passed and the AQI is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's."
                     },
                     "notes": {
                       "key": "aqiSource",
@@ -5933,8 +5933,8 @@
                   "args": {
                     "keyStem": "Wind",
                     "hints": {
-                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and the wind is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known.",
-                      "both": "The reading now and today's peak, like 12/30 — one number while they're the same. Once today's peak has passed and the wind is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known."
+                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and the wind is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's.",
+                      "both": "The reading now and today's peak, like 12/30 — one number while they're the same. Once today's peak has passed and the wind is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's."
                     }
                   }
                 },
@@ -6170,8 +6170,8 @@
                   "args": {
                     "keyStem": "Gust",
                     "hints": {
-                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and gusts are below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known.",
-                      "both": "The reading now and today's peak, like 20/45 — one number while they're the same. Once today's peak has passed and gusts are below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known."
+                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and gusts are below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's.",
+                      "both": "The reading now and today's peak, like 20/45 — one number while they're the same. Once today's peak has passed and gusts are below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's."
                     }
                   }
                 },
@@ -6407,8 +6407,8 @@
                   "args": {
                     "keyStem": "Uv",
                     "hints": {
-                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and UV is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known.",
-                      "both": "The reading now and today's peak, like 3/7 — one number while they're the same. Once today's peak has passed and UV is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known."
+                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and UV is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's.",
+                      "both": "The reading now and today's peak, like 3/7 — one number while they're the same. Once today's peak has passed and UV is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's."
                     }
                   }
                 },
