@@ -6,6 +6,7 @@
 #include <pebble.h>
 #include <string.h>
 #include "status_alerts.h"
+#include "status_highlight.h"
 #include "status_icon_weight.h"
 #include "status_row_icons.h"
 #include "status_row_layout.h"
@@ -199,37 +200,11 @@ void status_alerts_measure(StatusAlertsCache *cache, const AlertSet *set,
     }
 }
 
-// The drawable colour for an accent byte. On B&W the escalation is polarity, not
-// hue (status_row.c's rule): every accent is the foreground — so a warn look of
-// fill draws a solid foreground box there, as picked.
-static GColor accent_color(uint8_t c8) {
-#ifdef PBL_COLOR
-    return theme_pick((GColor){ .argb = c8 }, theme_fg());
-#else
-    (void)c8;
-    return theme_fg();
-#endif
-}
-
-static bool glyph_stroke_cb(GDrawCommand *command, uint32_t index, void *context) {
-    (void)index;
-    gdraw_command_set_stroke_color(command, *(GColor *)context);
-    return true;
-}
-
-// Restroke a cached outline glyph for a filled box, and back (status_row.c's
-// glyph_set_stroke): the cache holds the foreground between draws.
-static void glyph_set_stroke(GDrawCommandImage *image, GColor color) {
-    gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
-                               glyph_stroke_cb, &color);
-}
-
 void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet *set,
                         int n, const int16_t *widths, const StatusAlertsText *text,
                         const StatusAlertsPlace *place) {
     if (!ctx || !cache || !set || !widths || !text || !place) { return; }
     if (n > set->count) { n = set->count; }
-    GColor fg = theme_fg();
     int16_t x = place->x;
     int16_t band_bottom = (int16_t)(place->band.origin.y + place->band.size.h);
     for (int i = 0; i < n; i++) {
@@ -252,13 +227,13 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
         int16_t text_w = (int16_t)(x + w - pad - text_x
             + (e->rain ? 0 : TEXT_TRAIL_SPACING));
 
-        GColor ink = fg;
+        GColor ink = theme_fg();
         // A metric entry is boxed at DANGER always (filled) and at WARN per its
-        // kind's warn look — none (the icon alone is the alert), outline or fill.
-        // Judged at the entry's real level: the slot's Highlight switch does not
-        // touch the alert. The padding is measured in either way, so the row's
-        // widths do not shift when a box appears.
-        bool filled = look.box == THRESH_BOX_FILL;
+        // kind's warn look — none (the icon alone is the alert), outline or fill —
+        // and painted as its slot would be (status_highlight_paint). Judged at the
+        // entry's real level: the slot's Highlight switch does not touch the alert.
+        // The padding is measured in either way, so the row's widths do not shift
+        // when a box appears.
         if (look.box != THRESH_BOX_NONE) {
             // The box IS the footprint: the padding was measured in, so it spans
             // exactly [x, x + w). Its height is the slots' font-derived extent
@@ -269,25 +244,15 @@ void status_alerts_draw(GContext *ctx, StatusAlertsCache *cache, const AlertSet 
                     text_w > 0 && buf[0] != '\0' && status_text_has_descender(buf)),
                 place->band.origin.y, place->band.size.h, place->top_strip,
                 STATUS_ALERTS_BOX_PAD_Y);
-            GRect box = GRect(x, v.y, w, v.h);
-            GColor accent = accent_color(look.color8);
-            if (filled) {
-                graphics_context_set_fill_color(ctx, accent);
-                graphics_fill_rect(ctx, box, 2, GCornersAll);
-                ink = gcolor_legible_over(accent);
-            }
-            graphics_context_set_stroke_color(ctx, accent);
-            graphics_draw_round_rect(ctx, box, 2);
+            ink = status_highlight_paint(ctx, GRect(x, v.y, w, v.h), look);
         }
 
         if (image) {
             GSize gs = gdraw_command_image_get_bounds_size(image);
             int weight = e->rain ? STATUS_ICON_WEIGHT_CENTRE
                                  : status_icon_weight_pct(alert_set_icon(e->kind));
-            if (filled) { glyph_set_stroke(image, ink); }
-            gdraw_command_image_draw(ctx, image,
-                GPoint(icon_x, status_icon_top_y(place->glyph_cy, gs.h, weight)));
-            if (filled) { glyph_set_stroke(image, fg); }
+            status_highlight_draw_glyph(ctx, image,
+                GPoint(icon_x, status_icon_top_y(place->glyph_cy, gs.h, weight)), ink);
         }
         if (text_w > 0 && buf[0] != '\0') {
             graphics_context_set_text_color(ctx, ink);

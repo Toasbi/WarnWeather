@@ -3,6 +3,7 @@
 #include "status_icon_weight.h"
 #include "status_row_direction.h"
 #include "status_row_layout.h"
+#include "status_highlight.h"
 #include "battery_draw.h"
 #include "layer_util.h"
 #include "../appendix/persist.h"
@@ -424,22 +425,6 @@ static int slot_health_value(int kind) {
     return -1;
 }
 
-// Warn/danger accent for a slot, from the RAW GColor8 byte its (kind, level) cell
-// holds in the settings blob. On effective B&W (real hardware or the bw/bw-light
-// theme) the escalation is polarity, not hue: outline fg, fill fg (danger, or a
-// warn look of fill — drawn solid, as picked) — the user hues only apply on the
-// color path. Takes the byte rather than re-reading it so the caller's raw value
-// and the drawable colour can never disagree. Whether there IS a box is not this
-// colour's business: that is the resolver's `look.box` (status_threshold_look).
-static GColor highlight_color(uint8_t color8) {
-#ifdef PBL_COLOR
-    return theme_pick((GColor){ .argb = color8 }, theme_fg());
-#else
-    (void)color8;
-    return theme_fg();
-#endif
-}
-
 // One slot resolved to everything a pass needs that does NOT depend on
 // measurement. The refresh pass folds these fields into the content signature,
 // the draw pass measures and paints them — one resolution, every consumer. They
@@ -459,7 +444,6 @@ typedef struct {
     int8_t  dir;                            // wind sector 0..15, -1 = none
     uint8_t level;                          // ThreshLevel, gated on the Highlight switch
     ThreshLook look;                        // box, bold bit and RAW accent byte at `level`
-    GColor  accent;                         // theme-picked outline/fill colour
 } ResolvedSlot;
 
 // Resolve slot `i` of an already-loaded pass (load_pass filled `view`). `base` is
@@ -496,7 +480,6 @@ static void resolve_slot(const StatusRow *row, int i, GFont base,
     // glyph WIDTHS change, which is why the font has to travel with the slot:
     // whoever measures must measure with the font that will be drawn.
     out->font = out->look.bold ? row_font_bold(row->tier, row->line_id) : base;
-    out->accent = highlight_color(out->look.color8);
 }
 
 // Resolve a whole row: load the pass, then resolve all three slots against it.
@@ -892,19 +875,6 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
     return GRect((int16_t)(start - 2), v.y, (int16_t)((end - start) + 4), v.h);
 }
 
-static bool glyph_stroke_cb(GDrawCommand *command, uint32_t index, void *context) {
-    (void)index;
-    gdraw_command_set_stroke_color(command, *(GColor *)context);
-    return true;
-}
-
-// Restroke every command in a cached PDC glyph (fills are cleared at load —
-// see status_row_icons.c) so a filled slot's icon stays legible.
-static void glyph_set_stroke(GDrawCommandImage *image, GColor color) {
-    gdraw_command_list_iterate(gdraw_command_image_get_command_list(image),
-                               glyph_stroke_cb, &color);
-}
-
 #if defined(WW_ALERT_ROW)
 // The Alerts row's share of one draw pass: its resolved entries, the text lanes they
 // print (after the lane ladder), their measured widths, how many of them fit and
@@ -1072,20 +1042,18 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     int16_t x0 = (int16_t)(row->bounds.origin.x + STATUS_ROW_MARGIN);
 
     // Threshold-highlight pass: paint each crossed slot's box — an outline, or a
-    // filled box + outline — UNDER its icon + text (calendar today-box
-    // precedent), as the resolver's `look.box` says: filled at danger, and at warn the
-    // kind's warn look (none: the bold text IS the highlight, no box). Paint-only
-    // — no allocations.
+    // filled box + outline — UNDER its icon + text (calendar today-box precedent),
+    // as the resolver's look says: filled at danger, and at warn the kind's warn look
+    // (none: the bold text IS the highlight, no box). Every box goes down before any
+    // slot's content; the paint hands back the ink that slot's content then draws
+    // in, so ink and fill cannot disagree. Paint-only — no allocations.
+    GColor inks[STATUS_SLOT_COUNT];
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        inks[i] = theme_fg();
         if (!places[i].visible || slots[i].look.box == THRESH_BOX_NONE) { continue; }
         GRect box = slot_highlight_box(row, &places[i], &measures[i], x0, glyph_cy,
                                        content_h, slots[i].text);
-        if (slots[i].look.box == THRESH_BOX_FILL) {
-            graphics_context_set_fill_color(ctx, slots[i].accent);
-            graphics_fill_rect(ctx, box, 2, GCornersAll);
-        }
-        graphics_context_set_stroke_color(ctx, slots[i].accent);
-        graphics_draw_round_rect(ctx, box, 2);
+        inks[i] = status_highlight_paint(ctx, box, slots[i].look);
     }
 
 #if defined(WW_ALERT_ROW)
@@ -1108,14 +1076,9 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible) { continue; }
-        // Filled slots (danger, or a warn look of fill) flip their ink legible
-        // over the fill (the calendar's today pattern); outlined and plain slots
-        // keep the theme foreground. The accent is the resolver's — the same value
-        // the highlight pass above filled the box with, so ink and fill cannot
-        // disagree and the blob colour is read once per draw rather than once per
-        // pass.
-        const bool filled = slots[i].look.box == THRESH_BOX_FILL;
-        GColor ink = filled ? gcolor_legible_over(slots[i].accent) : theme_fg();
+        // Filled slots (danger, or a warn look of fill) draw legible over the fill;
+        // outlined and plain slots keep the theme foreground.
+        const GColor ink = inks[i];
         graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
         if (slots[i].slot.kind == SLOT_LIVE_BATTERY) {
@@ -1123,18 +1086,14 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                                     BATTERY_GLYPH_W, BATTERY_GLYPH_H), ink);
         } else if (row->glyphs[i]) {
             GSize gs = gdraw_command_image_get_bounds_size(row->glyphs[i]);
-            // Recolor the cached PDC for a filled box, then restore — the
-            // glyph cache (ensure_glyphs) holds theme_fg between draws.
-            if (filled) { glyph_set_stroke(row->glyphs[i], ink); }
             // Seat the glyph on the cap centre at its per-icon optical-centre
             // weight (status_icon_weight.h). Every weight ships at 50 today,
             // which reduces this to the historical `glyph_cy - gs.h / 2`.
             // glyph_icons[i] — not the resolved slot's icon — is the id whose PDC
             // is in glyphs[i] (the battery override rewrites the resolved icon).
-            gdraw_command_image_draw(ctx, row->glyphs[i],
+            status_highlight_draw_glyph(ctx, row->glyphs[i],
                 GPoint(icon_x, status_icon_top_y(glyph_cy, gs.h,
-                    status_icon_weight_pct(row->glyph_icons[i]))));
-            if (filled) { glyph_set_stroke(row->glyphs[i], theme_fg()); }
+                    status_icon_weight_pct(row->glyph_icons[i]))), ink);
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;
