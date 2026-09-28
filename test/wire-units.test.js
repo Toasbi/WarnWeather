@@ -236,3 +236,38 @@ test('dayMaxToday: the current reading without today\'s peak, whatever the slot 
   assert.equal(wu.dayMaxToday('pollen', { POLLEN_TODAY: '2' }, {}), null, 'not a day-max kind');
   assert.equal(wu.dayMaxToday('uv', null, {}), null);
 });
+
+// dayMaxTomorrow: what an alert that looks ahead judges — tomorrow's peak alone,
+// rounded like the slot's "»8", and only when it is known and above 0.
+test('dayMaxTomorrow: tomorrow\'s peak through the kind\'s reader, never the reading', () => {
+  const wu = require('../src/pkjs/wire-units.js');
+  assert.equal(wu.dayMaxTomorrow('uv', { UV_TREND_UINT8: [90], UV_DAY_PEAKS: [90, 84, 0] }, {}), 8);
+  assert.equal(wu.dayMaxTomorrow('uv', { UV_DAY_PEAKS: [null, 85, 0] }, {}), 9, 'rounds like the slot');
+  assert.equal(wu.dayMaxTomorrow('wind', { WIND_TREND_UINT8: [10], WIND_DAY_PEAKS: [20, 70, 0] },
+    { windUnits: 'mph' }), 43, 'in the user\'s unit');
+  assert.equal(wu.dayMaxTomorrow('gust', { GUST_DAY_PEAKS: [0, 74, 0] }, { windUnits: 'knots' }), 40);
+  assert.equal(wu.dayMaxTomorrow('aqi', { AQI_TREND: [40], AQI_DAY_PEAKS: [50, 120.6, 0] }, {}), 121);
+  // Unknown: no peaks (not fetched, WAQI's current-only AQI), a null or missing [1].
+  assert.equal(wu.dayMaxTomorrow('uv', { UV_TREND_UINT8: [90] }, {}), null);
+  assert.equal(wu.dayMaxTomorrow('aqi', { AQI_TREND: [180] }, {}), null, 'WAQI');
+  assert.equal(wu.dayMaxTomorrow('uv', { UV_DAY_PEAKS: [90, null, 0] }, {}), null);
+  assert.equal(wu.dayMaxTomorrow('uv', { UV_DAY_PEAKS: [90] }, {}), null);
+  assert.equal(wu.dayMaxTomorrow('uv', { UV_DAY_PEAKS: [90, NaN, 0] }, {}), null);
+  // Not above 0 on screen: no peak (a 0.4 prints 0; Met.no writes unreported gusts as 0).
+  assert.equal(wu.dayMaxTomorrow('uv', { UV_DAY_PEAKS: [90, 4, 0] }, {}), null);
+  assert.equal(wu.dayMaxTomorrow('gust', { GUST_DAY_PEAKS: [30, 0, 0] }, {}), null);
+  assert.equal(wu.dayMaxTomorrow('pollen', { POLLEN_TOMORROW: '3' }, {}), null, 'not a day-max kind');
+  assert.equal(wu.dayMaxTomorrow('uv', null, {}), null);
+});
+
+test('dayMaxTomorrow is the tomorrow the slot rolls to: one reading for slot and alert', () => {
+  const wu = require('../src/pkjs/wire-units.js');
+  // Today's peak behind us (nothing left above the current 1), so the Alert-mode
+  // slot rolls to tomorrow whenever there is one to show.
+  [[84, 8], [5, 1], [4, null], [0, null], [null, null]].forEach(([next, want]) => {
+    const p = { UV_TREND_UINT8: [10], UV_DAY_PEAKS: [0, next, 20] };
+    const shown = wu.dayMaxShown('uv', p, { uvSlotDisplay: 'max' });
+    assert.equal(wu.dayMaxTomorrow('uv', p, {}), want, JSON.stringify(p));
+    assert.equal(shown.nextDay ? shown.peak : null, want, 'the slot: ' + JSON.stringify(p));
+  });
+});

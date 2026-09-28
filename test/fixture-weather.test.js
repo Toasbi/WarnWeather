@@ -287,17 +287,16 @@ test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_E
   assert.ok(getFixtureRadarTuples(fx).RAIN_RADAR_TREND_UINT8.some((b) => b > 0), 'rain in the radar window');
   const uvKind = thresholds.KINDS.findIndex((k) => k.code === 'uv');
   const windKind = thresholds.KINDS.findIndex((k) => k.code === 'wind');
-  // header: bits 0-2 kind, 3-4 level, 5-7 value length; the value bytes follow it.
-  const header = (b) => ({ kind: b & 7, level: (b >> 3) & 3, len: b >> 5 });
+  const { decodeAlerts } = require('./helpers/alert-entries.js');
   ['basalt', 'emery'].forEach((platform) => {
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
     const bytes = out.ALERT_ENTRIES_UINT8;
     assert.equal(bytes.length, 5, platform + ': UV (1 + 1 value byte) + wind (1 + 2 value bytes)');
-    assert.deepEqual(header(bytes[0]), { kind: uvKind, level: 2, len: 1 }, platform + ': a UV entry at danger');
-    assert.equal(String.fromCharCode(bytes[1]), '8', platform + ': printing 8 (today\'s 8.4)');
-    assert.deepEqual(header(bytes[2]), { kind: windKind, level: 1, len: 2 },
-      platform + ': a wind entry at warn (50 <= 66 < 80)');
-    assert.equal(String.fromCharCode(bytes[3], bytes[4]), '66', platform + ': today\'s 66 km/h peak');
+    const entries = decodeAlerts(bytes);
+    assert.deepEqual(entries[0], { kind: uvKind, level: 2, day: 0, mark: null, value: '8' },
+      platform + ': a UV entry at danger, today\'s, printing 8 (today\'s 8.4)');
+    assert.deepEqual(entries[1], { kind: windKind, level: 1, day: 0, mark: null, value: '66' },
+      platform + ': a wind entry at warn (50 <= 66 < 80), today\'s 66 km/h peak');
     // The status lines carry no entries: the top-left slot is its shipped default.
     const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
     assert.notEqual(topLeft.kind, 11, platform + ': no alerts slot kind any more');

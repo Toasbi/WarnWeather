@@ -106,3 +106,33 @@ test('through the real outbox: an unchanged status category skips the send and s
   assert.equal(appMessages.length, 1, 'the second, byte-identical re-bake stays off the air');
   assert.deepEqual(cb.log, ['ok', 'ok']);
 });
+
+// An alert that looks ahead judges tomorrow's peak (the day-max kinds' *_DAY_PEAKS)
+// and tomorrow's pollen band (POLLEN_TOMORROW). Both ride the flash backstop, so a
+// Days or mark change re-bakes after a PKJS restart with no fetch at all.
+test('the backstop keeps what alerts look ahead to: a restart re-bakes Days and marks offline', () => {
+  const { decodeAlerts } = require('./helpers/alert-entries.js');
+  storage = {};
+  let live = { alertUv: true, alertPollen: true, alertPollenDisplay: 'value' };
+  statusRebake.init({ getSettings: () => live, sendWeather: () => {} });
+  statusRebake.rememberBakeInputs({
+    CITY: 'Bonn', UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0],
+    POLLEN_TODAY: '1', POLLEN_TOMORROW: '3'
+  }, null);
+  const KEYS = require('../src/pkjs/storage-keys.js');
+  const stored = JSON.parse(storage[KEYS.PHONE_BATTERY_SNAPSHOT]).payload;
+  assert.deepEqual(stored.UV_DAY_PEAKS, [30, 90, 0], 'tomorrow\'s UV peak is in the backstop');
+  assert.equal(stored.POLLEN_TOMORROW, '3', 'and tomorrow\'s pollen band');
+
+  // A restart: the in-memory inputs are gone, the backstop answers.
+  const sends = [];
+  statusRebake.init({ getSettings: () => live, sendWeather: (p) => sends.push(p) });
+  statusRebake.resendStatus('restart');
+  assert.deepEqual(decodeAlerts(sends[0].ALERT_ENTRIES_UINT8).map((e) => [e.kind, e.level, e.mark, e.value]),
+    [[7, 2, 'raquo', ''], [1, 2, 'raquo', '3']], 'UV and pollen alert for tomorrow, both at danger');
+
+  live = Object.assign({}, live, { alertPollenDays: 'today', alertUvNextDayMark: 'gt' });
+  statusRebake.resendStatus('config-close');
+  assert.deepEqual(decodeAlerts(sends[1].ALERT_ENTRIES_UINT8).map((e) => [e.kind, e.level, e.mark, e.value]),
+    [[7, 2, 'gt', '']], 'pollen back to today only; UV marked >');
+});

@@ -1340,6 +1340,7 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
 
 // ── the Alerts row's entries (ALERT_ENTRIES_UINT8) ─────────────────────────────
 const thresholds = require('../src/pkjs/status-thresholds.js');
+const { decodeAlerts } = require('./helpers/alert-entries.js');
 //
 // The row is a per-bar takeover, not a slot item: its metric entries ride their
 // own weather tuple, baked by buildStatusLines through status-thresholds'
@@ -1364,8 +1365,9 @@ test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, icon-only b
   const p = alertPayload();
   const s = baseSettings({ alertUv: true, alertWind: true });
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
-  // UV danger (kind 7, level 2), wind warn (kind 2, level 1), no value bytes.
-  assert.deepEqual(p.ALERT_ENTRIES_UINT8, [7 | (2 << 3), 2 | (1 << 3)]);
+  // UV danger (header bit 7 | kind 7 | danger bit 3), wind warn (kind 2), both
+  // today's, no value bytes.
+  assert.deepEqual(p.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x80 | 2]);
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, thresholds.bakeAlerts(alertPayload(), s));
 });
 
@@ -1374,10 +1376,10 @@ test('buildStatusLines: all four with values fit the tuple, in the fixed order',
   statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_EMERY);
   const ch = (t) => t.split('').map((c) => c.charCodeAt(0));
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [].concat(
-    [7 | (2 << 3) | (1 << 5)], ch('8'),
-    [2 | (1 << 3) | (2 << 5)], ch('45'),
-    [3 | (2 << 3) | (2 << 5)], ch('90'),
-    [0 | (2 << 3) | (3 << 5)], ch('152')));
+    [0x80 | 7 | 0x08], ch('8'),
+    [0x80 | 2], ch('45'),
+    [0x80 | 3 | 0x08], ch('90'),
+    [0x80 | 0 | 0x08], ch('152')));
   assert.ok(p.ALERT_ENTRIES_UINT8.length <= thresholds.ALERT_ENTRIES_MAX_BYTES);
 });
 
@@ -1403,7 +1405,7 @@ test('buildStatusLines never sends ALERT_ENTRIES_UINT8 to aplite (no Alerts row 
   // An unknown watch still gets it, like the levels (never hide a real feature).
   const unknown = alertPayload();
   statusLines.buildStatusLines(unknown, baseSettings({ alertUv: true }), null);
-  assert.deepEqual(unknown.ALERT_ENTRIES_UINT8, [7 | (2 << 3)]);
+  assert.deepEqual(unknown.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08]);
 });
 
 test('the Alerts row is no slot item: no catalog kind, and the lines carry no entries', () => {
@@ -1428,8 +1430,24 @@ test('the entry cap holds all five alerts with their widest values', () => {
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
   const bytes = p.ALERT_ENTRIES_UINT8;
   // Five headers, nothing tail-dropped.
-  let n = 0;
-  for (let i = 0; i < bytes.length; i += 1 + (bytes[i] >> 5)) { n++; }
-  assert.equal(n, 5);
+  assert.deepEqual(decodeAlerts(bytes).map((e) => e.value), ['11', '120', '130', '500', '2-3']);
   assert.ok(bytes.length <= thresholds.ALERT_ENTRIES_MAX_BYTES, bytes.length + ' B');
+});
+
+test('the entry cap holds all five alerts with their widest values for tomorrow too', () => {
+  // Nothing left today warns, tomorrow peaks at the widest values: every entry a
+  // tomorrow one, its mark in the header, so the tuple is the same 19 B.
+  const p = Object.assign(alertPayload(), {
+    UV_TREND_UINT8: [0], UV_DAY_PEAKS: [0, 110, 0],
+    WIND_TREND_UINT8: [0], WIND_DAY_PEAKS: [0, 255, 0],
+    GUST_TREND_UINT8: [0], GUST_DAY_PEAKS: [0, 255, 0],
+    AQI_TREND: [0], AQI_DAY_PEAKS: [0, 500, 0], POLLEN_TODAY: '0', POLLEN_TOMORROW: '2-3'
+  });
+  const s = baseSettings(Object.assign({ provider: 'dwd', alertPollen: true,
+    alertPollenDisplay: 'value', aqiSource: 'openmeteo', aqiScale: 'us' }, ALERTS_ALL_VALUES));
+  statusLines.buildStatusLines(p, s, WATCH_BASALT);
+  const entries = decodeAlerts(p.ALERT_ENTRIES_UINT8);
+  assert.deepEqual(entries.map((e) => e.value), ['11', '255', '255', '500', '2-3']);
+  assert.deepEqual(entries.map((e) => e.mark), ['raquo', 'raquo', 'raquo', 'raquo', 'raquo']);
+  assert.equal(p.ALERT_ENTRIES_UINT8.length, 19);
 });

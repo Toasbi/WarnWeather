@@ -103,7 +103,9 @@ var STATUS_KEYS = outbox.WEATHER_CATEGORIES.find(function (category) {
  */
 // 2: SOURCE_KEYS gained UV_DAY_PEAKS (the UV slot's day-max modes).
 // 3: ...and WIND_DAY_PEAKS / GUST_DAY_PEAKS / AQI_DAY_PEAKS (theirs).
-var SNAPSHOT_VERSION = 3;
+// 4: ...and POLLEN_TOMORROW (the pollen alert's look-ahead; the day-max kinds'
+//    tomorrow rides their *_DAY_PEAKS already).
+var SNAPSHOT_VERSION = 4;
 
 var deps = {};        // injected environment (see init)
 var snapshot = null;  // last bake inputs ({payload, watchInfo}) from THIS PKJS life

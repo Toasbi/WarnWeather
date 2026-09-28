@@ -27,18 +27,50 @@ function cDefine(name) {
 const th = require('../src/pkjs/status-thresholds.js');
 
 test('the entry header layout is in lockstep with alert_set.h', () => {
+  assert.equal(cDefine('STATUS_ALERT_HEADER'), 0x80);
   assert.equal(cDefine('STATUS_ALERT_KIND_MASK'), 0x07);
-  assert.equal(cDefine('STATUS_ALERT_LEVEL_SHIFT'), 3);
-  assert.equal(cDefine('STATUS_ALERT_LEVEL_MASK'), 3);
-  assert.equal(cDefine('STATUS_ALERT_LEN_SHIFT'), 5);
+  assert.equal(cDefine('STATUS_ALERT_DANGER'), 0x08);
+  assert.equal(cDefine('STATUS_ALERT_DAY_SHIFT'), 4);
+  assert.equal(cDefine('STATUS_ALERT_DAY_MASK'), 0x07);
   assert.equal(cDefine('STATUS_ALERT_LEN_MAX'), 7);
-  assert.equal(th.ALERT_LEVEL_SHIFT, cDefine('STATUS_ALERT_LEVEL_SHIFT'));
-  assert.equal(th.ALERT_LEN_SHIFT, cDefine('STATUS_ALERT_LEN_SHIFT'));
+  assert.equal(th.ALERT_HEADER, cDefine('STATUS_ALERT_HEADER'));
+  assert.equal(th.ALERT_DANGER, cDefine('STATUS_ALERT_DANGER'));
+  assert.equal(th.ALERT_DAY_SHIFT, cDefine('STATUS_ALERT_DAY_SHIFT'));
   assert.equal(th.ALERT_LEN_MAX, cDefine('STATUS_ALERT_LEN_MAX'));
+  // The four fields tile the byte without overlap: kind 0-2, danger 3, day 4-6,
+  // the header bit 7.
+  const fields = [cDefine('STATUS_ALERT_KIND_MASK'), cDefine('STATUS_ALERT_DANGER'),
+    cDefine('STATUS_ALERT_DAY_MASK') << cDefine('STATUS_ALERT_DAY_SHIFT'),
+    cDefine('STATUS_ALERT_HEADER')];
+  assert.equal(fields.reduce((a, b) => a | b, 0), 0xFF);
+  assert.equal(fields.reduce((a, b) => a + b, 0), 0xFF, 'no two fields share a bit');
+  // Every value byte is printable ASCII, so none can pass for a header.
+  assert.ok(0x7E < cDefine('STATUS_ALERT_HEADER'));
   const bytes = th.bakeAlerts({ UV_TREND_UINT8: [80] },
     { alertUv: true, alertUvDisplay: 'value' });
-  assert.deepEqual(bytes, [7 | (2 << cDefine('STATUS_ALERT_LEVEL_SHIFT'))
-    | (1 << cDefine('STATUS_ALERT_LEN_SHIFT')), '8'.charCodeAt(0)]);
+  assert.deepEqual(bytes, [cDefine('STATUS_ALERT_HEADER') | 7 | cDefine('STATUS_ALERT_DANGER'),
+    '8'.charCodeAt(0)]);
+});
+
+// A tomorrow entry carries its mark as a day code: the phone's ALERT_NEXT_DAY_MARKS
+// order + 1, which the watch's STATUS_ALERT_MARK_* codes name; 0 is today's.
+test('the day codes are in lockstep with alert_set.h, and name the slot\'s marks', () => {
+  assert.equal(cDefine('STATUS_ALERT_DAY_TODAY'), 0);
+  const cName = { raquo: 'RAQUO', gt: 'GT', plus: 'PLUS', star: 'STAR', none: 'NONE' };
+  assert.deepEqual(th.ALERT_NEXT_DAY_MARKS, ['raquo', 'gt', 'plus', 'star', 'none']);
+  th.ALERT_NEXT_DAY_MARKS.forEach((mark, i) => {
+    assert.equal(cDefine('STATUS_ALERT_MARK_' + cName[mark]), i + 1, mark);
+  });
+  // Every code fits the 3-bit day field.
+  assert.ok(th.ALERT_NEXT_DAY_MARKS.length <= cDefine('STATUS_ALERT_DAY_MASK'));
+  // The same marks the slot's "Tomorrow's peak mark" offers (status-pair.js).
+  const pair = require('../src/pkjs/status-pair.js');
+  assert.deepEqual(th.ALERT_NEXT_DAY_MARKS.slice().sort(), Object.keys(pair.NEXT_DAY_MARKS).sort());
+  // A tomorrow UV entry at danger, marked '>', icon only.
+  const bytes = th.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0] },
+    { alertUv: true, alertUvNextDayMark: 'gt' });
+  assert.deepEqual(bytes, [cDefine('STATUS_ALERT_HEADER') | 7 | cDefine('STATUS_ALERT_DANGER')
+    | (cDefine('STATUS_ALERT_MARK_GT') << cDefine('STATUS_ALERT_DAY_SHIFT'))]);
 });
 
 test('the phone bakes the tuple under the cap the watch accepts', () => {

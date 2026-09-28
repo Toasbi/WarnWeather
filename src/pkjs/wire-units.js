@@ -145,7 +145,9 @@ function dayMaxShown(code, payload, settings, warn) {
         return typeof dayPeaks[i] === 'number' ? reader.shown(dayPeaks[i], s) : null;
     };
     var today = peak(0);
-    var next = peak(1);
+    // Tomorrow's through dayMaxTomorrow, the reading a look-ahead alert judges
+    // too, so the slot and the alert row can never name two different tomorrows.
+    var next = dayMaxTomorrow(code, payload, s);
     var earlier = peak(2);
     var known = today !== null && today > 0;
     var ahead = today !== null && today > shown.now;
@@ -153,10 +155,7 @@ function dayMaxShown(code, payload, settings, warn) {
     var high = known && typeof warn === 'number' && isFinite(warn) && today >= warn;
     if (ahead || running || high) {
         shown.peak = today;
-    } else if (next !== null && next > 0) {
-        // (A tomorrow that never prints above 0 has no peak either — often a feed
-        // that writes an unreported hour as 0, like Met.no's gusts outside the
-        // Nordics — so '»0' never shows.)
+    } else if (next !== null) {
         shown.peak = next;
         shown.nextDay = true;
     } else {
@@ -199,6 +198,34 @@ function dayMaxToday(code, payload, settings) {
     if (!peaks || typeof peaks[0] !== 'number' || !isFinite(peaks[0])) { return now; }
     var today = reader.shown(peaks[0], s);
     return now === null ? today : Math.max(today, now);
+}
+
+/**
+ * TOMORROW's peak of a day-max kind, in the display unit: *_DAY_PEAKS[1] through
+ * the kind's own reader, so it rounds exactly like the slot's "»8". What an alert
+ * set to look ahead judges once nothing left today reaches its warn level
+ * (status-thresholds' bakeAlerts), and what the slot's day max rolls to
+ * (dayMaxShown) — one reading of tomorrow for both.
+ *
+ * A tomorrow that never prints above 0 has no peak: often a feed that writes an
+ * unreported hour as 0, like Met.no's gusts outside the Nordics, so neither a
+ * "»0" slot nor an all-day alert on a warn of 0 can come of it. Unknown — the
+ * forecast stops short of tomorrow's end, or the kind has no day peaks at all
+ * (WAQI's current-only AQI, peaks not fetched) — is null as well.
+ *
+ * @param {string} code 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {Object} payload Weather payload (the kind's *_DAY_PEAKS).
+ * @param {Object} settings Clay settings blob (windUnits).
+ * @returns {?number} Tomorrow's peak, > 0; null when unknown, not above 0, or
+ *     for a non-day-max code.
+ */
+function dayMaxTomorrow(code, payload, settings) {
+    var reader = isDayMaxKind(code) ? DAY_MAX_READERS[code] : null;
+    if (!reader || !payload) { return null; }
+    var peaks = payload[reader.peaks];
+    if (!peaks || typeof peaks[1] !== 'number' || !isFinite(peaks[1])) { return null; }
+    var next = reader.shown(peaks[1], settings || {});
+    return next > 0 ? next : null;
 }
 
 /**
@@ -275,6 +302,7 @@ module.exports = {
     trendHead: trendHead,
     dayMaxShown: dayMaxShown,
     dayMaxToday: dayMaxToday,
+    dayMaxTomorrow: dayMaxTomorrow,
     dayMaxPayloadKeys: dayMaxPayloadKeys,
     isDayMaxKind: isDayMaxKind,
     dayMaxPeaksKey: dayMaxPeaksKey,

@@ -68,6 +68,9 @@ var WeatherProvider = function() {
     // Pollen is opt-in and DWD-only; null renders as '--' unless the auxiliary
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.pollenToday = null;
+    // Tomorrow's band from the same response, for a pollen alert that looks
+    // ahead (status-thresholds bakeAlerts). Transient too, never wired.
+    this.pollenTomorrow = null;
     // Pressure is sea-level (MSL) hPa and not every provider exposes it; empty →
     // the pressure line stays off and the status slot shows '--'. Transient:
     // consumed by forecast-series + formatValue, never wired.
@@ -577,6 +580,7 @@ WeatherProvider.prototype.fetchWithCoordinates = function(lat, lon, onSuccess, o
                 self.aqiFeedId = null;
                 airQuality.fetchAqiInto(this, lat, lon, function() {
                     self.pollenToday = null;
+                    self.pollenTomorrow = null;
                     pollen.fetchPollenInto(self, lat, lon, function() {
                         // The day records only refine the slots' day max: a storage
                         // failure leaves that on its plain rule, never the fetch
@@ -748,6 +752,7 @@ WeatherProvider.prototype.getPayload = function() {
         UV_TREND_UINT8: uvs, // Transient PKJS-only: UV tenths; forecast-series consumes + deletes before send
         AQI_TREND: (this.aqiTrend && this.aqiTrend.length) ? this.aqiTrend.slice(0, numEntries) : [], // Transient PKJS-only: current-window AQI ints; forecast-series consumes + deletes before send
         POLLEN_TODAY: this.pollenToday, // Transient PKJS-only: native DWD severity; forecast-series consumes + deletes before send
+        POLLEN_TOMORROW: this.pollenTomorrow, // Transient PKJS-only: tomorrow's DWD severity, read by the pollen alert's look-ahead; deleted before send
         CLOUD_TREND: (this.cloudTrend && this.cloudTrend.length) ? this.cloudTrend.slice(0, numEntries) : [], // Transient PKJS-only: cloud cover %; forecast-series consumes + deletes before send
         PRESSURE_TREND: (this.pressureTrend && this.pressureTrend.length) ? this.pressureTrend.slice(0, numEntries) : [], // Transient PKJS-only: sea-level hPa (no _UINT8 — 950..1050 doesn't fit a byte); forecast-series consumes + deletes before send
         FORECAST_START: this.startTime,

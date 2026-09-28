@@ -21,14 +21,16 @@ const HOUR = 3600;
 const FETCHING = /^Fetching from /;
 const FETCHED = /Successfully fetched weather/;
 // The UV kind's wire id (its index in status-thresholds' KINDS) and a danger
-// entry's header byte: kind | level 2 << 3, no value text.
+// entry's header byte: the header bit | kind | the danger bit, today's, no value text.
+const TH = require('../src/pkjs/status-thresholds.js');
 const UV_KIND = 7;
-const UV_DANGER_ENTRY = UV_KIND | (2 << 3);
+const UV_DANGER_ENTRY = TH.ALERT_HEADER | UV_KIND | TH.ALERT_DANGER;
 
 /**
  * Open-Meteo's GFS UV answer: `uv` every hour around now.
  *
- * @param {number} uv UV index.
+ * @param {number|function(number): number} uv UV index, or the index for a
+ *     bucket's stamp (epoch seconds).
  * @returns {Object} Response body.
  */
 function uvBody(uv) {
@@ -37,24 +39,42 @@ function uvBody(uv) {
   const uvIndex = [];
   for (let i = 0; i < 96; i += 1) {
     time.push(base + i * HOUR);
-    uvIndex.push(uv);
+    uvIndex.push(typeof uv === 'function' ? uv(base + i * HOUR) : uv);
   }
   return { hourly: { time: time, uv_index: uvIndex } };
 }
 
 /**
- * A network whose health the test switches: 'up' (the harness's healthy
- * network plus a UV of 9), 'down' (every request fails) or 'hang' (no request
- * ever answers).
+ * A UV of 2 for the rest of today and 9 all tomorrow, on the phone's local
+ * calendar. GFS UV is read one bucket ahead (openmeteo.js mapUv), so tomorrow's
+ * first hour reads the bucket stamped an hour after local midnight; the 9 starts
+ * one bucket later still, so no hour of today can read it.
  *
+ * @param {number} stamp A bucket's stamp, epoch seconds.
+ * @returns {number} Its UV.
+ */
+function lowTodayHighTomorrow(stamp) {
+  const now = new Date(Date.now());
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() / 1000;
+  return stamp >= tomorrow + 2 * HOUR ? 9 : 2;
+}
+
+/**
+ * A network whose health the test switches: 'up' (the harness's healthy
+ * network plus a UV of 9, or `uv`), 'down' (every request fails) or 'hang' (no
+ * request ever answers).
+ *
+ * @param {number|function(number): number} [uv] The UV answer (uvBody); 9 when absent.
  * @returns {{mode: string, network: Function}} Switch + network function.
  */
-function switchableNetwork() {
+function switchableNetwork(uv) {
   const net = { mode: 'up' };
   net.network = function (url) {
     if (net.mode === 'down') { return { status: 503, body: '' }; }
     if (net.mode === 'hang') { return 'hang'; }
-    if (url.indexOf('hourly=uv_index') !== -1) { return { status: 200, body: uvBody(9) }; }
+    if (url.indexOf('hourly=uv_index') !== -1) {
+      return { status: 200, body: uvBody(uv === undefined ? 9 : uv) };
+    }
     return healthyNetwork(url);
   };
   return net;
@@ -67,10 +87,11 @@ function switchableNetwork() {
  * @param {Object} t node:test context.
  * @param {Object} settings Settings merged over the harness base.
  * @param {Object} [opts] Extra bootIndex options (onSend).
+ * @param {number|function(number): number} [uv] The UV the network answers (uvBody).
  * @returns {{h: Object, net: Object}} The harness and the network switch.
  */
-function bootBaked(t, settings, opts) {
-  const net = switchableNetwork();
+function bootBaked(t, settings, opts, uv) {
+  const net = switchableNetwork(uv);
   const h = bootIndex(t, Object.assign({
     settings: settings,
     network: net.network,
@@ -128,6 +149,38 @@ test('a level moved across the current value re-bakes levels and entries without
   assert.deepEqual(Array.from(after[0].ALERT_ENTRIES_UINT8), [], 'and no longer alerts');
   assert.ok(h.requests.length > requestsBefore, 'the forced fetch is out on the network...');
   assert.equal(h.count(FETCHED), 1, '...and has not answered: the re-bake did not wait for it');
+});
+
+// An alert's Days and tomorrow mark change only the baked entry, from forecast data
+// the last fetch already brought (tomorrow's peak rides UV_DAY_PEAKS in the stored
+// bake inputs), so the config close's re-bake carries them to the watch with the
+// network down.
+test('an alert\'s Days and tomorrow mark re-bake the entry without the network', (t) => {
+  const { h, net } = bootBaked(t, { alertUv: true }, {}, lowTodayHighTomorrow);
+  const tomorrowRaquo = TH.ALERT_HEADER | UV_KIND | TH.ALERT_DANGER
+    | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('raquo') + 1) << TH.ALERT_DAY_SHIFT);
+  const baked = statusSends(h);
+  assert.deepEqual(Array.from(baked[baked.length - 1].ALERT_ENTRIES_UINT8), [tomorrowRaquo],
+    'today peaks at 2, tomorrow at 9: the default Today + tomorrow alerts for tomorrow, marked »');
+
+  net.mode = 'down';
+  let before = h.sends.length;
+  h.saveSettings({ alertUvDays: 'today' });
+  h.advance(5 * 1000);
+  let after = statusSends(h).filter((d) => h.sends.indexOf(d) >= before);
+  assert.equal(after.length, 1, 'one status send, from the re-bake');
+  assert.deepEqual(Array.from(after[0].ALERT_ENTRIES_UINT8), [], 'Today only: nothing left today warns');
+
+  before = h.sends.length;
+  h.saveSettings({ alertUvDays: 'tomorrow', alertUvNextDayMark: 'star', alertUvDisplay: 'value' });
+  h.advance(5 * 1000);
+  after = statusSends(h).filter((d) => h.sends.indexOf(d) >= before);
+  assert.equal(after.length, 1);
+  assert.deepEqual(Array.from(after[0].ALERT_ENTRIES_UINT8), [TH.ALERT_HEADER | UV_KIND | TH.ALERT_DANGER
+    | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('star') + 1) << TH.ALERT_DAY_SHIFT), '9'.charCodeAt(0)],
+  'back to tomorrow, now marked * and printing tomorrow\'s 9');
+  assert.equal(h.count(FETCHED), 1, 'every forced fetch failed: the re-bakes did it alone');
+  assert.equal(h.uncaught.length, 0);
 });
 
 test('upgrade: a Clay-only highlight switch re-bakes a level word an older build packed', (t) => {

@@ -574,8 +574,9 @@ function packLine(line, payload, settings, env) {
  * Add STATUS_LINE_1..4_UINT8, the packed STATUS_LEVELS_UINT8 threshold bytes and
  * the Alerts row's ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
  * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
- * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY) -- the
- * status text, the threshold levels and the alert entries are read from them.
+ * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY,
+ * POLLEN_TOMORROW) -- the status text, the threshold levels and the alert
+ * entries are read from them.
  * @param {Object} payload weather payload (mutated)
  * @param {Object} settings Clay settings blob
  * @param {Object|null} watchInfo Pebble.getActiveWatchInfo() result
@@ -621,7 +622,8 @@ function buildStatusLines(payload, settings, watchInfo) {
  * Every weather-payload key this module's bake actually READS — formatValue's
  * per-code arms plus directionSentinel — and, by inclusion, the only ones
  * status-thresholds' packWeatherLevels and bakeAlerts need (their displayValue /
- * dayMaxToday read a subset: the day-max trends and peaks, POLLEN_TODAY).
+ * dayMaxToday / dayMaxTomorrow read a subset: the day-max trends and peaks,
+ * POLLEN_TODAY — plus POLLEN_TOMORROW, which only the alerts read).
  * STATUS_LINE_n_UINT8, STATUS_LEVELS_UINT8 and ALERT_ENTRIES_UINT8 are
  * deliberately absent: the bake WRITES those.
  *
@@ -639,7 +641,10 @@ var SOURCE_KEYS = [
   'WIND_DIR_TREND',
   'PRESSURE_TREND',
   'DEW_TREND',
-  'POLLEN_TODAY'
+  'POLLEN_TODAY',
+  // Tomorrow's pollen band: read only by the pollen alert's look-ahead
+  // (status-thresholds bakeAlerts), never by a slot.
+  'POLLEN_TOMORROW'
   // ...plus the day-max kinds' trends and *_DAY_PEAKS, read through wire-units'
   // dayMaxShown (UV, wind, gusts, AQI).
 ].concat(wireUnits.dayMaxPayloadKeys());

@@ -450,6 +450,63 @@ test('the alert segment tells apart exactly the settings the per-kind encoding d
   assert.equal(toSig.size, Math.pow(3, thresholds.ALERT_KINDS.length));
 });
 
+// An alert's Days (whether tomorrow may raise it) and its tomorrow mark (the code a
+// tomorrow entry carries) change the baked bytes, so they sign — but only as the
+// bake reads them: Days while the alert is on, the mark while it also looks ahead.
+test('each alert\'s Days and tomorrow mark change the signature exactly where the bake reads them', () => {
+  const base = renderSignature({});
+  thresholds.ALERT_KINDS.forEach((a) => {
+    const on = 'alert' + a.key;
+    const days = on + 'Days';
+    const mark = on + 'NextDayMark';
+    const sig = (over) => renderSignature(Object.assign({ [on]: true }, over));
+    assert.notEqual(sig({ [days]: 'today' }), sig({}), days + ' today must force a refetch');
+    assert.equal(sig({ [days]: 'tomorrow' }), sig({}), days + ': the hydrated default signs like absent');
+    assert.notEqual(sig({ [mark]: 'gt' }), sig({}), mark + ' must force a refetch while looking ahead');
+    assert.equal(sig({ [mark]: 'raquo' }), sig({}), mark + ': the hydrated default signs like absent');
+    assert.notEqual(sig({ [mark]: 'gt' }), sig({ [mark]: 'star' }), mark + ': each mark its own');
+    assert.equal(sig({ [days]: 'today', [mark]: 'gt' }), sig({ [days]: 'today' }),
+      mark + ' is inert while the alert looks at today only');
+    assert.equal(sig({ [days]: 'bogus', [mark]: 'bogus' }), sig({}), 'unknown values read as the defaults');
+    assert.equal(renderSignature({ [days]: 'today', [mark]: 'gt' }), base,
+      days + ' and ' + mark + ' are inert while the alert is off');
+  });
+});
+
+// Per kind, over every combination of its switch, Look, Days and mark: two settings
+// sign alike exactly when the bake reads them alike.
+test('the alert segment signs each kind\'s Days and mark exactly as the bake reads them', () => {
+  thresholds.ALERT_KINDS.forEach((a) => {
+    const key = 'alert' + a.key;
+    const baked = (s) => {
+      const on = s[key] === true;
+      const ahead = on && s[key + 'Days'] !== 'today';
+      const mark = thresholds.ALERT_NEXT_DAY_MARKS.indexOf(s[key + 'NextDayMark']) !== -1
+        ? s[key + 'NextDayMark'] : 'raquo';
+      return [on, on && s[key + 'Display'] === 'value', ahead, ahead ? mark : ''].join('/');
+    };
+    const toSig = new Map();
+    const toBaked = new Map();
+    [undefined, true, 'true'].forEach((on) => [undefined, 'icon', 'value'].forEach((look) =>
+      [undefined, 'today', 'tomorrow', 'x'].forEach((days) =>
+        [undefined, 'raquo', 'gt', 'none', 'x'].forEach((mark) => {
+          const s = {};
+          if (on !== undefined) { s[key] = on; }
+          if (look !== undefined) { s[key + 'Display'] = look; }
+          if (days !== undefined) { s[key + 'Days'] = days; }
+          if (mark !== undefined) { s[key + 'NextDayMark'] = mark; }
+          const b = baked(s);
+          const sig = renderSignature(s);
+          if (toSig.has(b)) { assert.equal(toSig.get(b), sig, a.code + ': one bake state, one signature'); }
+          if (toBaked.has(sig)) { assert.equal(toBaked.get(sig), b, a.code + ': one signature, one bake state'); }
+          toSig.set(b, sig);
+          toBaked.set(sig, b);
+        }))));
+    // off; on today (icon/value); on looking ahead (icon/value) x 3 marks walked.
+    assert.equal(toSig.size, 1 + 2 + 2 * 3, a.code);
+  });
+});
+
 test('the alert keys each occupy their own signature slot', () => {
   const seen = new Set();
   thresholds.ALERT_KINDS.forEach((a) => {

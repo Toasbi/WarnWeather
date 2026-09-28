@@ -134,6 +134,9 @@ function getFixtureWeatherPayload(fixture, settings, watchInfo) {
     // native DWD display string (weather.pollen, e.g. '1-2'), or leave null so
     // the slot renders '--'.
     provider.pollenToday = (typeof weather.pollen === 'string') ? weather.pollen : null;
+    // ...and tomorrow's band the same way (weather.pollenTomorrow), for a pollen
+    // alert that looks ahead.
+    provider.pollenTomorrow = (typeof weather.pollenTomorrow === 'string') ? weather.pollenTomorrow : null;
     provider.sunEvents = sunEvents;
 
     if (provider.numEntries <= 0 || sunEvents.length < 2 || !provider.hasValidData()) {

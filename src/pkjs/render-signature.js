@@ -132,15 +132,20 @@ function renderSignature(settings) {
     // The metric alerts (the Alerts card): alert<Kind> changes both the bake (the
     // ALERT_ENTRIES_UINT8 entries, status-thresholds.js bakeAlerts) and the fetch set (an
     // enabled alert fetches its metric and day peaks with no slot showing it), and
-    // alert<Kind>Display changes the baked bytes (a value after the icon). Signed as
-    // what the bake reads, through the bake's own calls — the switched-on codes, then
-    // those whose Look shows the value (the Look only while on) — so the page
+    // alert<Kind>Display changes the baked bytes (a value after the icon), as do
+    // alert<Kind>Days (whether tomorrow's peak may raise the alert) and
+    // alert<Kind>NextDayMark (the mark code a tomorrow entry carries). Signed as
+    // what the bake reads, through the bake's own calls — the switched-on codes,
+    // those whose Look shows the value, those that look ahead to tomorrow and their
+    // marks (each only while on, the mark only while looking ahead) — so the page
     // hydrating an absent key to its default forces no fetch. rainAlertDisplay, the
     // four per-bar placements (statusXxxAlerts) and the rain switch (alertRain) do
     // NOT join: the look and the placements ride the Clay blob (bytes 34 and 35),
     // the switch the Clay horizon (0 when off) — all already immediate.
     parts.push(statusThresholds.alertKindCodes(settings).join(','),
-        statusThresholds.alertValueKindCodes(settings).join(','));
+        statusThresholds.alertValueKindCodes(settings).join(','),
+        statusThresholds.alertTomorrowKindCodes(settings).join(','),
+        statusThresholds.alertNextDayMarks(settings).join(','));
     return parts.join('|');
 }
 

@@ -359,13 +359,14 @@ test('applyForecastSeries deletes the transient AQI_TREND key', () => {
 
 test('applyForecastSeries deletes POLLEN_TODAY after baking the pollen status slot', () => {
   const payload = {
-    POLLEN_TODAY: '2-3',
+    POLLEN_TODAY: '2-3', POLLEN_TOMORROW: '3',
     PRECIP_TREND_UINT8: [], RAIN_TREND_UINT8: [], WIND_TREND_UINT8: [],
     GUST_TREND_UINT8: [], UV_TREND_UINT8: [], CURRENT_TEMP: 68,
     CITY: 'X', SUN_EVENTS: [1]
   };
   applyForecastSeries(payload, { provider: 'dwd', statusForecastLeft: 'pollen' }, { platform: 'basalt' });
   assert.equal('POLLEN_TODAY' in payload, false);
+  assert.equal('POLLEN_TOMORROW' in payload, false, 'tomorrow\'s band never rides the wire either');
   assert.equal(Buffer.from(payload.STATUS_LINE_1_UINT8.slice(3, 6)).toString('utf8'), '2-3');
 });
 

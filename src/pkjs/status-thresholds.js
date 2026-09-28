@@ -563,18 +563,37 @@
   }
 
   /**
-   * Today's DWD pollen reading: POLLEN_TODAY, a POLLEN_BANDS string, with its
-   * level (the band's index / 2 — 7 bands -> 0, 0.5, 1, ... 3).
-   * @param {Object} payload weather payload (pre-transform)
+   * A DWD pollen reading, a POLLEN_BANDS string, with its level (the band's
+   * index / 2 — 7 bands -> 0, 0.5, 1, ... 3).
+   * @param {*} raw POLLEN_TODAY or POLLEN_TOMORROW
    * @returns {?{band: string, level: number}} the band as the pollen slot prints
    *     it and the number thresholds compare; null when there is no reading or it
    *     is no known band
    */
-  function pollenToday(payload) {
-    var pt = payload.POLLEN_TODAY;
-    if (pt === null || typeof pt === 'undefined') { return null; }
-    var idx = POLLEN_BANDS.indexOf(String(pt));
+  function pollenBand(raw) {
+    if (raw === null || typeof raw === 'undefined') { return null; }
+    var idx = POLLEN_BANDS.indexOf(String(raw));
     return idx < 0 ? null : {band: POLLEN_BANDS[idx], level: idx / 2};
+  }
+
+  /**
+   * Today's DWD pollen reading (POLLEN_TODAY), see pollenBand.
+   * @param {Object} payload weather payload (pre-transform)
+   * @returns {?{band: string, level: number}}
+   */
+  function pollenToday(payload) {
+    return pollenBand(payload.POLLEN_TODAY);
+  }
+
+  /**
+   * Tomorrow's DWD pollen reading (POLLEN_TOMORROW, from the same request as
+   * today's), see pollenBand. Only an alert that looks ahead reads it.
+   * @param {Object} payload weather payload (pre-transform)
+   * @returns {?{band: string, level: number}} null when DWD has not issued
+   *     tomorrow's band (or no pollen was fetched)
+   */
+  function pollenTomorrow(payload) {
+    return pollenBand(payload.POLLEN_TOMORROW);
   }
 
   /**
@@ -674,10 +693,12 @@
   // rain alert in front of them). `code` is the KINDS code, so the wire kind id
   // is its index there; `key` is the settings stem: alert<Key> switches the alert
   // on, alert<Key>Display ('icon' | 'value') picks whether its number rides after
-  // the icon. THE alert vocabulary: which alerts exist, their order and how their
-  // two settings read live here alone. Every reader outside this module — the
-  // fetch gates, the render signature, telemetry, the settings page — goes
-  // through alertOn / alertKindCodes / alertValueKindCodes below, and the bake
+  // the icon, alert<Key>Days (alertDays) whether it may look ahead to tomorrow and
+  // alert<Key>NextDayMark (alertNextDayMark) how a tomorrow entry is marked. THE
+  // alert vocabulary: which alerts exist, their order and how their settings read
+  // live here alone. Every reader outside this module — the fetch gates, the
+  // render signature, telemetry, the settings page — goes through alertOn /
+  // alertDays / alertNextDayMark and the alert*Codes lists below, and the bake
   // through enabledAlerts; all of them rest on alertOn, the one reading of the
   // switch. The settings page's presentation list (schema.js, its labels and sheet
   // copy) is pinned to this order by a test.
@@ -688,6 +709,23 @@
     { code: 'aqi', key: 'Aqi' },
     { code: 'pollen', key: 'Pollen' }
   ];
+
+  // alert<Key>Days: 'today' judges only what is left of today; 'tomorrow' ("Today +
+  // tomorrow") also lets tomorrow's peak raise the alert once nothing left today
+  // reaches warn (bakeAlerts' rule). Absent or unknown reads as the default.
+  var ALERT_DAYS = ['today', 'tomorrow'];
+  var ALERT_DAYS_DEFAULT = 'tomorrow';
+
+  // alert<Key>NextDayMark: how a tomorrow entry marks its day, the choices of the
+  // slot's "Tomorrow's peak mark" (status-pair.js NEXT_DAY_MARKS, pinned to these by
+  // a test: '»8', '>8', '+8', '8*', or none). THIS order is the wire's: a tomorrow
+  // entry carries its mark as the index here + 1 (0 marks today's entry — see
+  // ALERT_DAY_SHIFT), and alert_set.h's STATUS_ALERT_MARK_* codes mirror it. Kept
+  // here rather than read off status-pair.js: that module is phone-only (no
+  // window export), and the settings page reads this contract. Absent or unknown
+  // reads as the default, the slot's own default.
+  var ALERT_NEXT_DAY_MARKS = ['raquo', 'gt', 'plus', 'star', 'none'];
+  var ALERT_NEXT_DAY_MARK_DEFAULT = 'raquo';
 
   // The rain alert's window while none is stored or it does not parse, in minutes.
   // Its switch and look defaults sit in rainAlert, the one reading of all three.
@@ -705,6 +743,30 @@
   }
 
   /**
+   * @param {*} code A status item code.
+   * @returns {?Object} its ALERT_KINDS entry; null for a code with no alert
+   */
+  function alertKindOf(code) {
+    for (var i = 0; i < ALERT_KINDS.length; i++) {
+      if (ALERT_KINDS[i].code === code) { return ALERT_KINDS[i]; }
+    }
+    return null;
+  }
+
+  /**
+   * One of a metric alert's stored settings, alert<Key><suffix>.
+   * @param {Object} settings Clay settings blob
+   * @param {*} code An ALERT_KINDS code.
+   * @param {string} suffix '' for the switch, else e.g. 'Days'.
+   * @returns {*} the stored value; undefined without settings or for a code with
+   *     no alert
+   */
+  function alertSetting(settings, code, suffix) {
+    var a = alertKindOf(code);
+    return (a && settings) ? settings['alert' + a.key + suffix] : undefined;
+  }
+
+  /**
    * A metric alert's switch, read the one way: on only for a stored boolean true
    * (a stored string is not the toggle's value).
    * @param {Object} settings Clay settings blob
@@ -713,21 +775,43 @@
    *     with no alert)
    */
   function alertOn(settings, code) {
-    for (var i = 0; i < ALERT_KINDS.length; i++) {
-      if (ALERT_KINDS[i].code === code) {
-        return Boolean(settings) && settings['alert' + ALERT_KINDS[i].key] === true;
-      }
-    }
-    return false;
+    return alertSetting(settings, code, '') === true;
   }
 
   /**
-   * The switched-on metric alerts, in the row's fixed order, with whether each
-   * Look prints the value. The Look is read only for an alert that is on: one
-   * that is off bakes nothing, whatever its Look.
+   * A metric alert's Days, read the one way: a stored ALERT_DAYS value, else
+   * ALERT_DAYS_DEFAULT ('tomorrow': "Today + tomorrow").
    * @param {Object} settings Clay settings blob
-   * @returns {Array<{code: string, kindId: number, showValue: boolean}>} [] when
-   *     none is on
+   * @param {*} code An ALERT_KINDS code.
+   * @returns {string} 'today' | 'tomorrow' (the default for a code with no alert)
+   */
+  function alertDays(settings, code) {
+    var v = alertSetting(settings, code, 'Days');
+    return (typeof v === 'string' && ALERT_DAYS.indexOf(v) !== -1) ? v : ALERT_DAYS_DEFAULT;
+  }
+
+  /**
+   * A metric alert's tomorrow mark, read the one way: a stored ALERT_NEXT_DAY_MARKS
+   * key, else ALERT_NEXT_DAY_MARK_DEFAULT ('raquo', the "»").
+   * @param {Object} settings Clay settings blob
+   * @param {*} code An ALERT_KINDS code.
+   * @returns {string} 'raquo' | 'gt' | 'plus' | 'star' | 'none' (the default for a
+   *     code with no alert)
+   */
+  function alertNextDayMark(settings, code) {
+    var v = alertSetting(settings, code, 'NextDayMark');
+    return (typeof v === 'string' && ALERT_NEXT_DAY_MARKS.indexOf(v) !== -1)
+      ? v : ALERT_NEXT_DAY_MARK_DEFAULT;
+  }
+
+  /**
+   * The switched-on metric alerts, in the row's fixed order, with how each reads:
+   * whether its Look prints the value, its Days and its tomorrow mark (the mark
+   * only matters with Days 'tomorrow'). The rest is read only for an alert that is
+   * on: one that is off bakes nothing, whatever its other settings.
+   * @param {Object} settings Clay settings blob
+   * @returns {Array<{code: string, kindId: number, showValue: boolean,
+   *     days: string, mark: string}>} [] when none is on
    */
   function enabledAlerts(settings) {
     var out = [];
@@ -735,7 +819,9 @@
       var a = ALERT_KINDS[i];
       if (!alertOn(settings, a.code)) { continue; }
       out.push({code: a.code, kindId: kindId(a.code),
-        showValue: settings['alert' + a.key + 'Display'] === 'value'});
+        showValue: alertSetting(settings, a.code, 'Display') === 'value',
+        days: alertDays(settings, a.code),
+        mark: alertNextDayMark(settings, a.code)});
     }
     return out;
   }
@@ -787,22 +873,107 @@
     return v === null ? null : {value: v, text: String(Math.round(v))};
   }
 
-  // ALERT_ENTRIES_UINT8 (alert_set.h): per entry one header byte — bits 0-2 the
-  // ThreshKind, bits 3-4 the level, bits 5-7 the value length, at most
-  // ALERT_LEN_MAX — then that many ASCII value bytes; the whole tuple at most
-  // ALERT_ENTRIES_MAX_BYTES, what the watch accepts and its inbox budgets for
-  // (test/inbox-size.test.js). All five metric alerts with their widest realistic
-  // values are 19 B, so nothing is dropped today.
-  // test/alert-entries-contract.test.js pins all four to the C header.
-  var ALERT_LEVEL_SHIFT = 3;
-  var ALERT_LEN_SHIFT = 5;
+  /**
+   * What a metric alert that looks ahead judges and prints for TOMORROW: a day-max
+   * kind's peak (wire-units' dayMaxTomorrow — the slot's "»8" number, in the
+   * user's wind unit), pollen tomorrow's DWD band. Never the current reading, and
+   * only a value above 0 — the slot never marks a "»0" either, and a warn of 0
+   * must not raise an alert about a quiet tomorrow.
+   * @param {string} code An ALERT_KINDS code.
+   * @param {Object} payload weather payload (pre-transform)
+   * @param {Object} settings Clay settings blob (windUnits)
+   * @returns {?{value: number, text: string}} null when tomorrow is unknown (a
+   *     forecast that stops short of its end, WAQI's current-only AQI, a band DWD
+   *     has not issued) or not above 0
+   */
+  function alertTomorrowReading(code, payload, settings) {
+    if (code === 'pollen') {
+      var pollen = pollenTomorrow(payload);
+      return (pollen && pollen.level > 0) ? {value: pollen.level, text: pollen.band} : null;
+    }
+    var v = wireUnits.dayMaxTomorrow(code, payload, settings);
+    return v === null ? null : {value: v, text: String(Math.round(v))};
+  }
+
+  /**
+   * Whether one switched-on alert is active, and for which day — THE rule:
+   *  1. Today: the highest value left today (alertReading) at warn or higher makes
+   *     a today entry. Today always wins, so warn today and danger tomorrow shows
+   *     today's warn until today drops below warn.
+   *  2. Tomorrow: only with Days 'tomorrow' and nothing left today at warn:
+   *     tomorrow's peak (alertTomorrowReading), known and above 0, at warn or
+   *     higher makes a tomorrow entry — its own value, at its own level, carrying
+   *     the alert's mark.
+   *  3. Otherwise the alert is not active.
+   * Both days level on the kind's resolved pair (levelOf); the slot's Alert
+   * highlighting switch plays no part.
+   * @param {{code: string, days: string, mark: string}} alert an enabledAlerts entry
+   * @param {Object} payload weather payload (pre-transform, trends present)
+   * @param {Object} settings Clay settings blob
+   * @returns {?{text: string, level: number, nextDay: boolean}} the entry's value
+   *     text and level (1 warn / 2 danger); null when the alert is not active
+   */
+  function alertPick(alert, payload, settings) {
+    var today = alertReading(alert.code, payload, settings);
+    var level = levelOf(alert.code, today ? today.value : null, settings);
+    if (level !== null && level >= 1) {
+      return {text: today.text, level: level, nextDay: false};
+    }
+    if (alert.days !== 'tomorrow') { return null; }
+    var next = alertTomorrowReading(alert.code, payload, settings);
+    level = levelOf(alert.code, next ? next.value : null, settings);
+    if (level === null || level < 1) { return null; }
+    return {text: next.text, level: level, nextDay: true};
+  }
+
+  // ALERT_ENTRIES_UINT8 (alert_set.h): one header byte per entry, then its value
+  // bytes; the whole tuple at most ALERT_ENTRIES_MAX_BYTES, what the watch accepts
+  // and its inbox budgets for (test/inbox-size.test.js).
+  //   header  bit 7     ALERT_HEADER, on every header — and on no value byte, which
+  //                     is printable ASCII (< 0x80). So the value needs no length:
+  //                     it runs to the next header or the end of the tuple.
+  //           bits 0-2  the ThreshKind (AQI 0, pollen 1, wind 2, gust 3, UV 7)
+  //           bit 3     ALERT_DANGER: danger when set, warn when clear — an entry
+  //                     is only ever baked at one of the two (alertPick)
+  //           bits 4-6  the day (ALERT_DAY_SHIFT): 0 today's value; else
+  //                     tomorrow's, as its mark's code — ALERT_NEXT_DAY_MARKS index
+  //                     + 1 (1 », 2 >, 3 +, 4 * after the value, 5 unmarked;
+  //                     6 and 7 unused). The watch draws the mark itself, so no
+  //                     non-ASCII byte rides.
+  //   value   0..ALERT_LEN_MAX printable ASCII bytes — the number printed after
+  //           the icon; none unless the kind's Look is 'value'
+  // A tomorrow entry costs no more than a today one, so all five alerts with their
+  // widest realistic values — UV "11", wind and gusts "255" (the byte clamp), AQI
+  // "500", pollen "2-3" — are 19 B on either day and nothing is dropped.
+  // test/alert-entries-contract.test.js pins these to the C header.
+  var ALERT_HEADER = 0x80;
+  var ALERT_DANGER = 0x08;
+  var ALERT_DAY_SHIFT = 4;
   var ALERT_LEN_MAX = 7;
   var ALERT_ENTRIES_MAX_BYTES = 20;
 
   /**
+   * The header byte of one entry.
+   * @param {number} kind the entry's ThreshKind (its KINDS index)
+   * @param {number} level 1 warn / 2 danger
+   * @param {?string} mark tomorrow's ALERT_NEXT_DAY_MARKS key (alertNextDayMark —
+   *     anything else codes as the default); null for today's entry
+   * @returns {number} the byte
+   */
+  function alertHeader(kind, level, mark) {
+    var day = 0;
+    if (mark !== null) {
+      var idx = ALERT_NEXT_DAY_MARKS.indexOf(mark);
+      day = 1 + (idx < 0 ? ALERT_NEXT_DAY_MARKS.indexOf(ALERT_NEXT_DAY_MARK_DEFAULT) : idx);
+    }
+    return ALERT_HEADER | kind | (level >= 2 ? ALERT_DANGER : 0) | (day << ALERT_DAY_SHIFT);
+  }
+
+  /**
    * Bake the Alerts row's metric entries (ALERT_ENTRIES_UINT8): one entry per
-   * ACTIVE metric alert — switched on (alert<Key>) and at warn or higher on its
-   * reading (alertReading) — in the fixed order UV, wind, gust, AQI, pollen. The
+   * ACTIVE metric alert — switched on (alert<Key>) and active today or, with Days
+   * 'tomorrow', tomorrow (alertPick) — in the fixed order UV, wind, gust, AQI,
+   * pollen. A tomorrow entry carries the alert's mark (alert<Key>NextDayMark). The
    * value bytes are there only when the kind's Look is 'value' (alert<Key>Display)
    * and the text is printable ASCII of at most ALERT_LEN_MAX bytes. Entries that
    * would push the bytes past ALERT_ENTRIES_MAX_BYTES are dropped from the TAIL
@@ -817,15 +988,14 @@
     var alerts = enabledAlerts(settings);
     for (var i = 0; i < alerts.length; i++) {
       var a = alerts[i];
-      var reading = alertReading(a.code, payload, settings);
-      var level = levelOf(a.code, reading ? reading.value : null, settings);
-      if (level === null || level < 1) { continue; }
-      var text = a.showValue ? reading.text : '';
+      var pick = alertPick(a, payload, settings);
+      if (!pick) { continue; }
+      var text = a.showValue ? pick.text : '';
       if (text.length > ALERT_LEN_MAX || !/^[\x20-\x7E]*$/.test(text)) { text = ''; }
       // Tail-drop: a prefix of the fixed order, never a later entry that happens
       // to be shorter — the watch fits the row by the same rule.
       if (out.length + 1 + text.length > ALERT_ENTRIES_MAX_BYTES) { break; }
-      out.push(a.kindId | (level << ALERT_LEVEL_SHIFT) | (text.length << ALERT_LEN_SHIFT));
+      out.push(alertHeader(a.kindId, pick.level, pick.nextDay ? a.mark : null));
       for (var c = 0; c < text.length; c++) { out.push(text.charCodeAt(c)); }
     }
     return out;
@@ -847,6 +1017,28 @@
     return enabledAlerts(settings)
       .filter(function (a) { return a.showValue; })
       .map(function (a) { return a.code; });
+  }
+
+  /**
+   * @param {Object} settings Clay settings blob
+   * @returns {string[]} the switched-on alerts whose Days is 'tomorrow' (they may
+   *     look ahead), fixed order
+   */
+  function alertTomorrowKindCodes(settings) {
+    return enabledAlerts(settings)
+      .filter(function (a) { return a.days === 'tomorrow'; })
+      .map(function (a) { return a.code; });
+  }
+
+  /**
+   * @param {Object} settings Clay settings blob
+   * @returns {string[]} the tomorrow mark of each alert alertTomorrowKindCodes
+   *     names, in the same order — the only alerts whose mark the bake reads
+   */
+  function alertNextDayMarks(settings) {
+    return enabledAlerts(settings)
+      .filter(function (a) { return a.days === 'tomorrow'; })
+      .map(function (a) { return a.mark; });
   }
 
   /**
@@ -968,6 +1160,12 @@
     rainAlert: rainAlert,
     ALERT_KINDS: ALERT_KINDS,
     alertOn: alertOn,
+    ALERT_DAYS: ALERT_DAYS,
+    ALERT_DAYS_DEFAULT: ALERT_DAYS_DEFAULT,
+    alertDays: alertDays,
+    ALERT_NEXT_DAY_MARKS: ALERT_NEXT_DAY_MARKS,
+    ALERT_NEXT_DAY_MARK_DEFAULT: ALERT_NEXT_DAY_MARK_DEFAULT,
+    alertNextDayMark: alertNextDayMark,
     BOLD_MODES: BOLD_MODES,
     DEFAULT_BOLD_MODE: DEFAULT_BOLD_MODE,
     parseThreshold: parseThreshold,
@@ -986,13 +1184,16 @@
     kindConfig: kindConfig,
     computeLevel: computeLevel,
     packWeatherLevels: packWeatherLevels,
-    ALERT_LEVEL_SHIFT: ALERT_LEVEL_SHIFT,
-    ALERT_LEN_SHIFT: ALERT_LEN_SHIFT,
+    ALERT_HEADER: ALERT_HEADER,
+    ALERT_DANGER: ALERT_DANGER,
+    ALERT_DAY_SHIFT: ALERT_DAY_SHIFT,
     ALERT_LEN_MAX: ALERT_LEN_MAX,
     ALERT_ENTRIES_MAX_BYTES: ALERT_ENTRIES_MAX_BYTES,
     bakeAlerts: bakeAlerts,
     alertKindCodes: alertKindCodes,
     alertValueKindCodes: alertValueKindCodes,
+    alertTomorrowKindCodes: alertTomorrowKindCodes,
+    alertNextDayMarks: alertNextDayMarks,
     buildSettingsBlob: buildSettingsBlob,
     DEFAULT_DANGER_COLOR: DEFAULT_DANGER_COLOR,
     DEFAULT_DANGER_HEX: DEFAULT_DANGER_HEX

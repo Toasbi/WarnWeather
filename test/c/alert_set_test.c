@@ -24,26 +24,28 @@ static void expect_str(const char *name, const char *got, const char *want) {
     }
 }
 
-// One wire header byte, as status-thresholds.js bakeAlerts packs it.
-static uint8_t header(int kind, int level, int len) {
-    return (uint8_t)((kind & STATUS_ALERT_KIND_MASK)
-        | ((level & STATUS_ALERT_LEVEL_MASK) << STATUS_ALERT_LEVEL_SHIFT)
-        | (len << STATUS_ALERT_LEN_SHIFT));
+// One wire header byte, as status-thresholds.js bakeAlerts packs it: `day` is
+// STATUS_ALERT_DAY_TODAY or tomorrow's STATUS_ALERT_MARK_* code.
+static uint8_t header(int kind, int level, int day) {
+    return (uint8_t)(STATUS_ALERT_HEADER | (kind & STATUS_ALERT_KIND_MASK)
+        | (level == THRESH_LEVEL_DANGER ? STATUS_ALERT_DANGER : 0)
+        | ((day & STATUS_ALERT_DAY_MASK) << STATUS_ALERT_DAY_SHIFT));
 }
 
 static void parse_tests(void) {
     // UV danger "8", wind warn (icon only), gust warn "90", AQI danger "152".
     uint8_t bytes[] = {
-        header(THRESH_UV, THRESH_LEVEL_DANGER, 1), '8',
+        header(THRESH_UV, THRESH_LEVEL_DANGER, 0), '8',
         header(THRESH_WIND, THRESH_LEVEL_WARN, 0),
-        header(THRESH_GUST, THRESH_LEVEL_WARN, 2), '9', '0',
-        header(THRESH_AQI, THRESH_LEVEL_DANGER, 3), '1', '5', '2',
+        header(THRESH_GUST, THRESH_LEVEL_WARN, 0), '9', '0',
+        header(THRESH_AQI, THRESH_LEVEL_DANGER, 0), '1', '5', '2',
     };
     AlertSet set;
     expect("parse.count", alert_set_parse(bytes, sizeof(bytes), &set), 4);
     expect("parse.count_field", set.count, 4);
     expect("parse.0.kind", set.entries[0].kind, THRESH_UV);
     expect("parse.0.level", set.entries[0].level, THRESH_LEVEL_DANGER);
+    expect("parse.0.day", set.entries[0].day, STATUS_ALERT_DAY_TODAY);
     expect("parse.0.len", set.entries[0].value_len, 1);
     // Values point INTO the buffer (not copies): the set lives as long as it.
     expect("parse.0.value_ptr", set.entries[0].value == (const char *)&bytes[1], 1);
@@ -55,6 +57,7 @@ static void parse_tests(void) {
     expect("parse.2.kind", set.entries[2].kind, THRESH_GUST);
     expect("parse.2.value_ptr", set.entries[2].value == (const char *)&bytes[4], 1);
     expect("parse.2.value0", set.entries[2].value[0], '9');
+    expect("parse.2.len", set.entries[2].value_len, 2);
     expect("parse.3.kind", set.entries[3].kind, THRESH_AQI);
     expect("parse.3.len", set.entries[3].value_len, 3);
     expect("parse.3.value_ptr", set.entries[3].value == (const char *)&bytes[7], 1);
@@ -64,29 +67,57 @@ static void parse_tests(void) {
     expect("parse.null_bytes", alert_set_parse(NULL, 4, &set), 0);
     expect("parse.null_out", alert_set_parse(bytes, sizeof(bytes), NULL), 0);
 
-    // A declared length past the end stops the parse; the entries before it stay.
-    uint8_t truncated[] = {
-        header(THRESH_UV, THRESH_LEVEL_WARN, 1), '7',
-        header(THRESH_WIND, THRESH_LEVEL_DANGER, 3), '4', '5',   // declares 3, has 2
+    // Tomorrow's entries carry their mark code; the value runs to the next header
+    // whatever the day. UV tomorrow at danger "9" marked », wind tomorrow at warn
+    // icon-only marked >, gust tomorrow unmarked "70", AQI tomorrow "120" marked *,
+    // pollen tomorrow "2-3" marked +.
+    uint8_t tomorrow[] = {
+        header(THRESH_UV, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_RAQUO), '9',
+        header(THRESH_WIND, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_GT),
+        header(THRESH_GUST, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_NONE), '7', '0',
+        header(THRESH_AQI, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_STAR), '1', '2', '0',
+        header(THRESH_POLLEN, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_PLUS), '2', '-', '3',
     };
-    expect("parse.truncated", alert_set_parse(truncated, sizeof(truncated), &set), 1);
-    expect("parse.truncated.kind", set.entries[0].kind, THRESH_UV);
+    expect("parse.tomorrow.count", alert_set_parse(tomorrow, sizeof(tomorrow), &set), 5);
+    expect("parse.tomorrow.0.day", set.entries[0].day, STATUS_ALERT_MARK_RAQUO);
+    expect("parse.tomorrow.0.level", set.entries[0].level, THRESH_LEVEL_DANGER);
+    expect("parse.tomorrow.0.len", set.entries[0].value_len, 1);
+    expect("parse.tomorrow.1.day", set.entries[1].day, STATUS_ALERT_MARK_GT);
+    expect("parse.tomorrow.1.len", set.entries[1].value_len, 0);
+    expect("parse.tomorrow.2.day", set.entries[2].day, STATUS_ALERT_MARK_NONE);
+    expect("parse.tomorrow.2.len", set.entries[2].value_len, 2);
+    expect("parse.tomorrow.3.day", set.entries[3].day, STATUS_ALERT_MARK_STAR);
+    expect("parse.tomorrow.3.level", set.entries[3].level, THRESH_LEVEL_WARN);
+    expect("parse.tomorrow.3.len", set.entries[3].value_len, 3);
+    expect("parse.tomorrow.4.kind", set.entries[4].kind, THRESH_POLLEN);
+    expect("parse.tomorrow.4.day", set.entries[4].day, STATUS_ALERT_MARK_PLUS);
+    expect("parse.tomorrow.4.len", set.entries[4].value_len, 3);
+    expect("parse.tomorrow.4.value2", set.entries[4].value[2], '3');
+    // The unused day codes 6 and 7 read as tomorrow's, unmarked.
+    uint8_t unused[] = {
+        header(THRESH_UV, THRESH_LEVEL_WARN, 6), header(THRESH_WIND, THRESH_LEVEL_WARN, 7),
+    };
+    alert_set_parse(unused, sizeof(unused), &set);
+    expect("parse.day6", set.entries[0].day, STATUS_ALERT_MARK_NONE);
+    expect("parse.day7", set.entries[1].day, STATUS_ALERT_MARK_NONE);
 
-    // Skipped entries still consume their value bytes, so the next header lines up:
-    // a NORMAL level, and a kind that is no alert kind (steps).
+    // Value bytes before the first header belong to no entry: skipped.
+    uint8_t stray[] = { '4', '5', header(THRESH_UV, THRESH_LEVEL_WARN, 0), '7' };
+    expect("parse.stray", alert_set_parse(stray, sizeof(stray), &set), 1);
+    expect("parse.stray.kind", set.entries[0].kind, THRESH_UV);
+    expect("parse.stray.value", set.entries[0].value[0], '7');
+    expect("parse.stray.len", set.entries[0].value_len, 1);
+
+    // A kind that is no alert kind (steps) is skipped with its value, so the next
+    // header lines up.
     uint8_t skips[] = {
-        header(THRESH_UV, THRESH_LEVEL_NORMAL, 1), '3',
-        header(THRESH_STEPS, THRESH_LEVEL_WARN, 2), '9', '9',
-        header(THRESH_POLLEN, THRESH_LEVEL_WARN, 1), '2',
+        header(THRESH_STEPS, THRESH_LEVEL_WARN, 0), '9', '9',
+        header(THRESH_POLLEN, THRESH_LEVEL_WARN, 0), '2',
     };
     expect("parse.skips", alert_set_parse(skips, sizeof(skips), &set), 1);
     expect("parse.skips.kind", set.entries[0].kind, THRESH_POLLEN);
     expect("parse.skips.value", set.entries[0].value[0], '2');
-
-    // The reserved level 3 reads as danger (status_threshold_weather_level's rule).
-    uint8_t reserved[] = { header(THRESH_GUST, 3, 0) };
-    alert_set_parse(reserved, sizeof(reserved), &set);
-    expect("parse.level3", set.entries[0].level, THRESH_LEVEL_DANGER);
+    expect("parse.skips.len", set.entries[0].value_len, 1);
 
     // Capped at ALERT_SET_MAX however many headers arrive.
     uint8_t many[9];
@@ -108,35 +139,43 @@ static void bytes_ok_tests(void) {
     expect("ok.icons", alert_set_bytes_ok(e, 2), 1);
 
     // All five with their widest values: UV "11", wind "120", gust "130",
-    // AQI "500", pollen "2-3" = 5 + 14 = 19 B, under the 20-B cap.
-    size_t n = 0;
-    e[n++] = header(THRESH_UV, THRESH_LEVEL_DANGER, 2); e[n++] = '1'; e[n++] = '1';
-    e[n++] = header(THRESH_WIND, THRESH_LEVEL_WARN, 3); e[n++] = '1'; e[n++] = '2'; e[n++] = '0';
-    e[n++] = header(THRESH_GUST, THRESH_LEVEL_WARN, 3); e[n++] = '1'; e[n++] = '3'; e[n++] = '0';
-    e[n++] = header(THRESH_AQI, THRESH_LEVEL_DANGER, 3); e[n++] = '5'; e[n++] = '0'; e[n++] = '0';
-    e[n++] = header(THRESH_POLLEN, THRESH_LEVEL_WARN, 3); e[n++] = '2'; e[n++] = '-'; e[n++] = '3';
-    expect("ok.widest_len", (long)n, 19);
-    expect("ok.widest", alert_set_bytes_ok(e, n), 1);
+    // AQI "500", pollen "2-3" = 5 + 14 = 19 B, under the 20-B cap — tomorrow's as
+    // much as today's: the mark rides the header, not a byte of its own.
+    for (int day = STATUS_ALERT_DAY_TODAY; day <= STATUS_ALERT_MARK_NONE; day++) {
+        size_t n = 0;
+        e[n++] = header(THRESH_UV, THRESH_LEVEL_DANGER, day); e[n++] = '1'; e[n++] = '1';
+        e[n++] = header(THRESH_WIND, THRESH_LEVEL_WARN, day); e[n++] = '1'; e[n++] = '2'; e[n++] = '0';
+        e[n++] = header(THRESH_GUST, THRESH_LEVEL_WARN, day); e[n++] = '1'; e[n++] = '3'; e[n++] = '0';
+        e[n++] = header(THRESH_AQI, THRESH_LEVEL_DANGER, day); e[n++] = '5'; e[n++] = '0'; e[n++] = '0';
+        e[n++] = header(THRESH_POLLEN, THRESH_LEVEL_WARN, day); e[n++] = '2'; e[n++] = '-'; e[n++] = '3';
+        expect("ok.widest_len", (long)n, 19);
+        expect("ok.widest", alert_set_bytes_ok(e, n), 1);
+    }
     expect("ok.cap_pinned", ALERT_ENTRIES_MAX_BYTES, 20);
     // 21 B is past the cap whatever it holds.
     memset(e, header(THRESH_UV, THRESH_LEVEL_WARN, 0), sizeof(e));
     expect("ok.cap20", alert_set_bytes_ok(e, 20), 1);
     expect("ok.cap21.reject", alert_set_bytes_ok(e, 21), 0);
 
-    // A declared value length past the end is malformed, not a truncated value.
-    e[0] = header(THRESH_AQI, THRESH_LEVEL_WARN, 3); e[1] = '1'; e[2] = '5';
-    expect("ok.value_past_len.reject", alert_set_bytes_ok(e, 3), 0);
-    // ...a second entry's overrun too.
-    e[0] = header(THRESH_UV, THRESH_LEVEL_WARN, 0);
-    e[1] = header(THRESH_WIND, THRESH_LEVEL_WARN, 7); e[2] = '4';
-    expect("ok.second_overrun.reject", alert_set_bytes_ok(e, 3), 0);
-    // Value bytes are printable ASCII only.
-    e[0] = header(THRESH_UV, THRESH_LEVEL_WARN, 1); e[1] = 0x01;
+    // A tuple opens on a header: a leading value byte belongs to no entry.
+    e[0] = '8'; e[1] = header(THRESH_UV, THRESH_LEVEL_WARN, 0);
+    expect("ok.leading_value.reject", alert_set_bytes_ok(e, 2), 0);
+    // Value bytes are printable ASCII only (a byte with bit 7 is a header).
+    e[0] = header(THRESH_UV, THRESH_LEVEL_WARN, 0); e[1] = 0x01;
     expect("ok.value_control.reject", alert_set_bytes_ok(e, 2), 0);
-    e[1] = 0xC2;
-    expect("ok.value_high.reject", alert_set_bytes_ok(e, 2), 0);
+    e[1] = 0x7F;
+    expect("ok.value_del.reject", alert_set_bytes_ok(e, 2), 0);
     e[1] = '8';
     expect("ok.value_digit", alert_set_bytes_ok(e, 2), 1);
+    // A value is at most STATUS_ALERT_LEN_MAX bytes; the next header starts a new count.
+    size_t n = 0;
+    e[n++] = header(THRESH_AQI, THRESH_LEVEL_WARN, 0);
+    for (int k = 0; k < STATUS_ALERT_LEN_MAX; k++) { e[n++] = '1'; }
+    e[n++] = header(THRESH_UV, THRESH_LEVEL_WARN, 0);
+    for (int k = 0; k < STATUS_ALERT_LEN_MAX; k++) { e[n++] = '2'; }
+    expect("ok.len_max", alert_set_bytes_ok(e, n), 1);
+    e[n++] = '3';
+    expect("ok.len_past_max.reject", alert_set_bytes_ok(e, n), 0);
 }
 
 static void icon_tests(void) {
@@ -151,9 +190,10 @@ static void icon_tests(void) {
 }
 
 static void prepend_rain_tests(void) {
+    // Tomorrow's entries both, so the slot rain takes holds a day it must clear.
     uint8_t bytes[] = {
-        header(THRESH_UV, THRESH_LEVEL_DANGER, 0),
-        header(THRESH_WIND, THRESH_LEVEL_WARN, 0),
+        header(THRESH_UV, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_STAR),
+        header(THRESH_WIND, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_GT),
     };
     AlertSet set;
     alert_set_parse(bytes, sizeof(bytes), &set);
@@ -170,9 +210,12 @@ static void prepend_rain_tests(void) {
     expect("rain.0.bucket", set.entries[0].rain_bucket, 2);
     expect("rain.0.tier", set.entries[0].rain_tier, 4);
     expect("rain.0.value_null", set.entries[0].value == NULL, 1);
+    expect("rain.0.day", set.entries[0].day, STATUS_ALERT_DAY_TODAY);
     expect("rain.1.kind", set.entries[1].kind, THRESH_UV);
     expect("rain.1.rain", set.entries[1].rain, 0);
+    expect("rain.1.day", set.entries[1].day, STATUS_ALERT_MARK_STAR);
     expect("rain.2.kind", set.entries[2].kind, THRESH_WIND);
+    expect("rain.2.day", set.entries[2].day, STATUS_ALERT_MARK_GT);
 
     // Rain alone, into an empty set.
     alert_set_parse(bytes, 0, &set);

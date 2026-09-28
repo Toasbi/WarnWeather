@@ -46,31 +46,53 @@
 
 // ALERT_ENTRIES_UINT8 (weather message, status category): one entry per ACTIVE
 // metric alert, in the fixed order UV, wind, gust, AQI, pollen (the phone bakes
-// only enabled alerts at warn or higher — status-thresholds.js bakeAlerts — and
-// tail-drops entries past ALERT_ENTRIES_MAX_BYTES, pollen first). Each entry:
-//   header byte   bits 0-2  ThreshKind (AQI 0, pollen 1, wind 2, gust 3, UV 7 —
+// only enabled alerts at warn or higher, for today or — when the alert looks
+// ahead and nothing left today reaches warn — tomorrow: status-thresholds.js
+// bakeAlerts; it tail-drops entries past ALERT_ENTRIES_MAX_BYTES, pollen first).
+// Each entry:
+//   header byte   bit 7     STATUS_ALERT_HEADER, set on every header and on no
+//                           value byte (those are printable ASCII), so a value
+//                           needs no length: it runs to the next header or the end
+//                 bits 0-2  ThreshKind (AQI 0, pollen 1, wind 2, gust 3, UV 7 —
 //                           status_threshold.h's ids, which fit 3 bits)
-//                 bits 3-4  level (1 warn / 2 danger)
-//                 bits 5-7  value length, 0-7
-//   value bytes   that many ASCII bytes — the number printed after the icon;
-//                 zero unless the kind's Look is 'value' on the phone
+//                 bit 3     STATUS_ALERT_DANGER: danger when set, warn when clear
+//                           (the phone bakes no other level)
+//                 bits 4-6  the day: STATUS_ALERT_DAY_TODAY (0) for today's value,
+//                           else tomorrow's, as its mark's code — STATUS_ALERT_MARK_*
+//                           (the phone's ALERT_NEXT_DAY_MARKS order + 1); 6 and 7
+//                           are unused and read as STATUS_ALERT_MARK_NONE
+//   value bytes   0..STATUS_ALERT_LEN_MAX printable ASCII bytes — the number
+//                 printed after the icon; none unless the kind's Look is 'value'
+//                 on the phone. The mark is not in them: the watch draws it.
 // The rain alert is NOT in here: the watch resolves it from its own radar cache.
 // Zero active alerts = an empty array, which clears the stored entries. All five
-// with values stay under the cap (5 headers + at most 2 + 3 + 3 + 3 + 3 value
-// bytes, pollen's widest band being "2-3" = 19 B), so the 20-B cap drops nothing
-// today; it bounds what the inbox has to budget for (test/inbox-size.test.js).
-// The phone never sends the tuple to aplite.
+// with values stay under the cap on either day (5 headers + at most 2 + 3 + 3 + 3
+// + 3 value bytes, pollen's widest band being "2-3" = 19 B — a tomorrow entry costs
+// no extra byte), so the 20-B cap drops nothing today; it bounds what the inbox has
+// to budget for (test/inbox-size.test.js). The phone never sends the tuple to aplite.
 #define ALERT_ENTRIES_MAX_BYTES 20
+#define STATUS_ALERT_HEADER 0x80
 #define STATUS_ALERT_KIND_MASK 0x07
-#define STATUS_ALERT_LEVEL_SHIFT 3
-#define STATUS_ALERT_LEVEL_MASK 0x03
-#define STATUS_ALERT_LEN_SHIFT 5
+#define STATUS_ALERT_DANGER 0x08
+#define STATUS_ALERT_DAY_SHIFT 4
+#define STATUS_ALERT_DAY_MASK 0x07
 #define STATUS_ALERT_LEN_MAX 7
+// The day codes (bits 4-6). Tomorrow's is the mark the alert's "Tomorrow's mark"
+// picked on the phone, drawn with the entry's text lane: a prefix before the value
+// ("»8", ">8", "+8"), a suffix after it ("8*"), or nothing — with the Icon look too.
+#define STATUS_ALERT_DAY_TODAY 0
+#define STATUS_ALERT_MARK_RAQUO 1    // "»" before the value
+#define STATUS_ALERT_MARK_GT 2       // ">" before
+#define STATUS_ALERT_MARK_PLUS 3     // "+" before
+#define STATUS_ALERT_MARK_STAR 4     // "*" after
+#define STATUS_ALERT_MARK_NONE 5     // tomorrow's, unmarked
 
 typedef struct {
     uint8_t kind;          // ThreshKind of a metric entry (AQI, pollen, wind, gust,
                            // UV); ALERT_KIND_RAIN for the rain entry
     uint8_t level;         // ThreshLevel of a metric entry: WARN or DANGER
+    uint8_t day;           // STATUS_ALERT_DAY_TODAY for today's value (and the rain
+                           // entry); a tomorrow entry's STATUS_ALERT_MARK_* code
     uint8_t value_len;     // bytes at `value`, 0..STATUS_ALERT_LEN_MAX
     const char *value;     // INTO the slot bytes, NOT NUL-terminated; NULL when
                            // value_len is 0 (the kind's Look is 'icon' on the phone)
@@ -90,23 +112,21 @@ typedef struct {
 uint8_t alert_set_icon(int kind);
 
 // Whether an ALERT_ENTRIES_UINT8 payload is well formed: at most
-// ALERT_ENTRIES_MAX_BYTES, every header's declared value length inside the
-// bytes and the entries tiling them exactly (a length that runs past the end is
-// a malformed tuple, never a truncated value), and every value byte printable
-// ASCII (the phone prints digits and pollen bands like "2-3"; anything else is
-// rejected here rather than reaching graphics_draw_text). Zero bytes is valid
-// (nothing alerting). app_message.c drops a malformed tuple, keeping the last
-// good entries.
+// ALERT_ENTRIES_MAX_BYTES, starting on a header (a value byte before any header
+// belongs to no entry), every value byte printable ASCII (the phone prints digits
+// and pollen bands like "2-3"; anything else is rejected here rather than reaching
+// graphics_draw_text) and every value at most STATUS_ALERT_LEN_MAX bytes. Zero
+// bytes is valid (nothing alerting). app_message.c drops a malformed tuple,
+// keeping the last good entries.
 bool alert_set_bytes_ok(const uint8_t *bytes, size_t len);
 
 // Parse the stored alert entries (ALERT_ENTRIES_UINT8) into metric entries, in
 // wire order. Every `value` points into `bytes`, so the set must not outlive the
 // buffer.
-// Tolerant, although alert_set_bytes_ok() already rejects malformed bytes: a
-// declared value length that runs past `len` ends the parse there, an entry whose
-// kind has no icon or whose level is NORMAL is skipped (its value bytes still
-// consumed), a reserved level 3 reads as DANGER (status_threshold_weather_level's
-// rule), and the parse stops at ALERT_SET_MAX. Returns out->count.
+// Tolerant, although alert_set_bytes_ok() already rejects malformed bytes: value
+// bytes before the first header are skipped, an entry whose kind has no icon is
+// skipped (its value bytes with it), an unused day code (6, 7) reads as
+// STATUS_ALERT_MARK_NONE, and the parse stops at ALERT_SET_MAX. Returns out->count.
 int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out);
 
 // Put the rain entry FIRST when `active`; a no-op otherwise. A full set drops its

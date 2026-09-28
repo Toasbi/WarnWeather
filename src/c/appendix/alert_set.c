@@ -19,16 +19,13 @@ uint8_t alert_set_icon(int kind) {
 
 bool alert_set_bytes_ok(const uint8_t *bytes, size_t len) {
     if (len > ALERT_ENTRIES_MAX_BYTES) { return false; }
-    if (len > 0 && !bytes) { return false; }
-    size_t i = 0;
-    while (i < len) {
-        size_t n = (size_t)(bytes[i] >> STATUS_ALERT_LEN_SHIFT);
-        i++;
-        if (n > len - i) { return false; }
-        for (size_t k = 0; k < n; k++) {
-            if (bytes[i + k] < 0x20 || bytes[i + k] > 0x7E) { return false; }
-        }
-        i += n;
+    if (len == 0) { return true; }
+    if (!bytes || !(bytes[0] & STATUS_ALERT_HEADER)) { return false; }
+    size_t run = 0;   // value bytes since the last header
+    for (size_t i = 1; i < len; i++) {
+        if (bytes[i] & STATUS_ALERT_HEADER) { run = 0; continue; }
+        if (bytes[i] < 0x20 || bytes[i] > 0x7E) { return false; }
+        if (++run > STATUS_ALERT_LEN_MAX) { return false; }
     }
     return true;
 }
@@ -40,26 +37,26 @@ int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out) {
     size_t i = 0;
     while (i < len && out->count < ALERT_SET_MAX) {
         uint8_t header = bytes[i++];
-        size_t n = (size_t)(header >> STATUS_ALERT_LEN_SHIFT);
-        // A length past the end is a truncated tail, not a short value: stop here
-        // rather than hand the renderer bytes that belong to nobody.
-        if (n > len - i) { break; }
+        // A value byte with no header before it belongs to no entry.
+        if (!(header & STATUS_ALERT_HEADER)) { continue; }
+        // The value runs to the next header (value bytes never carry bit 7).
+        size_t start = i;
+        while (i < len && !(bytes[i] & STATUS_ALERT_HEADER)) { i++; }
+        size_t n = i - start;
         int kind = header & STATUS_ALERT_KIND_MASK;
-        int level = (header >> STATUS_ALERT_LEVEL_SHIFT) & STATUS_ALERT_LEVEL_MASK;
-        if (level > THRESH_LEVEL_DANGER) { level = THRESH_LEVEL_DANGER; }
-        // A NORMAL entry is not an alert, and a kind with no icon has nothing to
-        // show; either way the value bytes are consumed so the next header lines up.
-        if (level != THRESH_LEVEL_NORMAL && alert_set_icon(kind) != STATUS_ICON_NONE) {
-            AlertEntry *e = &out->entries[out->count++];
-            e->kind = (uint8_t)kind;
-            e->level = (uint8_t)level;
-            e->value_len = (uint8_t)n;
-            e->value = n > 0 ? (const char *)(bytes + i) : NULL;
-            e->rain = false;
-            e->rain_bucket = 0;
-            e->rain_tier = 0;
-        }
-        i += n;
+        // A kind with no icon has nothing to show: skipped, value and all.
+        if (alert_set_icon(kind) == STATUS_ICON_NONE) { continue; }
+        int day = (header >> STATUS_ALERT_DAY_SHIFT) & STATUS_ALERT_DAY_MASK;
+        if (day > STATUS_ALERT_MARK_NONE) { day = STATUS_ALERT_MARK_NONE; }
+        AlertEntry *e = &out->entries[out->count++];
+        e->kind = (uint8_t)kind;
+        e->level = (header & STATUS_ALERT_DANGER) ? THRESH_LEVEL_DANGER : THRESH_LEVEL_WARN;
+        e->day = (uint8_t)day;
+        e->value_len = (uint8_t)n;
+        e->value = n > 0 ? (const char *)(bytes + start) : NULL;
+        e->rain = false;
+        e->rain_bucket = 0;
+        e->rain_tier = 0;
     }
     return out->count;
 }
@@ -78,6 +75,7 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier) {
     AlertEntry *e = &set->entries[0];
     e->kind = ALERT_KIND_RAIN;
     e->level = THRESH_LEVEL_NORMAL;
+    e->day = STATUS_ALERT_DAY_TODAY;
     e->value_len = 0;
     e->value = NULL;
     e->rain = true;
