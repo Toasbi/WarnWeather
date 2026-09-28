@@ -25,7 +25,7 @@ RAIN RADAR
   30 minutes; turn on "Use your own key" and enter your own Rainbow API key to refresh it at your
   own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 - "Radar limit reached" on the radar when a radar source refuses requests over its limit
-- Rain countdown in the Alerts row telling you when rain starts (or stops)
+- Rain alert telling you when rain starts (or stops), in a status bar's alert row
 - Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph
 - Clouds, sun and lightning rows under the radar graph for the next 2 hours
 
@@ -66,16 +66,18 @@ STATUS LINES
 - Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
   (not on Pebble Classic/Steel)
-- Alert levels: bold, outline, or fill a status slot when a metric reaches a warn or danger
-  level you set; the UV, wind, gust and air-quality slots keep today's peak on screen while
-  it is at warn or higher (not on Pebble Classic/Steel)
-- Alerts row: one icon for incoming rain and for every metric that reaches its alert level
-  today (later hours included), shown in place of a status bar's slots while an alert is
-  active — each status bar chooses Off, Left, Middle or Right; each metric alert can print
-  its value next to the icon, and rain shows as an icon, the minutes until it starts (or,
-  while it rains, how long it keeps falling), or the full countdown text; when a bar runs
-  out of room, values and the rain text shorten first, then the last alerts are left out
-  (not on Pebble Classic/Steel)
+- Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or
+  danger level you set (its Alert levels); the UV, wind, gust and air-quality slots can keep
+  today's peak on screen while it is at warn or higher (not on Pebble Classic/Steel)
+- Alerts: show a metric only when it matters, instead of in a slot all day — while rain is on
+  its way, or UV, wind, gusts, air quality or (with DWD) pollen reach your warn level today
+  (later hours included), their alert icons appear in the alert row, which takes over up to
+  two slots of a status bar and gives them back afterwards; each status bar's Alert row
+  setting picks Off, Left, Middle or Right; each metric alert can print its value next to its
+  icon, and the rain alert shows as the rain icon, the minutes until it starts (or, while it
+  rains, how long it keeps falling), or the full countdown text; when a bar runs out of room,
+  values and the rain text shorten first, then the last alerts are left out (not on Pebble
+  Classic/Steel)
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches
