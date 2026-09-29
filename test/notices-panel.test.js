@@ -43,3 +43,27 @@ test('buildNoticesPanel returns empty string for an empty, absent, or malformed 
   assert.strictEqual(panel.buildNoticesPanel({}, {}), '');
   assert.strictEqual(panel.buildNoticesPanel({}, { notices: 'not json' }), '');
 });
+
+// The panel's info item and the settings page's staticText info box are one look, in
+// the page's info amber: both read shell.html's --info-tint / --info-rule, so a colour
+// change (or the light theme's flip) reaches both. The error item keeps its own red.
+test('the info item shares the info box\'s amber variables; the error item keeps its red', function () {
+  var fs = require('fs');
+  var path = require('path');
+  var css = panel.NOTICE_CSS;
+  var info = /\.notice-item\.info\{([^}]*)\}/.exec(css);
+  var error = /\.notice-item\.error\{([^}]*)\}/.exec(css);
+  assert.ok(info && error, 'the panel styles both item types');
+  assert.ok(info[1].indexOf('background:var(--info-tint)') !== -1, 'info fill is the shared tint');
+  assert.ok(info[1].indexOf('border-left:3px solid var(--info-rule)') !== -1, 'info rule is the shared rule');
+  assert.ok(error[1].indexOf('border-left:3px solid #FF6A52') !== -1, 'the error rule stays red');
+  assert.ok(error[1].indexOf('background:rgba(255,106,82,0.12)') !== -1, 'and so does its fill');
+  var shell = fs.readFileSync(path.join(__dirname, '..', 'src', 'pkjs', 'config-ui', 'lib', 'shell.html'), 'utf8');
+  var box = /\.static\.info \.info-box \{([^}]*)\}/.exec(shell);
+  assert.ok(box, 'shell.html styles the info box');
+  assert.ok(box[1].indexOf('var(--info-tint)') !== -1 && box[1].indexOf('var(--info-rule)') !== -1,
+    'the info box reads the same two variables');
+  ['--info-tint:', '--info-rule:'].forEach(function (v) {
+    assert.equal(shell.split(v).length - 1, 2, v + ' is defined once per theme (body, body.light)');
+  });
+});

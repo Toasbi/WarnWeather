@@ -314,8 +314,10 @@ the held value) and a tap on it changes nothing.
 
 `staticText` items carry their HTML in a `text` field and are emitted verbatim without control
 chrome. They are not serialized (no `messageKey`). `style: 'info'` boxes the note — the
-tinted, left-ruled look of the General tab's fetch-notice items, in their info blue — for a
-pointer the reader should not skim past as body copy ("this is set on another tab").
+tinted, left-ruled look of the General tab's fetch-notice items, in the page's info amber
+(`--info-tint` / `--info-rule` in `shell.html`, shared with those notice items and flipped by
+the light theme; error boxes stay red) — for a pointer the reader should not skim past as
+body copy ("this is set on another tab").
 
 `color` items offer all 64 Pebble swatches; `excludeColors` subtracts specific ones (e.g.
 white from the holiday picker, where white means "no highlight" rather than a real color). A

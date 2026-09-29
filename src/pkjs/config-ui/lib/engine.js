@@ -1151,7 +1151,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // Only a tight join (joinPrevious: true) gets the .join pull-up that hugs the row above; a
       // loose join keeps the static's normal standoff (the row above just drops its divider).
       // style 'info': the note is boxed like the General tab's fetch-notice panel (its
-      // tinted, left-ruled .notice-item) in the panel's info blue — a pointer the reader
+      // tinted, left-ruled .notice-item) in the page's info amber — a pointer the reader
       // should not scroll past as body copy (e.g. "this is set on another tab").
       var isInfo = item.style === 'info';
       var staticCls = 'static' + (item.joinPrevious === true ? ' join' : '') + (item.hinted ? ' hinted' : '')

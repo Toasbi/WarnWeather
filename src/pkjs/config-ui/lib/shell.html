@@ -21,6 +21,9 @@
     --ctl-line-soft: rgba(255,255,255,0.1); --swatch-line: rgba(255,255,255,0.18);
     --chip-line: rgba(255,255,255,0.25);
     --screen-line: rgba(255,255,255,0.14); --link: #FF6A52;
+    /* the info box's amber (staticText style: 'info', and the notice panel's info items):
+       rule 6.1:1 against the card, box text 6.0:1 */
+    --info-rule: #FFB02E; --info-tint: rgba(255,176,46,0.12);
     font-family: 'Inter', -apple-system, system-ui, sans-serif;
     color: #F0F2F6; color: var(--fg);
     max-width: 460px; margin: 0 auto;
@@ -37,6 +40,8 @@
     --ctl-line-soft: rgba(0,0,0,0.11); --swatch-line: rgba(0,0,0,0.18);
     --chip-line: rgba(0,0,0,0.24);
     --screen-line: rgba(0,0,0,0.16); --link: #D93A24;
+    /* light amber: rule 3.65:1 against the card (the 3:1 non-text minimum), text ~8.6:1 */
+    --info-rule: #B86E00; --info-tint: rgba(217,142,4,0.12);
   }
   /* accent — flat Pebble-app red (#FA4A35), matching the watchface store listing */
   /* header + tabs pinned together as one bar while the body scrolls */
@@ -145,8 +150,11 @@
   .static.join, .static.hinted { color: var(--hint); font-size: 12.5px; line-height: 1.55; }
   .static.join { margin-top: -5px; padding-top: 0; }
   /* style: 'info' — a boxed note, the General tab's fetch-notice item (notices-panel.js
-     .notice-item) in that panel's info blue: tinted fill, 3px left rule, rounded. */
-  .static.info .info-box { padding: 8px 10px; border-radius: 6px; background: rgba(90,140,255,0.12); border-left: 3px solid #5A8CFF; }
+     .notice-item) in the page's info amber (--info-tint / --info-rule, in tune with the
+     orange accents; error boxes stay red): tinted fill, 3px left rule, rounded. The
+     explicit text colour keeps a tight-joined box (.static.join) off the hint grey, which
+     is only 3.97:1 on the dark amber. */
+  .static.info .info-box { padding: 8px 10px; border-radius: 6px; background: var(--info-tint); border-left: 3px solid var(--info-rule); color: var(--static); }
   /* inline data block attached to a control (e.g. last-fetch under Force weather fetch) */
   .blockrow { padding: 12px 16px 14px; font-size: 12.5px; color: var(--hint); line-height: 1.55; border-bottom: 1px solid var(--row-line); }
   .blockrow a { color: var(--link); }

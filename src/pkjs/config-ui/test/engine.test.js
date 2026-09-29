@@ -462,8 +462,8 @@ test('renderBody: a hinted staticText carries the hinted class (hint style) but 
 });
 
 // style: 'info' boxes a note like the General tab's fetch-notice items (the tinted,
-// left-ruled .notice-item) in their info blue — for a pointer the reader should not
-// skim past as body copy.
+// left-ruled .notice-item) in the page's info amber — for a pointer the reader should
+// not skim past as body copy.
 test('renderBody: a staticText with style info renders boxed, with its own class', () => {
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [ { id: 't', label: 'T', sections: [ { title: 'S', items: [
     { type: 'staticText', style: 'info', text: 'Set <b>elsewhere</b>.' },
@@ -477,9 +477,26 @@ test('renderBody: a staticText with style info renders boxed, with its own class
   const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
   const rule = shell.match(/\.static\.info \.info-box \{([^}]*)\}/);
   assert.ok(rule, 'shell.html styles the box');
-  // The notice panel's info item, value for value (notices-panel.js .notice-item.info).
-  ['background: rgba(90,140,255,0.12)', 'border-left: 3px solid #5A8CFF', 'border-radius: 6px']
+  // The amber comes from two theme variables the notice panel's info item shares
+  // (test/notices-panel.test.js pins that side). The text colour is explicit: a
+  // tight-joined box would otherwise take the hint grey, too faint on the dark amber.
+  ['background: var(--info-tint)', 'border-left: 3px solid var(--info-rule)', 'border-radius: 6px',
+    'color: var(--static)']
     .forEach((decl) => assert.ok(rule[1].indexOf(decl) !== -1, 'box carries ' + decl));
+});
+
+test('shell.html defines the info amber for both themes', () => {
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  const dark = /\n  body \{([^}]*)\}/.exec(shell);
+  const light = /\n  body\.light \{([^}]*)\}/.exec(shell);
+  assert.ok(dark && light, 'the body and body.light variable blocks');
+  // Measured against --card: dark rule 6.1:1 (text 6.0:1); light rule 3.65:1, over the
+  // 3:1 non-text minimum (text ~8.6:1).
+  assert.match(dark[1], /--info-rule: #FFB02E;/);
+  assert.match(dark[1], /--info-tint: rgba\(255,176,46,0\.12\);/);
+  assert.match(light[1], /--info-rule: #B86E00;/);
+  assert.match(light[1], /--info-tint: rgba\(217,142,4,0\.12\);/);
+  assert.equal(/5A8CFF|90,140,255/i.test(shell), false, 'no info blue is left');
 });
 
 test('renderSelectModal: duplicate messageKey resolves the VISIBLE block (theme B&W regression)', () => {
