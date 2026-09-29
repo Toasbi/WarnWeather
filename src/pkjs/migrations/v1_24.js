@@ -2,7 +2,9 @@
 //
 // The 1.24.0 alert-levels migration: one registry entry (ALERT_LEVELS_MIGRATION_KEY)
 // running three value-keyed moves in order: the highlight toggles, the warn look, the
-// rain window's Off. A registry body (migrations/registry.js): run(blob, ctx) ->
+// rain window's Off. Also the body of the temperature separator's own entry
+// (TEMP_SEPARATOR_BAR_MIGRATION_KEY, migrateTempSeparatorBar at the end of this file).
+// A registry body (migrations/registry.js): run(blob, ctx) ->
 // {changed, send}, mutating the blob in place; the runner in clay-migrations.js owns the
 // marker, the save and the send.
 //
@@ -37,7 +39,7 @@ var thresholds = require('../status-thresholds.js');   // KINDS + the pair rules
  * A pair that is not ordered but not blank either — half ('7', '') from the old text
  * fields, inverted, junk — is normalised to '' on both keys: the phone and the page
  * already resolve it to the kind's seed as a whole (resolvedPair), while the slider
- * fell back per value and would preview 'Warn 7' against a seed-6 hold. Blank is the
+ * fell back per value and would preview 'Warn 7' against a seed-6 bake. Blank is the
  * one stored form of "the seed" from here on; no numbers are written into any blob.
  *
  * No Clay send: for every install the post-migration enable bit (On && ordered) equals
@@ -219,9 +221,35 @@ function migrateAlertLevels(blob, ctx) {
     return out;
 }
 
+/**
+ * The temperature pair's separator: 1.24.0 moved its default from the slash to the
+ * bar ('12|10', status-pair.js DEFAULT_SEPARATOR), and a stored 'slash' moves with it
+ * once. Until 1.24.0 the slash was the default and the page stored it on every save,
+ * so a stored 'slash' cannot tell a pick from the old default; the owner's call is
+ * that everyone gets the bar. Every other value stays: 'custom' (even a custom '/'),
+ * 'brackets', 'dot', an already stored 'bar', and the day-max kinds' own separators.
+ * The Spaces flag is left alone, so '12 / 10' becomes '12 | 10'.
+ *
+ * Keyed on the stored VALUE: seedDefaults has already written 'bar' into a fresh
+ * install, which is a no-op here. No Clay send: the separator is phone-baked slot text,
+ * already in renderSignature, so the next bake (the startup fetch or the settings-close
+ * re-bake) shows it.
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function migrateTempSeparatorBar(blob) {
+    if (blob.tempSlotSeparator === 'slash') {
+        blob.tempSlotSeparator = 'bar';
+        return { changed: true, send: false };
+    }
+    return { changed: false, send: false };
+}
+
 module.exports = {
     migrateAlertLevels: migrateAlertLevels,
     migrateThresholdHighlightToggles: migrateThresholdHighlightToggles,
     migrateWarnLook: migrateWarnLook,
-    migrateRainHorizonOff: migrateRainHorizonOff
+    migrateRainHorizonOff: migrateRainHorizonOff,
+    migrateTempSeparatorBar: migrateTempSeparatorBar
 };

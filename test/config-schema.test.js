@@ -2484,12 +2484,17 @@ test('the wind and gust sheets carry the direction toggle', () => {
     // must name the direction: the arrow flies downwind, not along the reported bearing.
     assert.match(String(item.hint), /arrow/i, key + ' explains what it draws');
     assert.match(String(item.hint), /blowing/i, key + ' says which way the arrow points');
-    // Bold still leads the sheet, and the extra row sits above the pointer to the
-    // Alerts sheet (the levels' home): it configures the slot, not the highlight.
-    assert.match(String(sheet.items[0].messageKey), /BoldMode$/, id + ' must open with Bold');
-    const note = sheet.items.findIndex((i) => i.style === 'info');
-    assert.ok(note > 0 && sheet.items.indexOf(item) < note,
-      key + ' must sit above the levels pointer');
+    assert.match(String(item.hint), /Not while Day max shows a peak alone\.$/, key + ' names the mode');
+    // The extra row follows the Value selection group as a row of its own (a divider
+    // above it), above the highlight group: it configures the slot, not the highlight.
+    // Bold closes the sheet.
+    assert.equal(item.joinPrevious, undefined, key + ' is a row of its own');
+    assert.match(String(sheet.items[sheet.items.length - 1].messageKey), /BoldMode$/,
+      id + ' must close with Bold');
+    const mark = sheet.items.findIndex((i) => /SlotNextDayMark$/.test(i.messageKey || ''));
+    const highlight = sheet.items.findIndex((i) => /^thresh.*On$/.test(i.messageKey || ''));
+    assert.ok(mark < sheet.items.indexOf(item) && sheet.items.indexOf(item) < highlight,
+      key + ' must sit between the Value selection group and the highlight switch');
   });
 });
 
@@ -2519,11 +2524,12 @@ const UNIT_ROWS = [
 const sheetById = (id) => schema.tabs.find((t) => t.id === 'watch').sections
   .filter((s) => s.sheetOnly).find((s) => s.sheetId === id);
 
-test('the Date sheet carries the two format pickers, wire-lockstep and Bold-led', () => {
+test('the Date sheet carries the two format pickers, wire-lockstep, Bold last', () => {
   const CODES = require('../src/pkjs/date-format.js');
   const sheet = sheetById('threshDate');
   assert.ok(sheet, 'no threshDate sheet');
-  assert.match(String(sheet.items[0].messageKey), /BoldMode$/, 'Bold still leads the sheet');
+  assert.match(String(sheet.items[sheet.items.length - 1].messageKey), /BoldMode$/,
+    'Bold closes the sheet');
   const month = sheet.items.find((i) => i.messageKey === 'dateSlotMonthFormat');
   const full = sheet.items.find((i) => i.messageKey === 'dateSlotFullFormat');
   assert.ok(month && full, 'both pickers present');
@@ -2568,23 +2574,28 @@ test('the six phone-baked slot kinds each carry a Show unit toggle', () => {
       assert.equal(item.hint, 'Prints the unit after the value when it fits — in a narrow left or'
         + ' right slot, a pair plus the direction arrow leaves no room for it.', row.key);
     }
-    // Bold leads every slot sheet (see the sheet-shape tests above), so the extras
-    // cannot lead — and on the two threshold sheets the row configures the SLOT, not
-    // the highlight, so it stays above the Alert levels group header.
-    assert.match(String(sheet.items[0].messageKey), /BoldMode$/,
-      row.sheetId + ' must open with Bold');
+    // Bold closes every slot sheet (see the sheet-shape tests above), so the extras
+    // sit above it — and on the two alert sheets the row configures the SLOT, not the
+    // highlight, so it stays above the highlight group.
+    assert.match(String(sheet.items[sheet.items.length - 1].messageKey), /BoldMode$/,
+      row.sheetId + ' must close with Bold');
+    const highlight = sheet.items.findIndex((i) => /^thresh.*On$/.test(i.messageKey || ''));
+    if (highlight !== -1) {
+      assert.ok(sheet.items.indexOf(item) < highlight,
+        row.key + ' must sit above the highlight group');
+    }
     const hdr = sheet.items.findIndex((i) => i.type === 'subheader');
     if (hdr !== -1) {
       assert.ok(sheet.items.indexOf(item) < hdr,
         row.key + ' must sit above the Alert levels group header');
     }
   });
-  // Temp is the one sheet with two display rows: the unit toggle follows the
-  // Temp/Feels/Both picker rather than splitting it from Bold.
+  // Temp is the one sheet with several display rows: the unit toggle follows the
+  // Temp/Feels/Both picker's group, right above Bold.
   const temp = sheetById('threshTemp');
   assert.ok(temp.items.findIndex((i) => i.messageKey === 'tempSlotUnit') >
     temp.items.findIndex((i) => i.messageKey === 'tempSlotDisplay'),
-    'tempSlotUnit follows the temperature-selection row');
+    'tempSlotUnit follows the Value selection row');
 });
 
 // The load-bearing part of this feature: an upgrade must not move a single pixel. The
@@ -3208,36 +3219,40 @@ test('the Weather tab is display-only: its own keys, blocks, and no watch coupli
   }));
 });
 
-test('every day-max display row carries the live dayMaxHint', () => {
-  // The pills' hint quotes the kind's warn level (blocks.js dayMaxHint); the args are
-  // the per-mode templates the resolver fills that number into ('{level}'), so they
-  // are pinned verbatim — one sentence set per SELECTED mode, none for Now. Both close
-  // on the same highlighting sentence: a tomorrow's peak is judged at its own level.
+test('every day-max Value selection row carries its by-value hints; AQI adds its source note', () => {
+  // One sentence set per SELECTED mode, none for Now, pinned verbatim on each kind's
+  // own noun and samples. AQI keeps a resolver (blocks.js dayMaxHint) for its source
+  // note, fed the SAME table the static hintByValue is (one source, no drift).
   const byKey = (k) => items.find((i) => i.messageKey === k);
-  const highlight = ' With Alert highlighting on, tomorrow\'s peak is highlighted at the level it'
-    + ' reaches, like today\'s.';
-  const hints = (subject, sample) => ({
-    max: 'Today\'s peak — the highest it gets for the rest of today. Once it has passed and '
-      + subject + ' below {level}, tomorrow\'s peak shows instead, with the mark chosen below,'
-      + ' or the current reading if tomorrow\'s isn\'t known.' + highlight,
-    both: 'The reading now and today\'s peak, like ' + sample + ' — one number while they\'re the'
-      + ' same. Once today\'s peak has passed and ' + subject + ' below {level}, tomorrow\'s peak'
-      + ' shows instead, with the mark chosen below, or the reading alone if tomorrow\'s isn\'t known.'
-      + highlight
+  const never = ' Tomorrow\'s peak never triggers Alert highlighting.';
+  const hints = (noun, sample) => ({
+    max: 'The highest ' + noun + ' left today, while that peak is still ahead or happening now.'
+      + ' After it, tomorrow\'s peak with Tomorrow\'s peak mark, or the reading when tomorrow\'s'
+      + ' isn\'t known.' + never,
+    both: 'The ' + noun + ' now and the highest left today, like ' + sample + ', while that peak'
+      + ' is still ahead or happening now. After it, the second number is tomorrow\'s peak with'
+      + ' Tomorrow\'s peak mark, or the reading shows alone when tomorrow\'s isn\'t known.' + never
   });
-  assert.deepEqual(['uv', 'wind', 'gust', 'aqi'].map((p) => byKey(p + 'SlotDisplay').hintFrom), [
-    { resolver: 'dayMaxHint', args: { keyStem: 'Uv', hints: hints('UV is', '3/7') } },
-    { resolver: 'dayMaxHint', args: { keyStem: 'Wind', hints: hints('the wind is', '12/30') } },
-    { resolver: 'dayMaxHint', args: { keyStem: 'Gust', hints: hints('gusts are', '20/45') } },
-    { resolver: 'dayMaxHint', args: { keyStem: 'Aqi', hints: hints('the AQI is', '42/58'), notes: {
-      key: 'aqiSource',
-      fallback: 'waqi',
-      byValue: {
-        waqi: ' Your AQI provider (WAQI) has no forecast, so the current reading shows.',
-        auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
-      }
-    } } }
+  assert.deepEqual(['uv', 'wind', 'gust', 'aqi'].map((p) => byKey(p + 'SlotDisplay').hintByValue), [
+    hints('UV index', '3/7'), hints('wind', '12/30'), hints('gusts', '20/45'),
+    hints('air quality index', '42/58')
   ]);
+  assert.deepEqual(['uv', 'wind', 'gust'].map((p) => byKey(p + 'SlotDisplay').hintFrom),
+    [undefined, undefined, undefined], 'no resolver where no note applies');
+  assert.deepEqual(byKey('aqiSlotDisplay').hintFrom, {
+    resolver: 'dayMaxHint',
+    args: {
+      hints: hints('air quality index', '42/58'),
+      notes: {
+        key: 'aqiSource',
+        fallback: 'waqi',
+        byValue: {
+          waqi: ' Your AQI provider (WAQI) has no forecast, so the current reading shows.',
+          auto: ' Auto mostly reads WAQI, which has no forecast — then the current reading shows.'
+        }
+      }
+    }
+  });
 });
 
 test('the day-max sheets\' keys are exactly the catalog\'s dayMaxSettingKeys', () => {

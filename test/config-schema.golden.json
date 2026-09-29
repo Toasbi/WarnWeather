@@ -5626,67 +5626,33 @@
             "items": [
               {
                 "type": "segmented",
-                "messageKey": "threshAqiBoldMode",
-                "label": "Bold value",
+                "messageKey": "aqiSlotDisplay",
+                "label": "Value selection",
                 "hintByValue": {
-                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
-                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
-                  "always": "Every status slot showing this value prints it in heavier text."
+                  "max": "The highest air quality index left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
+                  "both": "The air quality index now and the highest left today, like 42/58, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
-                "defaultValue": "warn",
+                "defaultValue": "current",
                 "options": [
                   [
-                    "Off",
-                    "off"
+                    "Now",
+                    "current"
                   ],
                   [
-                    "Warn",
-                    "warn"
+                    "Day max",
+                    "max"
                   ],
                   [
-                    "Always",
-                    "always"
+                    "Both",
+                    "both"
                   ]
                 ],
-                "disabledWhen": {
-                  "key": "statusBoldAll",
-                  "eq": "all"
-                },
-                "optionDisabledWhen": {
-                  "warn": {
-                    "all": [
-                      {
-                        "not": {
-                          "key": "threshAqiOn"
-                        }
-                      },
-                      {
-                        "not": {
-                          "key": "alertAqi"
-                        }
-                      }
-                    ]
-                  }
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "threshAqiOn",
-                "label": "Alert highlighting",
-                "hint": "Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.",
-                "defaultValue": false
-              },
-              {
-                "type": "segmented",
-                "messageKey": "aqiSlotDisplay",
-                "label": "AQI selection",
                 "hintFrom": {
                   "resolver": "dayMaxHint",
                   "args": {
-                    "keyStem": "Aqi",
                     "hints": {
-                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and the AQI is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's.",
-                      "both": "The reading now and today's peak, like 42/58 — one number while they're the same. Once today's peak has passed and the AQI is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's."
+                      "max": "The highest air quality index left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
+                      "both": "The air quality index now and the highest left today, like 42/58, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                     },
                     "notes": {
                       "key": "aqiSource",
@@ -5697,29 +5663,40 @@
                       }
                     }
                   }
-                },
-                "defaultValue": "current",
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "aqiSlotOrder",
+                "label": "Order",
+                "defaultValue": "now",
                 "options": [
                   [
-                    "Now",
-                    "current"
+                    "Now first",
+                    "now"
                   ],
                   [
-                    "Alert",
+                    "Max first",
                     "max"
-                  ],
-                  [
-                    "Both",
-                    "both"
                   ]
-                ]
+                ],
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "aqiSlotDisplay",
+                  "eq": "both"
+                }
               },
               {
                 "type": "select",
                 "messageKey": "aqiSlotSeparator",
                 "label": "Separator",
                 "defaultValue": "slash",
-                "hint": "In a left or right slot, a pair too wide to fit drops its spaces, then falls back to the slash, and shows only the current value if even that is too wide.",
+                "hintByValue": {
+                  "brackets": "When the pair doesn't fit, it drops its spaces, then falls back to 42/58, then to the reading alone.",
+                  "dot": "When the pair doesn't fit, it drops its spaces, then falls back to 42/58, then to the reading alone.",
+                  "bar": "When the pair doesn't fit, it drops its spaces, then falls back to 42/58, then to the reading alone.",
+                  "custom": "When the pair doesn't fit, it drops its spaces, then falls back to 42/58, then to the reading alone."
+                },
                 "options": [
                   [
                     "42/58",
@@ -5776,28 +5753,9 @@
                 "messageKey": "aqiSlotSeparatorSpaced",
                 "label": "Spaces around separator",
                 "defaultValue": false,
-                "hint": "Adds spaces to any separator: 42 / 58, 42 (58).",
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "aqiSlotDisplay",
-                  "eq": "both"
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "aqiSlotOrder",
-                "label": "Order",
-                "defaultValue": "now",
-                "options": [
-                  [
-                    "Now first",
-                    "now"
-                  ],
-                  [
-                    "Alert first",
-                    "max"
-                  ]
-                ],
+                "hintByValue": {
+                  "true": "Adds spaces to any separator: 42 / 58, 42 (58)."
+                },
                 "joinPrevious": true,
                 "showWhen": {
                   "key": "aqiSlotDisplay",
@@ -5809,6 +5767,9 @@
                 "messageKey": "aqiSlotNextDayMark",
                 "label": "Tomorrow's peak mark",
                 "defaultValue": "raquo",
+                "hintByValue": {
+                  "none": "Tomorrow's peak then looks just like today's."
+                },
                 "options": [
                   [
                     "»6",
@@ -5841,9 +5802,65 @@
                 }
               },
               {
+                "type": "toggle",
+                "messageKey": "threshAqiOn",
+                "label": "Alert highlighting",
+                "hintByValue": {
+                  "true": "Fills this slot from the danger level on and draws the warn look from warn."
+                },
+                "defaultValue": false
+              },
+              {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab."
+                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "joinPrevious": true
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshAqiBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "always": "Every status slot showing this value prints it in heavier text."
+                },
+                "defaultValue": "warn",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Warn",
+                    "warn"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "eq": "all"
+                },
+                "optionDisabledWhen": {
+                  "warn": {
+                    "all": [
+                      {
+                        "not": {
+                          "key": "threshAqiOn"
+                        }
+                      },
+                      {
+                        "not": {
+                          "key": "alertAqi"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "joinPrevious": "loose"
               }
             ]
           },
@@ -5856,9 +5873,24 @@
             "title": "Pollen slot",
             "items": [
               {
+                "type": "toggle",
+                "messageKey": "threshPollenOn",
+                "label": "Alert highlighting",
+                "hintByValue": {
+                  "true": "Fills this slot from the danger level on and draws the warn look from warn."
+                },
+                "defaultValue": false
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "joinPrevious": true
+              },
+              {
                 "type": "segmented",
                 "messageKey": "threshPollenBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
                   "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
@@ -5898,19 +5930,8 @@
                       }
                     ]
                   }
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "threshPollenOn",
-                "label": "Alert highlighting",
-                "hint": "Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.",
-                "defaultValue": false
-              },
-              {
-                "type": "staticText",
-                "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab."
+                },
+                "joinPrevious": "loose"
               }
             ]
           },
@@ -5924,69 +5945,11 @@
             "items": [
               {
                 "type": "segmented",
-                "messageKey": "threshWindBoldMode",
-                "label": "Bold value",
-                "hintByValue": {
-                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
-                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
-                  "always": "Every status slot showing this value prints it in heavier text."
-                },
-                "defaultValue": "warn",
-                "options": [
-                  [
-                    "Off",
-                    "off"
-                  ],
-                  [
-                    "Warn",
-                    "warn"
-                  ],
-                  [
-                    "Always",
-                    "always"
-                  ]
-                ],
-                "disabledWhen": {
-                  "key": "statusBoldAll",
-                  "eq": "all"
-                },
-                "optionDisabledWhen": {
-                  "warn": {
-                    "all": [
-                      {
-                        "not": {
-                          "key": "threshWindOn"
-                        }
-                      },
-                      {
-                        "not": {
-                          "key": "alertWind"
-                        }
-                      }
-                    ]
-                  }
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "threshWindOn",
-                "label": "Alert highlighting",
-                "hint": "Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.",
-                "defaultValue": false
-              },
-              {
-                "type": "segmented",
                 "messageKey": "windSlotDisplay",
-                "label": "Wind selection",
-                "hintFrom": {
-                  "resolver": "dayMaxHint",
-                  "args": {
-                    "keyStem": "Wind",
-                    "hints": {
-                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and the wind is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's.",
-                      "both": "The reading now and today's peak, like 12/30 — one number while they're the same. Once today's peak has passed and the wind is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's."
-                    }
-                  }
+                "label": "Value selection",
+                "hintByValue": {
+                  "max": "The highest wind left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
+                  "both": "The wind now and the highest left today, like 12/30, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
                 "defaultValue": "current",
                 "options": [
@@ -5995,7 +5958,7 @@
                     "current"
                   ],
                   [
-                    "Alert",
+                    "Day max",
                     "max"
                   ],
                   [
@@ -6005,11 +5968,37 @@
                 ]
               },
               {
+                "type": "segmented",
+                "messageKey": "windSlotOrder",
+                "label": "Order",
+                "defaultValue": "now",
+                "options": [
+                  [
+                    "Now first",
+                    "now"
+                  ],
+                  [
+                    "Max first",
+                    "max"
+                  ]
+                ],
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "windSlotDisplay",
+                  "eq": "both"
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "windSlotSeparator",
                 "label": "Separator",
                 "defaultValue": "slash",
-                "hint": "In a left or right slot, a pair too wide to fit drops its spaces, then falls back to the slash, and shows only the current value if even that is too wide.",
+                "hintByValue": {
+                  "brackets": "When the pair doesn't fit, it drops its spaces, then falls back to 12/30, then to the reading alone.",
+                  "dot": "When the pair doesn't fit, it drops its spaces, then falls back to 12/30, then to the reading alone.",
+                  "bar": "When the pair doesn't fit, it drops its spaces, then falls back to 12/30, then to the reading alone.",
+                  "custom": "When the pair doesn't fit, it drops its spaces, then falls back to 12/30, then to the reading alone."
+                },
                 "options": [
                   [
                     "12/30",
@@ -6066,28 +6055,9 @@
                 "messageKey": "windSlotSeparatorSpaced",
                 "label": "Spaces around separator",
                 "defaultValue": false,
-                "hint": "Adds spaces to any separator: 12 / 30, 12 (30).",
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "windSlotDisplay",
-                  "eq": "both"
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "windSlotOrder",
-                "label": "Order",
-                "defaultValue": "now",
-                "options": [
-                  [
-                    "Now first",
-                    "now"
-                  ],
-                  [
-                    "Alert first",
-                    "max"
-                  ]
-                ],
+                "hintByValue": {
+                  "true": "Adds spaces to any separator: 12 / 30, 12 (30)."
+                },
                 "joinPrevious": true,
                 "showWhen": {
                   "key": "windSlotDisplay",
@@ -6099,6 +6069,9 @@
                 "messageKey": "windSlotNextDayMark",
                 "label": "Tomorrow's peak mark",
                 "defaultValue": "raquo",
+                "hintByValue": {
+                  "none": "Tomorrow's peak then looks just like today's."
+                },
                 "options": [
                   [
                     "»6",
@@ -6135,7 +6108,7 @@
                 "messageKey": "windSlotDirection",
                 "label": "Show wind direction",
                 "defaultValue": true,
-                "hint": "Draws an arrow after the speed, pointing the way the wind is blowing now. Not while Alert shows a peak alone."
+                "hint": "Draws an arrow after the speed, pointing the way the wind is blowing now. Not while Day max shows a peak alone."
               },
               {
                 "type": "toggle",
@@ -6145,24 +6118,24 @@
                 "hint": "Prints the unit after the value when it fits — in a narrow left or right slot, a pair plus the direction arrow leaves no room for it."
               },
               {
+                "type": "toggle",
+                "messageKey": "threshWindOn",
+                "label": "Alert highlighting",
+                "hintByValue": {
+                  "true": "Fills this slot from the danger level on and draws the warn look from warn."
+                },
+                "defaultValue": false
+              },
+              {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab."
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "threshGust",
-            "showWhen": {
-              "env": "thresholds"
-            },
-            "title": "Wind gusts slot",
-            "items": [
+                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "joinPrevious": true
+              },
               {
                 "type": "segmented",
-                "messageKey": "threshGustBoldMode",
-                "label": "Bold value",
+                "messageKey": "threshWindBoldMode",
+                "label": "Bold",
                 "hintByValue": {
                   "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
                   "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
@@ -6192,38 +6165,36 @@
                     "all": [
                       {
                         "not": {
-                          "key": "threshGustOn"
+                          "key": "threshWindOn"
                         }
                       },
                       {
                         "not": {
-                          "key": "alertGust"
+                          "key": "alertWind"
                         }
                       }
                     ]
                   }
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "threshGustOn",
-                "label": "Alert highlighting",
-                "hint": "Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.",
-                "defaultValue": false
-              },
+                },
+                "joinPrevious": "loose"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshGust",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Wind gusts slot",
+            "items": [
               {
                 "type": "segmented",
                 "messageKey": "gustSlotDisplay",
-                "label": "Gust selection",
-                "hintFrom": {
-                  "resolver": "dayMaxHint",
-                  "args": {
-                    "keyStem": "Gust",
-                    "hints": {
-                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and gusts are below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's.",
-                      "both": "The reading now and today's peak, like 20/45 — one number while they're the same. Once today's peak has passed and gusts are below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's."
-                    }
-                  }
+                "label": "Value selection",
+                "hintByValue": {
+                  "max": "The highest gusts left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
+                  "both": "The gusts now and the highest left today, like 20/45, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
                 "defaultValue": "current",
                 "options": [
@@ -6232,7 +6203,7 @@
                     "current"
                   ],
                   [
-                    "Alert",
+                    "Day max",
                     "max"
                   ],
                   [
@@ -6242,11 +6213,37 @@
                 ]
               },
               {
+                "type": "segmented",
+                "messageKey": "gustSlotOrder",
+                "label": "Order",
+                "defaultValue": "now",
+                "options": [
+                  [
+                    "Now first",
+                    "now"
+                  ],
+                  [
+                    "Max first",
+                    "max"
+                  ]
+                ],
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "gustSlotDisplay",
+                  "eq": "both"
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "gustSlotSeparator",
                 "label": "Separator",
                 "defaultValue": "slash",
-                "hint": "In a left or right slot, a pair too wide to fit drops its spaces, then falls back to the slash, and shows only the current value if even that is too wide.",
+                "hintByValue": {
+                  "brackets": "When the pair doesn't fit, it drops its spaces, then falls back to 20/45, then to the reading alone.",
+                  "dot": "When the pair doesn't fit, it drops its spaces, then falls back to 20/45, then to the reading alone.",
+                  "bar": "When the pair doesn't fit, it drops its spaces, then falls back to 20/45, then to the reading alone.",
+                  "custom": "When the pair doesn't fit, it drops its spaces, then falls back to 20/45, then to the reading alone."
+                },
                 "options": [
                   [
                     "20/45",
@@ -6303,28 +6300,9 @@
                 "messageKey": "gustSlotSeparatorSpaced",
                 "label": "Spaces around separator",
                 "defaultValue": false,
-                "hint": "Adds spaces to any separator: 20 / 45, 20 (45).",
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "gustSlotDisplay",
-                  "eq": "both"
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "gustSlotOrder",
-                "label": "Order",
-                "defaultValue": "now",
-                "options": [
-                  [
-                    "Now first",
-                    "now"
-                  ],
-                  [
-                    "Alert first",
-                    "max"
-                  ]
-                ],
+                "hintByValue": {
+                  "true": "Adds spaces to any separator: 20 / 45, 20 (45)."
+                },
                 "joinPrevious": true,
                 "showWhen": {
                   "key": "gustSlotDisplay",
@@ -6336,6 +6314,9 @@
                 "messageKey": "gustSlotNextDayMark",
                 "label": "Tomorrow's peak mark",
                 "defaultValue": "raquo",
+                "hintByValue": {
+                  "none": "Tomorrow's peak then looks just like today's."
+                },
                 "options": [
                   [
                     "»6",
@@ -6372,7 +6353,7 @@
                 "messageKey": "gustSlotDirection",
                 "label": "Show wind direction",
                 "defaultValue": false,
-                "hint": "Draws an arrow after the speed, pointing the way the wind is blowing now. Not while Alert shows a peak alone."
+                "hint": "Draws an arrow after the speed, pointing the way the wind is blowing now. Not while Day max shows a peak alone."
               },
               {
                 "type": "toggle",
@@ -6382,24 +6363,24 @@
                 "hint": "Prints the unit after the value when it fits — in a narrow left or right slot, a pair plus the direction arrow leaves no room for it."
               },
               {
+                "type": "toggle",
+                "messageKey": "threshGustOn",
+                "label": "Alert highlighting",
+                "hintByValue": {
+                  "true": "Fills this slot from the danger level on and draws the warn look from warn."
+                },
+                "defaultValue": false
+              },
+              {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab."
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "threshUv",
-            "showWhen": {
-              "env": "thresholds"
-            },
-            "title": "UV index slot",
-            "items": [
+                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "joinPrevious": true
+              },
               {
                 "type": "segmented",
-                "messageKey": "threshUvBoldMode",
-                "label": "Bold value",
+                "messageKey": "threshGustBoldMode",
+                "label": "Bold",
                 "hintByValue": {
                   "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
                   "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
@@ -6429,38 +6410,36 @@
                     "all": [
                       {
                         "not": {
-                          "key": "threshUvOn"
+                          "key": "threshGustOn"
                         }
                       },
                       {
                         "not": {
-                          "key": "alertUv"
+                          "key": "alertGust"
                         }
                       }
                     ]
                   }
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "threshUvOn",
-                "label": "Alert highlighting",
-                "hint": "Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.",
-                "defaultValue": false
-              },
+                },
+                "joinPrevious": "loose"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshUv",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "UV index slot",
+            "items": [
               {
                 "type": "segmented",
                 "messageKey": "uvSlotDisplay",
-                "label": "UV selection",
-                "hintFrom": {
-                  "resolver": "dayMaxHint",
-                  "args": {
-                    "keyStem": "Uv",
-                    "hints": {
-                      "max": "Today's peak — the highest it gets for the rest of today. Once it has passed and UV is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the current reading if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's.",
-                      "both": "The reading now and today's peak, like 3/7 — one number while they're the same. Once today's peak has passed and UV is below {level}, tomorrow's peak shows instead, with the mark chosen below, or the reading alone if tomorrow's isn't known. With Alert highlighting on, tomorrow's peak is highlighted at the level it reaches, like today's."
-                    }
-                  }
+                "label": "Value selection",
+                "hintByValue": {
+                  "max": "The highest UV index left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
+                  "both": "The UV index now and the highest left today, like 3/7, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
                 "defaultValue": "current",
                 "options": [
@@ -6469,7 +6448,7 @@
                     "current"
                   ],
                   [
-                    "Alert",
+                    "Day max",
                     "max"
                   ],
                   [
@@ -6479,11 +6458,37 @@
                 ]
               },
               {
+                "type": "segmented",
+                "messageKey": "uvSlotOrder",
+                "label": "Order",
+                "defaultValue": "now",
+                "options": [
+                  [
+                    "Now first",
+                    "now"
+                  ],
+                  [
+                    "Max first",
+                    "max"
+                  ]
+                ],
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "uvSlotDisplay",
+                  "eq": "both"
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "uvSlotSeparator",
                 "label": "Separator",
                 "defaultValue": "slash",
-                "hint": "In a left or right slot, a pair too wide to fit drops its spaces, then falls back to the slash, and shows only the current value if even that is too wide.",
+                "hintByValue": {
+                  "brackets": "When the pair doesn't fit, it drops its spaces, then falls back to 3/7, then to the reading alone.",
+                  "dot": "When the pair doesn't fit, it drops its spaces, then falls back to 3/7, then to the reading alone.",
+                  "bar": "When the pair doesn't fit, it drops its spaces, then falls back to 3/7, then to the reading alone.",
+                  "custom": "When the pair doesn't fit, it drops its spaces, then falls back to 3/7, then to the reading alone."
+                },
                 "options": [
                   [
                     "3/7",
@@ -6540,28 +6545,9 @@
                 "messageKey": "uvSlotSeparatorSpaced",
                 "label": "Spaces around separator",
                 "defaultValue": false,
-                "hint": "Adds spaces to any separator: 3 / 7, 3 (7).",
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "uvSlotDisplay",
-                  "eq": "both"
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "uvSlotOrder",
-                "label": "Order",
-                "defaultValue": "now",
-                "options": [
-                  [
-                    "Now first",
-                    "now"
-                  ],
-                  [
-                    "Alert first",
-                    "max"
-                  ]
-                ],
+                "hintByValue": {
+                  "true": "Adds spaces to any separator: 3 / 7, 3 (7)."
+                },
                 "joinPrevious": true,
                 "showWhen": {
                   "key": "uvSlotDisplay",
@@ -6573,6 +6559,9 @@
                 "messageKey": "uvSlotNextDayMark",
                 "label": "Tomorrow's peak mark",
                 "defaultValue": "raquo",
+                "hintByValue": {
+                  "none": "Tomorrow's peak then looks just like today's."
+                },
                 "options": [
                   [
                     "»6",
@@ -6605,9 +6594,65 @@
                 }
               },
               {
+                "type": "toggle",
+                "messageKey": "threshUvOn",
+                "label": "Alert highlighting",
+                "hintByValue": {
+                  "true": "Fills this slot from the danger level on and draws the warn look from warn."
+                },
+                "defaultValue": false
+              },
+              {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab."
+                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "joinPrevious": true
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshUvBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "off": "Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "warn": "Heavier text from the warn level on: in the slot while Alert highlighting is on, and in the value next to the alert icon.",
+                  "always": "Every status slot showing this value prints it in heavier text."
+                },
+                "defaultValue": "warn",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Warn",
+                    "warn"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "eq": "all"
+                },
+                "optionDisabledWhen": {
+                  "warn": {
+                    "all": [
+                      {
+                        "not": {
+                          "key": "threshUvOn"
+                        }
+                      },
+                      {
+                        "not": {
+                          "key": "alertUv"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "joinPrevious": "loose"
               }
             ]
           },
@@ -6622,7 +6667,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshStepsBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "off": "A reached goal still prints bold while Goals are on.",
                   "warn": "Heavier text once you get close to the goal, while Goals are on.",
@@ -6925,7 +6970,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshSleepBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "off": "A reached goal still prints bold while Goals are on.",
                   "warn": "Heavier text once you get close to the goal, while Goals are on.",
@@ -7228,7 +7273,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshDistanceBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "off": "A reached goal still prints bold while Goals are on.",
                   "warn": "Heavier text once you get close to the goal, while Goals are on.",
@@ -7530,34 +7575,11 @@
             "items": [
               {
                 "type": "segmented",
-                "messageKey": "threshTempBoldMode",
-                "label": "Bold value",
-                "hintByValue": {
-                  "always": "Every status slot showing this value prints it in heavier text."
-                },
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Off",
-                    "off"
-                  ],
-                  [
-                    "Always",
-                    "always"
-                  ]
-                ],
-                "disabledWhen": {
-                  "key": "statusBoldAll",
-                  "eq": "all"
-                }
-              },
-              {
-                "type": "segmented",
                 "messageKey": "tempSlotDisplay",
-                "label": "Temperature selection",
+                "label": "Value selection",
                 "hintByValue": {
                   "feels": "What it feels like, by the formula set under General → Units.",
-                  "both": "Both, like 12/10 — choose the separator and order below."
+                  "both": "The temperature and what it feels like, like 12|10. Order and Separator shape the pair."
                 },
                 "defaultValue": "actual",
                 "options": [
@@ -7577,11 +7599,37 @@
                 "onChange": "tempUnitExclusive"
               },
               {
+                "type": "segmented",
+                "messageKey": "tempSlotOrder",
+                "label": "Order",
+                "defaultValue": "actual",
+                "options": [
+                  [
+                    "Temp first",
+                    "actual"
+                  ],
+                  [
+                    "Feels like first",
+                    "feels"
+                  ]
+                ],
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "tempSlotDisplay",
+                  "eq": "both"
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "tempSlotSeparator",
                 "label": "Separator",
-                "defaultValue": "slash",
-                "hint": "In a left or right slot, a pair too wide to fit drops its spaces, then falls back to the slash, and shows only the current value if even that is too wide.",
+                "defaultValue": "bar",
+                "hintByValue": {
+                  "slash": "When the pair doesn't fit, it drops its spaces, then falls back to 12|10.",
+                  "brackets": "When the pair doesn't fit, it drops its spaces, then falls back to 12|10.",
+                  "dot": "When the pair doesn't fit, it drops its spaces, then falls back to 12|10.",
+                  "custom": "When the pair doesn't fit, it drops its spaces, then falls back to 12|10."
+                },
                 "options": [
                   [
                     "12/10",
@@ -7618,7 +7666,7 @@
                 "attributes": {
                   "maxlength": 2
                 },
-                "hint": "Up to 2 characters, spaces included; empty uses the slash. Only characters the watch font can draw are kept (printable ASCII and Latin-1).",
+                "hint": "Up to 2 characters, spaces included; empty prints 12|10. Only characters the watch font can draw are kept (printable ASCII and Latin-1).",
                 "joinPrevious": true,
                 "showWhen": {
                   "all": [
@@ -7638,28 +7686,9 @@
                 "messageKey": "tempSlotSeparatorSpaced",
                 "label": "Spaces around separator",
                 "defaultValue": false,
-                "hint": "Adds spaces to any separator: 12 / 10, 12 (10).",
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "tempSlotDisplay",
-                  "eq": "both"
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "tempSlotOrder",
-                "label": "Order",
-                "defaultValue": "actual",
-                "options": [
-                  [
-                    "Temp first",
-                    "actual"
-                  ],
-                  [
-                    "Feels like first",
-                    "feels"
-                  ]
-                ],
+                "hintByValue": {
+                  "true": "Adds spaces to any separator: 12 | 10, 12 (10)."
+                },
                 "joinPrevious": true,
                 "showWhen": {
                   "key": "tempSlotDisplay",
@@ -7673,21 +7702,11 @@
                 "defaultValue": false,
                 "hint": "Prints the unit after the value: 12° instead of 12.",
                 "onChange": "tempUnitExclusive"
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "threshPressure",
-            "showWhen": {
-              "env": "thresholds"
-            },
-            "title": "Air pressure (hPa) slot",
-            "items": [
+              },
               {
                 "type": "segmented",
-                "messageKey": "threshPressureBoldMode",
-                "label": "Bold value",
+                "messageKey": "threshTempBoldMode",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
@@ -7706,13 +7725,46 @@
                   "key": "statusBoldAll",
                   "eq": "all"
                 }
-              },
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "threshPressure",
+            "showWhen": {
+              "env": "thresholds"
+            },
+            "title": "Air pressure (hPa) slot",
+            "items": [
               {
                 "type": "toggle",
                 "messageKey": "pressureSlotUnit",
                 "label": "Show unit",
                 "defaultValue": true,
                 "hint": "Prints the unit after the value: 1013hPa instead of 1013."
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshPressureBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot showing this value prints it in heavier text."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "eq": "all"
+                }
               }
             ]
           },
@@ -7727,7 +7779,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshSunBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
@@ -7757,29 +7809,6 @@
             },
             "title": "Date slot",
             "items": [
-              {
-                "type": "segmented",
-                "messageKey": "threshDateBoldMode",
-                "label": "Bold value",
-                "hintByValue": {
-                  "always": "Every status slot showing this value prints it in heavier text."
-                },
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Off",
-                    "off"
-                  ],
-                  [
-                    "Always",
-                    "always"
-                  ]
-                ],
-                "disabledWhen": {
-                  "key": "statusBoldAll",
-                  "eq": "all"
-                }
-              },
               {
                 "type": "radio",
                 "messageKey": "dateSlotMonthFormat",
@@ -7818,6 +7847,29 @@
                 "optionsFrom": {
                   "resolver": "dateFullFormatOptions"
                 }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshDateBoldMode",
+                "label": "Bold",
+                "hintByValue": {
+                  "always": "Every status slot showing this value prints it in heavier text."
+                },
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Off",
+                    "off"
+                  ],
+                  [
+                    "Always",
+                    "always"
+                  ]
+                ],
+                "disabledWhen": {
+                  "key": "statusBoldAll",
+                  "eq": "all"
+                }
               }
             ]
           },
@@ -7832,7 +7884,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshWeekBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
@@ -7865,7 +7917,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshCityBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
@@ -7896,9 +7948,16 @@
             "title": "Date countdown slot",
             "items": [
               {
+                "type": "toggle",
+                "messageKey": "countdownSlotUnit",
+                "label": "Show unit",
+                "defaultValue": true,
+                "hint": "Prints the unit after the value: 5d instead of 5."
+              },
+              {
                 "type": "segmented",
                 "messageKey": "threshCountdownBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
@@ -7917,13 +7976,6 @@
                   "key": "statusBoldAll",
                   "eq": "all"
                 }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "countdownSlotUnit",
-                "label": "Show unit",
-                "defaultValue": true,
-                "hint": "Prints the unit after the value: 5d instead of 5."
               }
             ]
           },
@@ -7938,7 +7990,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshHrBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
@@ -7985,7 +8037,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshBatteryPctBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
@@ -8016,9 +8068,16 @@
             "title": "Dew point slot",
             "items": [
               {
+                "type": "toggle",
+                "messageKey": "dewSlotUnit",
+                "label": "Show unit",
+                "defaultValue": false,
+                "hint": "Prints the unit after the value: 12° instead of 12."
+              },
+              {
                 "type": "segmented",
                 "messageKey": "threshDewBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },
@@ -8037,13 +8096,6 @@
                   "key": "statusBoldAll",
                   "eq": "all"
                 }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "dewSlotUnit",
-                "label": "Show unit",
-                "defaultValue": false,
-                "hint": "Prints the unit after the value: 12° instead of 12."
               }
             ]
           },
@@ -8058,7 +8110,7 @@
               {
                 "type": "segmented",
                 "messageKey": "threshPhoneBatteryBoldMode",
-                "label": "Bold value",
+                "label": "Bold",
                 "hintByValue": {
                   "always": "Every status slot showing this value prints it in heavier text."
                 },

@@ -25,9 +25,6 @@ function packedLevel(code, payload, settings) {
  * the kind packs warn exactly when that number is v, since every judged number sits
  * on the 0.5 grid (whole display numbers, pollen's half-bands); under (0, 0) any
  * number at all packs danger, so a kind that packs normal there judges nothing.
- * The stored pair is the day-max hold rule's warn too, so this reads only picks
- * that do not hang on the hold: the Now mode, a today's peak still ahead of now,
- * and pollen.
  * @param {string} code A weather kind's code.
  * @param {Object} payload Weather payload.
  * @param {Object} settings Clay settings blob (its own pair for the kind is ignored).

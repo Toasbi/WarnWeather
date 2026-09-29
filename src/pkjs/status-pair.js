@@ -2,15 +2,17 @@
 //
 // Two kinds of slot can show two readings at once: Temperature in 'both' mode
 // (actual and feels-like), and the day-max kinds -- UV, wind, gusts and AQI -- in
-// 'both' mode (now and the day's peak: today's while it is still ahead, running,
-// or at the kind's warn level or higher, then tomorrow's).
+// 'both' mode (now and the day's peak: today's while it is still ahead or
+// running, then tomorrow's).
 // Which reading comes first, what stands between the two (and whether spaces flank
 // it), and how UV marks a peak that is tomorrow's are per-kind settings (each
 // kind's Edit sheet); this module turns them into the text status-lines.js bakes. Phone-side only: the watch
 // receives finished slot text, so no wire field or C change rides with it.
 //
-// An ABSENT setting means its default, and the defaults reproduce what the slot
-// baked before these settings existed, byte for byte: '12/10', '3/7', '5/»6'.
+// An ABSENT setting means its default: '12|10' for temperature (its separator
+// default became the bar in 1.24.0, see DEFAULT_SEPARATOR), and for the day-max
+// kinds what the slot baked before these settings existed, byte for byte: '3/7',
+// '5/»6'.
 // The numbers themselves are not decided here -- wire-units' dayMaxShown picks them,
 // and status-thresholds judges those same numbers, so no presentation choice can
 // move a highlight. ES5 only (aplite PKJS).
@@ -26,15 +28,24 @@ var UV_NEXT_DAY = '»';
 // The separator presets, tight: what stands between the two readings (`mid`) and
 // what closes the pair (`end` -- only the brackets need one). Spacing is not a
 // preset but its own per-kind toggle over every one of them (see spaceAround):
-// '12/10' or '12 / 10', '12(10)' or '12 (10)'. 'slash' is the default AND the fit
-// rule's last resort (see joinPair). U+00B7 is the middle dot: Latin-1, two UTF-8
-// bytes. 'custom' is not a row here: its `mid` is the user's own text.
+// '12/10' or '12 / 10', '12(10)' or '12 (10)'. A kind's default separator
+// (defaultSeparator) is also its fit rule's last resort (see joinPair). U+00B7 is
+// the middle dot: Latin-1, two UTF-8 bytes. 'custom' is not a row here: its `mid`
+// is the user's own text.
 var SEPARATORS = {
     slash: { mid: '/', end: '' },
     brackets: { mid: '(', end: ')' },
     dot: { mid: '·', end: '' },
     bar: { mid: '|', end: '' }
 };
+
+// The separator a kind's pair takes when its setting is absent, unknown or an
+// empty custom, and the last resort of its fit rule. Temperature's is the bar
+// ('12|10'): the owner's call for 1.24.0, with a one-time move of every stored
+// 'slash' (migrations/v1_24.js). Every other pair keeps the slash ('3/7'). Both
+// are one byte, so the last resort fits wherever the slash did: '-12|-10' is 7
+// bytes, like '-12/-10'.
+var DEFAULT_SEPARATOR = { temp: 'bar' };
 
 // A custom separator keeps at most this many characters.
 var CUSTOM_MAX_CHARS = 2;
@@ -87,18 +98,40 @@ function sanitizeCustom(value) {
 }
 
 /**
- * Resolve a stored separator setting to its preset. Absent, unknown, or a
- * 'custom' whose text sanitizes to nothing all read as the slash.
- * @param {*} separator stored separator setting, e.g. 'brackets'
- * @param {*} custom stored custom separator text (read only for 'custom')
+ * A kind's default separator (DEFAULT_SEPARATOR): the preset its pair takes when
+ * the setting is absent, unknown or an empty custom, and its fit rule's last
+ * resort. The settings page reads it for the Separator row's default.
+ * @param {*} prefix the kind's settings prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'
+ * @returns {string} a SEPARATORS key: 'bar' for temp, 'slash' for every other kind
+ */
+function defaultSeparator(prefix) {
+    return has(DEFAULT_SEPARATOR, prefix) ? DEFAULT_SEPARATOR[prefix] : 'slash';
+}
+
+/**
+ * The preset a default-separator key names; anything else reads as the slash.
+ * @param {*} fallback a SEPARATORS key (defaultSeparator's answer); absent = 'slash'
  * @returns {{mid: string, end: string}}
  */
-function presetFor(separator, custom) {
+function fallbackPreset(fallback) {
+    return has(SEPARATORS, fallback) ? SEPARATORS[fallback] : SEPARATORS.slash;
+}
+
+/**
+ * Resolve a stored separator setting to its preset. Absent, unknown, or a
+ * 'custom' whose text sanitizes to nothing all read as the kind's default.
+ * @param {*} separator stored separator setting, e.g. 'brackets'
+ * @param {*} custom stored custom separator text (read only for 'custom')
+ * @param {*} [fallback] the kind's default preset key (defaultSeparator);
+ *   absent = 'slash'
+ * @returns {{mid: string, end: string}}
+ */
+function presetFor(separator, custom, fallback) {
     if (separator === 'custom') {
         var text = sanitizeCustom(custom);
-        return text ? { mid: text, end: '' } : SEPARATORS.slash;
+        return text ? { mid: text, end: '' } : fallbackPreset(fallback);
     }
-    return has(SEPARATORS, separator) ? SEPARATORS[separator] : SEPARATORS.slash;
+    return has(SEPARATORS, separator) ? SEPARATORS[separator] : fallbackPreset(fallback);
 }
 
 /**
@@ -125,27 +158,32 @@ function spaceAround(preset) {
  * 8-byte edge slot would ship as '-12 / -1', a wrong number that looks like a
  * right one. So a pair too wide for its slot first drops the spaces (keeping the
  * user's separator: '-12 (-10)' -> '-12(-10)'), and one still too wide takes the
- * plain slash, the narrowest form there is, which fits every realistic pair
- * ('-12/-10', '11/»12': 7 bytes). Each step applies to that reading only. Order
- * and next-day mark are already in `first`/`second`, so every step keeps both.
+ * kind's default separator (defaultSeparator: the bar for temperature, the slash
+ * for every other kind), one byte, the narrowest form there is, which fits every
+ * realistic pair ('-12|-10', '11/»12': 7 bytes). Each step applies to that
+ * reading only. Order and next-day mark are already in `first`/`second`, so every
+ * step keeps both.
  *
  * @param {string} first the reading shown first
  * @param {string} second the reading shown second
- * @param {*} separator stored separator setting (absent = 'slash')
+ * @param {*} separator stored separator setting (absent = the kind's default)
  * @param {*} custom stored custom separator text
  * @param {*} spaced stored spacing toggle (absent = tight)
  * @param {number} [cap] the slot's byte cap; defaults to the narrow edge cap
+ * @param {*} [fallback] the kind's default preset key (defaultSeparator);
+ *   absent = 'slash'
  * @returns {string} e.g. '12/10', '12 / 10', '12 (10)'
  */
-function joinPair(first, second, separator, custom, spaced, cap) {
-    var preset = presetFor(separator, custom);
+function joinPair(first, second, separator, custom, spaced, cap, fallback) {
+    var preset = presetFor(separator, custom, fallback);
     var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
     var forms = Boolean(spaced) ? [spaceAround(preset), preset] : [preset];
     for (var i = 0; i < forms.length; i++) {
         var text = first + forms[i].mid + second + forms[i].end;
         if (utf8.byteLength(text) <= limit) { return text; }
     }
-    return first + SEPARATORS.slash.mid + second;
+    var last = fallbackPreset(fallback);
+    return first + last.mid + second + last.end;
 }
 
 /**
@@ -161,21 +199,23 @@ function markNextDay(value, mark) {
 
 /**
  * The temperature slot's 'both' text: actual and feels-like in the user's order
- * (tempSlotOrder, absent = actual first), joined by the user's separator, spaced
- * or tight (tempSlotSeparatorSpaced, absent = tight). Bare numbers in and out --
- * 'both' never carries the degree (formatValue's gate).
+ * (tempSlotOrder, absent = actual first), joined by the user's separator (absent =
+ * the bar, defaultSeparator), spaced or tight (tempSlotSeparatorSpaced, absent =
+ * tight). Bare numbers in and out -- 'both' never carries the degree
+ * (formatValue's gate).
  * @param {string} actual the formatted actual temperature
  * @param {string} feels the formatted feels-like temperature
  * @param {Object} settings Clay settings blob (tempSlotSeparator,
  *   tempSlotSeparatorCustom, tempSlotSeparatorSpaced, tempSlotOrder)
  * @param {number} [cap] the slot's byte cap
- * @returns {string} e.g. '12/10', or '10 (12)' feels-first in spaced brackets
+ * @returns {string} e.g. '12|10', or '10 (12)' feels-first in spaced brackets
  */
 function formatTempPair(actual, feels, settings, cap) {
     var s = settings || {};
     var feelsFirst = s.tempSlotOrder === 'feels';
     return joinPair(feelsFirst ? feels : actual, feelsFirst ? actual : feels,
-        s.tempSlotSeparator, s.tempSlotSeparatorCustom, s.tempSlotSeparatorSpaced, cap);
+        s.tempSlotSeparator, s.tempSlotSeparatorCustom, s.tempSlotSeparatorSpaced, cap,
+        defaultSeparator('temp'));
 }
 
 /**
@@ -203,7 +243,7 @@ function formatPeak(prefix, shown, settings, cap) {
     var maxFirst = s[prefix + 'SlotOrder'] === 'max';
     var text = joinPair(maxFirst ? peak : now, maxFirst ? now : peak,
         s[prefix + 'SlotSeparator'], s[prefix + 'SlotSeparatorCustom'],
-        s[prefix + 'SlotSeparatorSpaced'], cap);
+        s[prefix + 'SlotSeparatorSpaced'], cap, defaultSeparator(prefix));
     // Three-digit readings (gusts, AQI) can outgrow even the plain slash with a
     // mark: '152/»178' is 9 bytes, and truncation would print the false peak
     // '152/»17'. The current reading alone is the honest fallback -- the same
@@ -216,6 +256,8 @@ function formatPeak(prefix, shown, settings, cap) {
 module.exports = {
     UV_NEXT_DAY: UV_NEXT_DAY,
     SEPARATORS: SEPARATORS,
+    DEFAULT_SEPARATOR: DEFAULT_SEPARATOR,
+    defaultSeparator: defaultSeparator,
     NEXT_DAY_MARKS: NEXT_DAY_MARKS,
     CUSTOM_MAX_CHARS: CUSTOM_MAX_CHARS,
     sanitizeCustom: sanitizeCustom,

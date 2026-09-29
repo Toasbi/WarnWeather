@@ -107,5 +107,11 @@ module.exports = [
     // seeded with blank pairs and the page no longer pins a seed, so a seed-equal pair
     // saved before the next boot was dragged there.
     { key: KEYS.SEED_PAIR_BLANK_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: seedPairs.migrateSeedPairsToBlank }
+      run: seedPairs.migrateSeedPairsToBlank },
+    // 1.24.0: the temperature pair's stored 'slash' becomes the new default 'bar'. No
+    // send: the separator is phone-baked slot text (renderSignature), so the next bake
+    // shows it. Reset-safe: the next blob is seeded with 'bar', so a 'slash' saved
+    // before the next boot was picked on the 1.24.0 page and must stay.
+    { key: KEYS.TEMP_SEPARATOR_BAR_MIGRATION_KEY, markOn: 'now', markOnReset: true,
+      run: v124.migrateTempSeparatorBar }
 ];

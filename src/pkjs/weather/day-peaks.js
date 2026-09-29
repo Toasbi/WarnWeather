@@ -10,17 +10,16 @@
 // below; the others run the same rule on their own series, in their own units
 // (km/h, AQI points).
 //
-// The UV slot's day max holds today's peak while it is still ahead, while it
-// runs, and while it sits at the warn level or higher (wire-units' dayMaxShown);
-// this record serves the middle ground, running. The fetched series starts at
-// the current hour, so on its own it cannot tell "at the peak" from "past it":
-// at 16:00 with 4 now and nothing higher to come, was 5 reached at 13:00 or is
-// 4 the day's best? The answer is in earlier fetches, whose series covered
-// those hours while they were still ahead. So each fetch stores its series
-// here, over the hours an earlier fetch stored: an hour keeps the value of the
-// last fetch that saw it begin or still ahead, the forecast's final word on it.
-// Hours before today's local midnight are dropped, so the record never outgrows
-// today plus the fetched series' own reach (about 3 days of bytes at worst, ~75 values).
+// The UV slot's day max holds today's peak until the reading drops below it
+// (wire-units' dayMaxShown). The fetched series starts at the current hour, so on
+// its own it cannot tell "at the peak" from "past it": at 16:00 with 4 now and
+// nothing higher to come, was 5 reached at 13:00 or is 4 the day's best? The
+// answer is in earlier fetches, whose series covered those hours while they
+// were still ahead. So each fetch stores its series here, over the hours an
+// earlier fetch stored: an hour keeps the value of the last fetch that saw it
+// begin or still ahead, the forecast's final word on it. Hours before today's
+// local midnight are dropped, so the record never outgrows today plus the
+// fetched series' own reach (about 3 days of bytes at worst, ~75 values).
 //
 // Only the hours back to the last dip matter: the peak the slot holds is
 // running when no hour since the reading last printed below it printed more

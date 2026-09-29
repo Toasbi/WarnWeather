@@ -136,7 +136,7 @@ test('value formatting', () => {
   assert.equal(statusLines.formatValue('city', p, baseSettings()), 'Saarbrücken');
 });
 
-test('temp slot display modes: actual, feels, and slash-separated both', () => {
+test('temp slot display modes: actual, feels, and bar-separated both (the default)', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 }); // 68F/50F = 20C/10C
   assert.equal(statusLines.formatValue('temp', p, baseSettings()), '20',
     'absent tempSlotDisplay defaults to actual');
@@ -145,7 +145,7 @@ test('temp slot display modes: actual, feels, and slash-separated both', () => {
   assert.equal(statusLines.formatValue('temp', p,
     baseSettings({ tempSlotDisplay: 'feels' })), '10');
   assert.equal(statusLines.formatValue('temp', p,
-    baseSettings({ tempSlotDisplay: 'both' })), '20/10', 'actual first');
+    baseSettings({ tempSlotDisplay: 'both' })), '20|10', 'actual first, the bar by default');
 });
 
 test('°C temp and feels slots round the provider reading once, like the dew slot', () => {
@@ -172,7 +172,7 @@ test('°C temp and feels slots round the provider reading once, like the dew slo
   assert.equal(statusLines.formatValue('temp', fog, c), '0', 'was "-1" via whole °F 31');
   assert.equal(statusLines.formatValue('dew', fog, c), '0');
   assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'feels' })), '0');
-  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'both' })), '0/0');
+  assert.equal(statusLines.formatValue('temp', fog, baseSettings({ tempSlotDisplay: 'both' })), '0|0');
   // °C-native providers (DWD/met.no/Tomorrow.io convert °C → °F).
   [[0.3, '0'], [-29.7, '-30'], [20.3, '20'], [-5.3, '-5']].forEach(([celsius, shown]) => {
     assert.equal(statusLines.formatValue('temp', payloadAt(c2f(celsius)), c), shown, celsius + ' °C');
@@ -184,7 +184,7 @@ test('°C temp and feels slots round the provider reading once, like the dew slo
 test('temp display modes convert both halves with temperatureUnits', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
   assert.equal(statusLines.formatValue('temp', p,
-    baseSettings({ tempSlotDisplay: 'both', temperatureUnits: 'f' })), '68/50');
+    baseSettings({ tempSlotDisplay: 'both', temperatureUnits: 'f' })), '68|50');
   assert.equal(statusLines.formatValue('temp', p,
     baseSettings({ tempSlotDisplay: 'feels', temperatureUnits: 'f' })), '50');
 });
@@ -226,37 +226,17 @@ test('uv slot display modes: current, the peak ahead, and slash-separated both',
     'current first, like the temp slot\'s actual/feels');
 });
 
-test('uv peak rolls to tomorrow\'s, marked », once today\'s is reached and below warn', () => {
-  // baseSettings stores no UV pair, so the hold uses the seed warn 6.
-  // At a peak of 5: nothing later today prints above it and 5 < warn.
-  const atPeak = uvDayPayload({ UV_TREND_UINT8: [50, 48, 40], UV_DAY_PEAKS: [50, 95] });
+test('uv peak rolls to tomorrow\'s, marked », once today\'s is reached', () => {
+  // At the peak: nothing later today prints above the 7 now.
+  const atPeak = uvDayPayload({ UV_TREND_UINT8: [71, 68, 55], UV_DAY_PEAKS: [71, 95] });
   assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'both' })),
-    '5/\u00BB10', 'never "5/5": the max half is tomorrow\'s 9.5 -> 10, marked');
+    '7/\u00BB10', 'never "7/7": the max half is tomorrow\'s 9.5 -> 10, marked');
   assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'max' })),
     '\u00BB10');
   // Late evening: today is spent, tomorrow's midday is the next peak.
   const late = uvDayPayload({ UV_TREND_UINT8: [0, 0], UV_DAY_PEAKS: [0, 60] });
   assert.equal(statusLines.formatValue('uv', late, baseSettings({ uvSlotDisplay: 'both' })),
     '0/\u00BB6');
-});
-
-test('uv holds today\'s peak while it is at or above warn, whatever the highlight toggle', () => {
-  // At a peak of 7 (seed warn 6): the slot is an alert, so the 7 stays \u2014 printed
-  // once in both modes \u2014 instead of rolling to tomorrow's \u00BB10.
-  const atPeak = uvDayPayload({ UV_TREND_UINT8: [71, 68, 55], UV_DAY_PEAKS: [71, 95] });
-  ['both', 'max'].forEach((mode) => {
-    assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: mode })),
-      '7', mode + ': held on the seed warn');
-    assert.equal(statusLines.formatValue('uv', atPeak,
-      baseSettings({ uvSlotDisplay: mode, threshUvOn: false })), '7',
-      mode + ': the highlight toggle off does not release the hold');
-    assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: mode,
-      threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8' })), '7',
-      mode + ': nor with a stored pair');
-  });
-  // A stored warn above the peak releases it: back to the rollover.
-  assert.equal(statusLines.formatValue('uv', atPeak, baseSettings({ uvSlotDisplay: 'both',
-    threshUvWarn: '8', threshUvDanger: '10' })), '7/\u00BB10');
 });
 
 test('uv modes fall back to the current reading when no peak ahead is known', () => {
@@ -280,21 +260,18 @@ test('uv modes fall back to the current reading when no peak ahead is known', ()
 
 test('worst realistic uv both-mode text fits the edge-slot byte cap untruncated', () => {
   // UV 11 now and at today's peak, 12 tomorrow: "11/»12" — » is 2 UTF-8 bytes.
-  // A stored warn above the peak (12/12, the slider's top) keeps the rollover, so
-  // the text under test is the widest one; at the seed warn 6 the 11 would hold.
   const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });
-  const text = statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both',
-    threshUvWarn: '12', threshUvDanger: '12' }));
+  const text = statusLines.formatValue('uv', p, baseSettings({ uvSlotDisplay: 'both' }));
   assert.equal(text, '11/\u00BB12');
   assert.equal(statusLines.utf8Encode(text).length, 7);
   assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX);
 });
 
 test('worst realistic both-mode text fits the edge-slot byte cap untruncated', () => {
-  // 10F = -12C, 14F = -10C -> "-12/-10", 7 bytes vs EDGE_TEXT_MAX = 8.
+  // 10F = -12C, 14F = -10C -> "-12|-10", 7 bytes vs EDGE_TEXT_MAX = 8.
   const p = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });
   const text = statusLines.formatValue('temp', p, baseSettings({ tempSlotDisplay: 'both' }));
-  assert.equal(text, '-12/-10');
+  assert.equal(text, '-12|-10');
   assert.ok(statusLines.utf8Encode(text).length <= catalog.CAPS.EDGE_TEXT_MAX,
     'both-mode worst case must survive the edge slot without truncation');
 });
@@ -946,7 +923,7 @@ test('an unavailable reading stays "--" with the unit on', () => {
   });
 });
 
-// THE HARD CASE. '-12/-10' is 7 bytes and the degree sign is 2, so the edge
+// THE HARD CASE. '-12|-10' is 7 bytes and the degree sign is 2, so the edge
 // slot's 8-byte cap cannot hold both. utf8Truncate would chop the degree back
 // off at the code-point boundary — the slot would look untouched while silently
 // ignoring the setting — so the unit is appended only when it actually fits.
@@ -960,14 +937,14 @@ test('both-mode never takes a degree, whatever is stored or however wide it is',
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true });
 
   assert.equal(statusLines.formatValue('temp', wide, s, 'statusRadarLeft',
-    catalog.CAPS.EDGE_TEXT_MAX), '-12/-10');
-  assertPlainText(slotBytesFor('temp', wide, s), '-12/-10', 'packed edge slot');
+    catalog.CAPS.EDGE_TEXT_MAX), '-12|-10');
+  assertPlainText(slotBytesFor('temp', wide, s), '-12|-10', 'packed edge slot');
   // A mid slot has 19 bytes to spare and still gets no degree — the rule is the
   // mode, not the room.
   assert.equal(statusLines.formatValue('temp', wide, s, 'statusForecastMid',
-    catalog.CAPS.MID_TEXT_MAX), '-12/-10');
+    catalog.CAPS.MID_TEXT_MAX), '-12|-10');
   // And a value that would comfortably fit one still does not get it.
-  assert.equal(statusLines.formatValue('temp', narrow, s, 'statusRadarLeft'), '20/10');
+  assert.equal(statusLines.formatValue('temp', narrow, s, 'statusRadarLeft'), '20|10');
 });
 
 test('the other two temp modes still take the degree when it is switched on', () => {
@@ -984,7 +961,7 @@ test('the other two temp modes still take the degree when it is switched on', ()
 // Temp 'both' and UV 'both' take a per-kind separator and order, UV a next-day
 // mark too. test/status-pair.test.js covers the full matrix; these pin the BAKE:
 // formatValue hands the slot's own cap down (so a styled pair too wide for a
-// corner falls back to the slash there and nowhere else), packLine ships the
+// corner falls back to its default separator there and nowhere else), packLine ships the
 // result, and every mode that shows ONE value ignores the pair settings.
 const EDGE_CAP = catalog.CAPS.EDGE_TEXT_MAX;
 const MID_CAP = catalog.CAPS.MID_TEXT_MAX;
@@ -1009,23 +986,28 @@ test('a spaced temp pair too wide for an edge slot drops its spaces there only',
   const p = Object.assign(basePayload(), { CURRENT_TEMP: 10, FEELS_CURRENT: 14 });  // -12C/-10C
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotSeparatorSpaced: true });
   // Never utf8Truncate's '-12 / -1': a clipped reading looks like a real one.
-  assertPlainText(slotBytesFor('temp', p, s), '-12/-10', 'edge: 9 B spaced, tight instead');
-  assertPlainText(midSlotBytesFor('temp', p, s), '-12 / -10', 'mid: 19 B of room');
+  assertPlainText(slotBytesFor('temp', p, s), '-12|-10', 'edge: 9 B spaced, tight instead');
+  assertPlainText(midSlotBytesFor('temp', p, s), '-12 | -10', 'mid: 19 B of room');
   assertPlainText(slotBytesFor('temp', p, Object.assign({ tempSlotOrder: 'feels' }, s)),
-    '-10/-12', 'the fallback keeps the order');
+    '-10|-12', 'the fallback keeps the order');
   // The spaces go, the user's separator stays: '-12(-10)' is exactly 8 B.
   const brackets = Object.assign({ tempSlotSeparator: 'brackets' }, s);
   assertPlainText(slotBytesFor('temp', p, brackets), '-12(-10)', 'edge: brackets kept');
   assertPlainText(midSlotBytesFor('temp', p, brackets), '-12 (-10)', 'mid: spaced');
   // No cap passed = the narrow edge slot, withUnit's convention.
-  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft'), '-12/-10');
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusRadarLeft'), '-12|-10');
+  // Too wide even tight ('-12ÿÿ-10' is 10 B): the last resort is temperature's
+  // default separator, the bar, never the slash.
+  const custom = Object.assign({ tempSlotSeparator: 'custom', tempSlotSeparatorCustom: 'ÿÿ' }, s);
+  assertPlainText(slotBytesFor('temp', p, custom), '-12|-10', 'edge: the bar');
+  assertPlainText(midSlotBytesFor('temp', p, custom), '-12 ÿÿ -10', 'mid: as picked');
 });
 
 test('a styled both-mode temp still never takes the degree', () => {
   const p = Object.assign(basePayload(), { FEELS_CURRENT: 50 });
   const s = baseSettings({ tempSlotDisplay: 'both', tempSlotUnit: true,
     tempSlotSeparatorSpaced: true });
-  assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP), '20 / 10');
+  assert.equal(statusLines.formatValue('temp', p, s, 'statusForecastMid', MID_CAP), '20 | 10');
 });
 
 test('the single-value temp modes and the missing-feels fallback ignore the pair settings', () => {
@@ -1086,10 +1068,8 @@ test('the next-day mark applies to the lone peak in max mode', () => {
 
 test('a styled UV pair too wide for an edge slot narrows step by step, order and mark kept', () => {
   const p = uvDayPayload({ UV_TREND_UINT8: [110], UV_DAY_PEAKS: [110, 120] });   // 11/»12
-  // A stored warn above the peak keeps the rollover (the seed warn 6 would hold the 11).
   const s = baseSettings({ uvSlotDisplay: 'both', uvSlotSeparator: 'brackets',
-    uvSlotOrder: 'max', uvSlotSeparatorSpaced: true,
-    threshUvWarn: '12', threshUvDanger: '12' });
+    uvSlotOrder: 'max', uvSlotSeparatorSpaced: true });
   assertPlainText(slotBytesFor('uv', p, s), RAQUO + '12(11)',
     'edge: "»12 (11)" is 9 B, so the spaces go and the brackets stay');
   assertPlainText(midSlotBytesFor('uv', p, s), RAQUO + '12 (11)', 'mid');

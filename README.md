@@ -51,7 +51,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Selectable date format for the date slot — German/European, US, ISO, and spelled-out-month styles, chosen separately for calendar views (month + year) and no-calendar views (full date)
 * Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 * Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)
-* Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or danger level you set (its Alert levels); the UV, wind, gust and air-quality slots can keep today's peak on screen while it is at warn or higher (not on Pebble Classic/Steel)
+* Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or danger level you set (its Alert levels) (not on Pebble Classic/Steel)
 * Alerts: show a metric only when it matters, instead of in a slot all day — while rain is on its way, or UV, wind, gusts, air quality or (with DWD) pollen reach your warn level today (later hours included) or, once nothing left today does, tomorrow, their alert icons appear in the alert row, which takes over up to two slots of a status bar and gives them back afterwards; each status bar's Alert row setting picks Off, Left, Middle or Right; each metric alert can print its value next to its icon and can stick to today or also look ahead to tomorrow, marking a tomorrow alert with `»` or a mark you pick (`>`, `+`, `*` or none); the rain alert shows as the rain icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text; when a bar runs out of room, values and the rain text shorten first, then the last alerts are left out (not on Pebble Classic/Steel)
 
 **Watchface themes**
@@ -92,14 +92,15 @@ Two things that both involve rain over time, but answer different questions:
   cover it), shaded stronger the higher the value (on black & white watches as denser
   dithering) (defaults: line, dots, x, x; style selection is
   likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
-  temperature status slot can also show the feels-like value, or both as `12/10`; the UV index
-  slot can show today's highest UV still to come, or both as `3/7`; today's peak stays while it
-  is still ahead or happening now, and while it is at your warn level or higher, then
-  tomorrow's shows instead, marked `»` (`4/»8`) and, with Alert highlighting on, highlighted at
-  the level it reaches, or just the current reading when tomorrow's isn't known. The wind, gust and air quality slots offer the same Alert mode (air quality with the Open-Meteo AQI provider, whose
-  hourly forecast it needs; WAQI reports the current reading only). How the pair is written
-  is up to you: pick the separator (`12/10`, `12(10)`, `12·10`, `12|10` or your own), with or
-  without spaces around it (`12 / 10`), which value comes first, and how tomorrow's peak is
+  temperature status slot can also show the feels-like value, or both as `12|10`; the UV index
+  slot can show today's highest UV still to come (Day max), or both as `3/7`; today's peak stays
+  while it is still ahead or happening now, then tomorrow's shows instead, marked `»` (`4/»8`),
+  or just the current reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert
+  highlighting. The wind, gust and air quality slots offer the same Day max (air quality with the
+  Open-Meteo AQI provider, whose hourly forecast it needs; WAQI reports the current reading
+  only). How the pair is written is up to you: pick the separator (`12|10`, `12/10`, `12(10)`,
+  `12·10` or your own), with or without spaces around it (`12 | 10`), which value comes first,
+  and how tomorrow's peak is
   marked (`»6`, `>6`, `+6`, `6*` or no mark). Feels-like itself comes in two flavours, picked
   under General → Units → *Feels-like formula*: the provider's own value (Tomorrow.io and Weather
   Underground follow the US heat-index/wind-chill rule, so theirs equals the air temperature in

@@ -1,8 +1,8 @@
 /**
  * Status-slot alert levels:
  *  - the per-kind warn/danger pairs (stored, else the kind's SEED pair — one
- *    resolution for the phone bake, the day-max hold rule and the settings
- *    page), with the highlight colours and warn look each kind resolves to;
+ *    resolution for the phone bake and the settings page), with the highlight
+ *    colours and warn look each kind resolves to;
  *  - the weather kinds' levels (STATUS_LEVELS_UINT8) and the alert row's
  *    metric entries (ALERT_ENTRIES_UINT8), both judged phone-side at
  *    weather-bake time;
@@ -27,8 +27,8 @@
   // buildSettingsBlob (the only rainTier consumer) is never called there.
   var rainTier = (typeof require !== 'undefined')
     ? require('./weather/rain-tier.js') : null;
-  // Same guard: its only consumers — the day-max pick (shownDayMax), the levels
-  // and the alert bake — run phone-side only.
+  // Same guard: its only consumers — the levels (displayValue, over the day-max
+  // pick) and the alert bake — run phone-side only.
   var wireUnits = (typeof require !== 'undefined')
     ? require('./wire-units.js') : null;
   // The theme-polarity vocabulary, for the text colour an auto highlight colour
@@ -239,7 +239,7 @@
 
   // Seed pairs per key stem and scaleVariant, in the kind's DISPLAY unit (the unit
   // displayValue and the health packer compare against). THE one table: the phone
-  // bake, the day-max hold rule and the settings page's slider seeds (blocks.js
+  // bake, the alert bake and the settings page's slider seeds (blocks.js
   // thresholdRangeCfg) all read it through seedPair, so a blank pair means the same
   // numbers everywhere. Goal kinds: warn = "close" (~80% of the goal), danger = the
   // goal.
@@ -291,7 +291,7 @@
    * The pair a kind is judged against: the stored thresh<Stem>Warn/Danger when
    * BOTH parse AND are ordered, else the seed pair — all or nothing, so a legacy
    * half or inverted pair never mixes one stored number with one seed. The one
-   * rule for the phone bake, the hold rule and the settings page.
+   * rule for the phone bake and the settings page.
    * @param {string} keyStem Kind key stem, e.g. 'Uv'.
    * @param {Object} settings Clay settings blob
    * @returns {{warn: ?number, danger: ?number, stored: boolean}} stored is true
@@ -309,7 +309,7 @@
   /**
    * Whether a kind is a WEATHER kind: neither a goal kind (the health trio levels
    * on the watch) nor a bold-only one (no pair to level). The phone levels exactly
-   * these at bake time, so the level packer, the day-max hold rule and the render
+   * these at bake time, so the level packer, the alert bake and the render
    * signature's pair loop all select by this one predicate.
    * @param {?Object} k A KINDS entry.
    * @returns {boolean}
@@ -328,39 +328,6 @@
       if (KINDS[i].code === code) { return isWeatherKind(KINDS[i]) ? KINDS[i] : null; }
     }
     return null;
-  }
-
-  /**
-   * The warn level a day-max slot holds today's peak on (wire-units dayMaxShown's
-   * `warn`): the kind's resolved warn in display units. Deliberately blind to the
-   * highlight toggle — the slot is an alert whether or not it is coloured.
-   * @param {*} code A status item code.
-   * @param {Object} settings Clay settings blob
-   * @returns {?number} the warn for a weather kind; null for goal, bold-only and
-   *     unknown codes
-   */
-  function holdWarn(code, settings) {
-    var k = weatherKindOf(code);
-    return k ? resolvedPair(k.key, settings).warn : null;
-  }
-
-  /**
-   * What a day-max slot (UV, wind, gusts, AQI) shows: wire-units' dayMaxShown with
-   * the hold rule's warn (holdWarn), so today's peak stays on screen while it is at
-   * or above the kind's warn. The ONE place the hold is applied: the slot's text and
-   * its wind arrow (status-lines packLine reads this once per slot and hands it to
-   * both) and the highlight (displayValue) all judge this same pick, so none of
-   * them can hold on a different warn.
-   * @param {*} code A status item code.
-   * @param {Object} payload weather payload (pre-transform, trends present)
-   * @param {Object} settings Clay settings blob (<code>SlotDisplay, windUnits, the
-   *     kind's thresh pair and the seed-unit pickers)
-   * @returns {?{now: ?number, peak: ?number, nextDay: boolean}} dayMaxShown's pick;
-   *     null without a reading, or for a code that is no day-max kind
-   */
-  function shownDayMax(code, payload, settings) {
-    if (!wireUnits.isDayMaxKind(code)) { return null; }
-    return wireUnits.dayMaxShown(code, payload, settings, holdWarn(code, settings));
   }
 
   /**
@@ -598,28 +565,24 @@
 
   /**
    * The number the user SEES for a weather kind — thresholds compare against
-   * the displayed value. The day-max pick is SHARED with status-lines.js
-   * (shownDayMax, over wire-units' readers), so the two cannot round apart or
-   * disagree on which peak is shown.
+   * the displayed value. The readers are SHARED with status-lines.js through
+   * wire-units (dayMaxShown), so the two cannot round apart or disagree on which
+   * peak is shown.
    *
-   * The day-max kinds (UV, wind, gusts, AQI) judge the highest number the slot
-   * shows (judgedShown). An unmarked peak is never below now by construction, so
-   * "2/8" is highlighted for the 8. The hold rule gets the kind's resolved warn
-   * (holdWarn), so today's peak stays on screen while it is at or above warn:
-   * a 7 falling from an 8 under warn 6 prints "7" in every mode and is judged
-   * on the 7 — the highlight can never go silent while today is still worth
-   * warning about. Tomorrow's marked peak shows only once today's is below warn
-   * (and behind us), and is then judged at its own level, like the alert row's
-   * tomorrow entry (bakeAlerts): a lone "»8" on the 8, "5/»8" on the 8 too.
+   * The day-max kinds (UV, wind, gusts, AQI) judge the highest of TODAY's
+   * numbers shown (todaysShown). An unmarked peak is never below now by
+   * construction, so "2/8" is highlighted for the 8 (and "5/5", a peak still
+   * running, for 5); tomorrow's marked peak never counts until it is today's, so
+   * "8/»6" is judged on the 8 and a lone "»9" not at all (null). The alert icon
+   * judges tomorrow on its own (bakeAlerts); the slot's highlight never does.
    * @param {string} code 'aqi' | 'pollen' | 'wind' | 'gust' | 'uv'
    * @param {Object} payload weather payload (pre-transform, trends present)
-   * @param {Object} settings Clay settings blob (windUnits, <kind>SlotDisplay,
-   *     the kind's thresh pair and the seed-unit pickers)
+   * @param {Object} settings Clay settings blob (windUnits, <kind>SlotDisplay)
    * @returns {number|null} displayed number, or null when unavailable
    */
   function displayValue(code, payload, settings) {
     if (wireUnits.isDayMaxKind(code)) {
-      return judgedShown(shownDayMax(code, payload, settings));
+      return todaysShown(wireUnits.dayMaxShown(code, payload, settings));
     }
     if (code === 'pollen') {
       var pollen = pollenToday(payload);
@@ -629,22 +592,14 @@
   }
 
   /**
-   * The number a day-max slot's highlight judges (displayValue's policy): the
-   * highest it shows. Today's pick: today's peak when shown, else the current
-   * reading. Tomorrow's marked peak: that peak, or the current reading beside it
-   * ("5/»8", Both) when that is higher. The hold rule rolls to tomorrow only once
-   * today's peak is below warn, so the reading is below warn too and the level is
-   * tomorrow's; the higher of the two only matters when today's peak is unknown or
-   * below the reading (a feed that disagrees with itself) — then nothing held the
-   * reading, whatever its level. The level is monotone in the number (an ordered
-   * pair), so the higher number is the higher level.
+   * The highest of today's numbers a day-max slot shows (displayValue's policy).
    * @param {?{now: ?number, peak: ?number, nextDay: boolean}} shown wire-units' pick
-   * @returns {number|null} the judged number; null without a reading
+   * @returns {number|null} today's peak when shown, else the current reading
+   *     (null when only tomorrow's peak is on screen, or no reading at all)
    */
-  function judgedShown(shown) {
+  function todaysShown(shown) {
     if (!shown) { return null; }
-    if (!shown.nextDay) { return shown.peak === null ? shown.now : shown.peak; }
-    return shown.now === null ? shown.peak : Math.max(shown.now, shown.peak);
+    return (shown.peak === null || shown.nextDay) ? shown.now : shown.peak;
   }
 
   // Bit position of a weather kind's 2-bit level in the packed levels value:
@@ -1182,7 +1137,6 @@
     seedPair: seedPair,
     allSeedPairs: allSeedPairs,
     resolvedPair: resolvedPair,
-    shownDayMax: shownDayMax,
     isGoalKind: isGoalKind,
     isWeatherKind: isWeatherKind,
     DEFAULT_GOAL_HEX: DEFAULT_GOAL_HEX,

@@ -254,43 +254,27 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * A day-max kind's Now / Alert / Both hint — the SELECTED mode only, with the hold
-     * level as a number: the kind's resolved warn level (the stored pair, else its seed
-     * — the very number status-thresholds holdWarn hands the phone's hold rule) in the
-     * unit its slider shows, filled into the schema's template (schema.js dayMaxHints).
-     * Re-resolved on every render, so it follows the slider, the General-tab unit
-     * pickers and the AQI source/scale with no dependency list — and in place after a
-     * keyboard nudge on a thumb, which commits without a render (range-control.js).
-     * Now, the default, gets no hint: the pill says it. The hint is about what the slot
-     * SHOWS (the Alerts sheet explains the highlight), save the templates' one sentence
-     * that a tomorrow's peak is highlighted at its own level too — the same words with
-     * the switch on or off, as it opens "With Alert highlighting on".
-     * AQI closes on its source's note when that source has no forecast to take a peak
-     * from (args.notes). The page's HTML is raw here (engine renderRow), so only
-     * numbers and the range table's unit label are interpolated — the rest is schema
-     * copy.
+     * The AQI slot's Day max / Both hint while its source note applies: the by-value
+     * hint the row's static hintByValue carries (args.hints, the same schema.js
+     * dayMaxHints table, so the two cannot drift) closed on the source's note — WAQI
+     * and Auto have no forecast to take a peak from (args.notes). A non-null answer
+     * REPLACES hintByValue (engine renderRow), so this returns the whole text; null
+     * for Now and whenever no note applies, so hintByValue answers.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{value: string, keyStem: string, hints: {max: string, both: string},
+     * @param {{value: string, hints: {max: string, both: string},
      *   notes: ?{key: string, fallback: string, byValue: Object}}} args The row's shown
      *   mode + dayMaxRows' copy.
-     * @returns {?string} The hint ('' for none), or null (no hint) for a stem without
-     *     levels.
+     * @returns {?string} The hint with its note, or null for "use hintByValue".
      */
     function dayMaxHint(S, env, args) {
-        if (args.value !== 'max' && args.value !== 'both') { return ''; }
-        var stem = args.keyStem;
-        if (!THRESHOLD_RANGES[stem] || !args.hints) { return null; }
-        var st = S || {};
-        var pair = thresholds.resolvedPair(stem, st);
-        var unit = rangeOf(stem, st).unit;
-        var level = pair.warn + (unit ? ' ' + unit : '') + ' (your warn level)';
+        if (args.value !== 'max' && args.value !== 'both') { return null; }
         var notes = args.notes;
-        var note = notes ? notes.byValue[st[notes.key] || notes.fallback] || '' : '';
-        return args.hints[args.value].split('{level}').join(level) + note;
+        if (!notes || !args.hints) { return null; }
+        var st = S || {};
+        var note = copyOf(notes.byValue, st[notes.key] || notes.fallback);
+        return note ? args.hints[args.value] + note : null;
     }
-    // THRESHOLD_RANGES / rangeOf sit further down this file: both are read at render
-    // time, long after this file has loaded.
     PConf.hintResolvers.register('dayMaxHint', dayMaxHint);
 
     // Per-slot edit sheet: the pencil left of a slot dropdown opens the threshold sheet
@@ -377,9 +361,8 @@ if (typeof require !== 'undefined') {
     // (rangeOf) so the General-tab unit pickers reshape the scales live. fixedMax
     // marks the naturally-bounded kinds (no inline scale-max editor). The SEED pairs
     // are not here: they live in the contract (status-thresholds.js SEEDS /
-    // seedPair) — the one table the phone bake and the day-max hold rule resolve a
-    // blank pair against too, so the slider can never preview numbers the watch does
-    // not use.
+    // seedPair) — the one table the phone bake resolves a blank pair against too, so
+    // the slider can never preview numbers the watch does not use.
     var THRESHOLD_RANGES = {
         Wind: {
             kph: {min: 0, max: 120, step: 5, unit: 'kph'},
@@ -448,8 +431,8 @@ if (typeof require !== 'undefined') {
             // With a blank pair and a stored scale max below the seed — the
             // slider's max editor is live while the highlight is off, and older
             // installs kept a Max from before OFF stopped blanking the pair — the
-            // slider would clamp the seed it previews to that max while the hold
-            // rule and the hint use the real seed: three readings of one rule.
+            // slider would clamp the seed it previews to that max while the bake
+            // uses the real seed: two readings of one rule.
             var held = thresholds.resolvedPair(stem, S || {});
             if (held.warn !== null && held.warn > max) { max = ceilToStep(held.warn, base.step); }
             if (held.danger !== null && held.danger > max) { max = ceilToStep(held.danger, base.step); }

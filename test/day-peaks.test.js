@@ -1,9 +1,7 @@
 // test/day-peaks.test.js — the UV forecast of today's hours already begun,
 // kept across fetches so the UV slot's day max can hold today's peak while it
 // runs (a peak of 5 from 13:00 to 15:00 shows until the reading drops below it)
-// and give way to tomorrow's once it is behind us. These run with no warn level
-// passed, so the running rule is judged alone; the third hold ground (at or above
-// warn) is wire-units' and is pinned in test/wire-units.test.js. Times are LOCAL clock times so
+// and give way to tomorrow's once it is behind us. Times are LOCAL clock times so
 // the day edges land the same in any host time zone.
 'use strict';
 const test = require('node:test');
@@ -133,23 +131,18 @@ function fetchAt(provider, hour, opts) {
   return payload;
 }
 
-/**
- * The UV slot in Both mode, as the text reads: "now/peak", "»" for tomorrow, and
- * the reading alone when no peak shows — including a held today's peak equal to
- * now, which dayMaxShown collapses so it prints once ("5", not "5/5").
- */
+/** The UV slot in Both mode, as the text reads: "now/peak", "»" for tomorrow. */
 function both(payload) {
   const uv = uvShown(payload.UV_TREND_UINT8, payload.UV_DAY_PEAKS, 'both');
-  if (uv.peak === null) { return String(uv.now); }
   return uv.now + '/' + (uv.nextDay ? '»' : '') + uv.peak;
 }
 
-test('the owner\'s day: 5 runs from 13:00 until the reading drops below it at 15:00 (no warn)', () => {
+test('the owner\'s day: 5 holds from 13:00 until the reading drops below it at 15:00', () => {
   const p = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
   assert.equal(both(fetchAt(p, 0)), '0/5', '00:10: nothing earlier, the peak ahead');
   assert.equal(both(fetchAt(p, 11)), '4/5', '11:10: ahead');
-  assert.equal(both(fetchAt(p, 13)), '5', '13:10: running — not yet tomorrow\'s, and printed once');
-  assert.equal(both(fetchAt(p, 14)), '5', '14:10: still running');
+  assert.equal(both(fetchAt(p, 13)), '5/5', '13:10: running — not yet tomorrow\'s');
+  assert.equal(both(fetchAt(p, 14)), '5/5', '14:10: still running');
   assert.equal(both(fetchAt(p, 15)), '4/»6', '15:10: below 5 — tomorrow\'s peak takes over');
   assert.equal(both(fetchAt(p, 20)), '0/»6', '20:10');
   const stored = JSON.parse(store[KEYS.UV_DAY_RECORD_KEY]);
@@ -185,7 +178,7 @@ test('a switch between DWD and Open-Meteo keeps the record: both read Open-Meteo
   fetchAt(om, 0);
   fetchAt(om, 11);
   const dwd = new Dwd();
-  assert.equal(both(fetchAt(dwd, 13)), '5');
+  assert.equal(both(fetchAt(dwd, 13)), '5/5');
 });
 
 test('a commute keeps the record; a move far away still judges from the last dip', () => {
@@ -193,13 +186,13 @@ test('a commute keeps the record; a move far away still judges from the last dip
   fetchAt(p, 0);
   fetchAt(p, 7);
   assert.equal(both(fetchAt(p, 8, { lat: SRC.lat + 0.18 })), '2/5', '08:10 at the office, 20 km away');
-  assert.equal(both(fetchAt(p, 13, { lat: SRC.lat + 0.18 })), '5');
+  assert.equal(both(fetchAt(p, 13, { lat: SRC.lat + 0.18 })), '5/5');
   // Across the country at 08:10: a new record from 08:00, which by 13:00 holds
   // the dip below 5 (12:00 printed 4), so the peak still holds.
   const q = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
   fetchAt(q, 0);
   [8, 9, 10, 11, 12].forEach((h) => fetchAt(q, h, { lat: SRC.lat + 3 }));
-  assert.equal(both(fetchAt(q, 13, { lat: SRC.lat + 3 })), '5');
+  assert.equal(both(fetchAt(q, 13, { lat: SRC.lat + 3 })), '5/5');
   assert.equal(both(fetchAt(q, 15, { lat: SRC.lat + 3 })), '4/»6');
 });
 
@@ -209,12 +202,12 @@ test('a second, lower peak after a cloudy noon holds like the first', () => {
   const curve = day.concat(TOMORROW, [0, 0]);
   const p = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
   const seen = [0, 10, 11, 12, 13, 14, 15].map((h) => both(fetchAt(p, h, { curve })));
-  assert.deepEqual(seen, ['0/6', '5/6', '6', '4/5', '5', '5', '3/»6']);
+  assert.deepEqual(seen, ['0/6', '5/6', '6/6', '4/5', '5/5', '5/5', '3/»6']);
   // Down from a 6 with no dip: the 5s after it are the way down, not a peak.
   const slope = [0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 5, 6, 5, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0];
   const q = Object.assign(new WeatherProvider(), { id: 'openmeteo' });
   const down = [0, 11, 12, 13].map((h) => both(fetchAt(q, h, { curve: slope.concat(TOMORROW, [0, 0]) })));
-  assert.deepEqual(down, ['0/6', '6', '5/»6', '5/»6']);
+  assert.deepEqual(down, ['0/6', '6/6', '5/»6', '5/»6']);
 });
 
 test('an abandoned fetch reads the record but never writes it', () => {

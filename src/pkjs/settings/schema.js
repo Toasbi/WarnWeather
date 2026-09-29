@@ -397,8 +397,8 @@ function graphColorRow(row, joins) {
 //
 // The intros are the only place the levels are explained now that the Watch-tab card
 // is gone. Both lead with what the pair IS: the slider is always live (the weather pair
-// also sets the day-max hold level, highlighting or not), so the intro must not read as
-// if the numbers were the highlight's alone. The weather group has NO switch of its own
+// also sets when the alert icon shows, highlighting or not), so the intro must not read
+// as if the numbers were the highlight's alone. The weather group has NO switch of its own
 // — it sits in the kind's Alert sheet, whose 'Alert' switch shows the icon, while the
 // slot's 'Alert highlighting' switch lives in the slot sheet — so its intro says the look
 // applies to the alert icon always and to the slot only while that switch is on. The
@@ -514,33 +514,85 @@ var GOAL_VOICE = {
 // phone flips it before baking — so the copy has to say which way it points, or half
 // the readers will read it backwards. Shared by both slots: one arrow, two kinds.
 var WIND_DIRECTION_HINT = 'Draws an arrow after the speed, pointing the way the ' +
-    'wind is blowing now. Not while Alert shows a peak alone.';
-// The two-value slots — Temperature and UV in their "Both" mode — print a pair in one
-// slot (12/10, 3/7). How the pair reads is chosen per kind, on the rows pairRows()
-// builds below that kind's display pills. The phone bakes the text (status-pair.js,
-// through status-lines.js formatValue) and sanitises the custom separator there,
-// authoritatively, so the page stores what was typed and needs no hook. An absent key
-// reads as the default, so a blob saved before these rows existed keeps printing 12/10.
+    'wind is blowing now. Not while Day max shows a peak alone.';
+// The two-value slots — Temperature and the day-max kinds in their "Both" mode — print a
+// pair in one slot (12|10, 3/7). How the pair reads is chosen per kind, on the rows
+// orderRow() and separatorRows() build below that kind's Value selection. The phone
+// bakes the text (status-pair.js, through status-lines.js formatValue) and sanitises the
+// custom separator there, authoritatively, so the page stores what was typed and needs
+// no hook. An absent key reads as the kind's default (status-pair.js defaultSeparator:
+// the bar for temperature, the slash for the day-max kinds).
 //
 // The formatter's fit rule: a pair wider than its slot's byte cap drops its spaces, and
-// one still too wide prints with the plain slash, for that reading only. Only the
-// narrow left/right slots ever hit it ('-12 / -10' is 9 bytes of their 8), so the hint
-// names them the way the Watch tab's intro does, not as "edge slots".
-var PAIR_FALLBACK_HINT = 'In a left or right slot, a pair too wide to fit ' +
-    'drops its spaces, then falls back to the slash, and shows only the current value ' +
-    'if even that is too wide.';
+// one still too wide prints with the kind's default separator; a day-max pair still too
+// wide shows the reading alone. The default separator is the fit rule's last step, so
+// its own hint would read differently: the Separator row explains every value but the
+// default (pairFallbackHints).
+/**
+ * The Separator row's hints: the fit rule, for every value but the kind's default.
+ * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} first Sample of the value that leads by default, e.g. '12'.
+ * @param {string} second Sample of the other value, e.g. '10'.
+ * @param {Array<string>} values Every value the row offers.
+ * @returns {Object} hintByValue: value → hint, the default absent.
+ */
+function pairFallbackHints(prefix, first, second, values) {
+    var def = STATUS_PAIR.defaultSeparator(prefix);
+    var preset = STATUS_PAIR.SEPARATORS[def];
+    // Only a day-max pair can still be too wide in its default form (a mark and two
+    // three-digit numbers: '152/»178'); then the slot shows the reading alone.
+    var tail = prefix === 'temp' ? '.' : ', then to the reading alone.';
+    var hint = 'When the pair doesn\'t fit, it drops its spaces, then falls back to ' +
+        first + preset.mid + second + preset.end + tail;
+    var out = {};
+    values.forEach(function (value) {
+        if (value !== def) { out[value] = hint; }
+    });
+    return out;
+}
 // The watch draws slot text in its Gothic system fonts, which cover printable ASCII and
 // Latin-1 (the slots already print '°' and '»' from them); the formatter keeps
 // only those, then the first two. Spaces are kept, not trimmed: ', ' is a real separator.
-var PAIR_CUSTOM_HINT = 'Up to ' + STATUS_PAIR.CUSTOM_MAX_CHARS + ' characters, spaces ' +
-    'included; empty uses the slash. Only characters the watch font can draw are kept ' +
-    '(printable ASCII and Latin-1).';
 /**
- * Build the rows that shape a two-value slot's pair: the separator dropdown, the custom
- * separator it can reveal, whether spaces flank the separator, and which value leads.
- * All four show only in the kind's "Both" mode — the one mode that prints a pair — and
- * join the display row tight, the way every group of rows revealed by a control joins
- * that control (Theme switching's Night theme and Enabled hours).
+ * The Custom separator row's hint. Empty falls back to the kind's default separator.
+ * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {string} first Sample of the value that leads by default, e.g. '12'.
+ * @param {string} second Sample of the other value, e.g. '10'.
+ * @returns {string} The hint.
+ */
+function pairCustomHint(prefix, first, second) {
+    var def = STATUS_PAIR.defaultSeparator(prefix);
+    var preset = STATUS_PAIR.SEPARATORS[def];
+    var empty = def === 'slash' ? 'empty uses the slash'
+        : 'empty prints ' + first + preset.mid + second + preset.end;
+    return 'Up to ' + STATUS_PAIR.CUSTOM_MAX_CHARS + ' characters, spaces included; ' +
+        empty + '. Only characters the watch font can draw are kept ' +
+        '(printable ASCII and Latin-1).';
+}
+/**
+ * A two-value slot's Order row: which value leads the pair. Shown only in the kind's
+ * "Both" mode — the one mode that prints a pair — and joined tight to the row above,
+ * the way every group of rows revealed by a control joins that control.
+ * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
+ * @param {Array<Array<string>>} orderOptions The order pills as [label, value]; the
+ *     first one is the default (the order the slot has always printed).
+ * @returns {Object} The Order row.
+ */
+function orderRow(prefix, orderOptions) {
+    return {
+        type: 'segmented',
+        messageKey: prefix + 'SlotOrder',
+        label: 'Order',
+        defaultValue: orderOptions[0][1],
+        options: orderOptions,
+        joinPrevious: true,
+        showWhen: {key: prefix + 'SlotDisplay', eq: 'both'}
+    };
+}
+/**
+ * Build the rows that shape a two-value slot's separator: the separator dropdown, the
+ * custom separator it can reveal, and whether spaces flank the separator. All three
+ * show only in the kind's "Both" mode and join tight, like the Order row above them.
  *
  * The presets are labelled by EXAMPLE, built on the kind's own sample numbers from the
  * formatter's table: "12(10)" says what a name like "Brackets" would leave the reader
@@ -549,29 +601,29 @@ var PAIR_CUSTOM_HINT = 'Up to ' + STATUS_PAIR.CUSTOM_MAX_CHARS + ' characters, s
  * alike, so the dropdown stays one entry per separator instead of doubling (with the
  * toggle on, the slot prints the label's spaced form).
  *
- * @param {string} prefix Key prefix: 'temp' or 'uv' (tempSlotDisplay, tempSlotSeparator …).
+ * @param {string} prefix Key prefix: 'temp' | 'uv' | 'wind' | 'gust' | 'aqi'.
  * @param {string} first Sample of the value that leads by default, e.g. '12'.
  * @param {string} second Sample of the other value, e.g. '10'.
- * @param {Array<Array<string>>} orderOptions The order pills as [label, value]; the
- *     first one is the default (the order the slot has always printed).
  * @returns {Object[]} The separator select, the custom-separator text field, the spacing
- *     toggle, the order pills.
+ *     toggle.
  */
-function pairRows(prefix, first, second, orderOptions) {
+function separatorRows(prefix, first, second) {
     var bothWhen = {key: prefix + 'SlotDisplay', eq: 'both'};
     var presets = STATUS_PAIR.SEPARATORS;
+    var def = STATUS_PAIR.defaultSeparator(prefix);
     var separators = Object.keys(presets).map(function (value) {
         return [first + presets[value].mid + second + presets[value].end, value];
-    });
+    }).concat([['Custom', 'custom']]);
     return [{
         // A dropdown, not pills: five choices would be a wide pill row, and the owner
-        // asked for a drop-down of presets.
+        // asked for a drop-down of presets. Inside the sheet it expands in place.
         type: 'select',
         messageKey: prefix + 'SlotSeparator',
         label: 'Separator',
-        defaultValue: 'slash',
-        hint: PAIR_FALLBACK_HINT,
-        options: separators.concat([['Custom', 'custom']]),
+        defaultValue: def,
+        hintByValue: pairFallbackHints(prefix, first, second,
+            separators.map(function (option) { return option[1]; })),
+        options: separators,
         joinPrevious: true,
         showWhen: bothWhen
     }, {
@@ -582,113 +634,105 @@ function pairRows(prefix, first, second, orderOptions) {
         label: 'Custom separator',
         defaultValue: '',
         attributes: {maxlength: STATUS_PAIR.CUSTOM_MAX_CHARS},
-        hint: PAIR_CUSTOM_HINT,
+        hint: pairCustomHint(prefix, first, second),
         joinPrevious: true,
         showWhen: {all: [bothWhen, {key: prefix + 'SlotSeparator', eq: 'custom'}]}
     }, {
         // Spacing is orthogonal to the separator — the owner asked for 8/8 or 8 / 8
         // "for all of them" — so it is one toggle, not a spaced twin of every preset.
-        // Off by default: an absent key must keep printing the 12/10 the slot always
-        // baked. The hint shows the spaced form of two separators, built through the
-        // formatter's own spaceAround on the kind's samples, so it says plainly that
-        // the toggle covers every separator (not "switch to a spaced slash", which
-        // the removed preset was) and cannot drift from what the slot prints.
+        // Off by default: an absent key keeps the pair tight. The hint (shown while
+        // the toggle is on) gives the spaced form of two separators, the kind's
+        // default first, built through the formatter's own spaceAround on the kind's
+        // samples, so it says plainly that the toggle covers every separator and
+        // cannot drift from what the slot prints.
         type: 'toggle',
         messageKey: prefix + 'SlotSeparatorSpaced',
         label: 'Spaces around separator',
         defaultValue: false,
-        hint: 'Adds spaces to any separator: ' +
-            [presets.slash, presets.brackets].map(function (preset) {
-                var spaced = STATUS_PAIR.spaceAround(preset);
-                return first + spaced.mid + second + spaced.end;
-            }).join(', ') + '.',
-        joinPrevious: true,
-        showWhen: bothWhen
-    }, {
-        type: 'segmented',
-        messageKey: prefix + 'SlotOrder',
-        label: 'Order',
-        defaultValue: orderOptions[0][1],
-        options: orderOptions,
+        hintByValue: {
+            'true': 'Adds spaces to any separator: ' +
+                [presets[def], presets.brackets].map(function (preset) {
+                    var spaced = STATUS_PAIR.spaceAround(preset);
+                    return first + spaced.mid + second + spaced.end;
+                }).join(', ') + '.'
+        },
         joinPrevious: true,
         showWhen: bothWhen
     }];
 }
 /**
- * A day-max slot kind's display rows (UV, wind, gusts, AQI): the Now / Alert / Both
- * pills, the pair rows Both reveals (pairRows), and the mark on a max that has rolled
- * on to tomorrow's peak. Global per kind, baked phone-side (status-lines.js
- * formatValue; the numbers are wire-units' dayMaxShown) and on renderSignature(), so a
- * change re-bakes without waiting for the next fetch. The highlight follows the
- * numbers, never their presentation (status-thresholds.js displayValue).
+ * A day-max slot kind's display rows (UV, wind, gusts, AQI), the sheet's first group
+ * (no header, rows joined): the Value selection pills [Now | Day max | Both], the
+ * Order and separator rows Both reveals (orderRow, separatorRows), and the mark on a
+ * max that has rolled on to tomorrow's peak. In Day max mode the group collapses to
+ * Value selection and Tomorrow's peak mark. Global per kind, baked phone-side
+ * (status-lines.js formatValue; the numbers are wire-units' dayMaxShown) and on
+ * renderSignature(), so a change re-bakes without waiting for the next fetch. The
+ * highlight follows the numbers, never their presentation (status-thresholds.js
+ * displayValue).
  *
- * 'Alert' (stored 'max', the wire vocabulary is unchanged) names what the mode is for:
- * today's peak holds while it is still ahead or happening now AND while it sits at the
- * kind's warn level or higher, so a slot never goes quiet under a value that still
- * warrants the warning. The pills' hint explains the SELECTED mode only — Now, the
- * default, gets none — and is about what the slot SHOWS (the highlight is explained in
- * the Alerts sheet), save one sentence: a tomorrow's peak, which only these two modes
- * show, is highlighted at its own level too. It states the warn level as a NUMBER,
- * live: blocks.js dayMaxHint fills dayMaxHints' {level} from the slider, the unit
- * pickers and the AQI source/scale on every render.
+ * The pills' hint explains the SELECTED mode only — Now, the default, gets none
+ * (dayMaxHints). AQI closes the Day max and Both hints on its source's note when that
+ * source has no forecast to take a peak from: blocks.js dayMaxHint answers the whole
+ * hint then, from the same dayMaxHints table the static hintByValue is built from.
  * @param {string} prefix Key prefix: 'uv' | 'wind' | 'gust' | 'aqi'.
- * @param {string} label The pills' label, e.g. 'UV selection'.
- * @param {{keyStem: string, subject: string, notes: ?Object}} copy The kind's
- *     threshold key stem ('Uv'), the hold sentence's subject ('UV is'), and (AQI only)
- *     the source notes: dayMaxHint closes on byValue[S[key] || fallback] (a leading
- *     space; no entry, no note). null for none.
+ * @param {{noun: string, notes: ?Object}} copy What the kind measures, without an
+ *     article ('UV index'), and (AQI only) the source notes: dayMaxHint closes on
+ *     byValue[S[key] || fallback] (a leading space; no entry, no note). null for none.
  * @param {string} now Sample current reading for the separator labels, e.g. '3'.
  * @param {string} max Sample peak, e.g. '7'.
  * @returns {Object[]} The rows, in sheet order.
  */
-function dayMaxRows(prefix, label, copy, now, max) {
-    var args = {keyStem: copy.keyStem, hints: dayMaxHints(copy.subject, now + '/' + max)};
-    if (copy.notes) { args.notes = copy.notes; }
-    return [{
+function dayMaxRows(prefix, copy, now, max) {
+    var hints = dayMaxHints(copy.noun, now + '/' + max);
+    var selection = {
         type: 'segmented',
         messageKey: prefix + 'SlotDisplay',
-        label: label,
-        hintFrom: {resolver: 'dayMaxHint', args: args},
+        label: 'Value selection',
+        hintByValue: hints,
         defaultValue: 'current',
-        options: [['Now', 'current'], ['Alert', 'max'], ['Both', 'both']]
-    }].concat(pairRows(prefix, now, max, [['Now first', 'now'], ['Alert first', 'max']]), [{
-        // The mark on a max that has rolled on to tomorrow's peak — in Alert AND
-        // Both, the two modes that print a max. 'raquo' is the '»' the UV slot
-        // printed before this row existed, so it stays the default.
-        type: 'select',
-        messageKey: prefix + 'SlotNextDayMark',
-        label: 'Tomorrow\'s peak mark',
-        defaultValue: 'raquo',
-        options: nextDayMarkOptions(),
-        joinPrevious: true,
-        showWhen: {key: prefix + 'SlotDisplay', in: ['max', 'both']}
-    }]);
+        options: [['Now', 'current'], ['Day max', 'max'], ['Both', 'both']]
+    };
+    if (copy.notes) {
+        selection.hintFrom = {resolver: 'dayMaxHint', args: {hints: hints, notes: copy.notes}};
+    }
+    return [selection, orderRow(prefix, [['Now first', 'now'], ['Max first', 'max']])]
+        .concat(separatorRows(prefix, now, max), [{
+            // The mark on a max that has rolled on to tomorrow's peak — in Day max AND
+            // Both, the two modes that print a max. 'raquo' is the '»' the UV slot
+            // printed before this row existed, so it stays the default. Inside the
+            // sheet the list expands in place.
+            type: 'select',
+            messageKey: prefix + 'SlotNextDayMark',
+            label: 'Tomorrow\'s peak mark',
+            defaultValue: 'raquo',
+            hintByValue: {none: 'Tomorrow\'s peak then looks just like today\'s.'},
+            options: nextDayMarkOptions(),
+            joinPrevious: true,
+            showWhen: {key: prefix + 'SlotDisplay', in: ['max', 'both']}
+        }]);
 }
 /**
- * A day-max kind's Alert and Both hints as templates, '{level}' standing for the
- * warn level (dayMaxHint: '6 (your warn level)').
- * Each claim is wire-units dayMaxShown's: today's peak (the rest of today, the
- * current hour included) holds while ahead, running or at warn or higher — once it
- * is neither ahead nor running it equals the reading, so "{subject} below {level}"
- * is the high hold's own test; then tomorrow's peak shows, marked, or — unknown or
- * never above 0 — the reading alone. Both collapses a held today's peak equal to the
- * reading to one number. The closing sentence is status-thresholds displayValue's: a
- * shown tomorrow's peak is judged at its own level, as today's is, and the slot's
- * 'Alert highlighting' switch (the row above the pills) decides whether it shows.
- * @param {string} subject The hold sentence's subject with its verb, e.g. 'UV is'.
+ * A day-max kind's Day max and Both hints. Each claim is wire-units dayMaxShown's:
+ * today's peak (the rest of today, the current hour included) shows while it is still
+ * ahead or happening now; then tomorrow's peak, carrying Tomorrow's peak mark, or —
+ * unknown or never above 0 — the reading alone. The closing sentence is
+ * status-thresholds displayValue's: the slot's Alert highlighting judges today's
+ * numbers only.
+ * @param {string} noun What the kind measures, without an article, e.g. 'UV index'.
  * @param {string} sample The kind's sample pair, e.g. '3/7'.
- * @returns {{max: string, both: string}} The two templates.
+ * @returns {{max: string, both: string}} The two hints.
  */
-function dayMaxHints(subject, sample) {
-    var rest = ' below {level}, tomorrow\'s peak shows instead, with the mark chosen below';
-    var highlight = ' With Alert highlighting on, tomorrow\'s peak is highlighted at the level it '
-        + 'reaches, like today\'s.';
+function dayMaxHints(noun, sample) {
+    var never = ' Tomorrow\'s peak never triggers Alert highlighting.';
     return {
-        max: 'Today\'s peak — the highest it gets for the rest of today. Once it has passed and '
-            + subject + rest + ', or the current reading if tomorrow\'s isn\'t known.' + highlight,
-        both: 'The reading now and today\'s peak, like ' + sample + ' — one number while they\'re '
-            + 'the same. Once today\'s peak has passed and ' + subject + rest
-            + ', or the reading alone if tomorrow\'s isn\'t known.' + highlight
+        max: 'The highest ' + noun + ' left today, while that peak is still ahead or happening '
+            + 'now. After it, tomorrow\'s peak with Tomorrow\'s peak mark, or the reading when '
+            + 'tomorrow\'s isn\'t known.' + never,
+        both: 'The ' + noun + ' now and the highest left today, like ' + sample + ', while that '
+            + 'peak is still ahead or happening now. After it, the second number is tomorrow\'s '
+            + 'peak with Tomorrow\'s peak mark, or the reading shows alone when tomorrow\'s isn\'t '
+            + 'known.' + never
     };
 }
 /**
@@ -777,12 +821,12 @@ function unitRow(key, withUnit, without) {
  *     switch, slider, the two hidden companions, warn look, warn color, danger color.
  */
 function levelRows(keyStem, voice, hint, gate, offWhen) {
-    // The slider is ALWAYS live: the warn level is not the highlight's alone — the
-    // day-max kinds hold today's peak from it whether or not anything is coloured
-    // (wire-units dayMaxShown via status-thresholds holdWarn), so it must stay
-    // editable with the switch off. For a GOAL kind the highlight-only rows below
-    // (warn look + color pickers) go VISIBLE but disabled (muted, inert — the
-    // sheet shows what turning it on offers) while its switch is off. A weather
+    // The slider is ALWAYS live: the warn level is not the highlight's alone — a
+    // weather kind's alert icon shows from it whether or not the slot is coloured
+    // (status-thresholds bakeAlerts), so it must stay editable with the switch off.
+    // For a GOAL kind the highlight-only rows below (warn look + color pickers) go
+    // VISIBLE but disabled (muted, inert — the sheet shows what turning it on
+    // offers) while its switch is off. A weather
     // kind's rows never do: they style its alert icon too, which the slot's switch
     // does not touch. The toggle itself is STORED state — the one source of
     // "highlight on" (kindConfig's enable bit); pre-split blobs were backfilled from
@@ -898,11 +942,12 @@ function levelRows(keyStem, voice, hint, gate, offWhen) {
         disabledWhen: offWhen
     }]);
 }
-// The Bold row is a SLOT-level setting, not a level one: it leads the slot sheet
-// (above the Goals group; an alert kind's levels live in its Alerts sheet) and says
-// how boldly the slot prints. The ladder is monotone — danger is always bold (while
-// the kind's highlight is on: a switched-off kind has no level), the middle option
-// adds the warn/close level, "Always" adds the normal zone too (status_threshold.h
+// The Bold row is a SLOT-level setting, not a level one: it closes the slot's own rows
+// (last in an alert kind's sheet, whose levels live in its Alerts sheet; right above
+// a goal kind's Goals group) and says how boldly the slot prints. The ladder is
+// monotone — danger is always bold (while the kind's highlight is on: a switched-off
+// kind has no level), the middle option adds the warn/close level, "Always" adds the
+// normal zone too (status_threshold.h
 // ThreshBold). The row stays live while the kind's highlight is off, because "Always"
 // needs no levels to mean something; it mutes wholesale only under the Watch-tab
 // master row (BOLD_ALL_WHEN), which overrides it at pack time. Only the middle option
@@ -921,7 +966,7 @@ function boldRow(keyStem, voice, noLevelWhen) {
     return {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
-        label: 'Bold value',
+        label: 'Bold',
         hintByValue: voice.boldHints,
         defaultValue: 'warn',
         options: [['Off', 'off'], [voice.boldWarnLabel, 'warn'], ['Always', 'always']],
@@ -949,15 +994,18 @@ function goalSlotSheet(title, keyStem, hint, gate) {
     return sheetOf(keyStem, title, gateAll([boldRow(keyStem, GOAL_VOICE, offWhen)], gate)
         .concat(levelRows(keyStem, GOAL_VOICE, hint, gate, offWhen)));
 }
-// An alert kind's slot edit sheet: the slot's Bold row, its 'Alert highlighting'
-// switch right under it, the kind's own display rows, then the pointer to its Alerts
-// sheet, where its levels live. Titled from ALERT_KINDS, like that sheet. No gate: an
-// alert kind's slot exists wherever the thresholds do (sheetOf's THRESHOLD_WHEN).
+// An alert kind's slot edit sheet, in two groups without headers. First the kind's own
+// display rows (the day-max kinds' Value selection group, the wind slots' direction
+// arrow and unit). Then the highlight group: the 'Alert highlighting' switch (a divider
+// above it), the pointer to the Alerts sheet, where the levels and colors it uses live,
+// joined tight, and the Bold row, joined loose. Titled from ALERT_KINDS, like that
+// sheet. No gate: an alert kind's slot exists wherever the thresholds do (sheetOf's
+// THRESHOLD_WHEN).
 /**
  * @param {string} keyStem Alert kind key stem (an ALERT_KINDS entry), e.g. 'Uv'.
- * @param {Object[]} [extraItems] Kind-specific display rows between the Highlight
- *     switch and the pointer, e.g. the wind slots' direction arrow. They configure the
- *     SLOT, not the highlight — boldSection's extras play the same role on the
+ * @param {Object[]} [extraItems] Kind-specific display rows, the sheet's first group,
+ *     e.g. the day-max rows and the wind slots' direction arrow. They configure the
+ *     SLOT's text, not the highlight — boldSection's extras play the same role on the
  *     level-less kinds.
  * @returns {Object} Schema section (sheetOnly).
  */
@@ -972,8 +1020,11 @@ function alertSlotSheet(keyStem, extraItems) {
     // The middle option needs a level: the slot's Highlight OR the kind's alert, whose
     // value bolds on this ladder too (status_alerts.c) — inert only while neither is on.
     var noLevelWhen = {all: [{not: {key: 'thresh' + keyStem + 'On'}}, {not: {key: 'alert' + keyStem}}]};
-    return sheetOf(keyStem, title, [boldRow(keyStem, ALERT_VOICE, noLevelWhen), highlightToggle(keyStem)]
-        .concat(extraItems || [], [alertLevelsNote()]));
+    var note = alertLevelsNote();
+    note.joinPrevious = true;
+    var bold = boldRow(keyStem, ALERT_VOICE, noLevelWhen);
+    bold.joinPrevious = 'loose';
+    return sheetOf(keyStem, title, (extraItems || []).concat([highlightToggle(keyStem), note, bold]));
 }
 // A weather kind's slot highlight switch — the watch's enable bit for the kind
 // (kindConfig), which styles its STATUS SLOTS only: the alert icon has its own switch
@@ -991,17 +1042,22 @@ function highlightToggle(keyStem) {
         messageKey: 'thresh' + keyStem + 'On',
         label: 'Alert highlighting',
         // Fill at danger always; at warn the Alerts sheet's warn look (none /
-        // outline / fill — status_threshold_look).
-        hint: 'Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.',
+        // outline / fill — status_threshold_look). Explains the ON value only; where
+        // the levels are set is the info box right below. A toggle's value keys its
+        // hint as the string 'true', quoted: a bare reserved word as a key is not ES3.
+        hintByValue: {
+            'true': 'Fills this slot from the danger level on and draws the warn look from warn.'
+        },
         defaultValue: false
     };
 }
-// The five alert kinds' slot sheets end on this pointer instead of the levels group:
-// the levels and colors live in ONE place, the kind's Alerts sheet (the slot's
-// Highlight switch sits above, in this sheet). No link or sheet swap — the engine opens one sheet at a time,
-// and the owner asked for the plain note. A fresh object per call, like every item.
+// The five alert kinds' slot sheets carry this pointer instead of the levels group,
+// right under the 'Alert highlighting' switch: the levels and colors live in ONE
+// place, the kind's Alerts sheet. No link or sheet swap — the engine opens one sheet
+// at a time, and the owner asked for the plain note. A fresh object per call, like
+// every item.
 /**
- * @returns {Object} The info-box staticText closing an alert kind's slot sheet.
+ * @returns {Object} The info-box staticText in an alert kind's slot sheet.
  */
 function alertLevelsNote() {
     return {
@@ -1135,7 +1191,7 @@ function alertLooksAheadWhen(daysKey) {
  * levels' ONE home (the slot sheet points here), with no switch of its own (the
  * slot's Highlight lives in the slot sheet). The Look, Days and mark go inert while
  * the switch is off; the levels group never does, because the levels and colors also
- * drive the slots' Alert mode and highlight. The phone bakes an entry into the
+ * drive the slots' Alert highlighting. The phone bakes an entry into the
  * ALERT_ENTRIES_UINT8 tuple only for a switched-on kind whose day — today, or with
  * Days "Today + tomorrow" tomorrow — reaches its warn level (status-thresholds.js
  * bakeAlerts), so the switch, the Look, the Days and the mark all ride
@@ -1426,26 +1482,26 @@ function rainAlertUnshownNote() {
  * @param {string} title Catalog label of the slot kind, e.g. 'City'.
  * @param {string} keyStem Kind key stem, e.g. 'City' (thresh<Stem>BoldMode).
  * @param {Object} [gate] Extra showWhen mirroring the slot's own availability.
- * @param {Object[]} [extraItems] Kind-specific rows rendered BELOW the Bold row,
- *     e.g. Temp's display mode. Bold is the row every bold-only sheet has, so it
- *     leads and the kind-specific extras follow.
+ * @param {Object[]} [extraItems] Kind-specific rows rendered ABOVE the Bold row,
+ *     e.g. Temp's Value selection. Bold is the row every slot sheet has, and it
+ *     comes last in all of them (the alert kinds' sheets too), so the kind-specific
+ *     extras lead.
  * @returns {Object} Schema section (sheetOnly).
  */
 function boldSection(title, keyStem, gate, extraItems) {
     var bold = {
         type: 'segmented',
         messageKey: 'thresh' + keyStem + 'BoldMode',
-        label: 'Bold value',
+        label: 'Bold',
         // Off is the default and needs no words; Always says how far it reaches.
         hintByValue: {always: BOLD_ALWAYS_HINT},
         defaultValue: 'off',
         options: [['Off', 'off'], ['Always', 'always']],
         disabledWhen: BOLD_ALL_WHEN
     };
-    // Bold leads. In every other bold-only sheet it is the only control, so a Temp
-    // sheet that opened with its display-mode row put the one row all these sheets
-    // share in a different place on the one sheet that has company.
-    var items = [bold].concat(extraItems || []);
+    // Bold closes the sheet, as it does in the alert kinds' sheets: the rows that
+    // shape what the slot shows come first, then how boldly it prints.
+    var items = (extraItems || []).concat([bold]);
     return sheetOf(keyStem, title, gateAll(items, gate));
 }
 // Pressure curve copy, pre-rendered per scale value. Derived from
@@ -2590,12 +2646,11 @@ module.exports = {
         // status slot whose selected value has thresholds — never rendered as cards here.
         // The AQI day max needs an hourly forecast, which only the Open-Meteo source
         // has: on WAQI's current reading every mode prints that reading alone. The
-        // note closes the Alert and Both hints for the source that cannot give a
+        // note closes the Day max and Both hints for the source that cannot give a
         // peak — WAQI (the default, so an absent key reads as it), and Auto, which
         // reads WAQI whenever a station answers; Open-Meteo gets none.
-        alertSlotSheet('Aqi', dayMaxRows('aqi', 'AQI selection', {
-            keyStem: 'Aqi',
-            subject: 'the AQI is',
+        alertSlotSheet('Aqi', dayMaxRows('aqi', {
+            noun: 'air quality index',
             notes: {
                 key: 'aqiSource',
                 fallback: 'waqi',
@@ -2613,10 +2668,9 @@ module.exports = {
         // appends a trailing sentinel byte), and both keys ride renderSignature(), so
         // flipping one re-bakes without waiting for the next fetch.
         // Wind, gusts and AQI carry UV's display modes (dayMaxRows), each kind its own.
-        alertSlotSheet('Wind', dayMaxRows('wind', 'Wind selection', {
-            keyStem: 'Wind',
-            subject: 'the wind is'
-        }, '12', '30').concat([{
+        // The arrow and the unit follow the Value selection group as rows of their
+        // own (with dividers): they answer to every mode, not to Both's pair rows.
+        alertSlotSheet('Wind', dayMaxRows('wind', {noun: 'wind'}, '12', '30').concat([{
             type: 'toggle',
             messageKey: 'windSlotDirection',
             label: 'Show wind direction',
@@ -2629,10 +2683,7 @@ module.exports = {
             defaultValue: true,
             hint: WIND_DIRECTION_HINT
         }, unitRow('windSlotUnit', null, null)])),
-        alertSlotSheet('Gust', dayMaxRows('gust', 'Gust selection', {
-            keyStem: 'Gust',
-            subject: 'gusts are'
-        }, '20', '45').concat([{
+        alertSlotSheet('Gust', dayMaxRows('gust', {noun: 'gusts'}, '20', '45').concat([{
             type: 'toggle',
             messageKey: 'gustSlotDirection',
             label: 'Show wind direction',
@@ -2643,19 +2694,16 @@ module.exports = {
         // per-kind, baked phone-side (status-lines.js formatValue), and on
         // renderSignature() so a change re-bakes without waiting for the next fetch.
         // What each mode prints is wire-units' dayMaxShown.
-        // It sits between Bold and the levels pointer like the wind arrow: it configures
-        // the slot, and the highlight follows it (the policy is status-thresholds.js
-        // displayValue's). So do the rows shaping how it reads, which change the
-        // text only — the highlight judges the numbers, never their presentation.
-        alertSlotSheet('Uv', dayMaxRows('uv', 'UV selection', {
-            keyStem: 'Uv',
-            subject: 'UV is'
-        }, '3', '7')),
+        // It leads the sheet like the wind arrow: it configures the slot, and the
+        // highlight follows it (the policy is status-thresholds.js displayValue's). So
+        // do the rows shaping how it reads, which change the text only — the
+        // highlight judges the numbers, never their presentation.
+        alertSlotSheet('Uv', dayMaxRows('uv', {noun: 'UV index'}, '3', '7')),
         goalSlotSheet('Steps', 'Steps', 'Steps per day.', HEALTH_SLOT_WHEN),
         goalSlotSheet('Sleep', 'Sleep', 'Hours of sleep, e.g. 7.5.', HEALTH_SLOT_WHEN),
         goalSlotSheet('Walked distance', 'Distance', 'Distance walked per day.', HEALTH_SLOT_WHEN),
         // Bold-only sheets for the level-less slot kinds (same pencil, one row —
-        // plus the display rows a few kinds add below it: Temp's mode and pair,
+        // plus the display rows a few kinds add above it: Temp's mode and pair,
         // the units, the date formats). Order and labels mirror the contract's
         // KINDS appendix (wire ids 8..19); the battery GLYPH item is deliberately
         // absent — see boldSection (the battery PERCENTAGE kind sits near the end).
@@ -2667,24 +2715,27 @@ module.exports = {
             // showing temp. The phone bakes the slot text from it (status-lines.js
             // formatValue) and it rides renderSignature(), so a change re-bakes
             // without waiting for the next fetch. 'both' prints the pair the rows
-            // below shape — 12/10, actual first, until someone picks otherwise; a
+            // below shape — 12|10, actual first, until someone picks otherwise; a
             // missing feels-like value falls back to the actual temp alone.
             type: 'segmented',
             messageKey: 'tempSlotDisplay',
-            label: 'Temperature selection',
-            // The selected mode only; the measured temperature (the default) needs none.
+            label: 'Value selection',
+            // The selected mode only; the measured temperature (the default) needs
+            // none. The sample pair is printed with the default separator.
             hintByValue: {
                 feels: 'What it feels like, by the formula set under General → Units.',
-                both: 'Both, like 12/10 — choose the separator and order below.'
+                both: 'The temperature and what it feels like, like 12' +
+                    STATUS_PAIR.SEPARATORS[STATUS_PAIR.defaultSeparator('temp')].mid +
+                    '10. Order and Separator shape the pair.'
             },
             defaultValue: 'actual',
             options: [['Temp', 'actual'], ['Feels like', 'feels'], ['Both', 'both']],
-            // Picking Both clears the degree: "-12/-10" is already 7 of an edge
+            // Picking Both clears the degree: "-12|-10" is already 7 of an edge
             // slot's 8 bytes and the sign is two more, so the pair cannot fit.
             // Clearing it here is the fill-vs-feels pattern (forecastMetricFill).
             onChange: 'tempUnitExclusive'
-        }].concat(pairRows('temp', '12', '10',
-            [['Temp first', 'actual'], ['Feels like first', 'feels']]), [
+        }, orderRow('temp', [['Temp first', 'actual'], ['Feels like first', 'feels']])]
+            .concat(separatorRows('temp', '12', '10'), [
             // The degree sign alone, never °C/°F: the unit is already the Units tab's
             // temperatureUnits choice, and restating it in a three-character slot
             // spends the width on something the user picked once. Off by default —

@@ -51,7 +51,7 @@ var WeatherProvider = function() {
     // with fetchOptions.build(settings, ...) before each fetch; a provider that
     // is never handed one runs on the defaults.
     this.options = fetchOptions.defaults();
-    // The status slots' day max (the Alert / Both modes, day-peaks.js): each
+    // The status slots' day max (the Day max / Both modes, day-peaks.js): each
     // metric's peak of today's hours already begun, which tells a running peak
     // from one behind us (day-peaks' recall, in fetchWithCoordinates; getPayload
     // hands it on as the triples' third entry). Which metrics keep a record and
@@ -63,7 +63,7 @@ var WeatherProvider = function() {
     // Which hourly AQI FORECAST aqiTrend holds (air-quality.js sets it, per
     // scale), or null when it holds no forecast: WAQI reports the current
     // reading alone, which says nothing about the day's peak, so the AQI slot's
-    // Alert / Both modes only run on the Open-Meteo forecast.
+    // Day max / Both modes only run on the Open-Meteo forecast.
     this.aqiFeedId = null;
     // Pollen is opt-in and DWD-only; null renders as '--' unless the auxiliary
     // fetch fills it. Transient: consumed by formatValue, never wired.

@@ -296,7 +296,7 @@ function phoneBatterySupported() {
  *   Only the per-kind unit and the two-value pairs' fit rule (status-pair.js)
  *   consult it -- the value itself is still truncated by the caller, which owns
  *   the wire.
- * @param {?Object} [dayMax] A day-max kind's pick, thresholds.shownDayMax -- packLine
+ * @param {?Object} [dayMax] A day-max kind's pick, wireUnits.dayMaxShown -- packLine
  *   reads it once per slot for the text and the arrow; absent = read here.
  * @returns {string} display text, '--' when the value is unavailable
  */
@@ -313,7 +313,7 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax) {
     var mode = settings.tempSlotDisplay;
     // Off by default: the thermometer icon already says "temperature", so the
     // degree is opt-in and today's bare number stays the default rendering.
-    // 'both' never takes one: "-12/-10" is already 7 of an edge slot's 8 bytes,
+    // 'both' never takes one: "-12|-10" is already 7 of an edge slot's 8 bytes,
     // so the degree would appear or vanish with the digit count. The settings
     // page keeps the two apart (blocks.js' tempUnitExclusive hook), and this is
     // the authoritative gate -- a blob stored before that hook existed, or any
@@ -328,8 +328,8 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax) {
       if (typeof payload.FEELS_CURRENT === 'number') {
         var feels = formatTemp(payload.FEELS_CURRENT, settings);
         // 'both' joins the two in the user's order and separator (status-pair.js;
-        // absent = actual first, slash: '12/10'), falling back to the slash when
-        // a styled pair would overflow the slot. It carries no degree at all (see
+        // absent = actual first, bar: '12|10'), falling back to the bar when a
+        // styled pair would overflow the slot. It carries no degree at all (see
         // above); 'feels' takes one like the plain reading does.
         return withUnit(mode === 'feels' ? feels
           : statusPair.formatTempPair(actual, feels, settings, cap), degree, cap);
@@ -345,18 +345,15 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax) {
   if (wireUnits.isDayMaxKind(code)) {
     // The day-max kinds' global per-kind display mode (each kind's Edit sheet),
     // the temp slot's pattern: absent = 'current'. 'max' is the day's peak
-    // (thresholds.shownDayMax): today's while it is ahead, running, or at or
-    // above the kind's warn level (the stored pair, else its seed, whether or
-    // not the highlight is on: the slot is an alert, so a 7 falling from an 8
-    // under warn 6 stays '7'), then tomorrow's, carrying the
-    // user's next-day mark; 'both' pairs the two in the user's order and
-    // separator, and a held today's peak equal to now prints once. The text is
+    // (wire-units' dayMaxShown): today's while it is ahead or running, then
+    // tomorrow's once the reading drops below it, carrying the user's next-day
+    // mark; 'both' pairs the two in the user's order and separator. The text is
     // status-pair's -- absent settings = current first, slash, '»' mark: 3/7,
-    // 5/»8. No peak ahead known falls back to the current reading alone, never
+    // 5/»6. No peak ahead known falls back to the current reading alone, never
     // '3/--'. UV and AQI are bare (their icon carries the context); wind and
     // gusts append their unit label when the whole text still fits ('12/30kph').
     var shown = typeof dayMax === 'undefined'
-      ? thresholds.shownDayMax(code, payload, settings) : dayMax;
+      ? wireUnits.dayMaxShown(code, payload, settings) : dayMax;
     if (!shown) { return '--'; }
     // The unit gives way to the direction arrow (packLine appends it after the
     // text, only into a free byte): '12/30' + arrow, never '12/30kph' without one.
@@ -448,7 +445,7 @@ function textCap(slotIndex) {
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
  * @param {string} text the slot's already-formatted display text
- * @param {?Object} dayMax the slot's day-max pick (thresholds.shownDayMax), the
+ * @param {?Object} dayMax the slot's day-max pick (wireUnits.dayMaxShown), the
  *   one its text was formatted from
  * @returns {number} 0x01..0x10, or 0 when no arrow should be drawn
  */
@@ -465,11 +462,10 @@ function directionSentinel(code, payload, settings, env, text, dayMax) {
   // number, no arrow. (The caller passes the already-formatted text so this
   // check can never disagree with what the slot actually shows.)
   if (text === '--') { return 0; }
-  // Alert ('max') alone prints the peak, not the wind the arrow describes (the
-  // current hour's), so it draws none -- a held today's peak equal to now
-  // included, as for every peak it shows alone; Both keeps it, its first reading
-  // being now's. The pick is the one the text was formatted from, so the two
-  // never judge different peaks.
+  // Day max alone prints the peak, not the wind the arrow describes (the current
+  // hour's), so it draws none; Both keeps it, its first reading being now's. The
+  // pick is the one the text was formatted from, so the two never judge
+  // different peaks.
   if (dayMax && dayMax.now === null) { return 0; }
   var from = trendHead(payload && payload.WIND_DIR_TREND);
   if (typeof from !== 'number' || !isFinite(from)) { return 0; }
@@ -547,7 +543,7 @@ function packLine(line, payload, settings, env) {
     } else if (item.kind === catalog.KINDS.TEXT) {
       // A day-max kind's pick (null for every other kind), read once: the text
       // and the wind arrow below must judge the same peak.
-      var dayMax = thresholds.shownDayMax(code, payload, settings);
+      var dayMax = wireUnits.dayMaxShown(code, payload, settings);
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.

@@ -223,18 +223,22 @@ test('the slot pencil sheet holds the Highlight switch and points at the Alerts 
   const page = watchTab();
   page.openEditSheet('threshUv');
   const sheet = page.modal.innerHTML;
-  assert.ok(sheet.indexOf('<div class="static info"><div class="info-box">Alert levels and colors are set under Alerts on the Status slots tab.</div></div>') !== -1,
+  // The pointer hugs the switch above it (a tight join) and drops its divider above
+  // Bold (a loose join).
+  assert.ok(sheet.indexOf('<div class="static join info nbl"><div class="info-box">Alert levels and colors are set under Alerts on the Status slots tab.</div></div>') !== -1,
     'the info-box pointer');
   assert.equal(sheet.indexOf('Alert levels</span>'), -1, 'no levels group');
   assert.equal(sheet.indexOf('data-range="threshUvWarn"'), -1, 'no slider');
   const bold = sheet.indexOf('data-k="threshUvBoldMode"');
   const hl = sheet.indexOf('data-k="threshUvOn"');
+  const note = sheet.indexOf('Alert levels and colors are set');
   assert.ok(bold !== -1, 'the slot rows stay');
-  assert.ok(hl > bold, 'the Highlight switch sits after Bold');
-  assert.ok(sheet.indexOf('Fills this slot from the danger level on and draws the warn look from warn — levels, look and colors are set under Alerts.') !== -1,
-    'with its hint');
+  assert.ok(hl < note && note < bold, 'the Highlight switch, the pointer, then Bold');
+  const HINT = 'Fills this slot from the danger level on and draws the warn look from warn.';
+  assert.equal(sheet.indexOf(HINT), -1, 'off: the switch explains only its on value');
   page.clickModalToggle('threshUvOn');
   assert.strictEqual(page.S.threshUvOn, true, 'the switch stores');
+  assert.ok(page.modal.innerHTML.indexOf(HINT) !== -1, 'on: its hint');
   assert.equal(page.S.threshUvWarn, '', 'switching on pins no numbers: blank is the seed');
   assert.notStrictEqual(page.S.alertUv, true, 'and leaves the alert alone');
   // A goal kind is not an alert: its slot sheet keeps its levels.

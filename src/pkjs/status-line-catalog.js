@@ -51,7 +51,7 @@
     // lean aplite status-row twin returns NULL for an unknown icon id (reserving
     // zero width), so it simply renders without the droplets glyph.
     { code: 'dew', label: 'Dew point', kind: KINDS.TEXT, icon: ICONS.DEWPOINT, category: 'weather' },
-    // No '/day max' suffix any more: the edit sheet's Now / Alert / Both pills pick
+    // No '/day max' suffix any more: the edit sheet's Now / Day max / Both pills pick
     // what prints, and wind, gusts and AQI carry the same modes without one either.
     { code: 'uv', label: 'UV index', kind: KINDS.TEXT, icon: ICONS.UV, category: 'weather' },
     { code: 'aqi', label: 'Air quality (AQI)', kind: KINDS.TEXT, icon: ICONS.AQI, category: 'weather' },
@@ -387,7 +387,7 @@
   }
 
   /**
-   * The slot kinds with a day max (the Now / Alert / Both pills), and the settings
+   * The slot kinds with a day max (the Now / Day max / Both pills), and the settings
    * each owns on its Edit sheet: kind + suffix, e.g. 'windSlotOrder'. ONE table
    * for the keys schema.js' dayMaxRows builds, resetStatusSlots clears and
    * renderSignature watches, so a new kind or pair setting cannot be left out of

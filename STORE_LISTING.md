@@ -67,8 +67,7 @@ STATUS LINES
 - Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set
   (not on Pebble Classic/Steel)
 - Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or
-  danger level you set (its Alert levels); the UV, wind, gust and air-quality slots can keep
-  today's peak on screen while it is at warn or higher (not on Pebble Classic/Steel)
+  danger level you set (its Alert levels) (not on Pebble Classic/Steel)
 - Alerts: show a metric only when it matters, instead of in a slot all day — while rain is on
   its way, or UV, wind, gusts, air quality or (with DWD) pollen reach your warn level today
   (later hours included) or, once nothing left today does, tomorrow, their alert icons appear

@@ -50,7 +50,7 @@ test('the temp pair separator, its custom text, the spacing and the order change
   assert.notEqual(renderSignature({ tempSlotSeparator: 'brackets' }), base);
   assert.notEqual(renderSignature({ tempSlotSeparator: 'brackets' }),
     renderSignature({ tempSlotSeparator: 'dot' }));
-  // The spacing toggle alone: '12/10' and '12 / 10' are different slot text.
+  // The spacing toggle alone: '12|10' and '12 | 10' are different slot text.
   assert.notEqual(renderSignature({ tempSlotSeparatorSpaced: true }), base);
   assert.notEqual(renderSignature({ tempSlotSeparatorSpaced: true }),
     renderSignature({ tempSlotSeparatorSpaced: false }));

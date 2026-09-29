@@ -38,6 +38,9 @@ module.exports = {
     // blanked only the seed of the unit in effect; the new string runs the wider rule
     // there too.
     SEED_PAIR_BLANK_MIGRATION_KEY: 'v1.24.0_seed_pair_any_unit_migration',
+    // 1.24.0: the temperature pair's separator default moved from the slash to the bar
+    // ('12|10'), and every stored 'slash' moves with it once (migrations/v1_24.js).
+    TEMP_SEPARATOR_BAR_MIGRATION_KEY: 'v1.24.0_temp_separator_bar_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',
@@ -71,9 +74,9 @@ module.exports = {
     LAST_UPDATE_CHECK_KEY: 'last_update_check',
     WU_HOURLY_CACHE_KEY: 'wuHourlyCache',
     // The UV / wind / gust / AQI forecast for today's hours already begun, kept
-    // across fetches, so each slot's day max (the Alert / Both modes) knows whether
-    // today's peak is still ahead, running or behind (weather/day-peaks.js); the
-    // third hold ground, at or above warn, needs no record. One record per metric.
+    // across fetches, so each slot's day max (the Day max / Both modes) knows
+    // whether today's peak is still ahead, running or behind
+    // (weather/day-peaks.js). One record per metric.
     UV_DAY_RECORD_KEY: 'uvDayRecord',
     WIND_DAY_RECORD_KEY: 'windDayRecord',
     GUST_DAY_RECORD_KEY: 'gustDayRecord',

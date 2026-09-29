@@ -1577,6 +1577,80 @@ test('seed pairs: a fresh install is a no-op, and a second run changes nothing',
   assert.equal(L.saves.n, 1, 'nothing left to blank on the second run');
 });
 
+// --- 1.24.0: the temperature pair's separator moves to the bar (migrations/v1_24.js) --
+// The temp slot's Both pair defaults to the bar ('12|10') from 1.24.0 on, and every
+// stored 'slash' moves with it once. Keyed on the stored value; no Clay send (the
+// separator is phone-baked slot text, already in renderSignature).
+const TEMP_SEPARATOR = KEYS.TEMP_SEPARATOR_BAR_MIGRATION_KEY;
+const { renderSignature: tempSignature } = require('../src/pkjs/render-signature.js');
+
+test('temp separator: a stored slash becomes the bar, spaces and all', () => {
+  const L = loadLedger({ tempSlotDisplay: 'both', tempSlotSeparator: 'slash',
+    tempSlotSeparatorSpaced: true, uvSlotSeparator: 'slash', windSlotSeparator: 'slash' });
+  const res = L.run(TEMP_SEPARATOR);
+  const read = L.read();
+  assert.equal(read.tempSlotSeparator, 'bar', '12/10 becomes 12|10');
+  assert.strictEqual(read.tempSlotSeparatorSpaced, true, 'the Spaces flag stays: 12 | 10');
+  assert.equal(read.uvSlotSeparator, 'slash', 'the day-max kinds keep their own separator');
+  assert.equal(read.windSlotSeparator, 'slash');
+  assert.equal(res.clayRequired, false, 'no Clay send: the next bake shows it');
+  assert.equal(L.store[TEMP_SEPARATOR], '1', 'marked now');
+  assert.equal(L.saves.n, 1);
+});
+
+test('temp separator: every other stored value, and an absent one, stays', () => {
+  [{ tempSlotSeparator: 'bar' }, { tempSlotSeparator: 'brackets' }, { tempSlotSeparator: 'dot' },
+    { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '/' },
+    { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '' }, { theme: 'dark' }
+  ].forEach((blob) => {
+    const L = loadLedger(blob);
+    const res = L.run(TEMP_SEPARATOR);
+    assert.deepEqual(L.read(), blob, JSON.stringify(blob));
+    assert.equal(L.saves.n, 0, JSON.stringify(blob) + ': nothing to save');
+    assert.equal(res.clayRequired, false);
+    assert.equal(L.store[TEMP_SEPARATOR], '1', JSON.stringify(blob) + ': marked all the same');
+  });
+});
+
+test('temp separator: survives the boot order, a fresh install is a no-op, a rerun changes nothing', () => {
+  // Fresh install: seedDefaults writes the new default 'bar' first.
+  const fresh = loadLedger(null);
+  fresh.claySettings.seedDefaults(COLORS);
+  assert.equal(fresh.read().tempSlotSeparator, 'bar', 'seeded with the bar');
+  fresh.saves.n = 0;
+  fresh.run(TEMP_SEPARATOR);
+  assert.equal(fresh.saves.n, 0, 'nothing to move');
+  // A 1.23.2 install: the old page stored the slash; seedDefaults leaves it, the
+  // entry moves it, and the bake that reads it changes (the refetch signature moves).
+  const L = loadLedger({ theme: 'dark', tempSlotDisplay: 'both', tempSlotSeparator: 'slash' });
+  L.claySettings.seedDefaults(COLORS);
+  const before = L.read();
+  assert.equal(before.tempSlotSeparator, 'slash', 'sanity: seedDefaults keeps a stored value');
+  L.run(TEMP_SEPARATOR, { hadExistingInstall: true });
+  const after = L.read();
+  assert.equal(after.tempSlotSeparator, 'bar');
+  assert.notEqual(tempSignature(after), tempSignature(before), 'the slot text re-bakes');
+  delete L.store[TEMP_SEPARATOR];
+  L.saves.n = 0;
+  L.run(TEMP_SEPARATOR);
+  assert.deepEqual(L.read(), after, 'a rerun changes nothing');
+  assert.equal(L.saves.n, 0);
+  assert.deepEqual(v124.migrateTempSeparatorBar({ tempSlotSeparator: 'slash' }),
+    { changed: true, send: false });
+  assert.deepEqual(v124.migrateTempSeparatorBar({}), { changed: false, send: false });
+});
+
+test('temp separator: Reset watchface marks it done, so a slash picked after the reset stays', () => {
+  installFakeStorage();
+  const mods = loadUpgradeModules();
+  localStorage.setItem('clay-settings', JSON.stringify({ tempSlotSeparator: 'bar' }));
+  mods.claySettings.resetAll(mods.clayMigrations.RESET_SAFE_MARKERS);
+  assert.equal(localStorage.getItem(TEMP_SEPARATOR), '1');
+  localStorage.setItem('clay-settings', JSON.stringify({ tempSlotSeparator: 'slash' }));
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(mods.claySettings.read().tempSlotSeparator, 'slash', 'the 1.24.0 page\'s pick survives');
+});
+
 // --- The ledger itself ---------------------------------------------------------------
 
 test('every registry entry has a unique marker declared in storage-keys.js, and a valid policy', () => {
@@ -1614,12 +1688,13 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v1.23.1_fifth_line_style_default_migration', 'now', true],
     ['v1.23.1_stripe_metric_rule_resend_migration', 'ack', false],
     ['v1.24.0_warn_look_migration', 'now', true],
-    ['v1.24.0_seed_pair_any_unit_migration', 'now', true]
+    ['v1.24.0_seed_pair_any_unit_migration', 'now', true],
+    ['v1.24.0_temp_separator_bar_migration', 'now', true]
   ]);
   const clayMigrations = require('../src/pkjs/clay-migrations');
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
-    'v1.24.0_seed_pair_any_unit_migration']);
+    'v1.24.0_seed_pair_any_unit_migration', 'v1.24.0_temp_separator_bar_migration']);
 });
 
 test('the registry runner reproduces the pre-registry runner on every golden boot', () => {

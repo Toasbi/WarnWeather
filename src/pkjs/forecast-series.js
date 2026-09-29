@@ -570,7 +570,7 @@ function needsUv(settings) {
  * (status-line-catalog's dayMaxInUse), or the kind's alert is on — an alert judges
  * the highest value left today, whatever any slot shows. The provider keeps a day
  * record and fetches the longer series for these only. Every input is in
- * renderSignature, so switching a slot to Alert or an alert on forces the refetch
+ * renderSignature, so switching a slot to Day max or an alert on forces the refetch
  * that starts its record.
  * @param {Object} settings Clay settings.
  * @returns {string[]} Codes out of 'uv' | 'wind' | 'gust' | 'aqi'.

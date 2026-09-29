@@ -1,5 +1,5 @@
-// test/day-max-slots.test.js — the UV slot's day max (Now / Alert / Both, with
-// today's peak held while ahead, running or at warn) on the wind, gust and AQI slots: the numbers wire-units picks, the text status-lines
+// test/day-max-slots.test.js — the UV slot's day max (Now / Day max / Both) on the
+// wind, gust and AQI slots: the numbers wire-units picks, the text status-lines
 // bakes, the highlight status-thresholds judges, and the peaks getPayload emits.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -14,7 +14,6 @@ global.localStorage = {
 const wireUnits = require('../src/pkjs/wire-units.js');
 const statusLines = require('../src/pkjs/status-lines.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
-const th = require('../src/pkjs/status-thresholds.js');
 const { packedLevel, judged } = require('./helpers/weather-levels.js');
 const http = require('../src/pkjs/weather/http.js');
 const aq = require('../src/pkjs/weather/air-quality.js');
@@ -48,14 +47,12 @@ test('wind runs the UV rule on the km/h series, in the user\'s unit', () => {
   // Converted BEFORE the comparison: 30 km/h = 19 mph, 45 km/h = 28 mph.
   assert.deepEqual(windShown([12], [30, 45, null], 'both', 'mph'),
     { now: 7, peak: 19, nextDay: false });
-  // At the day's strongest with nothing earlier known and no warn level passed:
-  // rolls on to tomorrow's.
+  // At the day's strongest with nothing earlier known: rolls on to tomorrow's.
   assert.deepEqual(windShown([30], [30, 45, null], 'both', 'kph'),
     { now: 30, peak: 45, nextDay: true });
-  // ...but a peak still running (no earlier hour printed more) holds — and, equal
-  // to now, prints once: the reading alone.
+  // ...but a peak still running (no earlier hour printed more) holds.
   assert.deepEqual(windShown([30], [30, 45, 22], 'both', 'kph'),
-    { now: 30, peak: null, nextDay: false });
+    { now: 30, peak: 30, nextDay: false });
   // Current mode and absent peaks both print the reading alone.
   assert.deepEqual(windShown([12], [30, 45, null], 'current', 'kph'),
     { now: 12, peak: null, nextDay: false });
@@ -73,7 +70,7 @@ test('AQI runs the same rule on the AQI forecast, and a null reading is no readi
 
 // ---- status-lines: the slot text -------------------------------------------
 
-test('wind and gust slots print Now / Alert / Both, each on its own settings', () => {
+test('wind and gust slots print Now / Day max / Both, each on its own settings', () => {
   const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null],
     GUST_TREND_UINT8: [20], GUST_DAY_PEAKS: [52, 60, null] };
   const f = (code, extra) => statusLines.formatValue(code, p, settings(extra));
@@ -108,7 +105,7 @@ test('the AQI day max runs on the Open-Meteo forecast and degrades to the readin
   assert.equal(statusLines.formatValue('aqi', { AQI_TREND: [] }, settings({ aqiSlotDisplay: 'max' })), '--');
 });
 
-test('the wind arrow stays in Both (its first reading is now) and leaves Alert alone', () => {
+test('the wind arrow stays in Both (its first reading is now) and leaves Day max alone', () => {
   const radar = catalog.LINES.filter((l) => l.id === 'radar')[0];
   const env = { color: true, round: false, platform: 'basalt', health: true, radar: true };
   const slot = (extra) => {
@@ -121,97 +118,32 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Alert a
   const last = (b) => b[b.length - 1];
   assert.ok(last(slot({ windSlotDisplay: 'both' })) <= 0x10, 'Both keeps the arrow');
   assert.equal(Buffer.from(slot({ windSlotDisplay: 'max' })).toString('utf8'), '30',
-    'Alert: the peak alone, no arrow');
-  // No peak known: Alert prints the current reading, which the arrow describes.
+    'Day max: the peak alone, no arrow');
+  // No peak known: Day max prints the current reading, which the arrow describes.
   const noPeak = statusLines.packLine(radar,
     { WIND_TREND_UINT8: [12], WIND_DIR_TREND: [270] },
     settings({ statusRadarLeft: 'wind', statusRadarMid: 'empty', statusRadarRight: 'empty',
       windSlotDirection: true, windSlotUnit: false, windSlotDisplay: 'max' }), env);
   assert.ok(noPeak[2] === 3 && noPeak[5] <= 0x10, 'current reading keeps its arrow');
-  // A today's peak HELD at warn (45 km/h against the seed 40, falling from an
-  // earlier 50) that equals now: Alert still shows it as a peak alone — no arrow —
-  // while Both collapses to the reading, which keeps its arrow.
-  const held = (extra) => {
-    const bytes = statusLines.packLine(radar,
-      { WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 60, 50], WIND_DIR_TREND: [270] },
-      settings(Object.assign({ statusRadarLeft: 'wind', statusRadarMid: 'empty',
-        statusRadarRight: 'empty', windSlotDirection: true, windSlotUnit: false }, extra)), env);
-    return bytes.slice(3, 3 + bytes[2]);
-  };
-  assert.equal(Buffer.from(held({ windSlotDisplay: 'max' })).toString('utf8'), '45',
-    'Alert: the held peak alone, no arrow');
-  const both = held({ windSlotDisplay: 'both' });
-  assert.equal(Buffer.from(both.slice(0, -1)).toString('utf8'), '45', 'Both: printed once');
-  assert.ok(last(both) <= 0x10, 'Both: the collapsed reading keeps its arrow');
-});
-
-// ---- the hold rule: today's peak stays while it is at or above warn ----------
-
-test('wind holds today\'s peak at warn in the user\'s unit (mph seed 25)', () => {
-  // 45 km/h = 28 mph now and at today's (falling: 50 earlier) peak, 60 tomorrow.
-  const p = { WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 60, 50] };
-  ['both', 'max'].forEach((mode) => {
-    const s = settings({ windUnits: 'mph', windSlotDisplay: mode, windSlotUnit: false });
-    assert.equal(statusLines.formatValue('wind', p, s), '28', mode + ': 28 mph >= 25 holds');
-    assert.equal(packedLevel('wind', p, s), 1, mode + ': judged on the 28 (mph seed 25/40)');
-  });
-  // 35 km/h = 22 mph is below the seed: rolls to tomorrow's 60 km/h = 37 mph.
-  const low = { WIND_TREND_UINT8: [35], WIND_DAY_PEAKS: [35, 60, 50] };
-  const s = settings({ windUnits: 'mph', windSlotDisplay: 'both', windSlotUnit: false });
-  assert.equal(statusLines.formatValue('wind', low, s), '22/' + RAQUO + '37');
-  // Tomorrow's 37 mph is judged at its own level (warn: 25 <= 37 < 40), alone or
-  // beside today's 22.
-  assert.equal(packedLevel('wind', low, s), 1, '"22/»37" is warn for its 37');
-  assert.equal(packedLevel('wind', low, settings({ windUnits: 'mph', windSlotDisplay: 'max' })), 1,
-    'a lone tomorrow\'s »37 is warn in mph');
-});
-
-test('gust holds on the knots seed: the same km/h can hold in knots and roll in kph', () => {
-  // 56 km/h = 30 kn: at the knots seed 30, below the kph seed 60.
-  const p = { GUST_TREND_UINT8: [56], GUST_DAY_PEAKS: [56, 90, 70] };
-  const knots = settings({ windUnits: 'knots', gustSlotDisplay: 'max', gustSlotUnit: false });
-  assert.equal(statusLines.formatValue('gust', p, knots), '30');
-  assert.equal(packedLevel('gust', p, knots), 1, 'judged on the 30 (knots seed 30/50)');
-  const kph = settings({ windUnits: 'kph', gustSlotDisplay: 'max', gustSlotUnit: false });
-  assert.equal(statusLines.formatValue('gust', p, kph), RAQUO + '90');
-  assert.equal(packedLevel('gust', p, kph), 2, 'the lone »90 is danger at the kph danger 90');
-});
-
-test('AQI holds on the European seed 60 for Open-Meteo, the US seed 100 elsewhere', () => {
-  const p = { AQI_TREND: [65], AQI_DAY_PEAKS: [65, 90, 80] };
-  const eu = { aqiSource: 'openmeteo', aqiScale: 'european' };
-  ['both', 'max'].forEach((mode) => {
-    const s = settings(Object.assign({ aqiSlotDisplay: mode }, eu));
-    assert.equal(statusLines.formatValue('aqi', p, s), '65', mode + ': held at the EU warn');
-    assert.deepEqual(th.packWeatherLevels(p, s), [1, 0],
-      mode + ': judged on the 65, never nothing: warn against 60/80');
-  });
-  // The same numbers under the US seed roll to tomorrow's.
-  assert.equal(statusLines.formatValue('aqi', p, settings({ aqiSlotDisplay: 'both' })),
-    '65/' + RAQUO + '90');
-  // A stored pair beats the seed: a warn of 70 releases the EU hold, and the lone
-  // »90 it rolls to is danger on that pair's own 80.
-  const released = settings(Object.assign({ aqiSlotDisplay: 'max',
-    threshAqiWarn: '70', threshAqiDanger: '80' }, eu));
-  assert.equal(statusLines.formatValue('aqi', p, released), RAQUO + '90');
-  assert.equal(packedLevel('aqi', p, released), 2);
 });
 
 // ---- status-thresholds: the highlight ---------------------------------------
 
-test('wind, gust and AQI highlights judge the highest number shown, tomorrow\'s included', () => {
+test('wind, gust and AQI highlights judge the highest of today\'s numbers shown', () => {
   const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null],
     GUST_TREND_UINT8: [30], GUST_DAY_PEAKS: [30, 60, null],
     AQI_TREND: [42], AQI_DAY_PEAKS: [58, 61, null] };
   assert.equal(judged('wind', p, settings()), 12, 'Now mode: the reading');
   assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both' })), 30);
   assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both', windUnits: 'mph' })), 19);
-  // "30/»60" and a lone "»60" are judged on tomorrow's 60, at its own level: warn
-  // on the kph seed 60/90, as the gust alert's tomorrow entry would be.
+  // "30/»60": tomorrow's peak never counts; a lone "»60" is not judged at all. So
+  // neither packs the kph seed's warn (60/90) that tomorrow's 60 would reach.
   assert.equal(statusLines.formatValue('gust', p, settings({ gustSlotDisplay: 'both',
     gustSlotUnit: false })), '30/' + RAQUO + '60');
-  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'both' })), 1);
-  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'max' })), 1);
+  assert.equal(judged('gust', p, settings({ gustSlotDisplay: 'both' })), 30);
+  assert.equal(judged('gust', p, settings({ gustSlotDisplay: 'max' })), null);
+  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'both' })), 0);
+  assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'max' })), 0);
   assert.equal(judged('aqi', p, settings({ aqiSlotDisplay: 'max' })), 58);
   assert.equal(judged('aqi', { AQI_TREND: [] }, settings()), null);
 });
@@ -319,17 +251,13 @@ test('only the day-max kinds a slot shows keep a record and widen their requests
 });
 
 test('a day-max pair that cannot fit the slot prints the current reading, never a cut-off peak', () => {
-  // '152/»178' is 9 bytes: the 8-byte edge slot would cut it to '152/»17'. A
-  // stored warn above the peak keeps the rollover (at the seed 100 the 152 would
-  // simply hold), so the pair under test really is the too-wide one.
+  // '152/»178' is 9 bytes: the 8-byte edge slot would cut it to '152/»17'.
   const aqi = { AQI_TREND: [152], AQI_DAY_PEAKS: [152, 178, null] };
-  const aqiBoth = settings({ aqiSlotDisplay: 'both', threshAqiWarn: '200', threshAqiDanger: '300' });
-  assert.equal(statusLines.formatValue('aqi', aqi, aqiBoth), '152');
-  assert.equal(statusLines.formatValue('aqi', aqi, aqiBoth,
+  assert.equal(statusLines.formatValue('aqi', aqi, settings({ aqiSlotDisplay: 'both' })), '152');
+  assert.equal(statusLines.formatValue('aqi', aqi, settings({ aqiSlotDisplay: 'both' }),
     'statusForecastMid', catalog.CAPS.MID_TEXT_MAX), '152/»178', 'the roomy mid slot keeps it');
   const gust = { GUST_TREND_UINT8: [105], GUST_DAY_PEAKS: [105, 120, null] };
-  assert.equal(statusLines.formatValue('gust', gust, settings({ gustSlotDisplay: 'both',
-    threshGustWarn: '130', threshGustDanger: '150' })), '105kph');
+  assert.equal(statusLines.formatValue('gust', gust, settings({ gustSlotDisplay: 'both' })), '105kph');
   // Every day-max text on an edge slot fits it whole.
   [9, 99, 105, 499].forEach((now) => [10, 120, 500].forEach((peak) => ['max', 'both'].forEach((mode) => {
     const text = statusLines.formatValue('aqi', { AQI_TREND: [now], AQI_DAY_PEAKS: [now, peak, null] },

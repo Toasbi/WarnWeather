@@ -213,7 +213,7 @@ test('a 48 h fixture uvIndex bakes the day peaks into the UV slot text and level
   const uvE = new Array(48).fill(0); uvE[16] = 8.4;          // 12:00 tomorrow
   const o1 = getFixtureWeatherPayload(makeFixture({ startEpoch: eve, uvIndex: uvE }), UV_SLOT);
   assert.equal(decodeLine(o1.STATUS_LINE_1_UINT8)[0].text, '0/»8');
-  assert.deepEqual(o1.STATUS_LEVELS_UINT8, [0, 2], "tomorrow's marked 8 at its own level: danger");
+  assert.deepEqual(o1.STATUS_LEVELS_UINT8, [0, 0], "tomorrow's marked 8 never counts: today's 0");
   assert.ok(!('UV_DAY_PEAKS' in o1), 'transient, stripped before send');
   const morn = new Date(2026, 6, 15, 9).getTime() / 1000;
   const uvM = new Array(48).fill(0); uvM[3] = 8.4;           // 12:00 today
@@ -224,7 +224,7 @@ test('a 48 h fixture uvIndex bakes the day peaks into the UV slot text and level
 
 // The pair's presentation (status-pair.js) rides the same bake: one non-default style
 // end to end, in the 8-byte edge slot. The level is the numbers', not the text's:
-// tomorrow's 8 is danger however it is marked or ordered.
+// today's 0 is judged however the pair is marked or ordered.
 test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow\'s', () => {
   const eve = new Date(2026, 6, 15, 20).getTime() / 1000;
   const uvE = new Array(48).fill(0); uvE[16] = 8.4;          // 12:00 tomorrow
@@ -232,38 +232,7 @@ test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow
     { uvSlotOrder: 'max', uvSlotSeparatorSpaced: true, uvSlotNextDayMark: 'star' });
   const o = getFixtureWeatherPayload(makeFixture({ startEpoch: eve, uvIndex: uvE }), styled);
   assert.equal(decodeLine(o.STATUS_LINE_1_UINT8)[0].text, '8* / 0');
-  assert.deepEqual(o.STATUS_LEVELS_UINT8, [0, 2], "the same danger as '0/»8'");
-});
-
-// fixtures/uv-alert-hold.json is the emulator sign-off scene for the hold rule
-// (wire-units' dayMaxShown, "high"): 15:24, UV 7 now and no more for the rest of
-// today, 8.4 at noon tomorrow (the series reaches the day after's midnight, so
-// tomorrow's peak is known). The fixture path has no day record, so "running" is
-// unknown and only the warn level can hold today's 7 — which it does, printed once,
-// in the top-left slot. Before the rule the slot rolled to "7/»8" and packed no
-// level, silencing the highlight while UV sat at warn.
-test('fixtures/uv-alert-hold.json holds today\'s 7 at warn, highlight on or off', () => {
-  const { normalizeWeather } = require('../scripts/lib/fixture-time');
-  const thresholds = require('../src/pkjs/status-thresholds.js');
-  const fx = JSON.parse(fs.readFileSync(
-    path.join(__dirname, '..', 'fixtures', 'uv-alert-hold.json'), 'utf8'));
-  normalizeWeather(fx);
-  const bake = (over) => {
-    const s = Object.assign({}, fx.claySettings, over);
-    const out = getFixtureWeatherPayload(fx, s, { platform: 'basalt' });
-    return { text: decodeLine(out.STATUS_LINE_3_UINT8)[0].text, levels: out.STATUS_LEVELS_UINT8,
-      enabled: Boolean(thresholds.buildSettingsBlob(s)[0] & 0x80) };
-  };
-  assert.deepEqual(bake({}), { text: '7', levels: [0, 1], enabled: true },
-    'held at warn 6, printed once, the UV level at warn (bits 8-9)');
-  // The switch only gates the colour: the text and the packed level stay; the
-  // Clay blob's UV enable bit is what clears.
-  assert.deepEqual(bake({ threshUvOn: false }), { text: '7', levels: [0, 1], enabled: false },
-    'switch off: still "7", level still packed, enable bit clear');
-  // A warn above today's 7 releases the hold: tomorrow's known peak takes over, and
-  // the pair is judged on that 8 — warn on 8/10.
-  assert.deepEqual(bake({ threshUvWarn: '8', threshUvDanger: '10' }),
-    { text: '7/»8', levels: [0, 1], enabled: true }, 'warn 8: rolls on to tomorrow\'s 8, at warn');
+  assert.deepEqual(o.STATUS_LEVELS_UINT8, [0, 0], "the same as '0/»8': tomorrow never counts");
 });
 
 // fixtures/rain-countdown.json is the emulator sign-off scene for the Alerts row: rain
@@ -312,9 +281,9 @@ test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_E
 // while tomorrow peaks at 8.4 at noon (the series reaches the day after, so tomorrow's
 // peak is known). With Days "Today + tomorrow" the UV alert is active for TOMORROW at
 // danger, marked »; the wind alert stays today's (58 km/h at 18:00, warn 50). The
-// forecast bar's UV slot in Max mode rolls to the same tomorrow, so the frame shows
-// the alert's »8 beside the slot's »8 — one number, one mark, and (Alert
-// highlighting on) one level: the slot's danger fill matches the alert icon's.
+// forecast bar's UV slot in Day max mode rolls to the same tomorrow, so the frame
+// shows the alert's »8 beside the slot's »8 — one number, one mark. Only the alert
+// icon carries tomorrow's level: the slot's »8 is never highlighted.
 test('fixtures/uv-alert-tomorrow.json bakes a tomorrow UV entry (» 8, danger) + today\'s wind 58', () => {
   const { normalizeWeather } = require('../scripts/lib/fixture-time');
   const thresholds = require('../src/pkjs/status-thresholds.js');
@@ -336,8 +305,8 @@ test('fixtures/uv-alert-tomorrow.json bakes a tomorrow UV entry (» 8, danger) +
     ], platform + ': tomorrow\'s UV 8.4 at danger, marked »; today\'s wind at warn');
     assert.equal(decodeLine(out.STATUS_LINE_1_UINT8)[2].text, '»8',
       platform + ': the UV slot names the same tomorrow');
-    assert.equal(out.STATUS_LEVELS_UINT8[1] & 3, 2,
-      platform + ': ...at the same level: the slot\'s »8 is danger, like the alert entry');
+    assert.equal(out.STATUS_LEVELS_UINT8[1] & 3, 0,
+      platform + ': ...but the slot\'s »8 packs no level: tomorrow never counts there');
     // The alert's own mark, which the slot's does not follow.
     const star = bake(platform, { alertUvNextDayMark: 'star' });
     assert.deepEqual(decodeAlerts(star.ALERT_ENTRIES_UINT8)[0],

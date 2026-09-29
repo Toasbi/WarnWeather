@@ -1,17 +1,18 @@
 // test/config-slot-pair.test.js — the rows that shape a two-value status slot.
 //
-// Temperature and UV each print a PAIR in their "Both" mode (12/10, 3/7). How the pair
-// reads is chosen on that kind's Edit sheet, right under its display pills: a separator
-// dropdown (four presets labelled by example, plus Custom), a custom-separator field the
-// Custom pick reveals, whether spaces flank the separator (one toggle over every preset),
-// and which value leads. UV adds the mark on a max that has rolled
-// on to tomorrow's peak, which shows in Alert as well as Both. The phone bakes all of
+// Temperature and UV each print a PAIR in their "Both" mode (12|10, 3/7). How the pair
+// reads is chosen on that kind's Edit sheet, right under its Value selection: which
+// value leads, a separator dropdown (four presets labelled by example, plus Custom), a
+// custom-separator field the Custom pick reveals, and whether spaces flank the
+// separator (one toggle over every preset). UV adds the mark on a max that has rolled
+// on to tomorrow's peak, which shows in Day max as well as Both. The phone bakes all of
 // it into the slot text (status-pair.js); the watch is not involved.
 //
-// The contract pinned here: the keys and stored values the formatter reads, defaults
-// that print exactly what the slot printed before these rows existed, the rows showing
-// only in the modes where they mean something, tight joins onto the display row (the
-// shape every row group revealed by a control has), and the reset covering them.
+// The contract pinned here: the keys and stored values the formatter reads, each kind's
+// default separator (the bar for temperature, the slash for UV) printing exactly what
+// an absent key prints, the rows showing only in the modes where they mean something,
+// tight joins onto the Value selection row (the shape every row group revealed by a
+// control has), and the reset covering them.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -52,53 +53,72 @@ function item(key) {
 // The two kinds, side by side. `samples` are the numbers the option labels are built
 // on, leading value first; `order` is the order row's [label, value] list, default first.
 const KINDS = [{
-  prefix: 'temp', sheetId: 'threshTemp', samples: ['12', '10'],
+  prefix: 'temp', sheetId: 'threshTemp', samples: ['12', '10'], defaultSeparator: 'bar',
   order: [['Temp first', 'actual'], ['Feels like first', 'feels']],
   modes: ['actual', 'feels', 'both'],
   separators: [['12/10', 'slash'], ['12(10)', 'brackets'], ['12·10', 'dot'], ['12|10', 'bar'],
     ['Custom', 'custom']]
 }, {
-  prefix: 'uv', sheetId: 'threshUv', samples: ['3', '7'],
-  order: [['Now first', 'now'], ['Alert first', 'max']],
+  prefix: 'uv', sheetId: 'threshUv', samples: ['3', '7'], defaultSeparator: 'slash',
+  order: [['Now first', 'now'], ['Max first', 'max']],
   modes: ['current', 'max', 'both'],
   separators: [['3/7', 'slash'], ['3(7)', 'brackets'], ['3·7', 'dot'], ['3|7', 'bar'],
     ['Custom', 'custom']]
 }];
 const MARKS = [['»6', 'raquo'], ['>6', 'gt'], ['+6', 'plus'], ['6*', 'star'], ['No mark', 'none']];
 
-test('each two-value sheet carries its pair rows right under the display pills', () => {
+test('each two-value sheet leads with its Value selection group: order, then the separator rows', () => {
   KINDS.forEach((k) => {
-    const keys = sheet(k.sheetId).items.map(it => it.messageKey);
-    const at = keys.indexOf(k.prefix + 'SlotDisplay');
-    assert.ok(at > 0, k.sheetId + ' has its display pills below Bold');
-    assert.deepEqual(keys.slice(at + 1, at + 5),
-      [k.prefix + 'SlotSeparator', k.prefix + 'SlotSeparatorCustom',
-        k.prefix + 'SlotSeparatorSpaced', k.prefix + 'SlotOrder'],
-      k.sheetId + ': separator, custom separator, spacing, order — in that order');
+    const keys = sheet(k.sheetId).items.map(it => it.messageKey || it.type);
+    assert.equal(keys[0], k.prefix + 'SlotDisplay', k.sheetId + ': Value selection leads the sheet');
+    assert.equal(item(k.prefix + 'SlotDisplay').label, 'Value selection');
+    assert.deepEqual(keys.slice(1, 5),
+      [k.prefix + 'SlotOrder', k.prefix + 'SlotSeparator', k.prefix + 'SlotSeparatorCustom',
+        k.prefix + 'SlotSeparatorSpaced'],
+      k.sheetId + ': order, separator, custom separator, spacing — in that order');
   });
-  // UV's tomorrow mark closes its display group, above the pointer to the Alerts sheet
-  // (UV's levels live there).
+  // UV's tomorrow mark closes its Value selection group; the highlight group follows:
+  // the switch, the pointer to the Alerts sheet (UV's levels live there), then Bold.
   const uvKeys = sheet('threshUv').items.map(it => it.messageKey || it.type);
-  assert.equal(uvKeys[uvKeys.indexOf('uvSlotOrder') + 1], 'uvSlotNextDayMark');
-  assert.equal(uvKeys[uvKeys.indexOf('uvSlotNextDayMark') + 1], 'staticText');
-  // Temp's degree toggle answers to every mode, so it stays after the pair group.
+  assert.deepEqual(uvKeys.slice(uvKeys.indexOf('uvSlotSeparatorSpaced') + 1),
+    ['uvSlotNextDayMark', 'threshUvOn', 'staticText', 'threshUvBoldMode']);
+  // Temp's degree toggle answers to every mode, so it stays after the pair group, and
+  // Bold closes the sheet.
   const tempKeys = sheet('threshTemp').items.map(it => it.messageKey);
-  assert.equal(tempKeys[tempKeys.indexOf('tempSlotOrder') + 1], 'tempSlotUnit');
+  assert.deepEqual(tempKeys.slice(tempKeys.indexOf('tempSlotSeparatorSpaced') + 1),
+    ['tempSlotUnit', 'threshTempBoldMode']);
 });
 
-test('the separator is a dropdown of example-labelled presets plus Custom, slash by default', () => {
+test('the separator is a dropdown of example-labelled presets plus Custom, each kind\'s default', () => {
   KINDS.forEach((k) => {
     const sep = item(k.prefix + 'SlotSeparator');
     // A dropdown, as the owner asked — not a pill row or a radio list.
     assert.equal(sep.type, 'select', k.prefix + ' separator is a select');
     assert.equal(sep.label, 'Separator');
-    assert.equal(sep.defaultValue, 'slash', k.prefix + ': the slash the slot has always printed');
+    assert.equal(sep.defaultValue, k.defaultSeparator, k.prefix + ': the kind\'s default');
+    assert.equal(sep.defaultValue, statusPair.defaultSeparator(k.prefix),
+      k.prefix + ': the page reads the formatter\'s default');
     assert.deepEqual(sep.options, k.separators, k.prefix + ' separator options');
-    // The fit rule is invisible otherwise: '-12 / -10' is 9 bytes of an edge slot's 8.
-    assert.match(String(sep.hint), /left or right slot/, k.prefix + ' hint names the narrow slots');
-    assert.match(String(sep.hint), /drops its spaces/, k.prefix + ' hint says the spaces go first');
-    assert.match(String(sep.hint), /slash/, k.prefix + ' hint says what it falls back to');
+    // The fit rule, explained for every value but the default, which IS its last step.
+    assert.equal(sep.hint, undefined, k.prefix + ': no value-blind hint');
+    const [a, b] = k.samples;
+    const last = a + statusPair.SEPARATORS[k.defaultSeparator].mid + b;
+    k.separators.map(o => o[1]).forEach((value) => {
+      const hint = sep.hintByValue[value];
+      if (value === k.defaultSeparator) {
+        assert.equal(hint, undefined, k.prefix + ': no hint for the default ' + value);
+        return;
+      }
+      assert.match(String(hint), /drops its spaces/, k.prefix + ' ' + value + ': the spaces go first');
+      assert.ok(String(hint).indexOf('falls back to ' + last) !== -1,
+        k.prefix + ' ' + value + ': names the pair it falls back to, ' + last);
+    });
   });
+  // Only a day-max pair can still be too wide in its default form.
+  assert.equal(item('uvSlotSeparator').hintByValue.bar,
+    'When the pair doesn\'t fit, it drops its spaces, then falls back to 3/7, then to the reading alone.');
+  assert.equal(item('tempSlotSeparator').hintByValue.slash,
+    'When the pair doesn\'t fit, it drops its spaces, then falls back to 12|10.');
 });
 
 test('spacing is one toggle over every preset, off by default, its hint on the kind\'s samples', () => {
@@ -107,16 +127,22 @@ test('spacing is one toggle over every preset, off by default, its hint on the k
     const spaced = item(k.prefix + 'SlotSeparatorSpaced');
     assert.equal(spaced.type, 'toggle');
     assert.equal(spaced.label, 'Spaces around separator');
-    assert.equal(spaced.defaultValue, false, k.prefix + ': off keeps the 12/10 the slot always printed');
+    assert.equal(spaced.defaultValue, false, k.prefix + ': off keeps the pair tight');
     const [a, b] = k.samples;
-    // Two separators' spaced forms, so the hint cannot read as "switch to a spaced
-    // slash" for someone on brackets or the dot.
-    assert.equal(spaced.hint, 'Adds spaces to any separator: ' + a + ' / ' + b + ', ' +
-      a + ' (' + b + ').');
+    const mid = statusPair.SEPARATORS[k.defaultSeparator].mid;
+    // Two separators' spaced forms, the kind's default first, so the hint cannot read
+    // as "switch to a spaced slash" for someone on brackets or the dot. Shown only
+    // while the toggle is on: the hint explains the selected value alone.
+    assert.equal(spaced.hint, undefined);
+    assert.deepEqual(Object.keys(spaced.hintByValue), ['true']);
+    assert.equal(spaced.hintByValue.true, 'Adds spaces to any separator: ' + a + ' ' + mid + ' ' +
+      b + ', ' + a + ' (' + b + ').');
   });
+  assert.equal(item('tempSlotSeparatorSpaced').hintByValue.true,
+    'Adds spaces to any separator: 12 | 10, 12 (10).');
   // The hint's promise, read back through the formatter.
   assert.equal(statusPair.formatTempPair('12', '10', { tempSlotSeparatorSpaced: true }, WIDE),
-    '12 / 10');
+    '12 | 10');
   assert.equal(statusPair.formatPeak('uv', { now: 3, peak: 7, nextDay: false },
     { uvSlotSeparatorSpaced: true }, WIDE), '3 / 7');
 });
@@ -159,6 +185,9 @@ test('the custom separator is a 2-character text field that explains what surviv
     assert.match(hint, /ASCII/, 'hint names what the font draws');
     assert.match(hint, /Latin-1/, 'hint names what the font draws');
   });
+  // Empty falls back to the kind's default separator.
+  assert.match(String(item('tempSlotSeparatorCustom').hint), /empty prints 12\|10\./);
+  assert.match(String(item('uvSlotSeparatorCustom').hint), /empty uses the slash\./);
 });
 
 test('the order pills keep the order the slot has always printed as the default', () => {
@@ -220,7 +249,7 @@ test('the pair rows show only in Both; the custom field only on a Custom pick', 
       key + ' hides on a fresh install'));
 });
 
-test('the tomorrow mark shows in Alert and Both — the two modes that print a max', () => {
+test('the tomorrow mark shows in Day max and Both — the two modes that print a max', () => {
   ['current', 'max', 'both', undefined].forEach((mode) => {
     assert.equal(showWhen.isVisible(item('uvSlotNextDayMark'), { uvSlotDisplay: mode, env: ENV }),
       mode === 'max' || mode === 'both', 'mode ' + mode);
@@ -236,7 +265,7 @@ test('the degree toggle stays on the Temp sheet in every mode', () => {
 
 test('fresh defaults ride the save blob and print exactly what an absent key prints', () => {
   const blob = PC.engine.serialize(schema, PC.engine.hydrate(schema, {}, ENV));
-  assert.equal(blob.tempSlotSeparator, 'slash');
+  assert.equal(blob.tempSlotSeparator, 'bar');
   assert.equal(blob.tempSlotSeparatorCustom, '');
   assert.equal(blob.tempSlotSeparatorSpaced, false);
   assert.equal(blob.tempSlotOrder, 'actual');
@@ -245,10 +274,9 @@ test('fresh defaults ride the save blob and print exactly what an absent key pri
   assert.equal(blob.uvSlotSeparatorSpaced, false);
   assert.equal(blob.uvSlotOrder, 'now');
   assert.equal(blob.uvSlotNextDayMark, 'raquo');
-  // A blob saved before these rows existed has none of the keys; the page's defaults
-  // must render it byte for byte the same, or saving the page once would change a
-  // watchface nobody touched.
-  assert.equal(statusPair.formatTempPair('-12', '-10', blob), '-12/-10');
+  // A blob without the keys must render exactly like the page's defaults, or saving
+  // the page once would change a watchface nobody touched.
+  assert.equal(statusPair.formatTempPair('-12', '-10', blob), '-12|-10');
   assert.equal(statusPair.formatTempPair('-12', '-10', blob),
     statusPair.formatTempPair('-12', '-10', {}));
   [{ now: 3, peak: 7, nextDay: false }, { now: 11, peak: 12, nextDay: true },
@@ -299,11 +327,13 @@ function openSheet(cfg, sheetId) {
 
 test('Temp in Both: the pair rows join the display row tight; the degree keeps its divider', () => {
   const html = openSheet({ tempSlotDisplay: 'both' }, 'threshTemp').modal.innerHTML;
-  assert.match(rowClass(html, 'tempSlotDisplay'), TIGHT, 'display row tightens onto Separator');
+  assert.match(rowClass(html, 'tempSlotDisplay'), TIGHT, 'display row tightens onto Order');
+  assert.match(rowClass(html, 'tempSlotOrder'), TIGHT, 'Order tightens onto Separator');
   assert.match(rowClass(html, 'tempSlotSeparator'), TIGHT, 'Separator tightens onto Spacing');
-  assert.match(rowClass(html, 'tempSlotSeparatorSpaced'), TIGHT, 'Spacing tightens onto Order');
-  assert.doesNotMatch(rowClass(html, 'tempSlotOrder'), /\bnbl?\b/,
-    'Order keeps its divider: the degree row is not part of the pair group');
+  assert.doesNotMatch(rowClass(html, 'tempSlotSeparatorSpaced'), /\bnbl?\b/,
+    'Spacing keeps its divider: the degree row is not part of the pair group');
+  assert.doesNotMatch(rowClass(html, 'tempSlotUnit'), /\bnbl?\b/,
+    'the degree keeps its divider above Bold, its own row');
   assert.equal(html.indexOf('data-k="tempSlotSeparatorCustom"'), -1, 'no custom field on a preset');
 });
 
@@ -312,7 +342,7 @@ test('Temp in Both with Custom: the field sits inside the group and caps at 2', 
     tempSlotSeparatorCustom: ', ' }, 'threshTemp').modal.innerHTML;
   assert.match(rowClass(html, 'tempSlotSeparator'), TIGHT);
   assert.match(rowClass(html, 'tempSlotSeparatorCustom'), TIGHT);
-  assert.match(rowClass(html, 'tempSlotSeparatorSpaced'), TIGHT);
+  assert.doesNotMatch(rowClass(html, 'tempSlotSeparatorSpaced'), JOINED, 'the group ends on Spacing');
   assert.match(html, /data-k="tempSlotSeparatorCustom" value=", "[^>]*maxlength="2"/,
     'the stored text is shown untrimmed, capped at 2');
 });
@@ -331,22 +361,26 @@ test('Temp outside Both: no pair rows, and the sheet spaces exactly as before', 
   });
 });
 
-test('UV: the mark joins in Alert, the pair rows join in Both, the levels pointer follows', () => {
+test('UV: the mark joins in Day max, the pair rows join in Both, the highlight group follows', () => {
   const max = openSheet({ uvSlotDisplay: 'max' }, 'threshUv').modal.innerHTML;
-  assert.equal(max.indexOf('data-select="uvSlotSeparator"'), -1, 'Alert prints no pair');
+  assert.equal(max.indexOf('data-select="uvSlotSeparator"'), -1, 'Day max prints no pair');
   assert.match(rowClass(max, 'uvSlotDisplay'), TIGHT, 'display row tightens onto the mark');
   assert.doesNotMatch(rowClass(max, 'uvSlotNextDayMark'), JOINED,
-    'the group keeps its divider above the (unjoined) pointer to the Alerts sheet');
+    'the group keeps its divider above the (unjoined) Alert highlighting switch');
 
   const both = openSheet({ uvSlotDisplay: 'both' }, 'threshUv').modal.innerHTML;
-  ['uvSlotDisplay', 'uvSlotSeparator', 'uvSlotSeparatorSpaced', 'uvSlotOrder'].forEach((key) => {
+  ['uvSlotDisplay', 'uvSlotOrder', 'uvSlotSeparator', 'uvSlotSeparatorSpaced'].forEach((key) => {
     assert.match(rowClass(both, key), TIGHT, key + ' tightens onto the next row of the group');
   });
   assert.doesNotMatch(rowClass(both, 'uvSlotNextDayMark'), JOINED);
 
   const now = openSheet({ uvSlotDisplay: 'current' }, 'threshUv').modal.innerHTML;
   assert.equal(now.indexOf('data-select="uvSlotNextDayMark"'), -1, 'Now prints no max to mark');
-  assert.doesNotMatch(rowClass(now, 'uvSlotDisplay'), JOINED, 'the pointer follows directly');
+  assert.doesNotMatch(rowClass(now, 'uvSlotDisplay'), JOINED, 'the highlight group follows directly');
+  // The highlight group: the switch, then the pointer joined tight, then Bold joined loose.
+  assert.match(rowClass(now, 'threshUvOn'), TIGHT, 'the switch tightens onto the info box');
+  assert.ok(now.indexOf('<div class="static join info nbl"><div class="info-box">Alert levels') !== -1,
+    'the info box hugs the switch and drops its divider above Bold (a loose join)');
 });
 
 test('the separator dropdown opens inside the sheet and a Custom pick reveals the field', () => {
@@ -417,7 +451,7 @@ test('Reset status bars puts every pair row and the tomorrow mark back to its de
     uvSlotSeparatorSpaced: S.uvSlotSeparatorSpaced, uvSlotOrder: S.uvSlotOrder,
     uvSlotNextDayMark: S.uvSlotNextDayMark
   }, {
-    tempSlotSeparator: 'slash', tempSlotSeparatorCustom: '', tempSlotSeparatorSpaced: false,
+    tempSlotSeparator: 'bar', tempSlotSeparatorCustom: '', tempSlotSeparatorSpaced: false,
     tempSlotOrder: 'actual',
     uvSlotSeparator: 'slash', uvSlotSeparatorCustom: '', uvSlotSeparatorSpaced: false,
     uvSlotOrder: 'now', uvSlotNextDayMark: 'raquo'
