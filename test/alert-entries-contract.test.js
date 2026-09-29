@@ -86,15 +86,15 @@ test('ALERT_ENTRIES_UINT8 is a declared message key, appended after the shipped 
   assert.match(appMessageC, /MESSAGE_KEY_ALERT_ENTRIES_UINT8/);
 });
 
-test('the watch checks the tuple before persisting it, behind WW_ALERT_ROW', () => {
+test('the watch checks the tuple before persisting it, behind WW_ON_DEMAND', () => {
   const handler = appMessageC.slice(appMessageC.indexOf('static bool handle_alert_entries'));
   assert.ok(handler.length > 0, 'handle_alert_entries missing');
   const body = handler.slice(0, handler.indexOf('\n}\n'));
   assert.ok(body.indexOf('alert_set_bytes_ok') !== -1, 'validated first');
   assert.ok(body.indexOf('persist_set_alert_entries') > body.indexOf('alert_set_bytes_ok'));
-  const guard = appMessageC.lastIndexOf('#if defined(WW_ALERT_ROW)',
+  const guard = appMessageC.lastIndexOf('#if defined(WW_ON_DEMAND)',
     appMessageC.indexOf('static bool handle_alert_entries'));
-  assert.ok(guard !== -1, 'the handler sits behind WW_ALERT_ROW (aplite never gets it)');
+  assert.ok(guard !== -1, 'the handler sits behind WW_ON_DEMAND (aplite never gets it)');
 });
 
 // The persist enum is append-only: its numbers are the on-flash slots. The new

@@ -27,8 +27,8 @@
 // Never compiled on aplite — wscript builds status_row_aplite.c in its place — and
 // every other platform has both features, so nothing below is guarded on them, nor
 // on PBL_PLATFORM_APLITE.
-#if !defined(WW_ALERT_ROW) || !defined(WW_THRESHOLD_HIGHLIGHT)
-#error "status_row.c needs WW_ALERT_ROW and WW_THRESHOLD_HIGHLIGHT; aplite builds its twin"
+#if !defined(WW_ON_DEMAND) || !defined(WW_THRESHOLD_HIGHLIGHT)
+#error "status_row.c needs WW_ON_DEMAND and WW_THRESHOLD_HIGHLIGHT; aplite builds its twin"
 #endif
 
 #define STATUS_ROW_MARGIN 2

@@ -92,7 +92,7 @@ bool status_bar_any_visible_uses_live_health(const ViewSpec *spec);
 // paints fresh values, not the gate-skipped statics.
 void status_bar_refresh_live_health(const ViewSpec *spec);
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 // Re-resolve the VISIBLE bars that have an Alerts placement
 // (status_row_uses_alerts) — the rain entry is derived from the radar cache on
 // every refresh, and only a refresh notices that the countdown moved on. Called

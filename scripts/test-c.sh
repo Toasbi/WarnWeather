@@ -53,19 +53,19 @@ cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o b
 build/host/status_threshold_test
 # The Alerts row's pure half (entry parse, rain merge, fit/lane ladder, and the per-bar
 # takeover: which slots it replaces, the span they leave, where the row sits). Its body
-# sits behind WW_ALERT_ROW (wscript: every platform but aplite), so the flag is required
+# sits behind WW_ON_DEMAND (wscript: every platform but aplite), so the flag is required
 # here or the module compiles to nothing and the test fails to link; its companion
 # WW_THRESHOLD_HIGHLIGHT too, which alert_set.h requires beside it (every such platform
 # has both). Linked with the row layout, which the takeover (alert_set_take) runs, and
 # with the thresholds blob reader the entry's box is judged through.
-cc $CFLAGS -DWW_ALERT_ROW -DWW_THRESHOLD_HIGHLIGHT test/c/alert_set_test.c src/c/appendix/alert_set.c \
+cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_set_test.c src/c/appendix/alert_set.c \
    src/c/appendix/status_threshold.c src/c/layers/status_row_layout.c \
    -o build/host/alert_set_test
 build/host/alert_set_test
 # A tomorrow alert and a slot showing tomorrow's peak print the same mark: dump every
 # metric text lane the watch builds (per day code, value and values flag) and check
 # each against the phone's slot text (scripts/check-alert-lane-lockstep.js).
-cc $CFLAGS -DWW_ALERT_ROW -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/c/appendix/alert_set.c \
+cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/c/appendix/alert_set.c \
    src/c/appendix/status_threshold.c src/c/layers/status_row_layout.c \
    -o build/host/alert_lane_dump
 build/host/alert_lane_dump > build/host/alert_lane.txt
@@ -114,7 +114,7 @@ build/host/hatch_seam_test
 # PBL_HEALTH, which is the only place STATUS_BAR_COUNT == 1 and a stray unguarded
 # STATUS_BAR_RADAR / STATUS_BAR_HEALTH becomes a compile error — the shared CFLAGS
 # force -DPBL_HEALTH everywhere else.
-cc $CFLAGS -DWW_RAIN_RADAR -DWW_VIEW_CYCLE -DWW_ALERT_ROW test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test
+cc $CFLAGS -DWW_RAIN_RADAR -DWW_VIEW_CYCLE -DWW_ON_DEMAND test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test
 build/host/status_bar_test
 cc -std=c11 -Wall -Wextra -Werror -Itest/c/stub -Isrc -DPBL_PLATFORM_APLITE \
    test/c/status_bar_test.c src/c/layers/status_bar.c -o build/host/status_bar_test_aplite

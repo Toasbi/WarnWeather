@@ -7,7 +7,7 @@
 // alert active for tomorrow and a slot showing tomorrow's peak must print the same
 // "»8", ">8", "+8", "8*" or "8". Every day code the phone sends, a spread of values
 // (none = the Icon look), and the lane ladder's values flag on and off. Built with
-// -DWW_ALERT_ROW -DWW_THRESHOLD_HIGHLIGHT like alert_set_test.c.
+// -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT like alert_set_test.c.
 //
 // One line per lane: <day code> <values 0|1> <value, '-' for none> <lane as hex, '-'
 // for empty>. Hex, so the "»" bytes reach the checker exactly as the watch draws them.

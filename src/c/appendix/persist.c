@@ -110,7 +110,7 @@ enum key {
     RADAR_LIMITED,                // 56 — bool, present only while limited (absent = not)
     // Appended: the alert row's phone-baked metric entries (ALERT_ENTRIES_UINT8,
     // encoding in alert_set.h), stored verbatim so the row survives a relaunch.
-    // Alert-row-only (WW_ALERT_ROW), so aplite never reads or writes it, but the
+    // Alert-row-only (WW_ON_DEMAND), so aplite never reads or writes it, but the
     // ID stays listed on every platform: the enum is append-only because the
     // numbers are the on-flash slots.
     ALERT_ENTRIES                 // 57 — <= ALERT_ENTRIES_MAX_BYTES, absent = no metric alert
@@ -711,7 +711,7 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
 }
 #endif  // WW_THRESHOLD_HIGHLIGHT
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 int persist_get_alert_entries(uint8_t *out, size_t cap) {
     if (!out || !persist_exists(ALERT_ENTRIES)) { return 0; }
     const int n = persist_read_data(ALERT_ENTRIES, out, cap);
@@ -727,7 +727,7 @@ bool persist_set_alert_entries(const uint8_t *data, size_t len) {
     }
     return write_sized_data_if_changed(ALERT_ENTRIES, data, len);
 }
-#endif  // WW_ALERT_ROW
+#endif  // WW_ON_DEMAND
 
 #if defined(WW_CURVE_INSET)
 // The blob's size before the tuple grew the FOURTH/FIFTH channels.

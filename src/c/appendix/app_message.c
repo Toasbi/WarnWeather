@@ -19,7 +19,7 @@
 #include "status_line.h"
 // Unguarded on purpose: declarations only (nothing is emitted), and waf's dependency
 // scanner cannot see an include inside a -D guard (night_light.c). Only the
-// handler below is WW_ALERT_ROW-guarded.
+// handler below is WW_ON_DEMAND-guarded.
 #include "alert_set.h"
 #if defined(WW_THRESHOLD_HIGHLIGHT)
 #include "status_threshold.h"
@@ -199,7 +199,7 @@ static bool handle_thresholds(DictionaryIterator *iterator, bool *status_dirty) 
 }
 #endif  // WW_THRESHOLD_HIGHLIGHT
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 // The alert row's metric entries — ride the weather message's status category
 // next to the levels (the phone judges the alerts; the watch has no raw values).
 // An empty array means nothing is alerting and clears the stored entries; a
@@ -217,7 +217,7 @@ static bool handle_alert_entries(DictionaryIterator *iterator, bool *status_dirt
     *status_dirty |= persist_set_alert_entries(tuple->value->data, tuple->length);
     return true;
 }
-#endif  // WW_ALERT_ROW
+#endif  // WW_ON_DEMAND
 
 #if defined(WW_FETCH_NOTICE)
 static bool handle_notice(DictionaryIterator *iterator, bool *notice_dirty) {
@@ -640,7 +640,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_status_levels(iterator, &status_dirty);
     handled |= handle_thresholds(iterator, &status_dirty);
 #endif
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
     // aplite has no alert row (the lean status-row twin draws none) and the phone
     // never sends it the tuple.
     handled |= handle_alert_entries(iterator, &status_dirty);
@@ -764,7 +764,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         // per row for an identical picture.
         if (!config_dirty && !status_dirty) {
             top_status_layer_refresh();
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
             main_window_tick_alerts();
 #endif
         }

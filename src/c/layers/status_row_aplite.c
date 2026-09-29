@@ -13,7 +13,7 @@
 //  - the takeover's hooks (status_row_set_suppress_edges /
 //    status_row_right_slot_width) left it, so their no-op stubs left this twin;
 //  - the alert row's interface (status_row_uses_alerts) is declared only under
-//    WW_ALERT_ROW, which aplite never defines, so this twin answers none of it.
+//    WW_ON_DEMAND, which aplite never defines, so this twin answers none of it.
 // Nothing else in 1.24.0's status_row.c changes is aplite's to port: they build
 // the alert row and the threshold highlight, and aplite has neither.
 // See docs/adr/0001-aplite-frozen-lean-fork.md.

@@ -4,8 +4,8 @@
 // Only the BODY is guarded, the include stays above it: waf's dependency scanner
 // does not evaluate -D macros, so an include inside the guard would be invisible to
 // it (see night_light.c). Including a header emits no code, so aplite — which lacks
-// WW_ALERT_ROW — still compiles this file to an empty object.
-#if defined(WW_ALERT_ROW)
+// WW_ON_DEMAND — still compiles this file to an empty object.
+#if defined(WW_ON_DEMAND)
 
 uint8_t alert_set_icon(int kind) {
     switch (kind) {

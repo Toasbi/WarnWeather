@@ -607,7 +607,7 @@ function buildStatusLines(payload, settings, watchInfo) {
     // the lines; [] when nothing is alerting, which clears the watch's stored
     // entries. The rain alert is not in here: the watch resolves it from its own
     // radar cache. The row is compiled out on exactly the platforms the highlight
-    // is (WW_ALERT_ROW and WW_THRESHOLD_HIGHLIGHT: every platform but aplite), so
+    // is (WW_ON_DEMAND and WW_THRESHOLD_HIGHLIGHT: every platform but aplite), so
     // this gate is the right one, and aplite's inbox never budgets for the tuple.
     payload.ALERT_ENTRIES_UINT8 = thresholds.bakeAlerts(payload, settings);
   }

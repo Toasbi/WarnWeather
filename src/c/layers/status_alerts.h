@@ -12,7 +12,7 @@
 // status_alerts_fold() on every refresh, status_alerts_layout() and
 // status_alerts_paint() on every draw — and everything in between happens here.
 //
-// NOT LINKED ON APLITE: the row is aplite-absent (WW_ALERT_ROW in wscript) — the .c
+// NOT LINKED ON APLITE: the row is aplite-absent (WW_ON_DEMAND in wscript) — the .c
 // body sits behind the macro and compiles to an empty object there. Its one caller,
 // status_row.c, is never compiled on aplite (wscript builds status_row_aplite.c
 // instead); these declarations emit nothing.

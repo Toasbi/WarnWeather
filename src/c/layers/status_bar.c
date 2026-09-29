@@ -221,7 +221,7 @@ void status_bar_refresh_live_health(const ViewSpec *spec) {
     }
 }
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 void status_bar_tick_alerts(const ViewSpec *spec) {
     for (int i = 0; i < STATUS_BAR_COUNT; i++) {
         StatusBar *b = &s_bars[i];

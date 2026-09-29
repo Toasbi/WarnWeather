@@ -4,7 +4,7 @@
 // all) missed the missing-accessor bug that collapse fixes.
 //
 // Built TWICE by scripts/test-c.sh:
-//   - evolving:  -DPBL_HEALTH -DWW_RAIN_RADAR -DWW_ALERT_ROW => STATUS_BAR_COUNT == 3,
+//   - evolving:  -DPBL_HEALTH -DWW_RAIN_RADAR -DWW_ON_DEMAND => STATUS_BAR_COUNT == 3,
 //                plus the Alerts-row tick (status_bar_tick_alerts)
 //   - aplite:    none of the three               => STATUS_BAR_COUNT == 1, no tick
 // The second build is what pins the compact-enum contract: it is the only place a
@@ -174,7 +174,7 @@ bool status_row_uses_live_health(const StatusRow *row) {
     return row && s_live_health[row->line_id];
 }
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 static bool s_uses_alerts[STATUS_LINE_COUNT];
 
 bool status_row_uses_alerts(const StatusRow *row) {
@@ -371,7 +371,7 @@ static void live_health_gate(void) {
     expect_int("destroy.live_health_false", status_bar_any_visible_uses_live_health(&spec), 0);
 }
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 // The minute tick (and a radar rescan) must reach an Alerts row in ANY visible bar —
 // its rain entry is re-derived only by a refresh — and nothing else: a bar without
 // a placement, or a hidden one, spends no persist reads.
@@ -553,7 +553,7 @@ int main(void) {
     apply_view_assigns_bands_and_visibility();
     tier_and_full_date_are_change_gated();
     live_health_gate();
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
     tick_alerts_refreshes_visible_alert_rows();
 #endif
 #if defined(WW_RAIN_RADAR)

@@ -21,7 +21,7 @@ bool status_row_uses_live_health(const StatusRow *row);
 // of its packed content — the top strip's low-battery takeover. Independent of a
 // slot whose packed kind is already SLOT_LIVE_BATTERY (that draws battery anyway).
 void status_row_set_battery_override(StatusRow *row, bool active);
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 // Declared only where the alert row exists: aplite has none, so its lean twin need
 // not answer it.
 //

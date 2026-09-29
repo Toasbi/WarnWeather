@@ -200,9 +200,9 @@ def build(ctx):
         # bodies sit behind the macro — appendix/alert_set.c (the pure entry set, fit,
         # slot choice and span) and layers/status_alerts.c (glyph cache + paint) — so aplite
         # compiles both to empty objects and pays zero bytes. Every other platform
-        # defines WW_ALERT_ROW. Mirrors WW_THRESHOLD_HIGHLIGHT above.
+        # defines WW_ON_DEMAND. Mirrors WW_THRESHOLD_HIGHLIGHT above.
         if platform != 'aplite':
-            ctx.env.CFLAGS += ['-DWW_ALERT_ROW=1']
+            ctx.env.CFLAGS += ['-DWW_ON_DEMAND=1']
         # Configurable forecast curve insets (CLAY_CURVE_INSET_UINT8): the phone
         # sends render-ready per-series vertical insets (one byte per Series,
         # FIRST..FIFTH) so temperature and a temperature-axis metric line

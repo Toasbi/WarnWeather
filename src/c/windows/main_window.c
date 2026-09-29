@@ -156,7 +156,7 @@ static ViewSpec current_view_spec(void) {
 #endif
 }
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 void main_window_tick_alerts(void) {
     ViewSpec spec = current_view_spec();
     status_bar_tick_alerts(&spec);
@@ -522,7 +522,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
         top_status_layer_refresh();
     }
     top_status_layer_tick();
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
     // The strip's tick re-derives its own alert row; a row the user placed in a band
     // bar needs the same per-minute pass, or its rain countdown would stand still.
     main_window_tick_alerts();

@@ -23,7 +23,7 @@ void main_window_apply_theme(void);
 // actually uses. Constant-false on aplite (radar is compiled out).
 bool main_window_radar_has_data(void);
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 // Re-resolve the band rows that have an Alerts placement, against the view on screen
 // (status_bar_tick_alerts). The window owns the current ViewSpec, so this is how
 // app_message.c's radar rescan reaches those rows without re-deriving the view.

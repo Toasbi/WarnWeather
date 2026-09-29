@@ -4,7 +4,7 @@
 #include "c/layers/status_row_layout.h"   // the layout alert_set_take runs, checked against
 
 // Host test for the Alerts row's pure half (appendix/alert_set.c). Built with
-// -DWW_ALERT_ROW, the flag wscript sets on every platform but aplite — without it
+// -DWW_ON_DEMAND, the flag wscript sets on every platform but aplite — without it
 // the module body is compiled out and nothing here would link — and the
 // WW_THRESHOLD_HIGHLIGHT alert_set.h requires beside it.
 

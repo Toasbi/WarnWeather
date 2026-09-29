@@ -1,4 +1,4 @@
-// Every include stays ABOVE the WW_ALERT_ROW guard, on purpose: waf's dependency
+// Every include stays ABOVE the WW_ON_DEMAND guard, on purpose: waf's dependency
 // scanner does not evaluate -D macros, so an `#include <pebble.h>` inside the guard
 // would be invisible to it and this file could compile before the generated
 // src/resource_ids.auto.h exists (night_light.c records the failure). Including a
@@ -19,7 +19,7 @@
 #include "../appendix/theme.h"
 #include "../services/watch_services.h"
 
-#if defined(WW_ALERT_ROW)
+#if defined(WW_ON_DEMAND)
 
 // Rain entries are keyed apart from the metric icons (StatusIconId, all < 0x80):
 // the flag bit plus the drop bucket, so drizzle -> rain swaps the glyph.
