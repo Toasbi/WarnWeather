@@ -35,10 +35,10 @@
 // Each metric alert draws as a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a
 // highlighted slot of its kind at the entry's level (status_threshold_look) — the
 // kind's warn look at WARN (none, outline or fill), filled at DANGER with the glyph
-// and text legible over the fill; on B&W the escalation is polarity. A metric value follows its kind's bold ladder at the
-// entry's level; the rain text never bolds. A TOMORROW entry carries the alert's mark
-// around its value ("»8", "8*"), which outlasts the values-off lane, so a tomorrow
-// alert never reads as today's.
+// and text legible over the fill; on B&W the escalation is polarity. A metric value
+// follows its kind's bold ladder at the entry's level; the rain text never bolds. A
+// TOMORROW entry carries the alert's mark around its value ("»8", "8*"), which
+// outlasts the values-off lane, so a tomorrow alert never reads as today's.
 //
 // A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px each side of
 // the icon(+text) group, inside the box — the outline's own pixel plus two of air.

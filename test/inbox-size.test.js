@@ -218,7 +218,7 @@ test('aplite keeps its 536 B inbox and a bundle without the extra metric lines',
   // MEASURED: the full emery bundle less both extra line trends (2 × 31 B) and
   // the STATUS_LEVELS_UINT8 threshold tuple aplite compiles out.
   assert.equal(size, 473, 'aplite ships neither FOURTH_ nor FIFTH_LINE_TREND_UINT8');
-  // Nor the Alerts row's entries: aplite has no row (WW_ON_DEMAND) and no handler.
+  // Nor the weather alerts' entries: aplite has no On demand (WW_ON_DEMAND) and no handler.
   assert.equal(Object.prototype.hasOwnProperty.call(buildHeaviestBundle('aplite'),
     'ALERT_ENTRIES_UINT8'), false, 'aplite never receives ALERT_ENTRIES_UINT8');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);

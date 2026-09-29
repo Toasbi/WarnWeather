@@ -1432,7 +1432,7 @@ test('the Bold hint explains the selected step only, and when the level bold app
   // the watch zeroes while Highlight (Goals) is off (status_threshold_slot_level), so the
   // hints say "while … is on" (settings audit #8).
   assert.equal(boldFor('Wind').hint, undefined, 'no all-options hint');
-  // A weather kind's ladder also weights its alert's value (status_alerts.c), so
+  // A weather kind's ladder also weights its alert's value (status_on_demand.c), so
   // its hints name both places.
   assert.deepEqual(boldFor('Wind').hintByValue, {
     off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
@@ -1742,7 +1742,7 @@ test('the rain alert sheet: its switch (held on in Rain alert only), the time wi
   assert.match(s.items[0].intro, /while it rains at your location or rain is due within the time window below\./);
   assert.match(s.items[0].intro, /Hidden during the Battery saver hours\./);
   assert.match(s.items[0].intro, /^Shows the rain icon in the alert row /, 'the glossary\'s words');
-  // status_alerts_rain_tint: the radar colour only under a colour theme on a colour
+  // rain_tint (status_on_demand.c): the radar colour only under a colour theme on a colour
   // watch — a B&W theme draws the icon in the text colour (review set-5).
   assert.match(s.items[0].intro,
     / On a color watch the rain icon takes the radar’s rain color, except with a B&W theme\. /);

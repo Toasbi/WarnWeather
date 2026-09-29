@@ -275,18 +275,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             e += txt(sx + 8, sy + 3, 7.5, '#AEB4BD', 'start', 600, 'Lightning');
         }
         // Rain-alert preview band: a Watch Status Bar mock above the chart showing the
-        // rain entry as the alert row draws it there (status_alerts.c) — its Look
+        // rain entry as the watch draws it there (status_on_demand.c) — its Look
         // (the contract's rainAlert, as the blob packs it: the drop alone, the drop +
         // "15'", or the drop + "Rain in 15'"), placed per the strip's Alert row setting
         // (barAlertPlace: left-aligned for Left, centred for Middle, right-aligned for
         // Right). Hidden while the rain alert is switched off (its Alerts sheet), while
         // the strip's Alert row is Off (the strip draws no rain entry then), and never
         // shown on aplite (which lacks the feature). Only the drop is coloured, and it
-        // follows the radar colour the way status_alerts_rain_tint() does: the watch reads
-        // palette_radar_color(tier), clamped to the palette's last stop, so a Multicolor
-        // palette gives the green tier while the one-stop Solid palette gives the Solid
-        // bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text stays
-        // theme-fg.
+        // follows the radar colour the way rain_tint() (status_on_demand.c) does: the
+        // watch reads palette_radar_color(tier), clamped to the palette's last stop, so a
+        // Multicolor palette gives the green tier while the one-stop Solid palette gives
+        // the Solid bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text
+        // stays theme-fg.
         var place = thresholds.barAlertPlace(state, 'top');
         var rain = thresholds.rainAlert(state);
         if (isAplite || !rain.on || place === 'off') {

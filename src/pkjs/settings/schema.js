@@ -443,7 +443,7 @@ var ALERT_VOICE = {
     colorDefault: '',
     boldWarnLabel: 'Warn',
     // A weather kind's Bold row also sets the weight of its alert's value, the one
-    // the 'Icon + value' look prints next to the alert icon (status_alerts.c bolds an
+    // the 'Icon + value' look prints next to the alert icon (status_on_demand.c bolds an
     // entry on the kind's ladder at its real level, Highlight or not).
     boldHints: {
         off: 'Danger still prints bold: in the slot while Alert highlighting is on, and in the value next to the alert icon.',
@@ -1018,7 +1018,7 @@ function alertSlotSheet(keyStem, extraItems) {
     // here rather than shipping a sheet titled 'null slot'.
     if (title === null) { throw new Error('alertSlotSheet: no ALERT_KINDS entry for ' + keyStem); }
     // The middle option needs a level: the slot's Highlight OR the kind's alert, whose
-    // value bolds on this ladder too (status_alerts.c) — inert only while neither is on.
+    // value bolds on this ladder too (status_on_demand.c) — inert only while neither is on.
     var noLevelWhen = {all: [{not: {key: 'thresh' + keyStem + 'On'}}, {not: {key: 'alert' + keyStem}}]};
     var note = alertLevelsNote();
     note.joinPrevious = true;
@@ -1105,7 +1105,7 @@ function rainAlertSheet() {
             // The watch shows it while rain falls now, whatever the window, and hides
             // it while the radar is snoozed for the Battery saver hours
             // (rain_countdown.c rain_countdown_format). The colour follows
-            // status_alerts_rain_tint: the radar's tier colour only on a colour watch
+            // rain_tint (status_on_demand.c): the radar's tier colour only on a colour watch
             // under a colour theme — a B&W theme (day or night) draws it in the text
             // colour, so the sentence names the theme, not just the watch.
             intro: 'Shows the rain icon in the alert row while it rains at your location or rain is due within the time window below. '
