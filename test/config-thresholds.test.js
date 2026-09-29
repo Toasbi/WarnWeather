@@ -1680,7 +1680,7 @@ test('every metric alert sheet: its one switch on an Alert sub-header, the Look,
       options: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']],
       hintByValue: {
         tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active'
-          + ' for tomorrow: the alert icon then carries the mark chosen below.'
+          + ' for tomorrow and its icon carries its Tomorrow’s mark.'
       },
       disabledWhen: { not: { key } }
     }, {

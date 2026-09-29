@@ -1198,7 +1198,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda) {
             defaultValue: STATUS_THRESHOLDS.alertDays(null, code),
             options: ALERT_DAYS_OPTIONS,
             hintByValue: {
-                tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow: the alert icon then carries the mark chosen below.'
+                tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark.'
             },
             disabledWhen: {not: {key: key}}
         }, {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Lockstep between the watch's Alerts row and the phone's day-max slot on how a
+// Lockstep between the watch's alert row and the phone's day-max slot on how a
 // tomorrow value reads. Reads the lines test/c/alert_lane_dump.c prints — each metric
 // entry's text lane as src/c/appendix/alert_set.c alert_set_lane builds it, per day
 // code, value and lane-ladder values flag — and checks each against the text the

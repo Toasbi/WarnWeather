@@ -1,6 +1,6 @@
 // test/helpers/alert-entries.js
 //
-// A test-side reader of the Alerts row's entry tuple (ALERT_ENTRIES_UINT8), walked
+// A test-side reader of the alert row's entry tuple (ALERT_ENTRIES_UINT8), walked
 // the way src/c/appendix/alert_set.c parses it (a header byte has bit 7, a value
 // runs to the next header), so the tests that decode what the phone bakes share
 // one reader instead of each re-deriving the header bits. The constants it reads

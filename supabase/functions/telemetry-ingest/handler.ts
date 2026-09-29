@@ -118,7 +118,7 @@ const settingsSchema = z
     // not 400 the batch.
     alerts: z.string().optional(),
     rainAlertDisplay: z.string().optional(),
-    // Where each status bar places the Alerts row — one letter per bar (top,
+    // Where each status bar places the alert row — one letter per bar (top,
     // forecast, radar, health): o off / l left / m middle / r right, e.g. 'looo' —
     // and the rain alert's switch.
     alertBars: z.string().optional(),
