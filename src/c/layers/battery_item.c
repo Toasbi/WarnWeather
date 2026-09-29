@@ -19,8 +19,11 @@ int16_t battery_item_width(int h, bool charging) {
         + (charging ? BATTERY_ITEM_BOLT_W + BATTERY_ITEM_BOLT_GAP : 0));
 }
 
-// The slot glyph's colour code (battery_draw.c): the item shows at a low charge, so
-// on colour it is red or yellow unless the user set a warn level above 30.
+// The slot glyph's colour code: the item shows at a low charge, so on colour it is
+// red or yellow unless the user set a warn level above 30.
+// LOCKSTEP: a copy of battery_draw.c's battery_fill_color, which stays untouched
+// here (it has an aplite twin); change both or neither.
+// test/battery-item-lockstep.test.js compares the two bodies and the 0 % sliver.
 static GColor fill_color(int level, GColor fg) {
 #ifdef PBL_COLOR
     if (theme_is_bw()) { return fg; }
@@ -28,7 +31,7 @@ static GColor fill_color(int level, GColor fg) {
     if (level >= 30) { return GColorYellow; }
     return GColorRed;
 #else
-    (void)level;
+    (void) level;
     return fg;
 #endif
 }
