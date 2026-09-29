@@ -108,9 +108,9 @@ enum key {
     // rain_radar_layer.c, drop out there), but the ID stays listed on every
     // platform: the enum is append-only because the numbers are the on-flash slots.
     RADAR_LIMITED,                // 56 — bool, present only while limited (absent = not)
-    // Appended: the Alerts row's phone-baked metric entries (ALERT_ENTRIES_UINT8,
+    // Appended: the alert row's phone-baked metric entries (ALERT_ENTRIES_UINT8,
     // encoding in alert_set.h), stored verbatim so the row survives a relaunch.
-    // Alerts-row-only (WW_ALERT_ROW), so aplite never reads or writes it, but the
+    // Alert-row-only (WW_ALERT_ROW), so aplite never reads or writes it, but the
     // ID stays listed on every platform: the enum is append-only because the
     // numbers are the on-flash slots.
     ALERT_ENTRIES                 // 57 — <= ALERT_ENTRIES_MAX_BYTES, absent = no metric alert

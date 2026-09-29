@@ -143,7 +143,7 @@ static GRect content_rect(void) {
 }
 
 // One paint path: the indicator icons, then the row in the rect they leave. The rain
-// alert is no longer the strip's own takeover — it is an entry of the Alerts row
+// alert is no longer the strip's own takeover — it is an entry of the alert row
 // (status_row.c + status_alerts.c), which replaces the slot of the strip's Alerts
 // placement (left by default) and takes the date slot beside it only while it needs
 // the room. The indicators are therefore never hidden for it: they own the strip's
@@ -216,7 +216,7 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
     status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
 
     // Prime the rain countdown's segment cache from the persisted radar before the
-    // first refresh: every Alerts row (this strip's or a band row's) derives its rain
+    // first refresh: every alert row (this strip's or a band row's) derives its rain
     // entry from that cache, and after boot only a radar payload rescans it.
     rain_countdown_refresh(watch_services_now());
     top_status_layer_refresh();
@@ -280,7 +280,7 @@ void status_icons_refresh() {
 void top_status_layer_tick() {
     // Per-minute hook. Repaint when the Quiet-Time icon toggles (its only event
     // source) or when the row's content moves. The row refresh IS the per-minute
-    // rain re-derivation: the Alerts row resolves its rain entry from the cached
+    // rain re-derivation: the alert row resolves its rain entry from the cached
     // countdown on every refresh (flash-free; the radar scan itself runs only on
     // data change) and folds it into the row signature, so "Rain in 12'" -> "11'"
     // repaints here. update_battery_override here catches crossing the 10%
@@ -302,7 +302,7 @@ void top_status_layer_tick() {
 
 void top_status_layer_refresh() {
     // Date formatting lives in status_row.c's format_status_date (SLOT_LIVE_DATE);
-    // the rain alert is an Alerts-row entry, and the strip's Alerts placement is read
+    // the rain alert is an alert-row entry, and the strip's Alerts placement is read
     // from the thresholds blob, both by the row itself; this owner only keeps the
     // battery override and the icon state in sync.
     update_battery_override();   // config may have flipped battery_low_only

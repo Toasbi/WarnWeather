@@ -234,7 +234,7 @@ function createChannelScheduler(deps) {
      *
      *   1. Clay.
      *   2. One tick later, the status re-bake (deps.resendStatus). The status
-     *      category — the slot text, the highlight levels, the Alerts row's
+     *      category — the slot text, the highlight levels, the alert row's
      *      entries — is baked phone-side from the last fetch's payload, so a
      *      status-only edit (an alert switched off, a level moved, a Look, a
      *      highlight switched on over a level word an older build packed)

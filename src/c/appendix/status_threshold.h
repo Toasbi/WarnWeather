@@ -40,14 +40,14 @@
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
 //      [34]             alerts options (THRESH_ALERTS_OFFSET). Bits 0-1: the
-//                       Alerts row's rain look (0 text — the legacy "Rain in
+//                       alert row's rain look (0 text — the legacy "Rain in
 //                       12'" countdown, 1 icon, 2 icon + minutes; 3 reserved,
 //                       reads as text). Bits 2-7 reserved (DWD official-warning
 //                       flags later) — written 0. Which METRIC alerts are on
 //                       never rides here: the phone bakes only the enabled,
 //                       active ones into their own weather tuple
 //                       (ALERT_ENTRIES_UINT8, encoding in alert_set.h).
-//      [35]             the Alerts row's placement per status bar
+//      [35]             the alert row's placement per status bar
 //                       (THRESH_BAR_ALERTS_OFFSET), 2 bits per bar: top strip
 //                       bits 0-1, forecast 2-3, radar 4-5, health 6-7 (ThreshBar
 //                       order); 0 off / 1 left / 2 middle / 3 right
@@ -251,7 +251,7 @@ uint16_t status_threshold_health_danger(const uint8_t *blob, size_t len, int kin
 // for an invalid blob, an out-of-range kind, or the reserved wire value 3.
 int status_threshold_bold_mode(const uint8_t *blob, size_t len, int kind);
 
-// The Alerts row's rain look — bits 0-1 of the alerts byte.
+// The alert row's rain look — bits 0-1 of the alerts byte.
 typedef enum {
     THRESH_RAIN_DISPLAY_TEXT = 0,      // the full countdown, "Rain in 12'" (legacy)
     THRESH_RAIN_DISPLAY_ICON = 1,      // the drop alone
@@ -317,7 +317,7 @@ static inline int status_threshold_bar_of_line(int line_id) {
     }
 }
 
-// Where a bar's Alerts row sits while an alert is active — the slot it replaces.
+// Where a bar's alert row sits while an alert is active — the slot it replaces.
 typedef enum {
     THRESH_ALERTS_OFF = 0,
     THRESH_ALERTS_LEFT = 1,
@@ -325,7 +325,7 @@ typedef enum {
     THRESH_ALERTS_RIGHT = 3,
 } ThreshAlertsPlace;
 
-// The Alerts row's placement for `bar` (a ThreshBar) — a ThreshAlertsPlace.
+// The alert row's placement for `bar` (a ThreshBar) — a ThreshAlertsPlace.
 // A blob without the placement byte (34/33/29 B, or invalid) answers what the
 // watch drew before the byte existed: THRESH_ALERTS_LEFT for the top strip (the
 // rain countdown's takeover of its left slot), THRESH_ALERTS_OFF for every other

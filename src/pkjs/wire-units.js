@@ -174,7 +174,7 @@ function dayMaxShown(code, payload, settings, warn) {
 
 /**
  * The highest number a day-max kind prints for the rest of TODAY, the current hour
- * included, in the display unit — what the Alerts row judges (status-thresholds'
+ * included, in the display unit — what the alert row judges (status-thresholds'
  * alertReading), whatever the kind's slot shows: an alert warns about the day, so a
  * user with a Now-mode slot (or no slot at all) still gets the morning "UV reaches 8
  * today". Reads *_DAY_PEAKS[0] through the kind's own reader, so it rounds exactly

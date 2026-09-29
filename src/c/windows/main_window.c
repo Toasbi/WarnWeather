@@ -523,7 +523,7 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     }
     top_status_layer_tick();
 #if defined(WW_ALERT_ROW)
-    // The strip's tick re-derives its own Alerts row; a row the user placed in a band
+    // The strip's tick re-derives its own alert row; a row the user placed in a band
     // bar needs the same per-minute pass, or its rain countdown would stand still.
     main_window_tick_alerts();
 #endif

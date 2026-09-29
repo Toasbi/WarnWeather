@@ -48,7 +48,7 @@
 //     displaying for every slot but the battery one.
 //   * Every weather-derived slot (temp/feels, city, uv, wind, gust, pressure,
 //     dew, aqi, pollen, plus the wind-direction sentinel byte), the packed
-//     STATUS_LEVELS_UINT8 threshold byte and the Alerts row's
+//     STATUS_LEVELS_UINT8 threshold byte and the alert row's
 //     ALERT_ENTRIES_UINT8 read frozen payload values, so they re-bake
 //     byte-identically however old the snapshot is.
 //   * The `sun` slot formats the epoch frozen in SUN_EVENTS, not the clock, so

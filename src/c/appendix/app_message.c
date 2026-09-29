@@ -200,7 +200,7 @@ static bool handle_thresholds(DictionaryIterator *iterator, bool *status_dirty) 
 #endif  // WW_THRESHOLD_HIGHLIGHT
 
 #if defined(WW_ALERT_ROW)
-// The Alerts row's metric entries — ride the weather message's status category
+// The alert row's metric entries — ride the weather message's status category
 // next to the levels (the phone judges the alerts; the watch has no raw values).
 // An empty array means nothing is alerting and clears the stored entries; a
 // malformed one is dropped and the last good entries stay.
@@ -641,7 +641,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_thresholds(iterator, &status_dirty);
 #endif
 #if defined(WW_ALERT_ROW)
-    // aplite has no Alerts row (the lean status-row twin draws none) and the phone
+    // aplite has no alert row (the lean status-row twin draws none) and the phone
     // never sends it the tuple.
     handled |= handle_alert_entries(iterator, &status_dirty);
 #endif
@@ -696,7 +696,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 
     // The rain-countdown rescan comes FIRST, before anything paints: the countdown is
-    // pure data that every Alerts row's refresh reads (status_alerts.c resolve), and
+    // pure data that every alert row's refresh reads (status_alerts.c resolve), and
     // the status rows are signature-gated (an unchanged signature repaints nothing), so
     // a row refreshed ahead of the rescan would keep showing the old rain entry until
     // the next minute tick. The radar payload (or the snooze latch/release) is the
@@ -752,7 +752,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #if defined(WW_RAIN_RADAR)
         rain_radar_layer_refresh();
 #endif
-        // Any row showing the Alerts row carries the rain entry, which it derives from
+        // Any row showing the alert row carries the rain entry, which it derives from
         // the countdown rescanned above — the strip (left by default) and any band
         // row whose bar the user gave an Alerts placement. They refresh for the rescan here —
         // unless an earlier block already refreshed them AFTER that rescan and they
@@ -862,9 +862,9 @@ void app_message_init() {
     // Every other platform has heap to spare and carries the extra metric lines
     // (test/inbox-size.test.js sizes each platform's heaviest bundle against its
     // own value here).
-    // 640 (was 600): the Alerts row's ALERT_ENTRIES_UINT8 tuple rides the status
+    // 640 (was 600): the alert row's ALERT_ENTRIES_UINT8 tuple rides the status
     // category — 7 B of tuple header + up to 20 entry bytes. aplite stays at 536:
-    // it has no Alerts row and never receives the tuple.
+    // it has no alert row and never receives the tuple.
     const int inbox_size = 640;
 #endif
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));

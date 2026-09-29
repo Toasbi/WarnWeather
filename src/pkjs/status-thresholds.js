@@ -3,13 +3,13 @@
  *  - the per-kind warn/danger pairs (stored, else the kind's SEED pair — one
  *    resolution for the phone bake, the day-max hold rule and the settings
  *    page), with the highlight colours and warn look each kind resolves to;
- *  - the weather kinds' levels (STATUS_LEVELS_UINT8) and the Alerts row's
+ *  - the weather kinds' levels (STATUS_LEVELS_UINT8) and the alert row's
  *    metric entries (ALERT_ENTRIES_UINT8), both judged phone-side at
  *    weather-bake time;
  *  - the packed settings blob (CLAY_THRESHOLDS_UINT8, buildSettingsBlob): the
  *    8 paired kinds' highlight enable bits and warn/danger colours, the health
  *    trio's thresholds (the watch levels those kinds itself), every kind's
- *    2-bit bold cell, the Alerts row's rain look and per-bar placement, and
+ *    2-bit bold cell, the alert row's rain look and per-bar placement, and
  *    each paired kind's warn look.
  *
  * Levels and highlighting are split: a weather kind's LEVEL is computed from
@@ -54,10 +54,10 @@
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
   var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
-  // The alerts options byte: bits 0-1 the Alerts row's rain look (RAIN_DISPLAY),
+  // The alerts options byte: bits 0-1 the alert row's rain look (RAIN_DISPLAY),
   // bits 2-7 reserved (DWD official warnings later) and written 0.
   var ALERTS_OFFSET = 34;
-  // The Alerts row's placement per status bar: 2 bits per bar (BAR_ALERT_KEYS
+  // The alert row's placement per status bar: 2 bits per bar (BAR_ALERT_KEYS
   // order — top 0-1, forecast 2-3, radar 4-5, health 6-7), BAR_ALERT_PLACES
   // values. While an alert is active the row replaces that slot of the bar.
   var BAR_ALERTS_OFFSET = 35;
@@ -78,7 +78,7 @@
   var WARN_LOOKS = {none: 0, outline: 1, fill: 2};
 
   // rainAlertDisplay -> the 2-bit wire value. 'text' is 0 — the full "Rain in
-  // 12'" countdown the strip drew before the Alerts row — so an absent setting
+  // 12'" countdown the strip drew before the alert row — so an absent setting
   // and a pre-upgrade watch (no byte 34 at all) both keep today's look.
   var RAIN_DISPLAY = {text: 0, icon: 1, minutes: 2};
 
@@ -657,7 +657,7 @@
    * A weather kind's level for a number, against the kind's resolved pair (seeds
    * when blank) — toggle-agnostic: the level says how high the value is, the
    * highlight toggle only says whether the watch colours it. The slot levels
-   * (packWeatherLevels, on the number the slot shows) and the Alerts row
+   * (packWeatherLevels, on the number the slot shows) and the alert row
    * (bakeAlerts, on the day's) both judge here.
    * @param {*} code A status item code.
    * @param {?number} value the number in the kind's display unit
@@ -697,7 +697,7 @@
     return [packed & 0xFF, (packed >> 8) & 0xFF];
   }
 
-  // The metric alerts, in the Alerts row's FIXED order (the watch appends the
+  // The metric alerts, in the alert row's FIXED order (the watch appends the
   // rain alert in front of them). `code` is the KINDS code, so the wire kind id
   // is its index there; `key` is the settings stem: alert<Key> switches the alert
   // on, alert<Key>Display ('icon' | 'value') picks whether its number rides after
@@ -978,7 +978,7 @@
   }
 
   /**
-   * Bake the Alerts row's metric entries (ALERT_ENTRIES_UINT8): one entry per
+   * Bake the alert row's metric entries (ALERT_ENTRIES_UINT8): one entry per
    * ACTIVE metric alert — switched on (alert<Key>) and active today or, with Days
    * 'tomorrow', tomorrow (alertPick) — in the fixed order UV, wind, gust, AQI,
    * pollen. A tomorrow entry carries the alert's mark (alert<Key>NextDayMark). The
@@ -1074,7 +1074,7 @@
   }
 
   /**
-   * Where a bar shows the Alerts row (its statusXxxAlerts setting), resolved to a
+   * Where a bar shows the alert row (its statusXxxAlerts setting), resolved to a
    * BAR_ALERT_PLACES key. An absent or unknown value takes the default: the top
    * strip 'left' — the rain countdown's takeover of that slot, which the strip
    * always had — and every other bar 'off', so an untouched upgrade draws
@@ -1102,7 +1102,7 @@
    * thresh<Kind>BoldMode values are never modified, so 'perSlot' restores
    * them on the next build. Enable bits, colors, and health u16s are
    * untouched by the master.
-   * Byte ALERTS_OFFSET carries the Alerts row's rain look (rainAlert's look);
+   * Byte ALERTS_OFFSET carries the alert row's rain look (rainAlert's look);
    * which METRIC alerts are on never rides here — the phone bakes only the
    * active ones into their own weather tuple (bakeAlerts). Byte
    * BAR_ALERTS_OFFSET carries where each bar shows the row (barAlertPlace).

@@ -104,7 +104,7 @@ int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size);
 bool persist_set_threshold_settings(const uint8_t *data, size_t len);
 #endif
 
-// The Alerts row is compiled out of aplite (WW_ALERT_ROW, wscript), and so are
+// The alert row is compiled out of aplite (WW_ALERT_ROW, wscript), and so are
 // these accessors, like the threshold pair above; the ALERT_ENTRIES key ID stays
 // in persist.c's append-only enum on every platform.
 #if defined(WW_ALERT_ROW)

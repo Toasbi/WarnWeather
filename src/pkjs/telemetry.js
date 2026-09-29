@@ -74,7 +74,7 @@ function graphColorReport(settings, scope, role, suffix) {
 }
 
 /**
- * Where each status bar shows the Alerts row: one letter per bar in the bars' wire
+ * Where each status bar shows the alert row: one letter per bar in the bars' wire
  * order (top, forecast, radar, health) — o off, l left, m middle, r right. So
  * 'looo' is an untouched install (the strip left, the rest off), 'oooo' every bar
  * off, 'loro' the strip left and the radar bar right. Absent keys resolve to their

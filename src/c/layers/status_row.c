@@ -70,7 +70,7 @@ struct StatusRow {
     GColor glyph_fg;
     uint16_t content_sig;
     bool uses_live_health;
-    // The Alerts row: its glyph cache and the bar's placement, which every refresh
+    // The alert row: its glyph cache and the bar's placement, which every refresh
     // derives from the blob (derive_alerts_place).
     StatusAlertsRow alerts;
 };
@@ -587,7 +587,7 @@ bool status_row_refresh(StatusRow *row) {
     // Folded whatever it is, Off included: the same entries moved from the left to
     // the right are a new paint, and so is a row that stops drawing them.
     sig = sig_fold(sig, &row->alerts.place, 1);
-    // All three slots, always — including the ones the Alerts row may take over at
+    // All three slots, always — including the ones the alert row may take over at
     // paint time: which slots it takes is a paint decision (it depends on measured
     // widths), not a content rule, and a signature describing only part of the row
     // would let a slot that moved while replaced come back stale.
@@ -654,7 +654,7 @@ bool status_row_refresh(StatusRow *row) {
                 row->uses_live_health = true;
             }
         }
-        // The Alerts row's entries fold only while the bar has a placement — Off
+        // The alert row's entries fold only while the bar has a placement — Off
         // draws none of them, so they are not this row's content.
         sig = status_alerts_fold(&row->alerts, sig, s_thresh_scratch,
                                  (size_t)s_thresh_len);
@@ -670,7 +670,7 @@ bool status_row_refresh(StatusRow *row) {
 }
 
 // The row's icon tier: a fraction of the font's content height (smaller on the top
-// strip), capped at the band. Shared by the slot glyphs and the Alerts row's, so an
+// strip), capped at the band. Shared by the slot glyphs and the alert row's, so an
 // alert icon is exactly the size the same icon has in a slot beside it.
 static int16_t icon_target_h(const StatusRow *row, int content_h) {
     bool top = (row->line_id == STATUS_LINE_TOP);
@@ -806,7 +806,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         + status_glyph_center_y(text_y_rel, content_h);
     int16_t x0 = (int16_t)(row->bounds.origin.x + STATUS_ROW_MARGIN);
 
-    // The Alerts row, measured against the three slots: with a placement and an
+    // The alert row, measured against the three slots: with a placement and an
     // active alert it takes its slots out of the layout; otherwise the bar lays out
     // exactly as it would without the feature.
     const StatusAlertsEnv alerts_env = {
@@ -842,7 +842,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         inks[i] = status_highlight_paint(ctx, box, slots[i].look);
     }
 
-    // The Alerts row's entries, over the slot boxes and under the slot content. The
+    // The alert row's entries, over the slot boxes and under the slot content. The
     // slots it replaced were zeroed out of the layout, so neither pass here touches them.
     status_alerts_paint(ctx, &row->alerts, &alerts, &alerts_env);
 

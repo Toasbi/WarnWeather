@@ -3,13 +3,13 @@
 #include "../appendix/status_threshold.h"
 
 // How a highlighted cell is painted, shared by the two paths that draw one: a status
-// slot (status_row.c) and an Alerts-row entry (status_alerts.c). WHAT a cell draws is
+// slot (status_row.c) and an alert-row entry (status_alerts.c). WHAT a cell draws is
 // status_threshold_look()'s call; this is HOW, so a slot and the alert icon of its
 // kind cannot look different at the same level. The frames stay the callers': a
 // slot's box hugs its measured icon + text, an entry's box is its whole footprint.
 //
 // NOT LINKED ON APLITE: aplite paints its rows from the lean status_row_aplite.c twin,
-// which carries no highlighting, and has no Alerts row. The .c body sits behind
+// which carries no highlighting, and has no alert row. The .c body sits behind
 // WW_THRESHOLD_HIGHLIGHT (wscript) and compiles to an empty object there; these
 // declarations emit nothing.
 

@@ -44,7 +44,7 @@ function isAnySeedPair(keyStem, warn, danger) {
  * kind's numbers ride it (buildSettingsBlob's health u16s, packed while the kind's Goals
  * switch is on), and Distance is the one goal kind with a seed per unit, so only a
  * switched-on Distance goal pinned in the other unit moves a byte. A weather kind's pair
- * rides no Clay byte: the phone bakes its levels, Alerts-row entry and day-max hold into
+ * rides no Clay byte: the phone bakes its levels, alert-row entry and day-max hold into
  * the weather message, and the next fetch bakes them from the blank pair.
  *
  * @param {Object} blob Stored settings, mutated in place.

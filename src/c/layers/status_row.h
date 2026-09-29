@@ -22,7 +22,7 @@ bool status_row_uses_live_health(const StatusRow *row);
 // slot whose packed kind is already SLOT_LIVE_BATTERY (that draws battery anyway).
 void status_row_set_battery_override(StatusRow *row, bool active);
 #if defined(WW_ALERT_ROW)
-// Declared only where the Alerts row exists: aplite has none, so its lean twin need
+// Declared only where the alert row exists: aplite has none, so its lean twin need
 // not answer it.
 //
 // Every refresh reads the bar's Alerts placement (a ThreshAlertsPlace: 0 off /

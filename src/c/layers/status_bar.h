@@ -97,8 +97,8 @@ void status_bar_refresh_live_health(const ViewSpec *spec);
 // (status_row_uses_alerts) — the rain entry is derived from the radar cache on
 // every refresh, and only a refresh notices that the countdown moved on. Called
 // on the minute tick (beside top_status_layer_tick) and after a radar rescan
-// (app_message's radar_dirty block), so an Alerts row in a band row keeps pace with
+// (app_message's radar_dirty block), so an alert row in a band row keeps pace with
 // the one in the strip. Hidden bars are skipped for the live-health reason above:
-// the refresh_all that unhides one re-resolves it. Absent on aplite (no Alerts row).
+// the refresh_all that unhides one re-resolves it. Absent on aplite (no alert row).
 void status_bar_tick_alerts(const ViewSpec *spec);
 #endif

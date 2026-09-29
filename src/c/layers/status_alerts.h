@@ -3,7 +3,7 @@
 #include "../appendix/alert_set.h"
 #include "../appendix/rain_countdown.h"   // RAIN_COUNTDOWN_TEXT_CAP
 
-// The Alerts row's SDK half: resolving the entries, the glyph cache, the takeover,
+// The alert row's SDK half: resolving the entries, the glyph cache, the takeover,
 // per-entry measuring and paint for an AlertSet (appendix/alert_set.h — the pure
 // half: which entries, in which order, how many fit, which slots they take). The row
 // is a per-bar takeover: while an alert is active it replaces the bar's left, middle
@@ -53,12 +53,12 @@
 
 typedef struct StatusAlertsCache StatusAlertsCache;
 
-// A status row's Alerts row, embedded in the row.
+// A status row's alert row, embedded in the row.
 typedef struct {
     // The glyph cache (up to ALERT_SET_MAX PDCs): created by the first draw that has an
     // entry to show, freed by status_alerts_release() — the row calls it when a refresh
     // finds the placement Off, and with the row. Its glyphs come and go with their
-    // alerts, so an idle Alerts row keeps only the cache struct.
+    // alerts, so an idle alert row keeps only the cache struct.
     StatusAlertsCache *cache;
     uint8_t place;   // ThreshAlertsPlace, which the row derives on every refresh
 } StatusAlertsRow;
@@ -110,7 +110,7 @@ typedef struct {
     uint8_t pad;      // air each side inside the box: STATUS_ALERTS_BOX_PAD_X, rain 0
 } StatusAlertsCell;
 
-// The Alerts row's share of one draw, on the caller's stack: status_alerts_layout()
+// The alert row's share of one draw, on the caller's stack: status_alerts_layout()
 // fills it, status_alerts_paint() reads it. Only status_alerts.c reads the fields.
 typedef struct {
     StatusAlertsEntries r;

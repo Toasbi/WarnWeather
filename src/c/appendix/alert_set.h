@@ -6,7 +6,7 @@
 #include "status_threshold.h"
 #include "../layers/status_row_layout.h"
 
-// The Alerts row's entry set: which alerts the row shows, in which order, how many
+// The alert row's entry set: which alerts the row shows, in which order, how many
 // of them fit, and which slots of its bar it takes over. Pure integer code — deliberately no <pebble.h> (nor rain_tier.h,
 // which pulls it in), so the module host-compiles (scripts/test-c.sh) like
 // status_threshold.c, linked with the row layout it asks where the slots go. The SDK
@@ -32,7 +32,7 @@
 // blob and levels word, WW_ALERT_ROW the entries tuple), but the row cannot stand
 // without the first: its entries are judged and painted by the threshold looks.
 #if defined(WW_ALERT_ROW) && !defined(WW_THRESHOLD_HIGHLIGHT)
-#error "WW_ALERT_ROW needs WW_THRESHOLD_HIGHLIGHT: the Alerts row paints the threshold looks"
+#error "WW_ALERT_ROW needs WW_THRESHOLD_HIGHLIGHT: the alert row paints the threshold looks"
 #endif
 
 #define ALERT_SET_MAX 6   // rain + the five metric kinds
@@ -146,7 +146,7 @@ int alert_set_row_w(const int16_t *widths, int n, int gap);
 // the first fits.
 int alert_set_fit(const int16_t *widths, int n, int gap, int budget);
 
-// The takeover: lay the bar out (`out`) without the slots the Alerts row replaces,
+// The takeover: lay the bar out (`out`) without the slots the alert row replaces,
 // and give the span [*x0, *x1) they leave it. Returns the slots taken as a bitmask
 // over the slot indices (bit 0 left, 1 middle, 2 right — status_line.h's order).
 //

@@ -572,7 +572,7 @@ function packLine(line, payload, settings, env) {
 
 /**
  * Add STATUS_LINE_1..4_UINT8, the packed STATUS_LEVELS_UINT8 threshold bytes and
- * the Alerts row's ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
+ * the alert row's ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
  * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
  * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY,
  * POLLEN_TOMORROW) -- the status text, the threshold levels and the alert
@@ -606,7 +606,7 @@ function buildStatusLines(payload, settings, watchInfo) {
   // so the change detector is unaffected.
   if (env.thresholds) {
     payload.STATUS_LEVELS_UINT8 = thresholds.packWeatherLevels(payload, settings);
-    // The Alerts row's metric entries, judged here for the same reason. Its own
+    // The alert row's metric entries, judged here for the same reason. Its own
     // tuple in the 'status' category, so it rides (and is change-detected) with
     // the lines; [] when nothing is alerting, which clears the watch's stored
     // entries. The rain alert is not in here: the watch resolves it from its own
