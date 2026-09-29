@@ -34,10 +34,15 @@ Usage: python3 scripts/svg2pdc.py in.svg NAME [out_dir]   # writes out_dir/NAME.
 Regenerate the whole family (from repo root):
     for pair in \\
       temperature:STATUS_TEMP uv:STATUS_UV wind:STATUS_WIND gusts:STATUS_GUST \\
-      umbrella:STATUS_PRECIP pollen:STATUS_POLLEN distance:STATUS_DISTANCE; do
+      umbrella:STATUS_PRECIP pollen:STATUS_POLLEN distance:STATUS_DISTANCE \\
+      mute:STATUS_QUIET bluetooth:STATUS_BT bluetooth-off:STATUS_BT_OFF; do
       svg=${pair%%:*}; name=${pair##*:}
       python3 scripts/svg2pdc.py "docs/superpowers/svg/$svg.svg" "$name" resources/data
     done
+The On demand trio (STATUS_QUIET / STATUS_BT / STATUS_BT_OFF) is hand-drawn in the
+same 24-unit grid: a speaker polygon with a slash, the Bluetooth rune
+(M7 8l10 8l-5 4v-16l5 4l-10 8), and that rune with a M5 5l14 14 slash, which
+keeps the rune's ink height so both Bluetooth glyphs scale alike.
 (HEALTH_HEART / HEALTH_STEPS / HEALTH_SLEEP are hand-authored PDCs, not produced
 here — HEALTH_HEART is the plain heart glyph, deliberately without the ECG line.)
 """

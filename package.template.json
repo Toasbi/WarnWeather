@@ -291,6 +291,39 @@
           ]
         },
         {
+          "type": "raw",
+          "name": "STATUS_QUIET",
+          "file": "data/STATUS_QUIET.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "STATUS_BT",
+          "file": "data/STATUS_BT.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "STATUS_BT_OFF",
+          "file": "data/STATUS_BT_OFF.pdc",
+          "targetPlatforms": [
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+          ]
+        },
+        {
           "type": "bitmap",
           "name": "CLOCK_STRIP_ROBOTO",
           "file": "img/clock-roboto.png",
