@@ -399,10 +399,15 @@ const HEAVIEST_SETTINGS = {
   healthMode: 'status', provider: 'openweathermap', fetchIntervalMin: '120',
   rainCountdownHorizon: '60', sleepNightEnabled: true, sleepStartHour: '23',
   // The Alerts card at its heaviest: every metric alert on, every one printing its
-  // value, and the rain look on its longest option.
+  // value and looking ahead with a mark, and the rain look on its longest option. (The
+  // alerts code is ten letters whatever they are; this sets every letter anyway.)
   alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true,
   alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
   alertAqiDisplay: 'value', alertPollenDisplay: 'value', rainAlertDisplay: 'minutes',
+  alertUvDays: 'tomorrow', alertWindDays: 'tomorrow', alertGustDays: 'tomorrow',
+  alertAqiDays: 'tomorrow', alertPollenDays: 'tomorrow',
+  alertUvNextDayMark: 'raquo', alertWindNextDayMark: 'gt', alertGustNextDayMark: 'plus',
+  alertAqiNextDayMark: 'star', alertPollenNextDayMark: 'none',
   // Every bar placing the row (the code is four letters whatever they are), and the
   // rain switch off — 'false' is a byte longer than 'true'.
   statusTopAlerts: 'middle', statusForecastAlerts: 'middle', statusRadarAlerts: 'middle',
@@ -794,11 +799,14 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // 37 B (3912 before them): 3949 B, headroom 147; the custom-layout envelope 4059 B,
 // headroom 37 — why alertBars is a four-letter code, not a spelled-out list. The
 // eight-letter warn-look code (warnLooks) is 23 B: 3972 B, headroom 124; the
-// custom-layout envelope 4082 B, headroom 14.
+// custom-layout envelope 4082 B, headroom 14. Folding the two alert comma lists
+// (alertKinds, alertValueKinds) into the ten-letter alerts code — which also carries
+// each alert's Days and tomorrow mark — saved 61 B: 3911 B, headroom 185; the
+// custom-layout envelope 4021 B, headroom 75.
 // Those two measure the legacy single-event shape, which only app versions before 1.16
 // still send, each with its own older and smaller snapshot. This client sends only
-// batches, and what binds it is the settings header measured last: 2952 of 4096,
-// headroom 1144.
+// batches, and what binds it is the settings header measured last: 2891 of 4096,
+// headroom 1205.
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
@@ -1180,27 +1188,58 @@ test('a clock-step durationMs queues as null; a real one as-is', () => {
   assert.ok(max <= 2147483647, 'the phone-side bound sits inside the int4 column');
 });
 
-// The Alerts card: which metric alerts are on (comma-joined in the row order), which
-// of those print their value, and the rain alert's look — all three what the watch is
-// sent, never undefined: the codes come from the alert bake's own calls and the look
+// The Alerts card: each metric alert's look, Days and tomorrow mark as one ten-letter
+// code in the row order, and the rain alert's look — both what the watch is sent,
+// never undefined: the code comes from the alert bake's own calls and the look
 // resolves like the blob byte, so an absent key reports the default in effect.
-test('the Alerts card reports alertKinds, alertValueKinds and rainAlertDisplay', () => {
+test('the Alerts card reports alerts and rainAlertDisplay', () => {
   const fresh = buildSettingsSnapshot({});
-  assert.equal(fresh.alertKinds, '', 'no alert key: none on');
-  assert.equal(fresh.alertValueKinds, '');
+  assert.equal(fresh.alerts, 'o-o-o-o-o-', 'no alert key: none on');
   assert.equal(fresh.rainAlertDisplay, 'text', 'no look stored: the countdown text');
+  assert.ok(!('alertKinds' in fresh) && !('alertValueKinds' in fresh),
+    'the two comma lists the code replaced are gone');
 
   const none = buildSettingsSnapshot({ alertUv: false, alertUvDisplay: 'value',
-    rainAlertDisplay: 'text' });
-  assert.equal(none.alertKinds, '', 'none on');
-  assert.equal(none.alertValueKinds, '', 'a disabled alert\'s Look does not count');
+    alertUvDays: 'tomorrow', alertUvNextDayMark: 'star', rainAlertDisplay: 'text' });
+  assert.equal(none.alerts, 'o-o-o-o-o-', 'a disabled alert\'s Look, Days and mark do not count');
   assert.equal(none.rainAlertDisplay, 'text');
 
+  // An alert on with nothing else stored looks ahead with the »: the contract's
+  // defaults (alertDays 'tomorrow', alertNextDayMark 'raquo'), the ones it bakes with.
   const some = buildSettingsSnapshot({ alertAqi: true, alertAqiDisplay: 'value',
     alertUv: true, alertUvDisplay: 'icon', alertWind: false, rainAlertDisplay: 'minutes' });
-  assert.equal(some.alertKinds, 'uv,aqi', 'the row order, whatever the key order');
-  assert.equal(some.alertValueKinds, 'aqi');
+  assert.equal(some.alerts, 'Iro-o-Vro-', 'the row order, whatever the key order');
   assert.equal(some.rainAlertDisplay, 'minutes');
+
+  // Days Today: lower case and no mark, whatever mark is stored (the bake never
+  // reads it). An unknown Days or mark reports the default the bake reads.
+  assert.equal(buildSettingsSnapshot({ alertUv: true, alertUvDays: 'today', alertUvNextDayMark: 'gt',
+    alertGust: true, alertGustDisplay: 'value', alertGustDays: 'today' }).alerts, 'i-o-v-o-o-');
+  assert.equal(buildSettingsSnapshot({ alertUv: true, alertUvNextDayMark: 'gt', alertWind: true,
+    alertWindNextDayMark: 'plus', alertGust: true, alertGustNextDayMark: 'star', alertAqi: true,
+    alertAqiNextDayMark: 'none', alertPollen: true, alertPollenDays: 'bogus',
+    alertPollenNextDayMark: 'bogus' }).alerts, 'IgIpIsInIr');
+});
+
+// The alerts code against the contract: each letter pair is the alert bake's own
+// reading of that alert — its switch, Look, Days and mark — across the whole matrix.
+test('alerts agrees with the bake\'s reading of every alert setting', () => {
+  const th = require('../src/pkjs/status-thresholds.js');
+  const MARK = { raquo: 'r', gt: 'g', plus: 'p', star: 's', none: 'n' };
+  [undefined, true, false].forEach((on) => [undefined, 'icon', 'value'].forEach((look) =>
+    [undefined, 'today', 'tomorrow', 'bogus'].forEach((days) =>
+      [undefined, 'raquo', 'gt', 'plus', 'star', 'none', 'bogus'].forEach((mark) => {
+        const s = { alertWind: on, alertWindDisplay: look, alertWindDays: days, alertWindNextDayMark: mark };
+        const pair = buildSettingsSnapshot(s).alerts.slice(2, 4);
+        let want = 'o-';
+        if (th.alertOn(s, 'wind')) {
+          const l = th.alertValueKindCodes(s).indexOf('wind') !== -1 ? 'v' : 'i';
+          want = th.alertDays(s, 'wind') === 'tomorrow'
+            ? l.toUpperCase() + MARK[th.alertNextDayMark(s, 'wind')] : l + '-';
+        }
+        assert.equal(pair, want, JSON.stringify(s));
+      }))));
+  assert.deepEqual(Object.keys(MARK), th.ALERT_NEXT_DAY_MARKS, 'every mark has its letter here');
 });
 
 // The rain look reported is the one the watch draws: the blob's alerts byte and the
@@ -1217,17 +1256,21 @@ test('rainAlertDisplay agrees with the rain look the blob sends', () => {
   assert.equal(buildSettingsSnapshot({ rainAlertDisplay: 'bogus' }).rainAlertDisplay, 'text');
 });
 
-// alertBars and warnLooks spell each value by its FIRST LETTER, so two values of one
-// vocabulary sharing an initial would read as one value in the dashboards. A new look
-// or placement that collides needs a new code, not a charAt(0).
+// alertBars, warnLooks and the alerts code's marks spell each value by its FIRST
+// LETTER, so two values of one vocabulary sharing an initial would read as one value
+// in the dashboards. A new look, placement or mark that collides needs a new code, not
+// a charAt(0). (The alerts code's '-' and its looks' o/i/v are fixed letters.)
 test('the one-letter codes are unambiguous: first letters are unique per vocabulary', () => {
   const thresholds = require('../src/pkjs/status-thresholds.js');
-  [['WARN_LOOKS', thresholds.WARN_LOOKS], ['BAR_ALERT_PLACES', thresholds.BAR_ALERT_PLACES]
+  [['WARN_LOOKS', Object.keys(thresholds.WARN_LOOKS)],
+    ['BAR_ALERT_PLACES', Object.keys(thresholds.BAR_ALERT_PLACES)],
+    ['ALERT_NEXT_DAY_MARKS', thresholds.ALERT_NEXT_DAY_MARKS]
   ].forEach((row) => {
-    const initials = Object.keys(row[1]).map((v) => v.charAt(0));
+    const initials = row[1].map((v) => v.charAt(0));
+    assert.ok(initials.indexOf('-') === -1, row[0] + ': no value may start with the no-mark dash');
     assert.ok(initials.length >= 3, row[0] + ' has its values');
     assert.deepEqual(initials.filter((c, i) => initials.indexOf(c) !== i), [],
-      row[0] + ' values must not share a first letter: ' + Object.keys(row[1]).join(', '));
+      row[0] + ' values must not share a first letter: ' + row[1].join(', '));
   });
 });
 

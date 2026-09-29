@@ -7,9 +7,10 @@ var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
 // The radar source in effect ('rainbowkey' for Rainbow with "Use your own key" on).
 var radarSourceId = require('./weather/radar-source-id.js');
-// alertKindCodes / alertValueKindCodes, rainAlert, barAlertPlace and warnLookFor — the
-// bake's and the packer's own reading of the Alerts card and the warn looks, so the
-// report and the watch cannot disagree on what is on or how it looks.
+// alertOn / alertValueKindCodes / alertDays / alertNextDayMark, rainAlert,
+// barAlertPlace and warnLookFor — the bake's and the packer's own reading of the
+// Alerts card and the warn looks, so the report and the watch cannot disagree on what
+// is on or how it looks.
 var statusThresholds = require('./status-thresholds.js');
 
 /**
@@ -91,6 +92,40 @@ function alertBarsReport(safe) {
     var bars = statusThresholds.BAR_ALERT_KEYS;
     for (var i = 0; i < bars.length; i++) {
         out += statusThresholds.barAlertPlace(safe, bars[i].bar).charAt(0);
+    }
+    return out;
+}
+
+/**
+ * The metric alerts, two letters per alert in the row's fixed order (status-thresholds
+ * ALERT_KINDS: uv, wind, gust, aqi, pollen). The first is its look: o off, i icon,
+ * v icon + value — upper case while its Days is "Today + tomorrow". The second is the
+ * tomorrow mark in effect, the initial of its ALERT_NEXT_DAY_MARKS key (r », g >,
+ * p +, s *, n none), while the alert looks ahead, else '-' (an alert that is off or
+ * judges today only reads no mark — the "value in effect" rule). So 'o-o-o-o-o-' is
+ * an untouched install (no metric alert on), and 'Vri-o-o-o-' UV printing its value
+ * and looking ahead with the », wind as an icon on today only. Everything is read
+ * through the alert bake's own calls, so the report and the watch cannot disagree.
+ * Ten characters, never lists: alertBarsReport's reason — this one code replaced two
+ * comma lists (alertKinds, alertValueKinds) that cost about 60 B more per row at
+ * their heaviest. The mark initials are pinned unique in test/telemetry.test.js.
+ * @param {Object} safe Settings blob (never null).
+ * @returns {string} e.g. 'o-o-o-o-o-' on an untouched install.
+ */
+function alertsReport(safe) {
+    var kinds = statusThresholds.ALERT_KINDS;
+    var valueCodes = statusThresholds.alertValueKindCodes(safe);
+    var out = '';
+    for (var i = 0; i < kinds.length; i++) {
+        var code = kinds[i].code;
+        if (!statusThresholds.alertOn(safe, code)) {
+            out += 'o-';
+            continue;
+        }
+        var look = valueCodes.indexOf(code) !== -1 ? 'v' : 'i';
+        out += statusThresholds.alertDays(safe, code) === 'tomorrow'
+            ? look.toUpperCase() + statusThresholds.alertNextDayMark(safe, code).charAt(0)
+            : look + '-';
     }
     return out;
 }
@@ -203,15 +238,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
         provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
         rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
-        // The Alerts card: which metric alerts are on and which of those print their
-        // value, each comma-joined in the row's fixed order ('' when none, e.g.
-        // 'uv,wind'), read through the same calls the alert bake makes; and the rain
-        // alert's look ('text' | 'icon' | 'minutes') RESOLVED like the blob byte the
-        // watch reads, so an absent or unknown look reports 'text'. All three are
-        // z.string() in the ingest schema: a comma list, never an enum, so a new
-        // alert kind cannot 400 an old ingest's batch.
-        alertKinds: statusThresholds.alertKindCodes(safe).join(','),
-        alertValueKinds: statusThresholds.alertValueKindCodes(safe).join(','),
+        // The Alerts card: each metric alert's look, Days and tomorrow mark (see
+        // alertsReport), and the rain alert's look ('text' | 'icon' | 'minutes')
+        // RESOLVED like the blob byte the watch reads, so an absent or unknown look
+        // reports 'text'. Both are z.string() in the ingest schema, never an enum, so
+        // a new alert kind or look cannot 400 an old ingest's batch.
+        alerts: alertsReport(safe),
         rainAlertDisplay: statusThresholds.rainAlert(safe).look,
         // Where each bar places the row (see alertBarsReport), and the rain alert's
         // STORED switch — on by default like radarSky: a missing key is on. Not the

@@ -109,11 +109,14 @@ const settingsSchema = z
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
-    // The Alerts card (src/pkjs/telemetry.js): comma-joined alert codes ('' when
-    // none) and the rain look, resolved as the watch draws it ('text' when unset).
-    // z.string(), not z.enum: a future alert kind or look must not 400 the batch.
-    alertKinds: z.string().optional(),
-    alertValueKinds: z.string().optional(),
+    // The Alerts card (src/pkjs/telemetry.js): the metric alerts, two letters each in
+    // the row order (uv, wind, gust, aqi, pollen) — the look, o off / i icon /
+    // v icon + value, upper case while the alert looks ahead to tomorrow; then the
+    // tomorrow mark in effect, r » / g > / p + / s * / n none, '-' while off or today
+    // only (e.g. 'Vri-o-o-o-'); and the rain look, resolved as the watch draws it
+    // ('text' when unset). z.string(), not z.enum: a future alert kind or look must
+    // not 400 the batch.
+    alerts: z.string().optional(),
     rainAlertDisplay: z.string().optional(),
     // Where each status bar places the Alerts row — one letter per bar (top,
     // forecast, radar, health): o off / l left / m middle / r right, e.g. 'looo' —
