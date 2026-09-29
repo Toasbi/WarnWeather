@@ -13,7 +13,7 @@
 #include "../appendix/status_threshold.h"
 #include "../windows/layout.h"   // LayoutTier (row_font)
 #include "../services/watch_services.h"
-#include "status_alerts.h"
+#include "status_on_demand.h"
 #include "status_sig.h"
 #if defined(PBL_HEALTH)
 #include "../services/health_summary.h"
@@ -64,16 +64,15 @@ struct StatusRow {
     uint8_t tier;
     GRect bounds;
     bool full_date;
-    bool battery_override;
     GDrawCommandImage *glyphs[STATUS_SLOT_COUNT];
     uint8_t glyph_icons[STATUS_SLOT_COUNT];
     int16_t glyph_h;
     GColor glyph_fg;
     uint16_t content_sig;
     bool uses_live_health;
-    // The alert row: its glyph cache and the bar's placement, which every refresh
-    // derives from the blob (derive_alerts_place).
-    StatusAlertsRow alerts;
+    // On demand: the items' glyph cache, and whether any item sits on this row's
+    // bar, which every refresh reads from the blob (status_on_demand_fold).
+    StatusOnDemandRow od;
 };
 
 // Main-app drawing and refresh callbacks are serialized, so all row instances can
@@ -86,6 +85,10 @@ static uint8_t s_blob_scratch[STATUS_LINE_MAX_BYTES];
 // refresh/draw like the packed line blobs; len 0 = nothing configured yet.
 static uint8_t s_thresh_scratch[THRESH_SETTINGS_BYTES];
 static int s_thresh_len;
+// One draw's On demand pass (status_on_demand.h): the resolved items, their measures
+// and the layout. Too big for the app stack beside the rest of a draw, and draws are
+// serialized, so every row's draw reuses this one.
+static StatusOnDemandPass s_od_pass;
 // Packed weather threshold-levels value (STATUS_LEVELS_UINT8, 2 wire bytes LE —
 // UV rides bits 8-9), reloaded once per refresh/draw pass alongside the blob
 // above (persist_get_status_levels() is persist_exists + persist_read_int;
@@ -273,17 +276,6 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
     }
 }
 
-// The low-battery takeover: force the right slot to render as the battery glyph
-// (icon-only, no text) without touching the packed blob. No-op for other slots.
-static void apply_battery_override(const StatusRow *row, int slot_index, StatusSlotView *slot) {
-    if (row->battery_override && slot_index == STATUS_SLOT_COUNT - 1) {
-        slot->kind = SLOT_LIVE_BATTERY;
-        slot->icon = STATUS_ICON_NONE;
-        slot->value_len = 0;
-        slot->value = NULL;
-    }
-}
-
 // The phone-battery slots. Three icon ids mark a slot whose text the PHONE baked
 // from its OWN charge; there is no kind-level marker, the kind is plain SLOT_TEXT
 // exactly like a city name, so the icon id is the only discriminator. Ids 16/17 are
@@ -367,8 +359,8 @@ static void load_thresholds(void) {
 // thresholds behind it — which is exactly what the (since retired) right-slot
 // width query used to do: it loaded the blob, skipped load_thresholds(), and so measured with the
 // regular font a slot the draw pass then painted bold. The thresholds come first
-// and load whatever the line holds: the refresh derives the bar's Alerts placement
-// from them even for a line with nothing to render.
+// and load whatever the line holds: the bar's On demand items are read from them
+// even for a line with nothing to render.
 static int load_pass(uint8_t line_id, StatusSlotView out[STATUS_SLOT_COUNT]) {
     load_thresholds();
     int len = persist_get_status_line(line_id, s_blob_scratch, sizeof(s_blob_scratch));
@@ -409,7 +401,7 @@ static int slot_health_value(int kind) {
 // ensure_glyphs() and then measures with this struct's `font` — the same font it
 // goes on to draw with, which is the whole reason the font is resolved here.
 typedef struct {
-    StatusSlotView slot;                    // the battery override already applied
+    StatusSlotView slot;                    // the packed slot
     GFont          font;                    // regular, or the bold companion
     char    text[STATUS_TEXT_MID_MAX + 1];  // direction sentinel already stripped
     int8_t  dir;                            // wind sector 0..15, -1 = none
@@ -417,15 +409,13 @@ typedef struct {
     ThreshLook look;                        // box, bold bit, RAW accent byte at `level`
 } ResolvedSlot;
 
-// Resolve slot `i` of an already-loaded pass (load_pass filled `view`). `base` is
+// Resolve one slot of an already-loaded pass (load_pass filled `view`). `base` is
 // the row's regular font; a slot whose bold verdict is set takes the bold
 // companion instead.
-static void resolve_slot(const StatusRow *row, int i, GFont base,
-                         const StatusSlotView *view, ResolvedSlot *out) {
+static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView *view,
+                         ResolvedSlot *out) {
     out->slot = *view;
-    apply_battery_override(row, i, &out->slot);
     out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text));
-    // AFTER the battery override, which rewrites the slot's kind/icon.
     // The ThreshKind is scaffolding, not a result: every consumer of it lives in
     // this function, so it stays a local. (The array it replaced carried it across
     // two loops, which is why the first cut made it a field.)
@@ -460,7 +450,7 @@ static void resolve_row(const StatusRow *row, const StatusSlotView views[STATUS_
                         ResolvedSlot out[STATUS_SLOT_COUNT]) {
     GFont base = row_font(row->tier, row->line_id);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, i, base, &views[i], &out[i]);
+        resolve_slot(row, base, &views[i], &out[i]);
     }
 }
 
@@ -485,7 +475,7 @@ void status_row_destroy(StatusRow *row) {
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         status_row_icons_destroy(row->glyphs[i]);
     }
-    status_alerts_release(&row->alerts);
+    status_on_demand_release(&row->od);
     free(row);
     s_row_count--;
     if (s_row_count == 0 && s_arrow_path) {
@@ -505,33 +495,12 @@ void status_row_set_full_date(StatusRow *row, bool full_date) {
     if (row) { row->full_date = full_date; }
 }
 
-void status_row_set_battery_override(StatusRow *row, bool active) {
-    if (row && row->battery_override != active) {
-        row->battery_override = active;
-        row->content_sig = 0;   // force the next refresh to report a change
-    }
-}
-
 bool status_row_uses_live_health(const StatusRow *row) {
     return row && row->uses_live_health;
 }
 
-// Read the bar's Alerts placement from the thresholds blob the pass just loaded:
-// the row's own cell of the placement byte. Every refresh reads it, so every
-// checkpoint that re-resolves the row — a settings save's among them — also picks
-// up a moved placement, and nothing outside the row has to push it in.
-static void derive_alerts_place(StatusRow *row) {
-    // load_thresholds() normalises an invalid blob to len 0, which the accessor
-    // answers with the pre-placement default (strip left, the rest off).
-    row->alerts.place = (uint8_t)status_threshold_bar_alerts(s_thresh_scratch,
-        (size_t)s_thresh_len, status_threshold_bar_of_line(row->line_id));
-    // Off: give the cache and whatever glyphs it still holds back now rather than
-    // at row teardown. Any other placement keeps it — the same entries draw there.
-    if (row->alerts.place == THRESH_ALERTS_OFF) { status_alerts_release(&row->alerts); }
-}
-
-bool status_row_uses_alerts(const StatusRow *row) {
-    return row && row->alerts.place != THRESH_ALERTS_OFF;
+bool status_row_uses_on_demand(const StatusRow *row) {
+    return row && row->od.assigned;
 }
 
 // The slot kinds whose value is read from HealthService — the ones that put a row
@@ -559,17 +528,19 @@ bool status_row_refresh(StatusRow *row) {
     bool has_drawn_sun = false;
     row->uses_live_health = false;
     // The pass load comes first: it reads the thresholds whatever the line holds, so
-    // the Alerts placement below is current even when the line has nothing to render.
+    // the bar's On demand items are current even when the line has nothing to render
+    // — a fresh install with no phone yet still shows Bluetooth disconnected.
     StatusSlotView views[STATUS_SLOT_COUNT];
     const bool has_line = load_pass(row->line_id, views) > 0;
-    derive_alerts_place(row);
-    // Folded whatever it is, Off included: the same entries moved from the left to
-    // the right are a new paint, and so is a row that stops drawing them.
-    sig = sig_fold(sig, &row->alerts.place, 1);
-    // All three slots, always — including the ones the alert row may take over at
-    // paint time: which slots it takes is a paint decision (it depends on measured
-    // widths), not a content rule, and a signature describing only part of the row
-    // would let a slot that moved while replaced come back stale.
+    // The bar's cells and every assigned item's state, folded whatever they are: the
+    // same item moved to the other side is a new paint, and so is a bar that stops
+    // drawing one. Also where row->od.assigned is derived.
+    sig = status_on_demand_fold(&row->od, sig, status_threshold_bar_of_line(row->line_id),
+                                s_thresh_scratch, (size_t)s_thresh_len);
+    // All three slots, always — including the ones On demand may slide, shorten or
+    // hide at paint time: how the slots make room is a paint decision (it depends on
+    // measured widths), not a content rule, and a signature describing only part of
+    // the row would let a slot that changed while hidden come back stale.
     if (has_line) {
         ResolvedSlot resolved[STATUS_SLOT_COUNT];
         resolve_row(row, views, resolved);
@@ -633,10 +604,6 @@ bool status_row_refresh(StatusRow *row) {
                 row->uses_live_health = true;
             }
         }
-        // The alert row's entries fold only while the bar has a placement — Off
-        // draws none of them, so they are not this row's content.
-        sig = status_alerts_fold(&row->alerts, sig, s_thresh_scratch,
-                                 (size_t)s_thresh_len);
     }
     if (has_drawn_sun) {
         uint8_t sun_event_start_type = (uint8_t)persist_get_sun_event_start_type();
@@ -649,8 +616,8 @@ bool status_row_refresh(StatusRow *row) {
 }
 
 // The row's icon tier: a fraction of the font's content height (smaller on the top
-// strip), capped at the band. Shared by the slot glyphs and the alert row's, so an
-// alert icon is exactly the size the same icon has in a slot beside it.
+// strip), capped at the band. Shared by the slot glyphs and the On demand items, so
+// an alert icon is exactly the size the same icon has in a slot beside it.
 static int16_t icon_target_h(const StatusRow *row, int content_h) {
     bool top = (row->line_id == STATUS_LINE_TOP);
     int rn = top ? TOP_ICON_RATIO_NUM : ICON_RATIO_NUM;
@@ -661,9 +628,8 @@ static int16_t icon_target_h(const StatusRow *row, int content_h) {
     return target_h;
 }
 
-// `views` are the caller's already-walked slots (load_pass filled them); the
-// battery override is deliberately NOT applied here — glyph_icons[] tracks the
-// PACKED icon, and the override's glyph is drawn by battery_draw(), not a PDC.
+// `views` are the caller's already-walked slots (load_pass filled them);
+// glyph_icons[] tracks the PACKED icon.
 static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int content_h) {
     bool top = (row->line_id == STATUS_LINE_TOP);
     int16_t target_h = icon_target_h(row, content_h);
@@ -758,7 +724,13 @@ static GRect slot_highlight_box(const StatusRow *row, const StatusSlotPlace *pla
 void status_row_draw(StatusRow *row, GContext *ctx) {
     if (!row || !ctx) { return; }
     StatusSlotView views[STATUS_SLOT_COUNT];
-    if (load_pass(row->line_id, views) == 0) { return; }
+    if (load_pass(row->line_id, views) == 0) {
+        // No line to render. A bar with On demand items still draws them — a fresh
+        // install with no phone yet must show Bluetooth disconnected — over three
+        // empty slots; any other bar draws nothing, as before.
+        if (!row->od.assigned) { return; }
+        memset(views, 0, sizeof(views));
+    }
 
     GFont font = row_font(row->tier, row->line_id);
     int content_h = graphics_text_layout_get_content_size(
@@ -772,7 +744,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     StatusSlotMeasure measures[STATUS_SLOT_COUNT];
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, i, font, &views[i], &slots[i]);
+        resolve_slot(row, font, &views[i], &slots[i]);
         // The resolver's font, not `font`: a bold slot's glyphs are wider, so it
         // must MEASURE with the font it is about to be drawn with.
         measures[i] = measure_slot(row, i, slots[i].font, content_w,
@@ -785,10 +757,13 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         + status_glyph_center_y(text_y_rel, content_h);
     int16_t x0 = (int16_t)(row->bounds.origin.x + STATUS_ROW_MARGIN);
 
-    // The alert row, measured against the three slots: with a placement and an
-    // active alert it takes its slots out of the layout; otherwise the bar lays out
-    // exactly as it would without the feature.
-    const StatusAlertsEnv alerts_env = {
+    // On demand, measured against the three slots: with an active item the slots make
+    // room for it (on_demand.c's ladder); otherwise the bar lays out exactly as it
+    // would without the feature. The top strip's left run may reach STATUS_ROW_MARGIN
+    // into the margin, so its first item sits where the old indicators drew (screen
+    // x 4) while its content rect stays the quiet one.
+    const bool top = row->line_id == STATUS_LINE_TOP;
+    const StatusOnDemandEnv od_env = {
         .font = font,
         .bold = row_font_bold(row->tier, row->line_id),
         .blob = s_thresh_scratch,
@@ -799,12 +774,13 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         .text_y = (int16_t)text_y,
         .content_h = (int16_t)content_h,
         .icon_h = icon_target_h(row, content_h),
-        .top_strip = row->line_id == STATUS_LINE_TOP,
-        .battery = row->battery_override
+        .bar = (int8_t)status_threshold_bar_of_line(row->line_id),
+        .bleed_left = top ? STATUS_ROW_MARGIN : 0,
+        .top_strip = top,
+        .right_is_battery = views[STATUS_SLOT_COUNT - 1].kind == SLOT_LIVE_BATTERY
     };
-    StatusAlertsPass alerts;
     StatusSlotPlace places[STATUS_SLOT_COUNT];
-    status_alerts_layout(&row->alerts, &alerts, &alerts_env, measures, places, content_w);
+    status_on_demand_layout(&row->od, &s_od_pass, &od_env, measures, places, content_w);
 
     // Threshold-highlight pass: paint each crossed slot's box — an outline, or a
     // filled box + outline — UNDER its icon + text (calendar today-box precedent),
@@ -821,9 +797,9 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         inks[i] = status_highlight_paint(ctx, box, slots[i].look);
     }
 
-    // The alert row's entries, over the slot boxes and under the slot content. The
-    // slots it replaced were zeroed out of the layout, so neither pass here touches them.
-    status_alerts_paint(ctx, &row->alerts, &alerts, &alerts_env);
+    // The On demand items, over the slot boxes and under the slot content. A slot the
+    // layout hid is not visible, so neither slot pass here touches it.
+    status_on_demand_paint(ctx, &row->od, &s_od_pass, &od_env);
 
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
         if (!places[i].visible) { continue; }

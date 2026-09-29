@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "status_line.h"
+#include "on_demand.h"   // OdItem / OdSide: the On demand cells' order and values
 
 // Status-slot threshold-highlight contract, shared with the phone.
 // LOCKSTEP: src/pkjs/status-thresholds.js mirrors the kind order, level values,
@@ -40,20 +41,19 @@
 //                       INDEPENDENT of the enabled bitmask: THRESH_BOLD_ALWAYS
 //                       bolds a slot whose kind has no thresholds configured.
 //      [34]             alerts options (THRESH_ALERTS_OFFSET). Bits 0-1: the
-//                       alert row's rain look (0 text — the legacy "Rain in
-//                       12'" countdown, 1 icon, 2 icon + minutes; 3 reserved,
-//                       reads as text). Bits 2-7 reserved (DWD official-warning
-//                       flags later) — written 0. Which METRIC alerts are on
-//                       never rides here: the phone bakes only the enabled,
-//                       active ones into their own weather tuple
-//                       (ALERT_ENTRIES_UINT8, encoding in alert_set.h).
-//      [35]             the alert row's placement per status bar
-//                       (THRESH_BAR_ALERTS_OFFSET), 2 bits per bar: top strip
-//                       bits 0-1, forecast 2-3, radar 4-5, health 6-7 (ThreshBar
-//                       order); 0 off / 1 left / 2 middle / 3 right
-//                       (ThreshAlertsPlace). While an alert is active the row
-//                       replaces that slot of the bar (and the neighbouring one
-//                       when it needs the room).
+//                       Rain item's look (0 text — the legacy "Rain in 12'"
+//                       countdown, 1 icon, 2 icon + minutes; 3 reserved, reads
+//                       as text). Bits 2-7 reserved (DWD official-warning flags
+//                       later) — written 0. Which METRIC alerts are active never
+//                       rides here: the phone bakes the placed, active ones into
+//                       their own weather tuple (ALERT_ENTRIES_UINT8, encoding in
+//                       alert_set.h).
+//      [35]             the Battery item (THRESH_BATTERY_OFFSET): bits 0-5 the
+//                       warn level in % (valid 5..30; 0 or out of range reads
+//                       as 10), bit 6 its Look (0 icon, 1 icon + value), bit 7
+//                       reserved 0. The phone writes the level already on the
+//                       platform's step (5s on emery, 10/20/30 elsewhere), so the
+//                       watch uses it verbatim and never rounds.
 //      [36 + (k >> 2)]  warn look (ThreshWarnLook) per PAIRED kind, 2 bits at
 //                       bits 2 * (k & 3) — kinds 0..7 = bytes 36..37
 //                       (THRESH_WARN_LOOK_OFFSET): the box drawn at the WARN
@@ -63,35 +63,44 @@
 //                       (34 B and shorter) derives the look from the warn color
 //                       byte: 0x00 -> none, any colour -> outline — exactly what
 //                       the watch drew before the bytes existed.
+//      [38 + item]      the On demand cells (THRESH_ON_DEMAND_OFFSET): one byte
+//                       per OdItem (on_demand.h, the priority order), 2 bits per
+//                       bar at bits 2 * bar (ThreshBar): 0 none, 1 left, 2 right
+//                       (OdSide), 3 reserved (reads as none). The phone writes
+//                       effective values only — an Enabled side, a ticked item,
+//                       a bar that exists — so a Disabled side is simply zeros.
 //    One widening per release that shipped a new length, each on top of the
 //    29-byte pre-bold layout:
 //      - 1.11.0: 33 B, the bold area for kinds 0..15 (bytes 29..32).
 //      - 1.12.0: 34 B, battery % (kind 16) opened byte 33; dew point (17) and the
 //        two phone-battery kinds (18, 19) later took its other three cells for
 //        free, which EXHAUSTED the bold area.
-//      - 1.24.0: 38 B, the two alert bytes (the rain look, the per-bar
-//        placement) and the two warn-look bytes, which cover the 8 PAIRED kinds
-//        only (a ninth paired kind would need a third byte — asserted below).
+//      - 1.24.0: 48 B, the rain look, the Battery item byte, the two warn-look
+//        bytes, which cover the 8 PAIRED kinds only (a ninth paired kind would
+//        need a third byte — asserted below), and the ten On demand cells.
 //    The alert bytes sit right behind the full bold area, so kind 20 is no plain
-//    append — it needs a sixth bold byte AND must relocate BOTH alert bytes (and
-//    the warn-look bytes behind them), a LAYOUT change (a new accepted length and
-//    a reader that knows every position). The _Static_asserts below the offsets
-//    turn that into a compile error instead of kind 20's bold cell silently
-//    aliasing the rain look.
-//    Exactly four lengths are accepted: the current 38, the pre-alerts 34, the
-//    16-kind 33, and the pre-bold 29. The interim 31-byte (8-kind bold), 35-byte
-//    (the rain look without the placement) and 36-byte (no warn look) formats
-//    never shipped — they existed only on feature branches — so they validate as
-//    garbage, not as legacy. The UV step (27 -> 29) SHIFTED the health offsets,
-//    so a 27-byte blob would be misread and is rejected; every step since only
-//    APPENDS, so a shorter accepted blob still describes every field before it
-//    and is read with the default for what it lacks (a 33-byte blob reads kind
-//    16 as the default bold mode; a 34-byte one reads the rain look as text, the
-//    placement as top strip left — the rain takeover the strip always had — and
-//    the warn look from the warn color byte). That matters on upgrade: the
-//    phone only force-resends its settings when the watch reports NO config at
-//    all, so rejecting an old length would blank an existing user's
-//    highlighting until they happened to open the settings page.
+//    append — it needs a sixth bold byte AND must relocate everything behind it
+//    (the rain look, the Battery byte, the warn looks, the cells), a LAYOUT change
+//    (a new accepted length and a reader that knows every position). The
+//    _Static_asserts below the offsets turn that into a compile error instead of
+//    kind 20's bold cell silently aliasing the rain look.
+//    Exactly five lengths are accepted: the current 48, the 38 of the 1.24.0
+//    development branch (THRESH_SETTINGS_BYTES_PRE_ON_DEMAND: a phone that has not
+//    yet learnt the cells, and the owner's dev watch — its byte 35 held a placement
+//    that never shipped, so it is ignored), the pre-alerts 34, the 16-kind 33, and
+//    the pre-bold 29. The interim 31-byte (8-kind bold), 35-byte and 36-byte
+//    formats never shipped, so they validate as garbage, not as legacy. The UV
+//    step (27 -> 29) SHIFTED the health offsets, so a 27-byte blob would be
+//    misread and is rejected; every step since only APPENDS, so a shorter
+//    accepted blob still describes every field before it and is read with the
+//    default for what it lacks (a 33-byte blob reads kind 16 as the default bold
+//    mode; a 34-byte one reads the rain look as text and the warn look from the
+//    warn color byte; anything shorter than 48 reads the Battery item as 10 %,
+//    Icon, and the cells as the compiled On demand defaults,
+//    status_threshold_on_demand_side). That matters on upgrade: the phone only
+//    force-resends its settings when the watch reports NO config at all, so
+//    rejecting an old length would blank an existing user's highlighting until
+//    they happened to open the settings page.
 //    Health threshold wire units: steps = steps, sleep = MINUTES,
 //    distance = 100 m units (the status row's own display resolution).
 
@@ -102,13 +111,25 @@
 // the paired accessors by this is correctness, not tidiness; only the bold
 // cells run to THRESH_KIND_COUNT.
 #define THRESH_PAIRED_KIND_COUNT 8
-#define THRESH_SETTINGS_BYTES 38
+#define THRESH_SETTINGS_BYTES 48
 #define THRESH_COLORS_OFFSET 1
 #define THRESH_HEALTH_OFFSET 17
 #define THRESH_BOLD_OFFSET 29
 #define THRESH_ALERTS_OFFSET 34
-#define THRESH_BAR_ALERTS_OFFSET 35
+#define THRESH_BATTERY_OFFSET 35
 #define THRESH_WARN_LOOK_OFFSET 36
+#define THRESH_ON_DEMAND_OFFSET 38
+// The Battery item's warn level: what byte 35 may carry, and what 0, an
+// out-of-range value and a blob without the byte read as.
+#define THRESH_BATTERY_LEVEL_MIN 5
+#define THRESH_BATTERY_LEVEL_MAX 30
+#define THRESH_BATTERY_LEVEL_DEFAULT 10
+#define THRESH_BATTERY_LEVEL_MASK 0x3F
+#define THRESH_BATTERY_VALUE_BIT 0x40
+// The 1.24.0 development branch's length, before the On demand cells: still
+// accepted, its byte 35 (a placement that never shipped) ignored — the Battery
+// item and the cells read as the compiled defaults, the warn looks as they are.
+#define THRESH_SETTINGS_BYTES_PRE_ON_DEMAND THRESH_ON_DEMAND_OFFSET
 // The blob length before the bold bytes were appended — still accepted, and by
 // construction equal to the offset the bold bytes start at.
 #define THRESH_SETTINGS_BYTES_PRE_BOLD THRESH_BOLD_OFFSET
@@ -117,8 +138,8 @@
 #define THRESH_SETTINGS_BYTES_PRE_KIND16 33
 // The length before the alert and warn-look bytes were appended — still
 // accepted (every install at upgrade time): the rain look reads as text, the
-// placement as top strip left with every other bar off, and the warn look
-// derives from the warn color byte (0x00 none, else outline).
+// Battery item and the On demand cells as the compiled defaults, and the warn
+// look derives from the warn color byte (0x00 none, else outline).
 #define THRESH_SETTINGS_BYTES_PRE_ALERTS 34
 
 typedef enum {
@@ -165,18 +186,26 @@ typedef enum {
 } ThreshKind;
 #define THRESH_WEATHER_KIND_MAX THRESH_GUST
 
-// The alert bytes follow the bold area and end the blob (see the layout above): a
-// kind appended past the last bold cell would write its bold mode into the rain
-// look, so it must relocate both alert bytes.
+// The alert bytes follow the bold area (see the layout above): a kind appended
+// past the last bold cell would write its bold mode into the rain look, so it must
+// relocate everything behind it.
 _Static_assert(THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT + 3) / 4) <= THRESH_ALERTS_OFFSET,
                "a bold kind past byte 33 must relocate the alert bytes (layout change)");
-_Static_assert(THRESH_BAR_ALERTS_OFFSET == THRESH_ALERTS_OFFSET + 1
-               && THRESH_WARN_LOOK_OFFSET == THRESH_BAR_ALERTS_OFFSET + 1,
-               "the two alert bytes sit side by side, the warn look right behind them");
-// The warn look covers the PAIRED kinds, 4 per byte, and ends the blob.
-_Static_assert(THRESH_SETTINGS_BYTES
+_Static_assert(THRESH_BATTERY_OFFSET == THRESH_ALERTS_OFFSET + 1
+               && THRESH_WARN_LOOK_OFFSET == THRESH_BATTERY_OFFSET + 1,
+               "the rain look and the Battery byte sit side by side, the warn look right behind");
+// The warn look covers the PAIRED kinds, 4 per byte, and the cells follow it.
+_Static_assert(THRESH_ON_DEMAND_OFFSET
                == THRESH_WARN_LOOK_OFFSET + (THRESH_PAIRED_KIND_COUNT + 3) / 4,
                "a paired kind past 7 needs a third warn-look byte (layout change)");
+// One cell byte per On demand item ends the blob, and a byte holds every bar.
+_Static_assert(THRESH_SETTINGS_BYTES == THRESH_ON_DEMAND_OFFSET + OD_ITEM_COUNT,
+               "an On demand item past the tenth needs a new cell byte (layout change)");
+// At 48 B the blob exactly fills persist's no-op-write compare buffer
+// (write_sized_data_if_changed): one byte more and every save would skip the compare
+// and write flash.
+_Static_assert(THRESH_SETTINGS_BYTES <= STATUS_LINE_MAX_BYTES,
+               "the blob must fit persist's compare buffer");
 
 // The health trio computes its levels ON the watch from live health values; every
 // other kind (0..3 and UV) is phone-computed via the packed levels wire value.
@@ -251,7 +280,7 @@ uint16_t status_threshold_health_danger(const uint8_t *blob, size_t len, int kin
 // for an invalid blob, an out-of-range kind, or the reserved wire value 3.
 int status_threshold_bold_mode(const uint8_t *blob, size_t len, int kind);
 
-// The alert row's rain look — bits 0-1 of the alerts byte.
+// The Rain item's look — bits 0-1 of the alerts byte.
 typedef enum {
     THRESH_RAIN_DISPLAY_TEXT = 0,      // the full countdown, "Rain in 12'" (legacy)
     THRESH_RAIN_DISPLAY_ICON = 1,      // the drop alone
@@ -292,21 +321,22 @@ typedef enum {
 // OUTLINE, the accessor's rule for the reserved wire value.
 int status_threshold_box_for(int level, int look);
 
-// The status bars, in the order of their 2-bit cells in the placement byte.
+// The status bars, in the order of their 2-bit cells in each On demand cell byte.
 typedef enum {
-    THRESH_BAR_TOP = 0,        // the strip beside the clock
+    THRESH_BAR_TOP = 0,        // the strip beside the clock (the Watch Status Bar)
     THRESH_BAR_FORECAST = 1,
     THRESH_BAR_RADAR = 2,
     THRESH_BAR_HEALTH = 3,
 } ThreshBar;
 #define THRESH_BAR_COUNT 4
+_Static_assert(THRESH_BAR_COUNT * 2 <= 8, "one cell byte holds a 2-bit cell per bar");
 
-// The bar a status line belongs to: its cell in the placement byte. A map, not a
+// The bar a status line belongs to: its cell in the On demand bytes. A map, not a
 // cast, because neither order can move to make it an identity: ThreshBar is the
-// byte's wire cell order, StatusLineId the lines' persist slots. A bar's line does
-// not change with the band the view gives it, so the radar bar keeps its placement
-// in the upper and the lower band alike. Any other id is -1, which
-// status_threshold_bar_alerts() answers Off.
+// bytes' wire cell order, StatusLineId the lines' persist slots. A bar's line does
+// not change with the band the view gives it, so the radar bar keeps its items in
+// the upper and the lower band alike. Any other id is -1, which
+// status_threshold_on_demand_side() answers with no side.
 static inline int status_threshold_bar_of_line(int line_id) {
     switch (line_id) {
         case STATUS_LINE_TOP:      return THRESH_BAR_TOP;
@@ -317,20 +347,23 @@ static inline int status_threshold_bar_of_line(int line_id) {
     }
 }
 
-// Where a bar's alert row sits while an alert is active — the slot it replaces.
-typedef enum {
-    THRESH_ALERTS_OFF = 0,
-    THRESH_ALERTS_LEFT = 1,
-    THRESH_ALERTS_MIDDLE = 2,
-    THRESH_ALERTS_RIGHT = 3,
-} ThreshAlertsPlace;
+// The side of `bar` (a ThreshBar) On demand item `item` (an OdItem) sits on. A
+// blob without the cells (38/34/33/29 B, or none stored) answers the compiled
+// defaults, the phone's defaults for the Watch Status Bar: Bluetooth, Quiet time
+// and Sleep on the left; Battery, Rain, Wind gusts, UV index, Air quality and Wind
+// speed on the right (Pollen off); nothing on any other bar. The reserved cell
+// value 3, an out-of-range bar and an out-of-range item answer OD_SIDE_NONE.
+OdSide status_threshold_on_demand_side(const uint8_t *blob, size_t len, int bar, int item);
 
-// The alert row's placement for `bar` (a ThreshBar) — a ThreshAlertsPlace.
-// A blob without the placement byte (34/33/29 B, or invalid) answers what the
-// watch drew before the byte existed: THRESH_ALERTS_LEFT for the top strip (the
-// rain countdown's takeover of its left slot), THRESH_ALERTS_OFF for every other
-// bar. An out-of-range bar is OFF.
-int status_threshold_bar_alerts(const uint8_t *blob, size_t len, int bar);
+// The Battery item's warn level in %: it is active at or below it. Byte 35 as the
+// phone sent it (5..30, already on the platform's step — the watch never rounds);
+// 0, anything out of range and a blob without the byte answer
+// THRESH_BATTERY_LEVEL_DEFAULT.
+uint8_t status_threshold_battery_level(const uint8_t *blob, size_t len);
+
+// The Battery item's Look: true for Icon + value ("8%" beside the icon), false for
+// the icon alone — also for a blob without the byte.
+bool status_threshold_battery_value(const uint8_t *blob, size_t len);
 
 // Whether a slot of `kind` drawn at `level` prints bold. Kind -1 (a slot with no
 // threshold-capable content) is never bold.

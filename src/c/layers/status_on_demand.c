@@ -1,0 +1,537 @@
+// Every include stays ABOVE the WW_ON_DEMAND guard, on purpose: waf's dependency
+// scanner does not evaluate -D macros, so an `#include <pebble.h>` inside the guard
+// would be invisible to it and this file could compile before the generated
+// src/resource_ids.auto.h exists (night_light.c records the failure). Including a
+// header emits no code, so aplite still compiles this file to an empty object.
+#include <pebble.h>
+#include <stdio.h>
+#include <string.h>
+#include "status_on_demand.h"
+#include "battery_item.h"
+#include "status_highlight.h"
+#include "status_icon_weight.h"
+#include "status_row_icons.h"
+#include "status_row_layout.h"
+#include "status_sig.h"
+#include "../appendix/config.h"
+#include "../appendix/palette.h"
+#include "../appendix/persist.h"
+#include "../appendix/rain_countdown.h"
+#include "../appendix/rain_tier.h"
+#include "../appendix/snooze.h"
+#include "../appendix/status_threshold.h"
+#include "../appendix/theme.h"
+#include "../services/watch_services.h"
+
+#if defined(WW_ON_DEMAND)
+
+// Glyph keys: the metric icons are their StatusIconId (all < 0x40), the system
+// glyphs their in-memory ids (status_row_icons.h), and the rain drops the flag bit
+// plus the drop bucket, so drizzle -> rain swaps the glyph.
+#define RAIN_KEY_FLAG 0x80
+// Quiet time, one Bluetooth variant, rain and the five metric kinds.
+#define GLYPH_SLOTS 8
+// A text lane's buffer: the longest lane is the full rain countdown.
+#define LANE_CAP RAIN_COUNTDOWN_TEXT_CAP
+// A status glyph inks one column past its bounds: icon_load (status_row_icons.c)
+// snaps its vertices to pixel centres 0.5 .. w + 0.5 px, and the 1-px stroke covers
+// both end columns — w + 1 columns of ink for bounds w.
+#define GLYPH_INK_OVERHANG 1
+// A text lane's measured width (graphics_text_layout_get_content_size) ends in the
+// font's one blank column of letter spacing after its last glyph.
+#define TEXT_TRAIL_SPACING 1
+#define NO_ENTRY 0xFF
+
+struct StatusOnDemandCache {
+    GDrawCommandImage *images[GLYPH_SLOTS];
+    uint8_t keys[GLYPH_SLOTS];   // 0 = free
+    int16_t target_h;
+    bool top_strip;
+    GColor fg;
+    GColor rain_tint;
+    bool rain_outline;
+};
+
+// NULL on OOM: the glyph items then measure text-only (or not at all) until a later
+// draw manages to allocate; the procedural Battery and Sleep need no glyph.
+static StatusOnDemandCache *cache_create(void) {
+    StatusOnDemandCache *cache = malloc(sizeof(StatusOnDemandCache));
+    if (cache) { memset(cache, 0, sizeof(*cache)); }
+    return cache;
+}
+
+static void evict(StatusOnDemandCache *cache, int slot) {
+    status_row_icons_destroy(cache->images[slot]);
+    cache->images[slot] = NULL;
+    cache->keys[slot] = 0;
+}
+
+void status_on_demand_release(StatusOnDemandRow *row) {
+    if (!row || !row->cache) { return; }
+    for (int i = 0; i < GLYPH_SLOTS; i++) { evict(row->cache, i); }
+    free(row->cache);
+    row->cache = NULL;
+}
+
+// The drops' tint for a radar tier: the radar palette's colour on a colour theme,
+// the foreground on B&W (palette_radar_color() hands B&W the strip's own background
+// there, which would paint the drops invisibly).
+static GColor rain_tint(int tier) {
+#ifdef PBL_COLOR
+    if (!theme_is_bw()) { return palette_radar_color(tier); }
+#endif
+    (void)tier;
+    return theme_fg();
+}
+
+// The Bluetooth glyph's ink, `hue` PictonBlue connected and red disconnected. The
+// light theme draws it in the foreground — a saturated blue reads poorly on a white
+// strip; a dark colour theme keeps the hue, and B&W collapses to the foreground
+// through theme_pick().
+static GColor bt_ink(GColor hue) {
+    return theme_is_light() ? theme_fg() : theme_pick(hue, theme_fg());
+}
+
+static uint32_t rain_resource(uint8_t bucket) {
+    switch (bucket) {
+        case 1:  return RESOURCE_ID_RAIN_DRIZZLE;
+        case 2:  return RESOURCE_ID_RAIN_RAIN;
+        default: return RESOURCE_ID_RAIN_DOWNPOUR;   // bucket 3 (emery-only)
+    }
+}
+
+static uint8_t entry_key(const AlertEntry *e) {
+    return e->rain ? (uint8_t)(RAIN_KEY_FLAG | e->rain_bucket) : alert_set_icon(e->kind);
+}
+
+static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
+    for (int i = 0; i < GLYPH_SLOTS; i++) {
+        if (cache->keys[i] == key) { return i; }
+    }
+    return -1;
+}
+
+// Make the cache hold exactly the glyphs in `keys` (n of them): load each at
+// `target_h` (the row's icon tier; outline art through status_row_icons_load, the
+// rain drops through status_row_icons_load_filled) and EVICT every cached glyph no
+// longer wanted — resident only while its item is active, so an idle bar holds no
+// glyph heap. The foreground, the rain tint and the light theme's edge on the drops
+// are part of the key: a theme or tier change reloads just the glyphs it affects.
+static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int tier,
+                   int target_h, bool top_strip) {
+    GColor fg = theme_fg();
+    GColor tint = rain_tint(tier);
+    bool outline = theme_is_light();
+    bool env = target_h != cache->target_h || top_strip != cache->top_strip
+        || !gcolor_equal(fg, cache->fg);
+    bool rain_env = env || !gcolor_equal(tint, cache->rain_tint) || outline != cache->rain_outline;
+    for (int i = 0; i < GLYPH_SLOTS; i++) {
+        uint8_t key = cache->keys[i];
+        if (key == 0) { continue; }
+        bool wanted = false;
+        for (int k = 0; k < n; k++) {
+            if (keys[k] == key) { wanted = true; }
+        }
+        bool stale = (key & RAIN_KEY_FLAG) ? rain_env : env;
+        if (stale || !wanted) { evict(cache, i); }
+    }
+    cache->target_h = (int16_t)target_h;
+    cache->top_strip = top_strip;
+    cache->fg = fg;
+    cache->rain_tint = tint;
+    cache->rain_outline = outline;
+    for (int k = 0; k < n; k++) {
+        uint8_t key = keys[k];
+        if (key == 0 || find_key(cache, key) >= 0) { continue; }
+        int slot = find_key(cache, 0);
+        if (slot < 0) { break; }   // unreachable: at most GLYPH_SLOTS distinct keys
+        // A failed load keeps its key with a NULL image — the item measures text-only
+        // and the load is not retried every frame.
+        cache->images[slot] = (key & RAIN_KEY_FLAG)
+            ? status_row_icons_load_filled(rain_resource(key & ~RAIN_KEY_FLAG), target_h,
+                                           tint, outline)
+            : status_row_icons_load(key, target_h, top_strip);
+        cache->keys[slot] = key;
+    }
+}
+
+static GDrawCommandImage *image_for(const StatusOnDemandCache *cache, uint8_t key) {
+    if (!cache || key == 0) { return NULL; }
+    int slot = find_key(cache, key);
+    return slot >= 0 ? cache->images[slot] : NULL;
+}
+
+// The On demand item an alert entry is: rain, or its metric kind's item. -1 for a
+// kind with no item (alert_set_parse already skips those).
+static int entry_item(const AlertEntry *e) {
+    if (e->rain) { return OD_RAIN; }
+    switch (e->kind) {
+        case THRESH_GUST:   return OD_GUST;
+        case THRESH_UV:     return OD_UV;
+        case THRESH_AQI:    return OD_AQI;
+        case THRESH_POLLEN: return OD_POLLEN;
+        case THRESH_WIND:   return OD_WIND;
+        default:            return -1;
+    }
+}
+
+// Resolve the weather entries: the metric alerts from the stored tuple (one flash
+// read — app_message.c has already checked it with alert_set_bytes_ok), the rain entry
+// derived here, every pass, from the radar cache rain_countdown_refresh() keeps —
+// O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
+// and after a radar rescan. The tier is collapsed to its drop bucket HERE, on the SDK
+// side: rain_tier.h pulls <pebble.h>, which the pure alert_set.c must not.
+static void resolve_entries(StatusOnDemandState *s, const uint8_t *blob, size_t len) {
+    int n = persist_get_alert_entries(s->bytes, sizeof(s->bytes));
+    alert_set_parse(s->bytes, n > 0 ? (size_t)n : 0, &s->set);
+    bool rain = rain_countdown_format(s->rain_text, sizeof(s->rain_text), watch_services_now());
+    if (!rain) { s->rain_text[0] = '\0'; }
+    int tier = rain ? rain_countdown_peak_tier() : 0;
+    alert_set_prepend_rain(&s->set, rain, rain_tier_to_bucket3(tier), tier);
+    s->rain_display = status_threshold_rain_display(blob, len);
+}
+
+// Everything that decides what the bar's items draw: which item sits on which side
+// of `bar`, which of them are active, and what they show. Only what an assigned item
+// needs is read — the charge for Battery, the link for Bluetooth, the entries for a
+// weather item — so a bar without items costs ten cell reads.
+static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t len) {
+    s->set.count = 0;
+    s->rain_text[0] = '\0';
+    s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
+    s->bt_key = 0;
+    s->charge = 0;
+    s->level = THRESH_BATTERY_LEVEL_DEFAULT;
+    s->charging = false;
+    s->battery_value = false;
+    bool weather = false;
+    for (int item = 0; item < OD_ITEM_COUNT; item++) {
+        s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, len, bar, item);
+        s->active[item] = false;
+        s->entry[item] = NO_ENTRY;
+        if (item >= OD_RAIN && s->side[item] != OD_SIDE_NONE) { weather = true; }
+    }
+    if (s->side[OD_BATTERY] != OD_SIDE_NONE) {
+        BatteryChargeState bs = watch_services_battery_state();
+        s->charge = bs.charge_percent;
+        s->charging = bs.is_charging || bs.is_plugged;
+        s->level = status_threshold_battery_level(blob, len);
+        s->battery_value = status_threshold_battery_value(blob, len);
+        // At or below the level, charging or not.
+        s->active[OD_BATTERY] = s->charge <= s->level;
+    }
+    if (s->side[OD_BLUETOOTH] != OD_SIDE_NONE) {
+        const Config *cfg = config_get();
+        bool connected = connection_service_peek_pebble_app_connection();
+        bool show = cfg && (connected ? cfg->show_bt : cfg->show_bt_disconnect);
+        s->bt_key = show ? (connected ? STATUS_ROW_ICON_BT : STATUS_ROW_ICON_BT_OFF) : 0;
+        s->active[OD_BLUETOOTH] = show;
+    }
+    if (s->side[OD_QUIET_TIME] != OD_SIDE_NONE) {
+        s->active[OD_QUIET_TIME] = quiet_time_is_active();
+    }
+    if (s->side[OD_SLEEP] != OD_SIDE_NONE) {
+        s->active[OD_SLEEP] = persist_get_is_sleeping();
+    }
+    if (!weather) { return; }
+    resolve_entries(s, blob, len);
+    for (int i = 0; i < s->set.count; i++) {
+        int item = entry_item(&s->set.entries[i]);
+        if (item >= 0 && s->side[item] != OD_SIDE_NONE && s->entry[item] == NO_ENTRY) {
+            s->entry[item] = (uint8_t)i;
+            s->active[item] = true;
+        }
+    }
+}
+
+// The rain look and the values flag of On demand lane `lane`, from the chosen rain
+// look: lane 0 as chosen, lane 1 the rain Text as its minutes, lane 2 the values off
+// and the rain drop alone — alert_set_degrade's ladder, a step per lane.
+static void lane_look(int chosen, int lane, int *rain_display, bool *values) {
+    int rd = chosen;
+    bool v = true;
+    if (lane >= 1 && rd != THRESH_RAIN_DISPLAY_ICON && rd != THRESH_RAIN_DISPLAY_MINUTES) {
+        alert_set_degrade(&rd, &v);
+    }
+    if (lane >= 2) {
+        while (alert_set_degrade(&rd, &v)) {}
+    }
+    *rain_display = rd;
+    *values = v;
+}
+
+static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
+    return s->entry[item] != NO_ENTRY ? &s->set.entries[s->entry[item]] : NULL;
+}
+
+// The item's text on `lane` into `buf` ("" = none), and the font it prints in: the
+// Battery's "8%" with the Look Icon + value (off with the values), the rain countdown
+// or its minutes, and a metric entry's alert_set_lane — its value inside tomorrow's
+// mark, in bold when its look says so (danger, warn per the kind's Bold mode,
+// 'Always'). Bluetooth, Quiet time and Sleep have no text; the rain text never bolds.
+static GFont item_text(const StatusOnDemandState *s, int item, int lane,
+                       const StatusOnDemandEnv *env, char *buf, size_t cap) {
+    buf[0] = '\0';
+    int rd;
+    bool values;
+    lane_look(s->rain_display, lane, &rd, &values);
+    if (item == OD_BATTERY) {
+        if (s->battery_value && values) { snprintf(buf, cap, "%d%%", s->charge); }
+        return env->font;
+    }
+    const AlertEntry *e = item_entry(s, item);
+    if (!e) { return env->font; }
+    if (e->rain) {
+        if (s->rain_text[0] != '\0' && rd == THRESH_RAIN_DISPLAY_MINUTES) {
+            alert_set_rain_minutes(s->rain_text, buf, cap);
+        } else if (s->rain_text[0] != '\0' && rd != THRESH_RAIN_DISPLAY_ICON) {
+            strncpy(buf, s->rain_text, cap - 1);
+            buf[cap - 1] = '\0';
+        }
+        return env->font;
+    }
+    alert_set_lane(e, values, buf, cap);
+    return status_threshold_look(env->blob, env->blob_len, e->kind, e->level).bold
+        ? env->bold : env->font;
+}
+
+// The glyph an item draws; 0 for the procedural Battery and Sleep.
+static uint8_t item_key(const StatusOnDemandState *s, int item) {
+    switch (item) {
+        case OD_BATTERY:
+        case OD_SLEEP:      return 0;
+        case OD_BLUETOOTH:  return s->bt_key;
+        case OD_QUIET_TIME: return STATUS_ROW_ICON_QUIET;
+        default: {
+            const AlertEntry *e = item_entry(s, item);
+            return e ? entry_key(e) : 0;
+        }
+    }
+}
+
+// A metric alert is boxed at its level, so its padding is part of its footprint.
+static bool item_boxed(int item) {
+    return item >= OD_GUST;
+}
+
+static int16_t text_width(const char *s, GFont font) {
+    if (s[0] == '\0') { return 0; }
+    return graphics_text_layout_get_content_size(s, font, GRect(0, 0, 1000, 100),
+        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
+}
+
+static int16_t icon_width(GDrawCommandImage *image) {
+    return image ? gdraw_command_image_get_bounds_size(image).w : 0;
+}
+
+// Measure `item` on every lane into its cell, and its footprint per lane into `w`:
+// icon + (text ? STATUS_ROW_ICON_TEXT_GAP + text : 0), plus 2 * STATUS_ALERTS_BOX_PAD_X
+// for a boxed metric entry — whose group is measured by its ink (a last icon's
+// one-column overhang in, a last text's trailing letter spacing out), so its air to
+// the box stroke is equal on both sides. A lane that has nothing left to draw keeps
+// the lane before's width: it can give nothing more. Needs the glyphs, so ensure()
+// runs first.
+static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
+                    const StatusOnDemandEnv *env, int item, int16_t w[OD_LANES]) {
+    const StatusOnDemandState *s = &p->state;
+    StatusOnDemandCell *c = &p->cells[item];
+    if (item == OD_BATTERY) {
+        c->icon_w = battery_item_width(env->icon_h, s->charging);
+    } else if (item == OD_SLEEP) {
+        c->icon_w = env->icon_h;
+    } else {
+        c->icon_w = icon_width(image_for(row->cache, item_key(s, item)));
+    }
+    c->pad = item_boxed(item) ? STATUS_ALERTS_BOX_PAD_X : 0;
+    for (int lane = 0; lane < OD_LANES; lane++) {
+        char buf[LANE_CAP];
+        GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
+        int16_t tw = text_width(buf, font);
+        c->text_w[lane] = tw;
+        int16_t fw = (int16_t)(c->icon_w + (tw > 0
+            ? (c->icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + tw : 0));
+        if (fw > 0 && item_boxed(item)) {
+            fw = (int16_t)(fw + 2 * c->pad + (tw > 0 ? -TEXT_TRAIL_SPACING : GLYPH_INK_OVERHANG));
+        }
+        if (fw <= 0 && lane > 0) { fw = w[lane - 1]; }
+        w[lane] = fw;
+    }
+}
+
+// The fold covers what the items paint (see status_on_demand.h): the bar's cells,
+// every assigned system item's state, and each active weather item's entry — its
+// day (today's, or tomorrow's with its mark), value, level and the look it reads
+// from the blob at that level (a Clay save that only recolours or re-looks must
+// repaint), the drop's bucket and tier, and the countdown text only while a look
+// prints it, or an icon-only rain alert would repaint every minute for nothing.
+uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
+                               const uint8_t *blob, size_t len) {
+    if (!row) { return sig; }
+    StatusOnDemandState s;
+    collect(&s, bar, blob, len);
+    bool assigned = false;
+    for (int item = 0; item < OD_ITEM_COUNT; item++) {
+        if (s.side[item] != OD_SIDE_NONE) { assigned = true; }
+    }
+    row->assigned = assigned;
+    sig = sig_fold(sig, s.side, OD_ITEM_COUNT);
+    if (!assigned) {
+        // Nothing can draw here: give the glyphs back now rather than at teardown.
+        status_on_demand_release(row);
+        return sig;
+    }
+    uint8_t sys[6] = { (uint8_t)s.active[OD_BATTERY], s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
+                       (uint8_t)s.active[OD_SLEEP], s.level, (uint8_t)s.battery_value };
+    sig = sig_fold(sig, sys, sizeof(sys));
+    if (s.active[OD_BATTERY]) {
+        uint8_t charge[2] = { s.charge, (uint8_t)s.charging };
+        sig = sig_fold(sig, charge, sizeof(charge));
+    }
+    for (int item = OD_RAIN; item < OD_ITEM_COUNT; item++) {
+        const AlertEntry *e = s.active[item] ? item_entry(&s, item) : NULL;
+        if (!e) { continue; }
+        uint8_t head[6] = { (uint8_t)item, e->kind, e->level, e->day, e->rain_bucket,
+                            e->rain_tier };
+        sig = sig_fold(sig, head, sizeof(head));
+        if (e->rain) { continue; }
+        sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
+        ThreshLook look = status_threshold_look(blob, len, e->kind, e->level);
+        sig = sig_fold(sig, (const uint8_t *)&look, sizeof(look));
+    }
+    if (s.active[OD_RAIN]) {
+        uint8_t display = (uint8_t)s.rain_display;
+        sig = sig_fold(sig, &display, 1);
+        if (s.rain_display != THRESH_RAIN_DISPLAY_ICON) {
+            sig = sig_fold(sig, (const uint8_t *)s.rain_text, strlen(s.rain_text));
+        }
+    }
+    return sig;
+}
+
+void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
+                             const StatusOnDemandEnv *env, const StatusSlotMeasure m[3],
+                             StatusSlotPlace places[3], int16_t content_w) {
+    pass->any = false;
+    if (!row->assigned || env->bar < 0) {
+        status_row_layout(content_w, m, places);
+        return;
+    }
+    StatusOnDemandState *s = &pass->state;
+    collect(s, env->bar, env->blob, env->blob_len);
+    // The glyphs the active items need; the cache is created by the first draw that
+    // has one, and emptied of the rest by every draw.
+    uint8_t keys[GLYPH_SLOTS];
+    int nkeys = 0;
+    int tier = 0;
+    for (int item = 0; item < OD_ITEM_COUNT; item++) {
+        uint8_t key = s->active[item] ? item_key(s, item) : 0;
+        if (key != 0 && nkeys < GLYPH_SLOTS) { keys[nkeys++] = key; }
+        if (item == OD_RAIN && s->active[item]) { tier = item_entry(s, item)->rain_tier; }
+    }
+    if (!row->cache && nkeys > 0) { row->cache = cache_create(); }
+    if (row->cache) {
+        ensure(row->cache, keys, nkeys, tier, env->icon_h, env->top_strip);
+    }
+    // Each side's active items, outermost first: the item order is the priority.
+    memset(pass->sides, 0, sizeof(pass->sides));
+    for (int item = 0; item < OD_ITEM_COUNT; item++) {
+        if (!s->active[item]) { continue; }
+        int16_t w[OD_LANES];
+        measure(pass, row, env, item, w);
+        if (w[0] <= 0) { continue; }   // nothing to draw (a glyph that failed to load)
+        OdSideIn *side = &pass->sides[s->side[item] == OD_SIDE_LEFT ? 0 : 1];
+        int i = side->n++;
+        side->rank[i] = (uint8_t)item;
+        for (int lane = 0; lane < OD_LANES; lane++) { side->w[lane][i] = w[lane]; }
+        side->padded[i] = item_boxed(item);
+    }
+    if (pass->sides[0].n == 0 && pass->sides[1].n == 0) {
+        status_row_layout(content_w, m, places);
+        return;
+    }
+    OdSlotIn slots[3];
+    memset(slots, 0, sizeof(slots));
+    for (int i = 0; i < 3; i++) {
+        slots[i].m[0] = m[i];
+        slots[i].n = m[i].present ? 1 : 0;
+    }
+    const int8_t bleed[2] = { env->bleed_left, 0 };
+    // W7: on the Watch Status Bar the Battery item in its Icon look stands in for the
+    // Watch battery slot, drawn only once the layout hides that slot.
+    bool standin = env->top_strip && env->right_is_battery && s->active[OD_BATTERY]
+        && !s->battery_value;
+    od_layout(content_w, slots, pass->sides, bleed, standin, &pass->layout);
+    for (int i = 0; i < 3; i++) { places[i] = pass->layout.place[i]; }
+    pass->any = true;
+}
+
+// Paint one item at content-absolute `x`, `w` wide (its footprint on `lane`).
+static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
+                       const StatusOnDemandPass *p, const StatusOnDemandEnv *env,
+                       int item, int lane, int16_t x, int16_t w) {
+    const StatusOnDemandState *s = &p->state;
+    const StatusOnDemandCell *c = &p->cells[item];
+    char buf[LANE_CAP];
+    GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
+    int16_t text_w = c->text_w[lane];
+    int16_t icon_x = (int16_t)(x + c->pad);
+    int16_t text_x = (int16_t)(icon_x + c->icon_w + (c->icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
+    int16_t icon_top = (int16_t)(env->glyph_cy - env->icon_h / 2);
+    GColor ink = theme_fg();
+    // A metric entry is boxed at DANGER always (filled) and at WARN per its kind's
+    // warn look, painted as its slot would be (status_highlight_paint), judged at the
+    // entry's real level — the slot's Highlight switch does not touch the alert. The
+    // box IS the footprint: the padding was measured in either way, so the widths do
+    // not shift when a box appears.
+    if (item_boxed(item)) {
+        const AlertEntry *e = item_entry(s, item);
+        ThreshLook look = status_threshold_look(env->blob, env->blob_len, e->kind, e->level);
+        if (look.box != THRESH_BOX_NONE) {
+            StatusHighlightExtent v = status_highlight_extent(
+                env->band.origin.y, env->band.size.h, env->glyph_cy, env->content_h,
+                env->top_strip, text_w > 0 && status_text_has_descender(buf));
+            ink = status_highlight_paint(ctx, GRect(x, v.y, w, v.h), look);
+        }
+    }
+    if (item == OD_BATTERY) {
+        battery_item_draw(ctx, GPoint(icon_x, icon_top), env->icon_h, s->charge, s->charging, ink);
+    } else if (item == OD_SLEEP) {
+        snooze_draw(ctx, GRect(icon_x, icon_top, env->icon_h, env->icon_h), ink);
+    } else {
+        uint8_t key = item_key(s, item);
+        GDrawCommandImage *image = image_for(row->cache, key);
+        if (image) {
+            GSize gs = gdraw_command_image_get_bounds_size(image);
+            // The system and rain glyphs are no StatusIconId: they seat on the centre.
+            status_highlight_draw_glyph(ctx, image,
+                GPoint(icon_x, status_icon_top_y(env->glyph_cy, gs.h, status_icon_weight_pct(key))),
+                item != OD_BLUETOOTH ? ink
+                    : bt_ink(key == STATUS_ROW_ICON_BT ? GColorPictonBlue : GColorRed));
+        }
+    }
+    if (text_w > 0 && buf[0] != '\0') {
+        // The frame is the lane's whole measured width: the trailing letter spacing a
+        // boxed footprint leaves out is blank and sits inside the pad, so the text
+        // never ellipsises against the width it was measured at.
+        int16_t band_bottom = (int16_t)(env->band.origin.y + env->band.size.h);
+        graphics_context_set_text_color(ctx, ink);
+        graphics_draw_text(ctx, buf, font,
+            GRect(text_x, env->text_y, text_w, (int16_t)(band_bottom - env->text_y)),
+            GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+    }
+}
+
+void status_on_demand_paint(GContext *ctx, const StatusOnDemandRow *row,
+                            const StatusOnDemandPass *pass, const StatusOnDemandEnv *env) {
+    if (!ctx || !row || !pass || !env || !pass->any) { return; }
+    const OdLayout *l = &pass->layout;
+    for (int d = 0; d < 2; d++) {
+        const OdSideIn *side = &pass->sides[d];
+        for (int k = l->first[d]; k < l->first[d] + l->n[d]; k++) {
+            paint_item(ctx, row, pass, env, side->rank[k], l->lane[d],
+                       (int16_t)(env->x + l->item_x[d][k]), side->w[l->lane[d]][k]);
+        }
+    }
+}
+
+#endif

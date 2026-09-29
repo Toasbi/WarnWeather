@@ -17,6 +17,17 @@ void top_status_layer_set_full_date(bool full_date);
 Layer *top_status_layer_get_root(void);
 #endif
 
+#if defined(WW_ON_DEMAND)
+// The window's hook for a Bluetooth connect/disconnect or a battery change, which the
+// strip's app-wide handlers (the one connection subscription, the battery service)
+// call after their own work: On demand items on every bar follow the change at once.
+// main_window_load registers it; the strip refreshes only itself while none is set.
+// Declared only where On demand exists: aplite's lean twin keeps its fixed
+// indicators and need not answer it.
+typedef void (*TopStatusSystemChange)(void);
+void top_status_layer_set_on_system_change(TopStatusSystemChange cb);
+#endif
+
 void status_icons_refresh();
 
 void top_status_layer_tick();

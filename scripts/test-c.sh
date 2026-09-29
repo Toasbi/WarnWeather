@@ -51,23 +51,20 @@ cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/
 build/host/status_line_test
 cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o build/host/status_threshold_test
 build/host/status_threshold_test
-# The Alerts row's pure half (entry parse, rain merge, fit/lane ladder, and the per-bar
-# takeover: which slots it replaces, the span they leave, where the row sits). Its body
-# sits behind WW_ON_DEMAND (wscript: every platform but aplite), so the flag is required
-# here or the module compiles to nothing and the test fails to link; its companion
-# WW_THRESHOLD_HIGHLIGHT too, which alert_set.h requires beside it (every such platform
-# has both). Linked with the row layout, which the takeover (alert_set_take) runs, and
-# with the thresholds blob reader the entry's box is judged through.
+# The weather alerts' pure half (entry parse, rain merge, fit and the lane ladder).
+# Its body sits behind WW_ON_DEMAND (wscript: every platform but aplite), so the flag
+# is required here or the module compiles to nothing and the test fails to link; its
+# companion WW_THRESHOLD_HIGHLIGHT too, which alert_set.h requires beside it (every
+# such platform has both). Linked with the thresholds blob reader the entry's box is
+# judged through.
 cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_set_test.c src/c/appendix/alert_set.c \
-   src/c/appendix/status_threshold.c src/c/layers/status_row_layout.c \
-   -o build/host/alert_set_test
+   src/c/appendix/status_threshold.c -o build/host/alert_set_test
 build/host/alert_set_test
 # A tomorrow alert and a slot showing tomorrow's peak print the same mark: dump every
 # metric text lane the watch builds (per day code, value and values flag) and check
 # each against the phone's slot text (scripts/check-alert-lane-lockstep.js).
 cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/c/appendix/alert_set.c \
-   src/c/appendix/status_threshold.c src/c/layers/status_row_layout.c \
-   -o build/host/alert_lane_dump
+   src/c/appendix/status_threshold.c -o build/host/alert_lane_dump
 build/host/alert_lane_dump > build/host/alert_lane.txt
 node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
 # The On demand layout (appendix/on_demand.c): the two-side make-room ladder, the shared
@@ -101,6 +98,9 @@ build/host/status_row_alloc_test
 # never compiles the caller (its status_row twin keeps the hardcoded formats).
 cc $CFLAGS test/c/date_format_test.c -o build/host/date_format_test
 build/host/date_format_test
+# The fixed Quiet Time / Bluetooth / snooze indicators, which only aplite's strip twin
+# (top_status_layer_aplite.c) still resolves; every other platform draws them as On
+# demand items.
 cc $CFLAGS test/c/top_status_indicators_test.c -o build/host/top_status_indicators_test
 build/host/top_status_indicators_test
 # Header-only pure curve (static inline in hatch.h, no .c file — same pattern as

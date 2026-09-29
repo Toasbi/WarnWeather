@@ -24,11 +24,12 @@ void main_window_apply_theme(void);
 bool main_window_radar_has_data(void);
 
 #if defined(WW_ON_DEMAND)
-// Re-resolve the band rows that have an Alerts placement, against the view on screen
-// (status_bar_tick_alerts). The window owns the current ViewSpec, so this is how
-// app_message.c's radar rescan reaches those rows without re-deriving the view.
-// The top strip is refreshed by its own owner (top_status_layer_tick/_refresh).
-void main_window_tick_alerts(void);
+// Re-resolve the band rows that carry On demand items, against the view on screen
+// (status_bar_tick_on_demand). The window owns the current ViewSpec, so this is how
+// app_message.c's radar rescan and the strip's system-change hook reach those rows
+// without re-deriving the view. The top strip is refreshed by its own owner
+// (top_status_layer_tick/_refresh).
+void main_window_tick_on_demand(void);
 #endif
 
 #if defined(PBL_HEALTH)

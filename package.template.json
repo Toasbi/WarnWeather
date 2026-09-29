@@ -65,19 +65,28 @@
           "type": "bitmap",
           "name": "IMAGE_MUTE",
           "file": "img/mute.png",
-          "memoryFormat": "1BitPalette"
+          "memoryFormat": "1BitPalette",
+          "targetPlatforms": [
+            "aplite"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_BT_DISCONNECT",
           "file": "img/bt-disconnect.png",
-          "memoryFormat": "1BitPalette"
+          "memoryFormat": "1BitPalette",
+          "targetPlatforms": [
+            "aplite"
+          ]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_BT_CONNECT",
           "file": "img/bt.png",
-          "memoryFormat": "1BitPalette"
+          "memoryFormat": "1BitPalette",
+          "targetPlatforms": [
+            "aplite"
+          ]
         },
         {
           "type": "bitmap",

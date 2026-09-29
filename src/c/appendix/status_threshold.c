@@ -90,11 +90,12 @@ int status_threshold_health_value(int kind, int steps, int sleep_seconds,
 }
 
 bool status_threshold_settings_validate(const uint8_t *blob, size_t len) {
-    // Four exact lengths, never a range: the pre-bold 29, the 16-kind 33 and
-    // the pre-alerts 34 are readable because the bold bytes, the two alert
-    // bytes and the two warn-look bytes were appended (see status_threshold.h).
+    // Five exact lengths, never a range: the development branch's 38, the
+    // pre-alerts 34, the 16-kind 33 and the pre-bold 29 are readable because
+    // every widening since 29 appended (see status_threshold.h).
     return blob != NULL
         && (len == THRESH_SETTINGS_BYTES
+            || len == THRESH_SETTINGS_BYTES_PRE_ON_DEMAND
             || len == THRESH_SETTINGS_BYTES_PRE_ALERTS
             || len == THRESH_SETTINGS_BYTES_PRE_KIND16
             || len == THRESH_SETTINGS_BYTES_PRE_BOLD);
@@ -159,15 +160,52 @@ int status_threshold_rain_display(const uint8_t *blob, size_t len) {
     return mode == 3 ? THRESH_RAIN_DISPLAY_TEXT : mode;   // 3 is reserved
 }
 
-int status_threshold_bar_alerts(const uint8_t *blob, size_t len, int bar) {
-    if (bar < 0 || bar >= THRESH_BAR_COUNT) { return THRESH_ALERTS_OFF; }
-    // Append-only again: without the byte, the strip keeps the left-slot rain
-    // takeover it always had and no other bar grows a row.
-    if (!status_threshold_settings_validate(blob, len)
-        || THRESH_BAR_ALERTS_OFFSET >= len) {
-        return bar == THRESH_BAR_TOP ? THRESH_ALERTS_LEFT : THRESH_ALERTS_OFF;
+// The compiled On demand defaults: the Watch Status Bar's cells as the phone's
+// defaults (src/pkjs/on-demand.js DEFAULTS) write them for a fresh install — left
+// Bluetooth, Quiet time, Sleep; right Battery, Rain, Wind gusts, UV index, Air
+// quality, Wind speed; Pollen on no side. Every other bar has no item. A watch
+// reads these until a 48-B blob arrives: an upgrading install, a phone that has
+// not learnt the cells yet, and a fresh install before its first settings.
+static const uint8_t OD_DEFAULT_TOP[OD_ITEM_COUNT] = {
+    [OD_BATTERY]    = OD_SIDE_RIGHT,
+    [OD_BLUETOOTH]  = OD_SIDE_LEFT,
+    [OD_QUIET_TIME] = OD_SIDE_LEFT,
+    [OD_SLEEP]      = OD_SIDE_LEFT,
+    [OD_RAIN]       = OD_SIDE_RIGHT,
+    [OD_GUST]       = OD_SIDE_RIGHT,
+    [OD_UV]         = OD_SIDE_RIGHT,
+    [OD_AQI]        = OD_SIDE_RIGHT,
+    [OD_POLLEN]     = OD_SIDE_NONE,
+    [OD_WIND]       = OD_SIDE_RIGHT,
+};
+
+// Only a full-length blob carries the Battery byte and the cells: the 38-B
+// development shape's byte 35 was a placement, and shorter blobs have neither.
+static bool has_on_demand(const uint8_t *blob, size_t len) {
+    return len == THRESH_SETTINGS_BYTES && status_threshold_settings_validate(blob, len);
+}
+
+OdSide status_threshold_on_demand_side(const uint8_t *blob, size_t len, int bar, int item) {
+    if (bar < 0 || bar >= THRESH_BAR_COUNT || item < 0 || item >= OD_ITEM_COUNT) {
+        return OD_SIDE_NONE;
     }
-    return (blob[THRESH_BAR_ALERTS_OFFSET] >> (2 * bar)) & 3;
+    if (!has_on_demand(blob, len)) {
+        return bar == THRESH_BAR_TOP ? (OdSide)OD_DEFAULT_TOP[item] : OD_SIDE_NONE;
+    }
+    int cell = (blob[THRESH_ON_DEMAND_OFFSET + item] >> (2 * bar)) & 3;
+    return cell == 3 ? OD_SIDE_NONE : (OdSide)cell;   // 3 is reserved
+}
+
+uint8_t status_threshold_battery_level(const uint8_t *blob, size_t len) {
+    if (!has_on_demand(blob, len)) { return THRESH_BATTERY_LEVEL_DEFAULT; }
+    int level = blob[THRESH_BATTERY_OFFSET] & THRESH_BATTERY_LEVEL_MASK;
+    return (level < THRESH_BATTERY_LEVEL_MIN || level > THRESH_BATTERY_LEVEL_MAX)
+        ? THRESH_BATTERY_LEVEL_DEFAULT : (uint8_t)level;
+}
+
+bool status_threshold_battery_value(const uint8_t *blob, size_t len) {
+    return has_on_demand(blob, len)
+        && (blob[THRESH_BATTERY_OFFSET] & THRESH_BATTERY_VALUE_BIT) != 0;
 }
 
 int status_threshold_warn_look(const uint8_t *blob, size_t len, int kind) {

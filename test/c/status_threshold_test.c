@@ -147,13 +147,14 @@ static void blob_tests(void) {
     blob[THRESH_HEALTH_OFFSET + 3] = 0x0F;
 
     expect("blob.valid", status_threshold_settings_validate(blob, sizeof(blob)), 1);
-    // 37, 36 and 35 are truncations — the 35- and 36-byte formats never shipped
-    // — while 34 (pre-alerts) and 33 (16-kind) are accepted legacy lengths (see
-    // legacy_blob_tests); the next genuinely short length below them is 32.
-    expect("blob.short37", status_threshold_settings_validate(blob, sizeof(blob) - 1), 0);
-    expect("blob.short36", status_threshold_settings_validate(blob, sizeof(blob) - 2), 0);
-    expect("blob.short35", status_threshold_settings_validate(blob, sizeof(blob) - 3), 0);
-    expect("blob.short32", status_threshold_settings_validate(blob, sizeof(blob) - 6), 0);
+    // 47 .. 39 are truncations of the 48-byte blob, while 38 (the development
+    // branch), 34 (pre-alerts) and 33 (16-kind) are accepted legacy lengths (see
+    // legacy_blob_tests).
+    expect("blob.short47", status_threshold_settings_validate(blob, sizeof(blob) - 1), 0);
+    expect("blob.short46", status_threshold_settings_validate(blob, sizeof(blob) - 2), 0);
+    expect("blob.short45", status_threshold_settings_validate(blob, sizeof(blob) - 3), 0);
+    expect("blob.short39", status_threshold_settings_validate(blob, sizeof(blob) - 9), 0);
+    expect("blob.short32", status_threshold_settings_validate(blob, 32), 0);
     expect("blob.null", status_threshold_settings_validate(NULL, sizeof(blob)), 0);
     expect("blob.aqi_on", status_threshold_enabled(blob, sizeof(blob), THRESH_AQI), 1);
     expect("blob.wind_off", status_threshold_enabled(blob, sizeof(blob), THRESH_WIND), 0);
@@ -335,10 +336,11 @@ static void bold_tests(void) {
            status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY_PLAIN, THRESH_LEVEL_NORMAL), 1);
 
     // The blob width is pinned: byte 33's four cells cover kinds 16..19, and
-    // the only widening since is 1.24.0's 34 -> 38 (the two alert bytes and the
-    // two warn-look bytes) — every extra byte rides the Clay message on every
-    // settings send (see test/inbox-size.test.js).
-    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 38);
+    // the only widening since is 1.24.0's 34 -> 48 (the rain look, the Battery
+    // item byte, the two warn-look bytes and the ten On demand cells) — every
+    // extra byte rides the Clay message on every settings send (see
+    // test/inbox-size.test.js).
+    expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 48);
     expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 20);
     expect("bold.top_kind_inside_bold_area",
            THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2) < THRESH_ALERTS_OFFSET, 1);
@@ -348,9 +350,10 @@ static void bold_tests(void) {
     // _Static_asserts are the compile-time half of this pin.
     expect("bold.byte33_is_the_last_bold_byte",
            THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2), THRESH_ALERTS_OFFSET - 1);
-    expect("bold.alerts_bytes_follow", THRESH_BAR_ALERTS_OFFSET, THRESH_ALERTS_OFFSET + 1);
-    expect("bold.warn_look_follows", THRESH_WARN_LOOK_OFFSET, THRESH_BAR_ALERTS_OFFSET + 1);
-    expect("bold.warn_look_ends_blob", THRESH_WARN_LOOK_OFFSET + 2, THRESH_SETTINGS_BYTES);
+    expect("bold.battery_byte_follows", THRESH_BATTERY_OFFSET, THRESH_ALERTS_OFFSET + 1);
+    expect("bold.warn_look_follows", THRESH_WARN_LOOK_OFFSET, THRESH_BATTERY_OFFSET + 1);
+    expect("bold.cells_follow", THRESH_ON_DEMAND_OFFSET, THRESH_WARN_LOOK_OFFSET + 2);
+    expect("bold.cells_end_blob", THRESH_ON_DEMAND_OFFSET + OD_ITEM_COUNT, THRESH_SETTINGS_BYTES);
     expect("bold.byte33_full", THRESH_KIND_COUNT % 4, 0);
 
     // Degrade safely: the reserved wire value, a bad blob and a slot with no
@@ -412,21 +415,25 @@ static void legacy_blob_tests(void) {
     // blob reads invalid until the phone re-syncs the 33-B one.
     expect("legacy.reject_31", status_threshold_settings_validate(blob, 31), 0);
     expect("legacy.reject_32", status_threshold_settings_validate(blob, 32), 0);
-    // The accepted set is exactly {38, 34, 33, 29}. The 35-byte (rain look
-    // without the placement) and 36-byte (no warn look) formats existed only on
-    // the 1.24.0 feature branch, so like the 31-byte one they are garbage, not
-    // legacy. 37 is half a warn-look area and 39 a blob from a FUTURE, wider
-    // format: reject both until such a widening actually happens (see
-    // status_threshold.h).
+    // The accepted set is exactly {48, 38, 34, 33, 29}. The 35-byte and 36-byte
+    // formats existed only on the 1.24.0 feature branch, so like the 31-byte one
+    // they are garbage, not legacy; the branch's 38 is accepted as the phone that
+    // has not learnt the On demand cells yet. 37 is half a warn-look area, 39..47
+    // a part of the cells, and 49 a blob from a FUTURE, wider format: reject them
+    // until such a widening actually happens (see status_threshold.h).
     expect("legacy.accept_34", status_threshold_settings_validate(blob, 34), 1);
     expect("legacy.reject_35", status_threshold_settings_validate(blob, 35), 0);
     expect("legacy.reject_36", status_threshold_settings_validate(blob, 36), 0);
     expect("legacy.reject_37", status_threshold_settings_validate(blob, 37), 0);
     {
-        uint8_t wide[40];
+        uint8_t wide[50];
         memset(wide, 0, sizeof(wide));
         expect("legacy.accept_38", status_threshold_settings_validate(wide, 38), 1);
-        expect("legacy.reject_39", status_threshold_settings_validate(wide, 39), 0);
+        for (size_t len = 39; len < 48; len++) {
+            expect("legacy.reject_39_47", status_threshold_settings_validate(wide, len), 0);
+        }
+        expect("legacy.accept_48", status_threshold_settings_validate(wide, 48), 1);
+        expect("legacy.reject_49", status_threshold_settings_validate(wide, 49), 0);
     }
 
     // A 33-byte blob (16-kind bold era, every current install at upgrade time)
@@ -489,71 +496,168 @@ static void rain_display_tests(void) {
            THRESH_RAIN_DISPLAY_TEXT);
     expect("rain.bad_len", status_threshold_rain_display(blob, 27), THRESH_RAIN_DISPLAY_TEXT);
     expect("rain.null", status_threshold_rain_display(NULL, n), THRESH_RAIN_DISPLAY_TEXT);
-    // The placement byte next door never leaks into the look.
+    // The Battery byte next door never leaks into the look.
     blob[THRESH_ALERTS_OFFSET] = 1;
-    blob[THRESH_BAR_ALERTS_OFFSET] = 0xFF;
-    expect("rain.placement_no_alias", status_threshold_rain_display(blob, n),
+    blob[THRESH_BATTERY_OFFSET] = 0xFF;
+    expect("rain.battery_no_alias", status_threshold_rain_display(blob, n),
+           THRESH_RAIN_DISPLAY_ICON);
+    // The development branch's 38-B blob carries the byte too.
+    expect("rain.dev38", status_threshold_rain_display(blob, THRESH_SETTINGS_BYTES_PRE_ON_DEMAND),
            THRESH_RAIN_DISPLAY_ICON);
 }
 
-// The placement byte [35]: 2 bits per bar (top 0-1, forecast 2-3, radar 4-5,
-// health 6-7), 0 off / 1 left / 2 middle / 3 right. A blob without it (34 B and
-// shorter) reads what the watch drew before the byte: the strip's left-slot
-// takeover, no row anywhere else.
-static void bar_alerts_tests(void) {
+// The On demand cells [38 + item]: one byte per OdItem, 2 bits per bar at bits
+// 2 * bar (top 0-1, forecast 2-3, radar 4-5, health 6-7), 0 none / 1 left / 2 right
+// / 3 reserved (none). A 48-B blob honours every cell, an explicit none too.
+static void on_demand_cell_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
     size_t n = sizeof(blob);
-    expect("bars.offset_pinned", THRESH_BAR_ALERTS_OFFSET, 35);
-    expect("bars.count", THRESH_BAR_COUNT, 4);
-    // All zero: every bar off, the strip too (an explicit Off is honoured).
+    expect("cells.offset_pinned", THRESH_ON_DEMAND_OFFSET, 38);
+    expect("cells.bars", THRESH_BAR_COUNT, 4);
+    expect("cells.items", OD_ITEM_COUNT, 10);
+    expect("cells.side_values", OD_SIDE_NONE * 100 + OD_SIDE_LEFT * 10 + OD_SIDE_RIGHT, 12);
+    // All zero: nothing anywhere, the Watch Status Bar too.
     for (int bar = 0; bar < THRESH_BAR_COUNT; bar++) {
-        expect("bars.zero_off", status_threshold_bar_alerts(blob, n, bar), THRESH_ALERTS_OFF);
+        for (int item = 0; item < OD_ITEM_COUNT; item++) {
+            expect("cells.zero_none", status_threshold_on_demand_side(blob, n, bar, item),
+                   OD_SIDE_NONE);
+        }
     }
-    // top left, forecast middle, radar right, health off.
-    blob[THRESH_BAR_ALERTS_OFFSET] = (uint8_t)(THRESH_ALERTS_LEFT
-        | (THRESH_ALERTS_MIDDLE << 2) | (THRESH_ALERTS_RIGHT << 4) | (THRESH_ALERTS_OFF << 6));
-    expect("bars.top_left", status_threshold_bar_alerts(blob, n, THRESH_BAR_TOP), THRESH_ALERTS_LEFT);
-    expect("bars.forecast_middle",
-           status_threshold_bar_alerts(blob, n, THRESH_BAR_FORECAST), THRESH_ALERTS_MIDDLE);
-    expect("bars.radar_right",
-           status_threshold_bar_alerts(blob, n, THRESH_BAR_RADAR), THRESH_ALERTS_RIGHT);
-    expect("bars.health_off",
-           status_threshold_bar_alerts(blob, n, THRESH_BAR_HEALTH), THRESH_ALERTS_OFF);
-    // The top cell of the byte is the health bar's.
-    blob[THRESH_BAR_ALERTS_OFFSET] = (uint8_t)(THRESH_ALERTS_RIGHT << 6);
-    expect("bars.health_right",
-           status_threshold_bar_alerts(blob, n, THRESH_BAR_HEALTH), THRESH_ALERTS_RIGHT);
-    expect("bars.top_off_explicit",
-           status_threshold_bar_alerts(blob, n, THRESH_BAR_TOP), THRESH_ALERTS_OFF);
-    // The rain look next door never leaks into the placement.
-    blob[THRESH_ALERTS_OFFSET] = 0xFF;
-    blob[THRESH_BAR_ALERTS_OFFSET] = 0;
-    expect("bars.rain_no_alias", status_threshold_bar_alerts(blob, n, THRESH_BAR_TOP),
-           THRESH_ALERTS_OFF);
-    // Out-of-range bars are off.
-    expect("bars.oob_neg", status_threshold_bar_alerts(blob, n, -1), THRESH_ALERTS_OFF);
-    expect("bars.oob_4", status_threshold_bar_alerts(blob, n, THRESH_BAR_COUNT), THRESH_ALERTS_OFF);
-    // Shorter accepted blobs, bad lengths (the never-shipped 35 among them) and
-    // NULL: the pre-placement picture — the strip left, everything else off —
-    // never a read past the end.
-    size_t lens[] = { THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_SETTINGS_BYTES_PRE_KIND16,
-                      THRESH_SETTINGS_BYTES_PRE_BOLD, 35, 27 };
-    for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
-        expect("bars.short_top_left",
-               status_threshold_bar_alerts(blob, lens[i], THRESH_BAR_TOP), THRESH_ALERTS_LEFT);
-        expect("bars.short_radar_off",
-               status_threshold_bar_alerts(blob, lens[i], THRESH_BAR_RADAR), THRESH_ALERTS_OFF);
-    }
-    expect("bars.null_top_left",
-           status_threshold_bar_alerts(NULL, n, THRESH_BAR_TOP), THRESH_ALERTS_LEFT);
-    expect("bars.null_health_off",
-           status_threshold_bar_alerts(NULL, n, THRESH_BAR_HEALTH), THRESH_ALERTS_OFF);
+    // Rain: top right, forecast left, radar the reserved 3, health right.
+    blob[THRESH_ON_DEMAND_OFFSET + OD_RAIN] = (uint8_t)(OD_SIDE_RIGHT
+        | (OD_SIDE_LEFT << 2) | (3 << 4) | (OD_SIDE_RIGHT << 6));
+    expect("cells.rain_top", status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_RAIN),
+           OD_SIDE_RIGHT);
+    expect("cells.rain_forecast",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_FORECAST, OD_RAIN), OD_SIDE_LEFT);
+    expect("cells.rain_radar_reserved",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_RADAR, OD_RAIN), OD_SIDE_NONE);
+    expect("cells.rain_health",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_HEALTH, OD_RAIN), OD_SIDE_RIGHT);
+    // Each item reads its own byte: its neighbours stay none.
+    expect("cells.sleep_untouched",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_SLEEP), OD_SIDE_NONE);
+    expect("cells.gust_untouched",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_GUST), OD_SIDE_NONE);
+    // The first and the last cell byte.
+    blob[THRESH_ON_DEMAND_OFFSET + OD_BATTERY] = OD_SIDE_LEFT;
+    blob[THRESH_ON_DEMAND_OFFSET + OD_WIND] = (uint8_t)(OD_SIDE_LEFT << 6);
+    expect("cells.battery_top_left",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_LEFT);
+    expect("cells.wind_health_left",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_HEALTH, OD_WIND), OD_SIDE_LEFT);
+    expect("cells.wind_top_none",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_WIND), OD_SIDE_NONE);
+    // Out of range: none, never a read past the end.
+    expect("cells.oob_bar_neg", status_threshold_on_demand_side(blob, n, -1, OD_RAIN), OD_SIDE_NONE);
+    expect("cells.oob_bar", status_threshold_on_demand_side(blob, n, THRESH_BAR_COUNT, OD_RAIN),
+           OD_SIDE_NONE);
+    expect("cells.oob_item_neg", status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, -1),
+           OD_SIDE_NONE);
+    expect("cells.oob_item",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_ITEM_COUNT), OD_SIDE_NONE);
+    // The warn-look and Battery bytes never leak into the cells, nor they into them.
+    memset(blob, 0, sizeof(blob));
+    blob[THRESH_WARN_LOOK_OFFSET + 1] = 0xFF;
+    blob[THRESH_BATTERY_OFFSET] = 0xFF;
+    expect("cells.no_alias_from_look",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_NONE);
+    memset(blob, 0, sizeof(blob));
+    memset(blob + THRESH_ON_DEMAND_OFFSET, 0xFF, OD_ITEM_COUNT);
+    expect("cells.no_alias_into_look",
+           status_threshold_warn_look(blob, n, THRESH_UV), THRESH_WARN_LOOK_NONE);
+    expect("cells.no_alias_into_battery", status_threshold_battery_level(blob, n),
+           THRESH_BATTERY_LEVEL_DEFAULT);
+    expect("cells.all_reserved_none",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_RADAR, OD_UV), OD_SIDE_NONE);
 }
 
-// A status row reads the placement of its LINE's bar (status_row.c): each line maps
+// A blob without the cells — the development branch's 38, the 1.23.2 shapes 34/33/29,
+// a bad length, none stored — reads the compiled defaults: the phone's defaults for the
+// Watch Status Bar, and nothing on any other bar.
+static void on_demand_default_tests(void) {
+    static const int TOP[OD_ITEM_COUNT] = {
+        [OD_BATTERY] = OD_SIDE_RIGHT, [OD_BLUETOOTH] = OD_SIDE_LEFT,
+        [OD_QUIET_TIME] = OD_SIDE_LEFT, [OD_SLEEP] = OD_SIDE_LEFT,
+        [OD_RAIN] = OD_SIDE_RIGHT, [OD_GUST] = OD_SIDE_RIGHT, [OD_UV] = OD_SIDE_RIGHT,
+        [OD_AQI] = OD_SIDE_RIGHT, [OD_POLLEN] = OD_SIDE_NONE, [OD_WIND] = OD_SIDE_RIGHT,
+    };
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    // The development blob's byte 35 was the placement; whatever it holds, it is
+    // neither a battery level nor a cell.
+    blob[THRESH_BATTERY_OFFSET] = 0x55;
+    size_t lens[] = { THRESH_SETTINGS_BYTES_PRE_ON_DEMAND, THRESH_SETTINGS_BYTES_PRE_ALERTS,
+                      THRESH_SETTINGS_BYTES_PRE_KIND16, THRESH_SETTINGS_BYTES_PRE_BOLD,
+                      47, 35, 27, 0 };
+    for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
+        for (int item = 0; item < OD_ITEM_COUNT; item++) {
+            expect("defaults.top", status_threshold_on_demand_side(blob, lens[i],
+                   THRESH_BAR_TOP, item), TOP[item]);
+            for (int bar = THRESH_BAR_FORECAST; bar < THRESH_BAR_COUNT; bar++) {
+                expect("defaults.others_none",
+                       status_threshold_on_demand_side(blob, lens[i], bar, item), OD_SIDE_NONE);
+            }
+        }
+        expect("defaults.battery_level", status_threshold_battery_level(blob, lens[i]),
+               THRESH_BATTERY_LEVEL_DEFAULT);
+        expect("defaults.battery_icon", status_threshold_battery_value(blob, lens[i]), 0);
+    }
+    for (int item = 0; item < OD_ITEM_COUNT; item++) {
+        expect("defaults.null_top",
+               status_threshold_on_demand_side(NULL, THRESH_SETTINGS_BYTES, THRESH_BAR_TOP, item),
+               TOP[item]);
+    }
+    expect("defaults.null_level", status_threshold_battery_level(NULL, THRESH_SETTINGS_BYTES),
+           THRESH_BATTERY_LEVEL_DEFAULT);
+    // The spelled-out right side: battery, rain, gust, UV, AQI, wind — pollen off.
+    int right = 0;
+    for (int item = 0; item < OD_ITEM_COUNT; item++) {
+        if (TOP[item] == OD_SIDE_RIGHT) { right |= 1 << item; }
+    }
+    expect("defaults.right_set", right, (1 << OD_BATTERY) | (1 << OD_RAIN) | (1 << OD_GUST)
+           | (1 << OD_UV) | (1 << OD_AQI) | (1 << OD_WIND));
+}
+
+// The Battery byte [35]: bits 0-5 the warn level, bit 6 the Look, bit 7 reserved.
+// The watch uses a level in 5..30 verbatim — the phone already put it on the
+// platform's step — and reads 0 and anything out of range as 10.
+static void battery_byte_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    size_t n = sizeof(blob);
+    expect("battery.offset_pinned", THRESH_BATTERY_OFFSET, 35);
+    expect("battery.default_pinned", THRESH_BATTERY_LEVEL_DEFAULT, 10);
+    expect("battery.zero", status_threshold_battery_level(blob, n), 10);
+    expect("battery.zero_icon", status_threshold_battery_value(blob, n), 0);
+    for (int level = 5; level <= 30; level++) {
+        blob[THRESH_BATTERY_OFFSET] = (uint8_t)level;
+        expect("battery.verbatim", status_threshold_battery_level(blob, n), level);
+    }
+    blob[THRESH_BATTERY_OFFSET] = 15;
+    expect("battery.never_rounds", status_threshold_battery_level(blob, n), 15);
+    int bad[] = { 1, 4, 31, 45, 63 };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        blob[THRESH_BATTERY_OFFSET] = (uint8_t)bad[i];
+        expect("battery.out_of_range", status_threshold_battery_level(blob, n), 10);
+    }
+    // The Look bit and the reserved bit 7 stay out of the level.
+    blob[THRESH_BATTERY_OFFSET] = (uint8_t)(THRESH_BATTERY_VALUE_BIT | 20);
+    expect("battery.value_level", status_threshold_battery_level(blob, n), 20);
+    expect("battery.value", status_threshold_battery_value(blob, n), 1);
+    blob[THRESH_BATTERY_OFFSET] = (uint8_t)(0x80 | 25);
+    expect("battery.bit7_level", status_threshold_battery_level(blob, n), 25);
+    expect("battery.bit7_icon", status_threshold_battery_value(blob, n), 0);
+    // The rain look next door never leaks in.
+    blob[THRESH_BATTERY_OFFSET] = 30;
+    blob[THRESH_ALERTS_OFFSET] = 0xFF;
+    expect("battery.rain_no_alias", status_threshold_battery_level(blob, n), 30);
+}
+
+// A status row reads the cells of its LINE's bar (status_on_demand.c): each line maps
 // to its own cell, although the two enums order the four differently, and an
-// unknown line reads Off.
+// unknown line reads none.
 static void bar_of_line_tests(void) {
     expect("line.top", status_threshold_bar_of_line(STATUS_LINE_TOP), THRESH_BAR_TOP);
     expect("line.forecast",
@@ -563,24 +667,23 @@ static void bar_of_line_tests(void) {
     expect("line.oob", status_threshold_bar_of_line(STATUS_LINE_COUNT), -1);
     expect("line.neg", status_threshold_bar_of_line(-1), -1);
 
-    // Through the accessor, one distinct placement per bar: every line lands on its
-    // own cell and no other.
+    // Through the accessor, one distinct side per bar: every line lands on its own
+    // cell and no other.
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
     size_t n = sizeof(blob);
-    blob[THRESH_BAR_ALERTS_OFFSET] = (uint8_t)(THRESH_ALERTS_LEFT
-        | (THRESH_ALERTS_MIDDLE << 2) | (THRESH_ALERTS_RIGHT << 4) | (THRESH_ALERTS_OFF << 6));
-    expect("line.top_cell", status_threshold_bar_alerts(blob, n,
-           status_threshold_bar_of_line(STATUS_LINE_TOP)), THRESH_ALERTS_LEFT);
-    expect("line.forecast_cell", status_threshold_bar_alerts(blob, n,
-           status_threshold_bar_of_line(STATUS_LINE_FORECAST)), THRESH_ALERTS_MIDDLE);
-    expect("line.radar_cell", status_threshold_bar_alerts(blob, n,
-           status_threshold_bar_of_line(STATUS_LINE_RADAR)), THRESH_ALERTS_RIGHT);
-    expect("line.health_cell", status_threshold_bar_alerts(blob, n,
-           status_threshold_bar_of_line(STATUS_LINE_HEALTH)), THRESH_ALERTS_OFF);
-    blob[THRESH_BAR_ALERTS_OFFSET] = 0xFF;
-    expect("line.oob_cell_off", status_threshold_bar_alerts(blob, n,
-           status_threshold_bar_of_line(STATUS_LINE_COUNT)), THRESH_ALERTS_OFF);
+    blob[THRESH_ON_DEMAND_OFFSET + OD_UV] = (uint8_t)(OD_SIDE_LEFT
+        | (OD_SIDE_RIGHT << 2) | (OD_SIDE_NONE << 4) | (OD_SIDE_LEFT << 6));
+    expect("line.top_cell", status_threshold_on_demand_side(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_TOP), OD_UV), OD_SIDE_LEFT);
+    expect("line.forecast_cell", status_threshold_on_demand_side(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_FORECAST), OD_UV), OD_SIDE_RIGHT);
+    expect("line.radar_cell", status_threshold_on_demand_side(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_RADAR), OD_UV), OD_SIDE_NONE);
+    expect("line.health_cell", status_threshold_on_demand_side(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_HEALTH), OD_UV), OD_SIDE_LEFT);
+    expect("line.oob_cell_none", status_threshold_on_demand_side(blob, n,
+           status_threshold_bar_of_line(STATUS_LINE_COUNT), OD_UV), OD_SIDE_NONE);
 }
 
 // The warn-look bytes [36..37]: 2 bits per PAIRED kind (kind k at byte 36 +
@@ -625,20 +728,29 @@ static void warn_look_tests(void) {
            status_threshold_warn_look(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_WARN_LOOK_NONE);
     expect("look.neg_none", status_threshold_warn_look(blob, n, -1), THRESH_WARN_LOOK_NONE);
     expect("look.oob_none", status_threshold_warn_look(blob, n, THRESH_KIND_COUNT), THRESH_WARN_LOOK_NONE);
-    // The look bytes never leak into the alert bytes next door, nor they into it.
+    // The look bytes never leak into the rain look, the Battery byte or the cells
+    // around them, nor they into it.
     expect("look.rain_no_alias", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_TEXT);
-    expect("look.bars_no_alias", status_threshold_bar_alerts(blob, n, THRESH_BAR_TOP), THRESH_ALERTS_OFF);
+    expect("look.battery_no_alias", status_threshold_battery_level(blob, n),
+           THRESH_BATTERY_LEVEL_DEFAULT);
+    expect("look.cells_no_alias",
+           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_NONE);
     blob[THRESH_WARN_LOOK_OFFSET] = 0;
-    blob[THRESH_BAR_ALERTS_OFFSET] = 0xFF;
+    blob[THRESH_BATTERY_OFFSET] = 0xFF;
     blob[THRESH_ALERTS_OFFSET] = 0xFF;
+    blob[THRESH_ON_DEMAND_OFFSET] = 0xFF;
     expect("look.alerts_no_alias", status_threshold_warn_look(blob, n, THRESH_AQI), THRESH_WARN_LOOK_NONE);
+    // The development branch's 38-B blob carries the look bytes and reads them.
+    blob[THRESH_WARN_LOOK_OFFSET] = THRESH_WARN_LOOK_FILL;
+    expect("look.dev38", status_threshold_warn_look(blob, THRESH_SETTINGS_BYTES_PRE_ON_DEMAND,
+           THRESH_AQI), THRESH_WARN_LOOK_FILL);
     // Legacy lengths derive from the warn color byte: 0x00 none, else outline —
     // whatever the (absent) look bytes would have said.
     memset(blob, 0, sizeof(blob));
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI] = 0xFF;       // aqi: white warn outline
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_STEPS] = 0xCC;     // steps: green close outline
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND + 1] = 0xF0;  // wind: danger colour only
-    blob[THRESH_WARN_LOOK_OFFSET] = 0xAA;                     // would read fill if 38 B
+    blob[THRESH_WARN_LOOK_OFFSET] = 0xAA;                     // would read fill if 38+ B
     size_t lens[] = { THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_SETTINGS_BYTES_PRE_KIND16,
                       THRESH_SETTINGS_BYTES_PRE_BOLD };
     for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
@@ -935,7 +1047,9 @@ int main(void) {
     bold_tests();
     legacy_blob_tests();
     rain_display_tests();
-    bar_alerts_tests();
+    on_demand_cell_tests();
+    on_demand_default_tests();
+    battery_byte_tests();
     bar_of_line_tests();
     warn_look_tests();
     health_value_tests();

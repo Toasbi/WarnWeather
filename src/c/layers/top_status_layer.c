@@ -1,134 +1,39 @@
 #include "top_status_layer.h"
 #include "battery_draw.h"
-#include "status_metrics.h"   // STATUS_TOP_STRIP_LIFT — the strip's seating (STATUS_ICON_Y)
 #include "status_row.h"
-#include "top_status_indicators.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
-#include "c/appendix/persist.h"
 #include "c/appendix/rain_countdown.h"
-#include "c/appendix/snooze.h"
 #include "c/appendix/status_line.h"
-#include "c/appendix/theme.h"
 #include "c/services/watch_services.h"
 #include "c/windows/layout.h"   // LayoutTier (status_row tier param)
 
 #define PADDING 4
-#define ICON_SLOT_1 GRect(PADDING, 0, 10, 10)
-#define ICON_SLOT_2 GRect(PADDING * 2 + 10, 0, 10, 10)
-// Seat the indicator icons on the same row as the strip's text. The band is sized from its font
-// (status_min_band_h), so (bounds_h - icon_h)/2 lands on the band centre — which is where the
-// cap-centred seat would put the date's cap — and the strip then lifts BOTH by
-// STATUS_TOP_STRIP_LIFT so the icons keep following the text up toward the screen edge. This
-// used to be a no-op (0) on the 144px watches, which only looked right because their 14px band
-// was too short and the descender clamp had pushed the text flush against row 0.
-#define STATUS_ICON_Y(bounds_h, icon_h) \
-    (((bounds_h) - (icon_h)) / 2 - STATUS_TOP_STRIP_LIFT)
 
-static bool show_qt_icon(void);
 static void bluetooth_callback(bool connected);
-static void update_battery_override(void);
 static void battery_state_callback(BatteryChargeState charge);
 
 static Layer *s_top_status_layer;
 static StatusRow *s_row;
 static bool s_full_date;
-static GBitmap *s_mute_bitmap;
-static GBitmap *s_bt_bitmap;
-static GBitmap *s_bt_disconnect_bitmap;
-static GColor s_bt_palette[2];
-static GColor s_bt_disconnect_palette[2];
-static GColor s_mute_palette[2];
-// Cached Quiet-Time icon state for the per-minute tick: the mute icon is the
-// only status-strip element without an event source, so the minute handler
-// repaints the strip only when this flips. Kept in sync by status_icons_refresh.
-static bool s_last_qt_active;
+// The window's hook for a Bluetooth or battery change (main_window.c): it reaches
+// every bar's On demand items, this strip's included.
+static TopStatusSystemChange s_on_system_change;
 
-static void draw_bitmap(GContext *ctx, GBitmap *bitmap, GRect frame) {
-    graphics_context_set_compositing_mode(ctx, GCompOpSet);
-    graphics_draw_bitmap_in_rect(ctx, bitmap, frame);
-    graphics_context_set_compositing_mode(ctx, GCompOpAssign);
-}
-
-static GColor s_mute_bitmap_fg;
-static GColor s_bt_bitmap_fg;
-static GColor s_bt_disconnect_bitmap_fg;
-
-// Lazy-load an icon bitmap and (re)tint its 2-color palette to fg. cached_fg
-// remembers the tint the palette was last built with, so a live theme change
-// re-applies the palette (cheap: no image reload) instead of leaving a stale tint.
-static void ensure_icon_loaded(GBitmap **bmp, GColor *palette, GColor *cached_fg,
-                               uint32_t resource_id, GColor fg) {
-    if (*bmp && gcolor_equal(*cached_fg, fg)) {
-        return;
-    }
-    if (!*bmp) {
-        *bmp = gbitmap_create_with_resource(resource_id);
-    }
-    palette[0] = fg;
-    palette[1] = GColorClear;
-    gbitmap_set_palette(*bmp, palette, false);
-    *cached_fg = fg;
-}
-
-// Light theme tints the BT icons the default foreground (black) instead of the
-// hue — a saturated blue reads poorly on a white strip. Dark keeps the hue;
-// bw/bw-light already collapse to theme_fg() via theme_pick(), same as light, so
-// this only changes the color-build dark-vs-light split. On B&W hardware builds
-// theme_pick() is a macro that always resolves to theme_fg(), so both arms of
-// the ternary agree and this collapses to theme_fg() regardless of theme_is_light().
-static GColor bt_icon_fg(GColor hue) {
-    return theme_is_light() ? theme_fg() : theme_pick(hue, theme_fg());
-}
-
-static TopStatusIndicators current_indicators(bool connected) {
-    const Config *config = config_get();
-    bool wants_bt = connected ? config->show_bt : config->show_bt_disconnect;
-    return top_status_indicators_resolve(
-        show_qt_icon(), wants_bt, persist_get_is_sleeping());
-}
-
-static GRect indicator_frame(GRect bounds, uint8_t slot) {
-    GRect frame = slot == 0 ? ICON_SLOT_1 : ICON_SLOT_2;
-    frame.origin.y = STATUS_ICON_Y(bounds.size.h, frame.size.h);
-    return frame;
-}
-
-static void maybe_unload_top_status_bitmaps(
-        bool draw_qt, bool draw_bt, bool draw_bt_disconnect) {
-    if (!draw_qt && s_mute_bitmap) {
-        gbitmap_destroy(s_mute_bitmap);
-        s_mute_bitmap = NULL;
-    }
-    if (!draw_bt && s_bt_bitmap) {
-        gbitmap_destroy(s_bt_bitmap);
-        s_bt_bitmap = NULL;
-    }
-    if (!draw_bt_disconnect && s_bt_disconnect_bitmap) {
-        gbitmap_destroy(s_bt_disconnect_bitmap);
-        s_bt_disconnect_bitmap = NULL;
-    }
-}
-
-// Configurable slots (status_row's left slot / fixed date mid slot / right slot)
-// span from the left icon slot(s) to the right edge. Left inset clears whichever
-// resolved Quiet Time/Bluetooth/snooze group is currently on screen. The right
-// inset is flush (0) on emery so the
-// top-right slot lines up exactly with the weather/health rows' right slots (those
-// rows pass their full bounds to status_row_apply — see weather_status_layer.c); on
-// the smaller-screen platforms a flush right slot clips the right-slot glyph at
-// content_w (the battery nub reaches its slot edge), so they keep a PADDING right pad.
+// The configurable slots (status_row's left slot / date mid slot / right slot) span
+// the strip. Bluetooth, Quiet time, Sleep and the low battery are On demand items the
+// row draws itself (status_on_demand.c), so the rect never carves room for them: it
+// is the quiet strip's rect at all times, and a strip with nothing to show draws
+// exactly as it always did. The first left item still lands where the old indicator
+// icons drew (screen x 4): the row lets its left run reach STATUS_ROW_MARGIN into the
+// margin. The right inset is flush (0) on emery so the top-right slot lines up exactly
+// with the weather/health rows' right slots (those rows pass their full bounds to
+// status_row_apply — see status_bar.c); on the smaller-screen platforms a flush right
+// slot clips the right-slot glyph at content_w (the battery nub reaches its slot
+// edge), so they keep a PADDING right pad.
 static GRect content_rect(void) {
     GRect bounds = layer_get_bounds(s_top_status_layer);
-    bool connected = connection_service_peek_pebble_app_connection();
-    TopStatusIndicators indicators = current_indicators(connected);
-
-    int16_t left = ICON_SLOT_1.origin.x;
-    if (indicators.count == 1) {
-        left = (int16_t)(ICON_SLOT_1.origin.x + ICON_SLOT_1.size.w + PADDING);
-    } else if (indicators.count == 2) {
-        left = (int16_t)(ICON_SLOT_2.origin.x + ICON_SLOT_2.size.w + PADDING);
-    }
+    int16_t left = PADDING;
     // emery: the wider band clears the right-slot glyph at content_w, so the top-right
     // slot sits flush (aligned with the weather/health rows). The smaller-screen bands
     // clip a flush right slot, so they keep the small right pad.
@@ -142,53 +47,9 @@ static GRect content_rect(void) {
     return GRect((int16_t)(bounds.origin.x + left), bounds.origin.y, w, bounds.size.h);
 }
 
-// One paint path: the indicator icons, then the row in the rect they leave. The rain
-// alert is no longer the strip's own takeover — it is an entry of the alert row
-// (status_row.c + status_alerts.c), which replaces the slot of the strip's Alerts
-// placement (left by default) and takes the date slot beside it only while it needs
-// the room. The indicators are therefore never hidden for it: they own the strip's
-// left edge and the row starts after them.
+// One paint path: the row, On demand items included.
 static void top_status_update_proc(Layer *layer, GContext *ctx) {
-    GRect bounds = layer_get_bounds(layer);
-    bool connected = connection_service_peek_pebble_app_connection();
-    TopStatusIndicators indicators = current_indicators(connected);
-
-    bool has_qt = top_status_indicators_contains(
-        indicators, TOP_STATUS_INDICATOR_QUIET_TIME);
-    bool has_bt = top_status_indicators_contains(
-        indicators, TOP_STATUS_INDICATOR_BLUETOOTH);
-    maybe_unload_top_status_bitmaps(has_qt, has_bt && connected, has_bt && !connected);
-
-    for (uint8_t i = 0; i < indicators.count; i++) {
-        GRect frame = indicator_frame(bounds, i);
-        switch (indicators.slots[i]) {
-            case TOP_STATUS_INDICATOR_QUIET_TIME:
-                ensure_icon_loaded(&s_mute_bitmap, s_mute_palette,
-                    &s_mute_bitmap_fg, RESOURCE_ID_IMAGE_MUTE, theme_fg());
-                draw_bitmap(ctx, s_mute_bitmap, frame);
-                break;
-            case TOP_STATUS_INDICATOR_BLUETOOTH:
-                if (connected) {
-                    ensure_icon_loaded(&s_bt_bitmap, s_bt_palette,
-                        &s_bt_bitmap_fg, RESOURCE_ID_IMAGE_BT_CONNECT,
-                        bt_icon_fg(GColorPictonBlue));
-                    draw_bitmap(ctx, s_bt_bitmap, frame);
-                } else {
-                    ensure_icon_loaded(&s_bt_disconnect_bitmap,
-                        s_bt_disconnect_palette, &s_bt_disconnect_bitmap_fg,
-                        RESOURCE_ID_IMAGE_BT_DISCONNECT,
-                        bt_icon_fg(GColorRed));
-                    draw_bitmap(ctx, s_bt_disconnect_bitmap, frame);
-                }
-                break;
-            case TOP_STATUS_INDICATOR_SNOOZE:
-                snooze_draw(ctx, frame, theme_fg());
-                break;
-            case TOP_STATUS_INDICATOR_NONE:
-                break;
-        }
-    }
-
+    (void)layer;
     status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
     status_row_draw(s_row, ctx);
 }
@@ -199,7 +60,7 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
     s_top_status_layer = layer_create(frame);
     MEMORY_HEAP_PROBE_SAMPLE("after_layer_create", &probe);
 
-    // Set up bluetooth handler
+    // The app-wide connection handler: the disconnect vibe, and the Bluetooth item.
     connection_service_subscribe((ConnectionHandlers) {
         .pebble_app_connection_handler = bluetooth_callback
     });
@@ -207,21 +68,19 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
 
     s_row = status_row_create(STATUS_LINE_TOP);
     status_row_set_full_date(s_row, s_full_date);
-    // The battery now lives in the top-right status slot (status_row draws it);
-    // own its event source here as the retired battery corner layer used to.
-    update_battery_override();
+    // The battery lives in the top-right status slot and the Battery item; own its
+    // event source here as the retired battery corner layer used to.
     if (!watch_services_battery_is_fixture()) {
         battery_state_service_subscribe(battery_state_callback);
     }
     status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
 
     // Prime the rain countdown's segment cache from the persisted radar before the
-    // strip's first refresh: every alert row (this strip's or a band row's) derives
-    // its rain entry from that cache, and after boot only a radar payload rescans it.
-    // Only the strip's first refresh finds it primed: main_window_load creates the
-    // band rows earlier, and their first refresh (status_bar_create_all) finds the
-    // cache empty, so a band row's rain entry appears at its next refresh — the
-    // minute tick (main_window_tick_alerts) at the latest.
+    // strip's first refresh: every bar's Rain item derives from that cache, and after
+    // boot only a radar payload rescans it. Only the strip's first refresh finds it
+    // primed: main_window_load creates the band rows earlier, and their first refresh
+    // (status_bar_create_all) finds the cache empty, so a band bar's Rain item appears
+    // at its next refresh — the minute tick (main_window_tick_on_demand) at the latest.
     rain_countdown_refresh(watch_services_now());
     top_status_layer_refresh();
 
@@ -250,66 +109,51 @@ Layer *top_status_layer_get_root(void) {
 }
 #endif
 
+void top_status_layer_set_on_system_change(TopStatusSystemChange cb) {
+    s_on_system_change = cb;
+}
+
+// A Bluetooth or battery change: every bar's items re-resolve through the window's
+// hook; before it is registered, the strip refreshes itself.
+static void system_changed(void) {
+    if (s_on_system_change) {
+        s_on_system_change();
+    } else {
+        top_status_layer_refresh();
+    }
+}
+
 static void bluetooth_callback(bool connected) {
-    layer_mark_dirty(s_top_status_layer);
+    system_changed();
     if (!connected && config_get()->vibe)
         vibes_double_pulse();
 }
 
-// Low-battery takeover: when "show battery below 10%" is on and the charge is
-// under 10%, force the right slot to the battery glyph regardless of its packed
-// kind. Off/above threshold clears the override (the slot renders its own kind).
-static void update_battery_override(void) {
-    bool active = config_get()->battery_low_only
-        && watch_services_battery_state().charge_percent < 10;
-    status_row_set_battery_override(s_row, active);
-}
-
 static void battery_state_callback(BatteryChargeState charge) {
-    update_battery_override();
-    layer_mark_dirty(s_top_status_layer);
-}
-
-static bool show_qt_icon(void) {
-    return config_get()->show_qt && quiet_time_is_active();
+    (void)charge;
+    system_changed();
 }
 
 void status_icons_refresh() {
-    // A full strip repaint resyncs the per-minute QT baseline so the next
-    // top_status_layer_tick() only fires on a genuine QT transition.
-    s_last_qt_active = show_qt_icon();
     layer_mark_dirty(s_top_status_layer);
 }
 
 void top_status_layer_tick() {
-    // Per-minute hook. Repaint when the Quiet-Time icon toggles (its only event
-    // source) or when the row's content moves. The row refresh IS the per-minute
-    // rain re-derivation: the alert row resolves its rain entry from the cached
-    // countdown on every refresh (flash-free; the radar scan itself runs only on
-    // data change) and folds it into the row signature, so "Rain in 12'" -> "11'"
-    // repaints here. update_battery_override here catches crossing the 10%
-    // threshold between the discrete battery_state events.
-    update_battery_override();
-    bool dirty = false;
-    bool qt_active = show_qt_icon();
-    if (qt_active != s_last_qt_active) {
-        s_last_qt_active = qt_active;
-        dirty = true;
-    }
+    // Per-minute hook. The row refresh IS the per-minute On demand pass: it re-reads
+    // Quiet time (no SDK event exists for it), the charge against the Battery item's
+    // warn level and the rain entry from the cached countdown (flash-free; the radar
+    // scan itself runs only on data change), and folds them into the row signature,
+    // so "Rain in 12'" -> "11'" and a Quiet Time window's start repaint here.
     if (status_row_refresh(s_row)) {
-        dirty = true;
-    }
-    if (dirty) {
         layer_mark_dirty(s_top_status_layer);
     }
 }
 
 void top_status_layer_refresh() {
-    // Date formatting lives in status_row.c's format_status_date (SLOT_LIVE_DATE);
-    // the rain alert is an alert-row entry, and the strip's Alerts placement is read
-    // from the thresholds blob, both by the row itself; this owner only keeps the
-    // battery override and the icon state in sync.
-    update_battery_override();   // config may have flipped battery_low_only
+    // Date formatting lives in status_row.c's format_status_date (SLOT_LIVE_DATE); the
+    // On demand items are read by the row itself. A refresh always repaints the strip
+    // (a theme change reaches it through here), and the row refresh keeps its
+    // signature current.
     status_icons_refresh();
     if (status_row_refresh(s_row)) {
         layer_mark_dirty(s_top_status_layer);
@@ -326,19 +170,8 @@ void top_status_layer_destroy() {
     if (!watch_services_battery_is_fixture()) {
         battery_state_service_unsubscribe();
     }
+    s_on_system_change = NULL;
     battery_draw_deinit();
-    if (s_mute_bitmap) {
-        gbitmap_destroy(s_mute_bitmap);
-        s_mute_bitmap = NULL;
-    }
-    if (s_bt_bitmap) {
-        gbitmap_destroy(s_bt_bitmap);
-        s_bt_bitmap = NULL;
-    }
-    if (s_bt_disconnect_bitmap) {
-        gbitmap_destroy(s_bt_disconnect_bitmap);
-        s_bt_disconnect_bitmap = NULL;
-    }
     status_row_destroy(s_row);
     s_row = NULL;
     layer_destroy(s_top_status_layer);

@@ -39,8 +39,13 @@ test('obsolete frozen-weather classifier is removed', function() {
                       /status_slot_is_frozen_weather/);
 });
 
-test('the color top strip renders the procedural snooze glyph', function() {
-  assert.match(read('src/c/layers/top_status_layer.c'), /snooze_draw\(/);
+// Off aplite the Z's are the On demand Sleep item (Battery saver hours), drawn by
+// the item painter in any bar's icon tier; the strip itself no longer draws them.
+test('the On demand Sleep item renders the procedural snooze glyph', function() {
+  var items = read('src/c/layers/status_on_demand.c');
+  assert.match(items, /persist_get_is_sleeping\(\)/);
+  assert.match(items, /OD_SLEEP[\s\S]*snooze_draw\(/);
+  assert.doesNotMatch(read('src/c/layers/top_status_layer.c'), /snooze_draw/);
 });
 
 test('the frozen-lean aplite top strip draws snooze as cheap text (reaps snooze_draw)', function() {

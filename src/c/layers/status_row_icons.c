@@ -176,6 +176,10 @@ static uint32_t icon_resource(uint8_t icon_id) {
         // the draw site (status_row.c ensure_glyphs) never asks for them anyway.
         case STATUS_ICON_PRESSURE: return 0;
         case STATUS_ICON_PHONE_BATTERY_PLAIN: return 0;
+        // The On demand system items (in-memory ids, never on the wire).
+        case STATUS_ROW_ICON_QUIET: return RESOURCE_ID_STATUS_QUIET;
+        case STATUS_ROW_ICON_BT: return RESOURCE_ID_STATUS_BT;
+        case STATUS_ROW_ICON_BT_OFF: return RESOURCE_ID_STATUS_BT_OFF;
 #if defined(PBL_HEALTH)
         // Distance is a HealthService metric (steps → distance), so it lives with the
         // other health glyphs: no health service means no steps and no distance.

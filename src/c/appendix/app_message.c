@@ -200,8 +200,9 @@ static bool handle_thresholds(DictionaryIterator *iterator, bool *status_dirty) 
 #endif  // WW_THRESHOLD_HIGHLIGHT
 
 #if defined(WW_ON_DEMAND)
-// The alert row's metric entries — ride the weather message's status category
-// next to the levels (the phone judges the alerts; the watch has no raw values).
+// The weather alerts' metric entries — On demand's alert items. They ride the
+// weather message's status category next to the levels (the phone judges the
+// alerts; the watch has no raw values).
 // An empty array means nothing is alerting and clears the stored entries; a
 // malformed one is dropped and the last good entries stay.
 static bool handle_alert_entries(DictionaryIterator *iterator, bool *status_dirty) {
@@ -641,7 +642,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     handled |= handle_thresholds(iterator, &status_dirty);
 #endif
 #if defined(WW_ON_DEMAND)
-    // aplite has no alert row (the lean status-row twin draws none) and the phone
+    // aplite has no On demand (the lean status-row twin draws none) and the phone
     // never sends it the tuple.
     handled |= handle_alert_entries(iterator, &status_dirty);
 #endif
@@ -696,7 +697,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 
     // The rain-countdown rescan comes FIRST, before anything paints: the countdown is
-    // pure data that every alert row's refresh reads (status_alerts.c resolve), and
+    // pure data that every On demand bar's refresh reads (status_on_demand.c), and
     // the status rows are signature-gated (an unchanged signature repaints nothing), so
     // a row refreshed ahead of the rescan would keep showing the old rain entry until
     // the next minute tick. The radar payload (or the snooze latch/release) is the
@@ -752,20 +753,20 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
 #if defined(WW_RAIN_RADAR)
         rain_radar_layer_refresh();
 #endif
-        // Any row showing the alert row carries the rain entry, which it derives from
-        // the countdown rescanned above — the strip (left by default) and any band
-        // row whose bar the user gave an Alerts placement. They refresh for the rescan here —
+        // Any bar with the Rain item derives it from the countdown rescanned above —
+        // the strip (right by default) and any band bar the user gave it. They
+        // refresh for the rescan here —
         // unless an earlier block already refreshed them AFTER that rescan and they
         // therefore already carry the fresh countdown. Both do: the config block's
         // whole-window refresh, and the status block's refresh of every bar plus the
         // strip. Nothing a row reads is produced in between
         // (rain_radar_layer_refresh() above is only a layer_mark_dirty), so a second
-        // pass would re-run the battery override and a full three-slot persist read
-        // per row for an identical picture.
+        // pass would re-run a full three-slot persist read per row for an identical
+        // picture.
         if (!config_dirty && !status_dirty) {
             top_status_layer_refresh();
 #if defined(WW_ON_DEMAND)
-            main_window_tick_alerts();
+            main_window_tick_on_demand();
 #endif
         }
 #if defined(WW_RAIN_RADAR)
@@ -862,9 +863,9 @@ void app_message_init() {
     // Every other platform has heap to spare and carries the extra metric lines
     // (test/inbox-size.test.js sizes each platform's heaviest bundle against its
     // own value here).
-    // 640 (was 600): the alert row's ALERT_ENTRIES_UINT8 tuple rides the status
+    // 640 (was 600): the weather alerts' ALERT_ENTRIES_UINT8 tuple rides the status
     // category — 7 B of tuple header + up to 20 entry bytes. aplite stays at 536:
-    // it has no alert row and never receives the tuple.
+    // it has no On demand and never receives the tuple.
     const int inbox_size = 640;
 #endif
     const int outbox_size = dict_calc_buffer_size(2, sizeof(uint8_t), sizeof(uint8_t));

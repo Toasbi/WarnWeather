@@ -157,9 +157,18 @@ static ViewSpec current_view_spec(void) {
 }
 
 #if defined(WW_ON_DEMAND)
-void main_window_tick_alerts(void) {
+void main_window_tick_on_demand(void) {
     ViewSpec spec = current_view_spec();
-    status_bar_tick_alerts(&spec);
+    status_bar_tick_on_demand(&spec);
+}
+
+// The strip's system-change hook (top_status_layer_set_on_system_change): a
+// Bluetooth connect/disconnect or a battery change reaches every bar's On demand
+// items at once, not at the next minute tick. Rows are signature-gated, so a bar
+// the change does not touch costs one refresh and no repaint.
+static void on_system_change(void) {
+    main_window_tick_on_demand();
+    top_status_layer_refresh();
 }
 #endif
 
@@ -416,6 +425,10 @@ static void main_window_load(Window *window) {
     // date after a relaunch-restore onto a none-tier view.
     top_status_layer_set_full_date(layout_full_date(&spec));
     top_status_layer_create(window_layer, L.top_status); // +1 height already in L.top_status
+#if defined(WW_ON_DEMAND)
+    // Bluetooth and battery events reach the band bars' On demand items too.
+    top_status_layer_set_on_system_change(on_system_change);
+#endif
     loading_layer_create(window_layer, L.loading);
     loading_layer_refresh();
     app_message_send_startup_state(loading_layer_data_is_fresh());
@@ -523,9 +536,10 @@ static void minute_handler(struct tm *tick_time, TimeUnits units_changed) {
     }
     top_status_layer_tick();
 #if defined(WW_ON_DEMAND)
-    // The strip's tick re-derives its own alert row; a row the user placed in a band
-    // bar needs the same per-minute pass, or its rain countdown would stand still.
-    main_window_tick_alerts();
+    // The strip's tick re-derives its own On demand items; a band bar with items
+    // needs the same per-minute pass, or its rain countdown and Quiet time would
+    // stand still.
+    main_window_tick_on_demand();
 #endif
     loading_layer_refresh();
 #if defined(PBL_HEALTH)

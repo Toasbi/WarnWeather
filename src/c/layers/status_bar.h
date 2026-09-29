@@ -19,12 +19,12 @@
 // unrepresentable.
 //
 // THE TOP STRIP IS DELIBERATELY NOT HERE. top_status_layer.c owns two service
-// subscriptions, three lazily-loaded indicator bitmaps and the low-battery
-// override; it carves its own content rect around
-// the indicator slots instead of taking the band's full bounds, has no render
-// tier, no band assignment and no visibility toggle, ticks on the minute, and has
-// a full aplite lean twin. The abstraction those four rows genuinely share is
-// StatusRow, and that seam is already in place.
+// subscriptions and the system-change hook (aplite's twin: three lazily-loaded
+// indicator bitmaps and the low-battery override); it carves its own content rect
+// instead of taking the band's full bounds, has no render tier, no band assignment
+// and no visibility toggle, ticks on the minute, and has a full aplite lean twin.
+// The abstraction those four rows genuinely share is StatusRow, and that seam is
+// already in place.
 //
 // WHY THE API IS COLLECTIVE. Every entry point acts on ALL bars and takes no bar
 // id. That is not stylistic: aplite has neither radar nor health, so
@@ -93,12 +93,13 @@ bool status_bar_any_visible_uses_live_health(const ViewSpec *spec);
 void status_bar_refresh_live_health(const ViewSpec *spec);
 
 #if defined(WW_ON_DEMAND)
-// Re-resolve the VISIBLE bars that have an Alerts placement
-// (status_row_uses_alerts) — the rain entry is derived from the radar cache on
-// every refresh, and only a refresh notices that the countdown moved on. Called
-// on the minute tick (beside top_status_layer_tick) and after a radar rescan
-// (app_message's radar_dirty block), so an alert row in a band row keeps pace with
-// the one in the strip. Hidden bars are skipped for the live-health reason above:
-// the refresh_all that unhides one re-resolves it. Absent on aplite (no alert row).
-void status_bar_tick_alerts(const ViewSpec *spec);
+// Re-resolve the VISIBLE bars that carry On demand items
+// (status_row_uses_on_demand) — Quiet time has no event and the rain entry is
+// derived from the radar cache on every refresh, so only a refresh notices that
+// either moved on. Called on the minute tick (beside top_status_layer_tick), after a
+// radar rescan (app_message's radar_dirty block) and on a Bluetooth or battery
+// change (the strip's system-change hook, main_window.c), so a band bar's items keep
+// pace with the strip's. Hidden bars are skipped for the live-health reason above:
+// the refresh_all that unhides one re-resolves it. Absent on aplite (no On demand).
+void status_bar_tick_on_demand(const ViewSpec *spec);
 #endif

@@ -4,15 +4,15 @@
 #include <stdbool.h>
 #include "status_line.h"
 #include "status_threshold.h"
-#include "../layers/status_row_layout.h"
 
-// The alert row's entry set: which alerts the row shows, in which order, how many
-// of them fit, and which slots of its bar it takes over. Pure integer code — deliberately no <pebble.h> (nor rain_tier.h,
-// which pulls it in), so the module host-compiles (scripts/test-c.sh) like
-// status_threshold.c, linked with the row layout it asks where the slots go. The SDK
-// side — glyphs, text, paint — is layers/status_alerts.c.
+// The weather alerts' entry set: the metric alerts the phone baked, the rain alert
+// the watch resolves, and the text lanes they print. Pure integer code —
+// deliberately no <pebble.h> (nor rain_tier.h, which pulls it in), so the module
+// host-compiles (scripts/test-c.sh) like status_threshold.c. Where the entries sit
+// is On demand's business (appendix/on_demand.c lays the items out); the SDK side —
+// glyphs, text, paint — is layers/status_on_demand.c.
 //
-// NOT LINKED ON APLITE: the row is aplite-absent (WW_ON_DEMAND in wscript), so the
+// NOT LINKED ON APLITE: On demand is aplite-absent (WW_ON_DEMAND in wscript), so the
 // .c body sits behind that macro and compiles to an empty object there. These
 // declarations stay visible everywhere (they emit nothing); every CALL site is
 // guarded, or in a file aplite never compiles (status_row.c's lean twin replaces it).
@@ -24,15 +24,14 @@
 //  - the rain alert is resolved on the watch from its own radar cache
 //    (rain_countdown_format() / rain_countdown_peak_tier()) — the SDK caller
 //    collapses the tier to a bucket and hands both in to alert_set_prepend_rain().
-// Fixed order: rain, then the metric entries in wire order (UV, wind, gust, AQI,
-// pollen — the phone's order), so the fit's tail-drop loses pollen first and rain
-// never.
+// The set keeps rain first, then the metric entries in wire order; each entry
+// becomes the On demand item of its kind, which orders the items by priority.
 
 // The two macros gate different wire concerns (WW_THRESHOLD_HIGHLIGHT the thresholds
-// blob and levels word, WW_ON_DEMAND the entries tuple), but the row cannot stand
-// without the first: its entries are judged and painted by the threshold looks.
+// blob and levels word, WW_ON_DEMAND the entries tuple), but On demand cannot stand
+// without the first: its alert items are judged and painted by the threshold looks.
 #if defined(WW_ON_DEMAND) && !defined(WW_THRESHOLD_HIGHLIGHT)
-#error "WW_ON_DEMAND needs WW_THRESHOLD_HIGHLIGHT: the alert row paints the threshold looks"
+#error "WW_ON_DEMAND needs WW_THRESHOLD_HIGHLIGHT: the alert items paint the threshold looks"
 #endif
 
 #define ALERT_SET_MAX 6   // rain + the five metric kinds
@@ -148,48 +147,17 @@ int alert_set_row_w(const int16_t *widths, int n, int gap);
 // the first fits.
 int alert_set_fit(const int16_t *widths, int n, int gap, int budget);
 
-// The takeover: lay the bar out (`out`) without the slots the alert row replaces,
-// and give the span [*x0, *x1) they leave it. Returns the slots taken as a bitmask
-// over the slot indices (bit 0 left, 1 middle, 2 right — status_line.h's order).
-//
-// `place` is the bar's ThreshAlertsPlace, `need` the row's width at its full lanes
-// (alert_set_row_w) and `m` the three slots' measures, left untouched. LEFT takes the
-// left slot, RIGHT the right one, MIDDLE the middle one, and the rest lay out where
-// they would anyway (the middle slot stays centred). When the row does not fit the
-// span that leaves, it borrows ONE neighbour if that one still shows: LEFT and RIGHT
-// the middle slot, MIDDLE the left one. An absent or squeezed-out slot frees nothing.
-// Whatever still does not fit is the lane ladder's and the tail-drop's business.
-// While the right slot shows the low-battery warning (`battery`, the top strip only)
-// a RIGHT row lays out as a MIDDLE one, which never borrows the right slot, so the
-// warning keeps the slot 'Show battery below 10%' promises it.
-//
-// The span runs from the nearest slot still showing left of the anchor (its ink end
-// + the group gap; the row's left edge when none) to the nearest one right of it (its
-// ink start - the gap; content_w when none), and never inverts. `need` <= 0 (no entry
-// has any width) takes nothing: `out` is the plain layout, the span still the
-// anchor's. Off takes nothing either, and its span is the whole row.
-int alert_set_take(int place, bool battery, int need, int16_t content_w,
-                   const StatusSlotMeasure m[3], StatusSlotPlace out[3], int *x0, int *x1);
-
-// Left edge of a row `w` px wide inside the span [x0, x1): LEFT hugs x0, RIGHT
-// hugs x1 (the entries keep their fixed order — rain first — but the group sits
-// against the right edge), MIDDLE centres on the ROW's centre (content_w / 2, the
-// middle slot's own rule) clamped into the span. `place` and `battery` as
-// alert_set_take() reads them: a RIGHT row beside the battery warning centres. A
-// row wider than its span starts at x0 — the fit has already cut it to the span, so
-// this only guards rounding.
-int alert_set_row_x(int place, bool battery, int x0, int x1, int content_w, int w);
-
-// One step down the text-lane ladder, run before any entry is dropped: the rain
-// text shortens to its minutes first ("Rain in 12'" -> "12'"), then every lane goes
-// (metric values off, rain icon only). A tomorrow entry's mark is not a value and
-// stays (alert_set_lane), so the row never reads a tomorrow alert as today's.
-// Returns false once there is nothing left to shorten — the caller then tail-drops.
+// One step down the text-lane ladder: the rain text shortens to its minutes first
+// ("Rain in 12'" -> "12'"), then every lane goes (metric values off, rain icon
+// only). A tomorrow entry's mark is not a value and stays (alert_set_lane), so a
+// tomorrow alert never reads as today's. Returns false once there is nothing left
+// to shorten. status_on_demand.c walks it to build each side's lanes (on_demand.h
+// OD_LANES): the chosen looks, the rain text as minutes, the values off.
 // `rain_display` is a ThreshRainDisplay; any value that is not ICON or MINUTES reads
 // as TEXT, as status_threshold_rain_display would read it.
 bool alert_set_degrade(int *rain_display, bool *values);
 
-// A metric entry's text lane, what the row prints after its icon, into `out`
+// A metric entry's text lane, what its item prints after its icon, into `out`
 // (NUL-terminated; "" = none): the baked value while `values` (the lane ladder's
 // flag), wrapped in tomorrow's mark — the slot's "Tomorrow's peak mark" texts
 // (status-pair.js NEXT_DAY_MARKS): "»8", ">8", "+8", "8*", or "8" unmarked. Today's

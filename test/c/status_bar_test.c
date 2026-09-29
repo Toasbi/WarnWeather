@@ -5,7 +5,7 @@
 //
 // Built TWICE by scripts/test-c.sh:
 //   - evolving:  -DPBL_HEALTH -DWW_RAIN_RADAR -DWW_ON_DEMAND => STATUS_BAR_COUNT == 3,
-//                plus the Alerts-row tick (status_bar_tick_alerts)
+//                plus the On demand tick (status_bar_tick_on_demand)
 //   - aplite:    none of the three               => STATUS_BAR_COUNT == 1, no tick
 // The second build is what pins the compact-enum contract: it is the only place a
 // stray unguarded STATUS_BAR_RADAR / STATUS_BAR_HEALTH becomes a compile error,
@@ -175,10 +175,10 @@ bool status_row_uses_live_health(const StatusRow *row) {
 }
 
 #if defined(WW_ON_DEMAND)
-static bool s_uses_alerts[STATUS_LINE_COUNT];
+static bool s_uses_on_demand[STATUS_LINE_COUNT];
 
-bool status_row_uses_alerts(const StatusRow *row) {
-    return row && s_uses_alerts[row->line_id];
+bool status_row_uses_on_demand(const StatusRow *row) {
+    return row && s_uses_on_demand[row->line_id];
 }
 #endif
 
@@ -372,13 +372,13 @@ static void live_health_gate(void) {
 }
 
 #if defined(WW_ON_DEMAND)
-// The minute tick (and a radar rescan) must reach an Alerts row in ANY visible bar —
-// its rain entry is re-derived only by a refresh — and nothing else: a bar without
-// a placement, or a hidden one, spends no persist reads.
-static void tick_alerts_refreshes_visible_alert_rows(void) {
+// The minute tick (and a radar rescan) must reach On demand items in ANY visible bar —
+// Quiet time and the rain entry are re-derived only by a refresh — and nothing else:
+// a bar without items, or a hidden one, spends no persist reads.
+static void tick_on_demand_refreshes_visible_item_bars(void) {
     Layer parent = {0};
     s_refresh_changed = true;
-    memset(s_uses_alerts, 0, sizeof(s_uses_alerts));
+    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
     memset(s_live_health, 0, sizeof(s_live_health));
 
     ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
@@ -387,33 +387,33 @@ static void tick_alerts_refreshes_visible_alert_rows(void) {
     const int fc = STATUS_LINE_FORECAST;
 
     reset_records();
-    status_bar_tick_alerts(&spec);
-    expect_int("alerts.no_slot_no_refresh", s_refresh_count[fc], 0);
+    status_bar_tick_on_demand(&spec);
+    expect_int("on_demand.no_slot_no_refresh", s_refresh_count[fc], 0);
 
-    s_uses_alerts[fc] = true;
+    s_uses_on_demand[fc] = true;
     reset_records();
-    status_bar_tick_alerts(&spec);
-    expect_int("alerts.visible_refreshed", s_refresh_count[fc], 1);
-    expect_int("alerts.visible_dirtied", s_dirty_count[fc], 1);
+    status_bar_tick_on_demand(&spec);
+    expect_int("on_demand.visible_refreshed", s_refresh_count[fc], 1);
+    expect_int("on_demand.visible_dirtied", s_dirty_count[fc], 1);
 
     // An unchanged signature refreshes but does not repaint.
     s_refresh_changed = false;
     reset_records();
-    status_bar_tick_alerts(&spec);
-    expect_int("alerts.quiet_minute_refreshed", s_refresh_count[fc], 1);
-    expect_int("alerts.quiet_minute_no_dirty", s_dirty_count[fc], 0);
+    status_bar_tick_on_demand(&spec);
+    expect_int("on_demand.quiet_minute_refreshed", s_refresh_count[fc], 1);
+    expect_int("on_demand.quiet_minute_no_dirty", s_dirty_count[fc], 0);
     s_refresh_changed = true;
 
     ViewSpec hidden = spec_of(2, STATUS_SRC_NONE, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
     reset_records();
-    status_bar_tick_alerts(&hidden);
-    expect_int("alerts.hidden_not_refreshed", s_refresh_count[fc], 0);
+    status_bar_tick_on_demand(&hidden);
+    expect_int("on_demand.hidden_not_refreshed", s_refresh_count[fc], 0);
 
     // Independent of the live-health gate in both directions.
-    expect_int("alerts.not_live_health", status_bar_any_visible_uses_live_health(&spec), 0);
+    expect_int("on_demand.not_live_health", status_bar_any_visible_uses_live_health(&spec), 0);
 
     status_bar_destroy_all();
-    memset(s_uses_alerts, 0, sizeof(s_uses_alerts));
+    memset(s_uses_on_demand, 0, sizeof(s_uses_on_demand));
 }
 #endif
 
@@ -554,7 +554,7 @@ int main(void) {
     tier_and_full_date_are_change_gated();
     live_health_gate();
 #if defined(WW_ON_DEMAND)
-    tick_alerts_refreshes_visible_alert_rows();
+    tick_on_demand_refreshes_visible_item_bars();
 #endif
 #if defined(WW_RAIN_RADAR)
     radar_bar_is_a_first_class_bar();

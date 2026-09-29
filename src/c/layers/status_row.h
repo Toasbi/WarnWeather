@@ -17,30 +17,29 @@ bool status_row_refresh(StatusRow *row);
 // row (tier push); the resolver reads only row state.
 void status_row_set_full_date(StatusRow *row, bool full_date);
 bool status_row_uses_live_health(const StatusRow *row);
-// When active, this row's right slot (index 2) draws the battery glyph in place
-// of its packed content — the top strip's low-battery takeover. Independent of a
-// slot whose packed kind is already SLOT_LIVE_BATTERY (that draws battery anyway).
+#if !defined(WW_ON_DEMAND)
+// Aplite only (its lean twin, status_row_aplite.c): when active, the row's right
+// slot (index 2) draws the battery glyph in place of its packed content — the top
+// strip's low-battery takeover. Every other platform shows a low charge through the
+// On demand Battery item instead.
 void status_row_set_battery_override(StatusRow *row, bool active);
-#if defined(WW_ON_DEMAND)
-// Declared only where the alert row exists: aplite has none, so its lean twin need
-// not answer it.
+#else
+// Declared only where On demand exists: aplite has none, so its lean twin need not
+// answer it.
 //
-// Every refresh reads the bar's Alerts placement (a ThreshAlertsPlace: 0 off /
-// 1 left / 2 middle / 3 right) from the row's own cell of the thresholds blob's
-// placement byte (status_threshold_bar_of_line) — THRESH_ALERTS_LEFT for the strip
-// and Off elsewhere when no blob (or a pre-placement one) is stored: the rain
-// countdown's historic takeover. While it is not Off and an alert is active, the
-// row takes over the anchor slot — plus one neighbour when it needs the room — and
-// draws the alert entries (the stored ALERT_ENTRIES metric alerts, rain in front)
-// there; with no alert active the bar draws exactly as without the feature — and so
-// it does when not even one entry fits the freed span (the slots come back). A
-// Right row lays out in the middle while the battery override holds the right slot.
-// A refresh that finds it Off frees the glyph cache.
+// Every refresh reads which On demand items sit on the row's bar — its cells in the
+// thresholds blob (status_threshold_on_demand_side; the compiled defaults, Bluetooth,
+// Quiet time and Sleep left and Battery plus the weather alerts right on the Watch
+// Status Bar, until the phone sends them). While an assigned item is active, the
+// row draws it at its bar's edge and the slots make room (appendix/on_demand.c);
+// with none active the bar draws exactly as without the feature. A refresh that
+// finds nothing assigned frees the glyph cache.
 //
-// True while this row's placement (as of its last refresh) is not Off. Its rain
-// entry is re-derived from the radar cache on every refresh, so the owner of a row
-// that answers true refreshes it on the minute tick and after a radar rescan
-// (status_bar_tick_alerts; the top strip's own tick).
-bool status_row_uses_alerts(const StatusRow *row);
+// True while an item sits on this row's bar (as of its last refresh). The items'
+// states — Quiet time, the rain countdown — are re-derived on every refresh and have
+// no event of their own, so the owner of a row that answers true refreshes it on the
+// minute tick and after a radar rescan (status_bar_tick_on_demand; the top strip's
+// own tick).
+bool status_row_uses_on_demand(const StatusRow *row);
 #endif
 void status_row_draw(StatusRow *row, GContext *ctx);
