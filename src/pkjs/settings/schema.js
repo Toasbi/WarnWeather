@@ -2591,7 +2591,7 @@ module.exports = {
                     // string literal from a declaration.
                     // The selected option's meaning only; Per slot says where the choice is.
                     hintByValue: {
-                        perSlot: 'Each slot’s edit sheet sets its own Bold value.',
+                        perSlot: 'Each slot’s edit sheet has its own Bold row.',
                         all: 'Every slot value prints in heavier text.'
                     },
                     defaultValue: 'perSlot',

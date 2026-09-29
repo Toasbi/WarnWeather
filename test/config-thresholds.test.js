@@ -2125,7 +2125,10 @@ test('the master Bold values row leads the slot selects, thresholds-gated', () =
     'the master row must be hidden on aplite');
   // One hint per selected option: All says what it does, Per slot where the choice is.
   assert.match(master.hintByValue.all, /heavier text/, 'All explains itself');
-  assert.match(master.hintByValue.perSlot, /Bold value/, 'Per slot points at the per-slot row');
+  // The sheets' row reads "Bold" since the rename; the hint names it as it reads.
+  assert.match(master.hintByValue.perSlot, /\bBold row\b/, 'Per slot points at the per-slot row');
+  assert.doesNotMatch(master.hintByValue.perSlot, /Bold value/,
+    'Per slot must not name the retired "Bold value" label');
   assert.equal(master.hint, undefined, 'no all-options hint');
 });
 
