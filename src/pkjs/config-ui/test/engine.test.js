@@ -1020,6 +1020,10 @@ test('onChange registry: register/get; unknown id -> undefined', () => {
 // in-dialog query misses, as before. `opts.scrollQueryAll(sel)` / `opts.modalQueryAll(sel)`
 // (optional) answer querySelectorAll on #scroll / #modal — the in-place trigger relabel
 // after a text commit asks them for '.sel-wrap[data-select]'; without them both answer [].
+// `opts.dialog` (optional) gives #modal a native-dialog surface — showModal()/close(), `open`
+// and a classList recorded in `modal.classes` — so syncDialog runs past its guard and a test
+// can read the sheet's .edit/.picking state and whether it is open. Without it syncDialog
+// no-ops, as before.
 function bootWithCapturedListeners(schema, env, opts) {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = fs.readFileSync(path.join(LIB, 'schema-walk.js'), 'utf8')
@@ -1050,6 +1054,20 @@ function bootWithCapturedListeners(schema, env, opts) {
     querySelector: (sel) => ((opts && opts.modalQuery) ? opts.modalQuery(sel) : null),
     querySelectorAll: (sel) => ((opts && opts.modalQueryAll) ? opts.modalQueryAll(sel) : [])
   };
+  if (opts && opts.dialog) {
+    // No toggle(): the engine must use add/remove (old Android WebViews).
+    const classes = new Set();
+    Object.assign(modal, {
+      open: false,
+      classes,
+      classList: { add: (c) => { classes.add(c); }, remove: (c) => { classes.delete(c); },
+        contains: (c) => classes.has(c) },
+      setAttribute: () => {},
+      removeEventListener: () => {},
+      showModal() { this.open = true; },
+      close() { this.open = false; }
+    });
+  }
   const sselList = { innerHTML: '', focus: () => {} };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
   const tabsListeners = {};
@@ -1572,11 +1590,44 @@ test('boot(): a tap on a sheet\'s select expands its options inline; the sheet s
 test('boot(): opening a sheet\'s list moves focus onto its current option', () => {
   const focused = [];
   const r = bootWithFormatSheet({ modalQuery: (sel) => {
-    if (sel === '.isel-list .ssel-opt.on') { return { focus: () => { focused.push(sel); } }; }
+    if (sel === '.isel-list .ssel-opt.on[data-select-pick]') { return { focus: () => { focused.push(sel); } }; }
     return null;
   } });
   clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
-  assert.deepEqual(focused, ['.isel-list .ssel-opt.on']);
+  assert.deepEqual(focused, ['.isel-list .ssel-opt.on[data-select-pick]']);
+});
+
+test('boot(): a gated current value hands focus to the first pickable option', () => {
+  // The current value's option is gated (optionDisabledWhen), so it renders as a disabled
+  // button, which cannot take focus. The query stand-in answers from the rendered list's
+  // markup and, like a browser, lets a disabled match swallow focus() without moving it.
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [{ type: 'sheet', sheetId: 'g', label: 'Look' }] },
+    { sheetOnly: true, sheetId: 'g', title: 'Look', items: [
+      { type: 'toggle', messageKey: 'on', label: 'On', defaultValue: false },
+      { type: 'select', messageKey: 'look', label: 'Look', defaultValue: 'bold',
+        optionDisabledWhen: { bold: { key: 'on', eq: false } },
+        options: [['Plain', 'plain'], ['Bold', 'bold']] }
+    ] }
+  ] }] };
+  const focused = [];
+  let r = null;
+  const listQuery = (sel) => {
+    const html = r ? r.modal.innerHTML : '';
+    const at = html.indexOf('class="isel-list"');
+    if (at < 0 || sel.indexOf('.isel-list ') !== 0) { return null; }
+    const want = sel.slice('.isel-list '.length);
+    const tag = (html.slice(at, html.indexOf('</div>', at)).match(/<button[^>]*>/g) || []).find((t) =>
+      (want.indexOf('.ssel-opt.on') < 0 || /class="ssel-opt on"/.test(t))
+      && (want.indexOf('[data-select-pick]') < 0 || /data-select-pick=/.test(t)));
+    return tag ? { focus: () => { if (!/ disabled/.test(tag)) { focused.push(sel); } } } : null;
+  };
+  r = bootWithCapturedListeners(SCH, {}, { modalQuery: listQuery });
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'g' });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'look' });
+  assert.match(r.modal.innerHTML, /class="ssel-opt on" role="option" aria-selected="true" disabled/,
+    'the current value is gated');
+  assert.deepEqual(focused, ['.isel-list [data-select-pick]'], 'focus lands on the first pickable option');
 });
 
 test('boot(): a pick in a sheet\'s inline list stores it, fires onChange once, collapses the list, keeps the sheet', () => {
@@ -1701,6 +1752,100 @@ test('boot(): a disabled option in an inline list is inert', () => {
   assert.equal(r.getValue('mark'), 'none', 'the value is unchanged');
   assert.ok(r.modal.innerHTML.indexOf('id="ssel-list-mark"') >= 0, 'the list stays open');
   assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, 'so does the sheet');
+});
+
+// An open list lives only while its row renders live. The controls that hide a sheet's
+// select (showWhen) or mute it (disabledWhen) sit in the same sheet, one tap away: the
+// UV index slot sheet's Value selection over its Separator, an alert sheet's switch over
+// its Tomorrow's mark.
+const LIVE_ROW_SCHEMA = {
+  appName: 'X', versionLabel: 'v0',
+  tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [{ type: 'sheet', sheetId: 'uv', label: 'UV index' }] },
+    { sheetOnly: true, sheetId: 'uv', title: 'UV index', items: [
+      { type: 'toggle', messageKey: 'alert', label: 'Alert', defaultValue: true },
+      { type: 'segmented', messageKey: 'pick', label: 'Value selection', defaultValue: 'both',
+        options: [['Now', 'now'], ['Both', 'both']] },
+      { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
+        showWhen: { key: 'pick', eq: 'both' }, options: [['3/7', 'slash'], ['3|7', 'bar']] },
+      { type: 'select', messageKey: 'mark', label: 'Tomorrow\'s mark', defaultValue: 'none',
+        disabledWhen: { key: 'alert', eq: false }, options: [['None', 'none'], ['»', 'raquo']] }
+    ] }
+  ] }]
+};
+
+/**
+ * Boot LIVE_ROW_SCHEMA with a native-dialog #modal and open its edit sheet.
+ * @returns {Object} The harness.
+ */
+function bootLiveRowSheet() {
+  const r = bootWithCapturedListeners(LIVE_ROW_SCHEMA, {}, { dialog: true });
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'uv' });
+  assert.equal(r.modal.open, true, 'the sheet opened');
+  return r;
+}
+
+test('boot(): a list whose row a showWhen hides stops counting as open', () => {
+  const r = bootLiveRowSheet();
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  assert.ok(r.modal.innerHTML.indexOf('id="ssel-list-sep"') >= 0, 'the list opens');
+  assert.equal(r.modal.classes.has('picking'), true);
+  // Now hides the Separator row.
+  clickMatching(r.modalListeners.click, '[data-v]', { 'data-k': 'pick', 'data-v': 'now' });
+  assert.equal(r.modal.innerHTML.indexOf('data-select="sep"'), -1, 'the row is hidden');
+  assert.equal(r.modal.classes.has('picking'), false, 'the sheet drops back to its normal cap');
+  // Both again: the row returns collapsed, not pre-opened.
+  clickMatching(r.modalListeners.click, '[data-v]', { 'data-k': 'pick', 'data-v': 'both' });
+  assert.ok(r.modal.innerHTML.indexOf('data-select="sep"') >= 0, 'the row is back');
+  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'collapsed');
+  assert.match(selectRowTags(r.modal.innerHTML, 'sep').trigger, /aria-expanded="false"/);
+  assert.equal(r.modal.classes.has('picking'), false);
+  // Open it and hide the row again: a single Escape closes the sheet.
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  clickMatching(r.modalListeners.click, '[data-v]', { 'data-k': 'pick', 'data-v': 'now' });
+  r.modalListeners.cancel({ preventDefault: () => {} });
+  assert.equal(r.modal.open, false, 'one Escape closes the sheet');
+  assert.equal(r.modal.innerHTML, '');
+  assert.equal(r.focusCounts['edit-sheet'].uv || 0, 1, 'focus returns to the Edit button');
+});
+
+test('boot(): a list whose row a disabledWhen mutes collapses with it', () => {
+  const r = bootLiveRowSheet();
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'mark' });
+  assert.ok(r.modal.innerHTML.indexOf('id="ssel-list-mark"') >= 0, 'the list opens');
+  assert.equal(r.modal.classes.has('picking'), true);
+  // The alert switch off mutes the row: .dis leaves its trigger untappable.
+  clickMatching(r.modalListeners.click, '[data-toggle]', { 'data-k': 'alert' });
+  const tags = selectRowTags(r.modal.innerHTML, 'mark');
+  assert.match(tags.row, /\bdis\b/, 'the row is muted');
+  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'the list is gone');
+  assert.doesNotMatch(tags.row, /isel-open/);
+  assert.match(tags.trigger, /aria-expanded="false"/, 'the trigger reads as collapsed');
+  assert.equal(r.modal.classes.has('picking'), false, 'the sheet drops back to its normal cap');
+  // The switch back on: the row is live again, still collapsed.
+  clickMatching(r.modalListeners.click, '[data-toggle]', { 'data-k': 'alert' });
+  assert.doesNotMatch(selectRowTags(r.modal.innerHTML, 'mark').row, /\bdis\b/);
+  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'collapsed, not pre-opened');
+  r.modalListeners.cancel({ preventDefault: () => {} });
+  assert.equal(r.modal.open, false, 'one Escape closes the sheet');
+});
+
+test('renderEditModal: a muted member of an inline group never expands', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { sheetOnly: true, sheetId: 'fmt', title: 'Format', items: [
+      { type: 'toggle', messageKey: 'on', label: 'On', defaultValue: false },
+      { type: 'select', messageKey: 'a', label: 'A', inline: 'g', defaultValue: 'x',
+        disabledWhen: { key: 'on', eq: false }, options: [['X', 'x'], ['Y', 'y']] },
+      { type: 'select', messageKey: 'b', label: 'B', inline: 'g', defaultValue: 'x',
+        options: [['X', 'x'], ['Y', 'y']] }
+    ] }
+  ] }] };
+  const S = E.hydrate(SCH, {});
+  const cx = (key) => ({ S: S, ENV: {}, USERDATA: {}, openColor: null, openSelect: null, openEdit: 'fmt',
+    openInline: key, collapsed: {}, evalCtx: Object.assign({}, S, { env: {} }) });
+  assert.equal(E.renderEditModal(SCH, cx('a')).indexOf('isel-list'), -1, 'the muted member stays shut');
+  assert.ok(E.renderEditModal(SCH, cx('b')).indexOf('id="ssel-list-b" class="isel-list"') >= 0,
+    'its live neighbour still expands');
 });
 
 test('renderEditModal/renderBody: only the sheet\'s copy of a key expands inline', () => {

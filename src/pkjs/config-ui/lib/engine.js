@@ -1191,6 +1191,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.hintFrom) {
       view.hint = resolveHint(item, cx.S, cx.ENV, view.value);
     }
+    // A muted row never shows its list: .dis makes the trigger untappable, so an expanded
+    // list could not be collapsed again. The row draws collapsed (trigger included), and
+    // render() drops the open key once the sheet has no list for it.
+    if (view.disabled) { view.openInline = null; }
     // A select expanded in place inside an edit sheet (view.openInline is only ever set
     // there — buildSectionBody gates it on cx.inSheet). rowItem, so an optionsFrom list and
     // the per-option meta.disabled gates apply exactly as in the select modal.
@@ -1243,15 +1247,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // A member select expanded in place inside an edit sheet (cx.openInline) lists its options
   // under the whole row, the same full-width list a plain row gets (renderRow).
   function renderInlineGroup(items, cx, noDivider, hosted) {
-    var cells = '', visible = 0, i, item, view, inlineList = '';
+    var cells = '', visible = 0, i, item, view, inlineList = '', muted;
     for (i = 0; i < items.length; i++) {
       item = items[i];
       if (isHostedRow(item, hosted) || !PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
+      // A member under its disabledWhen never expands, the same rule as renderItem's.
+      muted = Boolean(item.disabledWhen) && PConf.showWhen.evaluate(item.disabledWhen, cx.evalCtx);
       view = {
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
         openSelect: cx.openSelect,
-        openInline: cx.inSheet ? cx.openInline : null,
+        openInline: cx.inSheet && !muted ? cx.openInline : null,
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
@@ -1796,9 +1802,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var prevList = modalEl.querySelector ? modalEl.querySelector('.ssel-list') : null;
       var keepTop = prevList ? prevList.scrollTop : 0;
       var editShown = Boolean(openEdit);
-      modalEl.innerHTML = openDate
+      var modalHtml = openDate
         ? renderDateModal(SCHEMA, cx)
         : editShown ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
+      // An open list lives only while its row renders live. A row hidden by its showWhen
+      // or muted by its disabledWhen (one tap away, in the same sheet) draws no list, and
+      // a key left open would keep .picking on, the scroll nudge hunting, and Escape's
+      // first press collapsing a list that isn't there — or bring it back pre-opened.
+      // Read off the HTML, not the DOM, so the check holds in the Node DOM shims too.
+      if (openInline && modalHtml.indexOf('id="ssel-list-' + esc(openInline) + '" class="isel-list"') < 0) {
+        openInline = null;
+      }
+      modalEl.innerHTML = modalHtml;
       // The edit sheet's scroll container is a NEW node after every render, so a swatch
       // or option tap would otherwise snap the sheet back to the top. Restore the offset,
       // then nudge a freshly opened palette or option list into view. Rect math, not
@@ -2139,8 +2154,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           openColor = null;
           openInline = (openInline === sk ? null : sk);
           render();
+          // [data-select-pick] on the current option too: a gated current value renders a
+          // disabled button, which cannot take focus — fall through to the first pickable one.
+          // A tap that opened nothing (render() dropped the key) lands back on the trigger.
           focusInModal(openInline
-            ? ['.isel-list .ssel-opt.on', '.isel-list [data-select-pick]']
+            ? ['.isel-list .ssel-opt.on[data-select-pick]', '.isel-list [data-select-pick]']
             : ['[data-select="' + sk + '"]']);
           return;
         }

@@ -294,9 +294,11 @@ trigger; a second tap on the trigger collapses it without a pick. One expander i
 time: opening a list collapses an open palette and vice versa. Escape first collapses an open
 list or palette and only closes the sheet on the next press; the close button, the backdrop
 and a swipe-down close the sheet, which reopens collapsed. A touch that starts inside the
-list never arms the swipe-down. `searchSelect` has no in-sheet form: keep it out of
-`sheetOnly` sections (a schema test enforces it). A select in the tab body, and one opened
-through `openSheet()`, still opens the modal.
+list never arms the swipe-down. A list stays open only while its row renders live: when
+another control in the sheet hides the row (`showWhen`) or mutes it (`disabledWhen`), the
+list collapses with it, and the row comes back collapsed. `searchSelect` has no in-sheet
+form: keep it out of `sheetOnly` sections (a schema test enforces it). A select in the tab
+body, and one opened through `openSheet()`, still opens the modal.
 
 The fifteen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
