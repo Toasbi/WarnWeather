@@ -225,7 +225,9 @@ static void ladder_every_row_in_order(void) {
 
 // Without short forms the SHORT rows change nothing and are skipped, so the looks
 // (rows 3-4) are what gives way before the middle leaves its target (row 5). An
-// icon-only item has no narrower look, so it skips rows 3-4 as well.
+// icon-only item has no narrower look, so it never settles on rows 3-4: their
+// geometry is row 2's. That it SKIPS them, rather than idling through, only shows
+// when two sides climb together (two_sides_skip_idle_rows).
 static void ladder_looks_before_middle(void) {
     OdSlotIn slots[3];
     ladder_bar(slots, false);
@@ -483,6 +485,98 @@ static void two_sides_no_middle(void) {
     expect("nomid.both.right_n", out.n[1], 1);
 }
 
+// Only the side whose claim is in the way climbs, down to the pixel. Each case sets
+// one side exactly at its limit and pushes the other one past it: the side at its
+// limit stays on row 0 with its slot full beside its run.
+static void attribution_is_exact(void) {
+    OdLayout out;
+    // W 200, slots 30 | 40 | 30, the middle's target 80. The left claim (a 42 px item,
+    // its slot) puts lo exactly on the target; the right one (50 px) puts hi at 72.
+    OdSlotIn mid[3] = { slot_text(30, 0), slot_text(40, 0), slot_text(30, 0) };
+    OdSideIn tight_l[2] = { side_none(), side_none() };
+    add_icon(&tight_l[0], OD_BLUETOOTH, 42);
+    add_icon(&tight_l[1], OD_RAIN, 50);
+    od_layout(200, mid, tight_l, NO_BLEED, false, &out);
+    expect("exact.mid.left_stage", out.stage[0], 0);
+    expect("exact.mid.left_slot", out.form[0], OD_FULL);
+    expect("exact.mid.left_x", out.place[0].icon_x, 42 + STATUS_ROW_GROUP_GAP);
+    expect("exact.mid.right_stage", out.stage[1], 6);
+    expect("exact.mid.right_hidden", out.form[2], OD_HIDDEN);
+    expect("exact.mid.middle_x", out.place[1].icon_x, 80);
+    // The mirror: hi exactly on the target, lo at 88.
+    OdSideIn tight_r[2] = { side_none(), side_none() };
+    add_icon(&tight_r[0], OD_BLUETOOTH, 50);
+    add_icon(&tight_r[1], OD_RAIN, 42);
+    od_layout(200, mid, tight_r, NO_BLEED, false, &out);
+    expect("exact.mid.mirror.right_stage", out.stage[1], 0);
+    expect("exact.mid.mirror.right_slot", out.form[2], OD_FULL);
+    expect("exact.mid.mirror.right_x", out.place[2].icon_x, 200 - 42 - STATUS_ROW_GROUP_GAP - 30);
+    expect("exact.mid.mirror.left_stage", out.stage[0], 6);
+    expect("exact.mid.mirror.middle_x", out.place[1].icon_x, 80);
+
+    // W 100, no middle. The left claim ends at 48, where it and the gap reach the
+    // midline exactly; the right one begins at 51, 1 px across it. Only the right side
+    // gives way.
+    OdSlotIn none_l[3] = { slot_text(34, 0), slot_empty(), slot_text(35, 0) };
+    OdSideIn half[2] = { side_none(), side_none() };
+    add_icon(&half[0], OD_BLUETOOTH, 10);
+    add_icon(&half[1], OD_RAIN, 10);
+    od_layout(100, none_l, half, NO_BLEED, false, &out);
+    expect("exact.nomid.left_stage", out.stage[0], 0);
+    expect("exact.nomid.left_slot", out.form[0], OD_FULL);
+    expect("exact.nomid.right_stage", out.stage[1], 6);
+    expect("exact.nomid.right_hidden", out.form[2], OD_HIDDEN);
+    // The mirror: the right claim begins at 52 (exactly at the limit), the left one
+    // ends at 49.
+    OdSlotIn none_r[3] = { slot_text(35, 0), slot_empty(), slot_text(34, 0) };
+    od_layout(100, none_r, half, NO_BLEED, false, &out);
+    expect("exact.nomid.mirror.right_stage", out.stage[1], 0);
+    expect("exact.nomid.mirror.right_slot", out.form[2], OD_FULL);
+    expect("exact.nomid.mirror.right_x", out.place[2].icon_x, 100 - 10 - STATUS_ROW_GROUP_GAP - 34);
+    expect("exact.nomid.mirror.left_stage", out.stage[0], 6);
+
+    // With nothing on the far side, a free middle may reach the content edge. W 100, a
+    // 60 px middle (target 20) and no edge slots: a 36 px right run leaves the middle
+    // exactly [0, 60), and a 36 px left run leaves it exactly [40, 100).
+    OdSlotIn lone[3] = { slot_empty(), slot_text(60, 0), slot_empty() };
+    OdSideIn right_run[2] = { side_none(), side_none() };
+    add_icon(&right_run[1], OD_RAIN, 36);
+    od_layout(100, lone, right_run, NO_BLEED, false, &out);
+    expect("exact.edge.right_stage", out.stage[1], 5);
+    expect("exact.edge.middle_shows", out.form[1], OD_FULL);
+    expect("exact.edge.middle_x", out.place[1].icon_x, 0);
+    OdSideIn left_run[2] = { side_none(), side_none() };
+    add_icon(&left_run[0], OD_RAIN, 36);
+    od_layout(100, lone, left_run, NO_BLEED, false, &out);
+    expect("exact.edge.left_stage", out.stage[0], 5);
+    expect("exact.edge.mirror.middle_shows", out.form[1], OD_FULL);
+    expect("exact.edge.mirror.middle_x", out.place[1].icon_x, 40);
+}
+
+// A violated side steps to its next row that changes something for IT, skipping the
+// rows that change nothing, so two sides climbing together do not keep the same pace.
+// W 100, no middle, both claims across the midline: the left side (a 30 px icon, its
+// 20 px slot) has no short form, no narrower look, and no middle to free, so its next
+// step is row 6 (its slot hides); the right side's rain (40 / 10 / 6 px, its 20 px
+// slot) goes to its minutes (row 3) in the same step. Then the rain's Text fits again
+// in the room the hidden slot freed (the looks-back relax). A left side that idled on
+// row 3 (a lane that narrows nothing) or row 5 (a middle that is not there) would
+// already fit there with its slot, and settle on it.
+static void two_sides_skip_idle_rows(void) {
+    OdSlotIn slots[3] = { slot_text(20, 0), slot_empty(), slot_text(20, 0) };
+    OdSideIn sides[2] = { side_none(), side_none() };
+    add_icon(&sides[0], OD_BLUETOOTH, 30);
+    add(&sides[1], OD_RAIN, 40, 10, 6, false);
+    OdLayout out;
+    od_layout(100, slots, sides, NO_BLEED, false, &out);
+    expect("skip.left_stage", out.stage[0], 6);
+    expect("skip.left_hidden", out.form[0], OD_HIDDEN);
+    expect("skip.right_stage", out.stage[1], 3);
+    expect("skip.right_lane_back", out.lane[1], 0);
+    expect("skip.right_slot", out.form[2], OD_FULL);
+    expect("skip.right_x", out.place[2].icon_x, 100 - 40 - STATUS_ROW_GROUP_GAP - 20);
+}
+
 // --- the Battery stand-in -------------------------------------------------------------
 //
 // The top strip on a 144 px watch: content 132, bleed { 2, 0 }, a 24 px left slot,
@@ -523,6 +617,10 @@ static void battery_standin(void) {
     expect("standin.a.right_n", out.n[1], 0);
     expect("standin.a.slot_shows", out.place[2].visible, 1);
     expect_true("standin.a.slot_plain", place_eq(&out.place[2], &plain[2]));
+    // Only the Battery item stands in: the other side's first item (the Bluetooth
+    // icon, disconnected or not) stays.
+    expect("standin.a.left_n", out.n[0], 1);
+    expect("standin.a.left_first", out.first[0], 0);
 
     // (b) Crowded enough that the slot hides: the item replaces it, outermost right.
     OdSideIn crowded[2] = { side_none(), side_none() };
@@ -571,6 +669,20 @@ static void battery_standin(void) {
                    trial, w, slot, item);
             s_failures++;
             return;
+        }
+        // The stand-in leaves out the Battery item and nothing else: while the slot
+        // shows, the Battery's side starts one past it; once the slot hides, at it;
+        // the other side always starts at its own first item. (Drops still take a
+        // side's tail.)
+        for (int d = 0; d < 2; d++) {
+            if (out.n[d] == 0) { continue; }
+            int want = (d == home && slot) ? 1 : 0;
+            if (out.first[d] != want) {
+                printf("FAIL standin.d.first trial %d side %d first %d want %d\n",
+                       trial, d, out.first[d], want);
+                s_failures++;
+                return;
+            }
         }
     }
 }
@@ -734,6 +846,8 @@ int main(void) {
     two_sides_share_the_middle();
     two_sides_drop_lowest_priority();
     two_sides_no_middle();
+    attribution_is_exact();
+    two_sides_skip_idle_rows();
     battery_standin();
     bleed_and_order();
     drops();
