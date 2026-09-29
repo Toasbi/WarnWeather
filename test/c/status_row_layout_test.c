@@ -526,8 +526,8 @@ static void highlight_extent_is_font_sized(void) {
     }
 }
 
-// status_slot_ink is the extent both the highlight box and the Alerts row's span are
-// cut from: the group's start to its last DRAWN ink.
+// status_slot_ink is the extent the highlight box is cut from: the group's start to
+// its last DRAWN ink.
 static void slot_ink_pins(void) {
     StatusSlotPlace p[3];
     int16_t lo;
@@ -578,16 +578,20 @@ static void place_at_matches_the_row_layout(void) {
         int16_t w = (int16_t)((seed >> 8) % 220);
         StatusSlotPlace p[3];
         status_row_layout(w, m, p);
+        // The right slot sits flush with the content edge, so its placed width is read
+        // off the layout itself: the width status_slot_placed_w() gives back is the
+        // one the row layout's fit sized it by.
+        if (p[2].visible && p[2].icon_x + status_slot_placed_w(&p[2], &m[2]) != w) {
+            printf("FAIL placed_w.right_flush trial %d w %d\n", trial, w);
+            s_failures++;
+            return;
+        }
         for (int i = 0; i < 3; i++) {
-            int16_t gw = 0;
-            if (p[i].visible) {
-                gw = m[i].icon_w;
-                if (p[i].text_visible) {
-                    gw = (int16_t)(gw + (m[i].icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + p[i].text_w);
-                }
-                if (m[i].suffix_w > 0) {
-                    gw = (int16_t)(gw + m[i].suffix_w + (p[i].text_visible ? STATUS_ROW_ICON_TEXT_GAP : 0));
-                }
+            int16_t gw = status_slot_placed_w(&p[i], &m[i]);
+            if (!p[i].visible && gw != 0) {
+                printf("FAIL placed_w.hidden trial %d slot %d\n", trial, i);
+                s_failures++;
+                return;
             }
             StatusSlotPlace q;
             int16_t got = status_slot_place_at(&m[i], p[i].icon_x, gw, &q);
@@ -611,10 +615,32 @@ static void place_at_matches_the_row_layout(void) {
     StatusSlotPlace q;
     expect("place_at.too_narrow", status_slot_place_at(&glyph, 40, 18, &q), 0);
     expect_hidden_zero("place_at.too_narrow.zero", &q);
+    expect("placed_w.hidden", status_slot_placed_w(&q, &glyph), 0);
+}
+
+// status_slot_placed_w by hand: icon, gap, text, gap, arrow; a squeezed slot keeps the
+// icon and the arrow lane, which loses its gap with the text; a text-only slot is its
+// text; negative measures read as 0.
+static void placed_w_pins(void) {
+    StatusSlotPlace p[3];
+    StatusSlotMeasure arrow[3] = { { true, 11, 30, 8 }, { false, 0, 0, 0 }, { false, 0, 0, 0 } };
+    status_row_layout(138, arrow, p);
+    expect("placed_w.full", status_slot_placed_w(&p[0], &arrow[0]),
+           11 + STATUS_ROW_ICON_TEXT_GAP + 30 + STATUS_ROW_ICON_TEXT_GAP + 8);
+    status_row_layout(22, arrow, p);
+    expect("placed_w.squeezed_text_cut", p[0].visible && !p[0].text_visible, 1);
+    expect("placed_w.squeezed", status_slot_placed_w(&p[0], &arrow[0]), 11 + 8);
+    StatusSlotMeasure text[3] = { { false, 0, 0, 0 }, { true, 0, 40, 0 }, { false, 0, 0, 0 } };
+    status_row_layout(140, text, p);
+    expect("placed_w.text_only", status_slot_placed_w(&p[1], &text[1]), 40);
+    StatusSlotMeasure neg[3] = { { true, -5, 20, -3 }, { false, 0, 0, 0 }, { false, 0, 0, 0 } };
+    status_row_layout(140, neg, p);
+    expect("placed_w.negative_reads_zero", status_slot_placed_w(&p[0], &neg[0]), 20);
 }
 
 int main(void) {
     place_at_matches_the_row_layout();
+    placed_w_pins();
     empty_row();
     typical_row();
     lone_edge_uses_full_width();

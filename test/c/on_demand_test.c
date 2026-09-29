@@ -96,17 +96,6 @@ static int place_eq(const StatusSlotPlace *a, const StatusSlotPlace *b) {
         && a->text_w == b->text_w && a->suffix_x == b->suffix_x;
 }
 
-// A placed slot's width: the group status_row_layout's fit made.
-static int16_t placed_w(const StatusSlotPlace *p, const StatusSlotMeasure *m) {
-    if (!p->visible) { return 0; }
-    int16_t icon = m->icon_w > 0 ? m->icon_w : 0;
-    int16_t suffix = m->suffix_w > 0 ? m->suffix_w : 0;
-    int16_t w = icon;
-    if (p->text_visible) { w = (int16_t)(w + (icon > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + p->text_w); }
-    if (suffix > 0) { w = (int16_t)(w + suffix + (p->text_visible ? STATUS_ROW_ICON_TEXT_GAP : 0)); }
-    return w;
-}
-
 // The STAGE[] table's forms, restated here so the test pins the order.
 static const uint8_t OWN_OF[10] = { OD_FULL, OD_SHORT, OD_SHORT, OD_SHORT, OD_SHORT,
                                     OD_SHORT, OD_HIDDEN, OD_HIDDEN, OD_HIDDEN, OD_HIDDEN };
@@ -802,7 +791,7 @@ static void no_overlap(void) {
         int count = 0;
         for (int i = 0; i < 3; i++) {
             if (!out.place[i].visible) { continue; }
-            int sw = placed_w(&out.place[i], &slots[i].m[out.variant[i]]);
+            int sw = status_slot_placed_w(&out.place[i], &slots[i].m[out.variant[i]]);
             int x = out.place[i].icon_x;
             if (x < 0 || x + sw > w) {
                 printf("FAIL overlap.slot_inside trial %d slot %d x %d w %d of %d\n",

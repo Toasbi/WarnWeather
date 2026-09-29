@@ -43,11 +43,19 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_w,
                              StatusSlotPlace *out);
 
+// A placed slot's group width, the width its fit gave it: the icon, the gap + text
+// while the text shows, then the suffix lane (whose gap goes with the text). 0 for a
+// hidden slot. `m` is the measure the slot was laid out with; negative measures read
+// as 0. The same sum the row layout sizes its slots by, so status_slot_place_at()
+// handed this width reproduces the slot. The On demand layout reads each slot's full
+// width back through it.
+int16_t status_slot_placed_w(const StatusSlotPlace *place, const StatusSlotMeasure *m);
+
 // A placed slot's ink extent [lo, hi), content-relative like the place itself: from
 // the group's left edge to its last ink — the suffix while the text shows (the arrow
 // draws only with its reading), else the text's end, else the icon's. `m` is the
-// measure the slot was laid out with. Meaningful for a visible slot only. The one
-// extent both the threshold-highlight box and the alert row's span are cut from.
+// measure the slot was laid out with. Meaningful for a visible slot only. The extent
+// the threshold-highlight box is cut from.
 void status_slot_ink(const StatusSlotPlace *place, const StatusSlotMeasure *m,
                      int16_t *lo, int16_t *hi);
 

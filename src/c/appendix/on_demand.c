@@ -76,24 +76,6 @@ typedef struct {
     int16_t hi;
 } Geom;
 
-static int16_t nz(int16_t v) { return v > 0 ? v : 0; }
-
-// A placed slot's group width, the width status_row_layout() gave it: the same sum
-// its fit made (icon, gap + text while the text shows, the suffix lane).
-static int16_t placed_w(const StatusSlotPlace *p, const StatusSlotMeasure *m) {
-    if (!p->visible) { return 0; }
-    int16_t icon = nz(m->icon_w);
-    int16_t suffix = nz(m->suffix_w);
-    int16_t w = icon;
-    if (p->text_visible) {
-        w = (int16_t)(w + (icon > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + p->text_w);
-    }
-    if (suffix > 0) {
-        w = (int16_t)(w + suffix + (p->text_visible ? STATUS_ROW_ICON_TEXT_GAP : 0));
-    }
-    return w;
-}
-
 // The effective form of slot i under `form`: HIDDEN for a slot plain did not show
 // (empty, or squeezed out) and for the right slot on the stand-in's second pass;
 // SHORT is FULL for a slot with no narrower member.
@@ -182,8 +164,9 @@ static Conf conf_of(const Pass *p, const uint8_t stage[2]) {
         if (row->mid > mid) { mid = row->mid; }
         if (row->mid_free) { c.mid_free = true; }
     }
+    // mid_free is read only while the middle shows (geometry, place), so a hidden
+    // middle's flag needs no clearing.
     c.mid = eff_form(p, 1, mid);
-    if (c.mid == OD_HIDDEN) { c.mid_free = false; }
     return c;
 }
 
@@ -382,7 +365,7 @@ static void pass_init(Pass *p, int16_t content_w, const OdSlotIn slots[3],
     }
     status_row_layout(content_w, full, p->plain);
     for (int i = 0; i < 3; i++) {
-        p->plain_w[i] = placed_w(&p->plain[i], &full[i]);
+        p->plain_w[i] = status_slot_placed_w(&p->plain[i], &full[i]);
         p->short_w[i] = p->plain_w[i];
         if (slots[i].n > 1 && p->plain_w[i] > 0) {
             StatusSlotPlace scratch;
