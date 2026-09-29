@@ -558,7 +558,63 @@ static void slot_ink_pins(void) {
     expect("ink.text_only.hi", hi, 90);
 }
 
+// status_slot_place_at is the row layout's own fit + place for one slot: handed the
+// width status_row_layout gave a slot, it reproduces that slot's place exactly — at
+// the same x, and shifted, at any other — and returns the same width. The On demand
+// layout moves slots with it, so a slot that slides stays byte-compatible.
+static void place_at_matches_the_row_layout(void) {
+    unsigned seed = 7u;
+    for (int trial = 0; trial < 20000; trial++) {
+        StatusSlotMeasure m[3];
+        for (int i = 0; i < 3; i++) {
+            seed = seed * 1103515245u + 12345u;
+            unsigned r = seed >> 8;
+            int16_t icon = (r & 1) ? (int16_t)(r % 13 + 6) : 0;
+            int16_t text = (r & 2) ? (int16_t)((r >> 3) % 90) : 0;
+            int16_t suffix = (r & 4) == 0 && (r & 8) ? 8 : 0;
+            m[i] = (StatusSlotMeasure) { (r & 16) == 0 || icon > 0, icon, text, suffix };
+        }
+        seed = seed * 1103515245u + 12345u;
+        int16_t w = (int16_t)((seed >> 8) % 220);
+        StatusSlotPlace p[3];
+        status_row_layout(w, m, p);
+        for (int i = 0; i < 3; i++) {
+            int16_t gw = 0;
+            if (p[i].visible) {
+                gw = m[i].icon_w;
+                if (p[i].text_visible) {
+                    gw = (int16_t)(gw + (m[i].icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + p[i].text_w);
+                }
+                if (m[i].suffix_w > 0) {
+                    gw = (int16_t)(gw + m[i].suffix_w + (p[i].text_visible ? STATUS_ROW_ICON_TEXT_GAP : 0));
+                }
+            }
+            StatusSlotPlace q;
+            int16_t got = status_slot_place_at(&m[i], p[i].icon_x, gw, &q);
+            if (got != gw || q.visible != p[i].visible || q.text_visible != p[i].text_visible
+                    || q.icon_x != p[i].icon_x || q.text_x != p[i].text_x
+                    || q.text_w != p[i].text_w || q.suffix_x != p[i].suffix_x) {
+                printf("FAIL place_at trial %d slot %d w %d\n", trial, i, w);
+                s_failures++;
+                return;
+            }
+            if (!p[i].visible) { continue; }
+            status_slot_place_at(&m[i], (int16_t)(p[i].icon_x + 7), gw, &q);
+            expect("place_at.shift.icon", q.icon_x, p[i].icon_x + 7);
+            expect("place_at.shift.text", q.text_x, p[i].text_x + 7);
+            expect("place_at.shift.text_w", q.text_w, p[i].text_w);
+            expect("place_at.shift.suffix", q.suffix_x, p[i].suffix_x ? p[i].suffix_x + 7 : 0);
+        }
+    }
+    // Nothing fits: all zero, width 0.
+    StatusSlotMeasure glyph = { true, 11, 0, 8 };
+    StatusSlotPlace q;
+    expect("place_at.too_narrow", status_slot_place_at(&glyph, 40, 18, &q), 0);
+    expect_hidden_zero("place_at.too_narrow.zero", &q);
+}
+
 int main(void) {
+    place_at_matches_the_row_layout();
     empty_row();
     typical_row();
     lone_edge_uses_full_width();

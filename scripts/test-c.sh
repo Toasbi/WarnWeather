@@ -70,6 +70,13 @@ cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/
    -o build/host/alert_lane_dump
 build/host/alert_lane_dump > build/host/alert_lane.txt
 node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
+# The On demand layout (appendix/on_demand.c): the two-side make-room ladder, the shared
+# middle, the drop order, the Battery stand-in and the bleed, down to "a quiet bar is the
+# plain row layout, byte for byte". Its body sits behind WW_ON_DEMAND like alert_set.c's,
+# and it places its slots through the row layout it is linked with.
+cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_test.c src/c/appendix/on_demand.c \
+   src/c/layers/status_row_layout.c -o build/host/on_demand_test
+build/host/on_demand_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the

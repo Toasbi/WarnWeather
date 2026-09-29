@@ -32,6 +32,17 @@ typedef struct {
 void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
                        StatusSlotPlace out[3]);
 
+// Place ONE slot's group with its left edge at content x `x`, inside a budget of
+// `max_w` px: the same fit (the text shrinks first, the suffix and the icon stay)
+// and the same placement status_row_layout() gives each of its three slots, so a
+// slot placed here is byte-compatible with one the row layout placed. Handing it a
+// slot's width from status_row_layout() reproduces that slot's place exactly, at any
+// x. Negative measures read as 0, as in the row layout. Returns the group's width;
+// 0 when the slot does not show, and `out` is then all zero. The On demand layout
+// (appendix/on_demand.c) places its slots through this.
+int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_w,
+                             StatusSlotPlace *out);
+
 // A placed slot's ink extent [lo, hi), content-relative like the place itself: from
 // the group's left edge to its last ink — the suffix while the text shows (the arrow
 // draws only with its reading), else the text's end, else the icon's. `m` is the

@@ -151,6 +151,20 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
     place_group(&normalized[1], &mid, mid_x, &out[1]);
 }
 
+int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_w,
+                             StatusSlotPlace *out) {
+    *out = (StatusSlotPlace) { false, false, 0, 0, 0, 0 };
+    const StatusSlotMeasure n = {
+        m->present,
+        m->icon_w > 0 ? m->icon_w : 0,
+        m->text_w > 0 ? m->text_w : 0,
+        m->suffix_w > 0 ? m->suffix_w : 0
+    };
+    GroupFit fit = fit_group(&n, max_w);
+    place_group(&n, &fit, x, out);
+    return fit.visible ? fit.group_w : 0;
+}
+
 void status_slot_ink(const StatusSlotPlace *place, const StatusSlotMeasure *m,
                      int16_t *lo, int16_t *hi) {
     // place_group starts the group at icon_x whether or not it has an icon (with no
