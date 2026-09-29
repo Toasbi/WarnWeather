@@ -216,8 +216,12 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
     status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
 
     // Prime the rain countdown's segment cache from the persisted radar before the
-    // first refresh: every alert row (this strip's or a band row's) derives its rain
-    // entry from that cache, and after boot only a radar payload rescans it.
+    // strip's first refresh: every alert row (this strip's or a band row's) derives
+    // its rain entry from that cache, and after boot only a radar payload rescans it.
+    // Only the strip's first refresh finds it primed: main_window_load creates the
+    // band rows earlier, and their first refresh (status_bar_create_all) finds the
+    // cache empty, so a band row's rain entry appears at its next refresh — the
+    // minute tick (main_window_tick_alerts) at the latest.
     rain_countdown_refresh(watch_services_now());
     top_status_layer_refresh();
 

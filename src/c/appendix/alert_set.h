@@ -40,8 +40,10 @@
 // The rain entry's kind, in memory only (it never rides the tuple): no ThreshKind
 // (all < THRESH_KIND_COUNT), so every accessor a kind reaches answers its
 // out-of-range default — no icon (alert_set_icon), and at NORMAL no box, no bold
-// and the fallback colour byte (status_threshold_look). As kind 0 it posed as AQI,
-// whose Bold 'Always' made the rain look bold.
+// and the fallback colour byte (status_threshold_look). It used to be kind 0 and so
+// read AQI's settings: with AQI's Bold 'Always' its look value came out with bold
+// set. The rain text never drew bold (lane_text keeps it regular), but no kind's
+// settings should reach the rain entry at all.
 #define ALERT_KIND_RAIN 0xFF
 
 // ALERT_ENTRIES_UINT8 (weather message, status category): one entry per ACTIVE
