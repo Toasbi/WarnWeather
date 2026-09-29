@@ -189,18 +189,26 @@ def build(ctx):
         # WW_FETCH_NOTICE above, which was excluded for the same trigger.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_THRESHOLD_HIGHLIGHT=1']
-        # The Alerts row (a per-bar takeover of the status slots: the phone-baked
-        # metric alerts from the ALERT_ENTRIES_UINT8 tuple plus the watch-resolved
-        # rain alert) is compiled out of aplite: aplite paints its status rows from
-        # the frozen lean twin layers/status_row_aplite.c, the row's inputs (the
-        # thresholds blob, rain_countdown.c) are aplite-absent already, and the
-        # phone never sends it the tuple. The tuple's inbox handler and its persist
-        # accessors (app_message.c, persist.c) ride this macro too, so aplite's
-        # image does not grow by a byte. The row's own code lives in two leaf files whose
-        # bodies sit behind the macro — appendix/alert_set.c (the pure entry set, fit,
-        # slot choice and span) and layers/status_alerts.c (glyph cache + paint) — so aplite
-        # compiles both to empty objects and pays zero bytes. Every other platform
-        # defines WW_ON_DEMAND. Mirrors WW_THRESHOLD_HIGHLIGHT above.
+        # On demand (the items each status bar shows at its left and right edges only
+        # while they matter: Battery, Bluetooth, Quiet time and Sleep, then the
+        # weather alerts, the phone-baked metric alerts from the ALERT_ENTRIES_UINT8
+        # tuple plus the watch-resolved rain alert) is compiled out of aplite: aplite
+        # paints its status rows from the frozen lean twins layers/status_row_aplite.c
+        # and layers/top_status_layer_aplite.c, which keep the fixed Quiet Time /
+        # Bluetooth / snooze indicators and the low-battery takeover of the right
+        # slot; the items' inputs (the thresholds blob, rain_countdown.c) are
+        # aplite-absent already, and the phone never sends it the tuple. The tuple's
+        # inbox handler and its persist accessors (app_message.c, persist.c), and the
+        # bar and window hooks (status_bar.c, main_window.c, the system-change hook in
+        # top_status_layer.h), ride this macro too, so aplite's image does not grow by
+        # a byte. The feature's own code lives in four leaf files whose bodies sit
+        # behind the macro, so aplite compiles each to an empty object and pays zero
+        # bytes: appendix/on_demand.c (the pure two-side layout and its make-room
+        # ladder), appendix/alert_set.c (the weather alerts' entries and text lanes),
+        # layers/status_on_demand.c (which items are active, their glyph cache,
+        # measures and paint) and layers/battery_item.c (the procedural Battery
+        # icon). Every other platform defines WW_ON_DEMAND. Mirrors
+        # WW_THRESHOLD_HIGHLIGHT above.
         if platform != 'aplite':
             ctx.env.CFLAGS += ['-DWW_ON_DEMAND=1']
         # Configurable forecast curve insets (CLAY_CURVE_INSET_UINT8): the phone

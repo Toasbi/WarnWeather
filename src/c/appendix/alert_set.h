@@ -157,7 +157,7 @@ bool alert_set_degrade(int *rain_display, bool *values);
 // as the slot's own "»8" relies on. Each part is written whole or not at all, so a
 // short `cap` never splits the "»" or prints a cut number; cap >= 10 fits every lane
 // (a 2-byte mark + STATUS_ALERT_LEN_MAX value bytes + NUL). The rain entry has no
-// lane here (status_alerts.c builds its countdown): it writes "". Returns the bytes
+// lane here (status_on_demand.c builds its countdown): it writes "". Returns the bytes
 // written.
 size_t alert_set_lane(const AlertEntry *e, bool values, char *out, size_t cap);
 

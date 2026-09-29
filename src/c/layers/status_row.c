@@ -816,8 +816,8 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
             // Seat the glyph on the cap centre at its per-icon optical-centre
             // weight (status_icon_weight.h). Every weight ships at 50 today,
             // which reduces this to the historical `glyph_cy - gs.h / 2`.
-            // glyph_icons[i] — not the resolved slot's icon — is the id whose PDC
-            // is in glyphs[i] (the battery override rewrites the resolved icon).
+            // glyph_icons[i] is the id whose PDC is in glyphs[i] (ensure_glyphs
+            // keeps the two together).
             status_highlight_draw_glyph(ctx, row->glyphs[i],
                 GPoint(icon_x, status_icon_top_y(glyph_cy, gs.h,
                     status_icon_weight_pct(row->glyph_icons[i]))), ink);

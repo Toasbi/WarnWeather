@@ -383,8 +383,8 @@ static void lane_tests(void) {
     expect_str("lane.degraded.tomorrow_keeps_mark", out, ">");
     alert_set_lane(&set.entries[1], values, out, sizeof(out));
     expect_str("lane.degraded.today_empty", out, "");
-    // The rain entry prepended in front has no lane here (status_alerts.c builds its
-    // countdown), whatever the flag.
+    // The rain entry prepended in front has no lane here (status_on_demand.c builds
+    // its countdown), whatever the flag.
     alert_set_prepend_rain(&set, true, 2, 3);
     strcpy(out, "junk");
     expect("lane.rain.len", (long)alert_set_lane(&set.entries[0], true, out, sizeof(out)), 0);
@@ -407,7 +407,7 @@ static void lane_tests(void) {
     expect("lane.cap0", (long)alert_set_lane(&set.entries[1], true, out, 0), 0);
 }
 
-// The rain entry draws no box and never bolds. status_alerts.c judges every entry
+// The rain entry draws no box and never bolds. status_on_demand.c judges every entry
 // through status_threshold_look (pinned in status_threshold_test.c), the rain entry
 // included, and the prepended entry is ALERT_KIND_RAIN at NORMAL: no ThreshKind, so
 // no kind's settings reach it. As kind 0 it read AQI's Bold 'Always' as its own.

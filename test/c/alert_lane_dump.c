@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "c/appendix/alert_set.h"
 
-// Dumps the alert row's metric text lanes (appendix/alert_set.c alert_set_lane) for
+// Dumps the metric alert items' text lanes (appendix/alert_set.c alert_set_lane) for
 // scripts/check-alert-lane-lockstep.js, which checks each one against the text the
 // phone gives the day-max slot for the same peak (status-pair.js markNextDay): an
 // alert active for tomorrow and a slot showing tomorrow's peak must print the same

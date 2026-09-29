@@ -460,7 +460,7 @@ static void legacy_blob_tests(void) {
     expect("legacy33.steps_warn", status_threshold_health_warn(blob, pre16, THRESH_STEPS), 8000);
 }
 
-// The alerts byte [34]: bits 0-1 carry the Alerts row's rain look. A pre-alerts
+// The alerts byte [34]: bits 0-1 carry the Rain item's look. A pre-alerts
 // blob (34/33/29 B — every install at upgrade time) has no such byte and must
 // read "text", today's countdown look, so an untouched upgrade looks the same.
 static void rain_display_tests(void) {

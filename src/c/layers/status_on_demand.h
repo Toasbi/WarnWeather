@@ -32,11 +32,10 @@
 //                 tier, the text per the rain look.
 //  - the metric alerts (gust, UV, AQI, pollen, wind): an ALERT_ENTRIES entry of the
 //                 kind, drawn as a mini status slot at its real level.
-// The metric alerts keep the alert row's looks: each is a MINI STATUS SLOT,
-// `[icon][gap][text?]`, styled like a highlighted slot of its kind at the entry's
-// level (status_threshold_look) — the kind's warn look at WARN (none, outline or
-// fill), filled at DANGER with the glyph and text legible over the fill; on B&W the
-// escalation is polarity. A metric value follows its kind's bold ladder at the
+// Each metric alert draws as a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a
+// highlighted slot of its kind at the entry's level (status_threshold_look) — the
+// kind's warn look at WARN (none, outline or fill), filled at DANGER with the glyph
+// and text legible over the fill; on B&W the escalation is polarity. A metric value follows its kind's bold ladder at the
 // entry's level; the rain text never bolds. A TOMORROW entry carries the alert's mark
 // around its value ("»8", "8*"), which outlasts the values-off lane, so a tomorrow
 // alert never reads as today's.
@@ -70,10 +69,10 @@ void status_on_demand_release(StatusOnDemandRow *row);
 // row->assigned, and fold everything the items paint into the row's signature — the
 // bar's cells, the Battery warn level and Look, each assigned item's state (the
 // charge, plugged and "at or below" for Battery; the Bluetooth variant; Quiet time;
-// Sleep) and the weather alerts as the alert row folded them (entries, levels, days,
-// values, looks, the rain look and the countdown text while a look prints it). The
-// rain entry is re-derived from the radar cache on every call (O(1), flash-free),
-// which is why a bar with items is refreshed on the minute tick.
+// Sleep) and the weather alerts (entries, levels, days, values, looks, the rain look
+// and the countdown text while a look prints it). The rain entry is re-derived from
+// the radar cache on every call (O(1), flash-free), which is why a bar with items is
+// refreshed on the minute tick.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                                const uint8_t *blob, size_t len);
 
