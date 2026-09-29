@@ -413,6 +413,19 @@ static void two_sides_drop_lowest_priority(void) {
     od_layout(100, none, mirror, NO_BLEED, false, &out);
     expect("drop.mirror.left_n", out.n[0], 2);
     expect("drop.mirror.right_n", out.n[1], 1);
+
+    // The same with all three slots: both sides climb past the middle (hidden, the
+    // harsher request), both still violate at row 9, and the wind drops. The ladder
+    // starts over: the left side (Quiet time) fits at row 0 beside its full slot, the
+    // right side (Battery + rain) at row 9, so the middle stays hidden.
+    OdSlotIn slots[3] = { slot_text(20, 0), slot_text(30, 0), slot_text(20, 0) };
+    od_layout(120, slots, sides, NO_BLEED, false, &out);
+    expect("drop.slots.left_n", out.n[0], 1);
+    expect("drop.slots.right_n", out.n[1], 2);
+    expect("drop.slots.left_stage", out.stage[0], 0);
+    expect("drop.slots.left_slot", out.form[0], OD_FULL);
+    expect("drop.slots.right_stage", out.stage[1], 9);
+    expect("drop.slots.middle_hidden", out.form[1], OD_HIDDEN);
 }
 
 // With the middle hidden (here: empty), a side is pushed only while its own claim
