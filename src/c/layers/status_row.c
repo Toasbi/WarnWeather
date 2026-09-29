@@ -25,7 +25,8 @@
 #include <string.h>
 
 // Never compiled on aplite — wscript builds status_row_aplite.c in its place — and
-// every other platform has both features, so nothing below is guarded on them.
+// every other platform has both features, so nothing below is guarded on them, nor
+// on PBL_PLATFORM_APLITE.
 #if !defined(WW_ALERT_ROW) || !defined(WW_THRESHOLD_HIGHLIGHT)
 #error "status_row.c needs WW_ALERT_ROW and WW_THRESHOLD_HIGHLIGHT; aplite builds its twin"
 #endif
@@ -92,22 +93,9 @@ static int s_thresh_len;
 // flash-backed reads across a row).
 static int s_levels_word;
 
-#ifdef PBL_PLATFORM_APLITE
-// aplite: primitive lines avoid GPath's code and transient draw allocation.
-static void draw_sun_arrow(GContext *ctx, int cx, int cy, bool up) {
-    const int h2 = ARROW_H / 2;
-    const int apex_y = up ? (cy - h2) : (cy + h2);
-    const int dir = up ? 1 : -1;
-    graphics_context_set_stroke_color(ctx, theme_fg());
-    graphics_draw_line(ctx, GPoint(cx, up ? cy + h2 : cy - h2),
-                       GPoint(cx, apex_y + dir * ARROW_HEAD_H));
-    for (int i = 0; i <= ARROW_HEAD_H; ++i) {
-        const int hw = (ARROW_HEAD_W * i) / ARROW_HEAD_H;
-        graphics_draw_line(ctx, GPoint(cx - hw, apex_y + dir * i),
-                           GPoint(cx + hw, apex_y + dir * i));
-    }
-}
-#else
+// The sunrise/sunset arrow, turned for the wind-direction arrow too: one GPath every
+// row shares, created with the first row and destroyed with the last (s_row_count).
+// (The aplite twin draws its sun arrow from primitive lines instead.)
 static GPath *s_arrow_path;
 static const GPathInfo ARROW_PATH_INFO = {
     .num_points = 6,
@@ -120,7 +108,6 @@ static const GPathInfo ARROW_PATH_INFO = {
         {0, ARROW_H / 2 - ARROW_HEAD_H}
     }
 };
-#endif
 
 static int s_row_count;
 
@@ -225,16 +212,12 @@ static void format_live_value(const StatusRow *row, uint8_t kind, char *buf, siz
         case SLOT_LIVE_DATE:
             format_status_date(row->full_date, buf, cap);
             return;
-#if !defined(PBL_PLATFORM_APLITE)
-        // aplite: excluded to stay within its frozen image budget; the phone
-        // never offers/sends the calendar-week slot to aplite (catalog gate).
         case SLOT_LIVE_WEEK: {
             struct tm tm_now = watch_services_localtime();
             snprintf(buf, cap, "W%d",
                      iso_week(tm_now.tm_year + 1900, tm_now.tm_yday, tm_now.tm_wday));
             return;
         }
-#endif
         // Not health data: state read on-device like the glyph battery slot
         // (SLOT_LIVE_BATTERY), which renders icon-only; this kind renders text.
         case SLOT_LIVE_BATTERY_PCT:
@@ -488,14 +471,12 @@ StatusRow *status_row_create(uint8_t line_id) {
     row->line_id = line_id;
     row->glyph_fg = theme_fg();
     s_row_count++;
-#ifndef PBL_PLATFORM_APLITE
     if (!s_arrow_path) {
         s_arrow_path = gpath_create(&ARROW_PATH_INFO);
         if (!s_arrow_path) {
             APP_LOG(APP_LOG_LEVEL_ERROR, "status_row_create: failed to allocate arrow path");
         }
     }
-#endif
     return row;
 }
 
@@ -507,12 +488,10 @@ void status_row_destroy(StatusRow *row) {
     status_alerts_release(&row->alerts);
     free(row);
     s_row_count--;
-#ifndef PBL_PLATFORM_APLITE
     if (s_row_count == 0 && s_arrow_path) {
         gpath_destroy(s_arrow_path);
         s_arrow_path = NULL;
     }
-#endif
 }
 
 void status_row_apply(StatusRow *row, GRect bounds, uint8_t tier, uint8_t line_id) {
@@ -870,9 +849,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;
             int arrow_x = icon_x + ARROW_W / 2;
-#ifdef PBL_PLATFORM_APLITE
-            draw_sun_arrow(ctx, arrow_x, glyph_cy, arrow_up);
-#else
             if (s_arrow_path) {
                 gpath_rotate_to(s_arrow_path, arrow_up ? TRIG_MAX_ANGLE / 2 : 0);
                 gpath_move_to(s_arrow_path, GPoint(arrow_x, glyph_cy));
@@ -881,7 +857,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                 gpath_draw_outline_open(ctx, s_arrow_path);
                 gpath_draw_filled(ctx, s_arrow_path);
             }
-#endif
         }
         if (places[i].text_visible) {
             graphics_draw_text(ctx, slots[i].text, slots[i].font,
@@ -889,7 +864,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
                       row->bounds.size.h - text_y_rel),
                 GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
         }
-#ifndef PBL_PLATFORM_APLITE
         // The wind-direction arrow — the first ink this watchface draws AFTER a
         // slot's text, which is the point: it reads as a modifier on the speed
         // rather than a second icon. The shape is the sunrise/sunset arrow's shared
@@ -913,6 +887,5 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
             gpath_draw_outline_open(ctx, s_arrow_path);
             gpath_draw_filled(ctx, s_arrow_path);
         }
-#endif
     }
 }
