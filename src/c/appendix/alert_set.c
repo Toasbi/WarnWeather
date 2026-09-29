@@ -85,33 +85,6 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier) {
     set->count = (uint8_t)(count + 1);
 }
 
-int alert_set_row_w(const int16_t *widths, int n, int gap) {
-    int w = 0;
-    bool any = false;
-    for (int i = 0; i < n; i++) {
-        if (widths[i] <= 0) { continue; }
-        w += widths[i] + (any ? gap : 0);
-        any = true;
-    }
-    return w;
-}
-
-int alert_set_fit(const int16_t *widths, int n, int gap, int budget) {
-    int w = 0;
-    bool any = false;
-    int fit = 0;
-    for (int i = 0; i < n; i++) {
-        if (widths[i] > 0) {
-            int add = widths[i] + (any ? gap : 0);
-            if (w + add > budget) { break; }
-            w += add;
-            any = true;
-        }
-        fit = i + 1;
-    }
-    return fit;
-}
-
 bool alert_set_degrade(int *rain_display, bool *values) {
     if (!rain_display || !values) { return false; }
     if (*rain_display != THRESH_RAIN_DISPLAY_ICON

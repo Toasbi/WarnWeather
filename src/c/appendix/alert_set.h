@@ -137,16 +137,6 @@ int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out);
 // tier-0 segment. Call once per parse.
 void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier);
 
-// Width of the first `n` entries laid out left to right: their widths plus `gap`
-// between each pair of VISIBLE neighbours. A zero-width entry (a glyph that failed
-// to load, with no text) takes no room and no gap — the draw skips it the same way.
-int alert_set_row_w(const int16_t *widths, int n, int gap);
-
-// How many entries fit `budget` px: the largest prefix whose alert_set_row_w() is
-// within it — entries drop from the TAIL (pollen first, rain last). 0 when not even
-// the first fits.
-int alert_set_fit(const int16_t *widths, int n, int gap, int budget);
-
 // One step down the text-lane ladder: the rain text shortens to its minutes first
 // ("Rain in 12'" -> "12'"), then every lane goes (metric values off, rain icon
 // only). A tomorrow entry's mark is not a value and stays (alert_set_lane), so a

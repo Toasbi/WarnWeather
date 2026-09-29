@@ -268,29 +268,6 @@ static void prepend_rain_tests(void) {
     alert_set_prepend_rain(NULL, true, 1, 1);   // must not crash
 }
 
-static void fit_tests(void) {
-    const int16_t w[] = { 20, 11, 11, 11 };
-    // Full row: 20 + 3 * (4 + 11) = 65.
-    expect("row_w.all", alert_set_row_w(w, 4, 4), 65);
-    expect("row_w.one", alert_set_row_w(w, 1, 4), 20);
-    expect("row_w.none", alert_set_row_w(w, 0, 4), 0);
-    expect("fit.all_exact", alert_set_fit(w, 4, 4, 65), 4);
-    expect("fit.all_roomy", alert_set_fit(w, 4, 4, 200), 4);
-    // One px short: the TAIL drops, never the head.
-    expect("fit.tail_drop", alert_set_fit(w, 4, 4, 64), 3);
-    expect("fit.two", alert_set_fit(w, 4, 4, 35), 2);
-    expect("fit.first_only", alert_set_fit(w, 4, 4, 20), 1);
-    expect("fit.none", alert_set_fit(w, 4, 4, 19), 0);
-    expect("fit.zero_budget", alert_set_fit(w, 4, 4, 0), 0);
-    expect("fit.negative_budget", alert_set_fit(w, 4, 4, -5), 0);
-    expect("fit.empty", alert_set_fit(w, 0, 4, 100), 0);
-    // A zero-width entry (glyph failed to load, no text) takes no room and no gap.
-    const int16_t holes[] = { 11, 0, 11 };
-    expect("row_w.hole", alert_set_row_w(holes, 3, 4), 26);
-    expect("fit.hole", alert_set_fit(holes, 3, 4, 26), 3);
-    expect("fit.hole_short", alert_set_fit(holes, 3, 4, 25), 2);
-}
-
 static void degrade_tests(void) {
     int rd = THRESH_RAIN_DISPLAY_TEXT;
     bool values = true;
@@ -487,7 +464,6 @@ int main(void) {
     bytes_ok_tests();
     icon_tests();
     prepend_rain_tests();
-    fit_tests();
     degrade_tests();
     lane_tests();
     rain_look_tests();

@@ -1148,9 +1148,9 @@ test('bakeAlerts: tail-drops entries past the 20 B cap, pollen first', () => {
   // The row stays a prefix of the fixed order: the first entry that does not fit
   // ends it, even when a later, shorter one would. A 7-digit UV and AQI: UV + wind
   // + gust = 8 + 3 + 3 = 14 B, AQI's 8 B would make 22 — AQI drops, and pollen's
-  // 2 B (16 in all) is NOT taken in its place. The watch fits its pixels by the
-  // same rule (alert_set_fit: the largest prefix), so a crowded row loses its tail
-  // on both ends, never a middle entry.
+  // 2 B (16 in all) is NOT taken in its place. On the watch a crowded On demand
+  // side drops from its tail too, lowest priority first (appendix/on_demand.c),
+  // never a middle item.
   const prefix = Object.assign({}, ALL_ALERTING, {
     UV_TREND_UINT8: [12345670], UV_DAY_PEAKS: [12345670, 0, 0], AQI_TREND: [1234567]
   });
