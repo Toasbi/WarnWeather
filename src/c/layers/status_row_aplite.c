@@ -1,18 +1,21 @@
 // Lean aplite (Pebble Classic/Steel) twin of status_row.c.
 //
-// Frozen fork of status_row.c as of 0ae09d0. FEATURE-FROZEN, NOT CODE-FROZEN:
-// preserve aplite's text/date/sun/battery behavior and hand-port bug
-// fixes, but do not add the evolving PDC glyph, health, week, theme-polarity,
-// or Alerts-row pipeline (its whole interface — status_row_uses_alerts — is
-// declared only under WW_ALERT_ROW, which aplite never defines, so this twin
-// answers none of it).
-// Reconciled at b81feca with the base's Alerts-row interface change: the strip's
-// rain takeover hooks (status_row_set_suppress_edges /
-// status_row_right_slot_width) left status_row.h, and their no-op stubs left here.
-// Reconciled again at 0ae09d0 with the per-bar Alerts placement: the two new
-// functions sit behind the same guard, so nothing was stubbed. Those two
-// (status_row_set_alerts / status_row_alerts_place) left status_row.h again when
-// the base row began reading its placement itself on refresh; nothing to port.
+// Frozen fork of status_row.c as of 5707b35. FEATURE-FROZEN, NOT CODE-FROZEN:
+// preserve aplite's text/date/sun/battery behavior and hand-port bug fixes, but
+// do not add the evolving PDC glyph, health, week, theme-polarity,
+// threshold-highlight or alert-row pipeline. Interface changes are forced by the
+// aplite link error.
+//
+// Last ported against v1.23.1 (ec22f464): review the base's later commits with
+// `git log ec22f464.. -- src/c/layers/status_row.c`. Among them, 1.24.0's alert
+// row (it replaced the top strip's rain text takeover) is reconciled here already.
+// It changed status_row.h in two ways:
+//  - the takeover's hooks (status_row_set_suppress_edges /
+//    status_row_right_slot_width) left it, so their no-op stubs left this twin;
+//  - the alert row's interface (status_row_uses_alerts) is declared only under
+//    WW_ALERT_ROW, which aplite never defines, so this twin answers none of it.
+// Nothing else in 1.24.0's status_row.c changes is aplite's to port: they build
+// the alert row and the threshold highlight, and aplite has neither.
 // See docs/adr/0001-aplite-frozen-lean-fork.md.
 
 #include "status_row.h"
