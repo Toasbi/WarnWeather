@@ -363,13 +363,15 @@ test('the separator dropdown opens inside the sheet and a Custom pick reveals th
     page.modal.dispatch('click', { target: node });
   }
   click('[data-select]', { 'data-select': 'tempSlotSeparator' });
-  assert.ok(page.modal.innerHTML.indexOf('data-ssel-list="tempSlotSeparator"') !== -1,
-    'the preset list opens');
+  assert.ok(page.modal.innerHTML.indexOf('id="ssel-list-tempSlotSeparator" class="isel-list"') !== -1,
+    'the preset list opens in place, under its row');
+  assert.ok(page.modal.innerHTML.indexOf('data-k="tempSlotDisplay"') !== -1, 'the sheet stays drawn around it');
   assert.ok(page.modal.innerHTML.indexOf('12(10)') !== -1, 'labelled by example');
   click('[data-select-pick]', { 'data-k': 'tempSlotSeparator', 'data-select-pick': 'custom' });
   assert.equal(page.S.tempSlotSeparator, 'custom');
+  assert.equal(page.modal.innerHTML.indexOf('isel-list'), -1, 'the pick collapses the list');
   assert.ok(page.modal.innerHTML.indexOf('data-k="tempSlotSeparatorCustom"') !== -1,
-    'back on the sheet, with the custom field revealed');
+    'the sheet stays open, with the custom field revealed');
   // Leaving Both hides the rows but keeps what they hold (hidden rows still serialize),
   // so coming back to Both finds the same custom separator.
   click('[data-v]', { 'data-k': 'tempSlotDisplay', 'data-v': 'actual' });

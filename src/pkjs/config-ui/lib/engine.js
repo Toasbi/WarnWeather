@@ -685,15 +685,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * Shared trigger for both `select` and `searchSelect`: a select-like button that opens
-   * the modal popup. aria-controls points at the option list the modal renders into #modal.
+   * the modal popup — or, for a `select` inside an edit sheet, expands its options in
+   * place under the row (view.openInline, renderInlineList). aria-controls points at the
+   * option list either surface renders; both use the same id.
    *
    * @param {Object} item Schema item (select or searchSelect).
-   * @param {{value: *, openSelect: ?string}} view Render view state.
+   * @param {{value: *, openSelect: ?string, openInline: ?string}} view Render view state.
    * @returns {string} Trigger button HTML.
    */
   function renderSelectTrigger(item, view) {
     var key = esc(item.messageKey), label = currentLabel(item, view.value);
-    var listId = 'ssel-list-' + key, open = view.openSelect === item.messageKey;
+    var listId = 'ssel-list-' + key;
+    var open = view.openSelect === item.messageKey || view.openInline === item.messageKey;
     var accessibleLabel = selectTriggerAria(item, label);
     return '<button type="button" class="sel-wrap" data-select="' + key
       + '" aria-label="' + esc(accessibleLabel) + '" aria-haspopup="listbox" aria-expanded="'
@@ -797,14 +800,39 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
+   * The option list a `select` row expands IN PLACE inside an edit sheet: the colour
+   * palette's in-place pattern, applied to a dropdown, so picking a value never takes the
+   * sheet off the screen. The rows are the select modal's own (renderSelectOptions: .on
+   * with a check, the recommended marker, gated options inert), under the id the
+   * trigger's aria-controls already names. The class is isel-list, never ssel-list:
+   * render(), fitSelectPeek and the swipe handler all query .ssel-list for the sheet's
+   * own scroll container.
+   *
+   * @param {Object} item The row's item with its options materialized (resolveRowItem).
+   * @param {*} value The value the row shows.
+   * @param {{S: Object, ENV: Object, evalCtx: Object}} cx Render context.
+   * @returns {string} The list HTML.
+   */
+  function renderInlineList(item, value, cx) {
+    var title = esc(String(item.label || 'Selection'));
+    return '<div id="ssel-list-' + esc(item.messageKey) + '" class="isel-list" role="listbox" aria-label="'
+      + title + ' options">'
+      + renderSelectOptions(item, value, '', resolveRecommended(item, cx.S, cx.ENV),
+          disabledOptionValues(item, cx.evalCtx))
+      + '</div>';
+  }
+
+  /**
    * The open edit sheet: a sheetOnly section rendered into the shared bottom-sheet
    * dialog — header from the section title, then the section's rows (intro, text
    * fields, color pickers …) through the same item renderer the tab body uses, so
    * showWhen/joins/hints and the color-palette state all behave identically.
    * '' when nothing is open, the sheetId is unknown, or the section is gated off.
+   * The rows render with cx.inSheet set, which is what lets a select in the sheet expand
+   * inline (cx.openInline) while the same key in the tab body behind stays collapsed.
    *
    * @param {Object} schema Config schema.
-   * @param {{S: Object, ENV: Object, openEdit: ?string}} cx Render context.
+   * @param {{S: Object, ENV: Object, openEdit: ?string, openInline: ?string}} cx Render context.
    * @returns {string} Sheet header + body HTML, or ''.
    */
   function renderEditModal(schema, cx) {
@@ -820,7 +848,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // The sheet honors its section gate even when forced open — on aplite
     // (env.thresholds false) it must stay empty regardless of how it was opened.
     if (sec.showWhen && !PConf.showWhen.isVisible(sec, cx.evalCtx)) { return ''; }
-    var built = buildSectionBody(sec, cx);
+    var built = buildSectionBody(sec, Object.assign({}, cx, { inSheet: true }));
     if (built.isEmpty) { return ''; }
     var titleId = 'esheet-ttl-' + esc(String(cx.openEdit));
     // A sheet-level labelAction rides the TITLE, beside the text. Same shape as an item's
@@ -971,14 +999,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // the Holiday searchSelects keep the same compact treatment. A stacked (open color/etc.)
     // row keeps normal padding so its expanded content isn't cramped.
     var isStatusSlot = item.optionsFrom && item.optionsFrom.resolver === 'statusSlot';
+    // A select expanded in place inside an edit sheet (renderItem builds view.inlineList):
+    // the list is the row's LAST child in every shape below, and .isel-open lets the flex
+    // row wrap it onto a full-width line of its own. The row does NOT become .stack, so
+    // the trigger stays exactly where it was.
+    var inlineList = view.inlineList || '';
     var rowCls = 'row' + (stacked ? ' stack' : '') + (wideSegmented ? ' segwide' : '') + nbClass(noDivider)
       + ((item.type === 'searchSelect' || isStatusSlot) && !stacked ? ' slot' : '')
+      + (inlineList ? ' isel-open' : '')
       // A disabled row (item.disabledWhen) stays visible — showing what WOULD be
       // configurable — but muted and inert (CSS pointer-events; the range handlers
       // also guard on .dis for keyboard focus that CSS can't block).
       + (view.disabled ? ' dis' : '');
     if (stacked) {
-      return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div></div>';
+      return '<div class="' + rowCls + '">' + label + hintHtml + '<div>' + renderControl(item, view) + '</div>'
+        + inlineList + '</div>';
     }
     // A resolved edit sheet splits its two affordances around the control: the passive
     // colour swatch leads, the Edit button trails. The control cell is right-aligned and
@@ -992,7 +1027,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // Wide segmented (.segwide): control on the label's line, label wraps into the leftover
     // width (.lft flex), hint on its own full-width line below (.segwide .hint flex-basis).
     if (wideSegmented) {
-      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + '</div>';
+      return '<div class="' + rowCls + '"><div class="lft">' + label + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + inlineList + '</div>';
     }
     // Rows with a multi-line hint float the control right (.wrap layout) so the
     // hint flows around it and reclaims the full width below the control instead
@@ -1001,9 +1036,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // isn't measurable at render time, so "multi-line" is a plain-text length
     // heuristic — short one-liners keep the centered two-column row.
     if (hintHtml && String(hint).replace(/<[^>]*>/g, '').length > 64) {
-      return '<div class="' + rowCls + ' wrap">' + label + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + '</div>';
+      return '<div class="' + rowCls + ' wrap">' + label + rgtOpen + renderControl(item, view) + rgtClose + hintHtml + inlineList + '</div>';
     }
-    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + '</div>';
+    return '<div class="' + rowCls + '"><div class="lft">' + label + hintHtml + '</div>' + rgtOpen + renderControl(item, view) + rgtClose + inlineList + '</div>';
   }
 
   // Render a registered block by id, wrapped in .blockrow ('.blockrow sticky' when sticky).
@@ -1156,6 +1191,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.hintFrom) {
       view.hint = resolveHint(item, cx.S, cx.ENV, view.value);
     }
+    // A select expanded in place inside an edit sheet (view.openInline is only ever set
+    // there — buildSectionBody gates it on cx.inSheet). rowItem, so an optionsFrom list and
+    // the per-option meta.disabled gates apply exactly as in the select modal.
+    if (item.type === 'select' && view.openInline === item.messageKey) {
+      view.inlineList = renderInlineList(rowItem, view.value, cx);
+    }
     var html = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
       + renderRow(rowItem, view, noDivider)
       + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
@@ -1199,8 +1240,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // row (one bottom divider, no internal dividers). Each visible member becomes a compact
   // label+control cell. Inline members don't carry hints/blocks. Returns { html, controlCount };
   // controlCount is the number of visible cells (0 -> nothing rendered, group hidden).
+  // A member select expanded in place inside an edit sheet (cx.openInline) lists its options
+  // under the whole row, the same full-width list a plain row gets (renderRow).
   function renderInlineGroup(items, cx, noDivider, hosted) {
-    var cells = '', visible = 0, i, item, view;
+    var cells = '', visible = 0, i, item, view, inlineList = '';
     for (i = 0; i < items.length; i++) {
       item = items[i];
       if (isHostedRow(item, hosted) || !PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
@@ -1208,14 +1251,19 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
         openSelect: cx.openSelect,
+        openInline: cx.inSheet ? cx.openInline : null,
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
+      if (item.type === 'select' && view.openInline === item.messageKey) {
+        inlineList = renderInlineList(item, view.value, cx);
+      }
       cells += '<div class="icell"><div class="lbl">' + esc(item.label) + '</div>' + renderControl(item, view) + '</div>';
       visible++;
     }
     if (!visible) { return { html: '', controlCount: 0 }; }
-    return { html: '<div class="row inline' + nbClass(noDivider) + '">' + cells + '</div>', controlCount: visible };
+    return { html: '<div class="row inline' + nbClass(noDivider) + (inlineList ? ' isel-open' : '') + '">'
+      + cells + inlineList + '</div>', controlCount: visible };
   }
 
   // Look-ahead from index "from": the join mode of the next *rendered* item — '' when it doesn't
@@ -1307,6 +1355,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         value: cx.S[item.messageKey],
         openColor: cx.openColor,
         openSelect: cx.openSelect,
+        // Only the edit sheet's rows expand in place: the same key rendered in the tab
+        // body behind the sheet keeps its collapsed trigger.
+        openInline: cx.inSheet ? cx.openInline : null,
         openDate: cx.openDate,
         selectQuery: cx.selectQuery
       };
@@ -1517,6 +1568,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
     var activeTab = initialTab(SCHEMA, S);
     var openColor = null, openSelect = null, openDate = null, openEdit = null;
+    // The messageKey of the `select` expanded in place inside the open edit sheet
+    // (renderInlineList), or null. One expander at a time: opening a list clears
+    // openColor and opening a palette clears this, and every path that clears openColor
+    // for a closing sheet clears it too.
+    var openInline = null;
     var selectQuery = '', collapsed = initialCollapsed(SCHEMA);
     // Recover a schema item by messageKey so the input handler can re-filter its options in place.
     function findItem(key) { var f = null; eachItem(SCHEMA, function (it) { if (it.messageKey === key) { f = it; } }); return f; }
@@ -1539,11 +1595,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var lastSelectKey = null;
     // Same, for an edit sheet: the sheetId whose pencil trigger regains focus on close.
     var lastEditSheet = null;
-    // A `select` row inside an edit sheet opens its options in the same dialog, on top
-    // of the sheet (openSelect set while openEdit stays set); every close path then
-    // returns to the sheet instead of dismissing both (closeModal). This holds the
-    // sheet's scroll offset across that detour — null when no detour is pending.
-    var sheetScrollTop = null;
     // Optional one-shot callback fired after the sheet closes, set by openSheet() so an external
     // caller (the onboarding wizard, which lives in its own overlay) can react to a pick/dismiss.
     var onSheetClose = null;
@@ -1584,18 +1635,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         if (opening) { dlg.showModal(); }
         var ttl = dlg.querySelector('.ssel-modal-ttl');
         if (ttl && ttl.id) { dlg.setAttribute('aria-labelledby', ttl.id); }
-        // A select nested over an edit sheet is dressed as a select: the sheet is not
-        // what the dialog shows until the select closes.
-        var editShown = Boolean(openEdit && !openSelect);
+        var editShown = Boolean(openEdit);
         if (editShown) { dlg.classList.add('edit'); } else { dlg.classList.remove('edit'); }
-        // An expanded palette needs more room than the 80dvh cap allows (.picking raises it
-        // to 94dvh). syncDialog runs on EVERY render, not just the open edge, so this tracks
-        // the palette opening and closing inside an already-open sheet. add/remove, never the
-        // two-argument classList.toggle — unsafe in old Android WebViews.
+        // An expanded palette or in-place option list needs more room than the 80dvh cap
+        // allows (.picking raises it to 94dvh, and fitSelectPeek leaves a .picking sheet
+        // unclamped, so the peek can never clip the list it just opened). syncDialog runs on
+        // EVERY render, not just the open edge, so this tracks an expander opening and
+        // closing inside an already-open sheet. add/remove, never the two-argument
+        // classList.toggle — unsafe in old Android WebViews.
         // openColor is shared with the tab body, and only the EDIT sheet ever renders a
         // palette; without the openEdit half, a palette left expanded in the body would
         // also grow (and un-peek) an unrelated select sheet opened from the same card.
-        if (editShown && openColor) { dlg.classList.add('picking'); } else { dlg.classList.remove('picking'); }
+        if (editShown && (openColor || openInline)) {
+          dlg.classList.add('picking');
+        } else {
+          dlg.classList.remove('picking');
+        }
         if (openDate) {
           dlg.classList.remove('search');
           dlg.classList.add('date');
@@ -1676,26 +1731,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var selectKey = lastSelectKey;
       var dateKey = openDate;
       var editKey = lastEditSheet;
-      // A select nested over an edit sheet closes back to the sheet — a pick, the X,
-      // the backdrop, Escape and the swipe-down all land here — and focus returns to
-      // its trigger row inside the sheet. The sheet itself stays open.
-      if (openSelect && openEdit) {
-        openSelect = null;
-        selectQuery = '';
-        lastSelectKey = null;
-        var modal = document.getElementById('modal');
-        // A swipe-down leaves the drag offset inline on the dialog, and only the
-        // full-close branch of syncDialog clears it — the sheet would come back
-        // pushed down by the swipe distance with its bottom rows off-screen.
-        modal.style.transform = '';
-        modal.style.transition = '';
-        render();
-        var back = (selectKey && modal.querySelector)
-          ? modal.querySelector('[data-select="' + selectKey + '"]') : null;
-        if (back) { back.focus(); }
-        return;
-      }
-      sheetScrollTop = null;
       dateWiring.flushPending();
       openSelect = null;
       openDate = null;
@@ -1704,8 +1739,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // edit sheet — so clear it only when a sheet is what's closing. A palette expanded
       // inside the sheet is going away with it (and would come back expanded on reopen);
       // one expanded in the tab body is untouched by closing a select/date modal that
-      // happens to sit in the same card.
-      if (editKey) { openColor = null; }
+      // happens to sit in the same card. An in-place option list only ever lives in a
+      // sheet, and goes with it the same way.
+      if (editKey) { openColor = null; openInline = null; }
       render();
       var selector = selectKey ? '[data-select="' + selectKey + '"]'
         : dateKey ? '[data-date="' + dateKey + '"]'
@@ -1750,6 +1786,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var cx = {
         S: S, ENV: ENV, USERDATA: USERDATA, openColor: openColor,
         openSelect: openSelect, openDate: openDate, openEdit: openEdit,
+        openInline: openInline,
         selectQuery: selectQuery,
         collapsed: collapsed, evalCtx: evalCtx()
       };
@@ -1758,24 +1795,20 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var modalEl = document.getElementById('modal');
       var prevList = modalEl.querySelector ? modalEl.querySelector('.ssel-list') : null;
       var keepTop = prevList ? prevList.scrollTop : 0;
-      // A select opened FROM an edit sheet takes the dialog over; the sheet comes back
-      // when it closes (closeModal).
-      var editShown = Boolean(openEdit && !openSelect);
+      var editShown = Boolean(openEdit);
       modalEl.innerHTML = openDate
         ? renderDateModal(SCHEMA, cx)
         : editShown ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
       // The edit sheet's scroll container is a NEW node after every render, so a swatch
-      // click would otherwise snap the sheet back to the top. Restore the offset, then
-      // nudge a freshly opened palette into view. Rect math, not offsetTop (.ssel-list is
-      // not positioned, so it is not the offsetParent) and not scrollIntoView({block:…})
-      // (the options-object form is unsafe in old Android WebViews).
+      // or option tap would otherwise snap the sheet back to the top. Restore the offset,
+      // then nudge a freshly opened palette or option list into view. Rect math, not
+      // offsetTop (.ssel-list is not positioned, so it is not the offsetParent) and not
+      // scrollIntoView({block:…}) (the options-object form is unsafe in old Android WebViews).
       var list = (editShown && modalEl.querySelector) ? modalEl.querySelector('.ssel-list') : null;
       if (list) {
-        // Back from a nested select: the list just replaced was the select's, so the
-        // offset to restore is the one the sheet had when the select opened.
-        if (sheetScrollTop !== null) { keepTop = sheetScrollTop; sheetScrollTop = null; }
         list.scrollTop = keepTop;
-        var sw = openColor ? list.querySelector('[data-color="' + openColor + '"]') : null;
+        var sw = openColor ? list.querySelector('[data-color="' + openColor + '"]')
+          : openInline ? list.querySelector('[data-select="' + openInline + '"]') : null;
         var row = (sw && sw.closest) ? sw.closest('.row') : null;
         if (row && row.getBoundingClientRect && list.getBoundingClientRect) {
           var over = row.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom;
@@ -1802,6 +1835,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         tabScroll[activeTab] = scroll.scrollTop;
         activeTab = b.getAttribute('data-tab');
         openColor = null;
+        openInline = null;
         openSelect = null;
         openDate = null;
         openEdit = null;
@@ -1868,6 +1902,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       if ((t = e.target.closest('[data-color]'))) {
         var ck = t.getAttribute('data-color');
+        // One expander at a time: a palette opening in a sheet collapses an open option list.
+        openInline = null;
         openColor = (openColor === ck ? null : ck); render(); return true;
       }
       if ((t = e.target.closest('[data-v]'))) {
@@ -1995,6 +2031,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           openSelect = null;
           openDate = null;
           lastSelectKey = null;
+          // The sheet opens with nothing expanded. A palette left open in the tab body
+          // would otherwise count as the sheet's own (it closes with the sheet anyway, see
+          // closeModal): Escape would spend its first press collapsing it and the sheet
+          // would open at the raised .picking cap.
+          openColor = null;
+          openInline = null;
           openEdit = ek;
           lastEditSheet = ek;
           render();
@@ -2034,6 +2076,35 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       rangeWiring.wireRangeEvents(scroll);
     }
 
+    /**
+     * Move focus to the first element in the dialog matching one of the selectors, in
+     * order — the stand-in for a trigger or option node a render() just replaced.
+     * @param {Array<string>} selectors Candidate selectors, most wanted first.
+     * @returns {void}
+     */
+    function focusInModal(selectors) {
+      var modal = document.getElementById('modal'), el = null, i;
+      if (!modal || !modal.querySelector) { return; }
+      for (i = 0; i < selectors.length && !el; i++) { el = modal.querySelector(selectors[i]); }
+      if (el && el.focus) { el.focus(); }
+    }
+
+    /**
+     * Collapse whatever is expanded in place inside the open edit sheet — an option list
+     * or a palette — and hand focus back to the row's trigger. The first answer to
+     * Escape: only a sheet with nothing expanded closes on it.
+     * @returns {boolean} True when something was collapsed.
+     */
+    function collapseSheetExpander() {
+      if (!openEdit || !(openInline || openColor)) { return false; }
+      var sel = openInline ? '[data-select="' + openInline + '"]' : '[data-color="' + openColor + '"]';
+      openInline = null;
+      openColor = null;
+      render();
+      focusInModal([sel]);
+      return true;
+    }
+
     // The #modal overlay lives outside #scroll, so it needs its own delegated handlers:
     // pick an option (set value + fire onChange + close), close (backdrop / X), and the
     // searchSelect live filter (rebuild only the list so the input keeps focus + cursor).
@@ -2042,11 +2113,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       modal.addEventListener('click', function (e) {
         var t;
         if (e.target.closest && (t = e.target.closest('[data-select-pick]'))) {
-          var k = t.getAttribute('data-k'), oldV = S[k], newV = t.getAttribute('data-select-pick');
-          S[k] = newV;
-          var it = findItem(k);
-          var onChangeFn = it && it.onChange && PConf.onChange.get(it.onChange);
-          if (onChangeFn) { onChangeFn(S, oldV, newV, ENV, k); }
+          var k = t.getAttribute('data-k'), v = t.getAttribute('data-select-pick');
+          setValue(k, v);
+          // A pick in a list expanded inside an edit sheet collapses that list and
+          // leaves the sheet open, focus back on the row's trigger (the node render()
+          // just rebuilt). Anywhere else a pick closes the select sheet.
+          if (openEdit && !openSelect && openInline) {
+            openInline = null;
+            render();
+            focusInModal(['[data-select="' + k + '"]']);
+            return;
+          }
           closeModal(); return;
         }
         // Edit-sheet controls: the sheet renders ordinary rows inside the dialog,
@@ -2055,17 +2132,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // render() repaints the dialog's innerHTML in place (openEdit is
         // unchanged), so the sheet stays open throughout. The openEdit gate keeps
         // clicks inside date/select sheets out of the control cases.
-        // A select row in the sheet opens its options over the sheet (see
-        // sheetScrollTop); closeModal brings the sheet back.
+        // A select row in the sheet expands its options in place, under the row
+        // (renderInlineList); a second tap on its trigger collapses them.
         if (openEdit && !openSelect && e.target.closest && (t = e.target.closest('[data-select]'))) {
-          var list = modal.querySelector ? modal.querySelector('.ssel-list') : null;
-          sheetScrollTop = list ? list.scrollTop : 0;
+          var sk = t.getAttribute('data-select');
           openColor = null;
-          openSelect = t.getAttribute('data-select');
-          selectQuery = '';
-          lastSelectKey = openSelect;
+          openInline = (openInline === sk ? null : sk);
           render();
-          focusModal();
+          focusInModal(openInline
+            ? ['.isel-list .ssel-opt.on', '.isel-list [data-select-pick]']
+            : ['[data-select="' + sk + '"]']);
           return;
         }
         if (openEdit && !openSelect && e.target.closest && controlClick(e)) { return; }
@@ -2091,7 +2167,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       });
       // Escape fires the dialog's native `cancel`; route it through closeModal (the single
       // close path via render → syncDialog) instead of letting the dialog self-close.
-      modal.addEventListener('cancel', function (e) { e.preventDefault(); closeModal(); });
+      // Inside an edit sheet the first press collapses an expanded option list or palette;
+      // the next one closes the sheet.
+      modal.addEventListener('cancel', function (e) {
+        e.preventDefault();
+        if (collapseSheetExpander()) { return; }
+        closeModal();
+      });
       // Edit-sheet text fields (warn/danger thresholds …) get the same live-input /
       // pre-edit / commit path as #scroll's text rows; liveTextInput's data-k guard
       // keeps the searchSelect's search box out of S.
@@ -2122,10 +2204,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // A touch that lands on a slider is a value adjustment, never a sheet
         // dismissal — arming here would drag the whole sheet along with every
         // slightly-diagonal thumb gesture (and close it past the threshold). Same
-        // for an open palette: it is a grid of tap targets, and with the raised
-        // .picking cap the list often still sits at scrollTop 0, which is exactly
-        // what canDragSelect below arms on.
-        if (e.target.closest && e.target.closest('.rng, .palette')) {
+        // for an open palette or in-place option list: each is a block of tap
+        // targets, and with the raised .picking cap the sheet often still sits at
+        // scrollTop 0, which is exactly what canDragSelect below arms on.
+        if (e.target.closest && e.target.closest('.rng, .palette, .isel-list')) {
           dragY = null; dragging = false; modal.style.transition = '';
           return;
         }

@@ -283,10 +283,20 @@ entry sets `ring` and filled otherwise, for a row previewing several colours at 
 several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
 actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
 
-Rows inside an open sheet behave as they do in a card. A `select` or `searchSelect` row there
-opens its option list in the same dialog, over the sheet; a pick, the close button, the
-backdrop, Escape or a swipe-down all return to the sheet at the scroll offset it had, with
-focus back on the row's trigger. Only closing the sheet itself dismisses the dialog.
+Rows inside an open sheet behave as they do in a card, with one difference: a `select` row
+there expands its option list IN PLACE, under the row inside the sheet (the colour palette's
+pattern), instead of opening the select modal. The trigger stays where it was and reads as
+open (`aria-expanded="true"`, the row gains `isel-open`); the list reuses the modal's option
+rows, so the current value's check, a recommended option and gated (`meta.disabled` /
+`optionDisabledWhen`) options look and behave the same. A pick stores the value, fires the
+item's `onChange` once and collapses the list, leaving the sheet open with focus back on the
+trigger; a second tap on the trigger collapses it without a pick. One expander is open at a
+time: opening a list collapses an open palette and vice versa. Escape first collapses an open
+list or palette and only closes the sheet on the next press; the close button, the backdrop
+and a swipe-down close the sheet, which reopens collapsed. A touch that starts inside the
+list never arms the swipe-down. `searchSelect` has no in-sheet form: keep it out of
+`sheetOnly` sections (a schema test enforces it). A select in the tab body, and one opened
+through `openSheet()`, still opens the modal.
 
 The fifteen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from

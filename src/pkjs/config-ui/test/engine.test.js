@@ -1479,11 +1479,11 @@ test('boot(): on a toggle row the switch flips in place and the Edit button open
   assert.equal(r.getValue('alertUv'), true, 'opening the sheet left the switch alone');
 });
 
-// A `select` row INSIDE an edit sheet: its options open in the same dialog, over the
-// sheet, and every way of closing them lands back on the sheet — only the sheet's own
-// close dismisses the dialog. The sheet also reveals a row on the picked value, so a
-// test can see the pick reached the re-rendered sheet, and holds a color row whose
-// palette a trip through the select must collapse.
+// A `select` row INSIDE an edit sheet expands its options IN PLACE, under the row inside
+// the sheet (the palette's pattern), instead of taking the dialog over. The sheet
+// reveals a row on the picked value, so a test can see the pick reached the re-rendered
+// sheet; it holds a color row whose palette shares the one-expander rule with the list,
+// and a select with a gated option for the inert case.
 const SHEET_SELECT_SCHEMA = {
   appName: 'X', versionLabel: 'v0',
   tabs: [{ id: 't', label: 'T', sections: [
@@ -1494,7 +1494,9 @@ const SHEET_SELECT_SCHEMA = {
       { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
         onChange: 'sepPicked', options: [['12/10', 'slash'], ['Custom', 'custom']] },
       { type: 'text', messageKey: 'sepText', label: 'Custom separator', defaultValue: '',
-        showWhen: { key: 'sep', eq: 'custom' } }
+        showWhen: { key: 'sep', eq: 'custom' } },
+      { type: 'select', messageKey: 'mark', label: 'Mark', defaultValue: 'none',
+        options: [['None', 'none'], ['»', 'raquo'], ['Locked', 'locked', { disabled: true }]] }
     ] }
   ] }]
 };
@@ -1511,17 +1513,59 @@ function bootWithFormatSheet(opts) {
   return r;
 }
 
-test('boot(): a select inside an edit sheet opens its options over the sheet', () => {
+/**
+ * The opening tag of the row holding a select trigger, and the trigger's own tag.
+ * @param {string} html Rendered sheet markup.
+ * @param {string} key The select's messageKey.
+ * @returns {{row: string, trigger: string}} The two tags ('' when absent).
+ */
+function selectRowTags(html, key) {
+  const at = html.indexOf('data-select="' + key + '"');
+  if (at < 0) { return { row: '', trigger: '' }; }
+  const rowAt = html.lastIndexOf('<div class="row', at);
+  const trigAt = html.lastIndexOf('<button', at);
+  return {
+    row: html.slice(rowAt, html.indexOf('>', rowAt) + 1),
+    trigger: html.slice(trigAt, html.indexOf('>', at) + 1)
+  };
+}
+
+test('boot(): a tap on a sheet\'s select expands its options inline; the sheet stays drawn', () => {
   const r = bootWithFormatSheet();
   clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
-  assert.ok(r.modal.innerHTML.indexOf('data-ssel-list="sep"') >= 0, 'the option list renders');
-  assert.ok(r.modal.innerHTML.indexOf('data-select-pick="custom"') >= 0, 'with its options');
-  assert.equal(r.modal.innerHTML.indexOf('data-k="flag"'), -1,
-    'the list takes the dialog over; the sheet is not drawn under it');
+  const html = r.modal.innerHTML;
+  assert.ok(html.indexOf('<div id="ssel-list-sep" class="isel-list" role="listbox" aria-label="Separator options">') >= 0,
+    'the list renders in place, under the id the trigger\'s aria-controls names');
+  assert.ok(html.indexOf('data-select-pick="custom"') >= 0, 'with its options');
+  assert.ok(html.indexOf('data-k="flag"') >= 0 && html.indexOf('data-color="tone"') >= 0,
+    'the rest of the sheet is still drawn around it');
+  assert.equal(html.indexOf('data-ssel-list'), -1, 'no select modal takes the dialog over');
+  assert.equal(html.indexOf('class="ssel-list"'), -1, 'and the list is never a .ssel-list');
+  const tags = selectRowTags(html, 'sep');
+  assert.match(tags.trigger, /aria-expanded="true"/, 'the trigger reads as open');
+  assert.match(tags.trigger, /aria-controls="ssel-list-sep"/);
+  assert.match(tags.row, /\bisel-open\b/, 'the row carries isel-open');
+  assert.doesNotMatch(tags.row, /\bstack\b/, 'and is not restacked: the trigger stays in place');
+  assert.ok(html.indexOf('isel-list') > html.indexOf('data-select="sep"'),
+    'the list follows the trigger inside its row');
+  assert.doesNotMatch(selectRowTags(html, 'mark').trigger, /aria-expanded="true"/,
+    'the other select stays collapsed');
 });
 
-test('boot(): a pick in a sheet\'s select returns to the sheet, stored and hooked', () => {
-  const r = bootWithFormatSheet();
+test('boot(): opening a sheet\'s list moves focus onto its current option', () => {
+  const focused = [];
+  const r = bootWithFormatSheet({ modalQuery: (sel) => {
+    if (sel === '.isel-list .ssel-opt.on') { return { focus: () => { focused.push(sel); } }; }
+    return null;
+  } });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  assert.deepEqual(focused, ['.isel-list .ssel-opt.on']);
+});
+
+test('boot(): a pick in a sheet\'s inline list stores it, fires onChange once, collapses the list, keeps the sheet', () => {
+  let triggerFocus = 0;
+  const r = bootWithFormatSheet({ modalQuery: (sel) => (sel === '[data-select="sep"]'
+    ? { focus: () => { triggerFocus++; } } : null) });
   const calls = [];
   r.onChange.register('sepPicked', (S, oldV, newV, env, key) => { calls.push([key, oldV, newV]); });
   clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
@@ -1529,19 +1573,70 @@ test('boot(): a pick in a sheet\'s select returns to the sheet, stored and hooke
     { 'data-k': 'sep', 'data-select-pick': 'custom' });
   assert.equal(r.getValue('sep'), 'custom', 'the pick is stored');
   assert.deepEqual(calls, [['sep', 'slash', 'custom']], 'the row\'s onChange fired once');
-  assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, 'back on the sheet');
-  assert.ok(r.modal.innerHTML.indexOf('data-k="sepText"') >= 0,
-    'the sheet re-rendered with the pick: the row it reveals is there');
-  assert.equal(r.modal.innerHTML.indexOf('data-ssel-list="sep"'), -1, 'the list is gone');
+  const html = r.modal.innerHTML;
+  assert.equal(html.indexOf('isel-list'), -1, 'the list collapsed');
+  assert.ok(html.indexOf('data-k="flag"') >= 0, 'the sheet is still open');
+  assert.ok(html.indexOf('data-k="sepText"') >= 0, 'and re-rendered with the pick: the row it reveals is there');
+  assert.doesNotMatch(selectRowTags(html, 'sep').trigger, /aria-expanded="true"/);
+  assert.equal(triggerFocus, 1, 'focus returns to the row\'s trigger inside the sheet');
+  assert.equal(r.focusCounts.select.sep || 0, 0, 'not to a trigger in the tab body');
+  assert.equal(r.focusCounts['edit-sheet'].fmt || 0, 0, 'the sheet did not close');
 });
 
-test('boot(): every close of a sheet\'s select returns to the sheet; the sheet\'s own close dismisses', () => {
+test('boot(): a second tap on the trigger collapses the list without a pick', () => {
+  const r = bootWithFormatSheet();
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'collapsed');
+  assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, 'the sheet stays');
+  assert.equal(r.getValue('sep'), 'slash', 'nothing picked');
+  // A tap on a DIFFERENT select moves the one open list over to it.
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'mark' });
+  assert.equal(r.modal.innerHTML.indexOf('id="ssel-list-sep"'), -1, 'the first list closed');
+  assert.ok(r.modal.innerHTML.indexOf('id="ssel-list-mark"') >= 0, 'the second one opened');
+});
+
+test('boot(): an open palette and an open list in a sheet are mutually exclusive', () => {
+  const r = bootWithFormatSheet();
+  clickMatching(r.modalListeners.click, '[data-color]', { 'data-color': 'tone' });
+  assert.ok(r.modal.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands inside the sheet');
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+  assert.ok(r.modal.innerHTML.indexOf('isel-list') >= 0, 'the list opens');
+  assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'and the palette collapsed');
+  clickMatching(r.modalListeners.click, '[data-color]', { 'data-color': 'tone' });
+  assert.ok(r.modal.innerHTML.indexOf('class="palette"') >= 0, 'the palette opens again');
+  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'and the list collapsed');
+});
+
+test('boot(): Escape collapses an open list (or palette) first and closes the sheet on the next press', () => {
+  ['list', 'palette'].forEach((what) => {
+    const focused = [];
+    const r = bootWithFormatSheet({ modalQuery: (sel) => (/^\[data-(select|color)="/.test(sel)
+      ? { focus: () => { focused.push(sel); } } : null) });
+    if (what === 'list') {
+      clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
+    } else {
+      clickMatching(r.modalListeners.click, '[data-color]', { 'data-color': 'tone' });
+    }
+    r.modalListeners.cancel({ preventDefault: () => {} });
+    assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, what + ': the first Escape collapses it');
+    assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, what + ': nothing stays expanded');
+    assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, what + ': the sheet stays open');
+    assert.deepEqual(focused, [what === 'list' ? '[data-select="sep"]' : '[data-color="tone"]'],
+      what + ': focus goes back to its trigger');
+    r.modalListeners.cancel({ preventDefault: () => {} });
+    assert.equal(r.modal.innerHTML, '', what + ': the second Escape closes the sheet');
+    assert.equal(r.focusCounts['edit-sheet'].fmt || 0, 1, what + ': focus returns to the Edit button');
+  });
+});
+
+test('boot(): the close button, the backdrop and a swipe-down close the sheet; it reopens collapsed', () => {
   const closes = {
     'the close button': (r) => clickMatching(r.modalListeners.click, '[data-select-close]', {}),
-    'Escape': (r) => r.modalListeners.cancel({ preventDefault: () => {} }),
     'the backdrop': (r) => r.modalListeners.click({ target: r.modal }),
-    // Drag the list (scrolled to its top) down past the 90 px threshold. The drag
-    // writes an inline translateY on the dialog as the finger moves.
+    // Drag the sheet (scrolled to its top) down past the 90 px threshold, starting
+    // outside the list.
     'a swipe-down': (r) => {
       r.modalListeners.touchstart({ target: { closest: () => null }, touches: [{ clientY: 100 }] });
       r.modalListeners.touchmove({ touches: [{ clientY: 250 }], preventDefault: () => {} });
@@ -1549,67 +1644,100 @@ test('boot(): every close of a sheet\'s select returns to the sheet; the sheet\'
     }
   };
   Object.keys(closes).forEach((how) => {
-    // The swipe arms only on a .ssel-list at scrollTop 0; the other closes ignore it.
+    // The swipe arms only on the sheet's .ssel-list at scrollTop 0; the other closes ignore it.
     const list = { scrollTop: 0, querySelector: () => null };
     const r = bootWithFormatSheet({ modalQuery: (sel) => (sel === '.ssel-list' ? list : null) });
     clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
     closes[how](r);
-    assert.ok(r.modal.innerHTML.indexOf('data-select="sep"') >= 0, how + ': back on the sheet');
+    assert.equal(r.modal.innerHTML, '', how + ': the sheet itself closes, list and all');
     assert.equal(r.getValue('sep'), 'slash', how + ': nothing picked');
-    assert.ok(!r.modal.style.transform,
-      how + ': the sheet comes back in place, not pushed down by a drag offset');
-    closes[how](r);
-    assert.equal(r.modal.innerHTML, '', how + ': a second close dismisses the sheet itself');
+    clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'fmt' });
+    assert.ok(r.modal.innerHTML.indexOf('data-select="sep"') >= 0, how + ': the sheet reopens');
+    assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, how + ': collapsed');
   });
 });
 
-test('boot(): back from a sheet\'s select, the sheet keeps its scroll offset and focuses the row', () => {
-  // One stub stands in for whichever .ssel-list the dialog holds — the sheet's, then
-  // the option list's — the way a real render swaps the node under the same query.
+test('boot(): a swipe that starts inside an open list never drags the sheet', () => {
   const list = { scrollTop: 0, querySelector: () => null };
-  let triggerFocus = 0;
-  const r = bootWithFormatSheet({ modalQuery: (sel) => {
-    if (sel === '.ssel-list') { return list; }
-    if (sel === '[data-select="sep"]') { return { focus: () => { triggerFocus++; } }; }
-    return null;
-  } });
-  list.scrollTop = 120;                    // the user scrolled the sheet down to the row
+  const r = bootWithFormatSheet({ modalQuery: (sel) => (sel === '.ssel-list' ? list : null) });
   clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
-  list.scrollTop = 30;                     // ... then scrolled the option list
-  clickMatching(r.modalListeners.click, '[data-select-pick]',
-    { 'data-k': 'sep', 'data-select-pick': 'custom' });
-  assert.equal(list.scrollTop, 120, 'the sheet comes back where it was, not at the list\'s offset');
-  assert.equal(triggerFocus, 1, 'focus returns to the select row inside the sheet');
-  assert.equal(r.focusCounts.select.sep || 0, 0, 'not to a trigger in the tab body');
+  const inList = { closest: (sel) => (sel.indexOf('.isel-list') >= 0 ? inList : null) };
+  let prevented = 0;
+  r.modalListeners.touchstart({ target: inList, touches: [{ clientY: 100 }] });
+  r.modalListeners.touchmove({ touches: [{ clientY: 250 }], preventDefault: () => { prevented++; } });
+  r.modalListeners.touchend({ changedTouches: [{ clientY: 250 }] });
+  assert.equal(prevented, 0, 'the drag never armed');
+  assert.ok(!r.modal.style.transform, 'the sheet did not follow the finger');
+  assert.ok(r.modal.innerHTML.indexOf('isel-list') >= 0, 'the sheet and its list stay open');
 });
 
-test('boot(): focus follows a sheet\'s select into its options, back to its row, then to the Edit pencil', () => {
-  let optionFocus = 0;
-  const r = bootWithFormatSheet({ modalQuery: (sel) => {
-    if (sel === '.ssel-opt.on') { return { focus: () => { optionFocus++; } }; }
-    if (sel === '[data-select="sep"]') { return { focus: () => {} }; }
-    return null;
-  } });
-  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
-  assert.equal(optionFocus, 1, 'opening the select moves focus onto its current option');
-  clickMatching(r.modalListeners.click, '[data-select-pick]',
-    { 'data-k': 'sep', 'data-select-pick': 'custom' });
-  // The sheet's own close: its select row goes away with it, so focus lands on the
-  // Edit pencil that opened the sheet, not on a stale [data-select="sep"].
-  clickMatching(r.modalListeners.click, '[data-select-close]', {});
-  assert.equal(r.modal.innerHTML, '', 'the sheet itself is dismissed');
-  assert.equal(r.focusCounts['edit-sheet'].fmt || 0, 1, 'focus returns to the Edit pencil');
-  assert.equal(r.focusCounts.select.sep || 0, 0, 'not to the select row that closed with the sheet');
-});
-
-test('boot(): a palette expanded in a sheet comes back collapsed from the sheet\'s select', () => {
+test('boot(): a disabled option in an inline list is inert', () => {
   const r = bootWithFormatSheet();
-  clickMatching(r.modalListeners.click, '[data-color]', { 'data-color': 'tone' });
-  assert.ok(r.modal.innerHTML.indexOf('class="palette"') >= 0, 'the palette expands inside the sheet');
-  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'sep' });
-  clickMatching(r.modalListeners.click, '[data-select-close]', {});
-  assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, 'back on the sheet');
-  assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'the palette is collapsed');
+  clickMatching(r.modalListeners.click, '[data-select]', { 'data-select': 'mark' });
+  const html = r.modal.innerHTML;
+  const locked = html.slice(html.lastIndexOf('<button', html.indexOf('Locked')), html.indexOf('Locked'));
+  assert.match(locked, / disabled aria-disabled="true"/, 'the gated option renders disabled');
+  assert.doesNotMatch(locked, /data-select-pick/, 'with no pick hook to match');
+  // A tap on it: the delegated handlers find nothing to act on.
+  const node = { closest: () => null, getAttribute: () => null };
+  r.modalListeners.click({ target: node });
+  assert.equal(r.getValue('mark'), 'none', 'the value is unchanged');
+  assert.ok(r.modal.innerHTML.indexOf('id="ssel-list-mark"') >= 0, 'the list stays open');
+  assert.ok(r.modal.innerHTML.indexOf('data-k="flag"') >= 0, 'so does the sheet');
+});
+
+test('renderEditModal/renderBody: only the sheet\'s copy of a key expands inline', () => {
+  // The same select in a card AND in a sheet: an openInline key expands the sheet's row
+  // only, so the card behind the sheet keeps its collapsed trigger.
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
+        options: [['12/10', 'slash'], ['Custom', 'custom']] }
+    ] },
+    { sheetOnly: true, sheetId: 'fmt', title: 'Format', items: [
+      { type: 'select', messageKey: 'sep', label: 'Separator', defaultValue: 'slash',
+        options: [['12/10', 'slash'], ['Custom', 'custom']] }
+    ] }
+  ] }] };
+  const S = E.hydrate(SCH, {});
+  const cx = { S: S, ENV: {}, USERDATA: {}, openColor: null, openSelect: null, openEdit: 'fmt',
+    openInline: 'sep', collapsed: {}, evalCtx: Object.assign({}, S, { env: {} }) };
+  const body = E.renderBody(SCH, 't', cx);
+  assert.equal(body.indexOf('isel-list'), -1, 'the card row stays collapsed');
+  assert.match(selectRowTags(body, 'sep').trigger, /aria-expanded="false"/);
+  const sheet = E.renderEditModal(SCH, cx);
+  assert.ok(sheet.indexOf('class="isel-list"') >= 0, 'the sheet row expands');
+  assert.match(selectRowTags(sheet, 'sep').trigger, /aria-expanded="true"/);
+  assert.match(sheet, /data-select-pick="custom" data-k="sep"/, 'its options pick into the key');
+  assert.match(sheet, /class="ssel-opt on" role="option" aria-selected="true"/, 'the current value is checked');
+});
+
+test('boot(): a select in the tab body still opens the select modal and closes on a pick', () => {
+  const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {});
+  clickMatching(r.listeners.click, '[data-select]', { 'data-select': 'mode' });
+  assert.ok(r.modal.innerHTML.indexOf('data-ssel-list="mode"') >= 0, 'the modal list opens');
+  assert.ok(r.modal.innerHTML.indexOf('class="ssel-list"') >= 0);
+  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1, 'never the in-sheet list');
+  assert.match(selectRowTags(r.scroll.innerHTML, 'mode').trigger, /aria-expanded="true"/);
+  assert.doesNotMatch(selectRowTags(r.scroll.innerHTML, 'mode').row, /isel-open/,
+    'the tab-body row is not an inline-open row');
+  clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'mode', 'data-select-pick': 'b' });
+  assert.equal(r.getValue('mode'), 'b');
+  assert.equal(r.modal.innerHTML, '', 'a pick closes the modal');
+  assert.equal(r.focusCounts.select.mode, 1, 'focus returns to the tab-body trigger');
+});
+
+test('boot(): openSheet() still opens the select modal and a pick closes it once', () => {
+  const r = bootWithCapturedListeners(COLOR_SURFACE_SCHEMA, {});
+  let closed = 0;
+  r.openSheet('mode', () => { closed++; });
+  assert.ok(r.modal.innerHTML.indexOf('data-ssel-list="mode"') >= 0, 'the modal list opens');
+  assert.equal(r.modal.innerHTML.indexOf('isel-list'), -1);
+  clickMatching(r.modalListeners.click, '[data-select-pick]', { 'data-k': 'mode', 'data-select-pick': 'b' });
+  assert.equal(r.getValue('mode'), 'b', 'the pick is stored');
+  assert.equal(r.modal.innerHTML, '', 'and the sheet closes');
+  assert.equal(closed, 1, 'onClose fired once');
+  assert.equal(r.focusCounts.select.mode || 0, 0, 'no tab-body trigger takes focus');
 });
 
 test('boot(): a color swatch goes through setValue, so it fires the item\'s onChange', () => {

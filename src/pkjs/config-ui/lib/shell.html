@@ -290,6 +290,19 @@
   .row.date-row { padding-top: 8px; padding-bottom: 8px; }
   .date-cell { width: 100%; }
   .ssel-list { margin-top: 8px; max-height: 240px; overflow-y: auto; background: var(--ctl); border: 1px solid var(--ctl-line-soft); border-radius: 10px; }
+  /* a select inside an edit sheet expands its options IN PLACE (engine renderInlineList),
+     the palette's pattern: the list is the row's last child and wraps onto a full-width
+     line of its own under the trigger, which stays where it was. row-gap 0 so the list's
+     own margin is the whole distance (the row's 18px gap would add to it). clear:both
+     puts it under the floated control of a .wrap row. Class isel-list, never ssel-list:
+     the engine queries .ssel-list for the sheet's scroll container. The .ssel-opt rules
+     below style its options. */
+  .row.isel-open { flex-wrap: wrap; row-gap: 0; }
+  .row .isel-list { flex-basis: 100%; width: 100%; clear: both; margin-top: 10px; background: var(--ctl); border: 1px solid var(--ctl-line-soft); border-radius: 10px; overflow: hidden; }
+  /* its trigger reads as open: accent border, chevron flipped. Scoped to the open row, so a
+     tab-body trigger whose select sheet is open looks as it always has. */
+  .isel-open .sel-wrap[aria-expanded="true"] { border-color: #FA4A35; }
+  .isel-open .sel-wrap[aria-expanded="true"] .sel-chev { transform: rotate(180deg); }
   .ssel-group { padding: 11px 13px 7px; border-top: 1px solid var(--row-line); font: 700 12px 'Inter', sans-serif; color: var(--ttl); }
   .ssel-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; font: 600 13.5px 'Inter', sans-serif; border: none; border-bottom: 1px solid var(--row-line); background: transparent; color: var(--muted); }
   .ssel-opt:last-child { border-bottom: none; }
