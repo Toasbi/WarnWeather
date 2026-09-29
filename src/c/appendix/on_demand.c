@@ -216,6 +216,15 @@ static void geometry(const Pass *p, const Conf *c, Geom *g) {
     g->violated = violated;
 }
 
+// The sides a failed geometry pushes, as a mask (bit d: side d): the active sides
+// whose claim is in the way, or every active side when the wall is an inactive
+// side's plain slot. The ladder climbs these, and the drop picks among them.
+static uint8_t pushed_sides(const Pass *p, const Geom *g) {
+    uint8_t active = (uint8_t)((p->n[0] > 0 ? 1 : 0) | (p->n[1] > 0 ? 2 : 0));
+    uint8_t v = g->violated & active;
+    return v ? v : active;
+}
+
 static void plain_out(const Pass *p, OdLayout *out) {
     memset(out, 0, sizeof(*out));
     for (int i = 0; i < 3; i++) {
@@ -304,9 +313,7 @@ static void layout_pass(Pass *p, OdLayout *out) {
             c = conf_of(p, stage);
             geometry(p, &c, &g);
             if (g.ok) { break; }
-            uint8_t active = (uint8_t)((p->n[0] > 0 ? 1 : 0) | (p->n[1] > 0 ? 2 : 0));
-            uint8_t v = g.violated & active;
-            if (!v) { v = active; }   // the wall is an inactive side's plain slot
+            uint8_t v = pushed_sides(p, &g);
             bool climbed = false;
             for (int d = 0; d < 2; d++) {
                 if ((v & (1 << d)) && stage[d] < OD_LAST_STAGE) {
@@ -317,11 +324,9 @@ static void layout_pass(Pass *p, OdLayout *out) {
             if (!climbed) { break; }
         }
         if (g.ok) { break; }
-        // Every violated side is at its last row: the lowest-priority tail drops. An
+        // Every pushed side is at its last row: the lowest-priority tail drops. An
         // item sits on one side only, so two tails never tie.
-        uint8_t active = (uint8_t)((p->n[0] > 0 ? 1 : 0) | (p->n[1] > 0 ? 2 : 0));
-        uint8_t v = g.violated & active;
-        if (!v) { v = active; }
+        uint8_t v = pushed_sides(p, &g);
         int drop = -1;
         int worst = -1;
         for (int d = 0; d < 2; d++) {
