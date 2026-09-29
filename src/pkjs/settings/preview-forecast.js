@@ -235,8 +235,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             ? bottomStripes * STRIPE_H + (bottomStripes - 1) * STRIPE_GAP + 1 : 0;
         // Top stripes get a band of their own ABOVE the plot (forecast_layer.c's top_band):
         // stacked from the top edge, 2 free rows under the last. The plot — lines, fill,
-        // bars, night shading — starts below it (PTL), and the lines drop their own top
-        // inset there, as the watch does.
+        // bars — starts below it (PTL), and the lines drop their own top inset there, as
+        // the watch does. Only the night shading runs on up through the band (PT).
         var topStripes = 0;
         for (var ts = 0; ts < LINES.length; ts += 1) {
             if (LINES[ts].on && LINES[ts].style === 'stripeTop') { topStripes += 1; }
@@ -338,12 +338,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The translucent ink is the B&W arm, standing in for the theme foreground the
         // watch hatches with there.
         var nightHatchStroke = nightPicksApply ? hexColor(gc.night.hatch) : ink.rgba('0.30');
+        /**
+         * The night band: the hatch and its dusk/dawn lines, from the top of the graph
+         * (PT) down to the zero line — up through a top stripe band too, as the watch's
+         * night hatch runs on through it (forecast_layer.c's extend_top). The stripe
+         * cells are drawn later and are opaque (preview-stripe.js cell), so the shading
+         * shows only in a stripe's empty hours and its gaps.
+         * @returns {string} SVG markup, or '' with the shading off.
+         */
         function drawNightShading() {
             if (!state.dayNightShading) { return ''; }
             var boundary = nightPicksApply ? hexColor(gc.night.boundary) : ink.rgba('0.45');
-            return '<rect x="' + n0 + '" y="' + PTL + '" width="' + (n1 - n0) + '" height="' + (PB - PTL) + '" fill="url(#nh)"></rect>'
-                + '<line x1="' + n0 + '" y1="' + PTL + '" x2="' + n0 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>'
-                + '<line x1="' + n1 + '" y1="' + PTL + '" x2="' + n1 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>';
+            return '<rect x="' + n0 + '" y="' + PT + '" width="' + (n1 - n0) + '" height="' + (PB - PT) + '" fill="url(#nh)"></rect>'
+                + '<line x1="' + n0 + '" y1="' + PT + '" x2="' + n0 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>'
+                + '<line x1="' + n1 + '" y1="' + PT + '" x2="' + n1 + '" y2="' + PB + '" stroke="' + boundary + '" stroke-width="0.7"></line>';
         }
         function drawTempCurve() {
             return '<path d="' + smooth(temps.map(function (t, i) { return [tickX(i), yT(t)]; }))
@@ -754,9 +762,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // The night tint sits on top of the day fill and under the bars — the watch's
         // night-area underlay, which re-shades the filled area during the night hours.
         e += nightTint;
-        // Stripes: over the fill and night band, under the bars and the lines (top),
-        // or in their own band below the zero line (bottom) — forecast_layer.c's
-        // CHART_LAYER_STRIPE slots. Stacked per edge in line order.
+        // Stripes: in their own band above the plot (top), over the night shading that
+        // runs up through it — each cell that draws covers it — or in their own band
+        // below the zero line (bottom) — forecast_layer.c's CHART_LAYER_STRIPE slots.
+        // Stacked per edge in line order.
         var stripeSlots = { top: 0, bottom: 0 };
         for (var si = 0; si < LINES.length; si += 1) {
             if (LINES[si].on && isStripe(LINES[si].style)) {

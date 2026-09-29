@@ -60,6 +60,24 @@ static inline int hatch_stride_scaled(int base_stride, int min_plot_h, int plot_
          + (base_stride * (plot_h - min_plot_h) * HATCH_GROWTH_PCT) / (min_plot_h * 100);
 }
 
+// The hatch's phase: the first y >= y_start in column x where (x + y) % stride == 0,
+// the dots running on every `stride` rows from there. Absolute coordinates — not
+// relative to any rect — so two rects stacked in one column draw exactly the dots one
+// rect spanning both would: the forecast's night hatch relies on that to run on
+// seamlessly from the plot up through the top stripe band (chart.c extend_top).
+// Handles negative modulo so the pattern is correct for negative coordinates. Pure,
+// like hatch_stride_scaled() above: test/c/hatch_seam_test.c pins it on the host.
+static inline int16_t hatch_first_y(int16_t x, int16_t y_start, int16_t stride) {
+    int16_t modulo = (x + y_start) % stride;
+    if (modulo < 0) {
+        modulo += stride;
+    }
+    if (modulo == 0) {
+        return y_start;
+    }
+    return y_start + (stride - modulo);
+}
+
 // Bare hatch-dot emitter: no B&W backing, ever — see hatch_fill_rect() below for
 // the backing-aware wrapper most callers want. Draws the same 1-px diagonal hatch
 // (pixels at (x + y) % stride == 0), unconditionally.

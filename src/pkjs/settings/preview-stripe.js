@@ -64,8 +64,11 @@
      * passes in: watch column px spans `unit` preview units from origin + px * unit
      * (chart_stripe_line_on keys off the column, so the line density is the watch's
      * whatever the preview's scale). A column is drawn by the cell its left edge falls
-     * in, clipped at the cell's right edge. B&W: the `<prefix>1`..`<prefix>4` dither
-     * pattern (see ditherDefs).
+     * in, clipped at the cell's right edge. B&W: the background, then the
+     * `<prefix>1`..`<prefix>4` dither pattern over it (see ditherDefs). Either way a cell
+     * that draws is opaque, as chart_stripe_fill_cell paints its whole rect first: the
+     * forecast's night shading, which runs up through the top stripe band, shows only
+     * in the empty (level 0) cells, never through a sparse cell's gaps.
      * @param {boolean} isColor Effective colour render?
      * @param {number} x Cell left.
      * @param {number} y Cell top.
@@ -81,7 +84,7 @@
      */
     function cell(isColor, x, y, w, h, color, level, bgHex, prefix, unit, origin) {
         if (level <= 0) { return ''; }
-        if (!isColor) { return rect(x, y, w, h, 'url(#' + prefix + level + ')'); }
+        if (!isColor) { return rect(x, y, w, h, bgHex) + rect(x, y, w, h, 'url(#' + prefix + level + ')'); }
         var out = rect(x, y, w, h, blend(bgHex, color, TINT[level]));
         if (level >= 4) { return out; }
         // The columns whose left edge lies in [x, x + w). The 1e-9 absorbs float error

@@ -485,6 +485,13 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
     const int16_t y_top               = c.origin.y;
     const int16_t y_bottom_exclusive  = c.origin.y + c.size.h;
     const int16_t y_bottom_inclusive  = y_bottom_exclusive - 1;
+#if defined(WW_LINE_STYLE)
+    // Where the full-height arm's boundary lines start: extend_top rows above the
+    // content when the caller carries the hatch up through a band over it.
+    const int16_t y_full_top          = y_top - hl->extend_top;
+#else
+    const int16_t y_full_top          = y_top;
+#endif
 
     // 1) hatch fill (+ optional per-column underlay) ---------------------
     for (int i = 0; i < hl->num_bands; ++i) {
@@ -494,6 +501,15 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
             continue;
         }
         if (hl->contour == NULL) {
+#if defined(WW_LINE_STYLE)
+            // The rows above the content first, as bare dots (no-op when extend_top
+            // is 0). The phase is absolute (x + y), so they run on seamlessly into
+            // the content's hatch below. No B&W backing: nothing lies under these
+            // rows yet, and the backing run under the last row would reach one row
+            // into the content, over a fill the layers before this one drew there.
+            hatch_fill_rect_raw(ctx, GRect(x0, y_full_top, x1 - x0, hl->extend_top),
+                                hl->hatch_color, hl->spacing);
+#endif
             hatch_fill_rect(ctx, GRect(x0, y_top, x1 - x0, c.size.h),
                             hl->hatch_color, hl->spacing);
             continue;
@@ -522,7 +538,7 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
     for (int i = 0; i < hl->num_bands; ++i) {
         const ChartBand *b = &hl->bands[i];
         if (b->boundary0) {
-            int16_t yt = y_top;
+            int16_t yt = y_full_top;
             if (hl->contour) {
                 yt = chart_contour_y_for_x(hl->contour, hl->contour_count, b->x0);
                 if (yt < y_top) yt = y_top;
@@ -530,7 +546,7 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
             graphics_draw_line(ctx, GPoint(b->x0, yt), GPoint(b->x0, y_bottom_inclusive));
         }
         if (b->boundary1) {
-            int16_t yt = y_top;
+            int16_t yt = y_full_top;
             if (hl->contour) {
                 yt = chart_contour_y_for_x(hl->contour, hl->contour_count, b->x1);
                 if (yt < y_top) yt = y_top;
@@ -627,6 +643,11 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
 // level. B&W: a theme_bg() cell dithered with theme_fg() — on real B&W builds
 // theme_is_bw() is constant-true, so the colour arm compiles out. Shared by the
 // forecast's stripe line style and the radar's sky rows.
+//
+// A cell that draws (level > 0) paints its whole rect first — the tint, which is the
+// background itself at level 1, or the B&W background — so it covers whatever lay
+// under it: the forecast's night shading, which runs up through the top stripe band,
+// shows only in the empty (level 0) cells and never through a sparse cell's gaps.
 void chart_stripe_fill_cell(GContext *ctx, GRect cell, GColor color, int level) {
     if (level <= 0 || cell.size.w <= 0 || cell.size.h <= 0) return;
     if (theme_is_bw()) {

@@ -182,6 +182,13 @@ typedef struct {
     int              spacing;            // hatch stride
     GColor           underlay_color;     // per-column solid fill before hatch (area re-shade)
     bool             has_underlay;
+#if defined(WW_LINE_STYLE)
+    int16_t          extend_top;         // full-height bands only: rows ABOVE the content
+                                         // that the hatch and its boundary lines cover too
+                                         // (the forecast's top stripe band), so the night
+                                         // shading runs to the top of the graph. Sits in
+                                         // padding; aplite compiles it out (no stripes).
+#endif
     const GPoint    *contour;            // NULL => full-height bands; else per-column top y
     int              contour_count;
 } ChartHatchLayer;

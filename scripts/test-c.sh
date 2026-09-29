@@ -103,6 +103,10 @@ cc $CFLAGS test/c/hatch_stride_test.c -o build/host/hatch_stride_test
 build/host/hatch_stride_test
 cc $CFLAGS -DPBL_PLATFORM_EMERY test/c/hatch_stride_test.c -o build/host/hatch_stride_test_emery
 build/host/hatch_stride_test_emery
+# The hatch's absolute phase (hatch.h hatch_first_y): split at the top stripe band's
+# edge, the night hatch draws exactly the dots of one unsplit pass (chart.c extend_top).
+cc $CFLAGS test/c/hatch_seam_test.c -o build/host/hatch_seam_test
+build/host/hatch_seam_test
 # The band status rows (forecast / radar / health) share ONE owner, so one test
 # covers all three — including the radar row, which had no test of its own before
 # and was the one carrying the missing-live-health bug. Built TWICE: the evolving

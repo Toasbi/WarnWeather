@@ -516,10 +516,11 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // Top stripes get a band of their own ABOVE the plot, as bottom stripes get one
     // below it: stacked from the top edge with a 1 px gap between them, and a 2 px gap
     // under the last so even a full rain bar never touches them. The plot starts below
-    // the band, so nothing else — fill, bars, night shading, any line — draws into it,
-    // and every line maps its values as if the graph began there, without its own top
-    // inset (LINE_TOP): a UV 11, the hottest hour or a full rain bar ends just under
-    // the stripes.
+    // the band, so no fill, bar or line maps into it, and every line maps its values
+    // as if the graph began there, without its own top inset (LINE_TOP): a UV 11, the
+    // hottest hour or a full rain bar ends just under the stripes. Only the night
+    // shading runs on up through the band (the full-height hatch's extend_top), and the
+    // stripe cells, drawn after the plot and opaque, cover it wherever they draw.
     const int16_t top_band = top_stripes
         ? (int16_t)(top_stripes * stripe_h + (top_stripes - 1) * FORECAST_STRIPE_GAP
                     + FORECAST_TOP_BAND_GAP)
@@ -646,12 +647,20 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             .boundary_color = theme_pick(NIGHT_C(NIGHT_INK_BOUNDARY),
                                          theme_is_light() ? GColorDarkGray : GColorLightGray),
             .spacing        = night_hatch_spacing,
+#if defined(WW_LINE_STYLE)
+            // Up through the top stripe band too (0 without one): the shading reaches
+            // the top of the graph, and every stripe cell that draws something is
+            // opaque (chart_stripe_fill_cell) and drawn after the plot, so it covers
+            // the shading in exactly that cell. An empty cell (level 0) leaves it.
+            .extend_top     = top_band,
+#endif
             .contour        = NULL } };
     }
 #if defined(WW_LINE_STYLE)
     // Top stripes go to the band above the plot (top_layers), bottom stripes to the
     // band below the zero line (band_layers); both are drawn after the plot, stacked
-    // in line order.
+    // in line order — so a top stripe's cells land over the night shading the plot's
+    // hatch carried up into the band.
     static ChartLayer band_layers[SERIES_COUNT + 1];   // stripes + frame + axis; aplite never reaches here
     static ChartLayer top_layers[SERIES_COUNT];        // stripes + frame
     int nb = 0, nt = 0;

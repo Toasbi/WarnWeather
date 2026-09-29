@@ -1649,6 +1649,52 @@ test('forecastPreview: a 0 % hour leaves its stripe cell transparent', () => {
   assert.equal(stripeCells(svg).length, 6, 'only the six non-zero hours get a cell');
 });
 
+// The night shading runs on up through the top stripe band, as the watch's night hatch
+// does (forecast_layer.c's extend_top): the hatch and both dusk/dawn lines start at the
+// graph top (PT 4), not under the band, and the stripe cells — drawn later and opaque —
+// cover it where they draw, so it shows only in the empty hours and the gaps.
+const nightRect = (svg) => {
+  const m = /<rect x="([0-9.]+)" y="([0-9.]+)" width="([0-9.]+)" height="([0-9.]+)" fill="url\(#nh\)">/.exec(svg);
+  return m && { x: +m[1], y: +m[2], w: +m[3], h: +m[4], at: m.index };
+};
+test('forecastPreview: the night shading runs up through the top stripe band, under its cells', () => {
+  // UV [8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 1, 3]: the night band (slot 9 on) holds an empty
+  // hour (slot 9, UV 0) and a level-1 hour (slot 10, background plus sparse lines).
+  const base = { theme: 'dark', dayNightShading: true, barSource: 'off', secondaryLine: 'uv',
+    thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', windScale: 'mid' };
+  const env = { color: true, platform: 'basalt', lineStyles: true };
+  const striped = FC.forecastPreview(Object.assign({ secondaryLineStyle: 'stripeTop' }, base), env);
+  const plain = FC.forecastPreview(Object.assign({ secondaryLineStyle: 'dots' }, base), env);
+  const n = nightRect(striped);
+  assert.equal(n.y, 4, 'the hatch starts at the graph top, over the band');
+  assert.deepEqual(nightRect(plain), Object.assign({}, n, { at: nightRect(plain).at }),
+    'the same shading a graph without top stripes draws');
+  const boundaries = [...striped.matchAll(/<line x1="([0-9.]+)" y1="([0-9.]+)" x2="\1" y2="([0-9.]+)" stroke="#555555"/g)]
+    .filter((b) => +b[1] === n.x || +b[1] === n.x + n.w);   // not the hatch pattern's own stroke
+  assert.equal(boundaries.length, 2, 'dusk and dawn');
+  boundaries.forEach((b) => assert.equal(+b[2], 4, 'a dusk/dawn line reaches the graph top too'));
+  // Every cell is drawn after the shading and starts with an opaque rect over its whole
+  // area; the empty hour inside the night band draws nothing, so the shading shows there.
+  const cells = stripeCells(striped);
+  assert.equal(cells.length, 6, 'the six non-zero hours');
+  cells.forEach((c) => assert.ok(striped.indexOf(c) > n.at, 'a cell covers the shading'));
+  const cellXs = cells.map((c) => +/x="([0-9.]+)"/.exec(c)[1]);
+  const inNight = cellXs.filter((x) => x >= n.x - 1e-6 && x < n.x + n.w - 1e-6);
+  assert.equal(inNight.length, 1, 'of the two night hours only the level-1 one draws a cell');
+  assert.ok(cells.some((c) => c.indexOf('fill="#000000"') >= 0), 'a level-1 cell is the opaque background');
+  // B&W: the dither's gaps would show the hatch, so each dithered cell sits on the
+  // background first, as chart_stripe_fill_cell fills it before dithering.
+  const bw = FC.forecastPreview(Object.assign({ secondaryLineStyle: 'stripeTop' }, base),
+    { color: false, platform: 'diorite', lineStyles: true });
+  const dithers = [...bw.matchAll(/<rect x="([0-9.]+)" y="([0-9.]+)" width="([0-9.]+)" height="(5)" fill="url\(#sd[1-4]\)"><\/rect>/g)];
+  assert.equal(dithers.length, 6, 'the six non-zero hours, dithered (the legend ramp is 4 tall)');
+  dithers.forEach((d) => {
+    const under = '<rect x="' + d[1] + '" y="' + d[2] + '" width="' + d[3] + '" height="' + d[4] + '" fill="#000000"></rect>';
+    assert.equal(bw.slice(d.index - under.length, d.index), under, 'the background under a dithered cell');
+  });
+  assert.ok(nightRect(bw).at < dithers[0].index && nightRect(bw).y === 4, 'B&W shading runs up under the cells too');
+});
+
 test('forecastPreview: a stored stripe on feels, dew or pressure previews as the line the watch draws', () => {
   // Stripes are for intensity metrics only (line-style.js metricAllowsStripe): the bake
   // resolves a stored one on these to the line's non-stripe style, and so does the
@@ -1806,10 +1852,15 @@ test('radarPreview: the bolts are drawn at watch scale where draw_radar_sky puts
 
 test('preview-stripe cell: 2 units per watch column from x 0 draws what the forecast always drew', () => {
   // The pre-grid cell (one watch pixel column = 2 preview units, hard-coded), kept
-  // here as the reference: the forecast preview passes unit 2 / origin 0.
+  // here as the reference: the forecast preview passes unit 2 / origin 0. Its B&W arm
+  // has since gained the background under the dither, so a dithered cell covers the
+  // night shading that runs up through the top stripe band, as on the watch.
   const legacyCell = (isColor, x, y, w, h, color, level, bgHex, prefix) => {
     if (level <= 0) { return ''; }
-    if (!isColor) { return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${prefix}${level})"></rect>`; }
+    if (!isColor) {
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${bgHex}"></rect>`
+        + `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${prefix}${level})"></rect>`;
+    }
     let out = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${PS.blend(bgHex, color, [0, 0, 1, 2, 4][level])}"></rect>`;
     if (level >= 4) { return out; }
     for (let px = Math.ceil(x / 2); px * 2 < x + w; px += 1) {
