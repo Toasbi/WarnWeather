@@ -855,8 +855,8 @@ if (typeof require !== 'undefined') {
     };
 
     // Reset-to-defaults for the Alerts card (the text button in its intro — schema.js
-    // alertCardItems): every alert's switch and display look (Icon / Icon + value)
-    // back to its schema default, via
+    // alertCardItems): every alert's switch and display look (Icon / Icon + value),
+    // and each metric alert's Days and tomorrow mark, back to its schema default, via
     // the engine's resolver like resetStatusSlots above. The metric alerts are the
     // contract's ALERT_KINDS — the five the card lists;
     // rain's are alertRain (on), rainAlertDisplay and its time window
@@ -877,7 +877,8 @@ if (typeof require !== 'undefined') {
         var keys = ['alertRain', 'rainAlertDisplay', 'rainCountdownHorizon'];
         for (var k = 0; k < thresholds.ALERT_KINDS.length; k++) {
             var stem = thresholds.ALERT_KINDS[k].key;
-            keys.push('alert' + stem, 'alert' + stem + 'Display');
+            keys.push('alert' + stem, 'alert' + stem + 'Display', 'alert' + stem + 'Days',
+                'alert' + stem + 'NextDayMark');
         }
         for (var n = 0; n < keys.length; n++) {
             S[keys[n]] = defaultOf(keys[n]);
@@ -1026,12 +1027,16 @@ if (typeof require !== 'undefined') {
      * The Alerts card row's hint for a metric alert: "Off" while its switch is off,
      * else the kind's levels, e.g. "Warn 40 kph · Danger 60 kph". The pair is the resolved one (the stored
      * pair, else the seed — what the watch judges with), in the unit the kind's
-     * slider shows, so the row reads the numbers its sheet opens on. Only numbers and
-     * the range table's unit label are interpolated (the engine prints hints as raw
-     * HTML).
+     * slider shows, so the row reads the numbers its sheet opens on. A Days other
+     * than the default follows by the label its sheet offers it under ("Warn 6 ·
+     * Danger 8 · Today"); the default adds nothing. The Days is the contract's
+     * reading (alertDays), so an unknown value reads as the default the phone bakes
+     * with. Only numbers, the range table's unit label and the schema's option label
+     * are interpolated (the engine prints hints as raw HTML).
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
-     * @param {{keyStem: string}} args The row's kind key stem, e.g. 'Wind'.
+     * @param {{keyStem: string, days: Array<Array<string>>}} args The row's kind key
+     *     stem, e.g. 'Wind', and the Days options (schema.js ALERT_DAYS_OPTIONS).
      * @returns {?string} The hint, or null where the levels do not exist (aplite,
      *     a stem with no metric alert) — the engine then falls back to the static hint.
      */
@@ -1044,7 +1049,10 @@ if (typeof require !== 'undefined') {
         var pair = thresholds.resolvedPair(metric.key, st);
         var unit = rangeOf(metric.key, st).unit;
         var suffix = unit ? ' ' + unit : '';
-        return 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;
+        var text = 'Warn ' + pair.warn + suffix + ' · Danger ' + pair.danger + suffix;
+        var days = thresholds.alertDays(st, metric.code);
+        var daysLabel = days === thresholds.alertDays(null, metric.code) ? null : optionLabel(args.days, days);
+        return daysLabel ? text + ' · ' + daysLabel : text;
     }
     PConf.hintResolvers.register('alertLevelsHint', alertLevelsHint);
 

@@ -57,10 +57,12 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.
 const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
-// The Alerts card's own keys: each alert kind's switch and Look, the rain alert's switch
-// and look — and each status bar's Alerts placement (the select in the bar's card).
+// The Alerts card's own keys: each alert kind's switch, Look, Days and tomorrow mark,
+// the rain alert's switch and look — and each status bar's Alerts placement (the
+// select in the bar's card).
 const PLACE_KEYS = ['statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'];
-const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem, 'alert' + stem + 'Display']),
+const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem, 'alert' + stem + 'Display',
+  'alert' + stem + 'Days', 'alert' + stem + 'NextDayMark']),
   ['alertRain', 'rainAlertDisplay']).concat(PLACE_KEYS);
 // The Graph-colors rows: every metric colour, with one picker per theme polarity so a
 // Dark and a Light pick never overwrite one another (the colorUSFederal idiom). The list
@@ -2147,13 +2149,15 @@ test('the Alerts card is watch.sections[0]: its own card, above the status card'
   assert.equal(sec.groupCard, undefined, 'a card of its own, not a sub-header of the status card');
   assert.equal(sec.title, 'Alerts');
   assert.equal(sec.sheetOnly, undefined, 'a card, not a sheet');
-  // The owner's glossary intro: what Alerts do, when an alert is active, and where its
-  // icon goes. How an icon looks is left to the sheets (the rain colour to the Rain
-  // sheet, the warn look and danger fill to each Alert levels intro).
+  // The owner's glossary intro: what Alerts do, when an alert is active — today, or
+  // tomorrow for an alert that looks ahead — and where its icon goes. How an icon
+  // looks is left to the sheets (the rain colour to the Rain sheet, the warn look and
+  // danger fill to each Alert levels intro, the tomorrow mark to each alert's Days).
   assert.equal(sec.intro.split(' <button')[0], 'Alerts show a metric only when it matters, instead of in a slot all day.'
-    + ' An alert is active when a value reaches your warn level today, or rain is on its way; its icon then'
-    + ' appears in the alert row, which takes over up to two slots of a status bar. The rest of the time those'
-    + ' slots show what you picked. Each status bar’s Alert row setting below chooses where.');
+    + ' An alert is active when a value reaches your warn level today (or tomorrow, if the alert looks ahead),'
+    + ' or when rain is on its way; its icon then appears in the alert row, which takes over up to two slots of'
+    + ' a status bar. The rest of the time those slots show what you picked. Each status bar’s Alert row'
+    + ' setting below chooses where.');
   assert.ok(sec.intro.indexOf('by default') === -1, 'the intro does not describe the default look');
   assert.ok(sec.intro.indexOf('data-action="resetAlerts"') !== -1, 'the intro carries the card reset');
   assert.ok(sec.intro.indexOf('class="txt-act-btn"') !== -1, 'as the shared text-action chip');
@@ -2199,9 +2203,13 @@ test('the Alerts card rows: six of one shape (rain, then the metric alerts) and 
     assert.deepEqual(rows[2 + k], {
       type: 'sheet', sheetId: 'alert' + stem, label, icon,
       showWhen: dwd.length ? { all: [THRESHOLD_WHEN].concat(dwd) } : THRESHOLD_WHEN,
-      hintFrom: { resolver: 'alertLevelsHint', args },
+      // The hint also prints a Days other than the default, by the sheet's labels.
+      hintFrom: { resolver: 'alertLevelsHint',
+        args: { keyStem: stem, days: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']] } },
       editBadgeFrom: { resolver: 'alertLevelBadge', args }
     }, stem + ' row');
+    // The Days list the hint prints is the one the alert's sheet offers.
+    assert.deepEqual(rows[2 + k].hintFrom.args.days, byKey('alert' + stem + 'Days').options, stem);
   });
   assert.ok(!rows.some((r) => /Steps|Sleep|Distance/.test(r.sheetId || '')), 'the goal kinds get no alert rows');
   assert.ok(!rows.some((r) => r.messageKey), 'no control on the card: every row only opens a sheet');
@@ -2257,6 +2265,32 @@ test('each status bar has an Alerts placement select: Off / Left / Middle / Righ
   // The defaults are the contract's: what the watch reads for an absent key.
   const TH = require('../src/pkjs/status-thresholds.js');
   TH.BAR_ALERT_KEYS.forEach((b) => assert.equal(byKey(b.key).defaultValue, TH.barAlertPlace({}, b.bar), b.key));
+});
+
+// Each metric alert's Days and tomorrow mark against the contract the bake reads them
+// through (status-thresholds.js alertDays / alertNextDayMark): the same values, the
+// same default for an absent key, and a mark row that shows exactly while the bake
+// would read the mark — whatever is stored, an unknown Days included.
+test('the alert Days and tomorrow-mark rows agree with the contract', () => {
+  const TH = require('../src/pkjs/status-thresholds.js');
+  const pair = require('../src/pkjs/status-pair.js');
+  TH.ALERT_KINDS.forEach((a) => {
+    const days = byKey('alert' + a.key + 'Days');
+    const mark = byKey('alert' + a.key + 'NextDayMark');
+    assert.deepEqual(days.options.map((o) => o[1]), TH.ALERT_DAYS, a.key + ': the contract\'s Days');
+    assert.equal(days.defaultValue, TH.alertDays({}, a.code), a.key + ': the Days an absent key reads as');
+    assert.equal(days.defaultValue, 'tomorrow', 'the owner\'s default: Today + tomorrow');
+    assert.deepEqual(mark.options.map((o) => o[1]), TH.ALERT_NEXT_DAY_MARKS, a.key + ': the contract\'s marks');
+    assert.deepEqual(mark.options.map((o) => o[1]), Object.keys(pair.NEXT_DAY_MARKS),
+      a.key + ': the slot\'s mark choices');
+    assert.deepEqual(mark.options, byKey('uvSlotNextDayMark').options, a.key + ': labelled as the slot\'s');
+    assert.equal(mark.defaultValue, TH.alertNextDayMark({}, a.code), a.key + ': the mark an absent key reads as');
+    [undefined, 'today', 'tomorrow', 'bogus', 3].forEach((v) => {
+      const s = { ['alert' + a.key]: true, ['alert' + a.key + 'Days']: v };
+      assert.equal(showWhen.isVisible(mark, s), TH.alertDays(s, a.code) === 'tomorrow',
+        a.key + ' Days ' + String(v) + ': the mark row shows exactly while the alert looks ahead');
+    });
+  });
 });
 
 test('the Watch intro carries the reset-status-bars button, ungated', () => {

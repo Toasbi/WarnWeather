@@ -132,6 +132,44 @@ test('the Look reads its hint by value', () => {
   assert.ok(page.modal.innerHTML.indexOf('Adds the value the alert fires on after the icon. It needs more room') !== -1);
 });
 
+test('the Days: Today + tomorrow shows the mark row; Today hides it and joins the card row', () => {
+  const page = watchTab({ alertUv: true });
+  page.openEditSheet('alertUv');
+  let sheet = page.modal.innerHTML;
+  assert.ok(sheet.indexOf('data-k="alertUvDays"') > sheet.indexOf('data-k="alertUvDisplay"')
+    && sheet.indexOf('data-k="alertUvDays"') < sheet.indexOf('<span>Alert levels</span>'),
+    'the Days sits between the Look and the levels');
+  assert.ok(sheet.indexOf('When nothing left today reaches your warn level but tomorrow does') !== -1,
+    'the default Today + tomorrow explains itself');
+  assert.ok(sheet.indexOf('data-select="alertUvNextDayMark" aria-label="Tomorrow&#39;s mark: »6"') !== -1,
+    'its mark row shows with it, on the » by default');
+  let row = rowOf(page.scroll.innerHTML, 'data-edit-sheet="alertUv"');
+  assert.ok(row.indexOf('<div class="hint">Warn 6 · Danger 8</div>') !== -1,
+    'the default Days adds nothing to the card row: ' + row);
+  const t = {
+    getAttribute: n => (n === 'data-k' ? 'alertUvDays' : (n === 'data-v' ? 'today' : null)),
+    closest: sel => (sel === '[data-v]' ? t : null)
+  };
+  page.modal.dispatch('click', { target: t });
+  assert.equal(page.S.alertUvDays, 'today');
+  sheet = page.modal.innerHTML;
+  assert.equal(sheet.indexOf('data-select="alertUvNextDayMark"'), -1, 'Today hides the mark row');
+  assert.equal(sheet.indexOf('When nothing left today reaches your warn level'), -1, 'and Today needs no hint');
+  row = rowOf(page.scroll.innerHTML, 'data-edit-sheet="alertUv"');
+  assert.ok(row.indexOf('<div class="hint">Warn 6 · Danger 8 · Today</div>') !== -1,
+    'the card row names a Days other than the default: ' + row);
+});
+
+test('the Days and mark are inert while the alert is off', () => {
+  const page = watchTab();
+  page.openEditSheet('alertWind');
+  const sheet = page.modal.innerHTML;
+  ['data-k="alertWindDays"', 'data-select="alertWindNextDayMark"'].forEach((k) => {
+    assert.ok(new RegExp('<div class="row[^"]*\\bdis\\b[^"]*">(?:(?!<div class="row)[\\s\\S])*?' + k)
+      .test(sheet), k + ' is inert while the alert is off');
+  });
+});
+
 test('the rain sheet: switching it off greys the window and look and the row reads Off', () => {
   const page = watchTab();
   page.openEditSheet('alertRain');

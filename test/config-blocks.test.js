@@ -355,6 +355,19 @@ test('alertLevelsHint: "Off" while the alert is off, else the resolved pair and 
     'Warn 60 · Danger 80', 'the European AQI seed');
   assert.equal(hint(on({ aqiSource: 'openmeteo', aqiScale: 'us' }), env, { keyStem: 'Aqi' }),
     'Warn 100 · Danger 150', 'the US AQI seed');
+  // The Days follows only when it is not the default ("Today + tomorrow"), by the
+  // label the sheet offers it under (the schema's list, through args).
+  const days = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
+  const uvDays = { keyStem: 'Uv', days };
+  assert.equal(hint(on({}), env, uvDays), 'Warn 6 · Danger 8', 'the default Days adds nothing');
+  assert.equal(hint(on({ alertUvDays: 'tomorrow' }), env, uvDays), 'Warn 6 · Danger 8',
+    'nor does it stored');
+  assert.equal(hint(on({ alertUvDays: 'today' }), env, uvDays), 'Warn 6 · Danger 8 · Today');
+  assert.equal(hint(on({ alertUvDays: 'bogus' }), env, uvDays), 'Warn 6 · Danger 8',
+    'an unknown Days reads as the default the phone bakes with');
+  assert.equal(hint(on({ windUnits: 'mph', alertWindDays: 'today' }), env, { keyStem: 'Wind', days }),
+    'Warn 25 mph · Danger 40 mph · Today', 'after the unit');
+  assert.equal(hint({ alertUvDays: 'today' }, env, uvDays), 'Off', 'an alert that is off reads Off only');
   assert.equal(hint(on({}), { thresholds: false }, uv), null, 'aplite: no levels to describe');
   assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
   assert.equal(hint({ alertSteps: true }, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');

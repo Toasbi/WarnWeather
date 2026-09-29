@@ -692,10 +692,11 @@ function dayMaxHints(subject, sample) {
     };
 }
 /**
- * The UV slot's next-day mark options, labelled on a sample peak of 6 from the
- * formatter's own table, so each label shows where its mark lands (three lead the
- * number, the star trails it). 'none' would print a bare 6, which reads as no choice
- * at all, so it is spelled out.
+ * The next-day mark options — the day-max slots' "Tomorrow's peak mark" and each metric
+ * alert's "Tomorrow's mark", one list so the two cannot drift — labelled on a sample
+ * peak of 6 from the formatter's own table, so each label shows where its mark lands
+ * (three lead the number, the star trails it). 'none' would print a bare 6, which
+ * reads as no choice at all, so it is spelled out.
  * @returns {Array<Array<string>>} [label, value] pairs, the formatter's order.
  */
 function nextDayMarkOptions() {
@@ -1095,17 +1096,52 @@ function rainAlertSheet() {
         }]
     };
 }
+// A metric alert's Days, named once: the sheet's row offers them and the Alerts card
+// row's hint (blocks.js alertLevelsHint) prints a pick other than the default by its
+// label. The values are the contract's (status-thresholds.js ALERT_DAYS — pinned by a
+// test); 'tomorrow' is "Today + tomorrow", never tomorrow alone: today always wins.
+var ALERT_DAYS_OPTIONS = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
+/**
+ * A metric alert's contract code, found by its key stem (status-thresholds.js
+ * ALERT_KINDS), so the sheet reads its defaults through the contract's own readers.
+ * @param {string} keyStem Kind key stem, e.g. 'Uv'.
+ * @returns {string} The alert's code, e.g. 'uv'.
+ */
+function alertCodeOf(keyStem) {
+    for (var i = 0; i < STATUS_THRESHOLDS.ALERT_KINDS.length; i++) {
+        if (STATUS_THRESHOLDS.ALERT_KINDS[i].key === keyStem) { return STATUS_THRESHOLDS.ALERT_KINDS[i].code; }
+    }
+    // Runs once at load: a stem the contract lacks fails the build/tests here rather
+    // than shipping a sheet whose defaults read another alert's.
+    throw new Error('alertSheet: no contract alert for ' + keyStem);
+}
+/**
+ * "This alert looks ahead to tomorrow" as a showWhen predicate that resolves exactly
+ * as status-thresholds.js alertDays does. With "Today + tomorrow" the default,
+ * anything but a stored 'today' — absent or unknown — reads as looking ahead; were
+ * 'today' the default, only a stored 'tomorrow' would. The default is read from the
+ * contract, not restated here.
+ * @param {string} daysKey The alert's Days key, e.g. 'alertUvDays'.
+ * @returns {Object} The showWhen predicate.
+ */
+function alertLooksAheadWhen(daysKey) {
+    return STATUS_THRESHOLDS.ALERT_DAYS_DEFAULT === 'tomorrow'
+        ? {key: daysKey, ne: 'today'} : {key: daysKey, eq: 'tomorrow'};
+}
 /**
  * One metric alert's sheet (sheetId alert<Stem>), opened from its Alerts card row:
  * the "show this alert" switch on an 'Alert' sub-header — the sheet's ONE switch —
- * the Look, then the kind's levels group — the levels' ONE home (the slot sheet
- * points here), with no switch of its own (the slot's Highlight lives in the slot
- * sheet). The Look goes inert while the switch is off; the levels group never does,
- * because the levels and colors also drive the slots' Alert mode and highlight. The
- * phone bakes an entry into the ALERT_ENTRIES_UINT8 tuple only for a switched-on kind
- * whose day reaches its warn level (status-lines.js bakeAlerts), so the switch and
- * the Look both ride renderSignature(), not the Clay message.
- * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>, alert<Stem>Display).
+ * the Look, the Days with the tomorrow mark, then the kind's levels group — the
+ * levels' ONE home (the slot sheet points here), with no switch of its own (the
+ * slot's Highlight lives in the slot sheet). The Look, Days and mark go inert while
+ * the switch is off; the levels group never does, because the levels and colors also
+ * drive the slots' Alert mode and highlight. The phone bakes an entry into the
+ * ALERT_ENTRIES_UINT8 tuple only for a switched-on kind whose day — today, or with
+ * Days "Today + tomorrow" tomorrow — reaches its warn level (status-thresholds.js
+ * bakeAlerts), so the switch, the Look, the Days and the mark all ride
+ * renderSignature(), not the Clay message.
+ * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>, alert<Stem>Display,
+ *     alert<Stem>Days, alert<Stem>NextDayMark).
  * @param {string} title The kind's sheet title, e.g. 'UV index'.
  * @param {string} subject The value the intro names, e.g. 'the UV index'.
  * @param {string} iconName The kind's alert icon as the intro names it, e.g. 'UV'.
@@ -1115,6 +1151,7 @@ function rainAlertSheet() {
  */
 function alertSheet(keyStem, title, subject, iconName, hint, coda) {
     var key = 'alert' + keyStem;
+    var code = alertCodeOf(keyStem);
     return {
         sheetOnly: true,
         sheetId: key,
@@ -1149,6 +1186,37 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda) {
                 value: 'Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow.'
             },
             disabledWhen: {not: {key: key}}
+        }, {
+            // Whether tomorrow's peak may make the alert active once nothing left today
+            // reaches warn (bakeAlerts: today always wins, one entry per alert, drawn at
+            // tomorrow's own level). The default is the contract's reading of an absent
+            // key, so the page hydrating the key and the phone reading it absent never
+            // disagree. Today gets no hint: the intro above already says what it judges.
+            type: 'segmented',
+            messageKey: key + 'Days',
+            label: 'Days',
+            defaultValue: STATUS_THRESHOLDS.alertDays(null, code),
+            options: ALERT_DAYS_OPTIONS,
+            hintByValue: {
+                tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow: the alert icon then carries the mark chosen below.'
+            },
+            disabledWhen: {not: {key: key}}
+        }, {
+            // How a tomorrow entry marks its day: the slot's "Tomorrow's peak mark"
+            // choices (nextDayMarkOptions — the contract's ALERT_NEXT_DAY_MARKS are
+            // pinned to them), the watch drawing it before the value or after the
+            // icon alone. Only a look-ahead alert reads it, so it shows only then.
+            type: 'select',
+            messageKey: key + 'NextDayMark',
+            label: 'Tomorrow\'s mark',
+            defaultValue: STATUS_THRESHOLDS.alertNextDayMark(null, code),
+            options: nextDayMarkOptions(),
+            hintByValue: {
+                none: 'An alert for tomorrow then looks just like one for today.'
+            },
+            joinPrevious: true,
+            showWhen: alertLooksAheadWhen(key + 'Days'),
+            disabledWhen: {not: {key: key}}
         }].concat(levelRows(keyStem, ALERT_VOICE, hint, null))
     };
 }
@@ -1166,13 +1234,15 @@ var ALERT_KINDS = [
         icon: 'wind'},
     {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', iconName: 'gust',
         icon: 'gust'},
-    // AQI looks ahead only on an hourly forecast (AQI_DAY_PEAKS): WAQI — the default
-    // source, and Auto whenever a station answers — has none, so alertReading judges
-    // the current reading. The coda mirrors the slot sheet's source note.
+    // AQI looks ahead — later today AND tomorrow — only on an hourly forecast
+    // (AQI_DAY_PEAKS): WAQI — the default source, and Auto whenever a station answers
+    // — has none, so alertReading judges the current reading and no tomorrow entry is
+    // ever baked (wire-units dayMaxTomorrow reads null). The coda mirrors the slot
+    // sheet's source note, in the General tab's own labels ('AQI provider', 'Open-Meteo').
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
         iconName: 'air quality', icon: 'aqi',
-        coda: ' Looking ahead needs the Open-Meteo AQI provider (General tab); with WAQI '
-            + 'the alert judges the current reading.'},
+        coda: ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (General tab): '
+            + 'WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.'},
     {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', iconName: 'pollen',
         icon: 'pollen', gate: {key: 'provider', eq: 'dwd'},
         hint: 'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'}
@@ -1228,7 +1298,7 @@ function alertCardItems() {
     ].concat(ALERT_KINDS.map(function (k) {
         return alertRow('alert' + k.keyStem, k.label, k.icon,
             k.gate ? {all: [THRESHOLD_WHEN, k.gate]} : THRESHOLD_WHEN,
-            {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem}},
+            {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem, days: ALERT_DAYS_OPTIONS}},
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
     }));
 }
@@ -2413,21 +2483,25 @@ module.exports = {
             // because a section with an intro never counts as empty (engine
             // buildSectionBody) — without it the title and intro would outlive their rows
             // on aplite, which has neither the rain radar nor the alert row. The reset
-            // chip reverts the alerts' switches and display looks and the rain time window
+            // chip reverts the alerts' switches, display looks, Days and tomorrow marks
+            // and the rain time window
             // (blocks.js resetAlerts); the levels, warn looks and colours keep their own
             // reset in each sheet, the placements ride the status card's reset. The intro
             // says what an alert is and where its icon goes, in the owner's glossary
             // words (alert, alert icon, alert row); how an icon looks is each sheet's to
             // say — the Alert levels intro for the warn look and danger fill, the Rain
             // sheet for the rain icon's colour. "reaches your warn level today" is
-            // bakeAlerts' test on dayMaxToday; "up to two slots" is the placement's
-            // anchor plus the one neighbour it borrows (alert_set_take).
+            // bakeAlerts' test on dayMaxToday, and "(or tomorrow, if the alert looks
+            // ahead)" its second step, taken only with the alert's Days "Today +
+            // tomorrow" (the default — so the parenthesis stays true for the alert set
+            // to Today); "up to two slots" is the placement's anchor plus the one
+            // neighbour it borrows (alert_set_take).
             title: 'Alerts',
             showWhen: {any: [THRESHOLD_WHEN, {env: 'platform', ne: 'aplite'}]},
             intro: 'Alerts show a metric only when it matters, instead of in a slot all day. An alert is active when a value '
-                + 'reaches your warn level today, or rain is on its way; its icon then appears in the alert row, which takes '
-                + 'over up to two slots of a status bar. The rest of the time those slots show what you picked. Each status '
-                + 'bar’s Alert row setting below chooses where.'
+                + 'reaches your warn level today (or tomorrow, if the alert looks ahead), or when rain is on its way; its '
+                + 'icon then appears in the alert row, which takes over up to two slots of a status bar. The rest of the '
+                + 'time those slots show what you picked. Each status bar’s Alert row setting below chooses where.'
                 + ' <button type="button" class="txt-act-btn" data-action="resetAlerts">Reset alerts to defaults</button>',
             items: alertCardItems()
         }, {

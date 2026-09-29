@@ -1639,21 +1639,25 @@ function alertSheets() {
   return out;
 }
 
-test('every metric alert sheet: its one switch on an Alert sub-header, the Look, then the levels group', () => {
+test('every metric alert sheet: its one switch on an Alert sub-header, the Look, the Days and mark, then the levels group', () => {
   const sheets = alertSheets().filter(s => s.sheetId !== 'alertRain');
   assert.deepEqual(sheets.map(s => s.sheetId), ALERT_STEMS.map(stem => 'alert' + stem));
   const SUBJECT = { Uv: 'the UV index', Wind: 'the wind speed', Gust: 'the gust speed',
     Aqi: 'the air quality index', Pollen: 'the pollen index' };
   // Each intro names the kind's alert icon and the alert row (the owner's glossary).
   const ICON = { Uv: 'UV', Wind: 'wind', Gust: 'gust', Aqi: 'air quality', Pollen: 'pollen' };
+  // The slot's "Tomorrow's peak mark" choices, the same list (schema nextDayMarkOptions).
+  const MARKS = [['»6', 'raquo'], ['>6', 'gt'], ['+6', 'plus'], ['6*', 'star'], ['No mark', 'none']];
   sheets.forEach((s) => {
     const stem = s.sheetId.slice('alert'.length);
     const key = 'alert' + stem;
-    // AQI's look-ahead depends on its source (WAQI has no forecast): its intro closes
-    // on the note the slot sheet carries too (settings audit #10).
-    const coda = stem === 'Aqi' ? ' Looking ahead needs the Open-Meteo AQI provider (General tab);'
-      + ' with WAQI the alert judges the current reading.' : '';
-    assert.deepEqual(s.items.slice(0, 3), [{
+    // AQI's look-ahead — later today and tomorrow — depends on its source (WAQI has no
+    // forecast): its intro closes on the note the slot sheet carries too (settings
+    // audit #10), in the General tab's labels.
+    const coda = stem === 'Aqi' ? ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI'
+      + ' provider (General tab): WAQI, which Auto mostly reads, has no forecast, so the alert then judges'
+      + ' the current reading.' : '';
+    assert.deepEqual(s.items.slice(0, 5), [{
       type: 'subheader', text: 'Alert', toggleKey: key,
       intro: 'Shows the ' + ICON[stem] + ' icon in the alert row when ' + SUBJECT[stem] + ' reaches your warn level'
         + ' at any point left today, so an afternoon peak shows from the morning on.' + coda
@@ -1669,8 +1673,27 @@ test('every metric alert sheet: its one switch on an Alert sub-header, the Look,
           + ' the neighboring slot sooner, and shows only the alert icons when even that is too narrow.'
       },
       disabledWhen: { not: { key } }
-    }], s.sheetId + ': switch, then the Look (inert while off)');
-    const head = s.items[3];
+    }, {
+      // Days: "Today + tomorrow" by default (the contract's alertDays on an absent
+      // key); only it explains itself — Today is what the intro already says.
+      type: 'segmented', messageKey: key + 'Days', label: 'Days', defaultValue: 'tomorrow',
+      options: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']],
+      hintByValue: {
+        tomorrow: 'When nothing left today reaches your warn level but tomorrow does, the alert is active'
+          + ' for tomorrow: the alert icon then carries the mark chosen below.'
+      },
+      disabledWhen: { not: { key } }
+    }, {
+      // The tomorrow mark: the slot's choices, the » by default, shown only while the
+      // alert looks ahead (anything but a stored Today, as alertDays reads it).
+      type: 'select', messageKey: key + 'NextDayMark', label: 'Tomorrow\'s mark', defaultValue: 'raquo',
+      options: MARKS,
+      hintByValue: { none: 'An alert for tomorrow then looks just like one for today.' },
+      joinPrevious: true,
+      showWhen: { key: key + 'Days', ne: 'today' },
+      disabledWhen: { not: { key } }
+    }], s.sheetId + ': switch, the Look, the Days and the mark (all inert while off)');
+    const head = s.items[5];
     assert.equal(head.type, 'subheader', s.sheetId + ': the levels group follows');
     assert.equal(head.text, 'Alert levels');
     assert.equal(head.toggleKey, undefined, s.sheetId + ': the levels header has no switch');
@@ -1687,7 +1710,7 @@ test('every metric alert sheet: its one switch on an Alert sub-header, the Look,
     });
     assert.ok(!s.items.some(it => it.messageKey === 'thresh' + stem + 'On'),
       s.sheetId + ': the slot Highlight is not in this sheet');
-    assert.equal(s.items.length, 3 + 7, s.sheetId + ': the seven group items close it');
+    assert.equal(s.items.length, 5 + 7, s.sheetId + ': the seven group items close it');
   });
   assert.equal(itemsByKey().threshPollenWarn[0].hint,
     'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.',
@@ -2252,17 +2275,23 @@ test('resetStatusSlots reverts every bar\'s Alerts placement, and leaves the ale
   assert.equal(S.rainAlertDisplay, 'minutes');
 });
 
-test('resetAlerts reverts every alert\'s switch and look and the rain window — not the levels or the bars', () => {
+test('resetAlerts reverts every alert\'s switch, look, Days and mark and the rain window — not the levels or the bars', () => {
   const map = itemsByKey();
   const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
   const S = { threshUvWarn: '7', threshUvDanger: '9', threshUvOn: true, rainCountdownHorizon: '120',
-    statusTopAlerts: 'middle', alertRain: false, rainAlertDisplay: 'icon' };
-  ALERT_STEMS.forEach(stem => { S['alert' + stem] = true; S['alert' + stem + 'Display'] = 'value'; });
+    statusTopAlerts: 'middle', alertRain: false, rainAlertDisplay: 'icon', uvSlotNextDayMark: 'star' };
+  ALERT_STEMS.forEach(stem => {
+    S['alert' + stem] = true; S['alert' + stem + 'Display'] = 'value';
+    S['alert' + stem + 'Days'] = 'today'; S['alert' + stem + 'NextDayMark'] = 'gt';
+  });
   assert.equal(PC.actions.resetAlerts(null, S, ENV, defaultOf), true, 'asks for a re-render');
   ALERT_STEMS.forEach(stem => {
     assert.strictEqual(S['alert' + stem], false, stem + ' alert back off');
     assert.equal(S['alert' + stem + 'Display'], 'icon', stem + ' Look back to Icon');
+    assert.equal(S['alert' + stem + 'Days'], 'tomorrow', stem + ' Days back to Today + tomorrow');
+    assert.equal(S['alert' + stem + 'NextDayMark'], 'raquo', stem + ' mark back to the »');
   });
+  assert.equal(S.uvSlotNextDayMark, 'star', 'the slot\'s own mark is the status card\'s');
   assert.strictEqual(S.alertRain, true, 'the rain alert back on');
   assert.equal(S.rainAlertDisplay, 'text', 'rain look back to the countdown text');
   ['Steps', 'Sleep', 'Distance'].forEach(stem =>

@@ -71,10 +71,12 @@ STATUS LINES
   today's peak on screen while it is at warn or higher (not on Pebble Classic/Steel)
 - Alerts: show a metric only when it matters, instead of in a slot all day — while rain is on
   its way, or UV, wind, gusts, air quality or (with DWD) pollen reach your warn level today
-  (later hours included), their alert icons appear in the alert row, which takes over up to
-  two slots of a status bar and gives them back afterwards; each status bar's Alert row
-  setting picks Off, Left, Middle or Right; each metric alert can print its value next to its
-  icon, and the rain alert shows as the rain icon, the minutes until it starts (or, while it
+  (later hours included) or, once nothing left today does, tomorrow, their alert icons appear
+  in the alert row, which takes over up to two slots of a status bar and gives them back
+  afterwards; each status bar's Alert row setting picks Off, Left, Middle or Right; each
+  metric alert can print its value next to its icon and can stick to today or also look
+  ahead to tomorrow, marking a tomorrow alert with » or a mark you pick (>, +, * or none);
+  the rain alert shows as the rain icon, the minutes until it starts (or, while it
   rains, how long it keeps falling), or the full countdown text; when a bar runs out of room,
   values and the rain text shorten first, then the last alerts are left out (not on Pebble
   Classic/Steel)

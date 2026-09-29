@@ -4253,7 +4253,7 @@
                 }
               ]
             },
-            "intro": "Alerts show a metric only when it matters, instead of in a slot all day. An alert is active when a value reaches your warn level today, or rain is on its way; its icon then appears in the alert row, which takes over up to two slots of a status bar. The rest of the time those slots show what you picked. Each status bar’s Alert row setting below chooses where. <button type=\"button\" class=\"txt-act-btn\" data-action=\"resetAlerts\">Reset alerts to defaults</button>",
+            "intro": "Alerts show a metric only when it matters, instead of in a slot all day. An alert is active when a value reaches your warn level today (or tomorrow, if the alert looks ahead), or when rain is on its way; its icon then appears in the alert row, which takes over up to two slots of a status bar. The rest of the time those slots show what you picked. Each status bar’s Alert row setting below chooses where. <button type=\"button\" class=\"txt-act-btn\" data-action=\"resetAlerts\">Reset alerts to defaults</button>",
             "items": [
               {
                 "type": "staticText",
@@ -4545,7 +4545,17 @@
                 "hintFrom": {
                   "resolver": "alertLevelsHint",
                   "args": {
-                    "keyStem": "Uv"
+                    "keyStem": "Uv",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
                   }
                 },
                 "editBadgeFrom": {
@@ -4566,7 +4576,17 @@
                 "hintFrom": {
                   "resolver": "alertLevelsHint",
                   "args": {
-                    "keyStem": "Wind"
+                    "keyStem": "Wind",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
                   }
                 },
                 "editBadgeFrom": {
@@ -4587,7 +4607,17 @@
                 "hintFrom": {
                   "resolver": "alertLevelsHint",
                   "args": {
-                    "keyStem": "Gust"
+                    "keyStem": "Gust",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
                   }
                 },
                 "editBadgeFrom": {
@@ -4608,7 +4638,17 @@
                 "hintFrom": {
                   "resolver": "alertLevelsHint",
                   "args": {
-                    "keyStem": "Aqi"
+                    "keyStem": "Aqi",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
                   }
                 },
                 "editBadgeFrom": {
@@ -4637,7 +4677,17 @@
                 "hintFrom": {
                   "resolver": "alertLevelsHint",
                   "args": {
-                    "keyStem": "Pollen"
+                    "keyStem": "Pollen",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
                   }
                 },
                 "editBadgeFrom": {
@@ -8226,6 +8276,71 @@
                 }
               },
               {
+                "type": "segmented",
+                "messageKey": "alertUvDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow: the alert icon then carries the mark chosen below."
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertUv"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertUvNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertUvDays",
+                  "ne": "today"
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertUv"
+                  }
+                }
+              },
+              {
                 "type": "subheader",
                 "text": "Alert levels",
                 "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
@@ -8414,6 +8529,71 @@
                 ],
                 "hintByValue": {
                   "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertWind"
+                  }
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "alertWindDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow: the alert icon then carries the mark chosen below."
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertWind"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertWindNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertWindDays",
+                  "ne": "today"
                 },
                 "disabledWhen": {
                   "not": {
@@ -8618,6 +8798,71 @@
                 }
               },
               {
+                "type": "segmented",
+                "messageKey": "alertGustDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow: the alert icon then carries the mark chosen below."
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertGust"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertGustNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertGustDays",
+                  "ne": "today"
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertGust"
+                  }
+                }
+              },
+              {
                 "type": "subheader",
                 "text": "Alert levels",
                 "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
@@ -8781,7 +9026,7 @@
                 "type": "subheader",
                 "text": "Alert",
                 "toggleKey": "alertAqi",
-                "intro": "Shows the air quality icon in the alert row when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead needs the Open-Meteo AQI provider (General tab); with WAQI the alert judges the current reading."
+                "intro": "Shows the air quality icon in the alert row when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (General tab): WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading."
               },
               {
                 "type": "toggle",
@@ -8806,6 +9051,71 @@
                 ],
                 "hintByValue": {
                   "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertAqi"
+                  }
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "alertAqiDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow: the alert icon then carries the mark chosen below."
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertAqi"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertAqiNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertAqiDays",
+                  "ne": "today"
                 },
                 "disabledWhen": {
                   "not": {
@@ -9002,6 +9312,71 @@
                 ],
                 "hintByValue": {
                   "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertPollen"
+                  }
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "alertPollenDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow: the alert icon then carries the mark chosen below."
+                },
+                "disabledWhen": {
+                  "not": {
+                    "key": "alertPollen"
+                  }
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertPollenNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertPollenDays",
+                  "ne": "today"
                 },
                 "disabledWhen": {
                   "not": {
