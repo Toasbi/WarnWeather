@@ -40,11 +40,11 @@ int main(void) {
     // --- a hatch split at any row draws exactly the unsplit hatch ---
     // Every stride the night hatch takes (6..13 across the presets, hatch_stride_test.c)
     // and then some; every column phase; every band height a top stripe band can have
-    // (up to 3 stripes of 6 px + gaps) and past it.
+    // (up to 4 stripes of 6 px + gaps, 29 px) and past it.
     int seam_mismatches = 0, phase_misses = 0, backing_hits = 0;
     for (int stride = 2; stride <= 16; ++stride) {
         for (int x = -20; x < 220; ++x) {
-            for (int band = 0; band <= 24; ++band) {
+            for (int band = 0; band <= 32; ++band) {
                 const int h = 100;   // band + plot, the whole graph
                 bool whole[MAX_H], split[MAX_H];
                 memset(whole, 0, sizeof(whole));
