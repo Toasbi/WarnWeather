@@ -378,6 +378,36 @@ static void two_sides_share_the_middle(void) {
     expect("two.short.mid_x", out.place[1].icon_x, 85);
     expect("two.short.right_full", out.form[2], OD_FULL);
     expect("two.short.right_x", out.place[2].icon_x, 200 - 17 - STATUS_ROW_GROUP_GAP - 30);
+
+    // The middle may leave its target when ANY active side's row frees it, not only
+    // when every one does. W 200, slots 30 | 40 | 30, the middle's target 80. The left
+    // claim (a 50 px icon, its slot) puts lo at 88; with no short form and no narrower
+    // look its next row is 5, which frees the middle. The right side (10 px) fits on
+    // row 0, which does not. The middle moves to 88 and the left slot stays full;
+    // were every side's row needed, the left side would climb on to row 6 and hide it.
+    OdSlotIn mid3[3] = { slot_text(30, 0), slot_text(40, 0), slot_text(30, 0) };
+    OdSideIn free_l[2] = { side_none(), side_none() };
+    add_icon(&free_l[0], OD_BLUETOOTH, 50);
+    add_icon(&free_l[1], OD_BATTERY, 10);
+    od_layout(200, mid3, free_l, NO_BLEED, false, &out);
+    expect("two.free.left_stage", out.stage[0], 5);
+    expect("two.free.left_full", out.form[0], OD_FULL);
+    expect("two.free.left_x", out.place[0].icon_x, 50 + STATUS_ROW_GROUP_GAP);
+    expect("two.free.middle_x", out.place[1].icon_x, 88);
+    expect("two.free.right_stage", out.stage[1], 0);
+    expect("two.free.right_full", out.form[2], OD_FULL);
+    // The mirror: the right claim (50 px) puts hi at 72, the left one (10 px) stays on
+    // row 0; the middle moves to 72 and the right slot stays full.
+    OdSideIn free_r[2] = { side_none(), side_none() };
+    add_icon(&free_r[0], OD_BLUETOOTH, 10);
+    add_icon(&free_r[1], OD_RAIN, 50);
+    od_layout(200, mid3, free_r, NO_BLEED, false, &out);
+    expect("two.free.mirror.right_stage", out.stage[1], 5);
+    expect("two.free.mirror.right_full", out.form[2], OD_FULL);
+    expect("two.free.mirror.right_x", out.place[2].icon_x, 200 - 50 - STATUS_ROW_GROUP_GAP - 30);
+    expect("two.free.mirror.middle_x", out.place[1].icon_x, 72);
+    expect("two.free.mirror.left_stage", out.stage[0], 0);
+    expect("two.free.mirror.left_full", out.form[0], OD_FULL);
 }
 
 static void two_sides_drop_lowest_priority(void) {
@@ -634,6 +664,36 @@ static void battery_standin(void) {
     od_layout(132, slots, crowded, STRIP_BLEED, false, &out);
     expect("standin.c.crowded_item", battery_drawn(crowded, &out), 1);
     expect("standin.c.crowded_first", out.first[1], 0);
+
+    // The Battery item on the left, and pass 2 may empty the right side. W 100, only
+    // the Watch battery slot, Bluetooth beside the Battery item and an icon-only rain
+    // of r px on the right. Pass 1 (Bluetooth alone, its run 8 px past the bleed)
+    // keeps the slot up to r = 55 and hides it up to r = 88; past that the rain
+    // cannot fit even there, drops, and the slot comes back. In pass 2 the Battery
+    // item's 17 px (a run of 29) leave the rain room beside the hidden slot only up to
+    // r = 67; from 68 to 88 the rain drops and the right side goes inactive. An
+    // inactive side's slot returns to its plain place, but not this one: the item
+    // already shows the charge.
+    OdSlotIn bare[3] = { slot_empty(), slot_empty(), slot_battery() };
+    for (int r = 1; r <= 120; r++) {
+        OdSideIn emptied[2] = { side_none(), side_none() };
+        add_icon(&emptied[0], OD_BATTERY, 17);
+        add_icon(&emptied[0], OD_BLUETOOTH, 10);
+        add_icon(&emptied[1], OD_RAIN, (int16_t)r);
+        od_layout(100, bare, emptied, STRIP_BLEED, true, &out);
+        const bool standin = r >= 56 && r <= 88;
+        char name[64];
+        snprintf(name, sizeof(name), "standin.emptied.slot r%d", r);
+        expect(name, out.place[2].visible, !standin);
+        snprintf(name, sizeof(name), "standin.emptied.form r%d", r);
+        expect(name, out.form[2], standin ? OD_HIDDEN : OD_FULL);
+        snprintf(name, sizeof(name), "standin.emptied.item r%d", r);
+        expect(name, battery_drawn(emptied, &out), standin);
+        snprintf(name, sizeof(name), "standin.emptied.left_n r%d", r);
+        expect(name, out.n[0], standin ? 2 : 1);
+        snprintf(name, sizeof(name), "standin.emptied.right_n r%d", r);
+        expect(name, out.n[1], r <= 67 ? 1 : 0);
+    }
 
     // (d) At low charge exactly one battery shows: the slot or the item, never both,
     // never neither — across crowding, with the item on either side.
