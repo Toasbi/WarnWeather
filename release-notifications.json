@@ -176,7 +176,7 @@
     "body": "The forecast graph can show cloud cover and a fourth metric, and any metric can be a shaded stripe along the top or below the zero line. The radar can add clouds, sun and lightning for the next two hours (Radar tab). (Not on Pebble Classic/Steel.)"
   },
   "1.24.0": {
-    "title": "Alerts",
-    "body": "Alerts show rain and values at your warn level only while they matter, in a status bar's alert row — see Status slots → Alerts. (Not on Pebble Classic/Steel.)"
+    "title": "On demand",
+    "body": "Battery, Bluetooth, quiet time and weather alerts now show at a status bar's edge only while they matter. The rain, UV, wind, gust and air quality alerts come switched on. Change them in the Status slots tab, under On demand. (Not on Pebble Classic/Steel.)"
   }
 }
