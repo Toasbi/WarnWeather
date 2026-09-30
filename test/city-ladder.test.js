@@ -61,6 +61,14 @@ test('an edge city takes the first form that fits the cap', () => {
   assert.deepEqual(cityLadder.members(undefined), ['']);
 });
 
+test('every word is ranked, however many there are (the watch has no word cap)', () => {
+  // Eleven words: the ten two-letter ones go first, so only the eleventh, the longest,
+  // stays whole — status_short_text_test.c pins the same last form on the watch.
+  const forms = cityLadder.members('Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kkk');
+  assert.equal(forms.length, 11);
+  assert.equal(forms[forms.length - 1], 'A. B. C. D. E. F. G. H. I. J. Kkk');
+});
+
 // --- the bake ------------------------------------------------------------------
 
 function decodeLine(bytes) {
@@ -109,6 +117,21 @@ test('an edge city that fits the cap only as a ladder form is sent as that form'
     assert.equal(bakeTop('Bad Berleburg', platform)[0].text, 'B. Berle');
     // A name that fits keeps its every byte.
     assert.equal(bakeTop('New York', platform)[0].text, 'New York');
+  });
+});
+
+test('a middle city too long for its cap is cut as before, never laddered', () => {
+  // 24 bytes over the middle's 19: the ladder's first form that fits would be
+  // 'B. S. a. Taunus N.' (18 B), but only an edge slot walks it (W12) — the middle
+  // keeps its plain cut, and the watch shortens it from there.
+  const city = 'Bad Soden am Taunus Nord';
+  const plain = Buffer.from(statusLines.utf8Truncate(
+    statusLines.utf8Encode(city), catalog.CAPS.MID_TEXT_MAX)).toString('utf8');
+  assert.equal(plain, 'Bad Soden am Taunus');
+  ['basalt', 'diorite', 'emery', 'flint', ''].forEach((platform) => {
+    const slots = bakeTop(city, platform);
+    assert.equal(slots[1].text, plain, platform + ' middle');
+    assert.equal(slots[0].text, 'B. S. a.', platform + ' left');
   });
 });
 

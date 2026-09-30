@@ -325,6 +325,15 @@ static void city(void) {
     // A long name keeps its first member and its last ones (STATUS_SHORT_MEMBERS).
     text_family("city long", STATUS_ICON_NONE, "Bad Soden am Taunus",
                 FAMILY("Bad Soden a. Taunus", "B. S. a. Taunus", "Bad Soden am Taunus ~"));
+    // Every word is ranked, however many: eleven words, and only the longest (the
+    // eleventh) stays whole on the last rung. test/city-ladder.test.js pins the phone's
+    // twin to the same form. (Past any slot's cap, so a big buffer.)
+    char many[48];
+    expect_true("city eleven words", status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
+                "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kkk", 10, many, sizeof(many)));
+    expect_str("city eleven words", many, "A. B. C. D. E. F. G. H. I. J. Kkk");
+    expect_true("city eleven words end", !status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
+                "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kkk", 12, many, sizeof(many)));
 
     // The elastic floor: three code points and the ellipsis, UTF-8 safe.
     char floor[STATUS_SHORT_CAP];
@@ -340,13 +349,21 @@ static void city(void) {
     expect_true("floor cap", !status_short_floor("Frankfurt", floor, 6));
 }
 
-// A member never outgrows its buffer: a 19-byte city (the middle slot's cap) at an
-// exact 20-byte buffer, and a buffer too small fails instead of overrunning.
+// A member never outgrows its buffer: a 19-byte city (the middle slot's cap) whose
+// member ("Halle-Neustadt S.", 17 bytes) fits a buffer of exactly its length + 1 and
+// fails one byte short instead of overrunning; and a buffer too small fails.
 static void caps(void) {
     char out[STATUS_SHORT_CAP];
+    expect_true("cap slot", status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
+                                              "Halle-Neustadt Süd", 1, out, sizeof(out)));
+    expect_str("cap slot", out, "Halle-Neustadt S.");
+    char exact[sizeof("Halle-Neustadt S.")];
     expect_true("cap exact", status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
-                                               "Halle-Neustadt Süd", 1, out, sizeof(out)));
-    expect_str("cap exact", out, "Halle-Neustadt S.");
+                                               "Halle-Neustadt Süd", 1, exact, sizeof(exact)));
+    expect_str("cap exact", exact, "Halle-Neustadt S.");
+    expect_true("cap one short", !status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
+                                                    "Halle-Neustadt Süd", 1, exact,
+                                                    sizeof(exact) - 1));
     char tiny[4];
     expect_true("cap tiny city", !status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
                                                     "New York", 1, tiny, sizeof(tiny)));

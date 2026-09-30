@@ -16,9 +16,6 @@
 
 var utf8 = require('./utf8.js');
 
-// The words the watch reads (SST_CITY_WORDS); any after them stay whole.
-var MAX_WORDS = 10;
-
 /**
  * The code points of a string, a surrogate pair kept whole.
  * @param {string} str Input string.
@@ -60,14 +57,13 @@ function isLetter(cp) {
 function members(city) {
   var text = typeof city === 'string' ? city : '';
   // The space-separated parts; '' for the gap between two spaces, so joining them with
-  // one space gives the name back byte for byte.
+  // one space gives the name back byte for byte. Every word is ranked, as on the
+  // watch (sst_rank walks them all).
   var parts = text.split(' ');
   var cps = [];
   var order = [];
-  var words = 0;
-  for (var p = 0; p < parts.length && words < MAX_WORDS; p++) {
+  for (var p = 0; p < parts.length; p++) {
     if (parts[p] === '') { continue; }
-    words++;
     cps[p] = codePoints(parts[p]);
     var cp = cps[p];
     var initial = cp.length === 2 && cp[1] === '.';
