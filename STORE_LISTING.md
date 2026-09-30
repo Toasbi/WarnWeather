@@ -25,7 +25,8 @@ RAIN RADAR
   30 minutes; turn on "Use your own key" and enter your own Rainbow API key to refresh it at your
   own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 - "Radar limit reached" on the radar when a radar source refuses requests over its limit
-- Rain alert telling you when rain starts (or stops), in a status bar's alert row
+- Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on
+  its way (On demand)
 - Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph
 - Clouds, sun and lightning rows under the radar graph for the next 2 hours
 
@@ -68,17 +69,21 @@ STATUS LINES
   (not on Pebble Classic/Steel)
 - Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or
   danger level you set (its Alert levels) (not on Pebble Classic/Steel)
-- Alerts: show a metric only when it matters, instead of in a slot all day — while rain is on
-  its way, or UV, wind, gusts, air quality or (with DWD) pollen reach your warn level today
-  (later hours included) or, once nothing left today does, tomorrow, their alert icons appear
-  in the alert row, which takes over up to two slots of a status bar and gives them back
-  afterwards; each status bar's Alert row setting picks Off, Left, Middle or Right; each
-  metric alert can print its value next to its icon and can stick to today or also look
-  ahead to tomorrow, marking a tomorrow alert with » or a mark you pick (>, +, * or none);
-  the rain alert shows as the rain icon, the minutes until it starts (or, while it
-  rains, how long it keeps falling), or the full countdown text; when a bar runs out of room,
-  values and the rain text shorten first, then the last alerts are left out (not on Pebble
-  Classic/Steel)
+- On demand: items that show at a status bar's edge only while they have something to say
+  (not on Pebble Classic/Steel). Every status bar has an On demand left and right side, each
+  with the items you tick:
+   - System info: the watch battery at or below a warn level you set, Bluetooth when it
+     disconnects, quiet time while it is on, and a sleep icon during the battery saver hours
+   - Weather alerts: rain falling or on its way, or wind gusts, UV index, air quality, pollen
+     (with DWD) or wind speed reaching your warn level today or, looking ahead, tomorrow;
+     with the value next to the icon if you like, and » or a mark you pick on a tomorrow
+     alert; the rain alert shows as an icon, the minutes, or the full countdown text
+- Switched on for new installs and after the update: Bluetooth, quiet time and sleep at the
+  top left, and the battery with the rain, wind gust, UV index, air quality and wind speed
+  alerts at the top right; the pollen alert is off
+- When a bar runs short of room, its slots switch to short forms first (the date to its day
+  number, "New York" to "N. York", sleep "7h", steps "12k", units dropped), then the middle
+  slot moves aside, and only then do slots hide and the last items drop
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches
@@ -86,7 +91,8 @@ WATCHFACE THEMES
 
 WATCH
 - Custom color, 12h/24h, optional AM/PM
-- Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
+- Battery, Bluetooth, quiet time and sleep indicators that show only when needed (On demand),
+  plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
 - Night battery saver (pause updates to the watch between hours you set, to save battery)
 - Night backlight dimming
 

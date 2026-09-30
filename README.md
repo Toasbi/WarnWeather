@@ -34,7 +34,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; turn on *Use your own key* and enter your own Rainbow API key to run it as plain *Rainbow*, refreshed at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 * The radar says *Radar limit reached* when a radar source refuses requests over its limit, instead of claiming no rain
-* Rain alert telling you when rain starts (or stops), in a status bar's alert row
+* Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on its way (an On demand item, see Status lines)
 * Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph — in the Radar tab
 * Clouds, sun & lightning rows under the radar graph's time axis (on by default): cloud cover and sunshine per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
 
@@ -52,7 +52,12 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 * Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)
 * Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or danger level you set (its Alert levels) (not on Pebble Classic/Steel)
-* Alerts: show a metric only when it matters, instead of in a slot all day — while rain is on its way, or UV, wind, gusts, air quality or (with DWD) pollen reach your warn level today (later hours included) or, once nothing left today does, tomorrow, their alert icons appear in the alert row, which takes over up to two slots of a status bar and gives them back afterwards; each status bar's Alert row setting picks Off, Left, Middle or Right; each metric alert can print its value next to its icon and can stick to today or also look ahead to tomorrow, marking a tomorrow alert with `»` or a mark you pick (`>`, `+`, `*` or none); the rain alert shows as the rain icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text; when a bar runs out of room, values and the rain text shorten first, then the last alerts are left out (not on Pebble Classic/Steel)
+* On demand: items that show at a status bar's edge only while they have something to say (not on Pebble Classic/Steel). Every status bar has an *On demand left* and an *On demand right* row, each ticking its own items, and the On demand card holds the items' settings (Status slots tab):
+  * System info — the watch battery at or below a warn level you set (the icon, or the icon and the charge), Bluetooth when it disconnects (or connects, or both), quiet time while it is on, and a sleep icon during the Battery saver hours
+  * Weather alerts — rain falling or on its way, or wind gusts, UV index, air quality, (with DWD) pollen or wind speed reaching your warn level today (later hours included) or, once nothing left today does, tomorrow; each metric alert can print its value next to its icon and can stick to today or also look ahead to tomorrow, marking a tomorrow alert with `»` or a mark you pick (`>`, `+`, `*` or none); the rain alert shows as the rain icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text
+  * Switched on for new installs and after the update: Bluetooth, quiet time and sleep on the left of the Watch Status Bar (the top bar), and the battery with the rain, wind gust, UV index, air quality and wind speed alerts on its right; the pollen alert is off, and every other bar starts with both sides disabled
+  * The battery item stays out while a slot of the same bar already shows the watch battery, and stands in once that slot has to hide
+  * When a bar runs short of room, its slots slide inward and switch to short forms — a four-digit year to `'26` and then the date to its day number, a city abbreviating its shorter words (`N. York`, `Frankfurt a. M.`) and then cut with `…`, sleep to `7h`, steps to `12k`, units and spaces dropped (`12°` → `12`, `12 / 30kph` → `12/30`) — then the alert values and the rain text shorten, then the middle slot leaves the centre, then slots hide, and last the lowest-priority items drop; a battery number, sunrise/sunset and the calendar week never shorten, they show whole or hide
 
 **Watchface themes**
 * Dark and Light, plus Black & White options on color watches
@@ -61,7 +66,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Watch**
 * Custom color, 12h/24h, optional AM/PM
 * Smooth, anti-aliased clock digits on color watches (Roboto and Bitham fonts)
-* Battery, Bluetooth, quiet time, and vibrate-on-disconnect indicators
+* Battery, Bluetooth, quiet time and sleep indicators that show only when needed, as On demand items you place per status bar, plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
 * Battery saver (pause updates to the watch between hours you set, to save battery)
 * Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself
 
@@ -93,7 +98,7 @@ Two things that both involve rain over time, but answer different questions:
   dithering) (defaults: line, dots, x, x; style selection is
   likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
   temperature status slot can also show the feels-like value, or both as `12|10`; the UV index
-  slot can show today's highest UV still to come (Day max), or both as `3/7`; today's peak stays
+  slot can show the highest UV left today (Day max), or both as `3/7`; today's peak stays
   while it is still ahead or happening now, then tomorrow's shows instead, marked `»` (`4/»8`),
   or just the current reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert
   highlighting. The wind, gust and air quality slots offer the same Day max (air quality with the
