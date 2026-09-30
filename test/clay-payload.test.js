@@ -134,67 +134,28 @@ test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 120);
 });
 
-// Rain ticked on no Enabled On demand side of a bar that exists sends horizon 0 — the
-// watch's "no countdown" — whatever window is stored; the default ticks place it.
-test('Rain placed on no bar sends CLAY_RAIN_COUNTDOWN_HORIZON 0; placed anywhere keeps the window', () => {
-  const base = baseSettings();
-  base.radarMode = 'graph';
-  base.rainCountdownHorizon = '30';
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 30, 'the default ticks');
-  base.statusTopOnDemandRightItems = 'battery';
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0, 'unticked');
-  delete base.rainCountdownHorizon;
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0,
-    'unplaced beats the default window too');
-  base.statusForecastOnDemandLeft = 'on';
-  base.statusForecastOnDemandLeftItems = 'rain';
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60, 'any bar counts');
-  base.statusForecastOnDemandLeft = 'off';
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0, 'a Disabled side does not');
-  // A retired dev-branch switch is read by nothing.
-  const dev = baseSettings();
-  dev.radarMode = 'graph';
-  dev.alertRain = false;
-  assert.strictEqual(buildClayPayload(dev, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
-});
-
 // The horizon reads the window through the contract (status-thresholds.js rainAlert, the
-// one home of its default), the placement through on-demand.js, and folds radar mode
-// 'off' in itself. A known aplite has no On demand: it keeps the window whatever the
-// ticks say (it compiles the radar out and never draws it anyway).
-test('CLAY_RAIN_COUNTDOWN_HORIZON on every combination of window, radar mode, placement and platform', () => {
-  const OD = require('../src/pkjs/on-demand.js');
-  const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
-  const expected = (s, wi) => {
+// one home of its default) and folds radar mode 'off' in itself. Whether Rain draws is
+// its On demand cell, so the ticks never move this value.
+test('CLAY_RAIN_COUNTDOWN_HORIZON on every combination of window and radar mode', () => {
+  const expected = (s) => {
     let rc = parseInt(s.rainCountdownHorizon, 10);
     if (isNaN(rc)) { rc = 60; }
-    if ((s.radarMode || 'graph') === 'off') { return 0; }
-    const env = platformLib.computeEnv(wi);
-    if (env.onDemand && !OD.placedAnywhere(s, 'rain', env)) { return 0; }
-    return rc;
+    return (s.radarMode || 'graph') === 'off' ? 0 : rc;
   };
   const ABSENT = {};
   const put = (s, k, v) => { if (v !== ABSENT) { s[k] = v; } };
   [ABSENT, '30', '60', '120', '0', 45, '', 'x', null].forEach((h) => {
     [ABSENT, 'graph', 'countdown', 'off'].forEach((mode) => {
-      [ABSENT, 'rain', 'battery', ''].forEach((items) => {
-        [null, { platform: 'aplite' }, { platform: 'basalt' }].forEach((wi) => {
-          const s = baseSettings();
-          put(s, 'rainCountdownHorizon', h);
-          put(s, 'radarMode', mode);
-          put(s, 'statusTopOnDemandRightItems', items);
-          assert.strictEqual(buildClayPayload(s, wi, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, expected(s, wi),
-            JSON.stringify([h, mode, items, wi]));
-        });
-      });
+      const s = baseSettings();
+      put(s, 'rainCountdownHorizon', h);
+      put(s, 'radarMode', mode);
+      assert.strictEqual(buildClayPayload(s, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, expected(s),
+        JSON.stringify([h, mode]));
     });
   });
-  // aplite: the ticks never zero it.
-  const ap = baseSettings();
-  ap.radarMode = 'graph';
-  ap.statusTopOnDemandRightItems = '';
-  assert.strictEqual(buildClayPayload(ap, { platform: 'aplite' }, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
 });
+
 
 test('maps topViewMode to CLAY_TOP_VIEW_MODE int (full=0, compact=1, none=2), default compact', () => {
   assert.strictEqual(buildClayPayload(baseSettings(), null, NOW).CLAY_TOP_VIEW_MODE, 1); // unset → compact

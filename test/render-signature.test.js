@@ -561,5 +561,5 @@ test('the On demand sides and the rain placement stay OUT of the render signatur
       });
     });
   assert.equal(renderSignature({ statusTopOnDemandRightItems: 'battery,gust,uv,aqi,wind' }), base,
-    'Rain unticked only moves the Clay horizon');
+    'Rain unticked only moves its Clay cell');
 });

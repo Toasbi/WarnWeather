@@ -22,25 +22,16 @@ module.exports = {
     NORAIN_DEFAULT_TEXT_MIGRATION_KEY: 'v1.23.0_norain_default_text_migration',
     FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY: 'v1.23.1_fifth_line_style_default_migration',
     STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY: 'v1.23.1_stripe_metric_rule_resend_migration',
-    // The 1.24.0 alert-levels move (highlight toggles, warn look, rain window Off).
-    // Dev builds of 1.24.0 ran its three steps under three markers, never released:
-    // 'v1.24.0_threshold_highlight_toggle_migration', 'v1.24.0_rain_horizon_off_migration'
-    // and this string, the last of them to land. It is kept on purpose: an install that
-    // holds it ran all three, and a re-run there would read settings saved on the 1.24.0
-    // page as 1.23 shapes (a highlight switched off with its pair kept would come back
-    // on). migrations/v1_24.js has the details.
+    // The 1.24.0 alert-levels move (highlight toggles, warn look, rain window Off, seed
+    // pairs back to blank, temperature separator slash -> bar; migrations/v1_24.js).
+    // Replaced, never released: dev builds of 1.24.0 ran these steps under markers of
+    // their own, 'v1.24.0_threshold_highlight_toggle_migration',
+    // 'v1.24.0_rain_horizon_off_migration', 'v1.24.0_seed_pair_blank_migration',
+    // 'v1.24.0_seed_pair_any_unit_migration' and 'v1.24.0_temp_separator_bar_migration',
+    // and under this string, which is kept on purpose: an install that holds it ran the
+    // moves, and a re-run there would read settings saved on the 1.24.0 page as 1.23
+    // shapes (a highlight switched off with its pair kept would come back on).
     ALERT_LEVELS_MIGRATION_KEY: 'v1.24.0_warn_look_migration',
-    // 1.24.0: a stored level pair equal to one of the kind's seeds, in any unit or AQI
-    // scale, goes back to blank, so the levels switched on (or seeded by the wizard)
-    // before the pin was dropped follow the unit and AQI-scale pickers again
-    // (migrations/seed-pairs.js). Replaced, never released:
-    // 'v1.24.0_seed_pair_blank_migration' only ran on dev builds of 1.24.0, which
-    // blanked only the seed of the unit in effect; the new string runs the wider rule
-    // there too.
-    SEED_PAIR_BLANK_MIGRATION_KEY: 'v1.24.0_seed_pair_any_unit_migration',
-    // 1.24.0: the temperature pair's separator default moved from the slash to the bar
-    // ('12|10'), and every stored 'slash' moves with it once (migrations/v1_24.js).
-    TEMP_SEPARATOR_BAR_MIGRATION_KEY: 'v1.24.0_temp_separator_bar_migration',
     // 1.24.0: the status bars moved onto On demand (migrations/v1_24.js migrateOnDemand).
     ON_DEMAND_MIGRATION_KEY: 'v1.24.0_on_demand_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',

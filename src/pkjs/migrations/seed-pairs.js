@@ -1,8 +1,7 @@
 // src/pkjs/migrations/seed-pairs.js
 //
-// The 1.24.0 seed-pair move: one registry entry (SEED_PAIR_BLANK_MIGRATION_KEY). A
-// registry body (migrations/registry.js): run(blob, ctx) -> {changed, send}, mutating the
-// blob in place; the runner in clay-migrations.js owns the marker, the save and the send.
+// The 1.24.0 seed-pair move: a step of the alert-levels entry (v1_24.js
+// ALERT_LEVELS_STEPS), step(blob) -> changed, mutating the blob in place.
 
 var thresholds = require('../status-thresholds.js');   // KINDS + the pair rules
 
@@ -40,32 +39,22 @@ function isAnySeedPair(keyStem, warn, danger) {
  * from a pin. Keyed on stored VALUES and idempotent: seedDefaults (run before the ledger)
  * writes blank pairs, which this leaves alone, so a fresh install is a no-op.
  *
- * Asks for a Clay send only when a blanked pair changes a byte of the Clay blob. A goal
- * kind's numbers ride it (buildSettingsBlob's health u16s, packed while the kind's Goals
- * switch is on), and Distance is the one goal kind with a seed per unit, so only a
- * switched-on Distance goal pinned in the other unit moves a byte. A weather kind's pair
- * rides no Clay byte: the phone bakes its levels and weather-alert entry into the weather
- * message, and the next fetch bakes them from the blank pair.
+ * A weather kind's pair rides no Clay byte: the phone bakes its levels and weather-alert
+ * entry, and the next fetch bakes them from the blank pair. A goal kind's numbers ride
+ * the Clay blob, which the entry's send carries.
  *
  * @param {Object} blob Stored settings, mutated in place.
- * @returns {{changed: boolean, send: boolean}}
+ * @returns {boolean} whether the blob changed
  */
 function migrateSeedPairsToBlank(blob) {
     var changed = false;
-    var send = false;
     for (var i = 0; i < thresholds.KINDS.length; i++) {
         var kind = thresholds.KINDS[i];
         if (kind.boldOnly) { continue; }
         var warnKey = 'thresh' + kind.key + 'Warn';
         var dangerKey = 'thresh' + kind.key + 'Danger';
-        var warn = thresholds.parseThreshold(blob[warnKey]);
-        var danger = thresholds.parseThreshold(blob[dangerKey]);
-        if (!isAnySeedPair(kind.key, warn, danger)) { continue; }
-        var seed = thresholds.seedPair(kind.key, blob);
-        if (kind.goal && (warn !== seed.warn || danger !== seed.danger)
-            && thresholds.kindConfig(blob, i).enabled) {
-            send = true;
-        }
+        if (!isAnySeedPair(kind.key, thresholds.parseThreshold(blob[warnKey]),
+            thresholds.parseThreshold(blob[dangerKey]))) { continue; }
         blob[warnKey] = '';
         blob[dangerKey] = '';
         changed = true;
@@ -73,7 +62,7 @@ function migrateSeedPairsToBlank(blob) {
     if (changed) {
         console.log('Migrated level pairs equal to a seed back to blank');
     }
-    return { changed: changed, send: send };
+    return changed;
 }
 
 module.exports = {

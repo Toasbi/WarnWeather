@@ -34,7 +34,6 @@ var graphColors = require('./graph-colors.js');
 var lightTheme = require('./light-theme.js');
 var lineStyles = require('./line-styles.js');
 var v124 = require('./v1_24.js');
-var seedPairs = require('./seed-pairs.js');
 
 module.exports = [
     // 1.20.0. Marks on every boot that finds it unset, fresh installs included (see the
@@ -88,36 +87,20 @@ module.exports = [
       run: lineStyles.migrateFifthLineStyleDefault },
     { key: KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY, markOn: 'ack', markOnReset: false,
       run: lineStyles.migrateStripeMetricRuleResend },
-    // 1.24.0. After the radar provider -> mode move: its rain-window step reads
-    // radarMode. Marks now though it asks for a send on every existing install (see
-    // clay-migrations.js on the scheduler). Reset-safe, three times over. The next blob
-    // is seeded with every highlight toggle off and every pair blank, so a toggle saved
-    // before the next boot is the page's own truth: unmarked, that boot would read the
-    // wizard's AQI ON over its blank pair as OFF, and a pair the user dragged and then
-    // switched OFF (pair kept) would come back ON. The page no longer offers the rain
-    // window's Off, so there is nothing to move. And a blank warn colour now means auto,
-    // so a page save must not be read as the old no-outline state.
+    // 1.24.0: the alert levels (the highlight toggles, the warn look, the rain window's
+    // Off, the seed pairs, the temperature separator; v1_24.js ALERT_LEVELS_STEPS).
+    // After the radar provider -> mode move: its rain-window step reads radarMode. Marks
+    // now though it asks for a send on every existing install (see clay-migrations.js on
+    // the scheduler). Reset-safe: the next blob is seeded with the 1.24.0 defaults, and
+    // what the page saves before the next boot reads like the 1.23 shapes these steps
+    // convert: a highlight switched OFF with its pair kept would come back ON, a
+    // seed-equal pair dragged there would go blank, a blank warn colour (auto) would read
+    // as the old no-outline state, a picked 'slash' would become the bar.
     { key: KEYS.ALERT_LEVELS_MIGRATION_KEY, markOn: 'now', markOnReset: true,
       run: v124.migrateAlertLevels },
-    // 1.24.0, and MUST run after the alert-levels entry above: that one derives each
-    // highlight switch from its pair, and a pair blanked first would read as highlight
-    // off. Marks now though it can ask for a send: only for a switched-on Distance goal
-    // pinned in the other unit, the one blanked pair that moves a Clay byte (see the
-    // body, and clay-migrations.js on the scheduler). Reset-safe: the next blob is
-    // seeded with blank pairs and the page no longer pins a seed, so a seed-equal pair
-    // saved before the next boot was dragged there.
-    { key: KEYS.SEED_PAIR_BLANK_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: seedPairs.migrateSeedPairsToBlank },
-    // 1.24.0: the temperature pair's stored 'slash' becomes the new default 'bar'. No
-    // send: the separator is phone-baked slot text (renderSignature), so the next bake
-    // shows it. Reset-safe: the next blob is seeded with 'bar', so a 'slash' saved
-    // before the next boot was picked on the 1.24.0 page and must stay.
-    { key: KEYS.TEMP_SEPARATOR_BAR_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: v124.migrateTempSeparatorBar },
     // 1.24.0: the status bars move onto On demand (the ticks carried over from the
-    // 1.23.2 battery, quiet-time and rain switches; the dev branch's alert keys deleted).
-    // MUST run after the alert-levels entry: that one writes alertRain from a 1.23.2 rain
-    // window of Off, which this one reads. Marks now though it asks for a send on every
+    // 1.23.2 battery and quiet-time switches, Rain placed for 'Rain alert only', the dev
+    // branch's alert keys deleted). Marks now though it asks for a send on every
     // existing install (see clay-migrations.js on the scheduler). Reset-safe: the next
     // blob is seeded with the On demand defaults, and a list or a side saved before the
     // next boot is the 1.24.0 page's own pick.

@@ -1,24 +1,26 @@
 // src/pkjs/migrations/v1_24.js
 //
-// The 1.24.0 alert-levels migration: one registry entry (ALERT_LEVELS_MIGRATION_KEY)
-// running three value-keyed moves in order: the highlight toggles, the warn look, the
-// rain window's Off. Also the bodies of the temperature separator's own entry
-// (TEMP_SEPARATOR_BAR_MIGRATION_KEY, migrateTempSeparatorBar) and of the On demand move
-// (ON_DEMAND_MIGRATION_KEY, migrateOnDemand), at the end of this file.
-// A registry body (migrations/registry.js): run(blob, ctx) ->
-// {changed, send}, mutating the blob in place; the runner in clay-migrations.js owns the
-// marker, the save and the send.
+// The 1.24.0 migrations, two registry entries (migrations/registry.js):
+//  - ALERT_LEVELS_MIGRATION_KEY, migrateAlertLevels: the value moves, run as the steps
+//    in ALERT_LEVELS_STEPS, in that order (the seed-pairs step lives in seed-pairs.js);
+//  - ON_DEMAND_MIGRATION_KEY, migrateOnDemand: the status bars onto On demand.
+// A registry body: run(blob, ctx) -> {changed, send}, mutating the blob in place; the
+// runner in clay-migrations.js owns the marker, the save and the send. A step is
+// step(blob) -> changed and asks for no send: the entry asks for one on every existing
+// install.
 //
-// Every move keys on stored VALUES, never on a key being absent: seedDefaults runs
+// Every step keys on stored VALUES, never on a key being absent: seedDefaults runs
 // before the ledger (index.js; the layoutPreset trap) and has already backfilled every
-// new key with its default. Each move is idempotent over its own output. That does NOT
-// make a re-run safe over settings saved on the 1.24.0 page since: a highlight switched
-// off with its pair kept, a warn colour picked under the default Fill look, a goal
-// colour set back to auto all look exactly like the 1.23 shapes these moves convert.
-// Hence the marker string (storage-keys.js) and resetAll marking it done.
+// new key with its default. Each step is idempotent over its own output, but the entry
+// is not, and neither is a re-run over settings saved on the 1.24.0 page: a highlight
+// switched off with its pair kept, a seed pair blanked under a switch that is on, a warn
+// colour picked under the default Fill look, a goal colour set back to auto all look
+// exactly like the 1.23 shapes these steps convert. Hence the marker string
+// (storage-keys.js) and resetAll marking it done.
 
 var thresholds = require('../status-thresholds.js');   // KINDS + the pair rules
 var onDemand = require('../on-demand.js');               // the side keys and their reading
+var seedPairs = require('./seed-pairs.js');              // the seed-pairs step
 
 /**
  * Backfill the Highlight / Goals toggles (thresh<K>On) from their pairs. Until 1.24.0
@@ -35,8 +37,8 @@ var onDemand = require('../on-demand.js');               // the side keys and th
  * default (false) for releases, so "absent" is not observable. The pair alone tells the
  * three populations apart: highlight on (ordered pair) → true; highlight off (the old
  * OFF blanked the pair) → false; AQI's wizard-seeded highlight (100/150 or 60/80, the
- * seed the 1.23 page's switch pinned) → true. Those pins go back to blank right after,
- * in the next ledger entry (migrations/seed-pairs.js).
+ * seed the 1.23 page's switch pinned) → true. Those pins go back to blank in a later
+ * step (seed-pairs.js).
  *
  * A pair that is not ordered but not blank either — half ('7', '') from the old text
  * fields, inverted, junk — is normalised to '' on both keys: the phone and the page
@@ -44,12 +46,12 @@ var onDemand = require('../on-demand.js');               // the side keys and th
  * fell back per value and would preview 'Warn 7' against a seed-6 bake. Blank is the
  * one stored form of "the seed" from here on; no numbers are written into any blob.
  *
- * No Clay send: for every install the post-migration enable bit (On && ordered) equals
- * the pre-split one (ordered), which the watch already holds. A fresh install (blank
- * pairs, toggles false) is a no-op.
+ * For every install the post-migration enable bit (On && ordered) equals the pre-split
+ * one (ordered), which the watch already holds. A fresh install (blank pairs, toggles
+ * false) is a no-op.
  *
  * @param {Object} blob Stored settings, mutated in place.
- * @returns {{changed: boolean, send: boolean}}
+ * @returns {boolean} whether the blob changed
  */
 function migrateThresholdHighlightToggles(blob) {
     var changed = false;
@@ -85,7 +87,7 @@ function migrateThresholdHighlightToggles(blob) {
     if (changed) {
         console.log('Migrated threshold highlight toggles from their pairs');
     }
-    return { changed: changed, send: false };
+    return changed;
 }
 
 /**
@@ -127,18 +129,10 @@ function isTextColor(v) {
  * a pick ("the text colour"), and unset means red (onbuild.js, kindConfig). Goal
  * kinds keep their green.
  *
- * Asks for ONE Clay send on every existing install — even when nothing in storage
- * changes: the watch still holds the pre-1.24 blob without the look bytes, so it
- * would keep drawing the old boxes (no box where the outline was off, a white danger)
- * while the page already shows the new defaults (fill, red). A FRESH install (no blob
- * before this boot's seedDefaults) asks for nothing: its boot already sends the whole
- * settings blob.
- *
  * @param {Object} blob Stored settings, mutated in place.
- * @param {{hadExistingInstall: boolean}} ctx Runner context.
- * @returns {{changed: boolean, send: boolean}}
+ * @returns {boolean} whether the blob changed
  */
-function migrateWarnLook(blob, ctx) {
+function migrateWarnLook(blob) {
     var changed = false;
     for (var i = 0; i < thresholds.KINDS.length; i++) {
         var kind = thresholds.KINDS[i];
@@ -170,61 +164,34 @@ function migrateWarnLook(blob, ctx) {
     if (changed) {
         console.log('Migrated the warn outline toggles to warn looks, danger to red');
     }
-    return { changed: changed, send: Boolean(ctx.hadExistingInstall) };
+    return changed;
 }
 
 /**
  * Move the rain window's retired Off option. Until 132b577a the Radar tab's rain
- * countdown offered 'Off' (rainCountdownHorizon '0'); the development branch's rain
- * switch (alertRain) replaced it, but a stored '0' was never moved: the page's Rain row
- * read "Within 60 min" through its fallback while the phone sent horizon 0 and the
- * watch showed no rain. A stored '0' becomes the window's default '60' with that switch
- * OFF — the same "no rain alert" the watch already draws — except in radar mode 'Rain
- * alert only', which needs the rain alert: there the switch stays on, now with a
- * working window.
+ * countdown offered 'Off' (rainCountdownHorizon '0'), and a stored '0' was never moved:
+ * the page's Rain row read "Within 60 min" through its fallback while the phone sent
+ * horizon 0 and the watch showed no rain. A stored '0' becomes the window's default,
+ * with Rain unticked on every side of every bar (on-demand.js untickEverywhere): the
+ * same "no rain alert" the watch already draws. Radar mode 'Rain alert only' needs the
+ * rain alert, so there Rain stays ticked, now with a working window (the On demand
+ * entry places it on a bar that shows, migrateOnDemand).
  *
- * The switch is an intermediate: the On demand move below (migrateOnDemand) reads it,
- * unticks Rain everywhere when it is off, ticks Rain on in 'Rain alert only'
- * (on-demand.js placeRainForCountdown) and then deletes it.
- *
- * Keyed on the stored HORIZON value, never on alertRain being absent. Reads radarMode,
- * so it must run after the radar provider -> mode move (radar.js).
- *
- * Asks for a send only in 'Rain alert only', where the sent value moves from 0 to 60.
- * Elsewhere Rain ends up unticked, so a watch with On demand keeps getting horizon 0
- * (clay-payload.js), which it already holds; aplite compiles the radar out.
+ * Keyed on the stored WINDOW value. Reads radarMode, which the radar provider -> mode
+ * entry (radar.js) wrote earlier in the ledger. The untick needs no side key stored:
+ * on-demand.js read() falls back to the defaults, which seedDefaults wrote anyway.
  *
  * @param {Object} blob Stored settings, mutated in place.
- * @returns {{changed: boolean, send: boolean}}
+ * @returns {boolean} whether the blob changed
  */
-function migrateRainHorizonOff(blob) {
+function migrateRainWindowOff(blob) {
     var h = blob.rainCountdownHorizon;
-    if (h === null || typeof h === 'undefined' || String(h) !== '0') {
-        return { changed: false, send: false };
-    }
-    var send = blob.radarMode === 'countdown';
-    blob.rainCountdownHorizon = '60';
-    blob.alertRain = send;
-    console.log('Migrated rain window Off -> 60 min, rain alert ' + (send ? 'on' : 'off'));
-    return { changed: true, send: send };
-}
-
-/**
- * The registry entry's body: the three moves above, in this order.
- *
- * @param {Object} blob Stored settings, mutated in place.
- * @param {{hadExistingInstall: boolean}} ctx Runner context.
- * @returns {{changed: boolean, send: boolean}}
- */
-function migrateAlertLevels(blob, ctx) {
-    var steps = [migrateThresholdHighlightToggles, migrateWarnLook, migrateRainHorizonOff];
-    var out = { changed: false, send: false };
-    for (var i = 0; i < steps.length; i++) {
-        var r = steps[i](blob, ctx);
-        out.changed = out.changed || r.changed;
-        out.send = out.send || r.send;
-    }
-    return out;
+    if (h === null || typeof h === 'undefined' || String(h) !== '0') { return false; }
+    // The window's default, read through the contract that owns it.
+    blob.rainCountdownHorizon = String(thresholds.rainAlert({}).horizonMin);
+    if (blob.radarMode !== 'countdown') { onDemand.untickEverywhere(blob, 'rain'); }
+    console.log('Migrated rain window Off -> ' + blob.rainCountdownHorizon + ' min');
+    return true;
 }
 
 /**
@@ -237,19 +204,44 @@ function migrateAlertLevels(blob, ctx) {
  * The Spaces flag is left alone, so '12 / 10' becomes '12 | 10'.
  *
  * Keyed on the stored VALUE: seedDefaults has already written 'bar' into a fresh
- * install, which is a no-op here. No Clay send: the separator is phone-baked slot text,
- * already in renderSignature, so the next bake (the startup fetch or the settings-close
- * re-bake) shows it.
+ * install, which is a no-op here. The separator is phone-baked slot text, already in
+ * renderSignature, so the next bake (the startup fetch or the settings-close re-bake)
+ * shows it.
  *
  * @param {Object} blob Stored settings, mutated in place.
- * @returns {{changed: boolean, send: boolean}}
+ * @returns {boolean} whether the blob changed
  */
 function migrateTempSeparatorBar(blob) {
-    if (blob.tempSlotSeparator === 'slash') {
-        blob.tempSlotSeparator = 'bar';
-        return { changed: true, send: false };
+    if (blob.tempSlotSeparator !== 'slash') { return false; }
+    blob.tempSlotSeparator = 'bar';
+    return true;
+}
+
+// The alert-levels steps, in their order. The seed-pairs step blanks the pins the
+// highlight toggles have just read as "on".
+var ALERT_LEVELS_STEPS = [migrateThresholdHighlightToggles, migrateWarnLook, migrateRainWindowOff,
+    seedPairs.migrateSeedPairsToBlank, migrateTempSeparatorBar];
+
+/**
+ * The ALERT_LEVELS_MIGRATION_KEY entry: ALERT_LEVELS_STEPS over the one blob.
+ *
+ * Asks for ONE Clay send on every existing install, even when nothing in storage
+ * changes: the watch still holds the pre-1.24 blob without the look bytes, so it would
+ * keep drawing the old boxes (no box where the outline was off, a white danger) while
+ * the page already shows the new defaults (fill, red). The same send carries a moved
+ * rain window or goal pair. A FRESH install (no blob before this boot's seedDefaults)
+ * asks for nothing: its boot already sends the whole settings blob.
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @param {{hadExistingInstall: boolean}} ctx Runner context.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function migrateAlertLevels(blob, ctx) {
+    var changed = false;
+    for (var i = 0; i < ALERT_LEVELS_STEPS.length; i++) {
+        changed = ALERT_LEVELS_STEPS[i](blob) || changed;
     }
-    return { changed: false, send: false };
+    return { changed: changed, send: Boolean(ctx.hadExistingInstall) };
 }
 
 // The development branch's alert keys, which no released version ever stored: the
@@ -267,13 +259,11 @@ var RETIRED_ALERT_KEYS = ['alertRain', 'alertUv', 'alertWind', 'alertGust', 'ale
  * VALUES only:
  *  - 'Show battery below 10%' off (batteryLowOnly false) unticks Battery everywhere;
  *  - 'Show quiet time icon' off (showQt false) unticks Quiet time;
- *  - the rain alert switched off (alertRain false — the alert-levels entry above writes
- *    it from a 1.23.2 window of Off, so this MUST run after it) unticks Rain;
  *  - radar mode 'Rain alert only' with Rain on no visible bar ticks it on the Watch
  *    Status Bar's right (on-demand.js placeRainForCountdown, the rule the settings
  *    page's forceRainOnDemand hook applies too).
  * It never unticks a default weather alert. Then the development branch's alert keys
- * go without being translated (RETIRED_ALERT_KEYS; no release stored them, so the dev
+ * are deleted, untranslated (RETIRED_ALERT_KEYS; no release stored them, so the dev
  * watch lands on the defaults). batteryLowOnly and showQt stay stored: aplite still
  * reads them, and every other watch ignores them. btIcons 'none' unticks nothing: its
  * Show value already says Never.
@@ -291,7 +281,6 @@ function migrateOnDemand(blob, ctx) {
     var i;
     if (blob.batteryLowOnly === false) { changed = onDemand.untickEverywhere(blob, 'battery') || changed; }
     if (blob.showQt === false) { changed = onDemand.untickEverywhere(blob, 'qt') || changed; }
-    if (blob.alertRain === false) { changed = onDemand.untickEverywhere(blob, 'rain') || changed; }
     changed = onDemand.placeRainForCountdown(blob) || changed;
     for (i = 0; i < RETIRED_ALERT_KEYS.length; i++) {
         if (Object.prototype.hasOwnProperty.call(blob, RETIRED_ALERT_KEYS[i])) {
@@ -302,15 +291,16 @@ function migrateOnDemand(blob, ctx) {
     if (changed) {
         console.log('Migrated the status bars onto On demand');
     }
-    return { changed: changed, send: Boolean(ctx && ctx.hadExistingInstall) };
+    return { changed: changed, send: Boolean(ctx.hadExistingInstall) };
 }
 
 module.exports = {
+    ALERT_LEVELS_STEPS: ALERT_LEVELS_STEPS,
     RETIRED_ALERT_KEYS: RETIRED_ALERT_KEYS,
     migrateOnDemand: migrateOnDemand,
     migrateAlertLevels: migrateAlertLevels,
     migrateThresholdHighlightToggles: migrateThresholdHighlightToggles,
     migrateWarnLook: migrateWarnLook,
-    migrateRainHorizonOff: migrateRainHorizonOff,
+    migrateRainWindowOff: migrateRainWindowOff,
     migrateTempSeparatorBar: migrateTempSeparatorBar
 };

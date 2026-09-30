@@ -34,16 +34,6 @@ test('holiday white-to-toggle: non-white color left untouched and marks done', (
     'nothing to migrate -> mark done so it never runs again');
 });
 
-test('holiday white-to-toggle: idempotent once the marker is set', () => {
-  const L = loadLedger({ holidaysEnabled: true, colorUSFederal: COLORS.white });
-  L.store[KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY] = '1'; // already migrated in a prior boot
-  const res = L.run(KEYS.HOLIDAY_WHITE_TO_TOGGLE_MIGRATION_KEY);
-  const read = L.read();
-  assert.equal(read.holidaysEnabled, true, 'must not touch settings after migration is done');
-  assert.equal(read.colorUSFederal, COLORS.white);
-  assert.equal(res.clayRequired, false);
-});
-
 test('the ledger with no stored settings is a no-op', () => {
   const L = loadLedger(null);
   const res = L.run();
@@ -62,14 +52,6 @@ test('holiday region keys: adopts the active country region and drops old keys',
   assert.equal('holidayRegionDE' in read, false, 'old DE key dropped');
   assert.equal('holidayRegionUS' in read, false, 'old US key dropped');
   assert.equal(L.store[KEYS.HOLIDAY_REGION_KEY_MIGRATION_KEY], '1', 'migration marked done');
-});
-
-test('holiday region keys: no-op when marker already set', () => {
-  const L = loadLedger({ holidayCountry: 'DE', holidayRegionDE: 'DE-BY' });
-  L.store[KEYS.HOLIDAY_REGION_KEY_MIGRATION_KEY] = '1';
-  L.run(KEYS.HOLIDAY_REGION_KEY_MIGRATION_KEY);
-  assert.equal('holidayRegionDE' in L.read(), true, 'left intact when already migrated');
-  assert.equal(L.saves.n, 0);
 });
 
 test('holiday region keys: region-less country -> holidayRegion stays all, stale keys dropped', () => {
@@ -142,13 +124,6 @@ test('status top-right battery: a custom top-right choice is preserved', () => {
   assert.equal(L.read().statusTopRight, 'uv');
 });
 
-test('status top-right battery: no-op when already migrated', () => {
-  const L = loadLedger({ statusTopRight: 'empty' });
-  L.store[KEYS.STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY] = '1';
-  L.run(KEYS.STATUS_TOP_RIGHT_BATTERY_MIGRATION_KEY);
-  assert.equal(L.read().statusTopRight, 'empty');
-});
-
 test('radar provider -> mode: disabled provider -> radarMode off + real provider', () => {
   const L = loadLedger({ radarProvider: 'disabled' });
   L.run(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY);
@@ -172,15 +147,6 @@ test('radar provider -> mode: already-set radarMode is left alone', () => {
   L.run(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY);
   assert.strictEqual(L.read().radarMode, 'countdown');
   assert.strictEqual(L.store[KEYS.RADAR_VIEW_MODE_MIGRATION_KEY], '1');
-});
-
-test('radar provider -> mode: skips when the marker is already set', () => {
-  const L = loadLedger({ radarProvider: 'disabled' });
-  L.store[KEYS.RADAR_VIEW_MODE_MIGRATION_KEY] = '1';
-  L.run(KEYS.RADAR_VIEW_MODE_MIGRATION_KEY);
-  const s = L.read();
-  assert.strictEqual(s.radarProvider, 'disabled');   // untouched — marker already done
-  assert.strictEqual(s.radarMode, undefined);
 });
 
 test('runMigrations gates by marker and defers the Clay-color marks to the ACK', () => {
@@ -469,20 +435,6 @@ test('the re-tune leaves every DARK graph colour alone', () => {
   darkKeys.forEach((k) => assert.equal(healed[k], before[k], `${k} untouched`));
 });
 
-test('a marked re-tune never re-fires', () => {
-  const store = installFakeStorage();
-  const mods = loadUpgradeModules();
-  const now = new Date(2026, 7, 26, 9, 0, 0);
-  seedPreRetuneInstall(store, mods.claySettings, mods.KEYS, now);
-  store[mods.KEYS.LIGHT_GRAPH_COLOR_RETUNE_MIGRATION_KEY] = '1';
-
-  mods.clayMigrations.runMigrations({
-    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
-
-  assert.equal(mods.claySettings.read().gcWindLineLight, 0xFFFF00,
-    'the old seeded value stands once the migration is marked done');
-});
-
 test('a NACKed re-tune retries even when one cell is a deliberate pick', () => {
   // The retry gate must key on "no cell still holds a superseded value", NOT on "every
   // cell reads as the built-in". A light install with ONE chosen colour never satisfies
@@ -757,14 +709,6 @@ test('fourth-line style default: an unused fourth line moves stripeTop -> x once
   });
 });
 
-test('fourth-line style default: idempotent once marked', () => {
-  const L = loadLedger({ fifthLine: 'off', fifthLineStyle: 'stripeTop' });
-  // A later stripeTop on an unused line was picked after the move.
-  L.store[KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY] = '1';
-  L.run(KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY);
-  assert.equal(L.read().fifthLineStyle, 'stripeTop');
-});
-
 // The real boot order: seedDefaults runs BEFORE the ledger (index.js), which is the trap
 // that once reset topViewMode. Here the backfill cannot mislead the move: it writes an
 // absent fifthLine as 'off' and an absent fifthLineStyle as the new default.
@@ -786,13 +730,6 @@ test('the fourth-line style move survives the boot order (seedDefaults, then the
     assert.equal(store[mods.KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY], '1', what + ': marked synchronously');
     res.commitDeferredMarkers();
   });
-  // A fresh install seeds the new default and has nothing to move.
-  const store = installFakeStorage();
-  const mods = loadUpgradeModules();
-  mods.claySettings.seedDefaults(COLORS);
-  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
-  assert.equal(mods.claySettings.read().fifthLineStyle, 'x', 'fresh install: x marks');
-  assert.equal(store[mods.KEYS.FIFTH_LINE_STYLE_DEFAULT_MIGRATION_KEY], '1');
 });
 
 // 1.23.1: a stripe only shows an intensity metric (line-style.js metricAllowsStripe), so
@@ -832,12 +769,6 @@ test('stripe-rule resend: resend exactly when a drawn line holds a stripe its me
     lineStyle.lineStyleByte({}, 'fifthLineStyle'), 'the fourth line resolves to its default, x marks');
   assert.notEqual(lineStyle.lineStyleByte({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, 'fifthLineStyle'),
     lineStyle.lineStyleByte({ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }, 'fifthLineStyle'));
-});
-
-test('stripe-rule resend: idempotent once marked', () => {
-  const L = loadLedger({ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' });
-  L.store[KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY] = '1';
-  assert.equal(L.run(KEYS.STRIPE_METRIC_RULE_RESEND_MIGRATION_KEY).clayRequired, false);
 });
 
 /**
@@ -921,13 +852,78 @@ test('resetAll marks the fourth-line style move done: the next blob is seeded wi
 });
 
 // --- 1.24.0: the alert levels (migrations/v1_24.js) ---------------------------------
-// One entry, ALERT_LEVELS_MIGRATION_KEY, runs three moves in order: the highlight
-// toggles, the warn look, the rain window's Off. The entry-level tests below run it
-// through the ledger ({only} the entry: marker, saves, clayRequired); a move's OWN send
-// verdict is read off its v1_24.js function, since the entry ORs the three.
+// One entry, ALERT_LEVELS_MIGRATION_KEY, runs five steps in order (ALERT_LEVELS_STEPS):
+// the highlight toggles, the warn look, the rain window's Off, the seed pairs back to
+// blank, the temperature separator. A step's own rule is tested on the step (stepOn);
+// what the steps do together, and the entry's send, through the ledger ({only} the
+// entry).
 const thresholdsContract = require('../src/pkjs/status-thresholds.js');
 const v124 = require('../src/pkjs/migrations/v1_24.js');
+const seedPairs = require('../src/pkjs/migrations/seed-pairs.js');
+const OD = require('../src/pkjs/on-demand.js');
+const { renderSignature } = require('../src/pkjs/render-signature.js');
+const {
+  SCENARIOS, runScenario, BLOB_1_23_1, THROUGH_1_23_1
+} = require('./helpers/clay-migration-golden.js');
 const ALERT_LEVELS = KEYS.ALERT_LEVELS_MIGRATION_KEY;
+const DEFAULT_RIGHT = 'battery,rain,gust,uv,aqi,wind';
+
+/**
+ * One alert-levels step over a stored blob, optionally after seedDefaults (the boot
+ * order).
+ * @param {Function} step An ALERT_LEVELS_STEPS function.
+ * @param {?Object} blob Stored settings (null: a fresh store).
+ * @param {boolean} [seeded] Run seedDefaults first.
+ * @returns {{changed: boolean, before: Object, read: Object}} before: the blob the step
+ *   got; read: what it left.
+ */
+function stepOn(step, blob, seeded) {
+  const L = loadLedger(blob);
+  if (seeded) { L.claySettings.seedDefaults(COLORS); }
+  const read = L.read();
+  return { changed: step(read), before: L.read(), read };
+}
+
+test('alert levels: the steps run in this order; the seed pins go blank after the switches read them', () => {
+  assert.deepEqual(v124.ALERT_LEVELS_STEPS, [v124.migrateThresholdHighlightToggles, v124.migrateWarnLook,
+    v124.migrateRainWindowOff, seedPairs.migrateSeedPairsToBlank, v124.migrateTempSeparatorBar]);
+  // A 1.23.1 install: the toggles derive each switch from its pair, so they must see the
+  // pinned pair before the seed-pairs step blanks it.
+  const L = loadLedger({ threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '150',
+    threshUvWarn: '6', threshUvDanger: '8' });
+  L.claySettings.seedDefaults(COLORS);
+  L.run(ALERT_LEVELS, { hadExistingInstall: true });
+  const read = L.read();
+  assert.strictEqual(read.threshAqiOn, true, 'AQI highlight stays on');
+  assert.strictEqual(read.threshUvOn, true, 'an ordered 1.23 pair switched UV on');
+  assert.deepEqual([read.threshAqiWarn, read.threshAqiDanger, read.threshUvWarn, read.threshUvDanger],
+    ['', '', '', ''], 'then both pins went blank');
+  const aqi = thresholdsContract.KINDS.findIndex((k) => k.key === 'Aqi');
+  assert.ok(thresholdsContract.kindConfig(read, aqi).enabled, 'the enable bit is still set');
+});
+
+test('alert levels: one Clay send on every existing install, even when storage does not change', () => {
+  // Every outline off, danger unset: nothing to write, but the watch still draws the old
+  // boxes from its pre-1.24 blob until the look bytes and the red danger arrive.
+  const L = loadLedger({ threshWindWarnOutlineOn: false });
+  assert.equal(L.run(ALERT_LEVELS, { hadExistingInstall: true }).clayRequired, true);
+  assert.equal(L.saves.n, 0, 'nothing to save');
+  const fresh = loadLedger({ threshWindWarnOutlineOn: false });
+  assert.equal(fresh.run(ALERT_LEVELS, { hadExistingInstall: false }).clayRequired, false,
+    'a fresh install sends its whole blob at boot anyway');
+});
+
+test('alert levels: each step is idempotent over its own output', () => {
+  const L = loadLedger(BLOB_1_23_1);
+  L.claySettings.seedDefaults(COLORS);
+  const blob = L.read();
+  v124.ALERT_LEVELS_STEPS.forEach((step) => {
+    assert.equal(step(blob), true, step.name + ': the 1.23.1 blob holds a shape it moves');
+    const once = JSON.stringify(blob);
+    assert.equal(step(blob), false, step.name + ': nothing left to move');
+    assert.equal(JSON.stringify(blob), once, step.name);
+  });
+});
 
 // thresh<K>On stops being page-derived state (onbuild re-derived it from the pair on every
 // open) and becomes the stored "highlight on" switch; the levels live on while it is off.
@@ -935,7 +931,7 @@ const ALERT_LEVELS = KEYS.ALERT_LEVELS_MIGRATION_KEY;
 // and blanks a half/inverted pair (which resolves to the seed anyway).
 
 test('highlight toggles: each toggle follows its pair; broken pairs blank', () => {
-  const L = loadLedger({
+  const { read } = stepOn(v124.migrateThresholdHighlightToggles, {
     // Ordered pair set in the old text fields, toggle never re-derived since → ON.
     threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8',
     // Blank pair (the old OFF blanked it) under a stale ON → OFF.
@@ -951,8 +947,6 @@ test('highlight toggles: each toggle follows its pair; broken pairs blank', () =
     // Comma decimals parse as the page and the pack parse them.
     threshDistanceOn: false, threshDistanceWarn: '4,5', threshDistanceDanger: '5'
   });
-  L.run(ALERT_LEVELS);
-  const read = L.read();
   assert.strictEqual(read.threshUvOn, true, 'ordered pair + OFF → ON');
   assert.deepEqual([read.threshUvWarn, read.threshUvDanger], ['6', '8'], 'its pair is kept');
   assert.strictEqual(read.threshWindOn, false, 'blank pair + ON → OFF');
@@ -972,14 +966,11 @@ test('highlight toggles: each toggle follows its pair; broken pairs blank', () =
   thresholdsContract.KINDS.filter((k) => k.boldOnly).forEach((k) => {
     assert.ok(!(('thresh' + k.key + 'On') in read), k.key + ': no toggle written');
   });
-  assert.equal(L.saves.n, 1, 'one save for the whole sweep');
-  assert.equal(L.store[ALERT_LEVELS], '1', 'marked synchronously');
 });
 
 test('highlight toggles: post-migration enable bits equal the pre-split pair rule', () => {
   // The watch holds blob[0] as packed before the split (enabled = pair ordered); the
-  // migration must land every kind on the same bit under the new rule (On && ordered),
-  // or it would owe the watch a Clay resend it does not ask for.
+  // step must land every kind on the same bit under the new rule (On && ordered).
   const blob = {
     threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8',
     threshWindOn: true, threshWindWarn: '', threshWindDanger: '',
@@ -990,165 +981,70 @@ test('highlight toggles: post-migration enable bits equal the pre-split pair rul
   const before = thresholdsContract.KINDS.map((k) => (k.boldOnly ? null
     : thresholdsContract.pairOrdered(thresholdsContract.parseThreshold(blob['thresh' + k.key + 'Warn']),
       thresholdsContract.parseThreshold(blob['thresh' + k.key + 'Danger']))));
-  const L = loadLedger(blob);
-  L.run(ALERT_LEVELS);
-  const read = L.read();
+  const { read } = stepOn(v124.migrateThresholdHighlightToggles, blob);
   thresholdsContract.KINDS.forEach((k, i) => {
     if (k.boldOnly) { return; }
     assert.equal(Boolean(thresholdsContract.kindConfig(read, i).enabled), before[i], k.key);
   });
-  assert.equal(v124.migrateThresholdHighlightToggles(Object.assign({}, blob)).send, false,
-    'so the move asks for no send of its own');
-});
-
-test('highlight toggles: idempotent once marked; nothing to change saves nothing', () => {
-  const L = loadLedger({ threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8' });
-  L.store[ALERT_LEVELS] = '1';   // a later OFF over a kept pair is the user's, never re-derived
-  L.run(ALERT_LEVELS);
-  assert.strictEqual(L.read().threshUvOn, false);
-  assert.equal(L.saves.n, 0, 'a marked ledger does not touch the blob');
-
-  // Unmarked, but every toggle already agrees with its pair: marked, no save.
-  const agree = loadLedger({
-    threshUvOn: true, threshUvWarn: '6', threshUvDanger: '8',
-    threshWindOn: false, threshWindWarn: '', threshWindDanger: ''
-  });
-  agree.run(ALERT_LEVELS);
-  assert.equal(agree.saves.n, 0, 'no save when nothing changes');
-  assert.equal(agree.store[ALERT_LEVELS], '1', 'still marked');
-
-  // A second run over its own output changes nothing either.
-  const twice = loadLedger({ threshGustOn: true, threshGustWarn: '8', threshGustDanger: '6' });
-  twice.run(ALERT_LEVELS);
-  const once = twice.read();
-  delete twice.store[ALERT_LEVELS];
-  twice.run(ALERT_LEVELS);
-  assert.deepEqual(twice.read(), once);
-  assert.equal(twice.saves.n, 1, 'only the first run saved');
 });
 
 test('the highlight-toggle backfill survives the boot order (seedDefaults, then the ledger)', () => {
-  // Fresh install: seedDefaults writes every toggle false and every pair '' → no-op.
-  let store = installFakeStorage();
-  let mods = loadUpgradeModules();
-  mods.claySettings.seedDefaults(COLORS);
-  const fresh = mods.claySettings.read();
-  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
-  assert.deepEqual(mods.claySettings.read(), fresh, 'a fresh seeded blob is left exactly as seeded');
-  assert.equal(store[ALERT_LEVELS], '1', 'and marked');
-
   // A pre-toggle blob holding only its pair: seedDefaults backfills On = false first
   // (the trap that makes "absent" unobservable) — keyed on the pair, it still lands ON.
-  store = installFakeStorage();
-  mods = loadUpgradeModules();
-  store['clay-settings'] = JSON.stringify({ theme: 'dark', threshUvWarn: '5', threshUvDanger: '9' });
-  mods.claySettings.seedDefaults(COLORS);
-  const seeded = mods.claySettings.read();
-  assert.strictEqual(seeded.threshUvOn, false, 'sanity: the backfill wrote false');
-  const res = mods.clayMigrations.runMigrations({
-    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true },
-  { only: ALERT_LEVELS });
-  assert.strictEqual(mods.claySettings.read().threshUvOn, true, 'the ordered pair wins');
-  assert.equal(store[ALERT_LEVELS], '1', 'marked synchronously');
-  assert.equal(v124.migrateThresholdHighlightToggles(seeded).send, false,
-    'no Clay send of its own: the watch already holds this enable bit');
-  assert.equal(res.clayRequired, true, 'the entry\'s send is the warn look\'s, owed to every existing install');
+  const L = loadLedger({ theme: 'dark', threshUvWarn: '5', threshUvDanger: '9' });
+  L.claySettings.seedDefaults(COLORS);
+  assert.strictEqual(L.read().threshUvOn, false, 'sanity: the backfill wrote false');
+  L.run(ALERT_LEVELS, { hadExistingInstall: true });
+  assert.strictEqual(L.read().threshUvOn, true, 'the ordered pair wins');
 });
 
-test('resetAll marks the alert-levels move done: a highlight OFF saved before the next boot stays OFF', () => {
-  // After "Reset watchface" the page can open and save before any boot: the wizard seeds
-  // AQI ON with its pair, the user switches it OFF (pair kept). Unmarked, the next boot
-  // would re-derive that OFF back to ON from the kept pair.
-  installFakeStorage();
-  const mods = loadUpgradeModules();
-  localStorage.setItem('clay-settings',
-    JSON.stringify({ threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '90' }));
-  mods.claySettings.resetAll(mods.clayMigrations.RESET_SAFE_MARKERS);
-  assert.equal(localStorage.getItem(ALERT_LEVELS), '1');
-  localStorage.setItem('clay-settings',
-    JSON.stringify({ threshAqiOn: false, threshAqiWarn: '100', threshAqiDanger: '150' }));
-  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
-  const read = mods.claySettings.read();
-  assert.strictEqual(read.threshAqiOn, false, 'the OFF survives the boot');
-  assert.deepEqual([read.threshAqiWarn, read.threshAqiDanger], ['100', '150'], 'the kept pair is still kept');
-});
+// The rain window's retired Off option: the window lands on its default, and Rain leaves
+// every bar unless radar mode 'Rain alert only' needs it.
 
-// The rain window's retired Off option. These entry-level runs leave hadExistingInstall
-// false, so the warn look's send is out of the picture and clayRequired is the window's.
-
-test('rain window Off: a stored Off window becomes 60 min with the rain alert off', () => {
+test('rain window Off: a stored Off window becomes 60 min, and Rain is unticked everywhere', () => {
   ['0', 0].forEach((off) => {
-    const L = loadLedger({ radarMode: 'graph', rainCountdownHorizon: off, alertRain: true });
-    const res = L.run(ALERT_LEVELS);
+    ['graph', 'off'].forEach((mode) => {
+      const what = JSON.stringify([off, mode]);
+      const { changed, read } = stepOn(v124.migrateRainWindowOff, { radarMode: mode,
+        rainCountdownHorizon: off, statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'rain,uv' });
+      assert.equal(changed, true, what);
+      assert.equal(read.rainCountdownHorizon, '60', what + ': the window lands on its default');
+      assert.equal(read.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind', what + ': off the default ticks');
+      assert.equal(read.statusForecastOnDemandLeftItems, 'uv', what + ': and off every other list');
+      assert.equal(OD.placedAnywhere(read, 'rain'), false, what + ': no rain alert, as the watch drew');
+      assert.ok(!('alertRain' in read), what + ': no rain switch is written');
+    });
+  });
+  const countdown = stepOn(v124.migrateRainWindowOff, { radarMode: 'countdown', rainCountdownHorizon: '0' });
+  assert.equal(countdown.read.rainCountdownHorizon, '60');
+  assert.equal(OD.placedAnywhere(countdown.read, 'rain'), true, 'Rain alert only keeps Rain ticked');
+});
+
+test('rain window Off: keyed on the window value — a real window is left alone', () => {
+  ['30', '60', '120', '', null].forEach((h) => {
+    const { changed, before, read } = stepOn(v124.migrateRainWindowOff, { radarMode: 'graph', rainCountdownHorizon: h });
+    assert.equal(changed, false, JSON.stringify(h));
+    assert.deepEqual(read, before, JSON.stringify(h) + ': nothing moves');
+  });
+});
+
+test('the rain-window move survives the boot order: the seeded ticks lose Rain outside Rain alert only', () => {
+  [['graph', 'battery,gust,uv,aqi,wind'], ['countdown', DEFAULT_RIGHT]].forEach(([mode, right]) => {
+    const L = loadLedger({ theme: 'dark', radarMode: mode, rainCountdownHorizon: '0' });
+    L.claySettings.seedDefaults(COLORS);
+    const res = L.run(ALERT_LEVELS, { hadExistingInstall: true });
     const read = L.read();
-    assert.equal(read.rainCountdownHorizon, '60', JSON.stringify(off) + ': the window lands on its default');
-    assert.strictEqual(read.alertRain, false, 'the switch now says what the watch drew: no rain alert');
-    assert.equal(res.clayRequired, false, 'no send: the switch off keeps sending horizon 0');
-    assert.equal(L.store[ALERT_LEVELS], '1', 'marked synchronously');
-  });
-});
-
-test('rain window Off: in Rain alert only the alert stays on, and the watch gets the window', () => {
-  const L = loadLedger({ radarMode: 'countdown', rainCountdownHorizon: '0', alertRain: true });
-  const res = L.run(ALERT_LEVELS);
-  const read = L.read();
-  assert.equal(read.rainCountdownHorizon, '60');
-  assert.strictEqual(read.alertRain, true, 'the mode holds the rain alert on');
-  assert.equal(res.clayRequired, true, 'the sent horizon moves 0 -> 60: a Clay send');
-});
-
-test('rain window Off: keyed on the window value — a real window, or a marked ledger, is left alone', () => {
-  ['30', '60', '120'].forEach((h) => {
-    const L = loadLedger({ radarMode: 'graph', rainCountdownHorizon: h, alertRain: true });
-    assert.equal(L.run(ALERT_LEVELS).clayRequired, false);
-    assert.equal(L.saves.n, 0, h + ': nothing saved');
-    assert.strictEqual(L.read().alertRain, true, h + ': the switch untouched');
-    assert.equal(L.store[ALERT_LEVELS], '1', h + ': still marked');
-  });
-  const marked = loadLedger({ radarMode: 'graph', rainCountdownHorizon: '0', alertRain: true });
-  marked.store[ALERT_LEVELS] = '1';
-  marked.run(ALERT_LEVELS);
-  assert.equal(marked.read().rainCountdownHorizon, '0', 'a marked ledger does not touch the blob');
-});
-
-test('the rain-window move survives the boot order and asks for a send only in Rain alert only', () => {
-  [['graph', false], ['countdown', true]].forEach(([mode, wantSend]) => {
-    const store = installFakeStorage();
-    const mods = loadUpgradeModules();
-    store['clay-settings'] = JSON.stringify({ theme: 'dark', radarMode: mode, rainCountdownHorizon: '0' });
-    // seedDefaults backfills alertRain (true) first — the reason the move keys on the
-    // window, not on the switch being absent.
-    mods.claySettings.seedDefaults(COLORS);
-    const seeded = mods.claySettings.read();
-    const res = mods.clayMigrations.runMigrations({
-      platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true },
-    { only: ALERT_LEVELS });
-    const read = mods.claySettings.read();
     assert.equal(read.rainCountdownHorizon, '60', mode);
-    assert.strictEqual(read.alertRain, wantSend, mode + ': the switch');
-    assert.equal(v124.migrateRainHorizonOff(seeded).send, wantSend, mode + ': the move\'s own send');
-    assert.equal(res.clayRequired, true, mode + ': the entry sends anyway (the warn look, existing install)');
-    assert.equal(store[ALERT_LEVELS], '1', mode + ': marked');
+    assert.equal(read.statusTopOnDemandRightItems, right, mode + ': the seeded right side');
+    assert.ok(!('alertRain' in read), mode + ': no rain switch');
+    assert.equal(res.clayRequired, true, mode + ': the entry\'s send carries the window');
   });
-});
-
-test('resetAll marks the alert-levels move done: the rain window is not moved again', () => {
-  installFakeStorage();
-  const mods = loadUpgradeModules();
-  localStorage.setItem('clay-settings', JSON.stringify({ rainCountdownHorizon: '0' }));
-  mods.claySettings.resetAll(mods.clayMigrations.RESET_SAFE_MARKERS);
-  assert.equal(localStorage.getItem(ALERT_LEVELS), '1');
-  // A blob saved before the next boot (none could hold '0' — the option is gone) is
-  // never rewritten by it.
-  localStorage.setItem('clay-settings', JSON.stringify({ rainCountdownHorizon: '0', alertRain: true }));
-  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
-  assert.equal(mods.claySettings.read().rainCountdownHorizon, '0', 'the marked ledger leaves it');
 });
 
 // The 'Outline on warn' toggle becomes the warn look.
 
 test('warn look: a weather outline that was on stays an outline; a goal outline that was off becomes none', () => {
-  const L = loadLedger({
+  const { read } = stepOn(v124.migrateWarnLook, {
     // Weather kinds: the stored toggle on → outline.
     threshWindWarnOutlineOn: true, threshWindWarnColor: 0xFFFFFF,
     // A pre-toggle (or not-yet-re-derived) blob: the colour alone drew the box.
@@ -1163,8 +1059,6 @@ test('warn look: a weather outline that was on stays an outline; a goal outline 
     // Goal outline on (the default) → left absent: the goal default is outline.
     threshDistanceWarnOutlineOn: true, threshDistanceWarnColor: 0x55FF00
   });
-  L.run(ALERT_LEVELS);
-  const read = L.read();
   assert.equal(read.threshWindWarnLook, 'outline', 'toggle on');
   assert.equal(read.threshGustWarnLook, 'outline', 'a picked colour drew the outline');
   assert.equal(read.threshUvWarnLook, 'outline', 'a hex colour too');
@@ -1175,41 +1069,24 @@ test('warn look: a weather outline that was on stays an outline; a goal outline 
   assert.equal(read.threshDistanceWarnLook, undefined, 'goal outline on: the default');
   assert.equal(read.threshTempWarnLook, undefined, 'bold-only kinds own no look');
   assert.strictEqual(read.threshWindWarnOutlineOn, true, 'the old toggle is left in place');
-  assert.equal(L.saves.n, 1);
-  assert.equal(L.store[ALERT_LEVELS], '1', 'marked synchronously');
   // What the watch is told matches what it drew before: outline where there was one,
   // no box for the goal kinds that had none.
   assert.equal(thresholdsContract.warnLookFor(read, 'Wind', false), 'outline');
   assert.equal(thresholdsContract.warnLookFor(read, 'Steps', true), 'none');
 });
 
-test('warn look: a stored look is the page\'s own truth; idempotent; a marked ledger is a no-op', () => {
-  const kept = loadLedger({ threshWindWarnOutlineOn: true, threshWindWarnLook: 'fill',
-    threshStepsWarnOutlineOn: false, threshStepsWarnLook: 'outline' });
-  kept.run(ALERT_LEVELS);
-  assert.equal(kept.read().threshWindWarnLook, 'fill');
-  assert.equal(kept.read().threshStepsWarnLook, 'outline');
-  assert.equal(kept.saves.n, 0, 'nothing to save');
-  assert.equal(kept.store[ALERT_LEVELS], '1');
-
-  const twice = loadLedger({ threshWindWarnOutlineOn: true, threshStepsWarnColor: '' });
-  twice.run(ALERT_LEVELS);
-  const once = twice.read();
-  delete twice.store[ALERT_LEVELS];
-  twice.run(ALERT_LEVELS);
-  assert.deepEqual(twice.read(), once);
-  assert.equal(twice.saves.n, 1, 'only the first run saved');
-
-  const marked = loadLedger({ threshWindWarnOutlineOn: true });
-  marked.store[ALERT_LEVELS] = '1';
-  marked.run(ALERT_LEVELS);
-  assert.equal(marked.read().threshWindWarnLook, undefined, 'the marked ledger leaves it');
+test('warn look: a stored look is the page\'s own truth', () => {
+  const { changed, read } = stepOn(v124.migrateWarnLook, { threshWindWarnOutlineOn: true,
+    threshWindWarnLook: 'fill', threshStepsWarnOutlineOn: false, threshStepsWarnLook: 'outline' });
+  assert.equal(read.threshWindWarnLook, 'fill');
+  assert.equal(read.threshStepsWarnLook, 'outline');
+  assert.equal(changed, false, 'nothing to move');
 });
 
 test('warn look: a weather danger that held the old auto text colour turns red', () => {
   // The page wrote the theme fg into every untouched danger colour; with warn filled
   // in that colour by default the two levels would draw the same box.
-  const L = loadLedger({
+  const { read } = stepOn(v124.migrateWarnLook, {
     threshWindDangerColor: 0xFFFFFF,       // the saved blob's int encoding
     threshGustDangerColor: 0x000000,       // light theme's fg
     threshUvDangerColor: '#ffffff',        // a string, any case
@@ -1217,92 +1094,65 @@ test('warn look: a weather danger that held the old auto text colour turns red',
     threshPollenDangerColor: '',           // unset: red at pack time already
     threshStepsDangerColor: 0xFFFFFF       // a goal kind keeps its own rule
   });
-  L.run(ALERT_LEVELS);
-  const read = L.read();
   assert.equal(read.threshWindDangerColor, 0xFF0000, 'white int → red int');
   assert.equal(read.threshGustDangerColor, 0xFF0000, 'black int → red int');
   assert.equal(read.threshUvDangerColor, '#FF0000', 'a string keeps its encoding');
   assert.equal(read.threshAqiDangerColor, 0x5500FF, 'a pick is left alone');
   assert.equal(read.threshPollenDangerColor, '', 'unset stays unset');
   assert.equal(read.threshStepsDangerColor, 0xFFFFFF, 'goal kinds are not touched');
-  assert.equal(L.saves.n, 1);
   const wind = thresholdsContract.kindConfig(read,
     thresholdsContract.KINDS.findIndex(k => k.key === 'Wind'), true);
   assert.equal(wind.dangerColor, 0xFF0000, 'the watch gets red');
   assert.notEqual(wind.warnColor, wind.dangerColor, 'and warn stays apart from it');
 });
 
-test('the warn-look move survives the boot order: a fresh seeded blob is a no-op, a legacy one moves', () => {
-  // Fresh install: seedDefaults writes weather warn colours '' and goal ones green,
-  // and no look (defaultFrom items are never seeded) → nothing to move.
-  let store = installFakeStorage();
-  let mods = loadUpgradeModules();
-  mods.claySettings.seedDefaults(COLORS);
-  const fresh = mods.claySettings.read();
-  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
-  assert.deepEqual(mods.claySettings.read(), fresh, 'a fresh seeded blob is left exactly as seeded');
-  assert.equal(fresh.threshWindWarnLook, undefined, 'the look is never seeded');
-  assert.equal(store[ALERT_LEVELS], '1', 'and marked');
-
+test('the warn-look move survives the boot order: a legacy blob moves', () => {
   // An existing 1.23 blob: weather outline on, a goal outline off — seedDefaults runs
   // first and backfills only absent keys, so the stored values still decide.
-  store = installFakeStorage();
-  mods = loadUpgradeModules();
-  store['clay-settings'] = JSON.stringify({ theme: 'dark',
+  const L = loadLedger({ theme: 'dark',
     threshAqiWarnOutlineOn: true, threshAqiWarnColor: 0xFFFFFF,
     threshSleepWarnOutlineOn: false, threshSleepWarnColor: '' });
-  mods.claySettings.seedDefaults(COLORS);
-  const opts = { platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true };
-  const res = mods.clayMigrations.runMigrations(opts, { only: ALERT_LEVELS });
-  const read = mods.claySettings.read();
+  L.claySettings.seedDefaults(COLORS);
+  assert.equal(L.read().threshWindWarnLook, undefined, 'the look is never seeded');
+  L.run(ALERT_LEVELS, { hadExistingInstall: true });
+  const read = L.read();
   assert.equal(read.threshAqiWarnLook, 'outline');
   assert.equal(read.threshSleepWarnLook, 'none');
   assert.equal(read.threshWindWarnLook, undefined, 'untouched kinds take the platform default');
-  assert.equal(store[ALERT_LEVELS], '1', 'marked synchronously');
-  assert.equal(res.clayRequired, true,
-    'one Clay send: the watch still holds the pre-1.24 blob without the look bytes');
-  const again = mods.clayMigrations.runMigrations(opts, { only: ALERT_LEVELS });
-  assert.equal(again.clayRequired, false, 'a marked migration never asks again');
 });
 
-test('warn look asks for a Clay send on an existing install even when storage does not change', () => {
-  // Every outline off, danger unset: nothing to write — but the watch still draws the
-  // old boxes from its pre-1.24 blob until the look bytes and the red danger arrive.
-  const L = loadLedger({ threshWindWarnOutlineOn: false });
-  assert.equal(L.run(ALERT_LEVELS, { hadExistingInstall: true }).clayRequired, true);
-  assert.equal(L.saves.n, 0, 'nothing to save');
-  assert.equal(L.store[ALERT_LEVELS], '1', 'marked synchronously');
-  const fresh = loadLedger({ threshWindWarnOutlineOn: false });
-  assert.equal(fresh.run(ALERT_LEVELS, { hadExistingInstall: false }).clayRequired, false,
-    'a fresh install sends its whole blob at boot anyway');
-});
-
-test('resetAll marks the alert-levels move done: a blank warn colour saved after it means auto', () => {
+// After "Reset watchface" the page can open and save before any boot, and every step would
+// misread what it saves as a 1.23 shape: resetAll marks the entry done.
+test('resetAll marks the alert levels done: what the page saves before the next boot stands', () => {
   installFakeStorage();
   const mods = loadUpgradeModules();
-  localStorage.setItem('clay-settings', JSON.stringify({ threshStepsWarnColor: '' }));
+  localStorage.setItem('clay-settings',
+    JSON.stringify({ threshAqiOn: true, threshAqiWarn: '50', threshAqiDanger: '90' }));
   mods.claySettings.resetAll(mods.clayMigrations.RESET_SAFE_MARKERS);
-  assert.equal(localStorage.getItem(ALERT_LEVELS), '1');
-  // The page saves before the next boot: a goal colour left blank (auto green) and a
-  // weather toggle residue must not be re-read as the old outline states.
-  localStorage.setItem('clay-settings', JSON.stringify({ threshStepsWarnColor: '',
-    threshWindWarnOutlineOn: true }));
+  const saved = {
+    threshAqiOn: false, threshAqiWarn: '100', threshAqiDanger: '150',  // the wizard's AQI switched OFF, pair kept
+    threshUvOn: true, threshUvWarn: '6', threshUvDanger: '8',           // dragged onto its seed
+    threshStepsWarnColor: '', threshWindWarnOutlineOn: true,             // an auto goal colour, a toggle residue
+    rainCountdownHorizon: '0',                                           // none can: the Off is gone
+    tempSlotSeparator: 'slash'                                           // picked on the 1.24.0 page
+  };
+  localStorage.setItem('clay-settings', JSON.stringify(saved));
   mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
   const read = mods.claySettings.read();
-  assert.equal(read.threshStepsWarnLook, undefined, 'the marked ledger leaves the goal kind');
-  assert.equal(read.threshWindWarnLook, undefined, 'and the weather kind');
+  Object.keys(saved).forEach((k) => assert.deepEqual(read[k], saved[k], k + ' stands'));
+  assert.equal(read.threshStepsWarnLook, undefined, 'the goal kind is not read as the old no-outline');
+  assert.equal(read.threshWindWarnLook, undefined, 'nor the weather kind as the old outline');
 });
 
 // --- 1.24.0 dev installs ----------------------------------------------------------
-// Dev builds of 1.24.0 ran the three moves under three markers of their own (the owner's
-// watch did), and never released them. The merged entry keeps the last of them as its
-// marker string, so those installs skip it instead of re-running it over what their
-// settings page has saved since.
-const {
-  SCENARIOS, runScenario, BLOB_1_23_1, THROUGH_1_23_1
-} = require('./helpers/clay-migration-golden.js');
+// Dev builds of 1.24.0 ran these moves under markers of their own (the owner's phone did)
+// and never released them. The alert levels keep the warn look's marker, which every dev
+// build since the three first moves merged has set, so those installs skip the entry
+// instead of re-running it over what their settings page has saved since.
 const DEV_1_24_MARKERS = ['v1.24.0_threshold_highlight_toggle_migration',
-  'v1.24.0_rain_horizon_off_migration', 'v1.24.0_warn_look_migration'];
+  'v1.24.0_rain_horizon_off_migration', 'v1.24.0_warn_look_migration',
+  'v1.24.0_seed_pair_blank_migration', 'v1.24.0_seed_pair_any_unit_migration',
+  'v1.24.0_temp_separator_bar_migration'];
 
 // Settings a 1.24.0 page saves that read exactly like the 1.23 shapes the moves convert.
 const SAVED_ON_THE_1_24_PAGE = {
@@ -1310,48 +1160,37 @@ const SAVED_ON_THE_1_24_PAGE = {
   threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8',   // switched OFF, pair kept
   threshWindWarnColor: 0x00AAFF,                               // picked under the default Fill look
   threshStepsWarnColor: '',                                    // a goal colour set back to auto
-  threshGustDangerColor: 0xFFFFFF                              // danger picked as the text colour
+  threshGustDangerColor: 0xFFFFFF,                             // danger picked as the text colour
+  tempSlotSeparator: 'slash'                                   // the slash picked again
 };
 
-test('a 1.24.0 dev install skips the alert-levels move: the merged marker is the last dev marker', () => {
+test('the owner\'s dev phone: the alert levels never re-run; On demand runs only where its marker is missing', () => {
   assert.equal(ALERT_LEVELS, DEV_1_24_MARKERS[2]);
-  const store = installFakeStorage();
-  const mods = loadUpgradeModules();
-  store['clay-settings'] = JSON.stringify(SAVED_ON_THE_1_24_PAGE);
-  mods.claySettings.seedDefaults(COLORS);
-  THROUGH_1_23_1.concat(DEV_1_24_MARKERS).forEach((k) => { store[k] = '1'; });
-  const saved = mods.claySettings.read();
-  const res = mods.clayMigrations.runMigrations({
-    platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
-  // The seed-pair move is newer than every dev marker, so it does run there: the UV
-  // pair the page pinned (6/8, UV's seed) goes back to blank. So does the On demand
-  // move: the dev branch's alert keys go (the dev watch lands on the On demand
-  // defaults), and the watch is sent the 48-B blob. Nothing else moves.
-  const expected = Object.assign({}, saved, { threshUvWarn: '', threshUvDanger: '' });
+  const boot = (marked) => {
+    const L = loadLedger(Object.assign({ alertRain: false, alertUv: true }, SAVED_ON_THE_1_24_PAGE));
+    L.claySettings.seedDefaults(COLORS);
+    marked.forEach((k) => { L.store[k] = '1'; });
+    const saved = L.read();
+    L.saves.n = 0;
+    const res = L.run(null, { platform: 'emery', hadExistingInstall: true });
+    return { L, saved, res, read: L.read() };
+  };
+  // A build from before the On demand move (296e5a9f): that move alone runs.
+  const older = boot(THROUGH_1_23_1.concat(DEV_1_24_MARKERS));
+  const expected = Object.assign({}, older.saved);
   v124.RETIRED_ALERT_KEYS.forEach((k) => { delete expected[k]; });
-  assert.deepEqual(mods.claySettings.read(), expected,
-    'every other setting saved on the 1.24.0 page stands');
-  assert.equal(res.clayRequired, true, 'the On demand move sends the 48-B blob');
-  assert.equal(store[KEYS.SEED_PAIR_BLANK_MIGRATION_KEY], '1');
-  assert.equal(store[KEYS.ON_DEMAND_MIGRATION_KEY], '1');
+  assert.deepEqual(older.read, expected, 'every setting saved on the 1.24.0 page stands; the dev keys go');
+  assert.equal(OD.placedAnywhere(older.read, 'rain'), true, 'a dev rain switch Off is not translated');
+  assert.equal(older.res.clayRequired, true, 'the On demand move sends the 48-B blob');
+  // The build on the phone today (2a5546c4) holds that marker too: nothing runs.
+  const today = boot(THROUGH_1_23_1.concat(DEV_1_24_MARKERS, [KEYS.ON_DEMAND_MIGRATION_KEY]));
+  assert.deepEqual(today.read, today.saved, 'nothing moves');
+  assert.equal(today.L.saves.n, 0, 'nothing is saved');
+  assert.equal(today.res.clayRequired, false, 'nothing is sent');
 });
 
-test('the alert-levels move is idempotent: a second run over its own output changes nothing', () => {
-  const L = loadLedger(null);
-  L.store['clay-settings'] = JSON.stringify(BLOB_1_23_1);
-  L.claySettings.seedDefaults(COLORS);
-  L.saves.n = 0;
-  L.run(ALERT_LEVELS, { hadExistingInstall: true });
-  const once = L.read();
-  assert.equal(L.saves.n, 1, 'the 1.23.1 shapes moved');
-  delete L.store[ALERT_LEVELS];
-  L.run(ALERT_LEVELS, { hadExistingInstall: true });
-  assert.deepEqual(L.read(), once);
-  assert.equal(L.saves.n, 1, 'nothing left to move on the second run');
-});
-
-test('the alert-levels move is not safe over settings saved on the 1.24.0 page, hence the dev marker', () => {
-  // The case the marker string exists for: run again (marker unset), the moves read the
+test('the alert levels are not safe over settings saved on the 1.24.0 page, hence the kept marker', () => {
+  // The case the marker string exists for: run again (marker unset), the steps read the
   // page's own settings as 1.23 shapes and undo them.
   const L = loadLedger(SAVED_ON_THE_1_24_PAGE);
   L.run(ALERT_LEVELS, { hadExistingInstall: true });
@@ -1360,15 +1199,20 @@ test('the alert-levels move is not safe over settings saved on the 1.24.0 page, 
   assert.equal(read.threshWindWarnLook, 'outline', 'the Fill look turns into an outline');
   assert.equal(read.threshStepsWarnLook, 'none', 'the auto goal colour loses its box');
   assert.equal(read.threshGustDangerColor, 0xFF0000, 'the text-colour danger turns red');
+  assert.equal(read.tempSlotSeparator, 'bar', 'the picked slash turns into the bar');
+  // The entry's own output is such settings too: the seed-pairs step leaves UV's pin blank
+  // under its switch, which the toggle step reads as the 1.23 OFF.
+  assert.deepEqual([read.threshUvWarn, read.threshUvDanger], ['', '']);
+  assert.equal(v124.migrateThresholdHighlightToggles(read), true);
+  assert.strictEqual(read.threshUvOn, false, 'a second run would switch the UV highlight off');
 });
 
 // --- 1.24.0: seed pairs back to blank (migrations/seed-pairs.js) ---------------------
 // The page used to pin the seed pair into storage when a highlight or Goals switch came
 // on over a blank pair (and the wizard did so for AQI); a pinned pair then kept the
-// unit it was pinned under. The entry blanks every pair equal to one of its kind's seeds,
+// unit it was pinned under. The step blanks every pair equal to one of its kind's seeds,
 // in any unit or AQI scale; blank resolves to the seed in effect.
-const SEED_PAIRS = KEYS.SEED_PAIR_BLANK_MIGRATION_KEY;
-const { renderSignature } = require('../src/pkjs/render-signature.js');
+const blankSeeds = seedPairs.migrateSeedPairsToBlank;
 const pairOf = (read, stem) => [read['thresh' + stem + 'Warn'], read['thresh' + stem + 'Danger']];
 const resolved = (stem, blob) => {
   const p = thresholdsContract.resolvedPair(stem, blob);
@@ -1390,9 +1234,8 @@ const PINNED_AND_MOVED = {
 };
 
 test('seed pairs: a pair equal to the seed in effect goes blank; a moved or half pair stays', () => {
-  const L = loadLedger(PINNED_AND_MOVED);
-  const res = L.run(SEED_PAIRS);
-  const read = L.read();
+  const { changed, read } = stepOn(blankSeeds, PINNED_AND_MOVED);
+  assert.equal(changed, true);
   ['Uv', 'Aqi', 'Wind', 'Sleep', 'Distance'].forEach((stem) =>
     assert.deepEqual(pairOf(read, stem), ['', ''], stem + ': the seed pin goes blank'));
   assert.deepEqual(pairOf(read, 'Gust'), ['40', '50'], 'a moved pair is kept');
@@ -1400,9 +1243,6 @@ test('seed pairs: a pair equal to the seed in effect goes blank; a moved or half
   assert.deepEqual(pairOf(read, 'Pollen'), ['2', ''], 'a half pair is kept');
   ['Uv', 'Aqi', 'Wind', 'Gust', 'Sleep', 'Steps'].forEach((stem) =>
     assert.strictEqual(read['thresh' + stem + 'On'], true, stem + ': the switch is not touched'));
-  assert.equal(res.clayRequired, false, 'nothing the watch receives changes');
-  assert.equal(L.store[SEED_PAIRS], '1', 'marked now');
-  assert.equal(L.saves.n, 1);
 });
 
 test('seed pairs: a pin under the unit in effect leaves the bytes and the refetch signature put', () => {
@@ -1412,11 +1252,7 @@ test('seed pairs: a pin under the unit in effect leaves the bytes and the refetc
       threshAqiWarn: '60', threshAqiDanger: '80', threshWindWarn: '20', threshWindDanger: '30',
       threshGustWarn: '30', threshGustDanger: '50' })
   ].forEach((blob, n) => {
-    const L = loadLedger(blob);
-    L.claySettings.seedDefaults(COLORS);
-    const before = L.read();
-    L.run(SEED_PAIRS);
-    const after = L.read();
+    const { before, read: after } = stepOn(blankSeeds, blob, true);
     [{ color: true }, { color: false }].forEach((env) => {
       assert.deepEqual(thresholdsContract.buildSettingsBlob(after, env),
         thresholdsContract.buildSettingsBlob(before, env), n + ': CLAY_THRESHOLDS_UINT8');
@@ -1441,11 +1277,7 @@ const PINNED_UNDER_ANOTHER_UNIT = {
 };
 
 test('seed pairs: a pin under another unit or AQI scale goes blank and takes the seed in effect', () => {
-  const L = loadLedger(PINNED_UNDER_ANOTHER_UNIT);
-  L.claySettings.seedDefaults(COLORS);
-  const before = L.read();
-  const res = L.run(SEED_PAIRS);
-  const after = L.read();
+  const { before, read: after } = stepOn(blankSeeds, PINNED_UNDER_ANOTHER_UNIT, true);
   ['Aqi', 'Wind', 'Gust'].forEach((stem) =>
     assert.deepEqual(pairOf(after, stem), ['', ''], stem + ': another unit\'s seed goes blank'));
   assert.deepEqual(resolved('Aqi', before), [100, 150], 'the pin was judged on the EU scale');
@@ -1453,14 +1285,8 @@ test('seed pairs: a pin under another unit or AQI scale goes blank and takes the
   assert.deepEqual(resolved('Wind', after), [25, 40], 'the mph seed, not 40/60 read as mph');
   assert.deepEqual(resolved('Gust', after), [40, 55], 'the mph seed, not the knots pair');
   // A weather kind's pair rides no Clay byte: the phone bakes its levels, so the next
-  // fetch carries the move and no Clay send is due.
-  [{ color: true }, { color: false }].forEach((env) => {
-    assert.deepEqual(thresholdsContract.buildSettingsBlob(after, env),
-      thresholdsContract.buildSettingsBlob(before, env), 'CLAY_THRESHOLDS_UINT8');
-  });
-  assert.equal(res.clayRequired, false, 'no Clay byte moves');
+  // fetch carries the move.
   assert.notEqual(renderSignature(after), renderSignature(before), 'the bake reads new levels');
-  assert.equal(L.store[SEED_PAIRS], '1', 'marked now');
 });
 
 test('seed pairs: a pair that mixes two units\' seeds, or was moved off one, stays', () => {
@@ -1471,31 +1297,23 @@ test('seed pairs: a pair that mixes two units\' seeds, or was moved off one, sta
     threshGustWarn: '60', threshGustDanger: '91',            // kph seed, danger moved
     threshDistanceOn: true, threshDistanceWarn: '2.5', threshDistanceDanger: '5' // mi close, km goal
   };
-  const L = loadLedger(blob);
-  const res = L.run(SEED_PAIRS);
-  const read = L.read();
+  const { changed, read } = stepOn(blankSeeds, blob);
   ['Wind', 'Aqi', 'Gust', 'Distance'].forEach((stem) =>
     assert.deepEqual(pairOf(read, stem), pairOf(blob, stem), stem + ': kept'));
-  assert.equal(res.clayRequired, false);
-  assert.equal(L.saves.n, 0, 'nothing to save');
-  assert.equal(L.store[SEED_PAIRS], '1', 'marked now');
+  assert.equal(changed, false, 'nothing to move');
 });
 
-test('seed pairs: goal kinds — only Distance has a seed per unit, and its move asks for a Clay send', () => {
+test('seed pairs: goal kinds — only Distance has a seed per unit, and its move reaches the Clay blob', () => {
   // Steps and sleep have one seed each, so their pin resolves to the same goal blank.
   // Distance has a km and a mi seed, and the watch levels the health trio itself from
   // the Clay blob's u16s, so a switched-on goal pinned in km on a miles install moves
-  // bytes the watch holds.
-  const L = loadLedger({
+  // bytes the watch holds; the alert-levels entry's send carries them.
+  const { before, read: after } = stepOn(blankSeeds, {
     distanceUnits: 'imperial',
     threshStepsOn: true, threshStepsWarn: '8000', threshStepsDanger: '10000',
     threshSleepOn: true, threshSleepWarn: '6.5', threshSleepDanger: '7.5',
     threshDistanceOn: true, threshDistanceWarn: '4', threshDistanceDanger: '5'   // km seed under mi
-  });
-  L.claySettings.seedDefaults(COLORS);
-  const before = L.read();
-  const res = L.run(SEED_PAIRS);
-  const after = L.read();
+  }, true);
   ['Steps', 'Sleep', 'Distance'].forEach((stem) =>
     assert.deepEqual(pairOf(after, stem), ['', ''], stem + ': the seed pin goes blank'));
   assert.deepEqual(resolved('Steps', after), resolved('Steps', before), 'steps: the same goal');
@@ -1508,38 +1326,10 @@ test('seed pairs: goal kinds — only Distance has a seed per unit, and its move
   };
   assert.deepEqual(u16s(before), [64, 80], '4/5 mi in 100 m units');
   assert.deepEqual(u16s(after), [40, 48], '2.5/3 mi in 100 m units');
-  assert.equal(res.clayRequired, true, 'the moved goal is resent');
-  assert.equal(L.store[SEED_PAIRS], '1', 'marked now, like the alert-levels send');
-});
-
-test('seed pairs: a blanked Distance pin asks for no send when no Clay byte moves', () => {
-  [
-    // Goals off: the u16s pack 0 either way.
-    { distanceUnits: 'imperial', threshDistanceOn: false,
-      threshDistanceWarn: '4', threshDistanceDanger: '5' },
-    // The km seed on a km install: the same numbers blank.
-    { distanceUnits: 'metric', threshDistanceOn: true,
-      threshDistanceWarn: '4', threshDistanceDanger: '5' },
-    // The mi seed pinned on a miles install.
-    { distanceUnits: 'imperial', threshDistanceOn: true,
-      threshDistanceWarn: '2.5', threshDistanceDanger: '3' }
-  ].forEach((blob, n) => {
-    const L = loadLedger(blob);
-    L.claySettings.seedDefaults(COLORS);
-    const before = L.read();
-    const res = L.run(SEED_PAIRS);
-    const after = L.read();
-    assert.deepEqual(pairOf(after, 'Distance'), ['', ''], n + ': blanked');
-    assert.deepEqual(thresholdsContract.buildSettingsBlob(after),
-      thresholdsContract.buildSettingsBlob(before), n + ': CLAY_THRESHOLDS_UINT8');
-    assert.equal(res.clayRequired, false, n + ': no send');
-  });
 });
 
 test('seed pairs: blanked pins follow a later unit or AQI-scale change', () => {
-  const L = loadLedger(PINNED_AND_MOVED);
-  L.run(SEED_PAIRS);
-  const read = L.read();
+  const { read } = stepOn(blankSeeds, PINNED_AND_MOVED);
   read.aqiSource = 'openmeteo';
   read.windUnits = 'kph';
   assert.deepEqual(thresholdsContract.seedPair('Aqi', read), { warn: 60, danger: 80 });
@@ -1549,57 +1339,20 @@ test('seed pairs: blanked pins follow a later unit or AQI-scale change', () => {
   assert.deepEqual([wind.warn, wind.danger], [40, 60], 'the kph seed, not the pinned mph pair');
 });
 
-test('seed pairs: runs after the alert-levels move, so a 1.23.1 pin still reads as highlight on', () => {
-  // A 1.23.1 install: the alert-levels move derives each switch from its pair, so it
-  // must see the pinned pair before this entry blanks it (registry order).
-  const L = loadLedger({ threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '150',
-    threshUvWarn: '6', threshUvDanger: '8' });
-  L.claySettings.seedDefaults(COLORS);
-  THROUGH_1_23_1.forEach((k) => { L.store[k] = '1'; });
-  L.run(null, { hadExistingInstall: true });
-  const read = L.read();
-  assert.strictEqual(read.threshAqiOn, true, 'AQI highlight stays on');
-  assert.strictEqual(read.threshUvOn, true, 'an ordered 1.23 pair switched UV on');
-  assert.deepEqual([read.threshAqiWarn, read.threshAqiDanger, read.threshUvWarn, read.threshUvDanger],
-    ['', '', '', ''], 'then both pins went blank');
-  const aqi = thresholdsContract.KINDS.findIndex((k) => k.key === 'Aqi');
-  assert.ok(thresholdsContract.kindConfig(read, aqi).enabled, 'the enable bit is still set');
-});
-
-test('seed pairs: a fresh install is a no-op, and a second run changes nothing', () => {
-  const fresh = loadLedger(null);
-  fresh.claySettings.seedDefaults(COLORS);
-  fresh.saves.n = 0;
-  fresh.run(SEED_PAIRS);
-  assert.equal(fresh.saves.n, 0, 'seedDefaults writes blank pairs, which stay');
-  const L = loadLedger(PINNED_AND_MOVED);
-  L.run(SEED_PAIRS);
-  const once = L.read();
-  delete L.store[SEED_PAIRS];
-  L.run(SEED_PAIRS);
-  assert.deepEqual(L.read(), once);
-  assert.equal(L.saves.n, 1, 'nothing left to blank on the second run');
-});
-
 // --- 1.24.0: the temperature pair's separator moves to the bar (migrations/v1_24.js) --
 // The temp slot's Both pair defaults to the bar ('12|10') from 1.24.0 on, and every
-// stored 'slash' moves with it once. Keyed on the stored value; no Clay send (the
-// separator is phone-baked slot text, already in renderSignature).
-const TEMP_SEPARATOR = KEYS.TEMP_SEPARATOR_BAR_MIGRATION_KEY;
-const { renderSignature: tempSignature } = require('../src/pkjs/render-signature.js');
+// stored 'slash' moves with it once. Keyed on the stored value; the separator is
+// phone-baked slot text, already in renderSignature.
 
 test('temp separator: a stored slash becomes the bar, spaces and all', () => {
-  const L = loadLedger({ tempSlotDisplay: 'both', tempSlotSeparator: 'slash',
-    tempSlotSeparatorSpaced: true, uvSlotSeparator: 'slash', windSlotSeparator: 'slash' });
-  const res = L.run(TEMP_SEPARATOR);
-  const read = L.read();
+  const { changed, read } = stepOn(v124.migrateTempSeparatorBar, { tempSlotDisplay: 'both',
+    tempSlotSeparator: 'slash', tempSlotSeparatorSpaced: true, uvSlotSeparator: 'slash',
+    windSlotSeparator: 'slash' });
+  assert.equal(changed, true);
   assert.equal(read.tempSlotSeparator, 'bar', '12/10 becomes 12|10');
   assert.strictEqual(read.tempSlotSeparatorSpaced, true, 'the Spaces flag stays: 12 | 10');
   assert.equal(read.uvSlotSeparator, 'slash', 'the day-max kinds keep their own separator');
   assert.equal(read.windSlotSeparator, 'slash');
-  assert.equal(res.clayRequired, false, 'no Clay send: the next bake shows it');
-  assert.equal(L.store[TEMP_SEPARATOR], '1', 'marked now');
-  assert.equal(L.saves.n, 1);
 });
 
 test('temp separator: every other stored value, and an absent one, stays', () => {
@@ -1607,52 +1360,23 @@ test('temp separator: every other stored value, and an absent one, stays', () =>
     { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '/' },
     { tempSlotSeparator: 'custom', tempSlotSeparatorCustom: '' }, { theme: 'dark' }
   ].forEach((blob) => {
-    const L = loadLedger(blob);
-    const res = L.run(TEMP_SEPARATOR);
-    assert.deepEqual(L.read(), blob, JSON.stringify(blob));
-    assert.equal(L.saves.n, 0, JSON.stringify(blob) + ': nothing to save');
-    assert.equal(res.clayRequired, false);
-    assert.equal(L.store[TEMP_SEPARATOR], '1', JSON.stringify(blob) + ': marked all the same');
+    const { changed, read } = stepOn(v124.migrateTempSeparatorBar, blob);
+    assert.deepEqual(read, blob, JSON.stringify(blob));
+    assert.equal(changed, false, JSON.stringify(blob) + ': nothing to move');
   });
 });
 
-test('temp separator: survives the boot order, a fresh install is a no-op, a rerun changes nothing', () => {
-  // Fresh install: seedDefaults writes the new default 'bar' first.
-  const fresh = loadLedger(null);
-  fresh.claySettings.seedDefaults(COLORS);
-  assert.equal(fresh.read().tempSlotSeparator, 'bar', 'seeded with the bar');
-  fresh.saves.n = 0;
-  fresh.run(TEMP_SEPARATOR);
-  assert.equal(fresh.saves.n, 0, 'nothing to move');
+test('temp separator: survives the boot order, and the slot text re-bakes', () => {
   // A 1.23.2 install: the old page stored the slash; seedDefaults leaves it, the
   // entry moves it, and the bake that reads it changes (the refetch signature moves).
   const L = loadLedger({ theme: 'dark', tempSlotDisplay: 'both', tempSlotSeparator: 'slash' });
   L.claySettings.seedDefaults(COLORS);
   const before = L.read();
   assert.equal(before.tempSlotSeparator, 'slash', 'sanity: seedDefaults keeps a stored value');
-  L.run(TEMP_SEPARATOR, { hadExistingInstall: true });
+  L.run(ALERT_LEVELS, { hadExistingInstall: true });
   const after = L.read();
   assert.equal(after.tempSlotSeparator, 'bar');
-  assert.notEqual(tempSignature(after), tempSignature(before), 'the slot text re-bakes');
-  delete L.store[TEMP_SEPARATOR];
-  L.saves.n = 0;
-  L.run(TEMP_SEPARATOR);
-  assert.deepEqual(L.read(), after, 'a rerun changes nothing');
-  assert.equal(L.saves.n, 0);
-  assert.deepEqual(v124.migrateTempSeparatorBar({ tempSlotSeparator: 'slash' }),
-    { changed: true, send: false });
-  assert.deepEqual(v124.migrateTempSeparatorBar({}), { changed: false, send: false });
-});
-
-test('temp separator: Reset watchface marks it done, so a slash picked after the reset stays', () => {
-  installFakeStorage();
-  const mods = loadUpgradeModules();
-  localStorage.setItem('clay-settings', JSON.stringify({ tempSlotSeparator: 'bar' }));
-  mods.claySettings.resetAll(mods.clayMigrations.RESET_SAFE_MARKERS);
-  assert.equal(localStorage.getItem(TEMP_SEPARATOR), '1');
-  localStorage.setItem('clay-settings', JSON.stringify({ tempSlotSeparator: 'slash' }));
-  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
-  assert.equal(mods.claySettings.read().tempSlotSeparator, 'slash', 'the 1.24.0 page\'s pick survives');
+  assert.notEqual(renderSignature(after), renderSignature(before), 'the slot text re-bakes');
 });
 
 // --- 1.24.0: the status bars move onto On demand (migrations/v1_24.js) ---------------
@@ -1661,7 +1385,6 @@ test('temp separator: Reset watchface marks it done, so a slash picked after the
 // move carries over the 1.23.2 switches against them, places Rain for 'Rain alert only',
 // and deletes the dev branch's alert keys. One Clay send on every existing install.
 const ON_DEMAND = KEYS.ON_DEMAND_MIGRATION_KEY;
-const DEFAULT_RIGHT = 'battery,rain,gust,uv,aqi,wind';
 
 /**
  * A 1.23.2 install booted into 1.24.0: its blob stored, seedDefaults run, then the
@@ -1679,7 +1402,7 @@ function upgradeOnDemand(blob, opts) {
 }
 
 test('on demand: a seeded 1.23.2 install keeps the default ticks and asks for one Clay send', () => {
-  const { L, res, read } = upgradeOnDemand({ theme: 'dark', showQt: true, batteryLowOnly: true, radarMode: 'graph' });
+  const { res, read } = upgradeOnDemand({ theme: 'dark', showQt: true, batteryLowOnly: true, radarMode: 'graph' });
   assert.equal(read.statusTopOnDemandRight, 'on');
   assert.equal(read.statusTopOnDemandRightItems, DEFAULT_RIGHT,
     'the owner\'s weather alerts arrive switched on: the move never unticks one');
@@ -1687,35 +1410,22 @@ test('on demand: a seeded 1.23.2 install keeps the default ticks and asks for on
   assert.equal(read.statusForecastOnDemandLeft, 'off');
   assert.equal(read.statusForecastOnDemandLeftItems, '');
   assert.equal(res.clayRequired, true, 'the watch needs the 48-B blob');
-  assert.equal(L.store[ON_DEMAND], '1', 'marked now');
 });
 
-test('on demand: the 1.23.2 battery, quiet-time and rain switches untick their items', () => {
+test('on demand: the 1.23.2 battery and quiet-time switches untick their items', () => {
   const battery = upgradeOnDemand({ batteryLowOnly: false }).read;
   assert.equal(battery.statusTopOnDemandRightItems, 'rain,gust,uv,aqi,wind');
   assert.strictEqual(battery.batteryLowOnly, false, 'the aplite key stays stored');
   const qt = upgradeOnDemand({ showQt: false }).read;
   assert.equal(qt.statusTopOnDemandLeftItems, 'bt,snooze');
   assert.strictEqual(qt.showQt, false, 'the aplite key stays stored');
-  // A 1.23.2 rain window of Off: the alert-levels entry (earlier in the ledger) wrote
-  // alertRain false from it, which this entry reads and then deletes.
-  const L = loadLedger({ theme: 'dark', radarMode: 'graph', rainCountdownHorizon: '0' });
-  L.claySettings.seedDefaults(COLORS);
-  L.run(KEYS.ALERT_LEVELS_MIGRATION_KEY, { hadExistingInstall: true });
-  assert.strictEqual(L.read().alertRain, false, 'premise: the window Off became the rain switch off');
-  L.run(ON_DEMAND, { hadExistingInstall: true });
-  const rain = L.read();
-  assert.equal(rain.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind',
-    'Rain unticked; the default weather alerts stay');
-  assert.ok(!('alertRain' in rain), 'and the switch is gone');
   // The removals reach every list that holds the item.
   const everywhere = upgradeOnDemand({ batteryLowOnly: false, statusHealthOnDemandLeftItems: 'battery,uv' }).read;
   assert.equal(everywhere.statusHealthOnDemandLeftItems, 'uv');
 });
 
 test('on demand: Rain alert only places Rain on the Watch Status Bar\'s right when no visible bar shows it', () => {
-  // The alert-levels entry keeps the rain switch on in this mode, so Rain stays ticked
-  // by default and nothing moves.
+  // Rain stays ticked by default in this mode, so nothing moves.
   const kept = upgradeOnDemand({ radarMode: 'countdown' }).read;
   assert.equal(kept.statusTopOnDemandRightItems, DEFAULT_RIGHT);
   // Rain unticked on the right and ticked only on a Disabled left: placed on the right.
@@ -1742,7 +1452,7 @@ test('on demand: Rain alert only places Rain on the Watch Status Bar\'s right wh
 });
 
 test('on demand: the dev branch\'s alert keys are deleted without being translated', () => {
-  const blob = { alertRain: true, alertUv: true, alertWind: false, alertGust: true, alertAqi: false,
+  const blob = { alertRain: false, alertUv: true, alertWind: false, alertGust: true, alertAqi: false,
     alertPollen: true, statusTopAlerts: 'right', statusForecastAlerts: 'middle',
     statusRadarAlerts: 'off', statusHealthAlerts: 'left', alertUvDisplay: 'value' };
   const { read } = upgradeOnDemand(blob);
@@ -1753,33 +1463,16 @@ test('on demand: the dev branch\'s alert keys are deleted without being translat
     'alertPollen', 'statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts']);
 });
 
-test('on demand: a fresh install is a no-op with no send; aplite keeps its switches; a rerun changes nothing', () => {
-  const fresh = loadLedger(null);
-  fresh.claySettings.seedDefaults(COLORS);
-  fresh.saves.n = 0;
-  const res = fresh.run(ON_DEMAND);
-  assert.equal(fresh.saves.n, 0, 'nothing to move');
-  assert.equal(res.clayRequired, false, 'no existing install, no send');
-  assert.equal(fresh.store[ON_DEMAND], '1');
-  // aplite: its 1.23.2 switches stay stored (it still reads them); only the new and the
-  // retired keys are touched.
+test('on demand: aplite keeps its 1.23.2 switches stored', () => {
+  // aplite still reads them; only the new and the retired keys are touched.
   const aplite = upgradeOnDemand({ showQt: false, batteryLowOnly: false }, { platform: 'aplite' });
   assert.strictEqual(aplite.read.showQt, false);
   assert.strictEqual(aplite.read.batteryLowOnly, false);
-  // A rerun over its own output changes nothing.
-  const once = upgradeOnDemand({ showQt: false, batteryLowOnly: false, alertUv: true, radarMode: 'countdown',
-    statusTopOnDemandRightItems: 'uv' });
-  delete once.L.store[ON_DEMAND];
-  once.L.saves.n = 0;
-  once.L.run(ON_DEMAND, { hadExistingInstall: true });
-  assert.deepEqual(once.L.read(), once.read, 'idempotent');
-  assert.equal(once.L.saves.n, 0);
 });
 
 // The owner's upgrade check, through the whole ledger in boot order: a 1.23.2 install
 // with Quiet time off, the low-battery switch off and the rain window Off.
 test('on demand: the 1.23.2 upgrade the owner checks, through the whole ledger', () => {
-  const { THROUGH_1_23_1 } = require('./helpers/clay-migration-golden.js');
   const store = installFakeStorage();
   const mods = loadUpgradeModules();
   store['clay-settings'] = JSON.stringify({ theme: 'dark', radarMode: 'graph', showQt: false,
@@ -1804,7 +1497,6 @@ test('on demand: Reset watchface marks it done, so ticks picked after the reset 
   const mods = loadUpgradeModules();
   localStorage.setItem('clay-settings', JSON.stringify({ statusTopOnDemandRightItems: DEFAULT_RIGHT }));
   mods.claySettings.resetAll(mods.clayMigrations.RESET_SAFE_MARKERS);
-  assert.equal(localStorage.getItem(ON_DEMAND), '1');
   localStorage.setItem('clay-settings', JSON.stringify({ showQt: false, statusTopOnDemandLeftItems: 'bt,qt' }));
   mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
   assert.equal(mods.claySettings.read().statusTopOnDemandLeftItems, 'bt,qt', 'the 1.24.0 page\'s pick survives');
@@ -1824,8 +1516,7 @@ test('every registry entry has a unique marker declared in storage-keys.js, and 
     assert.equal(typeof e.run, 'function', e.key + ': run');
   });
   const values = Object.keys(KEYS).map((n) => KEYS[n]);
-  // The seed-pair entry's first string ran only on dev builds, under a narrower rule.
-  DEV_1_24_MARKERS.slice(0, 2).concat(['v1.24.0_seed_pair_blank_migration']).forEach((k) =>
+  DEV_1_24_MARKERS.filter((k) => k !== ALERT_LEVELS).forEach((k) =>
     assert.equal(values.indexOf(k), -1, k + ': a never-released dev marker is not declared'));
 });
 
@@ -1847,15 +1538,92 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v1.23.1_fifth_line_style_default_migration', 'now', true],
     ['v1.23.1_stripe_metric_rule_resend_migration', 'ack', false],
     ['v1.24.0_warn_look_migration', 'now', true],
-    ['v1.24.0_seed_pair_any_unit_migration', 'now', true],
-    ['v1.24.0_temp_separator_bar_migration', 'now', true],
     ['v1.24.0_on_demand_migration', 'now', true]
   ]);
+});
+
+// The properties every entry owes, checked once over the golden's boots (fresh installs,
+// 1.23.1 upgrades, marker-less legacy installs) and a freshly seeded blob per platform
+// rather than entry by entry.
+const FRESH = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'].map((platform) => ({
+  name: 'fresh seeded install, ' + platform, platform, hadExistingInstall: false, blob: null, marked: [] }));
+const BOOTS = SCENARIOS.concat(FRESH);
+
+/**
+ * One boot of a scenario: its blob stored, its markers set, seedDefaults, the ledger.
+ * @param {Object} scenario A SCENARIOS or FRESH entry.
+ * @param {string[]} [marked] Markers to set instead of the scenario's own.
+ * @returns {{L: Object, seeded: Object, res: Object, opts: Object}} seeded: the blob the
+ *   ledger got; opts: the run options, for a second run.
+ */
+function bootOnce(scenario, marked) {
+  const L = loadLedger(scenario.blob);
+  (marked || scenario.marked).forEach((k) => { L.store[k] = '1'; });
+  L.claySettings.seedDefaults(COLORS);
+  const seeded = L.read();
+  L.saves.n = 0;
+  const opts = { platform: scenario.platform, hadExistingInstall: scenario.hadExistingInstall };
+  return { L, seeded, res: L.run(null, opts), opts };
+}
+
+test('every entry: a fresh seeded blob is a no-op on every platform', () => {
+  FRESH.forEach((sc) => {
+    const { L, seeded } = bootOnce(sc);
+    assert.deepEqual(L.read(), seeded, sc.name + ': left as seeded');
+    assert.equal(L.saves.n, 0, sc.name + ': nothing saved');
+  });
+});
+
+test('every entry: once marked it never runs, whatever the blob holds', () => {
+  const all = REGISTRY.map((e) => e.key);
+  BOOTS.forEach((sc) => {
+    const { L, seeded, res } = bootOnce(sc, all);
+    assert.deepEqual(L.read(), seeded, sc.name + ': left as seeded');
+    assert.equal(L.saves.n, 0, sc.name + ': nothing saved');
+    assert.equal(res.clayRequired, false, sc.name + ': nothing sent');
+  });
+});
+
+test('every entry: one boot and its ACK mark it, and the next boot is a no-op', () => {
+  BOOTS.forEach((sc) => {
+    const { L, res, opts } = bootOnce(sc);
+    res.commitDeferredMarkers();
+    REGISTRY.forEach((e) => assert.equal(L.store[e.key], '1', sc.name + ': ' + e.key + ' marked'));
+    const once = L.read();
+    L.saves.n = 0;
+    assert.equal(L.run(null, opts).clayRequired, false, sc.name + ': nothing sent again');
+    assert.deepEqual(L.read(), once, sc.name + ': nothing moves again');
+    assert.equal(L.saves.n, 0, sc.name + ': nothing saved again');
+  });
+});
+
+// An entry that ran keys on stored values and leaves nothing for itself to do: with its
+// marker cleared, a re-run over the boot's output changes nothing. The alert levels are
+// the exception by design: their output is what the 1.24.0 page saves, which reads like
+// the 1.23 shapes they convert (see 'the alert levels are not safe over settings saved on
+// the 1.24.0 page'), so only the marker guards them.
+test('every entry but the alert levels: a re-run over the boot\'s output changes nothing', () => {
+  BOOTS.forEach((sc) => {
+    const { L, opts } = bootOnce(sc);
+    const out = L.read();
+    REGISTRY.filter((e) => e.key !== ALERT_LEVELS && sc.marked.indexOf(e.key) === -1).forEach((e) => {
+      delete L.store[e.key];
+      L.saves.n = 0;
+      L.run(e.key, opts);
+      assert.deepEqual(L.read(), out, sc.name + ': ' + e.key);
+      assert.equal(L.saves.n, 0, sc.name + ': ' + e.key + ' saves nothing');
+    });
+  });
+});
+
+test('every reset-safe entry, and no other, is marked by Reset watchface', () => {
   const clayMigrations = require('../src/pkjs/clay-migrations');
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
-    'v1.24.0_seed_pair_any_unit_migration', 'v1.24.0_temp_separator_bar_migration',
     'v1.24.0_on_demand_migration']);
+  const L = loadLedger({ theme: 'dark' });
+  L.claySettings.resetAll(L.clayMigrations.RESET_SAFE_MARKERS);
+  REGISTRY.forEach((e) => assert.equal(L.store[e.key], e.markOnReset ? '1' : undefined, e.key));
 });
 
 test('the registry runner reproduces the pre-registry runner on every golden boot', () => {

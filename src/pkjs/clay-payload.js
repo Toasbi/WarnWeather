@@ -9,8 +9,6 @@ var paletteWire = require('./weather/palette-wire.js');
 var viewCycle = require('./view-cycle.js');
 var resolveInk = require('./resolve-ink.js').resolveInk;
 var statusThresholds = require('./status-thresholds.js');
-// Whether the rain alert is placed on a status bar (the horizon rule below).
-var onDemand = require('./on-demand.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
@@ -205,11 +203,9 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_RAIN_COUNTDOWN_HORIZON": (function() {
             // The rain alert's window, resolved by the contract that owns its default.
             // A radar that fetches nothing (radar mode 'off') sends horizon 0, the
-            // watch's "no countdown", and so does a Rain item ticked on no Enabled On
-            // demand side. A known aplite has no On demand: it keeps the window as it
-            // always had (it compiles the radar out and never draws it anyway).
+            // watch's "no countdown". Whether Rain draws at all is its On demand cell
+            // (CLAY_THRESHOLDS_UINT8), not this value.
             if ((settings.radarMode || 'graph') === 'off') { return 0; }
-            if (env.onDemand && !onDemand.placedAnywhere(settings, 'rain', env)) { return 0; }
             return statusThresholds.rainAlert(settings).horizonMin;
         })(),
         // Health-graph HR line scale, packed lo | (hi << 8) — both ends are <= 220,

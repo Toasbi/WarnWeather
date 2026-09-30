@@ -2,9 +2,11 @@
 // test/clay-migrations.golden.json. That file holds what the pre-registry runner
 // (the hand-threaded clay-migrations.js at c676e1f5) made of each scenario, so the
 // registry runner is pinned to the old behaviour: the migrated blob, clayRequired,
-// and which markers are set by the run and which by the Clay ACK. The old runner's
-// three 1.24.0 dev markers are folded into ALERT_LEVELS_MIGRATION_KEY, whose string
-// is the last of them.
+// and which markers are set by the run and which by the Clay ACK. The 1.24.0 moves
+// run in ALERT_LEVELS_MIGRATION_KEY, whose string is the last of the old runner's
+// three dev markers. Its replay was updated deliberately once since, when the seed
+// pairs and the temperature separator became steps of it and the rain window's Off
+// stopped writing a rain switch (it unticks Rain instead).
 //
 // The golden must NOT be regenerated from the current runner to make a failure go
 // away: a diff there is a behaviour change on real installs. Change a scenario only
@@ -15,21 +17,23 @@ const REGISTRY = require('../../src/pkjs/migrations/registry.js');
 
 const COLORS = { white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF };
 
-// The entries added after the golden was recorded. The golden pins what the
-// pre-registry runner did, so every scenario runs with these already marked (they
-// never run, and never show among the markers a run sets); their own tests cover them.
-const AFTER_GOLDEN = [KEYS.SEED_PAIR_BLANK_MIGRATION_KEY, KEYS.TEMP_SEPARATOR_BAR_MIGRATION_KEY,
-  KEYS.ON_DEMAND_MIGRATION_KEY];
+const ALERT_LEVELS_AT = REGISTRY.findIndex((e) => e.key === KEYS.ALERT_LEVELS_MIGRATION_KEY);
 
-// Every marker a 1.23.1 install holds: the whole ledger but the 1.24.0 entries.
-const THROUGH_1_23_1 = REGISTRY.map((e) => e.key).filter((k) =>
-  k !== KEYS.ALERT_LEVELS_MIGRATION_KEY && AFTER_GOLDEN.indexOf(k) === -1);
+// Every marker a 1.23.1 install holds: the ledger before the 1.24.0 entries.
+const THROUGH_1_23_1 = REGISTRY.slice(0, ALERT_LEVELS_AT).map((e) => e.key);
+
+// The entries added after the golden was recorded: every one after ALERT_LEVELS. The
+// golden pins what the pre-registry runner did, so every scenario runs with these
+// already marked (they never run, and never show among the markers a run sets); their
+// own tests cover them.
+const AFTER_GOLDEN = REGISTRY.slice(ALERT_LEVELS_AT + 1).map((e) => e.key);
 
 // A 1.23.1 blob carrying every shape the 1.24.0 moves convert, plus shapes the
 // already-marked older entries would have moved (the no-rain text, the stripe).
 const BLOB_1_23_1 = {
   theme: 'dark', radarMode: 'countdown', radarProvider: 'dwd', rainCountdownHorizon: '0',
   radarNoRainText: 'No rain ahead', fifthLine: 'pressure', fifthLineStyle: 'stripeTop',
+  tempSlotSeparator: 'slash',
   threshUvOn: false, threshUvWarn: '6', threshUvDanger: '8', threshUvWarnOutlineOn: false,
   threshUvWarnColor: '', threshUvDangerColor: 0xFFFFFF,
   threshWindOn: true, threshWindWarn: '', threshWindDanger: '', threshWindWarnOutlineOn: true,
