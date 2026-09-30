@@ -177,6 +177,6 @@
   },
   "1.24.0": {
     "title": "On demand",
-    "body": "Battery, Bluetooth, quiet time and weather alerts now show at a status bar's edge only while they matter. The rain, UV, wind, gust and air quality alerts come switched on. Change them in the Status slots tab, under On demand. (Not on Pebble Classic/Steel.)"
+    "body": "Battery, Bluetooth, quiet time and weather alerts now show at a status bar's edge only while they matter. The rain, UV index, wind gust, wind speed and air quality alerts come switched on. Change them in the Status slots tab, under On demand. (Not on Pebble Classic/Steel.)"
   }
 }
