@@ -3317,7 +3317,7 @@ test('every day-max Value selection row carries its by-value hints; AQI adds its
       + ' After it, tomorrow\'s peak with Tomorrow\'s peak mark, or the reading when tomorrow\'s'
       + ' isn\'t known.' + never,
     both: 'The ' + noun + ' now and the highest left today, like ' + sample + ', while that peak'
-      + ' is still ahead or happening now. After it, the second number is tomorrow\'s peak with'
+      + ' is still ahead or happening now. After it, tomorrow\'s peak takes its place with'
       + ' Tomorrow\'s peak mark, or the reading shows alone when tomorrow\'s isn\'t known.' + never
   });
   assert.deepEqual(['uv', 'wind', 'gust', 'aqi'].map((p) => byKey(p + 'SlotDisplay').hintByValue), [

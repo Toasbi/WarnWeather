@@ -1765,7 +1765,7 @@ test('the rain alert sheet: the unplaced note, the time window and the look — 
   // The unplaced note (its predicate is pinned by the page tests).
   assert.equal(s.items[0].type, 'staticText');
   assert.equal(s.items[0].style, 'info');
-  assert.equal(s.items[0].text, 'Rain isn’t ticked on any status bar’s On demand side, so the rain icon won’t show.');
+  assert.equal(s.items[0].text, 'No Enabled On demand side of a status bar has Rain ticked, so the rain icon won’t show.');
   assert.deepEqual(s.items[1], {
     type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Time window', defaultValue: '60',
     options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],
@@ -1985,7 +1985,7 @@ test('dayMaxHint: Now gets no hint; Day max and Both each explain themselves alo
     + ' known. Tomorrow\'s peak never triggers Alert highlighting.');
   assert.equal(dayMaxHintOf('uv', {}, 'both'),
     'The UV index now and the highest left today, like 3/7, while that peak is still ahead or'
-    + ' happening now. After it, the second number is tomorrow\'s peak with Tomorrow\'s peak'
+    + ' happening now. After it, tomorrow\'s peak takes its place with Tomorrow\'s peak'
     + ' mark, or the reading shows alone when tomorrow\'s isn\'t known. Tomorrow\'s peak never'
     + ' triggers Alert highlighting.');
 });

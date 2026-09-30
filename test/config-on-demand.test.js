@@ -429,8 +429,8 @@ test('no Watch Status Bar on the Default view and no On demand items on its bars
   assert.ok(shows(Object.assign({ healthMode: 'off' }, health)), 'a health seat folded away does not count');
 });
 
-const SHEET_NOTE = 'Rain isn’t ticked on any status bar’s On demand side, so the rain icon won’t show.';
-const RADAR_NOTE = '‘Rain alert only’ fetches the radar for the rain icon, but no status bar’s On demand side has Rain ticked.';
+const SHEET_NOTE = 'No Enabled On demand side of a status bar has Rain ticked, so the rain icon won’t show.';
+const RADAR_NOTE = '‘Rain alert only’ fetches the radar for the rain icon, but no Enabled On demand side of a status bar has Rain ticked.';
 
 test('the rain notes: the Rain sheet\'s in any fetching radar mode, the Radar tab\'s in Rain alert only', () => {
   const inSheet = (cfg) => {

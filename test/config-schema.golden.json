@@ -3823,7 +3823,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "‘Rain alert only’ fetches the radar for the rain icon, but no status bar’s On demand side has Rain ticked.",
+                "text": "‘Rain alert only’ fetches the radar for the rain icon, but no Enabled On demand side of a status bar has Rain ticked.",
                 "showWhen": {
                   "all": [
                     {
@@ -6070,7 +6070,7 @@
                 "label": "Value selection",
                 "hintByValue": {
                   "max": "The highest air quality index left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
-                  "both": "The air quality index now and the highest left today, like 42/58, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
+                  "both": "The air quality index now and the highest left today, like 42/58, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
                 "defaultValue": "current",
                 "options": [
@@ -6092,7 +6092,7 @@
                   "args": {
                     "hints": {
                       "max": "The highest air quality index left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
-                      "both": "The air quality index now and the highest left today, like 42/58, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
+                      "both": "The air quality index now and the highest left today, like 42/58, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                     },
                     "notes": {
                       "key": "aqiSource",
@@ -6709,7 +6709,7 @@
                 "label": "Value selection",
                 "hintByValue": {
                   "max": "The highest wind left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
-                  "both": "The wind now and the highest left today, like 12/30, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
+                  "both": "The wind now and the highest left today, like 12/30, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
                 "defaultValue": "current",
                 "options": [
@@ -7114,7 +7114,7 @@
                 "label": "Value selection",
                 "hintByValue": {
                   "max": "The highest gusts left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
-                  "both": "The gusts now and the highest left today, like 20/45, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
+                  "both": "The gusts now and the highest left today, like 20/45, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
                 "defaultValue": "current",
                 "options": [
@@ -7519,7 +7519,7 @@
                 "label": "Value selection",
                 "hintByValue": {
                   "max": "The highest UV index left today, while that peak is still ahead or happening now. After it, tomorrow's peak with Tomorrow's peak mark, or the reading when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting.",
-                  "both": "The UV index now and the highest left today, like 3/7, while that peak is still ahead or happening now. After it, the second number is tomorrow's peak with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
+                  "both": "The UV index now and the highest left today, like 3/7, while that peak is still ahead or happening now. After it, tomorrow's peak takes its place with Tomorrow's peak mark, or the reading shows alone when tomorrow's isn't known. Tomorrow's peak never triggers Alert highlighting."
                 },
                 "defaultValue": "current",
                 "options": [
@@ -9770,7 +9770,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Rain isn’t ticked on any status bar’s On demand side, so the rain icon won’t show.",
+                "text": "No Enabled On demand side of a status bar has Rain ticked, so the rain icon won’t show.",
                 "showWhen": {
                   "all": [
                     {

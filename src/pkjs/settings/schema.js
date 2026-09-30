@@ -727,9 +727,10 @@ function dayMaxRows(prefix, copy, now, max) {
  * A day-max kind's Day max and Both hints. Each claim is wire-units dayMaxShown's:
  * today's peak (the rest of today, the current hour included) shows while it is still
  * ahead or happening now; then tomorrow's peak, carrying Tomorrow's peak mark, or —
- * unknown or never above 0 — the reading alone. The closing sentence is
- * status-thresholds displayValue's: the slot's Alert highlighting judges today's
- * numbers only.
+ * unknown or never above 0 — the reading alone. The Both hint never says which number
+ * of the pair the peak is: the Order row below it can put the max first. The closing
+ * sentence is status-thresholds displayValue's: the slot's Alert highlighting judges
+ * today's numbers only.
  * @param {string} noun What the kind measures, without an article, e.g. 'UV index'.
  * @param {string} sample The kind's sample pair, e.g. '3/7'.
  * @returns {{max: string, both: string}} The two hints.
@@ -741,8 +742,8 @@ function dayMaxHints(noun, sample) {
             + 'now. After it, tomorrow\'s peak with Tomorrow\'s peak mark, or the reading when '
             + 'tomorrow\'s isn\'t known.' + never,
         both: 'The ' + noun + ' now and the highest left today, like ' + sample + ', while that '
-            + 'peak is still ahead or happening now. After it, the second number is tomorrow\'s '
-            + 'peak with Tomorrow\'s peak mark, or the reading shows alone when tomorrow\'s isn\'t '
+            + 'peak is still ahead or happening now. After it, tomorrow\'s peak takes its place '
+            + 'with Tomorrow\'s peak mark, or the reading shows alone when tomorrow\'s isn\'t '
             + 'known.' + never
     };
 }
@@ -1180,23 +1181,27 @@ var DEFAULT_VIEW_NO_ON_DEMAND_WHEN = {any: [
 var RAIN_PLACED_WHEN = placedWhen('rain');
 var RAIN_VISIBLE_WHEN = placedWhen('rain', ['top', 'forecast', 'health']);
 /**
- * The Rain sheet's note while Rain is ticked on no bar. Broad on purpose — any radar
- * mode but Off: inside the Rain sheet the user is looking at the rain alert. A fresh
- * object per call, like every item.
+ * The Rain sheet's note while no Enabled On demand side of an existing bar ticks Rain.
+ * Broad on purpose — any radar mode but Off: inside the Rain sheet the user is looking
+ * at the rain alert. The copy names what placedWhen checks, the Enabled side too: a
+ * Disabled side keeps its ticks but hides them (and its Edit button), so "Rain isn't
+ * ticked" would be false there and point at the wrong fix. A fresh object per call,
+ * like every item.
  * @returns {Object} The info-box staticText.
  */
 function rainUnplacedNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'Rain isn’t ticked on any status bar’s On demand side, so the rain icon won’t show.',
+        text: 'No Enabled On demand side of a status bar has Rain ticked, so the rain icon won’t show.',
         showWhen: {all: [{key: 'radarMode', ne: 'off'}, ON_DEMAND_WHEN, {not: RAIN_PLACED_WHEN}]}
     };
 }
 /**
  * The Radar tab's note in radar mode 'Rain alert only', the mode that fetches the radar
- * for the rain icon alone, while no bar that exists in it ticks Rain. Narrower than the
- * Rain sheet's: a user in 'Status' or 'Graph' mode who unticked Rain chose that. A fresh
+ * for the rain icon alone, while no Enabled side of a bar that exists in it ticks Rain
+ * (worded like the Rain sheet's note, for the same reason). Narrower than the Rain
+ * sheet's: a user in 'Status' or 'Graph' mode who unticked Rain chose that. A fresh
  * object per call, like every item.
  * @returns {Object} The info-box staticText.
  */
@@ -1204,7 +1209,7 @@ function rainAlertUnshownNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: '‘Rain alert only’ fetches the radar for the rain icon, but no status bar’s On demand side has Rain ticked.',
+        text: '‘Rain alert only’ fetches the radar for the rain icon, but no Enabled On demand side of a status bar has Rain ticked.',
         showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: RAIN_VISIBLE_WHEN}]}
     };
 }
