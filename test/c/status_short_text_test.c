@@ -286,6 +286,10 @@ static const char *const CITY_VECTORS[][5] = {
     { "New York City", "N. York City", "N. Y. City", NULL },
     { "A Coruña", NULL },
     { "St. Gallen", "S. Gallen", NULL },
+    // Already an initial (what the phone bakes into an edge slot, W12): it stays as it
+    // is, so no member repeats the one before.
+    { "B. Soden", NULL },
+    { "Frankfurt a. Main", "Frankfurt a. M.", NULL },
     { "Ulm", NULL },
     { "--", NULL },
 };
