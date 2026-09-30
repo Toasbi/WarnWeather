@@ -113,5 +113,14 @@ module.exports = [
     // shows it. Reset-safe: the next blob is seeded with 'bar', so a 'slash' saved
     // before the next boot was picked on the 1.24.0 page and must stay.
     { key: KEYS.TEMP_SEPARATOR_BAR_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: v124.migrateTempSeparatorBar }
+      run: v124.migrateTempSeparatorBar },
+    // 1.24.0: the status bars move onto On demand (the ticks carried over from the
+    // 1.23.2 battery, quiet-time and rain switches; the dev branch's alert keys deleted).
+    // MUST run after the alert-levels entry: that one writes alertRain from a 1.23.2 rain
+    // window of Off, which this one reads. Marks now though it asks for a send on every
+    // existing install (see clay-migrations.js on the scheduler). Reset-safe: the next
+    // blob is seeded with the On demand defaults, and a list or a side saved before the
+    // next boot is the 1.24.0 page's own pick.
+    { key: KEYS.ON_DEMAND_MIGRATION_KEY, markOn: 'now', markOnReset: true,
+      run: v124.migrateOnDemand }
 ];

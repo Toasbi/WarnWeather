@@ -18,7 +18,8 @@ const COLORS = { white: 0xFFFFFF, folly: 0xFF0055, holiday: 0x0055FF };
 // The entries added after the golden was recorded. The golden pins what the
 // pre-registry runner did, so every scenario runs with these already marked (they
 // never run, and never show among the markers a run sets); their own tests cover them.
-const AFTER_GOLDEN = [KEYS.SEED_PAIR_BLANK_MIGRATION_KEY, KEYS.TEMP_SEPARATOR_BAR_MIGRATION_KEY];
+const AFTER_GOLDEN = [KEYS.SEED_PAIR_BLANK_MIGRATION_KEY, KEYS.TEMP_SEPARATOR_BAR_MIGRATION_KEY,
+  KEYS.ON_DEMAND_MIGRATION_KEY];
 
 // Every marker a 1.23.1 install holds: the whole ledger but the 1.24.0 entries.
 const THROUGH_1_23_1 = REGISTRY.map((e) => e.key).filter((k) =>

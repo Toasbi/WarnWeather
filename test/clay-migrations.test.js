@@ -1324,12 +1324,16 @@ test('a 1.24.0 dev install skips the alert-levels move: the merged marker is the
   const res = mods.clayMigrations.runMigrations({
     platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow', hadExistingInstall: true });
   // The seed-pair move is newer than every dev marker, so it does run there: the UV
-  // pair the page pinned (6/8, UV's seed) goes back to blank. Nothing else moves.
+  // pair the page pinned (6/8, UV's seed) goes back to blank. So does the On demand
+  // move: the dev branch's alert keys go (the dev watch lands on the On demand
+  // defaults), and the watch is sent the 48-B blob. Nothing else moves.
   const expected = Object.assign({}, saved, { threshUvWarn: '', threshUvDanger: '' });
+  v124.RETIRED_ALERT_KEYS.forEach((k) => { delete expected[k]; });
   assert.deepEqual(mods.claySettings.read(), expected,
     'every other setting saved on the 1.24.0 page stands');
-  assert.equal(res.clayRequired, false);
+  assert.equal(res.clayRequired, true, 'the On demand move sends the 48-B blob');
   assert.equal(store[KEYS.SEED_PAIR_BLANK_MIGRATION_KEY], '1');
+  assert.equal(store[KEYS.ON_DEMAND_MIGRATION_KEY], '1');
 });
 
 test('the alert-levels move is idempotent: a second run over its own output changes nothing', () => {
@@ -1651,6 +1655,161 @@ test('temp separator: Reset watchface marks it done, so a slash picked after the
   assert.equal(mods.claySettings.read().tempSlotSeparator, 'slash', 'the 1.24.0 page\'s pick survives');
 });
 
+// --- 1.24.0: the status bars move onto On demand (migrations/v1_24.js) ---------------
+// seedDefaults has already written the side keys with the defaults into every install,
+// upgraded ones included (the owner's call: the weather alerts arrive switched on). The
+// move carries over the 1.23.2 switches against them, places Rain for 'Rain alert only',
+// and deletes the dev branch's alert keys. One Clay send on every existing install.
+const ON_DEMAND = KEYS.ON_DEMAND_MIGRATION_KEY;
+const DEFAULT_RIGHT = 'battery,rain,gust,uv,aqi,wind';
+
+/**
+ * A 1.23.2 install booted into 1.24.0: its blob stored, seedDefaults run, then the
+ * On demand entry alone.
+ * @param {Object} blob The stored 1.23.2 blob.
+ * @param {Object} [opts] runMigrations options (hadExistingInstall true by default).
+ * @returns {{L: Object, res: Object, read: Object}}
+ */
+function upgradeOnDemand(blob, opts) {
+  const L = loadLedger(blob);
+  L.claySettings.seedDefaults(COLORS);
+  L.saves.n = 0;
+  const res = L.run(ON_DEMAND, Object.assign({ hadExistingInstall: true }, opts));
+  return { L, res, read: L.read() };
+}
+
+test('on demand: a seeded 1.23.2 install keeps the default ticks and asks for one Clay send', () => {
+  const { L, res, read } = upgradeOnDemand({ theme: 'dark', showQt: true, batteryLowOnly: true, radarMode: 'graph' });
+  assert.equal(read.statusTopOnDemandRight, 'on');
+  assert.equal(read.statusTopOnDemandRightItems, DEFAULT_RIGHT,
+    'the owner\'s weather alerts arrive switched on: the move never unticks one');
+  assert.equal(read.statusTopOnDemandLeftItems, 'bt,qt,snooze');
+  assert.equal(read.statusForecastOnDemandLeft, 'off');
+  assert.equal(read.statusForecastOnDemandLeftItems, '');
+  assert.equal(res.clayRequired, true, 'the watch needs the 48-B blob');
+  assert.equal(L.store[ON_DEMAND], '1', 'marked now');
+});
+
+test('on demand: the 1.23.2 battery, quiet-time and rain switches untick their items', () => {
+  const battery = upgradeOnDemand({ batteryLowOnly: false }).read;
+  assert.equal(battery.statusTopOnDemandRightItems, 'rain,gust,uv,aqi,wind');
+  assert.strictEqual(battery.batteryLowOnly, false, 'the aplite key stays stored');
+  const qt = upgradeOnDemand({ showQt: false }).read;
+  assert.equal(qt.statusTopOnDemandLeftItems, 'bt,snooze');
+  assert.strictEqual(qt.showQt, false, 'the aplite key stays stored');
+  // A 1.23.2 rain window of Off: the alert-levels entry (earlier in the ledger) wrote
+  // alertRain false from it, which this entry reads and then deletes.
+  const L = loadLedger({ theme: 'dark', radarMode: 'graph', rainCountdownHorizon: '0' });
+  L.claySettings.seedDefaults(COLORS);
+  L.run(KEYS.ALERT_LEVELS_MIGRATION_KEY, { hadExistingInstall: true });
+  assert.strictEqual(L.read().alertRain, false, 'premise: the window Off became the rain switch off');
+  L.run(ON_DEMAND, { hadExistingInstall: true });
+  const rain = L.read();
+  assert.equal(rain.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind',
+    'Rain unticked; the default weather alerts stay');
+  assert.ok(!('alertRain' in rain), 'and the switch is gone');
+  // The removals reach every list that holds the item.
+  const everywhere = upgradeOnDemand({ batteryLowOnly: false, statusHealthOnDemandLeftItems: 'battery,uv' }).read;
+  assert.equal(everywhere.statusHealthOnDemandLeftItems, 'uv');
+});
+
+test('on demand: Rain alert only places Rain on the Watch Status Bar\'s right when no visible bar shows it', () => {
+  // The alert-levels entry keeps the rain switch on in this mode, so Rain stays ticked
+  // by default and nothing moves.
+  const kept = upgradeOnDemand({ radarMode: 'countdown' }).read;
+  assert.equal(kept.statusTopOnDemandRightItems, DEFAULT_RIGHT);
+  // Rain unticked on the right and ticked only on a Disabled left: placed on the right.
+  const placed = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRightItems: 'battery',
+    statusTopOnDemandLeft: 'off', statusTopOnDemandLeftItems: 'bt,rain' }).read;
+  assert.equal(placed.statusTopOnDemandRightItems, 'battery,rain');
+  assert.equal(placed.statusTopOnDemandRight, 'on');
+  assert.equal(placed.statusTopOnDemandLeftItems, 'bt', 'unticked from the left');
+  // A Disabled right side is enabled for it.
+  const enabled = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRight: 'off' }).read;
+  assert.equal(enabled.statusTopOnDemandRight, 'on');
+  assert.equal(enabled.statusTopOnDemandRightItems, DEFAULT_RIGHT);
+  // Visible on the forecast bar: left alone. On the radar bar (never shown in this
+  // mode): placed.
+  const forecast = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRightItems: 'battery',
+    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'rain' }).read;
+  assert.equal(forecast.statusTopOnDemandRightItems, 'battery');
+  const radar = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRightItems: 'battery',
+    statusRadarOnDemandLeft: 'on', statusRadarOnDemandLeftItems: 'rain' }).read;
+  assert.equal(radar.statusTopOnDemandRightItems, 'battery,rain');
+  // Another radar mode never places it.
+  const graph = upgradeOnDemand({ radarMode: 'graph', statusTopOnDemandRightItems: 'battery' }).read;
+  assert.equal(graph.statusTopOnDemandRightItems, 'battery');
+});
+
+test('on demand: the dev branch\'s alert keys are deleted without being translated', () => {
+  const blob = { alertRain: true, alertUv: true, alertWind: false, alertGust: true, alertAqi: false,
+    alertPollen: true, statusTopAlerts: 'right', statusForecastAlerts: 'middle',
+    statusRadarAlerts: 'off', statusHealthAlerts: 'left', alertUvDisplay: 'value' };
+  const { read } = upgradeOnDemand(blob);
+  v124.RETIRED_ALERT_KEYS.forEach((k) => assert.ok(!(k in read), k + ' is gone'));
+  assert.equal(read.alertUvDisplay, 'value', 'the alerts\' own settings stay');
+  assert.equal(read.statusTopOnDemandRightItems, DEFAULT_RIGHT, 'the dev watch lands on the defaults');
+  assert.deepEqual(v124.RETIRED_ALERT_KEYS, ['alertRain', 'alertUv', 'alertWind', 'alertGust', 'alertAqi',
+    'alertPollen', 'statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts']);
+});
+
+test('on demand: a fresh install is a no-op with no send; aplite keeps its switches; a rerun changes nothing', () => {
+  const fresh = loadLedger(null);
+  fresh.claySettings.seedDefaults(COLORS);
+  fresh.saves.n = 0;
+  const res = fresh.run(ON_DEMAND);
+  assert.equal(fresh.saves.n, 0, 'nothing to move');
+  assert.equal(res.clayRequired, false, 'no existing install, no send');
+  assert.equal(fresh.store[ON_DEMAND], '1');
+  // aplite: its 1.23.2 switches stay stored (it still reads them); only the new and the
+  // retired keys are touched.
+  const aplite = upgradeOnDemand({ showQt: false, batteryLowOnly: false }, { platform: 'aplite' });
+  assert.strictEqual(aplite.read.showQt, false);
+  assert.strictEqual(aplite.read.batteryLowOnly, false);
+  // A rerun over its own output changes nothing.
+  const once = upgradeOnDemand({ showQt: false, batteryLowOnly: false, alertUv: true, radarMode: 'countdown',
+    statusTopOnDemandRightItems: 'uv' });
+  delete once.L.store[ON_DEMAND];
+  once.L.saves.n = 0;
+  once.L.run(ON_DEMAND, { hadExistingInstall: true });
+  assert.deepEqual(once.L.read(), once.read, 'idempotent');
+  assert.equal(once.L.saves.n, 0);
+});
+
+// The owner's upgrade check, through the whole ledger in boot order: a 1.23.2 install
+// with Quiet time off, the low-battery switch off and the rain window Off.
+test('on demand: the 1.23.2 upgrade the owner checks, through the whole ledger', () => {
+  const { THROUGH_1_23_1 } = require('./helpers/clay-migration-golden.js');
+  const store = installFakeStorage();
+  const mods = loadUpgradeModules();
+  store['clay-settings'] = JSON.stringify({ theme: 'dark', radarMode: 'graph', showQt: false,
+    batteryLowOnly: false, rainCountdownHorizon: '0' });
+  THROUGH_1_23_1.forEach((k) => { store[k] = '1'; });
+  mods.claySettings.seedDefaults(COLORS);
+  const res = mods.clayMigrations.runMigrations({ platform: 'emery', colors: COLORS,
+    defaultRadarProvider: 'rainbow', hadExistingInstall: true });
+  const read = mods.claySettings.read();
+  assert.equal(read.statusTopOnDemandLeftItems, 'bt,snooze', 'Quiet time unticked');
+  assert.equal(read.statusTopOnDemandRightItems, 'gust,uv,aqi,wind',
+    'Battery and Rain unticked; Wind gusts, UV index, Air quality and Wind speed ticked; Pollen off');
+  assert.equal(read.statusTopOnDemandLeft, 'on');
+  assert.equal(read.statusTopOnDemandRight, 'on');
+  assert.ok(!('alertRain' in read), 'no retired key left behind');
+  assert.equal(res.clayRequired, true, 'one Clay send');
+  assert.equal(store[ON_DEMAND], '1');
+});
+
+test('on demand: Reset watchface marks it done, so ticks picked after the reset stay', () => {
+  installFakeStorage();
+  const mods = loadUpgradeModules();
+  localStorage.setItem('clay-settings', JSON.stringify({ statusTopOnDemandRightItems: DEFAULT_RIGHT }));
+  mods.claySettings.resetAll(mods.clayMigrations.RESET_SAFE_MARKERS);
+  assert.equal(localStorage.getItem(ON_DEMAND), '1');
+  localStorage.setItem('clay-settings', JSON.stringify({ showQt: false, statusTopOnDemandLeftItems: 'bt,qt' }));
+  mods.clayMigrations.runMigrations({ platform: 'basalt', colors: COLORS, defaultRadarProvider: 'rainbow' });
+  assert.equal(mods.claySettings.read().statusTopOnDemandLeftItems, 'bt,qt', 'the 1.24.0 page\'s pick survives');
+});
+
 // --- The ledger itself ---------------------------------------------------------------
 
 test('every registry entry has a unique marker declared in storage-keys.js, and a valid policy', () => {
@@ -1689,12 +1848,14 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v1.23.1_stripe_metric_rule_resend_migration', 'ack', false],
     ['v1.24.0_warn_look_migration', 'now', true],
     ['v1.24.0_seed_pair_any_unit_migration', 'now', true],
-    ['v1.24.0_temp_separator_bar_migration', 'now', true]
+    ['v1.24.0_temp_separator_bar_migration', 'now', true],
+    ['v1.24.0_on_demand_migration', 'now', true]
   ]);
   const clayMigrations = require('../src/pkjs/clay-migrations');
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
-    'v1.24.0_seed_pair_any_unit_migration', 'v1.24.0_temp_separator_bar_migration']);
+    'v1.24.0_seed_pair_any_unit_migration', 'v1.24.0_temp_separator_bar_migration',
+    'v1.24.0_on_demand_migration']);
 });
 
 test('the registry runner reproduces the pre-registry runner on every golden boot', () => {

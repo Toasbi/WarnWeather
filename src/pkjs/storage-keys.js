@@ -41,6 +41,8 @@ module.exports = {
     // 1.24.0: the temperature pair's separator default moved from the slash to the bar
     // ('12|10'), and every stored 'slash' moves with it once (migrations/v1_24.js).
     TEMP_SEPARATOR_BAR_MIGRATION_KEY: 'v1.24.0_temp_separator_bar_migration',
+    // 1.24.0: the status bars moved onto On demand (migrations/v1_24.js migrateOnDemand).
+    ON_DEMAND_MIGRATION_KEY: 'v1.24.0_on_demand_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

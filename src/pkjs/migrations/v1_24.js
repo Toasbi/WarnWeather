@@ -2,8 +2,9 @@
 //
 // The 1.24.0 alert-levels migration: one registry entry (ALERT_LEVELS_MIGRATION_KEY)
 // running three value-keyed moves in order: the highlight toggles, the warn look, the
-// rain window's Off. Also the body of the temperature separator's own entry
-// (TEMP_SEPARATOR_BAR_MIGRATION_KEY, migrateTempSeparatorBar at the end of this file).
+// rain window's Off. Also the bodies of the temperature separator's own entry
+// (TEMP_SEPARATOR_BAR_MIGRATION_KEY, migrateTempSeparatorBar) and of the On demand move
+// (ON_DEMAND_MIGRATION_KEY, migrateOnDemand), at the end of this file.
 // A registry body (migrations/registry.js): run(blob, ctx) ->
 // {changed, send}, mutating the blob in place; the runner in clay-migrations.js owns the
 // marker, the save and the send.
@@ -17,6 +18,7 @@
 // Hence the marker string (storage-keys.js) and resetAll marking it done.
 
 var thresholds = require('../status-thresholds.js');   // KINDS + the pair rules
+var onDemand = require('../on-demand.js');               // the side keys and their reading
 
 /**
  * Backfill the Highlight / Goals toggles (thresh<K>On) from their pairs. Until 1.24.0
@@ -246,7 +248,120 @@ function migrateTempSeparatorBar(blob) {
     return { changed: false, send: false };
 }
 
+// The development branch's alert keys, which no released version ever stored: the
+// per-alert switches, the rain switch and the per-bar alert row placement. On demand's
+// side lists replace all of them.
+var RETIRED_ALERT_KEYS = ['alertRain', 'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen',
+    'statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'];
+
+/**
+ * Untick one On demand item on every side of every bar. Mutates the blob.
+ *
+ * @param {Object} blob Stored settings.
+ * @param {string} code An on-demand.js ITEMS code.
+ * @returns {boolean} Whether any list held it.
+ */
+function removeEverywhere(blob, code) {
+    var changed = false;
+    for (var b = 0; b < onDemand.BARS.length; b++) {
+        for (var s = 0; s < onDemand.SIDES.length; s++) {
+            var key = onDemand.itemsKey(onDemand.BARS[b].bar, onDemand.SIDES[s]);
+            var codes = onDemand.parse(onDemand.read(blob, key));
+            var at = codes.indexOf(code);
+            if (at === -1) { continue; }
+            codes.splice(at, 1);
+            blob[key] = onDemand.canonical(codes);
+            changed = true;
+        }
+    }
+    return changed;
+}
+
+/**
+ * Whether Rain shows on a bar that exists in radar mode 'Rain alert only': the Watch
+ * Status Bar, the forecast bar, or the health bar while it exists (the radar bar never
+ * shows in that mode) — an Enabled side that ticks it.
+ *
+ * @param {Object} blob Stored settings.
+ * @returns {boolean}
+ */
+function rainOnVisibleSide(blob) {
+    return onDemand.sideOf(blob, 'top', 'rain') !== null
+        || onDemand.sideOf(blob, 'forecast', 'rain') !== null
+        || onDemand.sideOf(blob, 'health', 'rain') !== null;
+}
+
+/**
+ * Tick Rain on the Watch Status Bar's right side (in the canonical order, unticked from
+ * its left) and Enable that side. Mutates the blob.
+ *
+ * @param {Object} blob Stored settings.
+ * @returns {boolean} Whether anything changed.
+ */
+function placeRainTopRight(blob) {
+    var left = onDemand.itemsKey('top', 'left');
+    var right = onDemand.itemsKey('top', 'right');
+    var side = onDemand.sideKey('top', 'right');
+    var before = [blob[left], blob[right], blob[side]].join('|');
+    blob[right] = onDemand.canonical(onDemand.parse(onDemand.read(blob, right)).concat(['rain']));
+    blob[left] = onDemand.canonical(onDemand.parse(onDemand.read(blob, left)).filter(function (c) {
+        return c !== 'rain';
+    }));
+    blob[side] = 'on';
+    return [blob[left], blob[right], blob[side]].join('|') !== before;
+}
+
+/**
+ * The On demand move. seedDefaults has already written the new side keys with their
+ * defaults (the Watch Status Bar: Bluetooth, Quiet time and Sleep left; Battery, Rain,
+ * Wind gusts, UV index, Air quality and Wind speed right), into every install, upgraded
+ * ones included — the owner's call: the weather alerts arrive switched on. This move
+ * carries over what a 1.23.2 install said against those defaults, and keys on stored
+ * VALUES only:
+ *  - 'Show battery below 10%' off (batteryLowOnly false) unticks Battery everywhere;
+ *  - 'Show quiet time icon' off (showQt false) unticks Quiet time;
+ *  - the rain alert switched off (alertRain false — the alert-levels entry above writes
+ *    it from a 1.23.2 window of Off, so this MUST run after it) unticks Rain;
+ *  - radar mode 'Rain alert only' with Rain on no visible bar ticks it on the Watch
+ *    Status Bar's right (reset-status-defaults.js forceRainOnDemand's rule).
+ * It never unticks a default weather alert. Then the development branch's alert keys
+ * go without being translated (RETIRED_ALERT_KEYS; no release stored them, so the dev
+ * watch lands on the defaults). batteryLowOnly and showQt stay stored: aplite still
+ * reads them, and every other watch ignores them. btIcons 'none' unticks nothing: its
+ * Show value already says Never.
+ *
+ * One Clay send on every existing install: the watch needs the 48-B blob (until it lands
+ * it reads its compiled defaults). Marked now; the scheduler re-delivers a NACKed send
+ * (clay-migrations.js).
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @param {{hadExistingInstall: boolean}} ctx Runner context.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function migrateOnDemand(blob, ctx) {
+    var changed = false;
+    var i;
+    if (blob.batteryLowOnly === false) { changed = removeEverywhere(blob, 'battery') || changed; }
+    if (blob.showQt === false) { changed = removeEverywhere(blob, 'qt') || changed; }
+    if (blob.alertRain === false) { changed = removeEverywhere(blob, 'rain') || changed; }
+    if (blob.radarMode === 'countdown' && !rainOnVisibleSide(blob)) {
+        changed = placeRainTopRight(blob) || changed;
+    }
+    for (i = 0; i < RETIRED_ALERT_KEYS.length; i++) {
+        if (Object.prototype.hasOwnProperty.call(blob, RETIRED_ALERT_KEYS[i])) {
+            delete blob[RETIRED_ALERT_KEYS[i]];
+            changed = true;
+        }
+    }
+    if (changed) {
+        console.log('Migrated the status bars onto On demand');
+    }
+    return { changed: changed, send: Boolean(ctx && ctx.hadExistingInstall) };
+}
+
 module.exports = {
+    RETIRED_ALERT_KEYS: RETIRED_ALERT_KEYS,
+    migrateOnDemand: migrateOnDemand,
     migrateAlertLevels: migrateAlertLevels,
     migrateThresholdHighlightToggles: migrateThresholdHighlightToggles,
     migrateWarnLook: migrateWarnLook,
