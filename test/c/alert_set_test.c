@@ -302,6 +302,36 @@ static void degrade_tests(void) {
     expect("degrade.null", alert_set_degrade(NULL, &values), 0);
 }
 
+// The On demand lanes' looks (status_on_demand.c item_text): lane 0 as chosen, lane 1
+// the rain Text as its minutes (Icon and Icon + minutes keep theirs, and the values
+// stay on), lane 2 the values off and the rain drop alone.
+static void lane_look_tests(void) {
+    static const struct { int chosen; int lane; int rd; int values; } CASES[] = {
+        { THRESH_RAIN_DISPLAY_TEXT, 0, THRESH_RAIN_DISPLAY_TEXT, 1 },
+        { THRESH_RAIN_DISPLAY_TEXT, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
+        { THRESH_RAIN_DISPLAY_TEXT, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
+        { THRESH_RAIN_DISPLAY_MINUTES, 0, THRESH_RAIN_DISPLAY_MINUTES, 1 },
+        { THRESH_RAIN_DISPLAY_MINUTES, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
+        { THRESH_RAIN_DISPLAY_MINUTES, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
+        { THRESH_RAIN_DISPLAY_ICON, 0, THRESH_RAIN_DISPLAY_ICON, 1 },
+        { THRESH_RAIN_DISPLAY_ICON, 1, THRESH_RAIN_DISPLAY_ICON, 1 },
+        { THRESH_RAIN_DISPLAY_ICON, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
+        // The reserved wire value 3 reads as Text.
+        { 3, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
+        { 3, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
+    };
+    for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
+        int rd = -1;
+        bool values = false;
+        alert_set_lane_look(CASES[i].chosen, CASES[i].lane, &rd, &values);
+        char name[48];
+        snprintf(name, sizeof(name), "lane_look.%d.%d.rd", CASES[i].chosen, CASES[i].lane);
+        expect(name, rd, CASES[i].rd);
+        snprintf(name, sizeof(name), "lane_look.%d.%d.values", CASES[i].chosen, CASES[i].lane);
+        expect(name, values, CASES[i].values);
+    }
+}
+
 // The lane of the first entry `bytes` parses to, with `values` as the ladder has it.
 static const char *lane_of(const uint8_t *bytes, size_t len, bool values, char *out,
                            size_t cap) {
@@ -465,6 +495,7 @@ int main(void) {
     icon_tests();
     prepend_rain_tests();
     degrade_tests();
+    lane_look_tests();
     lane_tests();
     rain_look_tests();
     rain_minutes_tests();

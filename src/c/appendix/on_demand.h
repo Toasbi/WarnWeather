@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "../layers/status_row_layout.h"
+#include "status_line.h"
 
 // On demand: the items a status bar shows at its left and right edges only while
 // they matter — Battery, Bluetooth, Quiet time and Sleep (System info), then the
@@ -53,6 +54,43 @@ typedef enum { OD_SIDE_NONE = 0, OD_SIDE_LEFT = 1, OD_SIDE_RIGHT = 2 } OdSide;
 // (whose padding already sits inside its footprint).
 #define OD_ITEM_GAP STATUS_ROW_GROUP_GAP
 #define OD_PADDED_GAP 2
+// A status glyph inks one column past its bounds: icon_load (status_row_icons.c)
+// snaps its vertices to pixel centres 0.5 .. w + 0.5 px, and the 1-px stroke covers
+// both end columns — w + 1 columns of ink for bounds w.
+#define OD_GLYPH_INK_OVERHANG 1
+// A text lane's measured width (graphics_text_layout_get_content_size) ends in the
+// font's one blank column of letter spacing after its last glyph.
+#define OD_TEXT_TRAIL_SPACING 1
+
+// The pure decisions of the SDK half (layers/status_on_demand.c), header-inline so
+// its calls cost what they did there, and here so the host tests pin them.
+
+// A metric alert is boxed at its level, so its padding is part of its footprint;
+// rain and the system items are never boxed.
+static inline bool od_item_boxed(int item) {
+    return item >= OD_GUST;
+}
+
+// Whether a slot of `kind` (a StatusSlotKind) shows the watch battery — the Watch
+// battery glyph or the Battery % — and so counts in od_layout's `battery_slots`.
+static inline bool od_slot_shows_battery(int kind) {
+    return kind == SLOT_LIVE_BATTERY || kind == SLOT_LIVE_BATTERY_PCT;
+}
+
+// An item's footprint on one lane: its icon, then its text after
+// STATUS_ROW_ICON_TEXT_GAP (no gap without an icon); 0 with nothing to draw. A boxed
+// item (od_item_boxed) adds `pad` on both sides and is measured by its ink — a last
+// icon's one-column overhang in, a last text's trailing letter spacing out — so its
+// air to the box stroke is equal on both sides.
+static inline int16_t od_item_footprint(int16_t icon_w, int16_t text_w, bool boxed,
+                                        int16_t pad) {
+    int16_t fw = (int16_t)(icon_w + (text_w > 0
+        ? (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + text_w : 0));
+    if (fw > 0 && boxed) {
+        fw = (int16_t)(fw + 2 * pad + (text_w > 0 ? -OD_TEXT_TRAIL_SPACING : OD_GLYPH_INK_OVERHANG));
+    }
+    return fw;
+}
 
 // One of the bar's three slots, as measured: m[0] its full form, then its short
 // family widest first (status_short_text.h). n == 0 is an empty slot, n == 1 a slot

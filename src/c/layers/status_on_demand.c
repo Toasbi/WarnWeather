@@ -35,13 +35,6 @@
 #define GLYPH_SLOTS 8
 // A text lane's buffer: the longest lane is the full rain countdown.
 #define LANE_CAP RAIN_COUNTDOWN_TEXT_CAP
-// A status glyph inks one column past its bounds: icon_load (status_row_icons.c)
-// snaps its vertices to pixel centres 0.5 .. w + 0.5 px, and the 1-px stroke covers
-// both end columns — w + 1 columns of ink for bounds w.
-#define GLYPH_INK_OVERHANG 1
-// A text lane's measured width (graphics_text_layout_get_content_size) ends in the
-// font's one blank column of letter spacing after its last glyph.
-#define TEXT_TRAIL_SPACING 1
 #define NO_ENTRY 0xFF
 
 struct StatusOnDemandCache {
@@ -220,8 +213,7 @@ static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t
         s->charging = bs.is_charging || bs.is_plugged;
         s->level = status_threshold_battery_level(blob, len);
         s->battery_value = status_threshold_battery_value(blob, len);
-        // At or below the level, charging or not.
-        s->active[OD_BATTERY] = s->charge <= s->level;
+        s->active[OD_BATTERY] = status_threshold_battery_low(s->charge, s->level);
     }
     if (s->side[OD_BLUETOOTH] != OD_SIDE_NONE) {
         const Config *cfg = config_get();
@@ -247,22 +239,6 @@ static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t
     }
 }
 
-// The rain look and the values flag of On demand lane `lane`, from the chosen rain
-// look: lane 0 as chosen, lane 1 the rain Text as its minutes, lane 2 the values off
-// and the rain drop alone — alert_set_degrade's ladder, a step per lane.
-static void lane_look(int chosen, int lane, int *rain_display, bool *values) {
-    int rd = chosen;
-    bool v = true;
-    if (lane >= 1 && rd != THRESH_RAIN_DISPLAY_ICON && rd != THRESH_RAIN_DISPLAY_MINUTES) {
-        alert_set_degrade(&rd, &v);
-    }
-    if (lane >= 2) {
-        while (alert_set_degrade(&rd, &v)) {}
-    }
-    *rain_display = rd;
-    *values = v;
-}
-
 static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
     return s->entry[item] != NO_ENTRY ? &s->set.entries[s->entry[item]] : NULL;
 }
@@ -277,7 +253,7 @@ static GFont item_text(const StatusOnDemandState *s, int item, int lane,
     buf[0] = '\0';
     int rd;
     bool values;
-    lane_look(s->rain_display, lane, &rd, &values);
+    alert_set_lane_look(s->rain_display, lane, &rd, &values);
     if (item == OD_BATTERY) {
         if (s->battery_value && values) { snprintf(buf, cap, "%d%%", s->charge); }
         return env->font;
@@ -312,22 +288,13 @@ static uint8_t item_key(const StatusOnDemandState *s, int item) {
     }
 }
 
-// A metric alert is boxed at its level, so its padding is part of its footprint.
-static bool item_boxed(int item) {
-    return item >= OD_GUST;
-}
-
 static int16_t icon_width(GDrawCommandImage *image) {
     return image ? gdraw_command_image_get_bounds_size(image).w : 0;
 }
 
-// Measure `item` on every lane into its cell, and its footprint per lane into `w`:
-// icon + (text ? STATUS_ROW_ICON_TEXT_GAP + text : 0), plus 2 * STATUS_ON_DEMAND_BOX_PAD_X
-// for a boxed metric entry — whose group is measured by its ink (a last icon's
-// one-column overhang in, a last text's trailing letter spacing out), so its air to
-// the box stroke is equal on both sides. A lane that has nothing left to draw keeps
-// the lane before's width: it can give nothing more. Needs the glyphs, so ensure()
-// runs first.
+// Measure `item` on every lane into its cell, and its footprint per lane into `w`
+// (od_item_footprint: a boxed metric entry pads STATUS_ON_DEMAND_BOX_PAD_X a side).
+// Needs the glyphs, so ensure() runs first.
 static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
                     const StatusOnDemandEnv *env, int item, int16_t w[OD_LANES]) {
     const StatusOnDemandState *s = &p->state;
@@ -339,18 +306,16 @@ static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
     } else {
         c->icon_w = icon_width(image_for(row->cache, item_key(s, item)));
     }
-    c->pad = item_boxed(item) ? STATUS_ON_DEMAND_BOX_PAD_X : 0;
+    c->pad = od_item_boxed(item) ? STATUS_ON_DEMAND_BOX_PAD_X : 0;
     for (int lane = 0; lane < OD_LANES; lane++) {
         char buf[LANE_CAP];
         GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
         // A lane's text is never cut: measured in a box no text reaches.
         int16_t tw = status_row_text_w(buf, font, 1000, 100);
         c->text_w[lane] = tw;
-        int16_t fw = (int16_t)(c->icon_w + (tw > 0
-            ? (c->icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + tw : 0));
-        if (fw > 0 && item_boxed(item)) {
-            fw = (int16_t)(fw + 2 * c->pad + (tw > 0 ? -TEXT_TRAIL_SPACING : GLYPH_INK_OVERHANG));
-        }
+        int16_t fw = od_item_footprint(c->icon_w, tw, od_item_boxed(item), c->pad);
+        // A lane with nothing left to draw keeps the lane before's width: it can give
+        // nothing more.
         if (fw <= 0 && lane > 0) { fw = w[lane - 1]; }
         w[lane] = fw;
     }
@@ -497,7 +462,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         int i = side->n++;
         side->rank[i] = (uint8_t)item;
         for (int lane = 0; lane < OD_LANES; lane++) { side->w[lane][i] = w[lane]; }
-        side->padded[i] = item_boxed(item);
+        side->padded[i] = od_item_boxed(item);
     }
     if (pass->sides[0].n == 0 && pass->sides[1].n == 0) {
         status_row_layout(content_w, m, places);
@@ -515,9 +480,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     // item stands in only once the layout has hidden every such slot.
     uint8_t battery_slots = 0;
     for (int i = 0; i < 3 && s->active[OD_BATTERY]; i++) {
-        if (slots[i].kind == SLOT_LIVE_BATTERY || slots[i].kind == SLOT_LIVE_BATTERY_PCT) {
-            battery_slots |= (uint8_t)(1 << i);
-        }
+        if (od_slot_shows_battery(slots[i].kind)) { battery_slots |= (uint8_t)(1 << i); }
     }
     od_layout(content_w, f.in, pass->sides, bleed, battery_slots, &pass->layout);
     // Each slot draws the member the layout picked: its measure (the boxes and the
@@ -554,7 +517,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
     // entry's real level — the slot's Highlight switch does not touch the alert. The
     // box IS the footprint: the padding was measured in either way, so the widths do
     // not shift when a box appears.
-    if (item_boxed(item)) {
+    if (od_item_boxed(item)) {
         const AlertEntry *e = item_entry(s, item);
         ThreshLook look = status_threshold_look(env->blob, env->blob_len, e->kind, e->level);
         if (look.box != THRESH_BOX_NONE) {

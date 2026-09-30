@@ -877,6 +877,41 @@ static void drops(void) {
     expect("drop.middle_centred", out.place[1].icon_x, 52);
 }
 
+// --- the SDK half's pure decisions (on_demand.h) -------------------------------------
+
+static void item_decisions(void) {
+    // A slot shows the watch battery as the glyph or as the Battery %, never as any
+    // other kind — so the Battery item stays out beside either (W7).
+    for (int kind = 0; kind <= STATUS_SLOT_KIND_MAX; kind++) {
+        char name[48];
+        snprintf(name, sizeof(name), "battery_slot.kind%d", kind);
+        expect(name, od_slot_shows_battery(kind),
+               kind == SLOT_LIVE_BATTERY || kind == SLOT_LIVE_BATTERY_PCT);
+    }
+    expect("battery_slot.glyph", od_slot_shows_battery(SLOT_LIVE_BATTERY), 1);
+    expect("battery_slot.pct", od_slot_shows_battery(SLOT_LIVE_BATTERY_PCT), 1);
+    expect("battery_slot.text", od_slot_shows_battery(SLOT_TEXT), 0);
+
+    // The metric alerts are boxed; rain and the system items never.
+    for (int item = 0; item < OD_ITEM_COUNT; item++) {
+        char name[32];
+        snprintf(name, sizeof(name), "boxed.item%d", item);
+        expect(name, od_item_boxed(item), item >= OD_GUST && item <= OD_WIND);
+    }
+
+    // The footprint: icon, the icon-text gap only between the two, and a box's padding
+    // on both sides measured by its ink (+1 for a last icon, -1 for a last text).
+    const int gap = STATUS_ROW_ICON_TEXT_GAP;
+    expect("footprint.icon", od_item_footprint(10, 0, false, 0), 10);
+    expect("footprint.text", od_item_footprint(0, 20, false, 0), 20);
+    expect("footprint.icon_text", od_item_footprint(10, 20, false, 0), 10 + gap + 20);
+    expect("footprint.nothing", od_item_footprint(0, 0, false, 0), 0);
+    expect("footprint.boxed_icon", od_item_footprint(10, 0, true, 3), 10 + 2 * 3 + 1);
+    expect("footprint.boxed_text", od_item_footprint(10, 20, true, 3), 10 + gap + 20 + 2 * 3 - 1);
+    expect("footprint.boxed_text_only", od_item_footprint(0, 20, true, 3), 20 + 2 * 3 - 1);
+    expect("footprint.boxed_nothing", od_item_footprint(0, 0, true, 3), 0);
+}
+
 // --- invariants over random bars ------------------------------------------------------
 
 typedef struct { int lo; int hi; } Span;
@@ -982,6 +1017,7 @@ int main(void) {
     battery_standin();
     bleed_and_order();
     drops();
+    item_decisions();
     no_overlap();
     if (s_failures) {
         printf("%d on_demand failure(s)\n", s_failures);

@@ -361,6 +361,12 @@ OdSide status_threshold_on_demand_side(const uint8_t *blob, size_t len, int bar,
 // THRESH_BATTERY_LEVEL_DEFAULT.
 uint8_t status_threshold_battery_level(const uint8_t *blob, size_t len);
 
+// Whether the Battery item is active: the charge at or below its warn level
+// (status_threshold_battery_level), charging or not.
+static inline bool status_threshold_battery_low(int charge, int level) {
+    return charge <= level;
+}
+
 // The Battery item's Look: true for Icon + value ("8%" beside the icon), false for
 // the icon alone — also for a blob without the byte.
 bool status_threshold_battery_value(const uint8_t *blob, size_t len);

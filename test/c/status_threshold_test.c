@@ -653,6 +653,12 @@ static void battery_byte_tests(void) {
     blob[THRESH_BATTERY_OFFSET] = 30;
     blob[THRESH_ALERTS_OFFSET] = 0xFF;
     expect("battery.rain_no_alias", status_threshold_battery_level(blob, n), 30);
+    // The item is active AT the level, not only below it.
+    expect("battery.low_below", status_threshold_battery_low(9, 10), 1);
+    expect("battery.low_at", status_threshold_battery_low(10, 10), 1);
+    expect("battery.low_above", status_threshold_battery_low(11, 10), 0);
+    expect("battery.low_at_30", status_threshold_battery_low(30, 30), 1);
+    expect("battery.low_empty", status_threshold_battery_low(0, 5), 1);
 }
 
 // A status row reads the cells of its LINE's bar (status_on_demand.c): each line maps

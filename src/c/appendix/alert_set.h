@@ -147,6 +147,25 @@ void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier);
 // as TEXT, as status_threshold_rain_display would read it.
 bool alert_set_degrade(int *rain_display, bool *values);
 
+// The rain look and the values flag of On demand lane `lane` (0..OD_LANES - 1), from
+// the chosen rain look `chosen`: lane 0 as chosen, lane 1 the rain Text as its
+// minutes (a step only a Text look takes: Icon and Icon + minutes keep theirs, and
+// the values stay), lane 2 the values off and the rain drop alone —
+// alert_set_degrade's ladder, a step per lane. Header-inline so the one caller
+// (status_on_demand.c item_text) pays no call, and the host test pins it.
+static inline void alert_set_lane_look(int chosen, int lane, int *rain_display, bool *values) {
+    int rd = chosen;
+    bool v = true;
+    if (lane >= 1 && rd != THRESH_RAIN_DISPLAY_ICON && rd != THRESH_RAIN_DISPLAY_MINUTES) {
+        alert_set_degrade(&rd, &v);
+    }
+    if (lane >= 2) {
+        while (alert_set_degrade(&rd, &v)) {}
+    }
+    *rain_display = rd;
+    *values = v;
+}
+
 // A metric entry's text lane, what its item prints after its icon, into `out`
 // (NUL-terminated; "" = none): the baked value while `values` (the lane ladder's
 // flag), wrapped in tomorrow's mark — the slot's "Tomorrow's peak mark" texts
