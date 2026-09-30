@@ -1,9 +1,10 @@
 #pragma once
 
 // Theme accessors — dark=0 (default) / light=1 / bw=2 / bw-light=3 (Config.theme;
-// see docs/superpowers/specs/2026-07-07-theme-inversion-design.md). Static-inline,
-// header-only: no new .c file, no heap. Every accessor reads config_get()->theme
-// directly, so it's safe to call anywhere after config_load() has run.
+// see docs/superpowers/specs/2026-07-07-theme-inversion-design.md). No heap: every
+// accessor reads config_get()->theme directly, so it's safe to call anywhere after
+// config_load() has run. Out of line in appendix/theme.c wherever the light polarity
+// exists (WW_THEME_POLARITY, below); static inline on aplite, where it folds away.
 //
 // Two independent axes used throughout the C render sweep:
 //  - Polarity: dark/bw are white-on-black; light/bw-light are black-on-white.
@@ -23,17 +24,28 @@
 #include <pebble.h>
 #include "config.h"
 
+#if defined(WW_THEME_POLARITY)
+// Out of line (appendix/theme.c) wherever the light polarity exists. As static
+// inlines, -Os kept them as calls and emitted a private copy in every file that
+// used one — about 30 copies, some 0.9 KB of image on basalt — and on these
+// platforms the image comes out of the app heap too. Same bodies as below.
+
+/** True in the light theme (black-on-white polarity): light or bw-light. */
+bool theme_is_light(void);
+/** dark/bw polarity: white. light polarity: black. Default foreground. */
+GColor theme_fg(void);
+/** dark/bw polarity: black. light polarity: white. Window/panel background. */
+GColor theme_bg(void);
+/** Chart-furniture gray: black in the light theme, `gray` otherwise (see below). */
+GColor theme_furniture(GColor gray);
+#else
 /** True in the light theme (black-on-white polarity): light or bw-light. */
 static inline bool theme_is_light(void) {
-#if defined(WW_THEME_POLARITY)
-    return config_get()->theme == 1 || config_get()->theme == 3;
-#else
     // aplite (frozen-lean fork, docs/adr/0001): the light polarity is compiled out —
     // see WW_THEME_POLARITY in wscript. Constant false folds every light arm and the
     // out-of-line theme_fg/theme_bg copies out of the image; a stored light/bw-light
     // theme byte is ignored and renders as the classic white-on-black.
     return false;
-#endif
 }
 
 /** dark/bw polarity: white. light polarity: black. Default foreground. */
@@ -54,8 +66,15 @@ static inline GColor theme_bg(void) {
 static inline GColor theme_furniture(GColor gray) {
     return theme_is_light() ? GColorBlack : gray;
 }
+#endif
 
-#ifdef PBL_COLOR
+#if defined(PBL_COLOR) && defined(WW_THEME_POLARITY)
+// Out of line (appendix/theme.c), as above.
+/** True when this color build is rendering the Black & White theme (bw or bw-light). */
+bool theme_is_bw(void);
+/** Effective-color pick: bw_arm under a bw theme, else color_arm (see below). */
+GColor theme_pick(GColor color_arm, GColor bw_arm);
+#elif defined(PBL_COLOR)
 /** True when this color build is rendering the Black & White theme (bw or bw-light). */
 static inline bool theme_is_bw(void) {
     return config_get()->theme == 2 || config_get()->theme == 3;
