@@ -54,7 +54,9 @@
 // Holds any member: none is longer than the full text (at most STATUS_TEXT_MID_MAX
 // bytes), and the floor is at most 3 code points (12 B) + the ellipsis.
 #define STATUS_SHORT_CAP (STATUS_TEXT_MID_MAX + 1)
-// A city of 19 bytes has at most 10 words: 9 abbreviations and the elastic member.
+// The most text members any family can have, with room to spare: a 19-byte city has at
+// most 6 abbreviable words (two code points each, "Aa Bb Cc Dd Ee Ff"), so 5 ladder
+// steps and the elastic member; every other kind has at most SST_STEPS.
 #define STATUS_SHORT_STEPS_MAX 12
 
 // One member of a slot's short family (status_short_family).

@@ -416,7 +416,8 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
 typedef struct {
     OdSlotIn in[3];
     StatusShortMember member[3][STATUS_SHORT_MEMBERS];
-    uint8_t mday;   // the day of the month a date's family ends on (0: no date)
+    uint8_t mday;   // the day of the month a date's family ends on (0: a calendar
+                    // view, whose date has no day-number member)
 } Families;
 
 // measure_family() writes a slot's full form to m[0] and its short members after it.
