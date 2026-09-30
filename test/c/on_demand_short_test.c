@@ -46,7 +46,7 @@ static unsigned sweep_left(const OdSlotIn slots[3], const char *tag) {
         OdSideIn sides[2] = { side_none(), side_none() };
         add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
         OdLayout out;
-        od_layout(200, slots, sides, NO_BLEED, false, &out);
+        od_layout(200, slots, sides, NO_BLEED, 0, &out);
         char name[64];
         // The far slot never moves: with no middle, the left slot's room ends at its gap.
         snprintf(name, sizeof(name), "%s.far k%d", tag, k);
@@ -103,7 +103,7 @@ static void short_widest_member(void) {
         OdSideIn sides[2] = { side_none(), side_none() };
         add_icon(&sides[0], OD_BLUETOOTH, (int16_t)CASES[c].k);
         OdLayout out;
-        od_layout(200, slots, sides, NO_BLEED, false, &out);
+        od_layout(200, slots, sides, NO_BLEED, 0, &out);
         char name[64];
         snprintf(name, sizeof(name), "widest.stage k%d", CASES[c].k);
         expect(name, out.stage[0], CASES[c].stage);
@@ -159,7 +159,7 @@ static unsigned sweep_right(const OdSlotIn slots[3], const char *tag) {
         OdSideIn sides[2] = { side_none(), side_none() };
         add_icon(&sides[1], OD_BLUETOOTH, (int16_t)k);
         OdLayout out;
-        od_layout(200, slots, sides, NO_BLEED, false, &out);
+        od_layout(200, slots, sides, NO_BLEED, 0, &out);
         char name[64];
         snprintf(name, sizeof(name), "%s.far k%d", tag, k);
         expect(name, out.place[0].icon_x, 0);
@@ -201,7 +201,7 @@ static void short_widest_member_right(void) {
         OdSideIn sides[2] = { side_none(), side_none() };
         add_icon(&sides[1], OD_BLUETOOTH, (int16_t)CASES[c].k);
         OdLayout out;
-        od_layout(200, slots, sides, NO_BLEED, false, &out);
+        od_layout(200, slots, sides, NO_BLEED, 0, &out);
         char name[64];
         snprintf(name, sizeof(name), "widest.right.stage k%d", CASES[c].k);
         expect(name, out.stage[1], CASES[c].stage);
@@ -253,7 +253,7 @@ static void elastic_city(void) {
         OdSideIn sides[2] = { side_none(), side_none() };
         add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
         OdLayout out;
-        od_layout(140, slots, sides, NO_BLEED, false, &out);
+        od_layout(140, slots, sides, NO_BLEED, 0, &out);
         char name[64];
         snprintf(name, sizeof(name), "elastic k%d", k);
         if (!out.place[1].visible) { continue; }
@@ -290,7 +290,7 @@ static void elastic_city(void) {
         OdSideIn sides[2] = { side_none(), side_none() };
         add_icon(&sides[0], OD_BLUETOOTH, (int16_t)AT[c].k);
         OdLayout out;
-        od_layout(140, slots, sides, NO_BLEED, false, &out);
+        od_layout(140, slots, sides, NO_BLEED, 0, &out);
         char name[64];
         snprintf(name, sizeof(name), "elastic.at k%d", AT[c].k);
         expect(name, out.stage[0], AT[c].stage);
@@ -300,7 +300,7 @@ static void elastic_city(void) {
     OdSideIn sides[2] = { side_none(), side_none() };
     add_icon(&sides[0], OD_BLUETOOTH, 55);
     OdLayout out;
-    od_layout(140, slots, sides, NO_BLEED, false, &out);
+    od_layout(140, slots, sides, NO_BLEED, 0, &out);
     expect("elastic.leaves_centre", out.stage[0], 5);
 
     // As the right side's own slot the elastic city ellipsizes to its room — from the
@@ -311,7 +311,7 @@ static void elastic_city(void) {
         OdSideIn s2[2] = { side_none(), side_none() };
         add_icon(&s2[1], OD_BLUETOOTH, (int16_t)k);
         OdLayout o;
-        od_layout(140, own, s2, NO_BLEED, false, &o);
+        od_layout(140, own, s2, NO_BLEED, 0, &o);
         char name[64];
         snprintf(name, sizeof(name), "elastic.own k%d", k);
         int room = 140 - k - 4;
@@ -365,7 +365,7 @@ static int date_texts(bool full_date, const char *full, const char *seen[OD_VARI
         OdSideIn sides[2] = { side_none(), side_none() };
         add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
         OdLayout out;
-        od_layout(140, slots, sides, NO_BLEED, false, &out);
+        od_layout(140, slots, sides, NO_BLEED, 0, &out);
         if (!out.place[1].visible || FREE_OF[out.stage[0]]) { break; }
         if (out.variant[1] == last) { continue; }
         last = out.variant[1];
@@ -419,7 +419,7 @@ static void no_short_form(void) {
             OdSideIn sides[2] = { side_none(), side_none() };
             add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
             OdLayout out;
-            od_layout(140, slots, sides, NO_BLEED, false, &out);
+            od_layout(140, slots, sides, NO_BLEED, 0, &out);
             char name[64];
             snprintf(name, sizeof(name), "noshort.own%d k%d", o, k);
             expect_true(name, out.form[0] != OD_SHORT);
@@ -433,7 +433,7 @@ static void no_short_form(void) {
             OdSideIn sides[2] = { side_none(), side_none() };
             add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
             OdLayout out;
-            od_layout(140, mid, sides, NO_BLEED, false, &out);
+            od_layout(140, mid, sides, NO_BLEED, 0, &out);
             char name[64];
             snprintf(name, sizeof(name), "noshort.mid%d k%d", o, k);
             expect_true(name, out.form[1] != OD_SHORT);

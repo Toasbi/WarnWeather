@@ -53,7 +53,7 @@ typedef struct {
     int16_t floor_w[3];         // the elastic last member at its floor; 0 = none
     int16_t short_w[3];         // its narrowest member's width; == plain_w: none
     uint8_t short_v[3];         // ... and which member that is
-    bool hide_right;            // the stand-in's second pass: the right slot stays hidden
+    uint8_t hide;               // the stand-in's second pass: bit i, slot i stays hidden
     uint8_t first[2];           // the side's first item: 1 skips the stand-in Battery
     uint8_t n[2];               // items still in
 } Pass;
@@ -92,10 +92,10 @@ typedef struct {
 } Fit;
 
 // The effective form of slot i under `form`: HIDDEN for a slot plain did not show
-// (empty, or squeezed out) and for the right slot on the stand-in's second pass;
+// (empty, or squeezed out) and for a battery slot on the stand-in's second pass;
 // SHORT is FULL for a slot with no narrower member.
 static uint8_t eff_form(const Pass *p, int i, uint8_t form) {
-    if (p->plain_w[i] <= 0 || (i == 2 && p->hide_right)) { return OD_HIDDEN; }
+    if (p->plain_w[i] <= 0 || ((p->hide >> i) & 1)) { return OD_HIDDEN; }
     if (form == OD_SHORT && p->short_w[i] >= p->plain_w[i]) { return OD_FULL; }
     return form;
 }
@@ -489,12 +489,12 @@ static void pass_init(Pass *p, int16_t content_w, const OdSlotIn slots[3],
 }
 
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
-               const int8_t bleed[2], bool battery_standin, OdLayout *out) {
+               const int8_t bleed[2], uint8_t battery_slots, OdLayout *out) {
     Pass p;
     pass_init(&p, content_w, slots, sides, bleed);
-    if (battery_standin) {
-        // Pass 1 without the Battery item (its side's item 0): the Watch battery
-        // slot shows the charge as long as the layout keeps it.
+    if (battery_slots) {
+        // Pass 1 without the Battery item (its side's item 0): a battery slot shows
+        // the charge as long as the layout keeps one.
         for (int d = 0; d < 2; d++) {
             if (p.n[d] > 0 && sides[d].rank[0] == OD_BATTERY) {
                 p.first[d] = 1;
@@ -502,12 +502,13 @@ void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[
             }
         }
         layout_pass(&p, out);
-        if (out->form[2] != OD_HIDDEN) { return; }
-        // Pass 2: the layout hid the slot, so the item replaces it. The slot stays
-        // hidden here, so no drop can bring it back beside the item: a low charge
-        // shows exactly one battery.
+        for (int i = 0; i < 3; i++) {
+            if (((battery_slots >> i) & 1) && out->form[i] != OD_HIDDEN) { return; }
+        }
+        // Pass 2: the layout hid every battery slot, so the item replaces them. They
+        // stay hidden here, so no drop can bring one back beside the item.
         pass_init(&p, content_w, slots, sides, bleed);
-        p.hide_right = true;
+        p.hide = battery_slots;
     }
     layout_pass(&p, out);
 }

@@ -514,11 +514,16 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     f.mday = (uint8_t)(env->full_date ? watch_services_localtime().tm_mday : 0);
     for (int i = 0; i < 3; i++) { measure_family(&f, i, &slots[i], &m[i], env, content_w); }
     const int8_t bleed[2] = { env->bleed_left, 0 };
-    // W7: on the Watch Status Bar the Battery item in its Icon look stands in for the
-    // Watch battery slot, drawn only once the layout hides that slot.
-    bool standin = env->top_strip && env->right_is_battery && s->active[OD_BATTERY]
-        && !s->battery_value;
-    od_layout(content_w, f.in, pass->sides, bleed, standin, &pass->layout);
+    // W7: a slot of this bar that shows the watch battery (the glyph or the Battery %,
+    // anywhere) already says what the Battery item would, whatever its Look, so the
+    // item stands in only once the layout has hidden every such slot.
+    uint8_t battery_slots = 0;
+    for (int i = 0; i < 3 && s->active[OD_BATTERY]; i++) {
+        if (slots[i].kind == SLOT_LIVE_BATTERY || slots[i].kind == SLOT_LIVE_BATTERY_PCT) {
+            battery_slots |= (uint8_t)(1 << i);
+        }
+    }
+    od_layout(content_w, f.in, pass->sides, bleed, battery_slots, &pass->layout);
     // Each slot draws the member the layout picked: its measure (the boxes and the
     // paint read it) and its text, written over the full one.
     for (int i = 0; i < 3; i++) {

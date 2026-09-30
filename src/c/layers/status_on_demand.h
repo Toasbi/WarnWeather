@@ -20,9 +20,10 @@
 // them). An item draws while it is active:
 //  - Battery      the charge is at or below the Battery item's warn level; the
 //                 procedural battery (battery_item.c), "8%" beside it with the Look
-//                 Icon + value. On the Watch Status Bar with the right slot on the
-//                 Watch battery glyph and the Look Icon, it stands in for that slot
-//                 only once the layout hides it (on_demand.h, battery_standin).
+//                 Icon + value. While a slot of the bar shows the watch battery (the
+//                 Watch battery glyph or the Battery %, in any position), it stands
+//                 in for that slot only once the layout hides it, whatever its Look
+//                 (on_demand.h, battery_slots).
 //  - Bluetooth    connected with Show "Connected" on, or disconnected with Show
 //                 "Disconnected" on — the rune, or the rune crossed out, in the
 //                 Bluetooth colours (PictonBlue / red on a dark colour theme).
@@ -92,7 +93,6 @@ typedef struct {
     int8_t bar;             // the row's ThreshBar (-1: none)
     int8_t bleed_left;      // px the left run may reach into the row margin
     bool top_strip;         // the strip's glyph set and box floor
-    bool right_is_battery;  // the right slot is the Watch battery glyph
     bool full_date;         // a date slot prints the full date (no calendar on screen)
 } StatusOnDemandEnv;
 

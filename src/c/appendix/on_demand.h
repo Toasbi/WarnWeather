@@ -76,9 +76,9 @@ typedef struct {
 
 // The layout: each slot's form, member and place (content x), and per side the
 // items kept, their lane and where they sit. Side d draws its input items
-// first[d] .. first[d] + n[d] - 1 (first is 1 only when the stand-in Battery item
-// was left out); item_x is indexed like the input. Index 0 of every per-side array
-// is the left side, 1 the right.
+// first[d] .. first[d] + n[d] - 1 (first is 1 only when the Battery item was left
+// out beside a battery slot); item_x is indexed like the input. Index 0 of every
+// per-side array is the left side, 1 the right.
 typedef struct {
     uint8_t form[3];                       // OdForm, left / middle / right slot
     uint8_t variant[3];                    // the member drawn: 0 full, else short
@@ -107,9 +107,10 @@ typedef struct {
 //    its room allows, the middle first, then the left slot, then the right.
 // `bleed[d]` is how far side d's run may reach past the content edge into the row
 // margin (the top strip's left run starts where the old indicator icons did). Slots
-// never bleed. `battery_standin` (the top strip's Watch battery slot with the
-// Battery item in its Icon look): the Battery item is left out while that slot
-// still shows after the layout, and replaces it once the layout hides it — a low
-// charge always shows exactly one battery.
+// never bleed. `battery_slots` (bit i: slot i shows the watch battery, the Watch
+// battery glyph or the Battery %; nonzero only while the Battery item is on a side):
+// the Battery item, whatever its Look, is left out while any of those slots still
+// shows after the layout, and stands in once the layout has hidden every one of them
+// — a low charge shows the battery in a slot or in the item, never both.
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
-               const int8_t bleed[2], bool battery_standin, OdLayout *out);
+               const int8_t bleed[2], uint8_t battery_slots, OdLayout *out);

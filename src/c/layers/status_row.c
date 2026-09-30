@@ -779,7 +779,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         .bar = (int8_t)status_threshold_bar_of_line(row->line_id),
         .bleed_left = top ? STATUS_ROW_MARGIN : 0,
         .top_strip = top,
-        .right_is_battery = views[STATUS_SLOT_COUNT - 1].kind == SLOT_LIVE_BATTERY,
         .full_date = row->full_date
     };
     StatusOnDemandSlot od_slots[STATUS_SLOT_COUNT];
