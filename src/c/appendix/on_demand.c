@@ -19,7 +19,8 @@
 // middle leaves the centre (5); the own slot hides and the middle retries full and
 // centred, short and centred, short off-centre (6-8); the middle hides (9). After
 // row 9 the side's lowest-priority item drops and the ladder starts over. The order
-// lives in this one table.
+// lives in this one table. (Once the middle has hidden, a slot the rows 1-9 shortened
+// or hid comes back where it now fits: layout_pass's slots back.)
 typedef struct {
     uint8_t own;      // OdForm of the side's own slot
     uint8_t mid;      // OdForm the side asks of the middle
@@ -383,8 +384,8 @@ static void place(const Pass *p, const Conf *c, const Geom *g, const uint8_t sta
 // side is at the last row, the one whose tail is the lowest priority drops it, and
 // the ladder starts over — so slots a drop makes room for come back. Each pass
 // climbs at most 2 x 9 rows and there are at most 20 drops, so it ends. Then the
-// looks come back where the settled forms leave room (§5.5 step 0), and the layout
-// is placed.
+// looks come back where the settled forms leave room (§5.5 step 0), with the middle
+// hidden the own slots come back where they fit, and the layout is placed.
 static void layout_pass(Pass *p, OdLayout *out) {
     Conf c;
     Geom g;
@@ -438,6 +439,43 @@ static void layout_pass(Pass *p, OdLayout *out) {
                 c = t;
                 g = tg;
                 break;
+            }
+        }
+    }
+    // Slots back. A side climbs while its claim is in the way AS THINGS WERE then:
+    // its slot shortens or hides for a middle, or beside the other side's claim, that
+    // a later row — its own or the other side's — then hides or shrinks. With the
+    // middle hidden a side's rows differ only in its slot's form and its looks, so
+    // each side takes back the lowest row that now fits beside the other side as
+    // settled: its slot FULL where its look is the chosen one (row 0), else — a
+    // hidden slot — SHORT from its settled look down to its row's (rows 1-5; the
+    // owner's ladder shortens the looks before it hides the slot, and place() widens
+    // a short slot where there is room). A claim that stays inside its half is never
+    // pushed (§5.4). Nothing else gives way: the other side keeps its row and its
+    // looks. The side that climbed further goes first, as its slot hid rather than
+    // shortened. With one active side every lower row failed on the way up, so only a
+    // slot row 9 hid with the middle can come back. The first form that fits is at
+    // worst the slot's own (its row and look pass as settled), and a slot plain did
+    // not show, or a battery slot pass 2 keeps hidden, stays HIDDEN (eff_form).
+    const int further = stage[1] > stage[0];
+    for (int j = 0; j < 2 && !g.mid_shown; j++) {
+        const int d = j ^ further;
+        Conf t = c;
+        Geom tg;
+        uint8_t form = c.lane[d] == 0 ? OD_FULL : OD_SHORT;
+        for (uint8_t k = c.lane[d]; k <= STAGE[stage[d]].lane;) {
+            t.own[d] = eff_form(p, OWN(d), form);
+            t.lane[d] = k;
+            geometry(p, &t, &tg);
+            if (tg.ok) {
+                c = t;
+                g = tg;
+                break;
+            }
+            if (form == OD_FULL) {
+                form = OD_SHORT;
+            } else {
+                k++;
             }
         }
     }

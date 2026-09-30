@@ -125,8 +125,12 @@ static void ladder_every_row_in_order(void) {
         snprintf(name, sizeof(name), "ladder.stage k%d", k);
         expect(name, out.stage[0], want);
         expect(name, out.n[0], 1);
+        // Row 9 hides the middle, and with it gone the own slot comes back where it
+        // fits (the slots back): short beside the run up to k 102 (k + GAP + 20 + GAP
+        // <= 130, the right slot), hidden past that.
+        const uint8_t own_want = (want == 9 && k <= 102) ? OD_SHORT : OWN_OF[want];
         snprintf(name, sizeof(name), "ladder.own k%d", k);
-        expect(name, out.form[0], OWN_OF[want]);
+        expect(name, out.form[0], own_want);
         snprintf(name, sizeof(name), "ladder.mid k%d", k);
         expect(name, out.form[1], MID_OF[want]);
         snprintf(name, sizeof(name), "ladder.lane k%d", k);
@@ -134,7 +138,13 @@ static void ladder_every_row_in_order(void) {
         // The right slot never moves: its side has no item.
         snprintf(name, sizeof(name), "ladder.far k%d", k);
         expect(name, out.place[2].icon_x, 130);
-        if (MID_OF[want] == OD_HIDDEN) { continue; }
+        if (MID_OF[want] == OD_HIDDEN) {
+            if (own_want != OD_HIDDEN) {
+                snprintf(name, sizeof(name), "ladder.slot_back_x k%d", k);
+                expect(name, out.place[0].icon_x, k + STATUS_ROW_GROUP_GAP);
+            }
+            continue;
+        }
         // The middle sits exactly on its target on every row that does not free it:
         // the plain x full, the short member centred on the same centre.
         int target = MID_OF[want] == OD_FULL ? 75 : 85;
@@ -145,7 +155,7 @@ static void ladder_every_row_in_order(void) {
             expect(name, out.place[1].icon_x, target);
         }
         // The own slot sits next to its run.
-        if (OWN_OF[want] != OD_HIDDEN) {
+        if (own_want != OD_HIDDEN) {
             snprintf(name, sizeof(name), "ladder.own_x k%d", k);
             int run = LANE_OF[want] == 0 ? 3 * k : LANE_OF[want] == 1 ? 2 * k : k;
             expect(name, out.place[0].icon_x, run + STATUS_ROW_GROUP_GAP);
@@ -226,6 +236,9 @@ static void looks_come_back(void) {
     expect("relax.minutes", out.lane[0], 1);
     expect("relax.minutes_slot_hidden", out.place[0].visible, 0);
 }
+
+// The top strip's bleed: its left run may start 2 px into the row margin.
+static const int8_t STRIP_BLEED[2] = { 2, 0 };
 
 // --- random inputs ----------------------------------------------------------------
 
@@ -521,7 +534,9 @@ static void attribution_is_exact(void) {
 // slot) goes to its minutes (row 3) in the same step. Then the rain's Text fits again
 // in the room the hidden slot freed (the looks-back relax). A left side that idled on
 // row 3 (a lane that narrows nothing) or row 5 (a middle that is not there) would
-// already fit there with its slot, and settle on it.
+// already fit there with its slot, and settle on it. (The slots back then leave the
+// left slot hidden: beside the right side's Text, which keeps its look, it does not
+// fit.)
 static void two_sides_skip_idle_rows(void) {
     OdSlotIn slots[3] = { slot_text(20, 0), slot_empty(), slot_text(20, 0) };
     OdSideIn sides[2] = { side_none(), side_none() };
@@ -537,6 +552,234 @@ static void two_sides_skip_idle_rows(void) {
     expect("skip.right_x", out.place[2].icon_x, 100 - 40 - STATUS_ROW_GROUP_GAP - 20);
 }
 
+// --- slots back -----------------------------------------------------------------------
+//
+// A side climbs while its claim is in the way of things as they were then; once both
+// sides have settled with the middle hidden, each side's slot comes back where it now
+// fits beside the other side as settled — full at the chosen look, else (a hidden
+// slot) short — and the other side keeps its row and its looks. The reported row
+// stays the one the side climbed to.
+
+static void slots_back_two_sides(void) {
+    OdLayout out;
+    // The top strip (content 132, bleed 2): Quiet time and Sleep left beside a
+    // temperature slot (icon 8 + "12°" 18, short "12" 12); the date (44, short 7) in
+    // the middle; the right side a heavy rain day (Battery, the rain Text, boxed UV and
+    // gust). At the first rows both sides are in the way of the centred date and the
+    // left slot shortens (row 2); the right side climbs on until it hides the date
+    // (row 9). Beside the date gone the left slot fits whole again: "12°" draws as it
+    // does on a bar with no middle slot.
+    OdSlotIn strip[3] = { slot_empty(), slot_text(44, 7), slot_empty() };
+    strip[0].m[0] = (StatusSlotMeasure) { true, 8, 18, 0 };
+    strip[0].m[1] = (StatusSlotMeasure) { true, 8, 12, 0 };
+    strip[0].n = 2;
+    OdSideIn sides[2] = { side_none(), side_none() };
+    add_icon(&sides[0], OD_QUIET_TIME, 10);
+    add_icon(&sides[0], OD_SLEEP, 10);
+    add_icon(&sides[1], OD_BATTERY, 19);
+    add(&sides[1], OD_RAIN, 68, 25, 10, false);
+    add(&sides[1], OD_UV, 24, 24, 16, true);
+    add(&sides[1], OD_GUST, 32, 32, 16, true);
+    od_layout(132, strip, sides, STRIP_BLEED, 0, &out);
+    expect("slots_back.strip.middle_hidden", out.form[1], OD_HIDDEN);
+    expect("slots_back.strip.right_stage", out.stage[1], 9);
+    expect("slots_back.strip.left_stage", out.stage[0], 2);
+    expect("slots_back.strip.left_full", out.form[0], OD_FULL);
+    expect("slots_back.strip.left_text", out.place[0].text_w, 18);
+    OdSlotIn no_mid[3] = { strip[0], slot_empty(), slot_empty() };
+    OdLayout plain_mid;
+    od_layout(132, no_mid, sides, STRIP_BLEED, 0, &plain_mid);
+    expect_true("slots_back.strip.as_without_middle", place_eq(&out.place[0], &plain_mid.place[0]));
+
+    // The mirror: the left side (70 px of icons) hides the middle at row 9 after the
+    // right side shortened its slot for it (row 1). W 140, slots 30 | 40 | 30 with
+    // shorts 20 / 30 / 20, a 20 px rain on the right: its slot is whole again, next to
+    // its run.
+    OdSlotIn three[3] = { slot_text(30, 20), slot_text(40, 30), slot_text(30, 20) };
+    OdSideIn left_heavy[2] = { side_none(), side_none() };
+    add_icon(&left_heavy[0], OD_BLUETOOTH, 22);
+    add_icon(&left_heavy[0], OD_QUIET_TIME, 22);
+    add_icon(&left_heavy[0], OD_SLEEP, 18);
+    add_icon(&left_heavy[1], OD_RAIN, 20);
+    od_layout(140, three, left_heavy, NO_BLEED, 0, &out);
+    expect("slots_back.mirror.middle_hidden", out.form[1], OD_HIDDEN);
+    expect("slots_back.mirror.left_stage", out.stage[0], 9);
+    expect("slots_back.mirror.right_stage", out.stage[1], 1);
+    expect("slots_back.mirror.right_full", out.form[2], OD_FULL);
+    expect("slots_back.mirror.right_x", out.place[2].icon_x, 140 - 20 - STATUS_ROW_GROUP_GAP - 30);
+
+    // With the middle shown nothing comes back: the middle's member comes first. W 217,
+    // the left slot 27 (shorts 13, 6), the middle 17 + 70 (shorts 17 + 52 / 13 / 3), the
+    // right slot a 13 px glyph. The left side (Battery 52 / 32 / 17) settles on row 1;
+    // the right side's rain and boxed alerts on row 3, which shortens the middle. The
+    // left slot would fit whole beside the middle's narrowest member, but it stays
+    // short and the middle keeps its wider one.
+    OdSlotIn guard[3] = { slot_empty(), slot_empty(), slot_empty() };
+    guard[0].m[0] = (StatusSlotMeasure) { true, 0, 27, 0 };
+    guard[0].m[1] = (StatusSlotMeasure) { true, 0, 13, 0 };
+    guard[0].m[2] = (StatusSlotMeasure) { true, 0, 6, 0 };
+    guard[0].n = 3;
+    guard[0].floor_w = 1;
+    guard[1].m[0] = (StatusSlotMeasure) { true, 17, 70, 0 };
+    guard[1].m[1] = (StatusSlotMeasure) { true, 17, 52, 0 };
+    guard[1].m[2] = (StatusSlotMeasure) { true, 17, 13, 0 };
+    guard[1].m[3] = (StatusSlotMeasure) { true, 17, 3, 0 };
+    guard[1].n = 4;
+    guard[2].m[0] = (StatusSlotMeasure) { true, 13, 0, 0 };
+    guard[2].n = 1;
+    OdSideIn g2[2] = { side_none(), side_none() };
+    add(&g2[0], OD_BATTERY, 52, 32, 17, false);
+    add(&g2[1], OD_RAIN, 50, 14, 14, false);
+    add(&g2[1], OD_GUST, 25, 16, 16, true);
+    add(&g2[1], OD_AQI, 15, 15, 15, true);
+    od_layout(217, guard, g2, NO_BLEED, 0, &out);
+    expect("slots_back.shown.left_stage", out.stage[0], 1);
+    expect("slots_back.shown.left_short", out.form[0], OD_SHORT);
+    expect("slots_back.shown.middle_member", out.variant[1], 1);
+    expect("slots_back.shown.middle_x", out.place[1].icon_x, 72);
+}
+
+static void slots_back_row9(void) {
+    OdLayout out;
+    // A calendar strip (content 132, bleed 2): the month (50, short 42) in the middle,
+    // the Watch battery glyph (29, short 19 without its bolt lane) on the right, the
+    // Battery item not active; the right side a rain and four boxed alerts. The month
+    // fits nowhere, so the side reaches row 9 and hides it with the glyph; with the
+    // month gone the glyph's short form fits again, left of the run.
+    OdSlotIn cal[3] = { slot_empty(), slot_text(50, 42), slot_empty() };
+    cal[2].m[0] = (StatusSlotMeasure) { true, 29, 0, 0 };
+    cal[2].m[1] = (StatusSlotMeasure) { true, 19, 0, 0 };
+    cal[2].n = 2;
+    OdSideIn heavy[2] = { side_none(), side_none() };
+    add(&heavy[1], OD_RAIN, 68, 25, 10, false);
+    add(&heavy[1], OD_GUST, 40, 40, 22, true);
+    add(&heavy[1], OD_UV, 30, 30, 22, true);
+    add(&heavy[1], OD_AQI, 36, 36, 22, true);
+    add(&heavy[1], OD_WIND, 40, 40, 22, true);
+    od_layout(132, cal, heavy, STRIP_BLEED, 0, &out);
+    expect("slots_back.row9.cal.stage", out.stage[1], 9);
+    expect("slots_back.row9.cal.middle_hidden", out.form[1], OD_HIDDEN);
+    expect("slots_back.row9.cal.glyph_short", out.form[2], OD_SHORT);
+    expect("slots_back.row9.cal.glyph_x", out.place[2].icon_x, 132 - 106 - STATUS_ROW_GROUP_GAP - 19);
+    expect("slots_back.row9.cal.n", out.n[1], 5);
+
+    // The left side: W 140, slots 30 | 40 | 30 with shorts 20 / 30 / -, 80 px of icons.
+    // Row 9 hides the middle; the left slot's short form fits between the run and the
+    // plain right slot (84 + 20 + GAP <= 110), its full form does not.
+    OdSlotIn left[3] = { slot_text(30, 20), slot_text(40, 30), slot_text(30, 0) };
+    OdSideIn icons[2] = { side_none(), side_none() };
+    add_icon(&icons[0], OD_BLUETOOTH, 38);
+    add_icon(&icons[0], OD_QUIET_TIME, 38);
+    od_layout(140, left, icons, NO_BLEED, 0, &out);
+    expect("slots_back.row9.left.stage", out.stage[0], 9);
+    expect("slots_back.row9.left.short", out.form[0], OD_SHORT);
+    expect("slots_back.row9.left.x", out.place[0].icon_x, 80 + STATUS_ROW_GROUP_GAP);
+    expect("slots_back.row9.left.far", out.place[2].icon_x, 110);
+
+    // The slot comes back at the cost of its own side's looks only (the owner's ladder
+    // shortens the looks before it hides the slot): W 120, a 20 px left slot, a 100 px
+    // middle (plain: squeezed to 96 at x 24), and a rain of 100 / 40 / 21. Even its
+    // icon (21) leaves the middle no room (row 9). With the middle hidden the Text
+    // (100) fits alone — the looks come back — but not beside the slot; the slot comes
+    // back beside the minutes (40 + GAP + 20).
+    OdSlotIn cost[3] = { slot_text(20, 0), slot_text(100, 0), slot_empty() };
+    OdSideIn rain[2] = { side_none(), side_none() };
+    add(&rain[0], OD_RAIN, 100, 40, 21, false);
+    od_layout(120, cost, rain, NO_BLEED, 0, &out);
+    expect("slots_back.row9.cost.stage", out.stage[0], 9);
+    expect("slots_back.row9.cost.middle_hidden", out.form[1], OD_HIDDEN);
+    expect("slots_back.row9.cost.slot", out.form[0], OD_FULL);
+    expect("slots_back.row9.cost.slot_x", out.place[0].icon_x, 40 + STATUS_ROW_GROUP_GAP);
+    expect("slots_back.row9.cost.lane", out.lane[0], 1);
+}
+
+// Bars a random search found where one rule of the slots back decides the layout
+// (each kills a mutant the cases above let through). A member is { icon, text,
+// suffix }; an item is { rank, lane 0, lane 1, lane 2, padded }.
+typedef struct { int16_t icon, text, suffix; } PinMember;
+typedef struct { uint8_t n; int16_t floor_w; PinMember m[OD_VARIANTS]; } PinSlot;
+typedef struct { uint8_t rank; int16_t w0, w1, w2; bool padded; } PinItem;
+typedef struct {
+    const char *what;
+    int16_t w;
+    int8_t bleed;
+    PinSlot slots[3];
+    uint8_t n[2];
+    PinItem items[2][3];
+    // the result pinned: each slot's form, member and x (x -1: not checked), and each
+    // side's row and lane
+    uint8_t form[3], variant[3];
+    int16_t x[3];
+    uint8_t stage[2], lane[2];
+} PinCase;
+
+static const PinCase PINS[] = {
+    // The side that climbed further takes its slot back first (no middle slot here):
+    // the right slot, hidden, comes back whole, and the left one then stays short.
+    { "further_first", 98, 0,
+      { { 2, 5, { { 0, 33, 0 }, { 0, 8, 0 } } }, { 0, 0, { { 0 } } }, { 1, 0, { { 0, 45, 0 } } } },
+      { 1, 1 }, { { { OD_BLUETOOTH, 16, 16, 10, false } }, { { OD_RAIN, 9, 9, 9, false } } },
+      { OD_SHORT, OD_HIDDEN, OD_FULL }, { 1, 0, 0 }, { 20, -1, 40 }, { 1, 6 }, { 0, 0 } },
+    // A slot row 9 hid comes back full where that fits.
+    { "slot_back_full", 110, 0,
+      { { 1, 0, { { 0, 24, 0 } } }, { 1, 0, { { 12, 38, 0 } } }, { 2, 6, { { 0, 13, 0 }, { 0, 9, 0 } } } },
+      { 0, 2 }, { { { 0 } }, { { OD_BATTERY, 6, 6, 6, false }, { OD_SLEEP, 18, 18, 18, false } } },
+      { OD_FULL, OD_HIDDEN, OD_FULL }, { 0, 0, 0 }, { 0, -1, 65 }, { 0, 9 }, { 0, 0 } },
+    // One side: a slot short at a shortened look stays short — its full form comes
+    // back only at the chosen look (row 0), as the ladder has it.
+    { "short_at_shortened_look", 77, 2,
+      { { 2, 2, { { 10, 13, 0 }, { 10, 3, 0 } } }, { 0, 0, { { 0 } } }, { 0, 0, { { 0 } } } },
+      { 2, 0 }, { { { OD_BLUETOOTH, 22, 15, 15, false }, { OD_QUIET_TIME, 35, 13, 13, false } }, { { 0 } } },
+      { OD_SHORT, OD_HIDDEN, OD_HIDDEN }, { 1, 0, 0 }, { 34, -1, -1 }, { 3, 0 }, { 1, 0 } },
+    // No slot comes back beside a shown middle: the left slot would push it further
+    // off its target.
+    { "no_slot_back_beside_middle", 170, 0,
+      { { 1, 0, { { 0, 16, 0 } } }, { 1, 0, { { 0, 52, 0 } } }, { 2, 0, { { 15, 89, 0 }, { 15, 66, 0 } } } },
+      { 2, 2 }, { { { OD_BLUETOOTH, 45, 9, 9, false }, { OD_SLEEP, 36, 36, 19, false } },
+                  { { OD_GUST, 26, 26, 19, false }, { OD_AQI, 27, 19, 19, false } } },
+      { OD_HIDDEN, OD_FULL, OD_HIDDEN }, { 0, 0, 0 }, { -1, 53, -1 }, { 8, 6 }, { 1, 0 } },
+};
+
+static void slots_back_pins(void) {
+    for (size_t c = 0; c < sizeof(PINS) / sizeof(PINS[0]); c++) {
+        const PinCase *pc = &PINS[c];
+        OdSlotIn slots[3];
+        for (int i = 0; i < 3; i++) {
+            slots[i] = slot_empty();
+            slots[i].n = pc->slots[i].n;
+            slots[i].floor_w = pc->slots[i].floor_w;
+            for (int v = 0; v < pc->slots[i].n; v++) {
+                const PinMember *pm = &pc->slots[i].m[v];
+                slots[i].m[v] = (StatusSlotMeasure) { true, pm->icon, pm->text, pm->suffix };
+            }
+        }
+        OdSideIn sides[2] = { side_none(), side_none() };
+        for (int d = 0; d < 2; d++) {
+            for (int k = 0; k < pc->n[d]; k++) {
+                const PinItem *it = &pc->items[d][k];
+                add(&sides[d], it->rank, it->w0, it->w1, it->w2, it->padded);
+            }
+        }
+        const int8_t bleed[2] = { pc->bleed, 0 };
+        OdLayout out;
+        od_layout(pc->w, slots, sides, bleed, 0, &out);
+        char name[80];
+        for (int i = 0; i < 3; i++) {
+            snprintf(name, sizeof(name), "pin.%s.slot%d", pc->what, i);
+            expect(name, out.form[i], pc->form[i]);
+            if (pc->form[i] == OD_HIDDEN) { continue; }
+            expect(name, out.variant[i], pc->variant[i]);
+            if (pc->x[i] >= 0) { expect(name, out.place[i].icon_x, pc->x[i]); }
+        }
+        for (int d = 0; d < 2; d++) {
+            if (pc->n[d] == 0) { continue; }
+            snprintf(name, sizeof(name), "pin.%s.side%d", pc->what, d);
+            expect(name, out.stage[d], pc->stage[d]);
+            expect(name, out.lane[d], pc->lane[d]);
+        }
+    }
+}
+
 // --- the Battery stand-in -------------------------------------------------------------
 //
 // The top strip on a 144 px watch: content 132, bleed { 2, 0 }, a 24 px left slot,
@@ -544,8 +787,6 @@ static void two_sides_skip_idle_rows(void) {
 // slot is the Watch battery glyph or the Battery % (text only, no short form: a battery
 // number is whole or hidden); od_layout's `battery_slots` marks each slot showing one
 // (bit i: slot i), whatever the Battery item's Look.
-
-static const int8_t STRIP_BLEED[2] = { 2, 0 };
 
 #define BATT_L 1
 #define BATT_M 2
@@ -678,13 +919,17 @@ static void battery_standin(void) {
     expect("standin.e.both.glyph_hidden", out.place[2].visible, 0);
 
     // (f) Both battery slots hidden by the ladder: the Battery % on the left gives way
-    // to Bluetooth, Quiet time and Sleep, the glyph on the right to the rain and the
-    // gust. Only then does the item stand in — and neither slot comes back beside it.
+    // to Bluetooth, Quiet time and Sleep, the glyph on the right to the rain and a
+    // 45 px gust — wide enough that neither comes back beside the hidden middle (the
+    // slots back). Only then does the item stand in — and neither slot comes back
+    // beside it.
     OdSideIn both[2] = { side_none(), side_none() };
     add_icon(&both[0], OD_BLUETOOTH, 10);
     add_icon(&both[0], OD_QUIET_TIME, 12);
     add_icon(&both[0], OD_SLEEP, 14);
-    crowd_right(&both[1], false);
+    add_icon(&both[1], OD_BATTERY, 17);
+    add(&both[1], OD_RAIN, 60, 22, 12, false);
+    add(&both[1], OD_GUST, 45, 45, 45, true);
     od_layout(132, pct_left, both, STRIP_BLEED, BATT_L | BATT_R, &out);
     expect("standin.f.pct_hidden", out.place[0].visible, 0);
     expect("standin.f.glyph_hidden", out.place[2].visible, 0);
@@ -1014,6 +1259,9 @@ int main(void) {
     two_sides_no_middle();
     attribution_is_exact();
     two_sides_skip_idle_rows();
+    slots_back_two_sides();
+    slots_back_row9();
+    slots_back_pins();
     battery_standin();
     bleed_and_order();
     drops();

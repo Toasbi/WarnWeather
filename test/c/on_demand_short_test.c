@@ -402,8 +402,9 @@ static void date_families(void) {
 }
 
 // A slot with no short form never takes a SHORT step: as the own slot it goes from
-// FULL straight to HIDDEN at its turn, and as the middle it leaves the centre whole
-// and then hides.
+// FULL straight to HIDDEN at its turn (and comes back FULL only beside a hidden
+// middle, the slots back), and as the middle it leaves the centre whole and then
+// hides.
 static void no_short_form(void) {
     char texts[OD_VARIANTS][STATUS_SHORT_CAP];
     OdSlotIn week = slot_family(SLOT_LIVE_WEEK, STATUS_ICON_NONE, false, 7, "W40", texts);
@@ -415,6 +416,7 @@ static void no_short_form(void) {
     for (int o = 0; o < 2; o++) {
         OdSlotIn slots[3] = { *own_kinds[o], date, slot_empty() };
         bool hidden = false;
+        bool back = false;
         for (int k = 1; k <= 140; k++) {
             OdSideIn sides[2] = { side_none(), side_none() };
             add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
@@ -424,9 +426,12 @@ static void no_short_form(void) {
             snprintf(name, sizeof(name), "noshort.own%d k%d", o, k);
             expect_true(name, out.form[0] != OD_SHORT);
             if (out.form[0] == OD_HIDDEN) { hidden = true; }
-            expect_true(name, !(hidden && out.form[0] == OD_FULL && out.n[0] == 1));
+            expect_true(name, !(hidden && out.form[0] == OD_FULL && out.n[0] == 1
+                                && out.place[1].visible));
+            if (hidden && out.form[0] == OD_FULL && out.n[0] == 1) { back = true; }
         }
         expect_true("noshort.own.hides", hidden);
+        expect_true("noshort.own.back_beside_hidden_middle", back);
         OdSlotIn mid[3] = { slot_empty(), *own_kinds[o], slot_empty() };
         bool moved = false;
         for (int k = 1; k <= 140; k++) {

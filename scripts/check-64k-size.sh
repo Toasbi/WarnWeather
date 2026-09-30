@@ -11,22 +11,28 @@
 # on basalt and diorite (the custom-layout v2 heap gate, c24da813).
 #
 # 1.24.0 (On demand and the status slots' short forms) left the images at basalt
-# 62508 B and diorite/flint 60068 B: about 3028 B and 5468 B of boot free heap before
+# 62632 B and diorite/flint 60200 B: about 2904 B and 5336 B of boot free heap before
 # the first allocation. Basalt is under the 4.5 KB gate by construction, and the
-# 640 B inbox alone takes diorite/flint to about 4.8 KB, at the gate before any window
+# 640 B inbox alone takes diorite/flint to about 4.7 KB, at the gate before any window
 # or layer. The runtime low point is not measured yet, and the owner has not decided
 # between re-setting the gate to a measured floor and cutting image bytes. Until then
 # the ceilings below are those measured images, set only so the next change cannot
 # drift further. Lower a ceiling when bytes are reclaimed; never raise one without a
-# measured runtime low point that allows it. Emery's app RAM is 128 KB (8 KB gate), so
-# it is not checked here.
+# measured runtime low point that allows it. (One recorded exception: the final
+# review's On demand layout fix, the slots back, added 180 B; less the 44 B (basalt)
+# and 48 B (diorite, flint) its other fixes gave back, and basalt's 12 B of headroom,
+# that raised basalt's ceiling by 124 B and diorite/flint's by 132 B, for the
+# heap-64k reclaim to take back.) Emery's app RAM is 128 KB (8 KB gate), so it is not
+# checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
-# (its MEM| call sites). At the images above, diorite/flint's logging build is 63192 B,
-# which leaves 2344 B of boot free heap, so a low point it logs sits about 3124 B below
-# the release build's. Basalt's logging build does not link at all (the APP region
-# overflows by 116 B), so its low point cannot be taken that way until image bytes come
-# back; its release build's boot free heap (about 3028 B) is already its upper bound.
+# (its MEM| call sites; 3124 B on diorite/flint when measured at 60068 B). At the
+# images above, diorite/flint's logging build is about 63324 B, which leaves about
+# 2212 B of boot free heap, so a low point it logs sits about 3124 B below the release
+# build's. Basalt's logging build does not link at all (the APP region overflowed by
+# 116 B at 62508 B, so by about 240 B now), so its low point cannot be taken that way
+# until image bytes come back; its release build's boot free heap (about 2904 B) is
+# already its upper bound.
 set -euo pipefail
 
 wt_root=$(git rev-parse --show-toplevel)
@@ -35,9 +41,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-62508}"
-  "diorite:${DIORITE_IMAGE_CEILING:-60068}"
-  "flint:${FLINT_IMAGE_CEILING:-60068}"
+  "basalt:${BASALT_IMAGE_CEILING:-62632}"
+  "diorite:${DIORITE_IMAGE_CEILING:-60200}"
+  "flint:${FLINT_IMAGE_CEILING:-60200}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

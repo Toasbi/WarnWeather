@@ -125,7 +125,8 @@ typedef struct {
     uint8_t first[2];                      // the first input item kept
     uint8_t n[2];                          // items kept (0: no run)
     uint8_t lane[2];                       // their lane
-    uint8_t stage[2];                      // the ladder row the side settled on
+    uint8_t stage[2];                      // the ladder row the side climbed to (its
+                                           // slot may have come back since: form[])
     int16_t x[2];                          // the run's span, content x ...
     int16_t w[2];                          // ... and width
     int16_t item_x[2][OD_SIDE_MAX];        // each kept item's left edge
@@ -139,10 +140,13 @@ typedef struct {
 //  - Otherwise each side climbs the make-room ladder (on_demand.c) while its own
 //    claim is in the way: its slot slides inward, shortens, the looks shorten, the
 //    middle leaves the centre, its slot hides, the middle hides, and finally its
-//    lowest-priority item drops. The far slot of a side with no items keeps its
-//    place. The ladder measures a short slot at its narrowest member (an elastic
-//    one at its floor); once it has settled, each short slot draws the widest member
-//    its room allows, the middle first, then the left slot, then the right.
+//    lowest-priority item drops. Once both have settled with the middle hidden, each
+//    side's slot comes back where it now fits (full at the chosen look, else short),
+//    taking nothing from the other side: a slot shortened or hidden for a middle or
+//    a claim that later gave way. The far slot of a side with no items keeps its
+//    place. The ladder measures a short slot at its narrowest member (an elastic one
+//    at its floor); once it has settled, each short slot draws the widest member its
+//    room allows, the middle first, then the left slot, then the right.
 // `bleed[d]` is how far side d's run may reach past the content edge into the row
 // margin (the top strip's left run starts where the old indicator icons did). Slots
 // never bleed. `battery_slots` (bit i: slot i shows the watch battery, the Watch
