@@ -83,8 +83,9 @@ STATUS LINES
      pollen alert is off
    - When a bar runs short of room, its slots switch to short forms first (outside calendar
      views the date to its day number, "New York" to "N. York", sleep "7h", steps "12k",
-     units dropped), then the middle slot moves aside, and only then do slots hide and the
-     last items drop
+     units dropped), then the slot beside the items hides and the middle slot moves aside
+     and hides, and only then do the alert values and the rain text shorten and the last
+     items drop
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches

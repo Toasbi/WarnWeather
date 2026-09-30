@@ -9989,8 +9989,8 @@
                   ]
                 ],
                 "hintByValue": {
-                  "minutes": "The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. Just the icon when the bar is short on room.",
-                  "text": "Shortens to the minutes, then to the rain icon alone, when the bar is short on room."
+                  "minutes": "The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then is it just the icon.",
+                  "text": "On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it shorten to the minutes, then to the rain icon alone."
                 }
               }
             ]
@@ -10020,7 +10020,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
+                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
                 }
               },
               {
@@ -10255,7 +10255,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
+                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
                 }
               },
               {
@@ -10490,7 +10490,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
+                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
                 }
               },
               {
@@ -10725,7 +10725,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
+                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
                 }
               },
               {
@@ -10960,7 +10960,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
+                  "value": "Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon."
                 }
               },
               {

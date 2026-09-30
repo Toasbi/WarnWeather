@@ -71,10 +71,15 @@ static inline void add_icon(OdSideIn *s, int rank, int16_t w) {
 
 static const int8_t NO_BLEED[2] = { 0, 0 };
 
-// The STAGE[] table's forms, restated here so the tests pin the order.
-static const uint8_t OWN_OF[10] = { OD_FULL, OD_SHORT, OD_SHORT, OD_SHORT, OD_SHORT,
-                                    OD_SHORT, OD_HIDDEN, OD_HIDDEN, OD_HIDDEN, OD_HIDDEN };
-static const uint8_t MID_OF[10] = { OD_FULL, OD_FULL, OD_SHORT, OD_SHORT, OD_SHORT,
-                                    OD_SHORT, OD_FULL, OD_SHORT, OD_SHORT, OD_HIDDEN };
-static const uint8_t LANE_OF[10] = { 0, 0, 0, 1, 2, 2, 2, 2, 2, 2 };
-static const uint8_t FREE_OF[10] = { 0, 0, 0, 0, 0, 1, 0, 0, 1, 0 };
+// The STAGE[] table's forms, restated here so the tests pin the order (the owner's,
+// 2026-09-30): the own slot slides inward, shortens, the middle shortens, the own
+// slot hides (the middle retries full, then short), the middle leaves the centre,
+// the middle hides — and beside it gone the own slot tries back whole, then short,
+// then hides. A side climbs these rows once per look.
+static const uint8_t OWN_OF[OD_LAST_STAGE + 1] = { OD_FULL, OD_SHORT, OD_SHORT, OD_HIDDEN,
+                                                   OD_HIDDEN, OD_HIDDEN, OD_FULL, OD_SHORT,
+                                                   OD_HIDDEN };
+static const uint8_t MID_OF[OD_LAST_STAGE + 1] = { OD_FULL, OD_FULL, OD_SHORT, OD_FULL,
+                                                   OD_SHORT, OD_SHORT, OD_HIDDEN, OD_HIDDEN,
+                                                   OD_HIDDEN };
+static const uint8_t FREE_OF[OD_LAST_STAGE + 1] = { 0, 0, 0, 0, 0, 1, 0, 0, 0 };

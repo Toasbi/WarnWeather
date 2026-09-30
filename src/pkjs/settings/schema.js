@@ -1268,12 +1268,13 @@ function rainAlertSheet() {
             defaultValue: STATUS_THRESHOLDS.rainAlert(null).look,
             options: RAIN_LOOK_OPTIONS,
             // The icon alone describes itself. The two longer looks say what they print
-            // and that they shrink on a crowded bar (the make-room order: Text →
-            // minutes → the icon alone). While it rains the '+' number counts the
-            // minutes until the rain stops.
+            // and when they shrink on a crowded bar (the make-room order, the owner's of
+            // 2026-09-30: the status slot on the item's side and the middle one shorten
+            // and hide first, then Text → minutes → the icon alone). While it rains the
+            // '+' number counts the minutes until the rain stops.
             hintByValue: {
-                minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. Just the icon when the bar is short on room.',
-                text: 'Shortens to the minutes, then to the rain icon alone, when the bar is short on room.'
+                minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then is it just the icon.',
+                text: 'On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it shorten to the minutes, then to the rain icon alone.'
             }
         }]
     };
@@ -1347,10 +1348,11 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda) {
             label: 'Look',
             defaultValue: 'icon',
             options: [['Icon', 'icon'], ['Icon + value', 'value']],
-            // The icon-only look (the default) needs no hint; the value look says what it
-            // costs on a crowded bar (the make-room order drops every value before an icon).
+            // The icon-only look (the default) needs no hint; the value look says when it
+            // gives way on a crowded bar (the make-room order drops the values only after
+            // the status slot on the item's side and the middle one have hidden).
             hintByValue: {
-                value: 'Adds the value the alert fires on after the icon. Just the icon when the bar is short on room.'
+                value: 'Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does the alert drop to just the icon.'
             }
         }, {
             // Whether tomorrow's peak may make the alert active once nothing left today

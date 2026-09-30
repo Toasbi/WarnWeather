@@ -92,10 +92,11 @@ static void short_widest_member(void) {
         {  30, 1,  3, 34, 0,  70 },   // room 34..66: only 20
         {  45, 2,  3, 49, 1,  75 },   // the middle's 50 still centres: 75 >= lo 73
         {  50, 2,  3, 54, 2,  85 },   // lo 78 > 75: the 30 centres at 85
-        {  60, 5,  3, 64, 1,  88 },   // free: 50 fits from lo 88 (138 <= 156)
-        {  80, 5,  3, 84, 2, 108 },   // free: 50 no longer (158 > 156), 30 does
-        { 100, 8, -1,  0, 1, 104 },   // own slot hidden: 50 from lo 104
-        { 110, 8, -1,  0, 2, 114 },
+        {  60, 3, -1,  0, 0,  70 },   // own slot hidden: the middle whole again
+        {  70, 4, -1,  0, 1,  75 },   // ... short: the 50 still centres (75 >= lo 74)
+        {  80, 4, -1,  0, 2,  85 },   // lo 84 > 75: the 30 centres at 85
+        { 100, 5, -1,  0, 1, 104 },   // free: 50 fits from lo 104 (154 <= 156)
+        { 110, 5, -1,  0, 2, 114 },   // free: 50 no longer (164 > 156), 30 does
     };
     OdSlotIn slots[3];
     widest_member_bar(slots);
@@ -403,7 +404,7 @@ static void date_families(void) {
 
 // A slot with no short form never takes a SHORT step: as the own slot it goes from
 // FULL straight to HIDDEN at its turn (and comes back FULL only beside a hidden
-// middle, the slots back), and as the middle it leaves the centre whole and then
+// middle, the ladder's row 6), and as the middle it leaves the centre whole and then
 // hides.
 static void no_short_form(void) {
     char texts[OD_VARIANTS][STATUS_SHORT_CAP];

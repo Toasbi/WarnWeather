@@ -46,8 +46,9 @@ typedef enum { OD_SIDE_NONE = 0, OD_SIDE_LEFT = 1, OD_SIDE_RIGHT = 2 } OdSide;
 // values off (a tomorrow alert keeps its mark).
 #define OD_LANES 3
 #define OD_SIDE_MAX OD_ITEM_COUNT
-// The last row of the make-room ladder (STAGE[] in on_demand.c).
-#define OD_LAST_STAGE 9
+// The last row of the make-room ladder (STAGE[] in on_demand.c), which a side
+// climbs once per look.
+#define OD_LAST_STAGE 8
 // A slot's members: [0] its full form, then its short family, widest first.
 #define OD_VARIANTS 4
 // The air between two items: the row's group gap, or less beside a boxed alert
@@ -125,8 +126,8 @@ typedef struct {
     uint8_t first[2];                      // the first input item kept
     uint8_t n[2];                          // items kept (0: no run)
     uint8_t lane[2];                       // their lane
-    uint8_t stage[2];                      // the ladder row the side climbed to (its
-                                           // slot may have come back since: form[])
+    uint8_t stage[2];                      // the ladder row the side ends on, at its
+                                           // look lane[] (after the relax)
     int16_t x[2];                          // the run's span, content x ...
     int16_t w[2];                          // ... and width
     int16_t item_x[2][OD_SIDE_MAX];        // each kept item's left edge
@@ -138,15 +139,17 @@ typedef struct {
 //    measures, byte for byte, and `bleed` is never read: a quiet bar draws as if On
 //    demand did not exist.
 //  - Otherwise each side climbs the make-room ladder (on_demand.c) while its own
-//    claim is in the way: its slot slides inward, shortens, the looks shorten, the
-//    middle leaves the centre, its slot hides, the middle hides, and finally its
-//    lowest-priority item drops. Once both have settled with the middle hidden, each
-//    side's slot comes back where it now fits (full at the chosen look, else short),
-//    taking nothing from the other side: a slot shortened or hidden for a middle or
-//    a claim that later gave way. The far slot of a side with no items keeps its
-//    place. The ladder measures a short slot at its narrowest member (an elastic one
-//    at its floor); once it has settled, each short slot draws the widest member its
-//    room allows, the middle first, then the left slot, then the right.
+//    claim is in the way: its slot slides inward and shortens, the middle shortens,
+//    its slot hides, the middle leaves the centre, the middle hides (its slot trying
+//    back beside it gone); only then does the side's look shorten (the rain Text to
+//    its minutes, then the values off), and finally its lowest-priority item drops.
+//    Once both have settled, each side in turn takes back the longest look, then the
+//    fullest slot and middle, that now fit beside the other side, until neither
+//    moves, taking nothing from the other side: a look or a slot given up for a
+//    middle or a claim that later gave way. The far slot of a side with no items
+//    keeps its place. The ladder measures a short slot at its narrowest member (an
+//    elastic one at its floor); once it has settled, each short slot draws the widest
+//    member its room allows, the middle first, then the left slot, then the right.
 // `bleed[d]` is how far side d's run may reach past the content edge into the row
 // margin (the top strip's left run starts where the old indicator icons did). Slots
 // never bleed. `battery_slots` (bit i: slot i shows the watch battery, the Watch

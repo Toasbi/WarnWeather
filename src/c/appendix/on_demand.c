@@ -12,33 +12,35 @@
 // A side's own slot: the left slot for the left side, the right slot for the right.
 #define OWN(d) ((d) ? 2 : 0)
 
-// The make-room ladder, one row per step a crowded side takes, in order. The
-// owner's steps: the own slot slides inward (row 0), shortens, then the middle
-// shortens (1-2); the looks shorten (3-4: the rain Text to its minutes, then the
-// values off), which the owner placed after the slots' short forms and before the
-// middle leaves the centre (5); the own slot hides and the middle retries full and
-// centred, short and centred, short off-centre (6-8); the middle hides (9). After
-// row 9 the side's lowest-priority item drops and the ladder starts over. The order
-// lives in this one table. (Once the middle has hidden, a slot the rows 1-9 shortened
-// or hid comes back where it now fits: layout_pass's slots back.)
+// The make-room ladder, one row per step a crowded side takes with its slots, in
+// order. The owner's steps (2026-09-30): the own slot slides inward (row 0),
+// shortens, then the middle shortens (1-2); the own slot hides and the middle
+// retries full and centred, then short and centred (3-4); only then does the middle
+// leave the centre (5), and then it hides — and in the room it leaves, the own slot
+// tries back whole, then short, and hides again only when neither fits (6-8). The
+// side's looks give way only after that: an alert the user gave a value keeps it
+// while a slot of its side can still give way. Past row 8 the side takes its next
+// shorter look (the rain Text to its minutes, then the values off), its slot and the
+// middle still hidden; at its shortest look its lowest-priority item drops and the
+// ladder starts over. The relax then gives back, at the look a side settled on, the
+// slots and the middle where they fit (layout_pass). The order lives in this one
+// table and layout_pass's climb.
 typedef struct {
     uint8_t own;      // OdForm of the side's own slot
     uint8_t mid;      // OdForm the side asks of the middle
     bool mid_free;    // the middle may leave its target
-    uint8_t lane;     // the side's text lane
 } OdStage;
 
 static const OdStage STAGE[OD_LAST_STAGE + 1] = {
-    { OD_FULL,   OD_FULL,   false, 0 },   // 0 own slot slides inward, middle centred
-    { OD_SHORT,  OD_FULL,   false, 0 },   // 1 own slot short ...
-    { OD_SHORT,  OD_SHORT,  false, 0 },   // 2 ... then the middle short
-    { OD_SHORT,  OD_SHORT,  false, 1 },   // 3 looks: rain Text -> icon + minutes
-    { OD_SHORT,  OD_SHORT,  false, 2 },   // 4 looks: values off (tomorrow marks stay)
-    { OD_SHORT,  OD_SHORT,  true,  2 },   // 5 the middle leaves the centre
-    { OD_HIDDEN, OD_FULL,   false, 2 },   // 6 own slot hides; middle full + centred ...
-    { OD_HIDDEN, OD_SHORT,  false, 2 },   // 7 ... short + centred ...
-    { OD_HIDDEN, OD_SHORT,  true,  2 },   // 8 ... short, off-centre
-    { OD_HIDDEN, OD_HIDDEN, false, 2 },   // 9 the middle hides
+    { OD_FULL,   OD_FULL,   false },   // 0 own slot slides inward, middle centred
+    { OD_SHORT,  OD_FULL,   false },   // 1 own slot short ...
+    { OD_SHORT,  OD_SHORT,  false },   // 2 ... then the middle short
+    { OD_HIDDEN, OD_FULL,   false },   // 3 own slot hides; middle full + centred ...
+    { OD_HIDDEN, OD_SHORT,  false },   // 4 ... short + centred
+    { OD_HIDDEN, OD_SHORT,  true  },   // 5 the middle leaves the centre
+    { OD_FULL,   OD_HIDDEN, false },   // 6 the middle hides; own slot back whole ...
+    { OD_SHORT,  OD_HIDDEN, false },   // 7 ... short ...
+    { OD_HIDDEN, OD_HIDDEN, false },   // 8 ... or hidden
 };
 
 // One layout pass: the inputs, the plain layout they are measured against, and the
@@ -171,22 +173,23 @@ static bool lanes_equal(const Pass *p, int d, int a, int b) {
     return true;
 }
 
-// A lane step that narrows no item of the side is the lane before it.
-static uint8_t lane_eff(const Pass *p, int d, uint8_t lane) {
-    while (lane > 0 && lanes_equal(p, d, lane, lane - 1)) { lane--; }
-    return lane;
+// Side d's next shorter look after `lane`: the first lane that narrows one of its
+// items (an icon-only item, or no rain Text, narrows nothing); OD_LANES when none.
+static uint8_t next_lane(const Pass *p, int d, uint8_t lane) {
+    uint8_t k = (uint8_t)(lane + 1);
+    while (k < OD_LANES && lanes_equal(p, d, k, lane)) { k++; }
+    return k;
 }
 
 // Does row `t` change anything for side d against row `s`? Only effective forms
-// count, so a SHORT without a short form, any form of an empty slot, a free middle
-// that is hidden, and a lane that narrows nothing are all no change.
+// count, so a SHORT without a short form, any form of an empty slot, and a free
+// middle that is hidden are all no change.
 static bool same_row(const Pass *p, int d, int s, int t) {
     uint8_t mid_s = eff_form(p, 1, STAGE[s].mid);
     uint8_t mid_t = eff_form(p, 1, STAGE[t].mid);
     return eff_form(p, OWN(d), STAGE[s].own) == eff_form(p, OWN(d), STAGE[t].own)
         && mid_s == mid_t
-        && (mid_s != OD_HIDDEN && STAGE[s].mid_free) == (mid_t != OD_HIDDEN && STAGE[t].mid_free)
-        && lane_eff(p, d, STAGE[s].lane) == lane_eff(p, d, STAGE[t].lane);
+        && (mid_s != OD_HIDDEN && STAGE[s].mid_free) == (mid_t != OD_HIDDEN && STAGE[t].mid_free);
 }
 
 // The next row that changes something for side d; OD_LAST_STAGE when none does
@@ -199,8 +202,8 @@ static uint8_t next_stage(const Pass *p, int d, uint8_t s) {
 }
 
 // The shared middle takes the harsher request of the active sides, and may leave
-// its target when any of them allows it.
-static Conf conf_of(const Pass *p, const uint8_t stage[2]) {
+// its target when any of them allows it. Each side draws its own look.
+static Conf conf_of(const Pass *p, const uint8_t stage[2], const uint8_t lane[2]) {
     Conf c;
     memset(&c, 0, sizeof(c));
     uint8_t mid = OD_FULL;
@@ -212,7 +215,7 @@ static Conf conf_of(const Pass *p, const uint8_t stage[2]) {
         }
         const OdStage *row = &STAGE[stage[d]];
         c.own[d] = eff_form(p, OWN(d), row->own);
-        c.lane[d] = row->lane;
+        c.lane[d] = lane[d];
         if (row->mid > mid) { mid = row->mid; }
         if (row->mid_free) { c.mid_free = true; }
     }
@@ -378,42 +381,52 @@ static void place(const Pass *p, const Conf *c, const Geom *g, const uint8_t sta
     }
 }
 
-// The ladder (§5.4). Every side starts at row 0; while the geometry fails, each
-// violated active side (all active sides when only an inactive side's plain slot is
-// in the way) climbs to its next row that changes something. When every violated
-// side is at the last row, the one whose tail is the lowest priority drops it, and
-// the ladder starts over — so slots a drop makes room for come back. Each pass
-// climbs at most 2 x 9 rows and there are at most 20 drops, so it ends. Then the
-// looks come back where the settled forms leave room (§5.5 step 0), with the middle
-// hidden the own slots come back where they fit, and the layout is placed.
+// The ladder (§5.4). Every side starts at row 0 of its chosen look; while the
+// geometry fails, each violated active side (all active sides when only an inactive
+// side's plain slot is in the way) climbs to its next row that changes something,
+// and past the last row to its next shorter look, on that row. When every violated
+// side is at the last row of its shortest look, the one whose tail is the lowest
+// priority drops it, and the ladder starts over — so slots a drop makes room for come
+// back. Each pass climbs at most 2 x (8 + 2) steps and there are at most 20 drops, so
+// it ends. Then the relax gives back what now fits (§5.5 step 0), and the layout is
+// placed.
 static void layout_pass(Pass *p, OdLayout *out) {
     Conf c;
     Geom g;
     uint8_t stage[2];
+    uint8_t lane[2];
     for (;;) {
         if (p->n[0] == 0 && p->n[1] == 0) {
             plain_out(p, out);
             return;
         }
-        stage[0] = 0;
-        stage[1] = 0;
+        memset(stage, 0, sizeof(stage));
+        memset(lane, 0, sizeof(lane));
         for (;;) {
-            c = conf_of(p, stage);
+            c = conf_of(p, stage, lane);
             geometry(p, &c, &g);
             if (g.ok) { break; }
             uint8_t v = pushed_sides(p, &g);
             bool climbed = false;
             for (int d = 0; d < 2; d++) {
-                if ((v & (1 << d)) && stage[d] < OD_LAST_STAGE) {
+                if (!(v & (1 << d))) { continue; }
+                if (stage[d] < OD_LAST_STAGE) {
                     stage[d] = next_stage(p, d, stage[d]);
+                    climbed = true;
+                    continue;
+                }
+                uint8_t k = next_lane(p, d, lane[d]);
+                if (k < OD_LANES) {
+                    lane[d] = k;
                     climbed = true;
                 }
             }
             if (!climbed) { break; }
         }
         if (g.ok) { break; }
-        // Every pushed side is at its last row: the lowest-priority tail drops. An
-        // item sits on one side only, so two tails never tie.
+        // Every pushed side is at the last row of its shortest look: the
+        // lowest-priority tail drops. An item sits on one side only, so two tails
+        // never tie.
         uint8_t v = pushed_sides(p, &g);
         int drop = -1;
         int worst = -1;
@@ -427,55 +440,42 @@ static void layout_pass(Pass *p, OdLayout *out) {
         }
         p->n[drop]--;
     }
-    // Looks back: the lowest lane that still passes, with every form fixed.
-    for (int d = 0; d < 2; d++) {
-        if (!c.active[d]) { continue; }
-        for (uint8_t k = 0; k < c.lane[d]; k++) {
-            Conf t = c;
-            Geom tg;
-            t.lane[d] = k;
-            geometry(p, &t, &tg);
-            if (tg.ok) {
-                c = t;
-                g = tg;
-                break;
-            }
-        }
-    }
-    // Slots back. A side climbs while its claim is in the way AS THINGS WERE then:
-    // its slot shortens or hides for a middle, or beside the other side's claim, that
-    // a later row — its own or the other side's — then hides or shrinks. With the
-    // middle hidden a side's rows differ only in its slot's form and its looks, so
-    // each side takes back the lowest row that now fits beside the other side as
-    // settled: its slot FULL where its look is the chosen one (row 0), else — a
-    // hidden slot — SHORT from its settled look down to its row's (rows 1-5; the
-    // owner's ladder shortens the looks before it hides the slot, and place() widens
-    // a short slot where there is room). A claim that stays inside its half is never
-    // pushed (§5.4). Nothing else gives way: the other side keeps its row and its
-    // looks. The side that climbed further goes first, as its slot hid rather than
-    // shortened. With one active side every lower row failed on the way up, so only a
-    // slot row 9 hid with the middle can come back. The first form that fits is at
-    // worst the slot's own (its row and look pass as settled), and a slot plain did
-    // not show, or a battery slot pass 2 keeps hidden, stays HIDDEN (eff_form).
-    const int further = stage[1] > stage[0];
-    for (int j = 0; j < 2 && !g.mid_shown; j++) {
-        const int d = j ^ further;
-        Conf t = c;
-        Geom tg;
-        uint8_t form = c.lane[d] == 0 ? OD_FULL : OD_SHORT;
-        for (uint8_t k = c.lane[d]; k <= STAGE[stage[d]].lane;) {
-            t.own[d] = eff_form(p, OWN(d), form);
-            t.lane[d] = k;
-            geometry(p, &t, &tg);
-            if (tg.ok) {
-                c = t;
-                g = tg;
-                break;
-            }
-            if (form == OD_FULL) {
-                form = OD_SHORT;
-            } else {
-                k++;
+    // The relax: looks, slots and the middle back. A side that took a shorter look
+    // climbed there with its slot and the middle hidden, and both sides climb at once,
+    // each while its claim is in the way AS THINGS WERE then, so a side can give up a
+    // look, a slot form or the middle's place for a claim that a later row of the
+    // other side then shrinks or hides. So each side, the one that climbed further
+    // first, climbs its ladder once more from row 0 of its chosen look against the
+    // other side as it now is, and takes the first (look, row) that fits: its look
+    // comes back before its slot, and its slot and the middle in the ladder's order
+    // (place() then widens a short slot where there is room). Nothing else gives way:
+    // the other side keeps its row and its look, and a claim that stays inside its half
+    // is still never pushed (§5.4). A side's climb ends on its current row at the
+    // latest, which fits, so each move takes a side to a lower row; the sides take
+    // turns until neither moves, which ends. stage[] and lane[] end as each side's
+    // final row; a slot plain did not show, or a battery slot pass 2 keeps hidden,
+    // stays HIDDEN (eff_form).
+    const int further = (lane[1] << 4 | stage[1]) > (lane[0] << 4 | stage[0]);
+    for (bool moved = true; moved;) {
+        moved = false;
+        for (int j = 0; j < 2; j++) {
+            const int d = j ^ further;
+            const uint8_t row_end = stage[d];
+            const uint8_t lane_end = lane[d];
+            for (stage[d] = 0, lane[d] = 0; lane[d] < lane_end || stage[d] < row_end;) {
+                Conf t = conf_of(p, stage, lane);
+                Geom tg;
+                geometry(p, &t, &tg);
+                if (tg.ok) {
+                    c = t;
+                    g = tg;
+                    moved = true;
+                    break;
+                }
+                if (++stage[d] > OD_LAST_STAGE) {
+                    stage[d] = 0;
+                    lane[d]++;
+                }
             }
         }
     }

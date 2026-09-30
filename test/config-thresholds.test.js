@@ -1702,10 +1702,12 @@ test('every metric alert sheet: its intro, the Look, the Days and mark, then the
     assert.deepEqual(s.items.slice(0, 3), [{
       type: 'segmented', messageKey: key + 'Display', label: 'Look', defaultValue: 'icon',
       options: [['Icon', 'icon'], ['Icon + value', 'value']],
-      // Only the value look explains itself — and what it costs; the default icon look
-      // has no hint.
+      // Only the value look explains itself — and when it gives way (after the status
+      // slot on its side and the middle slot, the owner's order of 2026-09-30); the
+      // default icon look has no hint.
       hintByValue: {
-        value: 'Adds the value the alert fires on after the icon. Just the icon when the bar is short on room.'
+        value: 'Adds the value the alert fires on after the icon. On a crowded bar, the status slot on its'
+          + ' side and the middle slot shorten and hide first; only then does the alert drop to just the icon.'
       }
     }, {
       // Days: "Today + tomorrow" by default (the contract's alertDays on an absent
@@ -1776,13 +1778,16 @@ test('the rain alert sheet: the unplaced note, the time window and the look — 
     type: 'segmented', messageKey: 'rainAlertDisplay', label: 'Look', defaultValue: 'text',
     options: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']],
     // The icon alone describes itself; the two longer looks say what they print and
-    // that they shrink on a crowded bar (settings audit #7/#13) — the default Text
-    // look too, because its name does not carry that. While it rains the '+' number is
-    // the minutes until the rain stops (review set-7).
+    // when they shrink on a crowded bar (settings audit #7/#13; only after the status
+    // slot on its side and the middle slot, the owner's order of 2026-09-30) — the
+    // default Text look too, because its name does not carry that. While it rains the
+    // '+' number is the minutes until the rain stops (review set-7).
     hintByValue: {
       minutes: 'The rain icon with the minutes until the rain starts or, while it rains, + the minutes'
-        + ' until it stops. Just the icon when the bar is short on room.',
-      text: 'Shortens to the minutes, then to the rain icon alone, when the bar is short on room.'
+        + ' until it stops. On a crowded bar, the status slot on its side and the middle slot shorten and'
+        + ' hide first; only then is it just the icon.',
+      text: 'On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only'
+        + ' then does it shorten to the minutes, then to the rain icon alone.'
     }
   });
   assert.equal(s.items.length, 3);

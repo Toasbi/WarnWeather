@@ -23,7 +23,10 @@
 # back, added 180 B — less the 44 B (basalt) and 48 B (diorite, flint) its other
 # fixes gave back, and basalt's 12 B of headroom, it raised basalt's ceiling by 124 B
 # and diorite/flint's by 132 B; and merging the released 1.23.2 brought its own radar
-# sky-row bytes, basalt +28 B and diorite/flint +36 B, which users already run.)
+# sky-row bytes, basalt +28 B and diorite/flint +36 B, which users already run.) The
+# owner's make-room order of 2026-09-30 (the looks shorten last) gave 76 B back on all
+# three, and the ceilings came down with it: basalt 62664 -> 62588, diorite/flint
+# 60240 -> 60164.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -42,9 +45,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-62664}"
-  "diorite:${DIORITE_IMAGE_CEILING:-60240}"
-  "flint:${FLINT_IMAGE_CEILING:-60240}"
+  "basalt:${BASALT_IMAGE_CEILING:-62588}"
+  "diorite:${DIORITE_IMAGE_CEILING:-60164}"
+  "flint:${FLINT_IMAGE_CEILING:-60164}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).
