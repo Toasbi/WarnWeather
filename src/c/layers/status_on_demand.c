@@ -316,12 +316,6 @@ static bool item_boxed(int item) {
     return item >= OD_GUST;
 }
 
-static int16_t text_width(const char *s, GFont font) {
-    if (s[0] == '\0') { return 0; }
-    return graphics_text_layout_get_content_size(s, font, GRect(0, 0, 1000, 100),
-        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
-}
-
 static int16_t icon_width(GDrawCommandImage *image) {
     return image ? gdraw_command_image_get_bounds_size(image).w : 0;
 }
@@ -348,7 +342,8 @@ static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
     for (int lane = 0; lane < OD_LANES; lane++) {
         char buf[LANE_CAP];
         GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
-        int16_t tw = text_width(buf, font);
+        // A lane's text is never cut: measured in a box no text reaches.
+        int16_t tw = status_row_text_w(buf, font, 1000, 100);
         c->text_w[lane] = tw;
         int16_t fw = (int16_t)(c->icon_w + (tw > 0
             ? (c->icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0) + tw : 0));
