@@ -13,8 +13,10 @@
 //      held by a sibling slot or itself unavailable.
 // Pack-time resolveSelection still maps stale/imported invalid codes to empty
 // (defense in depth); this hook exists so a user-driven toggle never leaves a
-// silently-empty slot behind. The radarMode hook also switches the rain alert
-// on when the mode that exists only for it is picked (forceRainAlert).
+// silently-empty slot behind. The radarMode hook also ticks the rain alert on the
+// Watch Status Bar when the mode that exists only for it is picked and no visible bar
+// shows it (forceRainOnDemand). The On demand side lists carry one more hook,
+// onDemandExclusive: an item sits on at most one side of a bar.
 /* global PConf, StatusLineCatalog */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -26,6 +28,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // window.StatusLineCatalog (same dual-context pattern as blocks.js).
     var catalog = (typeof require !== 'undefined')
         ? require('../status-line-catalog.js') : window.StatusLineCatalog;
+    // The On demand contract (on-demand.js), concatenated ahead of this file.
+    var onDemand = (typeof require !== 'undefined')
+        ? require('../on-demand.js') : window.OnDemand;
     var POSITIONS = ['left', 'mid', 'right'];
 
     /**
@@ -173,20 +178,52 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     /**
      * radarMode 'countdown' fetches the radar for the rain alert alone, so a rain
-     * alert switched off there would spend radar calls on nothing — the rain
-     * alert sheet disables its switch in that mode, and this switches a stored
-     * off back on when the mode is entered. Mutates S.
+     * alert ticked on no bar that exists in that mode (the Watch Status Bar, the
+     * forecast bar, the health bar while it exists — never the radar bar) would spend
+     * radar calls on nothing. Entering the mode then ticks Rain on the Watch Status
+     * Bar's right side (in the canonical order, unticked from its left) and enables
+     * that side. Mutates S.
      * @param {Object} S live settings state (radarMode already set to newValue)
      * @param {*} newValue new radarMode value
+     * @param {Object} [env] platform env
      * @returns {void}
      */
-    function forceRainAlert(S, newValue) {
-        if (newValue === 'countdown') { S.alertRain = true; }
+    function forceRainOnDemand(S, newValue, env) {
+        if (newValue !== 'countdown' || onDemand.placedAnywhere(S, 'rain', env)) { return; }
+        var left = onDemand.itemsKey('top', 'left');
+        var right = onDemand.itemsKey('top', 'right');
+        S[right] = onDemand.canonical(onDemand.parse(onDemand.read(S, right)).concat(['rain']));
+        S[left] = onDemand.canonical(onDemand.parse(onDemand.read(S, left)).filter(function (c) {
+            return c !== 'rain';
+        }));
+        S[onDemand.sideKey('top', 'right')] = 'on';
+    }
+
+    /**
+     * Keep an On demand item on at most one side of a bar: whatever a side's list just
+     * gained is removed from the bar's other side, in storage, whatever that side's
+     * Enabled state. Mutates S.
+     * @param {Object} S live settings state (key already set to newValue)
+     * @param {string} key the side list that changed, e.g. 'statusTopOnDemandLeftItems'
+     * @param {*} oldValue its previous list
+     * @param {*} newValue its new list
+     * @returns {void}
+     */
+    function onDemandExclusive(S, key, oldValue, newValue) {
+        var m = /^(status(?:Top|Forecast|Radar|Health))OnDemand(Left|Right)Items$/.exec(key || '');
+        if (!m) { return; }
+        var before = onDemand.parse(oldValue);
+        var added = onDemand.parse(newValue).filter(function (c) { return before.indexOf(c) < 0; });
+        if (!added.length) { return; }
+        var sibling = m[1] + 'OnDemand' + (m[2] === 'Left' ? 'Right' : 'Left') + 'Items';
+        S[sibling] = onDemand.canonical(onDemand.parse(onDemand.read(S, sibling)).filter(function (c) {
+            return added.indexOf(c) < 0;
+        }));
     }
 
     PConf.onChange.register('resetStatusRadar', function (S, oldValue, newValue, env) {
         applyReset(S, 'radar', oldValue, newValue, env);
-        forceRainAlert(S, newValue);
+        forceRainOnDemand(S, newValue, env);
     });
     PConf.onChange.register('resetStatusHealth', function (S, oldValue, newValue, env) {
         applyReset(S, 'health', oldValue, newValue, env);
@@ -195,6 +232,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         resetCountdownDate(S, key, oldValue, newValue);
         dedupeStatusSlot(S, key);
     });
+    PConf.onChange.register('onDemandExclusive', function (S, oldValue, newValue, env, key) {
+        onDemandExclusive(S, key, oldValue, newValue);
+    });
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
@@ -202,7 +242,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             clearPollenForProvider: clearPollenForProvider,
             dedupeStatusSlot: dedupeStatusSlot,
             resetCountdownDate: resetCountdownDate,
-            forceRainAlert: forceRainAlert
+            forceRainOnDemand: forceRainOnDemand,
+            onDemandExclusive: onDemandExclusive
         };
     }
 })();

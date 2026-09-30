@@ -46,6 +46,21 @@ test('real schema battery/bluetooth/week base defaults', () => {
   assert.equal(s.weekStartDay, 'mon');
 });
 
+// The On demand keys are seeded from the schema (seedDefaults, via deriveDefaults), so
+// the schema's defaults ARE what every install, upgraded ones included, starts with —
+// and they must be on-demand.js's DEFAULTS, the reading the phone packs from.
+test('the schema seeds every On demand key with the contract\'s default', () => {
+  const OD = require('../src/pkjs/on-demand.js');
+  const seeded = deriveDefaults(SCHEMA);
+  Object.keys(OD.DEFAULTS).forEach((key) => {
+    assert.equal(seeded[key], OD.DEFAULTS[key], key);
+  });
+  assert.equal(seeded.statusTopOnDemandRightItems, 'battery,rain,gust,uv,aqi,wind',
+    'the Watch Status Bar\'s right side: the battery and five weather alerts, Pollen off');
+  ['alertRain', 'alertUv', 'statusTopAlerts'].forEach((k) =>
+    assert.equal(seeded[k], undefined, k + ' is retired'));
+});
+
 test('deriveDefaults omits the 12 defaultFrom status-slot keys from the seed', () => {
   const seeded = deriveDefaults(SCHEMA);
   const slotKeys = [

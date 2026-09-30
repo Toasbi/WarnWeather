@@ -1709,7 +1709,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var rangeWiring = rangeControl.createRangeWiring({
       S: S,
       ENV: ENV,
-      findItem: findItem,
+      // Two sliders may share a key under mutually exclusive gates (the Battery warn
+      // level's 5 % and 10 % rows): a drag reads the one on screen, its min and step.
+      findItem: function (key) { return findShownItem(SCHEMA, key, evalCtx()); },
       resolveRangeItem: resolveRangeItem,
       render: render,
       repaintHints: repaintDerivedHints

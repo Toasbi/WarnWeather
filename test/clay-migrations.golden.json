@@ -68,7 +68,8 @@
       "threshWindWarnLook": "outline",
       "threshGustWarnLook": "outline",
       "threshStepsWarnLook": "none",
-      "threshSleepWarnLook": "none"
+      "threshSleepWarnLook": "none",
+      "alertRain": true
     },
     "deleted": [],
     "markedNow": [

@@ -1,5 +1,5 @@
 // test/status-slot-icons.test.js — the settings page's status-slot row glyphs
-// (src/pkjs/settings/status-slot-icons.js): six 24×24 fragments in currentColor,
+// (src/pkjs/settings/status-slot-icons.js): ten 24×24 fragments in currentColor,
 // registered into the config-ui icon registry when the engine is loaded.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,7 +9,8 @@ require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
 const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 
-const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen'];
+// The six weather glyphs and the On demand card's four System info glyphs.
+const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze'];
 
 test('every glyph is a 24x24 svg drawn in currentColor', () => {
   IDS.forEach((id) => {

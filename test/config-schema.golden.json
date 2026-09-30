@@ -3796,7 +3796,7 @@
                 "defaultValue": "graph",
                 "hintByValue": {
                   "off": "Radar is hidden.",
-                  "countdown": "Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alert row setting (Status slots tab) sets where the alert row shows; the rain alert’s time window is under Status slots → Alerts.",
+                  "countdown": "Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar’s On demand side where Rain is ticked.",
                   "status": "Adds the Radar Status Bar.",
                   "graph": "Adds the Radar Status Bar and the full radar rain graph."
                 },
@@ -3823,7 +3823,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "No status bar shows the alert row, so the rain alert won’t appear. Pick a place in a status bar’s Alert row setting.",
+                "text": "‘Rain alert only’ fetches the radar for the rain icon, but no status bar’s On demand side has Rain ticked.",
                 "showWhen": {
                   "all": [
                     {
@@ -3831,52 +3831,151 @@
                       "eq": "countdown"
                     },
                     {
-                      "env": "platform",
-                      "ne": "aplite"
+                      "env": "onDemand"
                     },
                     {
                       "not": {
-                        "any": [
+                        "all": [
                           {
-                            "key": "statusTopAlerts",
-                            "ne": "off"
+                            "env": "onDemand"
                           },
                           {
-                            "key": "statusForecastAlerts",
-                            "in": [
-                              "left",
-                              "middle",
-                              "right"
-                            ]
-                          },
-                          {
-                            "all": [
+                            "any": [
                               {
                                 "all": [
                                   {
-                                    "env": "health"
+                                    "key": "statusTopOnDemandLeft",
+                                    "eq": "on"
                                   },
                                   {
-                                    "key": "healthMode",
-                                    "in": [
-                                      "status",
-                                      "all"
+                                    "key": "statusTopOnDemandLeftItems",
+                                    "has": "rain"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusTopOnDemandRight",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusTopOnDemandRightItems",
+                                    "has": "rain"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusForecastOnDemandLeft",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusForecastOnDemandLeftItems",
+                                    "has": "rain"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusForecastOnDemandRight",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusForecastOnDemandRightItems",
+                                    "has": "rain"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusHealthOnDemandLeft",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusHealthOnDemandLeftItems",
+                                    "has": "rain"
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "env": "health"
+                                      },
+                                      {
+                                        "key": "healthMode",
+                                        "in": [
+                                          "status",
+                                          "all"
+                                        ]
+                                      }
                                     ]
                                   }
                                 ]
                               },
                               {
-                                "key": "statusHealthAlerts",
-                                "in": [
-                                  "left",
-                                  "middle",
-                                  "right"
+                                "all": [
+                                  {
+                                    "key": "statusHealthOnDemandRight",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusHealthOnDemandRightItems",
+                                    "has": "rain"
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "env": "health"
+                                      },
+                                      {
+                                        "key": "healthMode",
+                                        "in": [
+                                          "status",
+                                          "all"
+                                        ]
+                                      }
+                                    ]
+                                  }
                                 ]
                               }
                             ]
                           }
                         ]
                       }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "rainCountdownHorizon",
+                "label": "Rain alert window",
+                "defaultValue": "60",
+                "options": [
+                  [
+                    "30 min",
+                    "30"
+                  ],
+                  [
+                    "60 min",
+                    "60"
+                  ],
+                  [
+                    "2 hours",
+                    "120"
+                  ]
+                ],
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarMode",
+                      "ne": "off"
+                    },
+                    {
+                      "env": "onDemand"
                     }
                   ]
                 }
@@ -4241,465 +4340,6 @@
         "label": "Status slots",
         "sections": [
           {
-            "title": "Alerts",
-            "showWhen": {
-              "any": [
-                {
-                  "env": "thresholds"
-                },
-                {
-                  "env": "platform",
-                  "ne": "aplite"
-                }
-              ]
-            },
-            "intro": "Alerts show a metric only when it matters, instead of in a slot all day. An alert is active when a value reaches your warn level today (or tomorrow, if the alert looks ahead), or when rain is on its way; its icon then appears in the alert row, which takes over up to two slots of a status bar. The rest of the time those slots show what you picked. Each status bar’s Alert row setting below chooses where. <button type=\"button\" class=\"txt-act-btn\" data-action=\"resetAlerts\">Reset alerts to defaults</button>",
-            "items": [
-              {
-                "type": "staticText",
-                "style": "info",
-                "text": "Your Default view has no Watch Status Bar, so the alert row won’t show there — pick a place in another status bar’s Alert row setting.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "platform",
-                      "ne": "aplite"
-                    },
-                    {
-                      "any": [
-                        {
-                          "all": [
-                            {
-                              "key": "layoutPreset",
-                              "eq": "weatherOnly"
-                            },
-                            {
-                              "key": "radarMode",
-                              "ne": "countdown"
-                            },
-                            {
-                              "not": {
-                                "any": [
-                                  {
-                                    "key": "statusForecastAlerts",
-                                    "in": [
-                                      "left",
-                                      "middle",
-                                      "right"
-                                    ]
-                                  },
-                                  {
-                                    "all": [
-                                      {
-                                        "key": "radarMode",
-                                        "eq": "status"
-                                      },
-                                      {
-                                        "key": "statusRadarAlerts",
-                                        "in": [
-                                          "left",
-                                          "middle",
-                                          "right"
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                ]
-                              }
-                            }
-                          ]
-                        },
-                        {
-                          "all": [
-                            {
-                              "key": "layoutPreset",
-                              "eq": "custom"
-                            },
-                            {
-                              "key": "viewStripOff0"
-                            },
-                            {
-                              "not": {
-                                "any": [
-                                  {
-                                    "any": [
-                                      {
-                                        "all": [
-                                          {
-                                            "key": "viewUpper0",
-                                            "eq": "weather"
-                                          },
-                                          {
-                                            "key": "statusForecastAlerts",
-                                            "in": [
-                                              "left",
-                                              "middle",
-                                              "right"
-                                            ]
-                                          }
-                                        ]
-                                      },
-                                      {
-                                        "all": [
-                                          {
-                                            "key": "viewUpper0",
-                                            "eq": "radar"
-                                          },
-                                          {
-                                            "key": "radarMode",
-                                            "in": [
-                                              "status",
-                                              "graph"
-                                            ]
-                                          },
-                                          {
-                                            "key": "statusRadarAlerts",
-                                            "in": [
-                                              "left",
-                                              "middle",
-                                              "right"
-                                            ]
-                                          }
-                                        ]
-                                      },
-                                      {
-                                        "all": [
-                                          {
-                                            "key": "viewUpper0",
-                                            "eq": "health"
-                                          },
-                                          {
-                                            "key": "healthMode",
-                                            "in": [
-                                              "status",
-                                              "all"
-                                            ]
-                                          },
-                                          {
-                                            "key": "statusHealthAlerts",
-                                            "in": [
-                                              "left",
-                                              "middle",
-                                              "right"
-                                            ]
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  },
-                                  {
-                                    "any": [
-                                      {
-                                        "all": [
-                                          {
-                                            "key": "viewLower0",
-                                            "eq": "weather"
-                                          },
-                                          {
-                                            "key": "statusForecastAlerts",
-                                            "in": [
-                                              "left",
-                                              "middle",
-                                              "right"
-                                            ]
-                                          }
-                                        ]
-                                      },
-                                      {
-                                        "all": [
-                                          {
-                                            "key": "viewLower0",
-                                            "eq": "radar"
-                                          },
-                                          {
-                                            "key": "radarMode",
-                                            "in": [
-                                              "status",
-                                              "graph"
-                                            ]
-                                          },
-                                          {
-                                            "key": "statusRadarAlerts",
-                                            "in": [
-                                              "left",
-                                              "middle",
-                                              "right"
-                                            ]
-                                          }
-                                        ]
-                                      },
-                                      {
-                                        "all": [
-                                          {
-                                            "key": "viewLower0",
-                                            "eq": "health"
-                                          },
-                                          {
-                                            "key": "healthMode",
-                                            "in": [
-                                              "status",
-                                              "all"
-                                            ]
-                                          },
-                                          {
-                                            "key": "statusHealthAlerts",
-                                            "in": [
-                                              "left",
-                                              "middle",
-                                              "right"
-                                            ]
-                                          }
-                                        ]
-                                      }
-                                    ]
-                                  }
-                                ]
-                              }
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertRain",
-                "label": "Rain",
-                "icon": "rain",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    },
-                    {
-                      "env": "platform",
-                      "ne": "aplite"
-                    }
-                  ]
-                },
-                "hintFrom": {
-                  "resolver": "rainAlertHint",
-                  "args": {
-                    "windows": [
-                      [
-                        "Within 30 min",
-                        "30"
-                      ],
-                      [
-                        "Within 60 min",
-                        "60"
-                      ],
-                      [
-                        "Within 2 hours",
-                        "120"
-                      ]
-                    ],
-                    "looks": [
-                      [
-                        "Icon",
-                        "icon"
-                      ],
-                      [
-                        "Icon + minutes",
-                        "minutes"
-                      ],
-                      [
-                        "Text",
-                        "text"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "rainAlertBadge"
-                }
-              },
-              {
-                "type": "staticText",
-                "style": "info",
-                "text": "Turn on the rain radar (Radar tab) to get rain alerts.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarMode",
-                      "eq": "off"
-                    },
-                    {
-                      "env": "platform",
-                      "ne": "aplite"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertUv",
-                "label": "UV index",
-                "icon": "uv",
-                "showWhen": {
-                  "env": "thresholds"
-                },
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Uv",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Uv"
-                  }
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertWind",
-                "label": "Wind speed",
-                "icon": "wind",
-                "showWhen": {
-                  "env": "thresholds"
-                },
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Wind",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Wind"
-                  }
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertGust",
-                "label": "Wind gusts",
-                "icon": "gust",
-                "showWhen": {
-                  "env": "thresholds"
-                },
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Gust",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Gust"
-                  }
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertAqi",
-                "label": "Air quality",
-                "icon": "aqi",
-                "showWhen": {
-                  "env": "thresholds"
-                },
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Aqi",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Aqi"
-                  }
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertPollen",
-                "label": "Pollen",
-                "icon": "pollen",
-                "showWhen": {
-                  "all": [
-                    {
-                      "env": "thresholds"
-                    },
-                    {
-                      "key": "provider",
-                      "eq": "dwd"
-                    }
-                  ]
-                },
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Pollen",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Pollen"
-                  }
-                }
-              }
-            ]
-          },
-          {
             "groupCard": "watchStatus",
             "intro": "Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below. <button type=\"button\" class=\"txt-act-btn\" data-action=\"resetStatusSlots\">Reset status bars to defaults</button>",
             "items": [
@@ -4850,34 +4490,68 @@
               },
               {
                 "type": "select",
-                "messageKey": "statusForecastAlerts",
-                "label": "Alert row",
+                "messageKey": "statusForecastOnDemandLeft",
+                "label": "On demand left",
                 "defaultValue": "off",
                 "options": [
                   [
-                    "Off",
+                    "Enabled",
+                    "on"
+                  ],
+                  [
+                    "Disabled",
                     "off"
-                  ],
-                  [
-                    "Left",
-                    "left"
-                  ],
-                  [
-                    "Middle",
-                    "middle"
-                  ],
-                  [
-                    "Right",
-                    "right"
                   ]
                 ],
-                "hintByValue": {
-                  "left": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.",
-                  "middle": "While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.",
-                  "right": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room."
+                "editSheetFrom": {
+                  "resolver": "onDemandSideSheet",
+                  "args": {
+                    "sheetId": "odForecastLeft"
+                  }
                 },
+                "hintFrom": {
+                  "resolver": "onDemandSummary",
+                  "args": {
+                    "itemsKey": "statusForecastOnDemandLeftItems"
+                  }
+                },
+                "joinPrevious": true,
+                "compact": true,
                 "showWhen": {
-                  "env": "thresholds"
+                  "env": "onDemand"
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusForecastOnDemandRight",
+                "label": "On demand right",
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Enabled",
+                    "on"
+                  ],
+                  [
+                    "Disabled",
+                    "off"
+                  ]
+                ],
+                "editSheetFrom": {
+                  "resolver": "onDemandSideSheet",
+                  "args": {
+                    "sheetId": "odForecastRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "onDemandSummary",
+                  "args": {
+                    "itemsKey": "statusForecastOnDemandRightItems"
+                  }
+                },
+                "joinPrevious": true,
+                "compact": true,
+                "showWhen": {
+                  "env": "onDemand"
                 }
               }
             ]
@@ -5100,36 +4774,88 @@
               },
               {
                 "type": "select",
-                "messageKey": "statusRadarAlerts",
-                "label": "Alert row",
+                "messageKey": "statusRadarOnDemandLeft",
+                "label": "On demand left",
                 "defaultValue": "off",
                 "options": [
                   [
-                    "Off",
+                    "Enabled",
+                    "on"
+                  ],
+                  [
+                    "Disabled",
                     "off"
-                  ],
-                  [
-                    "Left",
-                    "left"
-                  ],
-                  [
-                    "Middle",
-                    "middle"
-                  ],
-                  [
-                    "Right",
-                    "right"
                   ]
                 ],
-                "hintByValue": {
-                  "left": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.",
-                  "middle": "While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.",
-                  "right": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room."
+                "editSheetFrom": {
+                  "resolver": "onDemandSideSheet",
+                  "args": {
+                    "sheetId": "odRadarLeft"
+                  }
                 },
+                "hintFrom": {
+                  "resolver": "onDemandSummary",
+                  "args": {
+                    "itemsKey": "statusRadarOnDemandLeftItems"
+                  }
+                },
+                "joinPrevious": true,
+                "compact": true,
                 "showWhen": {
                   "all": [
                     {
-                      "env": "thresholds"
+                      "env": "onDemand"
+                    },
+                    {
+                      "all": [
+                        {
+                          "env": "radar"
+                        },
+                        {
+                          "key": "radarMode",
+                          "in": [
+                            "status",
+                            "graph"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusRadarOnDemandRight",
+                "label": "On demand right",
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Enabled",
+                    "on"
+                  ],
+                  [
+                    "Disabled",
+                    "off"
+                  ]
+                ],
+                "editSheetFrom": {
+                  "resolver": "onDemandSideSheet",
+                  "args": {
+                    "sheetId": "odRadarRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "onDemandSummary",
+                  "args": {
+                    "itemsKey": "statusRadarOnDemandRightItems"
+                  }
+                },
+                "joinPrevious": true,
+                "compact": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "onDemand"
                     },
                     {
                       "all": [
@@ -5368,36 +5094,88 @@
               },
               {
                 "type": "select",
-                "messageKey": "statusHealthAlerts",
-                "label": "Alert row",
+                "messageKey": "statusHealthOnDemandLeft",
+                "label": "On demand left",
                 "defaultValue": "off",
                 "options": [
                   [
-                    "Off",
+                    "Enabled",
+                    "on"
+                  ],
+                  [
+                    "Disabled",
                     "off"
-                  ],
-                  [
-                    "Left",
-                    "left"
-                  ],
-                  [
-                    "Middle",
-                    "middle"
-                  ],
-                  [
-                    "Right",
-                    "right"
                   ]
                 ],
-                "hintByValue": {
-                  "left": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.",
-                  "middle": "While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.",
-                  "right": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room."
+                "editSheetFrom": {
+                  "resolver": "onDemandSideSheet",
+                  "args": {
+                    "sheetId": "odHealthLeft"
+                  }
                 },
+                "hintFrom": {
+                  "resolver": "onDemandSummary",
+                  "args": {
+                    "itemsKey": "statusHealthOnDemandLeftItems"
+                  }
+                },
+                "joinPrevious": true,
+                "compact": true,
                 "showWhen": {
                   "all": [
                     {
-                      "env": "thresholds"
+                      "env": "onDemand"
+                    },
+                    {
+                      "all": [
+                        {
+                          "env": "health"
+                        },
+                        {
+                          "key": "healthMode",
+                          "in": [
+                            "status",
+                            "all"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusHealthOnDemandRight",
+                "label": "On demand right",
+                "defaultValue": "off",
+                "options": [
+                  [
+                    "Enabled",
+                    "on"
+                  ],
+                  [
+                    "Disabled",
+                    "off"
+                  ]
+                ],
+                "editSheetFrom": {
+                  "resolver": "onDemandSideSheet",
+                  "args": {
+                    "sheetId": "odHealthRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "onDemandSummary",
+                  "args": {
+                    "itemsKey": "statusHealthOnDemandRightItems"
+                  }
+                },
+                "joinPrevious": true,
+                "compact": true,
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "onDemand"
                     },
                     {
                       "all": [
@@ -5540,34 +5318,68 @@
               },
               {
                 "type": "select",
-                "messageKey": "statusTopAlerts",
-                "label": "Alert row",
-                "defaultValue": "left",
+                "messageKey": "statusTopOnDemandLeft",
+                "label": "On demand left",
+                "defaultValue": "on",
                 "options": [
                   [
-                    "Off",
+                    "Enabled",
+                    "on"
+                  ],
+                  [
+                    "Disabled",
                     "off"
-                  ],
-                  [
-                    "Left",
-                    "left"
-                  ],
-                  [
-                    "Middle",
-                    "middle"
-                  ],
-                  [
-                    "Right",
-                    "right"
                   ]
                 ],
-                "hintByValue": {
-                  "left": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.",
-                  "middle": "While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.",
-                  "right": "While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room. While the low-battery warning shows, it moves to the middle slot."
+                "editSheetFrom": {
+                  "resolver": "onDemandSideSheet",
+                  "args": {
+                    "sheetId": "odTopLeft"
+                  }
                 },
+                "hintFrom": {
+                  "resolver": "onDemandSummary",
+                  "args": {
+                    "itemsKey": "statusTopOnDemandLeftItems"
+                  }
+                },
+                "joinPrevious": true,
+                "compact": true,
                 "showWhen": {
-                  "env": "thresholds"
+                  "env": "onDemand"
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "statusTopOnDemandRight",
+                "label": "On demand right",
+                "defaultValue": "on",
+                "options": [
+                  [
+                    "Enabled",
+                    "on"
+                  ],
+                  [
+                    "Disabled",
+                    "off"
+                  ]
+                ],
+                "editSheetFrom": {
+                  "resolver": "onDemandSideSheet",
+                  "args": {
+                    "sheetId": "odTopRight"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "onDemandSummary",
+                  "args": {
+                    "itemsKey": "statusTopOnDemandRightItems"
+                  }
+                },
+                "joinPrevious": true,
+                "compact": true,
+                "showWhen": {
+                  "env": "onDemand"
                 }
               },
               {
@@ -5575,19 +5387,34 @@
                 "messageKey": "batteryLowOnly",
                 "label": "Show battery below 10%",
                 "defaultValue": true,
-                "hint": "Replaces the top-right slot when your battery drops below 10%."
+                "hint": "Replaces the top-right slot when your battery drops below 10%.",
+                "showWhen": {
+                  "not": {
+                    "env": "onDemand"
+                  }
+                }
               },
               {
                 "type": "toggle",
                 "messageKey": "showQt",
                 "label": "Show quiet time icon",
-                "defaultValue": true
+                "defaultValue": true,
+                "showWhen": {
+                  "not": {
+                    "env": "onDemand"
+                  }
+                }
               },
               {
                 "type": "toggle",
                 "messageKey": "vibe",
                 "label": "Vibrate on bluetooth disconnect",
-                "defaultValue": false
+                "defaultValue": false,
+                "showWhen": {
+                  "not": {
+                    "env": "onDemand"
+                  }
+                }
               },
               {
                 "type": "select",
@@ -5612,7 +5439,620 @@
                     "None",
                     "none"
                   ]
-                ]
+                ],
+                "showWhen": {
+                  "not": {
+                    "env": "onDemand"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "onDemand",
+            "title": "On demand",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "intro": "On demand items show at the edge of a status bar only while they have something to say: the battery when it runs low, Bluetooth when it disconnects, an alert while it is active. Each status bar’s On demand rows choose which, and on which side. <button type=\"button\" class=\"txt-act-btn\" data-action=\"resetOnDemand\">Reset on demand to defaults</button>",
+            "items": [
+              {
+                "type": "staticText",
+                "style": "info",
+                "text": "Your Default view has no Watch Status Bar, so On demand items won’t show there. Enable On demand left or right on one of its other status bars.",
+                "showWhen": {
+                  "any": [
+                    {
+                      "all": [
+                        {
+                          "key": "layoutPreset",
+                          "eq": "weatherOnly"
+                        },
+                        {
+                          "key": "radarMode",
+                          "ne": "countdown"
+                        },
+                        {
+                          "not": {
+                            "any": [
+                              {
+                                "any": [
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "statusForecastOnDemandLeft",
+                                        "eq": "on"
+                                      },
+                                      {
+                                        "key": "statusForecastOnDemandLeftItems",
+                                        "ne": ""
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "statusForecastOnDemandRight",
+                                        "eq": "on"
+                                      },
+                                      {
+                                        "key": "statusForecastOnDemandRightItems",
+                                        "ne": ""
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "radarMode",
+                                    "eq": "status"
+                                  },
+                                  {
+                                    "any": [
+                                      {
+                                        "all": [
+                                          {
+                                            "key": "statusRadarOnDemandLeft",
+                                            "eq": "on"
+                                          },
+                                          {
+                                            "key": "statusRadarOnDemandLeftItems",
+                                            "ne": ""
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "all": [
+                                          {
+                                            "key": "statusRadarOnDemandRight",
+                                            "eq": "on"
+                                          },
+                                          {
+                                            "key": "statusRadarOnDemandRightItems",
+                                            "ne": ""
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "all": [
+                        {
+                          "key": "layoutPreset",
+                          "eq": "custom"
+                        },
+                        {
+                          "key": "viewStripOff0"
+                        },
+                        {
+                          "not": {
+                            "any": [
+                              {
+                                "any": [
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewUpper0",
+                                        "eq": "weather"
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusForecastOnDemandLeft",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusForecastOnDemandLeftItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusForecastOnDemandRight",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusForecastOnDemandRightItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewUpper0",
+                                        "eq": "radar"
+                                      },
+                                      {
+                                        "key": "radarMode",
+                                        "in": [
+                                          "status",
+                                          "graph"
+                                        ]
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusRadarOnDemandLeft",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusRadarOnDemandLeftItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusRadarOnDemandRight",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusRadarOnDemandRightItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewUpper0",
+                                        "eq": "health"
+                                      },
+                                      {
+                                        "key": "healthMode",
+                                        "in": [
+                                          "status",
+                                          "all"
+                                        ]
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusHealthOnDemandLeft",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusHealthOnDemandLeftItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusHealthOnDemandRight",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusHealthOnDemandRightItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "any": [
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewLower0",
+                                        "eq": "weather"
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusForecastOnDemandLeft",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusForecastOnDemandLeftItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusForecastOnDemandRight",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusForecastOnDemandRightItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewLower0",
+                                        "eq": "radar"
+                                      },
+                                      {
+                                        "key": "radarMode",
+                                        "in": [
+                                          "status",
+                                          "graph"
+                                        ]
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusRadarOnDemandLeft",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusRadarOnDemandLeftItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusRadarOnDemandRight",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusRadarOnDemandRightItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "key": "viewLower0",
+                                        "eq": "health"
+                                      },
+                                      {
+                                        "key": "healthMode",
+                                        "in": [
+                                          "status",
+                                          "all"
+                                        ]
+                                      },
+                                      {
+                                        "any": [
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusHealthOnDemandLeft",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusHealthOnDemandLeftItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "all": [
+                                              {
+                                                "key": "statusHealthOnDemandRight",
+                                                "eq": "on"
+                                              },
+                                              {
+                                                "key": "statusHealthOnDemandRightItems",
+                                                "ne": ""
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "subheader",
+                "text": "System info"
+              },
+              {
+                "type": "sheet",
+                "sheetId": "odBattery",
+                "label": "Battery",
+                "icon": "battery",
+                "hintFrom": {
+                  "resolver": "onDemandBatteryText"
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "odBluetooth",
+                "label": "Bluetooth",
+                "icon": "bluetooth",
+                "hintFrom": {
+                  "resolver": "onDemandBluetoothText"
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Quiet time",
+                "icon": "quiet",
+                "hintFrom": {
+                  "resolver": "onDemandPlainText",
+                  "args": {
+                    "code": "qt",
+                    "text": "While Quiet Time is on"
+                  }
+                }
+              },
+              {
+                "type": "readout",
+                "label": "Sleep",
+                "icon": "snooze",
+                "hintFrom": {
+                  "resolver": "onDemandSleepText"
+                }
+              },
+              {
+                "type": "subheader",
+                "text": "Weather alerts"
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertRain",
+                "label": "Rain",
+                "icon": "rain",
+                "hintFrom": {
+                  "resolver": "rainAlertHint",
+                  "args": {
+                    "windows": [
+                      [
+                        "Within 30 min",
+                        "30"
+                      ],
+                      [
+                        "Within 60 min",
+                        "60"
+                      ],
+                      [
+                        "Within 2 hours",
+                        "120"
+                      ]
+                    ],
+                    "looks": [
+                      [
+                        "Icon",
+                        "icon"
+                      ],
+                      [
+                        "Icon + minutes",
+                        "minutes"
+                      ],
+                      [
+                        "Text",
+                        "text"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "rainAlertBadge"
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertUv",
+                "label": "UV index",
+                "icon": "uv",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Uv",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Uv"
+                  }
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertWind",
+                "label": "Wind speed",
+                "icon": "wind",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Wind",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Wind"
+                  }
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertGust",
+                "label": "Wind gusts",
+                "icon": "gust",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Gust",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Gust"
+                  }
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertAqi",
+                "label": "Air quality",
+                "icon": "aqi",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Aqi",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Aqi"
+                  }
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertPollen",
+                "label": "Pollen",
+                "icon": "pollen",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Pollen",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Pollen"
+                  }
+                },
+                "showWhen": {
+                  "key": "provider",
+                  "eq": "dwd"
+                }
               }
             ]
           },
@@ -5813,7 +6253,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "text": "Alert levels and colors are set in the On demand card, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -5854,7 +6294,167 @@
                       },
                       {
                         "not": {
-                          "key": "alertAqi"
+                          "all": [
+                            {
+                              "env": "onDemand"
+                            },
+                            {
+                              "any": [
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandLeftItems",
+                                      "has": "aqi"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandRightItems",
+                                      "has": "aqi"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandLeftItems",
+                                      "has": "aqi"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandRightItems",
+                                      "has": "aqi"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandLeftItems",
+                                      "has": "aqi"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandRightItems",
+                                      "has": "aqi"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandLeftItems",
+                                      "has": "aqi"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandRightItems",
+                                      "has": "aqi"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
                         }
                       }
                     ]
@@ -5884,7 +6484,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "text": "Alert levels and colors are set in the On demand card, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -5925,7 +6525,167 @@
                       },
                       {
                         "not": {
-                          "key": "alertPollen"
+                          "all": [
+                            {
+                              "env": "onDemand"
+                            },
+                            {
+                              "any": [
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandLeftItems",
+                                      "has": "pollen"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandRightItems",
+                                      "has": "pollen"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandLeftItems",
+                                      "has": "pollen"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandRightItems",
+                                      "has": "pollen"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandLeftItems",
+                                      "has": "pollen"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandRightItems",
+                                      "has": "pollen"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandLeftItems",
+                                      "has": "pollen"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandRightItems",
+                                      "has": "pollen"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
                         }
                       }
                     ]
@@ -6129,7 +6889,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "text": "Alert levels and colors are set in the On demand card, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -6170,7 +6930,167 @@
                       },
                       {
                         "not": {
-                          "key": "alertWind"
+                          "all": [
+                            {
+                              "env": "onDemand"
+                            },
+                            {
+                              "any": [
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandLeftItems",
+                                      "has": "wind"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandRightItems",
+                                      "has": "wind"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandLeftItems",
+                                      "has": "wind"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandRightItems",
+                                      "has": "wind"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandLeftItems",
+                                      "has": "wind"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandRightItems",
+                                      "has": "wind"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandLeftItems",
+                                      "has": "wind"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandRightItems",
+                                      "has": "wind"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
                         }
                       }
                     ]
@@ -6374,7 +7294,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "text": "Alert levels and colors are set in the On demand card, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -6415,7 +7335,167 @@
                       },
                       {
                         "not": {
-                          "key": "alertGust"
+                          "all": [
+                            {
+                              "env": "onDemand"
+                            },
+                            {
+                              "any": [
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandLeftItems",
+                                      "has": "gust"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandRightItems",
+                                      "has": "gust"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandLeftItems",
+                                      "has": "gust"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandRightItems",
+                                      "has": "gust"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandLeftItems",
+                                      "has": "gust"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandRightItems",
+                                      "has": "gust"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandLeftItems",
+                                      "has": "gust"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandRightItems",
+                                      "has": "gust"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
                         }
                       }
                     ]
@@ -6605,7 +7685,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Alert levels and colors are set under Alerts on the Status slots tab.",
+                "text": "Alert levels and colors are set in the On demand card, under Weather alerts.",
                 "joinPrevious": true
               },
               {
@@ -6646,7 +7726,167 @@
                       },
                       {
                         "not": {
-                          "key": "alertUv"
+                          "all": [
+                            {
+                              "env": "onDemand"
+                            },
+                            {
+                              "any": [
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandLeftItems",
+                                      "has": "uv"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusTopOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusTopOnDemandRightItems",
+                                      "has": "uv"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandLeftItems",
+                                      "has": "uv"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusForecastOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusForecastOnDemandRightItems",
+                                      "has": "uv"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandLeftItems",
+                                      "has": "uv"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusRadarOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusRadarOnDemandRightItems",
+                                      "has": "uv"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "radar"
+                                        },
+                                        {
+                                          "key": "radarMode",
+                                          "in": [
+                                            "status",
+                                            "graph"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandLeft",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandLeftItems",
+                                      "has": "uv"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "all": [
+                                    {
+                                      "key": "statusHealthOnDemandRight",
+                                      "eq": "on"
+                                    },
+                                    {
+                                      "key": "statusHealthOnDemandRightItems",
+                                      "has": "uv"
+                                    },
+                                    {
+                                      "all": [
+                                        {
+                                          "env": "health"
+                                        },
+                                        {
+                                          "key": "healthMode",
+                                          "in": [
+                                            "status",
+                                            "all"
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
                         }
                       }
                     ]
@@ -8134,88 +9374,564 @@
           },
           {
             "sheetOnly": true,
-            "sheetId": "alertRain",
+            "sheetId": "odTopLeft",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "On demand left",
+            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "items": [
+              {
+                "type": "checklist",
+                "messageKey": "statusTopOnDemandLeftItems",
+                "label": "Items",
+                "defaultValue": "bt,qt,snooze",
+                "optionsFrom": {
+                  "resolver": "onDemandItems",
+                  "args": {
+                    "bar": "top",
+                    "side": "left"
+                  }
+                },
+                "onChange": "onDemandExclusive"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odTopRight",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "On demand right",
+            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "items": [
+              {
+                "type": "checklist",
+                "messageKey": "statusTopOnDemandRightItems",
+                "label": "Items",
+                "defaultValue": "battery,rain,gust,uv,aqi,wind",
+                "optionsFrom": {
+                  "resolver": "onDemandItems",
+                  "args": {
+                    "bar": "top",
+                    "side": "right"
+                  }
+                },
+                "onChange": "onDemandExclusive"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odForecastLeft",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "On demand left",
+            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "items": [
+              {
+                "type": "checklist",
+                "messageKey": "statusForecastOnDemandLeftItems",
+                "label": "Items",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "onDemandItems",
+                  "args": {
+                    "bar": "forecast",
+                    "side": "left"
+                  }
+                },
+                "onChange": "onDemandExclusive"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odForecastRight",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "On demand right",
+            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "items": [
+              {
+                "type": "checklist",
+                "messageKey": "statusForecastOnDemandRightItems",
+                "label": "Items",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "onDemandItems",
+                  "args": {
+                    "bar": "forecast",
+                    "side": "right"
+                  }
+                },
+                "onChange": "onDemandExclusive"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odRadarLeft",
             "showWhen": {
               "all": [
                 {
-                  "key": "radarMode",
-                  "ne": "off"
+                  "env": "onDemand"
                 },
                 {
-                  "env": "platform",
-                  "ne": "aplite"
+                  "all": [
+                    {
+                      "env": "radar"
+                    },
+                    {
+                      "key": "radarMode",
+                      "in": [
+                        "status",
+                        "graph"
+                      ]
+                    }
+                  ]
                 }
               ]
             },
-            "title": "Rain alert",
+            "title": "On demand left",
+            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
-                "type": "subheader",
-                "text": "Rain alert",
-                "toggleKey": "alertRain",
-                "intro": "Shows the rain icon in the alert row while it rains at your location or rain is due within the time window below. On a color watch the rain icon takes the radar’s rain color, except with a B&W theme. Hidden during the Battery saver hours. The radar mode “Rain alert only” keeps it on."
-              },
+                "type": "checklist",
+                "messageKey": "statusRadarOnDemandLeftItems",
+                "label": "Items",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "onDemandItems",
+                  "args": {
+                    "bar": "radar",
+                    "side": "left"
+                  }
+                },
+                "onChange": "onDemandExclusive"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odRadarRight",
+            "showWhen": {
+              "all": [
+                {
+                  "env": "onDemand"
+                },
+                {
+                  "all": [
+                    {
+                      "env": "radar"
+                    },
+                    {
+                      "key": "radarMode",
+                      "in": [
+                        "status",
+                        "graph"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "title": "On demand right",
+            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "items": [
               {
-                "type": "toggle",
-                "messageKey": "alertRain",
-                "label": "Rain alert",
-                "defaultValue": true,
-                "disabledWhen": {
-                  "key": "radarMode",
-                  "eq": "countdown"
+                "type": "checklist",
+                "messageKey": "statusRadarOnDemandRightItems",
+                "label": "Items",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "onDemandItems",
+                  "args": {
+                    "bar": "radar",
+                    "side": "right"
+                  }
+                },
+                "onChange": "onDemandExclusive"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odHealthLeft",
+            "showWhen": {
+              "all": [
+                {
+                  "env": "onDemand"
+                },
+                {
+                  "all": [
+                    {
+                      "env": "health"
+                    },
+                    {
+                      "key": "healthMode",
+                      "in": [
+                        "status",
+                        "all"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "title": "On demand left",
+            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "items": [
+              {
+                "type": "checklist",
+                "messageKey": "statusHealthOnDemandLeftItems",
+                "label": "Items",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "onDemandItems",
+                  "args": {
+                    "bar": "health",
+                    "side": "left"
+                  }
+                },
+                "onChange": "onDemandExclusive"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odHealthRight",
+            "showWhen": {
+              "all": [
+                {
+                  "env": "onDemand"
+                },
+                {
+                  "all": [
+                    {
+                      "env": "health"
+                    },
+                    {
+                      "key": "healthMode",
+                      "in": [
+                        "status",
+                        "all"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "title": "On demand right",
+            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "items": [
+              {
+                "type": "checklist",
+                "messageKey": "statusHealthOnDemandRightItems",
+                "label": "Items",
+                "defaultValue": "",
+                "optionsFrom": {
+                  "resolver": "onDemandItems",
+                  "args": {
+                    "bar": "health",
+                    "side": "right"
+                  }
+                },
+                "onChange": "onDemandExclusive"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odBattery",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "Battery",
+            "intro": "Shows the battery icon on a status bar’s On demand side while the watch battery is at or below the warn level. A bar that already shows the battery in a slot (Watch battery or Watch battery percentage) leaves the icon out, and draws it only when that slot is hidden to make room.",
+            "items": [
+              {
+                "type": "range",
+                "single": true,
+                "messageKey": "batteryLowLevel",
+                "label": "Warn level",
+                "min": 5,
+                "max": 30,
+                "step": 5,
+                "unit": "%",
+                "defaultValue": "10",
+                "hint": "The icon shows at this charge or below.",
+                "showWhen": {
+                  "env": "fineBattery"
                 }
               },
               {
+                "type": "range",
+                "single": true,
+                "messageKey": "batteryLowLevel",
+                "label": "Warn level",
+                "min": 10,
+                "max": 30,
+                "step": 10,
+                "unit": "%",
+                "defaultValue": "10",
+                "hint": "The icon shows at this charge or below.",
+                "showWhen": {
+                  "not": {
+                    "env": "fineBattery"
+                  }
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "batteryLowDisplay",
+                "label": "Look",
+                "defaultValue": "icon",
+                "options": [
+                  [
+                    "Icon",
+                    "icon"
+                  ],
+                  [
+                    "Icon + value",
+                    "value"
+                  ]
+                ],
+                "hintByValue": {
+                  "value": "Adds the charge after the icon, like 8%. Just the icon when the bar is short on room."
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "odBluetooth",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "Bluetooth",
+            "intro": "Shows the Bluetooth icon on a status bar’s On demand side.",
+            "items": [
+              {
+                "type": "select",
+                "messageKey": "btIcons",
+                "label": "Show",
+                "defaultValue": "disconnected",
+                "options": [
+                  [
+                    "Disconnected",
+                    "disconnected"
+                  ],
+                  [
+                    "Connected",
+                    "connected"
+                  ],
+                  [
+                    "Both",
+                    "both"
+                  ],
+                  [
+                    "None",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "both": "The icon while connected, crossed out while disconnected.",
+                  "none": "The icon never shows. Vibrate on disconnect still works."
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "vibe",
+                "label": "Vibrate on disconnect",
+                "defaultValue": false,
+                "joinPrevious": "loose"
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "alertRain",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "Rain alert",
+            "intro": "Shows the rain icon on a status bar’s On demand side while it rains at your location or rain is due within the time window. On a color watch the rain icon takes the radar’s rain color, except with a B&W theme. Hidden during the Battery saver hours.",
+            "items": [
+              {
                 "type": "staticText",
                 "style": "info",
-                "text": "No status bar shows the alert row, so the rain alert won’t appear. Pick a place in a status bar’s Alert row setting.",
+                "text": "Rain isn’t ticked on any status bar’s On demand side, so the rain icon won’t show.",
                 "showWhen": {
                   "all": [
                     {
                       "key": "radarMode",
-                      "eq": "countdown"
+                      "ne": "off"
                     },
                     {
-                      "env": "platform",
-                      "ne": "aplite"
+                      "env": "onDemand"
                     },
                     {
                       "not": {
-                        "any": [
+                        "all": [
                           {
-                            "key": "statusTopAlerts",
-                            "ne": "off"
+                            "env": "onDemand"
                           },
                           {
-                            "key": "statusForecastAlerts",
-                            "in": [
-                              "left",
-                              "middle",
-                              "right"
-                            ]
-                          },
-                          {
-                            "all": [
+                            "any": [
                               {
                                 "all": [
                                   {
-                                    "env": "health"
+                                    "key": "statusTopOnDemandLeft",
+                                    "eq": "on"
                                   },
                                   {
-                                    "key": "healthMode",
-                                    "in": [
-                                      "status",
-                                      "all"
+                                    "key": "statusTopOnDemandLeftItems",
+                                    "has": "rain"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusTopOnDemandRight",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusTopOnDemandRightItems",
+                                    "has": "rain"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusForecastOnDemandLeft",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusForecastOnDemandLeftItems",
+                                    "has": "rain"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusForecastOnDemandRight",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusForecastOnDemandRightItems",
+                                    "has": "rain"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusRadarOnDemandLeft",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusRadarOnDemandLeftItems",
+                                    "has": "rain"
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "env": "radar"
+                                      },
+                                      {
+                                        "key": "radarMode",
+                                        "in": [
+                                          "status",
+                                          "graph"
+                                        ]
+                                      }
                                     ]
                                   }
                                 ]
                               },
                               {
-                                "key": "statusHealthAlerts",
-                                "in": [
-                                  "left",
-                                  "middle",
-                                  "right"
+                                "all": [
+                                  {
+                                    "key": "statusRadarOnDemandRight",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusRadarOnDemandRightItems",
+                                    "has": "rain"
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "env": "radar"
+                                      },
+                                      {
+                                        "key": "radarMode",
+                                        "in": [
+                                          "status",
+                                          "graph"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusHealthOnDemandLeft",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusHealthOnDemandLeftItems",
+                                    "has": "rain"
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "env": "health"
+                                      },
+                                      {
+                                        "key": "healthMode",
+                                        "in": [
+                                          "status",
+                                          "all"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusHealthOnDemandRight",
+                                    "eq": "on"
+                                  },
+                                  {
+                                    "key": "statusHealthOnDemandRightItems",
+                                    "has": "rain"
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "env": "health"
+                                      },
+                                      {
+                                        "key": "healthMode",
+                                        "in": [
+                                          "status",
+                                          "all"
+                                        ]
+                                      }
+                                    ]
+                                  }
                                 ]
                               }
                             ]
@@ -8227,30 +9943,25 @@
                 }
               },
               {
-                "type": "select",
+                "type": "segmented",
                 "messageKey": "rainCountdownHorizon",
                 "label": "Time window",
                 "defaultValue": "60",
-                "hint": "Rain due further out than this doesn’t trigger the alert. Rain radar forecasts change often, so a shorter window gives fewer false alarms.",
                 "options": [
                   [
-                    "Within 30 min",
+                    "30 min",
                     "30"
                   ],
                   [
-                    "Within 60 min",
+                    "60 min",
                     "60"
                   ],
                   [
-                    "Within 2 hours",
+                    "2 hours",
                     "120"
                   ]
                 ],
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertRain"
-                  }
-                }
+                "hint": "Rain due further out doesn’t show the icon. Radar forecasts change often, so a shorter window gives fewer false alarms."
               },
               {
                 "type": "segmented",
@@ -8274,11 +9985,6 @@
                 "hintByValue": {
                   "minutes": "The rain icon with the minutes until the rain starts or, while it rains, + the minutes until it stops. Just the icon when the bar is short on room.",
                   "text": "Shortens to the minutes, then to the rain icon alone, when the bar is short on room."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertRain"
-                  }
                 }
               }
             ]
@@ -8287,22 +9993,11 @@
             "sheetOnly": true,
             "sheetId": "alertUv",
             "showWhen": {
-              "env": "thresholds"
+              "env": "onDemand"
             },
             "title": "UV index alert",
+            "intro": "Shows the UV icon on a status bar’s On demand side when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
             "items": [
-              {
-                "type": "subheader",
-                "text": "Alert",
-                "toggleKey": "alertUv",
-                "intro": "Shows the UV icon in the alert row when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
-              },
-              {
-                "type": "toggle",
-                "messageKey": "alertUv",
-                "label": "Alert",
-                "defaultValue": false
-              },
               {
                 "type": "segmented",
                 "messageKey": "alertUvDisplay",
@@ -8319,12 +10014,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertUv"
-                  }
+                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
                 }
               },
               {
@@ -8344,11 +10034,6 @@
                 ],
                 "hintByValue": {
                   "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertUv"
-                  }
                 }
               },
               {
@@ -8385,11 +10070,6 @@
                 "showWhen": {
                   "key": "alertUvDays",
                   "ne": "today"
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertUv"
-                  }
                 }
               },
               {
@@ -8548,22 +10228,11 @@
             "sheetOnly": true,
             "sheetId": "alertWind",
             "showWhen": {
-              "env": "thresholds"
+              "env": "onDemand"
             },
             "title": "Wind speed alert",
+            "intro": "Shows the wind icon on a status bar’s On demand side when the wind speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
             "items": [
-              {
-                "type": "subheader",
-                "text": "Alert",
-                "toggleKey": "alertWind",
-                "intro": "Shows the wind icon in the alert row when the wind speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
-              },
-              {
-                "type": "toggle",
-                "messageKey": "alertWind",
-                "label": "Alert",
-                "defaultValue": false
-              },
               {
                 "type": "segmented",
                 "messageKey": "alertWindDisplay",
@@ -8580,12 +10249,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertWind"
-                  }
+                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
                 }
               },
               {
@@ -8605,11 +10269,6 @@
                 ],
                 "hintByValue": {
                   "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertWind"
-                  }
                 }
               },
               {
@@ -8646,11 +10305,6 @@
                 "showWhen": {
                   "key": "alertWindDays",
                   "ne": "today"
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertWind"
-                  }
                 }
               },
               {
@@ -8809,22 +10463,11 @@
             "sheetOnly": true,
             "sheetId": "alertGust",
             "showWhen": {
-              "env": "thresholds"
+              "env": "onDemand"
             },
             "title": "Wind gusts alert",
+            "intro": "Shows the gust icon on a status bar’s On demand side when the gust speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
             "items": [
-              {
-                "type": "subheader",
-                "text": "Alert",
-                "toggleKey": "alertGust",
-                "intro": "Shows the gust icon in the alert row when the gust speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
-              },
-              {
-                "type": "toggle",
-                "messageKey": "alertGust",
-                "label": "Alert",
-                "defaultValue": false
-              },
               {
                 "type": "segmented",
                 "messageKey": "alertGustDisplay",
@@ -8841,12 +10484,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertGust"
-                  }
+                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
                 }
               },
               {
@@ -8866,11 +10504,6 @@
                 ],
                 "hintByValue": {
                   "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertGust"
-                  }
                 }
               },
               {
@@ -8907,11 +10540,6 @@
                 "showWhen": {
                   "key": "alertGustDays",
                   "ne": "today"
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertGust"
-                  }
                 }
               },
               {
@@ -9070,22 +10698,11 @@
             "sheetOnly": true,
             "sheetId": "alertAqi",
             "showWhen": {
-              "env": "thresholds"
+              "env": "onDemand"
             },
             "title": "Air quality (AQI) alert",
+            "intro": "Shows the air quality icon on a status bar’s On demand side when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (General tab): WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.",
             "items": [
-              {
-                "type": "subheader",
-                "text": "Alert",
-                "toggleKey": "alertAqi",
-                "intro": "Shows the air quality icon in the alert row when the air quality index reaches your warn level at any point left today, so an afternoon peak shows from the morning on. Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (General tab): WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading."
-              },
-              {
-                "type": "toggle",
-                "messageKey": "alertAqi",
-                "label": "Alert",
-                "defaultValue": false
-              },
               {
                 "type": "segmented",
                 "messageKey": "alertAqiDisplay",
@@ -9102,12 +10719,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertAqi"
-                  }
+                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
                 }
               },
               {
@@ -9127,11 +10739,6 @@
                 ],
                 "hintByValue": {
                   "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertAqi"
-                  }
                 }
               },
               {
@@ -9168,11 +10775,6 @@
                 "showWhen": {
                   "key": "alertAqiDays",
                   "ne": "today"
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertAqi"
-                  }
                 }
               },
               {
@@ -9331,22 +10933,11 @@
             "sheetOnly": true,
             "sheetId": "alertPollen",
             "showWhen": {
-              "env": "thresholds"
+              "env": "onDemand"
             },
             "title": "Pollen alert",
+            "intro": "Shows the pollen icon on a status bar’s On demand side when the pollen index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
             "items": [
-              {
-                "type": "subheader",
-                "text": "Alert",
-                "toggleKey": "alertPollen",
-                "intro": "Shows the pollen icon in the alert row when the pollen index reaches your warn level at any point left today, so an afternoon peak shows from the morning on."
-              },
-              {
-                "type": "toggle",
-                "messageKey": "alertPollen",
-                "label": "Alert",
-                "defaultValue": false
-              },
               {
                 "type": "segmented",
                 "messageKey": "alertPollenDisplay",
@@ -9363,12 +10954,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. It needs more room: the alert row takes the neighboring slot sooner, and shows only the alert icons when even that is too narrow."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertPollen"
-                  }
+                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
                 }
               },
               {
@@ -9388,11 +10974,6 @@
                 ],
                 "hintByValue": {
                   "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertPollen"
-                  }
                 }
               },
               {
@@ -9429,11 +11010,6 @@
                 "showWhen": {
                   "key": "alertPollenDays",
                   "ne": "today"
-                },
-                "disabledWhen": {
-                  "not": {
-                    "key": "alertPollen"
-                  }
                 }
               },
               {
@@ -9616,7 +11192,7 @@
                     "byRadar": {
                       "graph": "No calendar and no top bar — the rain radar, clock, weather and a big forecast.",
                       "status": "No calendar and no top bar — the clock, the weather and radar status bars and a big forecast.",
-                      "countdown": "No calendar — the top bar, where the alert row shows by default, then the clock, weather and a big forecast.",
+                      "countdown": "No calendar — the top bar, where the rain icon shows by default, then the clock, weather and a big forecast.",
                       "off": "No calendar and no top bar — the clock, weather and a big forecast."
                     }
                   }

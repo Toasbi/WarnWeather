@@ -22,7 +22,7 @@ function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').secti
 // generate them — listing 42 literals would just invite drift. THRESH_COLOR_KEYS is
 // reused by the color-defaults assertion below.
 const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
-// The kinds with an Alerts-card row and an alert<Stem> sheet (their switch, Look and
+// The kinds with an On demand card row and an alert<Stem> sheet (their Look, Days and
 // levels), in the card's row order (the goal kinds are not alerts).
 const ALERT_STEMS = ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
@@ -57,13 +57,13 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 
 // slot text the phone bakes; the watch-formatted kinds (distance, heart rate, sleep,
 // battery %) would need the flag on the wire and are deliberately absent.
 const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
-// The Alerts card's own keys: each alert kind's switch, Look, Days and tomorrow mark,
-// the rain alert's switch and look — and each status bar's Alerts placement (the
-// select in the bar's card).
-const PLACE_KEYS = ['statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'];
-const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem, 'alert' + stem + 'Display',
+// The weather alerts' own keys: each alert kind's Look, Days and tomorrow mark and the
+// rain alert's look — and On demand's: each bar's two sides with their ticked items (the
+// rows in the bar's card and the side sheets) and the Battery item's warn level and Look
+// (on-demand.js DEFAULTS, the one list of them).
+const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem + 'Display',
   'alert' + stem + 'Days', 'alert' + stem + 'NextDayMark']),
-  ['alertRain', 'rainAlertDisplay']).concat(PLACE_KEYS);
+  ['rainAlertDisplay']).concat(Object.keys(require('../src/pkjs/on-demand.js').DEFAULTS));
 // The Graph-colors rows: every metric colour, with one picker per theme polarity so a
 // Dark and a Light pick never overwrite one another (the colorUSFederal idiom). The list
 // comes from line-style.js because the schema builds its rows from the same call — this
@@ -117,14 +117,19 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // dark-exclude-white vs. light-exclude-black.
   // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
   // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
-  // The five alert kinds' levels live in ONE place, their Alerts sheet (the slot
+  // The five alert kinds' levels live in ONE place, their alert sheet (the slot
   // sheet only points there), so each of their keys appears exactly once.
+  // batteryLowLevel: the Battery sheet's 5 % (emery) and 10 % (every other watch)
+  // sliders, gated apart. vibe/btIcons: the Bluetooth sheet vs aplite's Watch Status
+  // Bar rows, gated apart. rainCountdownHorizon: the Rain sheet and its Radar-tab copy —
+  // the one pair that is live at the same time (flat hydrate/serialize cope).
   assert.deepEqual(dups.sort(),
-    ['colorUSFederal', 'pressureScale', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'windScale'],
+    ['batteryLowLevel', 'btIcons', 'colorUSFederal', 'pressureScale', 'rainCountdownHorizon', 'theme',
+      'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'vibe', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
   ALERT_STEMS.forEach((stem) => ['On', 'Warn', 'Danger', 'Max', 'WarnLook', 'WarnColor', 'DangerColor']
     .forEach((suffix) => assert.equal(counts['thresh' + stem + suffix], 1,
-      'thresh' + stem + suffix + ' appears once (the Alerts sheet)')));
+      'thresh' + stem + suffix + ' appears once (the alert sheet)')));
   assert.equal(counts.windScale, 12, 'windScale appears in twelve slots (4 contexts × 3 units)');
   assert.equal(counts.pressureScale, 4, 'pressureScale appears in four slots (one per line context)');
   assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
@@ -132,6 +137,8 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
   assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
   assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs');
+  ['batteryLowLevel', 'btIcons', 'vibe', 'rainCountdownHorizon'].forEach((k) =>
+    assert.equal(counts[k], 2, k + ' appears in exactly two slots'));
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
 });
 
@@ -1268,24 +1275,6 @@ test('non-holiday selects stay plain select', () => {
   assert.equal(byKey('btIcons').type, 'select');
 });
 
-test('rainCountdownHorizon is the rain sheet\'s 30/60/120 window, default 60, inert while the rain alert is off', () => {
-  const it = byKey('rainCountdownHorizon');
-  assert.equal(it.type, 'select');
-  assert.equal(it.defaultValue, '60');
-  // No Off option: the rain alert's own switch (alertRain) is the off — the payload
-  // sends a horizon of 0 while it is off.
-  assert.deepEqual(it.options,
-    [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']]);
-  assert.equal(it.optionDisabledWhen, undefined);
-  assert.deepEqual(it.disabledWhen, { not: { key: 'alertRain' } });
-  // The gate (radar on, not aplite) is the rain sheet's own.
-  const sheet = schema.tabs.find((t) => t.id === 'watch').sections.find((x) => x.sheetId === 'alertRain');
-  assert.ok(sheet.items.indexOf(it) !== -1, 'it lives in the rain alert sheet');
-  assert.deepEqual(sheet.showWhen, {
-    all: [{ key: 'radarMode', ne: 'off' }, { env: 'platform', ne: 'aplite' }],
-  });
-});
-
 test('layoutPreset offers the four adaptive presets', () => {
   const t = byKey('layoutPreset');
   assert.ok(t, 'layoutPreset item exists');
@@ -1661,9 +1650,8 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
   // rather than "also adds" deltas relative to the option above (user request).
   assert.deepEqual(item.hintByValue, {
     off: 'Radar is hidden.',
-    // The countdown's time window moved to the Status slots tab's Alerts card, and its
-    // place is each bar's Alert row select (settings audit #25); the hint points at both.
-    countdown: 'Fetches the radar only for the rain alert — no radar bar or graph. Each status bar’s Alert row setting (Status slots tab) sets where the alert row shows; the rain alert’s time window is under Status slots → Alerts.',
+    // The rain icon's place is each bar's On demand side (Status slots tab).
+    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar’s On demand side where Rain is ticked.',
     status: 'Adds the Radar Status Bar.',
     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
   });
@@ -1697,7 +1685,7 @@ test('the Weather only hint follows the radar mode, each describing the Default 
   assert.equal(hint({ radarMode: 'graph' }), hint({}));
   assert.match(hint({ radarMode: 'status' }), /no top bar — the clock, the weather and radar status bars/);
   assert.doesNotMatch(hint({ radarMode: 'status' }), /rain radar/);
-  assert.match(hint({ radarMode: 'countdown' }), /^No calendar — the top bar, where the alert row shows by default/);
+  assert.match(hint({ radarMode: 'countdown' }), /^No calendar — the top bar, where the rain icon shows by default/);
   assert.match(hint({ radarMode: 'off' }), /no top bar — the clock, weather and a big forecast/);
   assert.doesNotMatch(hint({ radarMode: 'off' }), /radar/);
   // Every other preset keeps its static per-value hint: the resolver answers null, so
@@ -2076,31 +2064,30 @@ test('AQI provider is a dropdown whose explanation switches per selected value',
   assert.ok(src.hintByValue.openmeteo.length > 0, 'Open-Meteo has its own hint');
 });
 
-test('Status-slots tab (id watch) opens with the Alerts card, then the status card: its intro and the four bars in forecast/radar/health/top order', () => {
+test('Status-slots tab (id watch) opens with the status card: its intro and the four bars in forecast/radar/health/top order, then the On demand card', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   // The label was renamed with the Time/Calendar move; the id stays 'watch' —
   // deep links and this very lookup key on it.
   assert.equal(watch.label, 'Status slots', 'tab label renamed, id kept');
-  assert.equal(watch.sections[0].title, 'Alerts', 'the Alerts card opens the tab, a card of its own');
-  const intro = watch.sections[1];
-  assert.equal(intro.title, undefined, 'the status card opens on a titleless intro');
+  const intro = watch.sections[0];
+  assert.equal(intro.title, undefined, 'the status card opens the tab on a titleless intro');
   assert.equal(intro.groupCard, 'watchStatus');
   assert.ok(/status bar/i.test(intro.intro), 'general intro describes status bars once');
   const titles = watch.sections.map((s) => s.title).filter(Boolean);
-  assert.equal(titles[0], 'Alerts', 'the Alerts card leads the titled sections');
-  assert.deepEqual(titles.slice(1, 5),
+  assert.deepEqual(titles.slice(0, 4),
     ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'],
-    'four status bars follow the Alerts card in order');
+    'the four status bars lead the titled sections, in order');
+  assert.equal(titles[4], 'On demand', 'the On demand card follows the status card');
   // The per-slot edit sheets (sheetOnly, opened from a slot's Edit button — never
-  // cards) sit between the bars and Time in the sections array (see
-  // alertSlotSheet / goalSlotSheet). Each is titled after the SLOT: it configures
-  // the slot's bold mode as well as its thresholds/goals, so the goal-vs-threshold
-  // split lives on the group header inside, not in the sheet title.
+  // cards) follow in the sections array (see alertSlotSheet / goalSlotSheet). Each is
+  // titled after the SLOT: it configures the slot's bold mode as well as its
+  // thresholds/goals, so the goal-vs-threshold split lives on the group header inside,
+  // not in the sheet title.
   assert.deepEqual(titles.slice(5, 13),
     ['Air quality (AQI) slot', 'Pollen slot', 'Wind speed slot',
       'Wind gusts slot', 'UV index slot', 'Steps slot', 'Sleep slot',
       'Walked distance slot'],
-    'per-slot edit sheets follow the four status bars, in kind order');
+    'per-slot edit sheets follow the On demand card, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
   // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
   // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
@@ -2111,11 +2098,13 @@ test('Status-slots tab (id watch) opens with the Alerts card, then the status ca
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
       'Phone battery slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
-  // The Alerts card's sheets close the tab, in the card's row order.
+  // The eight side checklists, then the On demand card's item sheets, close the tab.
   assert.deepEqual(titles.slice(24),
-    ['Rain alert', 'UV index alert', 'Wind speed alert', 'Wind gusts alert',
+    ['On demand left', 'On demand right', 'On demand left', 'On demand right',
+      'On demand left', 'On demand right', 'On demand left', 'On demand right',
+      'Battery', 'Bluetooth', 'Rain alert', 'UV index alert', 'Wind speed alert', 'Wind gusts alert',
       'Air quality (AQI) alert', 'Pollen alert'],
-    'the six alert sheets close the tab, after the bold-only sheets');
+    'the side checklists, then the item sheets close the tab');
   // Time and Calendar moved to the END of the Layout tab (order Time, Calendar) —
   // the Status-slots tab holds nothing but slot config now.
   const layoutTitles = schema.tabs.find((t) => t.id === 'layout')
@@ -2124,106 +2113,147 @@ test('Status-slots tab (id watch) opens with the Alerts card, then the status ca
     'the Layout tab ends with Time then Calendar');
   assert.equal(byKey('statusTopLeft').hint, undefined, 'left-slot hint removed');
   const wsb = watch.sections.find((s) => s.title === 'Watch Status Bar').items;
-  // The row is a per-bar takeover explained by the bar's own Alert row select (hint by
-  // value) — no separate note above the slots any more, and the old rain-takeover
-  // note is gone too.
-  assert.ok(!wsb.some((i) => i.type === 'staticText' && /alerts? row/i.test(i.text || '')),
-    'no alert row note above the Watch bar slots');
-  assert.ok(!wsb.some((i) => /incoming-rain alert/.test(i.text || '')), 'the takeover note is gone');
+  assert.ok(!wsb.some((i) => i.type === 'staticText'), 'no note above the Watch bar slots');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const countdownIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRightCountdown');
-  const placeIdx = wsb.findIndex((i) => i.messageKey === 'statusTopAlerts');
+  const leftIdx = wsb.findIndex((i) => i.messageKey === 'statusTopOnDemandLeft');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(countdownIdx, rightIdx + 1, 'top-right countdown date follows its slot');
-  assert.equal(placeIdx, countdownIdx + 1, 'the Alerts placement follows the slots');
-  assert.equal(battIdx, placeIdx + 1, 'battery toggle follows the placement directly');
+  assert.equal(leftIdx, countdownIdx + 1, 'the On demand rows follow the slots');
+  assert.equal(battIdx, leftIdx + 2, 'aplite\'s battery toggle follows them');
 });
 
-// --- the Alerts card (watch.sections[0]) --------------------------------------
-const THRESHOLD_WHEN = { env: 'thresholds' };
-const RAIN_WHEN = { all: [{ key: 'radarMode', ne: 'off' }, { env: 'platform', ne: 'aplite' }] };
-const alertsSection = () => schema.tabs.find((t) => t.id === 'watch').sections[0];
+// --- On demand: each bar's two rows, the side sheets, the card and its item sheets ---
+const ON_DEMAND_WHEN = { env: 'onDemand' };
+const RADAR_BAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
+const HEALTH_BAR = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
+const OD = require('../src/pkjs/on-demand.js');
+const onDemandSection = () => schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.id === 'onDemand');
 
-test('the Alerts card is watch.sections[0]: its own card, above the status card', () => {
-  const sec = alertsSection();
-  assert.equal(sec.groupCard, undefined, 'a card of its own, not a sub-header of the status card');
-  assert.equal(sec.title, 'Alerts');
-  assert.equal(sec.sheetOnly, undefined, 'a card, not a sheet');
-  // The owner's glossary intro: what Alerts do, when an alert is active — today, or
-  // tomorrow for an alert that looks ahead — and where its icon goes. How an icon
-  // looks is left to the sheets (the rain colour to the Rain sheet, the warn look and
-  // danger fill to each Alert levels intro, the tomorrow mark to each alert's Days).
-  assert.equal(sec.intro.split(' <button')[0], 'Alerts show a metric only when it matters, instead of in a slot all day.'
-    + ' An alert is active when a value reaches your warn level today (or tomorrow, if the alert looks ahead),'
-    + ' or when rain is on its way; its icon then appears in the alert row, which takes over up to two slots of'
-    + ' a status bar. The rest of the time those slots show what you picked. Each status bar’s Alert row'
-    + ' setting below chooses where.');
-  assert.ok(sec.intro.indexOf('by default') === -1, 'the intro does not describe the default look');
-  assert.ok(sec.intro.indexOf('data-action="resetAlerts"') !== -1, 'the intro carries the card reset');
-  assert.ok(sec.intro.indexOf('class="txt-act-btn"') !== -1, 'as the shared text-action chip');
-  // The union of its rows' platform gates: a section with an intro never counts as
-  // empty, so without it the title and intro would outlive the rows on aplite.
-  assert.deepEqual(sec.showWhen, { any: [THRESHOLD_WHEN, { env: 'platform', ne: 'aplite' }] });
-  const ctx = (p) => ({ radarMode: 'graph', provider: 'dwd', env: platform.computeEnv({ platform: p }) });
+test('each status bar ends on its two On demand rows: Enabled/Disabled, Edit only while Enabled', () => {
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  [['Forecast Status Bar', 'statusForecast', 'Forecast', null],
+    ['Radar Status Bar', 'statusRadar', 'Radar', RADAR_BAR],
+    ['Health Status Bar', 'statusHealth', 'Health', HEALTH_BAR],
+    ['Watch Status Bar', 'statusTop', 'Top', null]].forEach(([title, prefix, bar, barWhen]) => {
+    const items = watch.sections.find((x) => x.title === title).items;
+    const at = items.findIndex((i) => i.messageKey === prefix + 'RightCountdown');
+    ['Left', 'Right'].forEach((side, n) => {
+      const key = prefix + 'OnDemand' + side;
+      assert.deepEqual(items[at + 1 + n], {
+        type: 'select', messageKey: key, label: 'On demand ' + side.toLowerCase(),
+        defaultValue: OD.DEFAULTS[key],
+        options: [['Enabled', 'on'], ['Disabled', 'off']],
+        editSheetFrom: { resolver: 'onDemandSideSheet', args: { sheetId: 'od' + bar + side } },
+        hintFrom: { resolver: 'onDemandSummary', args: { itemsKey: key + 'Items' } },
+        joinPrevious: true, compact: true,
+        showWhen: barWhen ? { all: [ON_DEMAND_WHEN, barWhen] } : ON_DEMAND_WHEN
+      }, key);
+    });
+  });
+  assert.equal(byKey('statusTopOnDemandLeft').defaultValue, 'on');
+  assert.equal(byKey('statusForecastOnDemandRight').defaultValue, 'off');
+  const resolve = PConf.sheetResolvers.get('onDemandSideSheet');
+  const args = { messageKey: 'statusTopOnDemandLeft', sheetId: 'odTopLeft' };
+  assert.equal(resolve({ statusTopOnDemandLeft: 'on' }, { onDemand: true }, args), 'odTopLeft');
+  assert.equal(resolve({ statusTopOnDemandLeft: 'off' }, { onDemand: true }, args), null, 'Disabled: no Edit');
+  assert.equal(resolve({ statusTopOnDemandLeft: 'on' }, { onDemand: false }, args), null, 'aplite');
+});
+
+test('the side sheets: one checklist per bar and side, in the items\' priority order', () => {
+  const watch = schema.tabs.find((t) => t.id === 'watch');
+  const sheets = watch.sections.filter((s) => /^od(Top|Forecast|Radar|Health)(Left|Right)$/.test(s.sheetId || ''));
+  assert.deepEqual(sheets.map((s) => s.sheetId), ['odTopLeft', 'odTopRight', 'odForecastLeft', 'odForecastRight',
+    'odRadarLeft', 'odRadarRight', 'odHealthLeft', 'odHealthRight']);
+  const NAMES = { Top: 'Watch Status Bar', Forecast: 'Forecast Status Bar', Radar: 'Radar Status Bar',
+    Health: 'Health Status Bar' };
+  sheets.forEach((s) => {
+    const m = /^od(\w+?)(Left|Right)$/.exec(s.sheetId);
+    const bar = m[1];
+    const side = m[2].toLowerCase();
+    const gate = bar === 'Radar' ? RADAR_BAR : bar === 'Health' ? HEALTH_BAR : null;
+    assert.equal(s.sheetOnly, true);
+    assert.deepEqual(s.showWhen, gate ? { all: [ON_DEMAND_WHEN, gate] } : ON_DEMAND_WHEN, s.sheetId);
+    assert.equal(s.title, 'On demand ' + side);
+    assert.equal(s.intro, '<b>' + NAMES[bar] + '</b><br>Ticked items show at this bar’s ' + side
+      + ' edge only while they have something to say. The first sits outermost; when the bar runs short of'
+      + ' room, the last ones drop first.');
+    const key = 'status' + bar + 'OnDemand' + m[2] + 'Items';
+    assert.deepEqual(s.items, [{
+      type: 'checklist', messageKey: key, label: 'Items', defaultValue: OD.DEFAULTS[key],
+      optionsFrom: { resolver: 'onDemandItems', args: { bar: bar.toLowerCase(), side } },
+      onChange: 'onDemandExclusive'
+    }], s.sheetId);
+  });
+});
+
+test('the On demand card: gated to a watch with On demand, its intro, reset, and rows in order', () => {
+  const sec = onDemandSection();
+  assert.equal(sec.title, 'On demand');
+  assert.equal(sec.groupCard, undefined, 'a card of its own');
+  assert.deepEqual(sec.showWhen, ON_DEMAND_WHEN);
+  assert.equal(sec.intro.split(' <button')[0], 'On demand items show at the edge of a status bar only while they'
+    + ' have something to say: the battery when it runs low, Bluetooth when it disconnects, an alert while it is'
+    + ' active. Each status bar’s On demand rows choose which, and on which side.');
+  assert.ok(sec.intro.indexOf('data-action="resetOnDemand"') !== -1, 'the intro carries the card reset');
+  assert.ok(sec.intro.indexOf('Reset on demand to defaults') !== -1);
+  const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
   assert.equal(showWhen.isVisible(sec, ctx('aplite')), false, 'gone on aplite');
-  ['basalt', 'diorite', 'chalk', 'emery'].forEach((p) =>
+  ['basalt', 'diorite', 'chalk', 'emery', 'flint'].forEach((p) =>
     assert.equal(showWhen.isVisible(sec, ctx(p)), true, 'shown on ' + p));
-});
-
-test('the Alerts card rows: six of one shape (rain, then the metric alerts) and the two info notes', () => {
-  // No switch on the card and no placement note: every alert's switch lives in its
-  // sheet, and where the icons show is each bar's own select. The first row is the
-  // no-Watch-Status-Bar note (its predicate is pinned by the page tests).
-  const all = alertsSection().items;
-  assert.equal(all[0].type, 'staticText');
-  assert.equal(all[0].style, 'info');
-  assert.equal(all[0].text, 'Your Default view has no Watch Status Bar, so the alert row won’t show there — pick a place in another status bar’s Alert row setting.');
-  const rows = all.slice(1);
-  assert.deepEqual(rows.map((i) => i.sheetId || i.type),
-    ['alertRain', 'staticText', 'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen']);
-  assert.deepEqual(rows[0], {
-    type: 'sheet', sheetId: 'alertRain', label: 'Rain', icon: 'rain', showWhen: RAIN_WHEN,
+  const it = sec.items;
+  assert.deepEqual(it.map((i) => i.sheetId || i.label || i.text || i.type), [
+    it[0].text, 'System info', 'odBattery', 'odBluetooth', 'Quiet time', 'Sleep', 'Weather alerts',
+    'alertRain', 'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen']);
+  assert.equal(it[0].type, 'staticText');
+  assert.equal(it[0].style, 'info');
+  assert.equal(it[0].text, 'Your Default view has no Watch Status Bar, so On demand items won’t show there.'
+    + ' Enable On demand left or right on one of its other status bars.');
+  assert.deepEqual(it[1], { type: 'subheader', text: 'System info' });
+  assert.deepEqual(it[2], { type: 'sheet', sheetId: 'odBattery', label: 'Battery', icon: 'battery',
+    hintFrom: { resolver: 'onDemandBatteryText' }, editBadgeFrom: { resolver: 'onDemandBadge' } });
+  assert.deepEqual(it[3], { type: 'sheet', sheetId: 'odBluetooth', label: 'Bluetooth', icon: 'bluetooth',
+    hintFrom: { resolver: 'onDemandBluetoothText' }, editBadgeFrom: { resolver: 'onDemandBadge' } });
+  assert.deepEqual(it[4], { type: 'readout', label: 'Quiet time', icon: 'quiet',
+    hintFrom: { resolver: 'onDemandPlainText', args: { code: 'qt', text: 'While Quiet Time is on' } } });
+  assert.deepEqual(it[5], { type: 'readout', label: 'Sleep', icon: 'snooze',
+    hintFrom: { resolver: 'onDemandSleepText' } });
+  assert.deepEqual(it[6], { type: 'subheader', text: 'Weather alerts' });
+  assert.deepEqual(it[7], {
+    type: 'sheet', sheetId: 'alertRain', label: 'Rain', icon: 'rain',
     hintFrom: { resolver: 'rainAlertHint', args: {
       windows: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
       looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']] } },
     editBadgeFrom: { resolver: 'rainAlertBadge' }
   });
-  // The window and look lists the hint prints are the ones the rain sheet offers.
-  assert.deepEqual(rows[0].hintFrom.args.windows, byKey('rainCountdownHorizon').options);
-  assert.deepEqual(rows[0].hintFrom.args.looks, byKey('rainAlertDisplay').options);
-  assert.deepEqual(rows[1], {
-    type: 'staticText', style: 'info', text: 'Turn on the rain radar (Radar tab) to get rain alerts.',
-    showWhen: { all: [{ key: 'radarMode', eq: 'off' }, { env: 'platform', ne: 'aplite' }] }
-  });
+  // The window values the hint prints are the rain sheet's, the look list its own.
+  assert.deepEqual(it[7].hintFrom.args.windows.map((o) => o[1]),
+    byKey('rainCountdownHorizon').options.map((o) => o[1]));
+  assert.deepEqual(it[7].hintFrom.args.looks, byKey('rainAlertDisplay').options);
   const KINDS = [['Uv', 'UV index', 'uv'], ['Wind', 'Wind speed', 'wind'], ['Gust', 'Wind gusts', 'gust'],
     ['Aqi', 'Air quality', 'aqi'], ['Pollen', 'Pollen', 'pollen']];
   KINDS.forEach(([stem, label, icon], k) => {
-    const dwd = stem === 'Pollen' ? [{ key: 'provider', eq: 'dwd' }] : [];
-    const args = { keyStem: stem };
-    assert.deepEqual(rows[2 + k], {
-      type: 'sheet', sheetId: 'alert' + stem, label, icon,
-      showWhen: dwd.length ? { all: [THRESHOLD_WHEN].concat(dwd) } : THRESHOLD_WHEN,
-      // The hint also prints a Days other than the default, by the sheet's labels.
+    const row = { type: 'sheet', sheetId: 'alert' + stem, label, icon,
       hintFrom: { resolver: 'alertLevelsHint',
         args: { keyStem: stem, days: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']] } },
-      editBadgeFrom: { resolver: 'alertLevelBadge', args }
-    }, stem + ' row');
-    // The Days list the hint prints is the one the alert's sheet offers.
-    assert.deepEqual(rows[2 + k].hintFrom.args.days, byKey('alert' + stem + 'Days').options, stem);
+      editBadgeFrom: { resolver: 'alertLevelBadge', args: { keyStem: stem } } };
+    if (stem === 'Pollen') { row.showWhen = { key: 'provider', eq: 'dwd' }; }
+    assert.deepEqual(it[8 + k], row, stem + ' row');
+    assert.deepEqual(it[8 + k].hintFrom.args.days, byKey('alert' + stem + 'Days').options, stem);
   });
-  assert.ok(!rows.some((r) => /Steps|Sleep|Distance/.test(r.sheetId || '')), 'the goal kinds get no alert rows');
-  assert.ok(!rows.some((r) => r.messageKey), 'no control on the card: every row only opens a sheet');
+  assert.ok(!it.some((r) => r.messageKey), 'no control on the card: every row reads or opens a sheet');
 });
 
 // schema.js keeps its own presentation list of the metric alerts (labels, icons, sheet
 // copy — they really do differ per kind), but which alerts exist and their order are
-// the contract's (status-thresholds.js ALERT_KINDS, the order the watch's row draws
-// them in): the card's rows and the tab's alert sheets follow it, stem for stem.
-test('the Alerts card rows and the alert sheets follow the contract\'s ALERT_KINDS order', () => {
+// the contract's (status-thresholds.js ALERT_KINDS): the card's rows and the tab's
+// alert sheets follow it, stem for stem.
+test('the On demand card\'s alert rows and the alert sheets follow the contract\'s ALERT_KINDS order', () => {
   const thresholds = require('../src/pkjs/status-thresholds.js');
   const stems = thresholds.ALERT_KINDS.map((a) => a.key);
   const sheetIds = stems.map((stem) => 'alert' + stem);
-  const rows = alertsSection().items.filter((i) => i.type === 'sheet' && i.sheetId !== 'alertRain');
+  const rows = onDemandSection().items.filter((i) => i.type === 'sheet' && /^alert/.test(i.sheetId)
+    && i.sheetId !== 'alertRain');
   assert.deepEqual(rows.map((r) => r.sheetId), sheetIds, 'the card\'s metric rows');
   assert.deepEqual(rows.map((r) => r.hintFrom.args.keyStem), stems, 'each row\'s hint names its own kind');
   assert.deepEqual(rows.map((r) => r.editBadgeFrom.args.keyStem), stems, 'each row\'s badge names its own kind');
@@ -2232,39 +2262,84 @@ test('the Alerts card rows and the alert sheets follow the contract\'s ALERT_KIN
     .map((s) => s.sheetId), ['alertRain'].concat(sheetIds), 'the sheets, rain first');
 });
 
-test('rainCountdownHorizon lives only in the rain alert sheet — gone from the Radar tab', () => {
-  assert.equal(items.filter((i) => i.messageKey === 'rainCountdownHorizon').length, 1, 'exactly one copy');
-  const radar = schema.tabs.find((t) => t.id === 'radar');
-  radar.sections.forEach((sec) => assert.ok(!sec.items.some((i) => i.messageKey === 'rainCountdownHorizon'),
-    'no rain countdown row on the Radar tab'));
+test('the Battery sheet: the warn level in the watch\'s charge steps, and the Look', () => {
+  const sheet = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.sheetId === 'odBattery');
+  assert.equal(sheet.title, 'Battery');
+  assert.deepEqual(sheet.showWhen, ON_DEMAND_WHEN);
+  assert.equal(sheet.intro, 'Shows the battery icon on a status bar’s On demand side while the watch battery is'
+    + ' at or below the warn level. A bar that already shows the battery in a slot (Watch battery or Watch'
+    + ' battery percentage) leaves the icon out, and draws it only when that slot is hidden to make room.');
+  const row = (step, gate) => ({ type: 'range', single: true, messageKey: 'batteryLowLevel', label: 'Warn level',
+    min: step, max: 30, step, unit: '%', defaultValue: '10', hint: 'The icon shows at this charge or below.',
+    showWhen: gate });
+  assert.deepEqual(sheet.items[0], row(5, { env: 'fineBattery' }), 'emery: 5..30 in 5s');
+  assert.deepEqual(sheet.items[1], row(10, { not: { env: 'fineBattery' } }), 'every other watch: 10..30 in 10s');
+  assert.deepEqual(sheet.items[2], {
+    type: 'segmented', messageKey: 'batteryLowDisplay', label: 'Look', defaultValue: 'icon',
+    options: [['Icon', 'icon'], ['Icon + value', 'value']],
+    hintByValue: { value: 'Adds the charge after the icon, like 8%. Just the icon when the bar is short on room.' }
+  });
+  // Exactly one Warn level row shows per platform; an unknown one reads the 10 % steps.
+  const shown = (p) => sheet.items.slice(0, 2).filter((i) => showWhen.isVisible(i,
+    { env: platform.computeEnv(p === null ? null : { platform: p }) }));
+  assert.deepEqual(shown('emery').map((i) => i.step), [5]);
+  ['basalt', 'diorite', 'flint', 'chalk', 'aplite', null].forEach((p) =>
+    assert.deepEqual(shown(p).map((i) => i.step), [10], String(p)));
+  // The 10 % slider shows a stored 5/15/25 at the next step up, the value the phone sends.
+  const RC = require('../src/pkjs/config-ui/lib/range-control.js');
+  for (let v = 5; v <= 30; v += 5) {
+    const S = { batteryLowLevel: String(v) };
+    assert.equal(RC.parseSingle(S.batteryLowLevel, sheet.items[1]), OD.batteryLevel(S, platform.computeEnv({ platform: 'basalt' })),
+      'basalt ' + v);
+    assert.equal(RC.parseSingle(S.batteryLowLevel, sheet.items[0]), OD.batteryLevel(S, platform.computeEnv({ platform: 'emery' })),
+      'emery ' + v);
+  }
 });
 
-test('each status bar has an Alerts placement select: Off / Left / Middle / Right, the strip Left, the rest Off', () => {
-  const watch = schema.tabs.find((t) => t.id === 'watch');
-  const H = 'While an alert is active, the alert row replaces this slot, and the middle slot too when it needs the room.';
-  const HMID = 'While an alert is active, the alert row replaces this slot, and the left slot too when it needs the room.';
-  // The top strip's Right gives way to the low-battery warning (status_alerts.c
-  // status_alerts_layout; settings audit #4), and its hint says so.
-  const HTOP = H + ' While the low-battery warning shows, it moves to the middle slot.';
-  const RADAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
-  const HEALTH = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
-  [['Forecast Status Bar', 'statusForecastAlerts', 'off', null],
-    ['Radar Status Bar', 'statusRadarAlerts', 'off', RADAR],
-    ['Health Status Bar', 'statusHealthAlerts', 'off', HEALTH],
-    ['Watch Status Bar', 'statusTopAlerts', 'left', null]].forEach(([title, key, dflt, barWhen]) => {
-    const bar = watch.sections.find((x) => x.title === title);
-    const it = bar.items.find((i) => i.messageKey === key);
-    assert.ok(it, title + ' carries ' + key);
-    assert.deepEqual(it, {
-      type: 'select', messageKey: key, label: 'Alert row', defaultValue: dflt,
-      options: [['Off', 'off'], ['Left', 'left'], ['Middle', 'middle'], ['Right', 'right']],
-      hintByValue: { left: H, middle: HMID, right: key === 'statusTopAlerts' ? HTOP : H },
-      showWhen: barWhen ? { all: [THRESHOLD_WHEN, barWhen] } : THRESHOLD_WHEN
-    }, key);
+test('the Bluetooth sheet: Show (an inline select) and the vibration, joined loose', () => {
+  const sheet = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.sheetId === 'odBluetooth');
+  assert.equal(sheet.title, 'Bluetooth');
+  assert.deepEqual(sheet.showWhen, ON_DEMAND_WHEN);
+  assert.equal(sheet.intro, 'Shows the Bluetooth icon on a status bar’s On demand side.');
+  assert.deepEqual(sheet.items, [{
+    type: 'select', messageKey: 'btIcons', label: 'Show', defaultValue: 'disconnected',
+    options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']],
+    hintByValue: {
+      both: 'The icon while connected, crossed out while disconnected.',
+      none: 'The icon never shows. Vibrate on disconnect still works.'
+    }
+  }, { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on disconnect', defaultValue: false,
+    joinPrevious: 'loose' }]);
+});
+
+test('aplite keeps the Watch Status Bar\'s own battery, quiet time and Bluetooth rows, and only it', () => {
+  const wsb = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.title === 'Watch Status Bar').items;
+  const own = ['batteryLowOnly', 'showQt', 'vibe', 'btIcons'].map((k) => wsb.find((i) => i.messageKey === k));
+  own.forEach((it) => assert.deepEqual(it.showWhen, { not: ON_DEMAND_WHEN }, it.messageKey));
+  assert.equal(own[3].joinPrevious, 'loose', 'the two Bluetooth rows stay grouped');
+  const vis = (p) => own.filter((it) => showWhen.isVisible(it, { env: platform.computeEnv({ platform: p }) }))
+    .map((it) => it.messageKey);
+  assert.deepEqual(vis('aplite'), ['batteryLowOnly', 'showQt', 'vibe', 'btIcons']);
+  ['basalt', 'diorite', 'emery', 'flint'].forEach((p) => assert.deepEqual(vis(p), [], p));
+});
+
+test('rainCountdownHorizon: the Rain sheet\'s window, and its copy on the Radar tab in every fetching mode', () => {
+  const rows = items.filter((i) => i.messageKey === 'rainCountdownHorizon');
+  assert.equal(rows.length, 2, 'two live copies of one key');
+  const radar = schema.tabs.find((t) => t.id === 'radar');
+  const radarItems = radar.sections[0].items;
+  const at = radarItems.findIndex((i) => i.messageKey === 'rainCountdownHorizon');
+  assert.equal(radarItems[at - 1].type, 'staticText', 'right after the rain note');
+  assert.equal(radarItems[at - 2].messageKey, 'radarMode');
+  assert.deepEqual(radarItems[at], {
+    type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Rain alert window', defaultValue: '60',
+    options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],
+    showWhen: { all: [{ key: 'radarMode', ne: 'off' }, ON_DEMAND_WHEN] }
   });
-  // The defaults are the contract's: what the watch reads for an absent key.
-  const TH = require('../src/pkjs/status-thresholds.js');
-  TH.BAR_ALERT_KEYS.forEach((b) => assert.equal(byKey(b.key).defaultValue, TH.barAlertPlace({}, b.bar), b.key));
+  const sheet = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.sheetId === 'alertRain');
+  assert.ok(sheet.items.indexOf(rows[1]) !== -1, 'the other copy lives in the Rain sheet (findItem\'s last match)');
+  assert.deepEqual(rows[0].options, rows[1].options, 'one list');
+  assert.equal(rows[0].defaultValue, rows[1].defaultValue, 'one default');
 });
 
 // Each metric alert's Days and tomorrow mark against the contract the bake reads them
@@ -2295,7 +2370,7 @@ test('the alert Days and tomorrow-mark rows agree with the contract', () => {
 
 test('the Watch intro carries the reset-status-bars button, ungated', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  const intro = watch.sections[1];
+  const intro = watch.sections[0];
   assert.ok(intro.intro.indexOf('data-action="resetStatusSlots"') !== -1,
     'the intro embeds the [data-action] button (blocks.js resetStatusSlots)');
   assert.ok(intro.intro.indexOf('class="txt-act-btn"') !== -1,
@@ -2314,22 +2389,30 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const sheets = watch.sections.filter((s) => s.sheetOnly);
-  assert.equal(sheets.length, 25,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only) + 6 alert sheets');
+  assert.equal(sheets.length, 35,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only) + 8 side sheets + 8 item sheets');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
       'threshDew', 'threshPhoneBattery',
+      'odTopLeft', 'odTopRight', 'odForecastLeft', 'odForecastRight',
+      'odRadarLeft', 'odRadarRight', 'odHealthLeft', 'odHealthRight',
+      'odBattery', 'odBluetooth',
       'alertRain', 'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives; the '
-      + 'Alerts card\'s sheets come last');
-  // The rain sheet carries the rain gate (radar on, not aplite) instead: it holds no
-  // levels, and radar-less aplite has no rain alert.
-  assert.deepEqual(sheets.find((s) => s.sheetId === 'alertRain').showWhen,
-    { all: [{ key: 'radarMode', ne: 'off' }, { env: 'platform', ne: 'aplite' }] });
-  const threshSections = sheets.filter((s) => s.sheetId !== 'alertRain');
+      + 'On demand sheets come last');
+  // The On demand sheets carry the On demand gate (aplite has no On demand), the side
+  // sheets of the radar and health bars their bar's gate too.
+  sheets.filter((s) => !/^thresh/.test(s.sheetId)).forEach((s) => {
+    const g = s.showWhen;
+    assert.ok(JSON.stringify(g) === JSON.stringify({ env: 'onDemand' })
+      || JSON.stringify(g.all[0]) === JSON.stringify({ env: 'onDemand' }), s.sheetId + ' is On demand-gated');
+    assert.equal(showWhen.isVisible(s, { radarMode: 'graph', healthMode: 'all',
+      env: platform.computeEnv({ platform: 'aplite' }) }), false, s.sheetId + ' hidden on aplite');
+  });
+  const threshSections = sheets.filter((s) => /^thresh/.test(s.sheetId));
   threshSections.forEach((sec, i) =>
     assert.deepEqual(sec.showWhen, { env: 'thresholds' },
       'threshold sheet ' + i + ' (' + sec.title + ') carries the platform gate'));
@@ -2441,15 +2524,15 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   // The sheet itself: full on basalt (Bold row + Highlight switch + the pointer;
   // behavior covered in config-thresholds.test.js), empty on aplite even if forced
   // open. The slot sheet holds the slot rows — its Highlight switch included — and
-  // points at the Alerts sheet, which holds the levels (an alert kind's one home for
-  // them) under its one switch, the Alert.
+  // points at the alert sheet in the On demand card, which holds the levels (an alert
+  // kind's one home for them).
   const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
   ['data-k="threshAqiBoldMode"', 'data-k="threshAqiOn"', 'Air quality (AQI) slot',
-    '<div class="info-box">Alert levels and colors are set under Alerts on the Status slots tab.</div>']
+    '<div class="info-box">Alert levels and colors are set in the On demand card, under Weather alerts.</div>']
     .forEach((frag) => assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt slot sheet carries ' + frag));
   assert.equal(basaltSheet.indexOf('data-range="threshAqiWarn"'), -1, 'no levels in the slot sheet');
   const alertSheet = eng.renderEditModal(schema, watchCx('basalt', 'alertAqi'));
-  ['data-k="alertAqi"', 'reaching warn', 'Alert levels', 'Air quality (AQI) alert',
+  ['data-k="alertAqiDisplay"', 'reaching warn', 'Alert levels', 'Air quality (AQI) alert',
     'data-range="threshAqiWarn"'].forEach((frag) =>
     assert.ok(alertSheet.indexOf(frag) !== -1, 'basalt alert sheet carries ' + frag));
   assert.equal(alertSheet.indexOf('data-k="threshAqiOn"'), -1, 'no highlight switch in the alert sheet');
@@ -2752,8 +2835,9 @@ test('radar and health status-line slots hide unless the feature shows their bar
     assert.deepEqual(byKey(k).showWhen, {all: [{env: 'health'}, {key: 'healthMode', in: ['status', 'all']}]}, k));
 });
 
-test('the rain alert\'s horizon control is labelled "Time window"', () => {
-  assert.equal(byKey('rainCountdownHorizon').label, 'Time window');
+test('the rain alert\'s horizon control is labelled "Time window" in its sheet, "Rain alert window" on the Radar tab', () => {
+  assert.deepEqual(items.filter((i) => i.messageKey === 'rainCountdownHorizon').map((i) => i.label),
+    ['Rain alert window', 'Time window']);
 });
 
 test('secondaryLine offers cloud cover second, then pressure, feels-like and dew point last', () => {

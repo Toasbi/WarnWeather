@@ -10,6 +10,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // in the flat page (scripts/build-config-page.js APP_FILES).
     var thresholds = (typeof require !== 'undefined')
         ? require('../status-thresholds.js') : window.StatusThresholds;
+    // The On demand contract (on-demand.js), concatenated ahead of this file.
+    var onDemand = (typeof require !== 'undefined')
+        ? require('../on-demand.js') : window.OnDemand;
     // The page bundle's single-source int -> '#RRGGBB' (config-ui/lib/color.js,
     // concatenated ahead of every app file).
     var intToHex = (typeof require !== 'undefined')
@@ -58,6 +61,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Heal each bar's On demand lists on every open: both sides read canonically
+     * (unknown codes and duplicates dropped, priority order — on-demand.js read, which
+     * also reads a non-string list as its default), then anything the left side holds
+     * leaves the right (the watch's Left-wins reading of an overlap, which only a
+     * hand-edited blob can hold). A list is written back only when it changed.
+     * @param {{ get: function, set: function }} ctx onLoad context
+     * @returns {void}
+     */
+    function healOnDemandLists(ctx) {
+        for (var b = 0; b < onDemand.BARS.length; b++) {
+            var bar = onDemand.BARS[b].bar;
+            var leftKey = onDemand.itemsKey(bar, 'left');
+            var rightKey = onDemand.itemsKey(bar, 'right');
+            var S = {};
+            S[leftKey] = ctx.get(leftKey);
+            S[rightKey] = ctx.get(rightKey);
+            var left = onDemand.parse(onDemand.read(S, leftKey));
+            var right = onDemand.parse(onDemand.read(S, rightKey)).filter(function (c) {
+                return left.indexOf(c) < 0;
+            });
+            if (S[leftKey] !== left.join(',')) { ctx.set(leftKey, left.join(',')); }
+            if (S[rightKey] !== right.join(',')) { ctx.set(rightKey, right.join(',')); }
+        }
+    }
+
+    /**
      * onLoad: reset transient toggles so they never persist across open/close, and
      * mirror the stored location into the GPS/Manual picker (locationMode has no
      * watch-side meaning — an empty vs set location is the real GPS/manual contract,
@@ -76,6 +105,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         ctx.set('reset', false);
         ctx.set('locationMode', ctx.get('location') ? 'manual' : 'gps');
         healThresholdColors(ctx);
+        healOnDemandLists(ctx);
         if (ctx.env && ctx.env.platform === 'aplite') {
             ctx.set('radarMode', 'off');
             ctx.set('healthMode', 'off');

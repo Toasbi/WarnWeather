@@ -13,6 +13,12 @@
 //             what the row should match, rather than a second wind curl)
 //   aqi    -> STATUS_AQI.pdc     (leaf)
 //   pollen -> STATUS_POLLEN.pdc  (four-petal flower on a curved stem)
+// and the On demand card's System info rows:
+//   battery   -> battery_item.c (a battery body with its nub and a low charge bar;
+//                the watch draws it procedurally, filled by the charge)
+//   bluetooth -> STATUS_BT.pdc      (the Bluetooth rune)
+//   quiet     -> STATUS_QUIET.pdc   (a muted speaker, struck through)
+//   snooze    -> snooze_draw        (two Z's, the Battery saver hours' glyph)
 // The outlines follow Tabler Icons (https://tabler.io/icons), MIT License,
 // Copyright (c) 2020-2024 Pawel Kuna — the same family the watch glyphs were
 // converted from (credited in scripts/gen-status-pdc.py). Everything is drawn in
@@ -69,7 +75,20 @@
             + 'L18.8 14.5L21.1 13.5L22 11.1L21.1 8.8L18.6 7.9L17.6 7.9L18.1 7.1L18.5 4.5'
             + 'L17 2.5L14.5 2.1L12.4 3.8L11.9 4.6L11.5 3.8L9.5 2L7 2.4L5.4 4.5L5.9 7'
             + 'L6.4 7.9L5.4 7.8L2.9 8.8L2 11.1L2.9 13.5L5.4 14.4"/>'
-            + '<path d="M3.3 22L5.8 20.1L7.8 18.3L9.3 16.4L10.6 14.3L12 12"/>')
+            + '<path d="M3.3 22L5.8 20.1L7.8 18.3L9.3 16.4L10.6 14.3L12 12"/>'),
+        battery: svg24(OUTLINE,
+            '<path d="M6 7h11a2 2 0 0 1 2 2v1h1v4h-1v1a2 2 0 0 1 -2 2h-11a2 2 0 0 1 -2 -2v-6a2 2 0 0 1 2 -2"/>'
+            + '<path d="M7.5 10v4"/>'),
+        // The watch rune's own outline (docs/superpowers/svg/bluetooth.svg).
+        bluetooth: svg24(OUTLINE,
+            '<path d="M7 8l10 8l-5 4v-16l5 4l-10 8"/>'),
+        // The watch glyph's speaker and slash (docs/superpowers/svg/mute.svg).
+        quiet: svg24(OUTLINE,
+            '<path d="M4 9h4l5 -5v16l-5 -5h-4z"/>'
+            + '<path d="M4 4l16 16"/>'),
+        snooze: svg24(OUTLINE,
+            '<path d="M4 12h6l-6 8h6"/>'
+            + '<path d="M14 4h6l-6 8h6"/>')
     };
 
     // Register into the engine's icon registry when it is there: always on the page
@@ -86,6 +105,10 @@
         P.icons.register('gust', ICONS.gust);
         P.icons.register('aqi', ICONS.aqi);
         P.icons.register('pollen', ICONS.pollen);
+        P.icons.register('battery', ICONS.battery);
+        P.icons.register('bluetooth', ICONS.bluetooth);
+        P.icons.register('quiet', ICONS.quiet);
+        P.icons.register('snooze', ICONS.snooze);
     }
 
     if (typeof module !== 'undefined' && module.exports) {

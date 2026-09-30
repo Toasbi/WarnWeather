@@ -332,17 +332,23 @@ test('weatherOnlyHint promises a health flick only when a Health view exists', (
     'other presets keep their static hint');
 });
 
-test('alertLevelsHint: "Off" while the alert is off, else the resolved pair and the unit — never the slot highlight', () => {
+// The On demand card's rows read an item's placement (on-demand.js placedAnywhere): a
+// partial settings blob reads the default ticks, so an empty right list unplaces UV.
+const UNPLACED = { statusTopOnDemandRightItems: '' };
+
+test('alertLevelsHint: "Not in any status bar" while unplaced, else the resolved pair and the unit — never the slot highlight', () => {
   const hint = PConf.hintResolvers.get('alertLevelsHint');
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
-  assert.equal(hint({}, env, uv), 'Off', 'an unset alert reads Off (its default)');
-  assert.equal(hint({ alertUv: false, threshUvOn: true }, env, uv), 'Off',
-    'Off whatever the highlight says: the row describes the alert');
-  const on = (S) => Object.assign({ alertUv: true, alertWind: true, alertAqi: true }, S);
+  assert.equal(hint(UNPLACED, env, uv), 'Not in any status bar');
+  assert.equal(hint(Object.assign({ threshUvOn: true }, UNPLACED), env, uv), 'Not in any status bar',
+    'whatever the highlight says: the row describes the alert');
+  assert.equal(hint({ statusTopOnDemandRight: 'off' }, env, uv), 'Not in any status bar',
+    'ticked on a Disabled side is not placed');
+  const on = (S) => Object.assign({}, S);
   assert.equal(hint(on({}), env, uv), 'Warn 6 · Danger 8',
-    'a blank pair reads as the kind\'s seed');
+    'the default ticks place UV; a blank pair reads as the kind\'s seed');
   assert.equal(hint(on({ threshUvWarn: '5', threshUvDanger: '9' }), env, uv),
     'Warn 5 · Danger 9', 'a stored pair wins');
   assert.equal(hint(on({ threshUvOn: true }), env, uv), 'Warn 6 · Danger 8',
@@ -367,88 +373,92 @@ test('alertLevelsHint: "Off" while the alert is off, else the resolved pair and 
     'an unknown Days reads as the default the phone bakes with');
   assert.equal(hint(on({ windUnits: 'mph', alertWindDays: 'today' }), env, { keyStem: 'Wind', days }),
     'Warn 25 mph · Danger 40 mph · Today', 'after the unit');
-  assert.equal(hint({ alertUvDays: 'today' }, env, uvDays), 'Off', 'an alert that is off reads Off only');
+  assert.equal(hint(Object.assign({ alertUvDays: 'today' }, UNPLACED), env, uvDays), 'Not in any status bar',
+    'an unplaced alert reads that only');
+  assert.equal(hint({ statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'pollen' }, env,
+    { keyStem: 'Pollen' }), 'Warn 2 · Danger 3', 'placed on another bar counts too');
   assert.equal(hint(on({}), { thresholds: false }, uv), null, 'aplite: no levels to describe');
   assert.equal(hint({}, env, { keyStem: 'Temp' }), null, 'a level-less kind has no hint');
-  assert.equal(hint({ alertSteps: true }, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
-  assert.equal(hint({ alertUv: 'true' }, env, uv), 'Off', 'a stored string is not the switch');
+  assert.equal(hint({}, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
 });
 
-test('rainAlertHint: "Off" while the rain alert is off, else its window and look by their labels', () => {
+test('rainAlertHint: the radar first, then the placement, else its window and look by their labels', () => {
   const hint = PConf.hintResolvers.get('rainAlertHint');
   assert.equal(typeof hint, 'function', 'hint resolver registered');
   const args = {
     windows: [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']],
     looks: [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text', 'text']]
   };
-  assert.equal(hint({}, {}, args), 'Within 60 min · Text', 'unset: the sheet\'s defaults (on)');
-  assert.equal(hint({ alertRain: true, rainCountdownHorizon: '120', rainAlertDisplay: 'minutes' }, {}, args),
+  assert.equal(hint({}, {}, args), 'Within 60 min · Text', 'unset: the sheet\'s defaults, placed by default');
+  assert.equal(hint({ rainCountdownHorizon: '120', rainAlertDisplay: 'minutes' }, {}, args),
     'Within 2 hours · Icon + minutes');
   assert.equal(hint({ rainCountdownHorizon: 30, rainAlertDisplay: 'icon' }, {}, args), 'Within 30 min · Icon',
     'a numeric window reads like its stored string');
-  assert.equal(hint({ alertRain: false, rainCountdownHorizon: '30' }, {}, args), 'Off');
+  assert.equal(hint({ statusTopOnDemandRightItems: 'battery' }, {}, args), 'Not in any status bar');
+  assert.equal(hint({ radarMode: 'off' }, {}, args), 'Turn on the rain radar (Radar tab)');
+  assert.equal(hint({ radarMode: 'off', statusTopOnDemandRightItems: '' }, {}, args),
+    'Turn on the rain radar (Radar tab)', 'the radar comes first: no tick helps while it is off');
   assert.equal(hint({ rainCountdownHorizon: '0', rainAlertDisplay: 'bogus' }, {}, args),
     'Within 60 min · Text', 'a value outside the lists reads as the default');
 });
 
-test('alertLevelBadge: the alert\'s colours while it is on, no bold B', () => {
+test('alertLevelBadge: the alert\'s colours while it is placed, no bold B', () => {
   const badge = PConf.badgeResolvers.get('alertLevelBadge');
   assert.equal(typeof badge, 'function', 'badge resolver registered');
   const env = { thresholds: true };
   const uv = { keyStem: 'Uv' };
-  const off = badge({ threshUvOn: true, threshUvDangerColor: '#FF0000' }, env, uv);
+  const off = badge(Object.assign({ threshUvOn: true, threshUvDangerColor: '#FF0000' }, UNPLACED), env, uv);
   assert.equal(off.label, 'Edit');
-  assert.deepEqual(off.dots, [], 'alert off: no dots, whatever the highlight says');
-  assert.equal(off.ariaNote, 'off');
-  // On: the warn pip follows the kind's warn look — none: no pip (the watch draws no
+  assert.deepEqual(off.dots, [], 'unplaced: no dots, whatever the highlight says');
+  assert.equal(off.ariaNote, 'not in any status bar');
+  // Placed: the warn pip follows the kind's warn look — none: no pip (the watch draws no
   // box at warn), outline: a ring, fill: a filled dot — in the warn colour (an unset
   // one auto: the theme fg), then the danger dot (danger always fills).
-  const on = badge({ alertUv: true, theme: 'dark', threshUvDangerColor: '#FF0000',
-    threshUvWarnLook: 'none' }, env, uv);
+  const on = badge({ theme: 'dark', threshUvDangerColor: '#FF0000', threshUvWarnLook: 'none' }, env, uv);
   assert.deepEqual(on.dots, [{ color: '#FF0000' }], 'none: the danger dot alone');
-  assert.deepEqual(badge({ alertUv: true, theme: 'light', threshUvWarnLook: 'none' }, env, uv).dots,
+  assert.deepEqual(badge({ theme: 'light', threshUvWarnLook: 'none' }, env, uv).dots,
     [{ color: '#FF0000' }], 'an unset danger colour is red, on the light theme too');
-  assert.deepEqual(badge({ alertUv: true, theme: 'light', threshUvDangerColor: '#FFFFFF',
-    threshUvWarnLook: 'none' }, env, uv).dots,
+  assert.deepEqual(badge({ theme: 'light', threshUvDangerColor: '#FFFFFF', threshUvWarnLook: 'none' }, env, uv).dots,
     [{ color: '#000000' }], 'a black or white danger pick is the theme text colour');
-  assert.deepEqual(badge({ alertUv: true, theme: 'bw', threshUvDangerColor: '#FF0000',
-    threshUvWarnLook: 'none' }, env, uv).dots,
+  assert.deepEqual(badge({ theme: 'bw', threshUvDangerColor: '#FF0000', threshUvWarnLook: 'none' }, env, uv).dots,
     [{ color: '#FFFFFF' }], 'a B&W day theme draws every box in the text colour');
-  assert.deepEqual(badge({ alertUv: true, theme: 'dark', threshUvWarnLook: 'outline' }, env, uv).dots[0],
+  assert.deepEqual(badge({ theme: 'dark', threshUvWarnLook: 'outline' }, env, uv).dots[0],
     { color: '#FFFFFF', ring: true }, 'outline: a ring, an unset colour in the theme fg');
-  assert.deepEqual(badge({ alertUv: true, theme: 'light', threshUvWarnLook: 'fill' }, env, uv).dots[0],
+  assert.deepEqual(badge({ theme: 'light', threshUvWarnLook: 'fill' }, env, uv).dots[0],
     { color: '#000000' }, 'fill: a filled dot');
   // An unset look previews the platform default: fill on a colour watch, outline on B&W.
-  assert.deepEqual(badge({ alertUv: true, theme: 'dark' }, env, uv).dots,
+  assert.deepEqual(badge({ theme: 'dark' }, env, uv).dots,
     [{ color: '#FFFFFF' }, { color: '#FF0000' }],
     'colour watch default: a text-colour fill, then the red danger — two different dots');
-  assert.deepEqual(badge({ alertUv: true, theme: 'dark' }, { thresholds: true, color: false }, uv).dots,
+  assert.deepEqual(badge({ theme: 'dark' }, { thresholds: true, color: false }, uv).dots,
     [{ color: '#FFFFFF', ring: true }, { color: '#FFFFFF' }],
     'B&W watch default: an outline, then the danger fill, both in the text colour');
   assert.equal(on.ariaNote, '');
   assert.ok(!on.bold, 'no B: bold is a slot property');
-  const picked = badge({ alertUv: true, threshUvWarnColor: '#00AAFF' }, env, uv);
+  const picked = badge({ threshUvWarnColor: '#00AAFF' }, env, uv);
   assert.equal(picked.dots[0].color, '#00AAFF', 'a picked warn colour paints the pip');
-  const allBold = badge({ alertUv: true, statusBoldAll: 'all', threshUvBoldMode: 'always' }, env, uv);
+  const allBold = badge({ statusBoldAll: 'all', threshUvBoldMode: 'always' }, env, uv);
   assert.ok(!allBold.bold, 'not even under the master Bold row');
   assert.equal(badge({}, env, { keyStem: 'Nope' }), null, 'unknown stem');
   assert.equal(badge({}, env, { keyStem: 'Temp' }), null, 'bold-only stem');
-  assert.equal(badge({ alertSteps: true }, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
+  assert.equal(badge({}, env, { keyStem: 'Steps' }), null, 'a goal kind has no alert');
   assert.equal(badge({}, env, { keyStem: 'Rain' }), null, 'rain has its own resolver');
-  assert.equal(badge({ alertUv: 'true' }, env, uv).ariaNote, 'off', 'a stored string is not the switch');
-  assert.equal(badge({ alertUv: true }, { thresholds: false }, uv), null, 'aplite');
+  assert.equal(badge({}, { thresholds: false }, uv), null, 'aplite');
 });
 
-test('rainAlertBadge: the Edit button alone, the aria note following the switch (on unless stored off)', () => {
+test('rainAlertBadge: the Edit button alone, the aria note following the placement', () => {
   const badge = PConf.badgeResolvers.get('rainAlertBadge');
   assert.equal(typeof badge, 'function', 'badge resolver registered');
   // Rain draws in the radar's colours and never boxes: the button only.
+  assert.deepEqual(badge({}, {}), { label: 'Edit', ariaNote: '', dots: [] }, 'placed by default');
+  assert.deepEqual(badge(null, {}), { label: 'Edit', ariaNote: '', dots: [] }, 'absent = the default ticks');
+  assert.deepEqual(badge({ statusTopOnDemandRightItems: 'battery' }, {}),
+    { label: 'Edit', ariaNote: 'not in any status bar', dots: [] });
+});
+
+test('onDemandBadge: the Edit button alone', () => {
+  const badge = PConf.badgeResolvers.get('onDemandBadge');
   assert.deepEqual(badge({}, {}), { label: 'Edit', ariaNote: '', dots: [] });
-  assert.deepEqual(badge(null, {}), { label: 'Edit', ariaNote: '', dots: [] }, 'absent = on');
-  assert.deepEqual(badge({ alertRain: true }, {}), { label: 'Edit', ariaNote: '', dots: [] });
-  assert.deepEqual(badge({ alertRain: false }, {}), { label: 'Edit', ariaNote: 'off', dots: [] });
-  // Ungated: the row is radar- and platform-gated itself.
-  assert.deepEqual(badge({}, { thresholds: false }), { label: 'Edit', ariaNote: '', dots: [] });
 });
 
 test('layoutPresetOptions resolver: compactDense offered once health OR radar shows a status row', () => {

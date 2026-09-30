@@ -179,9 +179,11 @@ const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div
 /**
  * Boot the engine bundle against a DOM shim whose #scroll counts full innerHTML writes
  * (renders) apart from in-place hint repaints, which it splices into the markup.
+ * @param {Object} [schema] The schema to boot (NUDGE_SCHEMA by default).
+ * @param {Object} [env] The platform env (a colour watch by default).
  * @returns {{scroll: Object, dispatch: function(string, Object): void}} Harness knobs.
  */
-function bootNudgePage() {
+function bootNudgePage(schema, env) {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js',
     'range-control.js', 'engine.js']
@@ -233,7 +235,8 @@ function bootNudgePage() {
   const fn = new Function('document', 'INJECTED_SCHEMA', 'INJECTED_ENV', 'INJECTED_CFG',
     'INJECTED_USERDATA', 'INJECTED_RETURN', 'requestAnimationFrame', 'setTimeout', 'clearTimeout',
     BUNDLE);
-  fn(document, NUDGE_SCHEMA, { color: true }, {}, {}, 'pebblejs://close#', () => 0, () => 0, () => {});
+  fn(document, schema || NUDGE_SCHEMA, env || { color: true }, {}, {}, 'pebblejs://close#', () => 0, () => 0,
+    () => {});
   return {
     scroll,
     dispatch(type, ev) { (listeners[type] || []).forEach((l) => l(ev)); }
@@ -294,4 +297,43 @@ test('boot: an arrow-key nudge re-resolves the derived hints in place, without a
     preventDefault() {} });
   assert.ok(h.scroll.innerHTML.indexOf(hintHtml('STATIC', 'mode')) >= 0, 'null -> the static hint');
   assert.equal(h.scroll.writes, writes, 'still no render');
+});
+
+// Two one-thumb sliders may share a key under mutually exclusive gates (the Battery warn
+// level: 5 % steps on emery, 10 % elsewhere). A nudge must move by the step of the row
+// on screen — findItem's last match alone would hand every watch the other row's step.
+const SHARED_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+  { title: 'Body', items: [
+    { type: 'range', single: true, messageKey: 'lvl', label: 'Warn level', min: 10, max: 30, step: 10,
+      unit: '%', defaultValue: '10', showWhen: { not: { env: 'fine' } } },
+    { type: 'range', single: true, messageKey: 'lvl', label: 'Warn level', min: 5, max: 30, step: 5,
+      unit: '%', defaultValue: '10', showWhen: { env: 'fine' } }
+  ] }
+] }] };
+
+/**
+ * A focused thumb inside a one-thumb range root, as the keydown handler reads them.
+ * @param {string} key data-range messageKey.
+ * @param {number} v data-v.
+ * @returns {{thumb: Object, attrs: Object}} The thumb stub and its root's attributes.
+ */
+function singleThumb(key, v) {
+  const attrs = { 'data-range': key, 'data-v': String(v) };
+  const node = () => ({ style: {}, setAttribute() {}, textContent: '' });
+  const nodes = { '.rng-val': node(), '.rng-fill': node(), '[data-range-thumb=v]': node() };
+  const root = { getAttribute: (n) => (n in attrs ? attrs[n] : null),
+    setAttribute(n, val) { attrs[n] = String(val); }, querySelector: (sel) => nodes[sel] || null };
+  const th = { getAttribute: (n) => (n === 'data-range-thumb' ? 'v' : null),
+    closest: (sel) => (sel === '[data-range-thumb]' ? th : (sel === '.rng' ? root : null)) };
+  return { thumb: th, attrs };
+}
+
+test('boot: a nudge on a key two gated sliders share moves by the visible slider\'s step', () => {
+  [[{ color: true }, '20', 'a 10 % watch'], [{ color: true, fine: true }, '15', 'a 5 % watch']]
+    .forEach(([env, want, who]) => {
+      const h = bootNudgePage(SHARED_SCHEMA, env);
+      const t = singleThumb('lvl', 10);
+      h.dispatch('keydown', { target: t.thumb, key: 'ArrowRight', preventDefault() {} });
+      assert.equal(t.attrs['data-v'], want, who);
+    });
 });

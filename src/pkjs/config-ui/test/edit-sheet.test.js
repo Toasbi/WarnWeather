@@ -496,3 +496,20 @@ test('type:sheet honors showWhen like any other row', () => {
   cx.evalCtx.env = { color: true };
   assert.ok(E.renderBody(SCH, 't', cx).indexOf('Graph colors') !== -1, 'shown on a color watch');
 });
+
+test('a sheet renders a checklist in place: grouped boxes, gated options inert with their ticks', () => {
+  global.PConf.optionsResolvers.register('sheetChecklist', () => [
+    ['Group', '', { groupHeader: true }], ['One', 'a'], ['Two', 'b', { disabled: true, desc: 'Not here' }]]);
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'Main', items: [{ type: 'sheet', sheetId: 'pick', label: 'Pick' }] },
+    { sheetOnly: true, sheetId: 'pick', title: 'Pick things', intro: '<b>Bar</b><br>Tick them.', items: [
+      { type: 'checklist', messageKey: 'things', label: 'Things', defaultValue: 'b',
+        optionsFrom: { resolver: 'sheetChecklist' } }
+    ] }
+  ] }] };
+  const sheet = E.renderEditModal(SCH, cxFor(E.hydrate(SCH, {}), { openEdit: 'pick' }));
+  assert.ok(sheet.indexOf('<div class="intro"><b>Bar</b><br>Tick them.</div>') !== -1, 'the intro leads');
+  assert.match(sheet, /<div class="chk-list" role="group" aria-label="Things"><div class="chk-grp" role="group" aria-label="Group">/);
+  assert.match(sheet, /aria-checked="false" data-k="things" data-check="a">/);
+  assert.match(sheet, /aria-checked="true" data-k="things" data-check="b" disabled aria-disabled="true">/);
+});
