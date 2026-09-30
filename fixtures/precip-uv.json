@@ -27,7 +27,9 @@
   "barSource": "rain",
   "rainBarColor": "multicolor",
   "radarColor": "multicolor",
-  "thirdLine": "uv"
+  "thirdLine": "uv",
+  "statusTopOnDemandRight": "on",
+  "statusTopOnDemandRightItems": "battery,rain"
  },
  "weather": {
   "city": "Berlin",

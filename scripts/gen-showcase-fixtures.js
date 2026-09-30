@@ -10,6 +10,12 @@
 // only name the frames (scene_<id>.png), so a frame keeps its id when scenes move.
 // Health numbers come from the compile-time health_fixture.c twin (WW_HEALTH_FIXTURE),
 // not from these files.
+// On demand: every scene's Watch Status Bar right side ticks only Battery and Rain,
+// pinned in the base fixtures (berlin.json and the miami-*.json the Miami scenes copy).
+// The default ticks would add weather-alert icons whose presence depends on the capture
+// time (a day peak counts only while it is still ahead). A scene that should show an
+// alert ticks it in its own clay (statusTopOnDemandRightItems);
+// test/curated-fixtures-on-demand.test.js holds the pin.
 
 const fs = require('fs');
 const path = require('path');
@@ -147,7 +153,8 @@ const SCENES = [
   {
     // Compact-DENSE: weather & health status shown together by default (no flick needed),
     // with a different-looking forecast (filled wind + dotted gust, no rain bars) and
-    // a "Rain in 15'" countdown over the top strip's left/mid, sunset on the right.
+    // a "Rain in 15'" countdown (the On demand Rain item) at the top strip's right edge,
+    // where the sunset slot makes room for it.
     // The countdown is baked (countdown block) and flicks stay 0, so the radar view
     // never shows. largeGraphFont off (emery-only toggle): the smaller axis labels
     // match the dense status rows.

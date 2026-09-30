@@ -49,7 +49,9 @@
     "rainBarColor": "white",
     "dayNightShading": true,
     "swapClockStatus": true,
-    "layoutPreset": "noCal"
+    "layoutPreset": "noCal",
+    "statusTopOnDemandRight": "on",
+    "statusTopOnDemandRightItems": "battery,rain"
   },
   "weather": {
     "city": "Miami",
