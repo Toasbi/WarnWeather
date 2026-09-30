@@ -182,21 +182,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * forecast bar, the health bar while it exists — never the radar bar) would spend
      * radar calls on nothing. Entering the mode then ticks Rain on the Watch Status
      * Bar's right side (in the canonical order, unticked from its left) and enables
-     * that side. Mutates S.
+     * that side: on-demand.js placeRainForCountdown, the rule the 1.24 migration
+     * shares. Mutates S.
      * @param {Object} S live settings state (radarMode already set to newValue)
      * @param {*} newValue new radarMode value
      * @param {Object} [env] platform env
      * @returns {void}
      */
     function forceRainOnDemand(S, newValue, env) {
-        if (newValue !== 'countdown' || onDemand.placedAnywhere(S, 'rain', env)) { return; }
-        var left = onDemand.itemsKey('top', 'left');
-        var right = onDemand.itemsKey('top', 'right');
-        S[right] = onDemand.canonical(onDemand.parse(onDemand.read(S, right)).concat(['rain']));
-        S[left] = onDemand.canonical(onDemand.parse(onDemand.read(S, left)).filter(function (c) {
-            return c !== 'rain';
-        }));
-        S[onDemand.sideKey('top', 'right')] = 'on';
+        if (newValue === 'countdown') { onDemand.placeRainForCountdown(S, env); }
     }
 
     /**

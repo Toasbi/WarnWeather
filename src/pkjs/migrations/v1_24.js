@@ -255,63 +255,6 @@ var RETIRED_ALERT_KEYS = ['alertRain', 'alertUv', 'alertWind', 'alertGust', 'ale
     'statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'];
 
 /**
- * Untick one On demand item on every side of every bar. Mutates the blob.
- *
- * @param {Object} blob Stored settings.
- * @param {string} code An on-demand.js ITEMS code.
- * @returns {boolean} Whether any list held it.
- */
-function removeEverywhere(blob, code) {
-    var changed = false;
-    for (var b = 0; b < onDemand.BARS.length; b++) {
-        for (var s = 0; s < onDemand.SIDES.length; s++) {
-            var key = onDemand.itemsKey(onDemand.BARS[b].bar, onDemand.SIDES[s]);
-            var codes = onDemand.parse(onDemand.read(blob, key));
-            var at = codes.indexOf(code);
-            if (at === -1) { continue; }
-            codes.splice(at, 1);
-            blob[key] = onDemand.canonical(codes);
-            changed = true;
-        }
-    }
-    return changed;
-}
-
-/**
- * Whether Rain shows on a bar that exists in radar mode 'Rain alert only': the Watch
- * Status Bar, the forecast bar, or the health bar while it exists (the radar bar never
- * shows in that mode) — an Enabled side that ticks it.
- *
- * @param {Object} blob Stored settings.
- * @returns {boolean}
- */
-function rainOnVisibleSide(blob) {
-    return onDemand.sideOf(blob, 'top', 'rain') !== null
-        || onDemand.sideOf(blob, 'forecast', 'rain') !== null
-        || onDemand.sideOf(blob, 'health', 'rain') !== null;
-}
-
-/**
- * Tick Rain on the Watch Status Bar's right side (in the canonical order, unticked from
- * its left) and Enable that side. Mutates the blob.
- *
- * @param {Object} blob Stored settings.
- * @returns {boolean} Whether anything changed.
- */
-function placeRainTopRight(blob) {
-    var left = onDemand.itemsKey('top', 'left');
-    var right = onDemand.itemsKey('top', 'right');
-    var side = onDemand.sideKey('top', 'right');
-    var before = [blob[left], blob[right], blob[side]].join('|');
-    blob[right] = onDemand.canonical(onDemand.parse(onDemand.read(blob, right)).concat(['rain']));
-    blob[left] = onDemand.canonical(onDemand.parse(onDemand.read(blob, left)).filter(function (c) {
-        return c !== 'rain';
-    }));
-    blob[side] = 'on';
-    return [blob[left], blob[right], blob[side]].join('|') !== before;
-}
-
-/**
  * The On demand move. seedDefaults has already written the new side keys with their
  * defaults (the Watch Status Bar: Bluetooth, Quiet time and Sleep left; Battery, Rain,
  * Wind gusts, UV index, Air quality and Wind speed right), into every install, upgraded
@@ -323,7 +266,8 @@ function placeRainTopRight(blob) {
  *  - the rain alert switched off (alertRain false — the alert-levels entry above writes
  *    it from a 1.23.2 window of Off, so this MUST run after it) unticks Rain;
  *  - radar mode 'Rain alert only' with Rain on no visible bar ticks it on the Watch
- *    Status Bar's right (reset-status-defaults.js forceRainOnDemand's rule).
+ *    Status Bar's right (on-demand.js placeRainForCountdown, the rule the settings
+ *    page's forceRainOnDemand hook applies too).
  * It never unticks a default weather alert. Then the development branch's alert keys
  * go without being translated (RETIRED_ALERT_KEYS; no release stored them, so the dev
  * watch lands on the defaults). batteryLowOnly and showQt stay stored: aplite still
@@ -341,12 +285,10 @@ function placeRainTopRight(blob) {
 function migrateOnDemand(blob, ctx) {
     var changed = false;
     var i;
-    if (blob.batteryLowOnly === false) { changed = removeEverywhere(blob, 'battery') || changed; }
-    if (blob.showQt === false) { changed = removeEverywhere(blob, 'qt') || changed; }
-    if (blob.alertRain === false) { changed = removeEverywhere(blob, 'rain') || changed; }
-    if (blob.radarMode === 'countdown' && !rainOnVisibleSide(blob)) {
-        changed = placeRainTopRight(blob) || changed;
-    }
+    if (blob.batteryLowOnly === false) { changed = onDemand.untickEverywhere(blob, 'battery') || changed; }
+    if (blob.showQt === false) { changed = onDemand.untickEverywhere(blob, 'qt') || changed; }
+    if (blob.alertRain === false) { changed = onDemand.untickEverywhere(blob, 'rain') || changed; }
+    changed = onDemand.placeRainForCountdown(blob) || changed;
     for (i = 0; i < RETIRED_ALERT_KEYS.length; i++) {
         if (Object.prototype.hasOwnProperty.call(blob, RETIRED_ALERT_KEYS[i])) {
             delete blob[RETIRED_ALERT_KEYS[i]];

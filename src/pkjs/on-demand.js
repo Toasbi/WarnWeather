@@ -9,6 +9,10 @@
  * (status<Bar>OnDemand<Side>Items: a comma list of item codes, in priority order). An
  * item sits on at most one side of a bar; it may also be ticked on other bars.
  *
+ * It also holds the few writes that move a tick (tickOn, untickEverywhere,
+ * placeRainForCountdown), so the settings page's hooks and the upgrade migration move
+ * ticks by the same rules they are read by.
+ *
  * LOCKSTEP: ITEMS is the watch's OdItem order (src/c/appendix/on_demand.h: the priority
  * order and the wire order of the cells), BARS its ThreshBar order, and DEFAULTS for the
  * Watch Status Bar the compiled defaults in status_threshold.c;
@@ -241,6 +245,67 @@
   }
 
   /**
+   * Tick one item on one side of a bar and Enable that side: the item joins the side's
+   * list in the canonical order and leaves the bar's other side, since an item sits on
+   * one side of a bar. The other side keeps its Enabled state. Mutates S.
+   * @param {Object} S Settings blob.
+   * @param {string} bar A BARS bar.
+   * @param {string} side 'left' | 'right'
+   * @param {string} code An ITEMS code.
+   * @returns {boolean} whether any of the three keys changed
+   */
+  function tickOn(S, bar, side, code) {
+    var here = itemsKey(bar, side);
+    var there = itemsKey(bar, side === 'left' ? 'right' : 'left');
+    var enabled = sideKey(bar, side);
+    var before = [S[here], S[there], S[enabled]].join('|');
+    S[here] = canonical(parse(read(S, here)).concat([code]));
+    S[there] = canonical(parse(read(S, there)).filter(function (c) { return c !== code; }));
+    S[enabled] = 'on';
+    return [S[here], S[there], S[enabled]].join('|') !== before;
+  }
+
+  /**
+   * Untick one item on every side of every bar. Mutates S; a list that never held the
+   * item is left as stored.
+   * @param {Object} S Settings blob.
+   * @param {string} code An ITEMS code.
+   * @returns {boolean} whether any list held it
+   */
+  function untickEverywhere(S, code) {
+    var changed = false;
+    for (var b = 0; b < BARS.length; b++) {
+      for (var s = 0; s < SIDES.length; s++) {
+        var key = itemsKey(BARS[b].bar, SIDES[s]);
+        var codes = parse(read(S, key));
+        var at = codes.indexOf(code);
+        if (at === -1) { continue; }
+        codes.splice(at, 1);
+        S[key] = canonical(codes);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  /**
+   * Radar mode 'Rain alert only' fetches the radar for the rain icon alone, so Rain
+   * ticked on no bar that exists in that mode would spend radar calls on nothing. Unless
+   * it already shows (placedAnywhere; the radar bar never exists in that mode), Rain is
+   * ticked on the Watch Status Bar's right side, which is Enabled (tickOn). THE rule for
+   * both the page entering the mode (reset-status-defaults.js forceRainOnDemand) and the
+   * 1.24 upgrade (migrations/v1_24.js migrateOnDemand). Mutates S; any other radar mode
+   * leaves it alone.
+   * @param {Object} S Settings blob.
+   * @param {Object} [env] Platform env (omitted = capable).
+   * @returns {boolean} whether anything changed
+   */
+  function placeRainForCountdown(S, env) {
+    if (!S || S.radarMode !== 'countdown' || placedAnywhere(S, 'rain', env)) { return false; }
+    return tickOn(S, 'top', 'right', 'rain');
+  }
+
+  /**
    * The On demand cells of CLAY_THRESHOLDS_UINT8 (bytes 38..47, status_threshold.h): one
    * byte per item in ITEMS order, 2 bits per bar at bits 2 * bar (BARS order) — 0 none,
    * 1 left, 2 right. Effective values only (sideOf), so a Disabled side is zeros.
@@ -329,6 +394,9 @@
     barExists: barExists,
     sideOf: sideOf,
     placedAnywhere: placedAnywhere,
+    tickOn: tickOn,
+    untickEverywhere: untickEverywhere,
+    placeRainForCountdown: placeRainForCountdown,
     cells: cells,
     batteryLevel: batteryLevel,
     batteryShowsValue: batteryShowsValue,

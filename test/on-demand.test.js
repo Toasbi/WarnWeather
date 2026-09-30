@@ -100,6 +100,57 @@ test('barExists: top and forecast always, radar and health by mode and watch', (
   assert.equal(OD.barExists({}, 'radar'), false, 'no stored mode draws no radar row');
 });
 
+test('tickOn: joins the side in the canonical order, leaves the other side, Enables the side', () => {
+  const S = { statusTopOnDemandLeft: 'off', statusTopOnDemandLeftItems: 'bt,rain',
+    statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,uv' };
+  assert.equal(OD.tickOn(S, 'top', 'right', 'rain'), true);
+  assert.equal(S.statusTopOnDemandRightItems, 'battery,rain,uv', 'the canonical order, not the tap order');
+  assert.equal(S.statusTopOnDemandLeftItems, 'bt', 'gone from the other side');
+  assert.equal(S.statusTopOnDemandRight, 'on', 'the side is Enabled');
+  assert.equal(S.statusTopOnDemandLeft, 'off', 'the other side keeps its state');
+  assert.equal(OD.tickOn(S, 'top', 'right', 'rain'), false, 'a second tick changes nothing');
+  const F = {};
+  assert.equal(OD.tickOn(F, 'forecast', 'left', 'gust'), true);
+  assert.deepEqual(F, { statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'gust',
+    statusForecastOnDemandRightItems: '' }, 'an absent list reads its default');
+});
+
+test('untickEverywhere: every side of every bar, and only the lists that held it', () => {
+  const S = { statusTopOnDemandRightItems: 'battery,rain', statusHealthOnDemandLeftItems: 'rain,wind',
+    statusForecastOnDemandLeftItems: 'uv' };
+  assert.equal(OD.untickEverywhere(S, 'rain'), true);
+  assert.equal(S.statusTopOnDemandRightItems, 'battery');
+  assert.equal(S.statusHealthOnDemandLeftItems, 'wind');
+  assert.equal(S.statusForecastOnDemandLeftItems, 'uv', 'a list without it is left as stored');
+  assert.equal(OD.untickEverywhere(S, 'rain'), false, 'nothing left to untick');
+  const D = {};
+  assert.equal(OD.untickEverywhere(D, 'qt'), true, 'a default tick counts');
+  assert.deepEqual(D, { statusTopOnDemandLeftItems: 'bt,snooze' });
+});
+
+test('placeRainForCountdown: Rain alert only ticks Rain top right unless a bar of that mode shows it', () => {
+  const S = { radarMode: 'countdown', statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery',
+    statusTopOnDemandLeft: 'on', statusTopOnDemandLeftItems: 'rain' };
+  assert.equal(OD.placeRainForCountdown(S), false, 'the Enabled left side already shows it');
+  S.statusTopOnDemandLeft = 'off';
+  assert.equal(OD.placeRainForCountdown(S), true);
+  assert.equal(S.statusTopOnDemandRightItems, 'battery,rain');
+  assert.equal(S.statusTopOnDemandLeftItems, '');
+  assert.equal(S.statusTopOnDemandRight, 'on');
+  const radarOnly = { radarMode: 'countdown', statusTopOnDemandRightItems: '',
+    statusRadarOnDemandLeft: 'on', statusRadarOnDemandLeftItems: 'rain' };
+  assert.equal(OD.placeRainForCountdown(radarOnly), true, 'the radar bar never exists in that mode');
+  const healthShows = { radarMode: 'countdown', statusTopOnDemandRightItems: '', healthMode: 'status',
+    statusHealthOnDemandRight: 'on', statusHealthOnDemandRightItems: 'rain' };
+  assert.equal(OD.placeRainForCountdown(healthShows), false, 'the health bar shows it');
+  ['off', 'status', 'graph', undefined].forEach((mode) => {
+    const T = { radarMode: mode, statusTopOnDemandRightItems: '' };
+    assert.equal(OD.placeRainForCountdown(T), false, 'radar mode ' + mode);
+    assert.equal(T.statusTopOnDemandRightItems, '');
+  });
+  assert.equal(OD.placeRainForCountdown(null), false);
+});
+
 test('cells: one byte per item, 2 bits per bar (1 left, 2 right)', () => {
   // The defaults: top bar only.
   assert.deepEqual(OD.cells({}), [2, 1, 1, 1, 2, 2, 2, 2, 0, 2]);
