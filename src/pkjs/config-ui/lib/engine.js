@@ -1229,12 +1229,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       return { kind: 'control', html: chevronRow(item, 'data-edit-sheet', sId, noDivider) };
     }
-    // A read-only row: label (+ icon) and a live hint, drawn like a badged `sheet` row with
-    // nothing to open — no control, no Edit, no key (hydrate/serialize never see it).
-    if (item.type === 'readout') {
-      if (item.hintFrom) { view.hint = resolveHint(item, cx.S, cx.ENV, undefined); }
-      return { kind: 'control', html: renderRow(item, view, noDivider) };
-    }
     if (item.type === 'staticText') {
       // a joinPrevious static acts as the control's description, so the join modifier tightens its
       // top spacing to hug the row above (like a hint) instead of standing off as a separate block.
@@ -1256,6 +1250,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
       return { html: staticHtml, kind: 'static' };
     }
+    // A `readout` (a read-only row: label + icon and a live hint, no key) takes the
+    // generic path below too: it has no CONTROLS entry, so its control cell stays empty,
+    // and with no messageKey hydrate/serialize never see it.
     var rowItem = resolveRowItem(item, view, cx);
     // After resolveRowItem: an invalid stored value has been snapped into cx.S, so the
     // pencil reflects the value the row actually shows.
