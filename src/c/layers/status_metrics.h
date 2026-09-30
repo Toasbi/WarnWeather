@@ -114,9 +114,10 @@ static inline int status_seat_y(int band_h, int content_h) {
 // First inked row of a line seated by status_seat_y() in a band whose top edge is `band_y`.
 // The two halves already live above; composing them gives windows/layout.c one call for the
 // question it actually asks -- "where does this row's ink START" -- when it centres the clock
-// against the row below it. Cap top only: a slot icon can ink one row higher and a crossed
-// threshold's highlight box four, but both are content-dependent, and the cap is the one edge
-// that is the same whatever the row happens to be showing.
+// against the row below it. Cap top only: a slot icon can ink up to three rows higher and a
+// crossed threshold's highlight box status_descender_h() rows (2 / 3 / 4), but both are
+// content-dependent, and the cap is the one edge that is the same whatever the row happens to
+// be showing.
 static inline int status_band_ink_top(int band_y, int band_h, int content_h) {
     return band_y + status_seat_y(band_h, content_h) + status_ink_top(content_h);
 }
@@ -179,8 +180,10 @@ static inline int status_glyph_center_y(int text_y, int content_h) {
 // (verified in test/c/layout_test.c::seating_no_lift).
 //
 // Accepted consequences: the strip's cap is no longer centred in its band, and the
-// threshold-highlight box, which clamps symmetrically about the cap (status_highlight_extent),
-// comes out 2 * STATUS_TOP_STRIP_LIFT shorter. Both are deliberate.
+// threshold-highlight box (status_highlight_extent), whose top stroke the band edge pins one row
+// over the lifted cap, frames the strip's digits with 0 rows of air where every other bar gets
+// descender_h - 1. Both are deliberate: 1 row of air there needs a lift of 1, which moves the
+// calendar and every strip-anchored band down a row on every platform.
 #define STATUS_TOP_STRIP_LIFT 2
 
 // Blank rows layout.c leaves between the strip's ink floor and the calendar's first

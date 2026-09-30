@@ -201,62 +201,47 @@ void status_slot_ink(const StatusSlotPlace *place, const StatusSlotMeasure *m,
 // status line renders, which the slot icons and the sun arrow already co-centre on.
 // It is an EDGE coordinate (the boundary above row `cap_cy`), the same space as a
 // GRect's origin.y. `content_h` is the line's measured content height — the same
-// number the seat/centre math runs on — so the box height is font-derived here with
-// no per-tier table.
+// number the seat/centre math runs on — so the box is font-derived here, with no
+// per-tier or per-layout table. (Not band-derived: a band-sized box ballooned wherever
+// a layout gave its row extra air — the retired rule, MEASURED ~8 px of padding.)
 //
-// Why not the band (the retired rule): a band-sized box balloons wherever the layout
-// gives a row extra air — the none-tier bands are 22/30 px around an 11/14 px cap, so
-// the box read as ~8 px of padding while the calendar-view boxes sat text-tight
-// (MEASURED, the complaint this fixes). Font-derived targets instead:
+// ONE RULE: the box is the digits' cap box grown by the font's tail depth,
+// pad = status_descender_h (2 / 3 / 4 rows at Gothic 14 / 18 / 24), on every side.
+//   - Below, the stroke row is exactly a descender's last row, so a tail ('p', 'g',
+//     'y') lands ON the bottom stroke — touching, no air (user-tuned: air under a tail
+//     read as the box hanging low) — and plain digits get the SAME box: every slot in
+//     a row frames alike.
+//   - Air, blank rows between each stroke and the digits' ink, is pad - 1: 1 / 2 / 3,
+//     boxes 13 / 17 / 22 rows tall.
+// The ink straddles cap_cy unevenly: glyph_below rounds half UP (status_metrics.h), so
+// at an odd cap — Gothic 14's 9 rows, Gothic 18's 11 — it has one row more under the
+// edge than over it (`skew`; 0 at Gothic 24's even 14). The pad is measured from the
+// INK, not from cap_cy, so the skew never turns into lopsided air.
 //
-//   above the cap:  reach = glyph_below + descender_h  (half a cap + tail depth as air)
-//   below the cap:  with a tail, reach again — cap_cy + reach is exactly the deepest
-//                   tail row, so a tail's last row lands ON the bottom stroke
-//                   (touching, no air row — air under the tail read as the box hanging
-//                   low; user-tuned); plain digits mirror the air above (see below)
+// Why the air grows with the font: the slot icons are 2/3 of the line (ICON_RATIO in
+// status_row.c), taller than the cap from Gothic 18 up, and the tallest (the wind flag
+// among them) rise 2 rows over the digits at Gothic 18 and 3 at Gothic 24 — ADR-0002's
+// ink grid through status_icon_top_y, and MEASURED — which is exactly pad - 1 there:
+// they sit just clear of the top stroke. At Gothic 14 most icons are the cap's height
+// and the 11-row ones (sleep, HR, pollen) just clear both strokes; the one exception
+// is the countdown hourglass, lifted a row by its weight, whose top row lands on the
+// stroke.
 //
-// On the clamp-free bands this gives one box per font — 15 / 19 / 22 px for Gothic
-// 14 / 18 / 24 (14 / 18 / 22 with a tail) — whatever band the row rides, which is the
-// whole point: noCal, full and compact now frame their text identically.
-//
-// Clamps are PER SIDE, so a short band shaves only the side that lacks room instead of
-// shrinking both symmetrically (the old rule cost the top strip 2*lift):
+// Clamps are PER SIDE, and only by the band:
 //   - top/bottom never cross the band (calendar above, forecast below);
 //   - the TOP STRIP's bottom additionally stops at its ink floor, band_h -
 //     STATUS_TOP_STRIP_LIFT: windows/layout.c anchors the calendar to that row
 //     (status_strip_ink_h), so box ink below it would sit under the calendar's first
-//     painted row. Its lifted line leaves the strip 1 px of cap air above and a
-//     tail-touching bottom — the best a screen-edge band can do.
-// The descender reserve is CONDITIONAL on the text actually having a tail
-// (`has_tail`, from status_text_has_descender on the slot's rendered text): a slot of
-// plain digits mirrors its clamped top half below the cap instead — a perfectly
-// symmetric badge — because a reserve under text that has no tail reads as the box
-// hanging heavy at the bottom (MEASURED complaint on the strip, whose top half is
-// clamped to 1 px of cap air by the screen edge while the reserve kept 4 px below).
-//
-// The mirror is of the AIR around the digits' INK, not of the extent around cap_cy.
-// cap_cy is an edge with glyph_below ink rows under it and cap_h - glyph_below over
-// it, and glyph_below rounds half UP (status_metrics.h — load-bearing for the icons),
-// so at an odd cap — Gothic 14's 9 rows, Gothic 18's 11 — the ink has ONE MORE row
-// below the edge than above it (`skew`; 0 at Gothic 24's even 14). Mirroring the
-// extent (below = above) therefore left one air row fewer under the digits than over
-// them: 2/1 in a full-tier bar, and on the 168px strip, whose top is pinned to 0 air
-// by the screen edge, the bottom stroke landed ON the digits' last row (MEASURED on
-// basalt and diorite: box rows 0..11 around ink rows 1..11). `below = above + skew`
-// gives equal air both sides — 0/0 on that strip, the outline just clear of the ink.
-// Every shipping band has the extra row (several boxes now end on the band's last
-// row), so no box moves its top; if a band ever lacks it, the top gives the row back
-// instead, keeping the air equal at the largest value that fits. Accepted
-// consequence: in an unclamped odd-cap band a plain-digit box ends one row below a
-// tail box beside it (their tops agree), since the tail box stops on the tail tip.
-//
-// The strip's bottom floor: its ink floor (band_h - STATUS_TOP_STRIP_LIFT) plus the
-// STATUS_STRIP_CAL_GAP rows layout.c now leaves above the calendar, minus 1 so box and
-// fill always keep one blank row to the calendar's first painted row (a filled danger
-// slot used to merge with the calendar's weekend highlight). On emery (gap 2) a strip
-// tail therefore sits inside the outline with 1 px of air; on the 168px watches
-// (gap 0) the floor is 1 short of the tail's last row — the tip overlaps the bottom
-// stroke by 1 px, the best a screen-edge band with an ink-anchored calendar can do.
+//     painted row. The floor adds the STATUS_STRIP_CAL_GAP rows layout.c leaves above
+//     the calendar, minus 1 so box and fill always keep one blank row to the calendar's
+//     first painted row (a filled danger slot used to merge with the calendar's
+//     weekend highlight). On emery (gap 2) a strip tail sits on the bottom stroke; on
+//     the 168px watches (gap 0) the floor is 1 short and the tip overlaps it by 1 px.
+// A band that cuts one side of a PLAIN-digit box gives the other side the same cut, so
+// its air stays equal at the largest value that fits (the screen-edge strip: 0/0, its
+// top stroke on the band's first row, the digits from the next). A TAIL box keeps its
+// tail on the bottom stroke: a top cut leaves its bottom, a bottom cut leaves its top.
+// So the two differ only where the band cuts (emery's 21-row compact band, the strip).
 StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
                                               int16_t cap_cy, int16_t content_h,
                                               bool top_strip, bool has_tail) {
@@ -267,16 +252,16 @@ StatusHighlightExtent status_highlight_extent(int16_t band_top, int16_t band_h,
     if (cap < band_top) { cap = band_top; }      // band collapses the box at the
     if (cap > band_bottom) { cap = band_bottom; }// nearest edge, never overflows
     int ink_below = status_glyph_below(content_h);
+    // The pad under the ink: a tail's last row, or the plain digits' air plus the stroke.
     int reach = ink_below + status_descender_h(content_h);
     // Ink rows under cap_cy minus ink rows over it: 1 at an odd cap, 0 at an even one.
     int skew = 2 * ink_below - status_cap_h(content_h);
-    int above = reach;
+    // The same pad over the ink, which has `skew` rows fewer over cap_cy than under it.
+    int above = reach - skew;
     if (above > cap - band_top) { above = cap - band_top; }
-    // Tail text reaches exactly `reach` below the cap centre, so `below = reach` puts the
-    // tail's last row ON the outline's bottom stroke — deliberately touching, no air: the
-    // user-preferred look (an air row under the tail read as the box hanging low).
-    // No-tail text mirrors the air over its ink (`above + skew`, see above); a box with
-    // no top half (a cap on the band top) frames nothing and stays empty.
+    // Tail: the stroke on the tail's last row. Plain digits: the bottom stroke as far
+    // under the ink as the top one is over it; a box with no top half (a cap on the
+    // band top) frames nothing and stays empty.
     int below = has_tail ? reach : (above > 0 ? above + skew : 0);
     if (below > bottom_limit - cap) {
         below = bottom_limit - cap;
