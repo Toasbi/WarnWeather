@@ -1531,8 +1531,11 @@ function batterySheet() {
                 label: 'Look',
                 defaultValue: ON_DEMAND.DEFAULTS.batteryLowDisplay,
                 options: [['Icon', 'icon'], ['Icon + value', 'value']],
+                // Its value gives way where an alert's does (the make-room order drops the
+                // values only after the status slot on its side and the middle one have
+                // hidden), so the hint says it in the alert Look's words.
                 hintByValue: {
-                    value: 'Adds the charge after the icon, like 8%. Just the icon when the bar is short on room.'
+                    value: 'Adds the charge after the icon, like 8%. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it drop to just the icon.'
                 }
             }
         ]

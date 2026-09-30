@@ -2277,7 +2277,8 @@ test('the Battery sheet: the warn level in the watch\'s charge steps, and the Lo
   assert.deepEqual(sheet.items[2], {
     type: 'segmented', messageKey: 'batteryLowDisplay', label: 'Look', defaultValue: 'icon',
     options: [['Icon', 'icon'], ['Icon + value', 'value']],
-    hintByValue: { value: 'Adds the charge after the icon, like 8%. Just the icon when the bar is short on room.' }
+    hintByValue: { value: 'Adds the charge after the icon, like 8%. On a crowded bar, the status slot on its side'
+      + ' and the middle slot shorten and hide first; only then does it drop to just the icon.' }
   });
   // Exactly one Warn level row shows per platform; an unknown one reads the 10 % steps.
   const shown = (p) => sheet.items.slice(0, 2).filter((i) => showWhen.isVisible(i,

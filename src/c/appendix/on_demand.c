@@ -43,7 +43,7 @@ static const OdStage STAGE[OD_LAST_STAGE + 1] = {
     { OD_HIDDEN, OD_HIDDEN, false },   // 8 ... or hidden
 };
 
-// One layout pass: the inputs, the plain layout they are measured against, and the
+// The layout's state: the inputs, the plain layout they are measured against, and the
 // items still in (the drops shrink n).
 typedef struct {
     int16_t w;                  // content width
@@ -56,15 +56,18 @@ typedef struct {
     int16_t floor_w[3];         // the elastic last member at its floor; 0 = none
     int16_t short_w[3];         // its narrowest member's width; == plain_w: none
     uint8_t short_v[3];         // ... and which member that is
-    uint8_t hide;               // the stand-in's second pass: bit i, slot i stays hidden
-    uint8_t first[2];           // the side's first item: 1 skips the stand-in Battery
-    uint8_t n[2];               // items still in
+    uint8_t batt;               // the battery slots the Battery item stands in for
+                                // (0: none, or the item dropped)
+    uint8_t first[2];           // 1: the side's item 0 is that Battery item
+    uint8_t n[2];               // items still in, past it
 } Pass;
 
 // The forms and lanes one geometry check runs with, effective ones: a form that
 // changes nothing is already folded to the one it equals.
 typedef struct {
     bool active[2];
+    uint8_t first[2];   // the side's first item: 0 once the Battery item stands in
+    uint8_t n[2];       // its items from there
     uint8_t own[2];     // a side's own slot (an inactive side: its plain form)
     uint8_t mid;
     bool mid_free;
@@ -95,10 +98,9 @@ typedef struct {
 } Fit;
 
 // The effective form of slot i under `form`: HIDDEN for a slot plain did not show
-// (empty, or squeezed out) and for a battery slot on the stand-in's second pass;
-// SHORT is FULL for a slot with no narrower member.
+// (empty, or squeezed out); SHORT is FULL for a slot with no narrower member.
 static uint8_t eff_form(const Pass *p, int i, uint8_t form) {
-    if (p->plain_w[i] <= 0 || ((p->hide >> i) & 1)) { return OD_HIDDEN; }
+    if (p->plain_w[i] <= 0) { return OD_HIDDEN; }
     if (form == OD_SHORT && p->short_w[i] >= p->plain_w[i]) { return OD_FULL; }
     return form;
 }
@@ -153,21 +155,21 @@ static int16_t item_gap(const OdSideIn *s, int a, int b) {
     return (s->padded[a] || s->padded[b]) ? OD_PADDED_GAP : OD_ITEM_GAP;
 }
 
-// The width of side d's run at `lane`: every item still in, and the gaps between.
-static int16_t span_w(const Pass *p, int d, int lane) {
+// The width of side d's run at `lane`: every item `c` puts in, and the gaps between.
+static int16_t span_w(const Pass *p, const Conf *c, int d, int lane) {
     const OdSideIn *s = &p->sides[d];
-    int end = p->first[d] + p->n[d];
+    int end = c->first[d] + c->n[d];
     int w = 0;
-    for (int i = p->first[d]; i < end; i++) {
+    for (int i = c->first[d]; i < end; i++) {
         w += s->w[lane][i];
         if (i + 1 < end) { w += item_gap(s, i, i + 1); }
     }
     return (int16_t)w;
 }
 
-static bool lanes_equal(const Pass *p, int d, int a, int b) {
+static bool lanes_equal(const Pass *p, const Conf *c, int d, int a, int b) {
     const OdSideIn *s = &p->sides[d];
-    for (int i = p->first[d]; i < p->first[d] + p->n[d]; i++) {
+    for (int i = c->first[d]; i < c->first[d] + c->n[d]; i++) {
         if (s->w[a][i] != s->w[b][i]) { return false; }
     }
     return true;
@@ -175,9 +177,9 @@ static bool lanes_equal(const Pass *p, int d, int a, int b) {
 
 // Side d's next shorter look after `lane`: the first lane that narrows one of its
 // items (an icon-only item, or no rain Text, narrows nothing); OD_LANES when none.
-static uint8_t next_lane(const Pass *p, int d, uint8_t lane) {
+static uint8_t next_lane(const Pass *p, const Conf *c, int d, uint8_t lane) {
     uint8_t k = (uint8_t)(lane + 1);
-    while (k < OD_LANES && lanes_equal(p, d, k, lane)) { k++; }
+    while (k < OD_LANES && lanes_equal(p, c, d, k, lane)) { k++; }
     return k;
 }
 
@@ -202,27 +204,42 @@ static uint8_t next_stage(const Pass *p, int d, uint8_t s) {
 }
 
 // The shared middle takes the harsher request of the active sides, and may leave
-// its target when any of them allows it. Each side draws its own look.
+// its target when any of them allows it. Each side draws its own look. The Battery
+// item is in exactly where every battery slot is hidden (§5.4, the stand-in): the
+// forms are taken without it first and, when they hide all of those slots, again
+// with it in. That second take only makes forms harsher — a side the item alone
+// makes active leaves its slot's plain form for its row's, and the middle takes that
+// row's request too — so the slots stay hidden and the item stays in.
 static Conf conf_of(const Pass *p, const uint8_t stage[2], const uint8_t lane[2]) {
     Conf c;
-    memset(&c, 0, sizeof(c));
-    uint8_t mid = OD_FULL;
-    for (int d = 0; d < 2; d++) {
-        c.active[d] = p->n[d] > 0;
-        if (!c.active[d]) {
-            c.own[d] = eff_form(p, OWN(d), OD_FULL);
-            continue;
+    uint8_t in = 0;
+    for (;;) {
+        memset(&c, 0, sizeof(c));
+        uint8_t mid = OD_FULL;
+        for (int d = 0; d < 2; d++) {
+            c.first[d] = (uint8_t)(p->first[d] & ~in);
+            c.n[d] = (uint8_t)(p->n[d] + p->first[d] - c.first[d]);
+            c.active[d] = c.n[d] > 0;
+            if (!c.active[d]) {
+                c.own[d] = eff_form(p, OWN(d), OD_FULL);
+                continue;
+            }
+            const OdStage *row = &STAGE[stage[d]];
+            c.own[d] = eff_form(p, OWN(d), row->own);
+            c.lane[d] = lane[d];
+            if (row->mid > mid) { mid = row->mid; }
+            if (row->mid_free) { c.mid_free = true; }
         }
-        const OdStage *row = &STAGE[stage[d]];
-        c.own[d] = eff_form(p, OWN(d), row->own);
-        c.lane[d] = lane[d];
-        if (row->mid > mid) { mid = row->mid; }
-        if (row->mid_free) { c.mid_free = true; }
+        // mid_free is read only while the middle shows (geometry, place), so a hidden
+        // middle's flag needs no clearing.
+        c.mid = eff_form(p, 1, mid);
+        if (in || !p->batt) { return c; }
+        const uint8_t form[3] = { c.own[0], c.mid, c.own[1] };
+        for (int i = 0; i < 3; i++) {
+            if (((p->batt >> i) & 1) && form[i] != OD_HIDDEN) { return c; }
+        }
+        in = 1;
     }
-    // mid_free is read only while the middle shows (geometry, place), so a hidden
-    // middle's flag needs no clearing.
-    c.mid = eff_form(p, 1, mid);
-    return c;
 }
 
 // Where every claim ends, and whether they fit. Each active side claims its run
@@ -234,7 +251,7 @@ static Conf conf_of(const Pass *p, const uint8_t stage[2], const uint8_t lane[2]
 static void geometry(const Pass *p, const Conf *c, Geom *g) {
     const int W = p->w;
     for (int d = 0; d < 2; d++) {
-        int run = c->active[d] ? span_w(p, d, c->lane[d]) - p->bleed[d] : 0;
+        int run = c->active[d] ? span_w(p, c, d, c->lane[d]) - p->bleed[d] : 0;
         g->run[d] = (int16_t)(run > 0 ? run : 0);
     }
     int own_l = form_w(p, 0, c->own[0]);
@@ -276,8 +293,8 @@ static void geometry(const Pass *p, const Conf *c, Geom *g) {
 // The sides a failed geometry pushes, as a mask (bit d: side d): the active sides
 // whose claim is in the way, or every active side when the wall is an inactive
 // side's plain slot. The ladder climbs these, and the drop picks among them.
-static uint8_t pushed_sides(const Pass *p, const Geom *g) {
-    uint8_t active = (uint8_t)((p->n[0] > 0 ? 1 : 0) | (p->n[1] > 0 ? 2 : 0));
+static uint8_t pushed_sides(const Conf *c, const Geom *g) {
+    uint8_t active = (uint8_t)(c->active[0] | c->active[1] << 1);
     uint8_t v = g->violated & active;
     return v ? v : active;
 }
@@ -331,25 +348,25 @@ static void place(const Pass *p, const Conf *c, const Geom *g, const uint8_t sta
             if (c->own[d] != OD_HIDDEN) { out->place[i] = p->plain[i]; }
             continue;
         }
-        out->first[d] = p->first[d];
-        out->n[d] = p->n[d];
+        out->first[d] = c->first[d];
+        out->n[d] = c->n[d];
         out->lane[d] = c->lane[d];
         out->stage[d] = stage[d];
         const OdSideIn *s = &p->sides[d];
-        const int end = p->first[d] + p->n[d];
-        int16_t span = span_w(p, d, c->lane[d]);
+        const int end = c->first[d] + c->n[d];
+        int16_t span = span_w(p, c, d, c->lane[d]);
         out->w[d] = span;
         if (d == 0) {
             int16_t x = (int16_t)-p->bleed[0];
             out->x[0] = x;
-            for (int k = p->first[0]; k < end; k++) {
+            for (int k = c->first[0]; k < end; k++) {
                 out->item_x[0][k] = x;
                 if (k + 1 < end) { x = (int16_t)(x + s->w[c->lane[0]][k] + item_gap(s, k, k + 1)); }
             }
         } else {
             int16_t right = (int16_t)(p->w + p->bleed[1]);
             out->x[1] = (int16_t)(right - span);
-            for (int k = p->first[1]; k < end; k++) {
+            for (int k = c->first[1]; k < end; k++) {
                 out->item_x[1][k] = (int16_t)(right - s->w[c->lane[1]][k]);
                 if (k + 1 < end) { right = (int16_t)(out->item_x[1][k] - item_gap(s, k, k + 1)); }
             }
@@ -385,28 +402,29 @@ static void place(const Pass *p, const Conf *c, const Geom *g, const uint8_t sta
 // geometry fails, each violated active side (all active sides when only an inactive
 // side's plain slot is in the way) climbs to its next row that changes something,
 // and past the last row to its next shorter look, on that row. When every violated
-// side is at the last row of its shortest look, the one whose tail is the lowest
-// priority drops it, and the ladder starts over — so slots a drop makes room for come
-// back. Each pass climbs at most 2 x (8 + 2) steps and there are at most 20 drops, so
-// it ends. Then the relax gives back what now fits (§5.5 step 0), and the layout is
-// placed.
+// side is at the last row of its shortest look, the relax runs first (a row that
+// hides a battery slot brings the Battery item in, so a lower row can fit where the
+// last one does not); only when nothing fits does the side whose tail is the lowest
+// priority drop it, and the ladder starts over — so slots a drop makes room for come
+// back. Each climb takes at most 2 x (8 + 2) steps, each relax ends (below), and
+// there are at most 20 drops, so it ends. Then the layout is placed.
 static void layout_pass(Pass *p, OdLayout *out) {
     Conf c;
     Geom g;
     uint8_t stage[2];
     uint8_t lane[2];
     for (;;) {
-        if (p->n[0] == 0 && p->n[1] == 0) {
-            plain_out(p, out);
-            return;
-        }
         memset(stage, 0, sizeof(stage));
         memset(lane, 0, sizeof(lane));
         for (;;) {
             c = conf_of(p, stage, lane);
+            if (!c.active[0] && !c.active[1]) {
+                plain_out(p, out);
+                return;
+            }
             geometry(p, &c, &g);
             if (g.ok) { break; }
-            uint8_t v = pushed_sides(p, &g);
+            uint8_t v = pushed_sides(&c, &g);
             bool climbed = false;
             for (int d = 0; d < 2; d++) {
                 if (!(v & (1 << d))) { continue; }
@@ -415,7 +433,7 @@ static void layout_pass(Pass *p, OdLayout *out) {
                     climbed = true;
                     continue;
                 }
-                uint8_t k = next_lane(p, d, lane[d]);
+                uint8_t k = next_lane(p, &c, d, lane[d]);
                 if (k < OD_LANES) {
                     lane[d] = k;
                     climbed = true;
@@ -423,11 +441,53 @@ static void layout_pass(Pass *p, OdLayout *out) {
             }
             if (!climbed) { break; }
         }
+        // The relax (§5.5 step 0): looks, slots and the middle back. A side that took a
+        // shorter look climbed there with its slot and the middle hidden, and both sides
+        // climb at once, each while its claim is in the way AS THINGS WERE then, so a
+        // side can give up a look, a slot form or the middle's place for a claim that a
+        // later row of the other side then shrinks or hides. So each side, the one that
+        // climbed further first, climbs its ladder once more from row 0 of its chosen
+        // look against the other side as it now is, and takes the first (look, row) that
+        // fits: its look comes back before its slot, and its slot and the middle in the
+        // ladder's order (place() then widens a short slot where there is room). Nothing
+        // else gives way: the other side keeps its row and its look, and a claim that
+        // stays inside its half is still never pushed (§5.4). After a climb that fits, a
+        // side's climb here ends on its current row at the latest, which fits; after one
+        // that does not, the first move lands on a layout that fits. Either way each move
+        // takes a side to a lower row, and the sides take turns until neither moves,
+        // which ends. Without a battery slot to stand in for, a climb that ends unfitted
+        // leaves nothing lower that fits, so no move is found and the tail drops as it
+        // always did. stage[] and lane[] end as each side's final row; a slot plain did
+        // not show stays HIDDEN (eff_form).
+        const int further = (lane[1] << 4 | stage[1]) > (lane[0] << 4 | stage[0]);
+        for (bool moved = true; moved;) {
+            moved = false;
+            for (int j = 0; j < 2; j++) {
+                const int d = j ^ further;
+                const uint8_t row_end = stage[d];
+                const uint8_t lane_end = lane[d];
+                for (stage[d] = 0, lane[d] = 0; lane[d] < lane_end || stage[d] < row_end;) {
+                    Conf t = conf_of(p, stage, lane);
+                    Geom tg;
+                    geometry(p, &t, &tg);
+                    if (tg.ok) {
+                        c = t;
+                        g = tg;
+                        moved = true;
+                        break;
+                    }
+                    if (++stage[d] > OD_LAST_STAGE) {
+                        stage[d] = 0;
+                        lane[d]++;
+                    }
+                }
+            }
+        }
         if (g.ok) { break; }
-        // Every pushed side is at the last row of its shortest look: the
-        // lowest-priority tail drops. An item sits on one side only, so two tails
-        // never tie.
-        uint8_t v = pushed_sides(p, &g);
+        // Every pushed side is at the last row of its shortest look, and nothing lower
+        // fits either: the lowest-priority tail drops. An item sits on one side only,
+        // so two tails never tie.
+        uint8_t v = pushed_sides(&c, &g);
         int drop = -1;
         int worst = -1;
         for (int d = 0; d < 2; d++) {
@@ -438,45 +498,13 @@ static void layout_pass(Pass *p, OdLayout *out) {
                 drop = d;
             }
         }
-        p->n[drop]--;
-    }
-    // The relax: looks, slots and the middle back. A side that took a shorter look
-    // climbed there with its slot and the middle hidden, and both sides climb at once,
-    // each while its claim is in the way AS THINGS WERE then, so a side can give up a
-    // look, a slot form or the middle's place for a claim that a later row of the
-    // other side then shrinks or hides. So each side, the one that climbed further
-    // first, climbs its ladder once more from row 0 of its chosen look against the
-    // other side as it now is, and takes the first (look, row) that fits: its look
-    // comes back before its slot, and its slot and the middle in the ladder's order
-    // (place() then widens a short slot where there is room). Nothing else gives way:
-    // the other side keeps its row and its look, and a claim that stays inside its half
-    // is still never pushed (§5.4). A side's climb ends on its current row at the
-    // latest, which fits, so each move takes a side to a lower row; the sides take
-    // turns until neither moves, which ends. stage[] and lane[] end as each side's
-    // final row; a slot plain did not show, or a battery slot pass 2 keeps hidden,
-    // stays HIDDEN (eff_form).
-    const int further = (lane[1] << 4 | stage[1]) > (lane[0] << 4 | stage[0]);
-    for (bool moved = true; moved;) {
-        moved = false;
-        for (int j = 0; j < 2; j++) {
-            const int d = j ^ further;
-            const uint8_t row_end = stage[d];
-            const uint8_t lane_end = lane[d];
-            for (stage[d] = 0, lane[d] = 0; lane[d] < lane_end || stage[d] < row_end;) {
-                Conf t = conf_of(p, stage, lane);
-                Geom tg;
-                geometry(p, &t, &tg);
-                if (tg.ok) {
-                    c = t;
-                    g = tg;
-                    moved = true;
-                    break;
-                }
-                if (++stage[d] > OD_LAST_STAGE) {
-                    stage[d] = 0;
-                    lane[d]++;
-                }
-            }
+        // The tail is the Battery item itself only on a side it stands in on alone
+        // (n 0, so the tail is item 0): then it leaves for good, and no geometry check
+        // brings it in again (conf_of).
+        if (p->n[drop]) {
+            p->n[drop]--;
+        } else {
+            p->batt = 0;
         }
     }
     place(p, &c, &g, stage, out);
@@ -530,23 +558,16 @@ void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out) {
     Pass p;
     pass_init(&p, content_w, slots, sides, bleed);
-    if (battery_slots) {
-        // Pass 1 without the Battery item (its side's item 0): a battery slot shows
-        // the charge as long as the layout keeps one.
-        for (int d = 0; d < 2; d++) {
-            if (p.n[d] > 0 && sides[d].rank[0] == OD_BATTERY) {
-                p.first[d] = 1;
-                p.n[d]--;
-            }
+    // The Battery item (its side's item 0) stands in for the battery slots: every
+    // geometry check measures it in exactly where the forms hide all of them
+    // (conf_of), so a battery slot hides only where the looks still fit beside the
+    // item, and it shows the charge wherever the layout keeps one.
+    p.batt = battery_slots;
+    for (int d = 0; d < 2; d++) {
+        if (battery_slots && p.n[d] > 0 && sides[d].rank[0] == OD_BATTERY) {
+            p.first[d] = 1;
+            p.n[d]--;
         }
-        layout_pass(&p, out);
-        for (int i = 0; i < 3; i++) {
-            if (((battery_slots >> i) & 1) && out->form[i] != OD_HIDDEN) { return; }
-        }
-        // Pass 2: the layout hid every battery slot, so the item replaces them. They
-        // stay hidden here, so no drop can bring one back beside the item.
-        pass_init(&p, content_w, slots, sides, bleed);
-        p.hide = battery_slots;
     }
     layout_pass(&p, out);
 }

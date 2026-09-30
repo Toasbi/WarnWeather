@@ -154,8 +154,10 @@ typedef struct {
 // margin (the top strip's left run starts where the old indicator icons did). Slots
 // never bleed. `battery_slots` (bit i: slot i shows the watch battery, the Watch
 // battery glyph or the Battery %; nonzero only while the Battery item is on a side):
-// the Battery item, whatever its Look, is left out while any of those slots still
-// shows after the layout, and stands in once the layout has hidden every one of them
-// — a low charge shows the battery in a slot or in the item, never both.
+// the Battery item, whatever its Look, is left out while any of those slots shows,
+// and stands in where the layout hides every one of them — a low charge shows the
+// battery in a slot or in the item, never both. The ladder measures the item in
+// wherever a row hides them all, so a battery slot hides only where the looks still
+// fit beside the item: an item wider than the slot it replaces frees no room.
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out);

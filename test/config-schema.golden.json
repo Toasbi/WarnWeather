@@ -9701,7 +9701,7 @@
                   ]
                 ],
                 "hintByValue": {
-                  "value": "Adds the charge after the icon, like 8%. Just the icon when the bar is short on room."
+                  "value": "Adds the charge after the icon, like 8%. On a crowded bar, the status slot on its side and the middle slot shorten and hide first; only then does it drop to just the icon."
                 }
               }
             ]

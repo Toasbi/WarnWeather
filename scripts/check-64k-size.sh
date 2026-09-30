@@ -26,7 +26,9 @@
 # sky-row bytes, basalt +28 B and diorite/flint +36 B, which users already run.) The
 # owner's make-room order of 2026-09-30 (the looks shorten last) gave 76 B back on all
 # three, and the ceilings came down with it: basalt 62664 -> 62588, diorite/flint
-# 60240 -> 60164.
+# 60240 -> 60164. Its review fix (the Battery stand-in in one layout pass, the item
+# measured wherever a row hides every battery slot) gave 36 B more: basalt
+# 62588 -> 62552, diorite/flint 60164 -> 60128.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -45,9 +47,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-62588}"
-  "diorite:${DIORITE_IMAGE_CEILING:-60164}"
-  "flint:${FLINT_IMAGE_CEILING:-60164}"
+  "basalt:${BASALT_IMAGE_CEILING:-62552}"
+  "diorite:${DIORITE_IMAGE_CEILING:-60128}"
+  "flint:${FLINT_IMAGE_CEILING:-60128}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).
