@@ -11,6 +11,7 @@ const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 const OD = require('../src/pkjs/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const SCHEMA = require('../src/pkjs/settings/schema.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
@@ -315,6 +316,24 @@ test('aplite: no On demand rows, card or sheets — the Watch Status Bar keeps i
   const basalt = watchTab().scroll.innerHTML;
   ['batteryLowOnly', 'showQt'].forEach((k) =>
     assert.equal(basalt.indexOf('data-k="' + k + '"'), -1, k + ': not on a watch with On demand'));
+});
+
+test('aplite: the Watch Status Bar\'s bluetooth picker keeps its own title, not the Bluetooth sheet\'s', () => {
+  // The Bluetooth sheet's btIcons/vibe copies are gated at item level, so the engine's
+  // "shown copy of a key" lookup (the picker title, a trigger relabel) never lands on them
+  // on aplite, whose sheet section is hidden.
+  const page = watchTab({}, 'aplite');
+  page.openSelect('btIcons');
+  assert.match(page.modal.innerHTML, /<span class="ssel-modal-ttl" id="ssel-ttl-btIcons">Show icon for bluetooth<\/span>/);
+  assert.ok(page.modal.innerHTML.indexOf('aria-label="Show icon for bluetooth options"') !== -1, 'the list label');
+  // The evalCtx shape: the settings with env beside them.
+  const ctx = (platformName) => ({ provider: 'dwd', env: platform.computeEnv({ platform: platformName }) });
+  const labels = {
+    aplite: { btIcons: 'Show icon for bluetooth', vibe: 'Vibrate on bluetooth disconnect' },
+    basalt: { btIcons: 'Show', vibe: 'Vibrate on disconnect' }
+  };
+  Object.keys(labels).forEach((p) => ['btIcons', 'vibe'].forEach((k) =>
+    assert.equal(PC.engine.findShownItem(SCHEMA, k, ctx(p)).label, labels[p][k], k + ' on ' + p)));
 });
 
 test('the card reset reverts the items\' settings; the status card reset reverts the ticks', () => {

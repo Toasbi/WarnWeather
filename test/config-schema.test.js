@@ -2301,15 +2301,18 @@ test('the Bluetooth sheet: Show (an inline select) and the vibration, joined loo
   assert.equal(sheet.title, 'Bluetooth');
   assert.deepEqual(sheet.showWhen, ON_DEMAND_WHEN);
   assert.equal(sheet.intro, 'Shows the Bluetooth icon on a status bar’s On demand side.');
+  // Each row carries the gate itself as well: the engine picks a key's shown copy by the
+  // item's own showWhen, and aplite's Watch Status Bar holds the other copy of both keys.
   assert.deepEqual(sheet.items, [{
     type: 'select', messageKey: 'btIcons', label: 'Show', defaultValue: 'disconnected',
     options: [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']],
     hintByValue: {
       both: 'The icon while connected, crossed out while disconnected.',
       none: 'The icon never shows. Vibrate on disconnect still works.'
-    }
+    },
+    showWhen: ON_DEMAND_WHEN
   }, { type: 'toggle', messageKey: 'vibe', label: 'Vibrate on disconnect', defaultValue: false,
-    joinPrevious: 'loose' }]);
+    joinPrevious: 'loose', showWhen: ON_DEMAND_WHEN }]);
 });
 
 test('aplite keeps the Watch Status Bar\'s own battery, quiet time and Bluetooth rows, and only it', () => {

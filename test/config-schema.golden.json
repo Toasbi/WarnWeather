@@ -9741,6 +9741,9 @@
                 "hintByValue": {
                   "both": "The icon while connected, crossed out while disconnected.",
                   "none": "The icon never shows. Vibrate on disconnect still works."
+                },
+                "showWhen": {
+                  "env": "onDemand"
                 }
               },
               {
@@ -9748,7 +9751,10 @@
                 "messageKey": "vibe",
                 "label": "Vibrate on disconnect",
                 "defaultValue": false,
-                "joinPrevious": "loose"
+                "joinPrevious": "loose",
+                "showWhen": {
+                  "env": "onDemand"
+                }
               }
             ]
           },

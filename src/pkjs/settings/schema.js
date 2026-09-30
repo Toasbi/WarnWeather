@@ -1531,6 +1531,12 @@ function batterySheet() {
  * The Bluetooth item's sheet (sheetId odBluetooth): when the icon shows, and the
  * vibration on disconnect. The keys are the ones the Watch Status Bar held (aplite keeps
  * its own copies of both rows there).
+ *
+ * Both rows carry ON_DEMAND_WHEN on the ITEM as well as the section: the engine finds a
+ * key's shown copy (findShownItem: the select modal's title, a trigger's relabel) by the
+ * item's own gate alone, so without it aplite's Watch Status Bar "Show icon for
+ * bluetooth" picker would open under this sheet's "Show" label. Gated at item level, the
+ * two copies are mutually exclusive (the tomorrowioApiKey precedent).
  * @returns {Object} Schema section (sheetOnly).
  */
 function bluetoothSheet() {
@@ -1549,13 +1555,15 @@ function bluetoothSheet() {
             hintByValue: {
                 both: 'The icon while connected, crossed out while disconnected.',
                 none: 'The icon never shows. Vibrate on disconnect still works.'
-            }
+            },
+            showWhen: ON_DEMAND_WHEN
         }, {
             type: 'toggle',
             messageKey: 'vibe',
             label: 'Vibrate on disconnect',
             defaultValue: false,
-            joinPrevious: 'loose'
+            joinPrevious: 'loose',
+            showWhen: ON_DEMAND_WHEN
         }]
     };
 }
