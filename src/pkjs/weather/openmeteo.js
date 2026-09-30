@@ -4,6 +4,7 @@ var failure = WeatherProvider.failure;
 
 var hourlyWindow = require('./hourly-window.js');
 var dayPeaks = require('./day-peaks.js');
+var weightedCloudCover = require('./cloud-cover.js').weightedCloudCover;
 var FORECAST_HOURS = hourlyWindow.FORECAST_HOURS;
 var HOUR_SECONDS = hourlyWindow.HOUR_SECONDS;
 
@@ -38,14 +39,28 @@ function precedingHourSlice(series, anchor, bucketCount, fill) {
 }
 
 /**
- * One cloud-cover bucket as a number: a null hour (a gap in the model output)
- * reads as 0 %, the same zero-fill the other providers apply, so the series stays
- * numeric and hour-aligned.
- * @param {*} v Raw bucket value.
- * @returns {number} Cloud cover percent, 0 when absent.
+ * The cloud line's hours, from the anchor up to `end`: each bucket's low, mid
+ * and high layers weighted by cloud-cover.js, so a veil of thin high cloud
+ * draws half, not overcast. A bucket without the layer split keeps its total
+ * cover, and one with neither (a gap in the model output) reads as 0 %, the
+ * same zero-fill the other providers apply, so the series stays numeric and
+ * hour-aligned.
+ * @param {Object} hourly The response's hourly block; cloud_cover is an array.
+ * @param {number} anchor Index of slot 0's bucket.
+ * @param {number} end Index one past the last slot's bucket.
+ * @returns {number[]} Cloud cover percent per slot, 0..100.
  */
-function percentOrZero(v) {
-    return typeof v === 'number' ? v : 0;
+function cloudSlice(hourly, anchor, end) {
+    var layer = function(field, i) {
+        return Array.isArray(hourly[field]) ? hourly[field][i] : null;
+    };
+    var out = [];
+    var last = Math.min(end, hourly.cloud_cover.length);
+    for (var i = anchor; i < last; i += 1) {
+        out.push(weightedCloudCover(layer('cloud_cover_low', i), layer('cloud_cover_mid', i),
+            layer('cloud_cover_high', i), hourly.cloud_cover[i]));
+    }
+    return out;
 }
 
 // The ECMWF IFS 0.25° ensemble's forecast step: its buckets fall on 00, 03,
@@ -163,10 +178,10 @@ function mapResponse(json, nowEpoch) {
         // which it returns all-null — hence the separate gust call below).
         pressureTrend: Array.isArray(hourly.pressure_msl)
             ? hourly.pressure_msl.slice(anchor, end) : [],
-        // Optional like pressure: total cloud cover (%) is an ECMWF IFS output, so it
-        // rides the pinned main request. Absent → [] → the cloud line stays off.
-        cloudTrend: Array.isArray(hourly.cloud_cover)
-            ? hourly.cloud_cover.slice(anchor, end).map(percentOrZero) : [],
+        // Optional like pressure: cloud cover (%) and its low/mid/high layers are
+        // ECMWF IFS outputs, so they ride the pinned main request. Absent total →
+        // [] → the cloud line stays off.
+        cloudTrend: Array.isArray(hourly.cloud_cover) ? cloudSlice(hourly, anchor, end) : [],
         startTime: times[anchor],
         currentTemp: current.temperature_2m
     };
@@ -209,6 +224,7 @@ function buildForecastUrl(lat, lon) {
         + '?latitude=' + lat
         + '&longitude=' + lon
         + '&hourly=temperature_2m,precipitation_probability,precipitation,windspeed_10m,windgusts_10m,pressure_msl,cloud_cover'
+        + ',cloud_cover_low,cloud_cover_mid,cloud_cover_high'
         + '&current=temperature_2m'
         + '&temperature_unit=fahrenheit'
         + '&windspeed_unit=kmh'

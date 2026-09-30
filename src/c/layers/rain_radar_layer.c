@@ -291,7 +291,9 @@ static inline int radar_sky_band_h(bool shown, int plot_h) {
 }
 
 // Draw the sky rows into `band` (x from the radar's slot grid, placed by time
-// against the persisted radar start), then the lightning bolts over them.
+// against the persisted radar start), then the lightning bolts over them. Only
+// called while radar_sky_in_window holds, which is what lets the first and last
+// cells stretch over a leading or trailing gap (radar_sky_cell_span).
 static void draw_radar_sky(GContext *ctx, GRect band, int plot_h, const uint8_t *sky,
                            int sky_n, time_t radar_start, int anchor, int pitch) {
     const int h = radar_sky_stripe_h(plot_h);
@@ -300,12 +302,11 @@ static void draw_radar_sky(GContext *ctx, GRect band, int plot_h, const uint8_t 
     const int32_t start = radar_sky_start(sky);
     for (int k = 0; k < sky_n; ++k) {
         const int32_t t0 = start + k * RADAR_SKY_SLOT_SECONDS;
-        int x0 = radar_sky_x(t0, (int32_t)radar_start, anchor, pitch, RADAR_SLOT_SECONDS);
-        int x1 = radar_sky_x(t0 + RADAR_SKY_SLOT_SECONDS, (int32_t)radar_start, anchor, pitch,
-                             RADAR_SLOT_SECONDS);
-        if (x0 < x_min) { x0 = x_min; }
-        if (x1 > x_max) { x1 = x_max; }
-        if (x1 <= x0) { continue; }
+        const int xa = radar_sky_x(t0, (int32_t)radar_start, anchor, pitch, RADAR_SLOT_SECONDS);
+        const int xb = radar_sky_x(t0 + RADAR_SKY_SLOT_SECONDS, (int32_t)radar_start, anchor,
+                                   pitch, RADAR_SLOT_SECONDS);
+        int x0, x1;
+        if (!radar_sky_cell_span(xa, xb, k, sky_n, x_min, x_max, &x0, &x1)) { continue; }
         chart_stripe_fill_cell(ctx, GRect(x0, band.origin.y, x1 - x0, h),
                                RADAR_SKY_CLOUD_COLOR,
                                chart_stripe_level(radar_sky_cloud(sky, k), 0, 250));
@@ -313,11 +314,13 @@ static void draw_radar_sky(GContext *ctx, GRect band, int plot_h, const uint8_t 
                                RADAR_SKY_SUN_COLOR,
                                chart_stripe_level(radar_sky_sun(sky, k), 0, 250));
     }
-    // Bolts over both rows, centred on their 15-min slot (and vertically on the
-    // two rows): a 1 px background halo first, so the bolt reads over a sunny
-    // or cloudy row alike, then the glyph. Every cell is clipped to the band and
-    // the slot grid: on the 3 px stripes the glyph fills the rows exactly, and
-    // an unclipped halo would notch the axis tick row just above the band.
+    // Bolts over both rows, centred on the visible part of their 15-min slot
+    // (radar_sky_bolt_x, so an edge slot's bolt stays on screen) and vertically
+    // on the two rows: a 1 px background halo first, so the bolt reads over a
+    // sunny or cloudy row alike, then the glyph. Every cell is clipped to the
+    // band and the slot grid: on the 3 px stripes the glyph fills the rows
+    // exactly, and an unclipped halo would notch the axis tick row just above
+    // the band.
     const int rows_h = 2 * h + 1;
     const int by = band.origin.y + (rows_h - RADAR_BOLT_H) / 2;
     const int y_min = band.origin.y;
@@ -328,8 +331,8 @@ static void draw_radar_sky(GContext *ctx, GRect band, int plot_h, const uint8_t 
         const int xa = radar_sky_x(t0, (int32_t)radar_start, anchor, pitch, RADAR_SLOT_SECONDS);
         const int xb = radar_sky_x(t0 + RADAR_SKY_SLOT_SECONDS, (int32_t)radar_start, anchor,
                                    pitch, RADAR_SLOT_SECONDS);
-        const int bx = (xa + xb) / 2 - RADAR_BOLT_W / 2;
-        if (bx < x_min || bx + RADAR_BOLT_W > x_max) { continue; }
+        int bx;
+        if (!radar_sky_bolt_x(xa, xb, x_min, x_max, &bx)) { continue; }
         for (int pass = 0; pass < 2; ++pass) {
             const int grow = pass == 0 ? 1 : 0;   // halo: a 3x3 cell per inked px
             graphics_context_set_fill_color(ctx, pass == 0 ? theme_bg() : RADAR_SKY_BOLT_COLOR);

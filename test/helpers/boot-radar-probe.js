@@ -60,11 +60,11 @@ WeatherProvider.request = function (url, type, onSuccess) {
     } else if (url.indexOf('minutely_15') !== -1) {
         skyRequests += 1;
         var first = Math.floor(Date.now() / 1000 / 900) * 900 - 900;
-        var m = { time: [], cloud_cover: [], sunshine_duration: [], lightning_potential: [], weather_code: [] };
+        var m = { time: [], cloud_cover: [], direct_normal_irradiance: [], lightning_potential: [], weather_code: [] };
         for (var i = 0; i < 12; i += 1) {
             m.time.push(first + i * 900);
             m.cloud_cover.push(100);
-            m.sunshine_duration.push(450);
+            m.direct_normal_irradiance.push(300);
             m.lightning_potential.push(0);
             m.weather_code.push(95);
         }

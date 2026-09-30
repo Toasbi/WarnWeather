@@ -28,7 +28,7 @@ RAIN RADAR
 - Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on
   its way (On demand)
 - Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph
-- Clouds, sun and lightning rows under the radar graph for the next 2 hours
+- Clouds, sun and lightning rows under the radar graph: cloud cover and sun strength for the next 2 hours, with a bolt where thunderstorms are expected
 
 HEALTH VIEW (requires a health-capable watch; heart rate needs a heart-rate sensor)
 - Health status for steps, sleep, distance and heart rate
