@@ -71,3 +71,21 @@ Deno.test("a rainbowkey radarProvider is accepted and kept", () => {
   assert(parsed.success);
   assertEquals(parsed.data.settings.radarProvider, "rainbowkey");
 });
+
+// The On demand fields (1.24.0) survive the strip step; the code and the level refuse a
+// value no watch sends.
+Deno.test("onDemand, batteryLowLevel and batteryLowDisplay are accepted and kept", () => {
+  const onDemand = "RLLLRRRR-R" + "-".repeat(30);
+  const parsed = telemetryPayloadSchema.safeParse({
+    ...LEGACY,
+    settings: { onDemand, batteryLowLevel: 25, batteryLowDisplay: "value" },
+  });
+  assert(parsed.success);
+  assertEquals(parsed.data.settings.onDemand, onDemand);
+  assertEquals(parsed.data.settings.batteryLowLevel, 25);
+  assertEquals(parsed.data.settings.batteryLowDisplay, "value");
+  const bad = [{ onDemand: onDemand + "-" }, { batteryLowLevel: 101 }, { batteryLowLevel: 12.5 }];
+  for (const settings of bad) {
+    assert(!telemetryPayloadSchema.safeParse({ ...LEGACY, settings }).success, JSON.stringify(settings));
+  }
+});

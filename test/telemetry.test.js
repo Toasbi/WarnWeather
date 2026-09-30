@@ -236,6 +236,35 @@ test('snapshot includes batteryLowOnly as a real boolean', () => {
   assert.equal(buildSettingsSnapshot({}).batteryLowOnly, false);
 });
 
+// On demand: where each item is ticked, 40 letters read like the bake reads the sides
+// (on-demand.js telemetryCode, pinned in test/on-demand.test.js); the Battery item's
+// warn level as stored and its look.
+test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
+  const fresh = buildSettingsSnapshot({});
+  assert.equal(fresh.onDemand, 'RLLLRRRR-R' + '-'.repeat(30),
+    'untouched: the default ticks, all on the Watch Status Bar');
+  assert.equal(fresh.batteryLowLevel, undefined, 'unseeded: absent, read as the default');
+  assert.equal(fresh.batteryLowDisplay, undefined);
+
+  const moved = buildSettingsSnapshot({ statusTopOnDemandRight: 'off',
+    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'uv' });
+  assert.equal(moved.onDemand.slice(0, 10), 'rLLLrrrr-r', 'a Disabled side reports lower case');
+  assert.equal(moved.onDemand.slice(10, 20), '------L---', 'the forecast bar\'s ten letters');
+  assert.equal(moved.onDemand, require('../src/pkjs/on-demand.js').telemetryCode(
+    { statusTopOnDemandRight: 'off', statusForecastOnDemandLeft: 'on',
+      statusForecastOnDemandLeftItems: 'uv' }, require('../src/pkjs/config-ui').computeEnv()),
+  'the shared reading, nothing of its own');
+
+  assert.equal(buildSettingsSnapshot({}, { platform: 'aplite' }).onDemand, undefined,
+    'a known aplite has no On demand: absent');
+
+  // The level as STORED, not the 10 % step a non-emery watch rounds it to.
+  const battery = buildSettingsSnapshot({ batteryLowLevel: '15', batteryLowDisplay: 'value' },
+    { platform: 'basalt' });
+  assert.strictEqual(battery.batteryLowLevel, 15);
+  assert.equal(battery.batteryLowDisplay, 'value');
+});
+
 test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({ radarMode: 'status' }).radarMode, 'status');
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
@@ -409,6 +438,9 @@ const HEAVIEST_SETTINGS = {
   alertAqiDays: 'tomorrow', alertPollenDays: 'tomorrow',
   alertUvNextDayMark: 'raquo', alertWindNextDayMark: 'gt', alertGustNextDayMark: 'plus',
   alertAqiNextDayMark: 'star', alertPollenNextDayMark: 'none',
+  // The Battery item on its longest look (the onDemand code is 40 letters whatever is
+  // ticked on this emery).
+  batteryLowLevel: '25', batteryLowDisplay: 'value',
   sleepEndHour: '7',
   // The Nighttime card at its heaviest: every one of the three features on, each
   // reporting its own window. Theme switching is on 'manual' because that is its
@@ -801,11 +833,16 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // each alert's Days and tomorrow mark — saved 61 B: 3911 B, headroom 185; the
 // custom-layout envelope 4021 B, headroom 75. On demand retired the placement code and
 // the rain switch (alertBars, alertRain: the side lists replace both) — 37 B: 3874 B,
-// headroom 222; the custom-layout envelope 3984 B, headroom 112.
+// headroom 222; the custom-layout envelope 3984 B, headroom 112. The 40-letter
+// onDemand code and the Battery item's level and look (batteryLowLevel,
+// batteryLowDisplay) are 103 B: 3977 B, headroom 119; the custom-layout envelope
+// 4087 B, headroom 9.
 // Those two measure the legacy single-event shape, which only app versions before 1.16
 // still send, each with its own older and smaller snapshot. This client sends only
-// batches, and what binds it is the settings header measured last: 2854 of 4096,
-// headroom 1242.
+// batches, and what binds it is the settings header measured last: 2957 of 4096,
+// headroom 1139. (So the custom-layout envelope's 9 B is not this client's limit: the
+// next field that tips it over asks for this check to move to the header alone, not for
+// a shorter field.)
 test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

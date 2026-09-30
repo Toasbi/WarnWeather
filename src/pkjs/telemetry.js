@@ -12,6 +12,8 @@ var radarSourceId = require('./weather/radar-source-id.js');
 // warn looks, so the report and the watch cannot disagree on what is on or how it
 // looks.
 var statusThresholds = require('./status-thresholds.js');
+// telemetryCode — where each On demand item is ticked, read like the bake reads it.
+var onDemand = require('./on-demand.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -153,6 +155,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // (packExt, 0..0x7FFF) rather than widening customView*: an ingest that predates
     // them strips unknown keys, but a known field failing validation 400s the batch.
     var customExt = customCycle ? customCycle.map(viewCycle.packExt) : null;
+    // What this watch can show (the config page's own facts): no On demand on aplite.
+    var env = configUi.computeEnv(watchInfo);
     // --- the Nighttime card's gates, resolved once for the fields below ---------
     // Dim backlight is HARDWARE-gated, not only setting-gated: the red tint is
     // light_set_color_rgb888() and emery is the only watch with the LED
@@ -224,7 +228,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
         // RESOLVED like the blob byte the watch reads, so an absent or unknown look
         // reports 'text'. Both are z.string() in the ingest schema, never an enum, so
         // a new alert kind or look cannot 400 an old ingest's batch.
-        alerts: alertsReport(safe, configUi.computeEnv(watchInfo)),
+        alerts: alertsReport(safe, env),
         rainAlertDisplay: statusThresholds.rainAlert(safe).look,
         // The warn box per paired kind (see warnLooksReport). The platform decides the
         // default, and watchInfo absent reads as basalt (colour), as for the colours.
@@ -268,6 +272,16 @@ function buildSettingsSnapshot(settings, watchInfo) {
         firstWeek: safe.firstWeek,
         showQt: !!safe.showQt,
         batteryLowOnly: Boolean(safe.batteryLowOnly),
+        // On demand: 40 letters, the ten items of each bar (top, forecast, radar, health)
+        // in the On demand order — L/R ticked on an Enabled side of a bar that shows,
+        // l/r ticked on a Disabled side or a bar the layout leaves out, '-' not ticked.
+        // Absent on a known aplite, which has no On demand. showQt and batteryLowOnly
+        // above are what aplite reads; every other watch reads these.
+        onDemand: onDemand.telemetryCode(safe, env),
+        // The Battery item's warn level as STORED (5-30 in 5s from an emery page,
+        // 10/20/30 elsewhere), not the level the watch rounds it to; and its look.
+        batteryLowLevel: toIntOrUndefined(safe.batteryLowLevel),
+        batteryLowDisplay: safe.batteryLowDisplay,
         topViewMode: safe.topViewMode,
         layoutPreset: safe.layoutPreset,
         // Lockstep with the Deno telemetry-ingest .strip() schema — deploy the

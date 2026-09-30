@@ -154,6 +154,19 @@ const settingsSchema = z
     firstWeek: z.string().optional(),
     showQt: z.boolean().optional(),
     batteryLowOnly: z.boolean().optional(),
+    // On demand (src/pkjs/on-demand.js telemetryCode): 40 letters, the ten items of
+    // each bar (top, forecast, radar, health) in the On demand order (battery, bt, qt,
+    // snooze, rain, gust, uv, aqi, pollen, wind) — L/R ticked on an Enabled side of a
+    // bar that shows, l/r ticked on a Disabled side or a hidden bar, '-' not ticked
+    // (e.g. 'RLLLRRRR-R' + 30 '-', an untouched install). Absent on aplite, whose
+    // showQt/batteryLowOnly above still say what it draws; elsewhere those two are
+    // leftovers and onDemand is the truth. DEPLOY-ORDERING: ship this function before
+    // the app release that sends these, or the strip step drops them silently.
+    onDemand: z.string().max(40).optional(),
+    // The Battery item's warn level as stored (a percentage) and its look ('icon' /
+    // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
+    batteryLowLevel: z.number().int().min(0).max(100).optional(),
+    batteryLowDisplay: z.string().optional(),
     topViewMode: z.enum(['full', 'compact', 'none']).optional(),
     // DEPLOY ORDERING: a value missing from this enum fails the WHOLE batch (400), so a
     // new preset (1.23.0: 'weatherOnly') must be deployed here BEFORE the watch build
