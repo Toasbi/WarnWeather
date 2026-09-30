@@ -150,3 +150,7 @@ run = "scripts/aplite-size.sh"
 [tasks.check-aplite-size]
 description = "On-demand: fail when the aplite image exceeds the launch-safety ceiling (past ~22.06 KB the firmware silently never starts the app). Builds first if needed; portable across macOS/Linux SDK layouts. Run it yourself before shipping aplite changes."
 run = "scripts/check-aplite-size.sh"
+
+[tasks.check-64k-size]
+description = "On-demand: fail when a 64 KB watch's image (basalt, diorite, flint; text+data+bss, which the heap shares) grows past its recorded ceiling. Builds first if needed. Run it yourself after C changes."
+run = "scripts/check-64k-size.sh"

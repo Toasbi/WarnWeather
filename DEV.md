@@ -150,6 +150,14 @@ before shipping aplite changes:
 mise check-aplite-size
 ```
 
+Fail when a 64 KB watch's image (basalt, diorite, flint) grows past its recorded
+ceiling. Their heap comes out of the same 64 KB, so image bytes are heap bytes;
+the ceilings and the open heap gate are explained in `scripts/check-64k-size.sh`.
+Run it after C changes:
+```bash
+mise check-64k-size
+```
+
 ### Build
 
 Dev profile (default):

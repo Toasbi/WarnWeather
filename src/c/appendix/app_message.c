@@ -860,9 +860,10 @@ void app_message_init() {
     // its bundle never carries the fourth/fifth metric lines (WW_LINE_STYLE).
     const int inbox_size = 536;
 #else
-    // Every other platform has heap to spare and carries the extra metric lines
-    // (test/inbox-size.test.js sizes each platform's heaviest bundle against its
-    // own value here).
+    // Every other platform carries the extra metric lines (test/inbox-size.test.js
+    // sizes each platform's heaviest bundle against its own value here). Their heap
+    // is not spare either: on basalt, diorite and flint it shares 64 KB with the app
+    // image (scripts/check-64k-size.sh), so every inbox byte counts there too.
     // 640 (was 600): the weather alerts' ALERT_ENTRIES_UINT8 tuple rides the status
     // category — 7 B of tuple header + up to 20 entry bytes. aplite stays at 536:
     // it has no On demand and never receives the tuple.
