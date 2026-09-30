@@ -551,7 +551,8 @@ function packLine(line, payload, settings, env) {
       var text = formatValue(code, payload, settings, key, textCap(s), dayMax);
       // An edge slot's city walks the watch's word ladder before the cap cuts it: the
       // first form that fits ('B. Soden', not 'Bad Sode'), whose words the watch can
-      // still shorten from there. Not on a known aplite: it has no On demand, and its
+      // still shorten from there. A name no form fits whole is cut as before ('New
+      // York', never 'N. Y. Ci'). Not on a known aplite: it has no On demand, and its
       // bake stays byte for byte what it was.
       if (code === 'city' && textCap(s) === catalog.CAPS.EDGE_TEXT_MAX
           && env.platform !== 'aplite') {

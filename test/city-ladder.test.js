@@ -55,8 +55,10 @@ test('an edge city takes the first form that fits the cap', () => {
   assert.equal(cityLadder.fit('Bad Soden', 8), 'B. Soden');
   assert.equal(cityLadder.fit('New York', 8), 'New York');
   assert.equal(cityLadder.fit('Bad Tölz', 8), 'B. Tölz');
-  // Nothing fits: the last form, which packLine then cuts at the cap.
-  assert.equal(cityLadder.fit('Bad Berleburg', 8), 'B. Berleburg');
+  // No form fits whole: the name itself, which packLine then cuts at the cap as
+  // before. A cut abbreviation ('N. Y. Ci') would read worse than a cut name.
+  assert.equal(cityLadder.fit('Bad Berleburg', 8), 'Bad Berleburg');
+  assert.equal(cityLadder.fit('New York City', 8), 'New York City');
   assert.equal(cityLadder.fit('Berlin-Charlottenburg', 8), 'Berlin-Charlottenburg');
   assert.equal(cityLadder.fit('--', 8), '--');
   assert.deepEqual(cityLadder.members(undefined), ['']);
@@ -122,10 +124,26 @@ test('an edge city that fits the cap only as a ladder form is sent as that form'
     assert.equal(slots[2].text, 'B. Soden', platform + ' right');
     // The middle's 19 bytes hold the whole name: untouched.
     assert.equal(slots[1].text, 'Bad Soden', platform + ' middle');
-    // None fits: the last form is cut at the cap.
-    assert.equal(bakeTop('Bad Berleburg', platform)[0].text, 'B. Berle');
+    // No form fits whole: the name is cut at the cap, as on a known aplite, never
+    // a form ('B. Berle', 'N. Y. Ci').
+    assert.equal(bakeTop('Bad Berleburg', platform)[0].text, 'Bad Berl');
+    assert.equal(bakeTop('New York City', platform)[0].text, 'New York');
+    assert.equal(bakeTop('Rio de Janeiro', platform)[2].text, 'Rio de J');
     // A name that fits keeps its every byte.
     assert.equal(bakeTop('New York', platform)[0].text, 'New York');
+  });
+});
+
+test('an edge city is a whole ladder form or the plain cut, never a cut form', () => {
+  const plain = (city) => Buffer.from(statusLines.utf8Truncate(
+    statusLines.utf8Encode(city), catalog.CAPS.EDGE_TEXT_MAX)).toString('utf8');
+  ['New York City', 'Bad Soden am Taunus', 'Rio de Janeiro', 'San Francisco', 'Bad Soden',
+    'Bad Tölz', 'Bad Königshofen', 'Los Angeles', 'Wien 22 Donaustadt', 'Frankfurt am Main',
+    'Berlin', 'Mitte'].forEach((city) => {
+    const sent = bakeTop(city, 'basalt')[0].text;
+    const whole = cityLadder.members(city).filter((form) =>
+      utf8.byteLength(form) <= catalog.CAPS.EDGE_TEXT_MAX);
+    assert.equal(sent, whole.length ? whole[0] : plain(city), city);
   });
 });
 
@@ -140,7 +158,8 @@ test('a middle city too long for its cap is cut as before, never laddered', () =
   ['basalt', 'diorite', 'emery', 'flint', ''].forEach((platform) => {
     const slots = bakeTop(city, platform);
     assert.equal(slots[1].text, plain, platform + ' middle');
-    assert.equal(slots[0].text, 'B. S. a.', platform + ' left');
+    // The edge: no form fits 8 B whole, so the name is cut there too.
+    assert.equal(slots[0].text, 'Bad Sode', platform + ' left');
   });
 });
 

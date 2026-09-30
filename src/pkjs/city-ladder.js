@@ -10,6 +10,7 @@
 // sst_city_member) when On demand needs a status slot's room. The phone walks it
 // before an edge slot's 8-byte cap (status-lines.js packLine), so an edge city
 // arrives as the first form that fits ("B. Soden") instead of cut short ("Bad Sode").
+// A name no form fits whole is cut as before ("New York City" -> "New York").
 // test/city-ladder.test.js runs this twin over the C test's vector table
 // (test/c/status_short_text_test.c, CITY_VECTORS), which holds both to one table.
 // ES5 only (aplite PKJS).
@@ -62,8 +63,9 @@ function members(city) {
 
 /**
  * The city text an edge slot of `cap` bytes gets: the first form of the ladder that
- * fits (the full name included), else its last form, which packLine then cuts at the
- * cap as before.
+ * fits whole (the full name included), else the name itself, which packLine then cuts
+ * at the cap as before. A form is never cut: "N. Y. Ci" reads worse than "New York",
+ * so a name no form fits keeps today's cut.
  * @param {*} city The city name.
  * @param {number} cap The slot's byte cap.
  * @returns {string}
@@ -73,7 +75,7 @@ function fit(city, cap) {
   for (var i = 0; i < forms.length; i++) {
     if (utf8.byteLength(forms[i]) <= cap) { return forms[i]; }
   }
-  return forms[forms.length - 1];
+  return forms[0];
 }
 
 module.exports = {
