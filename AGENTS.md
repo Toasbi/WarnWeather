@@ -102,12 +102,13 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   bundle under budget on every platform. On aplite the buffer is allocated from its
   already-tiny heap, so 536 B is a hard ceiling there — you can't just bump it; the other
   platforms have heap to spare, which is why they got a bigger inbox: 600 B when the
-  fourth metric line arrived, then 640 B when the Alerts row's `ALERT_ENTRIES_UINT8`
-  tuple (7 B header + a 20 B entry cap) joined the status category. Aplite draws
+  fourth metric line arrived, then 640 B when the weather alerts' `ALERT_ENTRIES_UINT8`
+  entry tuple (the On demand weather alert items; 7 B header + a 20 B entry cap) joined
+  the status category. Aplite draws
   neither, is never sent either payload, and keeps 536 B. An overflow is dropped silently
   (`APP_MSG_BUFFER_OVERFLOW` → "Message dropped!"). Worst realistic case is DWD with all
   four metric lines active, the radar's sky rows on, City in every status slot and a
-  full Alerts-row entry tuple = 603 B of 640 B (37 B headroom);
+  full weather-alert entry tuple = 603 B of 640 B (37 B headroom);
   aplite's heaviest bundle, without the lines it cannot draw, is 473 B of 536 B (see
   `test/inbox-size.test.js` — the authoritative computation, which records the bundle
   sizes exactly per platform; keep them in sync). That headroom was 10 B until the settings-derived
@@ -119,7 +120,7 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   `test/inbox-size.test.js` guards both the weather and Clay
   bundles; when you grow the worst-case bundle, update its `buildHeaviestBundle()`, and
   treat bumping `inbox_size` as a last resort (the 640 B step was the owner's call for
-  a feature-sized tuple that has no settings-side home — the Alerts row's entries are
+  a feature-sized tuple that has no settings-side home — the weather alerts' entries are
   weather-derived — and it stays off aplite). Before spending weather-message bytes, ask
   whether the value is settings-derived — if it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
