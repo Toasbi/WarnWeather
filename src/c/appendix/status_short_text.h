@@ -11,9 +11,7 @@
 // A slot's short family runs widest first, each member built on the one before:
 //  - a pair drops its spaces: "12 | 10" -> "12|10", "3 / 7" -> "3/7";
 //  - a reading drops its unit: the degree, kph / mph / kn, hPa, the countdown's d,
-//    km / mi, and the % of the Watch battery percentage and of the phone battery
-//    with its icon ("82%" -> "82"; the icon-less phone battery keeps it: a bare
-//    number there says nothing);
+//    km / mi;
 //  - wind and gusts then drop their direction arrow, a suffix beside the text
 //    (status_short_family flags it);
 //  - the date shortens a four-digit year in its format's own shape ("Sep '26",
@@ -26,8 +24,10 @@
 //  - the city abbreviates its shorter words ("Frankfurt am Main" -> "Frankfurt a.
 //    Main" -> "Frankfurt a. M."), and its last member is elastic: the full name,
 //    which the layout may ellipsize down to 3 characters + "…" ("Fra…").
-// The week (already "W40"), sunrise/sunset, heart rate, pollen and the icon-less
-// phone battery have no short form: they hide at their turn.
+// The week (already "W40"), sunrise/sunset, heart rate, pollen, the Watch battery
+// percentage and the phone battery have no short form: they hide at their turn. A
+// battery number shows whole or not at all; its % is never dropped (owner,
+// 2026-09-30).
 //
 // Written for size — the app image comes out of the heap on every platform — so the
 // transforms work in place and the city ladder ranks its words instead of sorting
@@ -98,20 +98,19 @@ static inline bool sst_copy(char *out, size_t cap, const char *src, size_t n) {
 #define SST_PAIR_ICONS ((1u << STATUS_ICON_TEMP) | (1u << STATUS_ICON_UV) \
     | (1u << STATUS_ICON_AQI) | (1u << STATUS_ICON_WIND) | (1u << STATUS_ICON_GUST))
 // ... and whose reading drops its unit: the degree, kph / mph / kn, hPa, the
-// countdown's d, the phone battery's % beside its icon.
+// countdown's d.
 #define SST_UNIT_ICONS ((1u << STATUS_ICON_TEMP) | (1u << STATUS_ICON_DEWPOINT) \
     | (1u << STATUS_ICON_WIND) | (1u << STATUS_ICON_GUST) | (1u << STATUS_ICON_PRESSURE) \
-    | (1u << STATUS_ICON_COUNTDOWN) | (1u << STATUS_ICON_PHONE_BATTERY) \
-    | (1u << STATUS_ICON_PHONE_BATTERY_CHG))
+    | (1u << STATUS_ICON_COUNTDOWN))
 
 static inline bool sst_text_icon(uint8_t kind, uint8_t icon, uint32_t icons) {
     return kind == SLOT_TEXT && icon < 32 && ((icons >> icon) & 1u);
 }
 
-// A unit's byte: a letter, the %, or one of the degree's two (C2 B0).
+// A unit's byte: a letter, or one of the degree's two (C2 B0).
 static inline bool sst_unit_byte(char c) {
     unsigned char u = (unsigned char)c;
-    return ((u | 0x20) >= 'a' && (u | 0x20) <= 'z') || u == '%' || u == 0xC2 || u == 0xB0;
+    return ((u | 0x20) >= 'a' && (u | 0x20) <= 'z') || u == 0xC2 || u == 0xB0;
 }
 
 // Step `t` of a slot's chain, applied to `s` in place (a `cap`-byte buffer); true when
@@ -144,7 +143,7 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, bool full_date, uint8_t
         }
         case 1: {
             if (!sst_text_icon(kind, icon, SST_UNIT_ICONS) && kind != SLOT_LIVE_DISTANCE
-                    && kind != SLOT_LIVE_DISTANCE_MI && kind != SLOT_LIVE_BATTERY_PCT) {
+                    && kind != SLOT_LIVE_DISTANCE_MI) {
                 return false;
             }
             int n = len;
