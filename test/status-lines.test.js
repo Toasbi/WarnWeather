@@ -1319,7 +1319,7 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
   assert.ok(declared.size > 0);
 });
 
-// ── the Alerts row's entries (ALERT_ENTRIES_UINT8) ─────────────────────────────
+// ── the weather alerts' entries (ALERT_ENTRIES_UINT8) ────────────────────────
 const thresholds = require('../src/pkjs/status-thresholds.js');
 const { decodeAlerts } = require('./helpers/alert-entries.js');
 //

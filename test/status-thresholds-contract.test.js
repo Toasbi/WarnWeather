@@ -94,7 +94,7 @@ test('the bold bytes cover every kind at 2 bits each', () => {
     /_Static_assert\(THRESH_BOLD_OFFSET \+ \(\(THRESH_KIND_COUNT \+ 3\) \/ 4\) <= THRESH_ALERTS_OFFSET/);
 });
 
-// Byte 34: bits 0-1 the Alerts row's rain look, bits 2-7 reserved. 'text' is 0 so
+// Byte 34: bits 0-1 the rain alert's look, bits 2-7 reserved. 'text' is 0 so
 // a pre-alerts blob (no byte 34) and an unset setting both read today's look.
 test('the rain look wire values are in lockstep with ThreshRainDisplay', () => {
   assert.equal(th.ALERTS_OFFSET, 34);

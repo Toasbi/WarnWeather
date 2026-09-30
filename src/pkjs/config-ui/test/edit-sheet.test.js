@@ -342,9 +342,9 @@ test('the row before a hosted toggle takes its divider from the row actually ren
 });
 
 // A TOGGLE row can carry the pencil too — the retired Alerts card's rows were "show this
-// alert" switches whose Edit opened the levels sheet, and the capability stays generic. renderRow's .rgt.has-pen cell is generic
-// over the control, so the switch sits where the select trigger sits above: the badge
-// leads it, the Edit button trails it.
+// alert" switches whose Edit opened the levels sheet. renderRow's .rgt.has-pen cell is
+// generic over the control, so the switch sits where the select trigger sits above: the
+// badge leads it, the Edit button trails it.
 const TOGGLE_PEN_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
   { title: 'Main', items: [
     { type: 'toggle', messageKey: 'alertWind', label: 'Wind speed', defaultValue: false,

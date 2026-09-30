@@ -897,7 +897,7 @@ test('buildStatusLines keeps STATUS_LEVELS_UINT8 for an unknown watchInfo', () =
   assert.deepEqual(payload.STATUS_LEVELS_UINT8, [1, 0]);
 });
 
-// --- the Alerts row: the rain look byte and the phone-baked metric entries ---------
+// --- the weather alerts: the rain look byte and the phone-baked metric entries -----
 
 test('buildSettingsBlob: byte 34 carries the rain alert look in bits 0-1', () => {
   assert.equal(th.ALERTS_OFFSET, 34);

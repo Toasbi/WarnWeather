@@ -1476,6 +1476,9 @@ function onDemandSideSheets() {
  * charge steps (5 % on emery, which reports the charge that finely, 10 % elsewhere). The
  * two rows share the key and are gated apart; a stored 5/15/25 shows on the 10 % slider at
  * the next step up (the `single` snap-up — on-demand.js batteryLevel, what the phone sends).
+ * The slider and batteryLevel agree only inside 5..30: a level outside it, which only a
+ * hand-edited blob can hold, shows at the nearest bound (the slider's clamp: '31' as 30,
+ * '0' on emery as 5) but is sent as 10 (batteryLevel's fallback) until the thumb moves.
  * @param {number} step 5 | 10.
  * @param {Object} showWhen The row's platform gate.
  * @returns {Object} Schema item.
@@ -2505,8 +2508,10 @@ module.exports = {
             // The rain alert's window, a second copy of the Rain sheet's row for every radar
             // mode that fetches: the window is what the radar is fetched for. The same key
             // as the sheet's row — the first live duplicate: hydrate and serialize are flat,
-            // and findItem's last match is the sheet's identical row, so both copies read and
-            // write one value.
+            // and findItem's last match is the sheet's row, which shares this one's key,
+            // default and options (only the label and hint differ, and a segmented control
+            // has no modal title for them to cross into), so both copies read and write one
+            // value.
             rainWindowRow('Rain alert window', null, {all: [{key: 'radarMode', ne: 'off'}, ON_DEMAND_WHEN]}), {
                 type: 'select',
                 messageKey: 'radarProvider',

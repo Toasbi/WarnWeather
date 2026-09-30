@@ -1,4 +1,4 @@
-// The Alerts row's entry tuple (ALERT_ENTRIES_UINT8): written by the phone
+// The weather alerts' entry tuple (ALERT_ENTRIES_UINT8): written by the phone
 // (status-thresholds.js bakeAlerts via status-lines.js buildStatusLines), checked
 // and persisted by the watch (app_message.c -> alert_set_bytes_ok ->
 // persist_set_alert_entries), parsed by alert_set.c. These pins keep the two

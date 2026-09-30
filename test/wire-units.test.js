@@ -148,7 +148,7 @@ test('uvShown: no peak ahead known falls back to the current reading alone', () 
   assert.deepEqual(uvShown([0], [null, null], 'max'), S(0, null, false));
 });
 
-// dayMaxToday: what the Alerts row judges — the highest number left TODAY incl. now,
+// dayMaxToday: what a weather alert judges — the highest number left TODAY incl. now,
 // in the slot's own rounding and unit, whatever the slot's display mode.
 test('dayMaxToday: today\'s remaining peak through the kind\'s reader, never below now', () => {
   const wu = require('../src/pkjs/wire-units.js');

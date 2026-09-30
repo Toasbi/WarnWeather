@@ -536,7 +536,7 @@ test('STATUS_KEYS is exactly the outbox status category', () => {
     outbox.WEATHER_CATEGORIES.find((c) => c.name === 'status').keys);
   assert.ok(statusRebake.STATUS_KEYS.indexOf('STATUS_LEVELS_UINT8') !== -1);
   assert.ok(statusRebake.STATUS_KEYS.indexOf('ALERT_ENTRIES_UINT8') !== -1,
-    'the Alerts row entries re-bake with the lines');
+    'the weather alerts\' entries re-bake with the lines');
 });
 
 test('the micro-send carries the six status keys and nothing else', () => {

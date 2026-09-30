@@ -72,8 +72,8 @@ test('the On demand cells and the Battery item ride bytes 35 and 38-47 of the Cl
   assert.equal(emery[35], 15, 'emery reports 5 % steps: 15 rides as 15');
 });
 
-// The Alerts row's rain look rides the blob's last byte, so a change reaches the
-// watch with the settings save (no refetch, no renderSignature entry).
+// The rain alert's look rides byte 34 of the blob, so a change reaches the watch
+// with the settings save (no refetch, no renderSignature entry).
 test('the rain alert look rides byte 34 of the Clay blob', () => {
   [['text', 0], ['icon', 1], ['minutes', 2], [undefined, 0], ['bogus', 0]].forEach((c) => {
     const s = Object.assign({}, BASE, { rainAlertDisplay: c[0] });

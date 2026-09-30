@@ -1,9 +1,9 @@
 // test/index-config-close-rebake.test.js
 //
-// The status category (slot text, STATUS_LEVELS_UINT8, the Alerts row's
-// ALERT_ENTRIES_UINT8) is baked phone-side, so an alert switch, a level or a Look
+// The status category (slot text, STATUS_LEVELS_UINT8, the weather alerts'
+// ALERT_ENTRIES_UINT8) is baked phone-side, so an alert's tick, a level or a Look
 // used to reach the watch only through the save's forced fetch. When that fetch
-// failed (offline, a provider error, an auth backoff) a switched-off alert kept
+// failed (offline, a provider error, an auth backoff) an unticked alert kept
 // its icon on the watch, and a Clay-only save (the 'Alert highlighting' switch)
 // forced no fetch at all. Every config close now re-bakes the status category
 // from the last payload against the settings just saved, chained between the

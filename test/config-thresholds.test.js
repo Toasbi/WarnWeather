@@ -26,8 +26,9 @@ function itemsByKey() {
 
 const STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
 const HEALTH_STEMS = ['Steps', 'Sleep', 'Distance'];
-// The alert kinds: their levels group lives ONLY in the Alerts card's alert<Stem>
-// sheet (their slot sheet points there); the goal kinds' in their slot sheet.
+// The alert kinds: their levels group lives ONLY in the kind's alert sheet in the On
+// demand card, alert<Stem> (their slot sheet points there); the goal kinds' in their
+// slot sheet.
 const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
 
 /**
@@ -589,8 +590,9 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
   page.clickTab('watch');
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
     'the default AQI forecast slot renders its pencil');
-  // The AQI levels live in the Alerts card's AQI sheet, under its ONE switch (the
-  // Alert); the slot's Highlight switch lives in the slot sheet.
+  // The AQI levels live in the kind's alert sheet in the On demand card, which has no
+  // switch (the side checklists place the alert); the slot's Alert highlighting switch
+  // lives in the slot sheet.
   page.openEditSheet('alertAqi');
   assert.equal(page.modal.innerHTML.indexOf('data-k="threshAqiOn"'), -1,
     'the alert sheet carries no highlight toggle');
@@ -1261,8 +1263,8 @@ function sheetFor(stem) {
 }
 /**
  * @param {string} stem Kind key stem.
- * @returns {Object} The sheet holding the kind's levels group: its Alerts sheet for
- *     an alert kind, its slot sheet for a goal kind.
+ * @returns {Object} The sheet holding the kind's levels group: its alert sheet in the
+ *     On demand card for an alert kind, its slot sheet for a goal kind.
  */
 function levelsSheetFor(stem) {
   let s = null;
@@ -1302,9 +1304,9 @@ test('the master toggle moved off the sheet title row onto the group header', ()
   });
   // Only the level kinds have a group header — in their levels sheet; the bold-only
   // sheets carry no subheader at all (their single Bold row IS the sheet), and neither
-  // do the alert kinds' slot sheets (their levels live in the Alerts sheet). Only a
+  // do the alert kinds' slot sheets (their levels live in the alert sheet). Only a
   // GOAL kind's header carries the switch: a weather kind's is the slot sheet's
-  // Highlight row, and its alert sheet's one switch is the Alert.
+  // Alert highlighting row, and its alert sheet has no switch at all.
   STEMS.forEach(stem => {
     assert.equal(headerFor(stem).toggleKey,
       ALERT_STEMS.includes(stem) ? undefined : 'thresh' + stem + 'On', stem);
@@ -1532,7 +1534,7 @@ test('reset lands on exactly what a fresh install has, a goal kind switch includ
 });
 
 test('a weather kind levels reset leaves its slot Highlight switch alone', () => {
-  // The weather group sits in the Alert sheet and has no switch: the kind's
+  // The weather group sits in the alert sheet and has no switch: the kind's
   // Highlight is a slot-sheet row (like Bold), so resetting the levels must not
   // flip it — neither off (schema) nor on (AQI's wizard row).
   ['Wind', 'Gust', 'Uv', 'Aqi'].forEach((stem) => {
@@ -1941,7 +1943,7 @@ test('the UV sheet: the Value selection group, then the highlight group closed b
       key + ' joins the group tight');
   });
   assert.equal(items[6].joinPrevious, undefined, 'the highlight group keeps its divider above');
-  assert.equal(items[7].style, 'info', 'the pointer to the Alerts sheet follows the switch');
+  assert.equal(items[7].style, 'info', 'the pointer to the On demand card follows the switch');
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
   // Tomorrow's peak mark explains its one value that needs it.
   assert.deepEqual(items[5].hintByValue, { none: 'Tomorrow\'s peak then looks just like today\'s.' });
@@ -2054,7 +2056,7 @@ test('dayMaxHint: the sheet renders the selected mode\'s hint', () => {
   page.openEditSheet('threshUv');
   assert.ok(page.modal.innerHTML.indexOf('The highest UV index left today') !== -1, 'the Day max hint');
   assert.equal(page.modal.innerHTML.indexOf('data-range="threshUvWarn"'), -1,
-    'no slider here: the slot sheet only points at the Alerts sheet');
+    'no slider here: the slot sheet only points at the alert sheet');
   const aqi = bootGeneratedPage({ provider: 'dwd', aqiSlotDisplay: 'both' });
   aqi.openEditSheet('threshAqi');
   assert.ok(aqi.modal.innerHTML.indexOf('data-hint-for="aqiSlotDisplay"') !== -1,

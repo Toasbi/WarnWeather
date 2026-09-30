@@ -89,7 +89,7 @@ function buildWeatherOutboxPayload(payload) {
   return outgoing;
 }
 
-// The Alerts row's entry tuple cap (status-thresholds.js and alert_set.h
+// The weather alerts' entry tuple cap (status-thresholds.js and alert_set.h
 // ALERT_ENTRIES_MAX_BYTES): the bundle budgets the tuple at it.
 const ALERT_ENTRIES_CAP = require('../src/pkjs/status-thresholds').ALERT_ENTRIES_MAX_BYTES;
 
@@ -250,7 +250,7 @@ test('weather bundle keeps explicit headroom below the watch inbox', () => {
 
 // The entries ride the status category, so the heaviest bundle carries them
 // whenever the status lines change — and they are the tuple the inbox grew for.
-test('the heaviest bundle carries the Alerts row entries at their cap', () => {
+test('the heaviest bundle carries the weather alerts\' entries at their cap', () => {
   const bundle = buildHeaviestBundle();
   assert.equal(bundle.ALERT_ENTRIES_UINT8.length, 20);
   const status = WEATHER_CATEGORIES.filter(function(c) { return c.name === 'status'; })[0];

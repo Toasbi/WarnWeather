@@ -62,7 +62,7 @@ test('all drops share one geometry unit, filled-styled', () => {
 });
 
 test('rain glyph normalization preserves filled styling when tinting', () => {
-  // The drops load through status_row_icons_load_filled (the Alerts row's rain entry;
+  // The drops load through status_row_icons_load_filled (the rain alert's On demand item;
   // the strip's own rain_norm_cb retired with its text takeover): the keep-fill arm of
   // icon_normalize_cb must tint the FILL, never clear it the way outline art does.
   const source = fs.readFileSync(
