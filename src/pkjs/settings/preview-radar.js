@@ -31,6 +31,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         ? require('./preview-stripe.js') : window.PreviewStripe;
     var thresholds = (typeof require !== 'undefined')
         ? require('../status-thresholds.js') : window.StatusThresholds;
+    // Which side of the Watch Status Bar shows the rain icon (on-demand.js sideOf).
+    var onDemand = (typeof require !== 'undefined')
+        ? require('../on-demand.js') : window.OnDemand;
 
     // The radar sky rows' sample (radar-sky.js, rain_radar_layer.c draw_radar_sky):
     // eight quarter hours over the two-hour window — clouds thickening into the
@@ -116,7 +119,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // eyeball with `mise preview-config` and nudge the 0.52 factor if labels crowd.
     function labelAdvance(text, s) { return Math.round(text.length * s * 0.52); }
 
-    // The watch's rain drop, as the Alerts card's rain icon draws it
+    // The watch's rain drop, as the On demand card's rain icon draws it
     // (status-slot-icons.js — scripts/gen-rain-pdc.py's construction: a cone from the
     // tip tangent to a round body, pure fill, no outline). Its ink spans x 6..18,
     // y 3..20.5 of that icon's 24-unit box.
@@ -277,19 +280,19 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // Rain-alert preview band: a Watch Status Bar mock above the chart showing the
         // rain entry as the watch draws it there (status_on_demand.c) — its Look
         // (the contract's rainAlert, as the blob packs it: the drop alone, the drop +
-        // "15'", or the drop + "Rain in 15'"), placed per the strip's Alert row setting
-        // (barAlertPlace: left-aligned for Left, centred for Middle, right-aligned for
-        // Right). Hidden while the rain alert is switched off (its Alerts sheet), while
-        // the strip's Alert row is Off (the strip draws no rain entry then), and never
-        // shown on aplite (which lacks the feature). Only the drop is coloured, and it
+        // "15'", or the drop + "Rain in 15'"), at the edge of the strip's On demand side
+        // that has Rain ticked (on-demand.js sideOf: left-aligned for the left side,
+        // right-aligned for the right). Hidden while neither of the strip's Enabled
+        // sides ticks Rain (the strip draws no rain entry then), and never shown on
+        // aplite (which lacks the feature). Only the drop is coloured, and it
         // follows the radar colour the way rain_tint() (status_on_demand.c) does: the
         // watch reads palette_radar_color(tier), clamped to the palette's last stop, so a
         // Multicolor palette gives the green tier while the one-stop Solid palette gives
         // the Solid bar colour (radarBarFg). B&W / bw themes draw it theme-fg. The text
         // stays theme-fg.
-        var place = thresholds.barAlertPlace(state, 'top');
+        var side = isAplite ? null : onDemand.sideOf(state, 'top', 'rain', env);
         var rain = thresholds.rainAlert(state);
-        if (isAplite || !rain.on || place === 'off') {
+        if (side === null) {
             return svgFrame(e, frameH);
         }
         // !isColor first: B&W / bw themes take the theme_fg() branch whatever the
@@ -298,8 +301,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var label = rain.look === 'icon' ? '' : (rain.look === 'minutes' ? "15'" : "Rain in 15'");
         var bandH = 20, dropH = 11, dropW = rainDropW(dropH), edge = 4;
         var groupW = dropW + (label ? 4 + labelAdvance(label, 11) : 0);
-        var groupX = place === 'left' ? edge
-            : (place === 'right' ? 200 - edge - groupW : (200 - groupW) / 2);
+        var groupX = side === 'left' ? edge : 200 - edge - groupW;
         var band = rect(0, 0, 200, bandH, ink.bg);
         band += rainDrop(groupX, (bandH - dropH) / 2, dropH, glyphColor);
         if (label) {

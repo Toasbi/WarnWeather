@@ -783,16 +783,22 @@ test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown 
   assert.ok(svg.indexOf('viewBox="0 0 200 138"') >= 0, 'frame grew by the 20px band height');
 });
 
-// The rain alert's switch (alertRain, its Alerts sheet): off means the watch shows no
-// rain alert, so the preview drops the band with it.
-test('radarPreview hides the countdown band while the rain alert is switched off', () => {
-  const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', alertRain: false }, { color: true });
-  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with the rain alert off');
+// Rain ticked on neither Enabled side of the Watch Status Bar: the strip shows no rain
+// alert, so the preview drops the band with it.
+test('radarPreview hides the countdown band while the Watch Status Bar shows no rain', () => {
+  const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
+    statusTopOnDemandRightItems: 'battery' }, { color: true });
+  assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with Rain unticked');
   assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'the frame keeps the no-band height');
-  const on = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor', alertRain: true }, { color: true });
-  assert.ok(on.indexOf("Rain in 15'") >= 0, 'switched on, the band shows');
+  const disabled = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
+    statusTopOnDemandRight: 'off' }, { color: true });
+  assert.equal(disabled.indexOf("Rain in 15'"), -1, 'a Disabled side shows nothing');
+  const elsewhere = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
+    statusTopOnDemandRightItems: 'battery', statusForecastOnDemandLeft: 'on',
+    statusForecastOnDemandLeftItems: 'rain' }, { color: true });
+  assert.equal(elsewhere.indexOf("Rain in 15'"), -1, 'the band mocks the Watch Status Bar only');
   const unset = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
-  assert.ok(unset.indexOf("Rain in 15'") >= 0, 'an unset switch is on (its default)');
+  assert.ok(unset.indexOf("Rain in 15'") >= 0, 'the default ticks show it');
 });
 
 test('radarPreview never shows the countdown band on aplite', () => {
@@ -824,22 +830,19 @@ function rainBand(svg) {
   return { x: Number(m[1]), text: t ? t[1] : null };
 }
 
-test('radarPreview draws the rain entry in its Look, where the Watch Status Bar places it', () => {
+test('radarPreview draws the rain entry in its Look, at the side of the Watch Status Bar that ticks Rain', () => {
   const base = { radarProvider: 'dwd', radarColor: 'multicolor' };
   const at = (S) => rainBand(RD.radarPreview(Object.assign({}, base, S), { color: true }));
   assert.equal(at({}).text, "Rain in 15'", 'the default Look: the countdown text');
   assert.equal(at({ rainAlertDisplay: 'minutes' }).text, "15'", 'Icon + minutes');
   assert.equal(at({ rainAlertDisplay: 'icon' }).text, null, 'Icon: the drop alone');
-  const left = at({ statusTopAlerts: 'left', rainAlertDisplay: 'icon' }).x;
-  const middle = at({ statusTopAlerts: 'middle', rainAlertDisplay: 'icon' }).x;
-  const right = at({ statusTopAlerts: 'right', rainAlertDisplay: 'icon' }).x;
-  assert.ok(left < middle && middle < right, 'Left hugs the left edge, Middle centres, Right hugs the right: '
-    + [left, middle, right]);
-  assert.ok(left < 10, 'Left sits at the strip\'s left edge');
-  assert.equal(at({}).x, at({ statusTopAlerts: 'left' }).x, 'an absent placement is Left (barAlertPlace)');
-  assert.equal(at({ statusTopAlerts: 'off' }), null, 'the strip\'s Alerts Off: no rain entry, no band');
-  const off = RD.radarPreview(Object.assign({}, base, { statusTopAlerts: 'off' }), { color: true });
-  assert.ok(off.indexOf('viewBox="0 0 200 118"') >= 0, 'the frame keeps the no-band height');
+  const onLeft = { statusTopOnDemandLeftItems: 'rain', statusTopOnDemandRightItems: 'battery' };
+  const left = at(Object.assign({ rainAlertDisplay: 'icon' }, onLeft)).x;
+  const right = at({ rainAlertDisplay: 'icon' }).x;
+  assert.ok(left < 10, 'the left side hugs the strip\'s left edge: ' + left);
+  assert.ok(right > 180, 'the right side (the default) hugs its right edge: ' + right);
+  assert.equal(at({ statusTopOnDemandRightItems: '' }), null, 'Rain unticked: no rain entry, no band');
+  assert.equal(at(Object.assign({ statusTopOnDemandLeft: 'off' }, onLeft)), null, 'its side Disabled: no band');
 });
 
 // The watch colours the countdown glyph with palette_radar_color(tier) (top_status_layer.c
