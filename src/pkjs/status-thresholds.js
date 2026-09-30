@@ -3,14 +3,14 @@
  *  - the per-kind warn/danger pairs (stored, else the kind's SEED pair — one
  *    resolution for the phone bake and the settings page), with the highlight
  *    colours and warn look each kind resolves to;
- *  - the weather kinds' levels (STATUS_LEVELS_UINT8) and the alert row's
+ *  - the weather kinds' levels (STATUS_LEVELS_UINT8) and the weather alerts'
  *    metric entries (ALERT_ENTRIES_UINT8), both judged phone-side at
  *    weather-bake time;
  *  - the packed settings blob (CLAY_THRESHOLDS_UINT8, buildSettingsBlob): the
  *    8 paired kinds' highlight enable bits and warn/danger colours, the health
  *    trio's thresholds (the watch levels those kinds itself), every kind's
- *    2-bit bold cell, the alert row's rain look and per-bar placement, and
- *    each paired kind's warn look.
+ *    2-bit bold cell, the rain alert's look, the On demand Battery item, each
+ *    paired kind's warn look and the On demand cells (on-demand.js).
  *
  * Levels and highlighting are split: a weather kind's LEVEL is computed from
  * its resolved pair whether or not its highlight is on, and the stored
@@ -36,50 +36,50 @@
   // (scripts/build-config-page.js APP_FILES), so its global exists at load there.
   var resolveInk = (typeof require !== 'undefined')
     ? require('./resolve-ink.js') : window.ResolveInk;
+  // Which bars show which On demand item: an alert is on while its item is placed on
+  // any bar (alertOn), and the blob carries the Battery byte and the cells. The flat
+  // page concatenates on-demand.js ahead of this file (APP_FILES).
+  var onDemand = (typeof require !== 'undefined')
+    ? require('./on-demand.js') : window.OnDemand;
 
   // One widening per release that shipped a new length, each appended to the
   // 29-byte pre-bold layout: 1.11.0 shipped 33 (the bold area for kinds 0..15);
-  // 1.12.0 shipped 34 (battery %, kind 16, opened byte 33); 1.24.0 ships 38 (the
-  // two alert bytes — the rain look, the per-bar placement — and the two
-  // warn-look bytes). So exactly {38, 34, 33, 29} are accepted; the interim 31-,
-  // 35- and 36-byte formats never shipped — they existed only on feature
-  // branches — so they validate as garbage, not as legacy (see
-  // status_threshold.h). Byte 33 holds FOUR 2-bit cells (kinds 16..19): dew point
-  // (17) and the two phone-battery kinds (18, 19) all appended into it for free —
-  // and it is FULL, with the alert bytes right behind it. So a twenty-first kind
-  // (index 20) is no plain append any more: it needs a sixth bold byte AND both
-  // alert bytes (and the warn-look bytes behind them) relocated, a layout change
-  // on both ends (the C header's _Static_assert trips).
-  var SETTINGS_BYTES = 38;
+  // 1.12.0 shipped 34 (battery %, kind 16, opened byte 33); 1.24.0 ships 48 (the
+  // rain look, the On demand Battery item, the two warn-look bytes and the ten On
+  // demand cells). The watch also accepts the development branch's 38 (read with
+  // its compiled On demand defaults) and 34, 33 and 29; the interim 31-, 35- and
+  // 36-byte formats never shipped — they existed only on feature branches — so
+  // they validate as garbage, not as legacy (see status_threshold.h). Byte 33
+  // holds FOUR 2-bit cells (kinds 16..19): dew point (17) and the two
+  // phone-battery kinds (18, 19) all appended into it for free — and it is FULL,
+  // with the alert bytes right behind it. So a twenty-first kind (index 20) is no
+  // plain append any more: it needs a sixth bold byte AND everything behind it
+  // relocated, a layout change on both ends (the C header's _Static_assert trips).
+  var SETTINGS_BYTES = 48;
   var COLORS_OFFSET = 1;
   var HEALTH_OFFSET = 17;    // shifted 15 -> 17 with the UV color pair (append-only kinds)
   var BOLD_OFFSET = 29;      // 2 bits per kind: byte 29 + (k >> 2), bits 2 * (k & 3) — bytes 29..33
-  // The alerts options byte: bits 0-1 the alert row's rain look (RAIN_DISPLAY),
+  // The alerts options byte: bits 0-1 the rain alert's look (RAIN_DISPLAY),
   // bits 2-7 reserved (DWD official warnings later) and written 0.
   var ALERTS_OFFSET = 34;
-  // The alert row's placement per status bar: 2 bits per bar (BAR_ALERT_KEYS
-  // order — top 0-1, forecast 2-3, radar 4-5, health 6-7), BAR_ALERT_PLACES
-  // values. While an alert is active the row replaces that slot of the bar.
-  var BAR_ALERTS_OFFSET = 35;
-  // Bar -> its placement setting, in the byte's cell order (ThreshBar in C).
-  var BAR_ALERT_KEYS = [
-    {bar: 'top', key: 'statusTopAlerts'},
-    {bar: 'forecast', key: 'statusForecastAlerts'},
-    {bar: 'radar', key: 'statusRadarAlerts'},
-    {bar: 'health', key: 'statusHealthAlerts'}
-  ];
-  // statusXxxAlerts -> the 2-bit wire value (ThreshAlertsPlace).
-  var BAR_ALERT_PLACES = {off: 0, left: 1, middle: 2, right: 3};
+  // The On demand Battery item: bits 0-5 its warn level in % (on-demand.js
+  // batteryLevel — already on the platform's step, the watch never rounds), bit 6
+  // its Look (BATTERY_VALUE_BIT: Icon + value), bit 7 reserved 0.
+  var BATTERY_OFFSET = 35;
+  var BATTERY_VALUE_BIT = 0x40;
   // The warn look per PAIRED kind (the box at the warn level — a goal kind's
   // "close" — for its status slot and its alert icon): 2 bits per kind, kind k at
   // byte WARN_LOOK_OFFSET + (k >> 2), bits 2 * (k & 3) — bytes 36..37.
   var WARN_LOOK_OFFSET = 36;
   // thresh<Kind>WarnLook -> the 2-bit wire value (ThreshWarnLook).
   var WARN_LOOKS = {none: 0, outline: 1, fill: 2};
+  // The On demand cells: one byte per item (on-demand.js ITEMS, the watch's OdItem
+  // order), 2 bits per bar — on-demand.js cells.
+  var ON_DEMAND_OFFSET = 38;
 
   // rainAlertDisplay -> the 2-bit wire value. 'text' is 0 — the full "Rain in
-  // 12'" countdown the strip drew before the alert row — so an absent setting
-  // and a pre-upgrade watch (no byte 34 at all) both keep today's look.
+  // 12'" countdown the strip always drew — so an absent setting and a
+  // pre-upgrade watch (no byte 34 at all) both keep that look.
   var RAIN_DISPLAY = {text: 0, icon: 1, minutes: 2};
 
   // thresh<Kind>BoldMode -> ThreshBold (src/c/appendix/status_threshold.h). The
@@ -612,7 +612,7 @@
    * A weather kind's level for a number, against the kind's resolved pair (seeds
    * when blank) — toggle-agnostic: the level says how high the value is, the
    * highlight toggle only says whether the watch colours it. The slot levels
-   * (packWeatherLevels, on the number the slot shows) and the alert row
+   * (packWeatherLevels, on the number the slot shows) and the weather alerts
    * (bakeAlerts, on the day's) both judge here.
    * @param {*} code A status item code.
    * @param {?number} value the number in the kind's display unit
@@ -652,25 +652,27 @@
     return [packed & 0xFF, (packed >> 8) & 0xFF];
   }
 
-  // The metric alerts, in the alert row's FIXED order (the watch appends the
-  // rain alert in front of them). `code` is the KINDS code, so the wire kind id
-  // is its index there; `key` is the settings stem: alert<Key> switches the alert
-  // on, alert<Key>Display ('icon' | 'value') picks whether its number rides after
-  // the icon, alert<Key>Days (alertDays) whether it may look ahead to tomorrow and
-  // alert<Key>NextDayMark (alertNextDayMark) how a tomorrow entry is marked. THE
-  // alert vocabulary: which alerts exist, their order and how their settings read
-  // live here alone. Every reader outside this module — the fetch gates, the
-  // render signature, telemetry, the settings page — goes through alertOn /
-  // alertDays / alertNextDayMark and the alert*Codes lists below, and the bake
-  // through enabledAlerts; all of them rest on alertOn, the one reading of the
-  // switch. The settings page's presentation list (schema.js, its labels and sheet
-  // copy) is pinned to this order by a test.
+  // The metric alerts, in the On demand priority order (on-demand.js ITEMS, after
+  // Rain, which the watch resolves itself). `code` is the KINDS code, so the wire
+  // kind id is its index there; `key` is the settings stem: alert<Key>Display
+  // ('icon' | 'value') picks whether its number rides after the icon,
+  // alert<Key>Days (alertDays) whether it may look ahead to tomorrow and
+  // alert<Key>NextDayMark (alertNextDayMark) how a tomorrow entry is marked. An
+  // alert is on while its item is ticked on an Enabled On demand side of any bar
+  // (alertOn). THE alert vocabulary: which alerts exist, their order and how their
+  // settings read live here alone. Every reader outside this module — the fetch
+  // gates, the render signature, telemetry, the settings page — goes through
+  // alertOn / alertDays / alertNextDayMark and the alert*Codes lists below, and the
+  // bake through enabledAlerts; all of them rest on alertOn. The order is also the
+  // bake's, so the entries' 20-B cap drops Wind speed first. The settings page's
+  // presentation list (schema.js, its labels and sheet copy) is pinned to this
+  // order by a test.
   var ALERT_KINDS = [
-    { code: 'uv', key: 'Uv' },
-    { code: 'wind', key: 'Wind' },
     { code: 'gust', key: 'Gust' },
+    { code: 'uv', key: 'Uv' },
     { code: 'aqi', key: 'Aqi' },
-    { code: 'pollen', key: 'Pollen' }
+    { code: 'pollen', key: 'Pollen' },
+    { code: 'wind', key: 'Wind' }
   ];
 
   // alert<Key>Days: 'today' judges only what is left of today; 'tomorrow' ("Today +
@@ -691,7 +693,7 @@
   var ALERT_NEXT_DAY_MARK_DEFAULT = 'raquo';
 
   // The rain alert's window while none is stored or it does not parse, in minutes.
-  // Its switch and look defaults sit in rainAlert, the one reading of all three.
+  // Its look default sits in rainAlert, the one reading of both.
   var RAIN_HORIZON_DEFAULT_MIN = 60;
 
   /**
@@ -720,7 +722,7 @@
    * One of a metric alert's stored settings, alert<Key><suffix>.
    * @param {Object} settings Clay settings blob
    * @param {*} code An ALERT_KINDS code.
-   * @param {string} suffix '' for the switch, else e.g. 'Days'.
+   * @param {string} suffix e.g. 'Days'.
    * @returns {*} the stored value; undefined without settings or for a code with
    *     no alert
    */
@@ -730,15 +732,18 @@
   }
 
   /**
-   * A metric alert's switch, read the one way: on only for a stored boolean true
-   * (a stored string is not the toggle's value).
+   * Whether a metric alert is on: its On demand item is ticked on an Enabled side of
+   * a bar that exists (on-demand.js placedAnywhere). An absent side key reads its
+   * default, so a partial blob reads the default ticks.
    * @param {Object} settings Clay settings blob
    * @param {*} code An ALERT_KINDS code.
-   * @returns {boolean} whether that metric alert is switched on (false for a code
-   *     with no alert)
+   * @param {Object} [env] Platform env (omitted = a watch that draws On demand, the
+   *     reading of the bake and the render signature: the entries only ride to one).
+   * @returns {boolean} whether that metric alert is on (false for a code with no
+   *     alert)
    */
-  function alertOn(settings, code) {
-    return alertSetting(settings, code, '') === true;
+  function alertOn(settings, code, env) {
+    return alertKindOf(code) !== null && onDemand.placedAnywhere(settings, code, env);
   }
 
   /**
@@ -768,10 +773,11 @@
   }
 
   /**
-   * The switched-on metric alerts, in the row's fixed order, with how each reads:
-   * whether its Look prints the value, its Days and its tomorrow mark (the mark
-   * only matters with Days 'tomorrow'). The rest is read only for an alert that is
-   * on: one that is off bakes nothing, whatever its other settings.
+   * The metric alerts that are on (alertOn, placed on any bar), in ALERT_KINDS order,
+   * with how each reads: whether its Look prints the value, its Days and its
+   * tomorrow mark (the mark only matters with Days 'tomorrow'). The rest is read
+   * only for an alert that is on: one that is off bakes nothing, whatever its other
+   * settings.
    * @param {Object} settings Clay settings blob
    * @returns {Array<{code: string, kindId: number, showValue: boolean,
    *     days: string, mark: string}>} [] when none is on
@@ -790,23 +796,20 @@
   }
 
   /**
-   * The rain alert's three settings resolved, with their defaults in this one
-   * place: the switch (alertRain) is ON unless stored false — the countdown every
-   * install had before the Alerts card; the look (rainAlertDisplay) is a
-   * RAIN_DISPLAY key, else 'text' — the "Rain in 12'" the strip always drew; the
-   * window (rainCountdownHorizon) is the stored minutes, else
-   * RAIN_HORIZON_DEFAULT_MIN. The switch is the STORED one: radar mode 'off'
-   * silencing the alert is the Clay packer's fold (clay-payload.js), not part of
-   * it.
+   * The rain alert's two settings resolved, with their defaults in this one place:
+   * the look (rainAlertDisplay) is a RAIN_DISPLAY key, else 'text' — the "Rain in
+   * 12'" the strip always drew; the window (rainCountdownHorizon) is the stored
+   * minutes, else RAIN_HORIZON_DEFAULT_MIN. Whether the rain alert shows at all is
+   * its On demand tick (on-demand.js placedAnywhere(settings, 'rain', env)), and
+   * radar mode 'off' silencing it is the Clay packer's fold (clay-payload.js).
    * @param {Object} settings Clay settings blob
-   * @returns {{on: boolean, look: string, horizonMin: number}}
+   * @returns {{look: string, horizonMin: number}}
    */
   function rainAlert(settings) {
     var s = settings || {};
     var look = s.rainAlertDisplay;
     var horizon = parseInt(s.rainCountdownHorizon, 10);
     return {
-      on: s.alertRain !== false,
       look: Object.prototype.hasOwnProperty.call(RAIN_DISPLAY, look) ? look : 'text',
       horizonMin: isNaN(horizon) ? RAIN_HORIZON_DEFAULT_MIN : horizon
     };
@@ -933,14 +936,15 @@
   }
 
   /**
-   * Bake the alert row's metric entries (ALERT_ENTRIES_UINT8): one entry per
-   * ACTIVE metric alert — switched on (alert<Key>) and active today or, with Days
-   * 'tomorrow', tomorrow (alertPick) — in the fixed order UV, wind, gust, AQI,
-   * pollen. A tomorrow entry carries the alert's mark (alert<Key>NextDayMark). The
+   * Bake the weather alerts' metric entries (ALERT_ENTRIES_UINT8): one entry per
+   * ACTIVE metric alert — placed on any bar (alertOn, read with a watch that draws
+   * On demand: the tuple only rides to one) and active today or, with Days
+   * 'tomorrow', tomorrow (alertPick) — in ALERT_KINDS order: gust, UV, AQI, pollen,
+   * wind. A tomorrow entry carries the alert's mark (alert<Key>NextDayMark). The
    * value bytes are there only when the kind's Look is 'value' (alert<Key>Display)
    * and the text is printable ASCII of at most ALERT_LEN_MAX bytes. Entries that
    * would push the bytes past ALERT_ENTRIES_MAX_BYTES are dropped from the TAIL
-   * (pollen first) — the rule the watch applies to its pixels.
+   * (wind first) — the rule the watch applies to its pixels.
    * @param {Object} payload weather payload (pre-transform, trends present)
    * @param {Object} settings Clay settings blob
    * @returns {number[]} the entry bytes, [] when nothing is alerting
@@ -966,7 +970,8 @@
 
   /**
    * @param {Object} settings Clay settings blob
-   * @returns {string[]} the codes whose alert is switched on, fixed order
+   * @returns {string[]} the codes whose alert is on (placed on any bar),
+   *     ALERT_KINDS order
    */
   function alertKindCodes(settings) {
     return enabledAlerts(settings).map(function (a) { return a.code; });
@@ -974,7 +979,7 @@
 
   /**
    * @param {Object} settings Clay settings blob
-   * @returns {string[]} the switched-on alerts whose Look prints the value
+   * @returns {string[]} the alerts that are on and whose Look prints the value
    */
   function alertValueKindCodes(settings) {
     return enabledAlerts(settings)
@@ -984,8 +989,8 @@
 
   /**
    * @param {Object} settings Clay settings blob
-   * @returns {string[]} the switched-on alerts whose Days is 'tomorrow' (they may
-   *     look ahead), fixed order
+   * @returns {string[]} the alerts that are on and whose Days is 'tomorrow' (they
+   *     may look ahead), ALERT_KINDS order
    */
   function alertTomorrowKindCodes(settings) {
     return enabledAlerts(settings)
@@ -1029,44 +1034,25 @@
   }
 
   /**
-   * Where a bar shows the alert row (its statusXxxAlerts setting), resolved to a
-   * BAR_ALERT_PLACES key. An absent or unknown value takes the default: the top
-   * strip 'left' — the rain countdown's takeover of that slot, which the strip
-   * always had — and every other bar 'off', so an untouched upgrade draws
-   * exactly what it drew before.
-   * @param {Object} settings Clay settings blob
-   * @param {string} bar 'top' | 'forecast' | 'radar' | 'health'
-   * @returns {string} 'off' | 'left' | 'middle' | 'right'
-   */
-  function barAlertPlace(settings, bar) {
-    for (var i = 0; i < BAR_ALERT_KEYS.length; i++) {
-      if (BAR_ALERT_KEYS[i].bar !== bar) { continue; }
-      var v = settings ? settings[BAR_ALERT_KEYS[i].key] : undefined;
-      if (typeof v === 'string' && Object.prototype.hasOwnProperty.call(BAR_ALERT_PLACES, v)) {
-        return v;
-      }
-      return bar === 'top' ? 'left' : 'off';
-    }
-    return 'off';
-  }
-
-  /**
    * Build the CLAY_THRESHOLDS_UINT8 settings blob (layout: status_threshold.h).
    * The statusBoldAll master row ('all') overrides the PACKED bold cell of
    * every kind to BOLD_MODES.always at build time only — the stored
    * thresh<Kind>BoldMode values are never modified, so 'perSlot' restores
    * them on the next build. Enable bits, colors, and health u16s are
    * untouched by the master.
-   * Byte ALERTS_OFFSET carries the alert row's rain look (rainAlert's look);
-   * which METRIC alerts are on never rides here — the phone bakes only the
-   * active ones into their own weather tuple (bakeAlerts). Byte
-   * BAR_ALERTS_OFFSET carries where each bar shows the row (barAlertPlace).
-   * Bytes WARN_LOOK_OFFSET.. carry each paired kind's warn look (warnLookFor),
-   * whose default depends on the watch's display — hence env.
+   * Byte ALERTS_OFFSET carries the rain alert's look (rainAlert's look); which
+   * METRIC alerts are active never rides here — the phone bakes only the active
+   * ones into their own weather tuple (bakeAlerts). Byte BATTERY_OFFSET carries the
+   * On demand Battery item: its warn level (on-demand.js batteryLevel, on the
+   * watch's step — hence env.fineBattery) and its Look. Bytes WARN_LOOK_OFFSET..
+   * carry each paired kind's warn look (warnLookFor), whose default depends on the
+   * watch's display — hence env.color. Bytes ON_DEMAND_OFFSET.. carry the On
+   * demand cells (on-demand.js cells: which side of which bar shows each item).
    * @param {Object} settings Clay settings blob
-   * @param {{color: boolean}} [env] platform env (config-ui platform.js
-   *     computeEnv); absent = a colour watch
-   * @returns {number[]} SETTINGS_BYTES-long array (currently 38 bytes)
+   * @param {{color: boolean, fineBattery: boolean}} [env] platform env (config-ui
+   *     platform.js computeEnv); absent = a colour watch with 10 % battery steps
+   *     that draws On demand
+   * @returns {number[]} SETTINGS_BYTES-long array (48 bytes)
    */
   function buildSettingsBlob(settings, env) {
     var blob = [];
@@ -1097,10 +1083,10 @@
       }
     }
     blob[ALERTS_OFFSET] = RAIN_DISPLAY[rainAlert(settings).look];
-    for (var b = 0; b < BAR_ALERT_KEYS.length; b++) {
-      blob[BAR_ALERTS_OFFSET] |=
-        BAR_ALERT_PLACES[barAlertPlace(settings, BAR_ALERT_KEYS[b].bar)] << (2 * b);
-    }
+    blob[BATTERY_OFFSET] = onDemand.batteryLevel(settings, env)
+      | (onDemand.batteryShowsValue(settings) ? BATTERY_VALUE_BIT : 0);
+    var od = onDemand.cells(settings, env);
+    for (i = 0; i < od.length; i++) { blob[ON_DEMAND_OFFSET + i] = od[i]; }
     return blob;
   }
 
@@ -1111,14 +1097,13 @@
     HEALTH_OFFSET: HEALTH_OFFSET,
     BOLD_OFFSET: BOLD_OFFSET,
     ALERTS_OFFSET: ALERTS_OFFSET,
-    BAR_ALERTS_OFFSET: BAR_ALERTS_OFFSET,
+    BATTERY_OFFSET: BATTERY_OFFSET,
+    BATTERY_VALUE_BIT: BATTERY_VALUE_BIT,
     WARN_LOOK_OFFSET: WARN_LOOK_OFFSET,
+    ON_DEMAND_OFFSET: ON_DEMAND_OFFSET,
     WARN_LOOKS: WARN_LOOKS,
     warnLookDefault: warnLookDefault,
     warnLookFor: warnLookFor,
-    BAR_ALERT_KEYS: BAR_ALERT_KEYS,
-    BAR_ALERT_PLACES: BAR_ALERT_PLACES,
-    barAlertPlace: barAlertPlace,
     RAIN_DISPLAY: RAIN_DISPLAY,
     rainAlert: rainAlert,
     ALERT_KINDS: ALERT_KINDS,

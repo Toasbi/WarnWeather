@@ -1,5 +1,6 @@
 'use strict';
 const test = require('node:test');
+const { NOTHING_PLACED, placeOn, placedOnly } = require('./helpers/on-demand.js');
 const assert = require('node:assert/strict');
 const th = require('../src/pkjs/status-thresholds.js');
 const statusLines = require('../src/pkjs/status-lines.js');
@@ -38,7 +39,7 @@ test('the duplicated PhoneBattery key writes ONE bold mode into BOTH cells', () 
   // kind 19 -> byte 33, bits 2 * (19 & 3) = 6-7
   Object.keys(th.BOLD_MODES).forEach((mode) => {
     const blob = th.buildSettingsBlob({ threshPhoneBatteryBoldMode: mode });
-    assert.equal(blob.length, 38, mode + ': the duplicate must not widen the blob');
+    assert.equal(blob.length, 48, mode + ': the duplicate must not widen the blob');
     assert.equal((blob[33] >> 4) & 3, th.BOLD_MODES[mode], mode + ': phoneBattery cell (kind 18)');
     assert.equal((blob[33] >> 6) & 3, th.BOLD_MODES[mode], mode + ': phoneBatteryPlain cell (kind 19)');
     // The byte-mates (battery % and dew) keep the warn default.
@@ -60,7 +61,7 @@ test('the phone-battery cells share byte 33 with battery % and dew without bleed
     threshDewBoldMode: 'off',             // kind 17 -> bits 2-3
     threshPhoneBatteryBoldMode: 'off'     // kinds 18 AND 19 -> bits 4-5, 6-7
   });
-  assert.equal(blob.length, 38, 'byte 33 was already paid for — no widening');
+  assert.equal(blob.length, 48, 'byte 33 was already paid for — no widening');
   assert.equal(blob[33], (2 << 0) | (1 << 2) | (1 << 4) | (1 << 6));
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the earlier bold bytes stay at the warn default');
@@ -355,7 +356,7 @@ test('packWeatherLevels: tomorrow\'s marked peak never counts until it is today\
   assert.equal(statusLines.formatValue('uv', falling, both), '5/»7');
   assert.deepEqual(th.packWeatherLevels(falling, both), [0, 0]);
   assert.deepEqual(th.packWeatherLevels(falling, max), [0, 0]);
-  const alertTomorrow = { alertUv: true, alertUvDays: 'tomorrow' };
+  const alertTomorrow = placedOnly(['uv'], { alertUvDays: 'tomorrow' });
   assert.equal(decodeAlerts(th.bakeAlerts(falling, Object.assign({}, max, alertTomorrow)))[0].level, 1,
     'the alert icon still warns about tomorrow\'s 7');
   // Next morning the same peak is TODAY's (unmarked) and counts: "2/9" is danger.
@@ -421,7 +422,7 @@ test('buildSettingsBlob: enabled mask, GColor8 colors, LE uint16 health threshol
     // An ordered pair with the toggle off sets no bit (wind, kind 2).
     threshWindOn: false, threshWindWarn: '30', threshWindDanger: '50'
   });
-  assert.equal(blob.length, 38);
+  assert.equal(blob.length, 48);
   assert.equal(blob[0], (1 << 0) | (1 << 4) | (1 << 5) | (1 << 6));
   assert.equal(blob[1], 0xF8);   // rgbToGColor8(0xFFAA00)
   assert.equal(blob[2], 0xF0);   // rgbToGColor8(0xFF0000)
@@ -560,12 +561,15 @@ test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds',
   const blob = th.buildSettingsBlob({});
   assert.equal(blob[0], 0);
   // 12 health-threshold bytes, the five bold bytes (0 = the default warn mode),
-  // the alerts byte (0 = the rain alert's legacy text look), the placement byte:
-  // top strip left (1), every other bar off — the pre-1.24 picture — then the two
-  // warn-look bytes at the colour-watch defaults: aqi/pollen/wind/gust fill (0xAA),
-  // steps/sleep/distance outline + uv fill (0x95).
+  // the alerts byte (0 = the rain alert's legacy text look), the Battery byte (the
+  // default warn level 10, Icon), the two warn-look bytes at the colour-watch
+  // defaults: aqi/pollen/wind/gust fill (0xAA), steps/sleep/distance outline + uv fill
+  // (0x95), then the On demand cells at their defaults: the Watch Status Bar's
+  // Battery right (2), Bluetooth, Quiet time and Sleep left (1), Rain, Wind gusts,
+  // UV index and Air quality right, Pollen nowhere, Wind speed right.
   assert.deepEqual(blob.slice(17),
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0xAA, 0x95]);
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0xAA, 0x95,
+      2, 1, 1, 1, 2, 2, 2, 2, 0, 2]);
 });
 
 // Bytes 36..37: the warn look per PAIRED kind, 2 bits each in KINDS order (0 none,
@@ -574,23 +578,24 @@ test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds',
 test('buildSettingsBlob: warn looks pack 2 bits per paired kind, defaults per platform', () => {
   const O = th.WARN_LOOK_OFFSET;
   assert.equal(O, 36);
-  assert.deepEqual(th.buildSettingsBlob({}, { color: true }).slice(O), [0xAA, 0x95], 'colour');
-  assert.deepEqual(th.buildSettingsBlob({}).slice(O), [0xAA, 0x95], 'no env = colour');
-  assert.deepEqual(th.buildSettingsBlob({}, { color: false }).slice(O), [0x55, 0x55],
+  const looks = (blob) => blob.slice(O, O + 2);
+  assert.deepEqual(looks(th.buildSettingsBlob({}, { color: true })), [0xAA, 0x95], 'colour');
+  assert.deepEqual(looks(th.buildSettingsBlob({})), [0xAA, 0x95], 'no env = colour');
+  assert.deepEqual(looks(th.buildSettingsBlob({}, { color: false })), [0x55, 0x55],
     'B&W: outline everywhere — a warn fill would be the danger fill');
   const picked = th.buildSettingsBlob({
     threshAqiWarnLook: 'none', threshPollenWarnLook: 'outline', threshWindWarnLook: 'fill',
     threshGustWarnLook: 'none', threshStepsWarnLook: 'fill', threshSleepWarnLook: 'none',
     threshDistanceWarnLook: 'outline', threshUvWarnLook: 'none'
   }, { color: false });
-  assert.deepEqual(picked.slice(O), [0 | (1 << 2) | (2 << 4) | (0 << 6),
+  assert.deepEqual(looks(picked), [0 | (1 << 2) | (2 << 4) | (0 << 6),
     2 | (0 << 2) | (1 << 4) | (0 << 6)], 'a stored look wins on any platform');
   // Unknown values fall back to the default; bold-only kinds own no look cell.
-  assert.deepEqual(th.buildSettingsBlob({ threshAqiWarnLook: 'bogus',
-    threshTempWarnLook: 'none' }).slice(O), [0xAA, 0x95]);
-  // The look never touches the alert bytes before it.
+  assert.deepEqual(looks(th.buildSettingsBlob({ threshAqiWarnLook: 'bogus',
+    threshTempWarnLook: 'none' })), [0xAA, 0x95]);
+  // The look never touches the rain-look and Battery bytes before it.
   const busy = th.buildSettingsBlob({ threshAqiWarnLook: 'none', threshUvWarnLook: 'none' });
-  assert.deepEqual([busy[th.ALERTS_OFFSET], busy[th.BAR_ALERTS_OFFSET]], [0, 1]);
+  assert.deepEqual([busy[th.ALERTS_OFFSET], busy[th.BATTERY_OFFSET]], [0, 10]);
 });
 
 // The warn colour byte keeps a real colour whenever there IS a box, so a watch
@@ -675,7 +680,7 @@ test('buildSettingsBlob: goal u16s carry the SEED when the toggle is on over a b
 // so a never-configured kind reproduces the shipped bold-from-warn behaviour.
 test('buildSettingsBlob: unset bold modes pack as warn (all-zero bold bytes)', () => {
   const blob = th.buildSettingsBlob({});
-  assert.equal(blob.length, 38);
+  assert.equal(blob.length, 48);
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, th.ALERTS_OFFSET), [0, 0, 0, 0, 0]);
 });
 
@@ -781,7 +786,7 @@ test('packing with statusBoldAll "all" does not mutate the stored per-kind modes
 // (blob bytes 31/32), byte 29 + (k >> 2) at bits 2 * (k & 3).
 test('buildSettingsBlob: battery % (kind 16) packs its bold cell into byte 33', () => {
   const blob = th.buildSettingsBlob({ threshBatteryPctBoldMode: 'always' });
-  assert.equal(blob.length, 38);
+  assert.equal(blob.length, 48);
   assert.equal(blob[33], 2 << 0, 'batteryPct always in byte 33 bits 0-1');
   assert.deepEqual(blob.slice(th.BOLD_OFFSET, 33), [0, 0, 0, 0],
     'the other bold bytes stay at the warn default');
@@ -902,54 +907,50 @@ test('buildSettingsBlob: byte 34 carries the rain alert look in bits 0-1', () =>
   assert.equal(th.buildSettingsBlob({ rainAlertDisplay: 'minutes' })[34], 2);
   assert.equal(th.buildSettingsBlob({ rainAlertDisplay: 'bogus' })[34], 0, 'unknown = text');
   // Bits 2-7 are reserved: whatever else is configured, they stay 0.
-  const busy = th.buildSettingsBlob({ rainAlertDisplay: 'minutes', statusBoldAll: 'all',
-    alertUv: true, alertUvDisplay: 'value', threshUvOn: true });
+  const busy = th.buildSettingsBlob(placedOnly(['uv'], { rainAlertDisplay: 'minutes', statusBoldAll: 'all',
+    alertUvDisplay: 'value', threshUvOn: true }));
   assert.equal(busy[34], 2);
-  // Which metric alerts are on never rides the Clay blob.
-  assert.deepEqual(th.buildSettingsBlob({ alertUv: true, alertWind: true }),
+  // Which metric alerts are ACTIVE never rides the Clay blob: their entries do.
+  assert.deepEqual(th.buildSettingsBlob({ alertUvDisplay: 'value', alertWindDays: 'today' }),
     th.buildSettingsBlob({}));
 });
 
-test('buildSettingsBlob: byte 35 packs each bar\'s Alerts placement, 2 bits per bar', () => {
-  const B = th.BAR_ALERTS_OFFSET;
+test('buildSettingsBlob: byte 35 packs the Battery item — its warn level on the watch\'s step and its Look', () => {
+  const B = th.BATTERY_OFFSET;
   assert.equal(B, 35);
-  // Absent keys: the strip left (the rain takeover it always had), the rest off.
-  assert.equal(th.buildSettingsBlob({})[B], 1);
-  assert.equal(th.buildSettingsBlob(null)[B], 1, 'no settings at all: the same defaults');
-  // Each bar's cell, alone.
-  const cells = { statusTopAlerts: 0, statusForecastAlerts: 2, statusRadarAlerts: 4,
-    statusHealthAlerts: 6 };
-  Object.keys(cells).forEach((key) => {
-    ['off', 'left', 'middle', 'right'].forEach((place, v) => {
-      const settings = { statusTopAlerts: 'off' };
-      settings[key] = place;
-      assert.equal(th.buildSettingsBlob(settings)[B], v << cells[key], key + ' ' + place);
-    });
-  });
-  // All four at once: top right, forecast middle, radar left, health right.
-  assert.equal(th.buildSettingsBlob({ statusTopAlerts: 'right', statusForecastAlerts: 'middle',
-    statusRadarAlerts: 'left', statusHealthAlerts: 'right' })[B],
-    3 | (2 << 2) | (1 << 4) | (3 << 6));
-  // An explicit Off on the strip is honoured; an unknown value takes the default.
-  assert.equal(th.buildSettingsBlob({ statusTopAlerts: 'off' })[B], 0);
-  assert.equal(th.buildSettingsBlob({ statusTopAlerts: 'bogus', statusRadarAlerts: 'up' })[B], 1);
-  // The placement never touches the rain look next door, nor the look the placement.
-  const both = th.buildSettingsBlob({ rainAlertDisplay: 'minutes', statusHealthAlerts: 'right' });
+  assert.equal(th.buildSettingsBlob({})[B], 10, 'absent: 10 %, Icon');
+  assert.equal(th.buildSettingsBlob(null)[B], 10, 'no settings at all: the same default');
+  const emery = { color: true, fineBattery: true };
+  const basalt = { color: true, fineBattery: false };
+  // A stored '15' sends 20 to a 10 % watch and 15 to emery (on-demand.js batteryLevel).
+  assert.equal(th.buildSettingsBlob({ batteryLowLevel: '15' }, basalt)[B], 20);
+  assert.equal(th.buildSettingsBlob({ batteryLowLevel: '15' }, emery)[B], 15);
+  assert.equal(th.buildSettingsBlob({ batteryLowLevel: '15' })[B], 20, 'no env: 10 % steps');
+  assert.equal(th.buildSettingsBlob({ batteryLowLevel: '31' }, emery)[B], 10, 'out of range: the default');
+  assert.equal(th.buildSettingsBlob({ batteryLowDisplay: 'value' })[B], 10 | th.BATTERY_VALUE_BIT);
+  assert.equal(th.buildSettingsBlob({ batteryLowLevel: '30', batteryLowDisplay: 'value' }, emery)[B], 30 | 0x40);
+  // It never touches the rain look next door, nor the look the level.
+  const both = th.buildSettingsBlob({ rainAlertDisplay: 'minutes', batteryLowLevel: '20' });
   assert.equal(both[th.ALERTS_OFFSET], 2);
-  assert.equal(both[B], 1 | (3 << 6));
+  assert.equal(both[B], 20);
 });
 
-test('BAR_ALERT_KEYS names the four bars\' placement settings in cell order', () => {
-  assert.deepEqual(th.BAR_ALERT_KEYS, [
-    { bar: 'top', key: 'statusTopAlerts' },
-    { bar: 'forecast', key: 'statusForecastAlerts' },
-    { bar: 'radar', key: 'statusRadarAlerts' },
-    { bar: 'health', key: 'statusHealthAlerts' }
-  ]);
-  assert.equal(th.barAlertPlace({}, 'top'), 'left');
-  assert.equal(th.barAlertPlace({}, 'health'), 'off');
-  assert.equal(th.barAlertPlace({ statusRadarAlerts: 'middle' }, 'radar'), 'middle');
-  assert.equal(th.barAlertPlace({}, 'nope'), 'off');
+test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values only', () => {
+  const O = th.ON_DEMAND_OFFSET;
+  assert.equal(O, 38);
+  const OD = require('../src/pkjs/on-demand.js');
+  assert.deepEqual(th.buildSettingsBlob({}).slice(O), OD.cells({}), 'the defaults');
+  const S = placeOn(placeOn(Object.assign({ radarMode: 'status' }, NOTHING_PLACED), 'forecast', 'left', 'uv,bt'),
+    'radar', 'right', 'uv');
+  const cells = th.buildSettingsBlob(S).slice(O);
+  assert.equal(cells[OD.itemIndex('uv')], (1 << 2) | (2 << 4), 'forecast left, radar right');
+  assert.equal(cells[OD.itemIndex('bt')], 1 << 2);
+  assert.equal(cells[OD.itemIndex('battery')], 0);
+  // A watch without On demand gets zeros (it never gets the blob, but the packer agrees).
+  assert.deepEqual(th.buildSettingsBlob(S, { onDemand: false }).slice(O), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  // A Disabled side is zeros.
+  S.statusForecastOnDemandLeft = 'off';
+  assert.equal(th.buildSettingsBlob(S).slice(O)[OD.itemIndex('uv')], 2 << 4);
 });
 
 /**
@@ -963,15 +964,16 @@ test('BAR_ALERT_KEYS names the four bars\' placement settings in cell order', ()
  */
 function alertText(code, payload, settings) {
   const key = th.ALERT_KINDS.find((a) => a.code === code).key;
-  const e = decodeAlerts(th.bakeAlerts(payload, Object.assign({}, settings, {
-    ['alert' + key]: true, ['alert' + key + 'Display']: 'value',
+  const e = decodeAlerts(th.bakeAlerts(payload, Object.assign({}, settings, placedOnly([code]), {
+    ['alert' + key + 'Display']: 'value',
     ['thresh' + key + 'Warn']: '0', ['thresh' + key + 'Danger']: '1000000'
   })));
   return e.length ? e[0].value : null;
 }
 
 /**
- * The level of the entry bakeAlerts makes for `code` with its alert on.
+ * The level of the entry bakeAlerts makes for `code` with its alert placed (and no
+ * other).
  * @param {string} code An ALERT_KINDS code.
  * @param {Object} payload
  * @param {Object} settings
@@ -979,7 +981,8 @@ function alertText(code, payload, settings) {
  */
 function alertLevelOf(code, payload, settings) {
   const key = th.ALERT_KINDS.find((a) => a.code === code).key;
-  const e = decodeAlerts(th.bakeAlerts(payload, Object.assign({ ['alert' + key]: true }, settings)));
+  assert.ok(key, code + ' is an alert');
+  const e = decodeAlerts(th.bakeAlerts(payload, Object.assign(placedOnly([code]), settings)));
   return e.length ? e[0].level : 0;
 }
 
@@ -1070,41 +1073,59 @@ const ALL_ALERTING = {
   AQI_TREND: [152],
   POLLEN_TODAY: '2'
 };
-const ALL_ON = { alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true };
+// All five metric alerts placed (the Watch Status Bar's right side), nothing else.
+const ALL_ON = placedOnly(['uv', 'wind', 'gust', 'aqi', 'pollen']);
+/**
+ * Exactly these alerts placed, with more settings.
+ * @param {string[]} codes Alert codes.
+ * @param {Object} [extra] Settings merged over.
+ * @returns {Object} The blob.
+ */
+function on(codes, extra) { return placedOnly(codes, extra); }
 
 test('bakeAlerts: the exact bytes for a UV-danger + wind-warn row', () => {
   const p = { UV_TREND_UINT8: [30], UV_DAY_PEAKS: [85, 50, 0],
     WIND_TREND_UINT8: [45], WIND_DAY_PEAKS: [45, 20, 0] };
   // Icons only: one header byte each (bit 7). UV = kind 7, danger (bit 3); wind =
   // kind 2, warn (bit 3 clear); both today's (day bits 4-6 zero).
-  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertWind: true }),
+  assert.deepEqual(th.bakeAlerts(p, on(['uv', 'wind'])),
     [0x80 | 7 | 0x08, 0x80 | 2]);
-  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertWind: true }), [0x8F, 0x82]);
+  assert.deepEqual(th.bakeAlerts(p, on(['uv', 'wind'])), [0x8F, 0x82]);
   // UV with its value ("9" — 8.5 rounds like the slot prints it), wind icon-only:
   // the value needs no length, it runs to the next header.
-  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertUvDisplay: 'value', alertWind: true }),
+  assert.deepEqual(th.bakeAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value' })),
     [0x8F, 0x39, 0x82]);
   // Both with values: wind in the user's unit, no unit label.
-  assert.deepEqual(decodeAlerts(th.bakeAlerts(p, { alertUv: true, alertUvDisplay: 'value',
-    alertWind: true, alertWindDisplay: 'value', windUnits: 'mph' })),
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(p, on(['uv', 'wind'], { alertUvDisplay: 'value',
+    alertWindDisplay: 'value', windUnits: 'mph' }))),
   [{ kind: 7, level: 2, value: '9' }, { kind: 2, level: 1, value: '28' }],
   'mph: 45 km/h = 28 mph, at the mph seed warn 25');
 });
 
-test('bakeAlerts: fixed order UV, wind, gust, AQI, pollen; disabled and quiet kinds absent', () => {
+test('bakeAlerts: the On demand order gust, UV, AQI, pollen, wind; unplaced and quiet kinds absent', () => {
   const all = decodeAlerts(th.bakeAlerts(ALL_ALERTING, Object.assign({ provider: 'dwd' }, ALL_ON)));
-  assert.deepEqual(all.map(e => e.kind), [7, 2, 3, 0, 1], 'UV, wind, gust, AQI, pollen');
-  assert.deepEqual(all.map(e => e.level), [2, 1, 2, 2, 1]);
+  assert.deepEqual(all.map(e => e.kind), [3, 7, 0, 1, 2], 'gust, UV, AQI, pollen, wind');
+  assert.deepEqual(all.map(e => e.level), [2, 2, 2, 1, 1]);
   assert.deepEqual(all.map(e => e.value), ['', '', '', '', ''], 'icon Look: no values');
-  // A disabled alert is absent even at danger; only === true switches one on.
+  // An unplaced alert is absent even at danger: ticked on a Disabled side, or on a
+  // bar that does not exist, it shows nowhere.
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(ALL_ALERTING, on(['gust']))).map(e => e.kind), [3]);
+  const disabled = placeOn(on(['gust']), 'forecast', 'left', 'uv,aqi');
+  disabled.statusForecastOnDemandLeft = 'off';
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(ALL_ALERTING, disabled)).map(e => e.kind), [3]);
+  const noRadarBar = placeOn(on(['gust'], { radarMode: 'off' }), 'radar', 'right', 'uv');
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(ALL_ALERTING, noRadarBar)).map(e => e.kind), [3]);
+  // Placed on any bar counts, the Watch Status Bar or not.
   assert.deepEqual(decodeAlerts(th.bakeAlerts(ALL_ALERTING,
-    { alertUv: false, alertGust: true, alertAqi: 'true' })).map(e => e.kind), [3]);
+    placeOn(on([]), 'forecast', 'right', 'aqi'))).map(e => e.kind), [0]);
   // Level 0 (below warn) is absent.
   const calm = { UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 20, 0], WIND_TREND_UINT8: [45] };
-  assert.deepEqual(decodeAlerts(th.bakeAlerts(calm, { alertUv: true, alertWind: true }))
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(calm, on(['uv', 'wind'])))
     .map(e => e.kind), [2], 'UV 3 stays quiet, wind 45 warns');
+  // A partial blob reads the default ticks: gust, UV, AQI and wind.
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(ALL_ALERTING, { provider: 'dwd' })).map(e => e.kind), [3, 7, 0, 2]);
   // Nothing alerting, no settings, no payload: no bytes.
-  assert.deepEqual(th.bakeAlerts(calm, { alertUv: true }), []);
+  assert.deepEqual(th.bakeAlerts(calm, on(['uv'])), []);
   assert.deepEqual(th.bakeAlerts(ALL_ALERTING, null), []);
   assert.deepEqual(th.bakeAlerts(null, ALL_ON), []);
 });
@@ -1115,95 +1136,99 @@ test('bakeAlerts: values only for the kinds whose Look is value, printed like th
     alertAqiDisplay: 'value', alertPollenDisplay: 'value'
   });
   const e = decodeAlerts(th.bakeAlerts(ALL_ALERTING, s));
-  assert.deepEqual(e.map(x => x.value), ['8', '', '90', '152', '2']);
+  assert.deepEqual(e.map(x => x.value), ['90', '8', '152', '2', '']);
   // Pollen prints its DWD band, as the pollen slot does.
   const half = decodeAlerts(th.bakeAlerts({ POLLEN_TODAY: '2-3' },
-    { alertPollen: true, alertPollenDisplay: 'value' }));
+    on(['pollen'], { alertPollenDisplay: 'value' })));
   assert.deepEqual(half, [{ kind: 1, level: 1, value: '2-3' }]);
   // Every value byte is printable ASCII (the watch's walker rejects anything else,
   // and a byte with bit 7 would read as a header): decodeEntries asserts both.
   assert.equal(decodeEntries(th.bakeAlerts(ALL_ALERTING, s)).length, 5);
 });
 
-test('bakeAlerts: tail-drops entries past the 20 B cap, pollen first', () => {
+test('bakeAlerts: tail-drops entries past the 20 B cap, wind first', () => {
   const values = Object.assign({}, ALL_ON, {
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value'
   });
   assert.equal(th.ALERT_ENTRIES_MAX_BYTES, 20);
-  // All five with values: 5 headers + "8" "45" "90" "152" "2" = 14 B.
+  // All five with values: 5 headers + "90" "8" "152" "2" "45" = 14 B.
   const all = th.bakeAlerts(ALL_ALERTING, values);
   assert.equal(all.length, 14);
-  assert.deepEqual(decodeAlerts(all).map(e => e.kind), [7, 2, 3, 0, 1]);
+  assert.deepEqual(decodeAlerts(all).map(e => e.kind), [3, 7, 0, 1, 2]);
   // Only a value wider than any real one fills the tuple: a 7-digit AQI (the most an
-  // entry prints) with pollen's '2-3' is 3 + 3 + 3 + 8 + 3 = 20 B — all five fit...
+  // entry prints) with pollen's '2-3' is 3 + 2 + 8 + 4 + 3 = 20 B — all five fit...
   const wide = Object.assign({}, ALL_ALERTING, { AQI_TREND: [1234567], POLLEN_TODAY: '2-3' });
   assert.deepEqual(decodeAlerts(th.bakeAlerts(wide, values)).map(e => e.value),
-    ['8', '45', '90', '1234567', '2-3']);
-  // ...and a two-digit UV on top is 21 B: pollen, the tail, drops.
+    ['90', '8', '1234567', '2-3', '45']);
+  // ...and a two-digit UV on top is 21 B: wind, the tail (the lowest priority), drops.
   const over = Object.assign({}, wide, { UV_TREND_UINT8: [120], UV_DAY_PEAKS: [120, 60, 0] });
   const dropped = th.bakeAlerts(over, values);
-  assert.equal(dropped.length, 17);
-  assert.deepEqual(decodeAlerts(dropped).map(e => e.kind), [7, 2, 3, 0]);
-  // The row stays a prefix of the fixed order: the first entry that does not fit
-  // ends it, even when a later, shorter one would. A 7-digit UV and AQI: UV + wind
-  // + gust = 8 + 3 + 3 = 14 B, AQI's 8 B would make 22 — AQI drops, and pollen's
-  // 2 B (16 in all) is NOT taken in its place. On the watch a crowded On demand
-  // side drops from its tail too, lowest priority first (appendix/on_demand.c),
+  assert.equal(dropped.length, 18);
+  assert.deepEqual(decodeAlerts(dropped).map(e => e.kind), [3, 7, 0, 1]);
+  // The row stays a prefix of the order: the first entry that does not fit ends it,
+  // even when a later, shorter one would. A 7-digit UV and AQI: gust + UV + AQI =
+  // 3 + 8 + 8 = 19 B, pollen's '2-3' (4 B) would make 23 — pollen drops, and wind's
+  // icon-only 1 B (20 in all) is NOT taken in its place. On the watch a crowded On
+  // demand side drops from its tail too, lowest priority first (appendix/on_demand.c),
   // never a middle item.
   const prefix = Object.assign({}, ALL_ALERTING, {
-    UV_TREND_UINT8: [12345670], UV_DAY_PEAKS: [12345670, 0, 0], AQI_TREND: [1234567]
+    UV_TREND_UINT8: [12345670], UV_DAY_PEAKS: [12345670, 0, 0], AQI_TREND: [1234567], POLLEN_TODAY: '2-3'
   });
-  const stopped = th.bakeAlerts(prefix, values);
-  assert.equal(stopped.length, 14);
-  assert.deepEqual(decodeAlerts(stopped).map(e => e.kind), [7, 2, 3], 'AQI ends the row; pollen is not taken');
+  const stopped = th.bakeAlerts(prefix, Object.assign({}, values, { alertWindDisplay: 'icon' }));
+  assert.equal(stopped.length, 19);
+  assert.deepEqual(decodeAlerts(stopped).map(e => e.kind), [3, 7, 0], 'pollen ends the row; wind is not taken');
   // A value past ALERT_LEN_MAX bytes rides as the icon alone.
   const huge = Object.assign({}, ALL_ALERTING, { AQI_TREND: [12345678] });
   assert.deepEqual(decodeAlerts(th.bakeAlerts(huge, values)).map(e => e.value),
-    ['8', '45', '90', '', '2']);
+    ['90', '8', '', '2', '45']);
   // Icon-only: all five = 5 B.
   assert.equal(th.bakeAlerts(over, ALL_ON).length, 5);
 });
 
-test('alertKindCodes / alertValueKindCodes: enabled codes in the row order', () => {
-  assert.deepEqual(th.alertKindCodes({}), []);
-  assert.deepEqual(th.alertKindCodes(ALL_ON), ['uv', 'wind', 'gust', 'aqi', 'pollen']);
-  assert.deepEqual(th.alertKindCodes({ alertAqi: true, alertUv: true, alertWind: false }),
-    ['uv', 'aqi']);
-  assert.deepEqual(th.alertValueKindCodes({ alertAqi: true, alertAqiDisplay: 'value',
-    alertUv: true, alertUvDisplay: 'icon', alertWind: false, alertWindDisplay: 'value' }),
-  ['aqi'], 'a disabled alert\'s Look does not count');
-  assert.deepEqual(th.alertKindCodes(null), []);
+test('alertKindCodes / alertValueKindCodes: the placed codes in the On demand order', () => {
+  assert.deepEqual(th.alertKindCodes(NOTHING_PLACED), []);
+  assert.deepEqual(th.alertKindCodes({}), ['gust', 'uv', 'aqi', 'wind'], 'the default ticks');
+  assert.deepEqual(th.alertKindCodes(null), ['gust', 'uv', 'aqi', 'wind'], 'no settings: the defaults too');
+  assert.deepEqual(th.alertKindCodes(ALL_ON), ['gust', 'uv', 'aqi', 'pollen', 'wind']);
+  assert.deepEqual(th.alertKindCodes(on(['aqi', 'uv'])), ['uv', 'aqi']);
+  assert.deepEqual(th.alertValueKindCodes(on(['aqi', 'uv'], { alertAqiDisplay: 'value',
+    alertUvDisplay: 'icon', alertWindDisplay: 'value' })),
+  ['aqi'], 'an unplaced alert\'s Look does not count');
 });
 
-test('alertOn / alertValueKindCodes: keyed by code, on only for a stored true, the value only while on', () => {
+test('alertOn / alertValueKindCodes: keyed by code, on while placed on any bar, the value only while on', () => {
   th.ALERT_KINDS.forEach((a) => {
-    const on = 'alert' + a.key;
-    const look = on + 'Display';
-    assert.deepEqual(th.alertValueKindCodes({ [on]: true }), [], a.code);
-    assert.deepEqual(th.alertValueKindCodes({ [on]: true, [look]: 'value' }), [a.code],
-      a.code + ' value');
-    assert.deepEqual(th.alertValueKindCodes({ [on]: true, [look]: 'icon' }), [], a.code + ' icon');
-    assert.deepEqual(th.alertValueKindCodes({ [look]: 'value' }), [],
-      a.code + ': off shows no value, whatever its Look');
-    assert.equal(th.alertOn({ [on]: 'true' }, a.code), false, a.code + ': a stored string is not the toggle');
-    assert.equal(th.alertOn({ [on]: false }, a.code), false);
-    assert.equal(th.alertOn({ [on]: true }, a.code), true);
+    const look = 'alert' + a.key + 'Display';
+    assert.deepEqual(th.alertValueKindCodes(on([a.code])), [], a.code);
+    assert.deepEqual(th.alertValueKindCodes(on([a.code], { [look]: 'value' })), [a.code], a.code + ' value');
+    assert.deepEqual(th.alertValueKindCodes(on([a.code], { [look]: 'icon' })), [], a.code + ' icon');
+    assert.deepEqual(th.alertValueKindCodes(on([], { [look]: 'value' })), [],
+      a.code + ': unplaced shows no value, whatever its Look');
+    assert.equal(th.alertOn(on([a.code]), a.code), true);
+    assert.equal(th.alertOn(on([]), a.code), false);
+    assert.equal(th.alertOn(on([a.code], { statusTopOnDemandRight: 'off' }), a.code), false, a.code + ': a Disabled side');
+    assert.equal(th.alertOn(on([a.code]), a.code, { onDemand: false }), false, a.code + ': a watch without On demand');
+    assert.equal(th.alertOn(placeOn(on([]), 'health', 'left', [a.code]), a.code, { health: true }), false,
+      a.code + ': a bar the modes remove');
+    assert.equal(th.alertOn(placeOn(on([], { healthMode: 'status' }), 'health', 'left', [a.code]), a.code), true,
+      a.code + ': a health bar that exists');
   });
-  assert.equal(th.alertOn(null, 'uv'), false);
-  assert.equal(th.alertOn(undefined, 'uv'), false);
-  // A code with no alert reads off, even when a key of that shape is stored.
-  assert.equal(th.alertOn({ alertSteps: true }, 'steps'), false, 'goal kind');
-  assert.equal(th.alertOn({ alertTemp: true }, 'temp'), false, 'bold-only kind');
-  assert.equal(th.alertOn({ alertUv: true }, 'Uv'), false, 'keyed by code, not stem');
-  assert.equal(th.alertOn({ alertUv: true }, undefined), false);
-  // Per kind: one alert's switch never turns another's on.
-  assert.equal(th.alertOn({ alertAqi: true }, 'gust'), false);
+  assert.equal(th.alertOn(null, 'uv'), true, 'no settings read the default ticks');
+  assert.equal(th.alertOn(null, 'pollen'), false, 'Pollen is not a default tick');
+  // A code with no alert reads off, even when an item of that name is ticked.
+  assert.equal(th.alertOn(on(['battery', 'rain']), 'battery'), false, 'a system item is no metric alert');
+  assert.equal(th.alertOn(on(['rain']), 'rain'), false, 'rain is watch-resolved, not a metric alert');
+  assert.equal(th.alertOn({}, 'steps'), false, 'goal kind');
+  assert.equal(th.alertOn({}, 'temp'), false, 'bold-only kind');
+  assert.equal(th.alertOn(on(['uv']), 'Uv'), false, 'keyed by code, not stem');
+  assert.equal(th.alertOn(on(['uv']), undefined), false);
+  // Per kind: one alert's tick never turns another's on.
+  assert.equal(th.alertOn(on(['aqi']), 'gust'), false);
 });
 
-test('the switched-on alerts ride in row order, each entry under its wire kind id', () => {
-  const s = { alertPollen: true, alertUv: true, alertUvDisplay: 'value',
-    alertWind: false, alertGust: 'true', alertAqiDisplay: 'value' };
+test('the placed alerts ride in the On demand order, each entry under its wire kind id', () => {
+  const s = on(['pollen', 'uv'], { alertUvDisplay: 'value', alertAqiDisplay: 'value' });
   assert.deepEqual(th.alertKindCodes(s), ['uv', 'pollen']);
   assert.deepEqual(th.alertValueKindCodes(s), ['uv']);
   // An entry's kind id is its code's KINDS index, in ALERT_KINDS order.
@@ -1230,7 +1255,7 @@ function uvDay(now, rest, tomorrow, earlier) {
 }
 
 test('look-ahead: the design timeline, UV on warn 6 / danger 8 with the value', () => {
-  const both = { alertUv: true, alertUvDisplay: 'value' };
+  const both = on(['uv'], { alertUvDisplay: 'value' });
   const todayOnly = Object.assign({ alertUvDays: 'today' }, both);
   const uv = (level, value, mark) => {
     const e = { kind: 7, level: level, value: value };
@@ -1260,7 +1285,7 @@ test('look-ahead: the design timeline, UV on warn 6 / danger 8 with the value', 
 });
 
 test('look-ahead: wind in km/h (warn 40 / danger 60), and the building storm', () => {
-  const s = { alertWind: true, alertWindDisplay: 'value' };
+  const s = on(['wind'], { alertWindDisplay: 'value' });
   const wind = (now, rest, tomorrow) => ({ WIND_TREND_UINT8: [now], WIND_DAY_PEAKS: [rest, tomorrow, 0] });
   assert.deepEqual(decodeAlerts(th.bakeAlerts(wind(45, 45, 70), s)),
     [{ kind: 2, level: 1, value: '45' }], 'still 45 at 23:00: today\'s warn');
@@ -1275,25 +1300,25 @@ test('look-ahead: wind in km/h (warn 40 / danger 60), and the building storm', (
     [{ kind: 2, level: 2, value: '43', mark: 'raquo' }]);
   // Gusts read their own peaks.
   assert.deepEqual(decodeAlerts(th.bakeAlerts({ GUST_TREND_UINT8: [20], GUST_DAY_PEAKS: [30, 65, 0] },
-    { alertGust: true })), [{ kind: 3, level: 1, value: '', mark: 'raquo' }], 'gust 65 vs 60/90, icon only');
+    on(['gust']))), [{ kind: 3, level: 1, value: '', mark: 'raquo' }], 'gust 65 vs 60/90, icon only');
 });
 
 test('look-ahead: tomorrow must be known and above 0 — never a »0', () => {
-  const s = { alertUv: true, alertUvDisplay: 'value', threshUvWarn: '0', threshUvDanger: '0' };
+  const s = on(['uv'], { alertUvDisplay: 'value', threshUvWarn: '0', threshUvDanger: '0' });
   // No current reading and no today's peak, so nothing today: tomorrow 0.4 prints 0.
   assert.deepEqual(th.bakeAlerts({ UV_DAY_PEAKS: [null, 4, 0] }, s), [], 'a 0 tomorrow on warn 0');
   assert.deepEqual(th.bakeAlerts({ UV_DAY_PEAKS: [null, 0, 0] }, s), []);
   assert.deepEqual(decodeAlerts(th.bakeAlerts({ UV_DAY_PEAKS: [null, 5, 0] }, s)),
     [{ kind: 7, level: 2, value: '1', mark: 'raquo' }], 'guard: 0.5 prints 1, which counts');
   // Unknown tomorrow: absent, null, or no day peaks at all.
-  const on = { alertUv: true };
-  assert.deepEqual(th.bakeAlerts({ UV_TREND_UINT8: [20] }, on), [], 'peaks not fetched');
-  assert.deepEqual(th.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, null, 0] }, on), []);
-  assert.deepEqual(th.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20] }, on), []);
+  const uvOn = on(['uv']);
+  assert.deepEqual(th.bakeAlerts({ UV_TREND_UINT8: [20] }, uvOn), [], 'peaks not fetched');
+  assert.deepEqual(th.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, null, 0] }, uvOn), []);
+  assert.deepEqual(th.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20] }, uvOn), []);
 });
 
 test('look-ahead: AQI needs day peaks — Open-Meteo looks ahead, WAQI judges the reading', () => {
-  const s = { alertAqi: true, alertAqiDisplay: 'value' };
+  const s = on(['aqi'], { alertAqiDisplay: 'value' });
   // WAQI (and Auto with a station) carries the current reading alone.
   assert.deepEqual(th.bakeAlerts({ AQI_TREND: [40] }, Object.assign({ aqiSource: 'waqi' }, s)), [],
     'WAQI: nothing to look ahead to');
@@ -1308,7 +1333,7 @@ test('look-ahead: AQI needs day peaks — Open-Meteo looks ahead, WAQI judges th
 });
 
 test('look-ahead: pollen judges tomorrow\'s DWD band (POLLEN_TOMORROW)', () => {
-  const s = { alertPollen: true, alertPollenDisplay: 'value' };
+  const s = on(['pollen'], { alertPollenDisplay: 'value' });
   const pollen = (today, tomorrow) => ({ POLLEN_TODAY: today, POLLEN_TOMORROW: tomorrow });
   assert.deepEqual(decodeAlerts(th.bakeAlerts(pollen('1', '2-3'), s)),
     [{ kind: 1, level: 1, value: '2-3', mark: 'raquo' }], '2.5 on the seed 2/3: warn');
@@ -1328,38 +1353,38 @@ test('look-ahead: pollen judges tomorrow\'s DWD band (POLLEN_TOMORROW)', () => {
     'Today only');
 });
 
-test('look-ahead: Days today, an alert that is off, and unknown Days', () => {
+test('look-ahead: Days today, an alert that is not placed, and unknown Days', () => {
   const p = uvDay(5, 5, 9, 8);
-  assert.deepEqual(th.bakeAlerts(p, { alertUv: true, alertUvDays: 'today' }), []);
-  assert.deepEqual(th.bakeAlerts(p, { alertUv: false }), [], 'off: no entry, whatever tomorrow');
-  assert.deepEqual(th.bakeAlerts(p, { alertUvDays: 'tomorrow' }), [], 'Days alone switches nothing on');
+  assert.deepEqual(th.bakeAlerts(p, on(['uv'], { alertUvDays: 'today' })), []);
+  assert.deepEqual(th.bakeAlerts(p, on([])), [], 'unplaced: no entry, whatever tomorrow');
+  assert.deepEqual(th.bakeAlerts(p, on([], { alertUvDays: 'tomorrow' })), [], 'Days alone places nothing');
   ['bogus', '', null, 1, 'constructor'].forEach((v) =>
-    assert.equal(decodeAlerts(th.bakeAlerts(p, { alertUv: true, alertUvDays: v })).length, 1,
+    assert.equal(decodeAlerts(th.bakeAlerts(p, on(['uv'], { alertUvDays: v }))).length, 1,
       String(v) + ' reads as the default, Today + tomorrow'));
   // Per alert: one alert's Days never reaches another.
   const pair = Object.assign({}, p, { WIND_TREND_UINT8: [30], WIND_DAY_PEAKS: [30, 70, 0] });
-  assert.deepEqual(decodeAlerts(th.bakeAlerts(pair, { alertUv: true, alertUvDays: 'today', alertWind: true }))
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(pair, on(['uv', 'wind'], { alertUvDays: 'today' })))
     .map((e) => e.kind), [2]);
 });
 
 test('look-ahead: the tomorrow mark rides the header, per alert; today\'s entries carry none', () => {
   const p = uvDay(5, 5, 9, 8);
   th.ALERT_NEXT_DAY_MARKS.forEach((mark, i) => {
-    const bytes = th.bakeAlerts(p, { alertUv: true, alertUvNextDayMark: mark });
+    const bytes = th.bakeAlerts(p, on(['uv'], { alertUvNextDayMark: mark }));
     assert.equal(bytes.length, 1, mark + ': no extra byte for the mark');
     assert.equal((bytes[0] >> th.ALERT_DAY_SHIFT) & 7, i + 1, mark);
     assert.equal(decodeAlerts(bytes)[0].mark, mark);
   });
   [undefined, 'bogus', '»', 'toString', 3].forEach((v) =>
-    assert.equal(decodeAlerts(th.bakeAlerts(p, { alertUv: true, alertUvNextDayMark: v }))[0].mark,
+    assert.equal(decodeAlerts(th.bakeAlerts(p, on(['uv'], { alertUvNextDayMark: v })))[0].mark,
       'raquo', String(v) + ' reads as the default »'));
   // Today's entry is unmarked whatever the mark setting says.
   assert.deepEqual(decodeAlerts(th.bakeAlerts(uvDay(2, 8, 9, 0),
-    { alertUv: true, alertUvNextDayMark: 'star' })), [{ kind: 7, level: 2, value: '' }]);
+    on(['uv'], { alertUvNextDayMark: 'star' }))), [{ kind: 7, level: 2, value: '' }]);
   // Each alert its own mark; the icon look carries the mark too.
   const both = Object.assign({}, p, { WIND_TREND_UINT8: [30], WIND_DAY_PEAKS: [30, 70, 0] });
-  assert.deepEqual(decodeAlerts(th.bakeAlerts(both, { alertUv: true, alertUvNextDayMark: 'none',
-    alertWind: true, alertWindNextDayMark: 'star', alertWindDisplay: 'value' })),
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(both, on(['uv', 'wind'], { alertUvNextDayMark: 'none',
+    alertWindNextDayMark: 'star', alertWindDisplay: 'value' }))),
   [{ kind: 7, level: 2, value: '', mark: 'none' }, { kind: 2, level: 2, value: '70', mark: 'star' }]);
 });
 
@@ -1371,24 +1396,24 @@ test('look-ahead: all five tomorrow with their widest values still fit the 20 B 
     AQI_TREND: [0], AQI_DAY_PEAKS: [0, 500, 0],
     POLLEN_TODAY: '0', POLLEN_TOMORROW: '2-3'
   };
-  const s = { alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true,
+  const s = Object.assign({}, ALL_ON, {
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value', aqiSource: 'openmeteo', aqiScale: 'us',
-    alertUvNextDayMark: 'star', alertAqiNextDayMark: 'none' };
+    alertUvNextDayMark: 'star', alertAqiNextDayMark: 'none' });
   const bytes = th.bakeAlerts(p, s);
-  assert.equal(bytes.length, 19, '5 headers + "11" "255" "255" "500" "2-3"');
+  assert.equal(bytes.length, 19, '5 headers + "255" "11" "500" "2-3" "255"');
   assert.ok(bytes.length <= th.ALERT_ENTRIES_MAX_BYTES);
   assert.deepEqual(decodeAlerts(bytes), [
-    { kind: 7, level: 2, value: '11', mark: 'star' },
-    { kind: 2, level: 2, value: '255', mark: 'raquo' },
     { kind: 3, level: 2, value: '255', mark: 'raquo' },
+    { kind: 7, level: 2, value: '11', mark: 'star' },
     { kind: 0, level: 2, value: '500', mark: 'none' },
-    { kind: 1, level: 1, value: '2-3', mark: 'raquo' }
+    { kind: 1, level: 1, value: '2-3', mark: 'raquo' },
+    { kind: 2, level: 2, value: '255', mark: 'raquo' }
   ]);
-  // Mixed days tail-drop by the same byte rule: a 7-digit AQI today pushes pollen's
-  // tomorrow entry out, never a middle one.
+  // Mixed days tail-drop by the same byte rule: a 7-digit AQI today pushes the
+  // tail — wind's tomorrow entry — out, never a middle one.
   const wide = Object.assign({}, p, { AQI_TREND: [1234567], AQI_DAY_PEAKS: [1234567, 500, 0] });
-  assert.deepEqual(decodeAlerts(th.bakeAlerts(wide, s)).map((e) => e.kind), [7, 2, 3, 0]);
+  assert.deepEqual(decodeAlerts(th.bakeAlerts(wide, s)).map((e) => e.kind), [3, 7, 0, 1]);
 });
 
 test('alertDays / alertNextDayMark: one reading each, with the defaults', () => {
@@ -1412,32 +1437,28 @@ test('alertDays / alertNextDayMark: one reading each, with the defaults', () => 
   assert.equal(th.alertNextDayMark({ alertWindNextDayMark: 'gt' }, 'uv'), 'raquo');
 });
 
-test('alertTomorrowKindCodes / alertNextDayMarks: the look-ahead alerts while on, and their marks', () => {
-  assert.deepEqual(th.alertTomorrowKindCodes({}), []);
-  assert.deepEqual(th.alertNextDayMarks({}), []);
-  assert.deepEqual(th.alertTomorrowKindCodes(ALL_ON), ['uv', 'wind', 'gust', 'aqi', 'pollen'],
+test('alertTomorrowKindCodes / alertNextDayMarks: the look-ahead alerts while placed, and their marks', () => {
+  assert.deepEqual(th.alertTomorrowKindCodes(NOTHING_PLACED), []);
+  assert.deepEqual(th.alertNextDayMarks(NOTHING_PLACED), []);
+  assert.deepEqual(th.alertTomorrowKindCodes(ALL_ON), ['gust', 'uv', 'aqi', 'pollen', 'wind'],
     'Today + tomorrow is the default');
   assert.deepEqual(th.alertNextDayMarks(ALL_ON), ['raquo', 'raquo', 'raquo', 'raquo', 'raquo']);
-  const s = Object.assign({}, ALL_ON, { alertWindDays: 'today', alertWindNextDayMark: 'gt',
-    alertGust: false, alertGustNextDayMark: 'plus', alertAqiNextDayMark: 'star', alertUvDays: 'tomorrow' });
+  const s = on(['uv', 'wind', 'aqi', 'pollen'], { alertWindDays: 'today', alertWindNextDayMark: 'gt',
+    alertGustNextDayMark: 'plus', alertAqiNextDayMark: 'star', alertUvDays: 'tomorrow' });
   assert.deepEqual(th.alertTomorrowKindCodes(s), ['uv', 'aqi', 'pollen'],
-    'a Today alert and an alert that is off do not look ahead');
+    'a Today alert and an unplaced alert do not look ahead');
   assert.deepEqual(th.alertNextDayMarks(s), ['raquo', 'star', 'raquo'],
     'the mark only where the bake reads it');
-  assert.deepEqual(th.alertTomorrowKindCodes(null), []);
 });
 
-test('rainAlert: owns the three rain defaults — on, the text look, a 60 min window', () => {
-  const dflt = { on: true, look: 'text', horizonMin: 60 };
+test('rainAlert: owns the two rain defaults — the text look, a 60 min window', () => {
+  const dflt = { look: 'text', horizonMin: 60 };
   assert.deepEqual(th.rainAlert({}), dflt);
   assert.deepEqual(th.rainAlert(null), dflt);
   assert.deepEqual(th.rainAlert(undefined), dflt);
-  // The switch: only a stored false is off (absent = the countdown every install had).
-  assert.equal(th.rainAlert({ alertRain: false }).on, false);
-  assert.equal(th.rainAlert({ alertRain: true }).on, true);
-  assert.equal(th.rainAlert({ alertRain: 'false' }).on, true, 'a string is not the toggle');
-  // The STORED switch: radar mode 'off' is the Clay packer's fold, not the contract's.
-  assert.equal(th.rainAlert({ radarMode: 'off' }).on, true);
+  // Whether it shows is the Rain item's tick (on-demand.js), not part of the contract:
+  // a stored alertRain (a retired dev key) reads nothing.
+  assert.deepEqual(th.rainAlert({ alertRain: false }), dflt);
   // The look: a RAIN_DISPLAY key, else text.
   ['text', 'icon', 'minutes'].forEach(v => assert.equal(th.rainAlert({ rainAlertDisplay: v }).look, v));
   ['bogus', 3, null, 'toString'].forEach(v =>

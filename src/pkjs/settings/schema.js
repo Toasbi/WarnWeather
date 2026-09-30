@@ -1385,12 +1385,10 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda) {
 // ALERT_KINDS, which owns which alerts exist and their order):
 // test/config-schema.test.js pins this list's stems to that order.
 var ALERT_KINDS = [
-    {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', iconName: 'UV',
-        icon: 'uv'},
-    {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', iconName: 'wind',
-        icon: 'wind'},
     {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', iconName: 'gust',
         icon: 'gust'},
+    {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', iconName: 'UV',
+        icon: 'uv'},
     // AQI looks ahead — later today AND tomorrow — only on an hourly forecast
     // (AQI_DAY_PEAKS): WAQI — the default source, and Auto whenever a station answers
     // — has none, so alertReading judges the current reading and no tomorrow entry is
@@ -1402,7 +1400,9 @@ var ALERT_KINDS = [
             + 'WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.'},
     {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', iconName: 'pollen',
         icon: 'pollen', gate: {key: 'provider', eq: 'dwd'},
-        hint: 'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'}
+        hint: 'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'},
+    {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', iconName: 'wind',
+        icon: 'wind'}
 ];
 /**
  * A bar's two On demand rows, after its three slots: each an Enabled/Disabled select

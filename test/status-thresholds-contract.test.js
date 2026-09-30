@@ -20,25 +20,23 @@ function cEnum(name) {
   return Number(m[1]);
 }
 
-// The watch reads the 48-B blob of 1.24.0 (the Battery item byte and the ten On
-// demand cells); until the phone learns them (the On demand settings), it still
-// sends the development branch's 38-B shape, which the watch accepts as
-// THRESH_SETTINGS_BYTES_PRE_ON_DEMAND and reads with the compiled On demand defaults.
-// Byte 35 of that shape is the phone's per-bar placement; the watch reads its
-// Battery byte there only from a 48-B blob, so the placement is never taken for a
-// warn level.
+// The 48-B blob of 1.24.0: the watch reads the Battery item byte and the ten On demand
+// cells from it. The development branch's 38-B shape (THRESH_SETTINGS_BYTES_PRE_ON_DEMAND)
+// stays accepted with the compiled On demand defaults; its byte 35 was a per-bar
+// placement, which the watch reads as the Battery byte only from a 48-B blob.
 test('kind count and blob layout are in lockstep with status_threshold.h', () => {
   assert.equal(th.KINDS.length, cDefine('THRESH_KIND_COUNT'));
-  assert.equal(th.SETTINGS_BYTES, cDefine('THRESH_ON_DEMAND_OFFSET'),
-    'the phone sends the shape the watch accepts as THRESH_SETTINGS_BYTES_PRE_ON_DEMAND');
+  assert.equal(th.SETTINGS_BYTES, cDefine('THRESH_SETTINGS_BYTES'), 'the phone sends the full 48-B shape');
   assert.match(header, /#define THRESH_SETTINGS_BYTES_PRE_ON_DEMAND THRESH_ON_DEMAND_OFFSET/);
   assert.equal(th.COLORS_OFFSET, cDefine('THRESH_COLORS_OFFSET'));
   assert.equal(th.HEALTH_OFFSET, cDefine('THRESH_HEALTH_OFFSET'));
   assert.equal(th.BOLD_OFFSET, cDefine('THRESH_BOLD_OFFSET'));
   assert.equal(th.ALERTS_OFFSET, cDefine('THRESH_ALERTS_OFFSET'));
-  assert.equal(th.BAR_ALERTS_OFFSET, cDefine('THRESH_BATTERY_OFFSET'),
-    'the phone\'s placement byte sits where the watch reads the Battery byte of a 48-B blob');
+  assert.equal(th.BATTERY_OFFSET, cDefine('THRESH_BATTERY_OFFSET'));
+  assert.match(header, new RegExp('#define THRESH_BATTERY_VALUE_BIT 0x' + th.BATTERY_VALUE_BIT.toString(16) + '\\b'),
+    'the Look bit');
   assert.equal(th.WARN_LOOK_OFFSET, cDefine('THRESH_WARN_LOOK_OFFSET'));
+  assert.equal(th.ON_DEMAND_OFFSET, cDefine('THRESH_ON_DEMAND_OFFSET'));
   // The paired kinds — the ones owning an enable bit, a color pair, and (for
   // the health trio) a u16 pair — are exactly the non-boldOnly ones, and they
   // must ALL precede the bold-only tail: byte 0 has 8 enable bits, no more.
@@ -56,14 +54,14 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
 // only claimed the first. Every kind appended into the remaining three was free:
 // the blob's width is paid for on the Clay message (7 B tuple header +
 // SETTINGS_BYTES, recorded in test/inbox-size.test.js). The only widening since is
-// 1.24.0's 34 -> 48: the two alert bytes, appended right AFTER the bold area — so
-// the bold area now ends where the alert bytes begin — the two warn-look bytes and
-// the ten On demand cells (the phone still sends the 38-B shape without the cells).
+// 1.24.0's 34 -> 48: the rain-look byte and the Battery item byte, appended right
+// AFTER the bold area — so the bold area now ends where they begin — the two warn-look
+// bytes and the ten On demand cells.
 test('the bold-only kinds sharing byte 33 never widen the blob', () => {
   assert.equal(cEnum('THRESH_DEW'), 17, 'dew is the second cell of byte 33');
   assert.equal(th.BOLD_OFFSET + (cEnum('THRESH_DEW') >> 2), 33,
     'the dew bold cell shares byte 33 with battery %');
-  assert.equal(th.SETTINGS_BYTES, 38, 'the alert and warn-look bytes are the widening past 34');
+  assert.equal(th.SETTINGS_BYTES, 48, 'the alert, Battery, warn-look and On demand bytes are the widening past 34');
   assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 48);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
@@ -104,27 +102,28 @@ test('the rain look wire values are in lockstep with ThreshRainDisplay', () => {
   assert.equal(th.RAIN_DISPLAY.icon, cEnum('THRESH_RAIN_DISPLAY_ICON'));
   assert.equal(th.RAIN_DISPLAY.minutes, cEnum('THRESH_RAIN_DISPLAY_MINUTES'));
   assert.equal(th.RAIN_DISPLAY.text, 0);
-  assert.equal(th.BAR_ALERTS_OFFSET, th.ALERTS_OFFSET + 1, 'the placement byte follows it');
+  assert.equal(th.BATTERY_OFFSET, th.ALERTS_OFFSET + 1, 'the Battery byte follows it');
 });
 
-// The status bars: the phone's per-bar list and the watch's ThreshBar share one
-// order, which is also the order of the 2-bit cells in every On demand cell byte.
+// The status bars: the phone's On demand bars (on-demand.js BARS) and the watch's
+// ThreshBar share one order, which is the order of the 2-bit cells in every On demand
+// cell byte.
 test('the bars are in lockstep with ThreshBar', () => {
-  assert.equal(th.BAR_ALERTS_OFFSET, 35);
-  assert.equal(th.WARN_LOOK_OFFSET, th.BAR_ALERTS_OFFSET + 1, 'the warn-look bytes follow it');
-  assert.deepEqual(th.BAR_ALERT_KEYS.map(b => b.bar), ['top', 'forecast', 'radar', 'health']);
+  const OD = require('../src/pkjs/on-demand.js');
+  assert.equal(th.BATTERY_OFFSET, 35);
+  assert.equal(th.WARN_LOOK_OFFSET, th.BATTERY_OFFSET + 1, 'the warn-look bytes follow it');
+  assert.deepEqual(OD.BARS.map(b => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.equal(cEnum('THRESH_BAR_TOP'), 0);
   assert.equal(cEnum('THRESH_BAR_FORECAST'), 1);
   assert.equal(cEnum('THRESH_BAR_RADAR'), 2);
   assert.equal(cEnum('THRESH_BAR_HEALTH'), 3);
-  assert.equal(th.BAR_ALERT_KEYS.length, cDefine('THRESH_BAR_COUNT'));
+  assert.equal(OD.BARS.length, cDefine('THRESH_BAR_COUNT'));
   // The C side refuses to compile a layout where the bytes drift apart.
   assert.match(header, /_Static_assert\(THRESH_BATTERY_OFFSET == THRESH_ALERTS_OFFSET \+ 1/);
 });
 
 // The 48-B blob's tail: the Battery item byte at 35 and one cell byte per On demand
-// item from 38, in the item order on_demand.h pins (the priority order). The phone's
-// On demand settings will write them; the C side is pinned here meanwhile.
+// item from 38, in the item order on_demand.h pins (the priority order).
 test('the Battery byte and the On demand cells close the 48-B blob', () => {
   assert.equal(cDefine('THRESH_BATTERY_OFFSET'), 35);
   assert.equal(cDefine('THRESH_ON_DEMAND_OFFSET'), 38);
@@ -152,8 +151,12 @@ test('every alert kind is a weather kind whose wire id fits the entry header', (
     assert.ok(!th.KINDS[i].goal && !th.KINDS[i].boldOnly, a.code + ' is a weather kind');
     assert.ok(i <= 7, a.code + ' fits bits 0-2');
   });
-  assert.deepEqual(th.ALERT_KINDS.map(a => a.code), ['uv', 'wind', 'gust', 'aqi', 'pollen'],
-    'the row\'s fixed order');
+  assert.deepEqual(th.ALERT_KINDS.map(a => a.code), ['gust', 'uv', 'aqi', 'pollen', 'wind'],
+    'the On demand priority order, which is also the bake\'s (the cap drops wind first)');
+  const OD = require('../src/pkjs/on-demand.js');
+  assert.deepEqual(th.ALERT_KINDS.map(a => a.code),
+    OD.ITEMS.map(i => i.code).filter(c => th.ALERT_KINDS.some(a => a.code === c)),
+    'the same order as the On demand items');
 });
 
 test('kind indices are in lockstep with the ThreshKind enum', () => {
@@ -208,7 +211,7 @@ test('the phone-battery kinds are 18/19 and share one settings key', () => {
 // Its interim 35- and 36-byte steps never shipped.
 test('kinds 18/19 fill byte 33; 1.24.0 adds exactly two accepted lengths', () => {
   assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 48);
-  assert.equal(th.SETTINGS_BYTES, 38);
+  assert.equal(th.SETTINGS_BYTES, 48);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
   assert.equal(cDefine('THRESH_BOLD_OFFSET'), 29);
@@ -242,8 +245,8 @@ test('kinds 18/19 fill byte 33; 1.24.0 adds exactly two accepted lengths', () =>
 });
 
 // Bytes 36..37: the warn look per PAIRED kind, 2 bits each in ThreshKind order,
-// ThreshWarnLook values. They cover the 8 paired kinds exactly; the phone's blob
-// ends with them, the watch's continues with the On demand cells.
+// ThreshWarnLook values. They cover the 8 paired kinds exactly; the On demand cells
+// follow them.
 test('the warn-look bytes are in lockstep with ThreshWarnLook', () => {
   assert.equal(th.WARN_LOOK_OFFSET, 36);
   assert.equal(th.WARN_LOOKS.none, cEnum('THRESH_WARN_LOOK_NONE'));
@@ -251,8 +254,8 @@ test('the warn-look bytes are in lockstep with ThreshWarnLook', () => {
   assert.equal(th.WARN_LOOKS.fill, cEnum('THRESH_WARN_LOOK_FILL'));
   assert.deepEqual(Object.keys(th.WARN_LOOKS), ['none', 'outline', 'fill']);
   const paired = th.KINDS.filter(k => !k.boldOnly).length;
-  assert.equal(th.SETTINGS_BYTES, th.WARN_LOOK_OFFSET + Math.ceil(paired * 2 / 8),
-    'the look bytes cover the paired kinds and end the blob');
+  assert.equal(th.ON_DEMAND_OFFSET, th.WARN_LOOK_OFFSET + Math.ceil(paired * 2 / 8),
+    'the look bytes cover the paired kinds, the cells follow');
   // The C side refuses to compile a ninth paired kind without a third look byte.
   assert.match(header, /_Static_assert\(THRESH_ON_DEMAND_OFFSET\s*== THRESH_WARN_LOOK_OFFSET \+ \(THRESH_PAIRED_KIND_COUNT \+ 3\) \/ 4/);
 });

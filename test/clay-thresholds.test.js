@@ -12,6 +12,7 @@ global.localStorage = {
 
 const { buildClayPayload } = require('../src/pkjs/clay-payload');
 const thresholds = require('../src/pkjs/status-thresholds');
+const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const BASE = {
   temperatureUnits: 'c', timeLeadingZero: true, axisTimeFormat: '24h',
@@ -21,16 +22,18 @@ const BASE = {
   healthMode: 'all', theme: 'dark'
 };
 
-test('Clay payload carries the 38-byte threshold settings blob', () => {
+test('Clay payload carries the 48-byte threshold settings blob', () => {
   const payload = buildClayPayload(BASE, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
   assert.ok(Array.isArray(payload.CLAY_THRESHOLDS_UINT8));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 38);
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 48);
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0], 0); // nothing configured
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[34], 0); // rain look: text, today's
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8[35], 1); // Alerts row: the strip left, today's
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8[35], 10); // the Battery item: 10 %, Icon
   // Warn looks: the colour-watch defaults (weather fill, goal outline).
-  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0xAA, 0x95]);
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36, 38), [0xAA, 0x95]);
+  // The On demand cells: the defaults on the Watch Status Bar.
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(38), [2, 1, 1, 1, 2, 2, 2, 2, 0, 2]);
 });
 
 // The warn look's default is per PLATFORM, so the payload hands the packer the
@@ -40,28 +43,33 @@ test('the warn looks ride bytes 36-37 with the watch platform\'s default', () =>
   const at = new Date('2026-07-22T00:00:00Z');
   ['diorite', 'flint'].forEach((platform) => {
     const payload = buildClayPayload(BASE, { platform }, at);
-    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0x55, 0x55], platform);
+    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36, 38), [0x55, 0x55], platform);
     assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8,
       thresholds.buildSettingsBlob(BASE, { color: false }), platform + ': the packer, with env');
   });
   ['basalt', 'chalk', 'emery'].forEach((platform) => {
-    assert.deepEqual(buildClayPayload(BASE, { platform }, at).CLAY_THRESHOLDS_UINT8.slice(36),
+    assert.deepEqual(buildClayPayload(BASE, { platform }, at).CLAY_THRESHOLDS_UINT8.slice(36, 38),
       [0xAA, 0x95], platform);
   });
   const picked = Object.assign({}, BASE, { threshUvWarnLook: 'fill', threshAqiWarnLook: 'none' });
   assert.deepEqual(buildClayPayload(picked, { platform: 'diorite' }, at)
-    .CLAY_THRESHOLDS_UINT8.slice(36), [0x54, 0x95], 'picks win on B&W too');
+    .CLAY_THRESHOLDS_UINT8.slice(36, 38), [0x54, 0x95], 'picks win on B&W too');
 });
 
-// Where each bar shows the Alerts row rides byte 35, so a change reaches the watch
-// with the settings save (no refetch, no renderSignature entry).
-test('the per-bar Alerts placement rides byte 35 of the Clay blob', () => {
-  const s = Object.assign({}, BASE, { statusTopAlerts: 'off', statusRadarAlerts: 'right',
-    statusHealthAlerts: 'middle' });
-  const payload = buildClayPayload(s, { platform: 'basalt' },
-    new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8[35], (3 << 4) | (2 << 6));
-  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
+// The On demand cells and the Battery item ride the blob, so a change reaches the watch
+// with the settings save (no refetch, no renderSignature entry). The payload hands the
+// packer the watch's env: the Battery warn level lands on the watch's charge step.
+test('the On demand cells and the Battery item ride bytes 35 and 38-47 of the Clay blob', () => {
+  const at = new Date('2026-07-22T00:00:00Z');
+  const s = Object.assign({}, BASE, { radarMode: 'status', batteryLowLevel: '15',
+    statusRadarOnDemandRight: 'on', statusRadarOnDemandRightItems: 'uv,bt' });
+  const basalt = buildClayPayload(s, { platform: 'basalt' }, at).CLAY_THRESHOLDS_UINT8;
+  assert.equal(basalt[35], 20, 'a stored 15 rides as 20 to a 10 % watch');
+  assert.equal(basalt[38 + 6], 2 | (2 << 4), 'UV on the top bar\'s right and the radar bar\'s right');
+  assert.equal(basalt[38 + 1], 1 | (2 << 4), 'Bluetooth on the top bar\'s left and the radar bar\'s right');
+  assert.deepEqual(basalt, thresholds.buildSettingsBlob(s, platform.computeEnv({ platform: 'basalt' })));
+  const emery = buildClayPayload(s, { platform: 'emery' }, at).CLAY_THRESHOLDS_UINT8;
+  assert.equal(emery[35], 15, 'emery reports 5 % steps: 15 rides as 15');
 });
 
 // The Alerts row's rain look rides the blob's last byte, so a change reaches the
@@ -90,8 +98,8 @@ test('the blob matches buildSettingsBlob for configured settings', () => {
 
 test('aplite gets no threshold blob at all (it compiles the highlight out)', () => {
   // aplite has no WW_THRESHOLD_HIGHLIGHT: its status-row twin cannot draw the
-  // highlight and its inbox handler for this tuple is gone, so the 45 B
-  // (38-byte blob + 7 B tuple header) must not ride its Clay bundle.
+  // highlight and its inbox handler for this tuple is gone, so the 55 B
+  // (48-byte blob + 7 B tuple header) must not ride its Clay bundle.
   const payload = buildClayPayload(BASE, { platform: 'aplite' },
     new Date('2026-07-22T00:00:00Z'));
   assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_THRESHOLDS_UINT8'), false);
@@ -107,7 +115,7 @@ test('the dew bold cell fits byte 33 without widening the blob', () => {
   const s = Object.assign({}, BASE, { threshDewBoldMode: 'always' });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 38,
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 48,
     'kinds 17-19 share byte 33 with kind 16 — no widening');
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
   // The cell lands where the contract says, and leaves its byte-mates alone.
@@ -140,7 +148,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   const s = Object.assign({}, BASE, { threshPhoneBatteryBoldMode: 'always' });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 38,
+  assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 48,
     'the phone battery must not grow the Clay bundle by a byte');
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
   const byte33 = payload.CLAY_THRESHOLDS_UINT8[33];
@@ -156,7 +164,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
   });
   const fullPayload = buildClayPayload(full, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 38);
+  assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8.length, 48);
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[33], 0xAA, 'all four cells = always');
   assert.equal(fullPayload.CLAY_THRESHOLDS_UINT8[34], 0, 'no bold cell spills into the alerts byte');
 });
@@ -177,9 +185,10 @@ test('the phone-battery slots pack their own cells, not the city cell they resem
 test('an unknown/absent watchInfo still gets the blob (never hide a real feature)', () => {
   [null, undefined, {}].forEach((wi) => {
     const payload = buildClayPayload(BASE, wi, new Date('2026-07-22T00:00:00Z'));
-    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 38, String(wi));
-    // Unknown platform = colour, like every capability: the colour defaults.
-    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0xAA, 0x95], String(wi));
+    assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 48, String(wi));
+    // Unknown platform = colour, like every capability: the colour defaults, and a
+    // watch that draws On demand (the cells at their defaults).
+    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0xAA, 0x95, 2, 1, 1, 1, 2, 2, 2, 2, 0, 2], String(wi));
   });
 });
 

@@ -28,7 +28,7 @@ const STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'U
 const HEALTH_STEMS = ['Steps', 'Sleep', 'Distance'];
 // The alert kinds: their levels group lives ONLY in the Alerts card's alert<Stem>
 // sheet (their slot sheet points there); the goal kinds' in their slot sheet.
-const ALERT_STEMS = ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
+const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
 
 /**
  * The sheet a kind's levels group lives in: alert<Stem> for an alert kind,

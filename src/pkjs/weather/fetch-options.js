@@ -96,7 +96,7 @@ function defaults(overrides) {
  *
  * Every settings input here is in renderSignature, so flipping a selection
  * forces a refetch and the options are rebuilt immediately; watchInfo (an aplite
- * watch never draws the feels line) is fixed per session.
+ * watch never draws the feels line, nor an On demand alert) is fixed per session.
  *
  * @param {?Object} settings Clay settings, or null when none are stored.
  * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
@@ -108,18 +108,20 @@ function build(settings, watchInfo, env) {
     return defaults({
         // Whether UV is wanted: DWD/Open-Meteo spend a request on it; every
         // adapter adopts it only when this is on (adoptMapped).
-        fetchUv: forecastSeries.needsUv(settings),
-        fetchAqi: forecastSeries.needsAqi(settings),
-        fetchPollen: forecastSeries.needsPollen(settings),
+        // A placed alert asks for its metric too, but only on a watch that draws On
+        // demand: a known aplite never fetches for alerts (watchInfo).
+        fetchUv: forecastSeries.needsUv(settings, watchInfo),
+        fetchAqi: forecastSeries.needsAqi(settings, watchInfo),
+        fetchPollen: forecastSeries.needsPollen(settings, watchInfo),
         // Apparent temperature: no provider spends an extra REQUEST on it (it always
         // rides a response already being fetched). This is adoptMapped's semantic
         // gate on every adapter; DWD's per-hour Steadman and Open-Meteo's
         // adoptFeels also skip the arithmetic when it is off.
         fetchFeels: forecastSeries.needsFeels(settings, watchInfo),
         // The day-max kinds whose peaks are wanted (a slot shows one, or the kind's
-        // alert is on): only they keep a day record (a flash write per fetch) and
+        // alert is placed): only they keep a day record (a flash write per fetch) and
         // widen their provider requests to the end of tomorrow.
-        dayPeakCodes: forecastSeries.dayPeakCodes(settings),
+        dayPeakCodes: forecastSeries.dayPeakCodes(settings, watchInfo),
         // The Units tab's feels-like formula: it changes the baked FEELS_* values,
         // so it is in renderSignature too.
         feelsFormula: (settings && settings.feelsFormula) || DEFAULTS.feelsFormula,

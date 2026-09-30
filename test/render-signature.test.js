@@ -395,71 +395,101 @@ test('a top stripe joins the signature only while it squeezes a feels/dew curve'
   assert.equal(withStyle(rain, {}), withStyle(rain, { thirdLineStyle: 'stripeTop' }), 'no feels/dew drawn');
 });
 
-// The metric alerts change the bake (the ALERT_ENTRIES_UINT8 tuple) AND the fetch set (an
-// enabled alert fetches its metric and day peaks), so switching one — or its Look —
-// must force a refetch. The rain look rides the Clay blob (byte 34) and must not.
-test('each alert<Kind> and, while on, its Look change the render signature', () => {
-  const base = renderSignature({});
+// The metric alerts change the bake (the ALERT_ENTRIES_UINT8 tuple) AND the fetch set (a
+// placed alert fetches its metric and day peaks), so placing one — or, while placed, its
+// Look — must force a refetch. Which side or bar holds it does not: that rides the Clay
+// blob (the On demand cells), as does the rain look (byte 34).
+const { NOTHING_PLACED, placeOn, placedOnly } = require('./helpers/on-demand.js');
+
+test('placing an alert and, while placed, its Look change the render signature', () => {
+  const base = renderSignature(NOTHING_PLACED);
   thresholds.ALERT_KINDS.forEach((a) => {
-    const on = renderSignature({ ['alert' + a.key]: true });
-    assert.notEqual(on, base, 'alert' + a.key + ' must force a refetch');
-    assert.notEqual(renderSignature({ ['alert' + a.key]: true, ['alert' + a.key + 'Display']: 'value' }),
-      on, 'alert' + a.key + 'Display must force a refetch while the alert is on');
-    // Off, the Look bakes nothing: no refetch for it (nor for the page hydrating it).
-    assert.equal(renderSignature({ ['alert' + a.key + 'Display']: 'value' }), base,
-      'alert' + a.key + 'Display is inert while the alert is off');
-    assert.equal(renderSignature({ ['alert' + a.key]: false,
-      ['alert' + a.key + 'Display']: 'icon' }), base,
-    'the hydrated defaults sign like absent keys');
+    const on = renderSignature(placedOnly([a.code]));
+    assert.notEqual(on, base, a.code + ': placing it must force a refetch');
+    assert.notEqual(renderSignature(placedOnly([a.code], { ['alert' + a.key + 'Display']: 'value' })),
+      on, 'alert' + a.key + 'Display must force a refetch while the alert is placed');
+    // Unplaced, the Look bakes nothing: no refetch for it (nor for the page hydrating it).
+    assert.equal(renderSignature(placedOnly([], { ['alert' + a.key + 'Display']: 'value' })), base,
+      'alert' + a.key + 'Display is inert while the alert is not placed');
+    assert.equal(renderSignature(placedOnly([], { ['alert' + a.key + 'Display']: 'icon' })), base,
+      'the hydrated defaults sign like absent keys');
   });
 });
 
+// The signature rests on the placed UNION (every bar and side, read as a watch that draws
+// On demand): moving an item between sides or bars, or disabling one of two sides that
+// both carry it, signs nothing new; adding or removing it from the union does.
+test('moving an alert between sides or bars leaves the signature alone; changing the union does not', () => {
+  const OD = require('../src/pkjs/on-demand.js');
+  const top = renderSignature(placedOnly(['uv', 'wind']));
+  assert.equal(renderSignature(placeOn(Object.assign({}, NOTHING_PLACED), 'top', 'left', 'uv,wind')), top,
+    'the other side of the same bar');
+  assert.equal(renderSignature(placeOn(placedOnly(['wind']), 'forecast', 'right', 'uv')), top, 'another bar');
+  const both = placeOn(placedOnly(['uv', 'wind']), 'forecast', 'left', 'uv');
+  assert.equal(renderSignature(both), top, 'on two bars');
+  assert.equal(renderSignature(Object.assign({}, both, { statusForecastOnDemandLeft: 'off' })), top,
+    'disabling one of two sides that both carry it');
+  assert.notEqual(renderSignature(placedOnly(['uv'])), top, 'dropping wind from the union');
+  assert.notEqual(renderSignature(Object.assign(placedOnly(['uv', 'wind']), { statusTopOnDemandRight: 'off' })),
+    top, 'disabling the only side that carries them');
+  // The system items, the rain alert and the Battery item never sign.
+  const base = renderSignature(NOTHING_PLACED);
+  [placedOnly(['battery', 'bt', 'qt', 'snooze', 'rain']), Object.assign({}, NOTHING_PLACED,
+    { batteryLowLevel: '20', batteryLowDisplay: 'value', btIcons: 'both', vibe: true, rainAlertDisplay: 'icon' })]
+    .forEach((st) => assert.equal(renderSignature(st), base, JSON.stringify(st)));
+  // An absent side key reads its default, so the page hydrating the defaults signs like
+  // a blob without them.
+  const defaults = Object.assign({}, OD.DEFAULTS);
+  assert.equal(renderSignature(defaults), renderSignature({}));
+});
+
 // The alert segment signs the bake's own code lists (alertKindCodes, then
-// alertValueKindCodes) where it once walked the kinds by hand. Only its format
-// changed: over every combination of the five switches and Looks, two settings sign
-// alike exactly when the per-kind encoding it replaced says they do.
-test('the alert segment tells apart exactly the settings the per-kind encoding did', () => {
-  const perKind = (s) => thresholds.ALERT_KINDS.map((a) => {
-    const on = s['alert' + a.key] === true;
-    return (on ? 'on' : '') + '/' + (on && s['alert' + a.key + 'Display'] === 'value' ? 'value' : '');
-  }).join('|');
-  const ON = [undefined, true, 'true'];
+// alertValueKindCodes). Over every combination of the five placements (none, the Watch
+// Status Bar's right, the forecast bar's left) and Looks, two settings sign alike
+// exactly when the bake reads them alike: placed or not, and the Look while placed.
+test('the alert segment tells apart exactly the placed alerts and their Looks', () => {
+  const PLACE = [null, ['top', 'right'], ['forecast', 'left']];
   const LOOK = [undefined, 'icon', 'value'];
   const toSig = new Map();
-  const toOld = new Map();
-  const walk = (k, s) => {
+  const toBaked = new Map();
+  const walk = (k, s, baked) => {
     if (k === thresholds.ALERT_KINDS.length) {
-      const old = perKind(s);
+      const b = baked.join('|');
       const sig = renderSignature(s);
-      if (toSig.has(old)) { assert.equal(toSig.get(old), sig, 'one per-kind state, one signature'); }
-      if (toOld.has(sig)) { assert.equal(toOld.get(sig), old, 'one signature, one per-kind state'); }
-      toSig.set(old, sig);
-      toOld.set(sig, old);
+      if (toSig.has(b)) { assert.equal(toSig.get(b), sig, 'one bake state, one signature'); }
+      if (toBaked.has(sig)) { assert.equal(toBaked.get(sig), b, 'one signature, one bake state'); }
+      toSig.set(b, sig);
+      toBaked.set(sig, b);
       return;
     }
-    const key = 'alert' + thresholds.ALERT_KINDS[k].key;
-    ON.forEach((on) => LOOK.forEach((look) => {
+    const a = thresholds.ALERT_KINDS[k];
+    PLACE.forEach((place) => LOOK.forEach((look) => {
       const next = Object.assign({}, s);
-      if (on !== undefined) { next[key] = on; }
-      if (look !== undefined) { next[key + 'Display'] = look; }
-      walk(k + 1, next);
+      if (place) {
+        const key = 'status' + (place[0] === 'top' ? 'Top' : 'Forecast') + 'OnDemand'
+          + (place[1] === 'left' ? 'Left' : 'Right');
+        next[key] = 'on';
+        next[key + 'Items'] = next[key + 'Items'] ? next[key + 'Items'] + ',' + a.code : a.code;
+      }
+      if (look !== undefined) { next['alert' + a.key + 'Display'] = look; }
+      walk(k + 1, next, baked.concat([(place ? 'on' : '') + '/' + (place && look === 'value' ? 'value' : '')]));
     }));
   };
-  walk(0, {});
-  // Three states per kind (off, on, on with the value): 3^5.
+  walk(0, Object.assign({}, NOTHING_PLACED), []);
+  // Three states per kind (not placed, placed, placed with the value): 3^5.
   assert.equal(toSig.size, Math.pow(3, thresholds.ALERT_KINDS.length));
 });
 
 // An alert's Days (whether tomorrow may raise it) and its tomorrow mark (the code a
 // tomorrow entry carries) change the baked bytes, so they sign — but only as the
-// bake reads them: Days while the alert is on, the mark while it also looks ahead.
+// bake reads them: Days while the alert is placed, the mark while it also looks ahead.
 test('each alert\'s Days and tomorrow mark change the signature exactly where the bake reads them', () => {
-  const base = renderSignature({});
+  const base = renderSignature(NOTHING_PLACED);
   thresholds.ALERT_KINDS.forEach((a) => {
-    const on = 'alert' + a.key;
-    const days = on + 'Days';
-    const mark = on + 'NextDayMark';
-    const sig = (over) => renderSignature(Object.assign({ [on]: true }, over));
+    const key = 'alert' + a.key;
+    const days = key + 'Days';
+    const mark = key + 'NextDayMark';
+    const sig = (over) => renderSignature(placedOnly([a.code], over));
     assert.notEqual(sig({ [days]: 'today' }), sig({}), days + ' today must force a refetch');
     assert.equal(sig({ [days]: 'tomorrow' }), sig({}), days + ': the hydrated default signs like absent');
     assert.notEqual(sig({ [mark]: 'gt' }), sig({}), mark + ' must force a refetch while looking ahead');
@@ -468,50 +498,48 @@ test('each alert\'s Days and tomorrow mark change the signature exactly where th
     assert.equal(sig({ [days]: 'today', [mark]: 'gt' }), sig({ [days]: 'today' }),
       mark + ' is inert while the alert looks at today only');
     assert.equal(sig({ [days]: 'bogus', [mark]: 'bogus' }), sig({}), 'unknown values read as the defaults');
-    assert.equal(renderSignature({ [days]: 'today', [mark]: 'gt' }), base,
-      days + ' and ' + mark + ' are inert while the alert is off');
+    assert.equal(renderSignature(placedOnly([], { [days]: 'today', [mark]: 'gt' })), base,
+      days + ' and ' + mark + ' are inert while the alert is not placed');
   });
 });
 
-// Per kind, over every combination of its switch, Look, Days and mark: two settings
+// Per kind, over every combination of its placement, Look, Days and mark: two settings
 // sign alike exactly when the bake reads them alike.
 test('the alert segment signs each kind\'s Days and mark exactly as the bake reads them', () => {
   thresholds.ALERT_KINDS.forEach((a) => {
     const key = 'alert' + a.key;
-    const baked = (s) => {
-      const on = s[key] === true;
-      const ahead = on && s[key + 'Days'] !== 'today';
+    const baked = (placed, s) => {
+      const ahead = placed && s[key + 'Days'] !== 'today';
       const mark = thresholds.ALERT_NEXT_DAY_MARKS.indexOf(s[key + 'NextDayMark']) !== -1
         ? s[key + 'NextDayMark'] : 'raquo';
-      return [on, on && s[key + 'Display'] === 'value', ahead, ahead ? mark : ''].join('/');
+      return [placed, placed && s[key + 'Display'] === 'value', ahead, ahead ? mark : ''].join('/');
     };
     const toSig = new Map();
     const toBaked = new Map();
-    [undefined, true, 'true'].forEach((on) => [undefined, 'icon', 'value'].forEach((look) =>
+    [false, true].forEach((placed) => [undefined, 'icon', 'value'].forEach((look) =>
       [undefined, 'today', 'tomorrow', 'x'].forEach((days) =>
         [undefined, 'raquo', 'gt', 'none', 'x'].forEach((mark) => {
-          const s = {};
-          if (on !== undefined) { s[key] = on; }
+          const s = placedOnly(placed ? [a.code] : []);
           if (look !== undefined) { s[key + 'Display'] = look; }
           if (days !== undefined) { s[key + 'Days'] = days; }
           if (mark !== undefined) { s[key + 'NextDayMark'] = mark; }
-          const b = baked(s);
+          const b = baked(placed, s);
           const sig = renderSignature(s);
           if (toSig.has(b)) { assert.equal(toSig.get(b), sig, a.code + ': one bake state, one signature'); }
           if (toBaked.has(sig)) { assert.equal(toBaked.get(sig), b, a.code + ': one signature, one bake state'); }
           toSig.set(b, sig);
           toBaked.set(sig, b);
         }))));
-    // off; on today (icon/value); on looking ahead (icon/value) x 3 marks walked.
+    // not placed; placed today (icon/value); placed looking ahead (icon/value) x 3 marks.
     assert.equal(toSig.size, 1 + 2 + 2 * 3, a.code);
   });
 });
 
-test('the alert keys each occupy their own signature slot', () => {
+test('the alerts each occupy their own signature slot', () => {
   const seen = new Set();
   thresholds.ALERT_KINDS.forEach((a) => {
-    seen.add(renderSignature({ ['alert' + a.key]: true }));
-    seen.add(renderSignature({ ['alert' + a.key]: true, ['alert' + a.key + 'Display']: 'value' }));
+    seen.add(renderSignature(placedOnly([a.code])));
+    seen.add(renderSignature(placedOnly([a.code], { ['alert' + a.key + 'Display']: 'value' })));
   });
   assert.equal(seen.size, thresholds.ALERT_KINDS.length * 2);
 });
@@ -523,14 +551,15 @@ test('the rain alert look stays OUT of the render signature (it rides Clay)', ()
   });
 });
 
-test('the per-bar Alerts placements and the rain switch stay OUT of the render signature (Clay)', () => {
+test('the On demand sides and the rain placement stay OUT of the render signature (Clay)', () => {
   const base = renderSignature({});
-  ['statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts']
+  ['statusTopOnDemandLeft', 'statusForecastOnDemandRight', 'statusRadarOnDemandLeft', 'statusHealthOnDemandRight']
     .forEach((key) => {
-      ['off', 'left', 'middle', 'right'].forEach((v) => {
-        assert.equal(renderSignature({ [key]: v }), base, key + ' ' + v);
+      ['on', 'off'].forEach((v) => {
+        assert.equal(renderSignature({ [key]: v, statusForecastOnDemandRightItems: 'rain,bt' }),
+          renderSignature({ statusForecastOnDemandRightItems: 'rain,bt' }), key + ' ' + v);
       });
     });
-  assert.equal(renderSignature({ alertRain: false }), base, 'alertRain only moves the Clay horizon');
-  assert.equal(renderSignature({ alertRain: true }), base);
+  assert.equal(renderSignature({ statusTopOnDemandRightItems: 'battery,gust,uv,aqi,wind' }), base,
+    'Rain unticked only moves the Clay horizon');
 });

@@ -578,7 +578,7 @@ function packLine(line, payload, settings, env) {
 
 /**
  * Add STATUS_LINE_1..4_UINT8, the packed STATUS_LEVELS_UINT8 threshold bytes and
- * the alert row's ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
+ * the weather alerts' ALERT_ENTRIES_UINT8 to the weather payload. Must run BEFORE
  * applyForecastSeries deletes the transient trend arrays (AQI_TREND,
  * WIND_TREND_UINT8, GUST_TREND_UINT8, PRESSURE_TREND, POLLEN_TODAY,
  * POLLEN_TOMORROW) -- the status text, the threshold levels and the alert
@@ -612,11 +612,11 @@ function buildStatusLines(payload, settings, watchInfo) {
   // so the change detector is unaffected.
   if (env.thresholds) {
     payload.STATUS_LEVELS_UINT8 = thresholds.packWeatherLevels(payload, settings);
-    // The alert row's metric entries, judged here for the same reason. Its own
+    // The weather alerts' metric entries, judged here for the same reason. Its own
     // tuple in the 'status' category, so it rides (and is change-detected) with
     // the lines; [] when nothing is alerting, which clears the watch's stored
     // entries. The rain alert is not in here: the watch resolves it from its own
-    // radar cache. The row is compiled out on exactly the platforms the highlight
+    // radar cache. On demand is compiled out on exactly the platforms the highlight
     // is (WW_ON_DEMAND and WW_THRESHOLD_HIGHLIGHT: every platform but aplite), so
     // this gate is the right one, and aplite's inbox never budgets for the tuple.
     payload.ALERT_ENTRIES_UINT8 = thresholds.bakeAlerts(payload, settings);

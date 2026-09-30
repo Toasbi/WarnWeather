@@ -234,9 +234,9 @@ function createChannelScheduler(deps) {
      *
      *   1. Clay.
      *   2. One tick later, the status re-bake (deps.resendStatus). The status
-     *      category — the slot text, the highlight levels, the alert row's
+     *      category — the slot text, the highlight levels, the weather alerts'
      *      entries — is baked phone-side from the last fetch's payload, so a
-     *      status-only edit (an alert switched off, a level moved, a Look, a
+     *      status-only edit (an alert unticked, a level moved, a Look, a
      *      highlight switched on over a level word an older build packed)
      *      reaches the watch here, without waiting on the network: the forced
      *      fetch below can fail (offline, a provider error, an auth backoff),

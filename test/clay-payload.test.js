@@ -70,11 +70,20 @@ test('HOLIDAYS reads the flat holidayRegion key, not the obsolete per-country ho
   assert.equal(seenRegion, 'BY');
 });
 
-test('CLAY_BATTERY_LOW_ONLY reflects the batteryLowOnly setting (default false)', () => {
-  assert.equal(buildClayPayload(baseSettings(), { platform: 'basalt' }, NOW).CLAY_BATTERY_LOW_ONLY, false);
+// The low-battery takeover of the right slot is aplite's alone (every other watch shows
+// the battery as the On demand Battery item), so only a KNOWN aplite gets the key: an
+// unknown platform is treated as capable and goes without it (the Clay floor, §4.4 of
+// the On demand spec; test/inbox-size.test.js).
+test('CLAY_BATTERY_LOW_ONLY reflects the batteryLowOnly setting (default false), on aplite only', () => {
+  assert.equal(buildClayPayload(baseSettings(), { platform: 'aplite' }, NOW).CLAY_BATTERY_LOW_ONLY, false);
   const s = baseSettings();
   s.batteryLowOnly = true;
-  assert.equal(buildClayPayload(s, { platform: 'basalt' }, NOW).CLAY_BATTERY_LOW_ONLY, true);
+  assert.equal(buildClayPayload(s, { platform: 'aplite' }, NOW).CLAY_BATTERY_LOW_ONLY, true);
+  [{ platform: 'basalt' }, { platform: 'diorite' }, { platform: 'emery' }, { platform: 'flint' },
+    { platform: 'chalk' }, null, {}].forEach((wi) => {
+    assert.equal(Object.prototype.hasOwnProperty.call(buildClayPayload(s, wi, NOW), 'CLAY_BATTERY_LOW_ONLY'),
+      false, JSON.stringify(wi));
+  });
 });
 
 test('buildClayPayload includes the rain/radar palette tuples', function() {
@@ -125,51 +134,66 @@ test('maps rainCountdownHorizon to CLAY_RAIN_COUNTDOWN_HORIZON', () => {
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 120);
 });
 
-// The rain alert's switch (the Alerts card's rain sheet): off sends horizon 0 — the
-// watch's "no countdown" — whatever window is stored; absent reads as on.
-test('alertRain false sends CLAY_RAIN_COUNTDOWN_HORIZON 0; absent or true keeps the window', () => {
+// Rain ticked on no Enabled On demand side of a bar that exists sends horizon 0 — the
+// watch's "no countdown" — whatever window is stored; the default ticks place it.
+test('Rain placed on no bar sends CLAY_RAIN_COUNTDOWN_HORIZON 0; placed anywhere keeps the window', () => {
   const base = baseSettings();
   base.radarMode = 'graph';
   base.rainCountdownHorizon = '30';
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 30, 'absent = on');
-  base.alertRain = true;
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 30);
-  base.alertRain = false;
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0);
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 30, 'the default ticks');
+  base.statusTopOnDemandRightItems = 'battery';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0, 'unticked');
   delete base.rainCountdownHorizon;
   assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0,
-    'off beats the default window too');
-  // Only a real false switches it off (the toggle's stored value).
-  base.alertRain = 'false';
-  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
+    'unplaced beats the default window too');
+  base.statusForecastOnDemandLeft = 'on';
+  base.statusForecastOnDemandLeftItems = 'rain';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60, 'any bar counts');
+  base.statusForecastOnDemandLeft = 'off';
+  assert.strictEqual(buildClayPayload(base, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 0, 'a Disabled side does not');
+  // A retired dev-branch switch is read by nothing.
+  const dev = baseSettings();
+  dev.radarMode = 'graph';
+  dev.alertRain = false;
+  assert.strictEqual(buildClayPayload(dev, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
 });
 
-// The horizon reads the window and switch through the contract (status-thresholds.js
-// rainAlert, the one home of their defaults) and folds radar mode 'off' in itself.
-// The sent value is the one the inline rule computed before that move, on every
-// combination of the three settings.
-test('CLAY_RAIN_COUNTDOWN_HORIZON matches the inline rule it replaced on every combination', () => {
-  const inline = (s) => {
+// The horizon reads the window through the contract (status-thresholds.js rainAlert, the
+// one home of its default), the placement through on-demand.js, and folds radar mode
+// 'off' in itself. A known aplite has no On demand: it keeps the window whatever the
+// ticks say (it compiles the radar out and never draws it anyway).
+test('CLAY_RAIN_COUNTDOWN_HORIZON on every combination of window, radar mode, placement and platform', () => {
+  const OD = require('../src/pkjs/on-demand.js');
+  const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
+  const expected = (s, wi) => {
     let rc = parseInt(s.rainCountdownHorizon, 10);
     if (isNaN(rc)) { rc = 60; }
-    if ((s.radarMode || 'graph') === 'off') { rc = 0; }
-    if (s.alertRain === false) { rc = 0; }
+    if ((s.radarMode || 'graph') === 'off') { return 0; }
+    const env = platformLib.computeEnv(wi);
+    if (env.onDemand && !OD.placedAnywhere(s, 'rain', env)) { return 0; }
     return rc;
   };
   const ABSENT = {};
   const put = (s, k, v) => { if (v !== ABSENT) { s[k] = v; } };
   [ABSENT, '30', '60', '120', '0', 45, '', 'x', null].forEach((h) => {
     [ABSENT, 'graph', 'countdown', 'off'].forEach((mode) => {
-      [ABSENT, true, false, 'false'].forEach((on) => {
-        const s = baseSettings();
-        put(s, 'rainCountdownHorizon', h);
-        put(s, 'radarMode', mode);
-        put(s, 'alertRain', on);
-        assert.strictEqual(buildClayPayload(s, null, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, inline(s),
-          JSON.stringify([h, mode, on]));
+      [ABSENT, 'rain', 'battery', ''].forEach((items) => {
+        [null, { platform: 'aplite' }, { platform: 'basalt' }].forEach((wi) => {
+          const s = baseSettings();
+          put(s, 'rainCountdownHorizon', h);
+          put(s, 'radarMode', mode);
+          put(s, 'statusTopOnDemandRightItems', items);
+          assert.strictEqual(buildClayPayload(s, wi, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, expected(s, wi),
+            JSON.stringify([h, mode, items, wi]));
+        });
       });
     });
   });
+  // aplite: the ticks never zero it.
+  const ap = baseSettings();
+  ap.radarMode = 'graph';
+  ap.statusTopOnDemandRightItems = '';
+  assert.strictEqual(buildClayPayload(ap, { platform: 'aplite' }, NOW).CLAY_RAIN_COUNTDOWN_HORIZON, 60);
 });
 
 test('maps topViewMode to CLAY_TOP_VIEW_MODE int (full=0, compact=1, none=2), default compact', () => {

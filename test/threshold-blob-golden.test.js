@@ -9,14 +9,18 @@
 // A mismatch is a change in the bytes the watch receives for the SAME stored settings.
 // Do not re-record the digest to make it pass unless that change is deliberate (a new
 // kind, a new byte) and reviewed as such.
+// Re-recorded for 1.24.0's On demand bytes (48 B: byte 35 the Battery item in place of
+// the per-bar placement, bytes 38-47 the cells), after checking every other byte of the
+// 4000 old combos against the pre-change packer: identical.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const th = require('../src/pkjs/status-thresholds.js');
+const OD = require('../src/pkjs/on-demand.js');
 
 const COMBOS = 4000;
-const GOLDEN_SHA256 = '06cea63cbe015f9a3b749ba35fa418ab98fd6c8f712abe377fc1ad9233fa2654';
+const GOLDEN_SHA256 = '5cbc009b45dffb2f5f001bb345b4a29c003fb4f2c71e53086133a12dc227a227';
 
 /**
  * mulberry32: a small deterministic PRNG, so the generated set never varies.
@@ -72,7 +76,17 @@ function combo(rnd) {
   put(s, 'aqiScale', pick(rnd, [ABSENT, 'us', 'european']));
   put(s, 'statusBoldAll', pick(rnd, [ABSENT, 'all', 'perSlot']));
   put(s, 'rainAlertDisplay', pick(rnd, [ABSENT, 'text', 'icon', 'minutes', 'bogus']));
-  th.BAR_ALERT_KEYS.forEach((b) => put(s, b.key, pick(rnd, [ABSENT, 'off', 'left', 'middle', 'right'])));
+  // On demand: every bar's sides and their lists, the modes that make a bar exist, and
+  // the Battery item.
+  OD.BARS.forEach((b) => OD.SIDES.forEach((side) => {
+    put(s, OD.sideKey(b.bar, side), pick(rnd, [ABSENT, 'on', 'off', 'maybe']));
+    put(s, OD.itemsKey(b.bar, side), pick(rnd, [ABSENT, '', 'battery', 'bt,qt,snooze', 'rain,uv,wind',
+      'gust,aqi,pollen', 'wind,battery,zzz', 7]));
+  }));
+  put(s, 'radarMode', pick(rnd, [ABSENT, 'off', 'countdown', 'status', 'graph']));
+  put(s, 'healthMode', pick(rnd, [ABSENT, 'off', 'status', 'all', 'slot']));
+  put(s, 'batteryLowLevel', pick(rnd, [ABSENT, '5', '10', '15', '20', '25', '30', '0', '31', 'x', 15]));
+  put(s, 'batteryLowDisplay', pick(rnd, [ABSENT, 'icon', 'value', 'bogus']));
   th.KINDS.forEach((k) => {
     const stem = 'thresh' + k.key;
     put(s, stem + 'BoldMode', pick(rnd, [ABSENT, 'warn', 'off', 'always', 'bogus']));
@@ -84,7 +98,8 @@ function combo(rnd) {
     put(s, stem + 'WarnColor', pick(rnd, COLORS));
     put(s, stem + 'DangerColor', pick(rnd, COLORS));
   });
-  return { settings: s, env: pick(rnd, [undefined, { color: true }, { color: false }]) };
+  return { settings: s, env: pick(rnd, [undefined, { color: true }, { color: false },
+    { color: true, fineBattery: true }, { color: false, onDemand: false }, { color: true, radar: false, health: false }]) };
 }
 
 test('CLAY_THRESHOLDS_UINT8 is byte-identical to the recorded packer over 4000 generated blobs', () => {
@@ -94,6 +109,10 @@ test('CLAY_THRESHOLDS_UINT8 is byte-identical to the recorded packer over 4000 g
     const c = combo(rnd);
     const blob = th.buildSettingsBlob(c.settings, c.env);
     assert.equal(blob.length, th.SETTINGS_BYTES);
+    // The On demand bytes are the contract module's own reading, whatever else is set.
+    assert.deepEqual(blob.slice(th.ON_DEMAND_OFFSET), OD.cells(c.settings, c.env));
+    assert.equal(blob[th.BATTERY_OFFSET], OD.batteryLevel(c.settings, c.env)
+      | (OD.batteryShowsValue(c.settings) ? th.BATTERY_VALUE_BIT : 0));
     blobs.push(blob);
   }
   const digest = crypto.createHash('sha256').update(JSON.stringify(blobs)).digest('hex');

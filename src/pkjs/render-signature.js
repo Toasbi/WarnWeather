@@ -129,19 +129,23 @@ function renderSignature(settings) {
         var held = statusThresholds.resolvedPair(kinds[w].key, settings);
         parts.push(held.warn, held.danger);
     }
-    // The metric alerts (the Alerts card): alert<Kind> changes both the bake (the
-    // ALERT_ENTRIES_UINT8 entries, status-thresholds.js bakeAlerts) and the fetch set (an
-    // enabled alert fetches its metric and day peaks with no slot showing it), and
+    // The metric alerts (On demand's weather alerts): whether an alert is on — its
+    // item ticked on an Enabled side of any bar — changes both the bake (the
+    // ALERT_ENTRIES_UINT8 entries, status-thresholds.js bakeAlerts) and the fetch set (a
+    // placed alert fetches its metric and day peaks with no slot showing it), and
     // alert<Kind>Display changes the baked bytes (a value after the icon), as do
     // alert<Kind>Days (whether tomorrow's peak may raise the alert) and
     // alert<Kind>NextDayMark (the mark code a tomorrow entry carries). Signed as
-    // what the bake reads, through the bake's own calls — the switched-on codes,
-    // those whose Look shows the value, those that look ahead to tomorrow and their
-    // marks (each only while on, the mark only while looking ahead) — so the page
-    // hydrating an absent key to its default forces no fetch. rainAlertDisplay, the
-    // four per-bar placements (statusXxxAlerts) and the rain switch (alertRain) do
-    // NOT join: the look and the placements ride the Clay blob (bytes 34 and 35),
-    // the switch the Clay horizon (0 when off) — all already immediate.
+    // what the bake reads, through the bake's own calls, with a watch that draws On
+    // demand — the placed codes (their union over every bar and side), those whose
+    // Look shows the value, those that look ahead to tomorrow and their marks (each
+    // only while placed, the mark only while looking ahead) — so the page hydrating
+    // an absent key to its default forces no fetch, and moving an item between sides
+    // or bars, or disabling one of two sides that both carry it, signs nothing new.
+    // NOT signed: the side keys as such, the Battery, Bluetooth, Quiet time and Sleep
+    // items, the rain alert's placement, window and look, the warn looks and the
+    // colours — all ride the Clay message (the cells, the Battery byte, the horizon,
+    // byte 34), already immediate.
     parts.push(statusThresholds.alertKindCodes(settings).join(','),
         statusThresholds.alertValueKindCodes(settings).join(','),
         statusThresholds.alertTomorrowKindCodes(settings).join(','),

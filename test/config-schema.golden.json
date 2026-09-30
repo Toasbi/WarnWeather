@@ -5912,62 +5912,6 @@
               },
               {
                 "type": "sheet",
-                "sheetId": "alertUv",
-                "label": "UV index",
-                "icon": "uv",
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Uv",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Uv"
-                  }
-                }
-              },
-              {
-                "type": "sheet",
-                "sheetId": "alertWind",
-                "label": "Wind speed",
-                "icon": "wind",
-                "hintFrom": {
-                  "resolver": "alertLevelsHint",
-                  "args": {
-                    "keyStem": "Wind",
-                    "days": [
-                      [
-                        "Today",
-                        "today"
-                      ],
-                      [
-                        "Today + tomorrow",
-                        "tomorrow"
-                      ]
-                    ]
-                  }
-                },
-                "editBadgeFrom": {
-                  "resolver": "alertLevelBadge",
-                  "args": {
-                    "keyStem": "Wind"
-                  }
-                }
-              },
-              {
-                "type": "sheet",
                 "sheetId": "alertGust",
                 "label": "Wind gusts",
                 "icon": "gust",
@@ -5991,6 +5935,34 @@
                   "resolver": "alertLevelBadge",
                   "args": {
                     "keyStem": "Gust"
+                  }
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertUv",
+                "label": "UV index",
+                "icon": "uv",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Uv",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Uv"
                   }
                 }
               },
@@ -6052,6 +6024,34 @@
                 "showWhen": {
                   "key": "provider",
                   "eq": "dwd"
+                }
+              },
+              {
+                "type": "sheet",
+                "sheetId": "alertWind",
+                "label": "Wind speed",
+                "icon": "wind",
+                "hintFrom": {
+                  "resolver": "alertLevelsHint",
+                  "args": {
+                    "keyStem": "Wind",
+                    "days": [
+                      [
+                        "Today",
+                        "today"
+                      ],
+                      [
+                        "Today + tomorrow",
+                        "tomorrow"
+                      ]
+                    ]
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "alertLevelBadge",
+                  "args": {
+                    "keyStem": "Wind"
+                  }
                 }
               }
             ]
@@ -9991,476 +9991,6 @@
           },
           {
             "sheetOnly": true,
-            "sheetId": "alertUv",
-            "showWhen": {
-              "env": "onDemand"
-            },
-            "title": "UV index alert",
-            "intro": "Shows the UV icon on a status bar’s On demand side when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
-            "items": [
-              {
-                "type": "segmented",
-                "messageKey": "alertUvDisplay",
-                "label": "Look",
-                "defaultValue": "icon",
-                "options": [
-                  [
-                    "Icon",
-                    "icon"
-                  ],
-                  [
-                    "Icon + value",
-                    "value"
-                  ]
-                ],
-                "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "alertUvDays",
-                "label": "Days",
-                "defaultValue": "tomorrow",
-                "options": [
-                  [
-                    "Today",
-                    "today"
-                  ],
-                  [
-                    "Today + tomorrow",
-                    "tomorrow"
-                  ]
-                ],
-                "hintByValue": {
-                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                }
-              },
-              {
-                "type": "select",
-                "messageKey": "alertUvNextDayMark",
-                "label": "Tomorrow's mark",
-                "defaultValue": "raquo",
-                "options": [
-                  [
-                    "»6",
-                    "raquo"
-                  ],
-                  [
-                    ">6",
-                    "gt"
-                  ],
-                  [
-                    "+6",
-                    "plus"
-                  ],
-                  [
-                    "6*",
-                    "star"
-                  ],
-                  [
-                    "No mark",
-                    "none"
-                  ]
-                ],
-                "hintByValue": {
-                  "none": "An alert for tomorrow then looks just like one for today."
-                },
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "alertUvDays",
-                  "ne": "today"
-                }
-              },
-              {
-                "type": "subheader",
-                "text": "Alert levels",
-                "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
-                "labelAction": {
-                  "action": "resetThresholds",
-                  "arg": "Uv",
-                  "label": "Reset to defaults"
-                }
-              },
-              {
-                "type": "range",
-                "messageKey": "threshUvWarn",
-                "dangerKey": "threshUvDanger",
-                "maxKey": "threshUvMax",
-                "defaultValue": "",
-                "hint": "",
-                "joinPrevious": true,
-                "rangeFrom": {
-                  "resolver": "thresholdRange",
-                  "args": {
-                    "keyStem": "Uv",
-                    "chips": {
-                      "warn": "Warn",
-                      "danger": "Danger"
-                    }
-                  }
-                }
-              },
-              {
-                "type": "hidden",
-                "messageKey": "threshUvDanger",
-                "defaultValue": ""
-              },
-              {
-                "type": "hidden",
-                "messageKey": "threshUvMax",
-                "defaultValue": ""
-              },
-              {
-                "type": "segmented",
-                "messageKey": "threshUvWarnLook",
-                "label": "Warn look",
-                "options": [
-                  [
-                    "None",
-                    "none"
-                  ],
-                  [
-                    "Outline",
-                    "outline"
-                  ],
-                  [
-                    "Fill",
-                    "fill"
-                  ]
-                ],
-                "defaultFrom": {
-                  "resolver": "warnLookDefault",
-                  "args": {
-                    "keyStem": "Uv"
-                  },
-                  "sticky": false
-                },
-                "hintByValue": {
-                  "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                  "outline": "A thin frame in the warn color.",
-                  "fill": "A solid box in the warn color, with the value in a contrasting color."
-                },
-                "hintFrom": {
-                  "resolver": "warnLookHint",
-                  "args": {
-                    "keyStem": "Uv",
-                    "copy": {
-                      "base": {
-                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                        "outline": "A thin frame in the warn color.",
-                        "fill": "A solid box in the warn color, with the value in a contrasting color."
-                      },
-                      "bw": {
-                        "outline": "A thin frame in the text color.",
-                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-                      },
-                      "night": {
-                        "fill": "At night (black-and-white theme) this looks the same as danger."
-                      },
-                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
-                    }
-                  }
-                },
-                "joinPrevious": true
-              },
-              {
-                "type": "color",
-                "messageKey": "threshUvWarnColor",
-                "label": "Warn color",
-                "defaultValue": "",
-                "displayFrom": {
-                  "resolver": "thresholdColor",
-                  "args": {
-                    "keyStem": "Uv",
-                    "which": "Warn"
-                  }
-                },
-                "joinPrevious": true,
-                "capabilities": [
-                  "COLOR"
-                ],
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "theme",
-                      "nin": [
-                        "bw",
-                        "bw-light"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "threshUvWarnLook",
-                        "eq": "none"
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "color",
-                "messageKey": "threshUvDangerColor",
-                "label": "Danger color",
-                "defaultValue": "",
-                "displayFrom": {
-                  "resolver": "thresholdColor",
-                  "args": {
-                    "keyStem": "Uv",
-                    "which": "Danger"
-                  }
-                },
-                "joinPrevious": true,
-                "capabilities": [
-                  "COLOR"
-                ],
-                "showWhen": {
-                  "key": "theme",
-                  "nin": [
-                    "bw",
-                    "bw-light"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
-            "sheetId": "alertWind",
-            "showWhen": {
-              "env": "onDemand"
-            },
-            "title": "Wind speed alert",
-            "intro": "Shows the wind icon on a status bar’s On demand side when the wind speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
-            "items": [
-              {
-                "type": "segmented",
-                "messageKey": "alertWindDisplay",
-                "label": "Look",
-                "defaultValue": "icon",
-                "options": [
-                  [
-                    "Icon",
-                    "icon"
-                  ],
-                  [
-                    "Icon + value",
-                    "value"
-                  ]
-                ],
-                "hintByValue": {
-                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
-                }
-              },
-              {
-                "type": "segmented",
-                "messageKey": "alertWindDays",
-                "label": "Days",
-                "defaultValue": "tomorrow",
-                "options": [
-                  [
-                    "Today",
-                    "today"
-                  ],
-                  [
-                    "Today + tomorrow",
-                    "tomorrow"
-                  ]
-                ],
-                "hintByValue": {
-                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
-                }
-              },
-              {
-                "type": "select",
-                "messageKey": "alertWindNextDayMark",
-                "label": "Tomorrow's mark",
-                "defaultValue": "raquo",
-                "options": [
-                  [
-                    "»6",
-                    "raquo"
-                  ],
-                  [
-                    ">6",
-                    "gt"
-                  ],
-                  [
-                    "+6",
-                    "plus"
-                  ],
-                  [
-                    "6*",
-                    "star"
-                  ],
-                  [
-                    "No mark",
-                    "none"
-                  ]
-                ],
-                "hintByValue": {
-                  "none": "An alert for tomorrow then looks just like one for today."
-                },
-                "joinPrevious": true,
-                "showWhen": {
-                  "key": "alertWindDays",
-                  "ne": "today"
-                }
-              },
-              {
-                "type": "subheader",
-                "text": "Alert levels",
-                "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
-                "labelAction": {
-                  "action": "resetThresholds",
-                  "arg": "Wind",
-                  "label": "Reset to defaults"
-                }
-              },
-              {
-                "type": "range",
-                "messageKey": "threshWindWarn",
-                "dangerKey": "threshWindDanger",
-                "maxKey": "threshWindMax",
-                "defaultValue": "",
-                "hint": "",
-                "joinPrevious": true,
-                "rangeFrom": {
-                  "resolver": "thresholdRange",
-                  "args": {
-                    "keyStem": "Wind",
-                    "chips": {
-                      "warn": "Warn",
-                      "danger": "Danger"
-                    }
-                  }
-                }
-              },
-              {
-                "type": "hidden",
-                "messageKey": "threshWindDanger",
-                "defaultValue": ""
-              },
-              {
-                "type": "hidden",
-                "messageKey": "threshWindMax",
-                "defaultValue": ""
-              },
-              {
-                "type": "segmented",
-                "messageKey": "threshWindWarnLook",
-                "label": "Warn look",
-                "options": [
-                  [
-                    "None",
-                    "none"
-                  ],
-                  [
-                    "Outline",
-                    "outline"
-                  ],
-                  [
-                    "Fill",
-                    "fill"
-                  ]
-                ],
-                "defaultFrom": {
-                  "resolver": "warnLookDefault",
-                  "args": {
-                    "keyStem": "Wind"
-                  },
-                  "sticky": false
-                },
-                "hintByValue": {
-                  "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                  "outline": "A thin frame in the warn color.",
-                  "fill": "A solid box in the warn color, with the value in a contrasting color."
-                },
-                "hintFrom": {
-                  "resolver": "warnLookHint",
-                  "args": {
-                    "keyStem": "Wind",
-                    "copy": {
-                      "base": {
-                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
-                        "outline": "A thin frame in the warn color.",
-                        "fill": "A solid box in the warn color, with the value in a contrasting color."
-                      },
-                      "bw": {
-                        "outline": "A thin frame in the text color.",
-                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-                      },
-                      "night": {
-                        "fill": "At night (black-and-white theme) this looks the same as danger."
-                      },
-                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
-                    }
-                  }
-                },
-                "joinPrevious": true
-              },
-              {
-                "type": "color",
-                "messageKey": "threshWindWarnColor",
-                "label": "Warn color",
-                "defaultValue": "",
-                "displayFrom": {
-                  "resolver": "thresholdColor",
-                  "args": {
-                    "keyStem": "Wind",
-                    "which": "Warn"
-                  }
-                },
-                "joinPrevious": true,
-                "capabilities": [
-                  "COLOR"
-                ],
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "theme",
-                      "nin": [
-                        "bw",
-                        "bw-light"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "threshWindWarnLook",
-                        "eq": "none"
-                      }
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "color",
-                "messageKey": "threshWindDangerColor",
-                "label": "Danger color",
-                "defaultValue": "",
-                "displayFrom": {
-                  "resolver": "thresholdColor",
-                  "args": {
-                    "keyStem": "Wind",
-                    "which": "Danger"
-                  }
-                },
-                "joinPrevious": true,
-                "capabilities": [
-                  "COLOR"
-                ],
-                "showWhen": {
-                  "key": "theme",
-                  "nin": [
-                    "bw",
-                    "bw-light"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "sheetOnly": true,
             "sheetId": "alertGust",
             "showWhen": {
               "env": "onDemand"
@@ -10677,6 +10207,241 @@
                   "resolver": "thresholdColor",
                   "args": {
                     "keyStem": "Gust",
+                    "which": "Danger"
+                  }
+                },
+                "joinPrevious": true,
+                "capabilities": [
+                  "COLOR"
+                ],
+                "showWhen": {
+                  "key": "theme",
+                  "nin": [
+                    "bw",
+                    "bw-light"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "alertUv",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "UV index alert",
+            "intro": "Shows the UV icon on a status bar’s On demand side when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "alertUvDisplay",
+                "label": "Look",
+                "defaultValue": "icon",
+                "options": [
+                  [
+                    "Icon",
+                    "icon"
+                  ],
+                  [
+                    "Icon + value",
+                    "value"
+                  ]
+                ],
+                "hintByValue": {
+                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "alertUvDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertUvNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertUvDays",
+                  "ne": "today"
+                }
+              },
+              {
+                "type": "subheader",
+                "text": "Alert levels",
+                "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
+                "labelAction": {
+                  "action": "resetThresholds",
+                  "arg": "Uv",
+                  "label": "Reset to defaults"
+                }
+              },
+              {
+                "type": "range",
+                "messageKey": "threshUvWarn",
+                "dangerKey": "threshUvDanger",
+                "maxKey": "threshUvMax",
+                "defaultValue": "",
+                "hint": "",
+                "joinPrevious": true,
+                "rangeFrom": {
+                  "resolver": "thresholdRange",
+                  "args": {
+                    "keyStem": "Uv",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "hidden",
+                "messageKey": "threshUvDanger",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "threshUvMax",
+                "defaultValue": ""
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshUvWarnLook",
+                "label": "Warn look",
+                "options": [
+                  [
+                    "None",
+                    "none"
+                  ],
+                  [
+                    "Outline",
+                    "outline"
+                  ],
+                  [
+                    "Fill",
+                    "fill"
+                  ]
+                ],
+                "defaultFrom": {
+                  "resolver": "warnLookDefault",
+                  "args": {
+                    "keyStem": "Uv"
+                  },
+                  "sticky": false
+                },
+                "hintByValue": {
+                  "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                  "outline": "A thin frame in the warn color.",
+                  "fill": "A solid box in the warn color, with the value in a contrasting color."
+                },
+                "hintFrom": {
+                  "resolver": "warnLookHint",
+                  "args": {
+                    "keyStem": "Uv",
+                    "copy": {
+                      "base": {
+                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                        "outline": "A thin frame in the warn color.",
+                        "fill": "A solid box in the warn color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as danger."
+                      },
+                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    }
+                  }
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "color",
+                "messageKey": "threshUvWarnColor",
+                "label": "Warn color",
+                "defaultValue": "",
+                "displayFrom": {
+                  "resolver": "thresholdColor",
+                  "args": {
+                    "keyStem": "Uv",
+                    "which": "Warn"
+                  }
+                },
+                "joinPrevious": true,
+                "capabilities": [
+                  "COLOR"
+                ],
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "theme",
+                      "nin": [
+                        "bw",
+                        "bw-light"
+                      ]
+                    },
+                    {
+                      "not": {
+                        "key": "threshUvWarnLook",
+                        "eq": "none"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "color",
+                "messageKey": "threshUvDangerColor",
+                "label": "Danger color",
+                "defaultValue": "",
+                "displayFrom": {
+                  "resolver": "thresholdColor",
+                  "args": {
+                    "keyStem": "Uv",
                     "which": "Danger"
                   }
                 },
@@ -11147,6 +10912,241 @@
                   "resolver": "thresholdColor",
                   "args": {
                     "keyStem": "Pollen",
+                    "which": "Danger"
+                  }
+                },
+                "joinPrevious": true,
+                "capabilities": [
+                  "COLOR"
+                ],
+                "showWhen": {
+                  "key": "theme",
+                  "nin": [
+                    "bw",
+                    "bw-light"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "alertWind",
+            "showWhen": {
+              "env": "onDemand"
+            },
+            "title": "Wind speed alert",
+            "intro": "Shows the wind icon on a status bar’s On demand side when the wind speed reaches your warn level at any point left today, so an afternoon peak shows from the morning on.",
+            "items": [
+              {
+                "type": "segmented",
+                "messageKey": "alertWindDisplay",
+                "label": "Look",
+                "defaultValue": "icon",
+                "options": [
+                  [
+                    "Icon",
+                    "icon"
+                  ],
+                  [
+                    "Icon + value",
+                    "value"
+                  ]
+                ],
+                "hintByValue": {
+                  "value": "Adds the value the alert fires on after the icon. Just the icon when the bar is short on room."
+                }
+              },
+              {
+                "type": "segmented",
+                "messageKey": "alertWindDays",
+                "label": "Days",
+                "defaultValue": "tomorrow",
+                "options": [
+                  [
+                    "Today",
+                    "today"
+                  ],
+                  [
+                    "Today + tomorrow",
+                    "tomorrow"
+                  ]
+                ],
+                "hintByValue": {
+                  "tomorrow": "When nothing left today reaches your warn level but tomorrow does, the alert is active for tomorrow and its icon carries its Tomorrow’s mark."
+                }
+              },
+              {
+                "type": "select",
+                "messageKey": "alertWindNextDayMark",
+                "label": "Tomorrow's mark",
+                "defaultValue": "raquo",
+                "options": [
+                  [
+                    "»6",
+                    "raquo"
+                  ],
+                  [
+                    ">6",
+                    "gt"
+                  ],
+                  [
+                    "+6",
+                    "plus"
+                  ],
+                  [
+                    "6*",
+                    "star"
+                  ],
+                  [
+                    "No mark",
+                    "none"
+                  ]
+                ],
+                "hintByValue": {
+                  "none": "An alert for tomorrow then looks just like one for today."
+                },
+                "joinPrevious": true,
+                "showWhen": {
+                  "key": "alertWindDays",
+                  "ne": "today"
+                }
+              },
+              {
+                "type": "subheader",
+                "text": "Alert levels",
+                "intro": "Warn and danger levels for this value: reaching warn draws the warn look below, reaching danger fills the alert icon — and the status slot, while its Alert highlighting is on.",
+                "labelAction": {
+                  "action": "resetThresholds",
+                  "arg": "Wind",
+                  "label": "Reset to defaults"
+                }
+              },
+              {
+                "type": "range",
+                "messageKey": "threshWindWarn",
+                "dangerKey": "threshWindDanger",
+                "maxKey": "threshWindMax",
+                "defaultValue": "",
+                "hint": "",
+                "joinPrevious": true,
+                "rangeFrom": {
+                  "resolver": "thresholdRange",
+                  "args": {
+                    "keyStem": "Wind",
+                    "chips": {
+                      "warn": "Warn",
+                      "danger": "Danger"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "hidden",
+                "messageKey": "threshWindDanger",
+                "defaultValue": ""
+              },
+              {
+                "type": "hidden",
+                "messageKey": "threshWindMax",
+                "defaultValue": ""
+              },
+              {
+                "type": "segmented",
+                "messageKey": "threshWindWarnLook",
+                "label": "Warn look",
+                "options": [
+                  [
+                    "None",
+                    "none"
+                  ],
+                  [
+                    "Outline",
+                    "outline"
+                  ],
+                  [
+                    "Fill",
+                    "fill"
+                  ]
+                ],
+                "defaultFrom": {
+                  "resolver": "warnLookDefault",
+                  "args": {
+                    "keyStem": "Wind"
+                  },
+                  "sticky": false
+                },
+                "hintByValue": {
+                  "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                  "outline": "A thin frame in the warn color.",
+                  "fill": "A solid box in the warn color, with the value in a contrasting color."
+                },
+                "hintFrom": {
+                  "resolver": "warnLookHint",
+                  "args": {
+                    "keyStem": "Wind",
+                    "copy": {
+                      "base": {
+                        "none": "No box at warn — bold text still follows the Bold row in the slot’s sheet.",
+                        "outline": "A thin frame in the warn color.",
+                        "fill": "A solid box in the warn color, with the value in a contrasting color."
+                      },
+                      "bw": {
+                        "outline": "A thin frame in the text color.",
+                        "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+                      },
+                      "night": {
+                        "fill": "At night (black-and-white theme) this looks the same as danger."
+                      },
+                      "sameColor": "Warn and danger use the same color, so this looks like danger — pick a different warn color."
+                    }
+                  }
+                },
+                "joinPrevious": true
+              },
+              {
+                "type": "color",
+                "messageKey": "threshWindWarnColor",
+                "label": "Warn color",
+                "defaultValue": "",
+                "displayFrom": {
+                  "resolver": "thresholdColor",
+                  "args": {
+                    "keyStem": "Wind",
+                    "which": "Warn"
+                  }
+                },
+                "joinPrevious": true,
+                "capabilities": [
+                  "COLOR"
+                ],
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "theme",
+                      "nin": [
+                        "bw",
+                        "bw-light"
+                      ]
+                    },
+                    {
+                      "not": {
+                        "key": "threshWindWarnLook",
+                        "eq": "none"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "color",
+                "messageKey": "threshWindDangerColor",
+                "label": "Danger color",
+                "defaultValue": "",
+                "displayFrom": {
+                  "resolver": "thresholdColor",
+                  "args": {
+                    "keyStem": "Wind",
                     "which": "Danger"
                   }
                 },
@@ -13821,96 +13821,6 @@
           "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
         }
       },
-      "threshUvWarn": {
-        "min": 0,
-        "max": 12,
-        "step": 1,
-        "minSpan": 1,
-        "dir": "above",
-        "unit": "",
-        "seedWarn": 6,
-        "seedDanger": 8,
-        "maxEditable": false,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FFFFFF",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,255,255,0.35)",
-        "dangerText": "#20232A",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshUvWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        }
-      },
-      "threshWindWarn": {
-        "min": 0,
-        "max": 120,
-        "step": 5,
-        "minSpan": 5,
-        "dir": "above",
-        "unit": "kph",
-        "seedWarn": 40,
-        "seedDanger": 60,
-        "maxEditable": true,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FFFFFF",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,255,255,0.35)",
-        "dangerText": "#20232A",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshWindWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        }
-      },
       "threshGustWarn": {
         "min": 0,
         "max": 160,
@@ -13930,6 +13840,51 @@
         "dangerLabel": "Danger"
       },
       "threshGustWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        }
+      },
+      "threshUvWarn": {
+        "min": 0,
+        "max": 12,
+        "step": 1,
+        "minSpan": 1,
+        "dir": "above",
+        "unit": "",
+        "seedWarn": 6,
+        "seedDanger": 8,
+        "maxEditable": false,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FFFFFF",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,255,255,0.35)",
+        "dangerText": "#20232A",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshUvWarnLook": {
         "dark": {
           "none": null,
           "outline": "A thin frame in the text color.",
@@ -14020,6 +13975,51 @@
         "dangerLabel": "Danger"
       },
       "threshPollenWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        }
+      },
+      "threshWindWarn": {
+        "min": 0,
+        "max": 120,
+        "step": 5,
+        "minSpan": 5,
+        "dir": "above",
+        "unit": "kph",
+        "seedWarn": 40,
+        "seedDanger": 60,
+        "maxEditable": true,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FFFFFF",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,255,255,0.35)",
+        "dangerText": "#20232A",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshWindWarnLook": {
         "dark": {
           "none": null,
           "outline": "A thin frame in the text color.",
@@ -14183,96 +14183,6 @@
           "fill": "A solid box in the close color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as a reached goal. Close and goal use the same color, so this looks like a reached goal — pick a different close color."
         }
       },
-      "threshUvWarn": {
-        "min": 0,
-        "max": 12,
-        "step": 1,
-        "minSpan": 1,
-        "dir": "above",
-        "unit": "",
-        "seedWarn": 6,
-        "seedDanger": 8,
-        "maxEditable": false,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FF0000",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,0,0,0.35)",
-        "dangerText": "#FFFFFF",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshUvWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": null,
-          "fill": null
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        }
-      },
-      "threshWindWarn": {
-        "min": 0,
-        "max": 120,
-        "step": 5,
-        "minSpan": 5,
-        "dir": "above",
-        "unit": "kph",
-        "seedWarn": 40,
-        "seedDanger": 60,
-        "maxEditable": true,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FF0000",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,0,0,0.35)",
-        "dangerText": "#FFFFFF",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshWindWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": null,
-          "fill": null
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        }
-      },
       "threshGustWarn": {
         "min": 0,
         "max": 160,
@@ -14292,6 +14202,51 @@
         "dangerLabel": "Danger"
       },
       "threshGustWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": null,
+          "fill": null
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        }
+      },
+      "threshUvWarn": {
+        "min": 0,
+        "max": 12,
+        "step": 1,
+        "minSpan": 1,
+        "dir": "above",
+        "unit": "",
+        "seedWarn": 6,
+        "seedDanger": 8,
+        "maxEditable": false,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FF0000",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,0,0,0.35)",
+        "dangerText": "#FFFFFF",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshUvWarnLook": {
         "dark": {
           "none": null,
           "outline": null,
@@ -14382,6 +14337,51 @@
         "dangerLabel": "Danger"
       },
       "threshPollenWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": null,
+          "fill": null
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        }
+      },
+      "threshWindWarn": {
+        "min": 0,
+        "max": 120,
+        "step": 5,
+        "minSpan": 5,
+        "dir": "above",
+        "unit": "kph",
+        "seedWarn": 40,
+        "seedDanger": 60,
+        "maxEditable": true,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FF0000",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,0,0,0.35)",
+        "dangerText": "#FFFFFF",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshWindWarnLook": {
         "dark": {
           "none": null,
           "outline": null,
@@ -14545,96 +14545,6 @@
           "fill": "A solid box in the close color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as a reached goal. Close and goal use the same color, so this looks like a reached goal — pick a different close color."
         }
       },
-      "threshUvWarn": {
-        "min": 0,
-        "max": 12,
-        "step": 1,
-        "minSpan": 1,
-        "dir": "above",
-        "unit": "",
-        "seedWarn": 6,
-        "seedDanger": 8,
-        "maxEditable": false,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FF0000",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,0,0,0.35)",
-        "dangerText": "#FFFFFF",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshUvWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": null,
-          "fill": null
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        }
-      },
-      "threshWindWarn": {
-        "min": 0,
-        "max": 120,
-        "step": 5,
-        "minSpan": 5,
-        "dir": "above",
-        "unit": "kph",
-        "seedWarn": 40,
-        "seedDanger": 60,
-        "maxEditable": true,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FF0000",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,0,0,0.35)",
-        "dangerText": "#FFFFFF",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshWindWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": null,
-          "fill": null
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        }
-      },
       "threshGustWarn": {
         "min": 0,
         "max": 160,
@@ -14654,6 +14564,51 @@
         "dangerLabel": "Danger"
       },
       "threshGustWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": null,
+          "fill": null
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        }
+      },
+      "threshUvWarn": {
+        "min": 0,
+        "max": 12,
+        "step": 1,
+        "minSpan": 1,
+        "dir": "above",
+        "unit": "",
+        "seedWarn": 6,
+        "seedDanger": 8,
+        "maxEditable": false,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FF0000",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,0,0,0.35)",
+        "dangerText": "#FFFFFF",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshUvWarnLook": {
         "dark": {
           "none": null,
           "outline": null,
@@ -14744,6 +14699,51 @@
         "dangerLabel": "Danger"
       },
       "threshPollenWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": null,
+          "fill": null
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        }
+      },
+      "threshWindWarn": {
+        "min": 0,
+        "max": 120,
+        "step": 5,
+        "minSpan": 5,
+        "dir": "above",
+        "unit": "kph",
+        "seedWarn": 40,
+        "seedDanger": 60,
+        "maxEditable": true,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FF0000",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,0,0,0.35)",
+        "dangerText": "#FFFFFF",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshWindWarnLook": {
         "dark": {
           "none": null,
           "outline": null,
@@ -14907,96 +14907,6 @@
           "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
         }
       },
-      "threshUvWarn": {
-        "min": 0,
-        "max": 12,
-        "step": 1,
-        "minSpan": 1,
-        "dir": "above",
-        "unit": "",
-        "seedWarn": 6,
-        "seedDanger": 8,
-        "maxEditable": false,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FFFFFF",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,255,255,0.35)",
-        "dangerText": "#20232A",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshUvWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        }
-      },
-      "threshWindWarn": {
-        "min": 0,
-        "max": 120,
-        "step": 5,
-        "minSpan": 5,
-        "dir": "above",
-        "unit": "kph",
-        "seedWarn": 40,
-        "seedDanger": 60,
-        "maxEditable": true,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FFFFFF",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,255,255,0.35)",
-        "dangerText": "#20232A",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshWindWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        }
-      },
       "threshGustWarn": {
         "min": 0,
         "max": 160,
@@ -15016,6 +14926,51 @@
         "dangerLabel": "Danger"
       },
       "threshGustWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        }
+      },
+      "threshUvWarn": {
+        "min": 0,
+        "max": 12,
+        "step": 1,
+        "minSpan": 1,
+        "dir": "above",
+        "unit": "",
+        "seedWarn": 6,
+        "seedDanger": 8,
+        "maxEditable": false,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FFFFFF",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,255,255,0.35)",
+        "dangerText": "#20232A",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshUvWarnLook": {
         "dark": {
           "none": null,
           "outline": "A thin frame in the text color.",
@@ -15106,6 +15061,51 @@
         "dangerLabel": "Danger"
       },
       "threshPollenWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        }
+      },
+      "threshWindWarn": {
+        "min": 0,
+        "max": 120,
+        "step": 5,
+        "minSpan": 5,
+        "dir": "above",
+        "unit": "kph",
+        "seedWarn": 40,
+        "seedDanger": 60,
+        "maxEditable": true,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FFFFFF",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,255,255,0.35)",
+        "dangerText": "#20232A",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshWindWarnLook": {
         "dark": {
           "none": null,
           "outline": "A thin frame in the text color.",
@@ -15269,96 +15269,6 @@
           "fill": "A solid box in the close color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as a reached goal. Close and goal use the same color, so this looks like a reached goal — pick a different close color."
         }
       },
-      "threshUvWarn": {
-        "min": 0,
-        "max": 12,
-        "step": 1,
-        "minSpan": 1,
-        "dir": "above",
-        "unit": "",
-        "seedWarn": 6,
-        "seedDanger": 8,
-        "maxEditable": false,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FF0000",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,0,0,0.35)",
-        "dangerText": "#FFFFFF",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshUvWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": null,
-          "fill": null
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        }
-      },
-      "threshWindWarn": {
-        "min": 0,
-        "max": 120,
-        "step": 5,
-        "minSpan": 5,
-        "dir": "above",
-        "unit": "kph",
-        "seedWarn": 40,
-        "seedDanger": 60,
-        "maxEditable": true,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FF0000",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,0,0,0.35)",
-        "dangerText": "#FFFFFF",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshWindWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": null,
-          "fill": null
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": null,
-          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
-        }
-      },
       "threshGustWarn": {
         "min": 0,
         "max": 160,
@@ -15378,6 +15288,51 @@
         "dangerLabel": "Danger"
       },
       "threshGustWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": null,
+          "fill": null
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        }
+      },
+      "threshUvWarn": {
+        "min": 0,
+        "max": 12,
+        "step": 1,
+        "minSpan": 1,
+        "dir": "above",
+        "unit": "",
+        "seedWarn": 6,
+        "seedDanger": 8,
+        "maxEditable": false,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FF0000",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,0,0,0.35)",
+        "dangerText": "#FFFFFF",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshUvWarnLook": {
         "dark": {
           "none": null,
           "outline": null,
@@ -15468,6 +15423,51 @@
         "dangerLabel": "Danger"
       },
       "threshPollenWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": null,
+          "fill": null
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": null,
+          "fill": "A solid box in the warn color, with the value in a contrasting color. At night (black-and-white theme) this looks the same as danger. Warn and danger use the same color, so this looks like danger — pick a different warn color."
+        }
+      },
+      "threshWindWarn": {
+        "min": 0,
+        "max": 120,
+        "step": 5,
+        "minSpan": 5,
+        "dir": "above",
+        "unit": "kph",
+        "seedWarn": 40,
+        "seedDanger": 60,
+        "maxEditable": true,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FF0000",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,0,0,0.35)",
+        "dangerText": "#FFFFFF",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshWindWarnLook": {
         "dark": {
           "none": null,
           "outline": null,
@@ -15631,96 +15631,6 @@
           "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as a reached goal."
         }
       },
-      "threshUvWarn": {
-        "min": 0,
-        "max": 12,
-        "step": 1,
-        "minSpan": 1,
-        "dir": "above",
-        "unit": "",
-        "seedWarn": 6,
-        "seedDanger": 8,
-        "maxEditable": false,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FFFFFF",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,255,255,0.35)",
-        "dangerText": "#20232A",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshUvWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        }
-      },
-      "threshWindWarn": {
-        "min": 0,
-        "max": 120,
-        "step": 5,
-        "minSpan": 5,
-        "dir": "above",
-        "unit": "kph",
-        "seedWarn": 40,
-        "seedDanger": 60,
-        "maxEditable": true,
-        "warnColor": "#FFFFFF",
-        "dangerColor": "#FFFFFF",
-        "warnGlow": "rgba(255,255,255,0.35)",
-        "dangerGlow": "rgba(255,255,255,0.35)",
-        "dangerText": "#20232A",
-        "warnLabel": "Warn",
-        "dangerLabel": "Danger"
-      },
-      "threshWindWarnLook": {
-        "dark": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "bw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "darkNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColor": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        },
-        "sameColorNightBw": {
-          "none": null,
-          "outline": "A thin frame in the text color.",
-          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
-        }
-      },
       "threshGustWarn": {
         "min": 0,
         "max": 160,
@@ -15740,6 +15650,51 @@
         "dangerLabel": "Danger"
       },
       "threshGustWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        }
+      },
+      "threshUvWarn": {
+        "min": 0,
+        "max": 12,
+        "step": 1,
+        "minSpan": 1,
+        "dir": "above",
+        "unit": "",
+        "seedWarn": 6,
+        "seedDanger": 8,
+        "maxEditable": false,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FFFFFF",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,255,255,0.35)",
+        "dangerText": "#20232A",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshUvWarnLook": {
         "dark": {
           "none": null,
           "outline": "A thin frame in the text color.",
@@ -15830,6 +15785,51 @@
         "dangerLabel": "Danger"
       },
       "threshPollenWarnLook": {
+        "dark": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "bw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "darkNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColor": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        },
+        "sameColorNightBw": {
+          "none": null,
+          "outline": "A thin frame in the text color.",
+          "fill": "A solid box in the text color, with the value in the background color. On black-and-white screens this looks the same as danger."
+        }
+      },
+      "threshWindWarn": {
+        "min": 0,
+        "max": 120,
+        "step": 5,
+        "minSpan": 5,
+        "dir": "above",
+        "unit": "kph",
+        "seedWarn": 40,
+        "seedDanger": 60,
+        "maxEditable": true,
+        "warnColor": "#FFFFFF",
+        "dangerColor": "#FFFFFF",
+        "warnGlow": "rgba(255,255,255,0.35)",
+        "dangerGlow": "rgba(255,255,255,0.35)",
+        "dangerText": "#20232A",
+        "warnLabel": "Warn",
+        "dangerLabel": "Danger"
+      },
+      "threshWindWarnLook": {
         "dark": {
           "none": null,
           "outline": "A thin frame in the text color.",

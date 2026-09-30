@@ -4,6 +4,7 @@
 // predicates on the RAW settings — null means "nothing selected", {} means "the
 // default slot selection", which includes UV and AQI.
 const test = require('node:test');
+const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 const assert = require('node:assert/strict');
 const fetchOptions = require('../src/pkjs/weather/fetch-options.js');
 const forecastSeries = require('../src/pkjs/forecast-series.js');
@@ -59,7 +60,7 @@ test('build(null) requests nothing and keeps the string defaults', () => {
 });
 
 test('build({}) takes UV and AQI from the default slot selection, not from DEFAULTS', () => {
-  const out = fetchOptions.build({});
+  const out = fetchOptions.build(Object.assign({}, NOTHING_PLACED));
   assert.equal(out.fetchUv, true, 'the radar line\'s left slot defaults to UV');
   assert.equal(out.fetchAqi, true, 'the forecast line\'s right slot defaults to AQI');
   assert.equal(out.fetchPollen, false, 'pollen is DWD-only');
@@ -80,20 +81,24 @@ test('build\'s booleans are exactly forecast-series\' predicates on the raw sett
     { tempSlotDisplay: 'feels' },
     { statusRadarMid: 'wind', windSlotDisplay: 'both' }
   ].forEach((s) => {
-    const out = fetchOptions.build(s, watch);
-    const label = JSON.stringify(s);
-    assert.equal(out.fetchUv, forecastSeries.needsUv(s), 'fetchUv ' + label);
-    assert.equal(out.fetchAqi, forecastSeries.needsAqi(s), 'fetchAqi ' + label);
-    assert.equal(out.fetchPollen, forecastSeries.needsPollen(s), 'fetchPollen ' + label);
-    assert.equal(out.fetchFeels, forecastSeries.needsFeels(s, watch), 'fetchFeels ' + label);
-    assert.deepEqual(out.dayPeakCodes, forecastSeries.dayPeakCodes(s), 'dayPeakCodes ' + label);
+    [watch, { platform: 'aplite' }, null].forEach((wi) => {
+      const out = fetchOptions.build(s, wi);
+      const label = JSON.stringify([s, wi]);
+      assert.equal(out.fetchUv, forecastSeries.needsUv(s, wi), 'fetchUv ' + label);
+      assert.equal(out.fetchAqi, forecastSeries.needsAqi(s, wi), 'fetchAqi ' + label);
+      assert.equal(out.fetchPollen, forecastSeries.needsPollen(s, wi), 'fetchPollen ' + label);
+      assert.equal(out.fetchFeels, forecastSeries.needsFeels(s, wi), 'fetchFeels ' + label);
+      assert.deepEqual(out.dayPeakCodes, forecastSeries.dayPeakCodes(s, wi), 'dayPeakCodes ' + label);
+    });
   });
 });
 
 test('a UV slot flips fetchUv', () => {
-  assert.equal(fetchOptions.build({ statusRadarLeft: 'empty' }).fetchUv, false);
-  assert.equal(fetchOptions.build({ statusRadarLeft: 'uv' }).fetchUv, true);
-  assert.equal(fetchOptions.build({ statusRadarLeft: 'empty', statusTopLeft: 'uv' }).fetchUv, true);
+  // Nothing placed: the default ticks would place the UV alert, which fetches UV too.
+  const S = (extra) => Object.assign({}, NOTHING_PLACED, extra);
+  assert.equal(fetchOptions.build(S({ statusRadarLeft: 'empty' })).fetchUv, false);
+  assert.equal(fetchOptions.build(S({ statusRadarLeft: 'uv' })).fetchUv, true);
+  assert.equal(fetchOptions.build(S({ statusRadarLeft: 'empty', statusTopLeft: 'uv' })).fetchUv, true);
 });
 
 test('pollen and the feels work follow their selections', () => {
@@ -133,20 +138,37 @@ test('build() returns every knob and a fresh object per call', () => {
   assert.notEqual(a, b);
 });
 
-test('an enabled alert fetches its metric AND its day peaks with no slot showing it', () => {
-  const none = { statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
-    statusForecastRight: 'empty' };
+test('a placed alert fetches its metric AND its day peaks with no slot showing it — not on aplite', () => {
+  const none = Object.assign({ statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
+    statusForecastRight: 'empty' }, NOTHING_PLACED);
   const off = fetchOptions.build(none);
   assert.equal(off.fetchUv, false, 'guard: no UV slot');
   assert.equal(off.fetchAqi, false, 'guard: no AQI slot');
   assert.deepEqual(off.dayPeakCodes, []);
-  const on = fetchOptions.build(Object.assign({ provider: 'dwd', alertUv: true, alertAqi: true,
-    alertWind: true, alertPollen: true }, none));
+  const placed = placeOn(Object.assign({ provider: 'dwd' }, none), 'forecast', 'left', 'uv,aqi,wind,pollen');
+  const on = fetchOptions.build(placed, { platform: 'basalt' });
   assert.equal(on.fetchUv, true);
   assert.equal(on.fetchAqi, true);
   assert.equal(on.fetchPollen, true);
   assert.deepEqual(on.dayPeakCodes, ['uv', 'wind', 'aqi']);
+  assert.deepEqual(fetchOptions.build(placed, null).dayPeakCodes, ['uv', 'wind', 'aqi'],
+    'a missing watchInfo counts as capable');
+  // A known aplite has no On demand: it fetches nothing for alerts.
+  const aplite = fetchOptions.build(placed, { platform: 'aplite' });
+  assert.equal(aplite.fetchUv, false);
+  assert.equal(aplite.fetchAqi, false);
+  assert.equal(aplite.fetchPollen, false);
+  assert.deepEqual(aplite.dayPeakCodes, []);
+  // A partial blob reads the default ticks (gust, UV, AQI and wind on the Watch Status
+  // Bar): with no slot showing them it still fetches UV and AQI and keeps those four day
+  // records — on purpose, the owner switched those alerts on for every install.
+  const partial = { statusRadarLeft: 'empty', statusRadarMid: 'empty', statusRadarRight: 'empty',
+    statusForecastRight: 'empty' };
+  const dflt = fetchOptions.build(partial);
+  assert.equal(dflt.fetchUv, true);
+  assert.equal(dflt.fetchAqi, true);
+  assert.deepEqual(dflt.dayPeakCodes, ['uv', 'wind', 'gust', 'aqi']);
   // Still exactly forecast-series' predicates.
-  const s = Object.assign({ alertGust: true }, none);
+  const s = placeOn(Object.assign({}, none), 'top', 'right', 'gust');
   assert.deepEqual(fetchOptions.build(s).dayPeakCodes, forecastSeries.dayPeakCodes(s));
 });

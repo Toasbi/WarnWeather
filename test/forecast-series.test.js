@@ -15,6 +15,10 @@ global.localStorage = {
 
 const { buildForecastSeries: buildSeriesValues, applyForecastSeries, needsUv, needsAqi, needsPollen } = require('../src/pkjs/forecast-series');
 const lineStyle = require('../src/pkjs/line-style');
+// The gates below judge slots and lines: nothing placed, so the default On demand ticks
+// (which place the UV and AQI alerts) do not answer for them.
+const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
+const bare = (s) => Object.assign({}, NOTHING_PLACED, s);
 const statusRebake = require('../src/pkjs/status-rebake.js');
 const phoneBattery = require('../src/pkjs/phone-battery.js');
 
@@ -226,7 +230,7 @@ test('the fourth line ships to every platform except aplite, unknown included', 
 test('a uv fourth line extends the UV fetch gate', () => {
   // statusRadarLeft defaults to the uv slot, which also opens the gate — park it
   // on 'empty' so the delta below isolates the fourthLine term.
-  const base = { secondaryLine: 'wind', thirdLine: 'gust', statusRadarLeft: 'empty' };
+  const base = bare({ secondaryLine: 'wind', thirdLine: 'gust', statusRadarLeft: 'empty' });
   assert.equal(needsUv(Object.assign({ fourthLine: 'uv' }, base)), true);
   assert.equal(needsUv(Object.assign({ fourthLine: 'pressure' }, base)), false);
 });
@@ -310,31 +314,31 @@ test('line colours no longer ride the weather message', () => {
 });
 
 test('needsUv: line selections; radar-left defaults to uv', () => {
-  assert.equal(needsUv({ secondaryLine: 'uv', thirdLine: 'off' }), true);
-  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'uv' }), true);
-  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'gust' }), true,
+  assert.equal(needsUv(bare({ secondaryLine: 'uv', thirdLine: 'off' })), true);
+  assert.equal(needsUv(bare({ secondaryLine: 'wind', thirdLine: 'uv' })), true);
+  assert.equal(needsUv(bare({ secondaryLine: 'wind', thirdLine: 'gust' })), true,
     'radar-left now defaults to uv');
-  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'gust',
-                         statusRadarLeft: 'temp' }), false,
+  assert.equal(needsUv(bare({ secondaryLine: 'wind', thirdLine: 'gust',
+                              statusRadarLeft: 'temp' })), false,
     'no line or slot selects uv');
   assert.equal(needsUv(null), false);
 });
 
 test('needsUv is true when any status slot selects uv', () => {
-  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'off',
-                         statusRadarLeft: 'temp' }), false);
-  assert.equal(needsUv({ secondaryLine: 'wind', thirdLine: 'off',
-                         statusRadarLeft: 'temp', statusTopLeft: 'uv' }), true);
-  assert.equal(needsUv({ secondaryLine: 'uv', thirdLine: 'off' }), true);
+  assert.equal(needsUv(bare({ secondaryLine: 'wind', thirdLine: 'off',
+                              statusRadarLeft: 'temp' })), false);
+  assert.equal(needsUv(bare({ secondaryLine: 'wind', thirdLine: 'off',
+                              statusRadarLeft: 'temp', statusTopLeft: 'uv' })), true);
+  assert.equal(needsUv(bare({ secondaryLine: 'uv', thirdLine: 'off' })), true);
 });
 
 test('needsAqi is true when a status slot selects aqi; forecast-right defaults to aqi', () => {
   assert.equal(needsAqi(null), false);
-  assert.equal(needsAqi({}), true, 'forecast-right now defaults to aqi');
-  assert.equal(needsAqi({ statusForecastRight: 'empty' }), false, 'no slot selects aqi');
-  assert.equal(needsAqi({ statusForecastRight: 'sun' }), false);
-  assert.equal(needsAqi({ statusForecastLeft: 'aqi' }), true);
-  assert.equal(needsAqi({ statusRadarMid: 'aqi' }), true);
+  assert.equal(needsAqi(bare({})), true, 'forecast-right now defaults to aqi');
+  assert.equal(needsAqi(bare({ statusForecastRight: 'empty' })), false, 'no slot selects aqi');
+  assert.equal(needsAqi(bare({ statusForecastRight: 'sun' })), false);
+  assert.equal(needsAqi(bare({ statusForecastLeft: 'aqi' })), true);
+  assert.equal(needsAqi(bare({ statusRadarMid: 'aqi' })), true);
 });
 
 test('needsPollen is true only for DWD with an effective pollen status selection', () => {
@@ -1339,24 +1343,34 @@ test('dew never fills the area below its line', () => {
     { secondaryLine: 'dew', secondaryLineFill: true, theme: 'dark' }, cx).fillOn, false);
 });
 
-// An enabled alert (the Alerts card) judges its metric's day whether or not a slot or
-// line shows it, so it must extend the fetch gates on its own — the user the card
-// invites is exactly the one with no UV/AQI/pollen slot.
-test('an enabled alert makes UV, AQI and pollen fetch with no slot or line', () => {
+// A placed alert (an On demand side) judges its metric's day whether or not a slot or
+// line shows it, so it must extend the fetch gates on its own — the user the alert
+// serves is exactly the one with no UV/AQI/pollen slot. A known aplite has no On demand.
+test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () => {
   const { dayPeakCodes } = require('../src/pkjs/forecast-series');
-  const none = { secondaryLine: 'wind', thirdLine: 'off', statusRadarLeft: 'empty',
-    statusForecastRight: 'empty' };
+  const none = bare({ secondaryLine: 'wind', thirdLine: 'off', statusRadarLeft: 'empty',
+    statusForecastRight: 'empty' });
+  const on = (codes, extra) => placeOn(Object.assign({}, none, extra), 'top', 'right', codes);
   assert.equal(needsUv(none), false, 'guard: nothing selects uv');
-  assert.equal(needsUv(Object.assign({ alertUv: true }, none)), true);
-  assert.equal(needsUv(Object.assign({ alertUv: false }, none)), false);
+  assert.equal(needsUv(on('uv')), true);
+  assert.equal(needsUv(on('uv', { statusTopOnDemandRight: 'off' })), true,
+    'placeOn enables the side');
+  assert.equal(needsUv(Object.assign(on('uv'), { statusTopOnDemandRight: 'off' })), false, 'a Disabled side');
+  assert.equal(needsUv(on('uv'), { platform: 'aplite' }), false, 'aplite fetches nothing for alerts');
   assert.equal(needsAqi(none), false, 'guard: nothing selects aqi');
-  assert.equal(needsAqi(Object.assign({ alertAqi: true }, none)), true);
+  assert.equal(needsAqi(on('aqi')), true);
   // Pollen stays DWD-only.
-  assert.equal(needsPollen(Object.assign({ provider: 'dwd', alertPollen: true }, none)), true);
-  assert.equal(needsPollen(Object.assign({ provider: 'openmeteo', alertPollen: true }, none)), false);
+  assert.equal(needsPollen(on('pollen', { provider: 'dwd' })), true);
+  assert.equal(needsPollen(on('pollen', { provider: 'openmeteo' })), false);
   // ...and the day-max kinds' day peaks with them, in every slot display mode.
   assert.deepEqual(dayPeakCodes(none), []);
-  assert.deepEqual(dayPeakCodes(Object.assign({ alertUv: true, alertWind: true,
-    alertGust: true, alertAqi: true, uvSlotDisplay: 'current' }, none)),
-  ['uv', 'wind', 'gust', 'aqi']);
+  assert.deepEqual(dayPeakCodes(on('uv,wind,gust,aqi', { uvSlotDisplay: 'current' })),
+    ['uv', 'wind', 'gust', 'aqi']);
+  // A partial blob reads the default ticks: gust, UV, AQI and wind — so a slot-less
+  // install still fetches UV and AQI and keeps those day records, on purpose.
+  const partial = { secondaryLine: 'wind', thirdLine: 'off', statusRadarLeft: 'empty',
+    statusForecastRight: 'empty' };
+  assert.equal(needsUv(partial), true);
+  assert.equal(needsAqi(partial), true);
+  assert.deepEqual(dayPeakCodes(partial), ['uv', 'wind', 'gust', 'aqi']);
 });

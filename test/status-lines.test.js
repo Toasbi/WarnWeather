@@ -15,6 +15,7 @@ global.localStorage = {
 
 const statusLines = require('../src/pkjs/status-lines.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
+const { NOTHING_PLACED, placedOnly } = require('./helpers/on-demand.js');
 const STORAGE_KEYS = require('../src/pkjs/storage-keys.js');
 
 /**
@@ -1322,8 +1323,8 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
 const thresholds = require('../src/pkjs/status-thresholds.js');
 const { decodeAlerts } = require('./helpers/alert-entries.js');
 //
-// The row is a per-bar takeover, not a slot item: its metric entries ride their
-// own weather tuple, baked by buildStatusLines through status-thresholds'
+// The weather alerts are On demand items, not slot items: their metric entries ride
+// their own weather tuple, baked by buildStatusLines through status-thresholds'
 // bakeAlerts under the 20-B cap the watch's inbox budgets for.
 
 // UV 8 (danger on the seed 6/8), wind 45 km/h (warn on 40/60), gusts 90 (danger),
@@ -1336,14 +1337,19 @@ function alertPayload() {
     AQI_TREND: [152]
   });
 }
-const ALERTS_ALL_VALUES = {
-  alertUv: true, alertUvDisplay: 'value', alertWind: true, alertWindDisplay: 'value',
-  alertGust: true, alertGustDisplay: 'value', alertAqi: true, alertAqiDisplay: 'value'
-};
+// The four day-max alerts placed, each printing its value (pollen joins where a test
+// places it too).
+const ALERTS_ALL_VALUES = placedOnly(['gust', 'uv', 'aqi', 'wind'], {
+  alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value', alertAqiDisplay: 'value'
+});
+const ALL_FIVE_VALUES = placedOnly(['gust', 'uv', 'aqi', 'pollen', 'wind'], {
+  alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value', alertAqiDisplay: 'value',
+  alertPollenDisplay: 'value'
+});
 
 test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, icon-only by default', () => {
   const p = alertPayload();
-  const s = baseSettings({ alertUv: true, alertWind: true });
+  const s = baseSettings(placedOnly(['uv', 'wind']));
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
   // UV danger (header bit 7 | kind 7 | danger bit 3), wind warn (kind 2), both
   // today's, no value bytes.
@@ -1351,20 +1357,20 @@ test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, icon-only b
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, thresholds.bakeAlerts(alertPayload(), s));
 });
 
-test('buildStatusLines: all four with values fit the tuple, in the fixed order', () => {
+test('buildStatusLines: all four with values fit the tuple, in the On demand order', () => {
   const p = alertPayload();
   statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_EMERY);
   const ch = (t) => t.split('').map((c) => c.charCodeAt(0));
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [].concat(
-    [0x80 | 7 | 0x08], ch('8'),
-    [0x80 | 2], ch('45'),
     [0x80 | 3 | 0x08], ch('90'),
-    [0x80 | 0 | 0x08], ch('152')));
+    [0x80 | 7 | 0x08], ch('8'),
+    [0x80 | 0 | 0x08], ch('152'),
+    [0x80 | 2], ch('45')));
   assert.ok(p.ALERT_ENTRIES_UINT8.length <= thresholds.ALERT_ENTRIES_MAX_BYTES);
 });
 
 test('buildStatusLines: nothing alerting sends an empty ALERT_ENTRIES_UINT8', () => {
-  // Alerts on, values below warn — and alerts off with values above it.
+  // Alerts placed, values below warn — and nothing placed with values above it.
   const quiet = Object.assign(basePayload(), {
     UV_TREND_UINT8: [20], UV_DAY_PEAKS: [20, 20, 0],
     WIND_TREND_UINT8: [10], WIND_DAY_PEAKS: [10, 10, 0],
@@ -1374,21 +1380,21 @@ test('buildStatusLines: nothing alerting sends an empty ALERT_ENTRIES_UINT8', ()
   statusLines.buildStatusLines(quiet, baseSettings(ALERTS_ALL_VALUES), WATCH_BASALT);
   assert.deepEqual(quiet.ALERT_ENTRIES_UINT8, [], 'present, so the watch clears its entries');
   const off = alertPayload();
-  statusLines.buildStatusLines(off, baseSettings(), WATCH_BASALT);
+  statusLines.buildStatusLines(off, baseSettings(NOTHING_PLACED), WATCH_BASALT);
   assert.deepEqual(off.ALERT_ENTRIES_UINT8, []);
 });
 
-test('buildStatusLines never sends ALERT_ENTRIES_UINT8 to aplite (no Alerts row there)', () => {
+test('buildStatusLines never sends ALERT_ENTRIES_UINT8 to aplite (no On demand there)', () => {
   const p = alertPayload();
   statusLines.buildStatusLines(p, baseSettings(ALERTS_ALL_VALUES), WATCH_APLITE);
   assert.equal(Object.prototype.hasOwnProperty.call(p, 'ALERT_ENTRIES_UINT8'), false);
   // An unknown watch still gets it, like the levels (never hide a real feature).
   const unknown = alertPayload();
-  statusLines.buildStatusLines(unknown, baseSettings({ alertUv: true }), null);
+  statusLines.buildStatusLines(unknown, baseSettings(placedOnly(['uv'])), null);
   assert.deepEqual(unknown.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08]);
 });
 
-test('the Alerts row is no slot item: no catalog kind, and the lines carry no entries', () => {
+test('the weather alerts are no slot item: no catalog kind, and the lines carry no entries', () => {
   assert.equal(catalog.byCode('alerts'), undefined);
   assert.equal(Object.prototype.hasOwnProperty.call(catalog.KINDS, 'ALERTS'), false);
   const p = alertPayload();
@@ -1405,12 +1411,11 @@ test('the entry cap holds all five alerts with their widest values', () => {
     GUST_TREND_UINT8: [130], GUST_DAY_PEAKS: [130, 0, 0],
     AQI_TREND: [500], POLLEN_TODAY: '2-3'
   });
-  const s = baseSettings(Object.assign({ provider: 'dwd', alertPollen: true,
-    alertPollenDisplay: 'value' }, ALERTS_ALL_VALUES));
+  const s = baseSettings(Object.assign({ provider: 'dwd' }, ALL_FIVE_VALUES));
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
   const bytes = p.ALERT_ENTRIES_UINT8;
   // Five headers, nothing tail-dropped.
-  assert.deepEqual(decodeAlerts(bytes).map((e) => e.value), ['11', '120', '130', '500', '2-3']);
+  assert.deepEqual(decodeAlerts(bytes).map((e) => e.value), ['130', '11', '500', '2-3', '120']);
   assert.ok(bytes.length <= thresholds.ALERT_ENTRIES_MAX_BYTES, bytes.length + ' B');
 });
 
@@ -1423,11 +1428,11 @@ test('the entry cap holds all five alerts with their widest values for tomorrow 
     GUST_TREND_UINT8: [0], GUST_DAY_PEAKS: [0, 255, 0],
     AQI_TREND: [0], AQI_DAY_PEAKS: [0, 500, 0], POLLEN_TODAY: '0', POLLEN_TOMORROW: '2-3'
   });
-  const s = baseSettings(Object.assign({ provider: 'dwd', alertPollen: true,
-    alertPollenDisplay: 'value', aqiSource: 'openmeteo', aqiScale: 'us' }, ALERTS_ALL_VALUES));
+  const s = baseSettings(Object.assign({ provider: 'dwd', aqiSource: 'openmeteo', aqiScale: 'us' },
+    ALL_FIVE_VALUES));
   statusLines.buildStatusLines(p, s, WATCH_BASALT);
   const entries = decodeAlerts(p.ALERT_ENTRIES_UINT8);
-  assert.deepEqual(entries.map((e) => e.value), ['11', '255', '255', '500', '2-3']);
+  assert.deepEqual(entries.map((e) => e.value), ['255', '11', '500', '2-3', '255']);
   assert.deepEqual(entries.map((e) => e.mark), ['raquo', 'raquo', 'raquo', 'raquo', 'raquo']);
   assert.equal(p.ALERT_ENTRIES_UINT8.length, 19);
 });

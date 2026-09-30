@@ -239,8 +239,11 @@ test('each day-max metric keeps its own record, keyed by its own feed', () => {
 test('only the day-max kinds a slot shows keep a record and widen their requests', () => {
   Object.keys(store).forEach((k) => delete store[k]);
   const forecastSeries = require('../src/pkjs/forecast-series.js');
-  const s = { statusForecastLeft: 'wind', statusForecastMid: 'uv', statusForecastRight: 'aqi',
-    windSlotDisplay: 'both', uvSlotDisplay: 'current', aqiSlotDisplay: 'max' };
+  // Nothing placed as an alert: a placed day-max alert keeps its record too (the
+  // default ticks place gust, UV, AQI and wind), which this test is not about.
+  const s = Object.assign({ statusForecastLeft: 'wind', statusForecastMid: 'uv', statusForecastRight: 'aqi',
+    windSlotDisplay: 'both', uvSlotDisplay: 'current', aqiSlotDisplay: 'max' },
+  require('./helpers/on-demand.js').NOTHING_PLACED);
   assert.deepEqual(forecastSeries.dayPeakCodes(s), ['wind', 'aqi'],
     'uv in Now mode and gust in no slot keep none');
   const p = provider({ id: 'dwd', windTrend: new Array(48).fill(10),

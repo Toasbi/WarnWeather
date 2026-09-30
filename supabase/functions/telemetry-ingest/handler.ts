@@ -109,20 +109,15 @@ const settingsSchema = z
     provider: providerSchema.optional(),
     fetchIntervalMin: z.number().int().positive().optional(),
     rainCountdownHorizon: z.number().int().min(0).optional(),
-    // The Alerts card (src/pkjs/telemetry.js): the metric alerts, two letters each in
-    // the row order (uv, wind, gust, aqi, pollen) — the look, o off / i icon /
-    // v icon + value, upper case while the alert looks ahead to tomorrow; then the
-    // tomorrow mark in effect, r » / g > / p + / s * / n none, '-' while off or today
-    // only (e.g. 'Vri-o-o-o-'); and the rain look, resolved as the watch draws it
-    // ('text' when unset). z.string(), not z.enum: a future alert kind or look must
-    // not 400 the batch.
+    // The weather alerts (src/pkjs/telemetry.js): the metric alerts, two letters each
+    // in the On demand order (gust, uv, aqi, pollen, wind) — the look, o not placed on
+    // any status bar / i icon / v icon + value, upper case while the alert looks ahead
+    // to tomorrow; then the tomorrow mark in effect, r » / g > / p + / s * / n none,
+    // '-' while not placed or today only (e.g. 'IrIrIro-Ir', an untouched install); and
+    // the rain look, resolved as the watch draws it ('text' when unset). z.string(), not
+    // z.enum: a future alert kind or look must not 400 the batch.
     alerts: z.string().optional(),
     rainAlertDisplay: z.string().optional(),
-    // Where each status bar places the alert row — one letter per bar (top,
-    // forecast, radar, health): o off / l left / m middle / r right, e.g. 'looo' —
-    // and the rain alert's switch.
-    alertBars: z.string().optional(),
-    alertRain: z.boolean().optional(),
     // The warn look per paired threshold kind, one letter each in wire order (aqi,
     // pollen, wind, gust, steps, sleep, distance, uv): n none / o outline / f fill,
     // resolved with the platform default, e.g. 'ffffooof'.

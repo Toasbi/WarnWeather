@@ -7,10 +7,10 @@ var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
 // The radar source in effect ('rainbowkey' for Rainbow with "Use your own key" on).
 var radarSourceId = require('./weather/radar-source-id.js');
-// alertOn / alertValueKindCodes / alertDays / alertNextDayMark, rainAlert,
-// barAlertPlace and warnLookFor — the bake's and the packer's own reading of the
-// Alerts card and the warn looks, so the report and the watch cannot disagree on what
-// is on or how it looks.
+// alertOn / alertValueKindCodes / alertDays / alertNextDayMark, rainAlert and
+// warnLookFor — the bake's and the packer's own reading of the weather alerts and the
+// warn looks, so the report and the watch cannot disagree on what is on or how it
+// looks.
 var statusThresholds = require('./status-thresholds.js');
 
 /**
@@ -74,51 +74,32 @@ function graphColorReport(settings, scope, role, suffix) {
 }
 
 /**
- * Where each status bar shows the alert row: one letter per bar in the bars' wire
- * order (top, forecast, radar, health) — o off, l left, m middle, r right. So
- * 'looo' is an untouched install (the strip left, the rest off), 'oooo' every bar
- * off, 'loro' the strip left and the radar bar right. Absent keys resolve to their
- * defaults, the placement the watch actually draws (status-thresholds barAlertPlace).
- * Four characters, never a 'top:left,radar:right' list: the ingest copies the settings
- * header into every row a batch writes, and four bars at 'middle' spelled out would
- * cost about 50 B more per row (the size ledger is in test/telemetry.test.js). The
- * letters stay unambiguous only while no two BAR_ALERT_PLACES share an initial, which
- * that test file pins.
- * @param {Object} safe Settings blob (never null).
- * @returns {string} e.g. 'looo' on an untouched install.
- */
-function alertBarsReport(safe) {
-    var out = '';
-    var bars = statusThresholds.BAR_ALERT_KEYS;
-    for (var i = 0; i < bars.length; i++) {
-        out += statusThresholds.barAlertPlace(safe, bars[i].bar).charAt(0);
-    }
-    return out;
-}
-
-/**
- * The metric alerts, two letters per alert in the row's fixed order (status-thresholds
- * ALERT_KINDS: uv, wind, gust, aqi, pollen). The first is its look: o off, i icon,
- * v icon + value — upper case while its Days is "Today + tomorrow". The second is the
- * tomorrow mark in effect, the initial of its ALERT_NEXT_DAY_MARKS key (r », g >,
- * p +, s *, n none), while the alert looks ahead, else '-' (an alert that is off or
- * judges today only reads no mark — the "value in effect" rule). So 'o-o-o-o-o-' is
- * an untouched install (no metric alert on), and 'Vri-o-o-o-' UV printing its value
- * and looking ahead with the », wind as an icon on today only. Everything is read
- * through the alert bake's own calls, so the report and the watch cannot disagree.
- * Ten characters, never lists: alertBarsReport's reason — this one code replaced two
+ * The metric alerts, two letters per alert in the bake's order (status-thresholds
+ * ALERT_KINDS: gust, uv, aqi, pollen, wind). The first is its look: o not placed on
+ * any bar, i icon, v icon + value — upper case while its Days is "Today + tomorrow".
+ * The second is the tomorrow mark in effect, the initial of its ALERT_NEXT_DAY_MARKS
+ * key (r », g >, p +, s *, n none), while the alert looks ahead, else '-' (an alert
+ * that is not placed or judges today only reads no mark — the "value in effect"
+ * rule). So 'IrIrIro-Ir' is an untouched install (gust, UV, AQI and wind placed on the
+ * Watch Status Bar, looking ahead with the »; pollen off), and 'o-Vro-o-i-' UV
+ * printing its value and looking ahead, wind as an icon on today only. Placement is
+ * read for THIS watch (env): a known aplite has no On demand, so nothing is placed
+ * there. Everything else is read through the alert bake's own calls, so the report
+ * and the watch cannot disagree. Ten characters, never lists: the ingest copies the
+ * settings header into every row a batch writes, and this one code replaced two
  * comma lists (alertKinds, alertValueKinds) that cost about 60 B more per row at
  * their heaviest. The mark initials are pinned unique in test/telemetry.test.js.
  * @param {Object} safe Settings blob (never null).
- * @returns {string} e.g. 'o-o-o-o-o-' on an untouched install.
+ * @param {Object} env Platform env (config-ui computeEnv).
+ * @returns {string} e.g. 'IrIrIro-Ir' on an untouched install.
  */
-function alertsReport(safe) {
+function alertsReport(safe, env) {
     var kinds = statusThresholds.ALERT_KINDS;
     var valueCodes = statusThresholds.alertValueKindCodes(safe);
     var out = '';
     for (var i = 0; i < kinds.length; i++) {
         var code = kinds[i].code;
-        if (!statusThresholds.alertOn(safe, code)) {
+        if (!statusThresholds.alertOn(safe, code, env)) {
             out += 'o-';
             continue;
         }
@@ -136,7 +117,7 @@ function alertsReport(safe) {
  * n none, o outline, f fill. RESOLVED, the platform default included
  * (warnLookFor), so it reports the box the watch draws: 'ffffooof' is an untouched
  * colour watch, 'oooooooo' an untouched B&W one. Eight characters, not a list, for
- * alertBarsReport's reason; WARN_LOOKS' initials are pinned unique the same way.
+ * alertsReport's reason; WARN_LOOKS' initials are pinned unique the same way.
  * @param {Object} safe Settings blob (never null).
  * @param {boolean} isColor Whether the watch has a colour display.
  * @returns {string} e.g. 'ffffooof'.
@@ -238,18 +219,13 @@ function buildSettingsSnapshot(settings, watchInfo) {
         provider: safe.provider,
         fetchIntervalMin: toIntOrUndefined(safe.fetchIntervalMin),
         rainCountdownHorizon: toIntOrUndefined(safe.rainCountdownHorizon),
-        // The Alerts card: each metric alert's look, Days and tomorrow mark (see
+        // The weather alerts: each metric alert's look, Days and tomorrow mark (see
         // alertsReport), and the rain alert's look ('text' | 'icon' | 'minutes')
         // RESOLVED like the blob byte the watch reads, so an absent or unknown look
         // reports 'text'. Both are z.string() in the ingest schema, never an enum, so
         // a new alert kind or look cannot 400 an old ingest's batch.
-        alerts: alertsReport(safe),
+        alerts: alertsReport(safe, configUi.computeEnv(watchInfo)),
         rainAlertDisplay: statusThresholds.rainAlert(safe).look,
-        // Where each bar places the row (see alertBarsReport), and the rain alert's
-        // STORED switch — on by default like radarSky: a missing key is on. Not the
-        // horizon the watch is sent, which radar mode 'off' also zeroes.
-        alertBars: alertBarsReport(safe),
-        alertRain: statusThresholds.rainAlert(safe).on,
         // The warn box per paired kind (see warnLooksReport). The platform decides the
         // default, and watchInfo absent reads as basalt (colour), as for the colours.
         warnLooks: warnLooksReport(safe, configUi.isColorPlatform(

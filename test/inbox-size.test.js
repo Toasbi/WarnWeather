@@ -127,16 +127,15 @@ function buildHeaviestBundle(platform) {
   // distinct third line + a distinct fourth line (three 24-byte trends) + rain
   // bars, on a platform that carries the fourth line (emery below — aplite's
   // bundle omits the FOURTH key entirely).
-  // The Alerts row's entries at their heaviest: every metric alert on, every one
-  // printing its value, and every one alerting (UV 8, wind 60, gusts 90, AQI 152,
-  // pollen 2-3 — at or past each seed pair). The AQI and pollen readings are
+  // The weather alerts' entries at their heaviest: every metric alert placed on a bar,
+  // every one printing its value, and every one alerting (UV 8, wind 60, gusts 90,
+  // AQI 152, pollen 2-3 — at or past each seed pair). The AQI and pollen readings are
   // transient bake inputs.
-  const alertSettings = {
+  const alertSettings = require('./helpers/on-demand.js').placedOnly(['gust', 'uv', 'aqi', 'pollen', 'wind'], {
     provider: 'dwd',
-    alertUv: true, alertWind: true, alertGust: true, alertAqi: true, alertPollen: true,
     alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
     alertAqiDisplay: 'value', alertPollenDisplay: 'value'
-  };
+  });
   payload.AQI_TREND = range.map(function() { return 152; });
   payload.POLLEN_TODAY = '2-3';
   applyForecastSeries(payload, Object.assign({
@@ -282,8 +281,12 @@ test('the radar limit notice rides alone, so a limited bundle is lighter than th
   });
 });
 
-/** The Clay settings message now carries the palette tuples too. */
-function buildHeaviestClayMessage() {
+/**
+ * The heaviest Clay settings message (the palette tuples included).
+ * @param {?Object} [watchInfo] The watch it is packed for; emery by default.
+ * @returns {Object} The payload.
+ */
+function buildHeaviestClayMessage(watchInfo) {
   const payload = buildClayPayload({
     temperatureUnits: 'c', timeLeadingZero: true, axisTimeFormat: '12h',
     weekStartDay: 'mon', firstWeek: 'prev', timeFont: 'bitham', showQt: true,
@@ -296,7 +299,9 @@ function buildHeaviestClayMessage() {
     // Worst-case custom no-rain text: the full 24-byte UTF-8 cap (CLAY_NORAIN_TEXT
     // packs it + NUL; clay-payload truncates anything longer at pack time).
     radarNoRainText: 'Kein Regen in Sichtweite',
-  }, { platform: 'emery' }, new Date('2026-06-26T00:00:00Z'));
+    // The low-battery takeover switched on: its tuple rides aplite's bundle only.
+    batteryLowOnly: true,
+  }, watchInfo === undefined ? { platform: 'emery' } : watchInfo, new Date('2026-06-26T00:00:00Z'));
 
   // The Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour])
   // is REAL now: buildClayPayload packs it for every platform (night-light.js), so it
@@ -376,8 +381,34 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // paired kind — none / outline / fill, the box at the warn level). The metric
   // alerts themselves ride the weather message (ALERT_ENTRIES_UINT8, recorded
   // above). Headroom 17 -> 13 B.
-  assert.equal(size, 523,'update the recorded Clay message size when its wire contract changes');
+  // 523 -> 522 in 1.24.0 when the threshold blob widened 38 -> 48 (+10 B: the Battery
+  // item byte took the placement byte's place, and the ten On demand cells joined) and
+  // CLAY_BATTERY_LOW_ONLY (7 B tuple header + 4 B int = 11 B) left every bundle but a
+  // known aplite's: the low-battery takeover is aplite's alone, every other watch shows
+  // the battery as the On demand Battery item. Headroom 13 -> 14 B.
+  assert.equal(size, 522,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
+});
+
+// The tuple split that pays for the On demand cells: CLAY_BATTERY_LOW_ONLY rides a known
+// aplite's Clay bundle alone. An unknown platform is treated as capable and goes without
+// it (an aplite whose platform the phone cannot read reads the takeover as off for that
+// session — the accepted trade-off), so the capable bundles all stay at their recorded
+// size, and aplite's is unchanged by On demand.
+test('CLAY_BATTERY_LOW_ONLY rides aplite\'s Clay bundle only; the per-platform sizes', () => {
+  const sizes = { emery: 522, basalt: 522, chalk: 522, diorite: 498, flint: 498, aplite: 401 };
+  Object.keys(sizes).forEach((platform) => {
+    const payload = buildHeaviestClayMessage({ platform });
+    assert.equal(dictSize(payload), sizes[platform], platform);
+    assert.equal(Object.prototype.hasOwnProperty.call(payload, 'CLAY_BATTERY_LOW_ONLY'), platform === 'aplite',
+      platform + ': the takeover tuple rides aplite alone');
+    assert.ok(readInboxSize(platform) - dictSize(payload) >= 10, platform + ': the 10 B floor');
+  });
+  const unknown = buildHeaviestClayMessage(null);
+  assert.equal(dictSize(unknown), 522, 'an unknown platform: the capable shape');
+  assert.equal(Object.prototype.hasOwnProperty.call(unknown, 'CLAY_BATTERY_LOW_ONLY'), false);
+  // Measured against the smallest inbox, aplite's 536 B, as the conservative floor.
+  assert.ok(readInboxSize('aplite') - dictSize(unknown) >= 10, 'unknown: the 10 B floor against 536 B');
 });
 
 // The custom-layout ext word rides the HIGH half of the CLAY_VIEW_0-2 int32 tuples, so

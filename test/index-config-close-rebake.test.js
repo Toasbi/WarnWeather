@@ -103,6 +103,11 @@ function bootBaked(t, settings, opts, uv) {
   return { h: h, net: net };
 }
 
+// Only the UV alert placed (the Watch Status Bar's right side): the default ticks would
+// place gust, AQI and wind too, whose entries these tests do not follow.
+const { placedOnly } = require('./helpers/on-demand.js');
+const UV_ONLY = placedOnly(['uv']);
+
 /** @returns {Object[]} The status-carrying weather sends, oldest first. */
 function statusSends(h) {
   return h.weatherSends().filter((d) => 'ALERT_ENTRIES_UINT8' in d);
@@ -113,15 +118,15 @@ function uvLevel(levels) {
   return levels[1] & 3;
 }
 
-test('an alert switched off reaches the watch even when the forced fetch fails', (t) => {
-  const { h, net } = bootBaked(t, { alertUv: true });
+test('an alert unticked reaches the watch even when the forced fetch fails', (t) => {
+  const { h, net } = bootBaked(t, UV_ONLY);
   const baked = statusSends(h);
   assert.deepEqual(Array.from(baked[baked.length - 1].ALERT_ENTRIES_UINT8), [UV_DANGER_ENTRY],
     'the UV alert is on the watch');
 
   net.mode = 'down';
   const before = h.sends.length;
-  h.saveSettings({ alertUv: false });
+  h.saveSettings({ statusTopOnDemandRightItems: '' });
   h.advance(5 * 1000);
 
   assert.equal(h.count(FETCHING), 2, 'the save forced a fetch...');
@@ -133,7 +138,7 @@ test('an alert switched off reaches the watch even when the forced fetch fails',
 });
 
 test('a level moved across the current value re-bakes levels and entries without the network', (t) => {
-  const { h, net } = bootBaked(t, { alertUv: true });
+  const { h, net } = bootBaked(t, UV_ONLY);
   const baked = statusSends(h);
   assert.equal(uvLevel(baked[baked.length - 1].STATUS_LEVELS_UINT8), 2, 'UV 9 is danger on 6/8');
 
@@ -156,7 +161,7 @@ test('a level moved across the current value re-bakes levels and entries without
 // bake inputs), so the config close's re-bake carries them to the watch with the
 // network down.
 test('an alert\'s Days and tomorrow mark re-bake the entry without the network', (t) => {
-  const { h, net } = bootBaked(t, { alertUv: true }, {}, lowTodayHighTomorrow);
+  const { h, net } = bootBaked(t, UV_ONLY, {}, lowTodayHighTomorrow);
   const tomorrowRaquo = TH.ALERT_HEADER | UV_KIND | TH.ALERT_DANGER
     | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('raquo') + 1) << TH.ALERT_DAY_SHIFT);
   const baked = statusSends(h);
@@ -208,15 +213,16 @@ test('upgrade: a Clay-only highlight switch re-bakes a level word an older build
 
 test('Clay, re-bake and fetch never share the channel: each waits for the one before', (t) => {
   let hold = false;
-  const { h } = bootBaked(t, { alertUv: true }, {
+  const { h } = bootBaked(t, UV_ONLY, {
     onSend: () => (hold ? 'hold' : 'ack'),
   });
   hold = true;
   const before = h.sends.length;
   const fetchesBefore = h.count(FETCHING);
-  // The switch forces the fetch; the Alerts placement rides the Clay blob, so
-  // the Clay send is a real one too.
-  h.saveSettings({ alertUv: false, statusForecastAlerts: 'left' });
+  // Unticking the UV alert forces the fetch; the Bluetooth item ticked on the forecast
+  // bar rides the Clay blob (the On demand cells), so the Clay send is a real one too.
+  h.saveSettings({ statusTopOnDemandRightItems: '', statusForecastOnDemandLeft: 'on',
+    statusForecastOnDemandLeftItems: 'bt' });
   h.advance(5 * 1000);
   assert.equal(h.sends.length - before, 1, 'only the Clay is on the channel');
   assert.equal(isWeatherMessage(h.held[0].dict), false, 'and it is the Clay');
@@ -240,13 +246,15 @@ test('a NACKed config-close Clay is re-delivered by the next minute tick', (t) =
   // it still lands, so without a retry the watch ran the new alert entries
   // against the old thresholds blob until the next midnight or the next save.
   let nackClay = false;
-  const { h } = bootBaked(t, {}, {
+  const { h } = bootBaked(t, placedOnly([]), {
     onSend: (d) => (nackClay && !isWeatherMessage(d) ? 'nack' : 'ack'),
   });
   nackClay = true;
   const before = h.sends.length;
   const clay = () => h.sends.slice(before).filter((d) => !isWeatherMessage(d));
-  h.saveSettings({ alertWind: true, statusForecastAlerts: 'left' });
+  // Ticking the wind alert on the forecast bar changes the union (a forced fetch) and
+  // the On demand cells (the Clay blob).
+  h.saveSettings({ statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'wind' });
   h.advance(5 * 1000);
   nackClay = false;
   assert.equal(clay().length, 1, 'the close sent Clay once, and it NACKed');
@@ -255,7 +263,7 @@ test('a NACKed config-close Clay is re-delivered by the next minute tick', (t) =
   h.minutes(1);
   assert.equal(clay().length, 2, 'the next tick re-delivered the settings');
   assert.deepEqual(clay()[1].CLAY_THRESHOLDS_UINT8, clay()[0].CLAY_THRESHOLDS_UINT8,
-    'the same blob, with the new Alerts placement');
+    'the same blob, with the new On demand cells');
   h.minutes(2);
   assert.equal(clay().length, 2, 'its ACK ended the retries');
 });

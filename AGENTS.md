@@ -123,8 +123,9 @@ token-level ES5 check) — see its own README.md's "ES5 constraint" section.
   weather-derived — and it stays off aplite). Before spending weather-message bytes, ask
   whether the value is settings-derived — if it is, it belongs on the Clay message —
   but the Clay message ships to aplite too and is tight (the heaviest Clay message is
-  523 B — the thresholds blob grew 34 -> 38 B in 1.24.0 for the Alerts row's rain
-  look, its per-bar placement byte and the per-kind warn look — sized
+  522 B — the thresholds blob grew 34 -> 48 B in 1.24.0 for the rain alert's look, the
+  On demand Battery item, the per-kind warn look and the ten On demand cells, paid for
+  by `CLAY_BATTERY_LOW_ONLY` riding a known aplite's bundle alone — sized
   against aplite's 536 B inbox as the conservative floor, and the test enforces a 10 B
   headroom floor on each bundle), so check `test/inbox-size.test.js` either way.
 - **Message boundary: settings ride the settings (Clay) message; weather data rides the

@@ -24,7 +24,7 @@ function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').secti
 const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
 // The kinds with an On demand card row and an alert<Stem> sheet (their Look, Days and
 // levels), in the card's row order (the goal kinds are not alerts).
-const ALERT_STEMS = ['Uv', 'Wind', 'Gust', 'Aqi', 'Pollen'];
+const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
   acc.concat(suffixes.map((suffix) => 'thresh' + stem + suffix)), []);
 const THRESH_COLOR_KEYS = threshKeys(['WarnColor', 'DangerColor']);
@@ -2102,8 +2102,8 @@ test('Status-slots tab (id watch) opens with the status card: its intro and the 
   assert.deepEqual(titles.slice(24),
     ['On demand left', 'On demand right', 'On demand left', 'On demand right',
       'On demand left', 'On demand right', 'On demand left', 'On demand right',
-      'Battery', 'Bluetooth', 'Rain alert', 'UV index alert', 'Wind speed alert', 'Wind gusts alert',
-      'Air quality (AQI) alert', 'Pollen alert'],
+      'Battery', 'Bluetooth', 'Rain alert', 'Wind gusts alert', 'UV index alert',
+      'Air quality (AQI) alert', 'Pollen alert', 'Wind speed alert'],
     'the side checklists, then the item sheets close the tab');
   // Time and Calendar moved to the END of the Layout tab (order Time, Calendar) —
   // the Status-slots tab holds nothing but slot config now.
@@ -2204,7 +2204,7 @@ test('the On demand card: gated to a watch with On demand, its intro, reset, and
   const it = sec.items;
   assert.deepEqual(it.map((i) => i.sheetId || i.label || i.text || i.type), [
     it[0].text, 'System info', 'odBattery', 'odBluetooth', 'Quiet time', 'Sleep', 'Weather alerts',
-    'alertRain', 'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen']);
+    'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind']);
   assert.equal(it[0].type, 'staticText');
   assert.equal(it[0].style, 'info');
   assert.equal(it[0].text, 'Your Default view has no Watch Status Bar, so On demand items won’t show there.'
@@ -2230,8 +2230,8 @@ test('the On demand card: gated to a watch with On demand, its intro, reset, and
   assert.deepEqual(it[7].hintFrom.args.windows.map((o) => o[1]),
     byKey('rainCountdownHorizon').options.map((o) => o[1]));
   assert.deepEqual(it[7].hintFrom.args.looks, byKey('rainAlertDisplay').options);
-  const KINDS = [['Uv', 'UV index', 'uv'], ['Wind', 'Wind speed', 'wind'], ['Gust', 'Wind gusts', 'gust'],
-    ['Aqi', 'Air quality', 'aqi'], ['Pollen', 'Pollen', 'pollen']];
+  const KINDS = [['Gust', 'Wind gusts', 'gust'], ['Uv', 'UV index', 'uv'], ['Aqi', 'Air quality', 'aqi'],
+    ['Pollen', 'Pollen', 'pollen'], ['Wind', 'Wind speed', 'wind']];
   KINDS.forEach(([stem, label, icon], k) => {
     const row = { type: 'sheet', sheetId: 'alert' + stem, label, icon,
       hintFrom: { resolver: 'alertLevelsHint',
@@ -2400,7 +2400,7 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
       'odTopLeft', 'odTopRight', 'odForecastLeft', 'odForecastRight',
       'odRadarLeft', 'odRadarRight', 'odHealthLeft', 'odHealthRight',
       'odBattery', 'odBluetooth',
-      'alertRain', 'alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen'],
+      'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives; the '
       + 'On demand sheets come last');
   // The On demand sheets carry the On demand gate (aplite has no On demand), the side

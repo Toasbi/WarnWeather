@@ -9,6 +9,8 @@ var paletteWire = require('./weather/palette-wire.js');
 var viewCycle = require('./view-cycle.js');
 var resolveInk = require('./resolve-ink.js').resolveInk;
 var statusThresholds = require('./status-thresholds.js');
+// Whether the rain alert is placed on a status bar (the horizon rule below).
+var onDemand = require('./on-demand.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
@@ -177,7 +179,6 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_THEME": ['dark', 'light', 'bw', 'bw-light'].indexOf(theme),
         "CLAY_TIME_FONT": ['roboto', 'leco', 'bitham'].indexOf(settings.timeFont),
         "CLAY_SHOW_QT": settings.showQt,
-        "CLAY_BATTERY_LOW_ONLY": Boolean(settings.batteryLowOnly),
         "CLAY_SHOW_BT": settings.btIcons === "connected" || settings.btIcons === "both",
         "CLAY_SHOW_BT_DISCONNECT": settings.btIcons === "disconnected" || settings.btIcons === "both",
         "CLAY_VIBE": settings.vibe,
@@ -202,13 +203,14 @@ function buildClayPayload(settings, watchInfo, now) {
         "CLAY_HEALTH_MODE": ['off', 'status', 'all', 'slot'].indexOf(settings.healthMode || 'off'),
         "CLAY_FETCH_INTERVAL_MIN": parseInt(settings.fetchIntervalMin, 10) || 30,
         "CLAY_RAIN_COUNTDOWN_HORIZON": (function() {
-            // The rain alert's window and switch, resolved by the contract that owns
-            // their defaults. Switched off it sends horizon 0, the watch's "no
-            // countdown" — and so does a radar that fetches nothing (radar mode 'off'),
-            // which folds in here rather than into the switch.
-            var rain = statusThresholds.rainAlert(settings);
-            if ((settings.radarMode || 'graph') === 'off' || !rain.on) { return 0; }
-            return rain.horizonMin;
+            // The rain alert's window, resolved by the contract that owns its default.
+            // A radar that fetches nothing (radar mode 'off') sends horizon 0, the
+            // watch's "no countdown", and so does a Rain item ticked on no Enabled On
+            // demand side. A known aplite has no On demand: it keeps the window as it
+            // always had (it compiles the radar out and never draws it anyway).
+            if ((settings.radarMode || 'graph') === 'off') { return 0; }
+            if (env.onDemand && !onDemand.placedAnywhere(settings, 'rain', env)) { return 0; }
+            return statusThresholds.rainAlert(settings).horizonMin;
         })(),
         // Health-graph HR line scale, packed lo | (hi << 8) — both ends are <= 220,
         // so each fits a byte and the pair rides one key instead of two. The watch
@@ -224,6 +226,15 @@ function buildClayPayload(settings, watchInfo, now) {
             return lo | (hi << 8);
         })()
     };
+    // The low-battery takeover of the right slot is aplite's alone: every other watch
+    // shows the battery as the On demand Battery item instead and ignores the key. Sent
+    // only to a KNOWN aplite, so the 12 B stay out of every other Clay bundle, an
+    // unknown platform's included (test/inbox-size.test.js). The watch treats the key
+    // as optional (config_wire.c); an aplite whose platform the phone cannot read
+    // reads the takeover as off for that session.
+    if (env.platform === 'aplite') {
+        payload.CLAY_BATTERY_LOW_ONLY = Boolean(settings.batteryLowOnly);
+    }
     var palette = paletteWire.buildPaletteTuples(watchInfo, settings);
     payload.BAR_PALETTE_UINT8 = palette.BAR_PALETTE_UINT8;
     payload.RADAR_PALETTE_UINT8 = palette.RADAR_PALETTE_UINT8;

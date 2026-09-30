@@ -235,14 +235,16 @@ test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow
   assert.deepEqual(o.STATUS_LEVELS_UINT8, [0, 0], "the same as '0/»8': tomorrow never counts");
 });
 
-// fixtures/rain-countdown.json is the emulator sign-off scene for the Alerts row: rain
-// 10-25 min ahead (the watch resolves that entry itself from the radar tuples) plus a
-// UV alert at danger and a wind alert at warn, both with their values, which the phone
-// bakes into the row's own entry tuple (ALERT_ENTRIES_UINT8) in the fixed order UV,
-// wind; the strip shows the row in its left slot by default. Two metric entries at two
-// levels put the danger box beside the warn look (fill on colour, outline on B&W) in
-// the frame; the forecast bar's gust (warn) and UV (danger) slots, Highlight on, show
-// the same two looks on slots.
+// fixtures/rain-countdown.json is the emulator sign-off scene for the weather alerts:
+// rain 10-25 min ahead (the watch resolves that entry itself from the radar tuples)
+// plus a UV alert at danger and a wind alert at warn, both with their values, which the
+// phone bakes into their own entry tuple (ALERT_ENTRIES_UINT8) in the On demand order
+// (UV, then wind). The fixture ticks exactly Battery, Rain, UV index and Wind speed on
+// the Watch Status Bar's right side: Wind gusts and Air quality stay unticked, so the
+// forecast bar's gust slot at warn adds no entry. Two metric entries at two levels put
+// the danger box beside the warn look (fill on colour, outline on B&W) in the frame;
+// the forecast bar's gust (warn) and UV (danger) slots, Highlight on, show the same two
+// looks on slots.
 // radarStartEpoch pins the radar window to the emulator's clock (watch.now read as
 // UTC); without it the window anchors to the host-local startEpoch and can land
 // wholly in the past, so no rain alert draws.
@@ -259,16 +261,22 @@ test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_E
   const uvKind = thresholds.KINDS.findIndex((k) => k.code === 'uv');
   const windKind = thresholds.KINDS.findIndex((k) => k.code === 'wind');
   const { decodeAlerts } = require('./helpers/alert-entries.js');
+  assert.equal(fx.claySettings.statusTopOnDemandRightItems, 'battery,rain,uv,wind',
+    'the fixture ticks only what it bakes');
   ['basalt', 'emery'].forEach((platform) => {
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });
     const bytes = out.ALERT_ENTRIES_UINT8;
     assert.equal(bytes.length, 5, platform + ': UV (1 + 1 value byte) + wind (1 + 2 value bytes)');
     const entries = decodeAlerts(bytes);
+    const gustKind = thresholds.KINDS.findIndex((k) => k.code === 'gust');
+    const aqiKind = thresholds.KINDS.findIndex((k) => k.code === 'aqi');
+    assert.ok(!entries.some((e) => e.kind === gustKind || e.kind === aqiKind),
+      platform + ': no gust or AQI entry — both unticked');
     assert.deepEqual(entries[0], { kind: uvKind, level: 2, day: 0, mark: null, value: '8' },
       platform + ': a UV entry at danger, today\'s, printing 8 (today\'s 8.4)');
     assert.deepEqual(entries[1], { kind: windKind, level: 1, day: 0, mark: null, value: '66' },
       platform + ': a wind entry at warn (50 <= 66 < 80), today\'s 66 km/h peak');
-    // The status lines carry no entries: the top-left slot is its shipped default.
+    // The status lines carry no entries: the top-left slot keeps its shipped default.
     const topLeft = decodeLine(out.STATUS_LINE_3_UINT8)[0];
     assert.notEqual(topLeft.kind, 11, platform + ': no alerts slot kind any more');
     assert.equal(topLeft.kind, platform === 'emery' ? catalog.KINDS.LIVE_WEEK : catalog.KINDS.EMPTY,
@@ -296,9 +304,15 @@ test('fixtures/uv-alert-tomorrow.json bakes a tomorrow UV entry (» 8, danger) +
   const wind = { kind: windKind, level: 1, day: 0, mark: null, value: '58' };
   const bake = (platform, over) => getFixtureWeatherPayload(fx,
     Object.assign({}, fx.claySettings, over), { platform });
+  assert.equal(fx.claySettings.statusTopOnDemandRightItems, 'battery,uv,wind',
+    'the fixture ticks only what it bakes');
+  const gustKind = thresholds.KINDS.findIndex((k) => k.code === 'gust');
+  const aqiKind = thresholds.KINDS.findIndex((k) => k.code === 'aqi');
   ['basalt', 'emery'].forEach((platform) => {
     const out = bake(platform, {});
     assert.equal(out.ALERT_ENTRIES_UINT8.length, 5, platform + ': UV (1 + 1) + wind (1 + 2)');
+    assert.ok(!decodeAlerts(out.ALERT_ENTRIES_UINT8).some((e) => e.kind === gustKind || e.kind === aqiKind),
+      platform + ': no gust or AQI entry — both unticked');
     assert.deepEqual(decodeAlerts(out.ALERT_ENTRIES_UINT8), [
       { kind: uvKind, level: 2, day: 1, mark: 'raquo', value: '8' },
       wind
@@ -473,7 +487,9 @@ test('a scalar currentFeels ships without an hourly feelsTemps series', () => {
 test('the fixture adopts its UV and feels whatever the settings select or the formula says', () => {
   const forecastSeries = require('../src/pkjs/forecast-series.js');
   const catalog = require('../src/pkjs/status-line-catalog.js');
-  const settings = { secondaryLine: 'off', thirdLine: 'off', barSource: 'off', feelsFormula: 'steadman' };
+  // No UV slot, line or placed UV alert (the default ticks would place it).
+  const settings = Object.assign({ secondaryLine: 'off', thirdLine: 'off', barSource: 'off', feelsFormula: 'steadman' },
+    require('./helpers/on-demand.js').NOTHING_PLACED);
   catalog.allSlotKeys().forEach(function(key) { settings[key] = 'empty'; });
   assert.equal(forecastSeries.needsUv(settings), false, 'premise: a live fetch would not adopt UV');
   assert.equal(forecastSeries.needsFeels(settings, null), false, 'premise: nor feels');

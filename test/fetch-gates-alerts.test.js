@@ -1,11 +1,12 @@
 'use strict';
 // test/fetch-gates-alerts.test.js — the metric fetch gates (forecast-series.js
-// needsUv / needsAqi / needsPollen / dayPeakCodes) read the alert switches through
-// the threshold contract (status-thresholds.js alertOn) since the status-line
-// catalog went alert-agnostic. This pins that move as a pure refactor: over a truth
-// table of alert, provider, line, slot and day-max-mode settings, every gate answers
-// exactly what it answered before, when the catalog built each alert key by
-// capitalising the code and dayMaxInUse carried the alert clause itself.
+// needsUv / needsAqi / needsPollen / dayPeakCodes) add what the weather alerts ask for
+// to what the lines and slots show: an alert placed on an Enabled On demand side of a
+// bar that exists (on-demand.js placedAnywhere, read through status-thresholds'
+// alertOn) fetches its metric, and a day-max kind's alert keeps its day peaks. Read for
+// THIS watch: a known aplite has no On demand, so it never fetches for an alert; a
+// missing watchInfo counts as capable. Over a truth table of placements, provider, line,
+// slot, day-max-mode settings and watches, every gate answers the reference below.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -20,48 +21,52 @@ global.localStorage = {
 
 const forecastSeries = require('../src/pkjs/forecast-series.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
+const OD = require('../src/pkjs/on-demand.js');
+const platform = require('../src/pkjs/config-ui/lib/platform.js');
+const { NOTHING_PLACED, placeOn } = require('./helpers/on-demand.js');
 
-// The four gates as they stood before the move, frozen here as the reference.
-const before = (() => {
-  const alertEnabled = (s, code) => {
-    if (!s || typeof code !== 'string') { return false; }
-    return s['alert' + code.charAt(0).toUpperCase() + code.slice(1)] === true;
-  };
+// The four gates as the On demand settings define them, the reference.
+const expected = (() => {
+  const placed = (s, code, wi) => OD.placedAnywhere(s, code, platform.computeEnv(wi));
   const dayMaxInUse = (s, kind) => {
-    if (!s) { return false; }
-    if (alertEnabled(s, kind)) { return true; }
     const mode = s[kind + 'SlotDisplay'];
     return (mode === 'max' || mode === 'both') && catalog.selectedCodes(s).indexOf(kind) !== -1;
   };
   return {
-    needsUv(s) {
+    needsUv(s, wi) {
       if (!s) { return false; }
       if (s.secondaryLine === 'uv' || s.thirdLine === 'uv'
         || s.fourthLine === 'uv' || s.fifthLine === 'uv') { return true; }
-      if (alertEnabled(s, 'uv')) { return true; }
-      return catalog.selectedCodes(s).indexOf('uv') !== -1;
+      return placed(s, 'uv', wi) || catalog.selectedCodes(s).indexOf('uv') !== -1;
     },
-    needsAqi(s) {
+    needsAqi(s, wi) {
       if (!s) { return false; }
-      if (alertEnabled(s, 'aqi')) { return true; }
-      return catalog.selectedCodes(s).indexOf('aqi') !== -1;
+      return placed(s, 'aqi', wi) || catalog.selectedCodes(s).indexOf('aqi') !== -1;
     },
-    needsPollen(s) {
+    needsPollen(s, wi) {
       if (!s || s.provider !== 'dwd') { return false; }
-      if (alertEnabled(s, 'pollen')) { return true; }
-      return catalog.selectedCodes(s).indexOf('pollen') !== -1;
+      return placed(s, 'pollen', wi) || catalog.selectedCodes(s).indexOf('pollen') !== -1;
     },
-    dayPeakCodes(s) {
-      return catalog.DAY_MAX_KINDS.filter(kind => dayMaxInUse(s, kind));
+    dayPeakCodes(s, wi) {
+      if (!s) { return []; }
+      return catalog.DAY_MAX_KINDS.filter(kind => placed(s, kind, wi) || dayMaxInUse(s, kind));
     }
   };
 })();
 
-const ABSENT = {};
-const ALERT_KEYS = ['alertUv', 'alertWind', 'alertGust', 'alertAqi', 'alertPollen'];
-// A stored false, and a stored string that is not the toggle's value, beside on/absent.
-const ALERT_VALUES = [ABSENT, true, false, 'true'];
-const PROVIDERS = [ABSENT, 'dwd', 'openmeteo'];
+// Placements: the defaults (a partial blob reads them), nothing, one side each, a
+// Disabled side, a bar the mode removes, and a health bar that exists.
+const PLACEMENTS = [
+  {},
+  Object.assign({}, NOTHING_PLACED),
+  placeOn(Object.assign({}, NOTHING_PLACED), 'top', 'right', 'uv,pollen'),
+  placeOn(Object.assign({}, NOTHING_PLACED), 'forecast', 'left', 'aqi,wind'),
+  Object.assign(placeOn(Object.assign({}, NOTHING_PLACED), 'top', 'left', 'gust,uv'), { statusTopOnDemandLeft: 'off' }),
+  Object.assign(placeOn(Object.assign({}, NOTHING_PLACED), 'radar', 'right', 'uv,aqi,pollen,gust'), { radarMode: 'off' }),
+  Object.assign(placeOn(Object.assign({}, NOTHING_PLACED), 'health', 'left', 'wind,aqi'), { healthMode: 'status' })
+];
+const WATCHES = [null, { platform: 'basalt' }, { platform: 'aplite' }];
+const PROVIDERS = [undefined, 'dwd', 'openmeteo'];
 const LINES = [
   {},                                                   // the line defaults
   { secondaryLine: 'wind', thirdLine: 'off' },          // no uv line
@@ -86,66 +91,57 @@ const SLOTS = [
 ];
 const MODES = [
   {},
-  { uvSlotDisplay: 'max', windSlotDisplay: 'both', gustSlotDisplay: 'current', aqiSlotDisplay: 'max' },
-  { uvSlotDisplay: 'current', windSlotDisplay: 'current', gustSlotDisplay: 'both', aqiSlotDisplay: 'both' }
+  { uvSlotDisplay: 'max', windSlotDisplay: 'both', gustSlotDisplay: 'current', aqiSlotDisplay: 'max' }
 ];
 
-/**
- * Walk every combination of the tables above.
- * @param {function(Object): void} visit called with each settings object
- */
-function eachCombination(visit) {
-  const alertCombos = [{}];
-  ALERT_KEYS.forEach((key) => {
-    const grown = [];
-    alertCombos.forEach((partial) => ALERT_VALUES.forEach((v) => {
-      const next = Object.assign({}, partial);
-      if (v !== ABSENT) { next[key] = v; }
-      grown.push(next);
-    }));
-    alertCombos.splice(0, alertCombos.length, ...grown);
-  });
-  alertCombos.forEach(alerts => PROVIDERS.forEach(provider => LINES.forEach(lines =>
-    SLOTS.forEach(slotPicks => MODES.forEach((modes) => {
-      const s = Object.assign({}, lines, slotPicks, modes, alerts);
-      if (provider !== ABSENT) { s.provider = provider; }
-      visit(s);
-    })))));
-}
-
-test('the fetch gates answer exactly as before the alert switch moved to the contract', () => {
+test('the fetch gates add the placed alerts, for the watch at hand, on every combination', () => {
   let n = 0;
-  eachCombination((s) => {
-    n++;
-    const at = () => JSON.stringify(s);
-    assert.equal(forecastSeries.needsUv(s), before.needsUv(s), 'needsUv ' + at());
-    assert.equal(forecastSeries.needsAqi(s), before.needsAqi(s), 'needsAqi ' + at());
-    assert.equal(forecastSeries.needsPollen(s), before.needsPollen(s), 'needsPollen ' + at());
-    assert.deepEqual(forecastSeries.dayPeakCodes(s), before.dayPeakCodes(s), 'dayPeakCodes ' + at());
-  });
-  assert.equal(n, Math.pow(ALERT_VALUES.length, ALERT_KEYS.length) * PROVIDERS.length
-    * LINES.length * SLOTS.length * MODES.length, 'the whole table ran');
+  PLACEMENTS.forEach(placement => PROVIDERS.forEach(provider => LINES.forEach(lines =>
+    SLOTS.forEach(slotPicks => MODES.forEach(modes => WATCHES.forEach((wi) => {
+      n++;
+      const s = Object.assign({}, lines, slotPicks, modes, placement);
+      if (provider !== undefined) { s.provider = provider; }
+      const at = () => JSON.stringify([s, wi]);
+      assert.equal(forecastSeries.needsUv(s, wi), expected.needsUv(s, wi), 'needsUv ' + at());
+      assert.equal(forecastSeries.needsAqi(s, wi), expected.needsAqi(s, wi), 'needsAqi ' + at());
+      assert.equal(forecastSeries.needsPollen(s, wi), expected.needsPollen(s, wi), 'needsPollen ' + at());
+      assert.deepEqual(forecastSeries.dayPeakCodes(s, wi), expected.dayPeakCodes(s, wi), 'dayPeakCodes ' + at());
+    }))))));
+  assert.equal(n, PLACEMENTS.length * PROVIDERS.length * LINES.length * SLOTS.length * MODES.length
+    * WATCHES.length, 'the whole table ran');
 });
 
-test('the fetch gates answer as before for missing settings', () => {
+test('no stored settings fetch nothing and keep no day record', () => {
   [null, undefined].forEach((s) => {
-    assert.equal(forecastSeries.needsUv(s), before.needsUv(s));
-    assert.equal(forecastSeries.needsAqi(s), before.needsAqi(s));
-    assert.equal(forecastSeries.needsPollen(s), before.needsPollen(s));
-    assert.deepEqual(forecastSeries.dayPeakCodes(s), before.dayPeakCodes(s));
+    assert.equal(forecastSeries.needsUv(s), false);
+    assert.equal(forecastSeries.needsAqi(s), false);
+    assert.equal(forecastSeries.needsPollen(s), false);
+    assert.deepEqual(forecastSeries.dayPeakCodes(s), []);
   });
 });
 
-// The table is only a proof if the alert switches actually flip gates in it: each
-// alert must be the deciding input somewhere.
-test('the table exercises every alert as a deciding input', () => {
-  const none = slots({});
-  const off = { secondaryLine: 'wind', thirdLine: 'off', provider: 'dwd' };
-  const base = Object.assign({}, none, off);
+// The table is only a proof if the placements actually flip gates in it: each alert
+// must be the deciding input somewhere, and the watch too.
+test('the table exercises every alert and the watch as deciding inputs', () => {
+  const base = Object.assign(slots({}), { secondaryLine: 'wind', thirdLine: 'off', provider: 'dwd' },
+    NOTHING_PLACED);
+  const with_ = (codes) => placeOn(Object.assign({}, base), 'top', 'right', codes);
   assert.equal(forecastSeries.needsUv(base), false);
-  assert.equal(forecastSeries.needsUv(Object.assign({ alertUv: true }, base)), true);
-  assert.equal(forecastSeries.needsAqi(Object.assign({ alertAqi: true }, base)), true);
-  assert.equal(forecastSeries.needsPollen(Object.assign({ alertPollen: true }, base)), true);
-  assert.deepEqual(forecastSeries.dayPeakCodes(Object.assign({ alertWind: true, alertGust: true }, base)),
-    ['wind', 'gust']);
+  assert.equal(forecastSeries.needsUv(with_('uv')), true);
+  assert.equal(forecastSeries.needsAqi(with_('aqi')), true);
+  assert.equal(forecastSeries.needsPollen(with_('pollen')), true);
+  assert.deepEqual(forecastSeries.dayPeakCodes(with_('wind,gust')), ['wind', 'gust']);
+  // A known aplite has no On demand: its alerts ask for nothing.
+  const aplite = { platform: 'aplite' };
+  assert.equal(forecastSeries.needsUv(with_('uv'), aplite), false);
+  assert.equal(forecastSeries.needsAqi(with_('aqi'), aplite), false);
+  assert.equal(forecastSeries.needsPollen(with_('pollen'), aplite), false);
+  assert.deepEqual(forecastSeries.dayPeakCodes(with_('wind,gust'), aplite), []);
+  // A slot-less partial blob reads the default ticks (Wind gusts, UV index, Air quality
+  // and Wind speed on the Watch Status Bar), so it fetches UV and AQI and keeps the four
+  // day records — on purpose: the owner switched those alerts on for every install.
+  const partial = Object.assign(slots({}), { secondaryLine: 'wind', thirdLine: 'off' });
+  assert.equal(forecastSeries.needsUv(partial), true);
+  assert.equal(forecastSeries.needsAqi(partial), true);
+  assert.deepEqual(forecastSeries.dayPeakCodes(partial), ['uv', 'wind', 'gust', 'aqi']);
 });

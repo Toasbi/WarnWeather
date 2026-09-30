@@ -4,8 +4,8 @@ var configUi = require('./config-ui');        // isLineStylePlatform — the WW_
 var statusLines = require('./status-lines.js');
 var statusRebake = require('./status-rebake.js');
 var statusCatalog = require('./status-line-catalog.js');
-// alertOn — whether a metric's alert is switched on, which the fetch gates below add to
-// what the slots and lines ask for.
+// alertOn — whether a metric's alert is placed on a status bar (On demand), which the
+// fetch gates below add to what the slots and lines ask for.
 var statusThresholds = require('./status-thresholds.js');
 var wireUnits = require('./wire-units.js');     // dayMaxPayloadKeys — the day-max kinds' transient keys
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
@@ -538,59 +538,76 @@ function applyForecastSeries(payload, settings, watchInfo) {
 }
 
 /**
+ * The platform env the alert half of the fetch gates reads: a known aplite has no On
+ * demand, so it never fetches for an alert it cannot show; a missing watchInfo counts
+ * as capable (computeEnv).
+ * @param {?Object} watchInfo getActiveWatchInfo() result, or null/undefined.
+ * @returns {Object} config-ui platform env.
+ */
+function envOf(watchInfo) {
+    return configUi.computeEnv(watchInfo);
+}
+
+/**
  * Whether the watch wants a metric outside the forecast lines: a status slot shows
- * it (unfetched, the slot bakes empty), or its alert is switched on. An enabled
- * alert needs the metric with no slot showing it — the Alerts card invites exactly
- * that user, and unfetched the alert can never fire. The status half of every
- * metric fetch gate below; each adds its own line or provider rule.
+ * it (unfetched, the slot bakes empty), or its alert is on (ticked on an Enabled On
+ * demand side of any bar, statusThresholds.alertOn). A placed alert needs the metric
+ * with no slot showing it, and unfetched the alert can never fire. The status half of
+ * every metric fetch gate below; each adds its own line or provider rule.
  * @param {Object} settings Clay settings (non-null).
  * @param {string} code 'uv' | 'aqi' | 'pollen'.
+ * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @returns {boolean}
  */
-function metricWanted(settings, code) {
-    return statusThresholds.alertOn(settings, code)
+function metricWanted(settings, code, watchInfo) {
+    return statusThresholds.alertOn(settings, code, envOf(watchInfo))
         || statusCatalog.selectedCodes(settings).indexOf(code) !== -1;
 }
 
 /**
- * Whether UV is on a forecast line, in a status slot or switched on as an alert,
- * so providers fetch it.
+ * Whether UV is on a forecast line, in a status slot or placed as an alert, so
+ * providers fetch it.
  * @param {Object} settings Clay settings.
+ * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @returns {boolean} True when any rendered selection needs UV.
  */
-function needsUv(settings) {
+function needsUv(settings, watchInfo) {
     if (!settings) { return false; }
     if (settings.secondaryLine === 'uv' || settings.thirdLine === 'uv'
         || settings.fourthLine === 'uv' || settings.fifthLine === 'uv') { return true; }
-    return metricWanted(settings, 'uv');
+    return metricWanted(settings, 'uv', watchInfo);
 }
 
 /**
  * The day-max kinds that need the day's peaks: a slot shows one
- * (status-line-catalog's dayMaxInUse), or the kind's alert is on — an alert judges
+ * (status-line-catalog's dayMaxInUse), or the kind's alert is placed — an alert judges
  * the highest value left today, whatever any slot shows. The provider keeps a day
  * record and fetches the longer series for these only. Every input is in
- * renderSignature, so switching a slot to Day max or an alert on forces the refetch
- * that starts its record.
+ * renderSignature, so switching a slot to Day max or placing an alert forces the
+ * refetch that starts its record. No stored settings keep no record.
  * @param {Object} settings Clay settings.
+ * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @returns {string[]} Codes out of 'uv' | 'wind' | 'gust' | 'aqi'.
  */
-function dayPeakCodes(settings) {
+function dayPeakCodes(settings, watchInfo) {
+    if (!settings) { return []; }
+    var env = envOf(watchInfo);
     return statusCatalog.DAY_MAX_KINDS.filter(function (kind) {
-        return statusThresholds.alertOn(settings, kind) || statusCatalog.dayMaxInUse(settings, kind);
+        return statusThresholds.alertOn(settings, kind, env) || statusCatalog.dayMaxInUse(settings, kind);
     });
 }
 
 /**
- * Whether AQI is in a status slot or switched on as an alert, so providers fetch
- * it. AQI is status-only (never a forecast line), so unlike needsUv there is no
+ * Whether AQI is in a status slot or placed as an alert, so providers fetch it. AQI
+ * is status-only (never a forecast line), so unlike needsUv there is no
  * secondary/third check.
  * @param {Object} settings Clay settings.
- * @returns {boolean} True when any status slot selects AQI, or its alert is on.
+ * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
+ * @returns {boolean} True when any status slot selects AQI, or its alert is placed.
  */
-function needsAqi(settings) {
+function needsAqi(settings, watchInfo) {
     if (!settings) { return false; }
-    return metricWanted(settings, 'aqi');
+    return metricWanted(settings, 'aqi', watchInfo);
 }
 
 /**
@@ -609,15 +626,16 @@ function needsFeels(settings, watchInfo) {
 }
 
 /**
- * Whether a DWD status slot selects pollen, or its alert is on. Pollen is
+ * Whether a DWD status slot selects pollen, or its alert is placed. Pollen is
  * DWD-only and status-only.
  * @param {Object} settings Clay settings.
+ * @param {?Object} [watchInfo] getActiveWatchInfo() result, or null/undefined.
  * @returns {boolean} True when the effective provider and slot selection (or the
  *     pollen alert) need pollen.
  */
-function needsPollen(settings) {
+function needsPollen(settings, watchInfo) {
     if (!settings || settings.provider !== 'dwd') { return false; }
-    return metricWanted(settings, 'pollen');
+    return metricWanted(settings, 'pollen', watchInfo);
 }
 
 module.exports = {
