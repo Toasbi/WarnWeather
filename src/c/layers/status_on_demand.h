@@ -41,13 +41,13 @@
 // TOMORROW entry carries the alert's mark around its value ("»8", "8*"), which
 // outlasts the values-off lane, so a tomorrow alert never reads as today's.
 //
-// A boxed entry's footprint INCLUDES its box: STATUS_ALERTS_BOX_PAD_X px each side of
+// A boxed entry's footprint INCLUDES its box: STATUS_ON_DEMAND_BOX_PAD_X px each side of
 // the icon(+text) group, inside the box — the outline's own pixel plus two of air.
 // The widths the layout works on are therefore the ink the item paints. Vertically
 // the box is exactly the slots' font-derived extent (status_highlight_extent). Next
 // to a boxed entry the items keep OD_PADDED_GAP (2) px apart, OD_ITEM_GAP (4)
 // otherwise.
-#define STATUS_ALERTS_BOX_PAD_X 3
+#define STATUS_ON_DEMAND_BOX_PAD_X 3
 
 typedef struct StatusOnDemandCache StatusOnDemandCache;
 
@@ -110,7 +110,7 @@ typedef struct {
 typedef struct {
     int16_t icon_w;             // the glyph's width; 0 = no glyph
     int16_t text_w[OD_LANES];   // the text lane's width per On demand lane; 0 = none
-    uint8_t pad;                // air each side inside a box: STATUS_ALERTS_BOX_PAD_X
+    uint8_t pad;                // air each side inside a box: STATUS_ON_DEMAND_BOX_PAD_X
 } StatusOnDemandCell;
 
 // The entries and item states one pass resolves.

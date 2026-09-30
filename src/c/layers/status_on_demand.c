@@ -327,7 +327,7 @@ static int16_t icon_width(GDrawCommandImage *image) {
 }
 
 // Measure `item` on every lane into its cell, and its footprint per lane into `w`:
-// icon + (text ? STATUS_ROW_ICON_TEXT_GAP + text : 0), plus 2 * STATUS_ALERTS_BOX_PAD_X
+// icon + (text ? STATUS_ROW_ICON_TEXT_GAP + text : 0), plus 2 * STATUS_ON_DEMAND_BOX_PAD_X
 // for a boxed metric entry — whose group is measured by its ink (a last icon's
 // one-column overhang in, a last text's trailing letter spacing out), so its air to
 // the box stroke is equal on both sides. A lane that has nothing left to draw keeps
@@ -344,7 +344,7 @@ static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
     } else {
         c->icon_w = icon_width(image_for(row->cache, item_key(s, item)));
     }
-    c->pad = item_boxed(item) ? STATUS_ALERTS_BOX_PAD_X : 0;
+    c->pad = item_boxed(item) ? STATUS_ON_DEMAND_BOX_PAD_X : 0;
     for (int lane = 0; lane < OD_LANES; lane++) {
         char buf[LANE_CAP];
         GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
