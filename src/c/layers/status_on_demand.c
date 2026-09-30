@@ -147,13 +147,14 @@ static void ensure(StatusOnDemandCache *cache, const uint8_t *keys, int n, int t
         if (key == 0 || find_key(cache, key) >= 0) { continue; }
         int slot = find_key(cache, 0);
         if (slot < 0) { break; }   // unreachable: at most GLYPH_SLOTS distinct keys
-        // A failed load keeps its key with a NULL image — the item measures text-only
-        // and the load is not retried every frame.
+        // A failed load (OOM) leaves the slot free, so the next draw — the minute's
+        // redraw at the latest — tries again, as the old strip's indicator icons did;
+        // until then the item measures text-only, or not at all (Bluetooth, Quiet time).
         cache->images[slot] = (key & RAIN_KEY_FLAG)
             ? status_row_icons_load_filled(rain_resource(key & ~RAIN_KEY_FLAG), target_h,
                                            tint, outline)
             : status_row_icons_load(key, target_h, top_strip);
-        cache->keys[slot] = key;
+        if (cache->images[slot]) { cache->keys[slot] = key; }
     }
 }
 
