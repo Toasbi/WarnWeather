@@ -20,6 +20,13 @@
 # drift further. Lower a ceiling when bytes are reclaimed; never raise one without a
 # measured runtime low point that allows it. Emery's app RAM is 128 KB (8 KB gate), so
 # it is not checked here.
+#
+# Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
+# (its MEM| call sites). At the images above, diorite/flint's logging build is 63192 B,
+# which leaves 2344 B of boot free heap, so a low point it logs sits about 3124 B below
+# the release build's. Basalt's logging build does not link at all (the APP region
+# overflows by 116 B), so its low point cannot be taken that way until image bytes come
+# back; its release build's boot free heap (about 3028 B) is already its upper bound.
 set -euo pipefail
 
 wt_root=$(git rev-parse --show-toplevel)

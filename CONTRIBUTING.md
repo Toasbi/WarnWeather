@@ -116,7 +116,7 @@ If you use Supabase GitHub sync/branching, Supabase can auto-apply migrations an
 
 `mise build` and `mise build release` automatically generate `package.json` from the template/profile before building.
 
-If you want the extra Pebble heap debug logs, set `ENABLE_MEMORY_LOGGING=1` in your `.env` before building or installing. This is independent of the dev/release package profile. This does not build on aplite (the `MEM|` logging overflows `.bss`) — capture heap logs on diorite or another platform instead.
+If you want the extra Pebble heap debug logs, set `ENABLE_MEMORY_LOGGING=1` in your `.env` before building or installing. This is independent of the dev/release package profile. This does not build on aplite (the `MEM|` logging overflows `.bss`) — capture heap logs on diorite or another platform instead. At the current image sizes it does not link on basalt either, and on diorite/flint it costs about 3.1 KB of heap; `scripts/check-64k-size.sh` has the numbers.
 
 For deterministic emulator UI, set `FIXTURE=<name>` in `.env` before building or installing. Fixture files live in `fixtures/<name>.json` and define the watch facts and weather payload used by local builds.
 
