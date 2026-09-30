@@ -40,6 +40,25 @@ test('the generated page installs the DefaultsPolicy global the wizard reads', (
     'nothing assigns window.DefaultsPolicy — the wizard would resolve undefined and apply nothing');
 });
 
+// on-demand.js reads window.VIEW_CYCLE while its own body runs and status-thresholds.js
+// binds window.OnDemand while ITS body runs: out of order, the first status-bar summary,
+// checklist or bake that reads the contract throws on a real phone, while every Node test
+// passes through require().
+test('the On demand contract is bundled after view-cycle and before status-thresholds', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/view-cycle.js') < idx('pkjs/on-demand.js'),
+    'view-cycle.js must precede on-demand.js');
+  assert.ok(idx('pkjs/on-demand.js') < idx('pkjs/status-thresholds.js'),
+    'on-demand.js must precede status-thresholds.js');
+  assert.ok(page().indexOf('window.OnDemand = api') !== -1,
+    'nothing assigns window.OnDemand in the generated page');
+});
+
 test('defaults-policy is bundled BEFORE the wizard that consumes it', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => appFiles.findIndex((f) => f.endsWith(suffix));

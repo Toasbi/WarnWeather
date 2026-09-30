@@ -16,6 +16,11 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/settings/country-defaults.js'),
   path.join(ROOT, 'src/pkjs/view-cycle.js'),
   path.join(ROOT, 'src/pkjs/status-line-catalog.js'),
+  // The On demand contract (window.OnDemand). It reads window.VIEW_CYCLE (the radar and
+  // health row modes) while its own body runs, and status-thresholds.js binds it while
+  // THAT body runs, so it sits after view-cycle.js and before status-thresholds.js —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/on-demand.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
   // The runtime's radar-source resolver (Rainbow + "Use your own key" -> 'rainbowkey'),
   // which rainbow-budget.js reads as PConf.radarSourceId at load.

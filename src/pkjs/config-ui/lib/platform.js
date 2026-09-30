@@ -60,6 +60,13 @@ var COLOR_BACKLIGHT_PLATFORMS = { emery: true };
 // `#if defined(WW_ON_DEMAND)` guards (wscript defines the macro for every platform
 // except aplite).
 var NO_ON_DEMAND_PLATFORMS = { aplite: true };
+// Platforms whose firmware reports the battery charge in 5 % steps: emery (Pebble
+// Time 2). Every other watch reports 10 % steps, where an "at or below 15 %" warn level
+// would act like 10, so the On demand Battery item's warn level steps by 5 on emery and
+// by 10 elsewhere (src/pkjs/on-demand.js batteryLevel rounds a stored 5/15/25 up there).
+// Unknown platforms read the 10 % steps (conservative, the colorBacklight precedent: a
+// wrong guess then fires at most one 5 % step early on an emery, never late elsewhere).
+var FINE_BATTERY_PLATFORMS = { emery: true };
 /**
  * Whether a Pebble platform has a color display (false for the B/W platforms).
  * @param {string} platform Platform name (e.g. 'basalt', 'aplite', 'chalk').
@@ -129,12 +136,19 @@ function isColorBacklightPlatform(platform) { return Boolean(COLOR_BACKLIGHT_PLA
  */
 function isOnDemandPlatform(platform) { return !NO_ON_DEMAND_PLATFORMS[platform]; }
 /**
+ * Whether a Pebble platform reports its battery charge in 5 % steps (emery only).
+ * Unknown platforms are treated as reporting 10 % steps.
+ * @param {string} platform Platform name (e.g. 'emery', 'basalt').
+ * @returns {boolean} True if the battery warn level may step by 5 %.
+ */
+function isFineBatteryPlatform(platform) { return Boolean(FINE_BATTERY_PLATFORMS[platform]); }
+/**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, and On demand support.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean, fineBattery: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, On demand support, and 5 % battery-charge steps.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p), fineBattery: isFineBatteryPlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, isOnDemandPlatform: isOnDemandPlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, isOnDemandPlatform: isOnDemandPlatform, isFineBatteryPlatform: isFineBatteryPlatform, computeEnv: computeEnv };
