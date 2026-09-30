@@ -384,6 +384,58 @@ static void looks_outrank_slots(void) {
     expect_true("looks_outrank.checked", checked > 3000);
 }
 
+// A claim inside its half is never pushed (the owner, 2026-09-30: the far-side slot
+// never gives way for a side's needs). On a bar where both sides have items and the
+// middle ends hidden, a side whose claim — every item at its chosen look, and its own
+// slot whole — stays inside its half keeps every item, its chosen look and its slot
+// whole, whatever it gave up for the middle while the middle still showed.
+static void inside_half_keeps_all(void) {
+    int checked = 0;
+    for (int trial = 0; trial < 20000; trial++) {
+        OdSlotIn slots[3] = { random_slot(), random_slot(), random_slot() };
+        OdSideIn sides[2] = { random_side(OD_BLUETOOTH, OD_RAIN), random_side(OD_GUST, OD_WIND) };
+        if (rnd(2)) {
+            const OdSideIn left = sides[0];
+            sides[0] = sides[1];
+            sides[1] = left;
+        }
+        int8_t bleed[2] = { (int8_t)rnd(3), (int8_t)rnd(3) };
+        int16_t w = (int16_t)(40 + rnd(180));
+        OdLayout out;
+        od_layout(w, slots, sides, bleed, 0, &out);
+        if (out.place[1].visible) { continue; }
+        StatusSlotPlace plain[3];
+        plain_of(w, slots, plain);
+        for (int d = 0; d < 2; d++) {
+            const OdSideIn *s = &sides[d];
+            const int own = d ? 2 : 0;
+            int run = -bleed[d];
+            for (int i = 0; i < s->n; i++) {
+                run += s->w[0][i];
+                if (i + 1 < s->n) {
+                    run += s->padded[i] || s->padded[i + 1] ? OD_PADDED_GAP : OD_ITEM_GAP;
+                }
+            }
+            const int own_w = status_slot_placed_w(&plain[own], &slots[own].m[0]);
+            const int claim = (run > 0 ? run : 0) + (own_w > 0 ? STATUS_ROW_GROUP_GAP + own_w : 0);
+            if (2 * claim + STATUS_ROW_GROUP_GAP > w) { continue; }
+            checked++;
+            bool keeps = out.n[d] == s->n
+                && (own_w <= 0 || (out.form[own] == OD_FULL && out.place[own].visible));
+            for (int i = 0; keeps && i < s->n; i++) {
+                keeps = s->w[out.lane[d]][i] == s->w[0][i];
+            }
+            if (!keeps) {
+                printf("FAIL inside_half trial %d side %d w %d: n %d / %d, lane %d, own form %d\n",
+                       trial, d, w, out.n[d], s->n, out.lane[d], out.form[own]);
+                s_failures++;
+                return;
+            }
+        }
+    }
+    expect_true("inside_half.checked", checked > 1000);
+}
+
 // --- the far slot -----------------------------------------------------------------
 
 // A side with no items never changes its own slot: with one side active, the far
@@ -410,14 +462,15 @@ static void far_slot_is_plain(void) {
     }
 
     // The wall is the far side's own plain slot (70 px, across the midline) while the
-    // left claim stays in its half: the active side yields anyway — its slot hides
-    // (row 3) and its item stays — and the far slot does not move.
+    // left claim stays in its half: the active side yields anyway — its slot hides and
+    // its item stays — and the far slot does not move. With no middle, rows 0-5 keep
+    // the own slot whole (there is no middle to give it up for), so it hides on row 8.
     OdSlotIn wall[3] = { slot_text(20, 0), slot_empty(), slot_text(70, 0) };
     OdSideIn sides[2] = { side_none(), side_none() };
     add_icon(&sides[0], OD_BLUETOOTH, 10);
     OdLayout out;
     od_layout(100, wall, sides, NO_BLEED, 0, &out);
-    expect("far.wall.stage", out.stage[0], 3);
+    expect("far.wall.stage", out.stage[0], 8);
     expect("far.wall.n", out.n[0], 1);
     expect("far.wall.own_hidden", out.form[0], OD_HIDDEN);
     expect("far.wall.far_x", out.place[2].icon_x, 30);
@@ -550,12 +603,13 @@ static void two_sides_no_middle(void) {
         expect("nomid.small_form", out.form[0], OD_FULL);
         expect("nomid.small_x", out.place[0].icon_x, 10 + STATUS_ROW_GROUP_GAP);
         expect("nomid.small_n", out.n[0], 1);
-        // 60 px of gust fits once the big side's slot hides (row 3) and the rain drops
-        // its Text for its icon (the looks give way last; with the minutes 7 px still
-        // miss). 90 px cannot fit even beside the rain's icon: the gust drops, and only
-        // it, and the ladder starts over — the rain's Text then fits once the slot
-        // hides, and keeps it (the slot does not come back at the Text's cost).
-        expect("nomid.big_stage", out.stage[1], 3);
+        // 60 px of gust fits once the big side's slot hides (row 8: with no middle,
+        // rows 0-5 keep the slot whole) and the rain drops its Text for its icon (the
+        // looks give way last; with the minutes 7 px still miss). 90 px cannot fit even
+        // beside the rain's icon: the gust drops, and only it, and the ladder starts
+        // over — the rain's Text then fits once the slot hides, and keeps it (the slot
+        // does not come back at the Text's cost).
+        expect("nomid.big_stage", out.stage[1], 8);
         expect("nomid.big_lane", out.lane[1], big == 60 ? 2 : 0);
         expect("nomid.big_slot", out.form[2], OD_HIDDEN);
         expect("nomid.big_n", out.n[1], big == 60 ? 3 : 2);
@@ -571,21 +625,21 @@ static void two_sides_no_middle(void) {
         expect("nomid.mirror.small_form", out.form[2], OD_FULL);
         expect("nomid.mirror.small_x", out.place[2].icon_x, 144 - 10 - STATUS_ROW_GROUP_GAP - 30);
         expect("nomid.mirror.small_n", out.n[1], 1);
-        expect("nomid.mirror.big_stage", out.stage[0], 3);
+        expect("nomid.mirror.big_stage", out.stage[0], 8);
         expect("nomid.mirror.big_lane", out.lane[0], big == 60 ? 2 : 0);
         expect("nomid.mirror.big_slot", out.form[0], OD_HIDDEN);
         expect("nomid.mirror.big_n", out.n[0], big == 60 ? 3 : 2);
     }
 
     // Both claims cross the midline: both climb (with no short form and no middle the
-    // first row that changes anything is 3, where each own slot hides), and both fit.
+    // first row that changes anything is 8, where each own slot hides), and both fit.
     OdSideIn both[2] = { side_none(), side_none() };
     add_icon(&both[0], OD_WIND, 40);
     add_icon(&both[1], OD_RAIN, 40);
     OdLayout out;
     od_layout(100, slots, both, NO_BLEED, 0, &out);
-    expect("nomid.both.left_stage", out.stage[0], 3);
-    expect("nomid.both.right_stage", out.stage[1], 3);
+    expect("nomid.both.left_stage", out.stage[0], 8);
+    expect("nomid.both.right_stage", out.stage[1], 8);
     expect("nomid.both.left_hidden", out.form[0], OD_HIDDEN);
     expect("nomid.both.right_hidden", out.form[2], OD_HIDDEN);
     expect("nomid.both.left_n", out.n[0], 1);
@@ -631,7 +685,7 @@ static void attribution_is_exact(void) {
     od_layout(100, none_l, half, NO_BLEED, 0, &out);
     expect("exact.nomid.left_stage", out.stage[0], 0);
     expect("exact.nomid.left_slot", out.form[0], OD_FULL);
-    expect("exact.nomid.right_stage", out.stage[1], 3);
+    expect("exact.nomid.right_stage", out.stage[1], 8);
     expect("exact.nomid.right_hidden", out.form[2], OD_HIDDEN);
     // The mirror: the right claim begins at 52 (exactly at the limit), the left one
     // ends at 49.
@@ -640,7 +694,7 @@ static void attribution_is_exact(void) {
     expect("exact.nomid.mirror.right_stage", out.stage[1], 0);
     expect("exact.nomid.mirror.right_slot", out.form[2], OD_FULL);
     expect("exact.nomid.mirror.right_x", out.place[2].icon_x, 100 - 10 - STATUS_ROW_GROUP_GAP - 34);
-    expect("exact.nomid.mirror.left_stage", out.stage[0], 3);
+    expect("exact.nomid.mirror.left_stage", out.stage[0], 8);
 
     // With nothing on the far side, a free middle may reach the content edge. W 100, a
     // 60 px middle (target 20) and no edge slots: a 36 px right run leaves the middle
@@ -660,16 +714,17 @@ static void attribution_is_exact(void) {
     expect("exact.edge.mirror.middle_x", out.place[1].icon_x, 40);
 }
 
-// A violated side steps to its next row that changes something for IT, skipping the
-// rows that change nothing, so two sides climbing together do not keep the same pace.
-// W 149, no middle, both claims across the midline: the left side (Quiet time and a
-// rain icon, its 26 px slot with no short form) has nothing to give on rows 1-2, so
-// its next step is row 3 (its slot hides); the right side (a gust icon and an air
-// quality value, its 30 px slot shortening to 13) shortens its slot (row 1) in the
-// same step, and both fit — the left slot does not fit back whole beside the right
-// one's short form. Two sides that idled on the rows that change nothing would both
-// have reached row 3 and hidden both slots, and the relax would then have given the
-// left one back whole and left the right one hidden.
+// A violated side steps to its next row that changes the layout, skipping the rows
+// that change nothing, so two sides climbing together do not keep the same pace.
+// W 149, no middle (rows 0-5 keep each own slot whole), both claims across the
+// midline: the left side (Quiet time and a rain icon, its 26 px slot with no short
+// form) has nothing to give before row 8, so its next step is row 8 (its slot hides);
+// the right side (a gust icon and an air quality value, its 30 px slot shortening to
+// 13) shortens its slot (row 7) in the same step, and both fit — the left slot does
+// not fit back whole beside the right one's short form. Two sides that idled on the
+// rows that change nothing would both have reached row 8 and hidden both slots, and
+// the relax would then have given the left one back whole and left the right one
+// hidden.
 static void two_sides_skip_idle_rows(void) {
     OdSlotIn slots[3] = { slot_text(26, 0), slot_empty(), slot_text(30, 13) };
     OdSideIn sides[2] = { side_none(), side_none() };
@@ -679,9 +734,9 @@ static void two_sides_skip_idle_rows(void) {
     add(&sides[1], OD_AQI, 36, 36, 11, false);
     OdLayout out;
     od_layout(149, slots, sides, NO_BLEED, 0, &out);
-    expect("skip.left_stage", out.stage[0], 3);
+    expect("skip.left_stage", out.stage[0], 8);
     expect("skip.left_hidden", out.form[0], OD_HIDDEN);
-    expect("skip.right_stage", out.stage[1], 1);
+    expect("skip.right_stage", out.stage[1], 7);
     expect("skip.right_short", out.form[2], OD_SHORT);
     expect("skip.right_x", out.place[2].icon_x, 149 - 61 - STATUS_ROW_GROUP_GAP - 13);
     expect("skip.left_lane", out.lane[0], 0);
@@ -691,10 +746,10 @@ static void two_sides_skip_idle_rows(void) {
 // --- the relax: looks and slots back ------------------------------------------------
 //
 // A side climbs while its claim is in the way of things as they were then; once both
-// sides have settled, each side climbs its ladder once more from row 0 of its chosen
-// look against the other side as it now is, taking back the longest look and then the
-// fullest slot and middle that fit, until neither side moves; the other side keeps
-// its row and its look. The reported row is the one the side ends on.
+// sides have settled, each side takes back the longest look and then the fullest slot
+// and middle where its own claim is not in the way against the other side as it now
+// is, until neither side moves; where the other side's claim is in the way there, that
+// side gives way through its own ladder. The reported row is the one the side ends on.
 
 static void slots_back_two_sides(void) {
     OdLayout out;
@@ -836,8 +891,8 @@ static void slots_back_middle_gone(void) {
     expect("slots_back.gone.cost.lane", out.lane[0], 0);
 }
 
-// Bars a random search found where one rule of the relax decides the layout (each
-// kills a mutant of it the cases above let through). A member is { icon, text,
+// Bars where one rule of the relax decides the layout (each kills a mutant of it the
+// cases above let through), most found by a random search. A member is { icon, text,
 // suffix }; an item is { rank, lane 0, lane 1, lane 2, padded }.
 typedef struct { int16_t icon, text, suffix; } PinMember;
 typedef struct { uint8_t n; int16_t floor_w; PinMember m[OD_VARIANTS]; } PinSlot;
@@ -848,37 +903,38 @@ typedef struct {
     int8_t bleed;
     PinSlot slots[3];
     uint8_t n[2];
-    PinItem items[2][3];
-    // the result pinned: each slot's form, member and x (x -1: not checked), and each
-    // side's row and lane
+    PinItem items[2][4];
+    // the result pinned: each slot's form, member and x (x -1: not checked), each
+    // side's row and lane, and the items it keeps (0: not checked)
     uint8_t form[3], variant[3];
     int16_t x[3];
-    uint8_t stage[2], lane[2];
+    uint8_t stage[2], lane[2], kept[2];
 } PinCase;
 
 static const PinCase PINS[] = {
-    // The side that climbed further takes its slot back first: the right side hid the
-    // middle (row 6), the left side only its slot (row 3). The right slot comes back
-    // whole, and the left one then fits only short (left first, the left slot would
-    // come back whole and the right one not at all).
-    { "further_first", 90, 0,
+    // A slot given up for the middle is whole again once the other side hides it: the
+    // right side's gust needs the middle hidden (its row 6 and on); the left slot, which
+    // shortened for the middle at first, is whole again — the left claim stays inside
+    // its half — and the right slot, whose claim crosses the midline, hides.
+    { "inside_slot_stays_whole", 90, 0,
       { { 2, 0, { { 0, 21, 0 }, { 0, 3, 0 } } }, { 1, 0, { { 0, 44, 0 } } }, { 1, 0, { { 0, 21, 0 } } } },
       { 1, 1 }, { { { OD_QUIET_TIME, 15, 15, 10, false } }, { { OD_GUST, 39, 39, 25, false } } },
-      { OD_SHORT, OD_HIDDEN, OD_FULL }, { 1, 0, 0 }, { 19, -1, 26 }, { 1, 6 }, { 0, 0 } },
+      { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 19, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
     // A look comes back before a slot: the left side takes back its chosen look with its
     // slot hidden, not its slot (short) beside a shorter look.
     { "look_before_slot", 168, 0,
       { { 2, 0, { { 13, 41, 0 }, { 13, 15, 0 } } }, { 0, 0, { { 0 } } }, { 2, 0, { { 0, 62, 0 }, { 0, 50, 0 } } } },
       { 2, 2 }, { { { OD_BLUETOOTH, 35, 8, 8, false }, { OD_SLEEP, 65, 41, 17, false } },
                   { { OD_RAIN, 17, 17, 17, false }, { OD_GUST, 80, 35, 15, false } } },
-      { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 3, 3 }, { 0, 1 } },
-    // A slot hidden beside the middle comes back whole once the middle hid, where that
-    // fits.
-    { "slot_back_full", 138, 0,
+      { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 8, 8 }, { 0, 1 }, { 0, 0 } },
+    // A side gives up its own slot, never the far one: once the middle hides, the left
+    // claim with its slot whole stays inside its half, so the right side, whose claim
+    // crosses the midline, hides its slot and keeps its looks.
+    { "own_slot_before_far_slot", 138, 0,
       { { 1, 0, { { 0, 33, 0 } } }, { 1, 0, { { 14, 28, 0 } } }, { 2, 0, { { 11, 18, 0 }, { 11, 16, 0 } } } },
       { 1, 2 }, { { { OD_BLUETOOTH, 14, 14, 9, false } },
                   { { OD_GUST, 26, 26, 19, false }, { OD_UV, 53, 6, 6, false } } },
-      { OD_HIDDEN, OD_HIDDEN, OD_FULL }, { 0, 0, 0 }, { -1, -1, 19 }, { 3, 6 }, { 0, 0 } },
+      { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 18, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
     // A slot never comes back beside a middle that left the centre: the ladder hides
     // the slot first (row 3) and only then frees the middle (row 5). The left slot
     // would fit beside the free middle, pushed further off its target.
@@ -886,30 +942,30 @@ static const PinCase PINS[] = {
       { { 2, 0, { { 0, 23, 0 }, { 0, 11, 0 } } }, { 1, 0, { { 0, 13, 0 } } }, { 1, 0, { { 0, 6, 0 } } } },
       { 2, 1 }, { { { OD_BLUETOOTH, 50, 24, 6, false }, { OD_SLEEP, 59, 15, 7, false } },
                   { { OD_UV, 22, 22, 22, false } } },
-      { OD_HIDDEN, OD_FULL, OD_FULL }, { 0, 0, 0 }, { -1, 117, 182 }, { 5, 0 }, { 0, 0 } },
-    // The sides take turns until neither moves. The left side, which climbed further
-    // (to the rain's minutes), finds no longer look beside the right slot, back whole
-    // beside the hidden middle; the right side then gives that slot up for the middle
-    // (row 5: the middle outranks its slot). Only its second turn gives the left side
-    // its Text back beside the slot gone, which hides the middle again: a side's look
-    // outranks the middle.
-    { "turns_until_settled", 82, 0,
+      { OD_HIDDEN, OD_FULL, OD_FULL }, { 0, 0, 0 }, { -1, 117, 182 }, { 5, 0 }, { 0, 0 }, { 0, 0 } },
+    // A look gives way before a far-side slot: the left rain's Text needs the middle
+    // hidden, and with the middle hidden the right slot, which hid only for it, is whole
+    // again inside its half; the Text does not fit beside it, so it shortens to its
+    // minutes. Beside the minutes both sides make room for the middle with rows that
+    // keep it (row 3 hides the left slot, row 5 the right one and frees the middle), and
+    // the middle shows.
+    { "look_yields_to_far_slot", 82, 0,
       { { 2, 0, { { 16, 24, 0 }, { 16, 15, 0 } } }, { 2, 0, { { 15, 12, 0 }, { 15, 2, 0 } } },
         { 1, 0, { { 0, 16, 0 } } } },
       { 2, 1 }, { { { OD_QUIET_TIME, 6, 6, 6, false }, { OD_RAIN, 36, 25, 7, false } },
                   { { OD_UV, 19, 19, 19, false } } },
-      { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 8, 3 }, { 0, 0 } },
-    // A side that takes a shorter look climbs on with its slot hidden, so the slot it
-    // would take back there does not cost the other side its values. The rain's Text
-    // (59) does not fit even with the left slot hidden; its minutes do beside the
-    // right side's gust value, but the left slot, even short, does not. Climbing its
-    // rows again at the minutes would bring that slot back, cross the midline and
-    // push the right alerts to drop their values.
-    { "shorter_look_keeps_slots_hidden", 68, 0,
+      { OD_HIDDEN, OD_FULL, OD_HIDDEN }, { 0, 0, 0 }, { -1, 44, -1 }, { 3, 5 }, { 1, 0 }, { 0, 0 } },
+    // A slot comes back at its side's shorter look where the claim then stays inside
+    // its half, and the other side gives way for it through its own looks: the rain's
+    // Text (59) does not fit even with the left slot hidden; at its minutes the left
+    // claim with its slot short (29 px) stays inside its half of 68, so the slot is back
+    // short, and the right side, whose gust value crosses the midline beside it, takes
+    // its values off.
+    { "slot_back_at_shorter_look", 68, 0,
       { { 2, 0, { { 0, 30, 0 }, { 0, 11, 0 } } }, { 0, 0, { { 0 } } }, { 0, 0, { { 0 } } } },
       { 1, 2 }, { { { OD_RAIN, 59, 14, 14, false } },
                   { { OD_GUST, 28, 28, 10, false }, { OD_AQI, 10, 10, 7, false } } },
-      { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 3, 0 }, { 1, 0 } },
+      { OD_SHORT, OD_HIDDEN, OD_HIDDEN }, { 1, 0, 0 }, { 18, -1, -1 }, { 7, 0 }, { 1, 2 }, { 0, 0 } },
     // A look that narrows nothing is no step either: the left side (two values, no
     // Text) goes straight to its values off while the right side's rain takes its
     // minutes; then the right side takes its Text back. A left side that idled on its
@@ -919,15 +975,73 @@ static const PinCase PINS[] = {
       { { 0, 0, { { 0 } } }, { 0, 0, { { 0 } } }, { 0, 0, { { 0 } } } },
       { 2, 2 }, { { { OD_GUST, 29, 29, 11, false }, { OD_UV, 40, 40, 14, false } },
                   { { OD_RAIN, 38, 34, 12, false }, { OD_WIND, 38, 38, 16, false } } },
-      { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 0, 0 }, { 2, 0 } },
-    // A look comes back beside a shown middle too: both sides took their shortest
-    // looks at once, and the right side, which went further, takes its value back; the
-    // free middle moves aside for it.
+      { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 0, 0 }, { 2, 0 }, { 0, 0 } },
+    // A look comes back beside a shown middle too: both claims cross the midline at
+    // their chosen looks; with the left Bluetooth at its icon, the middle comes back
+    // short beside the right side's values, off its centre.
     { "look_back_beside_middle", 93, 0,
       { { 1, 0, { { 0, 41, 0 } } }, { 2, 0, { { 0, 11, 0 }, { 0, 9, 0 } } }, { 2, 0, { { 0, 32, 0 }, { 0, 12, 0 } } } },
       { 1, 2 }, { { { OD_BLUETOOTH, 46, 46, 18, false } },
                   { { OD_GUST, 40, 40, 18, false }, { OD_AQI, 14, 14, 14, false } } },
-      { OD_HIDDEN, OD_SHORT, OD_HIDDEN }, { 0, 1, 0 }, { -1, 22, -1 }, { 3, 5 }, { 2, 0 } },
+      { OD_HIDDEN, OD_SHORT, OD_HIDDEN }, { 0, 1, 0 }, { -1, 22, -1 }, { 3, 5 }, { 2, 0 }, { 0, 0 } },
+    // The reviewer's first bar (the Watch Status Bar of a 144 px watch): the week hides
+    // for the right side's gust; the left slot, shortened for the week at first, is
+    // whole again inside its half, and the right slot hides. The gust keeps its value.
+    { "gust_value_beside_whole_slot", 132, 2,
+      { { 2, 0, { { 0, 44, 0 }, { 0, 36, 0 } } }, { 1, 0, { { 0, 24, 0 } } }, { 2, 0, { { 0, 24, 0 }, { 0, 18, 0 } } } },
+      { 1, 1 }, { { { OD_QUIET_TIME, 12, 12, 12, false } }, { { OD_GUST, 55, 55, 19, true } } },
+      { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 14, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
+    // The reviewer's second bar: the date hides for the right side; the left slot is
+    // whole again inside its half; the right side hides its slot and, still across the
+    // midline, takes the rain's minutes. The date does not come back beside them: it
+    // would fit only with the left slot short, for a date the right side moved.
+    { "rain_minutes_beside_whole_slot", 132, 2,
+      { { 2, 0, { { 0, 30, 0 }, { 0, 18, 0 } } }, { 2, 0, { { 0, 48, 0 }, { 0, 14, 0 } } },
+        { 2, 0, { { 0, 24, 0 }, { 0, 18, 0 } } } },
+      { 1, 2 }, { { { OD_QUIET_TIME, 12, 12, 12, false } },
+                  { { OD_RAIN, 44, 25, 12, false }, { OD_GUST, 40, 40, 19, true } } },
+      { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 14, -1, -1 }, { 0, 8 }, { 0, 1 }, { 0, 0 } },
+    // Before a drop only the side in the way moves: at its shortest look the right
+    // side's claim still crosses the midline, the left one stays inside its half with
+    // its slot whole. The left slot stays (hiding it would let the wind stay), and the
+    // wind, the right side's lowest-priority item, drops.
+    { "only_the_side_in_the_way_moves", 132, 2,
+      { { 2, 0, { { 0, 19, 0 }, { 0, 15, 0 } } }, { 1, 0, { { 10, 31, 0 } } },
+        { 2, 0, { { 10, 34, 0 }, { 10, 16, 0 } } } },
+      { 3, 4 }, { { { OD_BLUETOOTH, 10, 10, 10, false }, { OD_QUIET_TIME, 12, 12, 12, false },
+                    { OD_SLEEP, 17, 17, 17, false } },
+                  { { OD_RAIN, 41, 23, 12, false }, { OD_GUST, 45, 45, 21, true },
+                    { OD_UV, 17, 17, 17, true }, { OD_WIND, 19, 19, 19, true } } },
+      { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 49, -1, -1 }, { 0, 8 }, { 0, 2 }, { 3, 3 } },
+    // The middle comes back only where each side's row is one it needs: the date would
+    // show only with the left slot hidden for a date the right side's gust moved off
+    // its centre (row 5). The left claim with its slot whole stays inside its half, so
+    // the date hides, and the right slot with it.
+    { "middle_not_moved_into_a_slot", 132, 2,
+      { { 2, 0, { { 0, 21, 0 }, { 0, 16, 0 } } }, { 2, 0, { { 0, 51, 0 }, { 0, 12, 0 } } },
+        { 2, 20, { { 0, 64, 0 }, { 0, 33, 0 } } } },
+      { 1, 1 }, { { { OD_WIND, 38, 38, 19, true } }, { { OD_GUST, 53, 53, 20, true } } },
+      { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 40, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
+    // ... on both sides: the week would show beside the left UV value, off its centre,
+    // only with the right slot hidden where its short form is not in the way of the
+    // week. The week hides, and both slots stay: the left one whole, the right one short
+    // inside its half.
+    { "rows_needed_on_both_sides", 132, 2,
+      { { 2, 0, { { 0, 24, 0 }, { 0, 17, 0 } } }, { 1, 0, { { 0, 26, 0 } } },
+        { 2, 0, { { 10, 36, 0 }, { 10, 18, 0 } } } },
+      { 1, 1 }, { { { OD_UV, 54, 54, 20, true } }, { { OD_RAIN, 12, 12, 12, false } } },
+      { OD_FULL, OD_HIDDEN, OD_SHORT }, { 0, 0, 1 }, { 56, -1, 85 }, { 0, 7 }, { 0, 0 }, { 0, 0 } },
+    // A side in the way drops an item rather than touch the far slot: the left claim
+    // with its slot whole just fits its half; the right side's three boxed alerts cross
+    // the midline beside it even with their values off, so its lowest-priority item,
+    // the wind, drops, and the date comes back short between them.
+    { "item_drops_for_the_far_slot", 132, 2,
+      { { 2, 0, { { 10, 37, 0 }, { 10, 21, 0 } } }, { 2, 0, { { 0, 40, 0 }, { 0, 11, 0 } } },
+        { 0, 0, { { 0 } } } },
+      { 1, 3 }, { { { OD_QUIET_TIME, 12, 12, 12, false } },
+                  { { OD_AQI, 20, 20, 20, true }, { OD_POLLEN, 26, 26, 20, true },
+                    { OD_WIND, 21, 21, 21, true } } },
+      { OD_FULL, OD_SHORT, OD_HIDDEN }, { 0, 1, 0 }, { 14, 68, -1 }, { 0, 2 }, { 0, 0 }, { 1, 2 } },
 };
 
 static void slots_back_pins(void) {
@@ -966,6 +1080,7 @@ static void slots_back_pins(void) {
             snprintf(name, sizeof(name), "pin.%s.side%d", pc->what, d);
             expect(name, out.stage[d], pc->stage[d]);
             expect(name, out.lane[d], pc->lane[d]);
+            if (pc->kept[d]) { expect(name, out.n[d], pc->kept[d]); }
         }
     }
 }
@@ -1434,10 +1549,8 @@ static void bleed_and_order(void) {
     OdLayout out;
     od_layout(192, slots, sides, STRIP_BLEED, 0, &out);
     expect("bleed.left_item", out.item_x[0][0], -2);
-    expect("bleed.left_run_x", out.x[0], -2);
     expect("bleed.left_slot", out.place[0].icon_x, 10 - 2 + STATUS_ROW_GROUP_GAP);
-    expect("bleed.right_item", out.item_x[1][0], 192 - 17);
-    expect("bleed.right_run_end", out.x[1] + out.w[1], 192);
+    expect("bleed.right_run_end", out.item_x[1][0] + 17, 192);
     expect("bleed.right_slot", out.place[2].icon_x, 192 - 17 - STATUS_ROW_GROUP_GAP - 29);
     expect("bleed.middle", out.place[1].icon_x, 72);
 
@@ -1633,6 +1746,7 @@ int main(void) {
     value_alert_keeps_its_value();
     looks_come_back();
     looks_outrank_slots();
+    inside_half_keeps_all();
     far_slot_is_plain();
     two_sides_share_the_middle();
     two_sides_drop_lowest_priority();

@@ -128,8 +128,6 @@ typedef struct {
     uint8_t lane[2];                       // their lane
     uint8_t stage[2];                      // the ladder row the side ends on, at its
                                            // look lane[] (after the relax)
-    int16_t x[2];                          // the run's span, content x ...
-    int16_t w[2];                          // ... and width
     int16_t item_x[2][OD_SIDE_MAX];        // each kept item's left edge
 } OdLayout;
 
@@ -143,10 +141,13 @@ typedef struct {
 //    its slot hides, the middle leaves the centre, the middle hides (its slot trying
 //    back beside it gone); only then does the side's look shorten (the rain Text to
 //    its minutes, then the values off), and finally its lowest-priority item drops.
-//    Once both have settled, each side in turn takes back the longest look, then the
-//    fullest slot and middle, that now fit beside the other side, until neither
-//    moves, taking nothing from the other side: a look or a slot given up for a
-//    middle or a claim that later gave way. The far slot of a side with no items
+//    Where a look shortened, both sides climb again from their first rows at the
+//    looks they have, so the slots and the middle it leaves room for come back. Once
+//    both have settled, each side in turn takes back the longest look, then the
+//    fullest slot and middle, where its own claim is not in the way; the other side
+//    gives way for it through its own ladder where its claim is — a claim that stays
+//    inside its half is never pushed, and a slot a side gave up only for the middle
+//    is whole again while the middle is hidden. The far slot of a side with no items
 //    keeps its place. The ladder measures a short slot at its narrowest member (an
 //    elastic one at its floor); once it has settled, each short slot draws the widest
 //    member its room allows, the middle first, then the left slot, then the right.
