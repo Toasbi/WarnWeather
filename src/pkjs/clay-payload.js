@@ -228,7 +228,7 @@ function buildClayPayload(settings, watchInfo, now) {
     };
     // The low-battery takeover of the right slot is aplite's alone: every other watch
     // shows the battery as the On demand Battery item instead and ignores the key. Sent
-    // only to a KNOWN aplite, so the 12 B stay out of every other Clay bundle, an
+    // only to a KNOWN aplite, so the 11 B stay out of every other Clay bundle, an
     // unknown platform's included (test/inbox-size.test.js). The watch treats the key
     // as optional (config_wire.c); an aplite whose platform the phone cannot read
     // reads the takeover as off for that session.

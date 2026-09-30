@@ -1479,7 +1479,8 @@ test('boot(): closing an edit sheet collapses a palette expanded inside it', () 
   assert.equal(r.modal.innerHTML.indexOf('class="palette"'), -1, 'the sheet reopens collapsed');
 });
 
-// A toggle row carrying the pencil (the Alerts card's "show this alert" switches): the
+// A toggle row carrying the pencil (the shape the retired Alerts card's "show this
+// alert" switches had; a generic engine capability, kept pinned): the
 // switch and the Edit button share one row, and the #scroll delegate tells them apart —
 // the switch flips the value in place, the Edit button opens the sheet.
 const TOGGLE_PEN_SCHEMA = {

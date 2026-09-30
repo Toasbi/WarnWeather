@@ -1219,8 +1219,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // merges the item's messageKey UNDER editBadgeFrom.args and a sheet row has none,
       // so such a row identifies itself through those args. It honours hintFrom the
       // same way: the resolver gets no row value (a sheet row stores nothing) and reads
-      // what it describes from S — e.g. an Alerts-card row printing its alert's live
-      // state ("Off", or its levels) under the label.
+      // what it describes from S — e.g. an On demand card row printing its item's live
+      // state ("Not in any status bar", or its levels) under the label.
       if (item.editBadgeFrom) {
         view.editSheet = sId;
         view.editBadge = resolveEditBadge(item, cx.S, cx.ENV);

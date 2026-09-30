@@ -397,11 +397,12 @@ function graphColorRow(row, joins) {
     return item;
 }
 // A kind's level group speaks in one of two voices, and the CALLER picks it: the
-// weather kinds rise to ALERT LEVELS (ALERT_VOICE, in the kind's Alerts sheet); the
-// health kinds work toward GOALS (GOAL_VOICE, in their slot sheet) — same
-// rises-toward-the-pair machinery, friendlier words. A voice record carries every word
-// the group, its slider's chips (the thresholdRange resolver, blocks.js) and the slot's
-// Bold row say, so the builders below hold no copy and never ask which kind they build.
+// weather kinds rise to ALERT LEVELS (ALERT_VOICE, in the kind's alert sheet in the
+// On demand card); the health kinds work toward GOALS (GOAL_VOICE, in their slot
+// sheet) — same rises-toward-the-pair machinery, friendlier words. A voice record
+// carries every word the group, its slider's chips (the thresholdRange resolver,
+// blocks.js) and the slot's Bold row say, so the builders below hold no copy and never
+// ask which kind they build.
 // The contract's goal flag (status-thresholds.js isGoalKind) packs the same three
 // kinds; test/config-thresholds.test.js pins the labels to it.
 //
@@ -953,17 +954,17 @@ function levelRows(keyStem, voice, hint, gate, offWhen) {
     }]);
 }
 // The Bold row is a SLOT-level setting, not a level one: it closes the slot's own rows
-// (last in an alert kind's sheet, whose levels live in its Alerts sheet; right above
-// a goal kind's Goals group) and says how boldly the slot prints. The ladder is
-// monotone — danger is always bold (while the kind's highlight is on: a switched-off
-// kind has no level), the middle option adds the warn/close level, "Always" adds the
-// normal zone too (status_threshold.h
-// ThreshBold). The row stays live while the kind's highlight is off, because "Always"
-// needs no levels to mean something; it mutes wholesale only under the Watch-tab
-// master row (BOLD_ALL_WHEN), which overrides it at pack time. Only the middle option
-// needs a level — it goes inert (not away: removing it would let the options-snapping
-// path rewrite a stored 'warn' to 'off') while nothing gives the kind one, which the
-// caller states: the sheet knows where its kind's level comes from.
+// (last in an alert kind's slot sheet, whose levels live in the kind's alert sheet in
+// the On demand card; right above a goal kind's Goals group) and says how boldly the
+// slot prints. The ladder is monotone — danger is always bold (while the kind's
+// highlight is on: a switched-off kind has no level), the middle option adds the
+// warn/close level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
+// The row stays live while the kind's highlight is off, because "Always" needs no
+// levels to mean something; it mutes wholesale only under the Watch-tab master row
+// (BOLD_ALL_WHEN), which overrides it at pack time. Only the middle option needs a
+// level — it goes inert (not away: removing it would let the options-snapping path
+// rewrite a stored 'warn' to 'off') while nothing gives the kind one, which the caller
+// states: the sheet knows where its kind's level comes from.
 /**
  * @param {string} keyStem Kind key stem, e.g. 'Uv' (thresh<Stem>BoldMode).
  * @param {Object} voice GOAL_VOICE or ALERT_VOICE: the middle option's label and the

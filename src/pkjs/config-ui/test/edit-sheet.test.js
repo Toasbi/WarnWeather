@@ -341,8 +341,8 @@ test('the row before a hosted toggle takes its divider from the row actually ren
     'the suppressed toggle\'s joinPrevious must not strip the divider above it');
 });
 
-// A TOGGLE row can carry the pencil too — the Alerts card's rows are "show this alert"
-// switches whose Edit opens the levels sheet. renderRow's .rgt.has-pen cell is generic
+// A TOGGLE row can carry the pencil too — the retired Alerts card's rows were "show this
+// alert" switches whose Edit opened the levels sheet, and the capability stays generic. renderRow's .rgt.has-pen cell is generic
 // over the control, so the switch sits where the select trigger sits above: the badge
 // leads it, the Edit button trails it.
 const TOGGLE_PEN_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
@@ -449,7 +449,7 @@ test('type:sheet WITH a badge renders as a preview + Edit row, not a chevron row
 });
 
 test('a badged type:sheet row honours hintFrom: the resolver reads S, with no row value', () => {
-  // The Alerts card's rows: each prints its alert's live state under the label.
+  // The On demand card's rows: each prints its item's live state under the label.
   let seen = null;
   global.PConf.hintResolvers.register('flagState', function (S, env, args) {
     seen = args;

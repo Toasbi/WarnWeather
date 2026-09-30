@@ -175,20 +175,24 @@ function migrateWarnLook(blob, ctx) {
 
 /**
  * Move the rain window's retired Off option. Until 132b577a the Radar tab's rain
- * countdown offered 'Off' (rainCountdownHorizon '0'); the rain alert's own switch
- * (alertRain) replaced it, but a stored '0' was never moved: the Alerts card's Rain
- * row read "Within 60 min" through its fallback while the phone sent horizon 0 and the
- * watch showed no rain. A stored '0' becomes the window's default '60' with the switch
+ * countdown offered 'Off' (rainCountdownHorizon '0'); the development branch's rain
+ * switch (alertRain) replaced it, but a stored '0' was never moved: the page's Rain row
+ * read "Within 60 min" through its fallback while the phone sent horizon 0 and the
+ * watch showed no rain. A stored '0' becomes the window's default '60' with that switch
  * OFF — the same "no rain alert" the watch already draws — except in radar mode 'Rain
- * alert only', which holds the switch on (reset-status-defaults.js forceRainAlert):
- * there the alert stays on, now with a working window.
+ * alert only', which needs the rain alert: there the switch stays on, now with a
+ * working window.
+ *
+ * The switch is an intermediate: the On demand move below (migrateOnDemand) reads it,
+ * unticks Rain everywhere when it is off, ticks Rain on in 'Rain alert only'
+ * (on-demand.js placeRainForCountdown) and then deletes it.
  *
  * Keyed on the stored HORIZON value, never on alertRain being absent. Reads radarMode,
  * so it must run after the radar provider -> mode move (radar.js).
  *
  * Asks for a send only in 'Rain alert only', where the sent value moves from 0 to 60.
- * Elsewhere the switch off keeps sending 0 (clay-payload.js), which the watch already
- * holds.
+ * Elsewhere Rain ends up unticked, so a watch with On demand keeps getting horizon 0
+ * (clay-payload.js), which it already holds; aplite compiles the radar out.
  *
  * @param {Object} blob Stored settings, mutated in place.
  * @returns {{changed: boolean, send: boolean}}

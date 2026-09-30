@@ -205,7 +205,7 @@ test('telemetryCode: 40 letters, upper case only while the item shows', () => {
   const code = OD.telemetryCode(S);
   assert.equal(code.length, 40);
   assert.equal(code.slice(0, 10), 'RlllRRRR-R', 'the Disabled left side reads lower case');
-  assert.equal(code.slice(10, 20), '----r-----'.replace('r', 'R'), 'forecast: rain right');
+  assert.equal(code.slice(10, 20), '----R-----', 'forecast: rain right');
   assert.equal(code.slice(20, 30), '------l---', 'a bar the mode removes reads lower case');
   assert.equal(OD.telemetryCode({}, platform.computeEnv({platform: 'aplite'})), undefined);
 });
