@@ -164,6 +164,10 @@ static void live_kinds(void) {
     family("sleep whole hour", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, false, 7, "7h00", false,
            false, FAMILY("7h"));
     no_family("sleep missing", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "--");
+    // Under an hour: "0h" would read as no sleep at all, so it hides at its turn.
+    no_family("sleep under an hour", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "0h45");
+    family("sleep ten hours", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, false, 7, "10h05", false,
+           false, FAMILY("10h"));
     // The Watch battery glyph: its bolt lane goes while it is empty.
     family("battery glyph", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, false, 7, "", false, false,
            FAMILY(" -lane"));

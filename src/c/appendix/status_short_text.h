@@ -20,7 +20,7 @@
 //    "07.09.26"; never the month), and outside a calendar view ends on the day of
 //    the month ("7");
 //  - steps drop their tenths ("12.3k" -> "12k", never rounded up), sleep its minutes
-//    ("7h32" -> "7h");
+//    ("7h32" -> "7h"; under an hour it has none, as "0h" would read as no sleep);
 //  - the Watch battery glyph drops its bolt lane while the watch is not charging
 //    (the lane is empty then);
 //  - the city abbreviates its shorter words ("Frankfurt am Main" -> "Frankfurt a.
@@ -126,7 +126,7 @@ static inline bool sst_unit_byte(char c) {
 //  3  outside a calendar view, the date becomes the day of the month (no zero pad,
 //     clamped like date_format_clamped_tm);
 //  4  steps drop their tenths: "12.3k" -> "12k" (truncated, never rounded up);
-//  5  sleep drops its minutes: "7h32" -> "7h".
+//  5  sleep drops its minutes: "7h32" -> "7h"; none under an hour ("0h45").
 static inline bool sst_apply(uint8_t kind, uint8_t icon, bool full_date, uint8_t mday, int t,
                              char *s, size_t cap) {
     int len = (int)strlen(s);
@@ -193,7 +193,9 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, bool full_date, uint8_t
             // A loop, not strchr: that would link newlib's 200-byte one into the image.
             int h = 1;
             while (h < len && s[h] != 'h') { h++; }
-            if (kind != SLOT_LIVE_SLEEP || h >= len - 1) { return false; }
+            // Under an hour ("0h45": the hours are never zero-padded) there is none: "0h"
+            // would read as no sleep at all.
+            if (kind != SLOT_LIVE_SLEEP || h >= len - 1 || s[0] == '0') { return false; }
             s[h + 1] = '\0';
             return true;
         }
