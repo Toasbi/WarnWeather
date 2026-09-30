@@ -291,6 +291,9 @@ static const char *const CITY_VECTORS[][5] = {
     { "New York City", "N. York City", "N. Y. City", NULL },
     { "A Coruña", NULL },
     { "St. Gallen", "S. Gallen", NULL },
+    // Initials of 3- and 4-byte code points: the initial keeps its whole code point.
+    { "서울 특별시", "서. 특별시", NULL },
+    { "𠮷野 大市場", "𠮷. 大市場", NULL },
     // Already an initial (what the phone bakes into an edge slot, W12): it stays as it
     // is, so no member repeats the one before.
     { "B. Soden", NULL },
@@ -352,6 +355,10 @@ static void city(void) {
     expect_str("floor new york", floor, "New\xE2\x80\xA6");
     expect_true("floor utf8", status_short_floor("Östra Göinge", floor, sizeof(floor)));
     expect_str("floor utf8", floor, "Öst\xE2\x80\xA6");
+    expect_true("floor utf8 3-byte", status_short_floor("서울특별시", floor, sizeof(floor)));
+    expect_str("floor utf8 3-byte", floor, "서울특\xE2\x80\xA6");
+    expect_true("floor utf8 4-byte", status_short_floor("𠮷野家市", floor, sizeof(floor)));
+    expect_str("floor utf8 4-byte", floor, "𠮷野家\xE2\x80\xA6");
     expect_true("floor bonn", status_short_floor("Bonn", floor, sizeof(floor)));
     expect_str("floor bonn", floor, "Bon\xE2\x80\xA6");
     expect_true("floor ulm", !status_short_floor("Ulm", floor, sizeof(floor)));
