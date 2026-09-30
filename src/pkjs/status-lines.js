@@ -10,6 +10,7 @@ var pressurePlausibility = require('./weather/pressure-plausibility.js');
 var isPolarSunPair = require('./weather/sun-events.js').isPolarSunPair;
 var statusPair = require('./status-pair.js');
 var wireUnits = require('./wire-units.js');
+var cityLadder = require('./city-ladder.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = ['left', 'mid', 'right'];
@@ -548,6 +549,14 @@ function packLine(line, payload, settings, env) {
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.
       var text = formatValue(code, payload, settings, key, textCap(s), dayMax);
+      // An edge slot's city walks the watch's word ladder before the cap cuts it: the
+      // first form that fits ('B. Soden', not 'Bad Sode'), whose words the watch can
+      // still shorten from there. Not on a known aplite: it has no On demand, and its
+      // bake stays byte for byte what it was.
+      if (code === 'city' && textCap(s) === catalog.CAPS.EDGE_TEXT_MAX
+          && env.platform !== 'aplite') {
+        text = cityLadder.fit(text, textCap(s));
+      }
       var valueBytes = utf8Truncate(utf8Encode(text), textCap(s));
       // Wind-direction arrow: one trailing sentinel byte, appended AFTER the
       // truncation so it can never be split or push the slot past its cap, and
