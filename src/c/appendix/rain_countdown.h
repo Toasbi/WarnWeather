@@ -10,8 +10,9 @@
 void rain_countdown_refresh(time_t now);
 
 // Phase B: derive the alert string from the cached segment + `now`. Returns
-// true (and fills `out`, NUL-terminated) when an alert should replace the
-// month text. O(1) and flash-free on a normal tick; the sole exception is a
+// true (and fills `out`, NUL-terminated) when the On demand Rain item has an
+// alert to show (its Text look, or the minutes alert_set derives from it).
+// O(1) and flash-free on a normal tick; the sole exception is a
 // single self-heal rescan the moment a cached segment ends, to chain to the
 // next segment in the same data. Minutes over 99 render as `+99'`, so the count
 // never exceeds 2 digits. `out_size` should be >= RAIN_COUNTDOWN_TEXT_CAP.
