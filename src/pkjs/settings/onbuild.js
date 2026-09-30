@@ -64,8 +64,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * Heal each bar's On demand lists on every open: both sides read canonically
      * (unknown codes and duplicates dropped, priority order — on-demand.js read, which
      * also reads a non-string list as its default), then anything the left side holds
-     * leaves the right (the watch's Left-wins reading of an overlap, which only a
-     * hand-edited blob can hold). A list is written back only when it changed.
+     * leaves the right (on-demand.js untickFrom; the watch's Left-wins reading of an
+     * overlap, which only a hand-edited blob can hold). A list is written back only when
+     * it changed.
      * @param {{ get: function, set: function }} ctx onLoad context
      * @returns {void}
      */
@@ -74,15 +75,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             var bar = onDemand.BARS[b].bar;
             var leftKey = onDemand.itemsKey(bar, 'left');
             var rightKey = onDemand.itemsKey(bar, 'right');
+            var stored = {};
+            stored[leftKey] = ctx.get(leftKey);
+            stored[rightKey] = ctx.get(rightKey);
             var S = {};
-            S[leftKey] = ctx.get(leftKey);
-            S[rightKey] = ctx.get(rightKey);
-            var left = onDemand.parse(onDemand.read(S, leftKey));
-            var right = onDemand.parse(onDemand.read(S, rightKey)).filter(function (c) {
-                return left.indexOf(c) < 0;
-            });
-            if (S[leftKey] !== left.join(',')) { ctx.set(leftKey, left.join(',')); }
-            if (S[rightKey] !== right.join(',')) { ctx.set(rightKey, right.join(',')); }
+            S[leftKey] = onDemand.parse(onDemand.read(stored, leftKey)).join(',');
+            S[rightKey] = onDemand.parse(onDemand.read(stored, rightKey)).join(',');
+            onDemand.untickFrom(S, rightKey, onDemand.parse(S[leftKey]));
+            if (stored[leftKey] !== S[leftKey]) { ctx.set(leftKey, S[leftKey]); }
+            if (stored[rightKey] !== S[rightKey]) { ctx.set(rightKey, S[rightKey]); }
         }
     }
 

@@ -115,6 +115,28 @@ test('tickOn: joins the side in the canonical order, leaves the other side, Enab
     statusForecastOnDemandRightItems: '' }, 'an absent list reads its default');
 });
 
+test('sideOfKey reads itemsKey backwards for every bar and side, and nothing else', () => {
+  OD.BARS.forEach((b) => OD.SIDES.forEach((side) => {
+    assert.deepEqual(OD.sideOfKey(OD.itemsKey(b.bar, side)), { bar: b.bar, side });
+  }));
+  ['statusTopOnDemandLeft', 'statusTopLeft', 'statusTopOnDemandLeftItemsX', '', undefined].forEach((k) =>
+    assert.equal(OD.sideOfKey(k), null, String(k)));
+  assert.equal(OD.otherSide('left'), 'right');
+  assert.equal(OD.otherSide('right'), 'left');
+});
+
+test('untickFrom: takes codes off one list in the canonical order, and leaves a list without them alone', () => {
+  const S = { statusTopOnDemandRightItems: 'rain,battery,uv', statusTopOnDemandLeftItems: 'qt,bt' };
+  assert.equal(OD.untickFrom(S, 'statusTopOnDemandRightItems', ['uv', 'wind']), true);
+  assert.equal(S.statusTopOnDemandRightItems, 'battery,rain', 'the canonical order');
+  assert.equal(OD.untickFrom(S, 'statusTopOnDemandLeftItems', ['rain']), false);
+  assert.equal(S.statusTopOnDemandLeftItems, 'qt,bt', 'left as stored');
+  assert.equal(OD.untickFrom(S, 'statusTopOnDemandLeftItems', []), false, 'nothing to take off');
+  const D = {};
+  assert.equal(OD.untickFrom(D, 'statusTopOnDemandLeftItems', ['qt']), true, 'an absent list reads its default');
+  assert.deepEqual(D, { statusTopOnDemandLeftItems: 'bt,snooze' });
+});
+
 test('untickEverywhere: every side of every bar, and only the lists that held it', () => {
   const S = { statusTopOnDemandRightItems: 'battery,rain', statusHealthOnDemandLeftItems: 'rain,wind',
     statusForecastOnDemandLeftItems: 'uv' };

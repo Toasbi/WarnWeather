@@ -204,15 +204,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * @returns {void}
      */
     function onDemandExclusive(S, key, oldValue, newValue) {
-        var m = /^(status(?:Top|Forecast|Radar|Health))OnDemand(Left|Right)Items$/.exec(key || '');
-        if (!m) { return; }
+        var at = onDemand.sideOfKey(key);
+        if (!at) { return; }
         var before = onDemand.parse(oldValue);
         var added = onDemand.parse(newValue).filter(function (c) { return before.indexOf(c) < 0; });
-        if (!added.length) { return; }
-        var sibling = m[1] + 'OnDemand' + (m[2] === 'Left' ? 'Right' : 'Left') + 'Items';
-        S[sibling] = onDemand.canonical(onDemand.parse(onDemand.read(S, sibling)).filter(function (c) {
-            return added.indexOf(c) < 0;
-        }));
+        onDemand.untickFrom(S, onDemand.itemsKey(at.bar, onDemand.otherSide(at.side)), added);
     }
 
     PConf.onChange.register('resetStatusRadar', function (S, oldValue, newValue, env) {

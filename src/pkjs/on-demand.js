@@ -9,7 +9,7 @@
  * (status<Bar>OnDemand<Side>Items: a comma list of item codes, in priority order). An
  * item sits on at most one side of a bar; it may also be ticked on other bars.
  *
- * It also holds the few writes that move a tick (tickOn, untickEverywhere,
+ * It also holds the few writes that move a tick (tickOn, untickFrom, untickEverywhere,
  * placeRainForCountdown), so the settings page's hooks and the upgrade migration move
  * ticks by the same rules they are read by.
  *
@@ -81,6 +81,27 @@
    * @returns {string} the side's items key, e.g. 'statusTopOnDemandLeftItems'
    */
   function itemsKey(bar, side) { return sideKey(bar, side) + 'Items'; }
+
+  /**
+   * The bar and side an items key belongs to: itemsKey read backwards, over BARS and
+   * SIDES, so a hook handed the key that changed never spells the key scheme itself.
+   * @param {string} key A settings key.
+   * @returns {?{bar: string, side: string}} null when the key is no side's items list
+   */
+  function sideOfKey(key) {
+    for (var b = 0; b < BARS.length; b++) {
+      for (var s = 0; s < SIDES.length; s++) {
+        if (itemsKey(BARS[b].bar, SIDES[s]) === key) { return { bar: BARS[b].bar, side: SIDES[s] }; }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * @param {string} side 'left' | 'right'
+   * @returns {string} the bar's other side
+   */
+  function otherSide(side) { return side === 'left' ? 'right' : 'left'; }
 
   // Every setting this module reads, with its default. The Watch Status Bar shows
   // Bluetooth, Quiet time and Sleep on its left, and the battery with the weather alerts
@@ -256,13 +277,31 @@
    */
   function tickOn(S, bar, side, code) {
     var here = itemsKey(bar, side);
-    var there = itemsKey(bar, side === 'left' ? 'right' : 'left');
+    var there = itemsKey(bar, otherSide(side));
     var enabled = sideKey(bar, side);
     var before = [S[here], S[there], S[enabled]].join('|');
     S[here] = canonical(parse(read(S, here)).concat([code]));
     S[there] = canonical(parse(read(S, there)).filter(function (c) { return c !== code; }));
     S[enabled] = 'on';
     return [S[here], S[there], S[enabled]].join('|') !== before;
+  }
+
+  /**
+   * Take items off one side's list, which is written back in the canonical order. THE
+   * write that unticks: the page's one-side-per-bar hook, its open-time heal and
+   * untickEverywhere all go through it. Mutates S; a list that held none of them is left
+   * as stored.
+   * @param {Object} S Settings blob.
+   * @param {string} key A side's items key (itemsKey).
+   * @param {string[]} codes ITEMS codes to take off.
+   * @returns {boolean} whether the list held any of them
+   */
+  function untickFrom(S, key, codes) {
+    var list = parse(read(S, key));
+    var kept = list.filter(function (c) { return codes.indexOf(c) < 0; });
+    if (kept.length === list.length) { return false; }
+    S[key] = kept.join(',');
+    return true;
   }
 
   /**
@@ -276,13 +315,7 @@
     var changed = false;
     for (var b = 0; b < BARS.length; b++) {
       for (var s = 0; s < SIDES.length; s++) {
-        var key = itemsKey(BARS[b].bar, SIDES[s]);
-        var codes = parse(read(S, key));
-        var at = codes.indexOf(code);
-        if (at === -1) { continue; }
-        codes.splice(at, 1);
-        S[key] = canonical(codes);
-        changed = true;
+        changed = untickFrom(S, itemsKey(BARS[b].bar, SIDES[s]), [code]) || changed;
       }
     }
     return changed;
@@ -388,6 +421,8 @@
     prefixOf: prefixOf,
     sideKey: sideKey,
     itemsKey: itemsKey,
+    sideOfKey: sideOfKey,
+    otherSide: otherSide,
     parse: parse,
     canonical: canonical,
     read: read,
@@ -395,6 +430,7 @@
     sideOf: sideOf,
     placedAnywhere: placedAnywhere,
     tickOn: tickOn,
+    untickFrom: untickFrom,
     untickEverywhere: untickEverywhere,
     placeRainForCountdown: placeRainForCountdown,
     cells: cells,
