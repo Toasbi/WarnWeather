@@ -31,6 +31,55 @@ static void widest_member_bar(OdSlotIn slots[3]) {
     slots[2] = slot_text(40, 0);
 }
 
+// As a sweep over `slots` (the fixture's, or with the middle emptied): whatever member
+// the short left slot draws fits with the gap to its neighbours, and the next wider
+// one would not — the middle (chosen first, beside the left slot's narrowest member)
+// centred on its full centre unless its row frees it, then the left slot up to the
+// middle, or with no middle up to the right slot's gap. Returns the members the short
+// left slot drew, as a mask (bit v: member v), so a caller can tell the sweep reached
+// every one.
+static unsigned sweep_left(const OdSlotIn slots[3], const char *tag) {
+    static const int16_t LEFT_W[4] = { 60, 50, 40, 20 };
+    static const int16_t MID_W[3] = { 60, 50, 30 };
+    unsigned seen = 0;
+    for (int k = 1; k <= 150; k++) {
+        OdSideIn sides[2] = { side_none(), side_none() };
+        add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
+        OdLayout out;
+        od_layout(200, slots, sides, NO_BLEED, false, &out);
+        char name[64];
+        // The far slot never moves: with no middle, the left slot's room ends at its gap.
+        snprintf(name, sizeof(name), "%s.far k%d", tag, k);
+        expect(name, out.place[2].icon_x, 160);
+        int bound = out.place[1].visible ? out.place[1].icon_x - 4 : out.place[2].icon_x - 4;
+        if (out.form[0] == OD_SHORT) {
+            seen |= 1u << out.variant[0];
+            snprintf(name, sizeof(name), "%s.left_fits k%d", tag, k);
+            expect(name, out.place[0].icon_x, k + 4);
+            expect_true(name, k + 4 + LEFT_W[out.variant[0]] <= bound);
+        }
+        if (out.form[0] == OD_SHORT && out.variant[0] > 1) {
+            int wider = LEFT_W[out.variant[0] - 1];
+            snprintf(name, sizeof(name), "%s.left k%d", tag, k);
+            expect_true(name, k + 4 + wider > bound);
+        }
+        int claim = out.form[0] == OD_SHORT ? 20 + 4 : out.form[0] == OD_FULL ? 60 + 4 : 0;
+        int lo = k + 4 + claim;
+        if (out.form[1] == OD_SHORT) {
+            snprintf(name, sizeof(name), "%s.mid_fits k%d", tag, k);
+            expect_true(name, out.place[1].icon_x >= lo
+                        && out.place[1].icon_x + MID_W[out.variant[1]] <= 156);
+        }
+        if (out.form[1] == OD_SHORT && out.variant[1] > 1) {
+            int wider = MID_W[out.variant[1] - 1];
+            int x = FREE_OF[out.stage[0]] ? lo : 70 + (60 - wider) / 2;
+            snprintf(name, sizeof(name), "%s.mid k%d", tag, k);
+            expect_true(name, x < lo || x + wider > 156);
+        }
+    }
+    return seen;
+}
+
 static void short_widest_member(void) {
     static const struct {
         int k;
@@ -72,43 +121,11 @@ static void short_widest_member(void) {
         expect(name, out.place[2].icon_x, 160);
     }
 
-    // As a sweep: whatever member a short slot draws fits with the gap to its
-    // neighbours, and the next wider one would not — the middle (chosen first, beside
-    // the left slot's narrowest member) centred on its full centre unless its row frees
-    // it, then the left slot up to the middle (or up to the right slot's gap).
-    static const int16_t LEFT_W[4] = { 60, 50, 40, 20 };
-    static const int16_t MID_W[3] = { 60, 50, 30 };
-    for (int k = 1; k <= 150; k++) {
-        OdSideIn sides[2] = { side_none(), side_none() };
-        add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
-        OdLayout out;
-        od_layout(200, slots, sides, NO_BLEED, false, &out);
-        char name[64];
-        int bound = out.place[1].visible ? out.place[1].icon_x - 4 : 156;
-        if (out.form[0] == OD_SHORT) {
-            snprintf(name, sizeof(name), "widest.sweep.left_fits k%d", k);
-            expect(name, out.place[0].icon_x, k + 4);
-            expect_true(name, k + 4 + LEFT_W[out.variant[0]] <= bound);
-        }
-        if (out.form[0] == OD_SHORT && out.variant[0] > 1) {
-            int wider = LEFT_W[out.variant[0] - 1];
-            snprintf(name, sizeof(name), "widest.sweep.left k%d", k);
-            expect_true(name, k + 4 + wider > bound);
-        }
-        int claim = out.form[0] == OD_SHORT ? 20 + 4 : out.form[0] == OD_FULL ? 60 + 4 : 0;
-        int lo = k + 4 + claim;
-        if (out.form[1] == OD_SHORT) {
-            snprintf(name, sizeof(name), "widest.sweep.mid_fits k%d", k);
-            expect_true(name, out.place[1].icon_x >= lo
-                        && out.place[1].icon_x + MID_W[out.variant[1]] <= 156);
-        }
-        if (out.form[1] == OD_SHORT && out.variant[1] > 1) {
-            int wider = MID_W[out.variant[1] - 1];
-            int x = FREE_OF[out.stage[0]] ? lo : 70 + (60 - wider) / 2;
-            snprintf(name, sizeof(name), "widest.sweep.mid k%d", k);
-            expect_true(name, x < lo || x + wider > 156);
-        }
-    }
+    // As a sweep, with the fixture's middle and with none: then the left slot's room is
+    // bounded by the right slot's claim alone (160 - GAP). Both runs reach every member.
+    expect("widest.sweep.members", sweep_left(slots, "widest.sweep"), 0xE);
+    slots[1] = slot_empty();
+    expect("widest.sweep.no_mid.members", sweep_left(slots, "widest.sweep.no_mid"), 0xE);
 }
 
 // The mirror: W 200, the left slot 40 wide with no short form (plain 0..40), the
@@ -128,6 +145,41 @@ static void widest_member_bar_right(OdSlotIn slots[3]) {
     slots[2].m[2] = (StatusSlotMeasure) { true, 0, 40, 0 };
     slots[2].m[3] = (StatusSlotMeasure) { true, 0, 20, 0 };
     slots[2].n = 4;
+}
+
+// As a sweep over `slots` (the fixture's, or with the middle emptied): the right slot
+// ends GAP left of its run, keeps GAP to the middle, or with no middle to the left
+// slot's claim (40 + GAP), and the next wider member would not. Returns the members
+// the short right slot drew, as a mask (bit v: member v).
+static unsigned sweep_right(const OdSlotIn slots[3], const char *tag) {
+    static const int16_t RIGHT_W[4] = { 60, 50, 40, 20 };
+    static const int16_t MID_W[3] = { 60, 50, 30 };
+    unsigned seen = 0;
+    for (int k = 1; k <= 150; k++) {
+        OdSideIn sides[2] = { side_none(), side_none() };
+        add_icon(&sides[1], OD_BLUETOOTH, (int16_t)k);
+        OdLayout out;
+        od_layout(200, slots, sides, NO_BLEED, false, &out);
+        char name[64];
+        snprintf(name, sizeof(name), "%s.far k%d", tag, k);
+        expect(name, out.place[0].icon_x, 0);
+        int far_end = out.place[0].icon_x + status_slot_placed_w(&out.place[0], &slots[0].m[0]);
+        int bound = out.place[1].visible ? out.place[1].icon_x + MID_W[out.variant[1]] + 4
+                                         : far_end + 4;
+        int end = 200 - k - 4;
+        if (out.form[2] == OD_SHORT) {
+            int w = RIGHT_W[out.variant[2]];
+            seen |= 1u << out.variant[2];
+            snprintf(name, sizeof(name), "%s.fits k%d", tag, k);
+            expect(name, out.place[2].icon_x + w, end);
+            expect_true(name, out.place[2].icon_x >= bound);
+            if (out.variant[2] > 1) {
+                snprintf(name, sizeof(name), "%s.widest k%d", tag, k);
+                expect_true(name, end - RIGHT_W[out.variant[2] - 1] < bound);
+            }
+        }
+    }
+    return seen;
 }
 
 static void short_widest_member_right(void) {
@@ -167,29 +219,12 @@ static void short_widest_member_right(void) {
         expect(name, out.place[0].icon_x, 0);
     }
 
-    // As a sweep: the right slot ends GAP left of its run, keeps GAP to the middle (or
-    // to the left slot's claim), and the next wider member would not.
-    static const int16_t RIGHT_W[4] = { 60, 50, 40, 20 };
-    static const int16_t MID_W[3] = { 60, 50, 30 };
-    for (int k = 1; k <= 150; k++) {
-        OdSideIn sides[2] = { side_none(), side_none() };
-        add_icon(&sides[1], OD_BLUETOOTH, (int16_t)k);
-        OdLayout out;
-        od_layout(200, slots, sides, NO_BLEED, false, &out);
-        char name[64];
-        int bound = out.place[1].visible ? out.place[1].icon_x + MID_W[out.variant[1]] + 4 : 44;
-        int end = 200 - k - 4;
-        if (out.form[2] == OD_SHORT) {
-            int w = RIGHT_W[out.variant[2]];
-            snprintf(name, sizeof(name), "widest.right.sweep.fits k%d", k);
-            expect(name, out.place[2].icon_x + w, end);
-            expect_true(name, out.place[2].icon_x >= bound);
-            if (out.variant[2] > 1) {
-                snprintf(name, sizeof(name), "widest.right.sweep.widest k%d", k);
-                expect_true(name, end - RIGHT_W[out.variant[2] - 1] < bound);
-            }
-        }
-    }
+    // As a sweep, with the fixture's middle and with none: then the right slot's room
+    // starts at the left slot's claim alone (40 + GAP). Both runs reach every member.
+    expect("widest.right.sweep.members", sweep_right(slots, "widest.right.sweep"), 0xE);
+    slots[1] = slot_empty();
+    expect("widest.right.sweep.no_mid.members",
+           sweep_right(slots, "widest.right.sweep.no_mid"), 0xE);
 }
 
 // --- the elastic city -----------------------------------------------------------------
