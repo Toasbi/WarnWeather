@@ -298,6 +298,7 @@ test('the Battery sheet renders one Warn level slider per platform, a stored 15 
   const at = (platformName) => {
     const page = watchTab({ batteryLowLevel: '15' }, platformName);
     page.openEditSheet('odBattery');
+    assert.equal(page.S.batteryLowLevel, '15', platformName + ': shown at its step, not written back');
     return page.modal.innerHTML;
   };
   const basalt = at('basalt');
@@ -308,6 +309,48 @@ test('the Battery sheet renders one Warn level slider per platform, a stored 15 
   assert.equal((emery.match(/data-range="batteryLowLevel"/g) || []).length, 1, 'one slider');
   assert.match(emery, /class="rng single" data-range="batteryLowLevel" data-v="15"/, 'emery keeps 15');
   assert.match(emery, /<div class="rng-ends"><span>5%<\/span><span>30%<\/span><\/div>/);
+});
+
+/**
+ * A one-thumb .rng root inside the open Battery sheet, as the range wiring reads it: its
+ * data-v, the readout/fill/thumb nodes a move repaints, and a 100 px track from x = 0.
+ * @param {number} v the shown value (data-v)
+ * @returns {{root: Object, thumb: Object}} the root stub and its thumb
+ */
+function warnLevelSlider(v) {
+  const attrs = { 'data-range': 'batteryLowLevel', 'data-v': String(v) };
+  const node = () => ({ style: {}, setAttribute() {}, textContent: '' });
+  const nodes = { '.rng-val': node(), '.rng-fill': node(), '[data-range-thumb=v]': node(),
+    '.rng-track': { getBoundingClientRect: () => ({ left: 0, width: 100 }) } };
+  const root = { isConnected: true, getAttribute: n => (n in attrs ? attrs[n] : null),
+    setAttribute(n, val) { attrs[n] = String(val); }, querySelector: sel => nodes[sel] || null };
+  const thumb = { getAttribute: n => (n === 'data-range-thumb' ? 'v' : null),
+    closest: sel => (sel === '[data-range-thumb]' ? thumb : (sel === '.rng' ? root : null)),
+    focus() {}, setPointerCapture() {} };
+  return { root, thumb };
+}
+
+test('moving the Warn level thumb stores one plain integer on the watch\'s step', () => {
+  // The write the snap-up display defers: a moved thumb stores the level as a bare
+  // integer string (what on-demand.js batteryLevel parses), on the step of the slider the
+  // platform shows — never the dual range's "lo-hi" shape, never an off-grid value.
+  [['basalt', '20', 20], ['emery', '15', 15]].forEach(([platformName, nudged, dragged]) => {
+    const page = watchTab({ batteryLowLevel: '10' }, platformName);
+    page.openEditSheet('odBattery');
+    const s = warnLevelSlider(10);
+    page.modal.dispatch('keydown', { target: s.thumb, key: 'ArrowRight', preventDefault() {} });
+    assert.strictEqual(page.S.batteryLowLevel, nudged, platformName + ': one step up from 10');
+    // A drag lands between steps: 48 % of the track is a raw 19.6 on 10..30 and a raw 17
+    // on 5..30, which snap to the nearest step, 20 and 15.
+    page.S.batteryLowLevel = '30';
+    const d = warnLevelSlider(30);
+    const off = { closest: () => null };
+    page.modal.dispatch('pointerdown', { target: d.thumb, pointerId: 9, preventDefault() {} });
+    page.modal.dispatch('pointermove', { target: off, pointerId: 9, clientX: 48 });
+    page.modal.dispatch('pointerup', { target: off, pointerId: 9 });
+    assert.strictEqual(page.S.batteryLowLevel, String(dragged), platformName + ': a drag snaps to the step');
+    assert.equal(d.root.getAttribute('data-v'), String(dragged), platformName + ': the thumb shows it');
+  });
 });
 
 test('aplite: no On demand rows, card or sheets — the Watch Status Bar keeps its own rows', () => {
