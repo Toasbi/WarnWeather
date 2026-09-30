@@ -150,6 +150,115 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return which;
   }
 
+  // ---- single (one-thumb) range value helpers ------------------------------
+  // A `single: true` range stores ONE plain integer string ('10') under its key, with
+  // the dual range's min/max/step/unit (no dangerKey, no minSpan). A stored value off
+  // the step grid is SHOWN snapped UP to the next step — never rounded down, so a level
+  // reads at least as high as stored — and the stored string is rewritten only when the
+  // user moves the thumb.
+
+  /**
+   * Is this schema item the one-thumb range? The one place the flag is spelled.
+   * @param {Object} item Schema item.
+   * @returns {boolean} True for a `range` with `single: true` (and no rangeFrom).
+   */
+  function isSingleItem(item) {
+    return Boolean(item && item.type === 'range' && item.single === true && !item.rangeFrom);
+  }
+
+  /**
+   * Snap a value UP to the item's step grid (measured from min) and clamp it to
+   * [min, max]: min + ceil((v - min) / step) * step.
+   * @param {number} v Raw value.
+   * @param {number} min Lower bound.
+   * @param {number} max Upper bound.
+   * @param {number} step Step size.
+   * @returns {number} Snapped, bounded value.
+   */
+  function snapUpToStep(v, min, max, step) {
+    var st = (isFinite(step) && step > 0) ? step : 1;
+    var out = min + Math.ceil((Number(v) - min) / st) * st;
+    if (!(out >= min)) { out = min; }
+    if (out > max) { out = max; }
+    return out;
+  }
+
+  /**
+   * The value a one-thumb range shows for its stored string: parsed as an integer and
+   * snapped up to the step grid (snapUpToStep); an unparseable value falls back to the
+   * item's defaultValue (one level, parseRange's rule), then to min.
+   * @param {*} value Stored value.
+   * @param {Object} item Single range item (min/max/step/defaultValue).
+   * @returns {number} The shown value.
+   */
+  function parseSingle(value, item) {
+    var min = Number(item.min), max = Number(item.max), step = rangeStep(item);
+    var m = /^\s*(-?\d+)\s*$/.exec(String(value == null ? '' : value));
+    if (!m && item.defaultValue != null && String(item.defaultValue) !== String(value)) {
+      m = /^\s*(-?\d+)\s*$/.exec(String(item.defaultValue));
+    }
+    return m ? snapUpToStep(parseInt(m[1], 10), min, max, step) : min;
+  }
+
+  /**
+   * A one-thumb value followed by the item's unit: '%' hugs the number ("10%"), any
+   * other unit keeps the dual range's space.
+   * @param {number} v Value.
+   * @param {Object} item Single range item (unit).
+   * @returns {string} Readout text (unescaped).
+   */
+  function singleReadout(v, item) {
+    if (!item.unit) { return String(v); }
+    return v + (item.unit === '%' ? '' : ' ') + item.unit;
+  }
+
+  /**
+   * One-thumb range track (range item with `single: true`): the value readout, a fill
+   * from the track start to the thumb, and the min/max ends. The shown value rides the
+   * root as data-v for the drag handler, as a dual range rides data-lo/data-hi.
+   * @param {Object} item Single range item (messageKey/label/min/max/step/unit).
+   * @param {{value:*}} view Render state.
+   * @returns {string} Control HTML.
+   */
+  function renderSingleRange(item, view) {
+    var v = parseSingle(view.value, item);
+    var min = Number(item.min), max = Number(item.max);
+    var span = (max - min) || 1;
+    var pct = Math.round(((v - min) * 1000) / span) / 10;
+    return '<div class="rng single" data-range="' + esc(item.messageKey) + '" data-v="' + v + '">'
+      + '<div class="rng-val">' + esc(singleReadout(v, item)) + '</div>'
+      + '<div class="rng-track">'
+      + '<div class="rng-fill" style="left:0;right:' + (Math.round((100 - pct) * 10) / 10) + '%"></div>'
+      + '<button type="button" class="rng-th" data-range-thumb="v" style="left:' + pct
+      + '%" role="slider" aria-label="' + esc(String(item.label || 'Value'))
+      + '" aria-valuemin="' + min + '" aria-valuemax="' + max + '" aria-valuenow="' + v + '"></button>'
+      + '</div>'
+      + '<div class="rng-ends"><span>' + esc(singleReadout(min, item)) + '</span><span>'
+      + esc(singleReadout(max, item)) + '</span></div>'
+      + '</div>';
+  }
+
+  /**
+   * Repaint one one-thumb range in place during a drag or keyboard nudge (no
+   * re-render): readout, fill, thumb and the data-v state.
+   * @param {Element} root .rng.single element.
+   * @param {Object} item Single range item.
+   * @param {{v:number}} r New state.
+   * @returns {void}
+   */
+  function paintSingleRange(root, item, r) {
+    var min = Number(item.min), max = Number(item.max);
+    var span = (max - min) || 1;
+    var pct = ((r.v - min) * 100) / span;
+    root.setAttribute('data-v', r.v);
+    var val = root.querySelector('.rng-val');
+    var fill = root.querySelector('.rng-fill');
+    var th = root.querySelector('[data-range-thumb=v]');
+    if (val) { val.textContent = singleReadout(r.v, item); }
+    if (fill) { fill.style.right = (100 - pct) + '%'; }
+    if (th) { th.style.left = pct + '%'; th.setAttribute('aria-valuenow', r.v); }
+  }
+
   // ---- rgb (three-channel colour) value helpers ----------------------------
   // An rgb item stores ALL THREE channels in ONE messageKey as "r,g,b" — the same
   // one-key-composite-string shape `range` uses for "lo-hi" and `date` for
@@ -554,13 +663,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * them without re-parsing, and the thumbs are positioned as a percentage of
    * the track so the control needs no measured width at render time.
    * A rangeFrom item renders the threshold variant instead (semantic zones, two
-   * independent storage keys) — see renderThresholdRange.
+   * independent storage keys) — see renderThresholdRange — and a `single: true` item
+   * the one-thumb variant (one plain integer string) — see renderSingleRange.
    * @param {Object} item Range schema item (min/max/step/minSpan/unit).
    * @param {{value:*}} view Render state.
    * @returns {string} Control HTML.
    */
   function renderRange(item, view) {
     if (item.rangeFrom) { return renderThresholdRange(item, view); }
+    if (isSingleItem(item)) { return renderSingleRange(item, view); }
     var r = parseRange(view.value, item);
     var min = Number(item.min), max = Number(item.max);
     var span = (max - min) || 1;
@@ -645,6 +756,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function paintRange(root, item, r) {
       if (isRgbItem(item)) { paintRgb(root, item, r); return; }
       if (item.rangeFrom) { paintThresholdRange(root, item, r); return; }
+      if (isSingleItem(item)) { paintSingleRange(root, item, r); return; }
       var min = Number(item.min), max = Number(item.max);
       var span = (max - min) || 1;
       var loPct = ((r.lo - min) * 100) / span, hiPct = ((r.hi - min) * 100) / span;
@@ -665,14 +777,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /**
      * Write a moved value into S. A threshold slider stores its two thumbs in the
      * warn/danger keys (track order mapped back through the kind's direction); the
-     * plain range keeps its single "lo-hi" string and the rgb control its single
-     * "r,g,b" one.
+     * plain range keeps its single "lo-hi" string, the one-thumb range its plain
+     * integer string, and the rgb control its single "r,g,b" one.
      * @param {Object} item Resolved range or rgb item.
-     * @param {Object} r New state — {r,g,b} for rgb, {lo,hi} for a slider.
+     * @param {Object} r New state — {r,g,b} for rgb, {v} for a one-thumb range,
+     *   {lo,hi} for a slider.
      * @returns {void}
      */
     function commitRange(item, r) {
       if (isRgbItem(item)) { ctx.S[item.messageKey] = formatRgb(r); return; }
+      if (isSingleItem(item)) { ctx.S[item.messageKey] = String(r.v); return; }
       if (item.rangeFrom) {
         var below = item.dir === 'below';
         ctx.S[item.messageKey] = String(below ? r.hi : r.lo);
@@ -702,11 +816,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     /**
      * Current value state off a .rng root: data-r/data-g/data-b for the rgb
-     * control, data-lo/data-hi for a slider. Parsed as floats: threshold kinds may
+     * control, data-v for a one-thumb range, data-lo/data-hi for a slider. Parsed as floats: threshold kinds may
      * step in halves (sleep hours, pollen bands, km).
      * @param {Element} root .rng element.
      * @param {Object} [item] Resolved range or rgb schema item.
-     * @returns {Object} {r,g,b} for rgb, {lo,hi} otherwise.
+     * @returns {Object} {r,g,b} for rgb, {v} for a one-thumb range, {lo,hi} otherwise.
      */
     function rangeState(root, item) {
       if (isRgbItem(item)) {
@@ -716,6 +830,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           b: parseFloat(root.getAttribute('data-b'))
         };
       }
+      if (isSingleItem(item)) { return { v: parseFloat(root.getAttribute('data-v')) }; }
       return {
         lo: parseFloat(root.getAttribute('data-lo')),
         hi: parseFloat(root.getAttribute('data-hi'))
@@ -731,6 +846,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {Object} The new state.
      */
     function moveControl(state, which, value, item) {
+      if (isSingleItem(item)) {
+        return { v: snapToStep(value, Number(item.min), Number(item.max), rangeStep(item)) };
+      }
       return isRgbItem(item)
         ? setRgbChannel(state, which, value, item) : moveThumb(state, which, value, item);
     }
@@ -743,6 +861,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
      * @returns {boolean} True when nothing moved.
      */
     function sameState(a, b, item) {
+      if (isSingleItem(item)) { return a.v === b.v; }
       return isRgbItem(item)
         ? (a.r === b.r && a.g === b.g && a.b === b.b) : (a.lo === b.lo && a.hi === b.hi);
     }
@@ -772,7 +891,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // A thumb that cannot move (pinned at a track end, the other thumb one span
         // beside it) hands the press to that sibling — but only when the pointer is
         // over the sibling too, i.e. it is the knob hidden under this one.
-        if (!isRgbItem(item)) {
+        if (!isRgbItem(item) && !isSingleItem(item)) {
           var hit = th.getAttribute('data-range-thumb');
           var want = pickThumb(rangeState(root, item), hit, item);
           var sib = want !== hit ? root.querySelector('[data-range-thumb=' + want + ']') : null;
@@ -916,6 +1035,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     renderThresholdRange: renderThresholdRange,
     paintThresholdRange: paintThresholdRange,
     renderRange: renderRange,
+    isSingleItem: isSingleItem,
+    snapUpToStep: snapUpToStep,
+    parseSingle: parseSingle,
+    renderSingleRange: renderSingleRange,
+    paintSingleRange: paintSingleRange,
     parseRgb: parseRgb,
     formatRgb: formatRgb,
     rgbHex: rgbHex,

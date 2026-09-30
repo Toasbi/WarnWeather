@@ -11,7 +11,7 @@ PConf.showWhen = (function () {
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   /**
    * Evaluate a showWhen predicate against a context of current values/env.
-   * Supports all/any/not combinators and eq/ne/in/nin/truthy leaf tests; an array is treated as { all: [...] }.
+   * Supports all/any/not combinators and eq/ne/in/nin/has/truthy leaf tests; an array is treated as { all: [...] }.
    * @param {(Object|Array|null|undefined)} pred Predicate tree; null/undefined is treated as always-true.
    * @param {Object} ctx Context with setting values by key and an optional .env map.
    * @returns {boolean} Whether the predicate is satisfied.
@@ -24,8 +24,8 @@ PConf.showWhen = (function () {
     if (has(pred, 'not')) { return !evaluate(pred.not, ctx); }
     // `env` reads a capability fact rather than a setting value. The fact names are
     // owned by lib/platform.js computeEnv() (the platform SoT) — `color`, `round`,
-    // `platform`, `health`, `radar`, `themePolarity`, `hr`, `thresholds` and
-    // `colorBacklight` (emery's RGB backlight LED) — plus whatever the host app
+    // `platform`, `health`, `radar`, `themePolarity`, `hr`, `thresholds`, `lineStyles`,
+    // `onDemand` and `colorBacklight` (emery's RGB backlight LED) — plus whatever the host app
     // overlays at generateUrl() time for facts about the PHONE (e.g. phoneBattery).
     // A fact the host never supplied reads as undefined, so a bare { env: 'x' } gate
     // fails closed: an unrecognized watch is never offered hardware it may not have.
@@ -34,6 +34,11 @@ PConf.showWhen = (function () {
     if (has(pred, 'ne')) { return subject !== pred.ne; }
     if (has(pred, 'in')) { return pred['in'].indexOf(subject) >= 0; }
     if (has(pred, 'nin')) { return pred.nin.indexOf(subject) < 0; }
+    // `has` tests a comma list (a checklist's value, e.g. 'bt,qt,snooze') for one code.
+    // An absent value is the empty list.
+    if (has(pred, 'has')) {
+      return (',' + String(subject == null ? '' : subject) + ',').indexOf(',' + pred.has + ',') >= 0;
+    }
     return Boolean(subject);
   }
   /**

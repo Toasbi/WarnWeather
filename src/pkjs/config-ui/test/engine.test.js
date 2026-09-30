@@ -2352,3 +2352,129 @@ test('initialTab: a tab may claim the opening slot, order alone does not', () =>
   assert.equal(E.initialTab(two, { k: 1 }), 'x', 'the first claimant wins');
   assert.equal(E.initialTab(bar([]), {}), '');
 });
+
+// ---- On demand engine additions: checklist, readout, compact rows, one-thumb range ----
+
+const CHECK_OPTIONS = [
+  ['System info', '', { groupHeader: true }],
+  ['Battery', 'battery'], ['Bluetooth', 'bt'],
+  ['Weather alerts', '', { groupHeader: true }],
+  ['Rain', 'rain', { desc: 'Needs the rain radar', disabled: true }], ['Wind gusts', 'gust']
+];
+
+test('checklist: toggling flips one option and canonicalises to option order', () => {
+  assert.equal(E.checklistToggle('', 'gust', CHECK_OPTIONS), 'gust');
+  assert.equal(E.checklistToggle('gust', 'battery', CHECK_OPTIONS), 'battery,gust', 'option order, not tap order');
+  assert.equal(E.checklistToggle('battery,gust', 'battery', CHECK_OPTIONS), 'gust', 'untick');
+  assert.equal(E.checklistToggle('gust', 'gust', CHECK_OPTIONS), '', 'nothing ticked is the empty string');
+  assert.equal(E.checklistToggle('gust,zzz,gust,bt', 'rain', CHECK_OPTIONS), 'bt,rain,gust',
+    'unknown codes and duplicates drop out');
+  assert.equal(E.checklistToggle(undefined, 'bt', CHECK_OPTIONS), 'bt', 'absent reads as empty');
+});
+
+test('checklist: grouped checkbox buttons, ticks kept on gated options, no row label', () => {
+  const item = { type: 'checklist', messageKey: 'items', label: 'Items', options: CHECK_OPTIONS };
+  const html = E.renderRow(item, { value: 'rain,bt' });
+  assert.match(html, /class="row stack"/, 'a checklist is a stacked row');
+  assert.doesNotMatch(html, /class="lbl"/, 'the label names the list, it does not head the row');
+  assert.match(html, /<div class="chk-list" role="group" aria-label="Items">/);
+  assert.match(html, /<div class="chk-grp" role="group" aria-label="System info">/);
+  assert.match(html, /<div class="chk-grp" role="group" aria-label="Weather alerts">/);
+  assert.match(html, /class="chk-opt on" role="checkbox" aria-checked="true" data-k="items" data-check="bt">/);
+  assert.match(html, /class="chk-opt" role="checkbox" aria-checked="false" data-k="items" data-check="battery">/);
+  assert.match(html,
+    /class="chk-opt on" role="checkbox" aria-checked="true" data-k="items" data-check="rain" disabled aria-disabled="true">/,
+    'a disabled option keeps its tick');
+  assert.match(html, /<span class="chk-desc">Needs the rain radar<\/span>/);
+  const idxBattery = html.indexOf('data-check="battery"');
+  const idxWeather = html.indexOf('aria-label="Weather alerts"');
+  assert.ok(idxBattery < idxWeather, 'options sit under their own header');
+  // optionDisabledWhen gates through the view like any other control.
+  const gated = E.renderRow(item, { value: '', disabledOptions: ['gust'] });
+  assert.match(gated, /data-check="gust" disabled aria-disabled="true"/);
+});
+
+test('checklist: optionsFrom is materialized without snapping the stored list', () => {
+  global.PConf.optionsResolvers.register('chkOpts', () => CHECK_OPTIONS);
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'checklist', messageKey: 'items', label: 'Items', defaultValue: 'bt',
+      optionsFrom: { resolver: 'chkOpts' } }
+  ] }] }] };
+  const S = E.hydrate(SCH, { items: 'gust,unknown' });
+  const html = E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  assert.match(html, /data-check="gust"/);
+  assert.equal(S.items, 'gust,unknown', 'rendering never rewrites a checklist value');
+});
+
+test('boot(): a checklist tap stores the canonical list and fires onChange once', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'checklist', messageKey: 'items', label: 'Items', defaultValue: 'gust',
+        options: CHECK_OPTIONS, onChange: 'chkSpy' }
+    ] }
+  ] }] };
+  const r = bootWithCapturedListeners(SCH, {});
+  const calls = [];
+  global.PConf.onChange.register('chkSpy', (S, oldV, newV) => { calls.push([oldV, newV]); });
+  clickMatching(r.listeners.click, '[data-check]', { 'data-k': 'items', 'data-check': 'battery' });
+  assert.equal(r.getValue('items'), 'battery,gust');
+  assert.deepEqual(calls, [['gust', 'battery,gust']]);
+  assert.match(r.scroll.innerHTML, /aria-checked="true" data-k="items" data-check="battery"/, 'the tick renders');
+  // A gated option ignores the tap.
+  clickMatching(r.listeners.click, '[data-check]', { 'data-k': 'items', 'data-check': 'rain', disabled: '' });
+  assert.equal(r.getValue('items'), 'battery,gust');
+  assert.equal(calls.length, 1, 'no onChange for a gated tap');
+});
+
+test('readout: label, icon and live hint, no control, no Edit, nothing serialized', () => {
+  global.PConf.hintResolvers.register('readoutHint', (S) => 'Now ' + S.level);
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
+    { type: 'toggle', messageKey: 'level', defaultValue: false },
+    { type: 'readout', label: 'Quiet time', hintFrom: { resolver: 'readoutHint' } }
+  ] }] }] };
+  const S = E.hydrate(SCH, { level: true });
+  const html = E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, collapsed: {},
+    evalCtx: Object.assign({}, S, { env: {} }) });
+  assert.match(html, /<div class="lbl">Quiet time<\/div><div class="hint">Now true<\/div>/);
+  assert.doesNotMatch(html.slice(html.indexOf('Quiet time')), /thr-btn|data-edit-sheet|data-k=/,
+    'nothing to press');
+  assert.deepEqual(Object.keys(E.serialize(SCH, S)), ['level'], 'the readout stores nothing');
+});
+
+test('compact: any row can take the status-slot rhythm', () => {
+  const plain = E.renderRow({ type: 'select', messageKey: 'm', label: 'M', options: [['On', 'on']] }, { value: 'on' });
+  const compact = E.renderRow({ type: 'select', messageKey: 'm', label: 'M', compact: true,
+    options: [['On', 'on']] }, { value: 'on' });
+  assert.doesNotMatch(plain, /class="row slot"/);
+  assert.match(compact, /class="row slot"/);
+});
+
+const RCTL = require('../lib/range-control.js');
+
+test('single range: one thumb, a plain value, off-step values shown snapped UP', () => {
+  const item = { type: 'range', single: true, messageKey: 'lvl', label: 'Warn level',
+    min: 10, max: 30, step: 10, unit: '%', defaultValue: '10' };
+  const html = E.renderRange(item, { value: '20' });
+  assert.match(html, /class="rng single" data-range="lvl" data-v="20"/);
+  assert.match(html, /<div class="rng-val">20%<\/div>/);
+  assert.equal((html.match(/data-range-thumb=/g) || []).length, 1, 'exactly one thumb');
+  assert.match(html, /data-range-thumb="v" style="left:50%" role="slider" aria-label="Warn level"/);
+  assert.match(html, /<div class="rng-ends"><span>10%<\/span><span>30%<\/span><\/div>/);
+  // Off the grid: 5 -> 10, 15 -> 20, 25 -> 30; garbage -> the default; out of range clamps.
+  [['5', 10], ['15', 20], ['25', 30], ['10', 10], ['30', 30], ['abc', 10], ['0', 10], ['31', 30],
+    [undefined, 10]].forEach(([v, want]) => {
+    assert.equal(RCTL.parseSingle(v, item), want, JSON.stringify(v));
+  });
+  const fine = Object.assign({}, item, { min: 5, step: 5 });
+  for (let v = 5; v <= 30; v += 5) { assert.equal(RCTL.parseSingle(String(v), fine), v, 'on a 5-grid ' + v); }
+  assert.equal(RCTL.snapUpToStep(11, 10, 30, 10), 20, 'up, never to the nearest');
+});
+
+test('single range: the dual and threshold variants are untouched', () => {
+  assert.equal(RCTL.isSingleItem({ type: 'range', single: true }), true);
+  assert.equal(RCTL.isSingleItem({ type: 'range' }), false);
+  assert.equal(RCTL.isSingleItem({ type: 'range', single: true, rangeFrom: { resolver: 'x' } }), false);
+  const dual = E.renderRange({ type: 'range', messageKey: 'r', min: 0, max: 10 }, { value: '2-8' });
+  assert.match(dual, /data-lo="2" data-hi="8"/);
+});

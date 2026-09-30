@@ -53,6 +53,13 @@ var HR_PLATFORMS = { emery: true, diorite: true };
 // white backlight (this is NOT the `color` fact). Unknown platforms are treated as
 // white-backlight (conservative — don't offer an LED feature on an unknown watch).
 var COLOR_BACKLIGHT_PLATFORMS = { emery: true };
+// Platforms where the watch compiles On demand out (no WW_ON_DEMAND): aplite
+// (Pebble Classic/Steel), the frozen-lean fork, which keeps its fixed quiet-time /
+// Bluetooth indicators and the low-battery takeover instead. The On demand rows,
+// card and sheets are hidden there. Keep in lockstep with the C
+// `#if defined(WW_ON_DEMAND)` guards (wscript defines the macro for every platform
+// except aplite).
+var NO_ON_DEMAND_PLATFORMS = { aplite: true };
 /**
  * Whether a Pebble platform has a color display (false for the B/W platforms).
  * @param {string} platform Platform name (e.g. 'basalt', 'aplite', 'chalk').
@@ -115,12 +122,19 @@ function isHrPlatform(platform) { return Boolean(HR_PLATFORMS[platform]); }
  */
 function isColorBacklightPlatform(platform) { return Boolean(COLOR_BACKLIGHT_PLATFORMS[platform]); }
 /**
+ * Whether a Pebble platform draws On demand items (WW_ON_DEMAND). Unknown platforms
+ * are treated as capable so a missing watchInfo never hides a real feature.
+ * @param {string} platform Platform name (e.g. 'basalt', 'aplite').
+ * @returns {boolean} True if the platform draws On demand items at the status bars' edges.
+ */
+function isOnDemandPlatform(platform) { return !NO_ON_DEMAND_PLATFORMS[platform]; }
+/**
  * Derive the config-UI environment facts from a Pebble watchInfo object.
  * @param {Object} watchInfo Pebble watchInfo; its .platform names the model.
- * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, and third-metric-line + per-line-style support.
+ * @returns {{color: boolean, round: boolean, platform: string, health: boolean, radar: boolean, themePolarity: boolean, hr: boolean, thresholds: boolean, colorBacklight: boolean, lineStyles: boolean, onDemand: boolean}} Env: color display, round (chalk), platform name, health support, radar support, theme light-polarity support, heart-rate sensor support, threshold-highlight support, RGB-backlight-LED support, third-metric-line + per-line-style support, and On demand support.
  */
 function computeEnv(watchInfo) {
   var p = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p) };
+  return { color: isColorPlatform(p), round: p === 'chalk', platform: p, health: isHealthPlatform(p), radar: isRadarPlatform(p), themePolarity: isThemePolarityPlatform(p), hr: isHrPlatform(p), thresholds: isThresholdPlatform(p), colorBacklight: isColorBacklightPlatform(p), lineStyles: isLineStylePlatform(p), onDemand: isOnDemandPlatform(p) };
 }
-module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, computeEnv: computeEnv };
+module.exports = { isColorPlatform: isColorPlatform, isHealthPlatform: isHealthPlatform, isRadarPlatform: isRadarPlatform, isThemePolarityPlatform: isThemePolarityPlatform, isHrPlatform: isHrPlatform, isThresholdPlatform: isThresholdPlatform, isColorBacklightPlatform: isColorBacklightPlatform, isLineStylePlatform: isLineStylePlatform, isOnDemandPlatform: isOnDemandPlatform, computeEnv: computeEnv };

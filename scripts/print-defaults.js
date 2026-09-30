@@ -272,15 +272,15 @@ function renderRules() {
  */
 function renderCapabilities() {
   const flags = Object.keys(envFor(PLATFORMS[0])).filter((k) => k !== 'platform');
-  const rows = [['platform'].concat(flags)];
-  PLATFORMS.forEach((p) => {
-    const env = envFor(p);
-    rows.push([p].concat(flags.map((f) => (env[f] ? 'yes' : '-'))));
+  const envs = PLATFORMS.map((p) => envFor(p));
+  // One row per fact, one column per watch: every computeEnv fact adds a ROW, so the
+  // table's width stays fixed by the platform list (a fact per column ran past the
+  // report's 100-column ceiling once onDemand joined lineStyles).
+  const rows = [['fact'].concat(PLATFORMS)];
+  flags.forEach((f) => {
+    rows.push([f].concat(envs.map((env) => (env[f] ? 'yes' : '-'))));
   });
-  // Two-space indent, not the section's four: the column set grows with every
-  // computeEnv fact (lineStyles took the four-indent table past the report's
-  // 100-column ceiling) and the width is spent on the facts, not the margin.
-  return table(rows, '  ');
+  return table(rows, '    ');
 }
 
 /**

@@ -253,13 +253,15 @@ Schema
 | `text` | Text input | string | `input` |
 | `staticText` | Static HTML block; no key | — (not serialized) | `text` |
 | `searchSelect` | Dropdown sheet with a search box | string | — |
-| `range` | Dual-thumb slider | `"lo-hi"` string | — |
+| `range` | Dual-thumb slider (one thumb with `single: true`) | `"lo-hi"` string (`single`: a plain integer string, `"10"`) | — |
 | `rgb` | Three channel sliders (R/G/B) + live swatch | `"r,g,b"` string, each channel 0-255 | — |
 | `date` | Date-wheel sheet (day/month/year) | `"YYYY-MM-DD"` string | — |
 | `hidden` | none — never rendered | any (serialized like any keyed item) | — |
 | `button` | Tappable action row; no key | — (not serialized) | — |
 | `subheader` | In-section group header; no key | — (not serialized) | — |
 | `sheet` | Tappable row that opens a `sheetOnly` section; no key | — (not serialized) | — |
+| `checklist` | One checkbox per option, in groups under `meta.groupHeader` options | comma list of the ticked values in option order (`''` = none) | — |
+| `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
 A `sheet` item is a whole-row chevron target by default. Give it an
 `editBadgeFrom: { resolver, args }` — a named resolver `fn(S, env, args)` returning `null` or
@@ -300,7 +302,27 @@ list collapses with it, and the row comes back collapsed. `searchSelect` has no 
 form: keep it out of `sheetOnly` sections (a schema test enforces it). A select in the tab
 body, and one opened through `openSheet()`, still opens the modal.
 
-The fifteen types above are the complete built-in set. Anything bespoke belongs in a custom block
+A `checklist` stores ONE string, the ticked option values joined by commas in the options'
+order (`'bt,qt,snooze'`, `''` when nothing is ticked) — a string, not an array, so the shallow
+copy of the loaded state and every `===` comparison downstream (serialize, change detection)
+keep working. Its options are `[label, value, meta]` like a select's: `meta.groupHeader` starts a
+titled sub-group (each one an `aria` group of its own), `meta.desc` prints a muted line under the
+name, and `meta.disabled` or an `optionDisabledWhen` gate renders the option inert **with its
+tick**, so a gate never rewrites a stored value. `optionsFrom` lists are materialized as for a
+select, but a checklist is never snapped to an option. A tap flips one option, re-canonicalises
+the list, stores it and fires the item's `onChange` (old and new list) once. The row's `label`
+names the list for assistive tech (its `aria-label`) instead of heading the row.
+
+A `readout` row is a badged `sheet` row with nothing to open: its label (and `icon`) on the left
+and a live `hint`/`hintFrom` line under it, for a setting summary that has no settings of its own.
+
+A `range` with `single: true` has one thumb and stores a plain integer string. `min`, `max`,
+`step` and `unit` work as on the dual range (a `%` unit hugs the number, "10%"); `dangerKey` and
+`minSpan` do not apply. A stored value off the step grid is SHOWN snapped UP to the next step
+(`min + ceil((v − min) / step) · step`, clamped to `[min, max]`) and is written back only when
+the user moves the thumb.
+
+The seventeen types above are the complete built-in set. Anything bespoke belongs in a custom block
 registered via `PConf.blocks.register` — the control-type dispatch itself is not pluggable from
 app code.
 
@@ -346,7 +368,7 @@ picking the shown swatch is what writes it.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | One of the fifteen types above |
+| `type` | string | One of the seventeen types above |
 | `messageKey` | string | Serialization key — must match the AppMessage/C key |
 | `defaultValue` | any | Default value. Color defaults are ints (e.g. `0xFFFFFF`). |
 | `defaultFrom` | `{ resolver, args?, sticky? }` | A per-watch default from a named [defaults resolver](#defaults-resolver-registry--pconfdefaultsresolvers), used instead of `defaultValue`. Never seeded by `deriveDefaults`. `sticky: false` leaves the key out of the save blob while it holds that default. |
@@ -363,6 +385,8 @@ picking the shown swatch is what writes it.
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
 | `text` | string | HTML body for `staticText` items |
 | `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
+| `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
+| `single` | boolean | `range` only: one thumb, a plain integer string (see above). |
 
 ### showWhen predicate grammar
 
@@ -374,6 +398,7 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 { key: "provider",      ne: "dwd" }           // inequality
 { key: "sleepStart",    in:  ["22","23"] }    // membership
 { key: "sleepStart",    nin: ["0","1"] }      // non-membership
+{ key: "statusTopOnDemandRightItems", has: "rain" }  // the comma list (a checklist value) holds the code
 { env: "color",  eq: true }                   // environment fact with operator
 { env: "color" }                              // environment fact — truthy shorthand
 
@@ -384,7 +409,8 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 [ <pred>, <pred>, … ]                        // shorthand for all:[…]  (AND)
 ```
 
-Operators supported on `key` and `env`: `eq`, `ne`, `in`, `nin`, and bare truthy (no operator key).
+Operators supported on `key` and `env`: `eq`, `ne`, `in`, `nin`, `has`, and bare truthy (no operator key).
+`has` treats the value as a comma list (an absent value is the empty list).
 
 `capabilities: ["COLOR"]` is Clay-compatible sugar internally translated to
 `{ env: "color", eq: true }` ANDed with any existing `showWhen`.
@@ -404,12 +430,13 @@ env = {
   hr:            false,      // true only for emery, diorite (heart-rate sensor)
   thresholds:    true,       // false for aplite (no WW_THRESHOLD_HIGHLIGHT)
   colorBacklight: false,     // true only for emery (RGB backlight LED)
-  lineStyles:    true        // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
+  lineStyles:    true,       // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
+  onDemand:      true        // false for aplite (no WW_ON_DEMAND — On demand items at the status bars' edges)
 }
 // Fallback when watchInfo is unavailable:
 // { color: true, round: false, platform: '', health: true, radar: true,
 //   themePolarity: true, hr: false, thresholds: true, colorBacklight: false,
-//   lineStyles: true }
+//   lineStyles: true, onDemand: true }
 ```
 
 The host app may contribute additional facts by passing them as `generateUrl`'s `env`: the
@@ -419,7 +446,7 @@ know. That is the seam for *phone*-runtime capabilities — WarnWeather passes `
 does) — because the library derives env from `watchInfo` alone and never reads app storage.
 
 The set of known 1-bit platforms (`aplite`, `diorite`, `flint`), the no-health/no-radar/
-no-theme-polarity/no-threshold platform (`aplite`), the heart-rate-capable platforms
+no-theme-polarity/no-threshold/no-on-demand platform (`aplite`), the heart-rate-capable platforms
 (`emery`, `diorite`) and the colour-backlight platform (`emery`) are Pebble facts owned by the
 library in `lib/platform.js`. Every fallback except `hr` and `colorBacklight` is conservative
 (show the controls if the platform is unknown); those two default to `false` so an unrecognized

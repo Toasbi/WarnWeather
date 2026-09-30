@@ -895,6 +895,77 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     return h;
   }
+  /**
+   * The codes a checklist value holds: its comma list split, blanks dropped. The value
+   * is a STRING (never an array): INITIAL is a shallow copy, and serialize, telemetry
+   * and the change detector compare values with ===.
+   * @param {*} value Stored checklist value, e.g. 'bt,qt,snooze' ('' when none).
+   * @returns {string[]} The codes, in stored order.
+   */
+  function checklistCodes(value) {
+    var parts = String(value == null ? '' : value).split(','), out = [], i;
+    for (i = 0; i < parts.length; i++) { if (parts[i]) { out.push(parts[i]); } }
+    return out;
+  }
+
+  /**
+   * A checklist value with one option ticked or unticked, canonicalised to the option
+   * order: unknown codes and duplicates drop out, and '' means nothing ticked.
+   * @param {*} value Current stored value.
+   * @param {string} code The option value to flip.
+   * @param {Array.<Array>} options The item's [label, value, meta] options (group
+   *   headers are skipped).
+   * @returns {string} The new comma list.
+   */
+  function checklistToggle(value, code, options) {
+    var have = checklistCodes(value), on = have.indexOf(code) < 0, out = [], i, o;
+    for (i = 0; i < options.length; i++) {
+      o = options[i];
+      if (o[2] && o[2].groupHeader) { continue; }
+      if (o[1] === code ? on : have.indexOf(o[1]) >= 0) {
+        if (out.indexOf(o[1]) < 0) { out.push(o[1]); }
+      }
+    }
+    return out.join(',');
+  }
+
+  /**
+   * A `checklist` control: one checkbox button per option, in sub-groups under each
+   * meta.groupHeader option (each group an aria group of its own). meta.desc prints a
+   * muted line under the name; meta.disabled or an optionDisabledWhen gate
+   * (view.disabledOptions) renders the option inert WITH its tick, so a stored value is
+   * never rewritten by a gate.
+   * @param {Object} item Checklist item with its options materialized (resolveRowItem).
+   * @param {{value: *, disabledOptions: (string[]|undefined)}} view Render state.
+   * @returns {string} Control HTML.
+   */
+  function renderChecklist(item, view) {
+    var have = checklistCodes(view.value), off = view.disabledOptions || [];
+    var h = '<div class="chk-list" role="group" aria-label="' + esc(String(item.label || 'Items')) + '">';
+    var inGroup = false, i, o, meta, on, gated;
+    for (i = 0; i < (item.options || []).length; i++) {
+      o = item.options[i];
+      meta = o[2] || {};
+      if (meta.groupHeader) {
+        if (inGroup) { h += '</div>'; }
+        h += '<div class="chk-grp" role="group" aria-label="' + esc(o[0]) + '">'
+          + '<div class="ssel-group" role="presentation"><span>' + esc(o[0]) + '</span></div>';
+        inGroup = true;
+        continue;
+      }
+      on = have.indexOf(o[1]) >= 0;
+      gated = Boolean(meta.disabled) || off.indexOf(o[1]) >= 0;
+      h += '<button type="button" class="chk-opt' + (on ? ' on' : '') + '" role="checkbox" aria-checked="'
+        + (on ? 'true' : 'false') + '" data-k="' + esc(item.messageKey) + '" data-check="' + esc(o[1]) + '"'
+        + (gated ? ' disabled aria-disabled="true"' : '') + '>'
+        + '<span class="chk-txt"><span class="chk-name">' + esc(o[0]) + '</span>'
+        + (meta.desc ? '<span class="chk-desc">' + esc(meta.desc) + '</span>' : '') + '</span>'
+        + '<span class="chk-box" aria-hidden="true"></span></button>';
+    }
+    if (inGroup) { h += '</div>'; }
+    return h + '</div>';
+  }
+
     var CONTROLS = {
     toggle: function (item, view) { return renderToggle(item, view.value); },
     segmented: function (item, view) { return renderSegmented(item, view.value, view.disabledOptions); },
@@ -911,7 +982,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // messageKey. This table is CLOSED — renderControl returns '' for a type that
     // is missing from it, so a new control type renders as an empty row until it
     // is listed here.
-    rgb: function (item, view) { return renderRgb(item, view); }
+    rgb: function (item, view) { return renderRgb(item, view); },
+    // Checkboxes storing the ticked option values as one comma list.
+    checklist: function (item, view) { return renderChecklist(item, view); }
   };
   /**
    * Dispatch to the control renderer for item.type; '' for an unknown type.
@@ -969,7 +1042,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // drops to a full-width line below.
     var wideSegmented = item.type === 'segmented' && item.options && item.options.length > 3;
     var stacked = item.type === 'text' || item.type === 'radio' || item.type === 'range'
-      || item.type === 'rgb'
+      || item.type === 'rgb' || item.type === 'checklist'
       || (item.type === 'color' && view.openColor === item.messageKey);
     // A derived (hintFrom) hint carries its row's key, so a commit that skips render()
     // can still re-resolve it in place (boot's repaintDerivedHints). Static hints
@@ -990,8 +1063,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // a labelAction still needs somewhere to sit. An item.icon leads the label text
     // (labelIconHtml) on every row shape that keeps the box.
     var labelIco = labelIconHtml(item);
-    var label = (item.label || labelAct || labelIco)
-      ? '<div class="lbl">' + labelIco + (item.label ? esc(item.label) : '') + labelAct + '</div>'
+    // A checklist's label names its option group (the list's aria-label) rather than
+    // heading the row: its options carry their own group headers.
+    var shownLabel = item.type === 'checklist' ? '' : item.label;
+    var label = (shownLabel || labelAct || labelIco)
+      ? '<div class="lbl">' + labelIco + (shownLabel ? esc(shownLabel) : '') + labelAct + '</div>'
       : '';
     // Status-line slot pickers are compact rows: the .slot modifier tightens the vertical
     // rhythm so consecutive slot rows sit closer together. Status slots are plain selects
@@ -999,13 +1075,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // the Holiday searchSelects keep the same compact treatment. A stacked (open color/etc.)
     // row keeps normal padding so its expanded content isn't cramped.
     var isStatusSlot = item.optionsFrom && item.optionsFrom.resolver === 'statusSlot';
+    // item.compact asks for the same tight rhythm on any row (e.g. the On demand rows
+    // that follow a bar's three slot rows).
+    var isCompact = isStatusSlot || item.compact === true;
     // A select expanded in place inside an edit sheet (renderItem builds view.inlineList):
     // the list is the row's LAST child in every shape below, and .isel-open lets the flex
     // row wrap it onto a full-width line of its own. The row does NOT become .stack, so
     // the trigger stays exactly where it was.
     var inlineList = view.inlineList || '';
     var rowCls = 'row' + (stacked ? ' stack' : '') + (wideSegmented ? ' segwide' : '') + nbClass(noDivider)
-      + ((item.type === 'searchSelect' || isStatusSlot) && !stacked ? ' slot' : '')
+      + ((item.type === 'searchSelect' || isCompact) && !stacked ? ' slot' : '')
       + (inlineList ? ' isel-open' : '')
       // A disabled row (item.disabledWhen) stays visible — showing what WOULD be
       // configurable — but muted and inert (CSS pointer-events; the range handlers
@@ -1067,6 +1146,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (item.type === 'range' && item.rangeFrom) {
       view.dangerValue = cx.S[item.dangerKey];
       return resolveRangeItem(item, cx.S, cx.ENV);
+    }
+    // A checklist's derived options are materialized WITHOUT the single-value snap below:
+    // its value is a list, and an option the resolver gates is rendered inert (meta.disabled)
+    // rather than dropped, so nothing here ever rewrites cx.S.
+    if (item.type === 'checklist') {
+      return item.optionsFrom
+        ? Object.assign({}, item, { options: resolveOptionsFrom(item, cx.S, cx.ENV) }) : item;
     }
     if ((item.type !== 'select' && item.type !== 'searchSelect' && item.type !== 'radio') || !item.optionsFrom) {
       return item;
@@ -1142,6 +1228,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         return { kind: 'control', html: renderRow(item, view, noDivider) };
       }
       return { kind: 'control', html: chevronRow(item, 'data-edit-sheet', sId, noDivider) };
+    }
+    // A read-only row: label (+ icon) and a live hint, drawn like a badged `sheet` row with
+    // nothing to open — no control, no Edit, no key (hydrate/serialize never see it).
+    if (item.type === 'readout') {
+      if (item.hintFrom) { view.hint = resolveHint(item, cx.S, cx.ENV, undefined); }
+      return { kind: 'control', html: renderRow(item, view, noDivider) };
     }
     if (item.type === 'staticText') {
       // a joinPrevious static acts as the control's description, so the join modifier tightens its
@@ -1921,6 +2013,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         openInline = null;
         openColor = (openColor === ck ? null : ck); render(); return true;
       }
+      if ((t = e.target.closest('[data-check]'))) {
+        // A gated option keeps its tick and ignores the tap.
+        if (t.getAttribute('disabled') != null) { return true; }
+        var chK = t.getAttribute('data-k'), chV = t.getAttribute('data-check');
+        var chItem = findShownItem(SCHEMA, chK, evalCtx());
+        if (!chItem) { return true; }
+        setValue(chK, checklistToggle(S[chK], chV, resolveOptionsFrom(chItem, S, ENV)));
+        render();
+        var hosts = [document.getElementById('modal'), document.getElementById('scroll')], hi, again;
+        for (hi = 0; hi < hosts.length; hi++) {
+          again = (hosts[hi] && hosts[hi].querySelector)
+            ? hosts[hi].querySelector('[data-k="' + chK + '"][data-check="' + chV + '"]') : null;
+          if (again && again.focus) { again.focus(); break; }
+        }
+        return true;
+      }
       if ((t = e.target.closest('[data-v]'))) {
         setValue(t.getAttribute('data-k'), t.getAttribute('data-v'));
         render(); return true;
@@ -2361,7 +2469,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     selectTriggerLabel: selectTriggerLabel, findShownItem: findShownItem,
     resolveDefaultFrom: resolveDefaultFrom, resolveHint: resolveHint,
     resolveTheme: resolveTheme,
-    fitSelectPeek: fitSelectPeek
+    fitSelectPeek: fitSelectPeek,
+    checklistToggle: checklistToggle
   };
 })();
 if (typeof module !== 'undefined' && module.exports) {
@@ -2395,6 +2504,7 @@ if (typeof module !== 'undefined' && module.exports) {
     resolveDefaultFrom: PConf.engine.resolveDefaultFrom,
     resolveHint: PConf.engine.resolveHint,
     resolveTheme: PConf.engine.resolveTheme,
-    fitSelectPeek: PConf.engine.fitSelectPeek
+    fitSelectPeek: PConf.engine.fitSelectPeek,
+    checklistToggle: PConf.engine.checklistToggle
   };
 }

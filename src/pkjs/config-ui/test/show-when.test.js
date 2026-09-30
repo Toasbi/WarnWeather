@@ -43,3 +43,24 @@ test('{ env: colorBacklight } gates an item to the one watch with an RGB backlig
   assert.equal(W.isVisible(item, { env: platform.computeEnv(null) }), false, 'unknown watch');
   assert.equal(W.isVisible(item, {}), false, 'no env at all: fail closed');
 });
+
+test('has: a comma list holds a code (checklist values)', () => {
+  const c = { items: 'battery,rain,gust', empty: '', env: {} };
+  assert.equal(W.evaluate({ key: 'items', has: 'rain' }, c), true);
+  assert.equal(W.evaluate({ key: 'items', has: 'battery' }, c), true, 'first code');
+  assert.equal(W.evaluate({ key: 'items', has: 'gust' }, c), true, 'last code');
+  assert.equal(W.evaluate({ key: 'items', has: 'ga' }, c), false, 'whole codes only');
+  assert.equal(W.evaluate({ key: 'items', has: 'rai' }, c), false);
+  assert.equal(W.evaluate({ key: 'empty', has: 'rain' }, c), false);
+  assert.equal(W.evaluate({ key: 'absent', has: 'rain' }, c), false, 'absent is the empty list');
+  assert.equal(W.evaluate({ not: { key: 'items', has: 'uv' } }, c), true);
+});
+
+test('{ env: onDemand } hides On demand on aplite only', () => {
+  const item = { messageKey: 'x', showWhen: { env: 'onDemand' } };
+  const on = (plat) => W.isVisible(item, { env: platform.computeEnv({ platform: plat }) });
+  assert.equal(on('aplite'), false);
+  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((p) => assert.equal(on(p), true, p));
+  assert.equal(W.isVisible(item, { env: platform.computeEnv(null) }), true,
+    'an unknown watch counts as capable');
+});
