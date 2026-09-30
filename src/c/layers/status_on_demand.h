@@ -3,7 +3,6 @@
 #include "../appendix/alert_set.h"
 #include "../appendix/on_demand.h"
 #include "../appendix/rain_countdown.h"   // RAIN_COUNTDOWN_TEXT_CAP
-#include "../appendix/status_short_text.h"
 
 // On demand's SDK half: which items of a bar are active, their glyphs, measures and
 // paint, and the slots' short forms measured. The layout — how the bar's slots make

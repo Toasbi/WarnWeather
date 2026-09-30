@@ -10,6 +10,7 @@
 #include "battery_item.h"
 #include "status_highlight.h"
 #include "status_icon_weight.h"
+#include "status_row.h"
 #include "status_row_icons.h"
 #include "status_row_layout.h"
 #include "status_sig.h"
@@ -19,6 +20,7 @@
 #include "../appendix/rain_countdown.h"
 #include "../appendix/rain_tier.h"
 #include "../appendix/snooze.h"
+#include "../appendix/status_short_text.h"
 #include "../appendix/status_threshold.h"
 #include "../appendix/theme.h"
 #include "../services/watch_services.h"
@@ -408,14 +410,6 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     return sig;
 }
 
-// A slot text's width in `font`, measured exactly as the row measures its slots
-// (status_row.c measure_slot), so a member and the full form compare like for like.
-static int16_t slot_text_w(const char *text, GFont font, int16_t content_w, int16_t h) {
-    if (text[0] == '\0' || content_w <= 0 || h <= 0) { return 0; }
-    return graphics_text_layout_get_content_size(text, font, GRect(0, 0, content_w, h),
-        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
-}
-
 // One draw's short forms: the three slots' families as the layout takes them, and
 // which member each is, so the one a slot ends up drawing can be written out again.
 // On the draw's stack, used only while a side has an item.
@@ -424,6 +418,10 @@ typedef struct {
     StatusShortMember member[3][STATUS_SHORT_MEMBERS];
     uint8_t mday;   // the day of the month a date's family ends on (0: no date)
 } Families;
+
+// measure_family() writes a slot's full form to m[0] and its short members after it.
+_Static_assert(STATUS_SHORT_MEMBERS + 1 == OD_VARIANTS,
+               "a slot's full form and its short members fill OdSlotIn.m exactly");
 
 // Member `step` of slot `slot`'s text family into `buf` (status_short_text).
 static bool family_text(const Families *f, const StatusOnDemandEnv *env,
@@ -454,13 +452,13 @@ static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
     for (uint8_t j = 0; j < k; j++) {
         StatusSlotMeasure m = *full;
         if (fam[j].step > 0 && family_text(f, env, slot, fam[j].step, buf)) {
-            m.text_w = slot_text_w(buf, slot->font, content_w, h);
+            m.text_w = status_row_text_w(buf, slot->font, content_w, h);
         }
         if (fam[j].no_suffix) { m.suffix_w = 0; }
         if (fam[j].no_lane) { m.icon_w = (int16_t)(m.icon_w - STATUS_SHORT_BATTERY_LANE_W); }
         in->m[1 + j] = m;
         if (fam[j].elastic && status_short_floor(slot->text, buf, sizeof(buf))) {
-            in->floor_w = slot_text_w(buf, slot->font, content_w, h);
+            in->floor_w = status_row_text_w(buf, slot->font, content_w, h);
         }
     }
     in->n = (uint8_t)(1 + k);

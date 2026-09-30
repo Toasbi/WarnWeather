@@ -662,6 +662,12 @@ static void ensure_glyphs(StatusRow *row, const StatusSlotView *views, int conte
     row->glyph_fg = fg;
 }
 
+int16_t status_row_text_w(const char *text, GFont font, int16_t content_w, int16_t h) {
+    if (text[0] == '\0' || content_w <= 0 || h <= 0) { return 0; }
+    return graphics_text_layout_get_content_size(text, font, GRect(0, 0, content_w, h),
+        GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
+}
+
 // Measured footprint of one slot: icon width (battery = fixed glyph, loaded PDC,
 // or the drawn-sun arrow) + text width + the trailing wind-direction arrow's lane.
 // The draw pass feeds it a ResolvedSlot's font/slot/text/dir — the resolver's font
@@ -681,12 +687,7 @@ static StatusSlotMeasure measure_slot(StatusRow *row, int i, GFont font,
     } else if (slot->icon == STATUS_ICON_DRAWN_SUN && slot->kind != SLOT_EMPTY) {
         icon_w = ARROW_W;
     }
-    int16_t text_w = 0;
-    if (text[0] != '\0' && content_w > 0 && row->bounds.size.h > 0) {
-        text_w = graphics_text_layout_get_content_size(
-            text, font, GRect(0, 0, content_w, row->bounds.size.h),
-            GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
-    }
+    int16_t text_w = status_row_text_w(text, font, content_w, row->bounds.size.h);
     m.present = icon_w > 0 || text_w > 0;
     m.icon_w = icon_w;
     m.text_w = text_w;

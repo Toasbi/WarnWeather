@@ -41,5 +41,11 @@ void status_row_set_battery_override(StatusRow *row, bool active);
 // minute tick and after a radar rescan (status_bar_tick_on_demand; the top strip's
 // own tick).
 bool status_row_uses_on_demand(const StatusRow *row);
+
+// A slot text's width in `font`, measured as the row measures its slots: in a
+// content_w x h box with the trailing ellipsis; 0 for "" or an empty box. On demand
+// measures the slots' short members through it, so a member and the full form
+// compare like for like.
+int16_t status_row_text_w(const char *text, GFont font, int16_t content_w, int16_t h);
 #endif
 void status_row_draw(StatusRow *row, GContext *ctx);
