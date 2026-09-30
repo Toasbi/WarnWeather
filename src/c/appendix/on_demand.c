@@ -49,7 +49,10 @@ typedef struct {
     const int8_t *bleed;
     StatusSlotPlace plain[3];   // status_row_layout() of the full measures
     int16_t plain_w[3];         // each slot's width there; 0 = not shown
+    int16_t member_w[3][OD_VARIANTS];  // each member's own width; 0 = shows nothing
+    int16_t floor_w[3];         // the elastic last member at its floor; 0 = none
     int16_t short_w[3];         // its narrowest member's width; == plain_w: none
+    uint8_t short_v[3];         // ... and which member that is
     bool hide_right;            // the stand-in's second pass: the right slot stays hidden
     uint8_t first[2];           // the side's first item: 1 skips the stand-in Battery
     uint8_t n[2];               // items still in
@@ -70,11 +73,23 @@ typedef struct {
     uint8_t violated;   // bit d: side d's claim is in the way
     bool mid_shown;
     int16_t run[2];     // content px each run occupies, after its bleed
+    int16_t end_l;      // where the left claim ends (0: none) ...
+    int16_t beg_r;      // ... and the right one begins (the width: none)
     int16_t mw;         // the middle's width, target x, and the span it may use
     int16_t target;
     int16_t lo;
     int16_t hi;
 } Geom;
+
+// Where a short member may go: inside [lo, hi), anywhere when `free`, else centred on
+// the full form's centre (the middle on its target).
+typedef struct {
+    int16_t lo;
+    int16_t hi;
+    int16_t full_x;
+    int16_t full_w;
+    bool free;
+} Fit;
 
 // The effective form of slot i under `form`: HIDDEN for a slot plain did not show
 // (empty, or squeezed out) and for the right slot on the stand-in's second pass;
@@ -90,9 +105,45 @@ static int16_t form_w(const Pass *p, int i, uint8_t form) {
     return form == OD_SHORT ? p->short_w[i] : 0;
 }
 
-// The member slot i draws in `form`: 0 the full one, else its narrowest.
-static uint8_t form_variant(const Pass *p, int i, uint8_t form) {
-    return (form == OD_SHORT && p->slots[i].n > 1) ? (uint8_t)(p->slots[i].n - 1) : 0;
+static bool fits(const Fit *f, int w) {
+    if (f->free) { return f->lo + w <= f->hi; }
+    int x = f->full_x + (f->full_w - w) / 2;
+    return f->lo <= x && x + w <= f->hi;
+}
+
+// The member a SHORT slot i draws (§5.5), and its width: the widest short member `f`
+// accepts, a short member being narrower than the slot's full width. The elastic last
+// member (the city's full name) comes after the others: it ellipsizes only below the
+// narrowest of them, to the widest width `f` accepts, never below its floor — so
+// "N. York" shows before "New…". The ladder settled on the narrowest member, which
+// the settled geometry accepts, so the search starts from it.
+static int16_t pick_short(const Pass *p, int i, const Fit *f, uint8_t *variant) {
+    const int n = p->slots[i].n > OD_VARIANTS ? OD_VARIANTS : p->slots[i].n;
+    int best = p->short_w[i];
+    uint8_t v_best = p->short_v[i];
+    int below = p->plain_w[i];   // the elastic member stays under every other member
+    for (int v = 1; v < n; v++) {
+        int w = p->member_w[i][v];
+        if (w <= 0 || w >= p->plain_w[i]) { continue; }
+        if (v < n - 1 && w < below) { below = w; }
+        if (w > best && fits(f, w)) {
+            best = w;
+            v_best = (uint8_t)v;
+        }
+    }
+    if (p->floor_w[i] > 0) {
+        int top = p->member_w[i][n - 1];
+        if (top >= below) { top = below - 1; }
+        for (int w = top; w > best && w >= p->floor_w[i]; w--) {
+            if (fits(f, w)) {
+                best = w;
+                v_best = (uint8_t)(n - 1);
+                break;
+            }
+        }
+    }
+    *variant = v_best;
+    return (int16_t)best;
 }
 
 static int16_t item_gap(const OdSideIn *s, int a, int b) {
@@ -188,6 +239,8 @@ static void geometry(const Pass *p, const Conf *c, Geom *g) {
     // width (0 when not shown).
     int end_l = c->active[0] ? g->run[0] + (own_l > 0 ? GAP + own_l : 0) : own_l;
     int beg_r = c->active[1] ? W - g->run[1] - (own_r > 0 ? GAP + own_r : 0) : W - own_r;
+    g->end_l = (int16_t)end_l;
+    g->beg_r = (int16_t)beg_r;
     uint8_t violated = 0;
     g->mid_shown = c->mid != OD_HIDDEN;
     if (g->mid_shown) {
@@ -237,18 +290,37 @@ static void plain_out(const Pass *p, OdLayout *out) {
 // when free), each own slot next to its run, each far slot where plain put it, and
 // the items outermost first — the left run from the left edge rightwards, the right
 // run from the right edge leftwards, so Battery is the outermost item on either side.
+// A short slot draws the widest member its room allows (pick_short), which gives back
+// what the ladder's narrowest member did not need: the middle first, centred on its
+// full form's centre (or anywhere in its span when free), then the left slot up to
+// the middle, or with the middle hidden up to the right claim, then the right slot
+// from whatever the left one left.
 static void place(const Pass *p, const Conf *c, const Geom *g, const uint8_t stage[2],
                   OdLayout *out) {
     memset(out, 0, sizeof(*out));
+    const int16_t W = p->w;
+    int16_t mid_lo = 0;
+    int16_t mid_hi = 0;
     if (g->mid_shown) {
+        const int16_t right = (int16_t)(g->hi + g->mw);   // the span's right bound
+        uint8_t v = 0;
+        int16_t w = g->mw;
         int16_t x = g->target;
+        if (c->mid == OD_SHORT) {
+            const Fit f = { g->lo, right, p->plain[1].icon_x, p->plain_w[1], c->mid_free };
+            w = pick_short(p, 1, &f, &v);
+            x = (int16_t)(p->plain[1].icon_x + (p->plain_w[1] - w) / 2);
+        }
         if (c->mid_free) {
-            if (x > g->hi) { x = g->hi; }
+            if (x > right - w) { x = (int16_t)(right - w); }
             if (x < g->lo) { x = g->lo; }
         }
-        out->variant[1] = form_variant(p, 1, c->mid);
-        status_slot_place_at(&p->slots[1].m[out->variant[1]], x, g->mw, &out->place[1]);
+        out->variant[1] = v;
+        status_slot_place_at(&p->slots[1].m[v], x, w, &out->place[1]);
+        mid_lo = x;
+        mid_hi = (int16_t)(x + w);
     }
+    int16_t left_end = g->end_l;   // the left claim as placed
     for (int d = 0; d < 2; d++) {
         const int i = OWN(d);
         if (!c->active[d]) {
@@ -279,10 +351,25 @@ static void place(const Pass *p, const Conf *c, const Geom *g, const uint8_t sta
             }
         }
         if (c->own[d] == OD_HIDDEN) { continue; }
-        int16_t w = form_w(p, i, c->own[d]);
-        int16_t x = d == 0 ? (int16_t)(g->run[0] + GAP) : (int16_t)(p->w - g->run[1] - GAP - w);
-        out->variant[i] = form_variant(p, i, c->own[d]);
-        status_slot_place_at(&p->slots[i].m[out->variant[i]], x, w, &out->place[i]);
+        uint8_t v = 0;
+        int16_t w = p->plain_w[i];
+        if (c->own[d] == OD_SHORT) {
+            int a;
+            int b;
+            if (d == 0) {
+                a = g->run[0] + GAP;
+                b = g->mid_shown ? mid_lo - GAP : (g->beg_r < W ? g->beg_r - GAP : W);
+            } else {
+                a = g->mid_shown ? mid_hi + GAP : (left_end > 0 ? left_end + GAP : 0);
+                b = W - g->run[1] - GAP;
+            }
+            const Fit f = { 0, (int16_t)(b - a), 0, 0, true };
+            w = pick_short(p, i, &f, &v);
+        }
+        int16_t x = d == 0 ? (int16_t)(g->run[0] + GAP) : (int16_t)(W - g->run[1] - GAP - w);
+        out->variant[i] = v;
+        status_slot_place_at(&p->slots[i].m[v], x, w, &out->place[i]);
+        if (d == 0) { left_end = (int16_t)(x + w); }
     }
     for (int i = 0; i < 3; i++) {
         uint8_t form = i == 1 ? c->mid : c->own[i / 2];
@@ -369,13 +456,31 @@ static void pass_init(Pass *p, int16_t content_w, const OdSlotIn slots[3],
         full[i] = slots[i].n > 0 ? slots[i].m[0] : (StatusSlotMeasure) {0};
     }
     status_row_layout(content_w, full, p->plain);
+    // Each short member's own width, and the narrowest one the ladder measures the
+    // slot's SHORT form at: the elastic last member counts at its floor.
+    StatusSlotPlace scratch;
     for (int i = 0; i < 3; i++) {
         p->plain_w[i] = status_slot_placed_w(&p->plain[i], &full[i]);
         p->short_w[i] = p->plain_w[i];
-        if (slots[i].n > 1 && p->plain_w[i] > 0) {
-            StatusSlotPlace scratch;
-            int16_t w = status_slot_place_at(&slots[i].m[slots[i].n - 1], 0, WIDE, &scratch);
-            if (w > 0 && w < p->short_w[i]) { p->short_w[i] = w; }
+        if (p->plain_w[i] <= 0) { continue; }
+        const int n = slots[i].n > OD_VARIANTS ? OD_VARIANTS : slots[i].n;
+        for (int v = 1; v < n; v++) {
+            int16_t w = status_slot_place_at(&slots[i].m[v], 0, WIDE, &scratch);
+            p->member_w[i][v] = w;
+            if (w > 0 && w < p->short_w[i]) {
+                p->short_w[i] = w;
+                p->short_v[i] = (uint8_t)v;
+            }
+        }
+        if (n > 1 && slots[i].floor_w > 0) {
+            StatusSlotMeasure at_floor = slots[i].m[n - 1];
+            if (at_floor.text_w > slots[i].floor_w) { at_floor.text_w = slots[i].floor_w; }
+            int16_t w = status_slot_place_at(&at_floor, 0, WIDE, &scratch);
+            p->floor_w[i] = w;
+            if (w > 0 && w < p->short_w[i]) {
+                p->short_w[i] = w;
+                p->short_v[i] = (uint8_t)(n - 1);
+            }
         }
     }
     for (int d = 0; d < 2; d++) {

@@ -69,8 +69,10 @@ build/host/alert_lane_dump > build/host/alert_lane.txt
 node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
 # The On demand layout (appendix/on_demand.c): the two-side make-room ladder, the shared
 # middle, the drop order, the Battery stand-in and the bleed, down to "a quiet bar is the
-# plain row layout, byte for byte". Its body sits behind WW_ON_DEMAND like alert_set.c's,
-# and it places its slots through the row layout it is linked with.
+# plain row layout, byte for byte", and which short form a slot draws (the widest that
+# fits, the elastic city's floor, the real date/week/sun families from
+# status_short_text.h). Its body sits behind WW_ON_DEMAND like alert_set.c's, and it
+# places its slots through the row layout it is linked with.
 cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_test
 build/host/on_demand_test
@@ -98,6 +100,12 @@ build/host/status_row_alloc_test
 # never compiles the caller (its status_row twin keeps the hardcoded formats).
 cc $CFLAGS test/c/date_format_test.c -o build/host/date_format_test
 build/host/date_format_test
+# The status slots' short forms (status_short_text.h, header-only like date_format.h):
+# every kind's family, the date's year and day members over date_format.h's real
+# outputs, and the city's word ladder, whose vector table test/city-ladder.test.js also
+# runs the phone's twin over. Only On demand's callers include it, so aplite never does.
+cc $CFLAGS test/c/status_short_text_test.c -o build/host/status_short_text_test
+build/host/status_short_text_test
 # The fixed Quiet Time / Bluetooth / snooze indicators, which only aplite's strip twin
 # (top_status_layer_aplite.c) still resolves; every other platform draws them as On
 # demand items.

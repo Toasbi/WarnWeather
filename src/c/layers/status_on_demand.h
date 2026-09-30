@@ -3,12 +3,13 @@
 #include "../appendix/alert_set.h"
 #include "../appendix/on_demand.h"
 #include "../appendix/rain_countdown.h"   // RAIN_COUNTDOWN_TEXT_CAP
+#include "../appendix/status_short_text.h"
 
 // On demand's SDK half: which items of a bar are active, their glyphs, measures and
-// paint. The layout — how the bar's slots make room for them — is the pure
-// appendix/on_demand.c. status_row.c makes three calls: status_on_demand_fold() on
-// every refresh, status_on_demand_layout() and status_on_demand_paint() on every
-// draw; everything in between happens here.
+// paint, and the slots' short forms measured. The layout — how the bar's slots make
+// room for them — is the pure appendix/on_demand.c. status_row.c makes three calls:
+// status_on_demand_fold() on every refresh, status_on_demand_layout() and
+// status_on_demand_paint() on every draw; everything in between happens here.
 //
 // NOT LINKED ON APLITE: On demand is aplite-absent (WW_ON_DEMAND in wscript) — the .c
 // body sits behind the macro and compiles to an empty object there. Its one caller,
@@ -93,7 +94,18 @@ typedef struct {
     int8_t bleed_left;      // px the left run may reach into the row margin
     bool top_strip;         // the strip's glyph set and box floor
     bool right_is_battery;  // the right slot is the Watch battery glyph
+    bool full_date;         // a date slot prints the full date (no calendar on screen)
 } StatusOnDemandEnv;
+
+// One of the row's slots as the row resolved it: what its short family
+// (status_short_text.h) is derived from.
+typedef struct {
+    uint8_t kind;           // StatusSlotKind
+    uint8_t icon;           // StatusIconId
+    GFont font;             // the font it measures and draws in
+    char *text;             // its full text; the layout writes the member it drew
+    size_t cap;             // over it, in a buffer of this size
+} StatusOnDemandSlot;
 
 // One item's measured parts.
 typedef struct {
@@ -131,13 +143,16 @@ typedef struct {
 } StatusOnDemandPass;
 
 // Draw-time, before any paint: lay the bar's three slots out into `places`. With an
-// active item, through od_layout() — the slots make room as the ladder says; without
-// one, exactly status_row_layout(content_w, m, places), so a quiet bar lays out as
-// it would without the feature. Keeps the glyph cache holding exactly the glyphs the
-// active items need.
+// active item, through od_layout() — the slots make room as the ladder says, and a
+// slot that takes a short form gets that member's measure in `m` (the wind arrow or
+// the battery's bolt lane dropped) and its text over `slots[i].text`. Without one,
+// exactly status_row_layout(content_w, m, places) with `m` and the texts untouched,
+// so a quiet bar lays out as it would without the feature, and measures no short
+// form. Keeps the glyph cache holding exactly the glyphs the active items need.
 void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
-                             const StatusOnDemandEnv *env, const StatusSlotMeasure m[3],
-                             StatusSlotPlace places[3], int16_t content_w);
+                             const StatusOnDemandEnv *env, const StatusOnDemandSlot slots[3],
+                             StatusSlotMeasure m[3], StatusSlotPlace places[3],
+                             int16_t content_w);
 
 // Paint the items status_on_demand_layout() kept. Call it after the slots' highlight
 // boxes and before their content, so the z-order is boxes, items, content.

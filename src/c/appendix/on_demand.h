@@ -54,11 +54,16 @@ typedef enum { OD_SIDE_NONE = 0, OD_SIDE_LEFT = 1, OD_SIDE_RIGHT = 2 } OdSide;
 #define OD_ITEM_GAP STATUS_ROW_GROUP_GAP
 #define OD_PADDED_GAP 2
 
-// One of the bar's three slots, as measured. n == 0 is an empty slot, n == 1 a slot
-// with no short form; every slot has n <= 1 until the short forms arrive.
+// One of the bar's three slots, as measured: m[0] its full form, then its short
+// family widest first (status_short_text.h). n == 0 is an empty slot, n == 1 a slot
+// with no short form. A member counts as short only while it is narrower than the
+// slot's width in the plain layout.
 typedef struct {
     StatusSlotMeasure m[OD_VARIANTS];
     uint8_t n;
+    // When > 0 the last member is elastic (the city): its text may ellipsize down to
+    // this many px, its floor ("Fra…"), and the ladder measures it there.
+    int16_t floor_w;
 } OdSlotIn;
 
 // One side's items, outermost first (ascending OdItem, so rank[] rises).
@@ -77,7 +82,8 @@ typedef struct {
 typedef struct {
     uint8_t form[3];                       // OdForm, left / middle / right slot
     uint8_t variant[3];                    // the member drawn: 0 full, else short
-    StatusSlotPlace place[3];
+    StatusSlotPlace place[3];              // its fit: an elastic member's text_w is
+                                           // its ellipsized width
     uint8_t first[2];                      // the first input item kept
     uint8_t n[2];                          // items kept (0: no run)
     uint8_t lane[2];                       // their lane
@@ -96,7 +102,9 @@ typedef struct {
 //    claim is in the way: its slot slides inward, shortens, the looks shorten, the
 //    middle leaves the centre, its slot hides, the middle hides, and finally its
 //    lowest-priority item drops. The far slot of a side with no items keeps its
-//    place.
+//    place. The ladder measures a short slot at its narrowest member (an elastic
+//    one at its floor); once it has settled, each short slot draws the widest member
+//    its room allows, the middle first, then the left slot, then the right.
 // `bleed[d]` is how far side d's run may reach past the content edge into the row
 // margin (the top strip's left run starts where the old indicator icons did). Slots
 // never bleed. `battery_standin` (the top strip's Watch battery slot with the

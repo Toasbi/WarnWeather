@@ -1,12 +1,15 @@
 #include <stdio.h>
 #include <string.h>
 #include "c/appendix/on_demand.h"
+#include "c/appendix/status_short_text.h"
 
 // Host test for the On demand layout (appendix/on_demand.c): the make-room ladder
-// with both sides, the shared middle, the drop order, the Battery stand-in and the
-// bleed. Built with -DWW_ON_DEMAND, the flag wscript sets on every platform but
-// aplite — without it the module body is compiled out and nothing here would link —
-// and linked with the row layout the engine measures against and places through.
+// with both sides, the shared middle, the drop order, the Battery stand-in, the
+// bleed, and which short form a slot draws (the widest that fits, the elastic city's
+// floor, and the real date / week / sun families from status_short_text.h). Built
+// with -DWW_ON_DEMAND, the flag wscript sets on every platform but aplite — without
+// it the module body is compiled out and nothing here would link — and linked with
+// the row layout the engine measures against and places through.
 
 static int s_failures = 0;
 
@@ -114,9 +117,15 @@ static OdSlotIn random_slot(void) {
     int16_t suffix = rnd(4) == 0 ? 8 : 0;
     s.m[0] = (StatusSlotMeasure) { icon > 0 || text > 0, icon, text, suffix };
     s.n = 1;
-    if (text > 12 && rnd(2)) {
-        s.m[1] = (StatusSlotMeasure) { true, icon, (int16_t)(text / 2), suffix };
-        s.n = 2;
+    // A short family of up to three members, narrowing, one of them sometimes without
+    // the suffix, and the last one sometimes elastic.
+    int16_t t = text;
+    while (t > 12 && s.n < OD_VARIANTS && rnd(2)) {
+        t = (int16_t)(t * (1 + rnd(3)) / 4);
+        s.m[s.n++] = (StatusSlotMeasure) { true, icon, t, rnd(3) == 0 ? 0 : suffix };
+    }
+    if (s.n > 1 && s.m[s.n - 1].text_w > 0 && rnd(3) == 0) {
+        s.floor_w = (int16_t)(1 + rnd(s.m[s.n - 1].text_w));
     }
     return s;
 }
@@ -849,10 +858,28 @@ static void no_overlap(void) {
 
         Span spans[3 + 2 * OD_SIDE_MAX];
         int count = 0;
+        StatusSlotPlace plain[3];
+        plain_of(w, slots, plain);
         for (int i = 0; i < 3; i++) {
             if (!out.place[i].visible) { continue; }
             int sw = status_slot_placed_w(&out.place[i], &slots[i].m[out.variant[i]]);
             int x = out.place[i].icon_x;
+            // A short slot is narrower than its full form, and an elastic member
+            // never ellipsizes below its floor.
+            if (out.form[i] == OD_SHORT
+                    && (out.variant[i] == 0
+                        || sw >= status_slot_placed_w(&plain[i], &slots[i].m[0]))) {
+                printf("FAIL overlap.short_narrower trial %d slot %d\n", trial, i);
+                s_failures++;
+                return;
+            }
+            if (slots[i].floor_w > 0 && out.variant[i] == slots[i].n - 1
+                    && out.place[i].text_w < slots[i].floor_w) {
+                printf("FAIL overlap.floor trial %d slot %d text %d floor %d\n", trial, i,
+                       out.place[i].text_w, slots[i].floor_w);
+                s_failures++;
+                return;
+            }
             if (x < 0 || x + sw > w) {
                 printf("FAIL overlap.slot_inside trial %d slot %d x %d w %d of %d\n",
                        trial, i, x, sw, w);
@@ -886,6 +913,313 @@ static void no_overlap(void) {
     }
 }
 
+// --- short forms: the widest member that fits ---------------------------------------
+//
+// W 200: the left slot is 60 wide with members 50 / 40 / 20, the middle 60 with 50 /
+// 30, the right slot 40 with none (plain: 0..60, the middle at 70..130, 160..200). A
+// Bluetooth icon k px wide on the left. The ladder measures a short slot at its
+// narrowest member; once settled, the middle takes the widest member that fits its
+// check (centred on its full centre, 100, unless free) and the left slot the widest
+// that fits between its run and the middle.
+
+static void widest_member_bar(OdSlotIn slots[3]) {
+    slots[0] = slot_text(60, 0);
+    slots[0].m[1] = (StatusSlotMeasure) { true, 0, 50, 0 };
+    slots[0].m[2] = (StatusSlotMeasure) { true, 0, 40, 0 };
+    slots[0].m[3] = (StatusSlotMeasure) { true, 0, 20, 0 };
+    slots[0].n = 4;
+    slots[1] = slot_text(60, 50);
+    slots[1].m[2] = (StatusSlotMeasure) { true, 0, 30, 0 };
+    slots[1].n = 3;
+    slots[2] = slot_text(40, 0);
+}
+
+static void short_widest_member(void) {
+    static const struct {
+        int k;
+        int stage;
+        int left_v, left_x;     // left_v -1: hidden
+        int mid_v, mid_x;
+    } CASES[] = {
+        {  10, 1,  1, 14, 0,  70 },   // room 14..66: 50 fits
+        {  20, 1,  2, 24, 0,  70 },   // room 24..66: 40
+        {  30, 1,  3, 34, 0,  70 },   // room 34..66: only 20
+        {  45, 2,  3, 49, 1,  75 },   // the middle's 50 still centres: 75 >= lo 73
+        {  50, 2,  3, 54, 2,  85 },   // lo 78 > 75: the 30 centres at 85
+        {  60, 5,  3, 64, 1,  88 },   // free: 50 fits from lo 88 (138 <= 156)
+        {  80, 5,  3, 84, 2, 108 },   // free: 50 no longer (158 > 156), 30 does
+        { 100, 8, -1,  0, 1, 104 },   // own slot hidden: 50 from lo 104
+        { 110, 8, -1,  0, 2, 114 },
+    };
+    OdSlotIn slots[3];
+    widest_member_bar(slots);
+    for (size_t c = 0; c < sizeof(CASES) / sizeof(CASES[0]); c++) {
+        OdSideIn sides[2] = { side_none(), side_none() };
+        add_icon(&sides[0], OD_BLUETOOTH, (int16_t)CASES[c].k);
+        OdLayout out;
+        od_layout(200, slots, sides, NO_BLEED, false, &out);
+        char name[64];
+        snprintf(name, sizeof(name), "widest.stage k%d", CASES[c].k);
+        expect(name, out.stage[0], CASES[c].stage);
+        snprintf(name, sizeof(name), "widest.left k%d", CASES[c].k);
+        if (CASES[c].left_v < 0) {
+            expect(name, out.place[0].visible, 0);
+        } else {
+            expect(name, out.variant[0], CASES[c].left_v);
+            expect(name, out.place[0].icon_x, CASES[c].left_x);
+        }
+        snprintf(name, sizeof(name), "widest.mid k%d", CASES[c].k);
+        expect(name, out.variant[1], CASES[c].mid_v);
+        expect(name, out.place[1].icon_x, CASES[c].mid_x);
+        // The far slot never moves.
+        expect(name, out.place[2].icon_x, 160);
+    }
+
+    // As a sweep: whatever member a short slot draws, the next wider one would not fit
+    // — the middle (chosen first, beside the left slot's narrowest member) centred on
+    // its full centre unless its row frees it, then the left slot up to the middle
+    // (or up to the right slot's gap).
+    static const int16_t LEFT_W[4] = { 60, 50, 40, 20 };
+    static const int16_t MID_W[3] = { 60, 50, 30 };
+    for (int k = 1; k <= 150; k++) {
+        OdSideIn sides[2] = { side_none(), side_none() };
+        add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
+        OdLayout out;
+        od_layout(200, slots, sides, NO_BLEED, false, &out);
+        char name[64];
+        int bound = out.place[1].visible ? out.place[1].icon_x - 4 : 156;
+        if (out.form[0] == OD_SHORT && out.variant[0] > 1) {
+            int wider = LEFT_W[out.variant[0] - 1];
+            snprintf(name, sizeof(name), "widest.sweep.left k%d", k);
+            expect_true(name, k + 4 + wider > bound);
+        }
+        if (out.form[1] == OD_SHORT && out.variant[1] > 1) {
+            int wider = MID_W[out.variant[1] - 1];
+            int claim = out.form[0] == OD_SHORT ? 20 + 4 : out.form[0] == OD_FULL ? 60 + 4 : 0;
+            int lo = k + 4 + claim;
+            int x = FREE_OF[out.stage[0]] ? lo : 70 + (60 - wider) / 2;
+            snprintf(name, sizeof(name), "widest.sweep.mid k%d", k);
+            expect_true(name, x < lo || x + wider > 156);
+        }
+    }
+}
+
+// --- the elastic city -----------------------------------------------------------------
+//
+// A city alone in the middle of a 140 px bar (plain 30..110): its full name 80 px,
+// its abbreviated member ("N. York") 60, and its elastic member — the full name again,
+// ellipsized as far as its floor ("New…") of 24 px. A Bluetooth icon k px wide on the
+// left. Centred, the city shows "N. York" while it fits, then the full name
+// ellipsized ever shorter, never below its floor; only when the floor no longer fits
+// centred does the middle leave the centre.
+
+static OdSlotIn slot_city(void) {
+    OdSlotIn s = slot_text(80, 60);
+    s.m[2] = s.m[0];
+    s.n = 3;
+    s.floor_w = 24;
+    return s;
+}
+
+static void elastic_city(void) {
+    OdSlotIn slots[3] = { slot_empty(), slot_city(), slot_empty() };
+    int prev_w = 80;
+    bool saw_abbr = false;
+    bool saw_ellipsis = false;
+    for (int k = 1; k <= 140; k++) {
+        OdSideIn sides[2] = { side_none(), side_none() };
+        add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
+        OdLayout out;
+        od_layout(140, slots, sides, NO_BLEED, false, &out);
+        char name[64];
+        snprintf(name, sizeof(name), "elastic k%d", k);
+        if (!out.place[1].visible) { continue; }
+        int w = status_slot_placed_w(&out.place[1], &slots[1].m[out.variant[1]]);
+        if (FREE_OF[out.stage[0]]) {
+            // Off the centre only once the floor no longer fits centred: 58 + 24.
+            expect_true(name, k + 4 > 58);
+            continue;
+        }
+        // Centred on the full name's centre (70), never below the floor, narrowing.
+        expect(name, out.place[1].icon_x, 30 + (80 - w) / 2);
+        expect_true(name, w >= 24 && w <= prev_w);
+        prev_w = w;
+        if (out.variant[1] == 1) {
+            saw_abbr = true;
+            expect(name, w, 60);
+            expect_true(name, !saw_ellipsis);   // "N. York" before "New…"
+        }
+        if (out.variant[1] == 2) {
+            saw_ellipsis = true;
+            expect_true(name, w < 60);
+            expect(name, out.place[1].text_w, w);
+        }
+    }
+    expect_true("elastic.abbr", saw_abbr);
+    expect_true("elastic.ellipsis", saw_ellipsis);
+
+    // The exact points: "N. York" to k 36, the ellipsis from 37 (58 px), the floor at
+    // k 54, and at 55 the middle leaves the centre.
+    static const struct { int k; int v; int w; int stage; } AT[] = {
+        { 36, 1, 60, 2 }, { 37, 2, 58, 2 }, { 54, 2, 24, 2 },
+    };
+    for (size_t c = 0; c < sizeof(AT) / sizeof(AT[0]); c++) {
+        OdSideIn sides[2] = { side_none(), side_none() };
+        add_icon(&sides[0], OD_BLUETOOTH, (int16_t)AT[c].k);
+        OdLayout out;
+        od_layout(140, slots, sides, NO_BLEED, false, &out);
+        char name[64];
+        snprintf(name, sizeof(name), "elastic.at k%d", AT[c].k);
+        expect(name, out.stage[0], AT[c].stage);
+        expect(name, out.variant[1], AT[c].v);
+        expect(name, status_slot_placed_w(&out.place[1], &slots[1].m[out.variant[1]]), AT[c].w);
+    }
+    OdSideIn sides[2] = { side_none(), side_none() };
+    add_icon(&sides[0], OD_BLUETOOTH, 55);
+    OdLayout out;
+    od_layout(140, slots, sides, NO_BLEED, false, &out);
+    expect("elastic.leaves_centre", out.stage[0], 5);
+
+    // As the right side's own slot the elastic city ellipsizes to its room — from the
+    // left edge to the run's gap — never below its floor: with less room, it hides.
+    OdSlotIn own[3] = { slot_empty(), slot_empty(), slot_city() };
+    bool own_ellipsis = false;
+    for (int k = 1; k <= 140; k++) {
+        OdSideIn s2[2] = { side_none(), side_none() };
+        add_icon(&s2[1], OD_BLUETOOTH, (int16_t)k);
+        OdLayout o;
+        od_layout(140, own, s2, NO_BLEED, false, &o);
+        char name[64];
+        snprintf(name, sizeof(name), "elastic.own k%d", k);
+        int room = 140 - k - 4;
+        if (o.form[2] == OD_SHORT) {
+            int w = status_slot_placed_w(&o.place[2], &own[2].m[o.variant[2]]);
+            expect_true(name, w >= 24 && w <= room);
+            expect(name, w, room >= 60 ? 60 : room);
+            expect(name, o.place[2].icon_x, room - w);
+            if (w < 60) { own_ellipsis = true; }
+        } else if (o.form[2] == OD_HIDDEN) {
+            expect_true(name, room < 24);
+        }
+    }
+    expect_true("elastic.own.ellipsis", own_ellipsis);
+}
+
+// --- the real families ----------------------------------------------------------------
+
+// A slot built from its resolved text the way status_on_demand.c builds it, with 6 px
+// per byte standing in for the font.
+static OdSlotIn slot_family(uint8_t kind, uint8_t icon, bool full_date, uint8_t mday,
+                            const char *full, char texts[OD_VARIANTS][STATUS_SHORT_CAP]) {
+    OdSlotIn s = slot_text((int16_t)(6 * strlen(full)), 0);
+    snprintf(texts[0], STATUS_SHORT_CAP, "%s", full);
+    StatusShortMember fam[STATUS_SHORT_MEMBERS];
+    uint8_t n = status_short_family(kind, icon, full_date, mday, full, false, false, fam);
+    for (int j = 0; j < n; j++) {
+        status_short_text(kind, icon, full_date, mday, full, fam[j].step, texts[1 + j],
+                          STATUS_SHORT_CAP);
+        s.m[1 + j] = (StatusSlotMeasure) { true, 0, (int16_t)(6 * strlen(texts[1 + j])), 0 };
+        if (fam[j].elastic) { s.floor_w = 24; }
+    }
+    s.n = (uint8_t)(1 + n);
+    return s;
+}
+
+// The date in the middle of a 140 px bar, a Bluetooth icon k px wide on the left: the
+// texts it shows while it stays centred, in the order they come. (Once it leaves the
+// centre it may take a wider member again, wherever that fits.)
+static int date_texts(bool full_date, const char *full, const char *seen[OD_VARIANTS]) {
+    char texts[OD_VARIANTS][STATUS_SHORT_CAP];
+    OdSlotIn slots[3] = { slot_empty(),
+                          slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, full_date, 7, full, texts),
+                          slot_empty() };
+    int n = 0;
+    int last = -1;
+    for (int k = 1; k <= 140; k++) {
+        OdSideIn sides[2] = { side_none(), side_none() };
+        add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
+        OdLayout out;
+        od_layout(140, slots, sides, NO_BLEED, false, &out);
+        if (!out.place[1].visible || FREE_OF[out.stage[0]]) { break; }
+        if (out.variant[1] == last) { continue; }
+        last = out.variant[1];
+        static char keep[OD_VARIANTS][STATUS_SHORT_CAP];
+        snprintf(keep[n], STATUS_SHORT_CAP, "%s", texts[last]);
+        seen[n] = keep[n];
+        n++;
+        if (n == OD_VARIANTS) { break; }
+    }
+    return n;
+}
+
+static void date_families(void) {
+    const char *seen[OD_VARIANTS];
+    // A calendar view: the year shortens, the month never does.
+    int n = date_texts(false, "Sep 2026", seen);
+    expect("date.calendar.n", n, 2);
+    if (n == 2) {
+        expect_true("date.calendar.full", strcmp(seen[0], "Sep 2026") == 0);
+        expect_true("date.calendar.year", strcmp(seen[1], "Sep '26") == 0);
+    }
+    n = date_texts(false, "2026-09", seen);
+    expect("date.calendar.iso", n, 1);
+    // No calendar: the year, then the day of the month.
+    n = date_texts(true, "07.09.2026", seen);
+    expect("date.no_calendar.n", n, 3);
+    if (n == 3) {
+        expect_true("date.no_calendar.full", strcmp(seen[0], "07.09.2026") == 0);
+        expect_true("date.no_calendar.year", strcmp(seen[1], "07.09.26") == 0);
+        expect_true("date.no_calendar.day", strcmp(seen[2], "7") == 0);
+    }
+    n = date_texts(true, "Sep 7, 2026", seen);
+    expect("date.no_calendar.text.n", n, 3);
+    if (n == 3) { expect_true("date.no_calendar.text.year", strcmp(seen[1], "Sep 7, '26") == 0); }
+}
+
+// A slot with no short form never takes a SHORT step: as the own slot it goes from
+// FULL straight to HIDDEN at its turn, and as the middle it leaves the centre whole
+// and then hides.
+static void no_short_form(void) {
+    char texts[OD_VARIANTS][STATUS_SHORT_CAP];
+    OdSlotIn week = slot_family(SLOT_LIVE_WEEK, STATUS_ICON_NONE, false, 7, "W40", texts);
+    OdSlotIn sun = slot_family(SLOT_TEXT, STATUS_ICON_DRAWN_SUN, false, 7, "6:12p", texts);
+    expect("noshort.week.n", week.n, 1);
+    expect("noshort.sun.n", sun.n, 1);
+    OdSlotIn date = slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, false, 7, "Sep 2026", texts);
+    const OdSlotIn *own_kinds[2] = { &week, &sun };
+    for (int o = 0; o < 2; o++) {
+        OdSlotIn slots[3] = { *own_kinds[o], date, slot_empty() };
+        bool hidden = false;
+        for (int k = 1; k <= 140; k++) {
+            OdSideIn sides[2] = { side_none(), side_none() };
+            add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
+            OdLayout out;
+            od_layout(140, slots, sides, NO_BLEED, false, &out);
+            char name[64];
+            snprintf(name, sizeof(name), "noshort.own%d k%d", o, k);
+            expect_true(name, out.form[0] != OD_SHORT);
+            if (out.form[0] == OD_HIDDEN) { hidden = true; }
+            expect_true(name, !(hidden && out.form[0] == OD_FULL && out.n[0] == 1));
+        }
+        expect_true("noshort.own.hides", hidden);
+        OdSlotIn mid[3] = { slot_empty(), *own_kinds[o], slot_empty() };
+        bool moved = false;
+        for (int k = 1; k <= 140; k++) {
+            OdSideIn sides[2] = { side_none(), side_none() };
+            add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
+            OdLayout out;
+            od_layout(140, mid, sides, NO_BLEED, false, &out);
+            char name[64];
+            snprintf(name, sizeof(name), "noshort.mid%d k%d", o, k);
+            expect_true(name, out.form[1] != OD_SHORT);
+            if (out.form[1] == OD_FULL && out.place[1].icon_x != (140 - mid[1].m[0].text_w) / 2) {
+                moved = true;
+            }
+            if (out.form[1] == OD_HIDDEN) { expect_true(name, moved); }
+        }
+    }
+}
+
 int main(void) {
     quiet_is_plain();
     ladder_every_row_in_order();
@@ -901,6 +1235,10 @@ int main(void) {
     bleed_and_order();
     drops();
     no_overlap();
+    short_widest_member();
+    elastic_city();
+    date_families();
+    no_short_form();
     if (s_failures) {
         printf("%d on_demand failure(s)\n", s_failures);
         return 1;

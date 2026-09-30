@@ -758,10 +758,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     int16_t x0 = (int16_t)(row->bounds.origin.x + STATUS_ROW_MARGIN);
 
     // On demand, measured against the three slots: with an active item the slots make
-    // room for it (on_demand.c's ladder); otherwise the bar lays out exactly as it
-    // would without the feature. The top strip's left run may reach STATUS_ROW_MARGIN
-    // into the margin, so its first item sits where the old indicators drew (screen
-    // x 4) while its content rect stays the quiet one.
+    // room for it (on_demand.c's ladder), down to their short forms, and a slot that
+    // takes one comes back with that member's measure and text; otherwise the bar lays
+    // out exactly as it would without the feature. The top strip's left run may reach
+    // STATUS_ROW_MARGIN into the margin, so its first item sits where the old
+    // indicators drew (screen x 4) while its content rect stays the quiet one.
     const bool top = row->line_id == STATUS_LINE_TOP;
     const StatusOnDemandEnv od_env = {
         .font = font,
@@ -777,10 +778,18 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         .bar = (int8_t)status_threshold_bar_of_line(row->line_id),
         .bleed_left = top ? STATUS_ROW_MARGIN : 0,
         .top_strip = top,
-        .right_is_battery = views[STATUS_SLOT_COUNT - 1].kind == SLOT_LIVE_BATTERY
+        .right_is_battery = views[STATUS_SLOT_COUNT - 1].kind == SLOT_LIVE_BATTERY,
+        .full_date = row->full_date
     };
+    StatusOnDemandSlot od_slots[STATUS_SLOT_COUNT];
+    for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
+        od_slots[i] = (StatusOnDemandSlot) { slots[i].slot.kind, slots[i].slot.icon,
+                                             slots[i].font, slots[i].text,
+                                             sizeof(slots[i].text) };
+    }
     StatusSlotPlace places[STATUS_SLOT_COUNT];
-    status_on_demand_layout(&row->od, &s_od_pass, &od_env, measures, places, content_w);
+    status_on_demand_layout(&row->od, &s_od_pass, &od_env, od_slots, measures, places,
+                            content_w);
 
     // Threshold-highlight pass: paint each crossed slot's box — an outline, or a
     // filled box + outline — UNDER its icon + text (calendar today-box precedent),
@@ -809,7 +818,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         graphics_context_set_text_color(ctx, ink);
         int16_t icon_x = (int16_t)(x0 + places[i].icon_x);
         if (slots[i].slot.kind == SLOT_LIVE_BATTERY) {
-            battery_draw(ctx, GRect(icon_x, glyph_cy - BATTERY_GLYPH_H / 2,
+            // The short battery (On demand) is measured without its bolt lane, which
+            // is empty while the watch is not charging: the glyph draws that much
+            // further left, so its body lands where the slot was placed.
+            int16_t lane = (int16_t)(BATTERY_GLYPH_W - measures[i].icon_w);
+            battery_draw(ctx, GRect(icon_x - lane, glyph_cy - BATTERY_GLYPH_H / 2,
                                     BATTERY_GLYPH_W, BATTERY_GLYPH_H), ink);
         } else if (row->glyphs[i]) {
             GSize gs = gdraw_command_image_get_bounds_size(row->glyphs[i]);
@@ -850,8 +863,10 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         // to modify. (The phone applies the same rule at bake time — no number, no
         // sentinel.) `ink`, not theme_fg(): a filled wind slot draws its
         // text and its glyph legible OVER the fill, and an arrow in the foreground
-        // colour would disappear into it.
-        if (places[i].text_visible && slots[i].dir >= 0 && s_arrow_path) {
+        // colour would disappear into it. The measure has the final say: a wind slot
+        // in its last short form (On demand) drops the arrow's lane.
+        if (places[i].text_visible && slots[i].dir >= 0 && measures[i].suffix_w > 0
+                && s_arrow_path) {
             gpath_rotate_to(s_arrow_path, (int32_t)((TRIG_MAX_ANGLE
                 * status_dir_turn_sixteenths(slots[i].dir)) / 16));
             // Centred in its ARROW_H-square lane, seated on the same cap centre the

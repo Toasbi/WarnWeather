@@ -32,3 +32,26 @@ test('the Battery item fills like the Watch battery slot', function() {
   assert.match(SLOT, /\(level \+ 10\) \/ 110/);
   assert.match(ITEM, /\(level \+ 10\) \/ 110/);
 });
+
+/**
+ * The integer a C `#define NAME <int>` gives in `src`.
+ * @param {string} src C source text.
+ * @param {string} name Macro name.
+ * @returns {number} Its value, or NaN when it is not defined as a plain integer.
+ */
+function define(src, name) {
+  var m = new RegExp('#define ' + name + '\\s+(\\d+)\\b').exec(src);
+  return m ? Number(m[1]) : NaN;
+}
+
+// The Watch battery slot's short form (On demand) is the glyph without its bolt lane,
+// which battery_draw.c puts in front of the body: the charging icon and its spacing.
+// status_row.c draws the short glyph that far to the left, so the lane the short form
+// drops must be exactly the one the glyph leaves empty while not charging.
+test('the short Watch battery drops exactly the glyph\'s bolt lane', function() {
+  var SHORT = fs.readFileSync(path.join(ROOT, 'src/c/appendix/status_short_text.h'), 'utf8');
+  var lane = define(SLOT, 'BATTERY_POWER_ICON_W') + define(SLOT, 'ICON_SPACING');
+  assert.ok(lane > 0, 'battery_draw.c lane found');
+  assert.equal(define(SHORT, 'STATUS_SHORT_BATTERY_LANE_W'), lane);
+  assert.match(SLOT, /int battery_x = BATTERY_POWER_ICON_W \+ ICON_SPACING;/);
+});
