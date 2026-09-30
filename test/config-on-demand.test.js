@@ -274,7 +274,11 @@ test('the side summary and the checklist options, resolver by resolver', () => {
   assert.equal(summary(state({ statusTopOnDemandRightItems: 'pollen,wind', provider: 'metno' }), ENV.basalt, args('on')),
     'Wind speed', 'Pollen left out off DWD');
   assert.equal(summary(state({ statusTopOnDemandRightItems: 'rain', radarMode: 'off' }), ENV.basalt, args('on')),
-    'Nothing picked', 'nothing that can show');
+    'None of the ticked items can show', 'ticked, but nothing that can show');
+  assert.equal(summary(state({ statusTopOnDemandRightItems: 'rain,pollen', radarMode: 'off', provider: 'metno' }),
+    ENV.basalt, args('on')), 'None of the ticked items can show', 'every tick blocked');
+  assert.equal(summary(state({ statusTopOnDemandRightItems: '' }), ENV.basalt, args('on')), 'Nothing picked',
+    'nothing ticked');
   const items = PC.optionsResolvers.get('onDemandItems');
   const opts = items(state({ provider: 'dwd', radarMode: 'graph' }), ENV.basalt, { bar: 'top', side: 'left' });
   assert.deepEqual(opts.map((o) => o[1]), ['', 'battery', 'bt', 'qt', 'snooze', '', 'rain', 'gust', 'uv', 'aqi',

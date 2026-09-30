@@ -1141,7 +1141,9 @@ if (typeof require !== 'undefined') {
     /**
      * The side row's live summary (the row's hint): nothing while the side is Disabled;
      * while Enabled, the names of the ticked items that can show, in priority order,
-     * joined " · " — or "Nothing picked".
+     * joined " · ". "Nothing picked" only while nothing is ticked; ticks that all
+     * cannot show (Rain with the radar Off, Pollen off DWD) say so instead, and the
+     * side's checklist notes say why.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
      * @param {{value: string, itemsKey: string}} args The side's Enabled/Disabled value
@@ -1150,13 +1152,15 @@ if (typeof require !== 'undefined') {
      */
     function onDemandSummary(S, env, args) {
         if (!args || args.value !== 'on') { return ''; }
+        var ticked = onDemand.parse((S || {})[args.itemsKey]);
+        if (!ticked.length) { return 'Nothing picked'; }
         var names = [];
-        onDemand.parse((S || {})[args.itemsKey]).forEach(function (code) {
+        ticked.forEach(function (code) {
             if (onDemandBlocked(S, code) === null) {
                 names.push(onDemand.ITEMS[onDemand.itemIndex(code)].label);
             }
         });
-        return names.length ? names.join(' · ') : 'Nothing picked';
+        return names.length ? names.join(' · ') : 'None of the ticked items can show';
     }
     PConf.hintResolvers.register('onDemandSummary', onDemandSummary);
 
