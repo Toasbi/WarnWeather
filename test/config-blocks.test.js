@@ -844,9 +844,10 @@ test('radarPreview draws the rain entry in its Look, at the side of the Watch St
   assert.equal(at(Object.assign({ statusTopOnDemandLeft: 'off' }, onLeft)), null, 'its side Disabled: no band');
 });
 
-// The watch colours the countdown glyph with palette_radar_color(tier) (top_status_layer.c
-// rain_glyph_color), clamped to the RADAR palette's last stop — and a Solid radar palette
-// has just the one stop. So the glyph follows the Solid bar colour, never the green tier.
+// The watch colours the On demand Rain item's rain icon with palette_radar_color(tier)
+// (status_on_demand.c rain_tint(), colour themes only), clamped to the RADAR palette's
+// last stop — and a Solid radar palette has just the one stop. So the glyph follows the
+// Solid bar colour, never the green tier.
 test('countdown glyph follows radarColor=Solid on a colour watch (the watch\'s single radar stop)', () => {
   const rainTier = require('../src/pkjs/weather/rain-tier.js');
   const colorLib = require('../src/pkjs/config-ui/lib/color.js');
