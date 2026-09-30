@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 
 const pair = require('../src/pkjs/status-pair.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
-const thresholds = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 const utf8 = require('../src/pkjs/utf8.js');
 const wireUnits = require('../src/pkjs/wire-units.js');
 
@@ -480,8 +480,8 @@ test('the UV threshold level is blind to the presentation settings', () => {
   for (const mode of ['current', 'max', 'both']) {
     for (const p of payloads) {
       const plain = Object.assign({ uvSlotDisplay: mode }, levels);
-      assert.deepEqual(thresholds.packWeatherLevels(p, Object.assign({}, plain, styled)),
-        thresholds.packWeatherLevels(p, plain), mode + ' ' + JSON.stringify(p));
+      assert.deepEqual(wire.packWeatherLevels(p, Object.assign({}, plain, styled)),
+        wire.packWeatherLevels(p, plain), mode + ' ' + JSON.stringify(p));
     }
   }
 });

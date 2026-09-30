@@ -741,7 +741,7 @@ test('the re-bake changes the battery slot and reproduces every other slot exact
 test('the stored blob holds only the payload keys the bake reads', () => {
   // Bounded and modest: the forecast series, the radar series and the rest of
   // the payload have no business on flash. Enumerated from status-lines.js
-  // (formatValue + directionSentinel) and status-thresholds.js (displayValue).
+  // (formatValue + directionSentinel) and status-wire.js (displayValue).
   boot({ navigator: modernNavigator(fakeManager(0.62, false)), settings: SLOT_SETTINGS });
   statusRebake.rememberBakeInputs(bakePayload(), { platform: 'basalt' });
   const blob = JSON.parse(storage[KEYS.PHONE_BATTERY_SNAPSHOT]);

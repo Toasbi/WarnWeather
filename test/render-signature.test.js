@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const thresholds = require('../src/pkjs/status-thresholds.js');
 
 const renderSignature = require('../src/pkjs/render-signature.js').renderSignature;
-// The same predicate packWeatherLevels packs by: phone-leveled weather kinds
+// The same predicate status-wire packWeatherLevels packs by: phone-leveled weather kinds
 // (aqi, pollen, wind, gust, uv). slice(0, 4) here once mirrored the shipped
 // bug of dropping UV (kind 7, after the health kinds) from the signature.
 const WEATHER_KINDS = thresholds.KINDS.filter(k => !k.goal && !k.boldOnly);
@@ -443,8 +443,8 @@ test('moving an alert between sides or bars leaves the signature alone; changing
   assert.equal(renderSignature(defaults), renderSignature({}));
 });
 
-// The alert segment signs the bake's own code lists (alertKindCodes, then
-// alertValueKindCodes). Over every combination of the five placements (none, the Watch
+// The alert segment signs the bake's own list (enabledAlerts): each placed alert's
+// code and how it reads. Over every combination of the five placements (none, the Watch
 // Status Bar's right, the forecast bar's left) and Looks, two settings sign alike
 // exactly when the bake reads them alike: placed or not, and the Look while placed.
 test('the alert segment tells apart exactly the placed alerts and their Looks', () => {

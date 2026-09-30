@@ -1,6 +1,6 @@
 // test/day-max-slots.test.js — the UV slot's day max (Now / Day max / Both) on the
 // wind, gust and AQI slots: the numbers wire-units picks, the text status-lines
-// bakes, the highlight status-thresholds judges, and the peaks getPayload emits.
+// bakes, the highlight status-wire judges, and the peaks getPayload emits.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -127,7 +127,7 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
   assert.ok(noPeak[2] === 3 && noPeak[5] <= 0x10, 'current reading keeps its arrow');
 });
 
-// ---- status-thresholds: the highlight ---------------------------------------
+// ---- status-wire: the highlight ---------------------------------------------
 
 test('wind, gust and AQI highlights judge the highest of today\'s numbers shown', () => {
   const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null],

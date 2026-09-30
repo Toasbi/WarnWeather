@@ -9,6 +9,8 @@ var paletteWire = require('./weather/palette-wire.js');
 var viewCycle = require('./view-cycle.js');
 var resolveInk = require('./resolve-ink.js').resolveInk;
 var statusThresholds = require('./status-thresholds.js');
+// buildSettingsBlob, the CLAY_THRESHOLDS_UINT8 packer.
+var statusWire = require('./status-wire.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var lineStyle = require('./line-style.js');
 var dateFormat = require('./date-format.js');
@@ -276,7 +278,7 @@ function buildClayPayload(settings, watchInfo, now) {
     // is treated as capable (computeEnv), so a missing watchInfo never drops it.
     // (env computed at the top of this function, beside the cycle branch.)
     if (env.thresholds) {
-        payload.CLAY_THRESHOLDS_UINT8 = statusThresholds.buildSettingsBlob(settings, env);
+        payload.CLAY_THRESHOLDS_UINT8 = statusWire.buildSettingsBlob(settings, env);
         // Date-slot formats [monthYear, fullDate] — settings-derived, so they ride
         // the Clay message. Gated with the threshold blob: the pickers live on the
         // Date slot's edit sheet, which shares this env gate, and an aplite watch

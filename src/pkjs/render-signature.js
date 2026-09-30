@@ -44,7 +44,7 @@ function renderSignature(settings) {
     // bakes (and fetches — UV), so it joins. NOT the theme or the area-fill toggle:
     // the line colours, the fill flag, the ...LineStyle keys and the
     // threshold auto-colours all ride the Clay message now (line-style.js,
-    // palette-wire.js, status-thresholds.js' buildSettingsBlob), and the auto theme
+    // palette-wire.js, status-wire.js' buildSettingsBlob), and the auto theme
     // switch already flips with a Clay-only resend. The one style fact the bake does
     // read — a top stripe over a feels/dew curve — joins as a derived flag, so a
     // style edit that bakes nothing forces no fetch...
@@ -111,7 +111,7 @@ function renderSignature(settings) {
     // or after the overnight pause). The highlight toggle thresh<Kind>On does NOT
     // join: levels pack whatever it says and it only flips the Clay blob's enable
     // bit, which is already immediate. Selected by the SAME
-    // predicate packWeatherLevels packs by (isWeatherKind), so a
+    // predicate status-wire.js packWeatherLevels packs by (isWeatherKind), so a
     // kind the phone levels can never be omitted here — KINDS.slice(0, 4)
     // silently dropped UV when it joined as kind 7.
     // Deliberately NOT the health kinds (goal: true — evaluated watch-side from
@@ -131,25 +131,24 @@ function renderSignature(settings) {
     }
     // The metric alerts (On demand's weather alerts): whether an alert is on — its
     // item ticked on an Enabled side of any bar — changes both the bake (the
-    // ALERT_ENTRIES_UINT8 entries, status-thresholds.js bakeAlerts) and the fetch set (a
+    // ALERT_ENTRIES_UINT8 entries, status-wire.js bakeAlerts) and the fetch set (a
     // placed alert fetches its metric and day peaks with no slot showing it), and
     // alert<Kind>Display changes the baked bytes (a value after the icon), as do
     // alert<Kind>Days (whether tomorrow's peak may raise the alert) and
     // alert<Kind>NextDayMark (the mark code a tomorrow entry carries). Signed as
-    // what the bake reads, through the bake's own calls, with a watch that draws On
-    // demand — the placed codes (their union over every bar and side), those whose
-    // Look shows the value, those that look ahead to tomorrow and their marks (each
-    // only while placed, the mark only while looking ahead) — so the page hydrating
-    // an absent key to its default forces no fetch, and moving an item between sides
-    // or bars, or disabling one of two sides that both carry it, signs nothing new.
+    // what the bake reads, through the bake's own list (enabledAlerts), with a watch
+    // that draws On demand: one entry per placed alert (the union over every bar and
+    // side), its code, '+v' while its Look shows the value, and '>' + its mark while
+    // it looks ahead to tomorrow — so the page hydrating an absent key to its default
+    // forces no fetch, and moving an item between sides or bars, or disabling one of
+    // two sides that both carry it, signs nothing new.
     // NOT signed: the side keys as such, the Battery, Bluetooth, Quiet time and Sleep
     // items, the rain alert's placement, window and look, the warn looks and the
     // colours — all ride the Clay message (the cells, the Battery byte, the horizon,
     // byte 34), already immediate.
-    parts.push(statusThresholds.alertKindCodes(settings).join(','),
-        statusThresholds.alertValueKindCodes(settings).join(','),
-        statusThresholds.alertTomorrowKindCodes(settings).join(','),
-        statusThresholds.alertNextDayMarks(settings).join(','));
+    parts.push(statusThresholds.enabledAlerts(settings).map(function (a) {
+        return a.code + (a.showValue ? '+v' : '') + (a.days === 'tomorrow' ? '>' + a.mark : '');
+    }).join(','));
     return parts.join('|');
 }
 

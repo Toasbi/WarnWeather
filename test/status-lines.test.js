@@ -1299,7 +1299,7 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
   const WRITTEN = new Set(['STATUS_LEVELS_UINT8', 'ALERT_ENTRIES_UINT8']);
 
   const seen = new Set();
-  for (const file of ['status-lines.js', 'status-thresholds.js', 'status-pair.js']) {
+  for (const file of ['status-lines.js', 'status-wire.js', 'status-pair.js']) {
     for (const m of read(file).matchAll(/payload\.([A-Z][A-Z_0-9]*)/g)) {
       if (!WRITTEN.has(m[1])) { seen.add(m[1]); }
     }
@@ -1320,11 +1320,11 @@ test('SOURCE_KEYS matches every payload key the bake reads', () => {
 });
 
 // ── the weather alerts' entries (ALERT_ENTRIES_UINT8) ────────────────────────
-const thresholds = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 const { decodeAlerts } = require('./helpers/alert-entries.js');
 //
 // The weather alerts are On demand items, not slot items: their metric entries ride
-// their own weather tuple, baked by buildStatusLines through status-thresholds'
+// their own weather tuple, baked by buildStatusLines through status-wire's
 // bakeAlerts under the 20-B cap the watch's inbox budgets for.
 
 // UV 8 (danger on the seed 6/8), wind 45 km/h (warn on 40/60), gusts 90 (danger),
@@ -1354,7 +1354,7 @@ test('buildStatusLines bakes ALERT_ENTRIES_UINT8: the active alerts, icon-only b
   // UV danger (header bit 7 | kind 7 | danger bit 3), wind warn (kind 2), both
   // today's, no value bytes.
   assert.deepEqual(p.ALERT_ENTRIES_UINT8, [0x80 | 7 | 0x08, 0x80 | 2]);
-  assert.deepEqual(p.ALERT_ENTRIES_UINT8, thresholds.bakeAlerts(alertPayload(), s));
+  assert.deepEqual(p.ALERT_ENTRIES_UINT8, wire.bakeAlerts(alertPayload(), s));
 });
 
 test('buildStatusLines: all four with values fit the tuple, in the On demand order', () => {
@@ -1366,7 +1366,7 @@ test('buildStatusLines: all four with values fit the tuple, in the On demand ord
     [0x80 | 7 | 0x08], ch('8'),
     [0x80 | 0 | 0x08], ch('152'),
     [0x80 | 2], ch('45')));
-  assert.ok(p.ALERT_ENTRIES_UINT8.length <= thresholds.ALERT_ENTRIES_MAX_BYTES);
+  assert.ok(p.ALERT_ENTRIES_UINT8.length <= wire.ALERT_ENTRIES_MAX_BYTES);
 });
 
 test('buildStatusLines: nothing alerting sends an empty ALERT_ENTRIES_UINT8', () => {
@@ -1416,7 +1416,7 @@ test('the entry cap holds all five alerts with their widest values', () => {
   const bytes = p.ALERT_ENTRIES_UINT8;
   // Five headers, nothing tail-dropped.
   assert.deepEqual(decodeAlerts(bytes).map((e) => e.value), ['130', '11', '500', '2-3', '120']);
-  assert.ok(bytes.length <= thresholds.ALERT_ENTRIES_MAX_BYTES, bytes.length + ' B');
+  assert.ok(bytes.length <= wire.ALERT_ENTRIES_MAX_BYTES, bytes.length + ' B');
 });
 
 test('the entry cap holds all five alerts with their widest values for tomorrow too', () => {

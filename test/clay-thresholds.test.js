@@ -12,6 +12,7 @@ global.localStorage = {
 
 const { buildClayPayload } = require('../src/pkjs/clay-payload');
 const thresholds = require('../src/pkjs/status-thresholds');
+const wire = require('../src/pkjs/status-wire');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const BASE = {
@@ -45,7 +46,7 @@ test('the warn looks ride bytes 36-37 with the watch platform\'s default', () =>
     const payload = buildClayPayload(BASE, { platform }, at);
     assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36, 38), [0x55, 0x55], platform);
     assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8,
-      thresholds.buildSettingsBlob(BASE, { color: false }), platform + ': the packer, with env');
+      wire.buildSettingsBlob(BASE, { color: false }), platform + ': the packer, with env');
   });
   ['basalt', 'chalk', 'emery'].forEach((platform) => {
     assert.deepEqual(buildClayPayload(BASE, { platform }, at).CLAY_THRESHOLDS_UINT8.slice(36, 38),
@@ -67,7 +68,7 @@ test('the On demand cells and the Battery item ride bytes 35 and 38-47 of the Cl
   assert.equal(basalt[35], 20, 'a stored 15 rides as 20 to a 10 % watch');
   assert.equal(basalt[38 + 6], 2 | (2 << 4), 'UV on the top bar\'s right and the radar bar\'s right');
   assert.equal(basalt[38 + 1], 1 | (2 << 4), 'Bluetooth on the top bar\'s left and the radar bar\'s right');
-  assert.deepEqual(basalt, thresholds.buildSettingsBlob(s, platform.computeEnv({ platform: 'basalt' })));
+  assert.deepEqual(basalt, wire.buildSettingsBlob(s, platform.computeEnv({ platform: 'basalt' })));
   const emery = buildClayPayload(s, { platform: 'emery' }, at).CLAY_THRESHOLDS_UINT8;
   assert.equal(emery[35], 15, 'emery reports 5 % steps: 15 rides as 15');
 });
@@ -91,7 +92,7 @@ test('the blob matches buildSettingsBlob for configured settings', () => {
   });
   const payload = buildClayPayload(s, { platform: 'basalt' },
     new Date('2026-07-22T00:00:00Z'));
-  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, wire.buildSettingsBlob(s));
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0] & 1, 1);          // AQI enabled
   assert.equal(payload.CLAY_THRESHOLDS_UINT8[0] & (1 << 4), 16);  // Steps enabled
 });
@@ -117,7 +118,7 @@ test('the dew bold cell fits byte 33 without widening the blob', () => {
     new Date('2026-07-22T00:00:00Z'));
   assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 48,
     'kinds 17-19 share byte 33 with kind 16 — no widening');
-  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, wire.buildSettingsBlob(s));
   // The cell lands where the contract says, and leaves its byte-mates alone.
   const byte33 = payload.CLAY_THRESHOLDS_UINT8[33];
   assert.equal((byte33 >> 2) & 3, thresholds.BOLD_MODES.always, 'dew cell (kind 17)');
@@ -130,9 +131,9 @@ test('the dew slot packs its own cell, not the city cell it would otherwise shar
   // catch-all on the watch) is its own icon and its own kind. Pinning that the
   // two blobs differ catches a mis-indexed KINDS append that would silently make
   // one slot's Bold setting drive the other's.
-  const dew = thresholds.buildSettingsBlob(
+  const dew = wire.buildSettingsBlob(
     Object.assign({}, BASE, { threshDewBoldMode: 'always' }));
-  const city = thresholds.buildSettingsBlob(
+  const city = wire.buildSettingsBlob(
     Object.assign({}, BASE, { threshCityBoldMode: 'always' }));
   assert.notDeepEqual(dew, city, 'dew and city must pack into different cells');
   assert.equal(dew[33] >> 2 & 3, thresholds.BOLD_MODES.always);
@@ -150,7 +151,7 @@ test('the two phone-battery cells fill byte 33 without widening the Clay blob', 
     new Date('2026-07-22T00:00:00Z'));
   assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 48,
     'the phone battery must not grow the Clay bundle by a byte');
-  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, thresholds.buildSettingsBlob(s));
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8, wire.buildSettingsBlob(s));
   const byte33 = payload.CLAY_THRESHOLDS_UINT8[33];
   assert.equal((byte33 >> 4) & 3, thresholds.BOLD_MODES.always, 'phoneBattery cell (kind 18)');
   assert.equal((byte33 >> 6) & 3, thresholds.BOLD_MODES.always, 'phoneBatteryPlain cell (kind 19)');
@@ -173,9 +174,9 @@ test('the phone-battery slots pack their own cells, not the city cell they resem
   // Both are SLOT_TEXT; the no-icon variant is one icon id away from being
   // TEXT + ICON_NONE, which is City's shape on the watch. That is the exact bug
   // that shipped on the pressure slot, so pin that the blobs differ.
-  const phone = thresholds.buildSettingsBlob(
+  const phone = wire.buildSettingsBlob(
     Object.assign({}, BASE, { threshPhoneBatteryBoldMode: 'always' }));
-  const city = thresholds.buildSettingsBlob(
+  const city = wire.buildSettingsBlob(
     Object.assign({}, BASE, { threshCityBoldMode: 'always' }));
   assert.notDeepEqual(phone, city, 'phone battery and city must pack into different cells');
   assert.equal(city[33], 0, 'city lives in an earlier bold byte, not byte 33');
@@ -205,8 +206,8 @@ test("a goal kind's blank warn color ('') survives the settings save round-trip"
     inst.parseResponse(encodeURIComponent(JSON.stringify(fromPage)))));
   assert.equal(stored.threshSleepWarnColor, '', "the '' sentinel must reach storage unchanged");
   assert.deepEqual(
-    thresholds.buildSettingsBlob(Object.assign({}, BASE, stored)),
-    thresholds.buildSettingsBlob(Object.assign({}, BASE, fromPage)),
+    wire.buildSettingsBlob(Object.assign({}, BASE, stored)),
+    wire.buildSettingsBlob(Object.assign({}, BASE, fromPage)),
     'the save round-trip must not change what the watch is told');
 });
 
@@ -220,10 +221,10 @@ test("a goal kind's legacy null warn color is AUTO at pack time — the off stat
   const nul = Object.assign({}, BASE, pair, { threshSleepWarnColor: null });
   const blank = Object.assign({}, BASE, pair, { threshSleepWarnColor: '' });
   const untouched = Object.assign({}, BASE, pair);
-  assert.deepEqual(thresholds.buildSettingsBlob(nul), thresholds.buildSettingsBlob(untouched));
-  assert.deepEqual(thresholds.buildSettingsBlob(blank), thresholds.buildSettingsBlob(untouched));
-  assert.equal(thresholds.buildSettingsBlob(nul)[1 + 2 * 5], 0xDC, 'the goal green');
-  const none = thresholds.buildSettingsBlob(Object.assign({}, nul, { threshSleepWarnLook: 'none' }));
+  assert.deepEqual(wire.buildSettingsBlob(nul), wire.buildSettingsBlob(untouched));
+  assert.deepEqual(wire.buildSettingsBlob(blank), wire.buildSettingsBlob(untouched));
+  assert.equal(wire.buildSettingsBlob(nul)[1 + 2 * 5], 0xDC, 'the goal green');
+  const none = wire.buildSettingsBlob(Object.assign({}, nul, { threshSleepWarnLook: 'none' }));
   assert.equal(none[1 + 2 * 5], 0x00, 'the none look is the no-box marker');
   assert.equal((none[37] >> 2) & 3, thresholds.WARN_LOOKS.none);
 });

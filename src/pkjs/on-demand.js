@@ -339,27 +339,6 @@
   }
 
   /**
-   * The On demand cells of CLAY_THRESHOLDS_UINT8 (bytes 38..47, status_threshold.h): one
-   * byte per item in ITEMS order, 2 bits per bar at bits 2 * bar (BARS order) — 0 none,
-   * 1 left, 2 right. Effective values only (sideOf), so a Disabled side is zeros.
-   * @param {Object} S Settings blob.
-   * @param {Object} [env] Platform env (omitted = capable).
-   * @returns {number[]} ITEMS.length bytes
-   */
-  function cells(S, env) {
-    var out = [];
-    for (var i = 0; i < ITEMS.length; i++) {
-      var byte = 0;
-      for (var b = 0; b < BARS.length; b++) {
-        var side = sideOf(S, BARS[b].bar, ITEMS[i].code, env);
-        if (side !== null) { byte |= (SIDES.indexOf(side) + 1) << (2 * b); }
-      }
-      out.push(byte);
-    }
-    return out;
-  }
-
-  /**
    * The Battery item's effective warn level, THE rule for the page's slider, the card's
    * live text and the blob's byte 35: the stored level (batteryLowLevel) as an integer,
    * 10 when it is not a number or outside 5..30; then, unless the watch reports its charge
@@ -433,7 +412,6 @@
     untickFrom: untickFrom,
     untickEverywhere: untickEverywhere,
     placeRainForCountdown: placeRainForCountdown,
-    cells: cells,
     batteryLevel: batteryLevel,
     batteryShowsValue: batteryShowsValue,
     telemetryCode: telemetryCode

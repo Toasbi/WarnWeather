@@ -1278,7 +1278,7 @@ test('alerts agrees with the bake\'s reading of every alert setting', () => {
         const pair = buildSettingsSnapshot(s).alerts.slice(at, at + 2);
         let want = 'o-';
         if (th.alertOn(s, 'wind')) {
-          const l = th.alertValueKindCodes(s).indexOf('wind') !== -1 ? 'v' : 'i';
+          const l = s.alertWindDisplay === 'value' ? 'v' : 'i';
           want = th.alertDays(s, 'wind') === 'tomorrow'
             ? l.toUpperCase() + MARK[th.alertNextDayMark(s, 'wind')] : l + '-';
         }
@@ -1292,11 +1292,12 @@ test('alerts agrees with the bake\'s reading of every alert setting', () => {
 // look the watch never got.
 test('rainAlertDisplay agrees with the rain look the blob sends', () => {
   const thresholds = require('../src/pkjs/status-thresholds.js');
+  const wire = require('../src/pkjs/status-wire.js');
   [undefined, 'text', 'icon', 'minutes', 'bogus', 3].forEach((look) => {
     const settings = { rainAlertDisplay: look };
     const reported = buildSettingsSnapshot(settings).rainAlertDisplay;
     assert.strictEqual(thresholds.RAIN_DISPLAY[reported],
-      thresholds.buildSettingsBlob(settings)[thresholds.ALERTS_OFFSET], String(look));
+      wire.buildSettingsBlob(settings)[wire.ALERTS_OFFSET], String(look));
   });
   assert.equal(buildSettingsSnapshot({ rainAlertDisplay: 'bogus' }).rainAlertDisplay, 'text');
 });

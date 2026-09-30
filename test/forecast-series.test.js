@@ -378,7 +378,7 @@ test('applyForecastSeries deletes POLLEN_TODAY after baking the pollen status sl
 // applyForecastSeries) must run WHILE AQI_TREND/WIND_TREND_UINT8/
 // GUST_TREND_UINT8/POLLEN_TODAY are still on the payload -- applyForecastSeries
 // deletes all four a few lines later. If that delete order were ever reversed,
-// status-thresholds.packWeatherLevels would see a stripped payload and would
+// status-wire.packWeatherLevels would see a stripped payload and would
 // silently pack all-Normal (STATUS_LEVELS_UINT8 = [0]) with no error anywhere,
 // permanently killing the threshold-highlight feature. This test drives the
 // REAL pipeline (applyForecastSeries), not the unit in isolation, so it pins

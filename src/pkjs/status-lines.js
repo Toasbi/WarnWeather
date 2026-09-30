@@ -5,7 +5,7 @@
  */
 var catalog = require('./status-line-catalog.js');
 var platformLib = require('./config-ui/lib/platform.js');
-var thresholds = require('./status-thresholds.js');
+var statusWire = require('./status-wire.js');
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
 var isPolarSunPair = require('./weather/sun-events.js').isPolarSunPair;
 var statusPair = require('./status-pair.js');
@@ -89,7 +89,7 @@ function formatSunTime(epoch, settings) {
   return hourText + ':' + pad2(m) + marker;
 }
 
-// First trend value or null — shared with status-thresholds' displayValue
+// First trend value or null — shared with status-wire's displayValue
 // through wire-units, so the two read a trend identically.
 var trendHead = wireUnits.trendHead;
 
@@ -611,7 +611,7 @@ function buildStatusLines(payload, settings, watchInfo) {
   // read and discarded. The 'status' category still carries the four line blobs,
   // so the change detector is unaffected.
   if (env.thresholds) {
-    payload.STATUS_LEVELS_UINT8 = thresholds.packWeatherLevels(payload, settings);
+    payload.STATUS_LEVELS_UINT8 = statusWire.packWeatherLevels(payload, settings);
     // The weather alerts' metric entries, judged here for the same reason. Its own
     // tuple in the 'status' category, so it rides (and is change-detected) with
     // the lines; [] when nothing is alerting, which clears the watch's stored
@@ -619,7 +619,7 @@ function buildStatusLines(payload, settings, watchInfo) {
     // radar cache. On demand is compiled out on exactly the platforms the highlight
     // is (WW_ON_DEMAND and WW_THRESHOLD_HIGHLIGHT: every platform but aplite), so
     // this gate is the right one, and aplite's inbox never budgets for the tuple.
-    payload.ALERT_ENTRIES_UINT8 = thresholds.bakeAlerts(payload, settings);
+    payload.ALERT_ENTRIES_UINT8 = statusWire.bakeAlerts(payload, settings);
   }
   return payload;
 }
@@ -627,7 +627,7 @@ function buildStatusLines(payload, settings, watchInfo) {
 /**
  * Every weather-payload key this module's bake actually READS — formatValue's
  * per-code arms plus directionSentinel — and, by inclusion, the only ones
- * status-thresholds' packWeatherLevels and bakeAlerts need (their displayValue /
+ * status-wire's packWeatherLevels and bakeAlerts need (their displayValue /
  * dayMaxToday / dayMaxTomorrow read a subset: the day-max trends and peaks,
  * POLLEN_TODAY — plus POLLEN_TOMORROW, which only the alerts read).
  * STATUS_LINE_n_UINT8, STATUS_LEVELS_UINT8 and ALERT_ENTRIES_UINT8 are
@@ -649,7 +649,7 @@ var SOURCE_KEYS = [
   'DEW_TREND',
   'POLLEN_TODAY',
   // Tomorrow's pollen band: read only by the pollen alert's look-ahead
-  // (status-thresholds bakeAlerts), never by a slot.
+  // (status-wire bakeAlerts), never by a slot.
   'POLLEN_TOMORROW'
   // ...plus the day-max kinds' trends and *_DAY_PEAKS, read through wire-units'
   // dayMaxShown (UV, wind, gusts, AQI).

@@ -69,7 +69,7 @@ var WeatherProvider = function() {
     // fetch fills it. Transient: consumed by formatValue, never wired.
     this.pollenToday = null;
     // Tomorrow's band from the same response, for a pollen alert that looks
-    // ahead (status-thresholds bakeAlerts). Transient too, never wired.
+    // ahead (status-wire bakeAlerts). Transient too, never wired.
     this.pollenTomorrow = null;
     // Pressure is sea-level (MSL) hPa and not every provider exposes it; empty →
     // the pressure line stays off and the status slot shows '--'. Transient:

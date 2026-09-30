@@ -688,6 +688,7 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
   const claySettings = require('../src/pkjs/clay-settings');
   const pebbleColors = require('../src/pkjs/pebble-colors');
   const statusThresholds = require('../src/pkjs/status-thresholds');
+  const statusWire = require('../src/pkjs/status-wire');
   const BASALT = { platform: 'basalt', model: 'pebble_time_black' };
   const savedBlob = (pageState) =>
     settingsLib.parseResponse(encodeURIComponent(JSON.stringify(pageState)));
@@ -717,7 +718,7 @@ test('an UNKNOWN platform is treated as custom-capable (missing watchInfo never 
     const night = buildClayPayload(themeSchedule.effectiveSettings(blob, true), BASALT, NOW);
     const wind = statusThresholds.KINDS.map((k) => k.key).indexOf('Wind');
     assert.strictEqual(
-      night.CLAY_THRESHOLDS_UINT8[statusThresholds.COLORS_OFFSET + 2 * wind + 1], 0xFF,
+      night.CLAY_THRESHOLDS_UINT8[statusWire.COLORS_OFFSET + 2 * wind + 1], 0xFF,
       'GColorWhite (argb 0xFF), not the day face\'s black (0xC0)');
   });
 }

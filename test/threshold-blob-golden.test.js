@@ -11,12 +11,14 @@
 // kind, a new byte) and reviewed as such.
 // Re-recorded for 1.24.0's On demand bytes (48 B: byte 35 the Battery item in place of
 // the per-bar placement, bytes 38-47 the cells), after checking every other byte of the
-// 4000 old combos against the pre-change packer: identical.
+// 4000 old combos against the pre-change packer: identical. The packer's move out of
+// status-thresholds.js into status-wire.js kept the digest as it was.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const th = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 const OD = require('../src/pkjs/on-demand.js');
 
 const COMBOS = 4000;
@@ -107,12 +109,8 @@ test('CLAY_THRESHOLDS_UINT8 is byte-identical to the recorded packer over 4000 g
   const blobs = [];
   for (let i = 0; i < COMBOS; i++) {
     const c = combo(rnd);
-    const blob = th.buildSettingsBlob(c.settings, c.env);
-    assert.equal(blob.length, th.SETTINGS_BYTES);
-    // The On demand bytes are the contract module's own reading, whatever else is set.
-    assert.deepEqual(blob.slice(th.ON_DEMAND_OFFSET), OD.cells(c.settings, c.env));
-    assert.equal(blob[th.BATTERY_OFFSET], OD.batteryLevel(c.settings, c.env)
-      | (OD.batteryShowsValue(c.settings) ? th.BATTERY_VALUE_BIT : 0));
+    const blob = wire.buildSettingsBlob(c.settings, c.env);
+    assert.equal(blob.length, wire.SETTINGS_BYTES);
     blobs.push(blob);
   }
   const digest = crypto.createHash('sha256').update(JSON.stringify(blobs)).digest('hex');

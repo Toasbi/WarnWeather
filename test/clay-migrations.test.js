@@ -858,6 +858,7 @@ test('resetAll marks the fourth-line style move done: the next blob is seeded wi
 // what the steps do together, and the entry's send, through the ledger ({only} the
 // entry).
 const thresholdsContract = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 const v124 = require('../src/pkjs/migrations/v1_24.js');
 const seedPairs = require('../src/pkjs/migrations/seed-pairs.js');
 const OD = require('../src/pkjs/on-demand.js');
@@ -1254,8 +1255,8 @@ test('seed pairs: a pin under the unit in effect leaves the bytes and the refetc
   ].forEach((blob, n) => {
     const { before, read: after } = stepOn(blankSeeds, blob, true);
     [{ color: true }, { color: false }].forEach((env) => {
-      assert.deepEqual(thresholdsContract.buildSettingsBlob(after, env),
-        thresholdsContract.buildSettingsBlob(before, env), n + ': CLAY_THRESHOLDS_UINT8');
+      assert.deepEqual(wire.buildSettingsBlob(after, env),
+        wire.buildSettingsBlob(before, env), n + ': CLAY_THRESHOLDS_UINT8');
     });
     assert.equal(renderSignature(after), renderSignature(before), n + ': no refetch');
     thresholdsContract.KINDS.filter((k) => !k.boldOnly).forEach((k) => {
@@ -1319,9 +1320,9 @@ test('seed pairs: goal kinds — only Distance has a seed per unit, and its move
   assert.deepEqual(resolved('Steps', after), resolved('Steps', before), 'steps: the same goal');
   assert.deepEqual(resolved('Sleep', after), resolved('Sleep', before), 'sleep: the same goal');
   assert.deepEqual(resolved('Distance', after), [2.5, 3], 'the mile seed, not 4/5 read as miles');
-  const off = thresholdsContract.HEALTH_OFFSET + 4 * 2;   // Distance, kind 6
+  const off = wire.HEALTH_OFFSET + 4 * 2;   // Distance, kind 6
   const u16s = (s) => {
-    const b = thresholdsContract.buildSettingsBlob(s);
+    const b = wire.buildSettingsBlob(s);
     return [b[off] | (b[off + 1] << 8), b[off + 2] | (b[off + 3] << 8)];
   };
   assert.deepEqual(u16s(before), [64, 80], '4/5 mi in 100 m units');

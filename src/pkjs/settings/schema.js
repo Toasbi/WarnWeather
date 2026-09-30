@@ -212,7 +212,7 @@ var ON_DEMAND_WHEN = {env: 'onDemand'};
 var FINE_BATTERY_WHEN = {env: 'fineBattery'};
 // "The Watch-tab master Bold row overrides every slot" — statusBoldAll 'all' packs
 // the bold cell of EVERY kind as always-bold at blob-build time
-// (status-thresholds.js buildSettingsBlob) WITHOUT touching the stored per-kind
+// (status-wire.js buildSettingsBlob) WITHOUT touching the stored per-kind
 // thresh<Stem>BoldMode values, so the per-slot Bold rows go inert (disabledWhen —
 // muted, not hidden) rather than lying about being in charge; flipping the master
 // back to 'perSlot' restores their stored choices.
@@ -679,7 +679,7 @@ function separatorRows(prefix, first, second) {
  * Value selection and Tomorrow's peak mark. Global per kind, baked phone-side
  * (status-lines.js formatValue; the numbers are wire-units' dayMaxShown) and on
  * renderSignature(), so a change re-bakes without waiting for the next fetch. The
- * highlight follows the numbers, never their presentation (status-thresholds.js
+ * highlight follows the numbers, never their presentation (status-wire.js
  * displayValue).
  *
  * The pills' hint explains the SELECTED mode only — Now, the default, gets none
@@ -729,7 +729,7 @@ function dayMaxRows(prefix, copy, now, max) {
  * ahead or happening now; then tomorrow's peak, carrying Tomorrow's peak mark, or —
  * unknown or never above 0 — the reading alone. The Both hint never says which number
  * of the pair the peak is: the Order row below it can put the max first. The closing
- * sentence is status-thresholds displayValue's: the slot's Alert highlighting judges
+ * sentence is status-wire displayValue's: the slot's Alert highlighting judges
  * today's numbers only.
  * @param {string} noun What the kind measures, without an article, e.g. 'UV index'.
  * @param {string} sample The kind's sample pair, e.g. '3/7'.
@@ -835,7 +835,7 @@ function unitRow(key, withUnit, without) {
 function levelRows(keyStem, voice, hint, gate, offWhen) {
     // The slider is ALWAYS live: the warn level is not the highlight's alone — a
     // weather kind's alert icon shows from it whether or not the slot is coloured
-    // (status-thresholds bakeAlerts), so it must stay editable with the switch off.
+    // (status-wire bakeAlerts), so it must stay editable with the switch off.
     // For a GOAL kind the highlight-only rows below (warn look + color pickers) go
     // VISIBLE but disabled (muted, inert — the sheet shows what turning it on
     // offers) while its switch is off. A weather
@@ -910,7 +910,7 @@ function levelRows(keyStem, voice, hint, gate, offWhen) {
         // keeps a save from writing the hydrated default back (engine.js
         // serialize). So one phone driving a colour and a B&W watch packs each
         // its own default, through the same resolver phone-side
-        // (buildSettingsBlob, with the watch's env).
+        // (status-wire buildSettingsBlob, with the watch's env).
         // Shown on B&W too: none vs outline is meaningful without colour choice.
         // A weather kind's row is always live (it styles the alert icon too); a
         // goal kind's goes inert with its Goals switch, like its colours.
@@ -1317,7 +1317,7 @@ function alertLooksAheadWhen(daysKey) {
  * ONE home (the slot sheet points here). It has no switch: the tick in a side's
  * checklist is the switch. The phone bakes an entry into the ALERT_ENTRIES_UINT8 tuple
  * only for a kind placed on a bar whose day — today, or with Days "Today + tomorrow"
- * tomorrow — reaches its warn level (status-thresholds.js bakeAlerts), so the Look, the
+ * tomorrow — reaches its warn level (status-wire.js bakeAlerts), so the Look, the
  * Days and the mark ride renderSignature(), not the Clay message.
  * @param {string} keyStem Kind key stem, e.g. 'Uv' (alert<Stem>Display,
  *     alert<Stem>Days, alert<Stem>NextDayMark).
@@ -2858,7 +2858,7 @@ module.exports = {
         // renderSignature() so a change re-bakes without waiting for the next fetch.
         // What each mode prints is wire-units' dayMaxShown.
         // It leads the sheet like the wind arrow: it configures the slot, and the
-        // highlight follows it (the policy is status-thresholds.js displayValue's). So
+        // highlight follows it (the policy is status-wire.js displayValue's). So
         // do the rows shaping how it reads, which change the text only — the
         // highlight judges the numbers, never their presentation.
         alertSlotSheet('Uv', dayMaxRows('uv', {noun: 'UV index'}, '3', '7')),

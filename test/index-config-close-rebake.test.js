@@ -23,8 +23,9 @@ const FETCHED = /Successfully fetched weather/;
 // The UV kind's wire id (its index in status-thresholds' KINDS) and a danger
 // entry's header byte: the header bit | kind | the danger bit, today's, no value text.
 const TH = require('../src/pkjs/status-thresholds.js');
+const WIRE = require('../src/pkjs/status-wire.js');
 const UV_KIND = 7;
-const UV_DANGER_ENTRY = TH.ALERT_HEADER | UV_KIND | TH.ALERT_DANGER;
+const UV_DANGER_ENTRY = WIRE.ALERT_HEADER | UV_KIND | WIRE.ALERT_DANGER;
 
 /**
  * Open-Meteo's GFS UV answer: `uv` every hour around now.
@@ -162,8 +163,8 @@ test('a level moved across the current value re-bakes levels and entries without
 // network down.
 test('an alert\'s Days and tomorrow mark re-bake the entry without the network', (t) => {
   const { h, net } = bootBaked(t, UV_ONLY, {}, lowTodayHighTomorrow);
-  const tomorrowRaquo = TH.ALERT_HEADER | UV_KIND | TH.ALERT_DANGER
-    | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('raquo') + 1) << TH.ALERT_DAY_SHIFT);
+  const tomorrowRaquo = WIRE.ALERT_HEADER | UV_KIND | WIRE.ALERT_DANGER
+    | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('raquo') + 1) << WIRE.ALERT_DAY_SHIFT);
   const baked = statusSends(h);
   assert.deepEqual(Array.from(baked[baked.length - 1].ALERT_ENTRIES_UINT8), [tomorrowRaquo],
     'today peaks at 2, tomorrow at 9: the default Today + tomorrow alerts for tomorrow, marked »');
@@ -181,8 +182,8 @@ test('an alert\'s Days and tomorrow mark re-bake the entry without the network',
   h.advance(5 * 1000);
   after = statusSends(h).filter((d) => h.sends.indexOf(d) >= before);
   assert.equal(after.length, 1);
-  assert.deepEqual(Array.from(after[0].ALERT_ENTRIES_UINT8), [TH.ALERT_HEADER | UV_KIND | TH.ALERT_DANGER
-    | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('star') + 1) << TH.ALERT_DAY_SHIFT), '9'.charCodeAt(0)],
+  assert.deepEqual(Array.from(after[0].ALERT_ENTRIES_UINT8), [WIRE.ALERT_HEADER | UV_KIND | WIRE.ALERT_DANGER
+    | ((TH.ALERT_NEXT_DAY_MARKS.indexOf('star') + 1) << WIRE.ALERT_DAY_SHIFT), '9'.charCodeAt(0)],
   'back to tomorrow, now marked * and printing tomorrow\'s 9');
   assert.equal(h.count(FETCHED), 1, 'every forced fetch failed: the re-bakes did it alone');
   assert.equal(h.uncaught.length, 0);

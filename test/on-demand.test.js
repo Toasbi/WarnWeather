@@ -173,22 +173,6 @@ test('placeRainForCountdown: Rain alert only ticks Rain top right unless a bar o
   assert.equal(OD.placeRainForCountdown(null), false);
 });
 
-test('cells: one byte per item, 2 bits per bar (1 left, 2 right)', () => {
-  // The defaults: top bar only.
-  assert.deepEqual(OD.cells({}), [2, 1, 1, 1, 2, 2, 2, 2, 0, 2]);
-  const S = {
-    statusTopOnDemandRightItems: 'battery',
-    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'uv',
-    statusRadarOnDemandRight: 'on', statusRadarOnDemandRightItems: 'uv', radarMode: 'status',
-    statusHealthOnDemandLeft: 'off', statusHealthOnDemandLeftItems: 'uv', healthMode: 'all'
-  };
-  const c = OD.cells(S);
-  assert.equal(c[OD.itemIndex('uv')], (1 << 2) | (2 << 4), 'forecast left + radar right; the Disabled health side is 0');
-  assert.equal(c[OD.itemIndex('battery')], 2, 'top right');
-  assert.equal(c[OD.itemIndex('rain')], 0);
-  assert.deepEqual(OD.cells({}, platform.computeEnv({platform: 'aplite'})), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-});
-
 test('batteryLevel: 5 % steps on emery, the next 10 % step up everywhere else', () => {
   const emery = platform.computeEnv({platform: 'emery'});
   for (let v = 5; v <= 30; v += 5) {

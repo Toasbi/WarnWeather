@@ -1,10 +1,11 @@
 // test/helpers/weather-levels.js — read a weather kind's highlight off the public
-// wire (status-thresholds' packWeatherLevels, the STATUS_LEVELS_UINT8 bytes) rather
+// wire (status-wire's packWeatherLevels, the STATUS_LEVELS_UINT8 bytes) rather
 // than through the module's internals. Shared by test/status-thresholds.test.js and
 // test/day-max-slots.test.js, which both pin what the highlight judges.
 'use strict';
 const assert = require('node:assert/strict');
 const th = require('../../src/pkjs/status-thresholds.js');
+const wire = require('../../src/pkjs/status-wire.js');
 
 /**
  * One weather kind's 2-bit level off packWeatherLevels' wire bytes: kinds 0..3 at
@@ -16,7 +17,7 @@ const th = require('../../src/pkjs/status-thresholds.js');
  */
 function packedLevel(code, payload, settings) {
   const k = th.KINDS.findIndex((x) => x.code === code);
-  const bytes = th.packWeatherLevels(payload, settings);
+  const bytes = wire.packWeatherLevels(payload, settings);
   return ((bytes[0] | (bytes[1] << 8)) >> (k <= 3 ? 2 * k : 8)) & 3;
 }
 

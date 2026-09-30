@@ -9,7 +9,7 @@ var KNOTS_TO_KMH = 1.852;
 /**
  * The displayed number for an internal km/h wind value — THE one conversion
  * both display paths share: status-lines' slot formatting (dayMaxShown) and
- * status-thresholds' displayValue (thresholds compare against the DISPLAYED
+ * status-wire's displayValue (thresholds compare against the DISPLAYED
  * number, so the two must round identically or a threshold can disagree with
  * the slot text it guards).
  *
@@ -78,7 +78,7 @@ function dayMaxPayloadKeys() {
 /**
  * The numbers a day-max slot (UV, wind, gusts, AQI) prints, already in the display
  * unit — THE one reader both display paths share, like kmhToDisplay: status-lines'
- * slot text and status-thresholds' displayValue, so the highlight can never judge a
+ * slot text and status-wire's displayValue, so the highlight can never judge a
  * number the slot does not show. Display numbers only: the text (order, separator,
  * next-day mark) is status-pair.js's, and the highlight policy is displayValue's.
  *
@@ -180,7 +180,7 @@ function dayMaxToday(code, payload, settings) {
  * TOMORROW's peak of a day-max kind, in the display unit: *_DAY_PEAKS[1] through
  * the kind's own reader, so it rounds exactly like the slot's "»8". What an alert
  * set to look ahead judges once nothing left today reaches its warn level
- * (status-thresholds' bakeAlerts), and what the slot's day max rolls to
+ * (status-wire's bakeAlerts), and what the slot's day max rolls to
  * (dayMaxShown) — one reading of tomorrow for both.
  *
  * A tomorrow that never prints above 0 has no peak: often a feed that writes an

@@ -928,11 +928,9 @@ if (typeof require !== 'undefined') {
         var enabled = thresholds.kindConfig(S, kindIndex).enabled;
         // EFFECTIVE always-bold, not the stored ladder alone: the Watch-tab
         // master row packs every kind's bold cell as always at wire time
-        // (status-thresholds.js' settings-blob packer — not named here: this
-        // comment ships into the flat page, and a page-side occurrence of
-        // that name trips the never-called-from-page guard) without touching
-        // the stored per-kind values, and the badge previews what the watch
-        // will actually render — so the master lights every slot's B.
+        // (status-wire.js buildSettingsBlob) without touching the stored
+        // per-kind values, and the badge previews what the watch will
+        // actually render — so the master lights every slot's B.
         var boldAlways = (S.statusBoldAll === 'all'
             || S['thresh' + key + 'BoldMode'] === 'always');
         var notes = [];

@@ -11,6 +11,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const thresholds = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 const { bootGeneratedPage } = require('./helpers/page-harness.js');
 const { installFakeStorage, COLORS } = require('./helpers/clay-harness.js');
 
@@ -45,7 +46,7 @@ function packedLooks(blob) {
   const out = {};
   thresholds.KINDS.forEach((kind, k) => {
     if (kind.boldOnly) { return; }
-    const v = (blob[thresholds.WARN_LOOK_OFFSET + (k >> 2)] >> (2 * (k & 3))) & 3;
+    const v = (blob[wire.WARN_LOOK_OFFSET + (k >> 2)] >> (2 * (k & 3))) & 3;
     out[kind.key] = names.find(n => thresholds.WARN_LOOKS[n] === v);
   });
   return out;
@@ -94,9 +95,9 @@ test('a colour-watch save leaves every warn look absent, so a B&W watch packs it
   STEMS.forEach(stem => {
     assert.ok(!has(stored, 'thresh' + stem + 'WarnLook'), stem + ': still absent after the next boot');
   });
-  assert.deepEqual(packedLooks(thresholds.buildSettingsBlob(stored, { color: false })),
+  assert.deepEqual(packedLooks(wire.buildSettingsBlob(stored, { color: false })),
     looksBy(() => 'outline'), 'the B&W watch packs its own default: outline everywhere');
-  assert.deepEqual(packedLooks(thresholds.buildSettingsBlob(stored, { color: true })),
+  assert.deepEqual(packedLooks(wire.buildSettingsBlob(stored, { color: true })),
     looksBy(stem => (thresholds.isGoalKind(stem) ? 'outline' : 'fill')),
     'the colour watch keeps fill for its weather kinds');
 });
@@ -109,7 +110,7 @@ test('a look picked off the default is saved; picking the default back drops it'
   const saved = await page.save();
   assert.equal(saved.threshUvWarnLook, 'outline', 'a pick that differs from the default is saved');
   const stored = storeOnPhone(saved);
-  assert.equal(packedLooks(thresholds.buildSettingsBlob(stored, { color: true })).Uv, 'outline');
+  assert.equal(packedLooks(wire.buildSettingsBlob(stored, { color: true })).Uv, 'outline');
 
   // Back to Fill, and a Wind look a save stored before the key went non-sticky: both
   // equal the colour default, so the save drops them and they resolve per watch again.
@@ -121,7 +122,7 @@ test('a look picked off the default is saved; picking the default back drops it'
   const resaved = await again.save();
   assert.ok(!has(resaved, 'threshUvWarnLook'), 'picking the default back is not saved');
   assert.ok(!has(resaved, 'threshWindWarnLook'), 'a stored default is dropped by the next save');
-  const bw = packedLooks(thresholds.buildSettingsBlob(storeOnPhone(resaved), { color: false }));
+  const bw = packedLooks(wire.buildSettingsBlob(storeOnPhone(resaved), { color: false }));
   assert.equal(bw.Uv, 'outline');
   assert.equal(bw.Wind, 'outline');
 });

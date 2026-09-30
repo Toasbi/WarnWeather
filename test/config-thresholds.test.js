@@ -7,6 +7,7 @@ const { eachItem } = require('../src/pkjs/config-ui/lib/schema-walk.js');
 // which also reads these settings back at pack time — assert against the exported
 // constants rather than re-inlining the hex a third time.
 const thresholds = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
 require('../src/pkjs/config-ui/lib/color.js');
 require('../src/pkjs/config-ui/lib/show-when.js');
@@ -493,11 +494,11 @@ test('the on-open heal, the page\'s colours and the packer follow ONE colour rul
       const key = 'thresh' + stem + which + 'Color';
       const S = { theme };
       if (v !== undefined) { S[key] = v; }
-      const before = thresholds.buildSettingsBlob(Object.assign({}, S), { color: true });
+      const before = wire.buildSettingsBlob(Object.assign({}, S), { color: true });
       onbuild.onLoad({ env: { platform: 'basalt' }, get: k => S[k], set: (k, x) => { S[k] = x; },
         getInitial: k => S[k] });
       const label = theme + ' ' + key + '=' + JSON.stringify(v);
-      assert.deepEqual(thresholds.buildSettingsBlob(S, { color: true }), before, label + ': same bytes');
+      assert.deepEqual(wire.buildSettingsBlob(S, { color: true }), before, label + ': same bytes');
       const drawn = PC.color.intToHex(thresholds.thresholdColor(S, stem, which));
       if (thresholds.isAutoColor(v)) {
         assert.equal(S[key], drawn, label + ': the heal stores what the watch draws');
@@ -541,38 +542,6 @@ test('thresholdValues maps roles to track order by direction and clamps strays',
   assert.equal(E.thresholdValues(sleep, '7,5', '6').warn, 7.5);
   // A stored value beyond the track pins to the bound instead of stranding a thumb.
   assert.equal(E.thresholdValues(above, '40', '500').danger, 120);
-});
-
-// The built page is ONE flat <script> with no require() (see build-page.js), so
-// status-thresholds.js reaches rain-tier through a GUARDED require() that is null in the
-// flat concatenated page, and buildSettingsBlob() dereferences it unconditionally
-// (rainTier.rgbToGColor8). A call from page code would therefore throw and take down the
-// ENTIRE settings page, not just the threshold rows — the blob is built phone-side by
-// clay-payload.js, never in the webview. Guard that at the source level: every occurrence
-// of the name in the page must be the module's own declaration/export, never a call site.
-test('the generated page never references buildSettingsBlob outside its own module', () => {
-  const html = require('../src/pkjs/config-ui/scripts/build-page.js')
-    .buildPage({ appFiles: require('../scripts/build-config-page.js').APP_FILES });
-  // The builder concatenates each file verbatim behind a `/* app: <basename> */` marker;
-  // splitting on those isolates the one segment allowed to name the function (the contract
-  // module, which declares and exports it) from every other segment of the page.
-  const parts = html.split(/\/\* app: ([\w.-]+) \*\//);
-  const seen = [];
-  assert.equal(parts[0].indexOf('buildSettingsBlob'), -1,
-    'shell + config-ui library must not reference buildSettingsBlob');
-  for (let i = 1; i < parts.length; i += 2) {
-    const name = parts[i];
-    seen.push(name);
-    if (name === 'status-thresholds.js') {
-      assert.ok(parts[i + 1].indexOf('function buildSettingsBlob') !== -1,
-        'sanity: the declaring module really is bundled into the page');
-      continue;
-    }
-    assert.equal(parts[i + 1].indexOf('buildSettingsBlob'), -1,
-      name + ' must not call buildSettingsBlob — rainTier is null in the flat page (no '
-      + 'require()), so the call would throw and take down the whole settings screen');
-  }
-  assert.ok(seen.indexOf('status-thresholds.js') !== -1, 'sanity: app segments were split');
 });
 
 // --- end-to-end: the real generated page against a fake DOM ------------------
@@ -2114,7 +2083,7 @@ test('bold-only BoldMode keys hydrate their default and ride the save blob', () 
 // --- the Watch-tab master Bold row (statusBoldAll) ---------------------------
 // A settings-store key only — it has no AppMessage key of its own: 'all'
 // overrides the PACKED bold cell of every kind at blob-build time
-// (status-thresholds.js buildSettingsBlob), the stored per-kind modes stay
+// (status-wire.js buildSettingsBlob), the stored per-kind modes stay
 // untouched, and the Clay change-detector resends because the blob content
 // changes.
 

@@ -8,6 +8,7 @@
 'use strict';
 const assert = require('node:assert');
 const th = require('../../src/pkjs/status-thresholds.js');
+const wire = require('../../src/pkjs/status-wire.js');
 
 /**
  * Decode an ALERT_ENTRIES_UINT8 byte array. Asserts the tuple is well formed the
@@ -22,11 +23,11 @@ const th = require('../../src/pkjs/status-thresholds.js');
 function decodeAlerts(bytes) {
   const out = [];
   bytes.forEach((b, i) => {
-    if (b & th.ALERT_HEADER) {
-      const day = (b >> th.ALERT_DAY_SHIFT) & 7;
+    if (b & wire.ALERT_HEADER) {
+      const day = (b >> wire.ALERT_DAY_SHIFT) & 7;
       out.push({
         kind: b & 7,
-        level: (b & th.ALERT_DANGER) ? 2 : 1,
+        level: (b & wire.ALERT_DANGER) ? 2 : 1,
         day: day,
         mark: day === 0 ? null : th.ALERT_NEXT_DAY_MARKS[day - 1],
         value: ''

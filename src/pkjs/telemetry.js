@@ -7,10 +7,9 @@ var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
 // The radar source in effect ('rainbowkey' for Rainbow with "Use your own key" on).
 var radarSourceId = require('./weather/radar-source-id.js');
-// alertOn / alertValueKindCodes / alertDays / alertNextDayMark, rainAlert and
-// warnLookFor — the bake's and the packer's own reading of the weather alerts and the
-// warn looks, so the report and the watch cannot disagree on what is on or how it
-// looks.
+// enabledAlerts, rainAlert and warnLookFor — the bake's and the packer's own reading
+// of the weather alerts and the warn looks, so the report and the watch cannot
+// disagree on what is on or how it looks.
 var statusThresholds = require('./status-thresholds.js');
 // telemetryCode — where each On demand item is ticked, read like the bake reads it.
 var onDemand = require('./on-demand.js');
@@ -86,29 +85,30 @@ function graphColorReport(settings, scope, role, suffix) {
  * Watch Status Bar, looking ahead with the »; pollen off), and 'o-Vro-o-i-' UV
  * printing its value and looking ahead, wind as an icon on today only. Placement is
  * read for THIS watch (env): a known aplite has no On demand, so nothing is placed
- * there. Everything else is read through the alert bake's own calls, so the report
- * and the watch cannot disagree. Ten characters, never lists: the ingest copies the
- * settings header into every row a batch writes, and this one code replaced two
- * comma lists (alertKinds, alertValueKinds) that cost about 60 B more per row at
- * their heaviest. The mark initials are pinned unique in test/telemetry.test.js.
+ * there. Everything is read off the alert bake's own list (enabledAlerts), so the
+ * report and the watch cannot disagree. Ten characters, never lists: the ingest
+ * copies the settings header into every row a batch writes, and this one code
+ * replaced two comma lists (alertKinds, alertValueKinds) that cost about 60 B more
+ * per row at their heaviest. The mark initials are pinned unique in
+ * test/telemetry.test.js.
  * @param {Object} safe Settings blob (never null).
  * @param {Object} env Platform env (config-ui computeEnv).
  * @returns {string} e.g. 'IrIrIro-Ir' on an untouched install.
  */
 function alertsReport(safe, env) {
     var kinds = statusThresholds.ALERT_KINDS;
-    var valueCodes = statusThresholds.alertValueKindCodes(safe);
+    var on = {};
+    var enabled = statusThresholds.enabledAlerts(safe, env);
+    for (var e = 0; e < enabled.length; e++) { on[enabled[e].code] = enabled[e]; }
     var out = '';
     for (var i = 0; i < kinds.length; i++) {
-        var code = kinds[i].code;
-        if (!statusThresholds.alertOn(safe, code, env)) {
+        var entry = on[kinds[i].code];
+        if (!entry) {
             out += 'o-';
             continue;
         }
-        var look = valueCodes.indexOf(code) !== -1 ? 'v' : 'i';
-        out += statusThresholds.alertDays(safe, code) === 'tomorrow'
-            ? look.toUpperCase() + statusThresholds.alertNextDayMark(safe, code).charAt(0)
-            : look + '-';
+        var look = entry.showValue ? 'v' : 'i';
+        out += entry.days === 'tomorrow' ? look.toUpperCase() + entry.mark.charAt(0) : look + '-';
     }
     return out;
 }

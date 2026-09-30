@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const th = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 
 const header = fs.readFileSync(
   path.join(__dirname, '..', 'src', 'c', 'appendix', 'status_threshold.h'), 'utf8');
@@ -26,17 +27,17 @@ function cEnum(name) {
 // placement, which the watch reads as the Battery byte only from a 48-B blob.
 test('kind count and blob layout are in lockstep with status_threshold.h', () => {
   assert.equal(th.KINDS.length, cDefine('THRESH_KIND_COUNT'));
-  assert.equal(th.SETTINGS_BYTES, cDefine('THRESH_SETTINGS_BYTES'), 'the phone sends the full 48-B shape');
+  assert.equal(wire.SETTINGS_BYTES, cDefine('THRESH_SETTINGS_BYTES'), 'the phone sends the full 48-B shape');
   assert.match(header, /#define THRESH_SETTINGS_BYTES_PRE_ON_DEMAND THRESH_ON_DEMAND_OFFSET/);
-  assert.equal(th.COLORS_OFFSET, cDefine('THRESH_COLORS_OFFSET'));
-  assert.equal(th.HEALTH_OFFSET, cDefine('THRESH_HEALTH_OFFSET'));
-  assert.equal(th.BOLD_OFFSET, cDefine('THRESH_BOLD_OFFSET'));
-  assert.equal(th.ALERTS_OFFSET, cDefine('THRESH_ALERTS_OFFSET'));
-  assert.equal(th.BATTERY_OFFSET, cDefine('THRESH_BATTERY_OFFSET'));
-  assert.match(header, new RegExp('#define THRESH_BATTERY_VALUE_BIT 0x' + th.BATTERY_VALUE_BIT.toString(16) + '\\b'),
+  assert.equal(wire.COLORS_OFFSET, cDefine('THRESH_COLORS_OFFSET'));
+  assert.equal(wire.HEALTH_OFFSET, cDefine('THRESH_HEALTH_OFFSET'));
+  assert.equal(wire.BOLD_OFFSET, cDefine('THRESH_BOLD_OFFSET'));
+  assert.equal(wire.ALERTS_OFFSET, cDefine('THRESH_ALERTS_OFFSET'));
+  assert.equal(wire.BATTERY_OFFSET, cDefine('THRESH_BATTERY_OFFSET'));
+  assert.match(header, new RegExp('#define THRESH_BATTERY_VALUE_BIT 0x' + wire.BATTERY_VALUE_BIT.toString(16) + '\\b'),
     'the Look bit');
-  assert.equal(th.WARN_LOOK_OFFSET, cDefine('THRESH_WARN_LOOK_OFFSET'));
-  assert.equal(th.ON_DEMAND_OFFSET, cDefine('THRESH_ON_DEMAND_OFFSET'));
+  assert.equal(wire.WARN_LOOK_OFFSET, cDefine('THRESH_WARN_LOOK_OFFSET'));
+  assert.equal(wire.ON_DEMAND_OFFSET, cDefine('THRESH_ON_DEMAND_OFFSET'));
   // The paired kinds — the ones owning an enable bit, a color pair, and (for
   // the health trio) a u16 pair — are exactly the non-boldOnly ones, and they
   // must ALL precede the bold-only tail: byte 0 has 8 enable bits, no more.
@@ -46,7 +47,7 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
     assert.equal(Boolean(k.boldOnly), i >= paired, k.code + ' paired/bold-only split');
   });
   // Battery % (kind 16) opened byte 33 — the widening that took the blob 33 -> 34.
-  assert.equal(th.BOLD_OFFSET + (cEnum('THRESH_BATTERY_PCT') >> 2), 33,
+  assert.equal(wire.BOLD_OFFSET + (cEnum('THRESH_BATTERY_PCT') >> 2), 33,
     'the battery-% bold cell lives in byte 33');
 });
 
@@ -59,9 +60,9 @@ test('kind count and blob layout are in lockstep with status_threshold.h', () =>
 // bytes and the ten On demand cells.
 test('the bold-only kinds sharing byte 33 never widen the blob', () => {
   assert.equal(cEnum('THRESH_DEW'), 17, 'dew is the second cell of byte 33');
-  assert.equal(th.BOLD_OFFSET + (cEnum('THRESH_DEW') >> 2), 33,
+  assert.equal(wire.BOLD_OFFSET + (cEnum('THRESH_DEW') >> 2), 33,
     'the dew bold cell shares byte 33 with battery %');
-  assert.equal(th.SETTINGS_BYTES, 48, 'the alert, Battery, warn-look and On demand bytes are the widening past 34');
+  assert.equal(wire.SETTINGS_BYTES, 48, 'the alert, Battery, warn-look and On demand bytes are the widening past 34');
   assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 48);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
@@ -70,7 +71,7 @@ test('the bold-only kinds sharing byte 33 never widen the blob', () => {
   // sixth bold byte AND relocate both alert bytes behind it.
   assert.ok(th.KINDS.length <= 20,
     'kind 20 would need a sixth bold byte — that is a layout change, not an append');
-  assert.equal(th.BOLD_OFFSET + ((th.KINDS.length - 1) >> 2), th.ALERTS_OFFSET - 1,
+  assert.equal(wire.BOLD_OFFSET + ((th.KINDS.length - 1) >> 2), wire.ALERTS_OFFSET - 1,
     'the last bold byte sits right before the alert bytes');
   assert.equal(cEnum('THRESH_PHONE_BATTERY_PLAIN'), 19,
     'the last cell of byte 33 is the highest kind the blob can hold for free');
@@ -87,7 +88,7 @@ test('bold modes are in lockstep with the ThreshBold enum', () => {
 
 test('the bold bytes cover every kind at 2 bits each', () => {
   // The alert bytes follow the bold area, so the bold area is BOLD..ALERTS.
-  const boldBytes = th.ALERTS_OFFSET - th.BOLD_OFFSET;
+  const boldBytes = wire.ALERTS_OFFSET - wire.BOLD_OFFSET;
   assert.equal(boldBytes, Math.ceil((th.KINDS.length * 2) / 8));
   // The C side refuses to compile a kind whose bold cell would alias it.
   assert.match(header,
@@ -97,12 +98,12 @@ test('the bold bytes cover every kind at 2 bits each', () => {
 // Byte 34: bits 0-1 the rain alert's look, bits 2-7 reserved. 'text' is 0 so
 // a pre-alerts blob (no byte 34) and an unset setting both read today's look.
 test('the rain look wire values are in lockstep with ThreshRainDisplay', () => {
-  assert.equal(th.ALERTS_OFFSET, 34);
+  assert.equal(wire.ALERTS_OFFSET, 34);
   assert.equal(th.RAIN_DISPLAY.text, cEnum('THRESH_RAIN_DISPLAY_TEXT'));
   assert.equal(th.RAIN_DISPLAY.icon, cEnum('THRESH_RAIN_DISPLAY_ICON'));
   assert.equal(th.RAIN_DISPLAY.minutes, cEnum('THRESH_RAIN_DISPLAY_MINUTES'));
   assert.equal(th.RAIN_DISPLAY.text, 0);
-  assert.equal(th.BATTERY_OFFSET, th.ALERTS_OFFSET + 1, 'the Battery byte follows it');
+  assert.equal(wire.BATTERY_OFFSET, wire.ALERTS_OFFSET + 1, 'the Battery byte follows it');
 });
 
 // The status bars: the phone's On demand bars (on-demand.js BARS) and the watch's
@@ -110,8 +111,8 @@ test('the rain look wire values are in lockstep with ThreshRainDisplay', () => {
 // cell byte.
 test('the bars are in lockstep with ThreshBar', () => {
   const OD = require('../src/pkjs/on-demand.js');
-  assert.equal(th.BATTERY_OFFSET, 35);
-  assert.equal(th.WARN_LOOK_OFFSET, th.BATTERY_OFFSET + 1, 'the warn-look bytes follow it');
+  assert.equal(wire.BATTERY_OFFSET, 35);
+  assert.equal(wire.WARN_LOOK_OFFSET, wire.BATTERY_OFFSET + 1, 'the warn-look bytes follow it');
   assert.deepEqual(OD.BARS.map(b => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.equal(cEnum('THRESH_BAR_TOP'), 0);
   assert.equal(cEnum('THRESH_BAR_FORECAST'), 1);
@@ -211,7 +212,7 @@ test('the phone-battery kinds are 18/19 and share one settings key', () => {
 // Its interim 35- and 36-byte steps never shipped.
 test('kinds 18/19 fill byte 33; 1.24.0 adds exactly two accepted lengths', () => {
   assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 48);
-  assert.equal(th.SETTINGS_BYTES, 48);
+  assert.equal(wire.SETTINGS_BYTES, 48);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_ALERTS'), 34);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES_PRE_KIND16'), 33);
   assert.equal(cDefine('THRESH_BOLD_OFFSET'), 29);
@@ -220,7 +221,7 @@ test('kinds 18/19 fill byte 33; 1.24.0 adds exactly two accepted lengths', () =>
   const iconedKind = cEnum('THRESH_PHONE_BATTERY');
   const plainKind = cEnum('THRESH_PHONE_BATTERY_PLAIN');
   [iconedKind, plainKind].forEach((kind) => {
-    assert.equal(th.BOLD_OFFSET + (kind >> 2), 33, 'kind ' + kind + ' lives in byte 33');
+    assert.equal(wire.BOLD_OFFSET + (kind >> 2), 33, 'kind ' + kind + ' lives in byte 33');
   });
   assert.equal(2 * (iconedKind & 3), 4, 'phoneBattery is byte 33 bits 4-5');
   assert.equal(2 * (plainKind & 3), 6, 'phoneBatteryPlain is byte 33 bits 6-7');
@@ -241,20 +242,20 @@ test('kinds 18/19 fill byte 33; 1.24.0 adds exactly two accepted lengths', () =>
   // sixth bold byte AND both alert bytes relocated — a layout change. Stated as an
   // equality so the next append trips this test.
   assert.equal(th.KINDS.length, 20, 'byte 33 holds exactly four cells (kinds 16..19)');
-  assert.equal(th.ALERTS_OFFSET - th.BOLD_OFFSET, 5, 'five bold bytes, 20 cells');
+  assert.equal(wire.ALERTS_OFFSET - wire.BOLD_OFFSET, 5, 'five bold bytes, 20 cells');
 });
 
 // Bytes 36..37: the warn look per PAIRED kind, 2 bits each in ThreshKind order,
 // ThreshWarnLook values. They cover the 8 paired kinds exactly; the On demand cells
 // follow them.
 test('the warn-look bytes are in lockstep with ThreshWarnLook', () => {
-  assert.equal(th.WARN_LOOK_OFFSET, 36);
+  assert.equal(wire.WARN_LOOK_OFFSET, 36);
   assert.equal(th.WARN_LOOKS.none, cEnum('THRESH_WARN_LOOK_NONE'));
   assert.equal(th.WARN_LOOKS.outline, cEnum('THRESH_WARN_LOOK_OUTLINE'));
   assert.equal(th.WARN_LOOKS.fill, cEnum('THRESH_WARN_LOOK_FILL'));
   assert.deepEqual(Object.keys(th.WARN_LOOKS), ['none', 'outline', 'fill']);
   const paired = th.KINDS.filter(k => !k.boldOnly).length;
-  assert.equal(th.ON_DEMAND_OFFSET, th.WARN_LOOK_OFFSET + Math.ceil(paired * 2 / 8),
+  assert.equal(wire.ON_DEMAND_OFFSET, wire.WARN_LOOK_OFFSET + Math.ceil(paired * 2 / 8),
     'the look bytes cover the paired kinds, the cells follow');
   // The C side refuses to compile a ninth paired kind without a third look byte.
   assert.match(header, /_Static_assert\(THRESH_ON_DEMAND_OFFSET\s*== THRESH_WARN_LOOK_OFFSET \+ \(THRESH_PAIRED_KIND_COUNT \+ 3\) \/ 4/);

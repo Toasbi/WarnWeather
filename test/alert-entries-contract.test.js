@@ -1,5 +1,5 @@
 // The weather alerts' entry tuple (ALERT_ENTRIES_UINT8): written by the phone
-// (status-thresholds.js bakeAlerts via status-lines.js buildStatusLines), checked
+// (status-wire.js bakeAlerts via status-lines.js buildStatusLines), checked
 // and persisted by the watch (app_message.c -> alert_set_bytes_ok ->
 // persist_set_alert_entries), parsed by alert_set.c. These pins keep the two
 // ends of that wire in lockstep, and the new persist slot appended.
@@ -25,6 +25,7 @@ function cDefine(name) {
 }
 
 const th = require('../src/pkjs/status-thresholds.js');
+const wire = require('../src/pkjs/status-wire.js');
 
 test('the entry header layout is in lockstep with alert_set.h', () => {
   assert.equal(cDefine('STATUS_ALERT_HEADER'), 0x80);
@@ -33,10 +34,10 @@ test('the entry header layout is in lockstep with alert_set.h', () => {
   assert.equal(cDefine('STATUS_ALERT_DAY_SHIFT'), 4);
   assert.equal(cDefine('STATUS_ALERT_DAY_MASK'), 0x07);
   assert.equal(cDefine('STATUS_ALERT_LEN_MAX'), 7);
-  assert.equal(th.ALERT_HEADER, cDefine('STATUS_ALERT_HEADER'));
-  assert.equal(th.ALERT_DANGER, cDefine('STATUS_ALERT_DANGER'));
-  assert.equal(th.ALERT_DAY_SHIFT, cDefine('STATUS_ALERT_DAY_SHIFT'));
-  assert.equal(th.ALERT_LEN_MAX, cDefine('STATUS_ALERT_LEN_MAX'));
+  assert.equal(wire.ALERT_HEADER, cDefine('STATUS_ALERT_HEADER'));
+  assert.equal(wire.ALERT_DANGER, cDefine('STATUS_ALERT_DANGER'));
+  assert.equal(wire.ALERT_DAY_SHIFT, cDefine('STATUS_ALERT_DAY_SHIFT'));
+  assert.equal(wire.ALERT_LEN_MAX, cDefine('STATUS_ALERT_LEN_MAX'));
   // The four fields tile the byte without overlap: kind 0-2, danger 3, day 4-6,
   // the header bit 7.
   const fields = [cDefine('STATUS_ALERT_KIND_MASK'), cDefine('STATUS_ALERT_DANGER'),
@@ -46,7 +47,7 @@ test('the entry header layout is in lockstep with alert_set.h', () => {
   assert.equal(fields.reduce((a, b) => a + b, 0), 0xFF, 'no two fields share a bit');
   // Every value byte is printable ASCII, so none can pass for a header.
   assert.ok(0x7E < cDefine('STATUS_ALERT_HEADER'));
-  const bytes = th.bakeAlerts({ UV_TREND_UINT8: [80] },
+  const bytes = wire.bakeAlerts({ UV_TREND_UINT8: [80] },
     { alertUv: true, alertUvDisplay: 'value' });
   assert.deepEqual(bytes, [cDefine('STATUS_ALERT_HEADER') | 7 | cDefine('STATUS_ALERT_DANGER'),
     '8'.charCodeAt(0)]);
@@ -67,7 +68,7 @@ test('the day codes are in lockstep with alert_set.h, and name the slot\'s marks
   const pair = require('../src/pkjs/status-pair.js');
   assert.deepEqual(th.ALERT_NEXT_DAY_MARKS.slice().sort(), Object.keys(pair.NEXT_DAY_MARKS).sort());
   // A tomorrow UV entry at danger, marked '>', icon only.
-  const bytes = th.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0] },
+  const bytes = wire.bakeAlerts({ UV_TREND_UINT8: [20], UV_DAY_PEAKS: [30, 90, 0] },
     { alertUv: true, alertUvNextDayMark: 'gt' });
   assert.deepEqual(bytes, [cDefine('STATUS_ALERT_HEADER') | 7 | cDefine('STATUS_ALERT_DANGER')
     | (cDefine('STATUS_ALERT_MARK_GT') << cDefine('STATUS_ALERT_DAY_SHIFT'))]);
@@ -75,7 +76,7 @@ test('the day codes are in lockstep with alert_set.h, and name the slot\'s marks
 
 test('the phone bakes the tuple under the cap the watch accepts', () => {
   assert.equal(cDefine('ALERT_ENTRIES_MAX_BYTES'), 20);
-  assert.equal(th.ALERT_ENTRIES_MAX_BYTES, cDefine('ALERT_ENTRIES_MAX_BYTES'));
+  assert.equal(wire.ALERT_ENTRIES_MAX_BYTES, cDefine('ALERT_ENTRIES_MAX_BYTES'));
 });
 
 test('ALERT_ENTRIES_UINT8 is a declared message key, appended after the shipped ones', () => {
