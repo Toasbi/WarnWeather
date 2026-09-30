@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const cityLadder = require('../src/pkjs/city-ladder.js');
+const utf8 = require('../src/pkjs/utf8.js');
 const statusLines = require('../src/pkjs/status-lines.js');
 const catalog = require('../src/pkjs/status-line-catalog.js');
 const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
@@ -59,6 +60,14 @@ test('an edge city takes the first form that fits the cap', () => {
   assert.equal(cityLadder.fit('Berlin-Charlottenburg', 8), 'Berlin-Charlottenburg');
   assert.equal(cityLadder.fit('--', 8), '--');
   assert.deepEqual(cityLadder.members(undefined), ['']);
+});
+
+test('a code point outside the BMP stays whole (utf8.codePoints)', () => {
+  assert.deepEqual(utf8.codePoints('a😀b'), ['a', '😀', 'b']);
+  // A lone surrogate is its own entry, as the byte engine reads it.
+  assert.deepEqual(utf8.codePoints('\uD83Dx'), ['\uD83D', 'x']);
+  assert.deepEqual(cityLadder.members('😀x Berlin'),
+    ['😀x Berlin', '😀. Berlin']);
 });
 
 test('every word is ranked, however many there are (the watch has no word cap)', () => {

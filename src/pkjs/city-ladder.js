@@ -17,28 +17,6 @@
 var utf8 = require('./utf8.js');
 
 /**
- * The code points of a string, a surrogate pair kept whole.
- * @param {string} str Input string.
- * @returns {string[]} One entry per code point.
- */
-function codePoints(str) {
-  var out = [];
-  for (var i = 0; i < str.length; i++) {
-    var c = str.charCodeAt(i);
-    if (c >= 0xD800 && c <= 0xDBFF && i + 1 < str.length) {
-      var lo = str.charCodeAt(i + 1);
-      if (lo >= 0xDC00 && lo <= 0xDFFF) {
-        out.push(str.substr(i, 2));
-        i++;
-        continue;
-      }
-    }
-    out.push(str.charAt(i));
-  }
-  return out;
-}
-
-/**
  * Whether a word's first code point reads as a letter the way the watch reads it: an
  * ASCII letter, or any non-ASCII code point (a UTF-8 lead byte of 0xC0 or more).
  * @param {string} cp The word's first code point.
@@ -64,7 +42,7 @@ function members(city) {
   var order = [];
   for (var p = 0; p < parts.length; p++) {
     if (parts[p] === '') { continue; }
-    cps[p] = codePoints(parts[p]);
+    cps[p] = utf8.codePoints(parts[p]);
     var cp = cps[p];
     var initial = cp.length === 2 && cp[1] === '.';
     if (!isLetter(cp[0]) || cp.length < 2 || initial) { continue; }

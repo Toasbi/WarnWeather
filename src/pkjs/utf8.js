@@ -8,7 +8,8 @@
 // to 3 bytes, exactly what a lone surrogate is charged — so one walker serves
 // both: `bytes` carries the FFFD-substituted encoding (what a renderer should
 // see), while truncateToByteCap's `str` is the ORIGINAL prefix (a string
-// consumer keeps its own chars). ES5 only (aplite PKJS).
+// consumer keeps its own chars). city-ladder.js splits a name into code points
+// through the same walker (codePoints). ES5 only (aplite PKJS).
 
 /**
  * Resolve the code point at index i, with lone surrogates read as U+FFFD.
@@ -74,6 +75,24 @@ function byteLength(str) {
 }
 
 /**
+ * The code points of `str` as substrings of it: a surrogate pair kept whole, a lone
+ * surrogate as its own entry (the original chars, like truncateToByteCap's `str`).
+ * @param {string} str Input string.
+ * @returns {string[]} One entry per code point.
+ */
+function codePoints(str) {
+    var out = [];
+    var i = 0;
+    var r;
+    while (i < str.length) {
+        r = codePointAt(str, i);
+        out.push(str.substr(i, r.units));
+        i += r.units;
+    }
+    return out;
+}
+
+/**
  * Longest prefix of `str` that encodes to at most `cap` bytes, chopped at a
  * code-point boundary (a surrogate pair is kept or dropped whole).
  * @param {string} str Input string.
@@ -102,5 +121,6 @@ function truncateToByteCap(str, cap) {
 module.exports = {
     encode: encode,
     byteLength: byteLength,
+    codePoints: codePoints,
     truncateToByteCap: truncateToByteCap
 };
