@@ -864,10 +864,14 @@ function unitRow(key, withUnit, without) {
  * @param {Object} [offWhen] When the highlight-only rows (warn look + color pickers)
  *     go inert: a goal group's own switch being off. Absent for an alert group,
  *     whose rows style the alert icon too and so are always live.
+ * @param {Array<{text: string, showWhen: (Object|undefined)}>} [why] An alert group's
+ *     cards on its default levels (ALERT_LEVEL_CARDS), one per unit or scale; absent
+ *     for a goal group.
  * @returns {Object[]} The group's items: sub-header, (a voice with a switch) the
- *     switch, slider, the two hidden companions, warn look, warn color, danger color.
+ *     switch, slider, (an alert) its level cards, the two hidden companions, warn look,
+ *     warn color, danger color.
  */
-function levelRows(keyStem, voice, hint, gate, offWhen) {
+function levelRows(keyStem, voice, hint, gate, offWhen, why) {
     // The slider is ALWAYS live: the warn level is not the highlight's alone — a
     // weather kind's alert icon shows from it whether or not the slot is coloured
     // (status-wire bakeAlerts), so it must stay editable with the switch off.
@@ -916,6 +920,14 @@ function levelRows(keyStem, voice, hint, gate, offWhen) {
         // The chips' words ride the args: the resolver owns the numbers, the voice
         // the wording.
         rangeFrom: {resolver: 'thresholdRange', args: {keyStem: keyStem, chips: voice.chips}}
+    });
+    // An alert group's cards on its default levels, right after the slider whose numbers
+    // they explain: amber info boxes that stand off (not joined), each shown while its
+    // unit or scale is in effect. Their own gate layers under the group's.
+    (why || []).forEach(function (card) {
+        var item = {type: 'staticText', style: 'info', text: card.text};
+        if (card.showWhen) { item.showWhen = gate ? {all: [gate, card.showWhen]} : card.showWhen; }
+        lead.push(item);
     });
     // Every plain item in the group carries the same gate; applying it in one pass
     // (gateAll) means an item added above cannot forget its gate line. (The warn
@@ -1355,9 +1367,11 @@ function alertLooksAheadWhen(daysKey) {
  * @param {string} iconName The kind's alert icon as the intro names it, e.g. 'UV'.
  * @param {string} hint The levels slider's scale note ('' for none).
  * @param {string} [coda] A closing sentence for the intro (leading space), '' for none.
+ * @param {Array<{text: string, showWhen: (Object|undefined)}>} [why] The kind's cards on
+ *     its default levels (ALERT_LEVEL_CARDS), after the slider.
  * @returns {Object} Schema section (sheetOnly).
  */
-function alertSheet(keyStem, title, subject, iconName, hint, coda) {
+function alertSheet(keyStem, title, subject, iconName, hint, coda, why) {
     var key = 'alert' + keyStem;
     var code = alertCodeOf(keyStem);
     return {
@@ -1412,34 +1426,143 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda) {
             },
             joinPrevious: true,
             showWhen: alertLooksAheadWhen(key + 'Days')
-        }].concat(levelRows(keyStem, ALERT_VOICE, hint, null))
+        }].concat(levelRows(keyStem, ALERT_VOICE, hint, null, undefined, why))
     };
 }
+/**
+ * "This unit or AQI scale is in effect" as a showWhen predicate that resolves exactly
+ * as status-thresholds.js scaleVariant does, its fallbacks included: any wind unit but
+ * mph or knots (none stored too) reads as kph, and the European AQI scale needs the
+ * Open-Meteo source AND a scale other than US. A fresh object per call, like every item.
+ * @param {string} variant 'kph' | 'mph' | 'kn' (wind and gusts) or 'us' | 'eu' (AQI).
+ * @returns {Object} The showWhen predicate.
+ */
+function scaleVariantWhen(variant) {
+    if (variant === 'mph') { return {key: 'windUnits', eq: 'mph'}; }
+    if (variant === 'kn') { return {key: 'windUnits', eq: 'knots'}; }
+    if (variant === 'kph') { return {all: [{key: 'windUnits', ne: 'mph'}, {key: 'windUnits', ne: 'knots'}]}; }
+    var eu = {all: [{key: 'aqiSource', eq: 'openmeteo'}, {key: 'aqiScale', ne: 'us'}]};
+    if (variant === 'eu') { return eu; }
+    if (variant === 'us') { return {not: eu}; }
+    // Runs once at load: a variant scaleVariant never answers fails the build/tests here.
+    throw new Error('scaleVariantWhen: no gate for ' + variant);
+}
+/**
+ * A reference link in an alert-level card: opens outside the settings page, like the
+ * key hints' links.
+ * @param {string} href The page (HTML-escaped: &amp; between query parameters).
+ * @param {string} text The link text.
+ * @returns {string} The anchor's HTML.
+ */
+function refLink(href, text) {
+    return '<a target=\'_blank\' href=\'' + href + '\'>' + text + '</a>';
+}
+// The published levels the alert-level cards cite (the owner's choice keeps the DWD's
+// German pages: the warnings table also lists kn and Bft, the glossary gives Beaufort in
+// km/h).
+var DWD_GUST_WARNINGS = 'https://www.dwd.de/DE/wetter/warnungen_aktuell/kriterien/warnkriterien.html';
+// Each weather alert's reasons for its default levels: info cards right after its
+// levels slider (levelRows), one per unit or AQI scale its seed pair varies by
+// (status-thresholds.js scaleVariant), each shown only while that one is in effect
+// (scaleVariantWhen), so a sheet always shows exactly one. Always shown, stored levels or
+// not: they speak of the defaults ("By default, …"), the reference for picking others.
+// The numbers are the seeds (status-thresholds.js SEEDS) next to the published level
+// they sit on, written out because the reference words belong to them;
+// test/config-alert-level-cards.test.js holds every card to its variant's seed pair.
+// One link each, to the reference the numbers sit on.
+var ALERT_LEVEL_CARDS = {
+    Gust: [{
+        showWhen: scaleVariantWhen('kph'),
+        text: 'The ' + refLink(DWD_GUST_WARNINGS, 'German Weather Service (DWD)') + ' warns of storm gusts '
+            + 'from 65 kph and of severe storm gusts from 90 kph. By default, warn and danger sit at those '
+            + 'two levels.'
+    }, {
+        showWhen: scaleVariantWhen('mph'),
+        text: 'The ' + refLink(DWD_GUST_WARNINGS, 'German Weather Service (DWD)') + ' warns of storm gusts '
+            + 'from 65 kph (about 40 mph) and of severe storm gusts from 90 kph (about 56 mph). By default, '
+            + 'warn sits at 40 mph and danger at 55 mph, the nearest steps.'
+    }, {
+        showWhen: scaleVariantWhen('kn'),
+        text: 'The ' + refLink(DWD_GUST_WARNINGS, 'German Weather Service (DWD)') + ' warns of storm gusts '
+            + 'from 34 kn and of severe storm gusts from 48 kn. By default, warn sits at 35 kn and danger at '
+            + '50 kn, the nearest steps.'
+    }],
+    Uv: [{
+        text: 'By default, warn sits at 6, where the '
+            + refLink('https://www.who.int/news-room/questions-and-answers/item/radiation-the-ultraviolet-%28uv%29-index',
+                'WHO’s UV index scale')
+            + ' starts High, and danger at 8, where Very high starts and the WHO advises staying out of the '
+            + 'midday sun. The WHO advises sun protection from UV 3 on.'
+    }],
+    Aqi: [{
+        showWhen: scaleVariantWhen('us'),
+        text: 'By default, warn sits at 100, which equals the '
+            + refLink('https://www.airnow.gov/aqi/aqi-basics/', 'US health standard for short-term exposure')
+            + ': above it, the US EPA rates the air unhealthy for sensitive groups, such as children, older '
+            + 'adults and people with heart or lung disease. Danger sits at 150: above it, the air is rated '
+            + 'unhealthy and the general public can be affected too.'
+    }, {
+        showWhen: scaleVariantWhen('eu'),
+        text: 'By default, warn sits at 60, where the '
+            + refLink('https://airindex.eea.europa.eu/AQI/index.html', 'European Air Quality Index')
+            + ' rates the air Poor, and danger at 80, where it rates it Very poor. At Poor, the European '
+            + 'Environment Agency advises cutting back on intense outdoor activity if you get sore eyes or a '
+            + 'cough; at Very poor, sensitive people should reduce outdoor activity.'
+    }],
+    Pollen: [{
+        text: 'By default, warn sits at 2 (medium load) and danger at 3 (high load) on the '
+            + refLink('https://www.dwd.de/DE/leistungen/gefahrenindizespollen/erklaerungen.html',
+                'German Weather Service’s (DWD) pollen index')
+            + '. High means, for example, more than 50 birch or 30 grass pollen grains per cubic meter of air. '
+            + 'The DWD notes that very sensitive people can react strongly at low levels too.'
+    }],
+    Wind: [{
+        showWhen: scaleVariantWhen('kph'),
+        text: 'By default, warn sits at 40 kph, Beaufort 6 on the '
+            + refLink('https://www.dwd.de/DE/service/lexikon/Functions/glossar.html?lv2=100310&amp;lv3=100390',
+                'wind scale')
+            + ': large branches sway and umbrellas are hard to hold. Danger sits at 60 kph, the top of '
+            + 'Beaufort 7 and just below gale force: whole trees move and walking against the wind is hard.'
+    }, {
+        showWhen: scaleVariantWhen('mph'),
+        text: 'By default, warn sits at 25 mph, where Beaufort 6 starts on the wind scale: large branches sway '
+            + 'and umbrellas are hard to hold. Danger sits at 40 mph, gale force (Beaufort 8) and the '
+            + refLink('https://www.weather.gov/lwx/WarningsDefined',
+                'US National Weather Service’s High Wind Warning')
+            + ' level for wind that blows that hard for an hour or more.'
+    }, {
+        showWhen: scaleVariantWhen('kn'),
+        text: 'By default, warn sits at 20 kn, just below a strong breeze (Beaufort 6, from 22 kn) on the '
+            + refLink('https://weather.metoffice.gov.uk/guides/coast-and-sea/beaufort-scale', 'Beaufort scale')
+            + '. Danger sits at 35 kn, gale force (Beaufort 8): twigs break off trees and walking is hard going.'
+    }]
+};
 // The weather alerts' rows and sheets, in the card's order. `title` names both of a kind's
 // sheets (its alert sheet here, its slot sheet — alertSlotSheet); `subject` and
 // `iconName` feed the alert sheet's intro; Pollen is DWD's alone, like the pollen slot
-// itself. The page's presentation of the contract's metric alerts (status-thresholds.js
-// ALERT_KINDS, which owns which alerts exist and their order):
-// test/config-schema.test.js pins this list's stems to that order.
+// itself; `why` is the kind's alert-level cards (ALERT_LEVEL_CARDS). The page's
+// presentation of the contract's metric alerts (status-thresholds.js ALERT_KINDS, which
+// owns which alerts exist and their order): test/config-schema.test.js pins this list's
+// stems to that order.
 var ALERT_KINDS = [
     {keyStem: 'Gust', label: 'Wind gusts', title: 'Wind gusts', subject: 'the gust speed', iconName: 'gust',
-        icon: 'gust'},
+        icon: 'gust', why: ALERT_LEVEL_CARDS.Gust},
     {keyStem: 'Uv', label: 'UV index', title: 'UV index', subject: 'the UV index', iconName: 'UV',
-        icon: 'uv'},
+        icon: 'uv', why: ALERT_LEVEL_CARDS.Uv},
     // AQI looks ahead — later today AND tomorrow — only on an hourly forecast
     // (AQI_DAY_PEAKS): WAQI — the default source, and Auto whenever a station answers
     // — has none, so alertReading judges the current reading and no tomorrow entry is
     // ever baked (wire-units dayMaxTomorrow reads null). The coda mirrors the slot
     // sheet's source note, in the General tab's own labels ('AQI provider', 'Open-Meteo').
     {keyStem: 'Aqi', label: 'Air quality', title: 'Air quality (AQI)', subject: 'the air quality index',
-        iconName: 'air quality', icon: 'aqi',
+        iconName: 'air quality', icon: 'aqi', why: ALERT_LEVEL_CARDS.Aqi,
         coda: ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI provider (General tab): '
             + 'WAQI, which Auto mostly reads, has no forecast, so the alert then judges the current reading.'},
     {keyStem: 'Pollen', label: 'Pollen', title: 'Pollen', subject: 'the pollen index', iconName: 'pollen',
-        icon: 'pollen', gate: {key: 'provider', eq: 'dwd'},
+        icon: 'pollen', gate: {key: 'provider', eq: 'dwd'}, why: ALERT_LEVEL_CARDS.Pollen,
         hint: 'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.'},
     {keyStem: 'Wind', label: 'Wind speed', title: 'Wind speed', subject: 'the wind speed', iconName: 'wind',
-        icon: 'wind'}
+        icon: 'wind', why: ALERT_LEVEL_CARDS.Wind}
 ];
 /**
  * A bar's Alerts row, after its three slots: the label, the ticked items of both sides as
@@ -3152,7 +3275,7 @@ module.exports = {
         // Radar tab, vibe and btIcons with aplite's Watch Status Bar) keep their order.
         ].concat(onDemandBarSheets(), [batterySheet(), bluetoothSheet(), rainAlertSheet()],
             ALERT_KINDS.map(function (k) {
-                return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '');
+                return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '', k.why);
             }))
     }, {
         id: 'layout', label: 'Layout', sections: [{

@@ -1712,7 +1712,14 @@ test('every metric alert sheet: its intro, the Look, the Days and mark, then the
     });
     assert.ok(!s.items.some(it => it.messageKey === 'thresh' + stem + 'On'),
       s.sheetId + ': the slot Highlight is not in this sheet');
-    assert.equal(s.items.length, 3 + 7, s.sheetId + ': the seven group items close it');
+    // The cards on the default levels follow the slider, one per unit or AQI scale
+    // (test/config-alert-level-cards.test.js holds their numbers and gates).
+    const CARDS = { Gust: 3, Wind: 3, Aqi: 2, Uv: 1, Pollen: 1 };
+    const at = s.items.indexOf(range);
+    assert.ok(s.items.slice(at + 1, at + 1 + CARDS[stem]).every(it => it.type === 'staticText'
+      && it.style === 'info' && !it.joinPrevious), s.sheetId + ': the level cards stand off after the slider');
+    assert.equal(s.items[at + 1 + CARDS[stem]].type, 'hidden', s.sheetId + ': then the hidden companions');
+    assert.equal(s.items.length, 3 + 7 + CARDS[stem], s.sheetId + ': the seven group items and the cards close it');
   });
   assert.equal(itemsByKey().threshPollenWarn[0].hint,
     'DWD pollen index 0–3 (half-levels like "2-3" count as 2.5); DWD provider only.',
