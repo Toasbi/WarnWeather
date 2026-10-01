@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "on_demand_fixtures.h"
+#include "c/appendix/on_demand.c"
 
 // Host test for the On demand layout (appendix/on_demand.c): the make-room ladder
 // with both sides, the shared middle, the drop order, the Battery stand-in (beside
@@ -9,7 +10,9 @@
 // on_demand_short_test.c's; the fixtures both share are on_demand_fixtures.h. Built
 // with -DWW_ON_DEMAND, the flag wscript sets on every platform but aplite — without
 // it the module body is compiled out and nothing here would link — and linked with
-// the row layout the engine measures against and places through.
+// the row layout the engine measures against and places through. The engine's source
+// is included rather than linked, so the invariants on the middle can measure the
+// layouts it did not pick through its own eval().
 
 static unsigned s_seed = 12345u;
 static int rnd(int n) {
@@ -345,6 +348,49 @@ static OdSideIn random_side(int lo, int hi) {
     return s;
 }
 
+// The look items [from, end) of side `s` draw at `lane`: the lowest lane that draws
+// them as `lane` does.
+static int look_at(const OdSideIn *s, int from, int end, int lane) {
+    for (int k = 0; k < lane; k++) {
+        bool same = true;
+        for (int i = from; i < end; i++) {
+            if (s->w[k][i] != s->w[lane][i]) { same = false; }
+        }
+        if (same) { return k; }
+    }
+    return lane;
+}
+
+// A two-sided bar for the invariants between the sides: one side from the system
+// items and rain, the other from the metric alerts, either way round.
+static void random_two_sided(OdSlotIn slots[3], OdSideIn sides[2], int8_t bleed[2],
+                             int16_t *w) {
+    for (int i = 0; i < 3; i++) { slots[i] = random_slot(); }
+    sides[0] = random_side(OD_BLUETOOTH, OD_RAIN);
+    sides[1] = random_side(OD_GUST, OD_WIND);
+    if (rnd(2)) {
+        const OdSideIn left = sides[0];
+        sides[0] = sides[1];
+        sides[1] = left;
+    }
+    bleed[0] = (int8_t)rnd(3);
+    bleed[1] = (int8_t)rnd(3);
+    *w = (int16_t)(40 + rnd(180));
+}
+
+// The layout at places `pos` with n[d] of side d's items kept (no battery slots),
+// measured through the engine's own pass_init() and eval(): a layout od_layout() did
+// not pick. True where it fits; `g` holds it.
+static bool measure_at(int16_t w, const OdSlotIn slots[3], const OdSideIn sides[2],
+                       const int8_t bleed[2], const uint8_t n[2], const uint8_t pos[2],
+                       Geom *g) {
+    Pass p;
+    pass_init(&p, w, slots, sides, bleed);
+    p.n[0] = n[0];
+    p.n[1] = n[1];
+    return eval(&p, pos, g);
+}
+
 // --- looks before slots -------------------------------------------------------------
 
 // A slot never costs its side a look or an item (the owner, 2026-09-30: an alert's
@@ -392,15 +438,11 @@ static void looks_outrank_slots(void) {
 static void inside_half_keeps_all(void) {
     int checked = 0;
     for (int trial = 0; trial < 20000; trial++) {
-        OdSlotIn slots[3] = { random_slot(), random_slot(), random_slot() };
-        OdSideIn sides[2] = { random_side(OD_BLUETOOTH, OD_RAIN), random_side(OD_GUST, OD_WIND) };
-        if (rnd(2)) {
-            const OdSideIn left = sides[0];
-            sides[0] = sides[1];
-            sides[1] = left;
-        }
-        int8_t bleed[2] = { (int8_t)rnd(3), (int8_t)rnd(3) };
-        int16_t w = (int16_t)(40 + rnd(180));
+        OdSlotIn slots[3];
+        OdSideIn sides[2];
+        int8_t bleed[2];
+        int16_t w;
+        random_two_sided(slots, sides, bleed, &w);
         OdLayout out;
         od_layout(w, slots, sides, bleed, 0, &out);
         if (out.place[1].visible) { continue; }
@@ -434,6 +476,95 @@ static void inside_half_keeps_all(void) {
         }
     }
     expect_true("inside_half.checked", checked > 1000);
+}
+
+// The middle never costs a look (the owner, 2026-09-30: the middle hides, and only
+// then does a look shorten). On a bar where both sides have items and the middle
+// shows beside a side whose look is shorter than chosen, no layout with the middle
+// hidden gives that side a longer look while the other side keeps its items, a look
+// no shorter and an own slot at least as full as drawn. (Where such a layout would
+// push a slot whose claim with it whole stays inside its half, the bar is laid out
+// without the middle instead, so the middle does not show there either.)
+static void middle_never_costs_a_look(void) {
+    int checked = 0;
+    for (int trial = 0; trial < 20000; trial++) {
+        OdSlotIn slots[3];
+        OdSideIn sides[2];
+        int8_t bleed[2];
+        int16_t w;
+        random_two_sided(slots, sides, bleed, &w);
+        OdLayout out;
+        od_layout(w, slots, sides, bleed, 0, &out);
+        if (!out.place[1].visible || !out.n[0] || !out.n[1]) { continue; }
+        for (int d = 0; d < 2; d++) {
+            const int e = d ^ 1;
+            const int look = look_at(&sides[d], 0, out.n[d], out.lane[d]);
+            if (look == 0) { continue; }
+            checked++;
+            const int e_look = look_at(&sides[e], 0, out.n[e], out.lane[e]);
+            const uint8_t e_form = form_of(&out, OWN(e));
+            uint8_t t[2];
+            for (t[d] = 0; t[d] < (uint8_t)(out.lane[d] << 4); t[d]++) {
+                if (ROW(t[d]) > OD_LAST_STAGE) { continue; }
+                for (t[e] = 0; t[e] < (uint8_t)((out.lane[e] + 1) << 4); t[e]++) {
+                    Geom g;
+                    if (ROW(t[e]) > OD_LAST_STAGE
+                        || !measure_at(w, slots, sides, bleed, out.n, t, &g)
+                        || g.mid_shown || g.c.own[e] > e_form
+                        || look_at(&sides[d], 0, out.n[d], LOOK(t[d])) >= look
+                        || look_at(&sides[e], 0, out.n[e], LOOK(t[e])) > e_look) {
+                        continue;
+                    }
+                    printf("FAIL middle_look trial %d side %d w %d: look %d back at %02x %02x\n",
+                           trial, d, w, look, t[0], t[1]);
+                    s_failures++;
+                    return;
+                }
+            }
+        }
+    }
+    expect_true("middle_look.checked", checked > 1000);
+}
+
+// A hidden middle is never free (the owner's order: the middle leaves the centre, and
+// only then does it hide). On a bar where both sides have items and the middle ends
+// hidden, no layout at the same items, with looks no shorter and each own slot at
+// least as full as drawn, shows it.
+static void middle_hides_only_at_a_cost(void) {
+    int checked = 0;
+    for (int trial = 0; trial < 8000; trial++) {
+        OdSlotIn slots[3];
+        OdSideIn sides[2];
+        int8_t bleed[2];
+        int16_t w;
+        random_two_sided(slots, sides, bleed, &w);
+        OdLayout out;
+        od_layout(w, slots, sides, bleed, 0, &out);
+        StatusSlotPlace plain[3];
+        plain_of(w, slots, plain);
+        if (out.place[1].visible || !plain[1].visible || !out.n[0] || !out.n[1]) { continue; }
+        checked++;
+        int look[2];
+        for (int d = 0; d < 2; d++) { look[d] = look_at(&sides[d], 0, out.n[d], out.lane[d]); }
+        uint8_t t[2];
+        for (t[0] = 0; t[0] < (uint8_t)((out.lane[0] + 1) << 4); t[0]++) {
+            for (t[1] = 0; t[1] < (uint8_t)((out.lane[1] + 1) << 4); t[1]++) {
+                Geom g;
+                if (ROW(t[0]) > OD_LAST_STAGE || ROW(t[1]) > OD_LAST_STAGE
+                    || !measure_at(w, slots, sides, bleed, out.n, t, &g) || !g.mid_shown
+                    || g.c.own[0] > form_of(&out, 0) || g.c.own[1] > form_of(&out, 2)
+                    || look_at(&sides[0], 0, out.n[0], LOOK(t[0])) > look[0]
+                    || look_at(&sides[1], 0, out.n[1], LOOK(t[1])) > look[1]) {
+                    continue;
+                }
+                printf("FAIL middle_free trial %d w %d: the middle fits at %02x %02x\n",
+                       trial, w, t[0], t[1]);
+                s_failures++;
+                return;
+            }
+        }
+    }
+    expect_true("middle_free.checked", checked > 1500);
 }
 
 // --- the far slot -----------------------------------------------------------------
@@ -943,18 +1074,18 @@ static const PinCase PINS[] = {
       { 2, 1 }, { { { OD_BLUETOOTH, 50, 24, 6, false }, { OD_SLEEP, 59, 15, 7, false } },
                   { { OD_UV, 22, 22, 22, false } } },
       { OD_HIDDEN, OD_FULL, OD_FULL }, { 0, 0, 0 }, { -1, 117, 182 }, { 5, 0 }, { 0, 0 }, { 0, 0 } },
-    // A look gives way before a far-side slot: the left rain's Text needs the middle
-    // hidden, and with the middle hidden the right slot, which hid only for it, is whole
-    // again inside its half; the Text does not fit beside it, so it shortens to its
-    // minutes. Beside the minutes both sides make room for the middle with rows that
-    // keep it (row 3 hides the left slot, row 5 the right one and frees the middle), and
-    // the middle shows.
+    // A look gives way before a far-side slot, and the middle does not take what is
+    // left: the left rain's Text needs the middle hidden, and with the middle hidden the
+    // right slot, which hid only for it, is whole again inside its half; the Text does
+    // not fit beside it, so it shortens to its minutes. The middle would fit beside the
+    // minutes only with the right slot hidden again, and hidden it would give the Text
+    // back: the middle never costs a look, so it stays hidden and the slot whole.
     { "look_yields_to_far_slot", 82, 0,
       { { 2, 0, { { 16, 24, 0 }, { 16, 15, 0 } } }, { 2, 0, { { 15, 12, 0 }, { 15, 2, 0 } } },
         { 1, 0, { { 0, 16, 0 } } } },
       { 2, 1 }, { { { OD_QUIET_TIME, 6, 6, 6, false }, { OD_RAIN, 36, 25, 7, false } },
                   { { OD_UV, 19, 19, 19, false } } },
-      { OD_HIDDEN, OD_FULL, OD_HIDDEN }, { 0, 0, 0 }, { -1, 44, -1 }, { 3, 5 }, { 1, 0 }, { 0, 0 } },
+      { OD_HIDDEN, OD_HIDDEN, OD_FULL }, { 0, 0, 0 }, { -1, -1, 43 }, { 8, 0 }, { 1, 0 }, { 0, 0 } },
     // A slot comes back at its side's shorter look where the claim then stays inside
     // its half, and the other side gives way for it through its own looks: the rain's
     // Text (59) does not fit even with the left slot hidden; at its minutes the left
@@ -1014,19 +1145,28 @@ static const PinCase PINS[] = {
                     { OD_UV, 17, 17, 17, true }, { OD_WIND, 19, 19, 19, true } } },
       { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 49, -1, -1 }, { 0, 8 }, { 0, 2 }, { 3, 3 } },
     // The middle comes back only where each side's row is one it needs: the date would
-    // show only with the left slot hidden for a date the right side's gust moved off
-    // its centre (row 5). The left claim with its slot whole stays inside its half, so
-    // the date hides, and the right slot with it.
+    // show only with the right slot hidden (rows 3-4) for a date the left side's wind
+    // moved off its centre (row 5); at its row 1, the slot short, the right claim is
+    // not in the way of it. So the date hides, and the right slot with it (the gust
+    // crosses the midline); the left claim with its slot whole stays inside its half.
     { "middle_not_moved_into_a_slot", 132, 2,
       { { 2, 0, { { 0, 21, 0 }, { 0, 16, 0 } } }, { 2, 0, { { 0, 51, 0 }, { 0, 12, 0 } } },
         { 2, 20, { { 0, 64, 0 }, { 0, 33, 0 } } } },
       { 1, 1 }, { { { OD_WIND, 38, 38, 19, true } }, { { OD_GUST, 53, 53, 20, true } } },
       { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 40, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
-    // ... on both sides: the week would show beside the left UV value, off its centre,
-    // only with the right slot hidden where its short form is not in the way of the
-    // week. The week hides, and both slots stay: the left one whole, the right one short
-    // inside its half.
-    { "rows_needed_on_both_sides", 132, 2,
+    // ... and the left side's half of it: the date would show only with the left slot
+    // hidden (rows 3-5) beside a date the right side's gust frees off its centre (row
+    // 5); at its row 1, the slot short, the left claim is not in the way of it. The date
+    // hides, the left slot stays short and the right one whole.
+    { "left_slot_not_hidden_for_a_moved_middle", 132, 2,
+      { { 2, 0, { { 0, 46, 0 }, { 0, 11, 0 } } }, { 1, 0, { { 0, 51, 0 } } }, { 1, 0, { { 8, 0, 0 } } } },
+      { 1, 1 }, { { { OD_RAIN, 32, 28, 17, false } }, { { OD_GUST, 38, 38, 19, true } } },
+      { OD_SHORT, OD_HIDDEN, OD_FULL }, { 1, 0, 0 }, { 34, -1, 82 }, { 7, 0 }, { 0, 0 }, { 0, 0 } },
+    // A short slot stays short rather than hide for a moved middle: the week would show
+    // beside the left UV value, off its centre, only with the right slot hidden where
+    // its short form is not in the way of the week. The week hides, and both slots
+    // stay: the left one whole, the right one short inside its half.
+    { "short_slot_not_hidden_for_a_moved_middle", 132, 2,
       { { 2, 0, { { 0, 24, 0 }, { 0, 17, 0 } } }, { 1, 0, { { 0, 26, 0 } } },
         { 2, 0, { { 10, 36, 0 }, { 10, 18, 0 } } } },
       { 1, 1 }, { { { OD_UV, 54, 54, 20, true } }, { { OD_RAIN, 12, 12, 12, false } } },
@@ -1042,6 +1182,48 @@ static const PinCase PINS[] = {
                   { { OD_AQI, 20, 20, 20, true }, { OD_POLLEN, 26, 26, 20, true },
                     { OD_WIND, 21, 21, 21, true } } },
       { OD_FULL, OD_SHORT, OD_HIDDEN }, { 0, 1, 0 }, { 14, 68, -1 }, { 0, 2 }, { 0, 0 }, { 1, 2 } },
+    // The middle never costs a look (the round-2 review's first bar, the owner's: the
+    // Watch Status Bar with Bluetooth and Quiet time left). The date would show only
+    // beside the rain's minutes; hidden, it gives the rain its Text back beside the
+    // gust's value. The left slot, hidden for the date, stays hidden: its claim with the
+    // slot whole crosses the midline, so the room is not owed back to it.
+    { "middle_hides_for_the_rain_text", 132, 2,
+      { { 2, 0, { { 10, 30, 0 }, { 10, 16, 0 } } }, { 2, 0, { { 0, 36, 0 }, { 0, 14, 0 } } },
+        { 1, 0, { { 0, 22, 0 } } } },
+      { 2, 2 }, { { { OD_BLUETOOTH, 10, 10, 10, false }, { OD_QUIET_TIME, 12, 12, 12, false } },
+                  { { OD_RAIN, 44, 25, 12, false }, { OD_GUST, 45, 45, 19, true } } },
+      { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 8, 8 }, { 0, 0 }, { 2, 2 } },
+    // ... and where it would push the far slot, that slot wins (the second bar, Quiet
+    // time alone on the left): the gust's value would come back beside a hidden date
+    // only with the left slot short, and the left claim with its slot whole stays inside
+    // its half. So the date hides, the left slot is whole, and the right side, 1 px short
+    // of the value beside it, takes its icons, its own slot back beside them.
+    { "far_slot_whole_before_a_value", 132, 2,
+      { { 2, 0, { { 10, 30, 0 }, { 10, 16, 0 } } }, { 2, 0, { { 0, 36, 0 }, { 0, 14, 0 } } },
+        { 1, 0, { { 0, 22, 0 } } } },
+      { 1, 2 }, { { { OD_QUIET_TIME, 12, 12, 12, false } },
+                  { { OD_RAIN, 44, 25, 12, false }, { OD_GUST, 45, 45, 19, true } } },
+      { OD_FULL, OD_HIDDEN, OD_FULL }, { 0, 0, 0 }, { 14, -1, 73 }, { 0, 0 }, { 0, 2 }, { 1, 2 } },
+    // A hidden middle comes back wherever it costs nothing: the left slot's short form
+    // crosses the midline, so with the date hidden it hides as well; beside the date
+    // short and off its centre each side keeps its look and its slot's form.
+    { "middle_back_off_centre", 132, 2,
+      { { 2, 0, { { 10, 40, 0 }, { 10, 17, 0 } } }, { 2, 0, { { 0, 50, 0 }, { 0, 10, 0 } } },
+        { 0, 0, { { 0 } } } },
+      { 2, 3 }, { { { OD_QUIET_TIME, 12, 12, 12, false }, { OD_SLEEP, 19, 19, 19, false } },
+                  { { OD_UV, 18, 18, 18, true }, { OD_AQI, 41, 41, 20, true },
+                    { OD_WIND, 49, 49, 21, true } } },
+      { OD_HIDDEN, OD_SHORT, OD_HIDDEN }, { 0, 1, 0 }, { -1, 55, -1 }, { 3, 5 }, { 0, 2 }, { 2, 3 } },
+    // A side's move can let the other take a lower place on the next turn: after the
+    // climb the left side's row 6 asks the middle hidden, so the right side has nothing
+    // lower to take; the left side comes down first, and only on the second turn does
+    // the right side hide its slot (row 3) for the middle that the left side's row 5
+    // frees. With one turn the middle stays hidden.
+    { "second_relax_turn", 132, 2,
+      { { 0, 0, { { 0 } } }, { 1, 0, { { 10, 0, 0 } } }, { 2, 0, { { 15, 51, 0 }, { 15, 12, 0 } } } },
+      { 2, 2 }, { { { OD_BLUETOOTH, 10, 10, 10, false }, { OD_QUIET_TIME, 44, 26, 9, false } },
+                  { { OD_UV, 23, 23, 18, true }, { OD_WIND, 23, 13, 13, true } } },
+      { OD_HIDDEN, OD_FULL, OD_HIDDEN }, { 0, 0, 0 }, { -1, 60, -1 }, { 5, 3 }, { 0, 0 }, { 2, 2 } },
 };
 
 static void slots_back_pins(void) {
@@ -1372,6 +1554,53 @@ static void battery_standin(void) {
         expect(name, out.n[1], kept ? 2 : 3);
     }
 
+    // (k) A hidden middle comes back beside a battery slot too (the round-2 review's
+    // bar): Quiet time left; a Battery % (22) right, with the Battery item as Icon +
+    // value (32), the rain's Text and a gust icon. The item is wider than the slot, so
+    // hiding the slot frees nothing and it stays, the item out; beside it the date
+    // fits short and off its centre at no cost to either side, so it shows.
+    OdSlotIn date_pct[3] = { slot_empty(), slot_text(36, 14), slot_battery_pct(22) };
+    OdSideIn pct_sides[2] = { side_none(), side_none() };
+    add_icon(&pct_sides[0], OD_QUIET_TIME, 12);
+    add(&pct_sides[1], OD_BATTERY, 32, 32, 17, false);
+    add(&pct_sides[1], OD_RAIN, 44, 25, 12, false);
+    add(&pct_sides[1], OD_GUST, 19, 19, 19, true);
+    od_layout(132, date_pct, pct_sides, STRIP_BLEED, BATT_R, &out);
+    expect("standin.k.middle_short", form_of(&out, 1), OD_SHORT);
+    expect("standin.k.middle_x", out.place[1].icon_x, 23);
+    expect("standin.k.slot_x", out.place[2].icon_x, 41);
+    expect("standin.k.item_absent", battery_drawn(pct_sides, &out), 0);
+    expect("standin.k.lane", out.lane[1], 0);
+    expect("standin.k.n", out.n[1], 2);
+
+    // (l) Before a drop a side that is not in the way may still make room, by bringing
+    // its battery slot back so that the Battery item leaves the side that is (W 108,
+    // the glyph right, the item left with Bluetooth, Quiet time and the rain; a gust
+    // value and a UV icon right). The right side takes its glyph back, a fuller form,
+    // and the left side, the item out, keeps Bluetooth and Quiet time at their short
+    // looks; were only the side in the way to move, Quiet time would drop.
+    OdSlotIn t418[3] = { slot_empty(), slot_empty(), slot_battery() };
+    t418[0].m[0] = (StatusSlotMeasure) { true, 17, 31, 0 };
+    t418[0].n = 1;
+    t418[1].m[0] = (StatusSlotMeasure) { true, 16, 54, 0 };
+    t418[1].m[1] = (StatusSlotMeasure) { true, 16, 27, 0 };
+    t418[1].n = 2;
+    t418[1].floor_w = 4;
+    OdSideIn t418_sides[2] = { side_none(), side_none() };
+    add_icon(&t418_sides[0], OD_BATTERY, 47);
+    add(&t418_sides[0], OD_BLUETOOTH, 23, 11, 11, false);
+    add(&t418_sides[0], OD_QUIET_TIME, 18, 8, 8, false);
+    add(&t418_sides[0], OD_RAIN, 29, 21, 15, false);
+    add(&t418_sides[1], OD_GUST, 54, 18, 13, true);
+    add(&t418_sides[1], OD_UV, 11, 11, 11, true);
+    od_layout(108, t418, t418_sides, NO_BLEED, BATT_R, &out);
+    expect("standin.l.glyph", out.place[2].visible, 1);
+    expect("standin.l.glyph_x", out.place[2].icon_x, 44);
+    expect("standin.l.item_absent", battery_drawn(t418_sides, &out), 0);
+    expect("standin.l.left_n", out.n[0], 2);
+    expect("standin.l.left_lane", out.lane[0], 1);
+    expect("standin.l.right_n", out.n[1], 2);
+
     // (h) At low charge the battery shows exactly once: in a battery slot or in the
     // item, never both, never neither — across crowding, with one to three battery
     // slots in any position (the glyph or the Battery %) and the item on either side.
@@ -1423,19 +1652,6 @@ static void battery_standin(void) {
             }
         }
     }
-}
-
-// The look items [from, end) of side `s` draw at `lane`: the lowest lane that draws
-// them as `lane` does.
-static int look_at(const OdSideIn *s, int from, int end, int lane) {
-    for (int k = 0; k < lane; k++) {
-        bool same = true;
-        for (int i = from; i < end; i++) {
-            if (s->w[k][i] != s->w[lane][i]) { same = false; }
-        }
-        if (same) { return k; }
-    }
-    return lane;
 }
 
 // The look side d settles on for its items other than the Battery item.
@@ -1747,6 +1963,8 @@ int main(void) {
     looks_come_back();
     looks_outrank_slots();
     inside_half_keeps_all();
+    middle_never_costs_a_look();
+    middle_hides_only_at_a_cost();
     far_slot_is_plain();
     two_sides_share_the_middle();
     two_sides_drop_lowest_priority();

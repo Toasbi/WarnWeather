@@ -74,7 +74,9 @@ node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
 # city's floor, the real date/week/sun families from status_short_text.h). The two share
 # test/c/on_demand_fixtures.h. The module's body sits behind WW_ON_DEMAND like
 # alert_set.c's, and it places its slots through the row layout it is linked with.
-cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_test.c src/c/appendix/on_demand.c \
+# on_demand_test.c includes the engine's source (its middle invariants measure layouts
+# through the engine's own eval()), so only the short-form test links it.
+cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_test.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_test
 build/host/on_demand_test
 cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_short_test.c src/c/appendix/on_demand.c \

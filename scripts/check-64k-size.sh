@@ -40,9 +40,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-62396}"
-  "diorite:${DIORITE_IMAGE_CEILING:-59968}"
-  "flint:${FLINT_IMAGE_CEILING:-59968}"
+  "basalt:${BASALT_IMAGE_CEILING:-62368}"
+  "diorite:${DIORITE_IMAGE_CEILING:-59952}"
+  "flint:${FLINT_IMAGE_CEILING:-59952}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

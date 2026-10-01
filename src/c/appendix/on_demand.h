@@ -147,10 +147,15 @@ typedef struct {
 //    fullest slot and middle, where its own claim is not in the way; the other side
 //    gives way for it through its own ladder where its claim is — a claim that stays
 //    inside its half is never pushed, and a slot a side gave up only for the middle
-//    is whole again while the middle is hidden. The far slot of a side with no items
-//    keeps its place. The ladder measures a short slot at its narrowest member (an
-//    elastic one at its floor); once it has settled, each short slot draws the widest
-//    member its room allows, the middle first, then the left slot, then the right.
+//    is whole again while the middle is hidden. The middle never costs a look: where
+//    it shows beside a shortened look that hiding it would give back, it hides, and
+//    where that would push a slot whose side stays inside its half, the bar is laid
+//    out without the middle, that slot whole. And a hidden middle comes back wherever
+//    it fits at no cost to either side's items, looks or own slot. The far slot of a
+//    side with no items keeps its place. The ladder measures a short slot at its
+//    narrowest member (an elastic one at its floor); once it has settled, each short
+//    slot draws the widest member its room allows, the middle first, then the left
+//    slot, then the right.
 // `bleed[d]` is how far side d's run may reach past the content edge into the row
 // margin (the top strip's left run starts where the old indicator icons did). Slots
 // never bleed. `battery_slots` (bit i: slot i shows the watch battery, the Watch

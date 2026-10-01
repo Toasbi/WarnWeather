@@ -24,8 +24,8 @@
 // middle still hidden; at its shortest look its lowest-priority item drops and the
 // ladder starts over. Rows 0-5 give the own slot up for the middle only: while the
 // middle is hidden, a side on them has its slot whole (conf_of). The order lives in
-// this one table and climb(); layout_pass() and relax() say how the two sides share
-// the middle.
+// this one table and climb(); ladder(), relax(), middle_costs_look() and
+// middle_back() say how the two sides share the middle.
 typedef struct {
     uint8_t own;      // OdForm of the side's own slot
     uint8_t mid;      // OdForm the side asks of the middle
@@ -439,16 +439,17 @@ static bool rows_needed(const Pass *p, const uint8_t pos[2], Geom *g) {
 // its look comes back before its slot, and its slot and the middle in the ladder's
 // order. Where the other side's claim is in the way there, that side climbs its own
 // ladder until the bar fits, and at its end drops its lowest-priority item
-// (layout_pass): a claim that stays inside its half is never pushed, and the far-side
+// (ladder): a claim that stays inside its half is never pushed, and the far-side
 // slot never gives way for a side's needs (§5.4). A layout that shows the middle is
-// taken only where rows_needed() holds. The sides take turns until neither moves;
+// taken only where rows_needed() holds. The sides take turns until neither moves (a
+// move of one side can let the other take a lower place on the next turn);
 // RELAX_TURNS bounds that (no bar has been found to need more than four). After a
 // climb that ends unfitted a move is taken only where the bar then fits: a row that
 // hides a battery slot brings the Battery item in, so a lower row can fit where the
-// last one does not. A side that is not in the way cannot make room by moving then:
-// the side in the way is on its last row, so the middle is hidden, and below its own
-// place the other side's slot is never narrower (rows 0-5 keep it whole, conf_of) nor
-// its look shorter. `pos` ends as each side's final place; `g` is scratch.
+// last one does not. A side that is not in the way can make room then too, but only
+// by going back to a row where its battery slot shows, so that the Battery item
+// leaves the side in the way: it takes a fuller own form there, never a harsher one
+// (none has been found to). `pos` ends as each side's final place; `g` is scratch.
 #define RELAX_TURNS 8
 static void relax(const Pass *p, uint8_t pos[2], Geom *g) {
     bool ok = eval(p, pos, g);
@@ -477,6 +478,87 @@ static void relax(const Pass *p, uint8_t pos[2], Geom *g) {
     }
 }
 
+// The first layout with the middle hidden where side d has a longer look than in
+// `pos`, the other side's own slot no harsher than `drawn`: d's longest look first,
+// then d's fullest own slot, then the other side's fullest. Rows 6-8 hide the middle
+// and keep their own form, so row 6 + a form is the other side's slot in that form.
+// `t` and `g` hold it.
+static bool look_back(const Pass *p, const uint8_t pos[2], int d, uint8_t drawn,
+                      uint8_t t[2], Geom *g) {
+    const int e = d ^ 1;
+    for (uint8_t l = 0; l < (pos[d] & 0xF0); l += 16) {
+        for (uint8_t r = MID_ROWS; r <= OD_LAST_STAGE; r++) {
+            for (uint8_t f = MID_ROWS; f <= MID_ROWS + drawn; f++) {
+                t[d] = (uint8_t)(l | r);
+                t[e] = (uint8_t)((pos[e] & 0xF0) | f);
+                if (eval(p, t, g)) { return true; }
+            }
+        }
+    }
+    return false;
+}
+
+// The middle never costs a look (§5.4: the middle hides, and only then do a side's
+// looks shorten). The climb and the relax can end with the middle shown beside a side
+// whose look is shorter than its chosen one, where hiding the middle, the other side's
+// own slot kept as drawn or fuller, gives that side a longer look (look_back). Then
+// the middle hides: that layout is taken where it pushes no side whose claim with its
+// slot whole stays inside its half, so a slot given up for the middle stays given up
+// only where that whole claim crosses the midline. Where it would push one, the
+// far-side slot wins: the bar is laid out again without its middle (p->plain_w[1] 0),
+// so that slot is whole and the side's looks and items give way through its own
+// ladder; true then. `pos` and `g` end on the layout otherwise.
+static bool middle_costs_look(Pass *p, uint8_t pos[2], Geom *g) {
+    if (!g->mid_shown) { return false; }
+    const uint8_t own0 = g->c.own[0];
+    const uint8_t own1 = g->c.own[1];
+    for (int d = 0; d < 2; d++) {
+        uint8_t t[2];
+        if (!look_back(p, pos, d, d ? own0 : own1, t, g)) { continue; }
+        // A battery slot is the stand-in's to show or hide (conf_of), never owed.
+        for (int s = 0; s < 2; s++) {
+            const int i = OWN(s);
+            if (g->c.n[s] && g->c.own[s] != OD_FULL && !((p->batt >> i) & 1)
+                && g->run[s] + p->plain_w[i] + 2 * GAP <= ((p->w + GAP) >> 1)) {
+                p->plain_w[1] = 0;
+                return true;
+            }
+        }
+        pos[0] = t[0];
+        pos[1] = t[1];
+        break;
+    }
+    eval(p, pos, g);
+    return false;
+}
+
+// The middle comes back wherever it costs no side anything: where the bar ends with
+// the middle hidden, the first pair of rows 0-5 at the looks the sides have that fits
+// with the middle shown and each own slot no harsher than it ends is taken (at most 36
+// checks). The relax cannot reach these where both sides must move at once, nor where
+// a side's row is not one rows_needed() calls needed although its slot hides with the
+// middle hidden as well. `mid_w` is the middle's plain width, also while the bar is
+// laid out without it.
+static void middle_back(Pass *p, uint8_t pos[2], Geom *g, int16_t mid_w) {
+    if (g->mid_shown || mid_w <= 0) { return; }
+    const uint8_t own0 = g->c.own[0];
+    const uint8_t own1 = g->c.own[1];
+    const int16_t cur = p->plain_w[1];
+    p->plain_w[1] = mid_w;
+    for (uint8_t a = 0; a < MID_ROWS; a++) {
+        for (uint8_t b = 0; b < MID_ROWS; b++) {
+            uint8_t t[2] = { (uint8_t)((pos[0] & 0xF0) | a), (uint8_t)((pos[1] & 0xF0) | b) };
+            if (eval(p, t, g) && g->mid_shown && g->c.own[0] <= own0 && g->c.own[1] <= own1) {
+                pos[0] = t[0];
+                pos[1] = t[1];
+                return;
+            }
+        }
+    }
+    p->plain_w[1] = cur;
+    eval(p, pos, g);
+}
+
 // The ladder (§5.4). Both sides start at row 0 of their chosen looks and climb. Where
 // that ends at a shorter look, both climb again from row 0 of the looks they have: the
 // slots and the middle a shorter look leaves room for come back in the ladder's order,
@@ -486,28 +568,23 @@ static void relax(const Pass *p, uint8_t pos[2], Geom *g) {
 // sits on one side only, so two tails never tie), and the ladder starts over — so
 // slots a drop makes room for come back. Each climb takes at most 2 x (8 + 2) steps,
 // looks only shorten from one climb to the next, the relax takes at most RELAX_TURNS
-// turns, and there are at most 20 drops, so it ends. Then the layout is placed.
-static void layout_pass(Pass *p, OdLayout *out) {
-    Geom g;
-    uint8_t pos[2];
+// turns, and there are at most 20 drops, so it ends. False where no side has an item.
+static bool ladder(Pass *p, uint8_t pos[2], Geom *g) {
     for (;;) {
         pos[0] = 0;
         pos[1] = 0;
-        conf_of(p, pos, &g.c);
-        if (!g.c.n[0] && !g.c.n[1]) {
-            plain_out(p, out);
-            return;
-        }
+        conf_of(p, pos, &g->c);
+        if (!g->c.n[0] && !g->c.n[1]) { return false; }
         for (;;) {
             const uint8_t looks = (uint8_t)((pos[0] & 0xF0) | pos[1] >> 4);
-            climb(p, pos, 3, &g);
+            climb(p, pos, 3, g);
             if (looks == (uint8_t)((pos[0] & 0xF0) | pos[1] >> 4)) { break; }
             pos[0] &= 0xF0;
             pos[1] &= 0xF0;
         }
-        relax(p, pos, &g);
-        if (eval(p, pos, &g)) { break; }
-        const uint8_t v = pushed_sides(&g);
+        relax(p, pos, g);
+        if (eval(p, pos, g)) { return true; }
+        const uint8_t v = pushed_sides(g);
         int drop = v >> 1;
         if (v == 3 && p->sides[0].rank[p->first[0] + p->n[0] - 1]
                       > p->sides[1].rank[p->first[1] + p->n[1] - 1]) {
@@ -522,6 +599,23 @@ static void layout_pass(Pass *p, OdLayout *out) {
             p->batt = 0;
         }
     }
+}
+
+// The ladder, the middle's two checks, then the placement. The ladder runs a second
+// time only without the middle (middle_costs_look), from the items the first left,
+// and the loop keeps it one call, so its frame folds into od_layout's: this runs on
+// the paint path's stack.
+static void layout_pass(Pass *p, OdLayout *out) {
+    Geom g;
+    uint8_t pos[2];
+    const int16_t mid_w = p->plain_w[1];
+    do {
+        if (!ladder(p, pos, &g)) {
+            plain_out(p, out);
+            return;
+        }
+    } while (middle_costs_look(p, pos, &g));
+    middle_back(p, pos, &g, mid_w);
     place(p, &g, pos, out);
 }
 
