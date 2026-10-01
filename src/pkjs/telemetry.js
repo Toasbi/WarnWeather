@@ -298,6 +298,11 @@ function buildSettingsSnapshot(settings, watchInfo) {
         secondaryLine: safe.secondaryLine,
         secondaryLineFill: Boolean(safe.secondaryLineFill),
         windScale: safe.windScale,
+        // The wind, gust and UV lines' "Only alert" (line-alert.js), as stored: whether
+        // that metric is on a line at all is the four line fields here.
+        windLineOnlyAlert: Boolean(safe.windLineOnlyAlert),
+        gustLineOnlyAlert: Boolean(safe.gustLineOnlyAlert),
+        uvLineOnlyAlert: Boolean(safe.uvLineOnlyAlert),
         pressureScale: safe.pressureScale,
         thirdLine: safe.thirdLine,
         fourthLine: safe.fourthLine,

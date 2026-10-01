@@ -85,6 +85,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
+  'windLineOnlyAlert','gustLineOnlyAlert','uvLineOnlyAlert',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowOwnKey','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
@@ -123,10 +124,15 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // sliders, gated apart. vibe/btIcons: the Bluetooth sheet vs aplite's Watch Status
   // Bar rows, gated apart. rainCountdownHorizon: the Rain sheet and its Radar-tab copy —
   // the one pair that is live at the same time (flat hydrate/serialize cope).
+  // windLineOnlyAlert/gustLineOnlyAlert/uvLineOnlyAlert: one per line context, like
+  // pressureScale — the row follows its metric to whichever picker shows it.
   assert.deepEqual(dups.sort(),
-    ['batteryLowLevel', 'btIcons', 'colorUSFederal', 'pressureScale', 'rainCountdownHorizon', 'theme',
-      'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'vibe', 'windScale'],
+    ['batteryLowLevel', 'btIcons', 'colorUSFederal', 'gustLineOnlyAlert', 'pressureScale',
+      'rainCountdownHorizon', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget',
+      'uvLineOnlyAlert', 'vibe', 'windLineOnlyAlert', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
+  ['windLineOnlyAlert', 'gustLineOnlyAlert', 'uvLineOnlyAlert'].forEach((k) =>
+    assert.equal(counts[k], 4, k + ' appears in four slots (one per line context)'));
   ALERT_STEMS.forEach((stem) => ['On', 'Warn', 'Danger', 'Max', 'WarnLook', 'WarnColor', 'DangerColor']
     .forEach((suffix) => assert.equal(counts['thresh' + stem + suffix], 1,
       'thresh' + stem + suffix + ' appears once (the alert sheet)')));

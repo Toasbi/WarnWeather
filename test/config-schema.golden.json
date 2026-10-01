@@ -2168,6 +2168,57 @@
                 }
               },
               {
+                "type": "toggle",
+                "messageKey": "windLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "wind"
+                  }
+                },
+                "showWhen": {
+                  "key": "secondaryLine",
+                  "eq": "wind"
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "gustLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "gust"
+                  }
+                },
+                "showWhen": {
+                  "key": "secondaryLine",
+                  "eq": "gust"
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "uvLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "uv"
+                  }
+                },
+                "showWhen": {
+                  "key": "secondaryLine",
+                  "eq": "uv"
+                }
+              },
+              {
                 "type": "select",
                 "messageKey": "thirdLine",
                 "label": "Second metric",
@@ -2404,6 +2455,87 @@
                       "not": {
                         "key": "secondaryLine",
                         "eq": "pressure"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "windLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "wind"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "thirdLine",
+                      "eq": "wind"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "wind"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "gustLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "gust"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "thirdLine",
+                      "eq": "gust"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "gust"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "uvLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "uv"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "thirdLine",
+                      "eq": "uv"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "uv"
                       }
                     }
                   ]
@@ -2695,6 +2827,114 @@
                       "not": {
                         "key": "thirdLine",
                         "eq": "pressure"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "windLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "wind"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "lineStyles"
+                    },
+                    {
+                      "key": "fourthLine",
+                      "eq": "wind"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "wind"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "thirdLine",
+                        "eq": "wind"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "gustLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "gust"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "lineStyles"
+                    },
+                    {
+                      "key": "fourthLine",
+                      "eq": "gust"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "gust"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "thirdLine",
+                        "eq": "gust"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "uvLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "uv"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "lineStyles"
+                    },
+                    {
+                      "key": "fourthLine",
+                      "eq": "uv"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "uv"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "thirdLine",
+                        "eq": "uv"
                       }
                     }
                   ]
@@ -3020,6 +3260,132 @@
                       "not": {
                         "key": "fourthLine",
                         "eq": "pressure"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "windLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "wind"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "lineStyles"
+                    },
+                    {
+                      "key": "fifthLine",
+                      "eq": "wind"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "wind"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "thirdLine",
+                        "eq": "wind"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "fourthLine",
+                        "eq": "wind"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "gustLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "gust"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "lineStyles"
+                    },
+                    {
+                      "key": "fifthLine",
+                      "eq": "gust"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "gust"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "thirdLine",
+                        "eq": "gust"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "fourthLine",
+                        "eq": "gust"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "uvLineOnlyAlert",
+                "label": "Only alert",
+                "defaultValue": false,
+                "joinPrevious": true,
+                "hintFrom": {
+                  "resolver": "onlyAlertHint",
+                  "args": {
+                    "metric": "uv"
+                  }
+                },
+                "showWhen": {
+                  "all": [
+                    {
+                      "env": "lineStyles"
+                    },
+                    {
+                      "key": "fifthLine",
+                      "eq": "uv"
+                    },
+                    {
+                      "not": {
+                        "key": "secondaryLine",
+                        "eq": "uv"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "thirdLine",
+                        "eq": "uv"
+                      }
+                    },
+                    {
+                      "not": {
+                        "key": "fourthLine",
+                        "eq": "uv"
                       }
                     }
                   ]

@@ -21,6 +21,9 @@ var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_C
 // wire — so the settings page cannot offer a colour the renderer doesn't know, miss one
 // it does, or carry a transcribed default hex that drifts away from what the graph paints.
 var lineStyle = require('../line-style.js');
+// The wind, gust and UV lines' "Only alert": the metrics that have it and their keys,
+// from the module the bake reads them through.
+var LINE_ALERT = require('../line-alert.js');
 // The Custom-layout block (the per-view storage items, their sheetOnly section and
 // the Edit-button row) lives in its own module so its capability gates are BUILT
 // from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
@@ -179,6 +182,32 @@ function windScaleCopy(pickerKey, unit, hints) {
         hintByValue: hints,
         options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
         showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
+    };
+}
+/**
+ * One metric's "Only alert" switch under one line-context: shown while that picker
+ * shows the metric (the line-context cascade, so a stored repeat on a later picker
+ * shows it once). The wind speed, wind gust and UV index lines have one each
+ * (line-alert.js METRIC_IDS, the graph metrics with Alert levels), stored per metric, so
+ * the row follows its metric from picker to picker. The page's boolean control is the
+ * switch, as for "Fill area below the line". The hint (blocks.js 'onlyAlertHint') names
+ * the warn level it gaps below, and only while it is on.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @param {string} metric 'wind' | 'gust' | 'uv'.
+ * @returns {Object} Schema item.
+ */
+function onlyAlertCopy(pickerKey, metric) {
+    var when = lineContextWhen(pickerKey, function (key) {
+        return {key: key, eq: metric};
+    });
+    return {
+        type: 'toggle',
+        messageKey: LINE_ALERT.settingKey(metric),
+        label: 'Only alert',
+        defaultValue: false,
+        joinPrevious: true,
+        hintFrom: {resolver: 'onlyAlertHint', args: {metric: metric}},
+        showWhen: when.length === 1 ? when[0] : {all: when}
     };
 }
 // "A health item can appear in some status slot" — the gate for settings that are
@@ -2460,6 +2489,9 @@ module.exports = {
             windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('secondaryLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('secondaryLine'),
+            onlyAlertCopy('secondaryLine', 'wind'),
+            onlyAlertCopy('secondaryLine', 'gust'),
+            onlyAlertCopy('secondaryLine', 'uv'),
             {
                 type: 'select',
                 messageKey: 'thirdLine',
@@ -2473,6 +2505,9 @@ module.exports = {
             windScaleCopy('thirdLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('thirdLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('thirdLine'),
+            onlyAlertCopy('thirdLine', 'wind'),
+            onlyAlertCopy('thirdLine', 'gust'),
+            onlyAlertCopy('thirdLine', 'uv'),
             {
                 type: 'select',
                 messageKey: 'fourthLine',
@@ -2492,6 +2527,9 @@ module.exports = {
             windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('fourthLine'),
+            onlyAlertCopy('fourthLine', 'wind'),
+            onlyAlertCopy('fourthLine', 'gust'),
+            onlyAlertCopy('fourthLine', 'uv'),
             {
                 type: 'select',
                 messageKey: 'fifthLine',
@@ -2507,6 +2545,9 @@ module.exports = {
             windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('fifthLine'),
+            onlyAlertCopy('fifthLine', 'wind'),
+            onlyAlertCopy('fifthLine', 'gust'),
+            onlyAlertCopy('fifthLine', 'uv'),
             {
                 type: 'segmented',
                 messageKey: 'barSource',

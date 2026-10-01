@@ -30,6 +30,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // sent. Both are in the page bundle ahead of this file.
     var lineStyle = (typeof require !== 'undefined')
         ? require('../line-style.js') : window.LineStyle;
+    // The wind, gust and UV lines' scale and their "Only alert" band and gaps, from the
+    // module the bake reads them through (in the page bundle ahead of this file).
+    var lineAlert = (typeof require !== 'undefined')
+        ? require('../line-alert.js') : window.LineAlert;
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -91,8 +95,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
     // Mirrors forecast-series.PRESSURE_SCALE_CURVE_HPA (+ curvePermille); a drift
     // test keeps the curves equal. Duplicated rather than imported because this file
-    // is bundled into the config page, which has no access to the watch modules
-    // (same reason windMax below restates WIND_SCALE_KMH).
+    // is bundled into the config page, which has no access to the watch modules (the
+    // wind scale, by contrast, lives in line-alert.js, which the page does load).
     var PRESSURE_CURVES = {
         low:  [[940, 0], [1010, 150], [1020, 850], [1060, 1000]],
         mid:  [[940, 0], [1005, 150], [1025, 850], [1060, 1000]],
@@ -297,24 +301,32 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
         var bw = 9;                                  // rain-bar / dot width
 
-        var windMax = state.windScale === 'low' ? 30 : (state.windScale === 'high' ? 70 : 50);
+        var windMax = lineAlert.scaleTop(state, 'wind');
         var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
+        // A wind, gust or UV line drawn "Only alert": the band the bake maps it over, for
+        // the lines this watch draws (the shared wind/gust band only where both draw).
+        var alertBands = lineAlert.alertBands(state, !stylesFrozen);
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
-        // Only pressure sets `min` (a non-zero floor); every other metric defaults to 0.
-        // feels and dew have neither: they ride the shared temperature axis
+        // feels and dew have no max: they ride the shared temperature axis
         // (lineStyle.isTempAxisMetric), so they map through yT like the temp curve
-        // instead of a 0..max scale.
+        // instead of a 0..max scale; pressure maps through its curve. `alert`: the
+        // metric's "Only alert" band, or null; `perUnit`: series units per sample unit
+        // there (the bake's UV series is UV x 10, the sample is the index).
         var METRIC = {
             precip_prob: { vals: precip, max: 100, fill: true },
             cloud: { vals: cloud, max: 100 },
-            wind: { vals: wind, max: windMax },
-            gust: { vals: gust, max: windMax },
-            uv: { vals: uv, max: 11 },
+            wind: { vals: wind, max: windMax, perUnit: 1 },
+            gust: { vals: gust, max: windMax, perUnit: 1 },
+            uv: { vals: uv, max: 11, perUnit: 10 },
             pressure: { vals: pressure, curve: pCurve },
             feels: { vals: feels },
             dew: { vals: dew }
         };
-        Object.keys(METRIC).forEach(function (k) { METRIC[k].tempAxis = lineStyle.isTempAxisMetric(k); });
+        Object.keys(METRIC).forEach(function (k) {
+            METRIC[k].id = k;
+            METRIC[k].tempAxis = lineStyle.isTempAxisMetric(k);
+            METRIC[k].alert = Object.prototype.hasOwnProperty.call(alertBands, k) ? alertBands[k] : null;
+        });
         // The graph strokes, as SVG colours. Every rule that used to be restated
         // here — the effective-colour gate, the per-polarity colours, gust's coupling to
         // the rain bars and the B&W arm's exactly-white→black readability flip — lives in
@@ -385,7 +397,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * curve draws EVERY reading — a deep low off the visible band is real
          * data clamped to the baseline, never a skippable zero, mirroring
          * forecast-series.pressurePermille's floor-clamp so the preview and
-         * the watch don't diverge.
+         * the watch don't diverge. An "Only alert" line maps over its band
+         * (line-alert.js alertPermille, as the bake does): a sample below the
+         * warn level is a gap like a zero, one at the bottom is lifted off it
+         * by the bake's 2 ‰ floor (forecast-series.js BAND_FLOOR_PERMILLE).
          * @param {Object} m METRIC entry.
          * @param {number} i Sample index.
          * @param {boolean} skipZero Null out a zero-based metric's zero.
@@ -393,6 +408,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          */
         function metricY(m, i, skipZero) {
             if (m.tempAxis) { return yT(m.vals[i]); }
+            if (m.alert) {
+                var apm = lineAlert.alertPermille(state, m.id, [m.vals[i] * m.perUnit], m.alert)[0];
+                if (apm === null) { return skipZero ? null : PB; }
+                return PB - Math.max(apm, 2) / 1000 * (PB - MT);
+            }
             var pm;
             if (m.curve) {
                 pm = pressureCurvePermille(m.vals[i], m.curve) / 1000;

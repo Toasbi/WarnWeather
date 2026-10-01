@@ -12,6 +12,7 @@ var statusCatalog = require('./status-line-catalog.js');
 var statusThresholds = require('./status-thresholds.js');
 var lineStyle = require('./line-style.js');
 var onDemand = require('./on-demand.js');
+var lineAlert = require('./line-alert.js');
 
 /**
  * Does a top stripe change the weather bake? Under one the bake leaves the top of a
@@ -84,6 +85,12 @@ function renderSignature(settings) {
     // style edit that bakes nothing forces no fetch...
     var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine, settings.fifthLine,
         topStripeOverTempAxis(settings) ? 'topStripe' : '',
+        // ...the wind, gust and UV lines' "Only alert" (line-alert.js: gaps below the
+        // warn level, the line scaled from it), signed as the drawn metrics it is on, so
+        // the page hydrating an absent key to false, or ticking it for a metric no line
+        // draws, forces no fetch. The band's other inputs (the lines, windScale,
+        // windUnits, the resolved pairs below) are signed on their own...
+        lineAlert.signature(settings),
         settings.barSource, settings.windScale, settings.pressureScale,
         // Status-line bake inputs: value formatting...
         settings.temperatureUnits, settings.tempSlotDisplay,

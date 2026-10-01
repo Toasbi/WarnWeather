@@ -52,6 +52,12 @@ var APP_FILES = [
   // theme-convert.js reads it at IIFE time to register the onChange hooks.
   path.join(ROOT, 'src/pkjs/theme-flip.js'),
   path.join(ROOT, 'src/pkjs/line-style.js'),
+  // The wind, gust and UV lines' "Only alert" (window.LineAlert): the band the bake
+  // scales such a line over, for blocks.js' hints and the forecast preview. It binds
+  // window.StatusThresholds and window.LineStyle while its own body runs, so it follows
+  // both, and both of its readers bind it while theirs run, so it precedes them —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/line-alert.js'),
   // The five preview blocks, split by concern. Same load-bearing order rule as the
   // three above: preview-svg.js publishes window.PreviewSvg and preview-rain.js
   // window.PreviewRain, and the four block files read them while their OWN top-level

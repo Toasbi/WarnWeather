@@ -40,6 +40,11 @@ if (typeof require !== 'undefined') {
     // window.LineStyle exists by the time the page boots.
     var lineStyle = (typeof require !== 'undefined')
         ? require('../line-style.js') : window.LineStyle;
+    // The wind, gust and UV lines' "Only alert" (line-alert.js): the band the bake scales
+    // such a line over, so its hints name the levels the graph draws. Concatenated after
+    // status-thresholds.js and line-style.js and ahead of this file.
+    var lineAlert = (typeof require !== 'undefined')
+        ? require('../line-alert.js') : window.LineAlert;
     // The theme vocabulary (polarity, B&W, whether the watch draws colour), concatenated
     // ahead of line-style.js and so of this file.
     var resolveInk = (typeof require !== 'undefined')
@@ -223,39 +228,91 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * A metric picker's hint: the metric's own note, and — only on a watch without
-     * style pickers — its height scale after it.
-     * @param {string} metric The picker's shown metric (or 'off').
-     * @param {Object} [env] Platform env; `lineStyles` truthy = style pickers exist
-     *   (the same truthy test as the schema's {env: 'lineStyles'} row gate).
-     * @returns {string} The hint, '' for none.
+     * The scale of a line drawn "Only alert" (line-alert.js): the band the bake maps it
+     * over, as numbers — its bottom (the warn level, or with wind and gusts both "Only
+     * alert" the lower of the two) and its top. Replaces the metric's usual scale copy,
+     * whose anchors ("Half height = UV 5.5") no longer hold there.
+     * @param {string} metric The line's metric.
+     * @param {boolean} stripe The line is drawn as a stripe (colour strength, not height).
+     * @param {Object} [S] Live settings state.
+     * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
+     *   and Fourth metric lines (whose metrics can share a band).
+     * @returns {string} The scale sentence, '' when the line is not "Only alert".
      */
-    function forecastMetricHint(metric, env) {
-        var note = copyOf(METRIC_NOTES, metric);
-        if (env && env.lineStyles) { return note; }
-        return joinHint([note, copyOf(HEIGHT_SCALE, metric)]);
+    function alertScaleCopy(metric, stripe, S, env) {
+        if (!S || !lineAlert.onlyAlertOn(S, metric)) { return ''; }
+        var band = lineAlert.alertBands(S, Boolean(env && env.lineStyles))[metric];
+        if (!band) { return ''; }
+        var lo = lineAlert.levelText(S, metric, band.bottom);
+        var hi = lineAlert.levelText(S, metric, band.top);
+        return stripe ? 'Faintest colour = ' + lo + ', full colour = ' + hi + '.'
+            : 'Graph bottom = ' + lo + ', full height = ' + hi + '.';
     }
 
     /**
-     * A line-style picker's hint: its line's scale as this style shows it, then the
-     * style's own note.
-     * @param {string} metric The metric of the line this picker styles.
-     * @param {string} style The picker's shown style.
+     * A metric picker's hint: the metric's own note, and — only on a watch without
+     * style pickers — its height scale after it (an "Only alert" line's band instead).
+     * @param {string} metric The picker's shown metric (or 'off').
+     * @param {Object} [env] Platform env; `lineStyles` truthy = style pickers exist
+     *   (the same truthy test as the schema's {env: 'lineStyles'} row gate).
+     * @param {Object} [S] Live settings state (the "Only alert" switches).
      * @returns {string} The hint, '' for none.
      */
-    function lineStyleHint(metric, style) {
+    function forecastMetricHint(metric, env, S) {
+        var note = copyOf(METRIC_NOTES, metric);
+        if (env && env.lineStyles) { return note; }
+        return joinHint([note,
+            alertScaleCopy(metric, false, S, env) || copyOf(HEIGHT_SCALE, metric)]);
+    }
+
+    /**
+     * A line-style picker's hint: its line's scale as this style shows it (an "Only
+     * alert" line's band instead), then the style's own note.
+     * @param {string} metric The metric of the line this picker styles.
+     * @param {string} style The picker's shown style.
+     * @param {Object} [S] Live settings state (the "Only alert" switches).
+     * @param {Object} [env] Platform env (see alertScaleCopy).
+     * @returns {string} The hint, '' for none.
+     */
+    function lineStyleHint(metric, style, S, env) {
         if (!metric || metric === 'off') { return ''; }
-        return joinHint([copyOf(lineStyle.isStripeValue(style) ? STRIPE_SCALE : HEIGHT_SCALE, metric),
+        var stripe = lineStyle.isStripeValue(style);
+        return joinHint([alertScaleCopy(metric, stripe, S, env)
+            || copyOf(stripe ? STRIPE_SCALE : HEIGHT_SCALE, metric),
             copyOf(STYLE_NOTES, style)]);
     }
 
+    // What the "Only alert" switch does, per metric, ahead of "your warn level (40 kph)".
+    var ONLY_ALERT_LEADS = {
+        wind: 'Draws wind only where it reaches',
+        gust: 'Draws gusts only where they reach',
+        uv: 'Draws UV only where it reaches'
+    };
+
+    /**
+     * The "Only alert" switch's hint: while on, what it draws and the warn level it gaps
+     * below, in the unit the Alert levels are set in; nothing while off.
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (unused).
+     * @param {{value: *, metric: string}} args The switch's shown value and its metric.
+     * @returns {string} The hint, '' for none.
+     */
+    function onlyAlertHint(S, env, args) {
+        if (args.value !== true) { return ''; }
+        var lead = copyOf(ONLY_ALERT_LEADS, args.metric);
+        if (!lead) { return ''; }
+        return lead + ' your warn level (' + lineAlert.warnText(S || {}, args.metric)
+            + '), so the small graph stays clear until it matters.';
+    }
+
     PConf.hintResolvers.register('forecastMetricHint', function (S, env, args) {
-        return forecastMetricHint(args.value, env);
+        return forecastMetricHint(args.value, env, S);
     });
     // args.metricKey names the metric picker this style picker sits under.
     PConf.hintResolvers.register('lineStyleHint', function (S, env, args) {
-        return lineStyleHint(S ? S[args.metricKey] : undefined, args.value);
+        return lineStyleHint(S ? S[args.metricKey] : undefined, args.value, S, env);
     });
+    PConf.hintResolvers.register('onlyAlertHint', onlyAlertHint);
 
     /**
      * The AQI slot's Day max / Both hint while its source note applies: the by-value
@@ -1586,6 +1643,7 @@ if (typeof require !== 'undefined') {
             thresholdRangeCfg: thresholdRangeCfg,
             forecastMetricHint: forecastMetricHint,
             lineStyleHint: lineStyleHint,
+            onlyAlertHint: onlyAlertHint,
             STRIPE_SCALE: STRIPE_SCALE
         };
     }

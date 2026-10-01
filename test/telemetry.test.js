@@ -844,7 +844,12 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // headroom 1139. (So the custom-layout envelope's 9 B is not this client's limit: the
 // next field that tips it over asks for this check to move to the header alone, not for
 // a shorter field.)
-test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () => {
+// That field came in 1.24.0: the graph lines' three "Only alert" switches
+// (windLineOnlyAlert, gustLineOnlyAlert, uvLineOnlyAlert) are 76 B, taking the legacy
+// envelope to 4053 B and the custom-layout one to 4163 B, past the cap. Both are still
+// measured and printed, but only the batch header is asserted now: 3033 of 4096,
+// headroom 1063.
+test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');
 
@@ -879,9 +884,9 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
     'customViewExt0', 'customViewExt1', 'customViewExt2'],
     'a snapshot field the fixture never sets understates the ledger — set it on its longest option');
   const bytes = Buffer.byteLength(JSON.stringify(payload));
+  // Measured and printed, no longer asserted: the legacy shape (see the ledger above).
   console.log('heaviest telemetry envelope: ' + bytes + ' B of ' + cap
     + ' B (headroom ' + (cap - bytes) + ')');
-  assert.ok(bytes < cap, 'heaviest envelope ' + bytes + ' B must stay under ' + cap + ' B');
 
   // The same watch on a custom layout (HEAVIEST_CUSTOM): all six custom fields report.
   const customPayload = Object.assign({}, payload,
@@ -893,7 +898,6 @@ test('the heaviest realistic telemetry envelope stays under MAX_BODY_BYTES', () 
   const customBytes = Buffer.byteLength(JSON.stringify(customPayload));
   console.log('heaviest custom-layout telemetry envelope: ' + customBytes + ' B of ' + cap
     + ' B (headroom ' + (cap - customBytes) + ')');
-  assert.ok(customBytes < cap, 'custom envelope ' + customBytes + ' B must stay under ' + cap + ' B');
 
   // What binds THIS client: it sends only batches, and the batch branch holds the
   // settings header alone to the same cap (JSON.stringify(batch.settings).length), a

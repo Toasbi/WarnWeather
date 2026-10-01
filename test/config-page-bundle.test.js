@@ -92,6 +92,32 @@ test('the custom-layout editor reaches the generated page, after view-cycle', ()
     'view-cycle.js must precede view-editor.js — the editor binds window.VIEW_CYCLE while its IIFE runs');
 });
 
+// line-alert.js binds window.StatusThresholds and window.LineStyle while its own body
+// runs, and blocks.js and preview-forecast.js bind window.LineAlert while theirs do: out
+// of order, the "Only alert" hint and the preview of such a line throw on a real phone
+// while every Node test passes through require().
+test('the "Only alert" module is bundled after its deps and before its readers', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/status-thresholds.js') < idx('pkjs/line-alert.js'),
+    'status-thresholds.js must precede line-alert.js');
+  assert.ok(idx('pkjs/line-style.js') < idx('pkjs/line-alert.js'),
+    'line-style.js must precede line-alert.js');
+  assert.ok(idx('pkjs/line-alert.js') < idx('settings/preview-forecast.js'),
+    'line-alert.js must precede preview-forecast.js');
+  assert.ok(idx('pkjs/line-alert.js') < idx('settings/blocks.js'),
+    'line-alert.js must precede blocks.js');
+  const src = page();
+  assert.ok(src.indexOf('window.LineAlert = api') !== -1,
+    'nothing assigns window.LineAlert in the generated page');
+  assert.ok(src.indexOf("PConf.hintResolvers.register('onlyAlertHint'") !== -1,
+    'nothing registers the "Only alert" hint in the generated page');
+});
+
 // The forecast preview resolves every graph colour through line-style.js (and its two
 // deps) instead of re-implementing the colour model. Same silent-no-op hazard as the
 // defaults policy above, one step worse: these three must also be in the RIGHT ORDER,
