@@ -132,7 +132,9 @@ static void merged_out_beside_its_slot(void) {
 
 // Whether `out` lays out as `ref`, the same bar without the merged item: the slots,
 // each side's row and look, the items drawn, and the x of every item `ref` draws (side
-// m's from item `at` on one later in `out`, past the merged one). True when it does.
+// m's from item `at` on one later in `out`, past the merged one). An item `ref` passes
+// over (the other side's merged alert, where both sides merge one) `out` passes over
+// too. True when it does.
 static int expect_as_without(const char *name, const OdLayout *out, const OdLayout *ref,
                              int m, int at) {
     const int before = s_failures;
@@ -144,11 +146,12 @@ static int expect_as_without(const char *name, const OdLayout *out, const OdLayo
         expect(name, out->stage[d], ref->stage[d]);
         expect(name, out->lane[d], ref->lane[d]);
         expect(name, out->first[d], ref->first[d]);
-        expect(name, out->n[d] - (out->skip[d] != 0), ref->n[d]);
+        expect(name, out->n[d] - (out->skip[d] != 0), ref->n[d] - (ref->skip[d] != 0));
         for (int k = ref->first[d]; k < ref->first[d] + ref->n[d]; k++) {
             const int o = k + (d == m && k >= at);
-            expect(name, drawn(out, d, o), 1);
-            expect(name, out->item_x[d][o], ref->item_x[d][k]);
+            const int shown = k + 1 != ref->skip[d];
+            expect(name, drawn(out, d, o), shown);
+            if (shown) { expect(name, out->item_x[d][o], ref->item_x[d][k]); }
         }
     }
     return s_failures == before;
@@ -332,6 +335,41 @@ static void merged_slot_owed(void) {
     expect("merge.owed.plain_hid.uv", drawn(&out, 1, 1), 1);
     expect("merge.owed.plain_hid.gust_x", out.item_x[1][0], 142 - 54);
     expect("merge.owed.plain_hid.uv_x", out.item_x[1][1], 142 - 54 - OD_PADDED_GAP - 15);
+
+    // A merged alert already out of the run is not taken out twice: while its slot is
+    // SHORT the alert is passed over, so the claim the owed test measures is the run
+    // as it is. W 138, a bleed of 1 on the left; the left slot an icon 10 + text 31
+    // (short: text 15), the middle an icon 14 + text 32 (short: text 24), no right
+    // slot. The left side holds Bluetooth (13), the air quality alert its slot merged
+    // (42/22/8) and pollen (13), the right side sleep (36/7/7) and the rain (32/29/12).
+    // The left slot stays short and the right side keeps its longest look, as without
+    // the air quality alert. (Taking it out a second time left the run an item short:
+    // the slot was owed, the middle hid and the right side was pushed to its next look.)
+    OdSlotIn aq[3] = { slot_empty(), slot_empty(), slot_empty() };
+    aq[0].m[0] = (StatusSlotMeasure) { true, 10, 31, 0 };
+    aq[0].m[1] = (StatusSlotMeasure) { true, 10, 15, 0 };
+    aq[0].n = 2;
+    aq[1].m[0] = (StatusSlotMeasure) { true, 14, 32, 0 };
+    aq[1].m[1] = (StatusSlotMeasure) { true, 14, 24, 0 };
+    aq[1].n = 2;
+    OdSideIn twice[2] = { side_none(), side_none() };
+    OdSideIn once[2] = { side_none(), side_none() };
+    for (int k = 0; k < 2; k++) {
+        OdSideIn *s = k ? once : twice;
+        add_icon(&s[0], OD_BLUETOOTH, 13);
+        if (!k) { add(&s[0], OD_AQI, 42, 22, 8); }
+        add_icon(&s[0], OD_POLLEN, 13);
+        add(&s[1], OD_SLEEP, 36, 7, 7);
+        add(&s[1], OD_RAIN, 32, 29, 12);
+    }
+    merge_at(&twice[0], 1);
+    const int8_t aq_bleed[2] = { 1, 0 };
+    od_layout(138, aq, twice, aq_bleed, 0, &out);
+    od_layout(138, aq, once, aq_bleed, 0, &ref);
+    expect("merge.owed.short_skip.slot", form_of(&out, 0), OD_SHORT);
+    expect("merge.owed.short_skip.lane", out.lane[1], 0);
+    expect("merge.owed.short_skip.aqi", drawn(&out, 0, 1), 0);
+    expect_as_without("merge.owed.short_skip.eq", &out, &ref, 0, 1);
 }
 
 // Where the ladder hides the slot, the merged alert stands in at its place in the run,
@@ -613,6 +651,187 @@ static void merged_inside_half_keeps_all(void) {
     expect_true("merge.inside_half.checked", checked > 1000);
 }
 
+// Both sides merge an alert. The alert of a side whose slot shows without it never
+// stands in just because the other side's slot hid: each side's alert changes nothing
+// wherever the bar without it (the other merge kept) shows its slot.
+static void merged_both_sides(void) {
+    // The Watch Status Bar on a 144 px watch, the top strip's bleed: left the air
+    // quality slot (icon 12 + 14), the week in the middle (32), right the gusts slot
+    // (icon 12 + 28). The left side holds Quiet time (12), the rain (61/31/12), a UV
+    // alert (35/35/16) and the air quality alert its slot merged (32/32/16); the right
+    // side the gust alert its slot merged (icon, 16) and a wind alert (16). The left
+    // slot hides with the bar without either alert, the right one shows: so only the
+    // air quality alert stands in, and the right side lays out as without its gust
+    // alert, the slot whole at the edge with the wind beside it and the week hidden.
+    // (Letting both stand in hid the gusts slot for a bare gust icon and brought the
+    // week back.) Mirrored for the left side.
+    for (int d = 0; d < 2; d++) {
+        const int e = d ^ 1;
+        OdSlotIn slots[3] = { slot_empty(), slot_text(32, 0), slot_empty() };
+        slots[d ? 0 : 2].m[0] = (StatusSlotMeasure) { true, 12, 14, 0 };
+        slots[d ? 0 : 2].n = 1;
+        slots[d ? 2 : 0].m[0] = (StatusSlotMeasure) { true, 12, 28, 0 };
+        slots[d ? 2 : 0].n = 1;
+        OdSideIn with[2] = { side_none(), side_none() };
+        OdSideIn without[2] = { side_none(), side_none() };
+        for (int k = 0; k < 2; k++) {
+            OdSideIn *s = k ? without : with;
+            add_icon(&s[e], OD_QUIET_TIME, 12);
+            add(&s[e], OD_RAIN, 61, 31, 12);
+            add(&s[e], OD_UV, 35, 35, 16);
+            add(&s[e], OD_AQI, 32, 32, 16);
+            merge_at(&s[e], 3);
+            if (!k) { add_icon(&s[d], OD_GUST, 16); }
+            add_icon(&s[d], OD_WIND, 16);
+        }
+        merge_at(&with[d], 0);
+        const int8_t bleed[2] = { (int8_t)(d ? 2 : 0), (int8_t)(d ? 0 : 2) };
+        OdLayout out;
+        OdLayout ref;
+        od_layout(144, slots, with, bleed, 0, &out);
+        od_layout(144, slots, without, bleed, 0, &ref);
+        char name[48];
+        snprintf(name, sizeof(name), "merge.both.strip.side%d", d);
+        expect(name, form_of(&out, 2 * d), OD_FULL);
+        expect(name, out.place[2 * d].icon_x, d ? 101 : 0);
+        expect(name, form_of(&out, 1), OD_HIDDEN);
+        expect(name, form_of(&out, 2 * e), OD_HIDDEN);
+        expect(name, out.skip[d], 1);
+        expect(name, out.item_x[d][1], d ? 81 : 144 - 81 - 16);
+        expect_as_without(name, &out, &ref, d, 0);
+    }
+
+    // The same with the stand-in on the other side: W 128, a bleed of 2 on both sides,
+    // text slots 16 | none | 66. The left side holds Quiet time (50/24/10) and the air
+    // quality alert its slot merged (55/18/18), the right side Bluetooth (8) and the
+    // gust alert its slot merged (32/15/15). Without the air quality alert the left
+    // slot shows and the right slot hides, the gust standing in; so with it the bar is
+    // the same, the left side at its longest look. (Letting both stand in moved the
+    // left side to its next look and brought the right slot back.)
+    OdSlotIn row[3] = { slot_text(16, 0), slot_empty(), slot_text(66, 0) };
+    OdSideIn with[2] = { side_none(), side_none() };
+    OdSideIn without[2] = { side_none(), side_none() };
+    for (int k = 0; k < 2; k++) {
+        OdSideIn *s = k ? without : with;
+        add(&s[0], OD_QUIET_TIME, 50, 24, 10);
+        if (!k) { add(&s[0], OD_AQI, 55, 18, 18); }
+        add_icon(&s[1], OD_BLUETOOTH, 8);
+        add(&s[1], OD_GUST, 32, 15, 15);
+        merge_at(&s[1], 1);
+    }
+    merge_at(&with[0], 1);
+    const int8_t both_bleed[2] = { 2, 2 };
+    OdLayout out;
+    OdLayout ref;
+    od_layout(128, row, with, both_bleed, 0, &out);
+    od_layout(128, row, without, both_bleed, 0, &ref);
+    expect("merge.both.wide.left", form_of(&out, 0), OD_FULL);
+    expect("merge.both.wide.lane", out.lane[0], 0);
+    expect("merge.both.wide.right", form_of(&out, 2), OD_HIDDEN);
+    expect("merge.both.wide.gust", drawn(&out, 1, 1), 1);
+    expect_as_without("merge.both.wide.eq", &out, &ref, 0, 1);
+}
+
+// A random bar where both sides merge an alert: any slots, the two edge slots never
+// empty; the alerts split between the sides, at least one on each, one of each side's
+// merged; the other items on either side; the Battery item on a side at times, the
+// middle showing the battery; any bleed.
+typedef struct {
+    OdSlotIn slots[3];
+    OdSideIn sides[2];
+    int8_t bleed[2];
+    int16_t w;
+    uint8_t batt;
+    int merged[2];   // each side's merged alert's index
+} BothMergedBar;
+
+static void random_both_merged_bar(BothMergedBar *b) {
+    for (int i = 0; i < 3; i++) { b->slots[i] = random_slot(); }
+    for (int i = 0; i < 3; i += 2) {
+        if (b->slots[i].n == 0) { b->slots[i] = slot_text((int16_t)(10 + rnd(60)), 0); }
+    }
+    b->sides[0] = side_none();
+    b->sides[1] = side_none();
+    b->batt = 0;
+    if (rnd(3) == 0) {
+        add(&b->sides[rnd(2)], OD_BATTERY, 32, 32, 17);
+        b->batt = BATT_M;
+        b->slots[1] = slot_battery();
+    }
+    OdSideIn extra = random_side(OD_BLUETOOTH, OD_RAIN);
+    for (int i = 0; i < extra.n; i++) {
+        add(&b->sides[rnd(2)], extra.rank[i], extra.w[0][i], extra.w[1][i], extra.w[2][i]);
+    }
+    OdSideIn alerts = random_side(OD_GUST, OD_WIND);
+    while (alerts.n < 2) { alerts = random_side(OD_GUST, OD_WIND); }
+    // Alert `a` goes left and `c` right; the rest either way.
+    const int a = rnd(alerts.n);
+    int c = rnd(alerts.n - 1);
+    if (c >= a) { c++; }
+    int side_of[OD_SIDE_MAX];
+    int count[2] = { 0, 0 };
+    for (int i = 0; i < alerts.n; i++) {
+        side_of[i] = i == a ? 0 : i == c ? 1 : rnd(2);
+        count[side_of[i]]++;
+    }
+    int pick[2] = { rnd(count[0]), rnd(count[1]) };
+    for (int i = 0; i < alerts.n; i++) {
+        OdSideIn *s = &b->sides[side_of[i]];
+        if (pick[side_of[i]]-- == 0) { b->merged[side_of[i]] = s->n; }
+        add(s, alerts.rank[i], alerts.w[0][i], alerts.w[1][i], alerts.w[2][i]);
+    }
+    merge_at(&b->sides[0], b->merged[0]);
+    merge_at(&b->sides[1], b->merged[1]);
+    b->bleed[0] = (int8_t)rnd(3);
+    b->bleed[1] = (int8_t)rnd(3);
+    b->w = (int16_t)(60 + rnd(160));
+}
+
+// On random bars where both sides merge an alert: each side's alert shows exactly once
+// (in its slot or as its item, never both, never neither unless it dropped); and each
+// changes nothing wherever the bar without it, the other side's merge kept, shows its
+// slot — short of one case (od_layout): the bar without either alert hides both slots.
+static void merged_both_sides_random(void) {
+    int checked = 0;
+    for (int trial = 0; trial < 20000; trial++) {
+        BothMergedBar b;
+        random_both_merged_bar(&b);
+        OdLayout out;
+        od_layout(b.w, b.slots, b.sides, b.bleed, b.batt, &out);
+        OdSideIn none[2] = { without_item(&b.sides[0], b.merged[0]),
+                             without_item(&b.sides[1], b.merged[1]) };
+        OdLayout bare_both;
+        od_layout(b.w, b.slots, none, b.bleed, b.batt, &bare_both);
+        const int either = bare_both.place[0].visible || bare_both.place[2].visible;
+        for (int d = 0; d < 2; d++) {
+            const int own = d ? 2 : 0;
+            const int m = b.merged[d];
+            const int slot = out.place[own].visible;
+            const int item = drawn(&out, d, m);
+            const int in_range = m >= out.first[d] && m < out.first[d] + out.n[d];
+            if ((slot && item) || (!slot && !item && in_range)
+                    || (out.skip[d] && (!slot || out.skip[d] != m + 1))) {
+                printf("FAIL merge.both.once trial %d side %d w %d slot %d item %d "
+                       "range %d skip %d\n", trial, d, b.w, slot, item, in_range,
+                       out.skip[d]);
+                s_failures++;
+                return;
+            }
+            OdSideIn bare[2] = { b.sides[0], b.sides[1] };
+            bare[d] = none[d];
+            OdLayout ref;
+            od_layout(b.w, b.slots, bare, b.bleed, b.batt, &ref);
+            if (!either || !ref.place[own].visible) { continue; }
+            checked++;
+            if (!expect_as_without("merge.both.unchanged", &out, &ref, d, m)) {
+                printf("  in trial %d, side %d, w %d\n", trial, d, b.w);
+                return;
+            }
+        }
+    }
+    expect_true("merge.both.unchanged.checked", checked > 10000);
+}
+
 int main(void) {
     merged_alone_is_quiet();
     merged_out_beside_its_slot();
@@ -622,6 +841,8 @@ int main(void) {
     merged_shows_once();
     merged_changes_nothing();
     merged_inside_half_keeps_all();
+    merged_both_sides();
+    merged_both_sides_random();
     if (s_failures) {
         printf("%d on_demand merge failure(s)\n", s_failures);
         return 1;

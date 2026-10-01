@@ -203,6 +203,9 @@ typedef struct {
 // side's merged alert (OdSideIn.merged) stands in for its own slot the same way: out
 // while that slot shows, measured in on every row that hides it. Where the bar without
 // its merged alerts shows every slot that merged one, that is the layout: an alert its
-// slot merges, drawing nothing, changes nothing.
+// slot merges, drawing nothing, changes nothing. Else only the alerts of the sides
+// whose slot that hid stand in, then any whose slot hides with them in, so an alert
+// changes nothing wherever the bar without it shows its slot, short of one case: both
+// sides merge an alert and the bar without either hides both slots.
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out);

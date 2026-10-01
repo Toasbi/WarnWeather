@@ -1,4 +1,5 @@
 #include "on_demand.h"
+#include <stddef.h>
 #include <string.h>
 
 // Only the BODY is guarded, the include stays above it: waf's dependency scanner
@@ -51,26 +52,30 @@ static const OdStage STAGE[OD_LAST_STAGE + 1] = {
 #define ROW(q) ((q) & 15)
 #define LOOK(q) ((q) >> 4)
 
-// The layout's state: the inputs, the plain layout they are measured against, and the
-// items still in (the drops shrink n).
+// The layout's state: the inputs, set once per od_layout() call; then, from `batt` on,
+// one pass's state (pass_init clears and fills it): the items still in (the drops
+// shrink n) and the plain layout they are measured against. Only `out` and this struct
+// outlive a pass, so the retry loop holds nothing else across the paint-path frame.
 typedef struct {
     int16_t w;                  // content width
+    uint8_t batt0;              // od_layout's battery_slots
+    uint8_t allow;              // the stand-ins conf_of may bring in, as its `in` bits:
+                                // 1, the Battery item, and 2 << d for each side d
+                                // whose merged alert od_layout lets stand in
     const OdSlotIn *slots;
     const OdSideIn *sides;
     const int8_t *bleed;
+    uint8_t batt;               // the battery slots the Battery item stands in for
+                                // (0: none, or the item dropped)
+    uint8_t first[2];           // 1: the side's item 0 is that Battery item
+    uint8_t n[2];               // items still in, past it
+    uint8_t merged[2];          // 1 + the side's merged alert while it is in; 0: none
     StatusSlotPlace plain[3];   // status_row_layout() of the full measures
     int16_t plain_w[3];         // each slot's width there; 0 = not shown
     int16_t member_w[3][OD_VARIANTS];  // each member's own width; 0 = shows nothing
     int16_t floor_w[3];         // the elastic last member at its floor; 0 = none
     int16_t short_w[3];         // its narrowest member's width; == plain_w: none
     uint8_t short_v[3];         // ... and which member that is
-    uint8_t batt;               // the battery slots the Battery item stands in for
-                                // (0: none, or the item dropped)
-    uint8_t first[2];           // 1: the side's item 0 is that Battery item
-    uint8_t n[2];               // items still in, past it
-    uint8_t merged[2];          // 1 + the side's merged alert while it is in; 0: none
-    uint8_t allow;              // the stand-ins conf_of may bring in, as its `in` bits
-                                // (od_layout: 1 while it holds the merged alerts out)
 } Pass;
 
 // The forms and lanes one geometry check runs with, effective ones: a form that
@@ -200,7 +205,8 @@ __attribute__((noinline)) static int16_t span_w(const Pass *p, const Conf *c, in
 // other side's or the middle's), the middle takes only harsher requests, and the slot
 // a stand-in replaces keeps its row's form (no slot back beside a middle a later take
 // hides) — so every item that came in stays in. Only the stand-ins p->allow lets in
-// come in: od_layout's first pass leaves the merged alerts out on every row.
+// come in: od_layout's first pass leaves the merged alerts out on every row, and a
+// later one lets in only those of the sides whose slot an earlier pass hid.
 static void conf_of(const Pass *p, const uint8_t pos[2], Conf *c) {
     uint8_t in = 0;   // bit 0: the Battery item; bit 1 + d: side d's merged alert
     for (;;) {
@@ -657,18 +663,16 @@ static void layout_pass(Pass *p, OdLayout *out) {
     place(p, &g, pos, out);
 }
 
-static void pass_init(Pass *p, int16_t content_w, const OdSlotIn slots[3],
-                      const OdSideIn sides[2], const int8_t bleed[2]) {
-    memset(p, 0, sizeof(*p));
-    p->w = content_w;
-    p->slots = slots;
-    p->sides = sides;
-    p->bleed = bleed;
+// One pass's state from the inputs in `p`: everything from `batt` on, cleared first.
+static void pass_init(Pass *p) {
+    memset(&p->batt, 0, sizeof(*p) - offsetof(Pass, batt));
+    const OdSlotIn *slots = p->slots;
+    const OdSideIn *sides = p->sides;
     StatusSlotMeasure full[3];
     for (int i = 0; i < 3; i++) {
         full[i] = slots[i].n > 0 ? slots[i].m[0] : (StatusSlotMeasure) {0};
     }
-    status_row_layout(content_w, full, p->plain);
+    status_row_layout(p->w, full, p->plain);
     // Each short member's own width (v < n), then the elastic last member's at its
     // floor (v == n), and the narrowest of them, which the ladder measures the slot's
     // SHORT form at.
@@ -692,42 +696,54 @@ static void pass_init(Pass *p, int16_t content_w, const OdSlotIn slots[3],
             }
         }
     }
+    // The Battery item (its side's item 0) stands in for the battery slots: every
+    // geometry check measures it in exactly where the forms hide all of them
+    // (conf_of), so a battery slot hides only where the looks still fit beside the
+    // item, and it shows the charge wherever the layout keeps one.
+    p->batt = p->batt0;
     for (int d = 0; d < 2; d++) {
         p->n[d] = sides[d].n > OD_SIDE_MAX ? OD_SIDE_MAX : sides[d].n;
+        if (p->batt && p->n[d] > 0 && sides[d].rank[0] == OD_BATTERY) {
+            p->first[d] = 1;
+            p->n[d]--;
+        }
+        p->merged[d] = sides[d].merged;
     }
 }
 
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out) {
-    Pass p;
     // A merged alert draws nothing while its slot shows, so the bar is laid out first
     // with the merged alerts held out on every row (allow 1: the Battery item only).
     // Where that shows the slot of every side with a merged alert, it is the bar's: an
-    // alert its slot merges changes nothing there. Else the bar is laid out again with
-    // them standing in wherever their slots hide, measured row by row like the Battery
-    // item (allow 7), so a slot hides for its alert only where the looks still fit
-    // beside it. Bars with no merged alert are laid out once.
-    for (uint8_t allow = 1;; allow = 7) {
-        pass_init(&p, content_w, slots, sides, bleed);
-        p.allow = allow;
-        // The Battery item (its side's item 0) stands in for the battery slots: every
-        // geometry check measures it in exactly where the forms hide all of them
-        // (conf_of), so a battery slot hides only where the looks still fit beside the
-        // item, and it shows the charge wherever the layout keeps one.
-        p.batt = battery_slots;
-        bool stands = false;   // a side's merged alert has to stand in
-        for (int d = 0; d < 2; d++) {
-            if (battery_slots && p.n[d] > 0 && sides[d].rank[0] == OD_BATTERY) {
-                p.first[d] = 1;
-                p.n[d]--;
-            }
-            p.merged[d] = sides[d].merged;
-        }
+    // alert its slot merges changes nothing there. Else the bar is laid out again, the
+    // merged alert of each side whose slot hid standing in wherever that slot hides,
+    // measured row by row like the Battery item (allow gains 2 << d), so a slot hides
+    // for its alert only where the looks still fit beside it. The other side's alert
+    // stays out while its slot shows, and comes in only once a pass hides that slot
+    // too: at most three passes. So an alert changes nothing wherever the bar without
+    // it shows its slot, short of one case: both sides merge an alert and the bar
+    // without either hides both slots. Bars with no merged alert are laid out once.
+    // The inputs live in `p`, so nothing but `out` is held across a pass on the paint
+    // path's stack.
+    Pass p;
+    p.w = content_w;
+    p.slots = slots;
+    p.sides = sides;
+    p.bleed = bleed;
+    p.batt0 = battery_slots;
+    p.allow = 1;
+    for (;;) {
+        pass_init(&p);
         layout_pass(&p, out);
+        uint8_t more = p.allow;
         for (int d = 0; d < 2; d++) {
-            if (sides[d].merged && !out->place[OWN(d)].visible) { stands = true; }
+            if (p.sides[d].merged && !out->place[OWN(d)].visible) {
+                more |= (uint8_t)(2 << d);
+            }
         }
-        if (allow != 1 || !stands) { return; }
+        if (more == p.allow) { return; }
+        p.allow = more;
     }
 }
 

@@ -317,8 +317,9 @@ static void random_two_sided(OdSlotIn slots[3], OdSideIn sides[2], int8_t bleed[
 static bool measure_at(int16_t w, const OdSlotIn slots[3], const OdSideIn sides[2],
                        const int8_t bleed[2], const uint8_t n[2], const uint8_t pos[2],
                        Geom *g) {
-    Pass p;
-    pass_init(&p, w, slots, sides, bleed);
+    // The inputs as od_layout() sets them; pass_init() fills the rest.
+    Pass p = { .w = w, .batt0 = 0, .allow = 1, .slots = slots, .sides = sides, .bleed = bleed };
+    pass_init(&p);
     p.n[0] = n[0];
     p.n[1] = n[1];
     return eval(&p, pos, g);
