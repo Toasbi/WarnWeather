@@ -165,6 +165,25 @@ static bool write_sized_data_if_changed(const uint32_t key, const void *data,
     return true;
 }
 
+#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND)
+// A blob stored only while it has content (the radar's sky rows, the weather alert
+// entries): a read gives its bytes, 0 while it is absent; an empty write deletes it.
+static int read_present_blob(const uint32_t key, uint8_t *out, const size_t cap) {
+    if (!persist_exists(key)) { return 0; }
+    const int n = persist_read_data(key, out, cap);
+    return n > 0 ? n : 0;
+}
+
+static bool write_present_blob(const uint32_t key, const uint8_t *data, const size_t len) {
+    if (len == 0) {
+        if (!persist_exists(key)) { return false; }
+        persist_delete(key);
+        return true;
+    }
+    return write_sized_data_if_changed(key, data, len);
+}
+#endif
+
 // Trends are stored as uint8 (0..250) but the shared chart engine consumes
 // int16 (it also serves the radar at 0..1000). Widen at read into a reused
 // scratch — single-threaded, one redraw at a time.
@@ -502,18 +521,11 @@ int persist_get_norain_text(char *buffer, size_t buffer_size) {
 
 #if defined(WW_RAIN_RADAR)
 int persist_get_radar_sky(uint8_t *buffer, size_t buffer_size) {
-    if (!persist_exists(RADAR_SKY)) { return 0; }
-    const int n = persist_read_data(RADAR_SKY, buffer, buffer_size);
-    return n > 0 ? n : 0;
+    return read_present_blob(RADAR_SKY, buffer, buffer_size);
 }
 
 bool persist_set_radar_sky(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        if (!persist_exists(RADAR_SKY)) { return false; }
-        persist_delete(RADAR_SKY);
-        return true;
-    }
-    return write_sized_data_if_changed(RADAR_SKY, data, size);
+    return write_present_blob(RADAR_SKY, data, size);
 }
 #endif
 
@@ -713,19 +725,12 @@ bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
 
 #if defined(WW_ON_DEMAND)
 int persist_get_alert_entries(uint8_t *out, size_t cap) {
-    if (!out || !persist_exists(ALERT_ENTRIES)) { return 0; }
-    const int n = persist_read_data(ALERT_ENTRIES, out, cap);
-    return n > 0 ? n : 0;
+    return out ? read_present_blob(ALERT_ENTRIES, out, cap) : 0;
 }
 
 bool persist_set_alert_entries(const uint8_t *data, size_t len) {
     // No alert active = no slot (the radar-sky convention): an empty send deletes.
-    if (len == 0) {
-        if (!persist_exists(ALERT_ENTRIES)) { return false; }
-        persist_delete(ALERT_ENTRIES);
-        return true;
-    }
-    return write_sized_data_if_changed(ALERT_ENTRIES, data, len);
+    return write_present_blob(ALERT_ENTRIES, data, len);
 }
 #endif  // WW_ON_DEMAND
 
