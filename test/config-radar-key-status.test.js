@@ -140,7 +140,7 @@ test('the resolvers answer only for "Rainbow (own key)"', () => {
   });
   const S = Object.assign({ rainbowApiKey: '' }, OWN);
   assert.equal(keyStatus.keySheet(S, {}, args('rainbowkey')), 'radarKeyRainbow');
-  assert.deepEqual(keyStatus.keyBadge(S, {}, args('rainbowkey')), { label: 'Add key', tone: 'warn', ariaNote: 'no API key', dots: [] });
+  assert.deepEqual(keyStatus.keyBadge(S, {}, args('rainbowkey')), { label: 'Add key', ariaNote: 'no API key', dots: [] });
   assert.equal(keyStatus.keyMissingNote(S, {}, args('rainbowkey')), 'Needs an API key. Without one, the watch gets no rain radar.');
   assert.deepEqual(keyStatus.keyAttention(S, {}, args('rainbowkey')), { note: 'Rainbow has no API key',
     title: 'Rainbow has no API key', body: 'Without one, the watch gets no rain radar.', actionLabel: 'Add key',
@@ -153,7 +153,7 @@ test('page: "Rainbow (own key)" without a key — "Add key", the amber note, a d
   const page = bootGeneratedPage(STORED_OWN, 'basalt', { dialog: true });
   page.clickTab('radar');
   const body = page.scroll.innerHTML;
-  assert.match(body, /<button type="button" class="thr-btn warn" data-edit-sheet="radarKeyRainbow"[^>]*><span>Add key<\/span>/);
+  assert.match(body, /<button type="button" class="thr-btn" data-edit-sheet="radarKeyRainbow"[^>]*><span>Add key<\/span>/);
   assert.match(body, /<div class="static join info"><div class="info-box">Needs an API key\. Without one, the watch gets no rain radar\.<\/div><\/div>/);
   assert.match(tabButton(page, 'radar'), /aria-label="Radar \(Rainbow has no API key\)">Radar<span class="tab-dot" aria-hidden="true"><\/span>/);
   ['weather', 'general', 'forecast', 'watch', 'layout', 'more'].forEach((id) =>

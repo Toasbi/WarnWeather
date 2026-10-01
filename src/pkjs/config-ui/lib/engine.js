@@ -111,8 +111,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // LEADS the control: `chip` is ONE colour printed the way a colour sheet prints it (a
   // swatch and its '#RRGGBB', html.js swatchReadout), `dots` are small outlined (`ring`) or
   // filled pips for a row that previews SEVERAL colours at once; `label` is the trigger
-  // button's text and `ariaNote` a parenthesised state word appended to its aria-label;
-  // `tone: 'warn'` draws the button in the info amber (something in its sheet is missing).
+  // button's text and `ariaNote` a parenthesised state word appended to its aria-label.
   // The library prints what it is given and knows nothing of what the colours mean — a
   // resolver picks chip or dots by how many colours the row owns, not by what they are.
   // Read at render time like the sheet resolver, and only consulted when a sheet
@@ -526,7 +525,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} S Live settings state.
    * @param {Object} env Platform env.
    * @returns {?{label: (string|undefined), ariaNote: (string|undefined),
-   *   chip: (string|undefined), tone: (string|undefined),
+   *   chip: (string|undefined),
    *   dots: Array<{color: string, ring: (boolean|undefined)}>}} Badge, or null.
    */
   function resolveEditBadge(item, S, env) {
@@ -768,10 +767,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (!view.editSheet) { return ''; }
     var badge = view.editBadge;
     var label = (badge && badge.label) || 'Edit';
-    // badge.tone 'warn' gives the button the page's info amber (.thr-btn.warn): the
-    // sheet behind it holds something still missing (e.g. an "Add key" button).
-    var tone = (badge && badge.tone === 'warn') ? ' warn' : '';
-    return '<button type="button" class="thr-btn' + tone + '" data-edit-sheet="' + esc(view.editSheet)
+    return '<button type="button" class="thr-btn" data-edit-sheet="' + esc(view.editSheet)
       + '" aria-label="' + esc(label) + ' settings for the '
       + esc(String(item.label || 'selected'))
       + ' value' + esc((badge && badge.ariaNote) ? ' (' + String(badge.ariaNote) + ')' : '') + '">'

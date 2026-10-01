@@ -285,10 +285,9 @@ and the sheet it opens name a colour identically. `dots` are small pips, outline
 entry sets `ring` and filled otherwise, for a row previewing several colours at once where
 several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
 actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
-A badge's `tone: 'warn'` gives the Edit button the page's info amber (`.thr-btn.warn`: the
-info box's rule and tint, the label in its usual colour), for a sheet that holds something
-still missing — WarnWeather's Weather provider row reads "Add key" in that look while the
-picked provider's API key is empty. Any other `tone` is ignored.
+The button itself always has the one look; a badge's `label` only renames it (WarnWeather's
+Weather provider row reads "Add key" while the picked provider's API key is empty, and a
+`textFrom` note under the row and its `attentionFrom` tab dot say why).
 
 Rows inside an open sheet behave as they do in a card (a text row's `suffixAction` button and
 its verdict line, and a hint's tap-to-copy `[data-copy]` button, included), with one

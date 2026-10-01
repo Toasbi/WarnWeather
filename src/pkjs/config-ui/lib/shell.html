@@ -421,10 +421,6 @@
      status slots'. */
   .thr-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; min-height: 33px; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); cursor: pointer; padding: 0 10px; border-radius: 9px; font: 600 12px 'Inter', sans-serif; transition: color .15s, background .15s, border-color .15s; }
   .thr-btn:active { color: var(--link); border-color: var(--link); background: rgba(250,74,53,0.12); }
-  /* badge.tone 'warn': the sheet behind the button holds something still missing (an "Add
-     key" button) — the info box's amber rule and tint; the label keeps var(--lbl), since
-     the light theme's amber is only 3.65:1 and too faint for 12px text. */
-  .thr-btn.warn { border-color: var(--info-rule); background: var(--info-tint); }
   /* Action row hosted in a staticText item (the Custom-layout Edit row): title + sub-hint
      left, a .thr-btn right. Own classes rather than .row .lbl/.hint — those are scoped to
      .row and this markup renders inside .static; sizes match the previous inline styles

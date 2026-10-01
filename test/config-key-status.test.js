@@ -189,11 +189,11 @@ test('Tomorrow.io adds the calls a day the settings come to', () => {
 
 // --- the resolvers -------------------------------------------------------------------------
 
-test('keyBadge: "Add key" in the warn look while the key is missing, "Edit" otherwise', () => {
+test('keyBadge: "Add key" (the plain grey button) while the key is missing, "Edit" otherwise', () => {
   const fn = PC.badgeResolvers.get('keyBadge');
   const args = argsOf(providerRow.editBadgeFrom);
   assert.deepEqual(fn({ provider: 'openweathermap', owmApiKey: ' ' }, {}, args),
-    { label: 'Add key', tone: 'warn', ariaNote: 'no API key', dots: [] });
+    { label: 'Add key', ariaNote: 'no API key', dots: [] });
   assert.deepEqual(fn({ provider: 'openweathermap', owmApiKey: OWM_KEY }, {}, args),
     { label: 'Edit', ariaNote: '', dots: [] });
   keyStatus.recordTest('owmApiKey', OWM_KEY, 401);
@@ -259,10 +259,10 @@ function tapInModal(page, sel, attr, value) {
   page.modal.dispatch('click', { target: t });
 }
 
-test('page: a missing key — "Add key" in the warn look, the amber note, a dot on the General tab', () => {
+test('page: a missing key — "Add key" as the plain grey button, the amber note, a dot on the General tab', () => {
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
   const body = page.scroll.innerHTML;
-  assert.match(body, /<button type="button" class="thr-btn warn" data-edit-sheet="providerKeyOwm"[^>]*><span>Add key<\/span>/);
+  assert.match(body, /<button type="button" class="thr-btn" data-edit-sheet="providerKeyOwm"[^>]*><span>Add key<\/span>/);
   assert.match(body, /<div class="static join info"><div class="info-box">Needs an API key\. Without one, the watch gets no forecast\.<\/div><\/div>/);
   assert.match(tabButton(page, 'general'), /aria-label="General \(OpenWeatherMap has no API key\)">General<span class="tab-dot" aria-hidden="true"><\/span>/);
   ['weather', 'forecast', 'radar', 'watch', 'layout', 'more'].forEach((id) =>

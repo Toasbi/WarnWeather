@@ -30,8 +30,8 @@
 //
 // What the page shows from it:
 //   keySheet         (sheetResolvers)     the Edit button: the picked source's key sheet;
-//   keyBadge         (badgeResolvers)     "Add key" with the warn look while the key is
-//                                         missing, "Edit" otherwise;
+//   keyBadge         (badgeResolvers)     "Add key" (the page's normal button) while the
+//                                         key is missing, "Edit" otherwise;
 //   keySummaryHint   (hintResolvers)      the row's hint (args.hints, its hintByValue copy)
 //                                         and the summary line "Key ••••1234 · ✓ works";
 //   keyMissingNote   (hintResolvers, a staticText's textFrom) the amber note while the
@@ -254,9 +254,10 @@
     }
 
     /**
-     * keyBadge (editBadgeFrom): the Edit button reads "Add key", in the warn look, while
-     * the picked source's key is missing; "Edit" otherwise. Only consulted while keySheet
-     * offers a sheet.
+     * keyBadge (editBadgeFrom): the Edit button reads "Add key" while the picked source's
+     * key is missing; "Edit" otherwise. Both are the page's normal grey button (the
+     * owner, 2026-10-01): the amber note under the row and the tab's dot say the key is
+     * missing. Only consulted while keySheet offers a sheet.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
      * @param {{messageKey: string, keyed: Object}} args The row's key and table.
@@ -267,7 +268,7 @@
         var source = sourceOf(args, id);
         var st = source ? statusOf(source, id, S) : null;
         if (st && st.state === 'missing') {
-            return { label: 'Add key', tone: 'warn', ariaNote: 'no API key', dots: [] };
+            return { label: 'Add key', ariaNote: 'no API key', dots: [] };
         }
         return { label: 'Edit', ariaNote: (st && st.state === 'rejected') ? 'API key rejected' : '', dots: [] };
     }

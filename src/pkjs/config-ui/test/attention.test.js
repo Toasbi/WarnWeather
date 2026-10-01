@@ -1,6 +1,6 @@
-// src/pkjs/config-ui/test/attention.test.js — three small engine hooks a "something is
-// missing here" row is built from:
-//   - a badge's `tone: 'warn'` gives the row's Edit button the warn look (.thr-btn.warn);
+// src/pkjs/config-ui/test/attention.test.js — the engine hooks a "something is missing
+// here" row is built from:
+//   - a badge relabels the row's Edit button and never restyles it (the one .thr-btn look);
 //   - a staticText's `textFrom` derives its note from the live settings; '' renders nothing
 //     at all, and the row above then keeps its divider;
 //   - an item's `attentionFrom` (PConf.attentionResolvers) puts a dot on its tab's label
@@ -53,14 +53,15 @@ const SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [
   ] }] }
 ] };
 
-test('a badge\'s tone "warn" gives the Edit button the warn look; no tone, the plain button', () => {
+test('a badge relabels the Edit button, which keeps the one plain look', () => {
   const item = { type: 'select', messageKey: 'pick', label: 'Pick', options: [['Ok', 'ok']] };
-  const warn = E.renderRow(item, { value: 'ok', editSheet: 's', editBadge: { label: 'Add key', tone: 'warn', dots: [] } });
-  assert.match(warn, /<button type="button" class="thr-btn warn" data-edit-sheet="s"[^>]*><span>Add key<\/span><\/button>/);
+  const add = E.renderRow(item, { value: 'ok', editSheet: 's', editBadge: { label: 'Add key', dots: [] } });
+  assert.match(add, /<button type="button" class="thr-btn" data-edit-sheet="s"[^>]*><span>Add key<\/span><\/button>/);
   const plain = E.renderRow(item, { value: 'ok', editSheet: 's', editBadge: { label: 'Edit', dots: [] } });
   assert.match(plain, /<button type="button" class="thr-btn" data-edit-sheet="s"/);
-  const odd = E.renderRow(item, { value: 'ok', editSheet: 's', editBadge: { tone: '" onclick="x', dots: [] } });
-  assert.match(odd, /class="thr-btn" data-edit-sheet/, 'only the known tone becomes a class');
+  // A badge field the engine does not know (the retired `tone`) changes nothing.
+  const odd = E.renderRow(item, { value: 'ok', editSheet: 's', editBadge: { tone: 'warn', dots: [] } });
+  assert.match(odd, /class="thr-btn" data-edit-sheet/);
 });
 
 test('textFrom: the derived note, the static text on null, nothing at all on \'\'', () => {
