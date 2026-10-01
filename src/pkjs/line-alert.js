@@ -23,9 +23,12 @@
 // so the top never jumps as the levels or the scale move. Wind and gusts share one
 // scale, so when BOTH are drawn with Alert they share one band: the lower warn level is
 // the bottom, so the two lines stay comparable, and the top is the higher of the scale
-// and the two danger levels. A danger level equal to a warn level at or above the scale
-// leaves no range: the top is then that warn level + 50 %. A line drawn All beside an
-// Alert one keeps its own 0-based scale, and the Alert one its own band.
+// and the two danger levels. Only a band whose every level is one value at or above the
+// scale (a danger level equal to its warn level, which the old text fields could store)
+// has no range: its top is then one series unit above it (1 km/h, UV 0.1), next to the
+// top the same pair one step apart gets (gusts 60/60 kph: 61, 60/61: 61), so nothing
+// jumps there either. A line drawn All beside an Alert one keeps its own 0-based scale,
+// and the Alert one its own band.
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
 // <script> in the settings-page webview (scripts/build-config-page.js' APP_FILES, after
@@ -218,7 +221,7 @@
      * The band a drawn Show: Alert line is scaled over, in the series' unit (see the
      * header): null for a metric whose line shows All. `topDanger` names the metric whose
      * danger level tops the band, for the page's scale hints; null while the scale's own
-     * top (or the no-range fallback) is the top.
+     * top (or a no-range band's value + 1) is the top.
      * @param {Object} settings Clay settings blob.
      * @param {string} metric A graph metric id.
      * @param {string[]} drawn The metrics the watch draws (drawnMetrics).
@@ -232,23 +235,21 @@
             // In one fixed order, so the two lines' shared band is one and the same.
             if (drawn.indexOf(other) !== -1 && onlyAlertOn(settings, other)) { members = ['wind', 'gust']; }
         }
-        var bottom = Infinity, highestWarn = -Infinity, highestDanger = -Infinity, dangerOf = null;
+        var bottom = Infinity, highestDanger = -Infinity, dangerOf = null;
         for (var i = 0; i < members.length; i++) {
             var warn = levelInSeries(settings, members[i], 'warn');
             var danger = levelInSeries(settings, members[i], 'danger');
             if (warn < bottom) { bottom = warn; }
-            if (warn > highestWarn) { highestWarn = warn; }
             if (danger > highestDanger) { highestDanger = danger; dangerOf = members[i]; }
         }
         // The higher of the scale's top and the danger level, so neither a level nor the
         // scale moving past the other makes the top jump.
         var top = scaleTop(settings, metric), topDanger = null;
         if (highestDanger > top) { top = highestDanger; topDanger = dangerOf; }
-        // A danger level equal to its warn level, both at or above the scale's top: no
-        // range above the (higher) warn level, so give it half again.
-        if (top <= highestWarn) { top = highestWarn * 1.5; topDanger = null; }
-        // A warn level at or below zero cannot leave top <= bottom above, but a stored
-        // pair can hold anything: keep a range to divide by.
+        // No range left only when every level is one value at or above the scale's top
+        // (resolvedPair keeps danger >= warn): a danger level equal to its warn level, as
+        // the old text fields could store. Keep a range to divide by: one series unit
+        // above, next to the top the same pair one step apart gets (see the header).
         if (top <= bottom) { top = bottom + 1; topDanger = null; }
         return { bottom: bottom, top: top, topDanger: topDanger };
     }

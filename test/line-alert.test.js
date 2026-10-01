@@ -185,11 +185,38 @@ test('the top never jumps: it follows the higher of the scale and the danger lev
     threshUvWarn: '11', threshUvDanger: '12' }, true), { uv: band(110, 120, 'uv') });
 });
 
-test('a danger level equal to a warn level at or above the top leaves no range: warn + 50 %', () => {
+test('a danger level equal to its warn level at or above the top: one unit above, no jump to the next step', () => {
+  const gust = (warn, danger) => lineAlert.alertBands({ secondaryLine: 'gust', gustLineOnlyAlert: 'alert',
+    windScale: 'mid', threshGustWarn: String(warn), threshGustDanger: String(danger) }, true).gust;
+  // Gusts 60/60 over the mid scale (50): no range, so 61 — where 60/61 puts it too.
+  assert.deepEqual(gust(60, 60), band(60, 61));
+  assert.deepEqual(gust(60, 61), band(60, 61, 'gust'));
+  // Wind 40/40 over the low scale (30), the same.
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: 'alert',
-    windScale: 'low', threshWindWarn: '40', threshWindDanger: '40' }, true), { wind: band(40, 60) });
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert',
-    threshUvWarn: '12', threshUvDanger: '12' }, true), { uv: band(120, 180) });
+    windScale: 'low', threshWindWarn: '40', threshWindDanger: '40' }, true), { wind: band(40, 41) });
+  // UV 11/11 sits on UV 11 itself: UV 11.1; 11/12 tops out at UV 12.
+  const uv = (warn, danger) => lineAlert.alertBands({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert',
+    threshUvWarn: String(warn), threshUvDanger: String(danger) }, true).uv;
+  assert.deepEqual(uv(11, 11), band(110, 111));
+  assert.deepEqual(uv(11, 12), band(110, 120, 'uv'));
+  assert.deepEqual(uv(12, 12), band(120, 121));
+  // An equal pair below the scale keeps the scale's top: a range is left.
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: 'alert',
+    windScale: 'high', threshWindWarn: '40', threshWindDanger: '40' }, true), { wind: band(40, 70) });
+});
+
+test('a shared band with one equal pair keeps its range: the higher of the scale and the danger levels', () => {
+  const both = (gustWarn, gustDanger, extra) => lineAlert.alertBands(Object.assign({
+    secondaryLine: 'wind', thirdLine: 'gust', windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert',
+    windScale: 'low', threshWindWarn: '40', threshWindDanger: '55',
+    threshGustWarn: String(gustWarn), threshGustDanger: String(gustDanger) }, extra), true);
+  // Wind 40/55, gusts 60/60 under Low (30): 40..60, the gust danger on top — and one step
+  // apart (60/61) only one unit higher.
+  assert.deepEqual(both(60, 60), { wind: band(40, 60, 'gust'), gust: band(40, 60, 'gust') });
+  assert.deepEqual(both(60, 61), { wind: band(40, 61, 'gust'), gust: band(40, 61, 'gust') });
+  // Every level one value over the scale: no range, one unit above.
+  assert.deepEqual(both(60, 60, { threshWindWarn: '60', threshWindDanger: '60' }),
+    { wind: band(60, 61), gust: band(60, 61) });
 });
 
 test('wind and gusts both on Alert share one band: the lower warn at the bottom, the higher danger or the scale on top', () => {
