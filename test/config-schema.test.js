@@ -522,9 +522,12 @@ test('Units section groups temperature, AQI scale, wind + distance units in the 
   assert.ok(unitsSection, 'General tab has a titled "Units" section');
   assert.deepEqual(unitsSection.items.map((i) => i.messageKey).filter(Boolean),
     ['temperatureUnits', 'aqiScale', 'windUnits', 'distanceUnits', 'feelsFormula']);
-  // sections[0] is the notices panel (block-only, ahead of the main section); the
-  // main section carrying theme/provider/etc. is sections[1].
-  const first = general.sections[1];
+  // sections: notices panel [0] (block-only), Alert settings [1] (stores nothing),
+  // theme + location [2]. Found by its locationMode row, not by index, so a card moving
+  // above it cannot turn these checks vacuous.
+  const first = general.sections.find((s) => (s.items || []).some((i) => i.messageKey === 'locationMode'));
+  assert.ok(first, 'the theme + location card exists');
+  assert.ok(first.items.some((i) => i.messageKey === 'theme'), 'it is the card carrying the theme pickers');
   assert.ok(!first.items.some((i) => i.messageKey === 'temperatureUnits'), 'temperatureUnits relocated');
   assert.ok(!first.items.some((i) => i.messageKey === 'aqiScale'), 'aqiScale relocated');
   assert.ok(!unitsSection.items.some((i) => i.messageKey === 'aqiSource'), 'aqiSource moved out of Units');
