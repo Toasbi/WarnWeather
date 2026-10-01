@@ -550,15 +550,11 @@ test('the rain alert look stays OUT of the render signature (it rides Clay)', ()
   });
 });
 
-test('the On demand sides and the rain placement stay OUT of the render signature (Clay)', () => {
+test('the rain alert\'s placement stays OUT of the render signature (Clay)', () => {
   const base = renderSignature({});
-  ['statusTopOnDemandLeft', 'statusForecastOnDemandRight', 'statusRadarOnDemandLeft', 'statusHealthOnDemandRight']
-    .forEach((key) => {
-      ['on', 'off'].forEach((v) => {
-        assert.equal(renderSignature({ [key]: v, statusForecastOnDemandRightItems: 'rain,bt' }),
-          renderSignature({ statusForecastOnDemandRightItems: 'rain,bt' }), key + ' ' + v);
-      });
-    });
-  assert.equal(renderSignature({ statusTopOnDemandRightItems: 'battery,gust,uv,aqi,wind' }), base,
+  assert.equal(renderSignature({ statusTopOnDemandLeftItems: 'bt,qt,snooze' }), base,
     'Rain unticked only moves its Clay cell');
+  assert.equal(renderSignature({ statusTopOnDemandLeftItems: 'bt,qt,snooze',
+    statusTopOnDemandRightItems: 'battery,rain,gust,uv,aqi,wind' }), base, 'nor does Rain on the other side');
+  assert.equal(renderSignature({ statusForecastOnDemandRightItems: 'rain,bt' }), base, 'nor on another bar');
 });

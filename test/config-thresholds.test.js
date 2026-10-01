@@ -2224,16 +2224,14 @@ test('resetStatusSlots restores every slot default (hr and non-hr) and the bold 
   });
 });
 
-test('resetStatusSlots reverts every bar\'s On demand sides and ticks, and leaves the items\' settings to their card', () => {
+test('resetStatusSlots reverts every bar\'s On demand ticks, and leaves the items\' settings to their card', () => {
   const map = itemsByKey();
   const defaultOf = (key) => PC.engine.resolveDefaultFrom(map[key][0], ENV);
   const OD = require('../src/pkjs/on-demand.js');
   const S = scrambledSlotState();
-  S.statusTopOnDemandLeft = 'off';
-  S.statusTopOnDemandLeftItems = 'rain';
+  S.statusTopOnDemandLeftItems = 'uv';
   S.statusTopOnDemandRightItems = 'bt';
   ['Forecast', 'Radar', 'Health'].forEach((bar) => {
-    S['status' + bar + 'OnDemandRight'] = 'on';
     S['status' + bar + 'OnDemandRightItems'] = 'uv,wind';
   });
   S.alertUvDisplay = 'value';
