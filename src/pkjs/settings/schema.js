@@ -1805,25 +1805,30 @@ var PROVIDER_WHY = {
 var RADAR_WHY = {
     dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
     metno: 'Precise weather radar — rain at your exact spot. Nordics only.',
-    // Rainbow's terms ask for a "Powered by Rainbow.ai" link wherever its data shows.
-    // The note says why the shared radar is limited: the developer pays for the calls
-    // every user shares, and the rainbow-nowcast proxy caps that account at
+    // Rainbow's terms ask for a "Powered by Rainbow.ai" link wherever its data shows, so
+    // both Rainbow notes end on it.
+    // "Rainbow (limited)": why the shared radar is limited — the developer pays for the
+    // calls every user shares, and the rainbow-nowcast proxy caps that account at
     // RAINBOW_MONTHLY_BUDGET upstream calls (DEV.md; default the free 5,000), so past it
-    // users get no fresh radar rather than a bill. The "Use your own key" switch under
-    // the picker (rainbowOwnKey) moves the radar onto the user's own Rainbow account.
-    rainbow: 'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Turn on “Use your own key” for a refresh at every update — a key is free. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
+    // users get no fresh radar rather than a bill — and the option that lifts it.
+    rainbow: 'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
+    // "Rainbow (own key)": the same nowcast on the user's own Rainbow account.
+    rainbowkey: 'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow\'s free plan covers 5,000 calls a month. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
     tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget.'
 };
 // The radar picker's options in order. desc (3rd tuple slot) = the short "what it's best at"
 // tag under each name in the dropdown, mirroring the weather picker. DWD/Met.no are real
 // radar; Rainbow/Tomorrow.io are model nowcasts (Tomorrow.io is the precise, worldwide one).
-// Scope lives in the desc + "why" note, not the label (keeps the trigger short). Rainbow's
-// label is the one that isn't static: the radarProviderOptions resolver (blocks.js) shows it
-// as "Rainbow (limited)" until the user's own key is in use.
+// Scope lives in the desc + "why" note, not the label (keeps the trigger short). Rainbow
+// comes twice, one option per radar SOURCE (weather/radar-source-id.js): the shared proxy
+// everyone splits ('rainbow') and the user's own key ('rainbowkey'). The blob still stores
+// the own key as radarProvider 'rainbow' + rainbowOwnKey true; settings/onbuild.js folds
+// that pair into the picker on open and writes it back on Save.
 var RADAR_PROVIDER_OPTIONS = [
     ['DWD', 'dwd', {desc: 'Best radar in Germany · exact spot + nearby'}],
     ['Met.no', 'metno', {desc: 'Best radar in the Nordics · exact spot'}],
-    ['Rainbow', 'rainbow', {desc: 'Worldwide satellite + radar nowcast'}],
+    ['Rainbow (limited)', 'rainbow', {desc: 'Worldwide satellite + radar nowcast · no key, every 30 min'}],
+    ['Rainbow (own key)', 'rainbowkey', {desc: 'Worldwide satellite + radar nowcast · needs a free key'}],
     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
 ];
 // The tomorrow.io key + budget guard render under whichever picker actually uses the key:
@@ -1853,13 +1858,24 @@ var PROVIDER_KEYS = {
 // The Weather provider row's key-status args: the table, the picker, and what goes
 // missing without a working key (the missing-key note and the Save dialog's sentence).
 var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: 'the watch gets no forecast'};
-// The Rainbow radar's "Use your own key" switch sits under the radar picker while Rainbow
-// drives a running radar; the key + budget guard follow it only while the switch is on
-// (the runtime then fetches the own-key source, radar-source-id.js). The radarMode clause
-// keeps them all hidden with radar off, when no Rainbow call is made.
-var RAINBOW_WHEN = {all: [{key: 'radarProvider', eq: 'rainbow'}, {key: 'radarMode', ne: 'off'}]};
-var RAINBOW_OWN_KEY_WHEN = {all: [{key: 'radarProvider', eq: 'rainbow'}, {key: 'radarMode', ne: 'off'},
-    {key: 'rainbowOwnKey', eq: true}]};
+// The radar sources that need the user's own key, by their picker value — the table every
+// key-status resolver on the Radar provider row reads (settings/key-status.js), shaped like
+// PROVIDER_KEYS. "Rainbow (own key)" is the one: its key never rides a weather update, so
+// its key status comes from the Test button and from the last radar update's verdict
+// (`evidence: 'radar'`, weather/radar-key-result.js). Its usage line is the monthly
+// projection (blocks.js registers it). The radar-only Tomorrow.io key keeps its rows on
+// the Radar tab (its key is the weather provider's key too).
+var RADAR_KEYS = {
+    rainbowkey: {name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey', test: true,
+        usage: 'rainbow', evidence: 'radar'}
+};
+// The Radar provider row's key-status args: the table, the picker, and what goes missing
+// without a working key (the missing-key note and the Save dialog's sentence).
+var RADAR_KEY_ARGS = {keyed: RADAR_KEYS, picker: 'radarProvider', outcome: 'the watch gets no rain radar'};
+// "Rainbow (own key)" picked for a running radar: its key sheet's gate. The radarMode
+// clause keeps the sheet (and so the Save dialog's way into it) closed with radar off,
+// when no Rainbow call is made.
+var RAINBOW_OWN_KEY_WHEN = {all: [{key: 'radarProvider', eq: 'rainbowkey'}, {key: 'radarMode', ne: 'off'}]};
 // A tap-to-copy button (copy icon) for use inside hint HTML: copies `url` via the engine's delegated
 // [data-copy] handler and flashes a "Copied" toast. Used instead of a plain link where tapping is
 // useless — e.g. a page that 404s on the mobile site, so users copy the URL and open it on desktop.
@@ -1947,25 +1963,26 @@ var RAINBOW_KEY_HINT = '<b>How to get a key:</b><br>1. <a target=\'_blank\' href
 var RAINBOW_BUDGET_HINT = 'Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.';
 
 /**
- * A keyed weather provider's key sheet (sheetOnly; the sheet PROVIDER_KEYS names for it),
- * opened by the Edit button after the Weather provider dropdown while that provider
- * is picked. It holds everything about the key — the field with its Test button and
- * verdict line, the hint with its links, any budget read-out and guard — so the Provider
- * settings card keeps only the pickers. The sheet's title is the provider's name, so the
- * key row's label is just "API key". The section and every item share the provider's
+ * A keyed source's key sheet (sheetOnly; the sheet its key table — PROVIDER_KEYS or
+ * RADAR_KEYS — names for it), opened by the Edit button after its picker while that
+ * source is picked. It holds everything about the key — the field with its Test button
+ * and verdict line, the hint with its links, any budget read-out and guard — so the
+ * picker's card keeps only the pickers. The sheet's title is the source's name, so the
+ * key row's label is just "API key". The section and every item share the source's
  * gate: findShownItem picks a key's shown copy by the item's own gate, which keeps the
- * Radar tab's radar-only tomorrow.io copy apart from this one.
- * @param {string} provider The `provider` value, a PROVIDER_KEYS key (its name titles the sheet).
- * @param {Object} when The provider's gate, set on the section and on every item.
+ * Radar tab's radar-only tomorrow.io copy apart from the weather provider's.
+ * @param {{sheetId: string, name: string}} source The source's key-table entry (its name
+ *   titles the sheet).
+ * @param {Object} when The source's gate, set on the section and on every item.
  * @param {Object[]} items The sheet's rows, the key field first (they get `when`).
  * @returns {Object} Schema section (sheetOnly).
  */
-function providerKeySheet(provider, when, items) {
+function keySheetSection(source, when, items) {
     return {
         sheetOnly: true,
-        sheetId: PROVIDER_KEYS[provider].sheetId,
+        sheetId: source.sheetId,
         showWhen: when,
-        title: PROVIDER_KEYS[provider].name,
+        title: source.name,
         items: items.map(function (item) { return Object.assign({}, item, {showWhen: when}); })
     };
 }
@@ -2396,7 +2413,7 @@ module.exports = {
         // provider dropdown in the card above and rendered nowhere else (sheetOnly, like the dim
         // colour's sheet). The keys, their trimming and refetch on Save (onbuild.js) and the Test
         // actions are the ones the card's rows carried.
-        providerKeySheet('openweathermap', {key: 'provider', eq: 'openweathermap'}, [{
+        keySheetSection(PROVIDER_KEYS.openweathermap, {key: 'provider', eq: 'openweathermap'}, [{
             type: 'text',
             messageKey: 'owmApiKey',
             label: 'API key',
@@ -2407,7 +2424,7 @@ module.exports = {
         }]),
         // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
         // + budget guard render on the Radar tab instead (see TOMORROWIO_RADAR_ONLY_WHEN).
-        providerKeySheet('tomorrowio', TOMORROWIO_WEATHER_WHEN, [{
+        keySheetSection(PROVIDER_KEYS.tomorrowio, TOMORROWIO_WEATHER_WHEN, [{
             type: 'text',
             messageKey: 'tomorrowioApiKey',
             label: 'API key',
@@ -2426,7 +2443,7 @@ module.exports = {
             blockBefore: 'tomorrowioBudget',
             hint: TOMORROWIO_BUDGET_HINT
         }]),
-        providerKeySheet('yandex', {key: 'provider', eq: 'yandex'}, [{
+        keySheetSection(PROVIDER_KEYS.yandex, {key: 'provider', eq: 'yandex'}, [{
             type: 'text',
             messageKey: 'yandexApiKey',
             label: 'API key',
@@ -2678,59 +2695,45 @@ module.exports = {
                 label: 'Radar provider',
                 defaultValue: 'rainbow',
                 showWhen: {key: 'radarMode', ne: 'off'},
-                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→Rainbow),
-                // the same map the wizard uses. See blocks.js recommend resolvers.
+                // Flags the country-matched option "(Recommended)" (DE→DWD, Nordics→Met.no, else→
+                // "Rainbow (limited)"), the same map the wizard uses. See blocks.js recommend
+                // resolvers; the bracketed name moves the marker onto the desc line (engine.js).
                 recommendFrom: 'recommendedRadarProvider',
-                // One Rainbow option (id 'rainbow') with a "Use your own key" switch under the
-                // picker (rainbowOwnKey). Switch off: the shared proxy, at most every 30 min
-                // (fetch-cycle.js throttle); builds without a proxy endpoint still show it and
-                // clear the radar. Switch on: api.rainbow.ai directly on the user's key, at
-                // every update, which works without the endpoint. radar-source-id.js resolves
-                // the pair to the runtime's source id ('rainbow' / 'rainbowkey').
+                // Two Rainbow options, one per radar source (radar-source-id.js): "Rainbow
+                // (limited)" ('rainbow') is the shared proxy, at most every 30 min (fetch-cycle.js
+                // throttle; builds without a proxy endpoint still offer it and clear the radar);
+                // "Rainbow (own key)" ('rainbowkey') is api.rainbow.ai directly on the user's
+                // key, at every update, which works without the endpoint. The blob stores the
+                // own key as 'rainbow' + rainbowOwnKey true (the hidden row at the end of this
+                // section): onbuild.js folds the pair into this picker on open and writes it
+                // back on Save, and a changed source forces a fetch (index.js).
                 // The selected provider's fuller rationale renders via hintByValue (RADAR_WHY),
                 // wrapping around the trigger — mirroring the weather picker.
                 hintByValue: RADAR_WHY,
-                // RADAR_PROVIDER_OPTIONS through a resolver so the Rainbow option can say which
-                // key it runs on: "Rainbow (limited)" on the shared one, "Rainbow" once the switch
-                // is on AND a key is entered (blocks.js radarProviderOptions). The label follows
-                // the switch at once (a toggle re-renders the page) and the key field when it
-                // commits — blur/Enter (the engine relabels triggers in place on a text commit).
-                optionsFrom: {resolver: 'radarProviderOptions', args: {options: RADAR_PROVIDER_OPTIONS}}
+                // "Rainbow (own key)" gets an Edit button after the dropdown, opening its key
+                // sheet (the sheetOnly section after this one): the key field with its Test,
+                // the links, the monthly read-out and the budget guard live there. The row
+                // shows the key's status like the Weather provider row (settings/key-status.js,
+                // all from RADAR_KEYS): "Add key" in the warn look while the key is empty, a
+                // line "Key ••••1234 · ✓ works" under the RADAR_WHY hint, and a key that is
+                // missing or known to be rejected puts a dot on this tab and a dialog in front
+                // of Save ("Add key" / "Save anyway"). The missing-key note is the staticText
+                // right below.
+                editSheetFrom: {resolver: 'keySheet', args: RADAR_KEY_ARGS},
+                editBadgeFrom: {resolver: 'keyBadge', args: RADAR_KEY_ARGS},
+                hintFrom: {resolver: 'keySummaryHint', args: Object.assign({hints: RADAR_WHY}, RADAR_KEY_ARGS)},
+                attentionFrom: {resolver: 'keyAttention', args: RADAR_KEY_ARGS},
+                options: RADAR_PROVIDER_OPTIONS
             }, {
-                // Rainbow on the user's own key instead of the shared one. Phone-only (never on the
-                // watch wire): radar-source-id.js turns Rainbow + this switch into the 'rainbowkey'
-                // source, and flipping it changes that source, so index.js forces a fetch on Save.
-                type: 'toggle',
-                messageKey: 'rainbowOwnKey',
-                label: 'Use your own key',
-                defaultValue: false,
-                joinPrevious: 'loose',
-                hint: 'Refreshes the radar at every update on your own Rainbow key instead of every 30 minutes. '
-                    + 'A key is free: Rainbow\'s free plan covers 5,000 calls a month.',
-                showWhen: RAINBOW_WHEN
-            }, {
-                // The user's own Rainbow key, shown while "Use your own key" is on. Never on the
-                // watch wire; kept through Reset (clay-settings.js PRESERVED_SETTING_KEYS), trimmed
-                // + refetch-forcing on Save (onbuild.js).
-                type: 'text',
-                messageKey: 'rainbowApiKey',
-                label: 'Rainbow API key',
-                defaultValue: '',
-                joinPrevious: 'loose',
-                suffixAction: 'testRainbowKey',
-                suffixLabel: 'Test',
-                hint: RAINBOW_KEY_HINT,
-                showWhen: RAINBOW_OWN_KEY_WHEN
-            }, {
-                type: 'toggle',
-                messageKey: 'rainbowFitBudget',
-                label: 'Fit update interval to rate limit',
-                defaultValue: true,
-                joinPrevious: 'loose',
-                // The monthly-usage read-out sits between the key field and this toggle.
-                blockBefore: 'rainbowBudget',
-                hint: RAINBOW_BUDGET_HINT,
-                showWhen: RAINBOW_OWN_KEY_WHEN
+                // The own key's empty field, said where it cannot be missed: an amber note
+                // hugging the row while "Rainbow (own key)" is picked with no key (textFrom
+                // answers '' otherwise). It follows the picker's own gate, so radar off
+                // hides it with the row.
+                type: 'staticText',
+                style: 'info',
+                joinPrevious: true,
+                textFrom: {resolver: 'keyMissingNote', args: RADAR_KEY_ARGS},
+                showWhen: {key: 'radarMode', ne: 'off'}
             }, {
                 // Tomorrow.io key + budget guard, radar-only: shown here (under the radar picker) when
                 // tomorrow.io drives the radar but is NOT the weather provider, so the key isn't orphaned
@@ -2816,11 +2819,43 @@ module.exports = {
                 attributes: {maxlength: 24},
                 hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
+            }, {
+                // Rainbow on the user's own key: the stored half of "Rainbow (own key)"
+                // (radarProvider 'rainbow' + this true; radar-source-id.js), hydrated and
+                // serialized but never drawn — the picker above is its only control
+                // (onbuild.js folds it in on open and writes it back on Save). Phone-only,
+                // never on the watch wire. Last in the section, so it sits between no two
+                // rows a join could pass through.
+                type: 'hidden',
+                messageKey: 'rainbowOwnKey',
+                defaultValue: false
             }]
             // The rain countdown's time window (rainCountdownHorizon) used to close this
             // section; its home is the Rain alert sheet (the Alert settings card), with a
             // second copy under the radar mode above.
-        }]
+        },
+        // "Rainbow (own key)"'s key sheet, opened by the Edit button after the Radar provider
+        // dropdown and rendered nowhere else. The key, its trimming and refetch on Save
+        // (onbuild.js), its keeping through Reset (clay-settings.js PRESERVED_SETTING_KEYS)
+        // and the Test action are as before; the key never rides the watch wire.
+        keySheetSection(RADAR_KEYS.rainbowkey, RAINBOW_OWN_KEY_WHEN, [{
+            type: 'text',
+            messageKey: 'rainbowApiKey',
+            label: 'API key',
+            defaultValue: '',
+            suffixAction: 'testRainbowKey',
+            suffixLabel: 'Test',
+            hint: RAINBOW_KEY_HINT
+        }, {
+            type: 'toggle',
+            messageKey: 'rainbowFitBudget',
+            label: 'Fit update interval to rate limit',
+            defaultValue: true,
+            joinPrevious: 'loose',
+            // The monthly-usage read-out sits between the key field and this toggle.
+            blockBefore: 'rainbowBudget',
+            hint: RAINBOW_BUDGET_HINT
+        }])]
     }, {
         // aplite has no health sensors — the watch compiles the view out, so the whole
         // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).

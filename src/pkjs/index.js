@@ -80,6 +80,7 @@ var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_NOTICES = storageKeys.NOTICES_KEY;
 var KEY_AUTH_BACKOFF = storageKeys.AUTH_BACKOFF_KEY;
+var KEY_RADAR_KEY_RESULT = storageKeys.RADAR_KEY_RESULT_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
@@ -191,6 +192,10 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // provider marks that key as rejected (settings/key-status.js). lastFetchSuccess
         // above carries the fingerprint of the key the last good update used.
         authBackoff: localStorage.getItem(KEY_AUTH_BACKOFF),
+        // The last radar update's verdict on the user's own radar key (radar-key-result.js:
+        // the source, the key's fingerprint and the status), as stored, or null: the key
+        // status under the Radar provider row's "Rainbow (own key)" reads it.
+        radarKeyResult: localStorage.getItem(KEY_RADAR_KEY_RESULT),
         // Day totals + the newest events, never the raw 7-day log: that pushed the
         // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).
         devStats: devStats.summarize(),
@@ -245,7 +250,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
     }
 
     // The radar SOURCE in effect (radar-source-id.js), not the stored radarProvider:
-    // flipping Rainbow's "Use your own key" switches sources without touching it.
+    // "Rainbow (limited)" and "Rainbow (own key)" store the same radarProvider ('rainbow')
+    // and differ only in rainbowOwnKey.
     var oldRadarSource = app.settings ? radarSourceId.effectiveRadarId(app.settings) : undefined;
     var oldRadarMode = app.settings ? app.settings.radarMode : undefined;
     var oldRadarSky = app.settings ? app.settings.radarSky !== false : undefined;

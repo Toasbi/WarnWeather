@@ -122,5 +122,10 @@ module.exports = {
     // is asked at most once per 30-minute slot, wherever the watch is, and the throttled
     // cycles of that slot re-serve its answer. Persisted so a PKJS relaunch doesn't reset
     // it; a reset's localStorage.clear() drops it (the next fetch then requests).
-    RADAR_REQUEST_THROTTLE_KEY: 'radarRequestThrottle'
+    RADAR_REQUEST_THROTTLE_KEY: 'radarRequestThrottle',
+    // The last radar update's verdict on the user's own radar key ({id, keyHash, status}:
+    // the radar source, the key's fingerprint — never the key — and the HTTP status that
+    // answered it; weather/radar-key-result.js). The settings page reads it as
+    // userData.radarKeyResult for the key status under the Radar provider row.
+    RADAR_KEY_RESULT_KEY: 'radarKeyResult'
 };

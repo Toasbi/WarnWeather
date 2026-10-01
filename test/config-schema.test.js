@@ -285,21 +285,27 @@ test('tomorrow.io key renders under whichever picker uses it: its key sheet (wea
   keys.forEach((k) => assert.equal(k.suffixAction, 'testTomorrowioKey'));
 });
 
-test('provider API-key rows join their picker loosely (grouped, but normal spacing)', () => {
+test('the radar-only tomorrow.io key rows join their picker loosely (grouped, but normal spacing)', () => {
   // The key/budget rows that hang off the RADAR picker on the page use the roomy join (no
   // divider, but full padding) rather than the tight `true` grouping, so they do not read as
-  // cramped. The weather providers' key rows left the page for their key sheets.
+  // cramped. The weather providers' key rows and "Rainbow (own key)"'s left the page for
+  // their key sheets.
   const radar = schema.tabs.find((t) => t.id === 'radar');
-  const radarItems = [].concat.apply([], radar.sections.map((s) => s.items));
-  ['tomorrowioApiKey', 'tomorrowioFitBudget', 'rainbowOwnKey', 'rainbowApiKey', 'rainbowFitBudget'].forEach((key) => {
-    const instances = radarItems.filter((i) => i.messageKey === key);
+  const page = radar.sections.find((s) => !s.sheetOnly);
+  ['tomorrowioApiKey', 'tomorrowioFitBudget'].forEach((key) => {
+    const instances = page.items.filter((i) => i.messageKey === key);
     assert.equal(instances.length, 1, 'one ' + key + ' on the Radar tab');
     instances.forEach((item) => assert.equal(item.joinPrevious, 'loose', key + ' uses the loose join'));
   });
+  ['rainbowApiKey', 'rainbowFitBudget'].forEach((key) => {
+    assert.equal(page.items.some((i) => i.messageKey === key), false, key + ' is not on the Radar tab\'s page');
+  });
   // In a key sheet the key field is the first row, so it joins nothing; the tomorrow.io
-  // budget guard below it keeps the loose join to the field (the read-out between them).
-  const sheets = schema.tabs.find((t) => t.id === 'general').sections.filter((s) => /^providerKey/.test(s.sheetId || ''));
-  assert.equal(sheets.length, 3, 'three key sheets');
+  // and Rainbow budget guards below it keep the loose join to the field (the read-out
+  // between them).
+  const sheets = schema.tabs.find((t) => t.id === 'general').sections.filter((s) => /^providerKey/.test(s.sheetId || ''))
+    .concat(radar.sections.filter((s) => s.sheetId === 'radarKeyRainbow'));
+  assert.equal(sheets.length, 4, 'four key sheets: three weather providers, Rainbow (own key)');
   sheets.forEach((sheet) => {
     assert.equal(sheet.items[0].joinPrevious, undefined, sheet.sheetId + ' opens on its key field');
     sheet.items.slice(1).forEach((item) => assert.equal(item.joinPrevious, 'loose', item.messageKey));
@@ -1539,102 +1545,102 @@ test('flick/positioning narrative lives only in the Layout tab, not Health/Radar
   assert.ok(!/wrist flick/i.test(radar.sections[0].intro), 'radar intro drops the wrist-flick line');
 });
 
-// The radar picker's options as the page resolves them for a settings state (through the
-// engine, so the wiring — resolver id + args — is exercised, not just the resolver).
-const radarPickerOptions = (S) => require('../src/pkjs/config-ui/lib/engine.js')
-  .resolveOptionsFrom(byKey('radarProvider'), S || {}, {});
+const radarItem = () => byKey('radarProvider');
 
-test('radarProvider is a dropdown offering DWD/Met.no/Rainbow/Tomorrow.io (short labels, scope in desc/why; on/off now lives in radarMode)', () => {
-  const item = byKey('radarProvider');
+test('radarProvider is a dropdown offering DWD/Met.no/Rainbow (limited)/Rainbow (own key)/Tomorrow.io (scope in desc/why; on/off lives in radarMode)', () => {
+  const item = radarItem();
   assert.equal(item.type, 'select', 'dropdown — the options carry a desc line each');
-  assert.equal(item.options, undefined, 'options are derived: the Rainbow label follows the own key');
-  assert.equal(item.optionsFrom.resolver, 'radarProviderOptions');
-  assert.deepEqual(radarPickerOptions({ rainbowOwnKey: true, rainbowApiKey: 'KEY' }).map((o) => [o[0], o[1]]), [
-    ['DWD', 'dwd'],
-    ['Met.no', 'metno'],
-    ['Rainbow', 'rainbow'],
-    ['Tomorrow.io', 'tomorrowio']
-  ], 'ONE Rainbow option: the own key is a switch under the picker, not a second option');
-  assert.deepEqual(radarPickerOptions({}).map((o) => [o[0], o[1]]), [
+  assert.equal(item.optionsFrom, undefined, 'a static list: each Rainbow option names its own source');
+  assert.deepEqual(item.options.map((o) => [o[0], o[1]]), [
     ['DWD', 'dwd'],
     ['Met.no', 'metno'],
     ['Rainbow (limited)', 'rainbow'],
+    ['Rainbow (own key)', 'rainbowkey'],
     ['Tomorrow.io', 'tomorrowio']
-  ], 'on the shared key the same option reads "Rainbow (limited)"');
-  assert.ok(item.hintByValue && item.hintByValue.rainbow, 'per-provider "why" lives in hintByValue on the picker');
-  assert.equal(item.hintByValue.rainbowkey, undefined, 'no why note for a value the picker no longer offers');
-  assert.equal(item.defaultValue, 'rainbow');
+  ], 'Rainbow twice, one option per radar source (radar-source-id.js)');
+  assert.ok(item.hintByValue && item.hintByValue.rainbow && item.hintByValue.rainbowkey,
+    'per-provider "why" lives in hintByValue on the picker, one per Rainbow option');
+  assert.equal(item.defaultValue, 'rainbow', 'a fresh install runs the radar that needs no key');
 });
 
-// The Radar tab's Rainbow rows, in order: the "Use your own key" switch right under the
-// picker, then (switch on) the key field, the monthly read-out and the budget toggle.
-const RAINBOW_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbow' }, { key: 'radarMode', ne: 'off' }] };
-const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbow' }, { key: 'radarMode', ne: 'off' },
-  { key: 'rainbowOwnKey', eq: true }] };
+// "Rainbow (own key)" is a keyed source of the radar picker, wired like a keyed weather
+// provider (settings/key-status.js): one table for every key-status resolver.
+const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbowkey' }, { key: 'radarMode', ne: 'off' }] };
 const radarPickerSection = () => schema.tabs.reduce((found, t) => found
   || t.sections.find((sec) => sec.items.some((i) => i.messageKey === 'radarProvider')), null);
 
-test('"Use your own key" is a toggle right under the radar picker, only while Rainbow drives a running radar', () => {
-  const toggles = items.filter((i) => i.messageKey === 'rainbowOwnKey');
-  assert.equal(toggles.length, 1, 'one instance: the Radar tab only');
-  const item = toggles[0];
-  assert.equal(item.type, 'toggle');
-  assert.equal(item.label, 'Use your own key');
-  assert.equal(item.defaultValue, false, 'the shared radar until the user opts in');
-  assert.equal(item.joinPrevious, 'loose', 'grouped with the picker it belongs to');
-  assert.equal(item.hint, 'Refreshes the radar at every update on your own Rainbow key instead of every 30 minutes. '
-    + 'A key is free: Rainbow\'s free plan covers 5,000 calls a month.');
-  assert.deepEqual(item.showWhen, RAINBOW_WHEN);
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph' }), true, 'shown for Rainbow');
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'countdown', rainbowOwnKey: true }), true,
-    'and stays shown once on, so it can be turned off again');
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'off' }), false, 'hidden with radar off');
-  ['dwd', 'metno', 'tomorrowio'].forEach((p) => {
-    assert.equal(showWhen.isVisible(item, { radarProvider: p, radarMode: 'graph', rainbowOwnKey: true }), false,
-      'hidden for ' + p);
-  });
+test('the radar picker reads ONE key table for its Edit button, badge, summary, note and Save dialog', () => {
+  const item = radarItem();
+  const args = item.editSheetFrom.args;
+  assert.equal(item.editSheetFrom.resolver, 'keySheet');
+  assert.equal(item.editBadgeFrom.resolver, 'keyBadge');
+  assert.equal(item.hintFrom.resolver, 'keySummaryHint');
+  assert.equal(item.attentionFrom.resolver, 'keyAttention');
+  [item.editBadgeFrom.args, item.attentionFrom.args].forEach((a) => assert.equal(a, args, 'the same args object'));
+  assert.equal(item.hintFrom.args.hints, item.hintByValue, 'the summary closes the same RADAR_WHY copy');
+  assert.equal(item.hintFrom.args.keyed, args.keyed);
+  assert.equal(args.picker, 'radarProvider');
+  assert.equal(args.outcome, 'the watch gets no rain radar');
+  assert.deepEqual(Object.keys(args.keyed), ['rainbowkey'], 'only the own key; radar-only Tomorrow.io keeps its rows');
+  assert.deepEqual(args.keyed.rainbowkey, { name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey',
+    test: true, usage: 'rainbow', evidence: 'radar' });
 
-  const section = radarPickerSection();
-  assert.ok(section, 'the radar picker section exists');
-  const picker = section.items.findIndex((i) => i.messageKey === 'radarProvider');
-  assert.equal(section.items.indexOf(item), picker + 1, 'directly under the picker');
-});
-
-test('Rainbow key field sits under "Use your own key", only while the switch is on', () => {
-  const keyItems = items.filter((i) => i.messageKey === 'rainbowApiKey');
-  assert.equal(keyItems.length, 1, 'one instance: the Radar tab only');
-  const item = keyItems[0];
-  assert.equal(item.type, 'text');
-  assert.equal(item.label, 'Rainbow API key');
-  assert.equal(item.defaultValue, '');
-  assert.equal(item.suffixAction, 'testRainbowKey', 'the inline Test button (rainbow-key-test.js)');
-  assert.equal(item.suffixLabel, 'Test');
-  assert.deepEqual(item.showWhen, RAINBOW_OWN_KEY_WHEN);
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: true }), true,
-    'visible while Rainbow runs on the user\'s key');
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: false }), false,
-    'hidden for the shared Rainbow radar (the proxy needs no key)');
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph' }), false,
-    'hidden with the switch never touched (its default is off)');
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'off', rainbowOwnKey: true }), false,
-    'hidden with radar off (no Rainbow call is made)');
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'dwd', radarMode: 'graph', rainbowOwnKey: true }), false,
-    'hidden for another radar source, whatever the switch says');
-
-  // Same section as the picker: picker, switch, key, Rainbow budget toggle — then the
-  // radar-only tomorrow.io pair, then the radar bar-scale note (the SCALE_NOTE staticText
-  // carrying the radar preview).
   const section = radarPickerSection();
   const at = section.items.indexOf(item);
-  assert.ok(at >= 0, 'the key field shares the radar picker\'s section');
-  assert.equal(section.items[at - 1].messageKey, 'rainbowOwnKey', 'right after the "Use your own key" switch');
-  assert.equal(section.items[at + 1].messageKey, 'rainbowFitBudget', 'then the Rainbow budget toggle');
+  const note = section.items[at + 1];
+  assert.equal(note.type, 'staticText', 'the missing-key note hugs the row');
+  assert.equal(note.style, 'info');
+  assert.equal(note.joinPrevious, true);
+  assert.deepEqual(note.textFrom, { resolver: 'keyMissingNote', args: args });
+  assert.deepEqual(note.showWhen, { key: 'radarMode', ne: 'off' }, 'the picker\'s own gate');
   assert.equal(section.items[at + 2].messageKey, 'tomorrowioApiKey', 'then the radar-only tomorrow.io key');
   assert.equal(section.items[at + 3].messageKey, 'tomorrowioFitBudget', 'and its budget toggle');
   const scaleNote = section.items[at + 4];
   assert.equal(scaleNote.type, 'staticText');
   assert.equal(scaleNote.blockBefore, 'radarPreview');
   assert.match(scaleNote.text, /don't scale linearly/, 'right before the SCALE_NOTE staticText');
+});
+
+test('rainbowOwnKey is no control any more: a hidden row, last in the radar section', () => {
+  const rows = items.filter((i) => i.messageKey === 'rainbowOwnKey');
+  assert.equal(rows.length, 1, 'one instance');
+  assert.equal(rows[0].type, 'hidden', 'hydrated and serialized, never drawn');
+  assert.equal(rows[0].defaultValue, false, 'the shared radar until the user picks the own key');
+  const section = radarPickerSection();
+  assert.equal(section.items[section.items.length - 1], rows[0], 'last, so no join passes through it');
+});
+
+test('"Rainbow (own key)"\'s key sheet: the key field and the budget guard, only while it drives a running radar', () => {
+  const radar = schema.tabs.find((t) => t.id === 'radar');
+  const sheet = radar.sections.find((s) => s.sheetId === 'radarKeyRainbow');
+  assert.ok(sheet, 'a sheet on the Radar tab');
+  assert.equal(sheet.sheetOnly, true, 'rendered only as a sheet');
+  assert.equal(sheet.title, 'Rainbow', 'titled with the source\'s name');
+  assert.deepEqual(sheet.showWhen, RAINBOW_OWN_KEY_WHEN);
+  assert.deepEqual(sheet.items.map((i) => i.messageKey), ['rainbowApiKey', 'rainbowFitBudget']);
+  sheet.items.forEach((i) => assert.deepEqual(i.showWhen, RAINBOW_OWN_KEY_WHEN, i.messageKey + ' shares the gate'));
+  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey', radarMode: 'graph' }), true);
+  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey', radarMode: 'countdown' }), true);
+  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbowkey', radarMode: 'off' }), false,
+    'radar off: no Rainbow call is made');
+  ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((p) => {
+    assert.equal(showWhen.isVisible(sheet, { radarProvider: p, radarMode: 'graph' }), false, 'closed for ' + p);
+  });
+  // A stored blob never holds 'rainbowkey' (onbuild.js folds rainbow + rainbowOwnKey into it
+  // only while the page is open), so the stored pair alone opens nothing.
+  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: true }), false);
+});
+
+test('Rainbow key field: the sheet\'s first row, with its Test button and the how-to hint', () => {
+  const keyItems = items.filter((i) => i.messageKey === 'rainbowApiKey');
+  assert.equal(keyItems.length, 1, 'one instance: the key sheet');
+  const item = keyItems[0];
+  assert.equal(item.type, 'text');
+  assert.equal(item.label, 'API key', 'the sheet title names the provider');
+  assert.equal(item.defaultValue, '');
+  assert.equal(item.joinPrevious, undefined, 'the sheet\'s first row joins nothing');
+  assert.equal(item.suffixAction, 'testRainbowKey', 'the inline Test button (rainbow-key-test.js)');
+  assert.equal(item.suffixLabel, 'Test');
 
   assert.ok(item.hint.indexOf('https://developer.rainbow.ai/signup/') >= 0, 'the hint links the signup page');
   assert.ok(item.hint.indexOf('https://developer.rainbow.ai/profile') >= 0, 'the hint links the profile page');
@@ -1652,19 +1658,16 @@ test('Rainbow key field sits under "Use your own key", only while the switch is 
 
 test('Rainbow budget toggle follows the key field and carries the monthly read-out', () => {
   const toggles = items.filter((i) => i.messageKey === 'rainbowFitBudget');
-  assert.equal(toggles.length, 1, 'one instance: the Radar tab only');
+  assert.equal(toggles.length, 1, 'one instance: the key sheet');
   const item = toggles[0];
   assert.equal(item.type, 'toggle');
   assert.equal(item.defaultValue, true);
   assert.equal(item.label, 'Fit update interval to rate limit');
+  assert.equal(item.joinPrevious, 'loose');
   // blockBefore: the usage read-out sits between the key field and the toggle.
   assert.equal(item.blockBefore, 'rainbowBudget');
   assert.equal(item.block, undefined);
   assert.deepEqual(item.showWhen, byKey('rainbowApiKey').showWhen, 'the same RAINBOW_OWN_KEY_WHEN as the key');
-  assert.deepEqual(item.showWhen, RAINBOW_OWN_KEY_WHEN);
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'status', rainbowOwnKey: true }), true);
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'off', rainbowOwnKey: true }), false);
-  assert.equal(showWhen.isVisible(item, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: false }), false);
 
   const section = schema.tabs.reduce((found, t) => found
     || t.sections.find((sec) => sec.items.indexOf(item) !== -1), null);
@@ -1767,24 +1770,32 @@ test('each weather + radar provider has a per-value "why" hint on its picker', (
   ['dwd', 'metno', 'openmeteo', 'openweathermap', 'tomorrowio', 'wunderground', 'yandex'].forEach((v) => {
     assert.ok(typeof whyNote('provider', v) === 'string' && whyNote('provider', v).length > 0, v + ' weather why note');
   });
-  ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((v) => {
+  ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'].forEach((v) => {
     assert.ok(typeof whyNote('radarProvider', v) === 'string' && whyNote('radarProvider', v).length > 0, v + ' radar why note');
   });
   // Content spot-checks: the note carries the real "why".
   assert.match(whyNote('provider', 'wunderground'), /crowd-sourced|250,000/i);
   assert.match(whyNote('provider', 'dwd'), /Germany/);
   assert.match(whyNote('radarProvider', 'tomorrowio'), /budget/i, 'radar Tomorrow.io keeps the key/budget caveat');
-  // Rainbow's note, verbatim: why the shared radar is limited, and the switch that lifts it.
+  // "Rainbow (limited)"'s note, verbatim: why the shared radar is limited, and the option
+  // that lifts it.
   assert.equal(whyNote('radarProvider', 'rainbow'),
     'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a '
     + 'growing number of users I can only provide a limited number of them, so the shared radar refreshes at most '
-    + 'every 30 minutes. Turn on “Use your own key” for a refresh at every update — a key is free. Powered by '
+    + 'every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by '
     + '<a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.');
   assert.match(whyNote('radarProvider', 'rainbow'), /growing number of users/, 'names why the calls are limited');
-  assert.ok(whyNote('radarProvider', 'rainbow').indexOf('“' + byKey('rainbowOwnKey').label + '”') !== -1,
-    'points at the switch by its label');
-  // Rainbow's terms ask for a "Powered by Rainbow.ai" link.
-  assert.match(whyNote('radarProvider', 'rainbow'), /Powered by <a target='_blank' href='https:\/\/rainbow\.ai'>Rainbow\.ai<\/a>\.$/);
+  const ownKeyLabel = byKey('radarProvider').options.find((o) => o[1] === 'rainbowkey')[0];
+  assert.ok(whyNote('radarProvider', 'rainbow').indexOf('“' + ownKeyLabel + '”') !== -1,
+    'points at the own-key option by its label');
+  // "Rainbow (own key)"'s note, verbatim: what the own key gets, and what it costs.
+  assert.equal(whyNote('radarProvider', 'rainbowkey'),
+    'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. '
+    + 'A key is free: Rainbow\'s free plan covers 5,000 calls a month. Powered by '
+    + '<a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.');
+  // Rainbow's terms ask for a "Powered by Rainbow.ai" link, under both Rainbow options.
+  ['rainbow', 'rainbowkey'].forEach((v) => assert.match(whyNote('radarProvider', v),
+    /Powered by <a target='_blank' href='https:\/\/rainbow\.ai'>Rainbow\.ai<\/a>\.$/, v));
   // The old showWhen-gated staticText notes are gone — the hint is the only copy.
   assert.ok(!items.some((i) => i.type === 'staticText' && i.showWhen
     && (i.showWhen.key === 'provider' || i.showWhen.key === 'radarProvider')),
@@ -1792,17 +1803,16 @@ test('each weather + radar provider has a per-value "why" hint on its picker', (
 });
 
 test('every radar provider carries a "best at" dropdown description', () => {
-  [{}, { rainbowOwnKey: true, rainbowApiKey: 'KEY' }].forEach((S) => {
-    const options = radarPickerOptions(S);
-    const desc = (v) => { const o = options.find((x) => x[1] === v); return o[2] && o[2].desc; };
-    ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((v) => {
-      assert.ok(typeof desc(v) === 'string' && desc(v).length > 0, v + ' radar option should carry a meta.desc');
-    });
-    assert.match(desc('dwd'), /Germany/);
-    assert.match(desc('metno'), /Nordics/);
-    assert.match(desc('tomorrowio'), /precise/i, 'Tomorrow.io radar reads as precise');
-    assert.equal(desc('rainbow'), 'Worldwide satellite + radar nowcast', 'the same desc in both label states');
+  const options = byKey('radarProvider').options;
+  const desc = (v) => { const o = options.find((x) => x[1] === v); return o[2] && o[2].desc; };
+  ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'].forEach((v) => {
+    assert.ok(typeof desc(v) === 'string' && desc(v).length > 0, v + ' radar option should carry a meta.desc');
   });
+  assert.match(desc('dwd'), /Germany/);
+  assert.match(desc('metno'), /Nordics/);
+  assert.match(desc('tomorrowio'), /precise/i, 'Tomorrow.io radar reads as precise');
+  assert.equal(desc('rainbow'), 'Worldwide satellite + radar nowcast · no key, every 30 min');
+  assert.equal(desc('rainbowkey'), 'Worldwide satellite + radar nowcast · needs a free key');
 });
 
 test('provider/radar/health controls register their status cleanup handlers', () => {

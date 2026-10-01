@@ -24,7 +24,7 @@ FORECAST
 RAIN RADAR
 - 2-hour precipitation nowcast from regional and worldwide providers
 - Worldwide Rainbow.ai radar: "Rainbow (limited)" is shared by every user, so it refreshes every
-  30 minutes; turn on "Use your own key" and enter your own Rainbow API key to refresh it at your
+  30 minutes; pick "Rainbow (own key)" and add your own Rainbow API key to refresh it at your
   own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 - "Radar limit reached" on the radar when a radar source refuses requests over its limit
 - Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on

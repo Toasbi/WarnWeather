@@ -193,12 +193,12 @@ test('page: the key hint\'s copy button works inside the sheet', () => {
   assert.ok(page.modal.innerHTML.length > 0, 'the tap does not close the sheet');
 });
 
-test('page: a copy button on a tab still copies (the Radar tab\'s Rainbow key hint)', () => {
-  const page = bootGeneratedPage({ provider: 'dwd', radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: true });
+test('page: a copy button on a tab still copies (the Radar tab\'s radar-only tomorrow.io key hint)', () => {
+  const page = bootGeneratedPage({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' });
   const copied = [];
   page.window.navigator.clipboard = { writeText: (text) => { copied.push(text); return { then() {} }; } };
   page.clickTab('radar');
-  const url = 'https://developer.rainbow.ai/profile';
+  const url = 'https://app.tomorrow.io/development/keys';
   assert.ok(page.scroll.innerHTML.indexOf('data-copy="' + url + '"') !== -1);
   const t = {
     getAttribute: (n) => (n === 'data-copy' ? url : null),

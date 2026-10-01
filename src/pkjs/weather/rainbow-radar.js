@@ -5,6 +5,9 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
 var radarWire = require('./radar-wire.js');
 var radarFetch = require('./radar-fetch.js');
 var coords = require('./coords.js');
+var radarSourceId = require('./radar-source-id.js');
+// The keyed path's verdicts on the user's key, for the settings page's key status.
+var radarKeyResult = require('./radar-key-result.js');
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
@@ -337,6 +340,10 @@ function fetchRadarTuplesWithKey(apiKey, lat, lon, slotZeroEpoch, callback) {
      * @returns {?Object} Radar tuples, or null when the echo is missing or far.
      */
     function interpret(body) {
+        // Rainbow served this key (2xx with a JSON body), whatever the body holds.
+        if (body && typeof body === 'object') {
+            radarKeyResult.record(radarSourceId.OWN_KEY_RADAR_ID, apiKey, 200);
+        }
         if (!isEchoNear(body, point.lat, point.lon)) {
             console.log('[!] Rainbow (own key) radar: echoed location missing or far from the request');
             return null;
@@ -357,6 +364,9 @@ function fetchRadarTuplesWithKey(apiKey, lat, lon, slotZeroEpoch, callback) {
             label: 'Rainbow (own key)',
             headers: { 'Ocp-Apim-Subscription-Key': apiKey },
             onTransportError: function (error, cb) {
+                // A 401/403 (refused) or 429 (known, over its allowance) is the key's
+                // verdict; record() leaves any other status alone.
+                radarKeyResult.record(radarSourceId.OWN_KEY_RADAR_ID, apiKey, radarKeyResult.statusOfError(error));
                 if (error && error.code === 'status_404') {
                     // Out of coverage: flat zeros, NOT a clear (radar-wire.js).
                     cb(radarWire.flatRadarTuples(slotZeroEpoch));

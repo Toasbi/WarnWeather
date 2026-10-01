@@ -1583,8 +1583,8 @@ if (typeof require !== 'undefined') {
     if (keyStatus) { keyStatus.registerUsage('tomorrowio', tomorrowioUsageLine); }
 
     /**
-     * Monthly-usage info block under the Rainbow API key field (Rainbow with "Use your
-     * own key" on): the free plan's monthly ceiling, the user's projected month at the
+     * Monthly-usage info block under the Rainbow API key field ("Rainbow (own key)"'s key
+     * sheet): the free plan's monthly ceiling, the user's projected month at the
      * current settings, a ✓/✗ verdict and the derived sleep->cadence unlock rule. Unlike tomorrow.io's block
      * there is no "with radar" qualifier (every Rainbow call is a radar call) and no
      * hourly heads-up (Rainbow documents no hourly limit). Recomputes on every render.
@@ -1612,6 +1612,22 @@ if (typeof require !== 'undefined') {
     }
     PConf.blocks.register('rainbowBudget', rainbowBudgetBlock);
 
+    /**
+     * Rainbow's usage on the key status line under the Radar provider row (key-status.js,
+     * the "Rainbow (own key)" source's `usage`): the calls a month the current settings
+     * come to, the read-out's own figure, against the free plan's monthly limit — "~2,976
+     * of 5,000 calls a month". A projection: the phone does not count the calls it makes.
+     * @param {Object} state Settings state.
+     * @returns {?string} The line, or null when no call is billed to the user's key.
+     */
+    function rainbowUsageLine(state) {
+        var B = rainbowBudget;
+        if (B.callsPerCycle(state) === 0) { return null; }
+        return '~' + withThousands(Math.round(B.monthlyCalls(state, readoutInterval(state))))
+            + ' of ' + withThousands(B.LIMIT_MONTH) + ' calls a month';
+    }
+    if (keyStatus) { keyStatus.registerUsage('rainbow', rainbowUsageLine); }
+
     // Update-interval ladder for fetchIntervalMin: the entries that fit every active
     // budget guard (tomorrow.io, Rainbow own key) — the intersection. A guard is active
     // while its "Fit update interval" toggle is on and its provider makes calls; with
@@ -1628,6 +1644,7 @@ if (typeof require !== 'undefined') {
     // "(Recommended)" markers on the weather + radar provider dropdowns: the option matching the
     // country-derived best pick (holidayCountry, the wizard's own source) is flagged. Same mapping
     // the wizard applies on a fresh install, so the dropdown hint and the wizard can't disagree.
+    // A country's Rainbow pick is 'rainbow', "Rainbow (limited)": the radar that needs no key.
     PConf.recommendResolvers.register('recommendedWeatherProvider', function (S) {
         return CD.mapCountry(S && S.holidayCountry).provider;
     });
@@ -1635,40 +1652,12 @@ if (typeof require !== 'undefined') {
         return CD.mapCountry(S && S.holidayCountry).radarProvider;
     });
 
-    /**
-     * Whether the Rainbow radar runs on the user's own key: "Use your own key" on AND a key
-     * that isn't blank once trimmed (onbuild.js trims it on Save). The switch on with the
-     * field still empty is not "in use" yet, so the option stays the limited one until a
-     * key is there.
-     *
-     * @param {Object} S Settings state (rainbowOwnKey, rainbowApiKey); may be null.
-     * @returns {boolean} True when the own key is in use.
-     */
-    function rainbowOwnKeyInUse(S) {
-        return Boolean(S) && S.rainbowOwnKey === true
-            && typeof S.rainbowApiKey === 'string' && S.rainbowApiKey.trim() !== '';
-    }
-
-    // The radar picker's options (schema.js RADAR_PROVIDER_OPTIONS, handed over as
-    // args.options) with the Rainbow entry named for the key it runs on: its schema label
-    // ("Rainbow") once the user's own key is in use, "Rainbow (limited)" on the shared key
-    // every user splits — switch off, or on with no key yet. Value, desc and order stay
-    // as they are, so hintByValue, the showWhen gates and the "(Recommended)" marker key
-    // off the same 'rainbow' value in both states (for the bracketed name the marker
-    // leads the desc line instead — engine.js renderSelectOptions).
-    PConf.optionsResolvers.register('radarProviderOptions', function (S, env, args) {
-        var options = (args && args.options) || [];
-        if (rainbowOwnKeyInUse(S)) { return options.slice(); }
-        return options.map(function (o) {
-            return o[1] === 'rainbow' ? [o[0] + ' (limited)'].concat(o.slice(1)) : o;
-        });
-    });
-
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
             tomorrowioUsageLine: tomorrowioUsageLine,
             rainbowBudgetBlock: rainbowBudgetBlock,
+            rainbowUsageLine: rainbowUsageLine,
             thresholdRangeCfg: thresholdRangeCfg,
             forecastMetricHint: forecastMetricHint,
             lineStyleHint: lineStyleHint,

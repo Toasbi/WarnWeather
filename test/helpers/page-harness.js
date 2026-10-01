@@ -9,11 +9,13 @@
 // scale-max editor) and test/config-night-color-sheet.test.js (the dim-backlight colour
 // sheet) — the two places where a control has to be exercised INSIDE the edit-sheet
 // dialog, which renders outside #scroll and wires its own handlers — and by
-// test/config-rainbow-radar-label.test.js (a text commit relabelling a select trigger)
-// and test/config-provider-key-sheets.test.js (a weather provider's key sheet: a text
-// field, its Test button and a hint's copy button inside the dialog), and by
-// test/config-key-status.test.js (the key's status: the tab bar's dot and the Save
-// button's confirm dialog, which needs `dialog` below).
+// test/config-provider-key-sheets.test.js (a weather provider's key sheet: a text
+// field, its Test button and a hint's copy button inside the dialog), by
+// test/config-key-status.test.js and test/config-radar-key-status.test.js (the key's
+// status: the tab bar's dot and the Save button's confirm dialog, which needs `dialog`
+// below), and by test/config-radar-rainbow-options.test.js (the Radar tab's two Rainbow
+// options, folded into the picker on open and written back on Save). The trigger stubs
+// below also report the engine's in-place relabel after a text commit (`relabels`).
 'use strict';
 const assert = require('node:assert/strict');
 const vm = require('vm');

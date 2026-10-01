@@ -5,7 +5,8 @@
 // them only as userData.authBackoff / userData.lastFetchSuccess, which index.js's
 // showConfiguration injects; a dropped line would leave every key "not tested yet" on a
 // real phone while every settings-page test (which sets userData itself) stayed green.
-// Boots the REAL index.js (as index-rainbow-endpoint.test.js does), opens settings and
+// Likewise userData.radarKeyResult, the last radar update's verdict on "Rainbow (own
+// key)"'s key (radar-key-result.js). Boots the REAL index.js (as index-rainbow-endpoint.test.js does), opens settings and
 // decodes the userData the page receives.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -82,4 +83,11 @@ test('settings open hands the page the auth backoff record and the last success 
   store[KEYS.AUTH_BACKOFF_KEY] = refused;
   listeners.showConfiguration({});
   assert.equal(userDataOf(opened[1]).authBackoff, refused, 'the record exactly as stored');
+
+  // The radar's own record ("Rainbow (own key)"'s key status, radar-key-result.js).
+  assert.equal(userDataOf(opened[1]).radarKeyResult, null, 'no radar verdict yet: null');
+  const radarVerdict = JSON.stringify({ id: 'rainbowkey', keyHash: '5e6f7a8b', status: 401 });
+  store[KEYS.RADAR_KEY_RESULT_KEY] = radarVerdict;
+  listeners.showConfiguration({});
+  assert.equal(userDataOf(opened[2]).radarKeyResult, radarVerdict, 'the radar verdict exactly as stored');
 });

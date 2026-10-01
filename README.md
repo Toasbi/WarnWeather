@@ -33,7 +33,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 
 **Rain radar**
 * 2-hour precipitation nowcast from regional and worldwide providers
-* Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; turn on *Use your own key* and enter your own Rainbow API key to run it as plain *Rainbow*, refreshed at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
+* Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; pick *Rainbow (own key)* and add your own Rainbow API key to refresh it at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 * The radar says *Radar limit reached* when a radar source refuses requests over its limit, instead of claiming no rain
 * Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on its way (one of the Alerts, see Status lines)
 * Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph — in the Radar tab
@@ -120,9 +120,8 @@ Two things that both involve rain over time, but answer different questions:
   amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
   them is the strongest rain within 2 km. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
   (worldwide, exact location only; *Rainbow (limited)* on the shared key refreshes every 30
-  minutes, and with *Use your own key* on your own Rainbow API key it is plain *Rainbow* and
-  refreshes at your update interval — free for 5,000 calls a month, Rainbow asks for a credit
-  card) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
+  minutes, *Rainbow (own key)* on your own Rainbow API key refreshes at your update interval —
+  free for 5,000 calls a month, Rainbow asks for a credit card) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*
   With *Clouds, sun & lightning* (Radar tab, on by default), two thin stripes appear under the
   graph's time axis: cloud cover (thin high cloud counts half) and sun strength (full when the
   sun is as strong as under a clear sky) for each quarter hour, drawn like the forecast's

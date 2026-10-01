@@ -1,6 +1,6 @@
 // src/pkjs/settings/rainbow-key-test.js — config UI (phone webview) + Node-testable.
 //
-// The "Test" button under the Rainbow API-key field (Rainbow radar, "Use your own key"). The webview can
+// The "Test" button beside the Rainbow API-key field ("Rainbow (own key)"'s key sheet). The webview can
 // never call api.rainbow.ai itself (it answers any request carrying an Origin
 // header with an empty 200), so the test goes through the rainbow-nowcast
 // proxy's key check (POST to <endpoint>/key-check; the endpoint's root is the

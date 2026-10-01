@@ -22,8 +22,9 @@ var APP_FILES = [
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/on-demand.js'),
   path.join(ROOT, 'src/pkjs/settings/tomorrowio-budget.js'),
-  // The runtime's radar-source resolver (Rainbow + "Use your own key" -> 'rainbowkey'),
-  // which rainbow-budget.js reads as PConf.radarSourceId at load.
+  // The runtime's radar-source resolver (Rainbow + rainbowOwnKey -> 'rainbowkey'), which
+  // rainbow-budget.js reads as PConf.radarSourceId at load and onbuild.js at its hooks
+  // (the Radar tab's "Rainbow (own key)" fold).
   path.join(ROOT, 'src/pkjs/weather/radar-source-id.js'),
   // rainbow-budget.js reads PConf.tomorrowioBudget (ladder + night-pause rule) at load, and
   // interval-budget.js reads both; blocks.js reads all three at load — keep this order.

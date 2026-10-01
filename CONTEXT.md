@@ -121,19 +121,21 @@ Germany, exact spot + nearby area), Met.no (best radar in the Nordics, exact
 spot), Rainbow (global satellite + radar nowcast, exact spot, worldwide), or
 Tomorrow.io (ML nowcast on the user's own key, exact spot, worldwide) — chosen
 independently of the weather provider. Every source answers the same interface;
-"off" is itself a source whose tuples clear the radar. Rainbow is one option in
-the settings with a "Use your own key" switch (`rainbowOwnKey`) that picks one
-of two sources: shared Rainbow (id `rainbow`) goes through the project's proxy
+"off" is itself a source whose tuples clear the radar. Rainbow is two sources,
+and the Radar tab's picker offers both: "Rainbow (limited)", shared Rainbow
+(id `rainbow`), goes through the project's proxy
 on the project's key and its monthly allowance, so it refreshes at most every
 30 minutes (one request per UTC-aligned half-hour slot, wherever the watch is:
-a move within the slot keeps the slot's answer until the next slot); own-key
-Rainbow (id `rainbowkey`, never a stored `radarProvider` — resolved in
-`radar-source-id.js`) fetches the same nowcast directly on the user's own key
-at every update, on a key whose first 5,000 calls a month are free (Rainbow
-asks for a credit card and bills calls past that). The settings name the
-option for the key it runs on: "Rainbow (limited)" until the own key is in use
-(the switch on AND a key entered), plain "Rainbow" after — one stored value,
-`rainbow`, either way. Wherever the own key can't be set, it is the limited one.
+a move within the slot keeps the slot's answer until the next slot); "Rainbow
+(own key)" (id `rainbowkey`) fetches the same nowcast directly on the user's
+own key at every update, on a key whose first 5,000 calls a month are free
+(Rainbow asks for a credit card and bills calls past that). `rainbowkey` is
+never a stored `radarProvider`: the settings store the own key as `rainbow`
+plus `rainbowOwnKey` true (as since 1.23.1, when it was a switch), the page
+folds that pair into the picker while it is open and writes it back on Save,
+and `radar-source-id.js` resolves it everywhere else. Picked without a key, the
+own-key source clears the radar. Wherever the own key can't be set, it is the
+limited one.
 _Avoid_: radar provider in prose (the wire key `radarProvider` keeps its name).
 
 **Radar tuples**:

@@ -1,13 +1,14 @@
 // src/pkjs/settings/key-status.js — ES5, WebView + Node. The key status of a picker
 // whose options include sources that need the user's own API key (the Weather provider
-// row today; the radar picker can reuse it): which state that key is in, and the
-// resolvers that show it.
+// row, and the Radar provider row's "Rainbow (own key)"): which state that key is in,
+// and the resolvers that show it.
 //
 // A picker row describes its keyed sources in ONE table, handed to every resolver below
 // as args.keyed — by the picker's value: {name, sheetId, keyField, test, reasons?,
-// usage?, updateId?} (schema.js PROVIDER_KEYS). The row's other args: `picker`, the
-// picker's messageKey (row resolvers get it as their own messageKey too), and
-// `outcome`, what goes missing without a working key ("the watch gets no forecast").
+// usage?, updateId?, evidence?} (schema.js PROVIDER_KEYS, RADAR_KEYS). The row's other
+// args: `picker`, the picker's messageKey (row resolvers get it as their own messageKey
+// too), and `outcome`, what goes missing without a working key ("the watch gets no
+// forecast").
 //
 // The states of the picked source's key:
 //   missing   — the key field is blank (once trimmed, as onbuild.js stores it);
@@ -21,6 +22,11 @@
 // fingerprint of the key it sent on the last success (userData.lastFetchSuccess) and on
 // the auth backoff (userData.authBackoff). A key edited since — even one character —
 // matches none of them and reads as untested until it is tested or used.
+// A radar source's key (`evidence: 'radar'`) is never sent with a weather update, so the
+// update records above say nothing about it: its evidence is the last radar update's
+// verdict instead (userData.radarKeyResult, weather/radar-key-result.js — the source id,
+// the key's fingerprint and the HTTP status that answered it, ok or rejected by
+// classify below).
 //
 // What the page shows from it:
 //   keySheet         (sheetResolvers)     the Edit button: the picked source's key sheet;
@@ -156,7 +162,7 @@
 
     /**
      * The status of a source's key in the live settings.
-     * @param {Object} source The source ({keyField, updateId?}).
+     * @param {Object} source The source ({keyField, updateId?, evidence?}).
      * @param {string} id The picker value that picks it (the phone's provider id, unless
      *   the source names another as updateId).
      * @param {Object} S Live settings state.
@@ -174,6 +180,17 @@
         if (t && t.hash === hash) { return { state: t.state, tail: tail, status: t.status }; }
         var ud = userData();
         var updateId = source.updateId || id;
+        if (source.evidence === 'radar') {
+            // The last radar update's verdict on this key (one record, the newest).
+            var radar = parseRecord(ud.radarKeyResult);
+            var verdict = (radar && radar.id === updateId && radar.keyHash === hash)
+                ? classify(radar.status) : null;
+            if (verdict) {
+                return verdict === 'rejected' ? { state: verdict, tail: tail, status: radar.status }
+                    : { state: verdict, tail: tail };
+            }
+            return { state: 'untested', tail: tail };
+        }
         // A success clears the backoff (fetch-cycle.js), so a backoff on record is the
         // newer of the two.
         var refused = parseRecord(ud.authBackoff);

@@ -5,7 +5,7 @@ var configUi = require('./config-ui');          // intToHex
 // of a second opinion about it.
 var lineStyle = require('./line-style.js');
 var viewCycle = require('./view-cycle.js');
-// The radar source in effect ('rainbowkey' for Rainbow with "Use your own key" on).
+// The radar source in effect ('rainbowkey' for "Rainbow (own key)").
 var radarSourceId = require('./weather/radar-source-id.js');
 // enabledAlerts, rainAlert and warnLookFor — the bake's and the packer's own reading
 // of the weather alerts and the warn looks, so the report and the watch cannot
@@ -316,9 +316,10 @@ function buildSettingsSnapshot(settings, watchInfo) {
         fifthLineStyle: lineStyle.lineStyleValue(safe, 'fifthLineStyle'),
         barSource: safe.barSource,
         rainBarColor: safe.rainBarColor,
-        // The source the radar RUNS, not the stored picker value: Rainbow with "Use your
-        // own key" on reports 'rainbowkey', so the own-key share stays countable without a
-        // new field (rainbowOwnKey itself is not reported; the Deno schema takes any string).
+        // The source the radar RUNS, not the stored radarProvider: "Rainbow (own key)"
+        // (stored as 'rainbow' + rainbowOwnKey) reports 'rainbowkey', so the own-key share
+        // stays countable without a new field (rainbowOwnKey itself is not reported; the
+        // Deno schema takes any string).
         radarProvider: radarSourceId.effectiveRadarId(safe),
         radarMode: safe.radarMode || 'graph',
         radarColor: safe.radarColor,

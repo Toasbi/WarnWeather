@@ -1,6 +1,6 @@
 // src/pkjs/settings/rainbow-budget.js — config UI (phone webview) + Node-testable.
 //
-// Pure budget math for the Rainbow radar on the user's own key ("Use your own key") on
+// Pure budget math for the Rainbow radar on the user's own key ("Rainbow (own key)") on
 // Rainbow's free Nowcast tier: 5,000 requests per calendar month (developer.rainbow.ai,
 // checked 2026-09-25: "Free tier 5,000 req / mo ... resets every calendar month"). Consumed by the config-UI
 // rainbowBudget info block in blocks.js, by interval-budget.js (the update-interval
@@ -17,8 +17,8 @@
     // against sleep-window.js) — reused, not copied a third time. build-config-page.js
     // concatenates tomorrowio-budget.js ahead of this file.
     var tio = (typeof require !== 'undefined') ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
-    // Which radar source the settings run (the Rainbow option + its "Use your own key"
-    // switch -> 'rainbowkey'): the runtime's own resolver, so the budget bills exactly
+    // Which radar source the settings run ('rainbowkey' for "Rainbow (own key)", stored
+    // or folded into the page's picker): the runtime's own resolver, so the budget bills exactly
     // what fetch-cycle.js fetches. build-config-page.js concatenates it ahead of this file.
     var radarSourceId = (typeof require !== 'undefined') ? require('../weather/radar-source-id.js') : PConf.radarSourceId;
 
@@ -29,7 +29,7 @@
     // The tier resets per CALENDAR month, so budget for the longest one.
     var DAYS_PER_MONTH = 31;
     // One precip-global request per fetch cycle whenever the radar runs on the user's own key
-    // (radar-source-id.js: Rainbow with "Use your own key" on) and radar is on (fetch-cycle.js
+    // (radar-source-id.js: "Rainbow (own key)") and radar is on (fetch-cycle.js
     // withRainRadarTuplesAt); radar-dedupe.js only skips the SEND, never the request.
     var RADAR_CALLS_PER_CYCLE = 1;
     // Same labels/values as the config UI's update-interval ladder — the very same array.
@@ -40,7 +40,7 @@
     /**
      * Rainbow calls per fetch cycle billed to the user's own key. Shared Rainbow runs on
      * the project's proxy and costs the user nothing, so only the own-key source counts
-     * (radar-source-id.js effectiveRadarId: Rainbow with "Use your own key" on); any
+     * (radar-source-id.js effectiveRadarId: "Rainbow (own key)"); any
      * non-off radar mode (countdown/status/graph all need the trend) makes the call.
      *
      * @param {Object} S Settings state (radarProvider/rainbowOwnKey/radarMode).

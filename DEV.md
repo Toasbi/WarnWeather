@@ -458,7 +458,7 @@ mise prepare-package release
 | `PEBBLE_EMULATOR` | Default emulator platform (e.g. `basalt`) |
 | `TELEMETRY_ENDPOINT` | Telemetry function URL (set for release/CI builds) |
 | `TELEMETRY_HASH_SECRET` | Secret for server-side HMAC hashing of IDs |
-| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — Rainbow is the default radar provider, and an empty endpoint doesn't hide the option, it makes every Rainbow radar fetch fail soft with no radar reaching the watch; dev/fork builds may leave it empty on purpose); also reaches the settings page (userData `rainbowEndpoint`) for the Rainbow API key's Test button (Radar tab, *Use your own key*) — empty = the button says the test isn't available |
+| `RAINBOW_PROXY_ENDPOINT` | Rainbow nowcast proxy URL baked into the bundle (set for release/CI builds via the `RAINBOW_PROXY_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — Rainbow is the default radar provider, and an empty endpoint doesn't hide the option, it makes every Rainbow radar fetch fail soft with no radar reaching the watch; dev/fork builds may leave it empty on purpose); also reaches the settings page (userData `rainbowEndpoint`) for the Rainbow API key's Test button (Radar tab, *Rainbow (own key)*'s key sheet) — empty = the button says the test isn't available |
 | `NEWS_ENDPOINT` | News edge-function URL baked into the bundle (set for release/CI builds via the `NEWS_ENDPOINT_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — the config-page news pill would otherwise be silently disabled for every user) |
 | `AQICN_TOKEN` | Shared WAQI (aqicn.org) token baked into the bundle (set for release/CI builds via the `AQICN_TOKEN_RELEASE`/`_PREVIEW` repo secrets; a release build hard-fails if this is empty — WAQI is the default AQI source, so every device would otherwise silently fall back to Open-Meteo) |
 
@@ -614,8 +614,8 @@ Deploy the rainbow-nowcast edge function:
 supabase functions deploy rainbow-nowcast
 ```
 
-Key-check mode (the settings page's *Test* button beside the Rainbow API key, shown with the
-Rainbow radar's *Use your own key* on; on the endpoint's `/key-check` path): a POST of `{"key":"..."}` as `text/plain` makes one Rainbow call with that key at a fixed,
+Key-check mode (the settings page's *Test* button beside the Rainbow API key, in the key
+sheet of the Radar tab's *Rainbow (own key)*; on the endpoint's `/key-check` path): a POST of `{"key":"..."}` as `text/plain` makes one Rainbow call with that key at a fixed,
 always-covered point (Berlin) and answers HTTP 200 `{"status": <Rainbow status>}`. Any other
 HTTP status is the proxy's own error, never a key verdict: 400 (missing key, or not shaped like
 a Rainbow key), 413 (body over 1 KB), 429 (more than 5 checks per IP per minute) and 504

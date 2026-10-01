@@ -25,9 +25,10 @@
 //
 // Source ids are the Clay radarProvider values plus two internal ones that are
 // never stored: 'disabled' (radar off, and the fallback) and 'rainbowkey'
-// (Rainbow on the user's own key). The settings offer ONE Rainbow option with a
-// "Use your own key" switch; radar-source-id.js effectiveRadarId resolves that
-// pair to 'rainbow' or 'rainbowkey', and callers pass its answer here.
+// (Rainbow on the user's own key). The settings offer them as "Rainbow (limited)"
+// and "Rainbow (own key)" but store both as radarProvider 'rainbow' plus
+// rainbowOwnKey; radar-source-id.js effectiveRadarId resolves that pair to
+// 'rainbow' or 'rainbowkey', and callers pass its answer here.
 
 var radar = require('./dwd-radar.js');
 var metnoRadar = require('./metno-radar.js');

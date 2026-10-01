@@ -1,12 +1,14 @@
 // test/radar-source-id.test.js — the one resolver from settings to the radar source that
-// runs: the Radar tab's single Rainbow option plus its "Use your own key" switch map onto
-// the runtime's two Rainbow sources ('rainbow' shared, 'rainbowkey' own key).
+// runs: the stored Rainbow pair (radarProvider 'rainbow' + rainbowOwnKey) maps onto the
+// runtime's two Rainbow sources ('rainbow' shared, 'rainbowkey' own key), and back: the
+// Radar tab's picker offers the two sources ("Rainbow (limited)", "Rainbow (own key)") and
+// Save stores the pair (storedPair).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const radarSourceId = require('../src/pkjs/weather/radar-source-id.js');
 const radarFactory = require('../src/pkjs/weather/radar-factory.js');
 
-const { effectiveRadarId, OWN_KEY_RADAR_ID } = radarSourceId;
+const { effectiveRadarId, storedPair, OWN_KEY_RADAR_ID } = radarSourceId;
 
 test('the own-key source id is the factory\'s registered \'rainbowkey\'', () => {
   assert.equal(OWN_KEY_RADAR_ID, 'rainbowkey');
@@ -59,4 +61,26 @@ test('unset radarProvider and missing settings stay unset (the factory then clea
 test('radarMode is not the resolver\'s business', () => {
   // fetch-cycle.js maps radar off to 'disabled' itself; the budget math checks the mode.
   assert.equal(effectiveRadarId({ radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'off' }), 'rainbowkey');
+});
+
+test('storedPair: "Rainbow (own key)" stores as Rainbow + rainbowOwnKey, every other source as itself', () => {
+  assert.deepEqual(storedPair('rainbowkey'), { radarProvider: 'rainbow', rainbowOwnKey: true });
+  assert.deepEqual(storedPair('rainbow'), { radarProvider: 'rainbow', rainbowOwnKey: false });
+  ['dwd', 'metno', 'tomorrowio', 'disabled', 'bogus', undefined].forEach((p) => {
+    assert.deepEqual(storedPair(p), { radarProvider: p, rainbowOwnKey: false }, String(p));
+  });
+});
+
+test('the page\'s folded picker value resolves to the source it names, and round-trips', () => {
+  // While the settings page is open radarProvider holds the source, rainbowOwnKey false
+  // (onbuild.js foldRadarSource): effectiveRadarId answers that shape the same.
+  assert.equal(effectiveRadarId({ radarProvider: 'rainbowkey', rainbowOwnKey: false }), 'rainbowkey');
+  assert.equal(effectiveRadarId({ radarProvider: 'rainbowkey' }), 'rainbowkey');
+  // Every stored pair survives fold -> unfold with the source it runs.
+  [['rainbow', true], ['rainbow', false], ['rainbow', undefined], ['dwd', true], ['dwd', false],
+    ['metno', false], ['tomorrowio', true]].forEach(([radarProvider, rainbowOwnKey]) => {
+    const stored = { radarProvider: radarProvider, rainbowOwnKey: rainbowOwnKey };
+    const source = effectiveRadarId(stored);
+    assert.equal(effectiveRadarId(storedPair(source)), source, JSON.stringify(stored));
+  });
 });

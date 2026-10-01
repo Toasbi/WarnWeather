@@ -555,9 +555,9 @@ PConf.optionsResolvers.register('statusSlot', function (state, env, args) {
 ```
 
 The resolver runs on every render, so the list — labels included — follows any key it reads.
-A resolver can therefore RENAME an option from the live settings as well as filter the list;
-WarnWeather's radar picker calls its Rainbow option "Rainbow (limited)" until a toggle is on and
-a key is typed into a text field. When that happens depends on the control that changed:
+A resolver can therefore RENAME an option from the live settings as well as filter the list —
+say, an option named for whether a toggle is on and a key is typed into a text field. When that
+happens depends on the control that changed:
 
 - **Toggle, select/searchSelect pick, radio, segmented, colour** — the page re-renders at once
   (an action button when its handler returns `true`).

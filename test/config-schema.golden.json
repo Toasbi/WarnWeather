@@ -5057,114 +5057,147 @@
                 "hintByValue": {
                   "dwd": "Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.",
                   "metno": "Precise weather radar — rain at your exact spot. Nordics only.",
-                  "rainbow": "A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Turn on “Use your own key” for a refresh at every update — a key is free. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
+                  "rainbow": "A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
+                  "rainbowkey": "A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
                   "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget."
                 },
-                "optionsFrom": {
-                  "resolver": "radarProviderOptions",
+                "editSheetFrom": {
+                  "resolver": "keySheet",
                   "args": {
-                    "options": [
-                      [
-                        "DWD",
-                        "dwd",
-                        {
-                          "desc": "Best radar in Germany · exact spot + nearby"
-                        }
-                      ],
-                      [
-                        "Met.no",
-                        "metno",
-                        {
-                          "desc": "Best radar in the Nordics · exact spot"
-                        }
-                      ],
-                      [
-                        "Rainbow",
-                        "rainbow",
-                        {
-                          "desc": "Worldwide satellite + radar nowcast"
-                        }
-                      ],
-                      [
-                        "Tomorrow.io",
-                        "tomorrowio",
-                        {
-                          "desc": "Precise ML rain nowcast, worldwide · uses your key"
-                        }
-                      ]
-                    ]
+                    "keyed": {
+                      "rainbowkey": {
+                        "name": "Rainbow",
+                        "sheetId": "radarKeyRainbow",
+                        "keyField": "rainbowApiKey",
+                        "test": true,
+                        "usage": "rainbow",
+                        "evidence": "radar"
+                      }
+                    },
+                    "picker": "radarProvider",
+                    "outcome": "the watch gets no rain radar"
                   }
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "rainbowOwnKey",
-                "label": "Use your own key",
-                "defaultValue": false,
-                "joinPrevious": "loose",
-                "hint": "Refreshes the radar at every update on your own Rainbow key instead of every 30 minutes. A key is free: Rainbow's free plan covers 5,000 calls a month.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "rainbow"
+                },
+                "editBadgeFrom": {
+                  "resolver": "keyBadge",
+                  "args": {
+                    "keyed": {
+                      "rainbowkey": {
+                        "name": "Rainbow",
+                        "sheetId": "radarKeyRainbow",
+                        "keyField": "rainbowApiKey",
+                        "test": true,
+                        "usage": "rainbow",
+                        "evidence": "radar"
+                      }
                     },
+                    "picker": "radarProvider",
+                    "outcome": "the watch gets no rain radar"
+                  }
+                },
+                "hintFrom": {
+                  "resolver": "keySummaryHint",
+                  "args": {
+                    "hints": {
+                      "dwd": "Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.",
+                      "metno": "Precise weather radar — rain at your exact spot. Nordics only.",
+                      "rainbow": "A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
+                      "rainbowkey": "A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
+                      "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget."
+                    },
+                    "keyed": {
+                      "rainbowkey": {
+                        "name": "Rainbow",
+                        "sheetId": "radarKeyRainbow",
+                        "keyField": "rainbowApiKey",
+                        "test": true,
+                        "usage": "rainbow",
+                        "evidence": "radar"
+                      }
+                    },
+                    "picker": "radarProvider",
+                    "outcome": "the watch gets no rain radar"
+                  }
+                },
+                "attentionFrom": {
+                  "resolver": "keyAttention",
+                  "args": {
+                    "keyed": {
+                      "rainbowkey": {
+                        "name": "Rainbow",
+                        "sheetId": "radarKeyRainbow",
+                        "keyField": "rainbowApiKey",
+                        "test": true,
+                        "usage": "rainbow",
+                        "evidence": "radar"
+                      }
+                    },
+                    "picker": "radarProvider",
+                    "outcome": "the watch gets no rain radar"
+                  }
+                },
+                "options": [
+                  [
+                    "DWD",
+                    "dwd",
                     {
-                      "key": "radarMode",
-                      "ne": "off"
+                      "desc": "Best radar in Germany · exact spot + nearby"
+                    }
+                  ],
+                  [
+                    "Met.no",
+                    "metno",
+                    {
+                      "desc": "Best radar in the Nordics · exact spot"
+                    }
+                  ],
+                  [
+                    "Rainbow (limited)",
+                    "rainbow",
+                    {
+                      "desc": "Worldwide satellite + radar nowcast · no key, every 30 min"
+                    }
+                  ],
+                  [
+                    "Rainbow (own key)",
+                    "rainbowkey",
+                    {
+                      "desc": "Worldwide satellite + radar nowcast · needs a free key"
+                    }
+                  ],
+                  [
+                    "Tomorrow.io",
+                    "tomorrowio",
+                    {
+                      "desc": "Precise ML rain nowcast, worldwide · uses your key"
                     }
                   ]
-                }
+                ]
               },
               {
-                "type": "text",
-                "messageKey": "rainbowApiKey",
-                "label": "Rainbow API key",
-                "defaultValue": "",
-                "joinPrevious": "loose",
-                "suffixAction": "testRainbowKey",
-                "suffixLabel": "Test",
-                "hint": "<b>How to get a key:</b><br>1. <a target='_blank' href='https://developer.rainbow.ai/signup/'>Sign up at developer.rainbow.ai</a>. Rainbow asks for a credit card, but the first 5,000 calls each month are free.<br>2. Open your <a target='_blank' href='https://developer.rainbow.ai/profile'>profile page</a><button type=\"button\" class=\"copybtn\" data-copy=\"https://developer.rainbow.ai/profile\" title=\"Copy the profile page link\" aria-label=\"Copy the profile page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy the API key and paste it here.<br>3. Tap Test.<br>Keep \"Fit update interval to rate limit\" on and the watch stays within the free 5,000 calls.",
+                "type": "staticText",
+                "style": "info",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "keyMissingNote",
+                  "args": {
+                    "keyed": {
+                      "rainbowkey": {
+                        "name": "Rainbow",
+                        "sheetId": "radarKeyRainbow",
+                        "keyField": "rainbowApiKey",
+                        "test": true,
+                        "usage": "rainbow",
+                        "evidence": "radar"
+                      }
+                    },
+                    "picker": "radarProvider",
+                    "outcome": "the watch gets no rain radar"
+                  }
+                },
                 "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "rainbow"
-                    },
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    },
-                    {
-                      "key": "rainbowOwnKey",
-                      "eq": true
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "rainbowFitBudget",
-                "label": "Fit update interval to rate limit",
-                "defaultValue": true,
-                "joinPrevious": "loose",
-                "blockBefore": "rainbowBudget",
-                "hint": "Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "rainbow"
-                    },
-                    {
-                      "key": "radarMode",
-                      "ne": "off"
-                    },
-                    {
-                      "key": "rainbowOwnKey",
-                      "eq": true
-                    }
-                  ]
+                  "key": "radarMode",
+                  "ne": "off"
                 }
               },
               {
@@ -5325,6 +5358,72 @@
                 "showWhen": {
                   "key": "radarMode",
                   "eq": "graph"
+                }
+              },
+              {
+                "type": "hidden",
+                "messageKey": "rainbowOwnKey",
+                "defaultValue": false
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "radarKeyRainbow",
+            "showWhen": {
+              "all": [
+                {
+                  "key": "radarProvider",
+                  "eq": "rainbowkey"
+                },
+                {
+                  "key": "radarMode",
+                  "ne": "off"
+                }
+              ]
+            },
+            "title": "Rainbow",
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "rainbowApiKey",
+                "label": "API key",
+                "defaultValue": "",
+                "suffixAction": "testRainbowKey",
+                "suffixLabel": "Test",
+                "hint": "<b>How to get a key:</b><br>1. <a target='_blank' href='https://developer.rainbow.ai/signup/'>Sign up at developer.rainbow.ai</a>. Rainbow asks for a credit card, but the first 5,000 calls each month are free.<br>2. Open your <a target='_blank' href='https://developer.rainbow.ai/profile'>profile page</a><button type=\"button\" class=\"copybtn\" data-copy=\"https://developer.rainbow.ai/profile\" title=\"Copy the profile page link\" aria-label=\"Copy the profile page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy the API key and paste it here.<br>3. Tap Test.<br>Keep \"Fit update interval to rate limit\" on and the watch stays within the free 5,000 calls.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarProvider",
+                      "eq": "rainbowkey"
+                    },
+                    {
+                      "key": "radarMode",
+                      "ne": "off"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "rainbowFitBudget",
+                "label": "Fit update interval to rate limit",
+                "defaultValue": true,
+                "joinPrevious": "loose",
+                "blockBefore": "rainbowBudget",
+                "hint": "Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarProvider",
+                      "eq": "rainbowkey"
+                    },
+                    {
+                      "key": "radarMode",
+                      "ne": "off"
+                    }
+                  ]
                 }
               }
             ]

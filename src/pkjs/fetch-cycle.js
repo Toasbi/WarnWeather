@@ -337,8 +337,8 @@ function createFetchCycle(deps) {
         // at the clock edge, so the adapters stay deterministic (no clock injection).
         // radarMode 'off' clears the watch's radar via the 'disabled' clearing
         // adapter; any non-off mode fetches the full trend (countdown needs it).
-        // The source is the resolved one (radar-source-id.js): Rainbow with "Use
-        // your own key" on runs 'rainbowkey', with its own (absent) throttle.
+        // The source is the resolved one (radar-source-id.js): "Rainbow (own key)"
+        // runs 'rainbowkey', with its own (absent) throttle.
         var radarId = (settings.radarMode || 'graph') === 'off' ? 'disabled' : radarSourceId.effectiveRadarId(settings);
         // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
         // adapter then clears the watch's radar (it can never answer).
