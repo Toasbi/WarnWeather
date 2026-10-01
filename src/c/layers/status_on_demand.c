@@ -164,13 +164,13 @@ static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
 // The rain alert comes from the cache rain_countdown_refresh() keeps, every pass —
 // O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
 // and after a radar rescan; the metric alerts from the stored tuple (one flash read —
-// app_message.c has already checked it with alert_set_bytes_ok).
-static void collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]) {
+// app_message.c has already checked it with alert_set_bytes_ok). Returns the tuple
+// bytes read into s->bytes: 0 when none is stored, or the bar has no metric item.
+static size_t collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     s->set.count = 0;
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
     s->charge = 0;
-    s->level = THRESH_BATTERY_LEVEL_DEFAULT;
     s->charging = false;
     s->battery_value = false;
     bool metric = false;
@@ -183,9 +183,9 @@ static void collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_S
         BatteryChargeState bs = watch_services_battery_state();
         s->charge = bs.charge_percent;
         s->charging = bs.is_charging || bs.is_plugged;
-        s->level = status_threshold_battery_level(blob);
         s->battery_value = status_threshold_battery_value(blob);
-        s->active[OD_BATTERY] = status_threshold_battery_low(s->charge, s->level);
+        s->active[OD_BATTERY] = status_threshold_battery_low(s->charge,
+                                                             status_threshold_battery_level(blob));
     }
     if (s->side[OD_BLUETOOTH] != OD_SIDE_NONE) {
         const Config *cfg = config_get();
@@ -204,12 +204,13 @@ static void collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_S
         s->rain_display = status_threshold_rain_display(blob);
         s->active[OD_RAIN] = rain_countdown_get(&s->rain, watch_services_now());
     }
-    if (!metric) { return; }
-    int n = persist_get_alert_entries(s->bytes, sizeof(s->bytes));
-    alert_set_parse(s->bytes, n > 0 ? (size_t)n : 0, &s->set);
+    if (!metric) { return 0; }
+    size_t n = (size_t)persist_get_alert_entries(s->bytes, sizeof(s->bytes));
+    alert_set_parse(s->bytes, n, &s->set);
     for (int item = OD_GUST; item < OD_ITEM_COUNT; item++) {
         s->active[item] = s->side[item] != OD_SIDE_NONE && item_entry(s, item);
     }
+    return n;
 }
 
 // The active item's text on `lane` into `buf` ("" = none), and the font it prints in:
@@ -289,48 +290,36 @@ static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
     }
 }
 
-// The fold covers what the items paint (see status_on_demand.h): the bar's cells,
-// every assigned system item's state, each active metric alert's entry — its day
-// (today's, or tomorrow's with its mark), value, level and the look it reads from the
-// blob at that level (a Clay save that only recolours or re-looks must repaint) —
-// and the active rain alert: its look and tier (the drops' bucket and tint, and the
-// noun, follow the tier), and its minutes and whether it rains only while a look
-// prints them, or an icon-only rain alert would repaint every minute for nothing.
+// The items' inputs beyond the blob, as an explicit list: the live state, the entries
+// tuple as stored, and the rain alert's numbers. The charge only while Battery is
+// active, and the minutes and whether it rains only while the rain look prints them,
+// or an idle Battery or an icon-only rain alert would repaint every minute for nothing.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                                const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     if (!row) { return sig; }
     StatusOnDemandState s;
-    collect(&s, bar, blob);
+    size_t n = collect(&s, bar, blob);
     bool assigned = false;
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         if (s.side[item] != OD_SIDE_NONE) { assigned = true; }
     }
     row->assigned = assigned;
-    sig = sig_fold(sig, s.side, OD_ITEM_COUNT);
     if (!assigned) {
         // Nothing can draw here: give the glyphs back now rather than at teardown.
         status_on_demand_release(row);
         return sig;
     }
-    uint8_t sys[6] = { (uint8_t)s.active[OD_BATTERY], s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
-                       (uint8_t)s.active[OD_SLEEP], s.level, (uint8_t)s.battery_value };
-    sig = sig_fold(sig, sys, sizeof(sys));
+    uint8_t live[5] = { (uint8_t)s.active[OD_BATTERY], s.bt_key, (uint8_t)s.active[OD_QUIET_TIME],
+                        (uint8_t)s.active[OD_SLEEP], (uint8_t)s.active[OD_RAIN] };
+    sig = sig_fold(sig, live, sizeof(live));
     if (s.active[OD_BATTERY]) {
         uint8_t charge[2] = { s.charge, (uint8_t)s.charging };
         sig = sig_fold(sig, charge, sizeof(charge));
     }
-    for (int item = OD_GUST; item < OD_ITEM_COUNT; item++) {
-        const AlertEntry *e = s.active[item] ? item_entry(&s, item) : NULL;
-        if (!e) { continue; }
-        uint8_t head[3] = { e->kind, e->level, e->day };
-        sig = sig_fold(sig, head, sizeof(head));
-        sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
-        ThreshLook look = status_threshold_look(blob, e->kind, e->level);
-        sig = sig_fold(sig, (const uint8_t *)&look, sizeof(look));
-    }
+    sig = sig_fold(sig, s.bytes, n);
     if (s.active[OD_RAIN]) {
         bool text = s.rain_display != THRESH_RAIN_DISPLAY_ICON;
-        uint8_t rain[4] = { (uint8_t)s.rain_display, s.rain.tier, text ? s.rain.mins : 0,
+        uint8_t rain[3] = { s.rain.tier, text ? s.rain.mins : 0,
                             (uint8_t)(text && s.rain.raining) };
         sig = sig_fold(sig, rain, sizeof(rain));
     }

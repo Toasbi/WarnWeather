@@ -382,11 +382,11 @@ static int slot_health_value(int kind) {
 }
 
 // One slot resolved to everything a pass needs that does NOT depend on
-// measurement. The refresh pass folds these fields into the content signature,
-// the draw pass measures and paints them — one resolution, every consumer. They
-// used to be three hand-copied resolutions on eight parallel arrays, and one copy
-// (the retired right-slot width query) silently omitted the threshold load (see
-// load_pass).
+// measurement. The refresh pass signs these fields (the font and look through the
+// blob they are read from), the draw pass measures and paints them — one
+// resolution, every consumer. They used to be three hand-copied resolutions on
+// eight parallel arrays, and one copy (the retired right-slot width query) silently
+// omitted the threshold load (see load_pass).
 //
 // NO measurement here, deliberately: measure_slot() reads row->glyphs[i], which is
 // only valid after ensure_glyphs(), and a resolver that measured would drag PDC
@@ -524,9 +524,10 @@ bool status_row_refresh(StatusRow *row) {
     // — a fresh install with no phone yet still shows Bluetooth disconnected.
     StatusSlotView views[STATUS_SLOT_COUNT];
     const bool has_line = load_pass(row->line_id, views) > 0;
-    // The bar's cells and every assigned item's state, folded whatever they are: the
-    // same item moved to the other side is a new paint, and so is a bar that stops
-    // drawing one. Also where row->od.assigned is derived.
+    // The settings blob, whole: every look, cell and item setting the row paints is
+    // read from it, so a save that changes any of them is a new paint.
+    sig = sig_fold(sig, s_thresh_scratch, THRESH_SETTINGS_BYTES);
+    // The items' entries tuple and live state. Also where row->od.assigned is derived.
     sig = status_on_demand_fold(&row->od, sig, status_threshold_bar_of_line(row->line_id),
                                 s_thresh_scratch);
     // All three slots, always — including the ones On demand may slide, shorten or
@@ -548,18 +549,9 @@ bool status_row_refresh(StatusRow *row) {
             // leave a stale arrow on screen until some other slot moved.
             uint8_t dir_byte = (uint8_t)r->dir;
             sig = sig_fold(sig, &dir_byte, 1);
-            // Fold the highlight level so a crossing (new levels byte, a health
-            // value moving, changed settings) is itself a content change, and the
-            // whole look: the RESOLVED bold bit so a bold-mode-only settings change
-            // (e.g. Always on a kind whose thresholds are off — no level moves)
-            // repaints now instead of riding the next minute tick; the resolved
-            // BOX because a Clay save that only changes the warn look (none /
-            // outline / fill) moves neither of those; and the RAW accent byte
-            // because a save that only recolours warn/danger moves none of the
-            // others, and the box would keep its old colour until unrelated
-            // content happened to move.
+            // The highlight level: a crossing (a new levels word, a health value
+            // moving) is a content change. Its look is the blob's, signed above.
             sig = sig_fold(sig, &r->level, 1);
-            sig = sig_fold(sig, (const uint8_t *)&r->look, sizeof(r->look));
             if (slot->kind != SLOT_EMPTY && slot->icon == STATUS_ICON_DRAWN_SUN) {
                 has_drawn_sun = true;
             }

@@ -332,9 +332,6 @@ typedef struct {
                       // colour, opaque white at NORMAL and for a kind without a pair
                       // (the drawable colour is the SDK side's theme pick)
 } ThreshLook;
-// Three bytes, no padding: the status row folds a look into its content signature
-// byte for byte.
-_Static_assert(sizeof(ThreshLook) == 3, "ThreshLook must stay three padding-free bytes");
 
 ThreshLook status_threshold_look(const uint8_t blob[THRESH_SETTINGS_BYTES], int kind, int level);
 

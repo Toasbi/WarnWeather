@@ -66,13 +66,10 @@ void status_on_demand_release(StatusOnDemandRow *row);
 
 // Refresh-time: read which items sit on `bar` (a ThreshBar) from `blob` (the
 // thresholds settings blob, normalized: status_threshold_normalize), set
-// row->assigned, and fold everything the items paint into the row's signature — the
-// bar's cells, the Battery warn level and Look, each assigned item's state (the
-// charge, plugged and "at or below" for Battery; the Bluetooth variant; Quiet time;
-// Sleep) and the weather alerts (entries, levels, days, values, looks; the rain look,
-// the drops' tier, and the minutes and whether it rains while a look prints them).
-// The rain alert is re-derived from the radar cache on every call (O(1),
-// flash-free), which is why a bar with items is refreshed on the minute tick.
+// row->assigned, and fold the items' inputs into the row's signature. The row signs
+// the blob; this signs the rest the items paint from: the stored entries tuple and
+// their live state. The rain alert is re-derived from the radar cache on every call
+// (O(1), flash-free), which is why a bar with items is refreshed on the minute tick.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                                const uint8_t blob[THRESH_SETTINGS_BYTES]);
 
@@ -121,7 +118,6 @@ typedef struct {
     bool active[OD_ITEM_COUNT];
     uint8_t bt_key;                            // the Bluetooth glyph (0: none)
     uint8_t charge;                            // the charge in %, Battery assigned
-    uint8_t level;                             // the Battery item's warn level
     bool charging;
     bool battery_value;                        // Look Icon + value
 } StatusOnDemandState;
