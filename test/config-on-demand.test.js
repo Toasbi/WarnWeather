@@ -115,8 +115,8 @@ const sideHint = (html, sheetId) => hintOf(html, 'data-edit-sheet="' + sheetId +
 
 test('each bar ends on its two On demand rows: the ticked items as the summary, and Edit', () => {
   const html = watchTab().scroll.innerHTML;
-  assert.equal(sideHint(html, 'odTopLeft'), 'Bluetooth · Quiet time · Sleep');
-  assert.equal(sideHint(html, 'odTopRight'), 'Battery · Rain · Wind gusts · UV index · Air quality · Wind speed');
+  assert.equal(sideHint(html, 'odTopLeft'), 'Bluetooth · Quiet time · Sleep · Rain');
+  assert.equal(sideHint(html, 'odTopRight'), 'Battery · Wind gusts · UV index · Air quality · Wind speed');
   assert.ok(sideRow(html, 'odTopLeft').indexOf('<div class="lbl">On demand left</div>') !== -1, 'the side\'s label');
   assert.match(sideRow(html, 'odTopLeft'), /^<div class="row[^"]*\bslot\b/, 'compact rows');
   const fc = sideRow(html, 'odForecastLeft');
@@ -165,25 +165,25 @@ test('a side sheet: the bar\'s name, two groups in priority order, and an item m
   // Bluetooth is on the left side: its note says so, and ticking moves it here.
   assert.match(sheet, /data-check="bt"><span class="lft"><span class="lbl">Bluetooth<\/span><span class="hint">On the left side now; ticking moves it here<\/span>/);
   tick(page, 'statusTopOnDemandRightItems', 'bt');
-  assert.equal(page.S.statusTopOnDemandRightItems, 'battery,bt,rain,gust,uv,aqi,wind');
-  assert.equal(page.S.statusTopOnDemandLeftItems, 'qt,snooze', 'gone from the left');
-  assert.equal(sideHint(page.scroll.innerHTML, 'odTopLeft'), 'Quiet time · Sleep',
+  assert.equal(page.S.statusTopOnDemandRightItems, 'battery,bt,gust,uv,aqi,wind');
+  assert.equal(page.S.statusTopOnDemandLeftItems, 'qt,snooze,rain', 'gone from the left');
+  assert.equal(sideHint(page.scroll.innerHTML, 'odTopLeft'), 'Quiet time · Sleep · Rain',
     'the other side\'s summary follows');
 });
 
 test('the checklist notes: Rain needs the radar, Pollen needs DWD — ticks kept, taps inert', () => {
   const page = watchTab({ radarMode: 'off', provider: 'openmeteo' });
-  page.openEditSheet('odTopRight');
+  page.openEditSheet('odTopLeft');
   const sheet = page.modal.innerHTML;
-  assert.match(sheet, /aria-checked="true" data-k="statusTopOnDemandRightItems" data-check="rain" disabled aria-disabled="true"><span class="lft"><span class="lbl">Rain<\/span><span class="hint">Needs the rain radar \(Radar tab\)<\/span>/);
-  assert.match(sheet, /aria-checked="false" data-k="statusTopOnDemandRightItems" data-check="pollen" disabled aria-disabled="true"><span class="lft"><span class="lbl">Pollen<\/span><span class="hint">DWD provider only<\/span>/);
-  const t = { getAttribute: n => (n === 'data-k' ? 'statusTopOnDemandRightItems' : n === 'data-check' ? 'pollen'
+  assert.match(sheet, /aria-checked="true" data-k="statusTopOnDemandLeftItems" data-check="rain" disabled aria-disabled="true"><span class="lft"><span class="lbl">Rain<\/span><span class="hint">Needs the rain radar \(Radar tab\)<\/span>/);
+  assert.match(sheet, /aria-checked="false" data-k="statusTopOnDemandLeftItems" data-check="pollen" disabled aria-disabled="true"><span class="lft"><span class="lbl">Pollen<\/span><span class="hint">DWD provider only<\/span>/);
+  const t = { getAttribute: n => (n === 'data-k' ? 'statusTopOnDemandLeftItems' : n === 'data-check' ? 'pollen'
     : n === 'disabled' ? '' : null), closest: sel => (sel === '[data-check]' ? t : null) };
   page.modal.dispatch('click', { target: t });
-  assert.equal(page.S.statusTopOnDemandRightItems, 'battery,rain,gust,uv,aqi,wind', 'a gated tap changes nothing');
+  assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,qt,snooze,rain', 'a gated tap changes nothing');
   // The summary leaves out what cannot show.
-  assert.equal(sideHint(page.scroll.innerHTML, 'odTopRight'),
-    'Battery · Wind gusts · UV index · Air quality · Wind speed', 'Rain left out while the radar is off');
+  assert.equal(sideHint(page.scroll.innerHTML, 'odTopLeft'),
+    'Bluetooth · Quiet time · Sleep', 'Rain left out while the radar is off');
 });
 
 test('the On demand card: its intro and rows with icons and live texts, under the status card', () => {
@@ -413,15 +413,16 @@ test('aplite: the Watch Status Bar\'s bluetooth picker keeps its own title, not 
 
 test('the card reset reverts the items\' settings; the status card reset reverts the ticks', () => {
   const page = watchTab({ alertUvDisplay: 'value', rainAlertDisplay: 'icon', batteryLowLevel: '30',
-    btIcons: 'none', statusTopOnDemandRightItems: 'rain' });
+    btIcons: 'none', statusTopOnDemandRightItems: 'uv' });
   act(page, 'resetOnDemand');
   assert.equal(page.S.alertUvDisplay, 'icon');
   assert.equal(page.S.rainAlertDisplay, 'text');
   assert.equal(page.S.batteryLowLevel, '10');
   assert.equal(page.S.btIcons, 'disconnected');
-  assert.equal(page.S.statusTopOnDemandRightItems, 'rain', 'the ticks are the status card\'s');
+  assert.equal(page.S.statusTopOnDemandRightItems, 'uv', 'the ticks are the status card\'s');
   act(page, 'resetStatusSlots');
-  assert.equal(page.S.statusTopOnDemandRightItems, 'battery,rain,gust,uv,aqi,wind');
+  assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,qt,snooze,rain');
+  assert.equal(page.S.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind');
 });
 
 const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so On demand items won’t show there.';
@@ -469,7 +470,7 @@ test('the rain notes: the Rain sheet\'s in any fetching radar mode, the Radar ta
     page.clickTab('radar');
     return page.scroll.innerHTML.indexOf(RADAR_NOTE) !== -1;
   };
-  const unplaced = { statusTopOnDemandRightItems: 'battery' };
+  const unplaced = { statusTopOnDemandLeftItems: 'bt' };
   ['graph', 'status', 'countdown'].forEach((mode) =>
     assert.ok(inSheet(Object.assign({ radarMode: mode }, unplaced)), 'sheet: ' + mode + ', unplaced: shown'));
   assert.ok(!inSheet(Object.assign({ radarMode: 'off' }, unplaced)), 'sheet: radar off: the card row says it');
@@ -484,11 +485,11 @@ test('the rain notes: the Rain sheet\'s in any fetching radar mode, the Radar ta
 });
 
 test('the Radar tab carries a copy of the rain window; entering Rain alert only ticks Rain', () => {
-  const page = bootGeneratedPage({ provider: 'dwd', radarMode: 'graph', statusTopOnDemandRightItems: 'battery' });
+  const page = bootGeneratedPage({ provider: 'dwd', radarMode: 'graph', statusTopOnDemandLeftItems: 'bt' });
   page.clickTab('radar');
   assert.ok(page.scroll.innerHTML.indexOf('>Rain alert window</div>') !== -1, 'the copy renders');
   pick(page, 'radarMode', 'countdown');
-  assert.equal(page.S.statusTopOnDemandRightItems, 'battery,rain', 'Rain ticked on the Watch Status Bar\'s right');
+  assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,rain', 'Rain ticked on the Watch Status Bar\'s left');
   const off = bootGeneratedPage({ provider: 'dwd', radarMode: 'graph' });
   off.clickTab('radar');
   pick(off, 'radarMode', 'off');

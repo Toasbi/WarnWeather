@@ -181,7 +181,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
      * alert ticked on no bar that exists in that mode (the Watch Status Bar, the
      * forecast bar, the health bar while it exists — never the radar bar) would spend
      * radar calls on nothing. Entering the mode then ticks Rain on the Watch Status
-     * Bar's right side (in the canonical order, unticked from its left):
+     * Bar's left side (in the canonical order, unticked from its right):
      * on-demand.js placeRainForCountdown, the rule the 1.24 migration shares. Mutates
      * S.
      * @param {Object} S live settings state (radarMode already set to newValue)

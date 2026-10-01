@@ -251,8 +251,8 @@ var RETIRED_ALERT_KEYS = ['alertRain', 'alertUv', 'alertWind', 'alertGust', 'ale
     'statusTopAlerts', 'statusForecastAlerts', 'statusRadarAlerts', 'statusHealthAlerts'];
 
 /**
- * The On demand move. seedDefaults has already written the new side keys with their
- * defaults (the Watch Status Bar: Bluetooth, Quiet time and Sleep left; Battery, Rain,
+ * The On demand move. seedDefaults has already written the new side lists with their
+ * defaults (the Watch Status Bar: Bluetooth, Quiet time, Sleep and Rain left; Battery,
  * Wind gusts, UV index, Air quality and Wind speed right), into every install, upgraded
  * ones included — the owner's call: the weather alerts arrive switched on. This move
  * carries over what a 1.23.2 install said against those defaults, and keys on stored
@@ -260,7 +260,7 @@ var RETIRED_ALERT_KEYS = ['alertRain', 'alertUv', 'alertWind', 'alertGust', 'ale
  *  - 'Show battery below 10%' off (batteryLowOnly false) unticks Battery everywhere;
  *  - 'Show quiet time icon' off (showQt false) unticks Quiet time;
  *  - radar mode 'Rain alert only' with Rain on no visible bar ticks it on the Watch
- *    Status Bar's right (on-demand.js placeRainForCountdown, the rule the settings
+ *    Status Bar's left (on-demand.js placeRainForCountdown, the rule the settings
  *    page's forceRainOnDemand hook applies too).
  * It never unticks a default weather alert. Then the development branch's alert keys
  * are deleted, untranslated (RETIRED_ALERT_KEYS; no release stored them, so the dev

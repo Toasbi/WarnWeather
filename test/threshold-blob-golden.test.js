@@ -15,7 +15,9 @@
 // status-thresholds.js into status-wire.js kept the digest as it was. Re-recorded when
 // the sides lost their Enabled/Disabled switch (a side is on while it ticks something),
 // after checking every combo against the previous packer with every switch forced on:
-// identical, and no byte outside the cells (38-47) moved.
+// identical, and no byte outside the cells (38-47) moved. Re-recorded when the default
+// Rain tick moved to the Watch Status Bar's left: only the Rain cell (byte 42) moved,
+// and every combo equals the previous packer fed the new default lists.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -25,7 +27,7 @@ const wire = require('../src/pkjs/status-wire.js');
 const OD = require('../src/pkjs/on-demand.js');
 
 const COMBOS = 4000;
-const GOLDEN_SHA256 = 'c0ff94da0d877c53e1991311cfea0ed43e1d546ee8595e1f3c72255396fbb117';
+const GOLDEN_SHA256 = '36131cb0ee2d7f1668fc327f523ea03e71fde5abb30499c0bcde87276283bfae';
 
 /**
  * mulberry32: a small deterministic PRNG, so the generated set never varies.

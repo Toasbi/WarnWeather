@@ -25,7 +25,7 @@
     "barSource": "off",
     "rainBarColor": "multicolor",
     "radarColor": "white",
-    "statusTopOnDemandRightItems": "battery,rain"
+    "statusTopOnDemandRightItems": "battery"
   },
   "weather": {
     "sky": {"cloudPct": [20, 40, 70, 90, 100, 100, 80, 50, 30], "sunPct": [80, 60, 20, 0, 0, 0, 10, 40, 70], "lightning": [0, 0, 0, 1, 1, 0, 0, 0, 0]},

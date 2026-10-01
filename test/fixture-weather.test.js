@@ -239,9 +239,10 @@ test('a styled UV pair bakes end to end: peak first, spaced, starred as tomorrow
 // rain 10-25 min ahead (the watch resolves that entry itself from the radar tuples)
 // plus a UV alert at danger and a wind alert at warn, both with their values, which the
 // phone bakes into their own entry tuple (ALERT_ENTRIES_UINT8) in the On demand order
-// (UV, then wind). The fixture ticks exactly Battery, Rain, UV index and Wind speed on
-// the Watch Status Bar's right side: Wind gusts and Air quality stay unticked, so the
-// forecast bar's gust slot at warn adds no entry. Two metric entries at two levels put
+// (UV, then wind). The fixture ticks exactly Battery, UV index and Wind speed on the
+// Watch Status Bar's right side (Rain rides its left, as by default): Wind gusts and Air
+// quality stay unticked, so the forecast bar's gust slot at warn adds no entry. Two
+// metric entries at two levels put
 // the danger box beside the warn look (fill on colour, outline on B&W) in the frame;
 // the forecast bar's gust (warn) and UV (danger) slots, Highlight on, show the same two
 // looks on slots.
@@ -261,7 +262,7 @@ test('fixtures/rain-countdown.json bakes UV danger 8 + wind warn 66 into ALERT_E
   const uvKind = thresholds.KINDS.findIndex((k) => k.code === 'uv');
   const windKind = thresholds.KINDS.findIndex((k) => k.code === 'wind');
   const { decodeAlerts } = require('./helpers/alert-entries.js');
-  assert.equal(fx.claySettings.statusTopOnDemandRightItems, 'battery,rain,uv,wind',
+  assert.equal(fx.claySettings.statusTopOnDemandRightItems, 'battery,uv,wind',
     'the fixture ticks only what it bakes');
   ['basalt', 'emery'].forEach((platform) => {
     const out = getFixtureWeatherPayload(fx, Object.assign({}, fx.claySettings), { platform });

@@ -98,13 +98,14 @@
   function otherSide(side) { return side === 'left' ? 'right' : 'left'; }
 
   // Every setting this module reads, with its default. The Watch Status Bar shows
-  // Bluetooth, Quiet time and Sleep on its left, and the battery with the weather alerts
-  // Rain, Wind gusts, UV index, Air quality and Wind speed on its right (Pollen off); every
+  // Bluetooth, Quiet time, Sleep and the rain alert on its left, and the battery with the
+  // weather alerts Wind gusts, UV index, Air quality and Wind speed on its right (Pollen
+  // off; the battery takes the place of the old top-right low-battery warning); every
   // other bar starts with nothing ticked. seedDefaults writes these into every install,
   // upgraded ones included.
   var DEFAULTS = {
-    statusTopOnDemandLeftItems: 'bt,qt,snooze',
-    statusTopOnDemandRightItems: 'battery,rain,gust,uv,aqi,wind',
+    statusTopOnDemandLeftItems: 'bt,qt,snooze,rain',
+    statusTopOnDemandRightItems: 'battery,gust,uv,aqi,wind',
     batteryLowLevel: '10',
     batteryLowDisplay: 'icon'
   };
@@ -307,7 +308,8 @@
    * Radar mode 'Rain alert only' fetches the radar for the rain icon alone, so Rain
    * ticked on no bar that exists in that mode would spend radar calls on nothing. Unless
    * it already shows (placedAnywhere; the radar bar never exists in that mode), Rain is
-   * ticked on the Watch Status Bar's right side (tickOn). THE rule for
+   * ticked on the Watch Status Bar's left side, where the defaults put it (tickOn). THE
+   * rule for
    * both the page entering the mode (reset-status-defaults.js forceRainOnDemand) and the
    * 1.24 upgrade (migrations/v1_24.js migrateOnDemand). Mutates S; any other radar mode
    * leaves it alone.
@@ -317,7 +319,7 @@
    */
   function placeRainForCountdown(S, env) {
     if (!S || S.radarMode !== 'countdown' || placedAnywhere(S, 'rain', env)) { return false; }
-    return tickOn(S, 'top', 'right', 'rain');
+    return tickOn(S, 'top', 'left', 'rain');
   }
 
   /**
@@ -345,7 +347,7 @@
   /**
    * The telemetry code: 40 characters, the bars in BARS order and within a bar the items
    * in ITEMS order. 'L'/'R' = ticked on a side of an existing bar, 'l'/'r' = ticked on a
-   * bar the modes remove, '-' = not ticked. An untouched install reads 'RLLLRRRR-R'
+   * bar the modes remove, '-' = not ticked. An untouched install reads 'RLLLLRRR-R'
    * followed by 30 '-'.
    * @param {Object} S Settings blob.
    * @param {Object} [env] Platform env (omitted = capable).

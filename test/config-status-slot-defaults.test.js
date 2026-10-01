@@ -55,8 +55,10 @@ test('the schema seeds every On demand key with the contract\'s default', () => 
   Object.keys(OD.DEFAULTS).forEach((key) => {
     assert.equal(seeded[key], OD.DEFAULTS[key], key);
   });
-  assert.equal(seeded.statusTopOnDemandRightItems, 'battery,rain,gust,uv,aqi,wind',
-    'the Watch Status Bar\'s right side: the battery and five weather alerts, Pollen off');
+  assert.equal(seeded.statusTopOnDemandLeftItems, 'bt,qt,snooze,rain',
+    'the Watch Status Bar\'s left side: Bluetooth, quiet time, sleep and the rain alert');
+  assert.equal(seeded.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind',
+    'the Watch Status Bar\'s right side: the battery and the four metric alerts, Pollen off');
   ['alertRain', 'alertUv', 'statusTopAlerts'].forEach((k) =>
     assert.equal(seeded[k], undefined, k + ' is retired'));
 });

@@ -76,7 +76,7 @@ Deno.test("a rainbowkey radarProvider is accepted and kept", () => {
 // watch sends. The code has no length bound (like alerts and warnLooks): a longer one,
 // from a build with an item this ingest does not know, is kept, not a 400.
 Deno.test("onDemand, batteryLowLevel and batteryLowDisplay are accepted and kept", () => {
-  const onDemand = "RLLLRRRR-R" + "-".repeat(30);
+  const onDemand = "RLLLLRRR-R" + "-".repeat(30);
   const parsed = telemetryPayloadSchema.safeParse({
     ...LEGACY,
     settings: { onDemand, batteryLowLevel: 25, batteryLowDisplay: "value" },

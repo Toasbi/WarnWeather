@@ -1,9 +1,9 @@
 // test/helpers/on-demand.js — the one way a test ticks On demand items. An alert is on
 // while its item is ticked on a side of a bar that exists
-// (src/pkjs/on-demand.js placedAnywhere), and a settings blob WITHOUT the side keys
-// reads the defaults — the Watch Status Bar ticks Wind gusts, UV index, Air quality,
-// Wind speed and Rain on its right. So a test that means "these alerts and no others"
-// starts from NOTHING_PLACED and ticks what it bakes.
+// (src/pkjs/on-demand.js placedAnywhere), and a settings blob WITHOUT the side lists
+// reads the defaults — the Watch Status Bar ticks Rain on its left and Wind gusts, UV
+// index, Air quality and Wind speed on its right. So a test that means "these alerts
+// and no others" starts from NOTHING_PLACED and ticks what it bakes.
 'use strict';
 const OD = require('../../src/pkjs/on-demand.js');
 

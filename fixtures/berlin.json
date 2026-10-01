@@ -30,7 +30,7 @@
     "rainBarColor": "multicolor",
     "radarColor": "multicolor",
     "statusRadarRight": "pressure",
-    "statusTopOnDemandRightItems": "battery,rain"
+    "statusTopOnDemandRightItems": "battery"
   },
   "weather": {
     "city": "Berlin",

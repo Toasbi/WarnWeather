@@ -1,12 +1,13 @@
 'use strict';
 
 // The store screenshots, the showcase GIF, the promo reel, the time-lapse and the wizard
-// shots are curated scenes. The default On demand ticks (Rain, Wind gusts, UV index, Air
-// quality and Wind speed on the Watch Status Bar's right side) would give most of them
-// alert icons, and which icons bake depends on the wall-clock time of the capture: a
-// day peak counts only while it is still ahead. So every fixture those captures read
-// pins that side to Battery + Rain: the look the scenes had before the weather alerts
-// existed (the rain countdown included), whatever the capture time. The generated
+// shots are curated scenes. The default On demand ticks on the Watch Status Bar's right
+// side (Wind gusts, UV index, Air quality and Wind speed beside the battery) would give
+// most of them alert icons, and which icons bake depends on the wall-clock time of the
+// capture: a day peak counts only while it is still ahead. So every fixture those
+// captures read pins that side to Battery alone, and the left keeps its defaults (the
+// rain alert among them): the look the scenes had before the metric alerts existed,
+// with the rain alert where the defaults put it, whatever the capture time. The generated
 // scenes inherit the pin from their base fixture (berlin.json, berlin-timelapse.json)
 // or carry it in their own (miami-*.json). A scene that wants to show an alert ticks it
 // in its own claySettings on purpose, and updates this test.
@@ -25,7 +26,7 @@ global.localStorage = {
 };
 
 const ROOT = path.join(__dirname, '..');
-const PIN_ITEMS = 'battery,rain';
+const PIN_ITEMS = 'battery';
 
 /**
  * The fixtures capture-store-shots.sh shoots, read from its `fixtures=(...)` array.
@@ -48,7 +49,7 @@ function readFixture(file) {
 }
 
 /**
- * Assert a fixture pins the Watch Status Bar's right On demand side to Battery + Rain.
+ * Assert a fixture pins the Watch Status Bar's right On demand side to Battery alone.
  * @param {Object} fx A parsed fixture.
  * @param {string} label Names the fixture in a failure.
  * @returns {void}
@@ -56,7 +57,7 @@ function readFixture(file) {
 function assertPinned(fx, label) {
   const clay = fx.claySettings || {};
   assert.equal(clay.statusTopOnDemandRightItems, PIN_ITEMS,
-    label + ': the right side ticks Battery and Rain only');
+    label + ': the right side ticks Battery only');
 }
 
 /**

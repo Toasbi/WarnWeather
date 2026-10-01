@@ -65,7 +65,7 @@ static void on_demand_default_tests(void) {
     static const int TOP[OD_ITEM_COUNT] = {
         [OD_BATTERY] = OD_SIDE_RIGHT, [OD_BLUETOOTH] = OD_SIDE_LEFT,
         [OD_QUIET_TIME] = OD_SIDE_LEFT, [OD_SLEEP] = OD_SIDE_LEFT,
-        [OD_RAIN] = OD_SIDE_RIGHT, [OD_GUST] = OD_SIDE_RIGHT, [OD_UV] = OD_SIDE_RIGHT,
+        [OD_RAIN] = OD_SIDE_LEFT, [OD_GUST] = OD_SIDE_RIGHT, [OD_UV] = OD_SIDE_RIGHT,
         [OD_AQI] = OD_SIDE_RIGHT, [OD_POLLEN] = OD_SIDE_NONE, [OD_WIND] = OD_SIDE_RIGHT,
     };
     uint8_t blob[THRESH_SETTINGS_BYTES];

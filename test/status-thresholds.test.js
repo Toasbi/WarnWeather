@@ -566,11 +566,11 @@ test('buildSettingsBlob: nothing configured -> all disabled, zeroed thresholds',
   // default warn level 10, Icon), the two warn-look bytes at the colour-watch
   // defaults: aqi/pollen/wind/gust fill (0xAA), steps/sleep/distance outline + uv fill
   // (0x95), then the On demand cells at their defaults: the Watch Status Bar's
-  // Battery right (2), Bluetooth, Quiet time and Sleep left (1), Rain, Wind gusts,
+  // Battery right (2), Bluetooth, Quiet time, Sleep and Rain left (1), Wind gusts,
   // UV index and Air quality right, Pollen nowhere, Wind speed right.
   assert.deepEqual(blob.slice(17),
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0xAA, 0x95,
-      2, 1, 1, 1, 2, 2, 2, 2, 0, 2]);
+      2, 1, 1, 1, 1, 2, 2, 2, 0, 2]);
 });
 
 // Bytes 36..37: the warn look per PAIRED kind, 2 bits each in KINDS order (0 none,

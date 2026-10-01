@@ -158,7 +158,7 @@ const settingsSchema = z
     // each bar (top, forecast, radar, health) in the On demand order (battery, bt, qt,
     // snooze, rain, gust, uv, aqi, pollen, wind) — L/R ticked on a side of a bar that
     // shows, l/r ticked on a hidden bar, '-' not ticked
-    // (e.g. 'RLLLRRRR-R' + 30 '-', an untouched install). Absent on aplite, whose
+    // (e.g. 'RLLLLRRR-R' + 30 '-', an untouched install). Absent on aplite, whose
     // showQt/batteryLowOnly above still say what it draws; elsewhere those two are
     // leftovers and onDemand is the truth. z.string() with no length bound, like alerts
     // and warnLooks: a future item lengthens the code and must not 400 the batch.

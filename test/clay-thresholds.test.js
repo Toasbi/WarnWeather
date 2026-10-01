@@ -34,7 +34,7 @@ test('Clay payload carries the 48-byte threshold settings blob', () => {
   // Warn looks: the colour-watch defaults (weather fill, goal outline).
   assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36, 38), [0xAA, 0x95]);
   // The On demand cells: the defaults on the Watch Status Bar.
-  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(38), [2, 1, 1, 1, 2, 2, 2, 2, 0, 2]);
+  assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(38), [2, 1, 1, 1, 1, 2, 2, 2, 0, 2]);
 });
 
 // The warn look's default is per PLATFORM, so the payload hands the packer the
@@ -189,7 +189,7 @@ test('an unknown/absent watchInfo still gets the blob (never hide a real feature
     assert.equal(payload.CLAY_THRESHOLDS_UINT8.length, 48, String(wi));
     // Unknown platform = colour, like every capability: the colour defaults, and a
     // watch that draws On demand (the cells at their defaults).
-    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0xAA, 0x95, 2, 1, 1, 1, 2, 2, 2, 2, 0, 2], String(wi));
+    assert.deepEqual(payload.CLAY_THRESHOLDS_UINT8.slice(36), [0xAA, 0x95, 2, 1, 1, 1, 1, 2, 2, 2, 0, 2], String(wi));
   });
 });
 

@@ -391,9 +391,9 @@ test('rainAlertHint: the radar first, then the placement, else its window and lo
     'Within 2 hours · Icon + minutes');
   assert.equal(hint({ rainCountdownHorizon: 30, rainAlertDisplay: 'icon' }, {}, args), 'Within 30 min · Icon',
     'a numeric window reads like its stored string');
-  assert.equal(hint({ statusTopOnDemandRightItems: 'battery' }, {}, args), 'Not in any status bar');
+  assert.equal(hint({ statusTopOnDemandLeftItems: 'bt' }, {}, args), 'Not in any status bar');
   assert.equal(hint({ radarMode: 'off' }, {}, args), 'Turn on the rain radar (Radar tab)');
-  assert.equal(hint({ radarMode: 'off', statusTopOnDemandRightItems: '' }, {}, args),
+  assert.equal(hint({ radarMode: 'off', statusTopOnDemandLeftItems: '' }, {}, args),
     'Turn on the rain radar (Radar tab)', 'the radar comes first: no tick helps while it is off');
   assert.equal(hint({ rainCountdownHorizon: '0', rainAlertDisplay: 'bogus' }, {}, args),
     'Within 60 min · Text', 'a value outside the lists reads as the default');
@@ -449,7 +449,7 @@ test('rainAlertBadge: the Edit button alone, the aria note following the placeme
   // Rain draws in the radar's colours and never boxes: the button only.
   assert.deepEqual(badge({}, {}), { label: 'Edit', ariaNote: '', dots: [] }, 'placed by default');
   assert.deepEqual(badge(null, {}), { label: 'Edit', ariaNote: '', dots: [] }, 'absent = the default ticks');
-  assert.deepEqual(badge({ statusTopOnDemandRightItems: 'battery' }, {}),
+  assert.deepEqual(badge({ statusTopOnDemandLeftItems: 'bt' }, {}),
     { label: 'Edit', ariaNote: 'not in any status bar', dots: [] });
 });
 
@@ -784,11 +784,11 @@ test('radarPreview shows the countdown band ("Rain in 15\'") when the countdown 
 // the preview drops the band with it.
 test('radarPreview hides the countdown band while the Watch Status Bar shows no rain', () => {
   const svg = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
-    statusTopOnDemandRightItems: 'battery' }, { color: true });
+    statusTopOnDemandLeftItems: 'bt' }, { color: true });
   assert.equal(svg.indexOf("Rain in 15'"), -1, 'no countdown text with Rain unticked');
   assert.ok(svg.indexOf('viewBox="0 0 200 118"') >= 0, 'the frame keeps the no-band height');
   const elsewhere = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor',
-    statusTopOnDemandRightItems: 'battery', statusForecastOnDemandLeftItems: 'rain' }, { color: true });
+    statusTopOnDemandLeftItems: 'bt', statusForecastOnDemandLeftItems: 'rain' }, { color: true });
   assert.equal(elsewhere.indexOf("Rain in 15'"), -1, 'the band mocks the Watch Status Bar only');
   const unset = RD.radarPreview({ radarProvider: 'dwd', radarColor: 'multicolor' }, { color: true });
   assert.ok(unset.indexOf("Rain in 15'") >= 0, 'the default ticks show it');
@@ -829,12 +829,12 @@ test('radarPreview draws the rain entry in its Look, at the side of the Watch St
   assert.equal(at({}).text, "Rain in 15'", 'the default Look: the countdown text');
   assert.equal(at({ rainAlertDisplay: 'minutes' }).text, "15'", 'Icon + minutes');
   assert.equal(at({ rainAlertDisplay: 'icon' }).text, null, 'Icon: the drop alone');
-  const onLeft = { statusTopOnDemandLeftItems: 'rain', statusTopOnDemandRightItems: 'battery' };
-  const left = at(Object.assign({ rainAlertDisplay: 'icon' }, onLeft)).x;
-  const right = at({ rainAlertDisplay: 'icon' }).x;
-  assert.ok(left < 10, 'the left side hugs the strip\'s left edge: ' + left);
-  assert.ok(right > 180, 'the right side (the default) hugs its right edge: ' + right);
-  assert.equal(at({ statusTopOnDemandRightItems: '' }), null, 'Rain unticked: no rain entry, no band');
+  const onRight = { statusTopOnDemandLeftItems: 'bt', statusTopOnDemandRightItems: 'battery,rain' };
+  const left = at({ rainAlertDisplay: 'icon' }).x;
+  const right = at(Object.assign({ rainAlertDisplay: 'icon' }, onRight)).x;
+  assert.ok(left < 10, 'the left side (the default) hugs the strip\'s left edge: ' + left);
+  assert.ok(right > 180, 'the right side hugs its right edge: ' + right);
+  assert.equal(at({ statusTopOnDemandLeftItems: '' }), null, 'Rain unticked: no rain entry, no band');
 });
 
 // The watch colours the On demand Rain item's rain icon with palette_radar_color(tier)

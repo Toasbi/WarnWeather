@@ -3,7 +3,7 @@
   "name": "berlin-timelapse",
   "claySettings": {
     "provider": "dwd",
-    "statusTopOnDemandRightItems": "battery,rain"
+    "statusTopOnDemandRightItems": "battery"
   },
   "watch": {
     "now": {

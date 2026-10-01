@@ -241,14 +241,14 @@ test('snapshot includes batteryLowOnly as a real boolean', () => {
 // warn level as stored and its look.
 test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
   const fresh = buildSettingsSnapshot({});
-  assert.equal(fresh.onDemand, 'RLLLRRRR-R' + '-'.repeat(30),
+  assert.equal(fresh.onDemand, 'RLLLLRRR-R' + '-'.repeat(30),
     'untouched: the default ticks, all on the Watch Status Bar');
   assert.equal(fresh.batteryLowLevel, undefined, 'unseeded: absent, read as the default');
   assert.equal(fresh.batteryLowDisplay, undefined);
 
   const moved = buildSettingsSnapshot({ statusTopOnDemandRightItems: '',
     statusForecastOnDemandLeftItems: 'uv', statusRadarOnDemandRightItems: 'aqi', radarMode: 'off' });
-  assert.equal(moved.onDemand.slice(0, 10), '-LLL------', 'nothing ticked on the right');
+  assert.equal(moved.onDemand.slice(0, 10), '-LLLL-----', 'nothing ticked on the right');
   assert.equal(moved.onDemand.slice(10, 20), '------L---', 'the forecast bar\'s ten letters');
   assert.equal(moved.onDemand.slice(20, 30), '-------r--', 'a bar the radar mode removes reports lower case');
   assert.equal(moved.onDemand, require('../src/pkjs/on-demand.js').telemetryCode(

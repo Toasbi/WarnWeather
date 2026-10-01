@@ -8873,7 +8873,7 @@
                 "type": "checklist",
                 "messageKey": "statusTopOnDemandLeftItems",
                 "label": "Items",
-                "defaultValue": "bt,qt,snooze",
+                "defaultValue": "bt,qt,snooze,rain",
                 "optionsFrom": {
                   "resolver": "onDemandItems",
                   "args": {
@@ -8898,7 +8898,7 @@
                 "type": "checklist",
                 "messageKey": "statusTopOnDemandRightItems",
                 "label": "Items",
-                "defaultValue": "battery,rain,gust,uv,aqi,wind",
+                "defaultValue": "battery,gust,uv,aqi,wind",
                 "optionsFrom": {
                   "resolver": "onDemandItems",
                   "args": {

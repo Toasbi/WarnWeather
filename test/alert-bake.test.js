@@ -57,8 +57,8 @@ test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values
   assert.equal(O, 38);
   const OD = require('../src/pkjs/on-demand.js');
   // One byte per item, 2 bits per bar (1 left, 2 right). The defaults: the Watch Status
-  // Bar only — Bluetooth, Quiet time and Sleep on its left, the rest but Pollen right.
-  assert.deepEqual(wire.buildSettingsBlob({}).slice(O), [2, 1, 1, 1, 2, 2, 2, 2, 0, 2], 'the defaults');
+  // Bar only — Bluetooth, Quiet time, Sleep and Rain on its left, the rest but Pollen right.
+  assert.deepEqual(wire.buildSettingsBlob({}).slice(O), [2, 1, 1, 1, 1, 2, 2, 2, 0, 2], 'the defaults');
   const S = placeOn(placeOn(Object.assign({ radarMode: 'status' }, NOTHING_PLACED), 'forecast', 'left', 'uv,bt'),
     'radar', 'right', 'uv');
   const cells = wire.buildSettingsBlob(S).slice(O);

@@ -50,7 +50,7 @@
     "dayNightShading": true,
     "swapClockStatus": true,
     "layoutPreset": "noCal",
-    "statusTopOnDemandRightItems": "battery,rain"
+    "statusTopOnDemandRightItems": "battery"
   },
   "weather": {
     "city": "Miami",

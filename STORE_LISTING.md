@@ -78,9 +78,9 @@ STATUS LINES
      (with DWD) or wind speed reaching your warn level today or, looking ahead, tomorrow;
      with the value next to the icon if you like, and » or a mark you pick on a tomorrow
      alert; the rain alert shows as an icon, the minutes, or the full countdown text
-   - On by default: Bluetooth, quiet time and sleep at the top left, and the battery with
-     the rain, wind gust, UV index, air quality and wind speed alerts at the top right; the
-     pollen alert is off
+   - On by default: Bluetooth, quiet time, sleep and the rain alert at the top left, and the
+     battery with the wind gust, UV index, air quality and wind speed alerts at the top right;
+     the pollen alert is off
    - When a bar runs short of room, its slots switch to short forms first (outside calendar
      views the date to its day number, "New York" to "N. York", sleep "7h", steps "12k",
      units dropped), then the slot beside the items hides and the middle slot moves aside

@@ -6,7 +6,9 @@
 // run in ALERT_LEVELS_MIGRATION_KEY, whose string is the last of the old runner's
 // three dev markers. Its replay was updated deliberately once since, when the seed
 // pairs and the temperature separator became steps of it and the rain window's Off
-// stopped writing a rain switch (it unticks Rain instead).
+// stopped writing a rain switch (it unticks Rain instead); and the window's Off untick
+// moved from the Watch Status Bar's right list to its left when the default Rain tick
+// did (the owner's defaults of 2026-09-30), nothing else in any scenario changing.
 //
 // The golden must NOT be regenerated from the current runner to make a failure go
 // away: a diff there is a behaviour change on real installs. Change a scenario only

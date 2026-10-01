@@ -205,37 +205,38 @@ test('resetCountdownDate: already-countdown-to-countdown (no-op transition) leav
 });
 
 // radarMode 'countdown' fetches the radar for the rain alert alone, so entering it with
-// Rain ticked on no bar that exists in that mode ticks it on the Watch Status Bar's right.
-test('forceRainOnDemand: entering countdown mode ticks Rain on the Watch Status Bar\'s right side', () => {
+// Rain ticked on no bar that exists in that mode ticks it on the Watch Status Bar's left,
+// where the defaults put it.
+test('forceRainOnDemand: entering countdown mode ticks Rain on the Watch Status Bar\'s left side', () => {
   // Rain ticked on no side, so it shows nowhere.
   const S = { radarMode: 'countdown', rainCountdownHorizon: '30',
-    statusTopOnDemandLeftItems: 'bt', statusTopOnDemandRightItems: 'battery,uv' };
+    statusTopOnDemandLeftItems: 'bt,snooze', statusTopOnDemandRightItems: 'battery,uv' };
   forceRainOnDemand(S, 'countdown', ENV_BASALT);
-  assert.equal(S.statusTopOnDemandRightItems, 'battery,rain,uv', 'ticked in the canonical order');
-  assert.equal(S.statusTopOnDemandLeftItems, 'bt', 'the left side keeps its ticks');
+  assert.equal(S.statusTopOnDemandLeftItems, 'bt,snooze,rain', 'ticked in the canonical order');
+  assert.equal(S.statusTopOnDemandRightItems, 'battery,uv', 'the right side keeps its ticks');
   assert.equal(S.rainCountdownHorizon, '30', 'the window is left alone');
 });
 
 test('forceRainOnDemand: Rain already showing on a visible bar is left alone', () => {
-  const onForecast = { radarMode: 'countdown', statusTopOnDemandRightItems: 'battery',
+  const onForecast = { radarMode: 'countdown', statusTopOnDemandLeftItems: 'bt',
     statusForecastOnDemandLeftItems: 'rain' };
   forceRainOnDemand(onForecast, 'countdown', ENV_BASALT);
-  assert.equal(onForecast.statusTopOnDemandRightItems, 'battery', 'the forecast bar shows it');
+  assert.equal(onForecast.statusTopOnDemandLeftItems, 'bt', 'the forecast bar shows it');
   const defaults = { radarMode: 'countdown' };
   forceRainOnDemand(defaults, 'countdown', ENV_BASALT);
   assert.deepEqual(defaults, { radarMode: 'countdown' }, 'the default ticks already show it');
   // The radar bar never shows in this mode, so a tick there does not count.
-  const onRadar = { radarMode: 'countdown', statusTopOnDemandRightItems: '',
+  const onRadar = { radarMode: 'countdown', statusTopOnDemandLeftItems: '',
     statusRadarOnDemandRightItems: 'rain' };
   forceRainOnDemand(onRadar, 'countdown', ENV_BASALT);
-  assert.equal(onRadar.statusTopOnDemandRightItems, 'rain');
+  assert.equal(onRadar.statusTopOnDemandLeftItems, 'rain');
 });
 
 test('forceRainOnDemand: any other mode leaves the ticks alone', () => {
   ['off', 'status', 'graph'].forEach((mode) => {
-    const S = { radarMode: mode, statusTopOnDemandRightItems: '' };
+    const S = { radarMode: mode, statusTopOnDemandLeftItems: '' };
     forceRainOnDemand(S, mode, ENV_BASALT);
-    assert.equal(S.statusTopOnDemandRightItems, '', 'kept in radarMode ' + mode);
+    assert.equal(S.statusTopOnDemandLeftItems, '', 'kept in radarMode ' + mode);
   });
 });
 

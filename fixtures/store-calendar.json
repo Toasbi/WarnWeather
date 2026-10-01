@@ -27,7 +27,7 @@
     "barSource": "rain",
     "rainBarColor": "white",
     "radarColor": "multicolor",
-    "statusTopOnDemandRightItems": "battery,rain"
+    "statusTopOnDemandRightItems": "battery"
   },
   "weather": {
     "city": "Berlin",

@@ -73,7 +73,7 @@
     "viewAlign1": "clock",
     "viewClockOff1": false,
     "viewStripOff1": true,
-    "statusTopOnDemandRightItems": "battery,rain"
+    "statusTopOnDemandRightItems": "battery"
   },
   "weather": {
     "city": "Miami",

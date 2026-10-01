@@ -26,7 +26,7 @@
     "barSource": "off",
     "rainBarColor": "multicolor",
     "radarColor": "multicolor",
-    "statusTopOnDemandRightItems": "battery,rain"
+    "statusTopOnDemandRightItems": "battery"
   },
   "weather": {
     "city": "Windy Ridge",
