@@ -260,7 +260,7 @@ Schema
 | `button` | Tappable action row; no key | — (not serialized) | — |
 | `subheader` | In-section group header; no key | — (not serialized) | — |
 | `sheet` | Tappable row that opens a `sheetOnly` section; no key | — (not serialized) | — |
-| `checklist` | One checkbox row per option, a card per `meta.groupHeader` group, its rows joined | comma list of the ticked values in option order (`''` = none) | — |
+| `checklist` | One plain row per option with a tick per column, a sub-header per `meta.groupHeader` group, its rows joined | comma list of the ticked values in option order (`''` = none), one per column | — |
 | `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
 A `sheet` item is a whole-row chevron target by default. Give it an
@@ -305,15 +305,26 @@ body, and one opened through `openSheet()`, still opens the modal.
 A `checklist` stores ONE string, the ticked option values joined by commas in the options'
 order (`'bt,qt,snooze'`, `''` when nothing is ticked) — a string, not an array, so the shallow
 copy of the loaded state and every `===` comparison downstream (serialize, change detection)
-keep working. Its options are `[label, value, meta]` like a select's: `meta.groupHeader` starts a
-card titled by it, like a page card (each one an `aria` group of its own; options before any
-header share one untitled card), whose rows are ordinary rows joined as by `joinPrevious: true`
-(no divider, the tight rhythm). `meta.desc` prints as the row's hint, and `meta.disabled` or an
-`optionDisabledWhen` gate renders the option inert **with its tick**, so a gate never rewrites a
-stored value. `optionsFrom` lists are materialized as for a
-select, but a checklist is never snapped to an option. A tap flips one option, re-canonicalises
-the list, stores it and fires the item's `onChange` (old and new list) once. The row's `label`
-names the list for assistive tech (its `aria-label`) instead of heading the row.
+keep working. Its options are `[label, value, meta]` like a select's: each option is a plain row
+(no card), its name the label and `meta.desc` its hint, with the tick on the right.
+`meta.groupHeader` starts a group under a sub-header in the `.subhdr.grp` look; a group's rows
+are joined as by `joinPrevious: true` (no divider, the tight rhythm), and its last row joins the
+next sub-header loosely, so the sub-header's line is the only one. `meta.disabled` or an
+`optionDisabledWhen` gate renders the option inert **with its ticks**, so a gate never rewrites a
+stored value. `optionsFrom` lists are materialized as for a select, but a checklist is never
+snapped to an option. A tap flips one option, re-canonicalises the list, stores it and fires the
+item's `onChange` (old and new list) once. The row's `label` names the list for assistive tech
+(its `aria-label`) instead of heading the row.
+
+`columns: [{messageKey, label}, …]` gives every row one tick per column, each column a list of
+its own (the On demand bar sheets' Left and Right: `[{messageKey: '…LeftItems', label: 'Left'},
+{messageKey: '…RightItems', label: 'Right'}]`). The first column is the item's own `messageKey`;
+every other column's key needs a `hidden` item of its own for its default and its save, as a
+range's `dangerKey` does. Every sub-header then carries the columns' captions over their ticks
+(an untitled first group gets a caption-only one), and each tick is named "<option>, <column>"
+for assistive tech. A tap writes that column's list and fires the CHECKLIST's `onChange` with
+the column's key, so one hook keeps the columns consistent (e.g. an option ticked in one column
+leaves the others).
 
 A `readout` row is a badged `sheet` row with nothing to open: its label (and `icon`) on the left
 and a live `hint`/`hintFrom` line under it, for a setting summary that has no settings of its own.

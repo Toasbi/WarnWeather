@@ -2374,35 +2374,68 @@ test('checklist: toggling flips one option and canonicalises to option order', (
   assert.equal(E.checklistToggle(undefined, 'bt', CHECK_OPTIONS), 'bt', 'absent reads as empty');
 });
 
-test('checklist: a titled card per group, its checkbox rows joined, ticks kept on gated options', () => {
+test('checklist: plain rows under a sub-header per group, joined, ticks kept on gated options', () => {
   const item = { type: 'checklist', messageKey: 'items', label: 'Items', options: CHECK_OPTIONS };
   const html = E.renderRow(item, { value: 'rain,bt' });
-  assert.match(html, /^<div class="row stack chk-row">/, 'a checklist is a stacked row, only the cards\' frame');
+  assert.match(html, /^<div class="row stack chk-row">/, 'a checklist is a stacked row, only the list\'s frame');
   assert.match(html, /<div class="chk-list" role="group" aria-label="Items">/);
-  assert.match(html, /<div class="card chk-grp" role="group" aria-label="System info"><div class="cardHdr"><span class="ttl">System info<\/span><\/div><div>/,
-    'a group is a card titled like a page card');
-  assert.match(html, /<div class="card chk-grp" role="group" aria-label="Weather alerts"><div class="cardHdr"><span class="ttl">Weather alerts<\/span><\/div>/);
-  assert.match(html, /class="row chk-opt on" role="checkbox" aria-checked="true" data-k="items" data-check="bt">/);
-  assert.match(html, /class="row chk-opt nb" role="checkbox" aria-checked="false" data-k="items" data-check="battery">/);
-  assert.match(html,
-    /class="row chk-opt on nb" role="checkbox" aria-checked="true" data-k="items" data-check="rain" disabled aria-disabled="true">/,
-    'a disabled option keeps its tick');
-  assert.match(html, /data-check="rain" disabled aria-disabled="true"><span class="lft"><span class="lbl">Rain<\/span><span class="hint">Needs the rain radar<\/span><\/span>/,
-    'the name is the row\'s label, the note its hint');
-  // Every row but a card's last joins the next (.nb); the last carries no join.
-  const last = (code) => new RegExp('class="row chk-opt( on)?" role="checkbox" aria-checked="(true|false)" data-k="items" data-check="' + code + '"');
-  assert.match(html, last('bt'), 'System info\'s last row');
-  assert.match(html, last('gust'), 'Weather alerts\' last row');
-  const idxBattery = html.indexOf('data-check="battery"');
-  const idxWeather = html.indexOf('aria-label="Weather alerts"');
-  assert.ok(idxBattery < idxWeather, 'options sit under their own header');
-  // Options before any header share one untitled card.
+  assert.equal(html.indexOf('card'), -1, 'no cards');
+  assert.match(html, /<div class="chk-list" role="group" aria-label="Items"><div class="subhdr grp chk-hdr"><span>System info<\/span><\/div><div class="row chk-opt nb">/,
+    'a group opens under a sub-header in the .subhdr.grp look');
+  assert.match(html, /<div class="subhdr grp chk-hdr"><span>Weather alerts<\/span><\/div>/);
+  assert.equal(html.indexOf('chk-caps'), -1, 'one column: no captions');
+  const tick = (code, on, extra) => new RegExp('<button type="button" class="chk-tick' + (on ? ' on' : '')
+    + '" role="checkbox" aria-checked="' + on + '" aria-label="[^"]*" data-list="items" data-k="items" data-check="'
+    + code + '"' + (extra || '') + '>');
+  assert.match(html, tick('bt', true));
+  assert.match(html, tick('battery', false));
+  assert.match(html, tick('rain', true, ' disabled aria-disabled="true"'), 'a disabled option keeps its tick');
+  assert.match(html, /aria-label="Battery" data-list/, 'one column: the tick is named by its option');
+  assert.match(html, /<div class="row chk-opt nb off"><span class="lft"><span class="lbl">Rain<\/span><span class="hint">Needs the rain radar<\/span><\/span>/,
+    'the name is the row\'s label, the note its hint, and a gated row dims');
+  // A group's rows join (.nb); its last joins the next sub-header loosely (.nbl), and the
+  // list's last row carries no join.
+  const rowCls = (code) => {
+    const at = html.indexOf('data-check="' + code + '"');
+    return /<div class="(row chk-opt[^"]*)">/g.exec(html.slice(html.lastIndexOf('<div class="row chk-opt', at)))[1];
+  };
+  assert.equal(rowCls('battery'), 'row chk-opt nb');
+  assert.equal(rowCls('bt'), 'row chk-opt nbl', 'System info\'s last row');
+  assert.equal(rowCls('gust'), 'row chk-opt', 'the list\'s last row');
+  assert.ok(html.indexOf('data-check="battery"') < html.indexOf('<span>Weather alerts</span>'),
+    'options sit under their own header');
+  // Options before any header open the list without a sub-header.
   const plain = E.renderRow({ type: 'checklist', messageKey: 'p', label: 'P', options: [['One', 'a'], ['Two', 'b']] },
     { value: 'b' });
-  assert.match(plain, /<div class="card chk-grp nohdr"><div><button type="button" class="row chk-opt nb"[^>]*data-check="a"><span class="lft"><span class="lbl">One<\/span><\/span>/);
+  assert.match(plain, /<div class="chk-list" role="group" aria-label="P"><div class="row chk-opt nb"><span class="lft"><span class="lbl">One<\/span><\/span>/);
   // optionDisabledWhen gates through the view like any other control.
   const gated = E.renderRow(item, { value: '', disabledOptions: ['gust'] });
   assert.match(gated, /data-check="gust" disabled aria-disabled="true"/);
+});
+
+test('checklist columns: one tick per column, each its own key, captions on every sub-header', () => {
+  const item = { type: 'checklist', messageKey: 'l', label: 'Sides', options: CHECK_OPTIONS,
+    columns: [{ messageKey: 'l', label: 'Left' }, { messageKey: 'r', label: 'Right' }] };
+  const html = E.renderRow(item, { value: 'bt', columnValues: ['bt', 'battery,gust'] });
+  const caps = '<span class="chk-caps" aria-hidden="true"><span>Left</span><span>Right</span></span>';
+  assert.ok(html.indexOf('<div class="subhdr grp chk-hdr"><span>System info</span>' + caps + '</div>') !== -1);
+  assert.ok(html.indexOf('<div class="subhdr grp chk-hdr"><span>Weather alerts</span>' + caps + '</div>') !== -1);
+  const ticks = (code) => {
+    const at = html.indexOf('data-check="' + code + '"');
+    const row = html.slice(html.lastIndexOf('<div class="row chk-opt', at), html.indexOf('</span></div>', at));
+    return (row.match(/<button[^>]*>/g) || []);
+  };
+  assert.deepEqual(ticks('battery'), [
+    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Battery, Left" data-list="l" data-k="l" data-check="battery">',
+    '<button type="button" class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Battery, Right" data-list="l" data-k="r" data-check="battery">'
+  ], 'Left then Right, each writing its own key; both name the checklist');
+  assert.match(ticks('bt')[0], /class="chk-tick on"/);
+  assert.match(ticks('bt')[1], /class="chk-tick"/);
+  assert.equal(ticks('rain').filter((b) => / disabled aria-disabled="true"/.test(b)).length, 2,
+    'a gated option\'s every tick is inert');
+  // A caption-only sub-header opens a list whose first options have no group.
+  const plain = E.renderRow(Object.assign({}, item, { options: [['One', 'a']] }), { value: '', columnValues: ['', 'a'] });
+  assert.ok(plain.indexOf('<div class="subhdr grp chk-hdr"><span></span>' + caps + '</div>') !== -1);
 });
 
 test('checklist: optionsFrom is materialized without snapping the stored list', () => {
@@ -2431,11 +2464,38 @@ test('boot(): a checklist tap stores the canonical list and fires onChange once'
   clickMatching(r.listeners.click, '[data-check]', { 'data-k': 'items', 'data-check': 'battery' });
   assert.equal(r.getValue('items'), 'battery,gust');
   assert.deepEqual(calls, [['gust', 'battery,gust']]);
-  assert.match(r.scroll.innerHTML, /aria-checked="true" data-k="items" data-check="battery"/, 'the tick renders');
+  assert.match(r.scroll.innerHTML, /aria-checked="true" aria-label="Battery" data-list="items" data-k="items" data-check="battery"/,
+    'the tick renders');
   // A gated option ignores the tap.
   clickMatching(r.listeners.click, '[data-check]', { 'data-k': 'items', 'data-check': 'rain', disabled: '' });
   assert.equal(r.getValue('items'), 'battery,gust');
   assert.equal(calls.length, 1, 'no onChange for a gated tap');
+});
+
+test('boot(): a column tick writes its own key and runs the checklist\'s onChange with that key', () => {
+  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'checklist', messageKey: 'lft', label: 'Sides', defaultValue: 'bt', options: CHECK_OPTIONS,
+        columns: [{ messageKey: 'lft', label: 'Left' }, { messageKey: 'rgt', label: 'Right' }],
+        onChange: 'colSpy' },
+      { type: 'hidden', messageKey: 'rgt', defaultValue: 'gust' }
+    ] }
+  ] }] };
+  const r = bootWithCapturedListeners(SCH, {});
+  const calls = [];
+  global.PConf.onChange.register('colSpy', (S, oldV, newV, env, key) => { calls.push([key, oldV, newV]); });
+  assert.match(r.scroll.innerHTML, /aria-checked="true" aria-label="Wind gusts, Right" data-list="lft" data-k="rgt"/,
+    'the hidden item\'s list draws in the Right column');
+  clickMatching(r.listeners.click, '[data-check]', { 'data-list': 'lft', 'data-k': 'rgt', 'data-check': 'battery' });
+  assert.equal(r.getValue('rgt'), 'battery,gust');
+  assert.equal(r.getValue('lft'), 'bt', 'the other column is the hook\'s business');
+  assert.deepEqual(calls, [['rgt', 'gust', 'battery,gust']]);
+  clickMatching(r.listeners.click, '[data-check]', { 'data-list': 'lft', 'data-k': 'lft', 'data-check': 'bt' });
+  assert.equal(r.getValue('lft'), '');
+  assert.deepEqual(calls[1], ['lft', 'bt', '']);
+  // Both lists are saved: the hidden item serializes the Right column.
+  const blob = E.serialize(SCH, { lft: 'bt', rgt: 'gust' });
+  assert.deepEqual(blob, { lft: 'bt', rgt: 'gust' });
 });
 
 test('readout: label, icon and live hint, no control, no Edit, nothing serialized', () => {

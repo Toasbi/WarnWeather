@@ -931,45 +931,78 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * A `checklist` control: one checkbox row per option, each meta.groupHeader option
-   * opening a card titled by it (an aria group of its own; options before any header
-   * share one untitled card). A card's rows are the page's ordinary rows, joined: no
-   * divider between them, the tight rhythm of joinPrevious. meta.desc prints as the row's
-   * hint; meta.disabled or an optionDisabledWhen gate (view.disabledOptions) renders the
-   * option inert WITH its tick, so a stored value is never rewritten by a gate.
+   * A checklist's tick columns: item.columns ([{messageKey, label}], each column storing
+   * its own comma list), else one unlabelled column on the item's own key.
+   * @param {Object} item Checklist item.
+   * @returns {Array.<{messageKey: string, label: string}>} The columns, left to right.
+   */
+  function checklistColumns(item) {
+    return (item.columns && item.columns.length) ? item.columns
+      : [{ messageKey: item.messageKey, label: '' }];
+  }
+
+  /**
+   * A `checklist` control: one plain row per option, its name as the label and meta.desc
+   * as the hint, with one tick per column on the right. Each meta.groupHeader option opens
+   * a group under a sub-header in the .subhdr.grp look (no card); with several columns
+   * every sub-header also carries the columns' captions over their ticks (an untitled
+   * first group gets a caption-only one). A group's rows are joined (no divider, the
+   * tight rhythm of joinPrevious) and its last row joins the next sub-header loosely, so
+   * the sub-header's own line is the only one. Each tick names its column's key (data-k)
+   * and its checklist (data-list), so a tap writes that column's list and runs the
+   * checklist's onChange. meta.disabled or an optionDisabledWhen gate
+   * (view.disabledOptions) renders the option's ticks inert WITH their state, so a stored
+   * value is never rewritten by a gate.
    * @param {Object} item Checklist item with its options materialized (resolveRowItem).
-   * @param {{value: *, disabledOptions: (string[]|undefined)}} view Render state.
+   * @param {{value: *, columnValues: (Array|undefined), disabledOptions: (string[]|undefined)}} view
+   *   Render state: columnValues holds each column's stored list (resolveRowItem); without
+   *   it the one column reads view.value.
    * @returns {string} Control HTML.
    */
   function renderChecklist(item, view) {
-    var have = checklistCodes(view.value), off = view.disabledOptions || [];
-    var groups = [], cur = null, i, j, o, meta, on, gated, g;
+    var cols = checklistColumns(item), off = view.disabledOptions || [];
+    var multi = cols.length > 1, vals = view.columnValues || [view.value];
+    var have = [], groups = [], cur = null, caps = '', i, j, c, k, o, meta, on, gated, g, later, h;
+    for (c = 0; c < cols.length; c++) { have.push(checklistCodes(vals[c])); }
     for (i = 0; i < (item.options || []).length; i++) {
       o = item.options[i];
       if (o[2] && o[2].groupHeader) { cur = { title: o[0], opts: [] }; groups.push(cur); continue; }
       if (!cur) { cur = { title: null, opts: [] }; groups.push(cur); }
       cur.opts.push(o);
     }
-    var h = '<div class="chk-list" role="group" aria-label="' + esc(String(item.label || 'Items')) + '">';
+    if (multi) {
+      caps = '<span class="chk-caps" aria-hidden="true">';
+      for (c = 0; c < cols.length; c++) { caps += '<span>' + esc(String(cols[c].label || '')) + '</span>'; }
+      caps += '</span>';
+    }
+    h = '<div class="chk-list" role="group" aria-label="' + esc(String(item.label || 'Items')) + '">';
     for (i = 0; i < groups.length; i++) {
       g = groups[i];
       if (!g.opts.length) { continue; }
-      h += g.title === null ? '<div class="card chk-grp nohdr"><div>'
-        : '<div class="card chk-grp" role="group" aria-label="' + esc(g.title) + '">'
-          + '<div class="cardHdr"><span class="ttl">' + esc(g.title) + '</span></div><div>';
+      if (g.title !== null || multi) {
+        h += '<div class="subhdr grp chk-hdr"><span>' + esc(g.title || '') + '</span>' + caps + '</div>';
+      }
+      later = false;
+      for (k = i + 1; k < groups.length; k++) { if (groups[k].opts.length) { later = true; } }
       for (j = 0; j < g.opts.length; j++) {
         o = g.opts[j];
         meta = o[2] || {};
-        on = have.indexOf(o[1]) >= 0;
         gated = Boolean(meta.disabled) || off.indexOf(o[1]) >= 0;
-        h += '<button type="button" class="row chk-opt' + (on ? ' on' : '') + nbClass(j < g.opts.length - 1)
-          + '" role="checkbox" aria-checked="' + (on ? 'true' : 'false') + '" data-k="' + esc(item.messageKey)
-          + '" data-check="' + esc(o[1]) + '"' + (gated ? ' disabled aria-disabled="true"' : '') + '>'
+        h += '<div class="row chk-opt' + nbClass(j < g.opts.length - 1 ? 'tight' : (later ? 'loose' : ''))
+          + (gated ? ' off' : '') + '">'
           + '<span class="lft"><span class="lbl">' + esc(o[0]) + '</span>'
           + (meta.desc ? '<span class="hint">' + esc(meta.desc) + '</span>' : '') + '</span>'
-          + '<span class="chk-box" aria-hidden="true"></span></button>';
+          + '<span class="chk-ticks">';
+        for (c = 0; c < cols.length; c++) {
+          on = have[c].indexOf(o[1]) >= 0;
+          h += '<button type="button" class="chk-tick' + (on ? ' on' : '') + '" role="checkbox" aria-checked="'
+            + (on ? 'true' : 'false') + '" aria-label="' + esc(multi ? o[0] + ', ' + cols[c].label : o[0])
+            + '" data-list="' + esc(item.messageKey) + '" data-k="' + esc(cols[c].messageKey)
+            + '" data-check="' + esc(o[1]) + '"' + (gated ? ' disabled aria-disabled="true"' : '') + '>'
+            + '<span class="chk-box" aria-hidden="true"></span></button>';
+        }
+        h += '</span></div>';
       }
-      h += '</div></div>';
     }
     return h + '</div>';
   }
@@ -991,7 +1024,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // is missing from it, so a new control type renders as an empty row until it
     // is listed here.
     rgb: function (item, view) { return renderRgb(item, view); },
-    // Checkboxes storing the ticked option values as one comma list.
+    // Checkboxes storing the ticked option values as one comma list per column.
     checklist: function (item, view) { return renderChecklist(item, view); }
   };
   /**
@@ -1083,8 +1116,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // the Holiday searchSelects keep the same compact treatment. A stacked (open color/etc.)
     // row keeps normal padding so its expanded content isn't cramped.
     var isStatusSlot = item.optionsFrom && item.optionsFrom.resolver === 'statusSlot';
-    // item.compact asks for the same tight rhythm on any row (e.g. the On demand rows
-    // that follow a bar's three slot rows).
+    // item.compact asks for the same tight rhythm on any row (e.g. the Alerts row
+    // that follows a bar's three slot rows).
     var isCompact = isStatusSlot || item.compact === true;
     // A select expanded in place inside an edit sheet (renderItem builds view.inlineList):
     // the list is the row's LAST child in every shape below, and .isel-open lets the flex
@@ -1159,8 +1192,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     }
     // A checklist's derived options are materialized WITHOUT the single-value snap below:
     // its value is a list, and an option the resolver gates is rendered inert (meta.disabled)
-    // rather than dropped, so nothing here ever rewrites cx.S.
+    // rather than dropped, so nothing here ever rewrites cx.S. A checklist with columns
+    // reads every column's list here (the control renderer receives only the view).
     if (item.type === 'checklist') {
+      if (item.columns) {
+        view.columnValues = item.columns.map(function (col) { return cx.S[col.messageKey]; });
+      }
       return item.optionsFrom
         ? Object.assign({}, item, { options: resolveOptionsFrom(item, cx.S, cx.ENV) }) : item;
     }
@@ -1984,10 +2021,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // item's onChange as (S, old, new, ENV, key). This used to be copy-pasted at
     // six sites across the #scroll and #modal handlers — a changed onChange
     // contract needed six synchronized edits.
-    function setValue(key, newV, optOldV) {
+    // optOwner names the item whose onChange runs when it is not the key's own item: a
+    // checklist column's key is stored by a `hidden` item, while the checklist runs the hook.
+    function setValue(key, newV, optOldV, optOwner) {
       var oldV = arguments.length > 2 ? optOldV : S[key];
       S[key] = newV;
-      var item = findItem(key);
+      var item = optOwner || findItem(key);
       var fn = item && item.onChange && PConf.onChange.get(item.onChange);
       if (fn) { fn(S, oldV, newV, ENV, key); }
     }
@@ -2025,10 +2064,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if ((t = e.target.closest('[data-check]'))) {
         // A gated option keeps its tick and ignores the tap.
         if (t.getAttribute('disabled') != null) { return true; }
+        // data-k is the column's key the tick writes; data-list its checklist, which owns
+        // the options and the onChange (the same key unless the checklist has columns).
         var chK = t.getAttribute('data-k'), chV = t.getAttribute('data-check');
-        var chItem = findShownItem(SCHEMA, chK, evalCtx());
+        var chItem = findShownItem(SCHEMA, t.getAttribute('data-list') || chK, evalCtx());
         if (!chItem) { return true; }
-        setValue(chK, checklistToggle(S[chK], chV, resolveOptionsFrom(chItem, S, ENV)));
+        setValue(chK, checklistToggle(S[chK], chV, resolveOptionsFrom(chItem, S, ENV)), S[chK], chItem);
         render();
         var hosts = [document.getElementById('modal'), document.getElementById('scroll')], hi, again;
         for (hi = 0; hi < hosts.length; hi++) {

@@ -560,7 +560,7 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
     'the default AQI forecast slot renders its pencil');
   // The AQI levels live in the kind's alert sheet in the Alert settings card, which has no
-  // switch (the side checklists place the alert); the slot's Alert highlighting switch
+  // switch (the bars' Alerts sheets place the alert); the slot's Alert highlighting switch
   // lives in the slot sheet.
   page.openEditSheet('alertAqi');
   assert.equal(page.modal.innerHTML.indexOf('data-k="threshAqiOn"'), -1,
@@ -635,7 +635,7 @@ test('the page renders an On demand alert sheet: its Look, then the levels, and 
   page.openEditSheet('alertUv');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
-  assert.equal(sheet.indexOf('data-k="alertUv"'), -1, 'no switch: the side checklists tick the alert');
+  assert.equal(sheet.indexOf('data-k="alertUv"'), -1, 'no switch: the bars\' Alerts sheets tick the alert');
   assert.equal(sheet.indexOf('<span>Alert</span>'), -1, 'and no Alert sub-header');
   assert.ok(sheet.indexOf('Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.') !== -1,
     'with its intro');
@@ -1734,7 +1734,7 @@ test('the rain alert sheet: the unplaced note, the time window and the look — 
   // The unplaced note (its predicate is pinned by the page tests).
   assert.equal(s.items[0].type, 'staticText');
   assert.equal(s.items[0].style, 'info');
-  assert.equal(s.items[0].text, 'No status bar has Rain ticked under Alerts left or Alerts right, so the rain icon won’t show.');
+  assert.equal(s.items[0].text, 'No status bar has Rain ticked under Alerts, so the rain icon won’t show.');
   assert.deepEqual(s.items[1], {
     type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Time window', defaultValue: '60',
     options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],

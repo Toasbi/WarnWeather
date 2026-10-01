@@ -59,7 +59,7 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 
 const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
 // The weather alerts' own keys: each alert kind's Look, Days and tomorrow mark and the
 // rain alert's look — and On demand's: each bar's two sides with their ticked items (the
-// rows in the bar's card and the side sheets) and the Battery item's warn level and Look
+// bar's Alerts row and sheet) and the Battery item's warn level and Look
 // (on-demand.js DEFAULTS, the one list of them).
 const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem + 'Display',
   'alert' + stem + 'Days', 'alert' + stem + 'NextDayMark']),
@@ -1651,7 +1651,7 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
   assert.deepEqual(item.hintByValue, {
     off: 'Radar is hidden.',
     // The rain icon's place is each bar's On demand side (Status slots tab).
-    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar where Rain is ticked under Alerts left or Alerts right.',
+    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar where Rain is ticked under Alerts.',
     status: 'Adds the Radar Status Bar.',
     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
   });
@@ -2098,13 +2098,12 @@ test('Status-slots tab (id watch) opens with the status card: its intro and the 
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
       'Phone battery slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
-  // The eight side checklists, then the Alert settings card's item sheets, close the tab.
+  // The four bars' Alerts sheets, then the Alert settings card's item sheets, close the tab.
   assert.deepEqual(titles.slice(24),
-    ['Alerts left', 'Alerts right', 'Alerts left', 'Alerts right',
-      'Alerts left', 'Alerts right', 'Alerts left', 'Alerts right',
+    ['Alerts', 'Alerts', 'Alerts', 'Alerts',
       'Battery', 'Bluetooth', 'Rain alert', 'Wind gusts alert', 'UV index alert',
       'Air quality (AQI) alert', 'Pollen alert', 'Wind speed alert'],
-    'the side checklists, then the item sheets close the tab');
+    'the bars\' Alerts sheets, then the item sheets close the tab');
   // Time and Calendar moved to the END of the Layout tab (order Time, Calendar) —
   // the Status-slots tab holds nothing but slot config now.
   const layoutTitles = schema.tabs.find((t) => t.id === 'layout')
@@ -2116,21 +2115,21 @@ test('Status-slots tab (id watch) opens with the status card: its intro and the 
   assert.ok(!wsb.some((i) => i.type === 'staticText'), 'no note above the Watch bar slots');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const countdownIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRightCountdown');
-  const leftIdx = wsb.findIndex((i) => i.sheetId === 'odTopLeft');
+  const alertsIdx = wsb.findIndex((i) => i.sheetId === 'odTop');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(countdownIdx, rightIdx + 1, 'top-right countdown date follows its slot');
-  assert.equal(leftIdx, countdownIdx + 1, 'the On demand rows follow the slots');
-  assert.equal(battIdx, leftIdx + 2, 'aplite\'s battery toggle follows them');
+  assert.equal(alertsIdx, countdownIdx + 1, 'the Alerts row follows the slots');
+  assert.equal(battIdx, alertsIdx + 1, 'aplite\'s battery toggle follows it');
 });
 
-// --- On demand: each bar's two rows, the side sheets, the card and its item sheets ---
+// --- On demand: each bar's Alerts row and sheet, the card and its item sheets ---
 const ON_DEMAND_WHEN = { env: 'onDemand' };
 const RADAR_BAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
 const HEALTH_BAR = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
 const OD = require('../src/pkjs/on-demand.js');
 const onDemandSection = () => schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.id === 'onDemand');
 
-test('each status bar ends on its two On demand rows: the side\'s summary and Edit, no switch', () => {
+test('each status bar ends on one Alerts row: both sides\' summary and Edit, no switch', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   [['Forecast Status Bar', 'statusForecast', 'Forecast', null],
     ['Radar Status Bar', 'statusRadar', 'Radar', RADAR_BAR],
@@ -2138,45 +2137,47 @@ test('each status bar ends on its two On demand rows: the side\'s summary and Ed
     ['Watch Status Bar', 'statusTop', 'Top', null]].forEach(([title, prefix, bar, barWhen]) => {
     const items = watch.sections.find((x) => x.title === title).items;
     const at = items.findIndex((i) => i.messageKey === prefix + 'RightCountdown');
-    ['Left', 'Right'].forEach((side, n) => {
-      assert.deepEqual(items[at + 1 + n], {
-        type: 'sheet', sheetId: 'od' + bar + side, label: 'Alerts ' + side.toLowerCase(),
-        hintFrom: { resolver: 'onDemandSummary', args: { itemsKey: prefix + 'OnDemand' + side + 'Items' } },
-        editBadgeFrom: { resolver: 'onDemandBadge' },
-        joinPrevious: true, compact: true,
-        showWhen: barWhen ? { all: [ON_DEMAND_WHEN, barWhen] } : ON_DEMAND_WHEN
-      }, bar + side);
-    });
+    assert.deepEqual(items[at + 1], {
+      type: 'sheet', sheetId: 'od' + bar, label: 'Alerts',
+      hintFrom: { resolver: 'onDemandSummary', args: { bar: bar.toLowerCase() } },
+      editBadgeFrom: { resolver: 'onDemandBadge' },
+      joinPrevious: true, compact: true,
+      showWhen: barWhen ? { all: [ON_DEMAND_WHEN, barWhen] } : ON_DEMAND_WHEN
+    }, bar);
+    assert.equal(items.filter((i) => i.type === 'sheet' && /^od/.test(i.sheetId)).length, 1, bar + ': one row');
   });
   ['Top', 'Forecast', 'Radar', 'Health'].forEach((bar) => ['Left', 'Right'].forEach((side) =>
     assert.equal(byKey('status' + bar + 'OnDemand' + side), undefined, bar + side + ': no switch key')));
 });
 
-test('the side sheets: one checklist per bar and side, in the items\' priority order', () => {
+test('the Alerts sheets: one per bar, a checklist with a Left and a Right column over the two side lists', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
-  const sheets = watch.sections.filter((s) => /^od(Top|Forecast|Radar|Health)(Left|Right)$/.test(s.sheetId || ''));
-  assert.deepEqual(sheets.map((s) => s.sheetId), ['odTopLeft', 'odTopRight', 'odForecastLeft', 'odForecastRight',
-    'odRadarLeft', 'odRadarRight', 'odHealthLeft', 'odHealthRight']);
+  const sheets = watch.sections.filter((s) => /^od(Top|Forecast|Radar|Health)$/.test(s.sheetId || ''));
+  assert.deepEqual(sheets.map((s) => s.sheetId), ['odTop', 'odForecast', 'odRadar', 'odHealth']);
+  assert.equal(watch.sections.filter((s) => /^od\w+(Left|Right)$/.test(s.sheetId || '')).length, 0,
+    'no side sheets');
   const NAMES = { Top: 'Watch Status Bar', Forecast: 'Forecast Status Bar', Radar: 'Radar Status Bar',
     Health: 'Health Status Bar' };
   sheets.forEach((s) => {
-    const m = /^od(\w+?)(Left|Right)$/.exec(s.sheetId);
-    const bar = m[1];
-    const side = m[2].toLowerCase();
+    const bar = s.sheetId.slice(2);
     const gate = bar === 'Radar' ? RADAR_BAR : bar === 'Health' ? HEALTH_BAR : null;
     assert.equal(s.sheetOnly, true);
     assert.deepEqual(s.showWhen, gate ? { all: [ON_DEMAND_WHEN, gate] } : ON_DEMAND_WHEN, s.sheetId);
-    assert.equal(s.title, 'Alerts ' + side);
-    assert.equal(s.intro, '<b>' + NAMES[bar] + '</b><br>Ticked items show at this bar’s ' + side
-      + ' edge only while they have something to say. The first sits next to the status slot there; when'
-      + ' the bar runs short of room, the last ones drop first. A weather alert for the value that slot'
-      + ' shows goes into the slot, with its colors, instead of adding its alert icon.');
-    const key = 'status' + bar + 'OnDemand' + m[2] + 'Items';
+    assert.equal(s.title, 'Alerts');
+    assert.equal(s.intro, '<b>' + NAMES[bar] + '</b><br>Ticked items show at this bar’s left or right edge only'
+      + ' while they have something to say, each on one side at most. The first on a side sits next to the status'
+      + ' slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that'
+      + ' slot shows goes into the slot, with its colors, instead of adding its alert icon.');
+    const left = 'status' + bar + 'OnDemandLeftItems';
+    const right = 'status' + bar + 'OnDemandRightItems';
+    // The checklist stores the left list; the hidden item stores the right one (its
+    // default, its save), which the checklist's Right column draws and writes.
     assert.deepEqual(s.items, [{
-      type: 'checklist', messageKey: key, label: 'Items', defaultValue: OD.DEFAULTS[key],
-      optionsFrom: { resolver: 'onDemandItems', args: { bar: bar.toLowerCase(), side } },
+      type: 'checklist', messageKey: left, label: 'Alerts', defaultValue: OD.DEFAULTS[left],
+      columns: [{ messageKey: left, label: 'Left' }, { messageKey: right, label: 'Right' }],
+      optionsFrom: { resolver: 'onDemandItems' },
       onChange: 'onDemandExclusive'
-    }], s.sheetId);
+    }, { type: 'hidden', messageKey: right, defaultValue: OD.DEFAULTS[right] }], s.sheetId);
   });
 });
 
@@ -2187,7 +2188,7 @@ test('the Alert settings card: gated to a watch with On demand, its intro, reset
   assert.deepEqual(sec.showWhen, ON_DEMAND_WHEN);
   assert.equal(sec.intro.split(' <button')[0], 'Alerts show at the edge of a status bar only while they'
     + ' have something to say: the battery when it runs low, Bluetooth when it disconnects, a weather alert while it'
-    + ' is active. Each status bar’s Alerts left and Alerts right rows choose which.');
+    + ' is active. Tick them under Alerts on each status bar, left or right.');
   assert.ok(sec.intro.indexOf('data-action="resetOnDemand"') !== -1, 'the intro carries the card reset');
   assert.ok(sec.intro.indexOf('Reset alert settings to defaults') !== -1);
   const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
@@ -2201,7 +2202,7 @@ test('the Alert settings card: gated to a watch with On demand, its intro, reset
   assert.equal(it[0].type, 'staticText');
   assert.equal(it[0].style, 'info');
   assert.equal(it[0].text, 'Your Default view has no Watch Status Bar, so Alerts won’t show there.'
-    + ' Tick them under Alerts left or Alerts right on one of its other status bars.');
+    + ' Tick them under Alerts on one of its other status bars.');
   assert.deepEqual(it[1], { type: 'subheader', text: 'System info' });
   assert.deepEqual(it[2], { type: 'sheet', sheetId: 'odBattery', label: 'Battery', icon: 'battery',
     hintFrom: { resolver: 'onDemandBatteryText' }, editBadgeFrom: { resolver: 'onDemandBadge' } });
@@ -2390,21 +2391,20 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   // gate and the color pickers' COLOR-capability + non-B&W-theme rules.
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const sheets = watch.sections.filter((s) => s.sheetOnly);
-  assert.equal(sheets.length, 35,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only) + 8 side sheets + 8 item sheets');
+  assert.equal(sheets.length, 31,
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only) + 4 Alerts sheets + 8 item sheets');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',
       'threshTemp', 'threshPressure', 'threshSun', 'threshDate', 'threshWeek',
       'threshCity', 'threshCountdown', 'threshHr', 'threshBatteryPct',
       'threshDew', 'threshPhoneBattery',
-      'odTopLeft', 'odTopRight', 'odForecastLeft', 'odForecastRight',
-      'odRadarLeft', 'odRadarRight', 'odHealthLeft', 'odHealthRight',
+      'odTop', 'odForecast', 'odRadar', 'odHealth',
       'odBattery', 'odBluetooth',
       'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind'],
     'sheet ids follow the thresh<Stem> convention the slot resolver derives; the '
       + 'On demand sheets come last');
-  // The On demand sheets carry the On demand gate (aplite has no On demand), the side
+  // The On demand sheets carry the On demand gate (aplite has no On demand), the Alerts
   // sheets of the radar and health bars their bar's gate too.
   sheets.filter((s) => !/^thresh/.test(s.sheetId)).forEach((s) => {
     const g = s.showWhen;

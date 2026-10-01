@@ -497,7 +497,7 @@ test('type:sheet honors showWhen like any other row', () => {
   assert.ok(E.renderBody(SCH, 't', cx).indexOf('Graph colors') !== -1, 'shown on a color watch');
 });
 
-test('a sheet renders a checklist in place: a card per group, gated options inert with their ticks', () => {
+test('a sheet renders a checklist in place: plain rows under a sub-header per group, gated options inert with their ticks', () => {
   global.PConf.optionsResolvers.register('sheetChecklist', () => [
     ['Group', '', { groupHeader: true }], ['One', 'a'], ['Two', 'b', { disabled: true, desc: 'Not here' }]]);
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
@@ -509,7 +509,8 @@ test('a sheet renders a checklist in place: a card per group, gated options iner
   ] }] };
   const sheet = E.renderEditModal(SCH, cxFor(E.hydrate(SCH, {}), { openEdit: 'pick' }));
   assert.ok(sheet.indexOf('<div class="intro"><b>Bar</b><br>Tick them.</div>') !== -1, 'the intro leads');
-  assert.match(sheet, /<div class="chk-list" role="group" aria-label="Things"><div class="card chk-grp" role="group" aria-label="Group"><div class="cardHdr"><span class="ttl">Group<\/span><\/div>/);
-  assert.match(sheet, /aria-checked="false" data-k="things" data-check="a">/);
-  assert.match(sheet, /aria-checked="true" data-k="things" data-check="b" disabled aria-disabled="true">/);
+  assert.match(sheet, /<div class="chk-list" role="group" aria-label="Things"><div class="subhdr grp chk-hdr"><span>Group<\/span><\/div><div class="row chk-opt nb">/);
+  assert.equal(sheet.indexOf('class="card'), -1, 'no card inside the sheet');
+  assert.match(sheet, /aria-checked="false" aria-label="One" data-list="things" data-k="things" data-check="a">/);
+  assert.match(sheet, /aria-checked="true" aria-label="Two" data-list="things" data-k="things" data-check="b" disabled aria-disabled="true">/);
 });

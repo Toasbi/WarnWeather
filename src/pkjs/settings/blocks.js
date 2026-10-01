@@ -1119,7 +1119,7 @@ if (typeof require !== 'undefined') {
      * while the radar is off, Pollen off the DWD provider.
      * @param {Object} S Live settings state.
      * @param {string} code An on-demand.js ITEMS code.
-     * @returns {?string} Why it cannot show (the checklist's note), or null when it can.
+     * @returns {?string} Why it cannot show (the Alerts sheet's note), or null when it can.
      */
     function onDemandBlocked(S, code) {
         if (code === 'rain' && radarOff(S)) { return 'Needs the rain radar (Radar tab)'; }
@@ -1128,53 +1128,50 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The side row's live summary (the row's hint): the names of the ticked items that
-     * can show, in priority order, joined " · "; nothing while nothing is ticked (the side
-     * is then off). Ticks that all cannot show (Rain with the radar Off, Pollen off DWD)
-     * say so instead, and the side's checklist notes say why.
+     * The bar's Alerts row live summary (the row's hint): per side, the names of the
+     * ticked items that can show, in priority order, e.g. "Left: Bluetooth, Rain · Right:
+     * Battery, UV index"; a side with nothing to show is left out, and nothing at all
+     * while nothing is ticked (both sides are then off). Ticks that all cannot show (Rain
+     * with the radar Off, Pollen off DWD) say so instead, and the sheet's notes say why.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{itemsKey: string}} args The side's items key.
+     * @param {{bar: string}} args The bar (an on-demand.js BARS bar).
      * @returns {string} The hint ('' for none).
      */
     function onDemandSummary(S, env, args) {
-        var ticked = onDemand.parse((S || {})[args.itemsKey]);
-        if (!ticked.length) { return ''; }
-        var names = [];
-        ticked.forEach(function (code) {
-            if (onDemandBlocked(S, code) === null) {
-                names.push(onDemand.ITEMS[onDemand.itemIndex(code)].label);
-            }
+        var parts = [];
+        var ticked = false;
+        onDemand.SIDES.forEach(function (side) {
+            var codes = onDemand.parse((S || {})[onDemand.itemsKey(args.bar, side)]);
+            var names = [];
+            if (codes.length) { ticked = true; }
+            codes.forEach(function (code) {
+                if (onDemandBlocked(S, code) === null) {
+                    names.push(onDemand.ITEMS[onDemand.itemIndex(code)].label);
+                }
+            });
+            if (names.length) { parts.push((side === 'left' ? 'Left: ' : 'Right: ') + names.join(', ')); }
         });
-        return names.length ? names.join(' · ') : 'None of the ticked items can show';
+        if (!ticked) { return ''; }
+        return parts.length ? parts.join(' · ') : 'None of the ticked items can show';
     }
     PConf.hintResolvers.register('onDemandSummary', onDemandSummary);
 
     /**
-     * A side's checklist options: the ten items in priority order under the two group
-     * headers, each with its note when it cannot show (disabled, keeping its tick) or
-     * when the bar's other side holds it (ticking moves it here — onDemandExclusive).
+     * A bar's Alerts sheet options: the ten items in priority order under the two group
+     * headers, each with its note when it cannot show (disabled, keeping its ticks). The
+     * sheet's Left and Right columns show where each sits, so no note names a side.
      * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
-     * @param {{bar: string, side: string}} args The side.
      * @returns {Array<Array>} [label, value, meta] options.
      */
-    function onDemandItems(S, env, args) {
-        var other = args.side === 'left' ? 'right' : 'left';
-        var otherCodes = onDemand.parse((S || {})[onDemand.itemsKey(args.bar, other)]);
+    function onDemandItems(S) {
         var out = [];
         onDemand.ITEMS.forEach(function (item, i) {
             if (i === 0 || item.group !== onDemand.ITEMS[i - 1].group) {
                 out.push([item.group === 'system' ? 'System info' : 'Weather alerts', '', {groupHeader: true}]);
             }
             var blocked = onDemandBlocked(S, item.code);
-            var meta = null;
-            if (blocked) {
-                meta = {desc: blocked, disabled: true};
-            } else if (otherCodes.indexOf(item.code) >= 0) {
-                meta = {desc: 'In Alerts ' + other + ' now; ticking moves it here'};
-            }
-            out.push(meta ? [item.label, item.code, meta] : [item.label, item.code]);
+            out.push(blocked ? [item.label, item.code, {desc: blocked, disabled: true}] : [item.label, item.code]);
         });
         return out;
     }

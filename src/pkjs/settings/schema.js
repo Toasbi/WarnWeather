@@ -1109,10 +1109,9 @@ function odBarGate(bar) {
 function capitalised(word) { return word.charAt(0).toUpperCase() + word.slice(1); }
 /**
  * @param {string} bar An on-demand.js BARS bar.
- * @param {string} side 'left' | 'right'
- * @returns {string} the side's checklist sheet, e.g. 'odTopLeft'
+ * @returns {string} the bar's Alerts sheet, e.g. 'odTop'
  */
-function odSideSheetId(bar, side) { return 'od' + capitalised(bar) + capitalised(side); }
+function odBarSheetId(bar) { return 'od' + capitalised(bar); }
 /**
  * "The item shows on one of these bars" as a showWhen predicate that resolves exactly as
  * on-demand.js sideOf does: the watch draws On demand, and on one of the bars a side
@@ -1187,7 +1186,7 @@ function rainUnplacedNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'No status bar has Rain ticked under Alerts left or Alerts right, so the rain icon won’t show.',
+        text: 'No status bar has Rain ticked under Alerts, so the rain icon won’t show.',
         showWhen: {all: [{key: 'radarMode', ne: 'off'}, ON_DEMAND_WHEN, {not: RAIN_PLACED_WHEN}]}
     };
 }
@@ -1203,7 +1202,7 @@ function rainAlertUnshownNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: '‘Rain alert only’ fetches the radar for the rain icon, but no status bar has Rain ticked under Alerts left or Alerts right.',
+        text: '‘Rain alert only’ fetches the radar for the rain icon, but no status bar has Rain ticked under Alerts.',
         showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: RAIN_VISIBLE_WHEN}]}
     };
 }
@@ -1232,7 +1231,7 @@ function rainWindowRow(label, hint, showWhen) {
 }
 /**
  * The rain alert's sheet (sheetId alertRain), opened from the Alert settings card's Rain row.
- * It has no switch: the tick in a side's checklist is the switch. The look's default is
+ * It has no switch: a tick in a bar's Alerts sheet is the switch. The look's default is
  * the contract's (status-thresholds.js rainAlert), so the page hydrating a key and the
  * packer reading it absent never disagree.
  * @returns {Object} Schema section (sheetOnly).
@@ -1308,8 +1307,8 @@ function alertLooksAheadWhen(daysKey) {
 /**
  * One metric alert's sheet (sheetId alert<Stem>), opened from its Alert settings card row:
  * the Look, the Days with the tomorrow mark, then the kind's levels group — the levels'
- * ONE home (the slot sheet points here). It has no switch: the tick in a side's
- * checklist is the switch. The phone bakes an entry into the ALERT_ENTRIES_UINT8 tuple
+ * ONE home (the slot sheet points here). It has no switch: a tick in a bar's Alerts
+ * sheet is the switch. The phone bakes an entry into the ALERT_ENTRIES_UINT8 tuple
  * only for a kind placed on a bar whose day — today, or with Days "Today + tomorrow"
  * tomorrow — reaches its warn level (status-wire.js bakeAlerts), so the Look, the
  * Days and the mark ride renderSignature(), not the Clay message.
@@ -1407,68 +1406,74 @@ var ALERT_KINDS = [
         icon: 'wind'}
 ];
 /**
- * A bar's two On demand rows, after its three slots: each the side's label, the ticked
- * items as its live hint (none while nothing is ticked) and an Edit button that opens the
- * side's checklist. No switch: a side is on exactly while it ticks something.
+ * A bar's Alerts row, after its three slots: the label, the ticked items of both sides as
+ * its live hint (none while nothing is ticked) and an Edit button that opens the bar's
+ * Alerts sheet. No switch: a side is on exactly while it ticks something.
  * @param {string} prefix The bar's key prefix, e.g. 'statusTop'.
  * @param {?Object} barWhen The bar's gate (RADAR_BAR_WHEN …), or null.
- * @returns {Object[]} The two rows, left then right.
+ * @returns {Object} The row.
  */
-function onDemandRows(prefix, barWhen) {
+function onDemandRow(prefix, barWhen) {
     var bar = null;
     ON_DEMAND.BARS.forEach(function (b) { if (b.prefix === prefix) { bar = b.bar; } });
-    return ON_DEMAND.SIDES.map(function (side) {
-        return {
-            type: 'sheet',
-            sheetId: odSideSheetId(bar, side),
-            label: 'Alerts ' + side,
-            hintFrom: {resolver: 'onDemandSummary', args: {itemsKey: ON_DEMAND.itemsKey(bar, side)}},
-            editBadgeFrom: {resolver: 'onDemandBadge'},
-            joinPrevious: true,
-            compact: true,
-            showWhen: barWhen ? {all: [ON_DEMAND_WHEN, barWhen]} : ON_DEMAND_WHEN
-        };
-    });
+    return {
+        type: 'sheet',
+        sheetId: odBarSheetId(bar),
+        label: 'Alerts',
+        hintFrom: {resolver: 'onDemandSummary', args: {bar: bar}},
+        editBadgeFrom: {resolver: 'onDemandBadge'},
+        joinPrevious: true,
+        compact: true,
+        showWhen: barWhen ? {all: [ON_DEMAND_WHEN, barWhen]} : ON_DEMAND_WHEN
+    };
 }
 /**
- * One side's checklist sheet (sheetId od<Bar><Side>): the ten items in priority order in
- * two groups (blocks.js onDemandItems). Ticking an item here unticks it on the bar's
- * other side (the onDemandExclusive hook), so an item sits on at most one side of a bar.
+ * One bar's Alerts sheet (sheetId od<Bar>): the ten items in priority order under the
+ * System info and Weather alerts sub-headers (blocks.js onDemandItems), each row with a
+ * Left and a Right tick, one per side's list. The checklist stores the left list; the
+ * hidden item after it stores the right one, which the checklist's Right column draws
+ * and writes. Ticking a side unticks the bar's other side (the onDemandExclusive hook,
+ * which runs for either column), so an item sits on at most one side of a bar.
  * @param {string} bar An on-demand.js BARS bar.
- * @param {string} side 'left' | 'right'
  * @returns {Object} Schema section (sheetOnly).
  */
-function onDemandSideSheet(bar, side) {
-    var key = ON_DEMAND.itemsKey(bar, side);
+function onDemandBarSheet(bar) {
     var gate = odBarGate(bar);
+    var left = ON_DEMAND.itemsKey(bar, 'left');
+    var right = ON_DEMAND.itemsKey(bar, 'right');
     return {
         sheetOnly: true,
-        sheetId: odSideSheetId(bar, side),
+        sheetId: odBarSheetId(bar),
         showWhen: gate ? {all: [ON_DEMAND_WHEN, gate]} : ON_DEMAND_WHEN,
-        title: 'Alerts ' + side,
-        intro: '<b>' + OD_BAR_NAMES[bar] + '</b><br>Ticked items show at this bar’s ' + side + ' edge only while '
-            + 'they have something to say. The first sits next to the status slot there; when the bar runs short '
-            + 'of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, '
-            + 'with its colors, instead of adding its alert icon.',
+        title: 'Alerts',
+        intro: '<b>' + OD_BAR_NAMES[bar] + '</b><br>Ticked items show at this bar’s left or right edge only '
+            + 'while they have something to say, each on one side at most. The first on a side sits next to the '
+            + 'status slot there; when the bar runs short of room, the last ones drop first. A weather alert for '
+            + 'the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.',
         items: [{
             type: 'checklist',
-            messageKey: key,
-            label: 'Items',
-            defaultValue: ON_DEMAND.DEFAULTS[key],
-            optionsFrom: {resolver: 'onDemandItems', args: {bar: bar, side: side}},
+            messageKey: left,
+            label: 'Alerts',
+            defaultValue: ON_DEMAND.DEFAULTS[left],
+            columns: ON_DEMAND.SIDES.map(function (side) {
+                return {messageKey: ON_DEMAND.itemsKey(bar, side), label: capitalised(side)};
+            }),
+            optionsFrom: {resolver: 'onDemandItems'},
             onChange: 'onDemandExclusive'
+        }, {
+            // The Right column's list: hydrated + serialized, drawn and written by the
+            // checklist above.
+            type: 'hidden',
+            messageKey: right,
+            defaultValue: ON_DEMAND.DEFAULTS[right]
         }]
     };
 }
 /**
- * @returns {Object[]} The eight side sheets, bar by bar (BARS order), left then right.
+ * @returns {Object[]} The four Alerts sheets, in BARS order.
  */
-function onDemandSideSheets() {
-    var out = [];
-    ON_DEMAND.BARS.forEach(function (b) {
-        ON_DEMAND.SIDES.forEach(function (side) { out.push(onDemandSideSheet(b.bar, side)); });
-    });
-    return out;
+function onDemandBarSheets() {
+    return ON_DEMAND.BARS.map(function (b) { return onDemandBarSheet(b.bar); });
 }
 /**
  * The Battery item's warn level on one platform family: a one-thumb slider in the watch's
@@ -1610,7 +1615,7 @@ function onDemandCardItems() {
             type: 'staticText',
             style: 'info',
             text: 'Your Default view has no Watch Status Bar, so Alerts won’t show there. Tick them under '
-                + 'Alerts left or Alerts right on one of its other status bars.',
+                + 'Alerts on one of its other status bars.',
             showWhen: DEFAULT_VIEW_NO_ON_DEMAND_WHEN
         },
         {type: 'subheader', text: 'System info'},
@@ -1636,8 +1641,8 @@ function onDemandCardItems() {
 // The Alert settings card's intro: what an item is, then where they are chosen, with the
 // card's reset (the item settings; the ticks ride the status card's reset).
 var ON_DEMAND_INTRO = 'Alerts show at the edge of a status bar only while they have something to say: '
-    + 'the battery when it runs low, Bluetooth when it disconnects, a weather alert while it is active. Each status '
-    + 'bar’s Alerts left and Alerts right rows choose which.'
+    + 'the battery when it runs low, Bluetooth when it disconnects, a weather alert while it is active. Tick them '
+    + 'under Alerts on each status bar, left or right.'
     + ' <button type="button" class="txt-act-btn" data-action="resetOnDemand">Reset alert settings to defaults</button>';
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this
@@ -1839,14 +1844,14 @@ function slotItem(slotKey, position, barWhen, joins) {
 }
 
 /**
- * A status bar's eight items — left/mid/right selects, each followed by its countdown
- * companion date row, then its two On demand rows (onDemandRows) — all sharing the
- * bar's gate. Mid, right and the On demand rows always join the row above; the left
- * slot joins only when the bar opens with its own intro row.
+ * A status bar's seven items — left/mid/right selects, each followed by its countdown
+ * companion date row, then its Alerts row (onDemandRow) — all sharing the bar's gate.
+ * Mid, right and the Alerts row always join the row above; the left slot joins only when
+ * the bar opens with its own intro row.
  * @param {string} prefix Slot-key prefix, e.g. 'statusForecast'.
  * @param {?Object} barWhen The bar's shared visibility gate (null = always).
  * @param {boolean} [leftJoins] The left slot joins the previous row too.
- * @returns {Object[]} Eight schema items in render order.
+ * @returns {Object[]} Seven schema items in render order.
  */
 function barSlots(prefix, barWhen, leftJoins) {
     return [
@@ -1855,8 +1860,9 @@ function barSlots(prefix, barWhen, leftJoins) {
         slotItem(prefix + 'Mid', 'mid', barWhen, true),
         countdownDateItem(prefix + 'Mid', barWhen),
         slotItem(prefix + 'Right', 'right', barWhen, true),
-        countdownDateItem(prefix + 'Right', barWhen)
-    ].concat(onDemandRows(prefix, barWhen));
+        countdownDateItem(prefix + 'Right', barWhen),
+        onDemandRow(prefix, barWhen)
+    ];
 }
 // The signup link opens in an external browser (target=_blank). The Development > API Keys page 404s on
 // tomorrow.io's MOBILE site, so it gets a copy button instead of a (useless-on-mobile) link — users copy
@@ -2503,8 +2509,8 @@ module.exports = {
                 hintByValue: {
                     off: 'Radar is hidden.',
                     // No radar bar or graph in this mode: the rain icon's place is each bar's
-                    // Alerts left / Alerts right (Status slots tab), not the Layout tab the intro names.
-                    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar where Rain is ticked under Alerts left or Alerts right.',
+                    // Alerts row (Status slots tab), not the Layout tab the intro names.
+                    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar where Rain is ticked under Alerts.',
                     status: 'Adds the Radar Status Bar.',
                     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
                 },
@@ -2960,11 +2966,10 @@ module.exports = {
         // one mode packs into both cells. Android-only on the slot side; the sheet
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery')
-        // The eight side checklists (opened from each bar's On demand rows), then the
-        // item sheets (opened from the Alert settings card's rows): Battery, Bluetooth, rain,
-        // then one per metric alert kind holding its Look, Days and levels (the levels'
-        // one home).
-        ].concat(onDemandSideSheets(), [batterySheet(), bluetoothSheet(), rainAlertSheet()],
+        // The four bar sheets (opened from each bar's Alerts row), then the item sheets
+        // (opened from the Alert settings card's rows): Battery, Bluetooth, rain, then one
+        // per metric alert kind holding its Look, Days and levels (the levels' one home).
+        ].concat(onDemandBarSheets(), [batterySheet(), bluetoothSheet(), rainAlertSheet()],
             ALERT_KINDS.map(function (k) {
                 return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '');
             }))

@@ -325,23 +325,27 @@
   /* "(Recommended)" marker appended to a select option's name (recommendFrom resolver) */
   .ssel-rec { color: var(--link); font-weight: 800; white-space: nowrap; }
   .ssel-none { padding: 14px 13px; font: 600 13px 'Inter', sans-serif; color: var(--faint); }
-  /* checklist control (engine renderChecklist): one card per option group, titled like a
-     page card, its rows the page's ordinary rows joined (.row.nb: no divider, the tight
-     rhythm), one checkbox per row. Its row (.chk-row) is only the cards' frame: no top
-     padding, no divider. Inside the sheet the cards take the control surface, so they stand
-     off the sheet as page cards stand off the page (lighter in dark, darker in light). A
+  /* checklist control (engine renderChecklist): plain rows, no cards. Each option group
+     opens under a .subhdr.grp sub-header, which with several columns also carries the
+     columns' captions (.chk-caps) right over their ticks: a caption and a tick share one
+     fixed width, and the header and the rows share the 16px side padding. A group's rows
+     are the page's ordinary rows joined (.row.nb: no divider, the tight rhythm). Its row
+     (.chk-row) is only the list's frame: no padding of its own, no divider. Each tick is a
+     44px-wide button whose negative margin keeps a one-line row at the text rhythm; a
      ticked box fills with the accent gradient and draws a CSS tick; a gated option stays
-     visible, keeps its tick, and dims. */
-  .row.chk-row { padding-top: 0; border-bottom: none; }
+     visible, keeps its ticks, and dims. */
+  .row.chk-row { padding: 0; border-bottom: none; }
   .row.chk-row > div:last-child { margin-top: 0; }
-  .chk-list .card:last-child { margin-bottom: 0; }
-  dialog#modal .esheet .chk-list .card { background: var(--ctl); }
-  .chk-opt { width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; background: transparent; border-top: none; border-left: none; border-right: none; }
   .chk-opt .lbl, .chk-opt .hint { display: block; }
-  .chk-opt[disabled] { opacity: .38; cursor: not-allowed; }
+  .chk-opt.off { opacity: .38; }
+  .chk-ticks, .chk-caps { flex: none; display: flex; }
+  .chk-caps { margin-left: auto; }
+  .chk-caps > span { width: 44px; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--hint); }
+  .chk-tick { width: 44px; height: 32px; margin: -6px 0; padding: 0; display: flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; }
+  .chk-tick[disabled] { cursor: not-allowed; }
   .chk-box { flex: none; position: relative; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--ctl-line); box-sizing: border-box; }
-  .chk-opt.on .chk-box { border-color: transparent; background: linear-gradient(135deg, #FA4A35, #D93A24); }
-  .chk-opt.on .chk-box::after { content: ''; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 9px; border: solid #FFFFFF; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .chk-tick.on .chk-box { border-color: transparent; background: linear-gradient(135deg, #FA4A35, #D93A24); }
+  .chk-tick.on .chk-box::after { content: ''; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 9px; border: solid #FFFFFF; border-width: 0 2px 2px 0; transform: rotate(45deg); }
   /* select/searchSelect popup — dim overlay + centered card, matching the News popup */
   /* select/searchSelect popup as a native <dialog> shaped like a bottom sheet. HTML can't paint
      over the host app's native bar, so instead of a full-screen overlay the sheet sits at the
