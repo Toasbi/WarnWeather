@@ -43,11 +43,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "status_line.h"
-#include "../layers/battery_glyph.h"
 
-// The Watch battery glyph's bolt lane in front of its body, which SST_NO_LANE drops:
-// empty while the watch is not charging.
-#define STATUS_SHORT_BATTERY_LANE_W (BATTERY_POWER_ICON_W + BATTERY_ICON_SPACING)
 // The elastic city's floor: this many code points, then the ellipsis.
 #define STATUS_SHORT_FLOOR_CPS 3
 #define STATUS_SHORT_ELLIPSIS "\xE2\x80\xA6"

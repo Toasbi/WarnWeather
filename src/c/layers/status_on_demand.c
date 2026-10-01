@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "status_on_demand.h"
+#include "battery_glyph.h"
 #include "battery_item.h"
 #include "status_highlight.h"
 #include "status_row.h"
@@ -368,7 +369,7 @@ static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
         StatusSlotMeasure m = *full;
         m.text_w = status_row_text_w(buf, slot->font, content_w, h);
         if (flags & SST_NO_SUFFIX) { m.suffix_w = 0; }
-        if (flags & SST_NO_LANE) { m.icon_w = (int16_t)(m.icon_w - STATUS_SHORT_BATTERY_LANE_W); }
+        if (flags & SST_NO_LANE) { m.icon_w = (int16_t)(m.icon_w - BATTERY_BOLT_LANE_W); }
         if ((flags & SST_ELASTIC) && status_short_floor(slot->text, buf, sizeof(buf))) {
             in->floor_w = status_row_text_w(buf, slot->font, content_w, h);
         }

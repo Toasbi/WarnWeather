@@ -72,8 +72,8 @@ void battery_draw(GContext *ctx, GRect rect, GColor fg) {
         graphics_context_set_compositing_mode(ctx, GCompOpAssign);
     }
 
-    const int lane = BATTERY_POWER_ICON_W + BATTERY_ICON_SPACING;
-    battery_body_draw(ctx, GPoint(ox + lane, oy), w - lane - BATTERY_NUB_W, h, level, fg);
+    battery_body_draw(ctx, GPoint(ox + BATTERY_BOLT_LANE_W, oy),
+                      w - BATTERY_BOLT_LANE_W - BATTERY_NUB_W, h, level, fg);
 }
 
 void battery_draw_deinit(void) {
