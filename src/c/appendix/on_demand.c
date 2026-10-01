@@ -158,8 +158,11 @@ static int16_t pick_short(const Pass *p, int i, const Fit *f, uint8_t *variant) 
     return (int16_t)best;
 }
 
-static int16_t item_gap(const OdSideIn *s, int a, int b) {
-    return (s->padded[a] || s->padded[b]) ? OD_PADDED_GAP : OD_ITEM_GAP;
+// The air before item b of side s, after item b - 1: less beside a boxed alert, whose
+// padding is already in its footprint. Ranks rise along a side and the alerts rank
+// last (od_item_boxed), so b is boxed wherever b - 1 is.
+static int16_t item_gap(const OdSideIn *s, int b) {
+    return od_item_boxed(s->rank[b]) ? OD_PADDED_GAP : OD_ITEM_GAP;
 }
 
 // The width of side d's run at `lane`: every item `c` puts in, and the gaps between.
@@ -172,7 +175,7 @@ __attribute__((noinline)) static int16_t span_w(const Pass *p, const Conf *c, in
     int w = 0;
     for (int i = c->first[d]; i < end; i++) {
         w += s->w[lane][i];
-        if (i + 1 < end) { w += item_gap(s, i, i + 1); }
+        if (i + 1 < end) { w += item_gap(s, i + 1); }
     }
     return (int16_t)w;
 }
@@ -346,7 +349,7 @@ static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *
             for (int k = c->first[d]; k < end; k++) {
                 const int16_t wk = s->w[c->lane[d]][k];
                 out->item_x[d][k] = d ? (int16_t)(W - u - wk) : u;
-                if (k + 1 < end) { u = (int16_t)(u + wk + item_gap(s, k, k + 1)); }
+                if (k + 1 < end) { u = (int16_t)(u + wk + item_gap(s, k + 1)); }
             }
             if (c->own[d] != OD_HIDDEN) {
                 uint8_t v = 0;

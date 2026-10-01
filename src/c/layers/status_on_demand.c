@@ -412,7 +412,6 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         int i = side->n++;
         side->rank[i] = (uint8_t)item;
         for (int lane = 0; lane < OD_LANES; lane++) { side->w[lane][i] = w[lane]; }
-        side->padded[i] = od_item_boxed(item);
     }
     if (pass->sides[0].n == 0 && pass->sides[1].n == 0) {
         status_row_layout(content_w, m, places);

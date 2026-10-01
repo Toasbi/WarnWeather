@@ -129,12 +129,12 @@ typedef struct {
     int16_t floor_w;
 } OdSlotIn;
 
-// One side's items, outermost first (ascending OdItem, so rank[] rises).
+// One side's items, outermost first (ascending OdItem, so rank[] rises). Whether an
+// item is boxed, and so the air beside it, is read off its rank (od_item_boxed).
 typedef struct {
     uint8_t n;
     uint8_t rank[OD_SIDE_MAX];            // the item's OdItem
     int16_t w[OD_LANES][OD_SIDE_MAX];     // its footprint per lane (> 0)
-    bool padded[OD_SIDE_MAX];             // a boxed alert: its padding is in w
 } OdSideIn;
 
 // The layout: each slot's member and place (content x), and per side the items

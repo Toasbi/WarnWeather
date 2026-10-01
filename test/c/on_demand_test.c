@@ -128,7 +128,7 @@ static void ladder_every_row_in_order(void) {
     for (int k = 1; k <= 140; k++) {
         while (want < rows && k > AT[want].last_k) { want++; }
         OdSideIn sides[2] = { side_none(), side_none() };
-        add(&sides[0], OD_RAIN, (int16_t)(3 * k), (int16_t)(2 * k), (int16_t)k, false);
+        add(&sides[0], OD_RAIN, (int16_t)(3 * k), (int16_t)(2 * k), (int16_t)k);
         OdLayout out;
         od_layout(200, slots, sides, NO_BLEED, 0, &out);
         char name[64];
@@ -184,7 +184,7 @@ static void ladder_looks_last(void) {
     bool moved = false;
     for (int k = 1; k <= 126; k++) {
         OdSideIn sides[2] = { side_none(), side_none() };
-        add(&sides[0], OD_RAIN, (int16_t)(3 * k), (int16_t)(2 * k), (int16_t)k, false);
+        add(&sides[0], OD_RAIN, (int16_t)(3 * k), (int16_t)(2 * k), (int16_t)k);
         OdLayout out;
         od_layout(200, slots, sides, NO_BLEED, 0, &out);
         char name[64];
@@ -256,7 +256,7 @@ static void value_ranges(const char *tag, const OdSlotIn slots[3], const ValueRa
     for (int v = 17; v <= 140; v++) {
         while (want < count && v > r[want].last_v) { want++; }
         OdSideIn sides[2] = { side_none(), side_none() };
-        add(&sides[1], OD_GUST, (int16_t)v, (int16_t)v, 17, true);
+        add(&sides[1], OD_GUST, (int16_t)v, (int16_t)v, 17);
         OdLayout out;
         od_layout(132, slots, sides, NO_BLEED, 0, &out);
         char name[64];
@@ -318,8 +318,8 @@ static void value_alert_keeps_its_value(void) {
 static void looks_come_back(void) {
     OdSlotIn none[3] = { slot_empty(), slot_empty(), slot_empty() };
     OdSideIn sides[2] = { side_none(), side_none() };
-    add(&sides[0], OD_RAIN, 60, 30, 10, false);
-    add(&sides[1], OD_GUST, 60, 60, 10, true);
+    add(&sides[0], OD_RAIN, 60, 30, 10);
+    add(&sides[1], OD_GUST, 60, 60, 10);
     OdLayout out;
     od_layout(100, none, sides, NO_BLEED, 0, &out);
     expect("looks_back.left_lane", out.lane[0], 1);
@@ -343,7 +343,7 @@ static OdSideIn random_side(int lo, int hi) {
         int16_t w2 = (int16_t)(6 + rnd(14));
         int16_t w1 = (int16_t)(w2 + (rnd(2) ? rnd(20) : 0));
         int16_t w0 = (int16_t)(w1 + (rnd(2) ? rnd(40) : 0));
-        add(&s, r, w0, w1, w2, r >= OD_GUST && rnd(2));
+        add(&s, r, w0, w1, w2);
     }
     return s;
 }
@@ -455,7 +455,8 @@ static void inside_half_keeps_all(void) {
             for (int i = 0; i < s->n; i++) {
                 run += s->w[0][i];
                 if (i + 1 < s->n) {
-                    run += s->padded[i] || s->padded[i + 1] ? OD_PADDED_GAP : OD_ITEM_GAP;
+                    run += od_item_boxed(s->rank[i]) || od_item_boxed(s->rank[i + 1])
+                        ? OD_PADDED_GAP : OD_ITEM_GAP;
                 }
             }
             const int own_w = status_slot_placed_w(&plain[own], &slots[own].m[0]);
@@ -684,7 +685,7 @@ static void two_sides_drop_lowest_priority(void) {
     OdSlotIn none[3] = { slot_empty(), slot_empty(), slot_empty() };
     OdSideIn sides[2] = { side_none(), side_none() };
     add_icon(&sides[0], OD_QUIET_TIME, 10);
-    add_icon(&sides[0], OD_WIND, 45);
+    add_icon(&sides[0], OD_WIND, 47);
     add_icon(&sides[1], OD_BATTERY, 17);
     add_icon(&sides[1], OD_RAIN, 40);
     OdLayout out;
@@ -697,7 +698,7 @@ static void two_sides_drop_lowest_priority(void) {
     add_icon(&mirror[0], OD_QUIET_TIME, 10);
     add_icon(&mirror[0], OD_RAIN, 45);
     add_icon(&mirror[1], OD_BATTERY, 17);
-    add_icon(&mirror[1], OD_POLLEN, 40);
+    add_icon(&mirror[1], OD_POLLEN, 42);
     od_layout(100, none, mirror, NO_BLEED, 0, &out);
     expect("drop.mirror.left_n", out.n[0], 2);
     expect("drop.mirror.right_n", out.n[1], 1);
@@ -726,8 +727,8 @@ static void two_sides_no_middle(void) {
         OdSideIn sides[2] = { side_none(), side_none() };
         add_icon(&sides[0], OD_BLUETOOTH, 10);
         add_icon(&sides[1], OD_BATTERY, 17);
-        add(&sides[1], OD_RAIN, 60, 20, 12, false);
-        add(&sides[1], OD_GUST, (int16_t)big, (int16_t)big, (int16_t)big, true);
+        add(&sides[1], OD_RAIN, 60, 20, 12);
+        add(&sides[1], OD_GUST, (int16_t)big, (int16_t)big, (int16_t)big);
         OdLayout out;
         od_layout(144, slots, sides, NO_BLEED, 0, &out);
         expect("nomid.small_stage", out.stage[0], 0);
@@ -748,8 +749,8 @@ static void two_sides_no_middle(void) {
         // The mirror case.
         OdSideIn m[2] = { side_none(), side_none() };
         add_icon(&m[0], OD_BATTERY, 17);
-        add(&m[0], OD_RAIN, 60, 20, 12, false);
-        add(&m[0], OD_GUST, (int16_t)big, (int16_t)big, (int16_t)big, true);
+        add(&m[0], OD_RAIN, 60, 20, 12);
+        add(&m[0], OD_GUST, (int16_t)big, (int16_t)big, (int16_t)big);
         add_icon(&m[1], OD_BLUETOOTH, 10);
         od_layout(144, slots, m, NO_BLEED, 0, &out);
         expect("nomid.mirror.small_stage", out.stage[1], 0);
@@ -859,10 +860,10 @@ static void attribution_is_exact(void) {
 static void two_sides_skip_idle_rows(void) {
     OdSlotIn slots[3] = { slot_text(26, 0), slot_empty(), slot_text(30, 13) };
     OdSideIn sides[2] = { side_none(), side_none() };
-    add(&sides[0], OD_QUIET_TIME, 31, 25, 19, false);
+    add(&sides[0], OD_QUIET_TIME, 31, 25, 19);
     add_icon(&sides[0], OD_RAIN, 17);
     add_icon(&sides[1], OD_GUST, 21);
-    add(&sides[1], OD_AQI, 36, 36, 11, false);
+    add(&sides[1], OD_AQI, 38, 38, 13);
     OdLayout out;
     od_layout(149, slots, sides, NO_BLEED, 0, &out);
     expect("skip.left_stage", out.stage[0], 8);
@@ -900,9 +901,9 @@ static void slots_back_two_sides(void) {
     add_icon(&sides[0], OD_QUIET_TIME, 10);
     add_icon(&sides[0], OD_SLEEP, 10);
     add_icon(&sides[1], OD_BATTERY, 19);
-    add(&sides[1], OD_RAIN, 68, 25, 10, false);
-    add(&sides[1], OD_UV, 24, 24, 16, true);
-    add(&sides[1], OD_GUST, 32, 32, 16, true);
+    add(&sides[1], OD_RAIN, 68, 25, 10);
+    add(&sides[1], OD_UV, 24, 24, 16);
+    add(&sides[1], OD_GUST, 32, 32, 16);
     od_layout(132, strip, sides, STRIP_BLEED, 0, &out);
     expect("slots_back.strip.middle_hidden", form_of(&out, 1), OD_HIDDEN);
     expect("slots_back.strip.right_stage", out.stage[1], 6);
@@ -953,10 +954,10 @@ static void slots_back_two_sides(void) {
     guard[2].m[0] = (StatusSlotMeasure) { true, 13, 0, 0 };
     guard[2].n = 1;
     OdSideIn g2[2] = { side_none(), side_none() };
-    add(&g2[0], OD_BATTERY, 52, 32, 17, false);
-    add(&g2[1], OD_RAIN, 50, 14, 14, false);
-    add(&g2[1], OD_GUST, 25, 16, 16, true);
-    add(&g2[1], OD_AQI, 15, 15, 15, true);
+    add(&g2[0], OD_BATTERY, 52, 32, 17);
+    add(&g2[1], OD_RAIN, 50, 14, 14);
+    add(&g2[1], OD_GUST, 25, 16, 16);
+    add(&g2[1], OD_AQI, 15, 15, 15);
     od_layout(217, guard, g2, NO_BLEED, 0, &out);
     expect("slots_back.shown.left_stage", out.stage[0], 0);
     expect("slots_back.shown.left_full", form_of(&out, 0), OD_FULL);
@@ -981,11 +982,11 @@ static void slots_back_middle_gone(void) {
     cal[2].m[1] = (StatusSlotMeasure) { true, 19, 0, 0 };
     cal[2].n = 2;
     OdSideIn heavy[2] = { side_none(), side_none() };
-    add(&heavy[1], OD_RAIN, 68, 25, 10, false);
-    add(&heavy[1], OD_GUST, 40, 40, 22, true);
-    add(&heavy[1], OD_UV, 30, 30, 22, true);
-    add(&heavy[1], OD_AQI, 36, 36, 22, true);
-    add(&heavy[1], OD_WIND, 40, 40, 22, true);
+    add(&heavy[1], OD_RAIN, 68, 25, 10);
+    add(&heavy[1], OD_GUST, 40, 40, 22);
+    add(&heavy[1], OD_UV, 30, 30, 22);
+    add(&heavy[1], OD_AQI, 36, 36, 22);
+    add(&heavy[1], OD_WIND, 40, 40, 22);
     od_layout(132, cal, heavy, STRIP_BLEED, 0, &out);
     expect("slots_back.gone.cal.stage", out.stage[1], 7);
     expect("slots_back.gone.cal.lane", out.lane[1], 2);
@@ -1014,7 +1015,7 @@ static void slots_back_middle_gone(void) {
     // slot stays hidden rather than coming back beside the minutes.
     OdSlotIn cost[3] = { slot_text(20, 0), slot_text(100, 0), slot_empty() };
     OdSideIn rain[2] = { side_none(), side_none() };
-    add(&rain[0], OD_RAIN, 100, 40, 21, false);
+    add(&rain[0], OD_RAIN, 100, 40, 21);
     od_layout(120, cost, rain, NO_BLEED, 0, &out);
     expect("slots_back.gone.cost.stage", out.stage[0], 8);
     expect("slots_back.gone.cost.middle_hidden", form_of(&out, 1), OD_HIDDEN);
@@ -1024,10 +1025,10 @@ static void slots_back_middle_gone(void) {
 
 // Bars where one rule of the relax decides the layout (each kills a mutant of it the
 // cases above let through), most found by a random search. A member is { icon, text,
-// suffix }; an item is { rank, lane 0, lane 1, lane 2, padded }.
+// suffix }; an item is { rank, lane 0, lane 1, lane 2 }.
 typedef struct { int16_t icon, text, suffix; } PinMember;
 typedef struct { uint8_t n; int16_t floor_w; PinMember m[OD_VARIANTS]; } PinSlot;
-typedef struct { uint8_t rank; int16_t w0, w1, w2; bool padded; } PinItem;
+typedef struct { uint8_t rank; int16_t w0, w1, w2; } PinItem;
 typedef struct {
     const char *what;
     int16_t w;
@@ -1049,30 +1050,30 @@ static const PinCase PINS[] = {
     // its half — and the right slot, whose claim crosses the midline, hides.
     { "inside_slot_stays_whole", 90, 0,
       { { 2, 0, { { 0, 21, 0 }, { 0, 3, 0 } } }, { 1, 0, { { 0, 44, 0 } } }, { 1, 0, { { 0, 21, 0 } } } },
-      { 1, 1 }, { { { OD_QUIET_TIME, 15, 15, 10, false } }, { { OD_GUST, 39, 39, 25, false } } },
+      { 1, 1 }, { { { OD_QUIET_TIME, 15, 15, 10 } }, { { OD_GUST, 39, 39, 25 } } },
       { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 19, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
     // A look comes back before a slot: the left side takes back its chosen look with its
     // slot hidden, not its slot (short) beside a shorter look.
     { "look_before_slot", 168, 0,
       { { 2, 0, { { 13, 41, 0 }, { 13, 15, 0 } } }, { 0, 0, { { 0 } } }, { 2, 0, { { 0, 62, 0 }, { 0, 50, 0 } } } },
-      { 2, 2 }, { { { OD_BLUETOOTH, 35, 8, 8, false }, { OD_SLEEP, 65, 41, 17, false } },
-                  { { OD_RAIN, 17, 17, 17, false }, { OD_GUST, 80, 35, 15, false } } },
+      { 2, 2 }, { { { OD_BLUETOOTH, 35, 8, 8 }, { OD_SLEEP, 65, 41, 17 } },
+                  { { OD_RAIN, 17, 17, 17 }, { OD_GUST, 82, 37, 17 } } },
       { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 8, 8 }, { 0, 1 }, { 0, 0 } },
     // A side gives up its own slot, never the far one: once the middle hides, the left
     // claim with its slot whole stays inside its half, so the right side, whose claim
     // crosses the midline, hides its slot and keeps its looks.
     { "own_slot_before_far_slot", 138, 0,
       { { 1, 0, { { 0, 33, 0 } } }, { 1, 0, { { 14, 28, 0 } } }, { 2, 0, { { 11, 18, 0 }, { 11, 16, 0 } } } },
-      { 1, 2 }, { { { OD_BLUETOOTH, 14, 14, 9, false } },
-                  { { OD_GUST, 26, 26, 19, false }, { OD_UV, 53, 6, 6, false } } },
+      { 1, 2 }, { { { OD_BLUETOOTH, 14, 14, 9 } },
+                  { { OD_GUST, 26, 26, 19 }, { OD_UV, 55, 8, 8 } } },
       { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 18, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
     // A slot never comes back beside a middle that left the centre: the ladder hides
     // the slot first (row 3) and only then frees the middle (row 5). The left slot
     // would fit beside the free middle, pushed further off its target.
     { "no_slot_back_beside_middle", 214, 0,
       { { 2, 0, { { 0, 23, 0 }, { 0, 11, 0 } } }, { 1, 0, { { 0, 13, 0 } } }, { 1, 0, { { 0, 6, 0 } } } },
-      { 2, 1 }, { { { OD_BLUETOOTH, 50, 24, 6, false }, { OD_SLEEP, 59, 15, 7, false } },
-                  { { OD_UV, 22, 22, 22, false } } },
+      { 2, 1 }, { { { OD_BLUETOOTH, 50, 24, 6 }, { OD_SLEEP, 59, 15, 7 } },
+                  { { OD_UV, 22, 22, 22 } } },
       { OD_HIDDEN, OD_FULL, OD_FULL }, { 0, 0, 0 }, { -1, 117, 182 }, { 5, 0 }, { 0, 0 }, { 0, 0 } },
     // A look gives way before a far-side slot, and the middle does not take what is
     // left: the left rain's Text needs the middle hidden, and with the middle hidden the
@@ -1083,8 +1084,8 @@ static const PinCase PINS[] = {
     { "look_yields_to_far_slot", 82, 0,
       { { 2, 0, { { 16, 24, 0 }, { 16, 15, 0 } } }, { 2, 0, { { 15, 12, 0 }, { 15, 2, 0 } } },
         { 1, 0, { { 0, 16, 0 } } } },
-      { 2, 1 }, { { { OD_QUIET_TIME, 6, 6, 6, false }, { OD_RAIN, 36, 25, 7, false } },
-                  { { OD_UV, 19, 19, 19, false } } },
+      { 2, 1 }, { { { OD_QUIET_TIME, 6, 6, 6 }, { OD_RAIN, 36, 25, 7 } },
+                  { { OD_UV, 19, 19, 19 } } },
       { OD_HIDDEN, OD_HIDDEN, OD_FULL }, { 0, 0, 0 }, { -1, -1, 43 }, { 8, 0 }, { 1, 0 }, { 0, 0 } },
     // A slot comes back at its side's shorter look where the claim then stays inside
     // its half, and the other side gives way for it through its own looks: the rain's
@@ -1094,8 +1095,8 @@ static const PinCase PINS[] = {
     // its values off.
     { "slot_back_at_shorter_look", 68, 0,
       { { 2, 0, { { 0, 30, 0 }, { 0, 11, 0 } } }, { 0, 0, { { 0 } } }, { 0, 0, { { 0 } } } },
-      { 1, 2 }, { { { OD_RAIN, 59, 14, 14, false } },
-                  { { OD_GUST, 28, 28, 10, false }, { OD_AQI, 10, 10, 7, false } } },
+      { 1, 2 }, { { { OD_RAIN, 59, 14, 14 } },
+                  { { OD_GUST, 28, 28, 10 }, { OD_AQI, 12, 12, 9 } } },
       { OD_SHORT, OD_HIDDEN, OD_HIDDEN }, { 1, 0, 0 }, { 18, -1, -1 }, { 7, 0 }, { 1, 2 }, { 0, 0 } },
     // A look that narrows nothing is no step either: the left side (two values, no
     // Text) goes straight to its values off while the right side's rain takes its
@@ -1104,23 +1105,23 @@ static const PinCase PINS[] = {
     // taken its own back first.
     { "skip_idle_looks", 119, 0,
       { { 0, 0, { { 0 } } }, { 0, 0, { { 0 } } }, { 0, 0, { { 0 } } } },
-      { 2, 2 }, { { { OD_GUST, 29, 29, 11, false }, { OD_UV, 40, 40, 14, false } },
-                  { { OD_RAIN, 38, 34, 12, false }, { OD_WIND, 38, 38, 16, false } } },
+      { 2, 2 }, { { { OD_GUST, 29, 29, 11 }, { OD_UV, 42, 42, 16 } },
+                  { { OD_RAIN, 38, 34, 12 }, { OD_WIND, 40, 40, 18 } } },
       { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 0, 0 }, { 2, 0 }, { 0, 0 } },
     // A look comes back beside a shown middle too: both claims cross the midline at
     // their chosen looks; with the left Bluetooth at its icon, the middle comes back
     // short beside the right side's values, off its centre.
     { "look_back_beside_middle", 93, 0,
       { { 1, 0, { { 0, 41, 0 } } }, { 2, 0, { { 0, 11, 0 }, { 0, 9, 0 } } }, { 2, 0, { { 0, 32, 0 }, { 0, 12, 0 } } } },
-      { 1, 2 }, { { { OD_BLUETOOTH, 46, 46, 18, false } },
-                  { { OD_GUST, 40, 40, 18, false }, { OD_AQI, 14, 14, 14, false } } },
+      { 1, 2 }, { { { OD_BLUETOOTH, 46, 46, 18 } },
+                  { { OD_GUST, 40, 40, 18 }, { OD_AQI, 16, 16, 16 } } },
       { OD_HIDDEN, OD_SHORT, OD_HIDDEN }, { 0, 1, 0 }, { -1, 22, -1 }, { 3, 5 }, { 2, 0 }, { 0, 0 } },
     // The reviewer's first bar (the Watch Status Bar of a 144 px watch): the week hides
     // for the right side's gust; the left slot, shortened for the week at first, is
     // whole again inside its half, and the right slot hides. The gust keeps its value.
     { "gust_value_beside_whole_slot", 132, 2,
       { { 2, 0, { { 0, 44, 0 }, { 0, 36, 0 } } }, { 1, 0, { { 0, 24, 0 } } }, { 2, 0, { { 0, 24, 0 }, { 0, 18, 0 } } } },
-      { 1, 1 }, { { { OD_QUIET_TIME, 12, 12, 12, false } }, { { OD_GUST, 55, 55, 19, true } } },
+      { 1, 1 }, { { { OD_QUIET_TIME, 12, 12, 12 } }, { { OD_GUST, 55, 55, 19 } } },
       { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 14, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
     // The reviewer's second bar: the date hides for the right side; the left slot is
     // whole again inside its half; the right side hides its slot and, still across the
@@ -1129,8 +1130,8 @@ static const PinCase PINS[] = {
     { "rain_minutes_beside_whole_slot", 132, 2,
       { { 2, 0, { { 0, 30, 0 }, { 0, 18, 0 } } }, { 2, 0, { { 0, 48, 0 }, { 0, 14, 0 } } },
         { 2, 0, { { 0, 24, 0 }, { 0, 18, 0 } } } },
-      { 1, 2 }, { { { OD_QUIET_TIME, 12, 12, 12, false } },
-                  { { OD_RAIN, 44, 25, 12, false }, { OD_GUST, 40, 40, 19, true } } },
+      { 1, 2 }, { { { OD_QUIET_TIME, 12, 12, 12 } },
+                  { { OD_RAIN, 44, 25, 12 }, { OD_GUST, 40, 40, 19 } } },
       { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 14, -1, -1 }, { 0, 8 }, { 0, 1 }, { 0, 0 } },
     // Before a drop only the side in the way moves: at its shortest look the right
     // side's claim still crosses the midline, the left one stays inside its half with
@@ -1139,10 +1140,10 @@ static const PinCase PINS[] = {
     { "only_the_side_in_the_way_moves", 132, 2,
       { { 2, 0, { { 0, 19, 0 }, { 0, 15, 0 } } }, { 1, 0, { { 10, 31, 0 } } },
         { 2, 0, { { 10, 34, 0 }, { 10, 16, 0 } } } },
-      { 3, 4 }, { { { OD_BLUETOOTH, 10, 10, 10, false }, { OD_QUIET_TIME, 12, 12, 12, false },
-                    { OD_SLEEP, 17, 17, 17, false } },
-                  { { OD_RAIN, 41, 23, 12, false }, { OD_GUST, 45, 45, 21, true },
-                    { OD_UV, 17, 17, 17, true }, { OD_WIND, 19, 19, 19, true } } },
+      { 3, 4 }, { { { OD_BLUETOOTH, 10, 10, 10 }, { OD_QUIET_TIME, 12, 12, 12 },
+                    { OD_SLEEP, 17, 17, 17 } },
+                  { { OD_RAIN, 41, 23, 12 }, { OD_GUST, 45, 45, 21 },
+                    { OD_UV, 17, 17, 17 }, { OD_WIND, 19, 19, 19 } } },
       { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 49, -1, -1 }, { 0, 8 }, { 0, 2 }, { 3, 3 } },
     // The middle comes back only where each side's row is one it needs: the date would
     // show only with the right slot hidden (rows 3-4) for a date the left side's wind
@@ -1152,7 +1153,7 @@ static const PinCase PINS[] = {
     { "middle_not_moved_into_a_slot", 132, 2,
       { { 2, 0, { { 0, 21, 0 }, { 0, 16, 0 } } }, { 2, 0, { { 0, 51, 0 }, { 0, 12, 0 } } },
         { 2, 20, { { 0, 64, 0 }, { 0, 33, 0 } } } },
-      { 1, 1 }, { { { OD_WIND, 38, 38, 19, true } }, { { OD_GUST, 53, 53, 20, true } } },
+      { 1, 1 }, { { { OD_WIND, 38, 38, 19 } }, { { OD_GUST, 53, 53, 20 } } },
       { OD_FULL, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { 40, -1, -1 }, { 0, 8 }, { 0, 0 }, { 0, 0 } },
     // ... and the left side's half of it: the date would show only with the left slot
     // hidden (rows 3-5) beside a date the right side's gust frees off its centre (row
@@ -1160,7 +1161,7 @@ static const PinCase PINS[] = {
     // hides, the left slot stays short and the right one whole.
     { "left_slot_not_hidden_for_a_moved_middle", 132, 2,
       { { 2, 0, { { 0, 46, 0 }, { 0, 11, 0 } } }, { 1, 0, { { 0, 51, 0 } } }, { 1, 0, { { 8, 0, 0 } } } },
-      { 1, 1 }, { { { OD_RAIN, 32, 28, 17, false } }, { { OD_GUST, 38, 38, 19, true } } },
+      { 1, 1 }, { { { OD_RAIN, 32, 28, 17 } }, { { OD_GUST, 38, 38, 19 } } },
       { OD_SHORT, OD_HIDDEN, OD_FULL }, { 1, 0, 0 }, { 34, -1, 82 }, { 7, 0 }, { 0, 0 }, { 0, 0 } },
     // A short slot stays short rather than hide for a moved middle: the week would show
     // beside the left UV value, off its centre, only with the right slot hidden where
@@ -1169,7 +1170,7 @@ static const PinCase PINS[] = {
     { "short_slot_not_hidden_for_a_moved_middle", 132, 2,
       { { 2, 0, { { 0, 24, 0 }, { 0, 17, 0 } } }, { 1, 0, { { 0, 26, 0 } } },
         { 2, 0, { { 10, 36, 0 }, { 10, 18, 0 } } } },
-      { 1, 1 }, { { { OD_UV, 54, 54, 20, true } }, { { OD_RAIN, 12, 12, 12, false } } },
+      { 1, 1 }, { { { OD_UV, 54, 54, 20 } }, { { OD_RAIN, 12, 12, 12 } } },
       { OD_FULL, OD_HIDDEN, OD_SHORT }, { 0, 0, 1 }, { 56, -1, 85 }, { 0, 7 }, { 0, 0 }, { 0, 0 } },
     // A side in the way drops an item rather than touch the far slot: the left claim
     // with its slot whole just fits its half; the right side's three boxed alerts cross
@@ -1178,9 +1179,9 @@ static const PinCase PINS[] = {
     { "item_drops_for_the_far_slot", 132, 2,
       { { 2, 0, { { 10, 37, 0 }, { 10, 21, 0 } } }, { 2, 0, { { 0, 40, 0 }, { 0, 11, 0 } } },
         { 0, 0, { { 0 } } } },
-      { 1, 3 }, { { { OD_QUIET_TIME, 12, 12, 12, false } },
-                  { { OD_AQI, 20, 20, 20, true }, { OD_POLLEN, 26, 26, 20, true },
-                    { OD_WIND, 21, 21, 21, true } } },
+      { 1, 3 }, { { { OD_QUIET_TIME, 12, 12, 12 } },
+                  { { OD_AQI, 20, 20, 20 }, { OD_POLLEN, 26, 26, 20 },
+                    { OD_WIND, 21, 21, 21 } } },
       { OD_FULL, OD_SHORT, OD_HIDDEN }, { 0, 1, 0 }, { 14, 68, -1 }, { 0, 2 }, { 0, 0 }, { 1, 2 } },
     // The middle never costs a look (the round-2 review's first bar, the owner's: the
     // Watch Status Bar with Bluetooth and Quiet time left). The date would show only
@@ -1190,8 +1191,8 @@ static const PinCase PINS[] = {
     { "middle_hides_for_the_rain_text", 132, 2,
       { { 2, 0, { { 10, 30, 0 }, { 10, 16, 0 } } }, { 2, 0, { { 0, 36, 0 }, { 0, 14, 0 } } },
         { 1, 0, { { 0, 22, 0 } } } },
-      { 2, 2 }, { { { OD_BLUETOOTH, 10, 10, 10, false }, { OD_QUIET_TIME, 12, 12, 12, false } },
-                  { { OD_RAIN, 44, 25, 12, false }, { OD_GUST, 45, 45, 19, true } } },
+      { 2, 2 }, { { { OD_BLUETOOTH, 10, 10, 10 }, { OD_QUIET_TIME, 12, 12, 12 } },
+                  { { OD_RAIN, 44, 25, 12 }, { OD_GUST, 45, 45, 19 } } },
       { OD_HIDDEN, OD_HIDDEN, OD_HIDDEN }, { 0, 0, 0 }, { -1, -1, -1 }, { 8, 8 }, { 0, 0 }, { 2, 2 } },
     // ... and where it would push the far slot, that slot wins (the second bar, Quiet
     // time alone on the left): the gust's value would come back beside a hidden date
@@ -1201,8 +1202,8 @@ static const PinCase PINS[] = {
     { "far_slot_whole_before_a_value", 132, 2,
       { { 2, 0, { { 10, 30, 0 }, { 10, 16, 0 } } }, { 2, 0, { { 0, 36, 0 }, { 0, 14, 0 } } },
         { 1, 0, { { 0, 22, 0 } } } },
-      { 1, 2 }, { { { OD_QUIET_TIME, 12, 12, 12, false } },
-                  { { OD_RAIN, 44, 25, 12, false }, { OD_GUST, 45, 45, 19, true } } },
+      { 1, 2 }, { { { OD_QUIET_TIME, 12, 12, 12 } },
+                  { { OD_RAIN, 44, 25, 12 }, { OD_GUST, 45, 45, 19 } } },
       { OD_FULL, OD_HIDDEN, OD_FULL }, { 0, 0, 0 }, { 14, -1, 73 }, { 0, 0 }, { 0, 2 }, { 1, 2 } },
     // A hidden middle comes back wherever it costs nothing: the left slot's short form
     // crosses the midline, so with the date hidden it hides as well; beside the date
@@ -1210,9 +1211,9 @@ static const PinCase PINS[] = {
     { "middle_back_off_centre", 132, 2,
       { { 2, 0, { { 10, 40, 0 }, { 10, 17, 0 } } }, { 2, 0, { { 0, 50, 0 }, { 0, 10, 0 } } },
         { 0, 0, { { 0 } } } },
-      { 2, 3 }, { { { OD_QUIET_TIME, 12, 12, 12, false }, { OD_SLEEP, 19, 19, 19, false } },
-                  { { OD_UV, 18, 18, 18, true }, { OD_AQI, 41, 41, 20, true },
-                    { OD_WIND, 49, 49, 21, true } } },
+      { 2, 3 }, { { { OD_QUIET_TIME, 12, 12, 12 }, { OD_SLEEP, 19, 19, 19 } },
+                  { { OD_UV, 18, 18, 18 }, { OD_AQI, 41, 41, 20 },
+                    { OD_WIND, 49, 49, 21 } } },
       { OD_HIDDEN, OD_SHORT, OD_HIDDEN }, { 0, 1, 0 }, { -1, 55, -1 }, { 3, 5 }, { 0, 2 }, { 2, 3 } },
     // A side's move can let the other take a lower place on the next turn: after the
     // climb the left side's row 6 asks the middle hidden, so the right side has nothing
@@ -1221,8 +1222,8 @@ static const PinCase PINS[] = {
     // frees. With one turn the middle stays hidden.
     { "second_relax_turn", 132, 2,
       { { 0, 0, { { 0 } } }, { 1, 0, { { 10, 0, 0 } } }, { 2, 0, { { 15, 51, 0 }, { 15, 12, 0 } } } },
-      { 2, 2 }, { { { OD_BLUETOOTH, 10, 10, 10, false }, { OD_QUIET_TIME, 44, 26, 9, false } },
-                  { { OD_UV, 23, 23, 18, true }, { OD_WIND, 23, 13, 13, true } } },
+      { 2, 2 }, { { { OD_BLUETOOTH, 10, 10, 10 }, { OD_QUIET_TIME, 44, 26, 9 } },
+                  { { OD_UV, 23, 23, 18 }, { OD_WIND, 23, 13, 13 } } },
       { OD_HIDDEN, OD_FULL, OD_HIDDEN }, { 0, 0, 0 }, { -1, 60, -1 }, { 5, 3 }, { 0, 0 }, { 2, 2 } },
 };
 
@@ -1243,7 +1244,7 @@ static void slots_back_pins(void) {
         for (int d = 0; d < 2; d++) {
             for (int k = 0; k < pc->n[d]; k++) {
                 const PinItem *it = &pc->items[d][k];
-                add(&sides[d], it->rank, it->w0, it->w1, it->w2, it->padded);
+                add(&sides[d], it->rank, it->w0, it->w1, it->w2);
             }
         }
         const int8_t bleed[2] = { pc->bleed, 0 };
@@ -1314,12 +1315,12 @@ static int battery_slot_shows(const OdLayout *out, uint8_t mask) {
 // run of 67 px with the rain's Text, 44 with its minutes.
 static void crowd_right(OdSideIn *s, bool value) {
     if (value) {
-        add(s, OD_BATTERY, 32, 32, 17, false);
+        add(s, OD_BATTERY, 32, 32, 17);
     } else {
         add_icon(s, OD_BATTERY, 17);
     }
-    add(s, OD_RAIN, 45, 22, 12, false);
-    add(s, OD_GUST, 20, 20, 20, true);
+    add(s, OD_RAIN, 45, 22, 12);
+    add(s, OD_GUST, 20, 20, 20);
 }
 
 static void battery_standin(void) {
@@ -1364,7 +1365,7 @@ static void battery_standin(void) {
     // even on emery's 192 px, where the item would fit beside it ...
     OdSideIn value[2] = { side_none(), side_none() };
     add_icon(&value[0], OD_BLUETOOTH, 10);
-    add(&value[1], OD_BATTERY, 32, 32, 17, false);
+    add(&value[1], OD_BATTERY, 32, 32, 17);
     od_layout(192, slots, value, STRIP_BLEED, BATT_R, &out);
     expect("standin.c.roomy_item_absent", battery_drawn(value, &out), 0);
     expect("standin.c.roomy_slot", out.place[2].visible, 1);
@@ -1435,8 +1436,8 @@ static void battery_standin(void) {
     add_icon(&both[0], OD_QUIET_TIME, 12);
     add_icon(&both[0], OD_SLEEP, 20);
     add_icon(&both[1], OD_BATTERY, 17);
-    add(&both[1], OD_RAIN, 60, 22, 12, false);
-    add(&both[1], OD_GUST, 45, 45, 45, true);
+    add(&both[1], OD_RAIN, 60, 22, 12);
+    add(&both[1], OD_GUST, 45, 45, 45);
     od_layout(132, pct_left, both, STRIP_BLEED, BATT_L | BATT_R, &out);
     expect("standin.f.pct_hidden", out.place[0].visible, 0);
     expect("standin.f.glyph_hidden", out.place[2].visible, 0);
@@ -1513,11 +1514,10 @@ static void battery_standin(void) {
     // look off beside the item.
     OdSlotIn owner[3] = { slot_text(24, 0), slot_text(48, 0), slot_battery_pct(22) };
     OdSideIn owner_sides[2] = { side_none(), side_none() };
-    add(&owner_sides[1], OD_BATTERY, 32, 32, 17, false);
-    add(&owner_sides[1], OD_RAIN, 49, 25, 12, false);
+    add(&owner_sides[1], OD_BATTERY, 32, 32, 17);
+    add(&owner_sides[1], OD_RAIN, 49, 25, 12);
     add_icon(&owner_sides[1], OD_GUST, 19);
-    owner_sides[1].padded[2] = true;
-    add(&owner_sides[1], OD_AQI, 28, 28, 19, true);
+    add(&owner_sides[1], OD_AQI, 28, 28, 19);
     od_layout(132, owner, owner_sides, STRIP_BLEED, BATT_R, &out);
     expect("standin.i.slot", out.place[2].visible, 1);
     expect("standin.i.slot_x", out.place[2].icon_x, 30);
@@ -1536,9 +1536,9 @@ static void battery_standin(void) {
     OdSlotIn eight[3] = { slot_text(24, 0), slot_text(48, 0), slot_battery_pct(18) };
     for (int v = 17; v <= 90; v++) {
         OdSideIn s[2] = { side_none(), side_none() };
-        add(&s[1], OD_BATTERY, 32, 32, 17, false);
-        add(&s[1], OD_RAIN, 49, 25, 12, false);
-        add(&s[1], OD_GUST, (int16_t)v, (int16_t)v, 17, true);
+        add(&s[1], OD_BATTERY, 32, 32, 17);
+        add(&s[1], OD_RAIN, 49, 25, 12);
+        add(&s[1], OD_GUST, (int16_t)v, (int16_t)v, 17);
         od_layout(132, eight, s, STRIP_BLEED, BATT_R, &out);
         const bool kept = v <= 55;
         char name[64];
@@ -1562,9 +1562,9 @@ static void battery_standin(void) {
     OdSlotIn date_pct[3] = { slot_empty(), slot_text(36, 14), slot_battery_pct(22) };
     OdSideIn pct_sides[2] = { side_none(), side_none() };
     add_icon(&pct_sides[0], OD_QUIET_TIME, 12);
-    add(&pct_sides[1], OD_BATTERY, 32, 32, 17, false);
-    add(&pct_sides[1], OD_RAIN, 44, 25, 12, false);
-    add(&pct_sides[1], OD_GUST, 19, 19, 19, true);
+    add(&pct_sides[1], OD_BATTERY, 32, 32, 17);
+    add(&pct_sides[1], OD_RAIN, 44, 25, 12);
+    add(&pct_sides[1], OD_GUST, 19, 19, 19);
     od_layout(132, date_pct, pct_sides, STRIP_BLEED, BATT_R, &out);
     expect("standin.k.middle_short", form_of(&out, 1), OD_SHORT);
     expect("standin.k.middle_x", out.place[1].icon_x, 23);
@@ -1588,11 +1588,11 @@ static void battery_standin(void) {
     t418[1].floor_w = 4;
     OdSideIn t418_sides[2] = { side_none(), side_none() };
     add_icon(&t418_sides[0], OD_BATTERY, 47);
-    add(&t418_sides[0], OD_BLUETOOTH, 23, 11, 11, false);
-    add(&t418_sides[0], OD_QUIET_TIME, 18, 8, 8, false);
-    add(&t418_sides[0], OD_RAIN, 29, 21, 15, false);
-    add(&t418_sides[1], OD_GUST, 54, 18, 13, true);
-    add(&t418_sides[1], OD_UV, 11, 11, 11, true);
+    add(&t418_sides[0], OD_BLUETOOTH, 23, 11, 11);
+    add(&t418_sides[0], OD_QUIET_TIME, 18, 8, 8);
+    add(&t418_sides[0], OD_RAIN, 29, 21, 15);
+    add(&t418_sides[1], OD_GUST, 54, 18, 13);
+    add(&t418_sides[1], OD_UV, 11, 11, 11);
     od_layout(108, t418, t418_sides, NO_BLEED, BATT_R, &out);
     expect("standin.l.glyph", out.place[2].visible, 1);
     expect("standin.l.glyph_x", out.place[2].icon_x, 44);
@@ -1616,7 +1616,7 @@ static void battery_standin(void) {
         OdSideIn sides[2] = { side_none(), side_none() };
         int home = rnd(3) == 0 ? 0 : 1;
         if (rnd(3) == 0) {
-            add(&sides[home], OD_BATTERY, 32, 32, 17, false);
+            add(&sides[home], OD_BATTERY, 32, 32, 17);
         } else {
             add_icon(&sides[home], OD_BATTERY, 17);
         }
@@ -1624,8 +1624,7 @@ static void battery_standin(void) {
         for (int i = 0; i < extra.n; i++) {
             int d = (home == 1 && extra.rank[i] <= OD_SLEEP) ? 0 : home;
             if (rnd(4) == 0) { d = 1 - d; }
-            add(&sides[d], extra.rank[i], extra.w[0][i], extra.w[1][i], extra.w[2][i],
-                extra.padded[i]);
+            add(&sides[d], extra.rank[i], extra.w[0][i], extra.w[1][i], extra.w[2][i]);
         }
         int16_t w = (int16_t)(100 + rnd(100));
         od_layout(w, s, sides, STRIP_BLEED, mask, &out);
@@ -1686,14 +1685,13 @@ static void looks_outrank_battery_slots(void) {
         int d = rnd(2);
         OdSideIn sides[2] = { side_none(), side_none() };
         if (rnd(2)) {
-            add(&sides[d], OD_BATTERY, 32, 32, 17, false);
+            add(&sides[d], OD_BATTERY, 32, 32, 17);
         } else {
             add_icon(&sides[d], OD_BATTERY, 17);
         }
         OdSideIn extra = random_side(OD_BLUETOOTH, OD_WIND);
         for (int i = 0; i < extra.n; i++) {
-            add(&sides[d], extra.rank[i], extra.w[0][i], extra.w[1][i], extra.w[2][i],
-                extra.padded[i]);
+            add(&sides[d], extra.rank[i], extra.w[0][i], extra.w[1][i], extra.w[2][i]);
         }
         int8_t bleed[2] = { (int8_t)rnd(3), (int8_t)rnd(3) };
         int16_t w = (int16_t)(40 + rnd(180));
@@ -1725,7 +1723,7 @@ static void looks_outrank_battery_slots(void) {
             OdSideIn alt_sides[2] = { side_none(), side_none() };
             for (int i = 1; i < sides[d].n; i++) {
                 add(&alt_sides[d], sides[d].rank[i], sides[d].w[k][i],
-                    sides[d].w[k > 1 ? k : 1][i], sides[d].w[2][i], sides[d].padded[i]);
+                    sides[d].w[k > 1 ? k : 1][i], sides[d].w[2][i]);
             }
             OdLayout alt;
             od_layout(w, slots, alt_sides, bleed, 0, &alt);
@@ -1789,8 +1787,8 @@ static void bleed_and_order(void) {
     add_icon(&runs[0], OD_SLEEP, 14);
     add_icon(&runs[1], OD_BATTERY, 17);
     add_icon(&runs[1], OD_RAIN, 30);
-    add(&runs[1], OD_GUST, 20, 20, 20, true);
-    add(&runs[1], OD_WIND, 15, 15, 15, true);
+    add(&runs[1], OD_GUST, 20, 20, 20);
+    add(&runs[1], OD_WIND, 15, 15, 15);
     od_layout(200, none, runs, NO_BLEED, 0, &out);
     expect("order.left0", out.item_x[0][0], 0);
     expect("order.left1", out.item_x[0][1], 14);
@@ -1820,7 +1818,7 @@ static void drops(void) {
     // the full slot and the middle is back on its target.
     OdSideIn two[2] = { side_none(), side_none() };
     add_icon(&two[0], OD_QUIET_TIME, 10);
-    add_icon(&two[0], OD_WIND, 110);
+    add_icon(&two[0], OD_WIND, 112);
     od_layout(144, slots, two, NO_BLEED, 0, &out);
     expect("drop.restart_n", out.n[0], 1);
     expect("drop.restart_stage", out.stage[0], 0);
@@ -1912,7 +1910,7 @@ static void no_overlap(void) {
             }
             if (!clash) {
                 add(&right, sides[1].rank[i], sides[1].w[0][i], sides[1].w[1][i],
-                    sides[1].w[2][i], sides[1].padded[i]);
+                    sides[1].w[2][i]);
             }
         }
         sides[1] = right;

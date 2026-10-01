@@ -60,20 +60,19 @@ static inline OdSideIn side_none(void) {
     return s;
 }
 
-// Append an item (callers add them in ascending rank). w0/w1/w2 are its lanes.
-static inline void add(OdSideIn *s, int rank, int16_t w0, int16_t w1, int16_t w2,
-                       bool padded) {
+// Append an item. Callers add them in ascending rank, as the watch does: the gap
+// before an item is read off its rank (on_demand.c item_gap). w0/w1/w2 are its lanes.
+static inline void add(OdSideIn *s, int rank, int16_t w0, int16_t w1, int16_t w2) {
     int i = s->n++;
     s->rank[i] = (uint8_t)rank;
     s->w[0][i] = w0;
     s->w[1][i] = w1;
     s->w[2][i] = w2;
-    s->padded[i] = padded;
 }
 
 // An icon-only item: every lane the same.
 static inline void add_icon(OdSideIn *s, int rank, int16_t w) {
-    add(s, rank, w, w, w, false);
+    add(s, rank, w, w, w);
 }
 
 static const int8_t NO_BLEED[2] = { 0, 0 };
