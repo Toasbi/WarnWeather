@@ -449,7 +449,7 @@ test('type:sheet WITH a badge renders as a preview + Edit row, not a chevron row
 });
 
 test('a badged type:sheet row honours hintFrom: the resolver reads S, with no row value', () => {
-  // The On demand card's rows: each prints its item's live state under the label.
+  // The Alert settings card's rows: each prints its item's live state under the label.
   let seen = null;
   global.PConf.hintResolvers.register('flagState', function (S, env, args) {
     seen = args;

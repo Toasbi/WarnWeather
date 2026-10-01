@@ -2,7 +2,7 @@
 // test/config-on-demand.test.js — On demand on the Status slots tab, end to end on the
 // REAL generated settings page (test/helpers/page-harness.js): each bar's two On demand
 // rows (the ticked items as their live hint, and Edit; a side is on while it ticks something),
-// the side checklists, the On demand card with its live texts and item sheets, the rain
+// the side checklists, the Alert settings card with its live texts and item sheets, the rain
 // notes, the resets, and the aplite page, which has none of it. The schema shape itself
 // is pinned in test/config-schema.test.js; this file checks what the page renders and does.
 const test = require('node:test');
@@ -117,7 +117,7 @@ test('each bar ends on its two On demand rows: the ticked items as the summary, 
   const html = watchTab().scroll.innerHTML;
   assert.equal(sideHint(html, 'odTopLeft'), 'Bluetooth · Quiet time · Sleep · Rain');
   assert.equal(sideHint(html, 'odTopRight'), 'Battery · Wind gusts · UV index · Air quality · Wind speed');
-  assert.ok(sideRow(html, 'odTopLeft').indexOf('<div class="lbl">On demand left</div>') !== -1, 'the side\'s label');
+  assert.ok(sideRow(html, 'odTopLeft').indexOf('<div class="lbl">Alerts left</div>') !== -1, 'the side\'s label');
   assert.match(sideRow(html, 'odTopLeft'), /^<div class="row[^"]*\bslot\b/, 'compact rows');
   const fc = sideRow(html, 'odForecastLeft');
   assert.ok(fc !== '', 'a side that ticks nothing still has its Edit button');
@@ -146,7 +146,7 @@ test('a side sheet: the bar\'s name, two groups in priority order, and an item m
   const page = watchTab();
   page.openEditSheet('odTopRight');
   const sheet = page.modal.innerHTML;
-  assert.ok(sheet.indexOf('On demand right') !== -1, 'the title');
+  assert.ok(sheet.indexOf('Alerts right') !== -1, 'the title');
   assert.ok(sheet.indexOf('<b>Watch Status Bar</b><br>Ticked items show at this bar’s right edge only while') !== -1,
     'the bar\'s name leads the intro');
   const order = ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi', 'pollen', 'wind']
@@ -163,7 +163,7 @@ test('a side sheet: the bar\'s name, two groups in priority order, and an item m
     assert.ok(joined(code), code + ' joins the row below it'));
   ['snooze', 'wind'].forEach((code) => assert.ok(!joined(code), code + ' closes its card'));
   // Bluetooth is on the left side: its note says so, and ticking moves it here.
-  assert.match(sheet, /data-check="bt"><span class="lft"><span class="lbl">Bluetooth<\/span><span class="hint">On the left side now; ticking moves it here<\/span>/);
+  assert.match(sheet, /data-check="bt"><span class="lft"><span class="lbl">Bluetooth<\/span><span class="hint">In Alerts left now; ticking moves it here<\/span>/);
   tick(page, 'statusTopOnDemandRightItems', 'bt');
   assert.equal(page.S.statusTopOnDemandRightItems, 'battery,bt,gust,uv,aqi,wind');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'qt,snooze,rain', 'gone from the left');
@@ -186,12 +186,12 @@ test('the checklist notes: Rain needs the radar, Pollen needs DWD — ticks kept
     'Bluetooth · Quiet time · Sleep', 'Rain left out while the radar is off');
 });
 
-test('the On demand card: its intro and rows with icons and live texts, under the status card', () => {
+test('the Alert settings card: its intro and rows with icons and live texts, under the status card', () => {
   const html = watchTab().scroll.innerHTML;
-  const card = html.indexOf('<span class="ttl">On demand</span>');
+  const card = html.indexOf('<span class="ttl">Alert settings</span>');
   assert.ok(card !== -1, 'a titled card');
   assert.ok(html.indexOf('data-k="statusBoldAll"') < card, 'after the status card');
-  assert.ok(html.indexOf('On demand items show at the edge of a status bar only while they have something to say') > card);
+  assert.ok(html.indexOf('Alerts show at the edge of a status bar only while they have something to say') > card);
   assert.ok(html.indexOf('data-action="resetOnDemand"') > card, 'with its reset');
   assert.ok(html.indexOf('<div class="subhdr grp"><span>System info</span></div>') > card);
   assert.ok(html.indexOf('<div class="subhdr grp"><span>Weather alerts</span></div>') > card);
@@ -313,7 +313,7 @@ test('the side summary and the checklist options, resolver by resolver', () => {
     'pollen', 'wind']);
   assert.deepEqual(opts[0], ['System info', '', { groupHeader: true }]);
   assert.deepEqual(opts[5], ['Weather alerts', '', { groupHeader: true }]);
-  assert.deepEqual(opts[1], ['Battery', 'battery', { desc: 'On the right side now; ticking moves it here' }]);
+  assert.deepEqual(opts[1], ['Battery', 'battery', { desc: 'In Alerts right now; ticking moves it here' }]);
   assert.deepEqual(opts[2], ['Bluetooth', 'bt'], 'on this side: no note');
   assert.deepEqual(opts[10], ['Pollen', 'pollen'], 'DWD: pollen can show');
   const offRadar = items(state({ radarMode: 'off', provider: 'metno' }), ENV.basalt, { bar: 'top', side: 'right' });
@@ -384,7 +384,7 @@ test('moving the Warn level thumb stores one plain integer on the watch\'s step'
 test('aplite: no On demand rows, card or sheets — the Watch Status Bar keeps its own rows', () => {
   const html = watchTab({}, 'aplite').scroll.innerHTML;
   assert.equal(html.indexOf('OnDemand'), -1, 'no side rows');
-  assert.equal(html.indexOf('<span class="ttl">On demand</span>'), -1, 'no card');
+  assert.equal(html.indexOf('<span class="ttl">Alert settings</span>'), -1, 'no card');
   ['batteryLowOnly', 'showQt', 'vibe'].forEach((k) =>
     assert.ok(html.indexOf('data-k="' + k + '" data-toggle="1"') !== -1, k + ' row'));
   assert.ok(html.indexOf('data-select="btIcons"') !== -1, 'btIcons row');
@@ -425,7 +425,7 @@ test('the card reset reverts the items\' settings; the status card reset reverts
   assert.equal(page.S.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind');
 });
 
-const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so On demand items won’t show there.';
+const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so Alerts won’t show there.';
 
 test('no Watch Status Bar on the Default view and no On demand items on its bars: the card says so', () => {
   const shows = (cfg) => watchTab(cfg).scroll.innerHTML.indexOf(NO_TOP_NOTE) !== -1;
@@ -456,8 +456,8 @@ test('no Watch Status Bar on the Default view and no On demand items on its bars
   assert.ok(shows(Object.assign({ healthMode: 'off' }, health)), 'a health seat folded away does not count');
 });
 
-const SHEET_NOTE = 'No On demand side of a status bar has Rain ticked, so the rain icon won’t show.';
-const RADAR_NOTE = '‘Rain alert only’ fetches the radar for the rain icon, but no On demand side of a status bar has Rain ticked.';
+const SHEET_NOTE = 'No status bar has Rain ticked under Alerts left or Alerts right, so the rain icon won’t show.';
+const RADAR_NOTE = '‘Rain alert only’ fetches the radar for the rain icon, but no status bar has Rain ticked under Alerts left or Alerts right.';
 
 test('the rain notes: the Rain sheet\'s in any fetching radar mode, the Radar tab\'s in Rain alert only', () => {
   const inSheet = (cfg) => {
@@ -496,10 +496,10 @@ test('the Radar tab carries a copy of the rain window; entering Rain alert only 
   assert.equal(off.scroll.innerHTML.indexOf('>Rain alert window</div>'), -1, 'no window while the radar is off');
 });
 
-test('the slot pencil sheet points at the On demand card for the levels', () => {
+test('the slot pencil sheet points at the Alert settings card for the levels', () => {
   const page = watchTab();
   page.openEditSheet('threshUv');
-  assert.ok(page.modal.innerHTML.indexOf('<div class="static join info nbl"><div class="info-box">Alert levels and colors are set in the On demand card, under Weather alerts.</div></div>') !== -1,
+  assert.ok(page.modal.innerHTML.indexOf('<div class="static join info nbl"><div class="info-box">Alert levels and colors are set in Alert settings, under Weather alerts.</div></div>') !== -1,
     'the info-box pointer');
 });
 

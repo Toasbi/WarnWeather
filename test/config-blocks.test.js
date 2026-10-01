@@ -332,7 +332,7 @@ test('weatherOnlyHint promises a health flick only when a Health view exists', (
     'other presets keep their static hint');
 });
 
-// The On demand card's rows read an item's placement (on-demand.js placedAnywhere): a
+// The Alert settings card's rows read an item's placement (on-demand.js placedAnywhere): a
 // partial settings blob reads the default ticks, so an empty right list unplaces UV.
 const UNPLACED = { statusTopOnDemandRightItems: '' };
 

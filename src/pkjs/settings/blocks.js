@@ -783,9 +783,9 @@ if (typeof require !== 'undefined') {
     // the bar's own sub-section of this card), and, on aplite only (a watch
     // without On demand), the Watch Status Bar's other rows: 'Show battery below 10%'
     // (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration (vibe)
-    // and icon (btIcons) — elsewhere those keys belong to the On demand card. Deliberately
+    // and icon (btIcons) — elsewhere those keys belong to the Alert settings card. Deliberately
     // untouched: thresholds, colors, warn looks and scale maxes (every sheet has its own
-    // reset button), the On demand items' own settings (the On demand card's reset,
+    // reset button), the On demand items' own settings (the Alert settings card's reset,
     // resetOnDemand below), and the countdown companion dates (inert once a slot
     // leaves 'countdown'). Silent beyond the re-render, like resetThresholds above —
     // the engine has no shared toast for [data-action] buttons.
@@ -847,7 +847,7 @@ if (typeof require !== 'undefined') {
         return true;
     };
 
-    // Reset-to-defaults for the On demand card (the text button in its intro — schema.js
+    // Reset-to-defaults for the Alert settings card (the text button in its intro — schema.js
     // ON_DEMAND_INTRO): the items' own settings back to their schema defaults, via the
     // engine's resolver like resetStatusSlots above — the Battery item's warn level and
     // Look, the Bluetooth item's Show and vibration, the rain alert's window and look,
@@ -915,7 +915,7 @@ if (typeof require !== 'undefined') {
      * The pencil badge of one threshold kind's slot: the warn pip + danger-color
      * dot (levelDots) while the kind's highlight is ENABLED (the contract's
      * kindConfig — the rule the watch actually packs with), plus the bold 'B'.
-     * (The On demand card's rows badge the alert instead — alertLevelBadge.)
+     * (The Alert settings card's rows badge the alert instead — alertLevelBadge.)
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (callers gate on env.thresholds; env.color
      *     picks the default warn look).
@@ -963,7 +963,7 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * The contract's metric alert behind an On demand card row, found by the row's key
+     * The contract's metric alert behind an Alert settings card row, found by the row's key
      * stem (the schema builds each row's sheet and keys from it).
      * @param {*} keyStem Kind key stem, e.g. 'Uv'.
      * @returns {?{code: string, key: string}} Its ALERT_KINDS entry, or null for a
@@ -976,12 +976,12 @@ if (typeof require !== 'undefined') {
         return null;
     }
 
-    // What every On demand card row reads while its item is ticked on no side of a bar
+    // What every Alert settings card row reads while its item is ticked on no side of a bar
     // that exists (on-demand.js placedAnywhere): the item cannot show anywhere.
     var NOT_PLACED = 'Not in any status bar';
 
     /**
-     * The On demand card row's badge for a metric alert (editBadgeFrom, args.keyStem):
+     * The Alert settings card row's badge for a metric alert (editBadgeFrom, args.keyStem):
      * the colours the watch draws that alert in, while its item is placed on a bar (no
      * dots at all otherwise) — the warn pip in the kind's warn look (no pip for 'none', a
      * ring for 'outline', a dot for 'fill' — warnPip, shared with the slot pencil) and a
@@ -1007,7 +1007,7 @@ if (typeof require !== 'undefined') {
     PConf.badgeResolvers.register('alertLevelBadge', alertLevelBadge);
 
     /**
-     * The On demand card's Rain row badge (editBadgeFrom): the Edit button every row
+     * The Alert settings card's Rain row badge (editBadgeFrom): the Edit button every row
      * carries, and no dots — rain draws in the radar's colours and never boxes. Only the
      * aria note follows the placement.
      * @param {Object} S Live settings state.
@@ -1021,7 +1021,7 @@ if (typeof require !== 'undefined') {
     PConf.badgeResolvers.register('rainAlertBadge', rainAlertBadge);
 
     /**
-     * The badge of an On demand card row with no colours to preview (Battery,
+     * The badge of an Alert settings card row with no colours to preview (Battery,
      * Bluetooth): the Edit button alone.
      * @returns {Object} Badge state.
      */
@@ -1031,7 +1031,7 @@ if (typeof require !== 'undefined') {
     PConf.badgeResolvers.register('onDemandBadge', onDemandBadge);
 
     /**
-     * The On demand card row's hint for a metric alert: "Not in any status bar" while
+     * The Alert settings card row's hint for a metric alert: "Not in any status bar" while
      * its item is ticked on no bar, else the kind's levels, e.g. "Warn 40 kph · Danger
      * 60 kph". The pair is the resolved one (the stored pair, else the seed — what the
      * watch judges with), in the unit the kind's slider shows, so the row reads the
@@ -1087,7 +1087,7 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The On demand card's Rain row hint: "Turn on the rain radar (Radar tab)" while the
+     * The Alert settings card's Rain row hint: "Turn on the rain radar (Radar tab)" while the
      * radar is off (that comes first: no tick helps then), "Not in any status bar" while
      * Rain is ticked on no bar, else its time window and look by the labels its sheet
      * offers them under, e.g. "Within 60 min · Text". The lists come from the schema
@@ -1172,7 +1172,7 @@ if (typeof require !== 'undefined') {
             if (blocked) {
                 meta = {desc: blocked, disabled: true};
             } else if (otherCodes.indexOf(item.code) >= 0) {
-                meta = {desc: 'On the ' + other + ' side now; ticking moves it here'};
+                meta = {desc: 'In Alerts ' + other + ' now; ticking moves it here'};
             }
             out.push(meta ? [item.label, item.code, meta] : [item.label, item.code]);
         });

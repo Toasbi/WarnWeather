@@ -9,7 +9,7 @@ require('../src/pkjs/config-ui/lib/show-when.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
 const ICONS = require('../src/pkjs/settings/status-slot-icons.js');
 
-// The six weather glyphs and the On demand card's four System info glyphs.
+// The six weather glyphs and the Alert settings card's four System info glyphs.
 const IDS = ['rain', 'uv', 'wind', 'gust', 'aqi', 'pollen', 'battery', 'bluetooth', 'quiet', 'snooze'];
 
 test('every glyph is a 24x24 svg drawn in currentColor', () => {

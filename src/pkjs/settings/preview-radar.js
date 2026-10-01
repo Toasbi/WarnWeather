@@ -141,7 +141,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // eyeball with `mise preview-config` and nudge the 0.52 factor if labels crowd.
     function labelAdvance(text, s) { return Math.round(text.length * s * 0.52); }
 
-    // The watch's rain drop, as the On demand card's rain icon draws it
+    // The watch's rain drop, as the Alert settings card's rain icon draws it
     // (status-slot-icons.js — scripts/gen-rain-pdc.py's construction: a cone from the
     // tip tangent to a round body, pure fill, no outline). Its ink spans x 6..18,
     // y 3..20.5 of that icon's 24-unit box.

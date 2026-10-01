@@ -22,7 +22,7 @@ function forecastItems(s) { return s.tabs.find((t) => t.id === 'forecast').secti
 // generate them — listing 42 literals would just invite drift. THRESH_COLOR_KEYS is
 // reused by the color-defaults assertion below.
 const THRESH_STEMS = ['Aqi', 'Pollen', 'Wind', 'Gust', 'Steps', 'Sleep', 'Distance', 'Uv'];
-// The kinds with an On demand card row and an alert<Stem> sheet (their Look, Days and
+// The kinds with an Alert settings card row and an alert<Stem> sheet (their Look, Days and
 // levels), in the card's row order (the goal kinds are not alerts).
 const ALERT_STEMS = ['Gust', 'Uv', 'Aqi', 'Pollen', 'Wind'];
 const threshKeys = (suffixes) => THRESH_STEMS.reduce((acc, stem) =>
@@ -1651,7 +1651,7 @@ test('radarMode is a four-step radio with per-mode hint copy', () => {
   assert.deepEqual(item.hintByValue, {
     off: 'Radar is hidden.',
     // The rain icon's place is each bar's On demand side (Status slots tab).
-    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar’s On demand side where Rain is ticked.',
+    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar where Rain is ticked under Alerts left or Alerts right.',
     status: 'Adds the Radar Status Bar.',
     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
   });
@@ -2064,7 +2064,7 @@ test('AQI provider is a dropdown whose explanation switches per selected value',
   assert.ok(src.hintByValue.openmeteo.length > 0, 'Open-Meteo has its own hint');
 });
 
-test('Status-slots tab (id watch) opens with the status card: its intro and the four bars in forecast/radar/health/top order, then the On demand card', () => {
+test('Status-slots tab (id watch) opens with the status card: its intro and the four bars in forecast/radar/health/top order, then the Alert settings card', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   // The label was renamed with the Time/Calendar move; the id stays 'watch' —
   // deep links and this very lookup key on it.
@@ -2077,7 +2077,7 @@ test('Status-slots tab (id watch) opens with the status card: its intro and the 
   assert.deepEqual(titles.slice(0, 4),
     ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'],
     'the four status bars lead the titled sections, in order');
-  assert.equal(titles[4], 'On demand', 'the On demand card follows the status card');
+  assert.equal(titles[4], 'Alert settings', 'the Alert settings card follows the status card');
   // The per-slot edit sheets (sheetOnly, opened from a slot's Edit button — never
   // cards) follow in the sections array (see alertSlotSheet / goalSlotSheet). Each is
   // titled after the SLOT: it configures the slot's bold mode as well as its
@@ -2087,7 +2087,7 @@ test('Status-slots tab (id watch) opens with the status card: its intro and the 
     ['Air quality (AQI) slot', 'Pollen slot', 'Wind speed slot',
       'Wind gusts slot', 'UV index slot', 'Steps slot', 'Sleep slot',
       'Walked distance slot'],
-    'per-slot edit sheets follow the On demand card, in kind order');
+    'per-slot edit sheets follow the Alert settings card, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
   // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
   // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
@@ -2098,10 +2098,10 @@ test('Status-slots tab (id watch) opens with the status card: its intro and the 
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
       'Phone battery slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
-  // The eight side checklists, then the On demand card's item sheets, close the tab.
+  // The eight side checklists, then the Alert settings card's item sheets, close the tab.
   assert.deepEqual(titles.slice(24),
-    ['On demand left', 'On demand right', 'On demand left', 'On demand right',
-      'On demand left', 'On demand right', 'On demand left', 'On demand right',
+    ['Alerts left', 'Alerts right', 'Alerts left', 'Alerts right',
+      'Alerts left', 'Alerts right', 'Alerts left', 'Alerts right',
       'Battery', 'Bluetooth', 'Rain alert', 'Wind gusts alert', 'UV index alert',
       'Air quality (AQI) alert', 'Pollen alert', 'Wind speed alert'],
     'the side checklists, then the item sheets close the tab');
@@ -2140,7 +2140,7 @@ test('each status bar ends on its two On demand rows: the side\'s summary and Ed
     const at = items.findIndex((i) => i.messageKey === prefix + 'RightCountdown');
     ['Left', 'Right'].forEach((side, n) => {
       assert.deepEqual(items[at + 1 + n], {
-        type: 'sheet', sheetId: 'od' + bar + side, label: 'On demand ' + side.toLowerCase(),
+        type: 'sheet', sheetId: 'od' + bar + side, label: 'Alerts ' + side.toLowerCase(),
         hintFrom: { resolver: 'onDemandSummary', args: { itemsKey: prefix + 'OnDemand' + side + 'Items' } },
         editBadgeFrom: { resolver: 'onDemandBadge' },
         joinPrevious: true, compact: true,
@@ -2166,7 +2166,7 @@ test('the side sheets: one checklist per bar and side, in the items\' priority o
     const gate = bar === 'Radar' ? RADAR_BAR : bar === 'Health' ? HEALTH_BAR : null;
     assert.equal(s.sheetOnly, true);
     assert.deepEqual(s.showWhen, gate ? { all: [ON_DEMAND_WHEN, gate] } : ON_DEMAND_WHEN, s.sheetId);
-    assert.equal(s.title, 'On demand ' + side);
+    assert.equal(s.title, 'Alerts ' + side);
     assert.equal(s.intro, '<b>' + NAMES[bar] + '</b><br>Ticked items show at this bar’s ' + side
       + ' edge only while they have something to say. The first sits outermost; when the bar runs short of'
       + ' room, the last ones drop first.');
@@ -2179,16 +2179,16 @@ test('the side sheets: one checklist per bar and side, in the items\' priority o
   });
 });
 
-test('the On demand card: gated to a watch with On demand, its intro, reset, and rows in order', () => {
+test('the Alert settings card: gated to a watch with On demand, its intro, reset, and rows in order', () => {
   const sec = onDemandSection();
-  assert.equal(sec.title, 'On demand');
+  assert.equal(sec.title, 'Alert settings');
   assert.equal(sec.groupCard, undefined, 'a card of its own');
   assert.deepEqual(sec.showWhen, ON_DEMAND_WHEN);
-  assert.equal(sec.intro.split(' <button')[0], 'On demand items show at the edge of a status bar only while they'
-    + ' have something to say: the battery when it runs low, Bluetooth when it disconnects, an alert while it is'
-    + ' active. Each status bar’s On demand rows choose which, and on which side.');
+  assert.equal(sec.intro.split(' <button')[0], 'Alerts show at the edge of a status bar only while they'
+    + ' have something to say: the battery when it runs low, Bluetooth when it disconnects, a weather alert while it'
+    + ' is active. Each status bar’s Alerts left and Alerts right rows choose which.');
   assert.ok(sec.intro.indexOf('data-action="resetOnDemand"') !== -1, 'the intro carries the card reset');
-  assert.ok(sec.intro.indexOf('Reset on demand to defaults') !== -1);
+  assert.ok(sec.intro.indexOf('Reset alert settings to defaults') !== -1);
   const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
   assert.equal(showWhen.isVisible(sec, ctx('aplite')), false, 'gone on aplite');
   ['basalt', 'diorite', 'chalk', 'emery', 'flint'].forEach((p) =>
@@ -2199,8 +2199,8 @@ test('the On demand card: gated to a watch with On demand, its intro, reset, and
     'alertRain', 'alertGust', 'alertUv', 'alertAqi', 'alertPollen', 'alertWind']);
   assert.equal(it[0].type, 'staticText');
   assert.equal(it[0].style, 'info');
-  assert.equal(it[0].text, 'Your Default view has no Watch Status Bar, so On demand items won’t show there.'
-    + ' Tick them under On demand left or right on one of its other status bars.');
+  assert.equal(it[0].text, 'Your Default view has no Watch Status Bar, so Alerts won’t show there.'
+    + ' Tick them under Alerts left or Alerts right on one of its other status bars.');
   assert.deepEqual(it[1], { type: 'subheader', text: 'System info' });
   assert.deepEqual(it[2], { type: 'sheet', sheetId: 'odBattery', label: 'Battery', icon: 'battery',
     hintFrom: { resolver: 'onDemandBatteryText' }, editBadgeFrom: { resolver: 'onDemandBadge' } });
@@ -2244,7 +2244,7 @@ test('the On demand card: gated to a watch with On demand, its intro, reset, and
 // copy — they really do differ per kind), but which alerts exist and their order are
 // the contract's (status-thresholds.js ALERT_KINDS): the card's rows and the tab's
 // alert sheets follow it, stem for stem.
-test('the On demand card\'s alert rows and the alert sheets follow the contract\'s ALERT_KINDS order', () => {
+test('the Alert settings card\'s alert rows and the alert sheets follow the contract\'s ALERT_KINDS order', () => {
   const thresholds = require('../src/pkjs/status-thresholds.js');
   const stems = thresholds.ALERT_KINDS.map((a) => a.key);
   const sheetIds = stems.map((stem) => 'alert' + stem);
@@ -2262,7 +2262,7 @@ test('the Battery sheet: the warn level in the watch\'s charge steps, and the Lo
   const sheet = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.sheetId === 'odBattery');
   assert.equal(sheet.title, 'Battery');
   assert.deepEqual(sheet.showWhen, ON_DEMAND_WHEN);
-  assert.equal(sheet.intro, 'Shows the battery icon on a status bar’s On demand side while the watch battery is'
+  assert.equal(sheet.intro, 'Shows the battery icon at the edge of a status bar while the watch battery is'
     + ' at or below the warn level. A bar that already shows the battery in a slot (Watch battery or Watch'
     + ' battery percentage) leaves the icon out, and draws it only when that slot is hidden to make room.');
   const row = (step, gate) => ({ type: 'range', single: true, messageKey: 'batteryLowLevel', label: 'Warn level',
@@ -2297,7 +2297,7 @@ test('the Bluetooth sheet: Show (an inline select) and the vibration, joined loo
   const sheet = schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.sheetId === 'odBluetooth');
   assert.equal(sheet.title, 'Bluetooth');
   assert.deepEqual(sheet.showWhen, ON_DEMAND_WHEN);
-  assert.equal(sheet.intro, 'Shows the Bluetooth icon on a status bar’s On demand side.');
+  assert.equal(sheet.intro, 'Shows the Bluetooth icon at the edge of a status bar.');
   // Each row carries the gate itself as well: the engine picks a key's shown copy by the
   // item's own showWhen, and aplite's Watch Status Bar holds the other copy of both keys.
   assert.deepEqual(sheet.items, [{
@@ -2524,11 +2524,11 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   // The sheet itself: full on basalt (Bold row + Highlight switch + the pointer;
   // behavior covered in config-thresholds.test.js), empty on aplite even if forced
   // open. The slot sheet holds the slot rows — its Highlight switch included — and
-  // points at the alert sheet in the On demand card, which holds the levels (an alert
+  // points at the alert sheet in the Alert settings card, which holds the levels (an alert
   // kind's one home for them).
   const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
   ['data-k="threshAqiBoldMode"', 'data-k="threshAqiOn"', 'Air quality (AQI) slot',
-    '<div class="info-box">Alert levels and colors are set in the On demand card, under Weather alerts.</div>']
+    '<div class="info-box">Alert levels and colors are set in Alert settings, under Weather alerts.</div>']
     .forEach((frag) => assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt slot sheet carries ' + frag));
   assert.equal(basaltSheet.indexOf('data-range="threshAqiWarn"'), -1, 'no levels in the slot sheet');
   const alertSheet = eng.renderEditModal(schema, watchCx('basalt', 'alertAqi'));

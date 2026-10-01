@@ -25,7 +25,7 @@ var lineStyle = require('../line-style.js');
 // the Edit-button row) lives in its own module so its capability gates are BUILT
 // from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
 var customLayout = require('./custom-layout-schema.js');
-// The same mode lists gate the On demand card's "no bar shows items" note
+// The same mode lists gate the Alert settings card's "no bar shows items" note
 // (seatOnDemandWhen), so it folds a custom view's seats as the compiler does.
 var VIEW_CYCLE = require('../view-cycle.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
@@ -398,7 +398,7 @@ function graphColorRow(row, joins) {
 }
 // A kind's level group speaks in one of two voices, and the CALLER picks it: the
 // weather kinds rise to ALERT LEVELS (ALERT_VOICE, in the kind's alert sheet in the
-// On demand card); the health kinds work toward GOALS (GOAL_VOICE, in their slot
+// Alert settings card); the health kinds work toward GOALS (GOAL_VOICE, in their slot
 // sheet) — same rises-toward-the-pair machinery, friendlier words. A voice record
 // carries every word the group, its slider's chips (the thresholdRange resolver,
 // blocks.js) and the slot's Bold row say, so the builders below hold no copy and never
@@ -817,7 +817,7 @@ function unitRow(key, withUnit, without) {
 // (capability + bw theme).
 // The group has ONE home per kind: the goal kinds' slot pencil sheet
 // (goalSlotSheet, below the slot's Bold row), and for the five alert kinds the
-// On demand card's alert sheet (alertSheet) — their slot sheets carry a pointer there instead
+// Alert settings card's alert sheet (alertSheet) — their slot sheets carry a pointer there instead
 // (alertSlotSheet's alertLevelsNote), so every key renders in exactly one place.
 /**
  * @param {string} keyStem Kind key stem, e.g. 'Steps' (thresh<Stem>Warn/...).
@@ -956,7 +956,7 @@ function levelRows(keyStem, voice, hint, gate, offWhen) {
 }
 // The Bold row is a SLOT-level setting, not a level one: it closes the slot's own rows
 // (last in an alert kind's slot sheet, whose levels live in the kind's alert sheet in
-// the On demand card; right above a goal kind's Goals group) and says how boldly the
+// the Alert settings card; right above a goal kind's Goals group) and says how boldly the
 // slot prints. The ladder is monotone — danger is always bold (while the kind's
 // highlight is on: a switched-off kind has no level), the middle option adds the
 // warn/close level, "Always" adds the normal zone too (status_threshold.h ThreshBold).
@@ -1009,7 +1009,7 @@ function goalSlotSheet(title, keyStem, hint, gate) {
 // An alert kind's slot edit sheet, in two groups without headers. First the kind's own
 // display rows (the day-max kinds' Value selection group, the wind slots' direction
 // arrow and unit). Then the highlight group: the 'Alert highlighting' switch (a divider
-// above it), the pointer to the kind's alert sheet in the On demand card, where the
+// above it), the pointer to the kind's alert sheet in the Alert settings card, where the
 // levels and colors it uses live, joined tight, and the Bold row, joined loose. Titled from ALERT_KINDS, like that
 // sheet. No gate: an alert kind's slot exists wherever the thresholds do (sheetOf's
 // THRESHOLD_WHEN).
@@ -1044,7 +1044,7 @@ function alertSlotSheet(keyStem, extraItems) {
 // (kindConfig), which styles its STATUS SLOTS only: the alert icon shows while its item is
 // ticked on an On demand side and draws its warn look and danger fill whether or not
 // this is on. It lives in the slot sheet because that is what it styles; the levels
-// and colors it uses live in the kind's alert sheet (the On demand card). Like the goal header's switch, it writes
+// and colors it uses live in the kind's alert sheet (the Alert settings card). Like the goal header's switch, it writes
 // no numbers: a blank pair already means the kind's seed.
 /**
  * @param {string} keyStem Kind key stem, e.g. 'Uv' (thresh<Stem>On).
@@ -1067,7 +1067,7 @@ function highlightToggle(keyStem) {
 }
 // The five alert kinds' slot sheets carry this pointer instead of the levels group,
 // right under the 'Alert highlighting' switch: the levels and colors live in ONE
-// place, the kind's alert sheet in the On demand card. No link or sheet swap — the engine opens one sheet
+// place, the kind's alert sheet in the Alert settings card. No link or sheet swap — the engine opens one sheet
 // at a time, and the owner asked for the plain note. A fresh object per call, like
 // every item.
 /**
@@ -1077,7 +1077,7 @@ function alertLevelsNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'Alert levels and colors are set in the On demand card, under Weather alerts.'
+        text: 'Alert levels and colors are set in Alert settings, under Weather alerts.'
     };
 }
 // The rain alert's two choices, named once: the Rain sheet's rows offer them and the
@@ -1165,7 +1165,7 @@ function seatOnDemandWhen(seatKey) {
 // 'Weather only' drops the strip in every radar mode but 'Rain alert only' (its Default
 // view is the forecast bar, plus the radar bar in radar mode 'Status'); a custom layout
 // drops it on its Default view's viewStripOff0, and shows the bars its two seats hold.
-// The On demand card's info box says so; the watch does not move the items on its own.
+// The Alert settings card's info box says so; the watch does not move the items on its own.
 var DEFAULT_VIEW_NO_ON_DEMAND_WHEN = {any: [
     {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {key: 'radarMode', ne: 'countdown'},
         {not: {any: [barOnDemandWhen('forecast'),
@@ -1187,7 +1187,7 @@ function rainUnplacedNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'No On demand side of a status bar has Rain ticked, so the rain icon won’t show.',
+        text: 'No status bar has Rain ticked under Alerts left or Alerts right, so the rain icon won’t show.',
         showWhen: {all: [{key: 'radarMode', ne: 'off'}, ON_DEMAND_WHEN, {not: RAIN_PLACED_WHEN}]}
     };
 }
@@ -1203,7 +1203,7 @@ function rainAlertUnshownNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: '‘Rain alert only’ fetches the radar for the rain icon, but no On demand side of a status bar has Rain ticked.',
+        text: '‘Rain alert only’ fetches the radar for the rain icon, but no status bar has Rain ticked under Alerts left or Alerts right.',
         showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: RAIN_VISIBLE_WHEN}]}
     };
 }
@@ -1231,7 +1231,7 @@ function rainWindowRow(label, hint, showWhen) {
     return row;
 }
 /**
- * The rain alert's sheet (sheetId alertRain), opened from the On demand card's Rain row.
+ * The rain alert's sheet (sheetId alertRain), opened from the Alert settings card's Rain row.
  * It has no switch: the tick in a side's checklist is the switch. The look's default is
  * the contract's (status-thresholds.js rainAlert), so the page hydrating a key and the
  * packer reading it absent never disagree.
@@ -1247,7 +1247,7 @@ function rainAlertSheet() {
         // the radar is snoozed for the Battery saver hours (rain_countdown.c). The colour
         // follows rain_tint (status_on_demand.c): the radar's tier colour only on a colour
         // watch under a colour theme.
-        intro: 'Shows the rain icon on a status bar’s On demand side while it rains at your location or rain is due '
+        intro: 'Shows the rain icon at the edge of a status bar while it rains at your location or rain is due '
             + 'within the time window. On a color watch the rain icon takes the radar’s rain color, except with a '
             + 'B&W theme. Hidden during the Battery saver hours.',
         items: [rainUnplacedNote(), rainWindowRow('Time window',
@@ -1306,7 +1306,7 @@ function alertLooksAheadWhen(daysKey) {
         ? {key: daysKey, ne: 'today'} : {key: daysKey, eq: 'tomorrow'};
 }
 /**
- * One metric alert's sheet (sheetId alert<Stem>), opened from its On demand card row:
+ * One metric alert's sheet (sheetId alert<Stem>), opened from its Alert settings card row:
  * the Look, the Days with the tomorrow mark, then the kind's levels group — the levels'
  * ONE home (the slot sheet points here). It has no switch: the tick in a side's
  * checklist is the switch. The phone bakes an entry into the ALERT_ENTRIES_UINT8 tuple
@@ -1333,7 +1333,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda) {
         // "reaches … today": the entry fires on the highest value left today, so the
         // morning icon for an afternoon peak is by design (status-wire alertReading).
         // `coda` closes it for a kind whose look-ahead depends on its source (AQI).
-        intro: 'Shows the ' + iconName + ' icon on a status bar’s On demand side when ' + subject
+        intro: 'Shows the ' + iconName + ' icon at the edge of a status bar when ' + subject
             + ' reaches your warn level at any point left today, so an afternoon peak shows from the morning on.'
             + (coda || ''),
         items: [{
@@ -1421,7 +1421,7 @@ function onDemandRows(prefix, barWhen) {
         return {
             type: 'sheet',
             sheetId: odSideSheetId(bar, side),
-            label: 'On demand ' + side,
+            label: 'Alerts ' + side,
             hintFrom: {resolver: 'onDemandSummary', args: {itemsKey: ON_DEMAND.itemsKey(bar, side)}},
             editBadgeFrom: {resolver: 'onDemandBadge'},
             joinPrevious: true,
@@ -1445,7 +1445,7 @@ function onDemandSideSheet(bar, side) {
         sheetOnly: true,
         sheetId: odSideSheetId(bar, side),
         showWhen: gate ? {all: [ON_DEMAND_WHEN, gate]} : ON_DEMAND_WHEN,
-        title: 'On demand ' + side,
+        title: 'Alerts ' + side,
         intro: '<b>' + OD_BAR_NAMES[bar] + '</b><br>Ticked items show at this bar’s ' + side + ' edge only while '
             + 'they have something to say. The first sits outermost; when the bar runs short of room, the last '
             + 'ones drop first.',
@@ -1510,7 +1510,7 @@ function batterySheet() {
         // The stand-in rule (status_on_demand.c battery_slots): a bar that shows the
         // watch battery in any slot leaves the item out until the make-room order has
         // hidden that slot, whatever the item's Look.
-        intro: 'Shows the battery icon on a status bar’s On demand side while the watch battery is at or below the '
+        intro: 'Shows the battery icon at the edge of a status bar while the watch battery is at or below the '
             + 'warn level. A bar that already shows the battery in a slot (Watch battery or Watch battery '
             + 'percentage) leaves the icon out, and draws it only when that slot is hidden to make room.',
         items: [
@@ -1550,7 +1550,7 @@ function bluetoothSheet() {
         sheetId: 'odBluetooth',
         showWhen: ON_DEMAND_WHEN,
         title: 'Bluetooth',
-        intro: 'Shows the Bluetooth icon on a status bar’s On demand side.',
+        intro: 'Shows the Bluetooth icon at the edge of a status bar.',
         items: [{
             type: 'select',
             messageKey: 'btIcons',
@@ -1576,7 +1576,7 @@ function bluetoothSheet() {
 // Bar row.
 var BT_ICON_OPTIONS = [['Disconnected', 'disconnected'], ['Connected', 'connected'], ['Both', 'both'], ['None', 'none']];
 /**
- * One On demand card row that opens a sheet: a badged `sheet` row (icon + label, the
+ * One Alert settings card row that opens a sheet: a badged `sheet` row (icon + label, the
  * item's live state under the label, its colours as dots where it has any, Edit).
  * @param {string} sheetId The item's sheet, e.g. 'alertUv'.
  * @param {string} label Row label.
@@ -1595,7 +1595,7 @@ function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFro
     return row;
 }
 /**
- * The On demand card's rows: the no-Watch-Status-Bar note, then System info (Battery and
+ * The Alert settings card's rows: the no-Watch-Status-Bar note, then System info (Battery and
  * Bluetooth with a sheet each, Quiet time and Sleep as read-only rows) and Weather alerts
  * (Rain, then the five metric alerts). Every row prints its item's live state. Each
  * group is one joined block, like the Graph colors card: every row after its sub-header's
@@ -1608,8 +1608,8 @@ function onDemandCardItems() {
             // Nothing moves the items for the user: the note names the gap and the fix.
             type: 'staticText',
             style: 'info',
-            text: 'Your Default view has no Watch Status Bar, so On demand items won’t show there. Tick them under '
-                + 'On demand left or right on one of its other status bars.',
+            text: 'Your Default view has no Watch Status Bar, so Alerts won’t show there. Tick them under '
+                + 'Alerts left or Alerts right on one of its other status bars.',
             showWhen: DEFAULT_VIEW_NO_ON_DEMAND_WHEN
         },
         {type: 'subheader', text: 'System info'},
@@ -1632,12 +1632,12 @@ function onDemandCardItems() {
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}}, true);
     }));
 }
-// The On demand card's intro: what an item is, then where they are chosen, with the
+// The Alert settings card's intro: what an item is, then where they are chosen, with the
 // card's reset (the item settings; the ticks ride the status card's reset).
-var ON_DEMAND_INTRO = 'On demand items show at the edge of a status bar only while they have something to say: '
-    + 'the battery when it runs low, Bluetooth when it disconnects, an alert while it is active. Each status '
-    + 'bar’s On demand rows choose which, and on which side.'
-    + ' <button type="button" class="txt-act-btn" data-action="resetOnDemand">Reset on demand to defaults</button>';
+var ON_DEMAND_INTRO = 'Alerts show at the edge of a status bar only while they have something to say: '
+    + 'the battery when it runs low, Bluetooth when it disconnects, a weather alert while it is active. Each status '
+    + 'bar’s Alerts left and Alerts right rows choose which.'
+    + ' <button type="button" class="txt-act-btn" data-action="resetOnDemand">Reset alert settings to defaults</button>';
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this
 // sheetId — but the Bold row is the sheet's only standing control: no group
@@ -2502,8 +2502,8 @@ module.exports = {
                 hintByValue: {
                     off: 'Radar is hidden.',
                     // No radar bar or graph in this mode: the rain icon's place is each bar's
-                    // On demand side (Status slots tab), not the Layout tab the intro names.
-                    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar’s On demand side where Rain is ticked.',
+                    // Alerts left / Alerts right (Status slots tab), not the Layout tab the intro names.
+                    countdown: 'Fetches the radar only for the rain alert, with no radar bar or graph. The rain icon shows on a status bar where Rain is ticked under Alerts left or Alerts right.',
                     status: 'Adds the Radar Status Bar.',
                     graph: 'Adds the Radar Status Bar and the full radar rain graph.'
                 },
@@ -2663,7 +2663,7 @@ module.exports = {
                 showWhen: {key: 'radarMode', eq: 'graph'}
             }]
             // The rain countdown's time window (rainCountdownHorizon) used to close this
-            // section; its home is the Rain alert sheet (the On demand card), with a
+            // section; its home is the Rain alert sheet (the Alert settings card), with a
             // second copy under the radar mode above.
         }]
     }, {
@@ -2764,7 +2764,7 @@ module.exports = {
             title: 'Watch Status Bar',
             // aplite has no On demand (ON_DEMAND_WHEN): it keeps the bar's fixed battery,
             // quiet-time and Bluetooth rows, and only it. Everywhere else the Battery,
-            // Quiet time and Bluetooth items live in the On demand card, and vibe/btIcons
+            // Quiet time and Bluetooth items live in the Alert settings card, and vibe/btIcons
             // in the Bluetooth sheet (the same keys, gated apart).
             items: barSlots('statusTop', null).concat(gateAll([
                 {
@@ -2790,14 +2790,14 @@ module.exports = {
                 }
             ], {not: ON_DEMAND_WHEN}))
         }, {
-            // The On demand card: after the status card's sections and before the sheets (a
+            // The Alert settings card: after the status card's sections and before the sheets (a
             // sheetOnly section between two groupCard sections would split the status
             // card). Battery and Bluetooth open a sheet each, Quiet time and Sleep only
             // print their rule, and the weather alerts open their sheets (the levels' one
             // home). Its reset reverts the items' settings; the ticks ride the status
             // card's reset.
             id: 'onDemand',
-            title: 'On demand',
+            title: 'Alert settings',
             showWhen: ON_DEMAND_WHEN,
             intro: ON_DEMAND_INTRO,
             items: onDemandCardItems()
@@ -2820,7 +2820,7 @@ module.exports = {
                 }
             }
         }, '42', '58')),
-        // Pollen's scale hint rides its levels group, in its alert sheet (the On demand card).
+        // Pollen's scale hint rides its levels group, in its alert sheet (the Alert settings card).
         alertSlotSheet('Pollen'),
         // Wind and gust each carry their own direction arrow: the two slots often sit
         // side by side, and one arrow drawn twice is noise — so the choice is per kind,
@@ -2960,7 +2960,7 @@ module.exports = {
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery')
         // The eight side checklists (opened from each bar's On demand rows), then the
-        // item sheets (opened from the On demand card's rows): Battery, Bluetooth, rain,
+        // item sheets (opened from the Alert settings card's rows): Battery, Bluetooth, rain,
         // then one per metric alert kind holding its Look, Days and levels (the levels'
         // one home).
         ].concat(onDemandSideSheets(), [batterySheet(), bluetoothSheet(), rainAlertSheet()],

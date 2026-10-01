@@ -433,7 +433,7 @@ env = {
   thresholds:    true,       // false for aplite (no WW_THRESHOLD_HIGHLIGHT)
   colorBacklight: false,     // true only for emery (RGB backlight LED)
   lineStyles:    true,       // false for aplite (no WW_LINE_STYLE — third metric line + per-line marker styles)
-  onDemand:      true,       // false for aplite (no WW_ON_DEMAND — On demand items at the status bars' edges)
+  onDemand:      true,       // false for aplite (no WW_ON_DEMAND — the Alerts at the status bars' edges)
   fineBattery:   false       // true only for emery (battery charge reported in 5 % steps)
 }
 // Fallback when watchInfo is unavailable:

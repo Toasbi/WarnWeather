@@ -34,7 +34,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 2-hour precipitation nowcast from regional and worldwide providers
 * Worldwide Rainbow.ai radar out of the box — *Rainbow (limited)* in the radar picker: shared by every user, so it refreshes every 30 minutes; turn on *Use your own key* and enter your own Rainbow API key to run it as plain *Rainbow*, refreshed at your update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 * The radar says *Radar limit reached* when a radar source refuses requests over its limit, instead of claiming no rain
-* Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on its way (an On demand item, see Status lines)
+* Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on its way (one of the Alerts, see Status lines)
 * Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph — in the Radar tab
 * Clouds, sun & lightning rows under the radar graph's time axis (on by default): cloud cover and sun strength per quarter hour for the next 2 hours, with a lightning bolt where thunderstorms are expected (Open-Meteo, any radar source; not on Pebble Classic/Steel, which has no radar)
 
@@ -52,7 +52,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * Bold status values to make them stand out or easier to read (not on Pebble Classic/Steel)
 * Goal highlighting: bold, outline, or fill a status slot when it reaches a goal you set (not on Pebble Classic/Steel)
 * Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or danger level you set (its Alert levels) (not on Pebble Classic/Steel)
-* On demand: items that show at a status bar's edge only while they have something to say (not on Pebble Classic/Steel). Every status bar has an *On demand left* and an *On demand right* row, each ticking its own items, and the On demand card holds the items' settings (Status slots tab):
+* Alerts: items that show at a status bar's edge only while they have something to say (not on Pebble Classic/Steel). Every status bar has an *Alerts left* and an *Alerts right* row, each ticking its own items through its Edit button (a side with nothing ticked stays empty), and the *Alert settings* card holds the items' settings (Status slots tab):
   * System info — the watch battery at or below a warn level you set (the icon, or the icon and the charge), Bluetooth when it disconnects (or connects, or both), quiet time while it is on, and a sleep icon during the Battery saver hours
   * Weather alerts — rain falling or on its way, or wind gusts, UV index, air quality, (with DWD) pollen or wind speed reaching your warn level today (later hours included) or, once nothing left today does, tomorrow; each metric alert can print its value next to its icon and can stick to today or also look ahead to tomorrow, marking a tomorrow alert with `»` or a mark you pick (`>`, `+`, `*` or none); the rain alert shows as the rain icon, the minutes until it starts (or, while it rains, how long it keeps falling), or the full countdown text
   * On by default: Bluetooth, quiet time, sleep and the rain alert on the left of the Watch Status Bar (the top bar), and the battery with the wind gust, UV index, air quality and wind speed alerts on its right; the pollen alert is off, and every other bar starts with nothing ticked
@@ -66,7 +66,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 **Watch**
 * Custom color, 12h/24h, optional AM/PM
 * Smooth, anti-aliased clock digits on color watches (Roboto and Bitham fonts)
-* Battery, Bluetooth, quiet time and sleep indicators that show only when needed, as On demand items you place per status bar, plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
+* Battery, Bluetooth, quiet time and sleep indicators that show only when needed, as Alerts you place per status bar, plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
 * Battery saver (pause updates to the watch between hours you set, to save battery)
 * Dim backlight on Pebble Time 2: when the backlight comes on between hours you set it glows a color you pick instead of white — it never switches the backlight on by itself
 

@@ -365,8 +365,8 @@ static compile-time fixture, so screenshot builds swap in two canned twins (wire
 
 - `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
 - a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the rain alert
-  on every Enabled On demand side that has Rain ticked (the Watch Status Bar's right side
-  by default; each bar's On demand left/right rows): `{ mins, raining, tier }`, where
+  on every side that has Rain ticked (the Watch Status Bar's left side by default; each
+  bar's Alerts left / Alerts right rows): `{ mins, raining, tier }`, where
   `tier` (1-5) picks the drops, their colour and the noun, so `{ mins: 15, raining: false,
   tier: 3 }` prints "Rain in 15'" with the 'text' rain look and `15'` with the 'minutes'
   one, and `{ mins: 20, raining: true, tier: 3 }` "Rain for 20'" / `+20'` (tier 1-2 reads

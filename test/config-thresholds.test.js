@@ -559,7 +559,7 @@ test('the sheets: the levels and look stay live whatever the slot Highlight, whi
   page.clickTab('watch');
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="threshAqi"') !== -1,
     'the default AQI forecast slot renders its pencil');
-  // The AQI levels live in the kind's alert sheet in the On demand card, which has no
+  // The AQI levels live in the kind's alert sheet in the Alert settings card, which has no
   // switch (the side checklists place the alert); the slot's Alert highlighting switch
   // lives in the slot sheet.
   page.openEditSheet('alertAqi');
@@ -637,7 +637,7 @@ test('the page renders an On demand alert sheet: its Look, then the levels, and 
   assert.ok(sheet.indexOf('UV index alert') !== -1, 'the sheet carries its title');
   assert.equal(sheet.indexOf('data-k="alertUv"'), -1, 'no switch: the side checklists tick the alert');
   assert.equal(sheet.indexOf('<span>Alert</span>'), -1, 'and no Alert sub-header');
-  assert.ok(sheet.indexOf('Shows the UV icon on a status bar’s On demand side when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.') !== -1,
+  assert.ok(sheet.indexOf('Shows the UV icon at the edge of a status bar when the UV index reaches your warn level at any point left today, so an afternoon peak shows from the morning on.') !== -1,
     'with its intro');
   assert.ok(sheet.indexOf('<div class="subhdr grp"><span>Alert levels') > sheet.indexOf('data-k="alertUvDisplay"'),
     'the levels group follows the Look');
@@ -813,9 +813,9 @@ test('an enabled kind shows the ring+dot swatch beside its slot control', () => 
 
   const off = bootGeneratedPage();
   off.clickTab('watch');
-  // The status card's slot pencils only: the On demand card below badges the placed
+  // The status card's slot pencils only: the Alert settings card below badges the placed
   // alerts' colours of its own (alertLevelBadge).
-  const statusCard = off.scroll.innerHTML.slice(0, off.scroll.innerHTML.indexOf('<span class="ttl">On demand</span>'));
+  const statusCard = off.scroll.innerHTML.slice(0, off.scroll.innerHTML.indexOf('<span class="ttl">Alert settings</span>'));
   assert.ok(statusCard.indexOf('data-edit-sheet="threshAqi"') !== -1, 'the status card is in the slice');
   assert.equal(statusCard.indexOf('pen-dot'), -1,
     'no badge while every kind is disabled');
@@ -1233,7 +1233,7 @@ function sheetFor(stem) {
 /**
  * @param {string} stem Kind key stem.
  * @returns {Object} The sheet holding the kind's levels group: its alert sheet in the
- *     On demand card for an alert kind, its slot sheet for a goal kind.
+ *     Alert settings card for an alert kind, its slot sheet for a goal kind.
  */
 function levelsSheetFor(stem) {
   let s = null;
@@ -1357,7 +1357,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
   });
   // An alert kind's slot sheet ends on its highlight group, no header, rows joined:
   // the Alert highlighting switch (a divider above it), the pointer to its alert sheet
-  // in the On demand card instead of the levels (tight), then Bold (loose), last.
+  // in the Alert settings card instead of the levels (tight), then Bold (loose), last.
   ALERT_STEMS.forEach(stem => {
     const items = sheetFor(stem).items;
     const n = items.length;
@@ -1370,7 +1370,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     }, stem + ' the highlight group opens on its switch');
     assert.deepEqual(items[n - 2], {
       type: 'staticText', style: 'info', joinPrevious: true,
-      text: 'Alert levels and colors are set in the On demand card, under Weather alerts.'
+      text: 'Alert levels and colors are set in Alert settings, under Weather alerts.'
     }, stem + ' the On demand pointer hugs the switch');
     assert.equal(items[n - 1], boldFor(stem), stem + ' Bold closes the sheet');
     assert.equal(boldFor(stem).joinPrevious, 'loose', stem + ' Bold joins the group without a divider');
@@ -1633,7 +1633,7 @@ test('Bold is the last row before any Goals group on every slot sheet', () => {
   });
 });
 
-// --- the weather alerts' sheets (the On demand card) --------------------------
+// --- the weather alerts' sheets (the Alert settings card) --------------------------
 
 /** @returns {Object[]} Every alert<Stem> sheet section, in schema order. */
 function alertSheets() {
@@ -1663,7 +1663,7 @@ test('every metric alert sheet: its intro, the Look, the Days and mark, then the
     const coda = stem === 'Aqi' ? ' Looking ahead — later today and tomorrow — needs the Open-Meteo AQI'
       + ' provider (General tab): WAQI, which Auto mostly reads, has no forecast, so the alert then judges'
       + ' the current reading.' : '';
-    assert.equal(s.intro, 'Shows the ' + ICON[stem] + ' icon on a status bar’s On demand side when '
+    assert.equal(s.intro, 'Shows the ' + ICON[stem] + ' icon at the edge of a status bar when '
       + SUBJECT[stem] + ' reaches your warn level at any point left today, so an afternoon peak shows'
       + ' from the morning on.' + coda, s.sheetId + ' intro');
     assert.deepEqual(s.items.slice(0, 3), [{
@@ -1727,14 +1727,14 @@ test('the rain alert sheet: the unplaced note, the time window and the look — 
   // When the watch shows it: raining now or due within the window, never in the
   // Battery saver hours (rain_countdown.c; settings audit #14). rain_tint
   // (status_on_demand.c): the radar colour only under a colour theme on a colour watch.
-  assert.equal(s.intro, 'Shows the rain icon on a status bar’s On demand side while it rains at your location'
+  assert.equal(s.intro, 'Shows the rain icon at the edge of a status bar while it rains at your location'
     + ' or rain is due within the time window. On a color watch the rain icon takes the radar’s rain color,'
     + ' except with a B&W theme. Hidden during the Battery saver hours.');
   assert.ok(!s.items.some(it => it.messageKey === 'alertRain'), 'no switch: the checklists tick Rain');
   // The unplaced note (its predicate is pinned by the page tests).
   assert.equal(s.items[0].type, 'staticText');
   assert.equal(s.items[0].style, 'info');
-  assert.equal(s.items[0].text, 'No On demand side of a status bar has Rain ticked, so the rain icon won’t show.');
+  assert.equal(s.items[0].text, 'No status bar has Rain ticked under Alerts left or Alerts right, so the rain icon won’t show.');
   assert.deepEqual(s.items[1], {
     type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Time window', defaultValue: '60',
     options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],
@@ -1915,7 +1915,7 @@ test('the UV sheet: the Value selection group, then the highlight group closed b
       key + ' joins the group tight');
   });
   assert.equal(items[6].joinPrevious, undefined, 'the highlight group keeps its divider above');
-  assert.equal(items[7].style, 'info', 'the pointer to the On demand card follows the switch');
+  assert.equal(items[7].style, 'info', 'the pointer to the Alert settings card follows the switch');
   assert.equal(disp.disabledWhen, undefined, 'not muted by the highlight toggle or the master Bold row');
   // Tomorrow's peak mark explains its one value that needs it.
   assert.deepEqual(items[5].hintByValue, { none: 'Tomorrow\'s peak then looks just like today\'s.' });
@@ -2245,10 +2245,10 @@ test('resetStatusSlots reverts every bar\'s On demand sides and ticks, and leave
   PC.actions.resetStatusSlots(null, S, Object.assign({ onDemand: true }, ENV), defaultOf);
   Object.keys(OD.DEFAULTS).filter((k) => /OnDemand/.test(k)).forEach((k) =>
     assert.equal(S[k], OD.DEFAULTS[k], k + ' back to its default'));
-  assert.equal(S.alertUvDisplay, 'value', 'the items\' settings are the On demand card\'s reset\'s business');
+  assert.equal(S.alertUvDisplay, 'value', 'the items\' settings are the Alert settings card\'s reset\'s business');
   assert.equal(S.rainAlertDisplay, 'minutes');
   assert.equal(S.batteryLowLevel, '30');
-  assert.equal(S.btIcons, 'both', 'the Bluetooth sheet\'s key is the On demand card\'s');
+  assert.equal(S.btIcons, 'both', 'the Bluetooth sheet\'s key is the Alert settings card\'s');
   assert.strictEqual(S.batteryLowOnly, false, 'aplite\'s rows are not in this card here');
   assert.strictEqual(S.showQt, false);
   // aplite: no On demand, and the Watch Status Bar's own rows are in the card.

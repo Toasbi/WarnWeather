@@ -26,7 +26,7 @@ RAIN RADAR
   own update interval (free for 5,000 calls a month; Rainbow asks for a credit card)
 - "Radar limit reached" on the radar when a radar source refuses requests over its limit
 - Rain alert telling you when rain starts (or stops), at a status bar's edge while rain is on
-  its way (On demand)
+  its way (Alerts)
 - Choose how much radar you see — Off, the rain alert only, a radar status line, or the full radar graph
 - Clouds, sun and lightning rows under the radar graph: cloud cover and sun strength for the next 2 hours, with a bolt where thunderstorms are expected
 
@@ -69,9 +69,9 @@ STATUS LINES
   (not on Pebble Classic/Steel)
 - Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or
   danger level you set (its Alert levels) (not on Pebble Classic/Steel)
-- On demand: items that show at a status bar's edge only while they have something to say
-  (not on Pebble Classic/Steel). Every status bar has an On demand left and right side, each
-  with the items you tick:
+- Alerts: items that show at a status bar's edge only while they have something to say
+  (not on Pebble Classic/Steel). Every status bar has an Alerts left and an Alerts right side,
+  each with the items you tick, and Alert settings holds the items' settings:
    - System info: the watch battery at or below a warn level you set, Bluetooth when it
      disconnects, quiet time while it is on, and a sleep icon during the battery saver hours
    - Weather alerts: rain falling or on its way, or wind gusts, UV index, air quality, pollen
@@ -93,7 +93,7 @@ WATCHFACE THEMES
 
 WATCH
 - Custom color, 12h/24h, optional AM/PM
-- Battery, Bluetooth, quiet time and sleep indicators that show only when needed (On demand),
+- Battery, Bluetooth, quiet time and sleep indicators that show only when needed (Alerts),
   plus vibrate on disconnect (Pebble Classic/Steel keeps its fixed indicators)
 - Night battery saver (pause updates to the watch between hours you set, to save battery)
 - Night backlight dimming
