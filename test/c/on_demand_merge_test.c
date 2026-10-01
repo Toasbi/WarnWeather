@@ -98,6 +98,117 @@ static void merged_out_beside_its_slot(void) {
     expect("merge.out.wide.middle_x", out.place[1].icon_x, 52);
     expect("merge.out.wide.stage", out.stage[0], 0);
     expect("merge.out.wide.drawn", drawn(&out, 0, 1), 0);
+
+    // An item past the merged alert closes up beside the item before it: Quiet time
+    // (12), the merged UV (24), then an air quality alert (16) 2 px past Quiet time (a
+    // boxed alert's neighbour), where it sits with no UV item at all. W 180, so the run
+    // fits beside the slot with the middle centred (70).
+    for (int d = 0; d < 2; d++) {
+        const int own = d ? 2 : 0;
+        OdSideIn after[2] = { side_none(), side_none() };
+        OdSideIn none[2] = { side_none(), side_none() };
+        add_icon(&after[d], OD_QUIET_TIME, 12);
+        add_icon(&after[d], OD_UV, 24);
+        add_icon(&after[d], OD_AQI, 16);
+        merge_at(&after[d], 1);
+        add_icon(&none[d], OD_QUIET_TIME, 12);
+        add_icon(&none[d], OD_AQI, 16);
+        OdLayout got;
+        OdLayout ref;
+        od_layout(180, slots, after, NO_BLEED, 0, &got);
+        od_layout(180, slots, none, NO_BLEED, 0, &ref);
+        char name[48];
+        snprintf(name, sizeof(name), "merge.after.side%d", d);
+        expect(name, form_of(&got, own), OD_FULL);
+        expect(name, got.stage[d], 0);
+        expect(name, drawn(&got, d, 1), 0);
+        expect(name, drawn(&got, d, 2), 1);
+        const int16_t x = 30 + STATUS_ROW_GROUP_GAP + 12 + OD_PADDED_GAP;
+        expect(name, got.item_x[d][2], d ? 180 - x - 16 : x);
+        expect(name, got.item_x[d][2], ref.item_x[d][1]);
+        expect(name, got.item_x[d][0], ref.item_x[d][0]);
+    }
+}
+
+// Whether `out` lays out as `ref`, the same bar without the merged item: the slots,
+// each side's row and look, and the x of every item `ref` draws (side m's from item
+// `at` on one later in `out`, past the merged one).
+static void expect_as_without(const char *name, const OdLayout *out, const OdLayout *ref,
+                              int m, int at) {
+    for (int i = 0; i < 3; i++) {
+        expect(name, out->variant[i], ref->variant[i]);
+        expect_true(name, place_eq(&out->place[i], &ref->place[i]));
+    }
+    for (int d = 0; d < 2; d++) {
+        expect(name, out->stage[d], ref->stage[d]);
+        expect(name, out->lane[d], ref->lane[d]);
+        for (int k = ref->first[d]; k < ref->first[d] + ref->n[d]; k++) {
+            expect(name, out->item_x[d][k + (d == m && k >= at)], ref->item_x[d][k]);
+        }
+    }
+}
+
+// A slot with a merged alert is owed like any other: where hiding the middle would
+// give a side a longer look, a slot whose whole claim stays inside its half is never
+// pushed for it (§5.4) — the bar is laid out without the middle, that slot whole, and
+// the other side's look gives way. Both bars lay out exactly as with no merged item.
+static void merged_slot_owed(void) {
+    // While the slot shows. W 183: the left slot is text 45 (short 33), the middle text
+    // 83, the right slot an icon 10 + text 54. The left side holds a gust alert
+    // (27/27/10) and the UV alert its slot merged (28/28/16), the right side Bluetooth
+    // (48/14/14) and the rain (60/27/19). The left slot stays whole, the right side
+    // shortens its look.
+    OdSlotIn slots[3] = { slot_text(45, 33), slot_text(83, 0), slot_empty() };
+    slots[2].m[0] = (StatusSlotMeasure) { true, 10, 54, 0 };
+    slots[2].n = 1;
+    OdSideIn with[2] = { side_none(), side_none() };
+    OdSideIn without[2] = { side_none(), side_none() };
+    add(&with[0], OD_GUST, 27, 27, 10);
+    add(&with[0], OD_UV, 28, 28, 16);
+    merge_at(&with[0], 1);
+    add(&without[0], OD_GUST, 27, 27, 10);
+    for (int k = 0; k < 2; k++) {
+        OdSideIn *right = k ? &without[1] : &with[1];
+        add(right, OD_BLUETOOTH, 48, 14, 14);
+        add(right, OD_RAIN, 60, 27, 19);
+    }
+    OdLayout out;
+    OdLayout ref;
+    od_layout(183, slots, with, NO_BLEED, 0, &out);
+    od_layout(183, slots, without, NO_BLEED, 0, &ref);
+    expect("merge.owed.shown.variant", out.variant[0], 0);
+    expect("merge.owed.shown.slot", form_of(&out, 0), OD_FULL);
+    expect("merge.owed.shown.stage", out.stage[0], 0);
+    expect("merge.owed.shown.lane", out.lane[1], 1);
+    expect("merge.owed.shown.uv", drawn(&out, 0, 1), 0);
+    expect_as_without("merge.owed.shown.eq", &out, &ref, 0, 1);
+
+    // While the slot hides, its alert standing in: W 156, a bleed of 1 on the left, text
+    // slots 42 | 55 | 31. The left side holds Quiet time (61/27/19) and the rain
+    // (41/11/11), the right side Bluetooth (17/17/10) and the gust alert its slot merged
+    // (14). The left side's longest look needs the right slot hidden; the right claim
+    // with its slot whole (31 + GAP + 17) stays inside its half, so the slot shows,
+    // merged, and the left side takes its next look (27 + 11) beside its own slot.
+    OdSlotIn three[3] = { slot_text(42, 0), slot_text(55, 0), slot_text(31, 0) };
+    OdSideIn hid[2] = { side_none(), side_none() };
+    OdSideIn bare[2] = { side_none(), side_none() };
+    for (int k = 0; k < 2; k++) {
+        OdSideIn *s = k ? bare : hid;
+        add(&s[0], OD_QUIET_TIME, 61, 27, 19);
+        add(&s[0], OD_RAIN, 41, 11, 11);
+        add(&s[1], OD_BLUETOOTH, 17, 17, 10);
+    }
+    add_icon(&hid[1], OD_GUST, 14);
+    merge_at(&hid[1], 1);
+    const int8_t bleed[2] = { 1, 0 };
+    od_layout(156, three, hid, bleed, 0, &out);
+    od_layout(156, three, bare, bleed, 0, &ref);
+    expect("merge.owed.hidden.slot", form_of(&out, 2), OD_FULL);
+    expect("merge.owed.hidden.left", form_of(&out, 0), OD_FULL);
+    expect("merge.owed.hidden.middle", form_of(&out, 1), OD_HIDDEN);
+    expect("merge.owed.hidden.lanes", out.lane[0] * 10 + out.lane[1], 10);
+    expect("merge.owed.hidden.gust", drawn(&out, 1, 1), 0);
+    expect_as_without("merge.owed.hidden.eq", &out, &ref, 1, 1);
 }
 
 // Where the ladder hides the slot, the merged alert stands in at its place in the run,
@@ -252,6 +363,7 @@ static void merged_shows_once(void) {
 int main(void) {
     merged_alone_is_quiet();
     merged_out_beside_its_slot();
+    merged_slot_owed();
     merged_stands_in();
     merged_shows_once();
     if (s_failures) {

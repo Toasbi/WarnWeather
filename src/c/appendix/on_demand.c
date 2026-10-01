@@ -537,11 +537,13 @@ static bool middle_costs_look(Pass *p, uint8_t pos[2], Geom *g) {
     for (int d = 0; d < 2; d++) {
         uint8_t t[2];
         if (!look_back(p, pos, d, d ? own0 : own1, t, g)) { continue; }
-        // A battery slot, and a slot with a merged alert, is the stand-in's to show or
-        // hide (conf_of), never owed.
+        // A battery slot is the stand-in's to show or hide (conf_of), never owed. A slot
+        // with a merged alert is owed like any other: the alert is in the run here only
+        // while the slot hides, standing in, and then the claim tested is wider than the
+        // slot whole beside the run without it, so the slot is never owed wrongly.
         for (int s = 0; s < 2; s++) {
             const int i = OWN(s);
-            if (g->c.n[s] && g->c.own[s] != OD_FULL && !((p->batt >> i) & 1) && !p->merged[s]
+            if (g->c.n[s] && g->c.own[s] != OD_FULL && !((p->batt >> i) & 1)
                 && g->run[s] + p->plain_w[i] + 2 * GAP <= ((p->w + GAP) >> 1)) {
                 p->plain_w[1] = 0;
                 return true;

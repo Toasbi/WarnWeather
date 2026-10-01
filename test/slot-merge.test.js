@@ -174,6 +174,35 @@ test('the middle slot, the far side and Wind speed beside a gust alert never mer
     ['', '', '40/90kph']);
 });
 
+test('a pollen alert merges into the pollen slot on its side (DWD)', () => {
+  // Today's band 1, tomorrow's 3 reaches warn: the alert looks ahead.
+  const p = { POLLEN_TODAY: '1', POLLEN_TOMORROW: '3' };
+  const look = { provider: 'dwd', alertPollenDisplay: 'value', alertPollenDays: 'tomorrow' };
+  const right = placeOn(Object.assign({}, look, NOTHING_PLACED), 'top', 'right', 'pollen');
+  const left = placeOn(Object.assign({}, look, NOTHING_PLACED), 'top', 'left', 'pollen');
+  assert.deepEqual(topTexts(p, topSettings('empty', 'empty', 'pollen', right)).slots,
+    ['', '', '1/»3']);
+  assert.deepEqual(topTexts(p, topSettings('pollen', 'empty', 'empty', left)).slots,
+    ['1/»3', '', '']);
+  // The far side keeps its own band.
+  assert.deepEqual(topTexts(p, topSettings('pollen', 'empty', 'empty', right)).slots,
+    ['1', '', '']);
+});
+
+test('a slot with no reading of its own draws no wind arrow beside a merged value', () => {
+  const S = placeOn(Object.assign({ alertGustDisplay: 'value', gustSlotDirection: true },
+    NOTHING_PLACED), 'top', 'right', 'gust');
+  const peaks = { GUST_DAY_PEAKS: [90, 50, 0], WIND_DIR_TREND: [270] };
+  // No gust reading: the slot shows the alert's value alone, and no arrow byte.
+  const none = topTexts(Object.assign({ GUST_TREND_UINT8: [] }, peaks),
+    topSettings('empty', 'empty', 'gust', S));
+  assert.deepEqual(none.slots, ['', '', '90kph']);
+  assert.ok(none.entries.length > 0, 'guard: the gust alert is active');
+  // Guard: with a reading the same slot carries the arrow (0x01 + sector 4, east).
+  assert.deepEqual(topTexts(Object.assign({ GUST_TREND_UINT8: [40] }, peaks),
+    topSettings('empty', 'empty', 'gust', S)).slots, ['', '', '40/90\x05']);
+});
+
 test('a watch the entries do not ride to bakes its slots exactly as before', () => {
   const right = placeOn(Object.assign({ alertUvDisplay: 'value' }, NOTHING_PLACED),
     'top', 'right', 'uv');
