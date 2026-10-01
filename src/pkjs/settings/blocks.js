@@ -779,8 +779,8 @@ if (typeof require !== 'undefined') {
     // (the Alert levels group's own reset deliberately covers only the levels),
     // each weather kind's slot Highlight switch (a slot-sheet row, like Bold — a
     // goal kind's rides its Goals header and that group's reset), each bar's two On
-    // demand rows and their ticks (on-demand.js DEFAULTS' sixteen side keys — the rows
-    // live in the bar's own sub-section of this card), and, on aplite only (a watch
+    // demand sides' ticks (on-demand.js DEFAULTS' eight side lists — the rows live in
+    // the bar's own sub-section of this card), and, on aplite only (a watch
     // without On demand), the Watch Status Bar's other rows: 'Show battery below 10%'
     // (batteryLowOnly), the quiet-time icon (showQt), the bluetooth vibration (vibe)
     // and icon (btIcons) — elsewhere those keys belong to the On demand card. Deliberately
@@ -817,11 +817,10 @@ if (typeof require !== 'undefined') {
         if (env && env.onDemand === false) {
             schemaKeys.push('batteryLowOnly', 'showQt', 'vibe', 'btIcons');
         }
-        // Every bar's On demand sides: Enabled/Disabled and the ticked items.
+        // Every bar's On demand sides: the ticked items.
         for (var b = 0; b < onDemand.BARS.length; b++) {
             for (var sd = 0; sd < onDemand.SIDES.length; sd++) {
-                schemaKeys.push(onDemand.sideKey(onDemand.BARS[b].bar, onDemand.SIDES[sd]),
-                    onDemand.itemsKey(onDemand.BARS[b].bar, onDemand.SIDES[sd]));
+                schemaKeys.push(onDemand.itemsKey(onDemand.BARS[b].bar, onDemand.SIDES[sd]));
             }
         }
         // dateSlotFullFormat is the one key here whose fresh-install value is
@@ -977,8 +976,8 @@ if (typeof require !== 'undefined') {
         return null;
     }
 
-    // What every On demand card row reads while its item is ticked on no Enabled side of
-    // a bar that exists (on-demand.js placedAnywhere): the item cannot show anywhere.
+    // What every On demand card row reads while its item is ticked on no side of a bar
+    // that exists (on-demand.js placedAnywhere): the item cannot show anywhere.
     var NOT_PLACED = 'Not in any status bar';
 
     /**
@@ -1115,14 +1114,6 @@ if (typeof require !== 'undefined') {
     }
     PConf.hintResolvers.register('rainAlertHint', rainAlertHint);
 
-    // The side checklist's sheet: offered by a side's row only while the side is Enabled
-    // (the row then draws no Edit button at all while Disabled), and only on a watch that
-    // draws On demand.
-    PConf.sheetResolvers.register('onDemandSideSheet', function (S, env, args) {
-        if (!env || env.onDemand === false || !S || S[args.messageKey] !== 'on') { return null; }
-        return args.sheetId || null;
-    });
-
     /**
      * Whether a ticked item cannot show, whatever the tick: Rain
      * while the radar is off, Pollen off the DWD provider.
@@ -1137,21 +1128,18 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The side row's live summary (the row's hint): nothing while the side is Disabled;
-     * while Enabled, the names of the ticked items that can show, in priority order,
-     * joined " · ". "Nothing picked" only while nothing is ticked; ticks that all
-     * cannot show (Rain with the radar Off, Pollen off DWD) say so instead, and the
-     * side's checklist notes say why.
+     * The side row's live summary (the row's hint): the names of the ticked items that
+     * can show, in priority order, joined " · "; nothing while nothing is ticked (the side
+     * is then off). Ticks that all cannot show (Rain with the radar Off, Pollen off DWD)
+     * say so instead, and the side's checklist notes say why.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
-     * @param {{value: string, itemsKey: string}} args The side's Enabled/Disabled value
-     *     and its items key.
+     * @param {{itemsKey: string}} args The side's items key.
      * @returns {string} The hint ('' for none).
      */
     function onDemandSummary(S, env, args) {
-        if (!args || args.value !== 'on') { return ''; }
         var ticked = onDemand.parse((S || {})[args.itemsKey]);
-        if (!ticked.length) { return 'Nothing picked'; }
+        if (!ticked.length) { return ''; }
         var names = [];
         ticked.forEach(function (code) {
             if (onDemandBlocked(S, code) === null) {

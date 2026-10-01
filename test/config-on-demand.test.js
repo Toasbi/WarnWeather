@@ -1,7 +1,7 @@
 'use strict';
 // test/config-on-demand.test.js — On demand on the Status slots tab, end to end on the
 // REAL generated settings page (test/helpers/page-harness.js): each bar's two On demand
-// rows (Enabled/Disabled, the ticked items as their live hint, Edit only while Enabled),
+// rows (the ticked items as their live hint, and Edit; a side is on while it ticks something),
 // the side checklists, the On demand card with its live texts and item sheets, the rain
 // notes, the resets, and the aplite page, which has none of it. The schema shape itself
 // is pinned in test/config-schema.test.js; this file checks what the page renders and does.
@@ -98,34 +98,48 @@ function hintOf(html, needle) {
   return m ? m[1] : '';
 }
 
-test('each bar ends on its two On demand rows; the Watch Status Bar\'s are Enabled with the default items', () => {
+/**
+ * A side's row on the Status slots tab, found by its Edit button's sheet.
+ * @param {string} html rendered page markup
+ * @param {string} sheetId the side's sheet, e.g. 'odTopLeft'
+ * @returns {string} the row's markup ('' when absent)
+ */
+const sideRow = (html, sheetId) => rowOf(html, 'data-edit-sheet="' + sheetId + '"');
+/**
+ * A side's live summary (its row's hint).
+ * @param {string} html rendered page markup
+ * @param {string} sheetId the side's sheet, e.g. 'odTopLeft'
+ * @returns {string} the summary ('' for none)
+ */
+const sideHint = (html, sheetId) => hintOf(html, 'data-edit-sheet="' + sheetId + '"');
+
+test('each bar ends on its two On demand rows: the ticked items as the summary, and Edit', () => {
   const html = watchTab().scroll.innerHTML;
-  assert.equal(hintOf(html, 'data-select="statusTopOnDemandLeft"'), 'Bluetooth · Quiet time · Sleep');
-  assert.equal(hintOf(html, 'data-select="statusTopOnDemandRight"'),
-    'Battery · Rain · Wind gusts · UV index · Air quality · Wind speed');
-  assert.ok(rowOf(html, 'data-select="statusTopOnDemandLeft"').indexOf('data-edit-sheet="odTopLeft"') !== -1,
-    'Enabled: the Edit button');
-  assert.match(rowOf(html, 'data-select="statusTopOnDemandLeft"'), /^<div class="row[^"]*\bslot\b/, 'compact rows');
-  const fc = rowOf(html, 'data-select="statusForecastOnDemandLeft"');
-  assert.ok(fc.indexOf('<span>Disabled</span>') !== -1, 'the other bars start Disabled');
-  assert.equal(fc.indexOf('data-edit-sheet'), -1, 'Disabled: no Edit button');
-  assert.equal(fc.indexOf('class="hint"'), -1, 'Disabled: no summary');
-  assert.equal(html.indexOf('data-select="statusRadarOnDemandLeft"') !== -1, true, 'the radar bar exists by default');
+  assert.equal(sideHint(html, 'odTopLeft'), 'Bluetooth · Quiet time · Sleep');
+  assert.equal(sideHint(html, 'odTopRight'), 'Battery · Rain · Wind gusts · UV index · Air quality · Wind speed');
+  assert.ok(sideRow(html, 'odTopLeft').indexOf('<div class="lbl">On demand left</div>') !== -1, 'the side\'s label');
+  assert.match(sideRow(html, 'odTopLeft'), /^<div class="row[^"]*\bslot\b/, 'compact rows');
+  const fc = sideRow(html, 'odForecastLeft');
+  assert.ok(fc !== '', 'a side that ticks nothing still has its Edit button');
+  assert.equal(fc.indexOf('class="hint"'), -1, 'nothing ticked: no summary');
+  assert.equal(html.indexOf('data-select="statusTopOnDemand'), -1, 'no Enabled/Disabled dropdown');
+  assert.ok(html.indexOf('data-edit-sheet="odRadarLeft"') !== -1, 'the radar bar exists by default');
 });
 
-test('enabling a side offers Edit, and the summary reads "Nothing picked" until something is ticked', () => {
+test('a side is on as soon as Edit ticks something, and off again once nothing is ticked', () => {
   const page = watchTab();
-  page.openSelect('statusForecastOnDemandRight');
-  page.pickOption('statusForecastOnDemandRight', 'on');
-  const row = rowOf(page.scroll.innerHTML, 'data-select="statusForecastOnDemandRight"');
-  assert.ok(row.indexOf('data-edit-sheet="odForecastRight"') !== -1, 'the Edit button appears');
-  assert.equal(hintOf(page.scroll.innerHTML, 'data-select="statusForecastOnDemandRight"'), 'Nothing picked');
   page.openEditSheet('odForecastRight');
   tick(page, 'statusForecastOnDemandRightItems', 'uv');
   tick(page, 'statusForecastOnDemandRightItems', 'battery');
   assert.equal(page.S.statusForecastOnDemandRightItems, 'battery,uv', 'the priority order, not the tap order');
-  assert.equal(hintOf(page.scroll.innerHTML, 'data-select="statusForecastOnDemandRight"'), 'Battery · UV index',
+  assert.equal(sideHint(page.scroll.innerHTML, 'odForecastRight'), 'Battery · UV index',
     'the summary repaints behind the sheet');
+  assert.equal(OD.sideOf(page.S, 'forecast', 'uv'), 'right', 'the watch shows it there');
+  tick(page, 'statusForecastOnDemandRightItems', 'uv');
+  tick(page, 'statusForecastOnDemandRightItems', 'battery');
+  assert.equal(page.S.statusForecastOnDemandRightItems, '');
+  assert.equal(sideHint(page.scroll.innerHTML, 'odForecastRight'), '', 'nothing ticked: off, no summary');
+  assert.equal(OD.sideOf(page.S, 'forecast', 'uv'), null);
 });
 
 test('a side sheet: the bar\'s name, two groups in priority order, and an item moves between sides', () => {
@@ -146,7 +160,7 @@ test('a side sheet: the bar\'s name, two groups in priority order, and an item m
   tick(page, 'statusTopOnDemandRightItems', 'bt');
   assert.equal(page.S.statusTopOnDemandRightItems, 'battery,bt,rain,gust,uv,aqi,wind');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'qt,snooze', 'gone from the left');
-  assert.equal(hintOf(page.scroll.innerHTML, 'data-select="statusTopOnDemandLeft"'), 'Quiet time · Sleep',
+  assert.equal(sideHint(page.scroll.innerHTML, 'odTopLeft'), 'Quiet time · Sleep',
     'the other side\'s summary follows');
 });
 
@@ -161,7 +175,7 @@ test('the checklist notes: Rain needs the radar, Pollen needs DWD — ticks kept
   page.modal.dispatch('click', { target: t });
   assert.equal(page.S.statusTopOnDemandRightItems, 'battery,rain,gust,uv,aqi,wind', 'a gated tap changes nothing');
   // The summary leaves out what cannot show.
-  assert.equal(hintOf(page.scroll.innerHTML, 'data-select="statusTopOnDemandRight"'),
+  assert.equal(sideHint(page.scroll.innerHTML, 'odTopRight'),
     'Battery · Wind gusts · UV index · Air quality · Wind speed', 'Rain left out while the radar is off');
 });
 
@@ -218,7 +232,6 @@ test('Battery: the warn level on the watch\'s step, the Look, and "Not in any st
   assert.equal(t(state(Object.assign({ batteryLowLevel: '25' }, empty)), platform.computeEnv(null)), 'At 30% or below',
     'an unknown watch reads the 10 % steps');
   assert.equal(t(state(Object.assign({ statusTopOnDemandRightItems: 'rain' }, empty)), ENV.basalt), 'Not in any status bar');
-  assert.equal(t(state(Object.assign({ statusTopOnDemandRight: 'off' }, empty)), ENV.basalt), 'Not in any status bar');
 });
 
 // W7 (revised 2026-09-30): a bar that shows the watch battery in a slot leaves the item
@@ -237,7 +250,7 @@ test('Battery: "Hidden while a battery slot shows the charge" only where the ite
   assert.equal(t(state({ statusTopRight: 'phoneBattery' }), phone), 'At 10% or below');
   // The item ticked on another bar than the battery slot's: nothing to hide it.
   const elsewhere = state({ statusTopRight: 'battery', statusTopOnDemandRightItems: 'rain',
-    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'battery' });
+    statusForecastOnDemandLeftItems: 'battery' });
   assert.equal(t(elsewhere, ENV.basalt), 'At 10% or below');
   // A battery slot the catalog cannot place (the glyph is the top-right corner's alone)
   // resolves to Empty, so it silences nothing.
@@ -257,7 +270,7 @@ test('Bluetooth, Quiet time and Sleep: their rules, the vibration, the Battery s
   const qt = hint('onDemandPlainText');
   const args = { code: 'qt', text: 'While Quiet Time is on' };
   assert.equal(qt(state({}), ENV.basalt, args), 'While Quiet Time is on');
-  assert.equal(qt(state({ statusTopOnDemandLeft: 'off' }), ENV.basalt, args), 'Not in any status bar');
+  assert.equal(qt(state({ statusTopOnDemandLeftItems: 'bt' }), ENV.basalt, args), 'Not in any status bar');
   const sleep = hint('onDemandSleepText');
   assert.equal(sleep(state({ sleepNightEnabled: true, sleepStartHour: '22', sleepEndHour: '6' }), ENV.basalt),
     'During the Battery saver hours, 22:00–6:00');
@@ -267,18 +280,17 @@ test('Bluetooth, Quiet time and Sleep: their rules, the vibration, the Battery s
 
 test('the side summary and the checklist options, resolver by resolver', () => {
   const summary = hint('onDemandSummary');
-  const args = (value) => ({ value, itemsKey: 'statusTopOnDemandRightItems' });
-  assert.equal(summary(state({}), ENV.basalt, args('off')), '', 'Disabled: no hint');
-  assert.equal(summary(state({ statusTopOnDemandRightItems: 'pollen,wind', provider: 'dwd' }), ENV.basalt, args('on')),
+  const args = { itemsKey: 'statusTopOnDemandRightItems' };
+  assert.equal(summary(state({ statusTopOnDemandRightItems: 'pollen,wind', provider: 'dwd' }), ENV.basalt, args),
     'Pollen · Wind speed');
-  assert.equal(summary(state({ statusTopOnDemandRightItems: 'pollen,wind', provider: 'metno' }), ENV.basalt, args('on')),
+  assert.equal(summary(state({ statusTopOnDemandRightItems: 'pollen,wind', provider: 'metno' }), ENV.basalt, args),
     'Wind speed', 'Pollen left out off DWD');
-  assert.equal(summary(state({ statusTopOnDemandRightItems: 'rain', radarMode: 'off' }), ENV.basalt, args('on')),
+  assert.equal(summary(state({ statusTopOnDemandRightItems: 'rain', radarMode: 'off' }), ENV.basalt, args),
     'None of the ticked items can show', 'ticked, but nothing that can show');
   assert.equal(summary(state({ statusTopOnDemandRightItems: 'rain,pollen', radarMode: 'off', provider: 'metno' }),
-    ENV.basalt, args('on')), 'None of the ticked items can show', 'every tick blocked');
-  assert.equal(summary(state({ statusTopOnDemandRightItems: '' }), ENV.basalt, args('on')), 'Nothing picked',
-    'nothing ticked');
+    ENV.basalt, args), 'None of the ticked items can show', 'every tick blocked');
+  assert.equal(summary(state({ statusTopOnDemandRightItems: '' }), ENV.basalt, args), '',
+    'nothing ticked: the side is off, no hint');
   const items = PC.optionsResolvers.get('onDemandItems');
   const opts = items(state({ provider: 'dwd', radarMode: 'graph' }), ENV.basalt, { bar: 'top', side: 'left' });
   assert.deepEqual(opts.map((o) => o[1]), ['', 'battery', 'bt', 'qt', 'snooze', '', 'rain', 'gust', 'uv', 'aqi',
@@ -403,16 +415,14 @@ test('no Watch Status Bar on the Default view and no On demand items on its bars
   // Weather only drops the strip in every radar mode but 'Rain alert only'.
   assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph' }), 'Weather only, defaults: shown');
   assert.ok(!shows({ layoutPreset: 'weatherOnly', radarMode: 'graph',
-    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'uv' }), 'the forecast bar carries items: hidden');
-  assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph', statusForecastOnDemandLeft: 'on',
-    statusForecastOnDemandLeftItems: '' }), 'Enabled with nothing ticked does not count');
-  assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph', statusForecastOnDemandLeft: 'off',
-    statusForecastOnDemandLeftItems: 'uv' }), 'ticked on a Disabled side does not count');
+    statusForecastOnDemandLeftItems: 'uv' }), 'the forecast bar carries items: hidden');
+  assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph',
+    statusForecastOnDemandLeftItems: '' }), 'nothing ticked does not count');
   assert.ok(!shows({ layoutPreset: 'weatherOnly', radarMode: 'status',
-    statusRadarOnDemandRight: 'on', statusRadarOnDemandRightItems: 'rain' }),
+    statusRadarOnDemandRightItems: 'rain' }),
   'radar status: the radar bar is on the Default view and carries items: hidden');
   assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph',
-    statusRadarOnDemandRight: 'on', statusRadarOnDemandRightItems: 'rain' }),
+    statusRadarOnDemandRightItems: 'rain' }),
   'radar graph: no radar bar on the Default view, so it does not count');
   assert.ok(!shows({ layoutPreset: 'weatherOnly', radarMode: 'countdown' }),
     'Rain alert only keeps the Default view\'s strip: hidden');
@@ -420,17 +430,17 @@ test('no Watch Status Bar on the Default view and no On demand items on its bars
   // A custom layout: the Default view's strip switch and the bars its seats hold.
   const custom = { layoutPreset: 'custom', viewStripOff0: true, viewUpper0: 'weather', viewLower0: 'off' };
   assert.ok(shows(custom), 'custom, strip off, forecast bar without items: shown');
-  assert.ok(!shows(Object.assign({}, custom, { statusForecastOnDemandRight: 'on',
+  assert.ok(!shows(Object.assign({}, custom, {
     statusForecastOnDemandRightItems: 'bt' })), 'the forecast bar carries items: hidden');
   assert.ok(!shows(Object.assign({}, custom, { viewStripOff0: false })), 'custom with its strip: hidden');
-  const health = Object.assign({}, custom, { viewLower0: 'health', statusHealthOnDemandLeft: 'on',
+  const health = Object.assign({}, custom, { viewLower0: 'health',
     statusHealthOnDemandLeftItems: 'battery' });
   assert.ok(!shows(Object.assign({ healthMode: 'status' }, health)), 'a health seat carrying items: hidden');
   assert.ok(shows(Object.assign({ healthMode: 'off' }, health)), 'a health seat folded away does not count');
 });
 
-const SHEET_NOTE = 'No Enabled On demand side of a status bar has Rain ticked, so the rain icon won’t show.';
-const RADAR_NOTE = '‘Rain alert only’ fetches the radar for the rain icon, but no Enabled On demand side of a status bar has Rain ticked.';
+const SHEET_NOTE = 'No On demand side of a status bar has Rain ticked, so the rain icon won’t show.';
+const RADAR_NOTE = '‘Rain alert only’ fetches the radar for the rain icon, but no On demand side of a status bar has Rain ticked.';
 
 test('the rain notes: the Rain sheet\'s in any fetching radar mode, the Radar tab\'s in Rain alert only', () => {
   const inSheet = (cfg) => {
@@ -448,13 +458,12 @@ test('the rain notes: the Rain sheet\'s in any fetching radar mode, the Radar ta
     assert.ok(inSheet(Object.assign({ radarMode: mode }, unplaced)), 'sheet: ' + mode + ', unplaced: shown'));
   assert.ok(!inSheet(Object.assign({ radarMode: 'off' }, unplaced)), 'sheet: radar off: the card row says it');
   assert.ok(!inSheet({ radarMode: 'graph' }), 'sheet: placed by default: hidden');
-  assert.ok(inSheet(Object.assign({ radarMode: 'graph', statusTopOnDemandRight: 'off' })), 'sheet: a Disabled side');
   assert.ok(onRadarTab(Object.assign({ radarMode: 'countdown' }, unplaced)), 'radar tab: Rain alert only, unplaced');
   assert.ok(!onRadarTab(Object.assign({ radarMode: 'graph' }, unplaced)), 'radar tab: another mode: hidden');
   assert.ok(!onRadarTab({ radarMode: 'countdown' }), 'radar tab: placed: hidden');
-  assert.ok(onRadarTab(Object.assign({ radarMode: 'countdown', statusRadarOnDemandLeft: 'on',
+  assert.ok(onRadarTab(Object.assign({ radarMode: 'countdown',
     statusRadarOnDemandLeftItems: 'rain' }, unplaced)), 'the radar bar never shows in this mode: it does not count');
-  assert.ok(!onRadarTab(Object.assign({ radarMode: 'countdown', healthMode: 'status', statusHealthOnDemandLeft: 'on',
+  assert.ok(!onRadarTab(Object.assign({ radarMode: 'countdown', healthMode: 'status',
     statusHealthOnDemandLeftItems: 'rain' }, unplaced)), 'the health bar shows it: hidden');
 });
 
@@ -464,7 +473,6 @@ test('the Radar tab carries a copy of the rain window; entering Rain alert only 
   assert.ok(page.scroll.innerHTML.indexOf('>Rain alert window</div>') !== -1, 'the copy renders');
   pick(page, 'radarMode', 'countdown');
   assert.equal(page.S.statusTopOnDemandRightItems, 'battery,rain', 'Rain ticked on the Watch Status Bar\'s right');
-  assert.equal(page.S.statusTopOnDemandRight, 'on');
   const off = bootGeneratedPage({ provider: 'dwd', radarMode: 'graph' });
   off.clickTab('radar');
   pick(off, 'radarMode', 'off');

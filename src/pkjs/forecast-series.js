@@ -550,8 +550,8 @@ function envOf(watchInfo) {
 
 /**
  * Whether the watch wants a metric outside the forecast lines: a status slot shows
- * it (unfetched, the slot bakes empty), or its alert is on (ticked on an Enabled On
- * demand side of any bar, statusThresholds.alertOn). A placed alert needs the metric
+ * it (unfetched, the slot bakes empty), or its alert is on (ticked on an On demand
+ * side of any bar, statusThresholds.alertOn). A placed alert needs the metric
  * with no slot showing it, and unfetched the alert can never fire. The status half of
  * every metric fetch gate below; each adds its own line or provider rule.
  * @param {Object} settings Clay settings (non-null).

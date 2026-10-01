@@ -272,8 +272,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
         showQt: !!safe.showQt,
         batteryLowOnly: Boolean(safe.batteryLowOnly),
         // On demand: 40 letters, the ten items of each bar (top, forecast, radar, health)
-        // in the On demand order — L/R ticked on an Enabled side of a bar that shows,
-        // l/r ticked on a Disabled side or a bar the layout leaves out, '-' not ticked.
+        // in the On demand order — L/R ticked on a side of a bar that shows, l/r
+        // ticked on a bar the layout leaves out, '-' not ticked.
         // Absent on a known aplite, which has no On demand. showQt and batteryLowOnly
         // above are what aplite reads; every other watch reads these.
         onDemand: onDemand.telemetryCode(safe, env),

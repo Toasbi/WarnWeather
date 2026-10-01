@@ -25,7 +25,6 @@ global.localStorage = {
 };
 
 const ROOT = path.join(__dirname, '..');
-const PIN_SIDE = 'on';
 const PIN_ITEMS = 'battery,rain';
 
 /**
@@ -56,7 +55,6 @@ function readFixture(file) {
  */
 function assertPinned(fx, label) {
   const clay = fx.claySettings || {};
-  assert.equal(clay.statusTopOnDemandRight, PIN_SIDE, label + ': the right side is pinned on');
   assert.equal(clay.statusTopOnDemandRightItems, PIN_ITEMS,
     label + ': the right side ticks Battery and Rain only');
 }

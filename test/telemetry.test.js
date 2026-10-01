@@ -246,13 +246,14 @@ test('snapshot reports onDemand, batteryLowLevel and batteryLowDisplay', () => {
   assert.equal(fresh.batteryLowLevel, undefined, 'unseeded: absent, read as the default');
   assert.equal(fresh.batteryLowDisplay, undefined);
 
-  const moved = buildSettingsSnapshot({ statusTopOnDemandRight: 'off',
-    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'uv' });
-  assert.equal(moved.onDemand.slice(0, 10), 'rLLLrrrr-r', 'a Disabled side reports lower case');
+  const moved = buildSettingsSnapshot({ statusTopOnDemandRightItems: '',
+    statusForecastOnDemandLeftItems: 'uv', statusRadarOnDemandRightItems: 'aqi', radarMode: 'off' });
+  assert.equal(moved.onDemand.slice(0, 10), '-LLL------', 'nothing ticked on the right');
   assert.equal(moved.onDemand.slice(10, 20), '------L---', 'the forecast bar\'s ten letters');
+  assert.equal(moved.onDemand.slice(20, 30), '-------r--', 'a bar the radar mode removes reports lower case');
   assert.equal(moved.onDemand, require('../src/pkjs/on-demand.js').telemetryCode(
-    { statusTopOnDemandRight: 'off', statusForecastOnDemandLeft: 'on',
-      statusForecastOnDemandLeftItems: 'uv' }, require('../src/pkjs/config-ui').computeEnv()),
+    { statusTopOnDemandRightItems: '', statusForecastOnDemandLeftItems: 'uv',
+      statusRadarOnDemandRightItems: 'aqi', radarMode: 'off' }, require('../src/pkjs/config-ui').computeEnv()),
   'the shared reading, nothing of its own');
 
   assert.equal(buildSettingsSnapshot({}, { platform: 'aplite' }).onDemand, undefined,
@@ -431,7 +432,7 @@ const HEAVIEST_SETTINGS = {
   // printing its value and looking ahead with a mark, and the rain look on its longest
   // option. (The alerts code is ten letters whatever they are; this sets every letter
   // anyway.)
-  statusTopOnDemandRight: 'on', statusTopOnDemandRightItems: 'battery,rain,gust,uv,aqi,pollen,wind',
+  statusTopOnDemandRightItems: 'battery,rain,gust,uv,aqi,pollen,wind',
   alertUvDisplay: 'value', alertWindDisplay: 'value', alertGustDisplay: 'value',
   alertAqiDisplay: 'value', alertPollenDisplay: 'value', rainAlertDisplay: 'minutes',
   alertUvDays: 'tomorrow', alertWindDays: 'tomorrow', alertGustDays: 'tomorrow',

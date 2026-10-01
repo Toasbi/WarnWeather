@@ -488,7 +488,7 @@
   // ('icon' | 'value') picks whether its number rides after the icon,
   // alert<Key>Days (alertDays) whether it may look ahead to tomorrow and
   // alert<Key>NextDayMark (alertNextDayMark) how a tomorrow entry is marked. An
-  // alert is on while its item is ticked on an Enabled On demand side of any bar
+  // alert is on while its item is ticked on an On demand side of any bar
   // (alertOn). THE alert vocabulary: which alerts exist, their order and how their
   // settings read live here alone. Every reader outside this module — the fetch
   // gates, the render signature, telemetry, the settings page, the bake
@@ -563,9 +563,9 @@
   }
 
   /**
-   * Whether a metric alert is on: its On demand item is ticked on an Enabled side of
-   * a bar that exists (on-demand.js placedAnywhere). An absent side key reads its
-   * default, so a partial blob reads the default ticks.
+   * Whether a metric alert is on: its On demand item is ticked on a side of a bar
+   * that exists (on-demand.js placedAnywhere). An absent side list reads its default,
+   * so a partial blob reads the default ticks.
    * @param {Object} settings Clay settings blob
    * @param {*} code An ALERT_KINDS code.
    * @param {Object} [env] Platform env (omitted = a watch that draws On demand, the

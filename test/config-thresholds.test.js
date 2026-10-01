@@ -1434,12 +1434,10 @@ test('the middle Bold option goes inert only while nothing gives the kind a leve
   const odStates = [
     {},
     { statusTopOnDemandRightItems: '' },
-    { statusTopOnDemandRight: 'off' },
-    { statusTopOnDemandRightItems: '', statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'uv,wind,gust,aqi,pollen' },
-    { statusTopOnDemandRightItems: '', statusForecastOnDemandLeft: 'off', statusForecastOnDemandLeftItems: 'uv,wind,gust,aqi,pollen' },
-    { statusTopOnDemandRightItems: '', statusRadarOnDemandRight: 'on', statusRadarOnDemandRightItems: 'uv,wind,gust,aqi,pollen', radarMode: 'graph' },
-    { statusTopOnDemandRightItems: '', statusRadarOnDemandRight: 'on', statusRadarOnDemandRightItems: 'uv,wind,gust,aqi,pollen', radarMode: 'off' },
-    { statusTopOnDemandRightItems: '', statusHealthOnDemandLeft: 'on', statusHealthOnDemandLeftItems: 'aqi,pollen', healthMode: 'status' }
+    { statusTopOnDemandRightItems: '', statusForecastOnDemandLeftItems: 'uv,wind,gust,aqi,pollen' },
+    { statusTopOnDemandRightItems: '', statusRadarOnDemandRightItems: 'uv,wind,gust,aqi,pollen', radarMode: 'graph' },
+    { statusTopOnDemandRightItems: '', statusRadarOnDemandRightItems: 'uv,wind,gust,aqi,pollen', radarMode: 'off' },
+    { statusTopOnDemandRightItems: '', statusHealthOnDemandLeftItems: 'aqi,pollen', healthMode: 'status' }
   ];
   ALERT_STEMS.forEach(stem => {
     const code = thresholds.ALERT_KINDS.find(a => a.key === stem).code;
@@ -1736,7 +1734,7 @@ test('the rain alert sheet: the unplaced note, the time window and the look — 
   // The unplaced note (its predicate is pinned by the page tests).
   assert.equal(s.items[0].type, 'staticText');
   assert.equal(s.items[0].style, 'info');
-  assert.equal(s.items[0].text, 'No Enabled On demand side of a status bar has Rain ticked, so the rain icon won’t show.');
+  assert.equal(s.items[0].text, 'No On demand side of a status bar has Rain ticked, so the rain icon won’t show.');
   assert.deepEqual(s.items[1], {
     type: 'segmented', messageKey: 'rainCountdownHorizon', label: 'Time window', defaultValue: '60',
     options: [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']],

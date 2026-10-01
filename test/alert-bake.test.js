@@ -70,12 +70,12 @@ test('buildSettingsBlob: bytes 38-47 carry the On demand cells, effective values
   const platform = require('../src/pkjs/config-ui/lib/platform.js');
   assert.deepEqual(wire.buildSettingsBlob({}, platform.computeEnv({ platform: 'aplite' })).slice(O),
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 'aplite');
-  // A Disabled side is zeros, on a bar that exists (health) as on one already placed.
-  const health = placeOn(Object.assign({ healthMode: 'all' }, S), 'health', 'left', 'uv');
-  health.statusHealthOnDemandLeft = 'off';
+  // A side that ticks nothing is zeros, on a bar that exists (health) as on one already
+  // placed.
+  const health = placeOn(Object.assign({ healthMode: 'all' }, S), 'health', 'left', '');
   assert.equal(wire.buildSettingsBlob(health).slice(O)[OD.itemIndex('uv')], (1 << 2) | (2 << 4),
-    'the Disabled health side is 0');
-  S.statusForecastOnDemandLeft = 'off';
+    'the empty health side is 0');
+  placeOn(S, 'forecast', 'left', 'bt');
   assert.equal(wire.buildSettingsBlob(S).slice(O)[OD.itemIndex('uv')], 2 << 4);
   // A bar the modes remove is zeros too.
   S.radarMode = 'off';
@@ -142,7 +142,6 @@ test('alertOn / enabledAlerts: keyed by code, on while placed on any bar, the va
       a.code + ': unplaced shows no value, whatever its Look');
     assert.equal(th.alertOn(on([a.code]), a.code), true);
     assert.equal(th.alertOn(on([]), a.code), false);
-    assert.equal(th.alertOn(on([a.code], { statusTopOnDemandRight: 'off' }), a.code), false, a.code + ': a Disabled side');
     assert.equal(th.alertOn(on([a.code]), a.code, { onDemand: false }), false, a.code + ': a watch without On demand');
     assert.equal(th.alertOn(placeOn(on([]), 'health', 'left', [a.code]), a.code, { health: true }), false,
       a.code + ': a bar the modes remove');
@@ -351,12 +350,9 @@ test('bakeAlerts: the On demand order gust, UV, AQI, pollen, wind; unplaced and 
   assert.deepEqual(all.map(e => e.kind), [3, 7, 0, 1, 2], 'gust, UV, AQI, pollen, wind');
   assert.deepEqual(all.map(e => e.level), [2, 2, 2, 1, 1]);
   assert.deepEqual(all.map(e => e.value), ['', '', '', '', ''], 'icon Look: no values');
-  // An unplaced alert is absent even at danger: ticked on a Disabled side, or on a
-  // bar that does not exist, it shows nowhere.
+  // An unplaced alert is absent even at danger: ticked on no side, or on a bar that
+  // does not exist, it shows nowhere.
   assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING, on(['gust']))).map(e => e.kind), [3]);
-  const disabled = placeOn(on(['gust']), 'forecast', 'left', 'uv,aqi');
-  disabled.statusForecastOnDemandLeft = 'off';
-  assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING, disabled)).map(e => e.kind), [3]);
   const noRadarBar = placeOn(on(['gust'], { radarMode: 'off' }), 'radar', 'right', 'uv');
   assert.deepEqual(decodeAlerts(wire.bakeAlerts(ALL_ALERTING, noRadarBar)).map(e => e.kind), [3]);
   // Placed on any bar counts, the Watch Status Bar or not.

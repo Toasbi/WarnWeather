@@ -222,8 +222,7 @@ test('Clay, re-bake and fetch never share the channel: each waits for the one be
   const fetchesBefore = h.count(FETCHING);
   // Unticking the UV alert forces the fetch; the Bluetooth item ticked on the forecast
   // bar rides the Clay blob (the On demand cells), so the Clay send is a real one too.
-  h.saveSettings({ statusTopOnDemandRightItems: '', statusForecastOnDemandLeft: 'on',
-    statusForecastOnDemandLeftItems: 'bt' });
+  h.saveSettings({ statusTopOnDemandRightItems: '', statusForecastOnDemandLeftItems: 'bt' });
   h.advance(5 * 1000);
   assert.equal(h.sends.length - before, 1, 'only the Clay is on the channel');
   assert.equal(isWeatherMessage(h.held[0].dict), false, 'and it is the Clay');
@@ -255,7 +254,7 @@ test('a NACKed config-close Clay is re-delivered by the next minute tick', (t) =
   const clay = () => h.sends.slice(before).filter((d) => !isWeatherMessage(d));
   // Ticking the wind alert on the forecast bar changes the union (a forced fetch) and
   // the On demand cells (the Clay blob).
-  h.saveSettings({ statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'wind' });
+  h.saveSettings({ statusForecastOnDemandLeftItems: 'wind' });
   h.advance(5 * 1000);
   nackClay = false;
   assert.equal(clay().length, 1, 'the close sent Clay once, and it NACKed');

@@ -22,7 +22,6 @@
     "secondaryLine": "uv",
     "thirdLine": "off",
     "barSource": "off",
-    "statusTopOnDemandRight": "on",
     "statusTopOnDemandRightItems": "battery,uv,wind",
     "alertUvDisplay": "value",
     "alertUvDays": "tomorrow",

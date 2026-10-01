@@ -50,7 +50,6 @@
     "dayNightShading": true,
     "swapClockStatus": true,
     "layoutPreset": "compactCal",
-    "statusTopOnDemandRight": "on",
     "statusTopOnDemandRightItems": "battery,rain"
   },
   "weather": {

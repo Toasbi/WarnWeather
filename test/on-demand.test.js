@@ -1,6 +1,6 @@
 'use strict';
 // src/pkjs/on-demand.js — the one reading of which items each status bar shows at its
-// edges (the side keys and their item lists) and of the Battery item's settings.
+// edges (the side lists) and of the Battery item's settings.
 const test = require('node:test');
 const assert = require('node:assert');
 const OD = require('../src/pkjs/on-demand.js');
@@ -16,22 +16,19 @@ test('ITEMS: the ten items in priority order, system info first', () => {
     'Wind gusts', 'UV index', 'Air quality', 'Pollen', 'Wind speed']);
   assert.deepEqual(OD.BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health']);
   assert.deepEqual(OD.SIDES, ['left', 'right']);
-  assert.equal(OD.sideKey('top', 'left'), 'statusTopOnDemandLeft');
+  assert.equal(OD.itemsKey('top', 'left'), 'statusTopOnDemandLeftItems');
   assert.equal(OD.itemsKey('health', 'right'), 'statusHealthOnDemandRightItems');
 });
 
 test('DEFAULTS: the Watch Status Bar carries the defaults, every other bar is empty', () => {
-  assert.equal(OD.DEFAULTS.statusTopOnDemandLeft, 'on');
   assert.equal(OD.DEFAULTS.statusTopOnDemandLeftItems, 'bt,qt,snooze');
-  assert.equal(OD.DEFAULTS.statusTopOnDemandRight, 'on');
   assert.equal(OD.DEFAULTS.statusTopOnDemandRightItems, 'battery,rain,gust,uv,aqi,wind');
   ['Forecast', 'Radar', 'Health'].forEach((bar) => ['Left', 'Right'].forEach((side) => {
-    assert.equal(OD.DEFAULTS['status' + bar + 'OnDemand' + side], 'off', bar + side);
     assert.equal(OD.DEFAULTS['status' + bar + 'OnDemand' + side + 'Items'], '', bar + side + 'Items');
   }));
   assert.equal(OD.DEFAULTS.batteryLowLevel, '10');
   assert.equal(OD.DEFAULTS.batteryLowDisplay, 'icon');
-  assert.equal(Object.keys(OD.DEFAULTS).length, 18, '16 side keys + the two Battery keys');
+  assert.equal(Object.keys(OD.DEFAULTS).length, 10, 'the eight side lists + the two Battery keys');
 });
 
 test('parse: canonical order, unknown codes and duplicates dropped', () => {
@@ -44,13 +41,11 @@ test('parse: canonical order, unknown codes and duplicates dropped', () => {
 
 test('read: absent or wrong-typed values read the default, an empty list stays empty', () => {
   assert.equal(OD.read(null, 'statusTopOnDemandRightItems'), 'battery,rain,gust,uv,aqi,wind');
-  assert.equal(OD.read({}, 'statusTopOnDemandLeft'), 'on');
+  assert.equal(OD.read({}, 'statusTopOnDemandLeftItems'), 'bt,qt,snooze');
   assert.equal(OD.read({statusTopOnDemandRightItems: ''}, 'statusTopOnDemandRightItems'), '',
     'an empty list is a real "nothing ticked"');
   assert.equal(OD.read({statusTopOnDemandRightItems: 5}, 'statusTopOnDemandRightItems'),
     'battery,rain,gust,uv,aqi,wind', 'a non-string list reads the default');
-  assert.equal(OD.read({statusTopOnDemandRight: 'maybe'}, 'statusTopOnDemandRight'), 'on');
-  assert.equal(OD.read({statusTopOnDemandRight: 'off'}, 'statusTopOnDemandRight'), 'off');
   assert.equal(OD.read({statusTopOnDemandLeftItems: 'qt,bt,zz'}, 'statusTopOnDemandLeftItems'), 'bt,qt');
   assert.equal(OD.read({batteryLowDisplay: 'glyph'}, 'batteryLowDisplay'), 'icon');
   assert.equal(OD.read({batteryLowLevel: true}, 'batteryLowLevel'), '10');
@@ -63,23 +58,23 @@ test('sideOf / placedAnywhere on a partial blob read the default ticks', () => {
   assert.equal(OD.sideOf({}, 'forecast', 'bt'), null);
   assert.equal(OD.placedAnywhere(null, 'gust'), true);
   assert.equal(OD.placedAnywhere({statusTopOnDemandRightItems: ''}, 'gust'), false);
-  assert.equal(OD.sideOf({statusTopOnDemandRight: 'maybe'}, 'top', 'battery'), 'right',
-    'an invalid side value reads its default (on)');
+  assert.equal(OD.sideOf({statusTopOnDemandRight: 'off'}, 'top', 'battery'), 'right',
+    'a retired side switch is not read: the list alone places');
   assert.equal(OD.sideOf({statusTopOnDemandRightItems: 7}, 'top', 'wind'), 'right',
     'a non-string list reads the default ticks');
 });
 
-test('sideOf: Disabled sides, missing bars and a non-On-demand watch show nothing', () => {
-  const S = {statusTopOnDemandRight: 'off'};
-  assert.equal(OD.sideOf(S, 'top', 'battery'), null, 'a Disabled side');
+test('sideOf: empty sides, missing bars and a non-On-demand watch show nothing', () => {
+  const S = {statusTopOnDemandRightItems: ''};
+  assert.equal(OD.sideOf(S, 'top', 'battery'), null, 'nothing ticked: the side is off');
   assert.equal(OD.placedAnywhere(S, 'uv'), false);
-  const radar = {statusRadarOnDemandLeft: 'on', statusRadarOnDemandLeftItems: 'uv', radarMode: 'graph'};
+  const radar = {statusRadarOnDemandLeftItems: 'uv', radarMode: 'graph'};
   assert.equal(OD.sideOf(radar, 'radar', 'uv'), 'left');
   assert.equal(OD.sideOf(Object.assign({}, radar, {radarMode: 'off'}), 'radar', 'uv'), null,
     'the radar bar does not exist in radar mode Off');
   assert.equal(OD.sideOf(Object.assign({}, radar, {radarMode: 'countdown'}), 'radar', 'uv'), null);
   assert.equal(OD.sideOf(radar, 'radar', 'uv', platform.computeEnv({platform: 'basalt'})), 'left');
-  const health = {statusHealthOnDemandRight: 'on', statusHealthOnDemandRightItems: 'aqi', healthMode: 'status'};
+  const health = {statusHealthOnDemandRightItems: 'aqi', healthMode: 'status'};
   assert.equal(OD.sideOf(health, 'health', 'aqi'), 'right');
   assert.equal(OD.sideOf(Object.assign({}, health, {healthMode: 'slot'}), 'health', 'aqi'), null);
   assert.equal(OD.sideOf({}, 'top', 'bt', platform.computeEnv({platform: 'aplite'})), null,
@@ -100,19 +95,16 @@ test('barExists: top and forecast always, radar and health by mode and watch', (
   assert.equal(OD.barExists({}, 'radar'), false, 'no stored mode draws no radar row');
 });
 
-test('tickOn: joins the side in the canonical order, leaves the other side, Enables the side', () => {
-  const S = { statusTopOnDemandLeft: 'off', statusTopOnDemandLeftItems: 'bt,rain',
-    statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,uv' };
+test('tickOn: joins the side in the canonical order and leaves the other side', () => {
+  const S = { statusTopOnDemandLeftItems: 'bt,rain', statusTopOnDemandRightItems: 'battery,uv' };
   assert.equal(OD.tickOn(S, 'top', 'right', 'rain'), true);
   assert.equal(S.statusTopOnDemandRightItems, 'battery,rain,uv', 'the canonical order, not the tap order');
   assert.equal(S.statusTopOnDemandLeftItems, 'bt', 'gone from the other side');
-  assert.equal(S.statusTopOnDemandRight, 'on', 'the side is Enabled');
-  assert.equal(S.statusTopOnDemandLeft, 'off', 'the other side keeps its state');
   assert.equal(OD.tickOn(S, 'top', 'right', 'rain'), false, 'a second tick changes nothing');
   const F = {};
   assert.equal(OD.tickOn(F, 'forecast', 'left', 'gust'), true);
-  assert.deepEqual(F, { statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'gust',
-    statusForecastOnDemandRightItems: '' }, 'an absent list reads its default');
+  assert.deepEqual(F, { statusForecastOnDemandLeftItems: 'gust', statusForecastOnDemandRightItems: '' },
+    'an absent list reads its default');
 });
 
 test('sideOfKey reads itemsKey backwards for every bar and side, and nothing else', () => {
@@ -151,19 +143,17 @@ test('untickEverywhere: every side of every bar, and only the lists that held it
 });
 
 test('placeRainForCountdown: Rain alert only ticks Rain top right unless a bar of that mode shows it', () => {
-  const S = { radarMode: 'countdown', statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery',
-    statusTopOnDemandLeft: 'on', statusTopOnDemandLeftItems: 'rain' };
-  assert.equal(OD.placeRainForCountdown(S), false, 'the Enabled left side already shows it');
-  S.statusTopOnDemandLeft = 'off';
+  const S = { radarMode: 'countdown', statusTopOnDemandRightItems: 'battery', statusTopOnDemandLeftItems: 'rain' };
+  assert.equal(OD.placeRainForCountdown(S), false, 'the left side already shows it');
+  S.statusTopOnDemandLeftItems = '';
   assert.equal(OD.placeRainForCountdown(S), true);
   assert.equal(S.statusTopOnDemandRightItems, 'battery,rain');
   assert.equal(S.statusTopOnDemandLeftItems, '');
-  assert.equal(S.statusTopOnDemandRight, 'on');
-  const radarOnly = { radarMode: 'countdown', statusTopOnDemandRightItems: '',
-    statusRadarOnDemandLeft: 'on', statusRadarOnDemandLeftItems: 'rain' };
+  const radarOnly = { radarMode: 'countdown', statusTopOnDemandRightItems: '', statusTopOnDemandLeftItems: '',
+    statusRadarOnDemandLeftItems: 'rain' };
   assert.equal(OD.placeRainForCountdown(radarOnly), true, 'the radar bar never exists in that mode');
   const healthShows = { radarMode: 'countdown', statusTopOnDemandRightItems: '', healthMode: 'status',
-    statusHealthOnDemandRight: 'on', statusHealthOnDemandRightItems: 'rain' };
+    statusHealthOnDemandRightItems: 'rain' };
   assert.equal(OD.placeRainForCountdown(healthShows), false, 'the health bar shows it');
   ['off', 'status', 'graph', undefined].forEach((mode) => {
     const T = { radarMode: mode, statusTopOnDemandRightItems: '' };
@@ -204,14 +194,35 @@ test('computeEnv: fineBattery on emery only, false for an unknown watch', () => 
 test('telemetryCode: 40 letters, upper case only while the item shows', () => {
   assert.equal(OD.telemetryCode({}), 'RLLLRRRR-R' + '-'.repeat(30), 'an untouched install');
   const S = {
-    statusTopOnDemandLeft: 'off',
-    statusForecastOnDemandRight: 'on', statusForecastOnDemandRightItems: 'rain',
-    statusRadarOnDemandLeft: 'on', statusRadarOnDemandLeftItems: 'uv', radarMode: 'off'
+    statusTopOnDemandLeftItems: '',
+    statusForecastOnDemandRightItems: 'rain',
+    statusRadarOnDemandLeftItems: 'uv', radarMode: 'off'
   };
   const code = OD.telemetryCode(S);
   assert.equal(code.length, 40);
-  assert.equal(code.slice(0, 10), 'RlllRRRR-R', 'the Disabled left side reads lower case');
+  assert.equal(code.slice(0, 10), 'R---RRRR-R', 'nothing ticked on the left');
   assert.equal(code.slice(10, 20), '----R-----', 'forecast: rain right');
   assert.equal(code.slice(20, 30), '------l---', 'a bar the mode removes reads lower case');
   assert.equal(OD.telemetryCode({}, platform.computeEnv({platform: 'aplite'})), undefined);
+});
+
+test('retireSideSwitches: a Disabled side loses its ticks, every switch key goes, then nothing changes', () => {
+  const S = {
+    statusTopOnDemandLeft: 'on', statusTopOnDemandLeftItems: 'bt,qt',
+    statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,uv',
+    statusForecastOnDemandLeft: 'off', statusForecastOnDemandLeftItems: '',
+    statusHealthOnDemandRight: 'off'
+  };
+  const before = OD.telemetryCode(Object.assign({}, S, {statusTopOnDemandRightItems: ''}));
+  assert.equal(OD.retireSideSwitches(S), true);
+  assert.deepEqual(S, {
+    statusTopOnDemandLeftItems: 'bt,qt', statusTopOnDemandRightItems: '',
+    statusForecastOnDemandLeftItems: '', statusHealthOnDemandRightItems: ''
+  }, 'an Enabled side keeps its ticks; a Disabled one keeps showing nothing');
+  assert.equal(OD.telemetryCode(S), before, 'the watch shows what it showed');
+  assert.equal(OD.retireSideSwitches(S), false, 'the keys are gone: nothing left to do');
+  const clean = { statusTopOnDemandRightItems: 'battery' };
+  assert.equal(OD.retireSideSwitches(clean), false, 'a blob without them is left as stored');
+  assert.deepEqual(clean, { statusTopOnDemandRightItems: 'battery' });
+  assert.equal(OD.retireSideSwitches(null), false);
 });

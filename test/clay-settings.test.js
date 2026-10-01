@@ -28,6 +28,32 @@ test('seedDefaults backfills missing keys without clobbering set ones', () => {
   assert.equal(read.temperatureUnits, 'c');     // backfilled
 });
 
+test('seedDefaults folds the retired On demand side switches, and the next boot changes nothing', () => {
+  // A development build's blob: each side had an Enabled/Disabled key beside its list.
+  // A Disabled side showed nothing, so its ticks go; every switch key goes.
+  const store = installFakeStorage();
+  delete require.cache[require.resolve('../src/pkjs/clay-settings')];
+  const claySettings = require('../src/pkjs/clay-settings');
+  store['clay-settings'] = JSON.stringify({
+    provider: 'dwd',
+    statusTopOnDemandLeft: 'on', statusTopOnDemandLeftItems: 'bt,qt,snooze',
+    statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,rain,uv',
+    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'gust'
+  });
+  claySettings.seedDefaults(COLORS);
+  const read = claySettings.read();
+  assert.equal(read.statusTopOnDemandLeftItems, 'bt,qt,snooze', 'an Enabled side keeps its ticks');
+  assert.equal(read.statusTopOnDemandRightItems, '', 'a Disabled side loses them');
+  assert.equal(read.statusForecastOnDemandLeftItems, 'gust');
+  ['Top', 'Forecast', 'Radar', 'Health'].forEach((bar) => ['Left', 'Right'].forEach((side) => {
+    assert.equal(Object.prototype.hasOwnProperty.call(read, 'status' + bar + 'OnDemand' + side), false,
+      bar + side + ': the switch key is gone');
+  }));
+  const once = store['clay-settings'];
+  claySettings.seedDefaults(COLORS);
+  assert.equal(store['clay-settings'], once, 'idempotent: the next boot writes the same blob');
+});
+
 test('an existing Custom layout gains the size/Position keys at boot and still compiles to ext 0', () => {
   // A 1.16-era custom user: their blob has every per-view key the editor wrote then,
   // none of the three v2 keys. seedDefaults (PKJS boot) backfills them from the schema's

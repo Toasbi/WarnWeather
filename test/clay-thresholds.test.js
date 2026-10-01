@@ -63,7 +63,7 @@ test('the warn looks ride bytes 36-37 with the watch platform\'s default', () =>
 test('the On demand cells and the Battery item ride bytes 35 and 38-47 of the Clay blob', () => {
   const at = new Date('2026-07-22T00:00:00Z');
   const s = Object.assign({}, BASE, { radarMode: 'status', batteryLowLevel: '15',
-    statusRadarOnDemandRight: 'on', statusRadarOnDemandRightItems: 'uv,bt' });
+    statusRadarOnDemandRightItems: 'uv,bt' });
   const basalt = buildClayPayload(s, { platform: 'basalt' }, at).CLAY_THRESHOLDS_UINT8;
   assert.equal(basalt[35], 20, 'a stored 15 rides as 20 to a 10 % watch');
   assert.equal(basalt[38 + 6], 2 | (2 << 4), 'UV on the top bar\'s right and the radar bar\'s right');

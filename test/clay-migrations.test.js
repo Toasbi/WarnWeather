@@ -1007,7 +1007,7 @@ test('rain window Off: a stored Off window becomes 60 min, and Rain is unticked 
     ['graph', 'off'].forEach((mode) => {
       const what = JSON.stringify([off, mode]);
       const { changed, read } = stepOn(v124.migrateRainWindowOff, { radarMode: mode,
-        rainCountdownHorizon: off, statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'rain,uv' });
+        rainCountdownHorizon: off, statusForecastOnDemandLeftItems: 'rain,uv' });
       assert.equal(changed, true, what);
       assert.equal(read.rainCountdownHorizon, '60', what + ': the window lands on its default');
       assert.equal(read.statusTopOnDemandRightItems, 'battery,gust,uv,aqi,wind', what + ': off the default ticks');
@@ -1404,11 +1404,9 @@ function upgradeOnDemand(blob, opts) {
 
 test('on demand: a seeded 1.23.2 install keeps the default ticks and asks for one Clay send', () => {
   const { res, read } = upgradeOnDemand({ theme: 'dark', showQt: true, batteryLowOnly: true, radarMode: 'graph' });
-  assert.equal(read.statusTopOnDemandRight, 'on');
   assert.equal(read.statusTopOnDemandRightItems, DEFAULT_RIGHT,
     'the owner\'s weather alerts arrive switched on: the move never unticks one');
   assert.equal(read.statusTopOnDemandLeftItems, 'bt,qt,snooze');
-  assert.equal(read.statusForecastOnDemandLeft, 'off');
   assert.equal(read.statusForecastOnDemandLeftItems, '');
   assert.equal(res.clayRequired, true, 'the watch needs the 48-B blob');
   const fresh = loadLedger(null);
@@ -1433,23 +1431,17 @@ test('on demand: Rain alert only places Rain on the Watch Status Bar\'s right wh
   // Rain stays ticked by default in this mode, so nothing moves.
   const kept = upgradeOnDemand({ radarMode: 'countdown' }).read;
   assert.equal(kept.statusTopOnDemandRightItems, DEFAULT_RIGHT);
-  // Rain unticked on the right and ticked only on a Disabled left: placed on the right.
-  const placed = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRightItems: 'battery',
-    statusTopOnDemandLeft: 'off', statusTopOnDemandLeftItems: 'bt,rain' }).read;
+  // Rain ticked on no side: placed on the right.
+  const placed = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRightItems: 'battery' }).read;
   assert.equal(placed.statusTopOnDemandRightItems, 'battery,rain');
-  assert.equal(placed.statusTopOnDemandRight, 'on');
-  assert.equal(placed.statusTopOnDemandLeftItems, 'bt', 'unticked from the left');
-  // A Disabled right side is enabled for it.
-  const enabled = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRight: 'off' }).read;
-  assert.equal(enabled.statusTopOnDemandRight, 'on');
-  assert.equal(enabled.statusTopOnDemandRightItems, DEFAULT_RIGHT);
+  assert.equal(placed.statusTopOnDemandLeftItems, 'bt,qt,snooze', 'the left side keeps its ticks');
   // Visible on the forecast bar: left alone. On the radar bar (never shown in this
   // mode): placed.
   const forecast = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRightItems: 'battery',
-    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'rain' }).read;
+    statusForecastOnDemandLeftItems: 'rain' }).read;
   assert.equal(forecast.statusTopOnDemandRightItems, 'battery');
   const radar = upgradeOnDemand({ radarMode: 'countdown', statusTopOnDemandRightItems: 'battery',
-    statusRadarOnDemandLeft: 'on', statusRadarOnDemandLeftItems: 'rain' }).read;
+    statusRadarOnDemandLeftItems: 'rain' }).read;
   assert.equal(radar.statusTopOnDemandRightItems, 'battery,rain');
   // Another radar mode never places it.
   const graph = upgradeOnDemand({ radarMode: 'graph', statusTopOnDemandRightItems: 'battery' }).read;
@@ -1490,8 +1482,6 @@ test('on demand: the 1.23.2 upgrade the owner checks, through the whole ledger',
   assert.equal(read.statusTopOnDemandLeftItems, 'bt,snooze', 'Quiet time unticked');
   assert.equal(read.statusTopOnDemandRightItems, 'gust,uv,aqi,wind',
     'Battery and Rain unticked; Wind gusts, UV index, Air quality and Wind speed ticked; Pollen off');
-  assert.equal(read.statusTopOnDemandLeft, 'on');
-  assert.equal(read.statusTopOnDemandRight, 'on');
   assert.ok(!('alertRain' in read), 'no retired key left behind');
   assert.equal(res.clayRequired, true, 'one Clay send');
   assert.equal(store[ON_DEMAND], '1');

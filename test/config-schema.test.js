@@ -2116,7 +2116,7 @@ test('Status-slots tab (id watch) opens with the status card: its intro and the 
   assert.ok(!wsb.some((i) => i.type === 'staticText'), 'no note above the Watch bar slots');
   const rightIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRight');
   const countdownIdx = wsb.findIndex((i) => i.messageKey === 'statusTopRightCountdown');
-  const leftIdx = wsb.findIndex((i) => i.messageKey === 'statusTopOnDemandLeft');
+  const leftIdx = wsb.findIndex((i) => i.sheetId === 'odTopLeft');
   const battIdx = wsb.findIndex((i) => i.messageKey === 'batteryLowOnly');
   assert.equal(countdownIdx, rightIdx + 1, 'top-right countdown date follows its slot');
   assert.equal(leftIdx, countdownIdx + 1, 'the On demand rows follow the slots');
@@ -2130,7 +2130,7 @@ const HEALTH_BAR = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status'
 const OD = require('../src/pkjs/on-demand.js');
 const onDemandSection = () => schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.id === 'onDemand');
 
-test('each status bar ends on its two On demand rows: Enabled/Disabled, Edit only while Enabled', () => {
+test('each status bar ends on its two On demand rows: the side\'s summary and Edit, no switch', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   [['Forecast Status Bar', 'statusForecast', 'Forecast', null],
     ['Radar Status Bar', 'statusRadar', 'Radar', RADAR_BAR],
@@ -2139,25 +2139,17 @@ test('each status bar ends on its two On demand rows: Enabled/Disabled, Edit onl
     const items = watch.sections.find((x) => x.title === title).items;
     const at = items.findIndex((i) => i.messageKey === prefix + 'RightCountdown');
     ['Left', 'Right'].forEach((side, n) => {
-      const key = prefix + 'OnDemand' + side;
       assert.deepEqual(items[at + 1 + n], {
-        type: 'select', messageKey: key, label: 'On demand ' + side.toLowerCase(),
-        defaultValue: OD.DEFAULTS[key],
-        options: [['Enabled', 'on'], ['Disabled', 'off']],
-        editSheetFrom: { resolver: 'onDemandSideSheet', args: { sheetId: 'od' + bar + side } },
-        hintFrom: { resolver: 'onDemandSummary', args: { itemsKey: key + 'Items' } },
+        type: 'sheet', sheetId: 'od' + bar + side, label: 'On demand ' + side.toLowerCase(),
+        hintFrom: { resolver: 'onDemandSummary', args: { itemsKey: prefix + 'OnDemand' + side + 'Items' } },
+        editBadgeFrom: { resolver: 'onDemandBadge' },
         joinPrevious: true, compact: true,
         showWhen: barWhen ? { all: [ON_DEMAND_WHEN, barWhen] } : ON_DEMAND_WHEN
-      }, key);
+      }, bar + side);
     });
   });
-  assert.equal(byKey('statusTopOnDemandLeft').defaultValue, 'on');
-  assert.equal(byKey('statusForecastOnDemandRight').defaultValue, 'off');
-  const resolve = PConf.sheetResolvers.get('onDemandSideSheet');
-  const args = { messageKey: 'statusTopOnDemandLeft', sheetId: 'odTopLeft' };
-  assert.equal(resolve({ statusTopOnDemandLeft: 'on' }, { onDemand: true }, args), 'odTopLeft');
-  assert.equal(resolve({ statusTopOnDemandLeft: 'off' }, { onDemand: true }, args), null, 'Disabled: no Edit');
-  assert.equal(resolve({ statusTopOnDemandLeft: 'on' }, { onDemand: false }, args), null, 'aplite');
+  ['Top', 'Forecast', 'Radar', 'Health'].forEach((bar) => ['Left', 'Right'].forEach((side) =>
+    assert.equal(byKey('status' + bar + 'OnDemand' + side), undefined, bar + side + ': no switch key')));
 });
 
 test('the side sheets: one checklist per bar and side, in the items\' priority order', () => {
@@ -2208,7 +2200,7 @@ test('the On demand card: gated to a watch with On demand, its intro, reset, and
   assert.equal(it[0].type, 'staticText');
   assert.equal(it[0].style, 'info');
   assert.equal(it[0].text, 'Your Default view has no Watch Status Bar, so On demand items won’t show there.'
-    + ' Enable On demand left or right on one of its other status bars.');
+    + ' Tick them under On demand left or right on one of its other status bars.');
   assert.deepEqual(it[1], { type: 'subheader', text: 'System info' });
   assert.deepEqual(it[2], { type: 'sheet', sheetId: 'odBattery', label: 'Battery', icon: 'battery',
     hintFrom: { resolver: 'onDemandBatteryText' }, editBadgeFrom: { resolver: 'onDemandBadge' } });

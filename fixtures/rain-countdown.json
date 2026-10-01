@@ -27,7 +27,6 @@
     "barSource": "off",
     "rainBarColor": "multicolor",
     "radarColor": "white",
-    "statusTopOnDemandRight": "on",
     "statusTopOnDemandRightItems": "battery,rain,uv,wind",
     "alertUvDisplay": "value",
     "threshUvWarn": "6",

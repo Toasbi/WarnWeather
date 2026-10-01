@@ -73,7 +73,6 @@
     "viewAlign1": "clock",
     "viewClockOff1": false,
     "viewStripOff1": true,
-    "statusTopOnDemandRight": "on",
     "statusTopOnDemandRightItems": "battery,rain"
   },
   "weather": {

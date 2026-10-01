@@ -1,7 +1,7 @@
 'use strict';
 // test/fetch-gates-alerts.test.js — the metric fetch gates (forecast-series.js
 // needsUv / needsAqi / needsPollen / dayPeakCodes) add what the weather alerts ask for
-// to what the lines and slots show: an alert placed on an Enabled On demand side of a
+// to what the lines and slots show: an alert placed on an On demand side of a
 // bar that exists (on-demand.js placedAnywhere, read through status-thresholds'
 // alertOn) fetches its metric, and a day-max kind's alert keeps its day peaks. Read for
 // THIS watch: a known aplite has no On demand, so it never fetches for an alert; a
@@ -55,13 +55,13 @@ const expected = (() => {
 })();
 
 // Placements: the defaults (a partial blob reads them), nothing, one side each, a
-// Disabled side, a bar the mode removes, and a health bar that exists.
+// bar the mode removes, and a health bar that exists.
 const PLACEMENTS = [
   {},
   Object.assign({}, NOTHING_PLACED),
   placeOn(Object.assign({}, NOTHING_PLACED), 'top', 'right', 'uv,pollen'),
   placeOn(Object.assign({}, NOTHING_PLACED), 'forecast', 'left', 'aqi,wind'),
-  Object.assign(placeOn(Object.assign({}, NOTHING_PLACED), 'top', 'left', 'gust,uv'), { statusTopOnDemandLeft: 'off' }),
+  placeOn(Object.assign({}, NOTHING_PLACED), 'top', 'left', 'gust,uv'),
   Object.assign(placeOn(Object.assign({}, NOTHING_PLACED), 'radar', 'right', 'uv,aqi,pollen,gust'), { radarMode: 'off' }),
   Object.assign(placeOn(Object.assign({}, NOTHING_PLACED), 'health', 'left', 'wind,aqi'), { healthMode: 'status' })
 ];

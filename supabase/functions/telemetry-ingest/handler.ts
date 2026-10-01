@@ -156,8 +156,8 @@ const settingsSchema = z
     batteryLowOnly: z.boolean().optional(),
     // On demand (src/pkjs/on-demand.js telemetryCode): 40 letters, the ten items of
     // each bar (top, forecast, radar, health) in the On demand order (battery, bt, qt,
-    // snooze, rain, gust, uv, aqi, pollen, wind) — L/R ticked on an Enabled side of a
-    // bar that shows, l/r ticked on a Disabled side or a hidden bar, '-' not ticked
+    // snooze, rain, gust, uv, aqi, pollen, wind) — L/R ticked on a side of a bar that
+    // shows, l/r ticked on a hidden bar, '-' not ticked
     // (e.g. 'RLLLRRRR-R' + 30 '-', an untouched install). Absent on aplite, whose
     // showQt/batteryLowOnly above still say what it draws; elsewhere those two are
     // leftovers and onDemand is the truth. z.string() with no length bound, like alerts

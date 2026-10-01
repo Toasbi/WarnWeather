@@ -28,7 +28,6 @@
   "rainBarColor": "multicolor",
   "radarColor": "multicolor",
   "thirdLine": "uv",
-  "statusTopOnDemandRight": "on",
   "statusTopOnDemandRightItems": "battery,rain"
  },
  "weather": {

@@ -130,7 +130,7 @@ function renderSignature(settings) {
         parts.push(held.warn, held.danger);
     }
     // The metric alerts (On demand's weather alerts): whether an alert is on — its
-    // item ticked on an Enabled side of any bar — changes both the bake (the
+    // item ticked on a side of any bar — changes both the bake (the
     // ALERT_ENTRIES_UINT8 entries, status-wire.js bakeAlerts) and the fetch set (a
     // placed alert fetches its metric and day peaks with no slot showing it), and
     // alert<Kind>Display changes the baked bytes (a value after the icon), as do

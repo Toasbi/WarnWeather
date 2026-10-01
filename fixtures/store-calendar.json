@@ -27,7 +27,6 @@
     "barSource": "rain",
     "rainBarColor": "white",
     "radarColor": "multicolor",
-    "statusTopOnDemandRight": "on",
     "statusTopOnDemandRightItems": "battery,rain"
   },
   "weather": {

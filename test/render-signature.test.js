@@ -417,8 +417,8 @@ test('placing an alert and, while placed, its Look change the render signature',
 });
 
 // The signature rests on the placed UNION (every bar and side, read as a watch that draws
-// On demand): moving an item between sides or bars, or disabling one of two sides that
-// both carry it, signs nothing new; adding or removing it from the union does.
+// On demand): moving an item between sides or bars, or unticking it on one of two sides
+// that both carry it, signs nothing new; adding or removing it from the union does.
 test('moving an alert between sides or bars leaves the signature alone; changing the union changes it', () => {
   const OD = require('../src/pkjs/on-demand.js');
   const top = renderSignature(placedOnly(['uv', 'wind']));
@@ -427,11 +427,10 @@ test('moving an alert between sides or bars leaves the signature alone; changing
   assert.equal(renderSignature(placeOn(placedOnly(['wind']), 'forecast', 'right', 'uv')), top, 'another bar');
   const both = placeOn(placedOnly(['uv', 'wind']), 'forecast', 'left', 'uv');
   assert.equal(renderSignature(both), top, 'on two bars');
-  assert.equal(renderSignature(Object.assign({}, both, { statusForecastOnDemandLeft: 'off' })), top,
-    'disabling one of two sides that both carry it');
+  assert.equal(renderSignature(Object.assign({}, both, { statusForecastOnDemandLeftItems: '' })), top,
+    'unticking it on one of two sides that both carry it');
   assert.notEqual(renderSignature(placedOnly(['uv'])), top, 'dropping wind from the union');
-  assert.notEqual(renderSignature(Object.assign(placedOnly(['uv', 'wind']), { statusTopOnDemandRight: 'off' })),
-    top, 'disabling the only side that carries them');
+  assert.notEqual(renderSignature(placedOnly([])), top, 'unticking them on the only side that carries them');
   // The system items, the rain alert and the Battery item never sign.
   const base = renderSignature(NOTHING_PLACED);
   [placedOnly(['battery', 'bt', 'qt', 'snooze', 'rain']), Object.assign({}, NOTHING_PLACED,

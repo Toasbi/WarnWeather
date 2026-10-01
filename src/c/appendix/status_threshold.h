@@ -64,8 +64,8 @@
 //                       per OdItem (on_demand.h, the priority order), 2 bits per
 //                       bar at bits 2 * bar (ThreshBar): 0 none, 1 left, 2 right
 //                       (OdSide), 3 reserved (reads as none). The phone writes
-//                       effective values only — an Enabled side, a ticked item,
-//                       a bar that exists — so a Disabled side is simply zeros.
+//                       effective values only — a ticked item on a bar that
+//                       exists — so a bar the modes remove is simply zeros.
 //    One widening per release that shipped a new length, each on top of the
 //    29-byte pre-bold layout:
 //      - 1.11.0: 33 B, the bold area for kinds 0..15 (bytes 29..32).

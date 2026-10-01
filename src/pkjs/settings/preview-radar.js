@@ -302,8 +302,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // (the contract's rainAlert, as the blob packs it: the drop alone, the drop +
         // "15'", or the drop + "Rain in 15'"), at the edge of the strip's On demand side
         // that has Rain ticked (on-demand.js sideOf: left-aligned for the left side,
-        // right-aligned for the right). Hidden while neither of the strip's Enabled
-        // sides ticks Rain (the strip draws no rain entry then), and never shown on
+        // right-aligned for the right). Hidden while neither of the strip's sides
+        // ticks Rain (the strip draws no rain entry then), and never shown on
         // aplite (which lacks the feature). Only the drop is coloured, and it
         // follows the radar colour the way rain_tint() (status_on_demand.c) does: the
         // watch reads palette_radar_color(tier), clamped to the palette's last stop, so a

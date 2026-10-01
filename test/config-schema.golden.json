@@ -3823,7 +3823,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "‘Rain alert only’ fetches the radar for the rain icon, but no Enabled On demand side of a status bar has Rain ticked.",
+                "text": "‘Rain alert only’ fetches the radar for the rain icon, but no On demand side of a status bar has Rain ticked.",
                 "showWhen": {
                   "all": [
                     {
@@ -3842,59 +3842,23 @@
                           {
                             "any": [
                               {
-                                "all": [
-                                  {
-                                    "key": "statusTopOnDemandLeft",
-                                    "eq": "on"
-                                  },
-                                  {
-                                    "key": "statusTopOnDemandLeftItems",
-                                    "has": "rain"
-                                  }
-                                ]
+                                "key": "statusTopOnDemandLeftItems",
+                                "has": "rain"
+                              },
+                              {
+                                "key": "statusTopOnDemandRightItems",
+                                "has": "rain"
+                              },
+                              {
+                                "key": "statusForecastOnDemandLeftItems",
+                                "has": "rain"
+                              },
+                              {
+                                "key": "statusForecastOnDemandRightItems",
+                                "has": "rain"
                               },
                               {
                                 "all": [
-                                  {
-                                    "key": "statusTopOnDemandRight",
-                                    "eq": "on"
-                                  },
-                                  {
-                                    "key": "statusTopOnDemandRightItems",
-                                    "has": "rain"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusForecastOnDemandLeft",
-                                    "eq": "on"
-                                  },
-                                  {
-                                    "key": "statusForecastOnDemandLeftItems",
-                                    "has": "rain"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusForecastOnDemandRight",
-                                    "eq": "on"
-                                  },
-                                  {
-                                    "key": "statusForecastOnDemandRightItems",
-                                    "has": "rain"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusHealthOnDemandLeft",
-                                    "eq": "on"
-                                  },
                                   {
                                     "key": "statusHealthOnDemandLeftItems",
                                     "has": "rain"
@@ -3917,10 +3881,6 @@
                               },
                               {
                                 "all": [
-                                  {
-                                    "key": "statusHealthOnDemandRight",
-                                    "eq": "on"
-                                  },
                                   {
                                     "key": "statusHealthOnDemandRightItems",
                                     "has": "rain"
@@ -4489,31 +4449,17 @@
                 }
               },
               {
-                "type": "select",
-                "messageKey": "statusForecastOnDemandLeft",
+                "type": "sheet",
+                "sheetId": "odForecastLeft",
                 "label": "On demand left",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Enabled",
-                    "on"
-                  ],
-                  [
-                    "Disabled",
-                    "off"
-                  ]
-                ],
-                "editSheetFrom": {
-                  "resolver": "onDemandSideSheet",
-                  "args": {
-                    "sheetId": "odForecastLeft"
-                  }
-                },
                 "hintFrom": {
                   "resolver": "onDemandSummary",
                   "args": {
                     "itemsKey": "statusForecastOnDemandLeftItems"
                   }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -4522,31 +4468,17 @@
                 }
               },
               {
-                "type": "select",
-                "messageKey": "statusForecastOnDemandRight",
+                "type": "sheet",
+                "sheetId": "odForecastRight",
                 "label": "On demand right",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Enabled",
-                    "on"
-                  ],
-                  [
-                    "Disabled",
-                    "off"
-                  ]
-                ],
-                "editSheetFrom": {
-                  "resolver": "onDemandSideSheet",
-                  "args": {
-                    "sheetId": "odForecastRight"
-                  }
-                },
                 "hintFrom": {
                   "resolver": "onDemandSummary",
                   "args": {
                     "itemsKey": "statusForecastOnDemandRightItems"
                   }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -4773,31 +4705,17 @@
                 }
               },
               {
-                "type": "select",
-                "messageKey": "statusRadarOnDemandLeft",
+                "type": "sheet",
+                "sheetId": "odRadarLeft",
                 "label": "On demand left",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Enabled",
-                    "on"
-                  ],
-                  [
-                    "Disabled",
-                    "off"
-                  ]
-                ],
-                "editSheetFrom": {
-                  "resolver": "onDemandSideSheet",
-                  "args": {
-                    "sheetId": "odRadarLeft"
-                  }
-                },
                 "hintFrom": {
                   "resolver": "onDemandSummary",
                   "args": {
                     "itemsKey": "statusRadarOnDemandLeftItems"
                   }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -4824,31 +4742,17 @@
                 }
               },
               {
-                "type": "select",
-                "messageKey": "statusRadarOnDemandRight",
+                "type": "sheet",
+                "sheetId": "odRadarRight",
                 "label": "On demand right",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Enabled",
-                    "on"
-                  ],
-                  [
-                    "Disabled",
-                    "off"
-                  ]
-                ],
-                "editSheetFrom": {
-                  "resolver": "onDemandSideSheet",
-                  "args": {
-                    "sheetId": "odRadarRight"
-                  }
-                },
                 "hintFrom": {
                   "resolver": "onDemandSummary",
                   "args": {
                     "itemsKey": "statusRadarOnDemandRightItems"
                   }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -5093,31 +4997,17 @@
                 }
               },
               {
-                "type": "select",
-                "messageKey": "statusHealthOnDemandLeft",
+                "type": "sheet",
+                "sheetId": "odHealthLeft",
                 "label": "On demand left",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Enabled",
-                    "on"
-                  ],
-                  [
-                    "Disabled",
-                    "off"
-                  ]
-                ],
-                "editSheetFrom": {
-                  "resolver": "onDemandSideSheet",
-                  "args": {
-                    "sheetId": "odHealthLeft"
-                  }
-                },
                 "hintFrom": {
                   "resolver": "onDemandSummary",
                   "args": {
                     "itemsKey": "statusHealthOnDemandLeftItems"
                   }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -5144,31 +5034,17 @@
                 }
               },
               {
-                "type": "select",
-                "messageKey": "statusHealthOnDemandRight",
+                "type": "sheet",
+                "sheetId": "odHealthRight",
                 "label": "On demand right",
-                "defaultValue": "off",
-                "options": [
-                  [
-                    "Enabled",
-                    "on"
-                  ],
-                  [
-                    "Disabled",
-                    "off"
-                  ]
-                ],
-                "editSheetFrom": {
-                  "resolver": "onDemandSideSheet",
-                  "args": {
-                    "sheetId": "odHealthRight"
-                  }
-                },
                 "hintFrom": {
                   "resolver": "onDemandSummary",
                   "args": {
                     "itemsKey": "statusHealthOnDemandRightItems"
                   }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -5317,31 +5193,17 @@
                 }
               },
               {
-                "type": "select",
-                "messageKey": "statusTopOnDemandLeft",
+                "type": "sheet",
+                "sheetId": "odTopLeft",
                 "label": "On demand left",
-                "defaultValue": "on",
-                "options": [
-                  [
-                    "Enabled",
-                    "on"
-                  ],
-                  [
-                    "Disabled",
-                    "off"
-                  ]
-                ],
-                "editSheetFrom": {
-                  "resolver": "onDemandSideSheet",
-                  "args": {
-                    "sheetId": "odTopLeft"
-                  }
-                },
                 "hintFrom": {
                   "resolver": "onDemandSummary",
                   "args": {
                     "itemsKey": "statusTopOnDemandLeftItems"
                   }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -5350,31 +5212,17 @@
                 }
               },
               {
-                "type": "select",
-                "messageKey": "statusTopOnDemandRight",
+                "type": "sheet",
+                "sheetId": "odTopRight",
                 "label": "On demand right",
-                "defaultValue": "on",
-                "options": [
-                  [
-                    "Enabled",
-                    "on"
-                  ],
-                  [
-                    "Disabled",
-                    "off"
-                  ]
-                ],
-                "editSheetFrom": {
-                  "resolver": "onDemandSideSheet",
-                  "args": {
-                    "sheetId": "odTopRight"
-                  }
-                },
                 "hintFrom": {
                   "resolver": "onDemandSummary",
                   "args": {
                     "itemsKey": "statusTopOnDemandRightItems"
                   }
+                },
+                "editBadgeFrom": {
+                  "resolver": "onDemandBadge"
                 },
                 "joinPrevious": true,
                 "compact": true,
@@ -5459,7 +5307,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "Your Default view has no Watch Status Bar, so On demand items won’t show there. Enable On demand left or right on one of its other status bars.",
+                "text": "Your Default view has no Watch Status Bar, so On demand items won’t show there. Tick them under On demand left or right on one of its other status bars.",
                 "showWhen": {
                   "any": [
                     {
@@ -5478,28 +5326,12 @@
                               {
                                 "any": [
                                   {
-                                    "all": [
-                                      {
-                                        "key": "statusForecastOnDemandLeft",
-                                        "eq": "on"
-                                      },
-                                      {
-                                        "key": "statusForecastOnDemandLeftItems",
-                                        "ne": ""
-                                      }
-                                    ]
+                                    "key": "statusForecastOnDemandLeftItems",
+                                    "ne": ""
                                   },
                                   {
-                                    "all": [
-                                      {
-                                        "key": "statusForecastOnDemandRight",
-                                        "eq": "on"
-                                      },
-                                      {
-                                        "key": "statusForecastOnDemandRightItems",
-                                        "ne": ""
-                                      }
-                                    ]
+                                    "key": "statusForecastOnDemandRightItems",
+                                    "ne": ""
                                   }
                                 ]
                               },
@@ -5512,28 +5344,12 @@
                                   {
                                     "any": [
                                       {
-                                        "all": [
-                                          {
-                                            "key": "statusRadarOnDemandLeft",
-                                            "eq": "on"
-                                          },
-                                          {
-                                            "key": "statusRadarOnDemandLeftItems",
-                                            "ne": ""
-                                          }
-                                        ]
+                                        "key": "statusRadarOnDemandLeftItems",
+                                        "ne": ""
                                       },
                                       {
-                                        "all": [
-                                          {
-                                            "key": "statusRadarOnDemandRight",
-                                            "eq": "on"
-                                          },
-                                          {
-                                            "key": "statusRadarOnDemandRightItems",
-                                            "ne": ""
-                                          }
-                                        ]
+                                        "key": "statusRadarOnDemandRightItems",
+                                        "ne": ""
                                       }
                                     ]
                                   }
@@ -5567,28 +5383,12 @@
                                       {
                                         "any": [
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusForecastOnDemandLeft",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusForecastOnDemandLeftItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusForecastOnDemandLeftItems",
+                                            "ne": ""
                                           },
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusForecastOnDemandRight",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusForecastOnDemandRightItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusForecastOnDemandRightItems",
+                                            "ne": ""
                                           }
                                         ]
                                       }
@@ -5610,28 +5410,12 @@
                                       {
                                         "any": [
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusRadarOnDemandLeft",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusRadarOnDemandLeftItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusRadarOnDemandLeftItems",
+                                            "ne": ""
                                           },
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusRadarOnDemandRight",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusRadarOnDemandRightItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusRadarOnDemandRightItems",
+                                            "ne": ""
                                           }
                                         ]
                                       }
@@ -5653,28 +5437,12 @@
                                       {
                                         "any": [
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusHealthOnDemandLeft",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusHealthOnDemandLeftItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusHealthOnDemandLeftItems",
+                                            "ne": ""
                                           },
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusHealthOnDemandRight",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusHealthOnDemandRightItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusHealthOnDemandRightItems",
+                                            "ne": ""
                                           }
                                         ]
                                       }
@@ -5693,28 +5461,12 @@
                                       {
                                         "any": [
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusForecastOnDemandLeft",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusForecastOnDemandLeftItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusForecastOnDemandLeftItems",
+                                            "ne": ""
                                           },
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusForecastOnDemandRight",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusForecastOnDemandRightItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusForecastOnDemandRightItems",
+                                            "ne": ""
                                           }
                                         ]
                                       }
@@ -5736,28 +5488,12 @@
                                       {
                                         "any": [
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusRadarOnDemandLeft",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusRadarOnDemandLeftItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusRadarOnDemandLeftItems",
+                                            "ne": ""
                                           },
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusRadarOnDemandRight",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusRadarOnDemandRightItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusRadarOnDemandRightItems",
+                                            "ne": ""
                                           }
                                         ]
                                       }
@@ -5779,28 +5515,12 @@
                                       {
                                         "any": [
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusHealthOnDemandLeft",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusHealthOnDemandLeftItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusHealthOnDemandLeftItems",
+                                            "ne": ""
                                           },
                                           {
-                                            "all": [
-                                              {
-                                                "key": "statusHealthOnDemandRight",
-                                                "eq": "on"
-                                              },
-                                              {
-                                                "key": "statusHealthOnDemandRightItems",
-                                                "ne": ""
-                                              }
-                                            ]
+                                            "key": "statusHealthOnDemandRightItems",
+                                            "ne": ""
                                           }
                                         ]
                                       }
@@ -6301,59 +6021,23 @@
                             {
                               "any": [
                                 {
-                                  "all": [
-                                    {
-                                      "key": "statusTopOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandLeftItems",
-                                      "has": "aqi"
-                                    }
-                                  ]
+                                  "key": "statusTopOnDemandLeftItems",
+                                  "has": "aqi"
+                                },
+                                {
+                                  "key": "statusTopOnDemandRightItems",
+                                  "has": "aqi"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandLeftItems",
+                                  "has": "aqi"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandRightItems",
+                                  "has": "aqi"
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusTopOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandRightItems",
-                                      "has": "aqi"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandLeftItems",
-                                      "has": "aqi"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandRightItems",
-                                      "has": "aqi"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusRadarOnDemandLeft",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusRadarOnDemandLeftItems",
                                       "has": "aqi"
@@ -6377,10 +6061,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusRadarOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusRadarOnDemandRightItems",
                                       "has": "aqi"
                                     },
@@ -6403,10 +6083,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusHealthOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusHealthOnDemandLeftItems",
                                       "has": "aqi"
                                     },
@@ -6428,10 +6104,6 @@
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusHealthOnDemandRight",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusHealthOnDemandRightItems",
                                       "has": "aqi"
@@ -6532,59 +6204,23 @@
                             {
                               "any": [
                                 {
-                                  "all": [
-                                    {
-                                      "key": "statusTopOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandLeftItems",
-                                      "has": "pollen"
-                                    }
-                                  ]
+                                  "key": "statusTopOnDemandLeftItems",
+                                  "has": "pollen"
+                                },
+                                {
+                                  "key": "statusTopOnDemandRightItems",
+                                  "has": "pollen"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandLeftItems",
+                                  "has": "pollen"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandRightItems",
+                                  "has": "pollen"
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusTopOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandRightItems",
-                                      "has": "pollen"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandLeftItems",
-                                      "has": "pollen"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandRightItems",
-                                      "has": "pollen"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusRadarOnDemandLeft",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusRadarOnDemandLeftItems",
                                       "has": "pollen"
@@ -6608,10 +6244,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusRadarOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusRadarOnDemandRightItems",
                                       "has": "pollen"
                                     },
@@ -6634,10 +6266,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusHealthOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusHealthOnDemandLeftItems",
                                       "has": "pollen"
                                     },
@@ -6659,10 +6287,6 @@
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusHealthOnDemandRight",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusHealthOnDemandRightItems",
                                       "has": "pollen"
@@ -6937,59 +6561,23 @@
                             {
                               "any": [
                                 {
-                                  "all": [
-                                    {
-                                      "key": "statusTopOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandLeftItems",
-                                      "has": "wind"
-                                    }
-                                  ]
+                                  "key": "statusTopOnDemandLeftItems",
+                                  "has": "wind"
+                                },
+                                {
+                                  "key": "statusTopOnDemandRightItems",
+                                  "has": "wind"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandLeftItems",
+                                  "has": "wind"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandRightItems",
+                                  "has": "wind"
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusTopOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandRightItems",
-                                      "has": "wind"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandLeftItems",
-                                      "has": "wind"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandRightItems",
-                                      "has": "wind"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusRadarOnDemandLeft",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusRadarOnDemandLeftItems",
                                       "has": "wind"
@@ -7013,10 +6601,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusRadarOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusRadarOnDemandRightItems",
                                       "has": "wind"
                                     },
@@ -7039,10 +6623,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusHealthOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusHealthOnDemandLeftItems",
                                       "has": "wind"
                                     },
@@ -7064,10 +6644,6 @@
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusHealthOnDemandRight",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusHealthOnDemandRightItems",
                                       "has": "wind"
@@ -7342,59 +6918,23 @@
                             {
                               "any": [
                                 {
-                                  "all": [
-                                    {
-                                      "key": "statusTopOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandLeftItems",
-                                      "has": "gust"
-                                    }
-                                  ]
+                                  "key": "statusTopOnDemandLeftItems",
+                                  "has": "gust"
+                                },
+                                {
+                                  "key": "statusTopOnDemandRightItems",
+                                  "has": "gust"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandLeftItems",
+                                  "has": "gust"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandRightItems",
+                                  "has": "gust"
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusTopOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandRightItems",
-                                      "has": "gust"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandLeftItems",
-                                      "has": "gust"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandRightItems",
-                                      "has": "gust"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusRadarOnDemandLeft",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusRadarOnDemandLeftItems",
                                       "has": "gust"
@@ -7418,10 +6958,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusRadarOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusRadarOnDemandRightItems",
                                       "has": "gust"
                                     },
@@ -7444,10 +6980,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusHealthOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusHealthOnDemandLeftItems",
                                       "has": "gust"
                                     },
@@ -7469,10 +7001,6 @@
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusHealthOnDemandRight",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusHealthOnDemandRightItems",
                                       "has": "gust"
@@ -7733,59 +7261,23 @@
                             {
                               "any": [
                                 {
-                                  "all": [
-                                    {
-                                      "key": "statusTopOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandLeftItems",
-                                      "has": "uv"
-                                    }
-                                  ]
+                                  "key": "statusTopOnDemandLeftItems",
+                                  "has": "uv"
+                                },
+                                {
+                                  "key": "statusTopOnDemandRightItems",
+                                  "has": "uv"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandLeftItems",
+                                  "has": "uv"
+                                },
+                                {
+                                  "key": "statusForecastOnDemandRightItems",
+                                  "has": "uv"
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusTopOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusTopOnDemandRightItems",
-                                      "has": "uv"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandLeftItems",
-                                      "has": "uv"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusForecastOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
-                                      "key": "statusForecastOnDemandRightItems",
-                                      "has": "uv"
-                                    }
-                                  ]
-                                },
-                                {
-                                  "all": [
-                                    {
-                                      "key": "statusRadarOnDemandLeft",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusRadarOnDemandLeftItems",
                                       "has": "uv"
@@ -7809,10 +7301,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusRadarOnDemandRight",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusRadarOnDemandRightItems",
                                       "has": "uv"
                                     },
@@ -7835,10 +7323,6 @@
                                 {
                                   "all": [
                                     {
-                                      "key": "statusHealthOnDemandLeft",
-                                      "eq": "on"
-                                    },
-                                    {
                                       "key": "statusHealthOnDemandLeftItems",
                                       "has": "uv"
                                     },
@@ -7860,10 +7344,6 @@
                                 },
                                 {
                                   "all": [
-                                    {
-                                      "key": "statusHealthOnDemandRight",
-                                      "eq": "on"
-                                    },
                                     {
                                       "key": "statusHealthOnDemandRightItems",
                                       "has": "uv"
@@ -9770,7 +9250,7 @@
               {
                 "type": "staticText",
                 "style": "info",
-                "text": "No Enabled On demand side of a status bar has Rain ticked, so the rain icon won’t show.",
+                "text": "No On demand side of a status bar has Rain ticked, so the rain icon won’t show.",
                 "showWhen": {
                   "all": [
                     {
@@ -9789,59 +9269,23 @@
                           {
                             "any": [
                               {
-                                "all": [
-                                  {
-                                    "key": "statusTopOnDemandLeft",
-                                    "eq": "on"
-                                  },
-                                  {
-                                    "key": "statusTopOnDemandLeftItems",
-                                    "has": "rain"
-                                  }
-                                ]
+                                "key": "statusTopOnDemandLeftItems",
+                                "has": "rain"
+                              },
+                              {
+                                "key": "statusTopOnDemandRightItems",
+                                "has": "rain"
+                              },
+                              {
+                                "key": "statusForecastOnDemandLeftItems",
+                                "has": "rain"
+                              },
+                              {
+                                "key": "statusForecastOnDemandRightItems",
+                                "has": "rain"
                               },
                               {
                                 "all": [
-                                  {
-                                    "key": "statusTopOnDemandRight",
-                                    "eq": "on"
-                                  },
-                                  {
-                                    "key": "statusTopOnDemandRightItems",
-                                    "has": "rain"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusForecastOnDemandLeft",
-                                    "eq": "on"
-                                  },
-                                  {
-                                    "key": "statusForecastOnDemandLeftItems",
-                                    "has": "rain"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusForecastOnDemandRight",
-                                    "eq": "on"
-                                  },
-                                  {
-                                    "key": "statusForecastOnDemandRightItems",
-                                    "has": "rain"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "statusRadarOnDemandLeft",
-                                    "eq": "on"
-                                  },
                                   {
                                     "key": "statusRadarOnDemandLeftItems",
                                     "has": "rain"
@@ -9865,10 +9309,6 @@
                               {
                                 "all": [
                                   {
-                                    "key": "statusRadarOnDemandRight",
-                                    "eq": "on"
-                                  },
-                                  {
                                     "key": "statusRadarOnDemandRightItems",
                                     "has": "rain"
                                   },
@@ -9891,10 +9331,6 @@
                               {
                                 "all": [
                                   {
-                                    "key": "statusHealthOnDemandLeft",
-                                    "eq": "on"
-                                  },
-                                  {
                                     "key": "statusHealthOnDemandLeftItems",
                                     "has": "rain"
                                   },
@@ -9916,10 +9352,6 @@
                               },
                               {
                                 "all": [
-                                  {
-                                    "key": "statusHealthOnDemandRight",
-                                    "eq": "on"
-                                  },
                                   {
                                     "key": "statusHealthOnDemandRightItems",
                                     "has": "rain"

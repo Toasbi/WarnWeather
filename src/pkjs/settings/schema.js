@@ -1115,9 +1115,9 @@ function capitalised(word) { return word.charAt(0).toUpperCase() + word.slice(1)
 function odSideSheetId(bar, side) { return 'od' + capitalised(bar) + capitalised(side); }
 /**
  * "The item shows on one of these bars" as a showWhen predicate that resolves exactly as
- * on-demand.js sideOf does: the watch draws On demand, and on one of the bars a side is
- * Enabled, ticks the item and the bar exists. THE one builder of every "placed"
- * predicate on the page.
+ * on-demand.js sideOf does: the watch draws On demand, and on one of the bars a side
+ * ticks the item and the bar exists. THE one builder of every "placed" predicate on the
+ * page.
  * @param {string} code An on-demand.js ITEMS code.
  * @param {string[]} [bars] The bars to look at (default: all four).
  * @returns {Object} The showWhen predicate.
@@ -1127,23 +1127,20 @@ function placedWhen(code, bars) {
     ON_DEMAND.BARS.forEach(function (b) {
         if (bars && bars.indexOf(b.bar) === -1) { return; }
         ON_DEMAND.SIDES.forEach(function (side) {
-            var key = ON_DEMAND.sideKey(b.bar, side);
-            var leaf = [{key: key, eq: 'on'}, {key: key + 'Items', has: code}];
-            if (odBarGate(b.bar)) { leaf.push(odBarGate(b.bar)); }
-            any.push({all: leaf});
+            var leaf = {key: ON_DEMAND.itemsKey(b.bar, side), has: code};
+            any.push(odBarGate(b.bar) ? {all: [leaf, odBarGate(b.bar)]} : leaf);
         });
     });
     return {all: [ON_DEMAND_WHEN, {any: any}]};
 }
 /**
- * "This bar shows On demand items": one of its sides is Enabled with something ticked.
+ * "This bar shows On demand items": one of its sides ticks something.
  * @param {string} bar An on-demand.js BARS bar.
  * @returns {Object} The showWhen predicate.
  */
 function barOnDemandWhen(bar) {
     return {any: ON_DEMAND.SIDES.map(function (side) {
-        var key = ON_DEMAND.sideKey(bar, side);
-        return {all: [{key: key, eq: 'on'}, {key: key + 'Items', ne: ''}]};
+        return {key: ON_DEMAND.itemsKey(bar, side), ne: ''};
     })};
 }
 /**
@@ -1181,26 +1178,23 @@ var DEFAULT_VIEW_NO_ON_DEMAND_WHEN = {any: [
 var RAIN_PLACED_WHEN = placedWhen('rain');
 var RAIN_VISIBLE_WHEN = placedWhen('rain', ['top', 'forecast', 'health']);
 /**
- * The Rain sheet's note while no Enabled On demand side of an existing bar ticks Rain.
- * Broad on purpose — any radar mode but Off: inside the Rain sheet the user is looking
- * at the rain alert. The copy names what placedWhen checks, the Enabled side too: a
- * Disabled side keeps its ticks but hides them (and its Edit button), so "Rain isn't
- * ticked" would be false there and point at the wrong fix. A fresh object per call,
- * like every item.
+ * The Rain sheet's note while no On demand side of an existing bar ticks Rain. Broad on
+ * purpose — any radar mode but Off: inside the Rain sheet the user is looking at the
+ * rain alert. A fresh object per call, like every item.
  * @returns {Object} The info-box staticText.
  */
 function rainUnplacedNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'No Enabled On demand side of a status bar has Rain ticked, so the rain icon won’t show.',
+        text: 'No On demand side of a status bar has Rain ticked, so the rain icon won’t show.',
         showWhen: {all: [{key: 'radarMode', ne: 'off'}, ON_DEMAND_WHEN, {not: RAIN_PLACED_WHEN}]}
     };
 }
 /**
  * The Radar tab's note in radar mode 'Rain alert only', the mode that fetches the radar
- * for the rain icon alone, while no Enabled side of a bar that exists in it ticks Rain
- * (worded like the Rain sheet's note, for the same reason). Narrower than the Rain
+ * for the rain icon alone, while no side of a bar that exists in it ticks Rain (worded
+ * like the Rain sheet's note). Narrower than the Rain
  * sheet's: a user in 'Status' or 'Graph' mode who unticked Rain chose that. A fresh
  * object per call, like every item.
  * @returns {Object} The info-box staticText.
@@ -1209,7 +1203,7 @@ function rainAlertUnshownNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: '‘Rain alert only’ fetches the radar for the rain icon, but no Enabled On demand side of a status bar has Rain ticked.',
+        text: '‘Rain alert only’ fetches the radar for the rain icon, but no On demand side of a status bar has Rain ticked.',
         showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: RAIN_VISIBLE_WHEN}]}
     };
 }
@@ -1413,9 +1407,9 @@ var ALERT_KINDS = [
         icon: 'wind'}
 ];
 /**
- * A bar's two On demand rows, after its three slots: each an Enabled/Disabled select
- * whose Edit button (only while Enabled) opens the side's checklist, with the ticked
- * items as its live hint ("Nothing picked" while none).
+ * A bar's two On demand rows, after its three slots: each the side's label, the ticked
+ * items as its live hint (none while nothing is ticked) and an Edit button that opens the
+ * side's checklist. No switch: a side is on exactly while it ticks something.
  * @param {string} prefix The bar's key prefix, e.g. 'statusTop'.
  * @param {?Object} barWhen The bar's gate (RADAR_BAR_WHEN …), or null.
  * @returns {Object[]} The two rows, left then right.
@@ -1424,15 +1418,12 @@ function onDemandRows(prefix, barWhen) {
     var bar = null;
     ON_DEMAND.BARS.forEach(function (b) { if (b.prefix === prefix) { bar = b.bar; } });
     return ON_DEMAND.SIDES.map(function (side) {
-        var key = ON_DEMAND.sideKey(bar, side);
         return {
-            type: 'select',
-            messageKey: key,
+            type: 'sheet',
+            sheetId: odSideSheetId(bar, side),
             label: 'On demand ' + side,
-            defaultValue: ON_DEMAND.DEFAULTS[key],
-            options: [['Enabled', 'on'], ['Disabled', 'off']],
-            editSheetFrom: {resolver: 'onDemandSideSheet', args: {sheetId: odSideSheetId(bar, side)}},
-            hintFrom: {resolver: 'onDemandSummary', args: {itemsKey: key + 'Items'}},
+            hintFrom: {resolver: 'onDemandSummary', args: {itemsKey: ON_DEMAND.itemsKey(bar, side)}},
+            editBadgeFrom: {resolver: 'onDemandBadge'},
             joinPrevious: true,
             compact: true,
             showWhen: barWhen ? {all: [ON_DEMAND_WHEN, barWhen]} : ON_DEMAND_WHEN
@@ -1613,8 +1604,8 @@ function onDemandCardItems() {
             // Nothing moves the items for the user: the note names the gap and the fix.
             type: 'staticText',
             style: 'info',
-            text: 'Your Default view has no Watch Status Bar, so On demand items won’t show there. Enable On demand '
-                + 'left or right on one of its other status bars.',
+            text: 'Your Default view has no Watch Status Bar, so On demand items won’t show there. Tick them under '
+                + 'On demand left or right on one of its other status bars.',
             showWhen: DEFAULT_VIEW_NO_ON_DEMAND_WHEN
         },
         {type: 'subheader', text: 'System info'},

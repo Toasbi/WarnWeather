@@ -4,14 +4,15 @@
  * (window.OnDemand), so the watch's wire bytes, the fetch gates, telemetry and the page's
  * summaries all read the settings the same way.
  *
- * Each bar has two sides, "On demand left" and "On demand right". A side is Enabled or
- * Disabled (status<Bar>OnDemand<Side>: 'on' | 'off') and ticks a list of items
- * (status<Bar>OnDemand<Side>Items: a comma list of item codes, in priority order). An
- * item sits on at most one side of a bar; it may also be ticked on other bars.
+ * Each bar has two sides, left and right. A side ticks a list of items
+ * (status<Bar>OnDemand<Side>Items: a comma list of item codes, in priority order) and is
+ * on exactly while that list holds something. An item sits on at most one side of a bar;
+ * it may also be ticked on other bars.
  *
  * It also holds the few writes that move a tick (tickOn, untickFrom, untickEverywhere,
  * placeRainForCountdown), so the settings page's hooks and the upgrade migration move
- * ticks by the same rules they are read by.
+ * ticks by the same rules they are read by, and the boot's fold of the retired side
+ * switches (retireSideSwitches).
  *
  * LOCKSTEP: ITEMS is the watch's OdItem order (src/c/appendix/on_demand.h: the priority
  * order and the wire order of the cells), BARS its ThreshBar order, and DEFAULTS for the
@@ -71,16 +72,9 @@
   /**
    * @param {string} bar A BARS bar.
    * @param {string} side 'left' | 'right'
-   * @returns {string} the side's Enabled/Disabled key, e.g. 'statusTopOnDemandLeft'
-   */
-  function sideKey(bar, side) { return prefixOf(bar) + 'OnDemand' + sideSuffix(side); }
-
-  /**
-   * @param {string} bar A BARS bar.
-   * @param {string} side 'left' | 'right'
    * @returns {string} the side's items key, e.g. 'statusTopOnDemandLeftItems'
    */
-  function itemsKey(bar, side) { return sideKey(bar, side) + 'Items'; }
+  function itemsKey(bar, side) { return prefixOf(bar) + 'OnDemand' + sideSuffix(side) + 'Items'; }
 
   /**
    * The bar and side an items key belongs to: itemsKey read backwards, over BARS and
@@ -106,12 +100,10 @@
   // Every setting this module reads, with its default. The Watch Status Bar shows
   // Bluetooth, Quiet time and Sleep on its left, and the battery with the weather alerts
   // Rain, Wind gusts, UV index, Air quality and Wind speed on its right (Pollen off); every
-  // other bar starts with both sides Disabled and nothing ticked. seedDefaults writes these
-  // into every install, upgraded ones included.
+  // other bar starts with nothing ticked. seedDefaults writes these into every install,
+  // upgraded ones included.
   var DEFAULTS = {
-    statusTopOnDemandLeft: 'on',
     statusTopOnDemandLeftItems: 'bt,qt,snooze',
-    statusTopOnDemandRight: 'on',
     statusTopOnDemandRightItems: 'battery,rain,gust,uv,aqi,wind',
     batteryLowLevel: '10',
     batteryLowDisplay: 'icon'
@@ -119,7 +111,6 @@
   (function () {
     for (var b = 1; b < BARS.length; b++) {
       for (var s = 0; s < SIDES.length; s++) {
-        DEFAULTS[sideKey(BARS[b].bar, SIDES[s])] = 'off';
         DEFAULTS[itemsKey(BARS[b].bar, SIDES[s])] = '';
       }
     }
@@ -170,9 +161,8 @@
   /**
    * One setting, read the one way: the stored value while it is valid, else its default.
    * An absent key, a null S and a value of the wrong type all read the default, so a
-   * partial settings blob reads the default ticks rather than "nothing placed". A side
-   * key other than 'on'/'off' reads its default; an items key that is a string reads as
-   * its canonical list, so '' is a real "nothing ticked".
+   * partial settings blob reads the default ticks rather than "nothing placed". An items
+   * key that is a string reads as its canonical list, so '' is a real "nothing ticked".
    * @param {Object} S Settings blob.
    * @param {string} key A DEFAULTS key.
    * @returns {*} the effective value
@@ -181,9 +171,6 @@
     var v = S ? S[key] : undefined;
     if (/OnDemand(Left|Right)Items$/.test(key)) {
       return typeof v === 'string' ? parse(v).join(',') : DEFAULTS[key];
-    }
-    if (/OnDemand(Left|Right)$/.test(key)) {
-      return (v === 'on' || v === 'off') ? v : DEFAULTS[key];
     }
     if (key === 'batteryLowLevel') {
       return (typeof v === 'string' || typeof v === 'number') ? v : DEFAULTS[key];
@@ -233,8 +220,8 @@
 
   /**
    * The side of `bar` the watch shows an item on: the watch draws On demand, the bar
-   * exists, the side is Enabled and the item is ticked there. Left wins an overlap, which
-   * only a hand-edited blob can hold.
+   * exists and the item is ticked there. Left wins an overlap, which only a hand-edited
+   * blob can hold.
    * @param {Object} S Settings blob.
    * @param {string} bar A BARS bar.
    * @param {string} code An ITEMS code.
@@ -244,10 +231,7 @@
   function sideOf(S, bar, code, env) {
     if (!facts(env).onDemand || prefixOf(bar) === null || !barExists(S, bar, env)) { return null; }
     for (var s = 0; s < SIDES.length; s++) {
-      if (read(S, sideKey(bar, SIDES[s])) === 'on'
-          && parse(read(S, itemsKey(bar, SIDES[s]))).indexOf(code) >= 0) {
-        return SIDES[s];
-      }
+      if (parse(read(S, itemsKey(bar, SIDES[s]))).indexOf(code) >= 0) { return SIDES[s]; }
     }
     return null;
   }
@@ -266,24 +250,22 @@
   }
 
   /**
-   * Tick one item on one side of a bar and Enable that side: the item joins the side's
-   * list in the canonical order and leaves the bar's other side, since an item sits on
-   * one side of a bar. The other side keeps its Enabled state. Mutates S.
+   * Tick one item on one side of a bar: the item joins the side's list in the canonical
+   * order and leaves the bar's other side, since an item sits on one side of a bar.
+   * Mutates S.
    * @param {Object} S Settings blob.
    * @param {string} bar A BARS bar.
    * @param {string} side 'left' | 'right'
    * @param {string} code An ITEMS code.
-   * @returns {boolean} whether any of the three keys changed
+   * @returns {boolean} whether either list changed
    */
   function tickOn(S, bar, side, code) {
     var here = itemsKey(bar, side);
     var there = itemsKey(bar, otherSide(side));
-    var enabled = sideKey(bar, side);
-    var before = [S[here], S[there], S[enabled]].join('|');
+    var before = [S[here], S[there]].join('|');
     S[here] = canonical(parse(read(S, here)).concat([code]));
     S[there] = canonical(parse(read(S, there)).filter(function (c) { return c !== code; }));
-    S[enabled] = 'on';
-    return [S[here], S[there], S[enabled]].join('|') !== before;
+    return [S[here], S[there]].join('|') !== before;
   }
 
   /**
@@ -325,7 +307,7 @@
    * Radar mode 'Rain alert only' fetches the radar for the rain icon alone, so Rain
    * ticked on no bar that exists in that mode would spend radar calls on nothing. Unless
    * it already shows (placedAnywhere; the radar bar never exists in that mode), Rain is
-   * ticked on the Watch Status Bar's right side, which is Enabled (tickOn). THE rule for
+   * ticked on the Watch Status Bar's right side (tickOn). THE rule for
    * both the page entering the mode (reset-status-defaults.js forceRainOnDemand) and the
    * 1.24 upgrade (migrations/v1_24.js migrateOnDemand). Mutates S; any other radar mode
    * leaves it alone.
@@ -362,9 +344,9 @@
 
   /**
    * The telemetry code: 40 characters, the bars in BARS order and within a bar the items
-   * in ITEMS order. 'L'/'R' = ticked on an Enabled side of an existing bar, 'l'/'r' =
-   * ticked on a Disabled side (or on a bar the modes remove), '-' = not ticked. An
-   * untouched install reads 'RLLLRRRR-R' followed by 30 '-'.
+   * in ITEMS order. 'L'/'R' = ticked on a side of an existing bar, 'l'/'r' = ticked on a
+   * bar the modes remove, '-' = not ticked. An untouched install reads 'RLLLRRRR-R'
+   * followed by 30 '-'.
    * @param {Object} S Settings blob.
    * @param {Object} [env] Platform env (omitted = capable).
    * @returns {(string|undefined)} undefined on a watch without On demand (aplite)
@@ -379,13 +361,40 @@
         for (var s = 0; s < SIDES.length && ch === '-'; s++) {
           if (parse(read(S, itemsKey(BARS[b].bar, SIDES[s]))).indexOf(ITEMS[i].code) >= 0) {
             ch = SIDES[s] === 'left' ? 'l' : 'r';
-            if (exists && read(S, sideKey(BARS[b].bar, SIDES[s])) === 'on') { ch = ch.toUpperCase(); }
+            if (exists) { ch = ch.toUpperCase(); }
           }
         }
         out += ch;
       }
     }
     return out;
+  }
+
+  /**
+   * Fold away the retired side switches. A side used to be Enabled or Disabled on a key
+   * of its own (status<Bar>OnDemand<Side>: 'on' | 'off', beside its items list); now a
+   * side is on exactly while it ticks something. Only a development build ever stored
+   * them, no release did. A side stored Disabled showed nothing, so its ticks go and it
+   * stays showing nothing; then every switch key goes. Run on every boot by
+   * clay-settings.js seedDefaults, before anything reads the blob; with the keys gone it
+   * changes nothing. Mutates S.
+   * @param {Object} S Settings blob.
+   * @returns {boolean} whether anything changed
+   */
+  function retireSideSwitches(S) {
+    var changed = false;
+    if (!S) { return false; }
+    for (var b = 0; b < BARS.length; b++) {
+      for (var s = 0; s < SIDES.length; s++) {
+        var items = itemsKey(BARS[b].bar, SIDES[s]);
+        var key = items.replace(/Items$/, '');
+        if (!Object.prototype.hasOwnProperty.call(S, key)) { continue; }
+        if (S[key] === 'off') { S[items] = ''; }
+        delete S[key];
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   var api = {
@@ -398,7 +407,6 @@
     BATTERY_LEVEL_DEFAULT: BATTERY_LEVEL_DEFAULT,
     itemIndex: itemIndex,
     prefixOf: prefixOf,
-    sideKey: sideKey,
     itemsKey: itemsKey,
     sideOfKey: sideOfKey,
     otherSide: otherSide,
@@ -412,6 +420,7 @@
     untickFrom: untickFrom,
     untickEverywhere: untickEverywhere,
     placeRainForCountdown: placeRainForCountdown,
+    retireSideSwitches: retireSideSwitches,
     batteryLevel: batteryLevel,
     batteryShowsValue: batteryShowsValue,
     telemetryCode: telemetryCode

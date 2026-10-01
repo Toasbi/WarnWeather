@@ -1353,9 +1353,7 @@ test('a placed alert makes UV, AQI and pollen fetch with no slot or line', () =>
   const on = (codes, extra) => placeOn(Object.assign({}, none, extra), 'top', 'right', codes);
   assert.equal(needsUv(none), false, 'guard: nothing selects uv');
   assert.equal(needsUv(on('uv')), true);
-  assert.equal(needsUv(on('uv', { statusTopOnDemandRight: 'off' })), true,
-    'placeOn enables the side');
-  assert.equal(needsUv(Object.assign(on('uv'), { statusTopOnDemandRight: 'off' })), false, 'a Disabled side');
+  assert.equal(needsUv(on('')), false, 'nothing ticked');
   assert.equal(needsUv(on('uv'), { platform: 'aplite' }), false, 'aplite fetches nothing for alerts');
   assert.equal(needsAqi(none), false, 'guard: nothing selects aqi');
   assert.equal(needsAqi(on('aqi')), true);

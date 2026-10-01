@@ -150,8 +150,8 @@ function buildSettingsBlob(settings, env) {
     | (onDemand.batteryShowsValue(settings) ? BATTERY_VALUE_BIT : 0);
   // The On demand cells: one byte per item in ITEMS order, 2 bits per bar at bits
   // 2 * bar (BARS order) — 0 none, 1 left, 2 right (the SIDES index + 1). Effective
-  // values only (sideOf), so a Disabled side, a bar the modes remove and a watch
-  // without On demand are zeros.
+  // values only (sideOf), so a bar the modes remove and a watch without On demand are
+  // zeros.
   for (i = 0; i < onDemand.ITEMS.length; i++) {
     var cell = 0;
     for (var b = 0; b < onDemand.BARS.length; b++) {

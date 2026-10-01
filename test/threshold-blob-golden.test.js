@@ -12,7 +12,10 @@
 // Re-recorded for 1.24.0's On demand bytes (48 B: byte 35 the Battery item in place of
 // the per-bar placement, bytes 38-47 the cells), after checking every other byte of the
 // 4000 old combos against the pre-change packer: identical. The packer's move out of
-// status-thresholds.js into status-wire.js kept the digest as it was.
+// status-thresholds.js into status-wire.js kept the digest as it was. Re-recorded when
+// the sides lost their Enabled/Disabled switch (a side is on while it ticks something),
+// after checking every combo against the previous packer with every switch forced on:
+// identical, and no byte outside the cells (38-47) moved.
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,7 +25,7 @@ const wire = require('../src/pkjs/status-wire.js');
 const OD = require('../src/pkjs/on-demand.js');
 
 const COMBOS = 4000;
-const GOLDEN_SHA256 = '5cbc009b45dffb2f5f001bb345b4a29c003fb4f2c71e53086133a12dc227a227';
+const GOLDEN_SHA256 = 'c0ff94da0d877c53e1991311cfea0ed43e1d546ee8595e1f3c72255396fbb117';
 
 /**
  * mulberry32: a small deterministic PRNG, so the generated set never varies.
@@ -79,9 +82,10 @@ function combo(rnd) {
   put(s, 'statusBoldAll', pick(rnd, [ABSENT, 'all', 'perSlot']));
   put(s, 'rainAlertDisplay', pick(rnd, [ABSENT, 'text', 'icon', 'minutes', 'bogus']));
   // On demand: every bar's sides and their lists, the modes that make a bar exist, and
-  // the Battery item.
+  // the Battery item. Each side's retired Enabled/Disabled switch is still drawn, so the
+  // PRNG sequence (every other byte's draw) is the recorded one; the packer ignores it.
   OD.BARS.forEach((b) => OD.SIDES.forEach((side) => {
-    put(s, OD.sideKey(b.bar, side), pick(rnd, [ABSENT, 'on', 'off', 'maybe']));
+    put(s, OD.itemsKey(b.bar, side).replace(/Items$/, ''), pick(rnd, [ABSENT, 'on', 'off', 'maybe']));
     put(s, OD.itemsKey(b.bar, side), pick(rnd, [ABSENT, '', 'battery', 'bt,qt,snooze', 'rain,uv,wind',
       'gust,aqi,pollen', 'wind,battery,zzz', 7]));
   }));
