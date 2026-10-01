@@ -153,8 +153,9 @@ const SCENES = [
   {
     // Compact-DENSE: weather & health status shown together by default (no flick needed),
     // with a different-looking forecast (filled wind + dotted gust, no rain bars) and
-    // a "Rain in 15'" countdown (the On demand Rain item) at the top strip's right edge,
-    // where the sunset slot makes room for it.
+    // a "Rain in 15'" countdown (the On demand Rain item) at the top strip's left edge,
+    // where the default lists tick Rain (the base fixture pins only the right side);
+    // the sunset slot keeps the right corner.
     // The countdown is baked (countdown block) and flicks stay 0, so the radar view
     // never shows. largeGraphFont off (emery-only toggle): the smaller axis labels
     // match the dense status rows.

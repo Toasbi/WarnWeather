@@ -243,7 +243,7 @@ test('scenes 1 & 2 use the smaller graph font; scene 2 keeps filled wind + dotte
   assert.strictEqual(clay.secondaryLineFill, true);
   assert.strictEqual(clay.barSource, 'off');
   assert.strictEqual(clay.fourthLine, undefined);
-  assert.strictEqual(clay.statusTopRight, 'sun', 'sunset top right beside the countdown');
+  assert.strictEqual(clay.statusTopRight, 'sun', 'sunset top right; the countdown sits at the top-left edge');
   assert.strictEqual(clay.statusForecastRight, 'gust');
 });
 

@@ -46,7 +46,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
 
     // Per-stop demo copy. The Default and radar captions are fixed (the radar copy stays
     // provider-agnostic — no provider named; its "Rain in 15’" is the rain alert's default
-    // 'text' look, and Rain is ticked on the Watch Status Bar's right side by default); the
+    // 'text' look, and Rain is ticked on the Watch Status Bar's left side by default); the
     // health-status and health-graph captions vary with heart-rate availability (emery +
     // diorite hardware) and are built from the shared item helpers below, so the health
     // step and the flick demo can never drift.
