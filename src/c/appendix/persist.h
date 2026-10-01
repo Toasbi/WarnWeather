@@ -168,7 +168,11 @@ bool persist_set_fifth_line_style(uint8_t style);
 // CHART_LINE_SOLID the field is the stroke width (the phone sends 1 or 3 —
 // odd, because the SDK rounds even stroke widths down; snooze.c), and 0 means
 // "keep the built-in width". For CHART_LINE_STRIPE its low bit is the edge:
-// 1 = top, 0 = bottom (line_style_stripe_top). Get always fills out[], defaulting to the
+// 1 = top, 0 = bottom (line_style_stripe_top). Bit 5 (LINE_STYLE_FROM_TOP) of any
+// NON-stripe byte: the line hangs from the plot's top ("Draw from: Top"); the phone
+// never sets it on a stripe byte and the watch ignores it there. Bits 6-7 are
+// reserved (0). The fourth line's FIFTH_LINE_STYLE byte (wire [15]) is the same
+// layout. Get always fills out[], defaulting to the
 // pre-feature look — solid 1 px, dots, x — when the slot is unset/short.
 #define LINE_STYLE_STYLE_BYTES 3
 #define LINE_STYLE_KIND_MASK   0x03
@@ -193,6 +197,15 @@ static inline bool line_style_stripe_top(uint8_t b) {
 static inline int line_style_solid_width(uint8_t b, int fallback) {
     const int width = (b >> LINE_STYLE_WIDTH_SHIFT) & LINE_STYLE_WIDTH_MAX;
     return width > 0 ? width : fallback;
+}
+// Bit 5 of a NON-stripe style byte: the line, its marks and (Main metric) its Area fill
+// hang from the plot's top ("Draw from: Top", draw-from.js LINE_BIT). Bits 6-7 reserved (0).
+#define LINE_STYLE_FROM_TOP 0x20
+// Kind-aware: a stripe's edge is its field's low bit; every other kind's is bit 5 — the
+// field's low bit is a SOLID line's width there (0x04 = 1 px) and must never read as top.
+static inline bool line_style_top_edge(uint8_t b) {
+    return line_style_kind(b) == CHART_LINE_STRIPE ? line_style_stripe_top(b)
+                                                   : (b & LINE_STYLE_FROM_TOP) != 0;
 }
 #endif
 

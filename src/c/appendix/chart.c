@@ -5,6 +5,10 @@
 #include "theme.h"
 #include "chart_stripe.h"
 
+// The forecast keeps 12 of these, its bands 7 and 6 in static arrays: the from_top byte
+// sits in the padding after the 1-byte type, so a layer must not grow past 48 B.
+_Static_assert(sizeof(ChartLayer) <= 48, "ChartLayer grew: from_top must stay in padding");
+
 // Shared per-call point scratch for LINE and AREA layers (callers that don't
 // pass export_points). Static, not stack: aplite's small app stack overflows
 // otherwise. Safe to share — chart_draw runs layers sequentially and each
@@ -193,10 +197,14 @@ static int chart_scale_h(int v, int lo, int hi, int plot_h) {
     return (int)(((int32_t)(v - lo) * plot_h) / range);
 }
 
+// Bars in height space (chart_flip.h): a bar h px tall covers rows 1..h out from the
+// layer's zero row, standing on the plot's bottom or hanging from its top. Standing,
+// every rect below is the one the "baseline minus height" code drew.
 static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
-    const GRect c          = r->geo.content;
-    const int  plot_h      = c.size.h;
-    const int  plot_bottom = c.origin.y + c.size.h;
+    const int  plot_h      = r->geo.content.size.h;
+    const int  zero        = CHART_ZERO(r);
+    const int  dir         = CHART_DIR(r);
+    const int  w           = r->def->bar_w;
     const int  count       = chart_clamp_count(r, b->count);
     if (plot_h <= 0 || b->num_stops < 1) return;
 
@@ -206,12 +214,12 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         int bar_h = chart_scale_h(v, b->lo, b->hi, plot_h);
         if (bar_h < 1) bar_h = 1;
         const int bar_x   = chart_slot_bar_x(&r->geo, i);
-        const int bar_top = plot_bottom - bar_h;
 
-        // Bar-separation halo: a 1px ring outside the bar's left/right/top edges,
+        // Bar-separation halo: a 1px ring outside the bar's left/right/free-end edges,
         // painted before the segment fills so the colored segments keep their full
-        // width/height on top. Not expanded downward — the x-axis baseline sits
-        // there, and painting over it would notch the axis. Every theme gets the
+        // width/height on top. Not expanded past the anchored end — the x-axis baseline
+        // sits there standing (painting over it would notch the axis), and hanging it
+        // would reach above the plot's top. Every theme gets the
         // same halo + BAR_OUTLINED silhouette anatomy; only the interior differs
         // (multicolor/solid palette in the color themes, theme_bg() fill in the B&W
         // ones). Color-dark opts out of both — no halo, no silhouette: the exact
@@ -221,67 +229,75 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
         if (!dark) {
             graphics_context_set_fill_color(r->ctx, theme_bg());
             graphics_fill_rect(r->ctx,
-                GRect(bar_x - 1, bar_top - 1, r->def->bar_w + 2, bar_h + 1),
+                GRect(bar_x - 1, chart_flip_span_y(zero, dir, 0, bar_h + 1), w + 2, bar_h + 1),
                 0, GCornerNone);
         }
 
+        // One rect per tier segment, h0..h1 px out, clamped to the bar: a stop under
+        // lo (the palette's Top flag is a negative stop 0) starts on the zero row.
         for (int k = 0; k < b->num_stops; ++k) {
-            int seg_bottom = plot_bottom
-                           - chart_scale_h(b->stops[k].from, b->lo, b->hi, plot_h);
-            int seg_top = (k + 1 < b->num_stops)
-                ? plot_bottom - chart_scale_h(b->stops[k + 1].from, b->lo, b->hi, plot_h)
-                : bar_top;
-            if (seg_top < bar_top)       seg_top    = bar_top;     // clamp at value
-            if (seg_bottom > plot_bottom) seg_bottom = plot_bottom;
-            const int seg_h = seg_bottom - seg_top;
-            if (seg_h <= 0) continue;
+            int h0 = chart_scale_h(b->stops[k].from, b->lo, b->hi, plot_h);
+            int h1 = (k + 1 < b->num_stops)
+                ? chart_scale_h(b->stops[k + 1].from, b->lo, b->hi, plot_h)
+                : bar_h;
+            if (h1 > bar_h) h1 = bar_h;     // clamp at value
+            if (h0 < 0)     h0 = 0;
+            if (h1 <= h0) continue;
             graphics_context_set_fill_color(r->ctx, b->stops[k].color);
             graphics_fill_rect(r->ctx,
-                GRect(bar_x, seg_top, r->def->bar_w, seg_h), 0, GCornerNone);
+                GRect(bar_x, chart_flip_span_y(zero, dir, h0, h1), w, h1 - h0),
+                0, GCornerNone);
         }
 
         if (b->style == BAR_OUTLINED && !dark) {
             // theme_fg() silhouette around the bar interior — the shared bar look in
             // every theme (all three call sites: rain bars, radar bars, health step
-            // bars). Draw only the top + side walls and leave the bottom open — the
-            // x-axis baseline already closes the bar, so a bottom edge would double
-            // the axis line. Composes with the theme_bg() halo above: fg outline on
+            // bars). Draw only the free-end + side walls and leave the anchored end
+            // open — standing, the x-axis baseline already closes the bar, so a bottom
+            // edge would double the axis line; hanging, the open end is the radar's
+            // existing look. Composes with the theme_bg() halo above: fg outline on
             // the bar's outer pixels, bg ring outside it; only the interior differs
             // per theme (multicolor/solid palette on color, theme_bg() fill on B&W).
-            const int x0 = bar_x;
-            const int x1 = bar_x + r->def->bar_w - 1;
-            const int y1 = bar_top + bar_h - 1;
+            const int x0     = bar_x;
+            const int x1     = bar_x + w - 1;
+            const int y_free = chart_flip_y(zero, dir, bar_h);   // the bar's last row out
+            const int y_base = chart_flip_y(zero, dir, 1);       // its row on the zero row
             graphics_context_set_stroke_color(r->ctx, theme_fg());
             graphics_context_set_stroke_width(r->ctx, 1);
-            graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x1, bar_top));  // top
-            graphics_draw_line(r->ctx, GPoint(x0, bar_top), GPoint(x0, y1));       // left wall
-            graphics_draw_line(r->ctx, GPoint(x1, bar_top), GPoint(x1, y1));       // right wall
+            graphics_draw_line(r->ctx, GPoint(x0, y_free), GPoint(x1, y_free));  // free end
+            graphics_draw_line(r->ctx, GPoint(x0, y_free), GPoint(x0, y_base));  // left wall
+            graphics_draw_line(r->ctx, GPoint(x1, y_free), GPoint(x1, y_base));  // right wall
         }
     }
 }
 
 // The one value→y mapping every LINE-layer renderer shares — the polyline
 // vertices, the square dots and the x marks all seat a value the same way:
-// lo lands at plot_bottom - inset_bottom, hi lands inner_h above it, and a
-// zero range puts the mark mid-band (the flat-series arm). AREA and BARS keep
-// their own zero-range semantics — do not funnel them through here.
+// lo lands inset_zero px out from the layer's zero row (standing: plot_bottom -
+// inset_bottom), hi lands inner_h further out, and a zero range puts the mark
+// mid-band (the flat-series arm). Hanging, a value under one pixel is held on the
+// plot's first row (chart_flip_vertex_y, §11.1). AREA and BARS keep their own
+// zero-range semantics — do not funnel them through here.
 static int chart_value_y(int16_t v, int lo, int range, int inner_h,
-                         int plot_bottom, int inset_bottom) {
+                         int zero, int dir, int inset_zero) {
     int h = inner_h / 2;                               // flat series on zero range
     if (range > 0) {
         h = (int)(((int32_t)(v - lo) * inner_h) / range);
     }
-    return plot_bottom - h - inset_bottom;
+    return CHART_VERTEX_Y(zero, dir, h + inset_zero, true);
 }
 
 // Draw a metric as one little mark per slot, column-aligned to the rain bars:
 // filled square caps (the dots style), or — on capable platforms — little x
 // marks. The width follows the line's width setting (the caller sets it to the
-// rain-bar width). A value of 0 lands on the x-axis baseline and is skipped (a
-// mark there reads as data where there is none), and a mark that would spill
-// past an axis is slid back inside the plot at full height (not clipped), so a
-// 100% value keeps its whole mark. aplite compile-time folds the x arms out
-// (WW_LINE_STYLE): its mark lines are frozen dots (series_style_pick).
+// rain-bar width). A value of 0 lands on the zero row (standing: the x-axis
+// baseline) and is skipped (a mark there reads as data where there is none), and a
+// dot that would spill past an edge of the plot is slid back inside it at full
+// height (not clipped), so a 100% value keeps its whole mark — the same clamps
+// either way, so a hanging line's floor mark slides down to the plot's first rows
+// and a full one up off the axis. An x is slid the same way, and its arms may touch
+// the axis row, as a near-zero standing x always has. aplite compile-time folds the
+// x arms out (WW_LINE_STYLE): its mark lines are frozen dots (series_style_pick).
 //
 // An x needs a center pixel to read as an x, so its box is width|1 (odd): 5x5
 // over the 4 px bar columns (1 px into the right gap, still 1 px clear of the
@@ -291,7 +307,7 @@ static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) 
     const int   count       = chart_clamp_count(r, l->count);
     const GRect c           = r->geo.content;
     const int   plot_top    = c.origin.y;
-    const int   plot_bottom = c.origin.y + c.size.h;   // baseline; value 0 lands here
+    const int   plot_bottom = c.origin.y + c.size.h;   // the axis row: the slide clamps' floor
     const int   inner_h     = c.size.h - l->inset_top - l->inset_bottom;
     const int   range       = l->hi - l->lo;
     const int   w           = l->width;
@@ -333,9 +349,9 @@ static void chart_draw_bar_marks(const ChartRender *r, const ChartLineLayer *l) 
         graphics_context_set_fill_color(r->ctx, l->color);
     }
     for (int i = 0; i < count; ++i) {
-        if (l->values[i] <= l->lo) continue;           // value 0 → on the baseline, skip
+        if (l->values[i] <= l->lo) continue;           // value 0 → on the zero row, skip
         const int cy0 = chart_value_y(l->values[i], l->lo, range, inner_h,
-                                      plot_bottom, l->inset_bottom);
+                                      CHART_ZERO(r), CHART_DIR(r), l->inset_bottom);
         const int x   = chart_slot_bar_x(&r->geo, i);  // exact bar column
         if (is_x) {
             // Keep the whole x: slide it back inside the plot instead of
@@ -399,22 +415,26 @@ static void chart_render_line(const ChartRender *r, const ChartLineLayer *l) {
         // The value range spans inner_h, seated between the two margins: value==lo
         // lands at plot_bottom - inset_bottom, value==hi at plot_top + inset_top.
         // A larger inset_bottom lifts the baseline clear of a bottom band (e.g. the
-        // health sleep stripe) without lowering the top.
+        // health sleep stripe) without lowering the top. Hanging, the same values
+        // mirror over the plot (chart_value_y).
         const int  inner_h     = c.size.h - l->inset_top - l->inset_bottom;
-        const int  plot_bottom = c.origin.y + c.size.h;
+        const int  zero        = CHART_ZERO(r);
         const int  range       = l->hi - l->lo;
         for (int i = 0; i < count; ++i) {
             if (vals && chart_sample_absent(vals[i], l->lo, l->zero_absent)) {
                 // Placeholder for an absent bucket; never drawn (skipped below).
-                out[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom);
+                out[i] = GPoint(chart_slot_tick_x(&r->geo, i), zero);
                 continue;
             }
             out[i] = GPoint(chart_slot_tick_x(&r->geo, i),
                             chart_value_y(vals[i], l->lo, range, inner_h,
-                                          plot_bottom, l->inset_bottom));
+                                          zero, CHART_DIR(r), l->inset_bottom));
         }
         pts = out;
     }
+    // Precomputed points (.points: the Main line on its Area fill's contour) arrive
+    // already mirrored and held by the AREA layer; that LINE layer never sets
+    // from_top, so nothing here flips them a second time.
 
     graphics_context_set_stroke_color(r->ctx, l->color);
     graphics_context_set_stroke_width(r->ctx, l->width);
@@ -483,8 +503,11 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
     GContext *ctx = r->ctx;
     const GRect   c                   = r->geo.content;
     const int16_t y_top               = c.origin.y;
-    const int16_t y_bottom_exclusive  = c.origin.y + c.size.h;
-    const int16_t y_bottom_inclusive  = y_bottom_exclusive - 1;
+    const int     zero                = CHART_ZERO(r);
+    const int     dir                 = CHART_DIR(r);
+    // The boundary lines' far end: the row on the zero row (standing: the plot's last
+    // row above the axis; a full-height layer always stands).
+    const int16_t y_base              = chart_flip_y(zero, dir, 1);
 #if defined(WW_LINE_STYLE)
     // Where the full-height arm's boundary lines start: extend_top rows above the
     // content when the caller carries the hatch up through a band over it.
@@ -514,25 +537,32 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
                             hl->hatch_color, hl->spacing);
             continue;
         }
+        // The re-shade of the filled area, one column at a time: the rows between the
+        // zero row and the contour (standing: contour..axis; hanging: plot top..contour),
+        // the underlay first, then the hatch over it. One loop for both: has_underlay is
+        // false exactly when hatch_fill_rect paints its B&W backing (which sets the fill
+        // colour), so the underlay's colour, set once, holds across the columns, and
+        // interleaving the two per column paints the pixels the two passes did.
         if (hl->has_underlay) {
-            graphics_context_set_stroke_color(ctx, hl->underlay_color);
-            for (int16_t x = x0; x < x1; ++x) {
-                int16_t ay = chart_contour_y_for_x(hl->contour, hl->contour_count, x);
-                if (ay < y_top) ay = y_top;
-                if (ay <= y_bottom_inclusive) {
-                    graphics_draw_line(ctx, GPoint(x, ay), GPoint(x, y_bottom_inclusive));
-                }
-            }
+            graphics_context_set_fill_color(ctx, hl->underlay_color);
         }
         for (int16_t x = x0; x < x1; ++x) {
-            int16_t ay = chart_contour_y_for_x(hl->contour, hl->contour_count, x);
-            if (ay < y_top) ay = y_top;
-            hatch_fill_rect(ctx, GRect(x, ay, 1, y_bottom_exclusive - ay),
-                            hl->hatch_color, hl->spacing);
+            int h = chart_flip_h(zero, dir,
+                                 chart_contour_y_for_x(hl->contour, hl->contour_count, x));
+            if (h > c.size.h) h = c.size.h;   // never past the plot's far edge
+            if (h <= 0) continue;             // a zero stretch: nothing, either way
+            const GRect col = GRect(x, chart_flip_span_y(zero, dir, 0, h), 1, h);
+            if (hl->has_underlay) {
+                graphics_fill_rect(ctx, col, 0, GCornerNone);
+            }
+            hatch_fill_rect(ctx, col, hl->hatch_color, hl->spacing);
         }
     }
 
     // 2) boundary lines at real (in-window) edges ------------------------
+    // From the contour (or the top) to the zero row's neighbour: hanging, a
+    // zero-height edge draws 1 px on the plot's first row, the mirror of the 1 px it
+    // draws above the axis standing.
     graphics_context_set_stroke_color(ctx, hl->boundary_color);
     graphics_context_set_stroke_width(ctx, 1);
     for (int i = 0; i < hl->num_bands; ++i) {
@@ -543,7 +573,7 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
                 yt = chart_contour_y_for_x(hl->contour, hl->contour_count, b->x0);
                 if (yt < y_top) yt = y_top;
             }
-            graphics_draw_line(ctx, GPoint(b->x0, yt), GPoint(b->x0, y_bottom_inclusive));
+            graphics_draw_line(ctx, GPoint(b->x0, yt), GPoint(b->x0, y_base));
         }
         if (b->boundary1) {
             int16_t yt = y_full_top;
@@ -551,7 +581,7 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
                 yt = chart_contour_y_for_x(hl->contour, hl->contour_count, b->x1);
                 if (yt < y_top) yt = y_top;
             }
-            graphics_draw_line(ctx, GPoint(b->x1, yt), GPoint(b->x1, y_bottom_inclusive));
+            graphics_draw_line(ctx, GPoint(b->x1, yt), GPoint(b->x1, y_base));
         }
     }
 }
@@ -562,11 +592,16 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
 
     GPoint *pts = a->export_points ? a->export_points : s_pts_scratch;
     const GRect c          = r->geo.content;
-    const int  plot_bottom = c.origin.y + c.size.h;
+    const int  zero        = CHART_ZERO(r);
+    const int  dir         = CHART_DIR(r);
     // The contour shares CHART_LAYER_LINE's inset mapping (value==lo lands at
     // plot_bottom - inset_bottom, value==hi at plot_top + inset_top) so a fill
     // under an inset line hugs that line exactly; the fill itself still drops
-    // to the plot bottom below — the axis closes it, inset or not.
+    // to its zero row below — standing, the axis closes it, inset or not.
+    // Hanging, the contour mirrors over the plot and a value above zero is held on
+    // the plot's first row like a line vertex (chart_flip_vertex_y), so the Main
+    // line on this contour never paints the gap row under a top stripe band; a zero
+    // stretch stays on the zero row and fills nothing.
 #if defined(WW_CURVE_INSET)
     const int  inset_bottom = a->inset_bottom;
     const int  inner_h      = c.size.h - a->inset_top - inset_bottom;
@@ -581,7 +616,8 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
     const int  range_safe  = range > 0 ? range : 1;
     for (int i = 0; i < count; ++i) {
         const int h = (int)(((int32_t)(a->values[i] - a->lo) * inner_h) / range_safe);
-        pts[i] = GPoint(chart_slot_tick_x(&r->geo, i), plot_bottom - h - inset_bottom);
+        pts[i] = GPoint(chart_slot_tick_x(&r->geo, i),
+                        CHART_VERTEX_Y(zero, dir, h + inset_bottom, a->values[i] > a->lo));
     }
 
 #ifdef PBL_COLOR
@@ -603,9 +639,10 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
         const int16_t x_hi = pts[count - 1].x;
         graphics_context_set_fill_color(r->ctx, theme_bg());
         for (int16_t x = x_lo; x <= x_hi; ++x) {
-            const int16_t y = chart_contour_y_for_x(pts, count, x);
-            if (y < plot_bottom) {
-                const GRect col = GRect(x, y, 1, plot_bottom - y);
+            // The column between the zero row and the contour, h rows of it.
+            const int h = chart_flip_h(zero, dir, chart_contour_y_for_x(pts, count, x));
+            if (h > 0) {
+                const GRect col = GRect(x, chart_flip_span_y(zero, dir, 0, h), 1, h);
                 graphics_fill_rect(r->ctx, col, 0, GCornerNone);
                 hatch_fill_rect_raw(r->ctx, col, theme_fg(), 2);
             }
@@ -616,6 +653,7 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
 
     graphics_context_set_fill_color(r->ctx, a->fill_color);
 #ifdef PBL_PLATFORM_APLITE
+    const int plot_bottom = c.origin.y + c.size.h;   // aplite has no Top: its zero row
     // aplite: fill the area under the contour with 1 px columns rather than a GPath.
     // gpath_draw_filled allocates a transient buffer that OOMs on aplite's ~2.7 KB
     // heap (gpath.c "Unable to allocate memory for GPath call"); graphics_fill_rect
@@ -629,8 +667,10 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
         }
     }
 #else
-    pts[count]     = GPoint(chart_slot_tick_x(&r->geo, r->def->num_slots), plot_bottom);
-    pts[count + 1] = GPoint(r->geo.anchor_x, plot_bottom);
+    // Close the path on the zero row: under the axis standing; hanging, the row above
+    // the plot (clipped, or the lower gap row under a top stripe band).
+    pts[count]     = GPoint(chart_slot_tick_x(&r->geo, r->def->num_slots), zero);
+    pts[count + 1] = GPoint(r->geo.anchor_x, zero);
 
     GPath path = { .num_points = (uint32_t)(count + 2), .points = pts };
     gpath_draw_filled(r->ctx, &path);
@@ -711,6 +751,13 @@ void chart_draw(GContext *ctx, const ChartDef *def, GRect outer,
     };
     for (int i = 0; i < num_layers; ++i) {
         const ChartLayer *l = &layers[i];
+#if defined(WW_LINE_STYLE)
+        // This layer's zero row and direction (chart_flip.h): standing on the content's
+        // bottom, or hanging from its top. FRAME, AXIS and STRIPE ignore both.
+        r.zero = (int16_t)chart_flip_zero(l->from_top, r.geo.content.origin.y,
+                                          r.geo.content.origin.y + r.geo.content.size.h);
+        r.dir  = (int8_t)chart_flip_dir(l->from_top);
+#endif
         switch (l->type) {
             case CHART_LAYER_FRAME:
                 graph_frame_draw(ctx, l->frame.frame, outer);

@@ -225,6 +225,12 @@ build/host/chart_absent_test
 # preview's stripe pins in test/config-blocks.test.js.
 cc $CFLAGS test/c/chart_stripe_test.c -o build/host/chart_stripe_test
 build/host/chart_stripe_test
+# The chart's one vertical rule, "Draw from" / "Bars from" (chart_flip.h, header-only):
+# the zero row + direction, the mirrored vertex and span mappings, the hanging vertex
+# hold (a value under one pixel stays off the gap row under a top stripe band) and
+# the palette's Top flag. Mirrored by the previews (test/config-draw-from.test.js).
+cc $CFLAGS test/c/chart_flip_test.c -o build/host/chart_flip_test
+build/host/chart_flip_test
 # The radar sky blob decode + bolt glyph (radar_sky.h, header-only), mirrored
 # against radar-sky.js's packSky pin in test/radar-sky.test.js.
 cc $CFLAGS test/c/radar_sky_test.c -o build/host/radar_sky_test

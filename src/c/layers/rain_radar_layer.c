@@ -173,17 +173,21 @@ static void nearby_border_v_line(GContext *ctx, int16_t x, int16_t y0, int16_t y
 // full-slot-width rect in the muted RADAR_AREA_HATCH_COLOR; tier
 // intensity is conveyed by the outline + the exact bars on top.
 // Contiguous runs of nonzero slots get a 1-px outline tracing the
-// perimeter — the run's top edge plus the left/right verticals from
-// plot_bottom up — with each segment coloured by its slot's exact tier.
+// perimeter — the run's free edge plus the left/right verticals out from
+// the zero row — with each segment coloured by its slot's exact tier.
+// Heights are px out from the layer's zero row (chart_flip.h), so the
+// pass stands on the plot's bottom or hangs from its top with the exact
+// bars drawn over it: Y(h) is the row h px out.
 static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
                                   SlotGeometry slots,
                                   const uint8_t *area_tenths,
-                                  const uint8_t *exact_tenths) {
+                                  const uint8_t *exact_tenths,
+                                  int zero, int dir) {
     if (bar_plot_rect.size.w <= 0 || bar_plot_rect.size.h <= 0) {
         return;
     }
+#define Y(h) ((int16_t)chart_flip_y(zero, dir, (h)))
     const int16_t plot_x      = bar_plot_rect.origin.x;
-    const int16_t plot_bottom = bar_plot_rect.origin.y + bar_plot_rect.size.h;
     const int16_t bar_h       = bar_plot_rect.size.h;
 
     graphics_context_set_stroke_width(ctx, 1);
@@ -210,7 +214,7 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int16_t x_a = slot_geometry_tick_x(slots, s,     plot_x);
             const int16_t x_b = slot_geometry_tick_x(slots, s + 1, plot_x);
             const int16_t slot_w = x_b - x_a;
-            const GRect r = GRect(x_a, plot_bottom - slot_h, slot_w, slot_h);
+            const GRect r = GRect(x_a, chart_flip_span_y(zero, dir, 0, slot_h), slot_w, slot_h);
             hatch_fill_rect(ctx, r, RADAR_AREA_HATCH_COLOR, hatch_spacing);
         }
 
@@ -219,17 +223,17 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int h0 = slot_height_px(area_tenths[run_start], bar_h);
             const int16_t lx = slot_geometry_tick_x(slots, run_start, plot_x);
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[run_start], area_tenths[run_start]));
-            nearby_border_v_line(ctx, lx, plot_bottom - 1, plot_bottom - h0);
+            nearby_border_v_line(ctx, lx, Y(1), Y(h0));
         }
 
-        // Visible top edge across the run.
+        // Visible free edge across the run (its top, standing).
         for (int s = run_start; s < run_end; ++s) {
             const int h_s = slot_height_px(area_tenths[s], bar_h);
             if (h_s <= 0) { continue; }
             const int16_t x_a = slot_geometry_tick_x(slots, s,     plot_x);
             const int16_t x_b = slot_geometry_tick_x(slots, s + 1, plot_x);
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[s], area_tenths[s]));
-            nearby_border_h_line(ctx, x_a, x_b - 1, plot_bottom - h_s);
+            nearby_border_h_line(ctx, x_a, x_b - 1, Y(h_s));
         }
 
         // Internal vertical steps where adjacent slot heights differ.
@@ -241,7 +245,7 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int min_h = (h_a > h_b) ? h_b : h_a;
             const int max_h = (h_a > h_b) ? h_a : h_b;
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[s + 1], area_tenths[s + 1]));
-            nearby_border_v_line(ctx, bx, plot_bottom - min_h, plot_bottom - max_h);
+            nearby_border_v_line(ctx, bx, Y(min_h), Y(max_h));
         }
 
         // Right vertical outline at the run's right edge.
@@ -249,11 +253,12 @@ static void draw_radar_area_bars(GContext *ctx, GRect bar_plot_rect,
             const int h_last = slot_height_px(area_tenths[run_end - 1], bar_h);
             const int16_t rx = slot_geometry_tick_x(slots, run_end, plot_x) - 1;
             graphics_context_set_stroke_color(ctx, border_color_for_slot(exact_tenths[run_end - 1], area_tenths[run_end - 1]));
-            nearby_border_v_line(ctx, rx, plot_bottom - 1, plot_bottom - h_last);
+            nearby_border_v_line(ctx, rx, Y(1), Y(h_last));
         }
 
         i = run_end;
     }
+#undef Y
 }
 
 typedef struct {
@@ -264,7 +269,7 @@ typedef struct {
 static void radar_area_bars_layer(const ChartRender *r, void *user) {
     const RadarAreaCtx *c = user;
     draw_radar_area_bars(r->ctx, r->geo.content, r->geo.slots,
-                         c->area_tenths, c->exact_tenths);
+                         c->area_tenths, c->exact_tenths, CHART_ZERO(r), CHART_DIR(r));
 }
 
 #if defined(WW_RAIN_RADAR)
@@ -383,8 +388,17 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
 #else
     const int sky_band = 0;
 #endif
-    const GRect outer = GRect(axis_outer.origin.x, axis_outer.origin.y + sky_band,
-                              axis_outer.size.w, axis_outer.size.h - sky_band);
+    // "Bars from: Top" rides the radar palette (palette.h palette_from_top), so a flip
+    // repaints this chart. Hanging bars anchor on the row above `outer`: the sky band's
+    // trailing gap row, or without sky rows one free row kept under the tick row, so a
+    // hanging bar never meets the ticks and the nearby-area outline in a tick column
+    // never continues a tick. The empty-state text below still keys off sky_band.
+    int radar_num_stops = 0;
+    const ChartColorStop *radar_stops = palette_radar_stops(&radar_num_stops);
+    const bool bars_top = palette_from_top(radar_stops);
+    const int band = sky_band ? sky_band : bars_top;
+    const GRect outer = GRect(axis_outer.origin.x, axis_outer.origin.y + band,
+                              axis_outer.size.w, axis_outer.size.h - band);
 
     // Module-static scratch (not stack): aplite's small app stack overflows
     // otherwise (PC=0/LR=0). Safe — single layer instance, single-threaded,
@@ -397,9 +411,6 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
         .exact_tenths = exact_tenths,
         .area_tenths  = area_tenths,
     };
-
-    int radar_num_stops = 0;
-    const ChartColorStop *radar_stops = palette_radar_stops(&radar_num_stops);
 
     // The axis hangs off the top of the whole plot (above the sky band); the
     // bars fill `outer`, below the band. Same slot grid either way.
@@ -418,9 +429,12 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
                        axis_outer.origin.x, chart_def_pitch(&RADAR_DEF));
     }
 #endif
+    // Both passes hang together: the exact bars through chart_render_bars, the
+    // nearby-area bars under them through CHART_ZERO / CHART_DIR.
     const ChartLayer layers[] = {
-        { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
-        { CHART_LAYER_BARS, .bars = {
+        { CHART_LAYER_CUSTOM, .from_top = bars_top,
+          .custom = { radar_area_bars_layer, &area_ctx } },
+        { CHART_LAYER_BARS, .from_top = bars_top, .bars = {
               .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
               .stops = radar_stops, .num_stops = radar_num_stops,
               .style = BAR_OUTLINED } },

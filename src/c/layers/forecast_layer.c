@@ -112,7 +112,7 @@ typedef struct {
 // main line's built-in 1 px is a stroke width, not a mark box.
 static void apply_line_style(SeriesLine *line, uint8_t style_byte, int solid_width) {
     line->style = line_style_kind(style_byte);
-    line->stripe_top = line_style_stripe_top(style_byte);
+    line->from_top = line_style_top_edge(style_byte);   // a stripe's edge, else Draw from
     line->width = (line->style == CHART_LINE_SOLID)
         ? line_style_solid_width(style_byte, solid_width)
         : FORECAST_GRID_BAR_W;
@@ -121,6 +121,10 @@ static void apply_line_style(SeriesLine *line, uint8_t style_byte, int solid_wid
 // A stripe-styled series draws as a CHART_LAYER_STRIPE band, never as a line,
 // marks or a fill. aplite folds to false: its styles are frozen.
 #define SERIES_IS_STRIPE(s) ((s)->line.style == CHART_LINE_STRIPE)
+// A line-, mark- or fill-drawn series hangs from the plot's top ("Draw from: Top"):
+// its layers carry it as ChartLayer.from_top. Read only for a series that is not a
+// stripe (for a stripe the same flag is its band's edge). aplite folds to false.
+#define SERIES_FROM_TOP(s) ((s)->line.from_top)
 // Stripe geometry, derived from the plot height rather than the platform: about
 // a twelfth of it, 3..6 px, so a stripe keeps its proportion in every band
 // height. Stripes sharing an edge stack with a 1 px gap.
@@ -130,6 +134,7 @@ static void apply_line_style(SeriesLine *line, uint8_t style_byte, int solid_wid
 #define FORECAST_TOP_BAND_GAP 2
 #else
 #define SERIES_IS_STRIPE(s) false
+#define SERIES_FROM_TOP(s) false
 #endif
 
 static void load_dataset(ForecastDataset *ds) {
@@ -261,7 +266,7 @@ static int16_t s_top_band;
 #endif
 
 static ChartLayer mark_line_layer(const Series *s, int count) {
-    return (ChartLayer){ CHART_LAYER_LINE, .line = {
+    return (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
         .values = s->line.values, .count = count,
         .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
         .inset_top = LINE_TOP(s->line.inset_y), .inset_bottom = s->line.inset_y,
@@ -508,7 +513,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     for (SeriesId sid = SERIES_SECOND; sid < SERIES_BARS; ++sid) {
         const Series *s = &ds.series[sid];
         if (!s->present || !SERIES_IS_STRIPE(s)) continue;
-        if (s->line.stripe_top) { ++top_stripes; } else { ++bottom_stripes; }
+        if (s->line.from_top) { ++top_stripes; } else { ++bottom_stripes; }
     }
     const int16_t stripe_band = bottom_stripes
         ? (int16_t)(bottom_stripes * stripe_h + (bottom_stripes - 1) * FORECAST_STRIPE_GAP + 1)
@@ -607,8 +612,12 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                                   // with the third-metric line, from the enum instead of a
                                   // hand-maintained platform pair.
     int n = 0;
+    // "Draw from: Top" of the Main metric: its fill, the fill's night re-shade and its
+    // line (marks, or a line off the fill) all hang. The line on the fill's contour
+    // takes the AREA layer's points, already hanging, so it never flips itself.
+    const bool second_top = SERIES_FROM_TOP(second);
     if (fill_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .area = {
+        layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
             .values = second->line.values, .export_points = area_pts,
             .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
 #if defined(WW_CURVE_INSET)
@@ -630,7 +639,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // bw themes were never skipped (their fg hatch dots below the contour are
     // B&W's night texture; the underlay is color-only anyway).
     if (night_on && fill_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .hatch = {
+        layers[n++] = (ChartLayer){ CHART_LAYER_HATCH, .from_top = second_top, .hatch = {
             .bands = night_bands, .num_bands = num_night_bands,
             .hatch_color    = theme_pick(NIGHT_C(NIGHT_INK_AREA_HATCH), theme_fg()),
             .boundary_color = theme_pick(NIGHT_C(NIGHT_INK_AREA_BOUNDARY), theme_fg()),
@@ -672,7 +681,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
             // Every stripe is laid out from the top of its own band: the top band
             // above the plot, or the band flush under the zero line; a 1 px gap
             // separates stripes sharing an edge.
-            int *stacked = s->line.stripe_top ? &stacked_top : &stacked_bottom;
+            int *stacked = s->line.from_top ? &stacked_top : &stacked_bottom;
             const int16_t y_offset = (int16_t)((*stacked)++ * (stripe_h + FORECAST_STRIPE_GAP));
             const ChartLayer stripe = (ChartLayer){ CHART_LAYER_STRIPE, .stripe = {
                 .values = s->line.values, .count = ds.num_entries,
@@ -681,7 +690,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                 .y_offset = y_offset,
                 .height = (int16_t)stripe_h,
                 .top = true } };
-            if (s->line.stripe_top) {
+            if (s->line.from_top) {
                 top_layers[nt++] = stripe;
             } else {
                 band_layers[nb++] = stripe;
@@ -693,7 +702,10 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     bars->bars.stops     = scaled_bar_stops;
     bars->bars.num_stops = bar_num_stops;
     if (bars_on) {
-        layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .bars = {
+        // "Bars from: Top" rides the bar palette (palette.h palette_from_top); the
+        // scaled copy's stop 0 is negative too, and the renderer clamps it.
+        layers[n++] = (ChartLayer){ CHART_LAYER_BARS, .from_top = palette_from_top(bar_stops),
+                                    .bars = {
             .values = bars->bars.values, .count = ds.num_entries,
             .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
             .stops = bars->bars.stops, .num_stops = bars->bars.num_stops,
@@ -730,7 +742,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                   .count = ds.num_entries,
                   .color = second->line.color, .width = second->line.width,
                   .zero_absent = true } }
-            : (ChartLayer){ CHART_LAYER_LINE, .line = {
+            : (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
                   .values = second->line.values, .count = ds.num_entries,
                   .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
                   .inset_top = LINE_TOP(second->line.inset_y), .inset_bottom = second->line.inset_y,

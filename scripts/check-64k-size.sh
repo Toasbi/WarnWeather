@@ -18,7 +18,7 @@
 # decided between re-setting the gate to a measured floor and cutting image bytes.
 # Until then the ceilings are the measured images, set only so the next change cannot
 # drift further. Lower a ceiling when bytes are reclaimed; never raise one without a
-# measured runtime low point that allows it. (Three recorded exceptions, all for the
+# measured runtime low point that allows it. (Four recorded exceptions, all for the
 # heap-64k reclaim to take back: the final review's On demand layout fix, the slots
 # back, added 180 B — less the 44 B (basalt) and 48 B (diorite, flint) its other
 # fixes gave back, and basalt's 12 B of headroom, it raised basalt's ceiling by 124 B
@@ -27,7 +27,15 @@
 # the merged alerts' review fixes — an alert that draws nothing changes nothing
 # (basalt +80 B, diorite/flint +76 B), then on bars where both sides merge one only
 # the alert of a slot that hid stands in (+24 B), with od_layout's paint-path frame
-# brought back from 264 to 240 B (basalt +8 B, diorite/flint +12 B): +112 B on each.)
+# brought back from 264 to 240 B (basalt +8 B, diorite/flint +12 B): +112 B on each;
+# and "Draw from: Top", the chart's one flip rule (rain bars, radar bars and the amount
+# lines hang from the top; scratchpad design draw-from-top.md, the owner accepted the
+# cost on 2026-10-01): basalt +144 B (61092 -> 61236), diorite/flint +192 B (58748 ->
+# 58940), .bss/.data unchanged. That last one is PROVISIONAL, an exception pending the
+# basalt re-measure after the heap work (A5 + A4 + A6 + A1, plus the reserve item if
+# needed): it stands only if that re-measure shows 0 failed allocations with the
+# feature in; otherwise the owner picks a scope cut (design §4.11) and this ceiling
+# comes back down by what the cut saves.)
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -44,9 +52,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-61092}"
-  "diorite:${DIORITE_IMAGE_CEILING:-58748}"
-  "flint:${FLINT_IMAGE_CEILING:-58748}"
+  "basalt:${BASALT_IMAGE_CEILING:-61236}"
+  "diorite:${DIORITE_IMAGE_CEILING:-58940}"
+  "flint:${FLINT_IMAGE_CEILING:-58940}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

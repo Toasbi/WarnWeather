@@ -73,12 +73,33 @@ static inline int chart_slot_bar_x(const ChartGeometry *g, int i) {
     return g->anchor_x + i * g->slots.pitch + g->slots.bar_dx;
 }
 
+// The vertical rule every value-mapped renderer shares (Bottom | Top, chart_flip.h).
+#include "c/appendix/chart_flip.h"
+
 typedef struct {
     GContext       *ctx;
     const ChartDef *def;
     GRect           outer;
     ChartGeometry   geo;
+#if defined(WW_LINE_STYLE)
+    int16_t         zero;   // the current layer's zero row and direction (chart_flip.h),
+    int8_t          dir;    // set by chart_draw from ChartLayer.from_top
+#endif
 } ChartRender;
+
+// The zero row and direction of the layer being drawn, for every renderer and for a
+// CUSTOM layer's own bars (the radar's nearby-area pass), so they all hang by the one
+// rule. aplite has no Top (WW_LINE_STYLE): the bottom edge and -1, constant-folded,
+// which is today's "baseline minus height" there.
+#if defined(WW_LINE_STYLE)
+#define CHART_ZERO(r) ((r)->zero)
+#define CHART_DIR(r)  ((r)->dir)
+#define CHART_VERTEX_Y(zero, dir, h, held) chart_flip_vertex_y((zero), (dir), (h), (held))
+#else
+#define CHART_ZERO(r) ((r)->geo.content.origin.y + (r)->geo.content.size.h)
+#define CHART_DIR(r)  (-1)
+#define CHART_VERTEX_Y(zero, dir, h, held) ((void)(dir), (void)(held), (zero) - (h))
+#endif
 
 typedef enum { TICK_NONE, TICK_SMALL, TICK_BIG } ChartTickKind;
 typedef enum { ALIGN_START, ALIGN_MIDDLE }       ChartSlotAlign;
@@ -108,7 +129,10 @@ typedef struct {
     const int16_t        *values;
     int                   count;      // clamped to def->num_slots
     int                   lo, hi;     // linear range map; lo = baseline value
-    const ChartColorStop *stops;      // >=1, ascending, stops[0].from == lo
+    const ChartColorStop *stops;      // >=1, ascending, stops[0].from <= lo: a negative
+                                      // stop-0 threshold is a palette's "Bars from: Top"
+                                      // flag (chart_flip_palette_top); the renderer
+                                      // clamps every stop under lo to the zero row
     int                   num_stops;
     ChartBarStyle         style;
 } ChartBarsLayer;
@@ -139,6 +163,11 @@ typedef struct {
                                       // inset_bottom. Set larger than inset_top to lift the
                                       // baseline clear of a bottom band (e.g. the health
                                       // sleep stripe). Equal top/bottom = a symmetric inset.
+                                      // Hanging (from_top), the two swap edges: inset_bottom
+                                      // is the margin at the zero edge (the top), inset_top
+                                      // the one at the full edge (the bottom). Only the
+                                      // temperature-axis lines carry insets, and they never
+                                      // hang.
     GColor         color;
     int            width;
     uint8_t        style;             // ChartLineStyle — uint8_t so the layer keeps the
@@ -161,7 +190,9 @@ typedef struct {
     int            inset_top;         // contour margins, matching ChartLineLayer's
     int            inset_bottom;      // mapping — so a fill under an inset line hugs
                                       // it exactly. The fill itself still drops to
-                                      // the plot bottom (the axis closes it).
+                                      // its zero row (standing: the plot bottom,
+                                      // which the axis closes; hanging: the row
+                                      // above the plot).
                                       // aplite compiles them out entirely: no curve
                                       // insets there, and the union must not grow.
 #endif
@@ -220,6 +251,13 @@ typedef enum { CHART_LAYER_FRAME, CHART_LAYER_AXIS, CHART_LAYER_BARS,
 
 typedef struct {
     ChartLayerType type;
+    uint8_t        from_top;   // nonzero: BARS, LINE, AREA and a contour HATCH (and a CUSTOM
+                               // layer through CHART_ZERO/CHART_DIR) hang from the content's
+                               // top instead of standing on its bottom (chart_flip.h).
+                               // FRAME, AXIS, STRIPE and a full-height HATCH ignore it. On
+                               // every platform, in the short enum's padding (ChartLayer
+                               // stays 48 B): rain_radar_layer.c still compiles on aplite,
+                               // where nothing reads it.
     union {
         ChartFrameLayer  frame;
         ChartAxisLayer   axis;
