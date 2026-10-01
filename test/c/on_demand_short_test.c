@@ -52,25 +52,25 @@ static unsigned sweep_left(const OdSlotIn slots[3], const char *tag) {
         snprintf(name, sizeof(name), "%s.far k%d", tag, k);
         expect(name, out.place[2].icon_x, 160);
         int bound = out.place[1].visible ? out.place[1].icon_x - 4 : out.place[2].icon_x - 4;
-        if (out.form[0] == OD_SHORT) {
+        if (form_of(&out, 0) == OD_SHORT) {
             seen |= 1u << out.variant[0];
             snprintf(name, sizeof(name), "%s.left_fits k%d", tag, k);
             expect(name, out.place[0].icon_x, k + 4);
             expect_true(name, k + 4 + LEFT_W[out.variant[0]] <= bound);
         }
-        if (out.form[0] == OD_SHORT && out.variant[0] > 1) {
+        if (form_of(&out, 0) == OD_SHORT && out.variant[0] > 1) {
             int wider = LEFT_W[out.variant[0] - 1];
             snprintf(name, sizeof(name), "%s.left k%d", tag, k);
             expect_true(name, k + 4 + wider > bound);
         }
-        int claim = out.form[0] == OD_SHORT ? 20 + 4 : out.form[0] == OD_FULL ? 60 + 4 : 0;
+        int claim = form_of(&out, 0) == OD_SHORT ? 20 + 4 : form_of(&out, 0) == OD_FULL ? 60 + 4 : 0;
         int lo = k + 4 + claim;
-        if (out.form[1] == OD_SHORT) {
+        if (form_of(&out, 1) == OD_SHORT) {
             snprintf(name, sizeof(name), "%s.mid_fits k%d", tag, k);
             expect_true(name, out.place[1].icon_x >= lo
                         && out.place[1].icon_x + MID_W[out.variant[1]] <= 156);
         }
-        if (out.form[1] == OD_SHORT && out.variant[1] > 1) {
+        if (form_of(&out, 1) == OD_SHORT && out.variant[1] > 1) {
             int wider = MID_W[out.variant[1] - 1];
             int x = FREE_OF[out.stage[0]] ? lo : 70 + (60 - wider) / 2;
             snprintf(name, sizeof(name), "%s.mid k%d", tag, k);
@@ -168,7 +168,7 @@ static unsigned sweep_right(const OdSlotIn slots[3], const char *tag) {
         int bound = out.place[1].visible ? out.place[1].icon_x + MID_W[out.variant[1]] + 4
                                          : far_end + 4;
         int end = 200 - k - 4;
-        if (out.form[2] == OD_SHORT) {
+        if (form_of(&out, 2) == OD_SHORT) {
             int w = RIGHT_W[out.variant[2]];
             seen |= 1u << out.variant[2];
             snprintf(name, sizeof(name), "%s.fits k%d", tag, k);
@@ -316,13 +316,13 @@ static void elastic_city(void) {
         char name[64];
         snprintf(name, sizeof(name), "elastic.own k%d", k);
         int room = 140 - k - 4;
-        if (o.form[2] == OD_SHORT) {
+        if (form_of(&o, 2) == OD_SHORT) {
             int w = status_slot_placed_w(&o.place[2], &own[2].m[o.variant[2]]);
             expect_true(name, w >= 24 && w <= room);
             expect(name, w, room >= 60 ? 60 : room);
             expect(name, o.place[2].icon_x, room - w);
             if (w < 60) { own_ellipsis = true; }
-        } else if (o.form[2] == OD_HIDDEN) {
+        } else if (form_of(&o, 2) == OD_HIDDEN) {
             expect_true(name, room < 24);
         }
     }
@@ -425,11 +425,11 @@ static void no_short_form(void) {
             od_layout(140, slots, sides, NO_BLEED, 0, &out);
             char name[64];
             snprintf(name, sizeof(name), "noshort.own%d k%d", o, k);
-            expect_true(name, out.form[0] != OD_SHORT);
-            if (out.form[0] == OD_HIDDEN) { hidden = true; }
-            expect_true(name, !(hidden && out.form[0] == OD_FULL && out.n[0] == 1
+            expect_true(name, form_of(&out, 0) != OD_SHORT);
+            if (form_of(&out, 0) == OD_HIDDEN) { hidden = true; }
+            expect_true(name, !(hidden && form_of(&out, 0) == OD_FULL && out.n[0] == 1
                                 && out.place[1].visible));
-            if (hidden && out.form[0] == OD_FULL && out.n[0] == 1) { back = true; }
+            if (hidden && form_of(&out, 0) == OD_FULL && out.n[0] == 1) { back = true; }
         }
         expect_true("noshort.own.hides", hidden);
         expect_true("noshort.own.back_beside_hidden_middle", back);
@@ -442,11 +442,11 @@ static void no_short_form(void) {
             od_layout(140, mid, sides, NO_BLEED, 0, &out);
             char name[64];
             snprintf(name, sizeof(name), "noshort.mid%d k%d", o, k);
-            expect_true(name, out.form[1] != OD_SHORT);
-            if (out.form[1] == OD_FULL && out.place[1].icon_x != (140 - mid[1].m[0].text_w) / 2) {
+            expect_true(name, form_of(&out, 1) != OD_SHORT);
+            if (form_of(&out, 1) == OD_FULL && out.place[1].icon_x != (140 - mid[1].m[0].text_w) / 2) {
                 moved = true;
             }
-            if (out.form[1] == OD_HIDDEN) { expect_true(name, moved); }
+            if (form_of(&out, 1) == OD_HIDDEN) { expect_true(name, moved); }
         }
     }
 }

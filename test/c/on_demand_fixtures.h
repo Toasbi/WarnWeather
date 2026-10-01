@@ -26,6 +26,13 @@ static inline void expect_true(const char *name, int cond) {
     }
 }
 
+// The form slot i of a layout takes: hidden while it does not show, short while it
+// draws a short member, else full (a full slot draws member 0, od_layout's contract).
+static inline uint8_t form_of(const OdLayout *o, int i) {
+    if (!o->place[i].visible) { return OD_HIDDEN; }
+    return o->variant[i] ? OD_SHORT : OD_FULL;
+}
+
 // --- inputs ---------------------------------------------------------------------
 
 static inline OdSlotIn slot_empty(void) {

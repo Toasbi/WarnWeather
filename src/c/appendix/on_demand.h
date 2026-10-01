@@ -113,13 +113,13 @@ typedef struct {
     bool padded[OD_SIDE_MAX];             // a boxed alert: its padding is in w
 } OdSideIn;
 
-// The layout: each slot's form, member and place (content x), and per side the
-// items kept, their lane and where they sit. Side d draws its input items
-// first[d] .. first[d] + n[d] - 1 (first is 1 only when the Battery item was left
-// out beside a battery slot); item_x is indexed like the input. Index 0 of every
-// per-side array is the left side, 1 the right.
+// The layout: each slot's member and place (content x), and per side the items
+// kept, their lane and where they sit. A slot's form is in them: hidden where its
+// place does not show, short where it draws a member past 0, else full. Side d draws
+// its input items first[d] .. first[d] + n[d] - 1 (first is 1 only when the Battery
+// item was left out beside a battery slot); item_x is indexed like the input. Index 0
+// of every per-side array is the left side, 1 the right.
 typedef struct {
-    uint8_t form[3];                       // OdForm, left / middle / right slot
     uint8_t variant[3];                    // the member drawn: 0 full, else short
     StatusSlotPlace place[3];              // its fit: an elastic member's text_w is
                                            // its ellipsized width

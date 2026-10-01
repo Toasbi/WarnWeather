@@ -288,7 +288,6 @@ static void plain_out(const Pass *p, OdLayout *out) {
     memset(out, 0, sizeof(*out));
     for (int i = 0; i < 3; i++) {
         out->place[i] = p->plain[i];
-        out->form[i] = p->plain[i].visible ? OD_FULL : OD_HIDDEN;
     }
 }
 
@@ -367,10 +366,6 @@ static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *
             }
         }
         other = claim;
-    }
-    for (int i = 0; i < 3; i++) {
-        uint8_t form = i == 1 ? c->mid : c->own[i / 2];
-        out->form[i] = out->place[i].visible ? form : OD_HIDDEN;
     }
 }
 

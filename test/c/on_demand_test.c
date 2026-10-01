@@ -79,7 +79,7 @@ static void quiet_is_plain(void) {
                 s_failures++;
                 return;
             }
-            expect("quiet.form", out.form[i], plain[i].visible ? OD_FULL : OD_HIDDEN);
+            expect("quiet.form", form_of(&out, i), plain[i].visible ? OD_FULL : OD_HIDDEN);
             expect("quiet.variant", out.variant[i], 0);
         }
         expect("quiet.n_left", out.n[0], 0);
@@ -146,9 +146,9 @@ static void ladder_every_row_in_order(void) {
         snprintf(name, sizeof(name), "ladder.lane k%d", k);
         expect(name, out.lane[0], lane);
         snprintf(name, sizeof(name), "ladder.own k%d", k);
-        expect(name, out.form[0], OWN_OF[row]);
+        expect(name, form_of(&out, 0), OWN_OF[row]);
         snprintf(name, sizeof(name), "ladder.mid k%d", k);
-        expect(name, out.form[1], MID_OF[row]);
+        expect(name, form_of(&out, 1), MID_OF[row]);
         // The right slot never moves: its side has no item.
         snprintf(name, sizeof(name), "ladder.far k%d", k);
         expect(name, out.place[2].icon_x, 130);
@@ -191,13 +191,13 @@ static void ladder_looks_last(void) {
         expect(name, out.lane[0], lane);
         if (lane == 0) { seen[out.stage[0]] = true; }
         // The middle off its target: the own slot hid first.
-        if (out.form[1] != OD_HIDDEN && out.place[1].icon_x != 75) {
+        if (form_of(&out, 1) != OD_HIDDEN && out.place[1].icon_x != 75) {
             if (!moved) {
                 moved = true;
                 expect(name, out.stage[0], 5);
                 expect_true(name, seen[3]);
             }
-            expect(name, out.form[0], OD_HIDDEN);
+            expect(name, form_of(&out, 0), OD_HIDDEN);
         }
     }
     expect_true("looks.middle_moved", moved);
@@ -263,8 +263,8 @@ static void value_ranges(const char *tag, const OdSlotIn slots[3], const ValueRa
         expect(name, out.n[1], 1);
         expect(name, out.stage[1], w->row);
         expect(name, out.lane[1], w->lane);
-        expect(name, out.form[2], w->own);
-        expect(name, out.form[1], w->mid);
+        expect(name, form_of(&out, 2), w->own);
+        expect(name, form_of(&out, 1), w->mid);
         if (w->own != OD_HIDDEN) {
             expect(name, out.place[2].icon_x, w->own_v ? w->own_x - v : w->own_x);
         }
@@ -421,13 +421,13 @@ static void inside_half_keeps_all(void) {
             if (2 * claim + STATUS_ROW_GROUP_GAP > w) { continue; }
             checked++;
             bool keeps = out.n[d] == s->n
-                && (own_w <= 0 || (out.form[own] == OD_FULL && out.place[own].visible));
+                && (own_w <= 0 || (form_of(&out, own) == OD_FULL && out.place[own].visible));
             for (int i = 0; keeps && i < s->n; i++) {
                 keeps = s->w[out.lane[d]][i] == s->w[0][i];
             }
             if (!keeps) {
                 printf("FAIL inside_half trial %d side %d w %d: n %d / %d, lane %d, own form %d\n",
-                       trial, d, w, out.n[d], s->n, out.lane[d], out.form[own]);
+                       trial, d, w, out.n[d], s->n, out.lane[d], form_of(&out, own));
                 s_failures++;
                 return;
             }
@@ -472,7 +472,7 @@ static void far_slot_is_plain(void) {
     od_layout(100, wall, sides, NO_BLEED, 0, &out);
     expect("far.wall.stage", out.stage[0], 8);
     expect("far.wall.n", out.n[0], 1);
-    expect("far.wall.own_hidden", out.form[0], OD_HIDDEN);
+    expect("far.wall.own_hidden", form_of(&out, 0), OD_HIDDEN);
     expect("far.wall.far_x", out.place[2].icon_x, 30);
 }
 
@@ -490,10 +490,10 @@ static void two_sides_share_the_middle(void) {
     add_icon(&sides[1], OD_RAIN, 70);
     OdLayout out;
     od_layout(160, slots, sides, NO_BLEED, 0, &out);
-    expect("two.mid.harsher_hides", out.form[1], OD_HIDDEN);
+    expect("two.mid.harsher_hides", form_of(&out, 1), OD_HIDDEN);
     expect("two.mid.left_stage", out.stage[0], 0);
     expect("two.mid.right_stage", out.stage[1], 8);
-    expect("two.mid.left_full", out.form[0], OD_FULL);
+    expect("two.mid.left_full", form_of(&out, 0), OD_FULL);
     expect("two.mid.left_x", out.place[0].icon_x, 10 + STATUS_ROW_GROUP_GAP);
     expect("two.mid.left_n", out.n[0], 1);
     expect("two.mid.right_n", out.n[1], 2);
@@ -508,10 +508,10 @@ static void two_sides_share_the_middle(void) {
     od_layout(200, fam, s2, NO_BLEED, 0, &out);
     expect("two.short.left_stage", out.stage[0], 2);
     expect("two.short.right_stage", out.stage[1], 0);
-    expect("two.short.mid_form", out.form[1], OD_SHORT);
+    expect("two.short.mid_form", form_of(&out, 1), OD_SHORT);
     expect("two.short.mid_variant", out.variant[1], 1);
     expect("two.short.mid_x", out.place[1].icon_x, 85);
-    expect("two.short.right_full", out.form[2], OD_FULL);
+    expect("two.short.right_full", form_of(&out, 2), OD_FULL);
     expect("two.short.right_x", out.place[2].icon_x, 200 - 17 - STATUS_ROW_GROUP_GAP - 30);
 
     // The middle may leave its target when ANY active side's row frees it, not only
@@ -527,10 +527,10 @@ static void two_sides_share_the_middle(void) {
     add_icon(&free_l[1], OD_BATTERY, 10);
     od_layout(200, mid3, free_l, NO_BLEED, 0, &out);
     expect("two.free.left_stage", out.stage[0], 5);
-    expect("two.free.left_hidden", out.form[0], OD_HIDDEN);
+    expect("two.free.left_hidden", form_of(&out, 0), OD_HIDDEN);
     expect("two.free.middle_x", out.place[1].icon_x, 80 + STATUS_ROW_GROUP_GAP);
     expect("two.free.right_stage", out.stage[1], 0);
-    expect("two.free.right_full", out.form[2], OD_FULL);
+    expect("two.free.right_full", form_of(&out, 2), OD_FULL);
     expect("two.free.right_x", out.place[2].icon_x, 200 - 10 - STATUS_ROW_GROUP_GAP - 30);
     // The mirror: the right run (80 px) puts hi at 76 with its slot hidden, the left
     // one (10 px) stays on row 0; the middle moves to 76 and the left slot stays full.
@@ -539,10 +539,10 @@ static void two_sides_share_the_middle(void) {
     add_icon(&free_r[1], OD_RAIN, 80);
     od_layout(200, mid3, free_r, NO_BLEED, 0, &out);
     expect("two.free.mirror.right_stage", out.stage[1], 5);
-    expect("two.free.mirror.right_hidden", out.form[2], OD_HIDDEN);
+    expect("two.free.mirror.right_hidden", form_of(&out, 2), OD_HIDDEN);
     expect("two.free.mirror.middle_x", out.place[1].icon_x, 200 - 80 - STATUS_ROW_GROUP_GAP - 40);
     expect("two.free.mirror.left_stage", out.stage[0], 0);
-    expect("two.free.mirror.left_full", out.form[0], OD_FULL);
+    expect("two.free.mirror.left_full", form_of(&out, 0), OD_FULL);
     expect("two.free.mirror.left_x", out.place[0].icon_x, 10 + STATUS_ROW_GROUP_GAP);
 }
 
@@ -581,9 +581,9 @@ static void two_sides_drop_lowest_priority(void) {
     expect("drop.slots.left_n", out.n[0], 1);
     expect("drop.slots.right_n", out.n[1], 2);
     expect("drop.slots.left_stage", out.stage[0], 0);
-    expect("drop.slots.left_slot", out.form[0], OD_FULL);
+    expect("drop.slots.left_slot", form_of(&out, 0), OD_FULL);
     expect("drop.slots.right_stage", out.stage[1], 8);
-    expect("drop.slots.middle_hidden", out.form[1], OD_HIDDEN);
+    expect("drop.slots.middle_hidden", form_of(&out, 1), OD_HIDDEN);
 }
 
 // With the middle hidden (here: empty), a side is pushed only while its own claim
@@ -600,7 +600,7 @@ static void two_sides_no_middle(void) {
         OdLayout out;
         od_layout(144, slots, sides, NO_BLEED, 0, &out);
         expect("nomid.small_stage", out.stage[0], 0);
-        expect("nomid.small_form", out.form[0], OD_FULL);
+        expect("nomid.small_form", form_of(&out, 0), OD_FULL);
         expect("nomid.small_x", out.place[0].icon_x, 10 + STATUS_ROW_GROUP_GAP);
         expect("nomid.small_n", out.n[0], 1);
         // 60 px of gust fits once the big side's slot hides (row 8: with no middle,
@@ -611,7 +611,7 @@ static void two_sides_no_middle(void) {
         // does not come back at the Text's cost).
         expect("nomid.big_stage", out.stage[1], 8);
         expect("nomid.big_lane", out.lane[1], big == 60 ? 2 : 0);
-        expect("nomid.big_slot", out.form[2], OD_HIDDEN);
+        expect("nomid.big_slot", form_of(&out, 2), OD_HIDDEN);
         expect("nomid.big_n", out.n[1], big == 60 ? 3 : 2);
 
         // The mirror case.
@@ -622,12 +622,12 @@ static void two_sides_no_middle(void) {
         add_icon(&m[1], OD_BLUETOOTH, 10);
         od_layout(144, slots, m, NO_BLEED, 0, &out);
         expect("nomid.mirror.small_stage", out.stage[1], 0);
-        expect("nomid.mirror.small_form", out.form[2], OD_FULL);
+        expect("nomid.mirror.small_form", form_of(&out, 2), OD_FULL);
         expect("nomid.mirror.small_x", out.place[2].icon_x, 144 - 10 - STATUS_ROW_GROUP_GAP - 30);
         expect("nomid.mirror.small_n", out.n[1], 1);
         expect("nomid.mirror.big_stage", out.stage[0], 8);
         expect("nomid.mirror.big_lane", out.lane[0], big == 60 ? 2 : 0);
-        expect("nomid.mirror.big_slot", out.form[0], OD_HIDDEN);
+        expect("nomid.mirror.big_slot", form_of(&out, 0), OD_HIDDEN);
         expect("nomid.mirror.big_n", out.n[0], big == 60 ? 3 : 2);
     }
 
@@ -640,8 +640,8 @@ static void two_sides_no_middle(void) {
     od_layout(100, slots, both, NO_BLEED, 0, &out);
     expect("nomid.both.left_stage", out.stage[0], 8);
     expect("nomid.both.right_stage", out.stage[1], 8);
-    expect("nomid.both.left_hidden", out.form[0], OD_HIDDEN);
-    expect("nomid.both.right_hidden", out.form[2], OD_HIDDEN);
+    expect("nomid.both.left_hidden", form_of(&out, 0), OD_HIDDEN);
+    expect("nomid.both.right_hidden", form_of(&out, 2), OD_HIDDEN);
     expect("nomid.both.left_n", out.n[0], 1);
     expect("nomid.both.right_n", out.n[1], 1);
 }
@@ -659,10 +659,10 @@ static void attribution_is_exact(void) {
     add_icon(&tight_l[1], OD_RAIN, 50);
     od_layout(200, mid, tight_l, NO_BLEED, 0, &out);
     expect("exact.mid.left_stage", out.stage[0], 0);
-    expect("exact.mid.left_slot", out.form[0], OD_FULL);
+    expect("exact.mid.left_slot", form_of(&out, 0), OD_FULL);
     expect("exact.mid.left_x", out.place[0].icon_x, 42 + STATUS_ROW_GROUP_GAP);
     expect("exact.mid.right_stage", out.stage[1], 3);
-    expect("exact.mid.right_hidden", out.form[2], OD_HIDDEN);
+    expect("exact.mid.right_hidden", form_of(&out, 2), OD_HIDDEN);
     expect("exact.mid.middle_x", out.place[1].icon_x, 80);
     // The mirror: hi exactly on the target, lo at 88.
     OdSideIn tight_r[2] = { side_none(), side_none() };
@@ -670,7 +670,7 @@ static void attribution_is_exact(void) {
     add_icon(&tight_r[1], OD_RAIN, 42);
     od_layout(200, mid, tight_r, NO_BLEED, 0, &out);
     expect("exact.mid.mirror.right_stage", out.stage[1], 0);
-    expect("exact.mid.mirror.right_slot", out.form[2], OD_FULL);
+    expect("exact.mid.mirror.right_slot", form_of(&out, 2), OD_FULL);
     expect("exact.mid.mirror.right_x", out.place[2].icon_x, 200 - 42 - STATUS_ROW_GROUP_GAP - 30);
     expect("exact.mid.mirror.left_stage", out.stage[0], 3);
     expect("exact.mid.mirror.middle_x", out.place[1].icon_x, 80);
@@ -684,15 +684,15 @@ static void attribution_is_exact(void) {
     add_icon(&half[1], OD_RAIN, 10);
     od_layout(100, none_l, half, NO_BLEED, 0, &out);
     expect("exact.nomid.left_stage", out.stage[0], 0);
-    expect("exact.nomid.left_slot", out.form[0], OD_FULL);
+    expect("exact.nomid.left_slot", form_of(&out, 0), OD_FULL);
     expect("exact.nomid.right_stage", out.stage[1], 8);
-    expect("exact.nomid.right_hidden", out.form[2], OD_HIDDEN);
+    expect("exact.nomid.right_hidden", form_of(&out, 2), OD_HIDDEN);
     // The mirror: the right claim begins at 52 (exactly at the limit), the left one
     // ends at 49.
     OdSlotIn none_r[3] = { slot_text(35, 0), slot_empty(), slot_text(34, 0) };
     od_layout(100, none_r, half, NO_BLEED, 0, &out);
     expect("exact.nomid.mirror.right_stage", out.stage[1], 0);
-    expect("exact.nomid.mirror.right_slot", out.form[2], OD_FULL);
+    expect("exact.nomid.mirror.right_slot", form_of(&out, 2), OD_FULL);
     expect("exact.nomid.mirror.right_x", out.place[2].icon_x, 100 - 10 - STATUS_ROW_GROUP_GAP - 34);
     expect("exact.nomid.mirror.left_stage", out.stage[0], 8);
 
@@ -704,13 +704,13 @@ static void attribution_is_exact(void) {
     add_icon(&right_run[1], OD_RAIN, 36);
     od_layout(100, lone, right_run, NO_BLEED, 0, &out);
     expect("exact.edge.right_stage", out.stage[1], 5);
-    expect("exact.edge.middle_shows", out.form[1], OD_FULL);
+    expect("exact.edge.middle_shows", form_of(&out, 1), OD_FULL);
     expect("exact.edge.middle_x", out.place[1].icon_x, 0);
     OdSideIn left_run[2] = { side_none(), side_none() };
     add_icon(&left_run[0], OD_RAIN, 36);
     od_layout(100, lone, left_run, NO_BLEED, 0, &out);
     expect("exact.edge.left_stage", out.stage[0], 5);
-    expect("exact.edge.mirror.middle_shows", out.form[1], OD_FULL);
+    expect("exact.edge.mirror.middle_shows", form_of(&out, 1), OD_FULL);
     expect("exact.edge.mirror.middle_x", out.place[1].icon_x, 40);
 }
 
@@ -735,9 +735,9 @@ static void two_sides_skip_idle_rows(void) {
     OdLayout out;
     od_layout(149, slots, sides, NO_BLEED, 0, &out);
     expect("skip.left_stage", out.stage[0], 8);
-    expect("skip.left_hidden", out.form[0], OD_HIDDEN);
+    expect("skip.left_hidden", form_of(&out, 0), OD_HIDDEN);
     expect("skip.right_stage", out.stage[1], 7);
-    expect("skip.right_short", out.form[2], OD_SHORT);
+    expect("skip.right_short", form_of(&out, 2), OD_SHORT);
     expect("skip.right_x", out.place[2].icon_x, 149 - 61 - STATUS_ROW_GROUP_GAP - 13);
     expect("skip.left_lane", out.lane[0], 0);
     expect("skip.right_lane", out.lane[1], 0);
@@ -773,11 +773,11 @@ static void slots_back_two_sides(void) {
     add(&sides[1], OD_UV, 24, 24, 16, true);
     add(&sides[1], OD_GUST, 32, 32, 16, true);
     od_layout(132, strip, sides, STRIP_BLEED, 0, &out);
-    expect("slots_back.strip.middle_hidden", out.form[1], OD_HIDDEN);
+    expect("slots_back.strip.middle_hidden", form_of(&out, 1), OD_HIDDEN);
     expect("slots_back.strip.right_stage", out.stage[1], 6);
     expect("slots_back.strip.right_lane", out.lane[1], 2);
     expect("slots_back.strip.left_stage", out.stage[0], 0);
-    expect("slots_back.strip.left_full", out.form[0], OD_FULL);
+    expect("slots_back.strip.left_full", form_of(&out, 0), OD_FULL);
     expect("slots_back.strip.left_text", out.place[0].text_w, 18);
     OdSlotIn no_mid[3] = { strip[0], slot_empty(), slot_empty() };
     OdLayout plain_mid;
@@ -795,10 +795,10 @@ static void slots_back_two_sides(void) {
     add_icon(&left_heavy[0], OD_SLEEP, 18);
     add_icon(&left_heavy[1], OD_RAIN, 20);
     od_layout(140, three, left_heavy, NO_BLEED, 0, &out);
-    expect("slots_back.mirror.middle_hidden", out.form[1], OD_HIDDEN);
+    expect("slots_back.mirror.middle_hidden", form_of(&out, 1), OD_HIDDEN);
     expect("slots_back.mirror.left_stage", out.stage[0], 8);
     expect("slots_back.mirror.right_stage", out.stage[1], 0);
-    expect("slots_back.mirror.right_full", out.form[2], OD_FULL);
+    expect("slots_back.mirror.right_full", form_of(&out, 2), OD_FULL);
     expect("slots_back.mirror.right_x", out.place[2].icon_x, 140 - 20 - STATUS_ROW_GROUP_GAP - 30);
 
     // A slot comes back beside a shown middle too. W 217, the left slot 27 (shorts 13,
@@ -828,13 +828,13 @@ static void slots_back_two_sides(void) {
     add(&g2[1], OD_AQI, 15, 15, 15, true);
     od_layout(217, guard, g2, NO_BLEED, 0, &out);
     expect("slots_back.shown.left_stage", out.stage[0], 0);
-    expect("slots_back.shown.left_full", out.form[0], OD_FULL);
+    expect("slots_back.shown.left_full", form_of(&out, 0), OD_FULL);
     expect("slots_back.shown.left_x", out.place[0].icon_x, 52 + STATUS_ROW_GROUP_GAP);
     expect("slots_back.shown.middle_member", out.variant[1], 3);
     expect("slots_back.shown.middle_x", out.place[1].icon_x, 96);
     expect("slots_back.shown.right_stage", out.stage[1], 4);
     expect("slots_back.shown.right_lane", out.lane[1], 0);
-    expect("slots_back.shown.right_hidden", out.form[2], OD_HIDDEN);
+    expect("slots_back.shown.right_hidden", form_of(&out, 2), OD_HIDDEN);
 }
 
 static void slots_back_middle_gone(void) {
@@ -858,8 +858,8 @@ static void slots_back_middle_gone(void) {
     od_layout(132, cal, heavy, STRIP_BLEED, 0, &out);
     expect("slots_back.gone.cal.stage", out.stage[1], 7);
     expect("slots_back.gone.cal.lane", out.lane[1], 2);
-    expect("slots_back.gone.cal.middle_hidden", out.form[1], OD_HIDDEN);
-    expect("slots_back.gone.cal.glyph_short", out.form[2], OD_SHORT);
+    expect("slots_back.gone.cal.middle_hidden", form_of(&out, 1), OD_HIDDEN);
+    expect("slots_back.gone.cal.glyph_short", form_of(&out, 2), OD_SHORT);
     expect("slots_back.gone.cal.glyph_x", out.place[2].icon_x, 132 - 106 - STATUS_ROW_GROUP_GAP - 19);
     expect("slots_back.gone.cal.n", out.n[1], 5);
 
@@ -872,7 +872,7 @@ static void slots_back_middle_gone(void) {
     add_icon(&icons[0], OD_QUIET_TIME, 38);
     od_layout(140, left, icons, NO_BLEED, 0, &out);
     expect("slots_back.gone.left.stage", out.stage[0], 7);
-    expect("slots_back.gone.left.short", out.form[0], OD_SHORT);
+    expect("slots_back.gone.left.short", form_of(&out, 0), OD_SHORT);
     expect("slots_back.gone.left.x", out.place[0].icon_x, 80 + STATUS_ROW_GROUP_GAP);
     expect("slots_back.gone.left.far", out.place[2].icon_x, 110);
 
@@ -886,8 +886,8 @@ static void slots_back_middle_gone(void) {
     add(&rain[0], OD_RAIN, 100, 40, 21, false);
     od_layout(120, cost, rain, NO_BLEED, 0, &out);
     expect("slots_back.gone.cost.stage", out.stage[0], 8);
-    expect("slots_back.gone.cost.middle_hidden", out.form[1], OD_HIDDEN);
-    expect("slots_back.gone.cost.slot", out.form[0], OD_HIDDEN);
+    expect("slots_back.gone.cost.middle_hidden", form_of(&out, 1), OD_HIDDEN);
+    expect("slots_back.gone.cost.slot", form_of(&out, 0), OD_HIDDEN);
     expect("slots_back.gone.cost.lane", out.lane[0], 0);
 }
 
@@ -1070,7 +1070,7 @@ static void slots_back_pins(void) {
         char name[80];
         for (int i = 0; i < 3; i++) {
             snprintf(name, sizeof(name), "pin.%s.slot%d", pc->what, i);
-            expect(name, out.form[i], pc->form[i]);
+            expect(name, form_of(&out, i), pc->form[i]);
             if (pc->form[i] == OD_HIDDEN) { continue; }
             expect(name, out.variant[i], pc->variant[i]);
             if (pc->x[i] >= 0) { expect(name, out.place[i].icon_x, pc->x[i]); }
@@ -1313,7 +1313,7 @@ static void battery_standin(void) {
         snprintf(name, sizeof(name), "standin.emptied.slot r%d", r);
         expect(name, out.place[2].visible, !standin);
         snprintf(name, sizeof(name), "standin.emptied.form r%d", r);
-        expect(name, out.form[2], standin ? OD_HIDDEN : OD_FULL);
+        expect(name, form_of(&out, 2), standin ? OD_HIDDEN : OD_FULL);
         snprintf(name, sizeof(name), "standin.emptied.item r%d", r);
         expect(name, battery_drawn(emptied, &out), standin);
         snprintf(name, sizeof(name), "standin.emptied.left_n r%d", r);
@@ -1597,7 +1597,7 @@ static void drops(void) {
     add_icon(&huge[0], OD_WIND, 500);
     od_layout(144, slots, huge, NO_BLEED, 0, &out);
     expect("drop.n_zero", out.n[0], 0);
-    expect("drop.slot_back", out.form[0], OD_FULL);
+    expect("drop.slot_back", form_of(&out, 0), OD_FULL);
     expect_true("drop.slot_plain", place_eq(&out.place[0], &plain[0]));
 
     // A drop restarts the ladder at row 0: with the wind gone, Quiet time fits beside
@@ -1608,7 +1608,7 @@ static void drops(void) {
     od_layout(144, slots, two, NO_BLEED, 0, &out);
     expect("drop.restart_n", out.n[0], 1);
     expect("drop.restart_stage", out.stage[0], 0);
-    expect("drop.slot_comes_back", out.form[0], OD_FULL);
+    expect("drop.slot_comes_back", form_of(&out, 0), OD_FULL);
     expect("drop.slot_x", out.place[0].icon_x, 10 + STATUS_ROW_GROUP_GAP);
     expect("drop.middle_centred", out.place[1].icon_x, 52);
 }
@@ -1692,7 +1692,7 @@ static void no_overlap(void) {
             int x = out.place[i].icon_x;
             // A short slot is narrower than its full form, and an elastic member
             // never ellipsizes below its floor.
-            if (out.form[i] == OD_SHORT
+            if (form_of(&out, i) == OD_SHORT
                     && (out.variant[i] == 0
                         || sw >= status_slot_placed_w(&plain[i], &slots[i].m[0]))) {
                 printf("FAIL overlap.short_narrower trial %d slot %d\n", trial, i);
