@@ -5,7 +5,13 @@
 //
 // A picker row describes its keyed sources in ONE table, handed to every resolver below
 // as args.keyed — by the picker's value: {name, sheetId, keyField, test, reasons?,
-// usage?, updateId?, evidence?} (schema.js PROVIDER_KEYS, RADAR_KEYS). The row's other
+// usage?, updateId?, evidence?, sharedSheet?} (schema.js PROVIDER_KEYS, RADAR_KEYS).
+// A key two pickers share (the Tomorrow.io key: the weather provider's and the radar's)
+// is one key with one verdict: both sources name the same keyField and evidence, so they
+// read one state. Each picker has its own sheet for the key, gated apart; while the
+// settings pick the source in the other picker too, the key lives in that picker's sheet,
+// which the source names as `sharedSheet` {key, eq, sheetId} (open it while
+// settings[key] === eq). The row's other
 // args: `picker`, the picker's messageKey (row resolvers get it as their own messageKey
 // too), and `outcome`, what goes missing without a working key ("the watch gets no
 // forecast").
@@ -26,10 +32,12 @@
 // update records above say nothing about it: its evidence is the last radar update's
 // verdict instead (userData.radarKeyResult, weather/radar-key-result.js — the source id,
 // the key's fingerprint and the HTTP status that answered it, ok or rejected by
-// classify below).
+// classify below). A radar source whose key is a weather provider's too (Tomorrow.io)
+// sets no `evidence`: it reads that provider's update records, so the two agree.
 //
 // What the page shows from it:
-//   keySheet         (sheetResolvers)     the Edit button: the picked source's key sheet;
+//   keySheet         (sheetResolvers)     the Edit button: the sheet holding the picked
+//                                         source's key (sheetOf);
 //   keyBadge         (badgeResolvers)     "Add key" (the page's normal button) while the
 //                                         key is missing, "Edit" otherwise;
 //   keySummaryHint   (hintResolvers)      the row's hint (args.hints, its hintByValue copy)
@@ -149,6 +157,20 @@
     }
 
     /**
+     * The sheet that holds a source's key under the live settings: its own sheet, or —
+     * while the settings pick the source that shares its key in the other picker too
+     * (source.sharedSheet {key, eq, sheetId}: settings[key] === eq) — that picker's sheet,
+     * the one copy of the key on the page then (its own is gated off).
+     * @param {Object} source The source ({sheetId, sharedSheet?}).
+     * @param {Object} S Live settings state.
+     * @returns {string} The sheetId.
+     */
+    function sheetOf(source, S) {
+        var shared = source.sharedSheet;
+        return (shared && (S || {})[shared.key] === shared.eq) ? shared.sheetId : source.sheetId;
+    }
+
+    /**
      * The picker value a row resolver reads: args.value when the engine handed the row's
      * shown value over, else the picker's stored value.
      * @param {Object} S Live settings state.
@@ -241,8 +263,8 @@
     }
 
     /**
-     * keySheet (editSheetFrom): the picked source's key sheet, null (no Edit button) for
-     * a source without a key.
+     * keySheet (editSheetFrom): the sheet holding the picked source's key (sheetOf), null
+     * (no Edit button) for a source without a key.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused).
      * @param {{messageKey: string, keyed: Object}} args The row's key and table.
@@ -250,7 +272,7 @@
      */
     function keySheet(S, env, args) {
         var source = sourceOf(args, (S || {})[args.messageKey]);
-        return source ? source.sheetId : null;
+        return source ? sheetOf(source, S) : null;
     }
 
     /**
@@ -329,12 +351,12 @@
         if (state === 'missing') {
             title = source.name + ' has no API key';
             return { note: title, title: title, body: 'Without one, ' + args.outcome + '.',
-                actionLabel: 'Add key', sheet: source.sheetId };
+                actionLabel: 'Add key', sheet: sheetOf(source, S) };
         }
         if (state === 'rejected') {
             title = source.name + ' rejected the API key';
             return { note: title, title: title, body: 'Until it accepts a key, ' + args.outcome + '.',
-                actionLabel: 'Edit key', sheet: source.sheetId };
+                actionLabel: 'Edit key', sheet: sheetOf(source, S) };
         }
         return null;
     }
@@ -345,6 +367,7 @@
         resetTests: resetTests,
         registerUsage: registerUsage,
         statusOf: statusOf,
+        sheetOf: sheetOf,
         summaryLine: summaryLine,
         keySheet: keySheet,
         keyBadge: keyBadge,

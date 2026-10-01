@@ -193,45 +193,69 @@ test('page: the key hint\'s copy button works inside the sheet', () => {
   assert.ok(page.modal.innerHTML.length > 0, 'the tap does not close the sheet');
 });
 
-test('page: a copy button on a tab still copies (the Radar tab\'s radar-only tomorrow.io key hint)', () => {
+test('page: the copy button in the Radar tab\'s Tomorrow.io sheet copies too', () => {
   const page = bootGeneratedPage({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' });
   const copied = [];
   page.window.navigator.clipboard = { writeText: (text) => { copied.push(text); return { then() {} }; } };
   page.clickTab('radar');
+  page.openEditSheet('radarKeyTomorrowio');
   const url = 'https://app.tomorrow.io/development/keys';
-  assert.ok(page.scroll.innerHTML.indexOf('data-copy="' + url + '"') !== -1);
+  assert.ok(page.modal.innerHTML.indexOf('data-copy="' + url + '"') !== -1);
   const t = {
     getAttribute: (n) => (n === 'data-copy' ? url : null),
     closest: (sel) => (sel === '[data-copy]' ? t : null)
   };
-  page.scroll.dispatch('click', { target: t });
+  page.modal.dispatch('click', { target: t });
   assert.deepEqual(copied, [url]);
+  assert.ok(page.modal.innerHTML.length > 0, 'the tap does not close the sheet');
 });
 
-test('page: radar-only tomorrow.io keeps its key rows on the Radar tab, and no Edit on the weather row', () => {
+test('page: radar-only tomorrow.io keeps its key in the Radar tab\'s sheet, and no Edit on the weather row', () => {
   const page = bootGeneratedPage({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' });
   assert.doesNotMatch(page.scroll.innerHTML, /data-edit-sheet="providerKey/);
   page.clickTab('radar');
   const tab = page.scroll.innerHTML;
-  assert.ok(tab.indexOf('<div class="lbl">Tomorrow.io API key</div>') !== -1, 'the radar-only key row');
-  assert.ok(tab.indexOf('data-action="testTomorrowioKey"') !== -1, 'with its Test button');
-  assert.ok(tab.indexOf('data-k="tomorrowioFitBudget"') !== -1, 'and its guard');
+  assert.ok(new RegExp('data-select="radarProvider"[^]*?data-edit-sheet="radarKeyTomorrowio"').test(tab),
+    'Edit trails the Radar provider dropdown');
+  ['tomorrowioApiKey', 'tomorrowioFitBudget'].forEach((k) =>
+    assert.equal(tab.indexOf('data-k="' + k + '"'), -1, k + ' is not on the Radar tab\'s page'));
+  page.openEditSheet('radarKeyTomorrowio');
+  const sheet = page.modal.innerHTML;
+  assert.ok(sheet.indexOf('esheet-ttl-radarKeyTomorrowio">Tomorrow.io<') !== -1, 'titled Tomorrow.io');
+  assert.ok(sheet.indexOf('<div class="lbl">API key</div>') !== -1, 'the title names the provider');
+  assert.ok(sheet.indexOf('data-action="testTomorrowioKey">Test</button>') !== -1, 'with its Test button');
+  assert.ok(sheet.indexOf('data-action-result="tomorrowioApiKey"') !== -1, 'and its verdict line');
+  assert.ok(sheet.indexOf('calls/day') !== -1, 'the call-budget read-out');
+  assert.ok(sheet.indexOf('data-k="tomorrowioFitBudget"') !== -1, 'and its guard');
 });
 
 test('the two tomorrow.io copies stay apart: findShownItem returns the one that shows', () => {
   const ctx = (S) => Object.assign({}, S, { env: {} });
-  assert.equal(PC.engine.findShownItem(schema, 'tomorrowioApiKey', ctx({ provider: 'tomorrowio' })).label, 'API key');
-  assert.equal(PC.engine.findShownItem(schema, 'tomorrowioApiKey',
-    ctx({ provider: 'dwd', radarProvider: 'tomorrowio' })).label, 'Tomorrow.io API key');
+  const sheetOf = (item) => {
+    let found = null;
+    PC.schemaWalk.eachItem(schema, (it, sec) => { if (it === item) { found = sec.sheetId; } });
+    return found;
+  };
+  ['tomorrowioApiKey', 'tomorrowioFitBudget'].forEach((key) => {
+    assert.equal(sheetOf(PC.engine.findShownItem(schema, key, ctx({ provider: 'tomorrowio' }))),
+      'providerKeyTomorrowio', key + ': the weather provider\'s sheet');
+    assert.equal(sheetOf(PC.engine.findShownItem(schema, key,
+      ctx({ provider: 'tomorrowio', radarProvider: 'tomorrowio', radarMode: 'graph' }))),
+    'providerKeyTomorrowio', key + ': both — still the weather provider\'s sheet, the one copy');
+    assert.equal(sheetOf(PC.engine.findShownItem(schema, key,
+      ctx({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' }))),
+    'radarKeyTomorrowio', key + ': radar-only — the Radar tab\'s sheet');
+  });
 });
 
-test('the setup wizard\'s tomorrow.io field (the walk\'s last copy) is still the full key row', () => {
-  // wizard.js tomorrowioUpsell renders findItem(schema, 'tomorrowioApiKey'): the LAST item
-  // carrying the key in walk order, which is the Radar tab's copy.
-  let last = null;
-  PC.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === 'tomorrowioApiKey') { last = it; } });
-  const weather = sheetById('providerKeyTomorrowio').items[0];
-  assert.equal(last.label, 'Tomorrow.io API key', 'it names the provider: the wizard has no sheet title');
-  assert.equal(last.suffixAction, 'testTomorrowioKey');
-  assert.equal(last.hint, weather.hint, 'the same signup instructions as the key sheet');
+test('the setup wizard\'s tomorrow.io field: any copy of the key row, labelled with the provider\'s name', () => {
+  // wizard.js tomorrowioUpsell renders findItem(schema, 'tomorrowioApiKey') — the last copy in
+  // walk order, now the Radar tab's sheet's — under its own label "Tomorrow.io API key" (the
+  // wizard has no sheet title naming the provider). Both copies render the same field.
+  const copies = [];
+  PC.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === 'tomorrowioApiKey') { copies.push(it); } });
+  assert.equal(copies.length, 2);
+  const strip = (it) => Object.assign({}, it, { showWhen: undefined });
+  assert.deepEqual(strip(copies[0]), strip(copies[1]), 'the two copies differ only by their gate');
+  assert.equal(copies[1].suffixAction, 'testTomorrowioKey');
 });

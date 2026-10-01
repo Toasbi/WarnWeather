@@ -116,8 +116,9 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // (2 options) — two slots, not four: the 'Day theme' pair is gone and the Theme
   // row is never renamed. themeNight is the same color/B&W split. colorUSFederal:
   // dark-exclude-white vs. light-exclude-black.
-  // tomorrowioApiKey/tomorrowioFitBudget: General tab (weather provider) vs. Radar tab
-  // (radar-only) — mutually-exclusive showWhen, so only one instance ever renders.
+  // tomorrowioApiKey/tomorrowioFitBudget: the General tab's Tomorrow.io key sheet (weather
+  // provider) vs. the Radar tab's (radar-only) — mutually-exclusive showWhen, so only one
+  // instance ever renders.
   // The five alert kinds' levels live in ONE place, their alert sheet (the slot
   // sheet only points there), so each of their keys appears exactly once.
   // batteryLowLevel: the Battery sheet's 5 % (emery) and 10 % (every other watch)
@@ -141,8 +142,8 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   assert.equal(counts.theme, 2, 'theme appears in two slots (color / B&W env)');
   assert.equal(counts.themeNight, 2, 'themeNight appears in two slots (color / B&W env)');
   assert.equal(counts.colorUSFederal, 2, 'colorUSFederal appears in exactly two slots');
-  assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs');
-  assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs');
+  assert.equal(counts.tomorrowioApiKey, 2, 'tomorrow.io key in the General + Radar tabs\' key sheets');
+  assert.equal(counts.tomorrowioFitBudget, 2, 'tomorrow.io budget guard in the General + Radar tabs\' key sheets');
   ['batteryLowLevel', 'btIcons', 'vibe', 'rainCountdownHorizon'].forEach((k) =>
     assert.equal(counts[k], 2, k + ' appears in exactly two slots'));
   assert.deepEqual(Object.keys(counts).sort(), EXPECTED_KEYS.slice().sort());
@@ -273,39 +274,38 @@ test('the fill toggle hides for feels-like and stays visible for every other met
   assert.equal(byKey('secondaryLine').onChange, 'forecastMetricFill');
 });
 
-test('tomorrow.io key renders under whichever picker uses it: its key sheet (weather) or the Radar tab (radar-only)', () => {
+// Radar-only Tomorrow.io: its key sheet's gate (Tomorrow.io drives a running radar but is not
+// the weather provider).
+const TOMORROWIO_RADAR_ONLY_WHEN = { all: [{ key: 'radarProvider', eq: 'tomorrowio' }, { key: 'radarMode', ne: 'off' },
+  { key: 'provider', ne: 'tomorrowio' }] };
+
+test('tomorrow.io key renders under whichever picker uses it: the General tab\'s key sheet (weather) or the Radar tab\'s (radar-only)', () => {
   const keys = items.filter((i) => i.messageKey === 'tomorrowioApiKey');
   assert.equal(keys.length, 2, 'one instance per context (mutually exclusive)');
   const whens = keys.map((k) => JSON.stringify(k.showWhen));
   assert.ok(whens.includes(JSON.stringify({ key: 'provider', eq: 'tomorrowio' })),
     'weather-provider instance (the General tab\'s Tomorrow.io key sheet)');
-  assert.ok(whens.includes(JSON.stringify(
-    { all: [{ key: 'radarProvider', eq: 'tomorrowio' }, { key: 'provider', ne: 'tomorrowio' }] })),
-    'radar-only instance (Radar tab)');
+  assert.ok(whens.includes(JSON.stringify(TOMORROWIO_RADAR_ONLY_WHEN)),
+    'radar-only instance (the Radar tab\'s Tomorrow.io key sheet)');
   keys.forEach((k) => assert.equal(k.suffixAction, 'testTomorrowioKey'));
+  keys.forEach((k) => assert.equal(k.label, 'API key', 'each sheet\'s title names the provider'));
 });
 
-test('the radar-only tomorrow.io key rows join their picker loosely (grouped, but normal spacing)', () => {
-  // The key/budget rows that hang off the RADAR picker on the page use the roomy join (no
-  // divider, but full padding) rather than the tight `true` grouping, so they do not read as
-  // cramped. The weather providers' key rows and "Rainbow (own key)"'s left the page for
-  // their key sheets.
+test('no key rows on the Radar tab\'s page: every key lives in a key sheet that opens on its field', () => {
+  // The weather providers' key rows, "Rainbow (own key)"'s and radar-only Tomorrow.io's all
+  // left the page for their key sheets.
   const radar = schema.tabs.find((t) => t.id === 'radar');
   const page = radar.sections.find((s) => !s.sheetOnly);
-  ['tomorrowioApiKey', 'tomorrowioFitBudget'].forEach((key) => {
-    const instances = page.items.filter((i) => i.messageKey === key);
-    assert.equal(instances.length, 1, 'one ' + key + ' on the Radar tab');
-    instances.forEach((item) => assert.equal(item.joinPrevious, 'loose', key + ' uses the loose join'));
-  });
-  ['rainbowApiKey', 'rainbowFitBudget'].forEach((key) => {
+  ['tomorrowioApiKey', 'tomorrowioFitBudget', 'rainbowApiKey', 'rainbowFitBudget'].forEach((key) => {
     assert.equal(page.items.some((i) => i.messageKey === key), false, key + ' is not on the Radar tab\'s page');
   });
   // In a key sheet the key field is the first row, so it joins nothing; the tomorrow.io
   // and Rainbow budget guards below it keep the loose join to the field (the read-out
   // between them).
   const sheets = schema.tabs.find((t) => t.id === 'general').sections.filter((s) => /^providerKey/.test(s.sheetId || ''))
-    .concat(radar.sections.filter((s) => s.sheetId === 'radarKeyRainbow'));
-  assert.equal(sheets.length, 4, 'four key sheets: three weather providers, Rainbow (own key)');
+    .concat(radar.sections.filter((s) => /^radarKey/.test(s.sheetId || '')));
+  assert.deepEqual(sheets.map((s) => s.sheetId), ['providerKeyOwm', 'providerKeyTomorrowio', 'providerKeyYandex',
+    'radarKeyRainbow', 'radarKeyTomorrowio'], 'five key sheets: three weather providers, Rainbow (own key), radar-only Tomorrow.io');
   sheets.forEach((sheet) => {
     assert.equal(sheet.items[0].joinPrevious, undefined, sheet.sheetId + ' opens on its key field');
     sheet.items.slice(1).forEach((item) => assert.equal(item.joinPrevious, 'loose', item.messageKey));
@@ -339,7 +339,7 @@ test('fetchIntervalMin derives its ladder from the budget resolver (no static op
 
 test('budget toggle (both contexts) carries the info block above it', () => {
   const toggles = items.filter((i) => i.messageKey === 'tomorrowioFitBudget');
-  assert.equal(toggles.length, 2, 'key sheet (weather) + Radar (radar-only) instances');
+  assert.equal(toggles.length, 2, 'the weather provider\'s + the radar-only key sheet\'s instances');
   toggles.forEach((item) => {
     assert.equal(item.defaultValue, true);
     assert.equal(item.label, 'Fit update interval to rate limit');
@@ -350,8 +350,7 @@ test('budget toggle (both contexts) carries the info block above it', () => {
   });
   const whens = toggles.map((t) => JSON.stringify(t.showWhen));
   assert.ok(whens.includes(JSON.stringify({ key: 'provider', eq: 'tomorrowio' })));
-  assert.ok(whens.includes(JSON.stringify(
-    { all: [{ key: 'radarProvider', eq: 'tomorrowio' }, { key: 'provider', ne: 'tomorrowio' }] })));
+  assert.ok(whens.includes(JSON.stringify(TOMORROWIO_RADAR_ONLY_WHEN)));
 });
 
 test('health tab is gated to health-capable platforms, with a 3-state mode radio', () => {
@@ -1585,9 +1584,17 @@ test('the radar picker reads ONE key table for its Edit button, badge, summary, 
   assert.equal(item.hintFrom.args.keyed, args.keyed);
   assert.equal(args.picker, 'radarProvider');
   assert.equal(args.outcome, 'the watch gets no rain radar');
-  assert.deepEqual(Object.keys(args.keyed), ['rainbowkey'], 'only the own key; radar-only Tomorrow.io keeps its rows');
+  assert.deepEqual(Object.keys(args.keyed), ['rainbowkey', 'tomorrowio'], 'the own key and Tomorrow.io');
   assert.deepEqual(args.keyed.rainbowkey, { name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey',
     test: true, usage: 'rainbow', evidence: 'radar' });
+  // Tomorrow.io's key is the weather provider's: the same entry (one key, one verdict), only
+  // its own sheet differs, and while Tomorrow.io is the weather provider too the General
+  // tab's sheet holds the key.
+  const weatherTio = byKey('provider').editSheetFrom.args.keyed.tomorrowio;
+  assert.deepEqual(args.keyed.tomorrowio, Object.assign({}, weatherTio, { sheetId: 'radarKeyTomorrowio',
+    sharedSheet: { key: 'provider', eq: 'tomorrowio', sheetId: 'providerKeyTomorrowio' } }));
+  assert.equal(weatherTio.sheetId, 'providerKeyTomorrowio');
+  assert.equal(weatherTio.evidence, undefined, 'the weather updates\' records, for both pickers');
 
   const section = radarPickerSection();
   const at = section.items.indexOf(item);
@@ -1597,9 +1604,7 @@ test('the radar picker reads ONE key table for its Edit button, badge, summary, 
   assert.equal(note.joinPrevious, true);
   assert.deepEqual(note.textFrom, { resolver: 'keyMissingNote', args: args });
   assert.deepEqual(note.showWhen, { key: 'radarMode', ne: 'off' }, 'the picker\'s own gate');
-  assert.equal(section.items[at + 2].messageKey, 'tomorrowioApiKey', 'then the radar-only tomorrow.io key');
-  assert.equal(section.items[at + 3].messageKey, 'tomorrowioFitBudget', 'and its budget toggle');
-  const scaleNote = section.items[at + 4];
+  const scaleNote = section.items[at + 2];
   assert.equal(scaleNote.type, 'staticText');
   assert.equal(scaleNote.blockBefore, 'radarPreview');
   assert.match(scaleNote.text, /don't scale linearly/, 'right before the SCALE_NOTE staticText');
@@ -1633,6 +1638,32 @@ test('"Rainbow (own key)"\'s key sheet: the key field and the budget guard, only
   // A stored blob never holds 'rainbowkey' (onbuild.js folds rainbow + rainbowOwnKey into it
   // only while the page is open), so the stored pair alone opens nothing.
   assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: true }), false);
+});
+
+test('radar-only Tomorrow.io\'s key sheet: the weather provider\'s Tomorrow.io rows, only while it drives a running radar alone', () => {
+  const radar = schema.tabs.find((t) => t.id === 'radar');
+  const sheet = radar.sections.find((s) => s.sheetId === 'radarKeyTomorrowio');
+  const weather = schema.tabs.find((t) => t.id === 'general').sections.find((s) => s.sheetId === 'providerKeyTomorrowio');
+  assert.ok(sheet, 'a sheet on the Radar tab');
+  assert.equal(radar.sections[radar.sections.length - 1], sheet, 'after "Rainbow (own key)"\'s, as in the picker');
+  assert.equal(sheet.sheetOnly, true, 'rendered only as a sheet');
+  assert.equal(sheet.title, 'Tomorrow.io', 'titled with the source\'s name, as the weather provider\'s');
+  assert.equal(sheet.title, weather.title);
+  assert.deepEqual(sheet.showWhen, TOMORROWIO_RADAR_ONLY_WHEN);
+  sheet.items.forEach((i) => assert.deepEqual(i.showWhen, TOMORROWIO_RADAR_ONLY_WHEN, i.messageKey + ' shares the gate'));
+  const strip = (it) => Object.assign({}, it, { showWhen: undefined });
+  assert.deepEqual(sheet.items.map(strip), weather.items.map(strip), 'the same rows as the weather provider\'s sheet');
+  const at = (S) => showWhen.isVisible(sheet, S);
+  const both = (S) => [at(S), showWhen.isVisible(weather, S)];
+  assert.deepEqual(both({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'graph' }), [true, false], 'radar-only');
+  assert.deepEqual(both({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'countdown' }), [true, false]);
+  assert.deepEqual(both({ provider: 'tomorrowio', radarProvider: 'tomorrowio', radarMode: 'graph' }), [false, true],
+    'both: the weather provider\'s sheet holds the one key');
+  assert.deepEqual(both({ provider: 'tomorrowio', radarProvider: 'rainbow', radarMode: 'graph' }), [false, true]);
+  assert.deepEqual(both({ provider: 'dwd', radarProvider: 'tomorrowio', radarMode: 'off' }), [false, false],
+    'radar off: no Tomorrow.io call is made');
+  ['dwd', 'metno', 'rainbow', 'rainbowkey'].forEach((p) =>
+    assert.equal(at({ provider: 'dwd', radarProvider: p, radarMode: 'graph' }), false, 'closed for ' + p));
 });
 
 test('Rainbow key field: the sheet\'s first row, with its Test button and the how-to hint', () => {

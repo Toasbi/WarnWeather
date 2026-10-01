@@ -1939,7 +1939,9 @@ var RADAR_WHY = {
     rainbow: 'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
     // "Rainbow (own key)": the same nowcast on the user's own Rainbow account.
     rainbowkey: 'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow\'s free plan covers 5,000 calls a month. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
-    tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget.'
+    // Without a key the amber note under the row says what goes missing, so the note
+    // here only says whose key and whose budget.
+    tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget.'
 };
 // The radar picker's options in order. desc (3rd tuple slot) = the short "what it's best at"
 // tag under each name in the dropdown, mirroring the weather picker. DWD/Met.no are real
@@ -1956,13 +1958,17 @@ var RADAR_PROVIDER_OPTIONS = [
     ['Rainbow (own key)', 'rainbowkey', {desc: 'Worldwide satellite + radar nowcast · needs a free key'}],
     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
 ];
-// The tomorrow.io key + budget guard render under whichever picker actually uses the key:
-// the Tomorrow.io key sheet (the Edit button after the General tab's Weather provider
-// dropdown) when it's the WEATHER provider, the Radar tab's page when it's radar-only (so
-// the key never sits with the weather provider for a non-weather provider). Both contexts
-// reuse the same messageKeys (mutually-exclusive showWhen, like the theme color/B&W split).
+// The tomorrow.io key + budget guard live in a key sheet of whichever picker actually uses
+// the key: the General tab's Tomorrow.io sheet (the Edit button after the Weather provider
+// dropdown) while it is the WEATHER provider, the Radar tab's Tomorrow.io sheet (the Edit
+// button after the Radar provider dropdown) while it is radar-only, so the key never sits
+// with the weather provider for a non-weather provider. Both sheets hold the same rows
+// (TOMORROWIO_KEY_ROWS) under the same messageKeys, gated apart (like the theme color/B&W
+// split). The radar-only gate also needs a running radar (as "Rainbow (own key)"'s sheet
+// does): with radar off no Tomorrow.io radar call is made and the picker is hidden.
 var TOMORROWIO_WEATHER_WHEN = {key: 'provider', eq: 'tomorrowio'};
-var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'provider', ne: 'tomorrowio'}]};
+var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'radarMode', ne: 'off'},
+    {key: 'provider', ne: 'tomorrowio'}]};
 // The weather providers that need an API key, by their `provider` value — the table every
 // key-status resolver on the Weather provider row reads (settings/key-status.js): the
 // provider's name as the dropdown shows it (the key sheet's title, the Save dialog's), the
@@ -1985,14 +1991,23 @@ var PROVIDER_KEYS = {
 var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: 'the watch gets no forecast'};
 // The radar sources that need the user's own key, by their picker value — the table every
 // key-status resolver on the Radar provider row reads (settings/key-status.js), shaped like
-// PROVIDER_KEYS. "Rainbow (own key)" is the one: its key never rides a weather update, so
-// its key status comes from the Test button and from the last radar update's verdict
+// PROVIDER_KEYS. "Rainbow (own key)": its key never rides a weather update, so its key
+// status comes from the Test button and from the last radar update's verdict
 // (`evidence: 'radar'`, weather/radar-key-result.js). Its usage line is the monthly
-// projection (blocks.js registers it). The radar-only Tomorrow.io key keeps its rows on
-// the Radar tab (its key is the weather provider's key too).
+// projection (blocks.js registers it).
+// Tomorrow.io: its key is the Tomorrow.io weather provider's key, one key with one verdict,
+// so its entry IS that provider's (name, key field, Test, reasons, the daily usage line and
+// the weather updates' evidence) with only the sheet changed: radar-only, the key lives in
+// the Radar tab's own Tomorrow.io sheet; while Tomorrow.io is also the weather provider,
+// that sheet is gated off and the General tab's sheet holds the key (`sharedSheet`), so
+// the Radar row's Edit button and Save dialog open that one, and its summary and tab dot
+// read the same state as the Weather provider row's.
 var RADAR_KEYS = {
     rainbowkey: {name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey', test: true,
-        usage: 'rainbow', evidence: 'radar'}
+        usage: 'rainbow', evidence: 'radar'},
+    tomorrowio: Object.assign({}, PROVIDER_KEYS.tomorrowio, {sheetId: 'radarKeyTomorrowio',
+        sharedSheet: {key: TOMORROWIO_WEATHER_WHEN.key, eq: TOMORROWIO_WEATHER_WHEN.eq,
+            sheetId: PROVIDER_KEYS.tomorrowio.sheetId}})
 };
 // The Radar provider row's key-status args: the table, the picker, and what goes missing
 // without a working key (the missing-key note and the Save dialog's sentence).
@@ -2082,6 +2097,29 @@ function barSlots(prefix, barWhen, leftJoins) {
 // the URL and open it in desktop-site mode. See copyBtn() + the engine's [data-copy] handler.
 var TOMORROWIO_KEY_HINT = '<a target=\'_blank\' href=\'https://app.tomorrow.io/signup\'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b>' + copyBtn('https://app.tomorrow.io/development/keys', 'Copy the API-keys page link') + ', copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io\'s mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser\'s desktop-site mode.</b>';
 var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.';
+// The rows of both Tomorrow.io key sheets, the weather provider's (General tab) and the
+// radar-only one (Radar tab): the key field with its Test button, then the budget guard
+// with the call-budget read-out between the two (blockBefore). keySheetSection gives each
+// sheet's copies that sheet's gate.
+var TOMORROWIO_KEY_ROWS = [{
+    type: 'text',
+    messageKey: 'tomorrowioApiKey',
+    label: 'API key',
+    defaultValue: '',
+    suffixAction: 'testTomorrowioKey',
+    suffixLabel: 'Test',
+    hint: TOMORROWIO_KEY_HINT
+}, {
+    type: 'toggle',
+    messageKey: 'tomorrowioFitBudget',
+    label: 'Fit update interval to rate limit',
+    defaultValue: true,
+    joinPrevious: 'loose',
+    // blockBefore: the usage read-out sits between the API key field and this
+    // toggle, joined into the same tomorrow.io group.
+    blockBefore: 'tomorrowioBudget',
+    hint: TOMORROWIO_BUDGET_HINT
+}];
 // Rainbow's terms (developer.rainbow.ai, checked 2026-09-25): signup takes payment details, the
 // Nowcast API's first 5,000 calls each calendar month are free, then $0.10 per 1,000.
 var RAINBOW_KEY_HINT = '<b>How to get a key:</b><br>1. <a target=\'_blank\' href=\'https://developer.rainbow.ai/signup/\'>Sign up at developer.rainbow.ai</a>. Rainbow asks for a credit card, but the first 5,000 calls each month are free.<br>2. Open your <a target=\'_blank\' href=\'https://developer.rainbow.ai/profile\'>profile page</a>' + copyBtn('https://developer.rainbow.ai/profile', 'Copy the profile page link') + ', copy the API key and paste it here.<br>3. Tap Test.<br>Keep "Fit update interval to rate limit" on and the watch stays within the free 5,000 calls.';
@@ -2095,7 +2133,7 @@ var RAINBOW_BUDGET_HINT = 'Only offer update intervals that fit the free 5,000 c
  * picker's card keeps only the pickers. The sheet's title is the source's name, so the
  * key row's label is just "API key". The section and every item share the source's
  * gate: findShownItem picks a key's shown copy by the item's own gate, which keeps the
- * Radar tab's radar-only tomorrow.io copy apart from the weather provider's.
+ * Radar tab's radar-only Tomorrow.io sheet apart from the weather provider's.
  * @param {{sheetId: string, name: string}} source The source's key-table entry (its name
  *   titles the sheet).
  * @param {Object} when The source's gate, set on the section and on every item.
@@ -2548,26 +2586,10 @@ module.exports = {
             hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401.'
         }]),
         // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
-        // + budget guard render on the Radar tab instead (see TOMORROWIO_RADAR_ONLY_WHEN).
-        keySheetSection(PROVIDER_KEYS.tomorrowio, TOMORROWIO_WEATHER_WHEN, [{
-            type: 'text',
-            messageKey: 'tomorrowioApiKey',
-            label: 'API key',
-            defaultValue: '',
-            suffixAction: 'testTomorrowioKey',
-            suffixLabel: 'Test',
-            hint: TOMORROWIO_KEY_HINT
-        }, {
-            type: 'toggle',
-            messageKey: 'tomorrowioFitBudget',
-            label: 'Fit update interval to rate limit',
-            defaultValue: true,
-            joinPrevious: 'loose',
-            // blockBefore: the usage read-out sits between the API key field and this
-            // toggle, joined into the same tomorrow.io group.
-            blockBefore: 'tomorrowioBudget',
-            hint: TOMORROWIO_BUDGET_HINT
-        }]),
+        // + budget guard live in the Radar tab's Tomorrow.io sheet instead (see
+        // TOMORROWIO_RADAR_ONLY_WHEN). While it is both, this is the one sheet that holds the
+        // key, and the Radar provider row's Edit opens it too (RADAR_KEYS sharedSheet).
+        keySheetSection(PROVIDER_KEYS.tomorrowio, TOMORROWIO_WEATHER_WHEN, TOMORROWIO_KEY_ROWS),
         keySheetSection(PROVIDER_KEYS.yandex, {key: 'provider', eq: 'yandex'}, [{
             type: 'text',
             messageKey: 'yandexApiKey',
@@ -2835,15 +2857,18 @@ module.exports = {
                 // The selected provider's fuller rationale renders via hintByValue (RADAR_WHY),
                 // wrapping around the trigger — mirroring the weather picker.
                 hintByValue: RADAR_WHY,
-                // "Rainbow (own key)" gets an Edit button after the dropdown, opening its key
-                // sheet (the sheetOnly section after this one): the key field with its Test,
-                // the links, the monthly read-out and the budget guard live there. The row
-                // shows the key's status like the Weather provider row (settings/key-status.js,
-                // all from RADAR_KEYS): "Add key" in the warn look while the key is empty, a
-                // line "Key ••••1234 · ✓ works" under the RADAR_WHY hint, and a key that is
-                // missing or known to be rejected puts a dot on this tab and a dialog in front
-                // of Save ("Add key" / "Save anyway"). The missing-key note is the staticText
-                // right below.
+                // "Rainbow (own key)" and Tomorrow.io get an Edit button after the dropdown,
+                // opening their key sheet (the sheetOnly sections after this one): the key
+                // field with its Test, the links, the read-out and the budget guard live
+                // there. The row shows the key's status like the Weather provider row
+                // (settings/key-status.js, all from RADAR_KEYS): "Add key" while the key is
+                // empty, a line "Key ••••1234 · ✓ works" under the RADAR_WHY hint, and a key
+                // that is missing or known to be rejected puts a dot on this tab and a dialog
+                // in front of Save ("Add key" / "Save anyway"). The missing-key note is the
+                // staticText right below. Tomorrow.io's key is the weather provider's too:
+                // while Tomorrow.io is also the weather provider, Edit opens the General tab's
+                // Tomorrow.io sheet, the one copy of the key then, and the summary and dot
+                // here agree with that row's.
                 editSheetFrom: {resolver: 'keySheet', args: RADAR_KEY_ARGS},
                 editBadgeFrom: {resolver: 'keyBadge', args: RADAR_KEY_ARGS},
                 hintFrom: {resolver: 'keySummaryHint', args: Object.assign({hints: RADAR_WHY}, RADAR_KEY_ARGS)},
@@ -2859,30 +2884,6 @@ module.exports = {
                 joinPrevious: true,
                 textFrom: {resolver: 'keyMissingNote', args: RADAR_KEY_ARGS},
                 showWhen: {key: 'radarMode', ne: 'off'}
-            }, {
-                // Tomorrow.io key + budget guard, radar-only: shown here (under the radar picker) when
-                // tomorrow.io drives the radar but is NOT the weather provider, so the key isn't orphaned
-                // in the weather section. Same messageKeys as the Tomorrow.io key sheet's pair (mutually
-                // exclusive). This copy keeps the provider's name in its label: setup's tomorrow.io
-                // upsell (wizard.js, the walk's LAST copy of the key) renders it with no sheet title.
-                type: 'text',
-                messageKey: 'tomorrowioApiKey',
-                label: 'Tomorrow.io API key',
-                defaultValue: '',
-                joinPrevious: 'loose',
-                suffixAction: 'testTomorrowioKey',
-                suffixLabel: 'Test',
-                hint: TOMORROWIO_KEY_HINT,
-                showWhen: TOMORROWIO_RADAR_ONLY_WHEN
-            }, {
-                type: 'toggle',
-                messageKey: 'tomorrowioFitBudget',
-                label: 'Fit update interval to rate limit',
-                defaultValue: true,
-                joinPrevious: 'loose',
-                blockBefore: 'tomorrowioBudget',
-                hint: TOMORROWIO_BUDGET_HINT,
-                showWhen: TOMORROWIO_RADAR_ONLY_WHEN
             }, {
                 // Radar preview now rides the bar-scale note (blockBefore), so it sits BELOW the picker
                 // instead of stickied above it; the note stands as separate info text beneath the preview
@@ -2980,7 +2981,14 @@ module.exports = {
             // The monthly-usage read-out sits between the key field and this toggle.
             blockBefore: 'rainbowBudget',
             hint: RAINBOW_BUDGET_HINT
-        }])]
+        }]),
+        // Radar-only Tomorrow.io's key sheet, opened by the Edit button after the Radar provider
+        // dropdown and rendered nowhere else: the General tab's Tomorrow.io sheet's rows, same
+        // messageKeys, gated apart (TOMORROWIO_RADAR_ONLY_WHEN), so findShownItem keeps the two
+        // copies apart. While Tomorrow.io is also the weather provider this sheet is closed and
+        // the General tab's holds the key. Trimming and refetch on Save (onbuild.js) and the
+        // Test action are the key's, whichever sheet it was typed in.
+        keySheetSection(RADAR_KEYS.tomorrowio, TOMORROWIO_RADAR_ONLY_WHEN, TOMORROWIO_KEY_ROWS)]
     }, {
         // aplite has no health sensors — the watch compiles the view out, so the whole
         // tab is env-hidden there (tab-level showWhen; see platform.js health env flag).

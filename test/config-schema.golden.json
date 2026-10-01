@@ -5227,7 +5227,7 @@
                   "metno": "Precise weather radar — rain at your exact spot. Nordics only.",
                   "rainbow": "A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
                   "rainbowkey": "A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
-                  "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget."
+                  "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget."
                 },
                 "editSheetFrom": {
                   "resolver": "keySheet",
@@ -5240,6 +5240,21 @@
                         "test": true,
                         "usage": "rainbow",
                         "evidence": "radar"
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "radarKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio",
+                        "sharedSheet": {
+                          "key": "provider",
+                          "eq": "tomorrowio",
+                          "sheetId": "providerKeyTomorrowio"
+                        }
                       }
                     },
                     "picker": "radarProvider",
@@ -5257,6 +5272,21 @@
                         "test": true,
                         "usage": "rainbow",
                         "evidence": "radar"
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "radarKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio",
+                        "sharedSheet": {
+                          "key": "provider",
+                          "eq": "tomorrowio",
+                          "sheetId": "providerKeyTomorrowio"
+                        }
                       }
                     },
                     "picker": "radarProvider",
@@ -5271,7 +5301,7 @@
                       "metno": "Precise weather radar — rain at your exact spot. Nordics only.",
                       "rainbow": "A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
                       "rainbowkey": "A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow's free plan covers 5,000 calls a month. Powered by <a target='_blank' href='https://rainbow.ai'>Rainbow.ai</a>.",
-                      "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key (nothing works without one) and counts against the same call budget."
+                      "tomorrowio": "A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget."
                     },
                     "keyed": {
                       "rainbowkey": {
@@ -5281,6 +5311,21 @@
                         "test": true,
                         "usage": "rainbow",
                         "evidence": "radar"
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "radarKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio",
+                        "sharedSheet": {
+                          "key": "provider",
+                          "eq": "tomorrowio",
+                          "sheetId": "providerKeyTomorrowio"
+                        }
                       }
                     },
                     "picker": "radarProvider",
@@ -5298,6 +5343,21 @@
                         "test": true,
                         "usage": "rainbow",
                         "evidence": "radar"
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "radarKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio",
+                        "sharedSheet": {
+                          "key": "provider",
+                          "eq": "tomorrowio",
+                          "sheetId": "providerKeyTomorrowio"
+                        }
                       }
                     },
                     "picker": "radarProvider",
@@ -5357,6 +5417,21 @@
                         "test": true,
                         "usage": "rainbow",
                         "evidence": "radar"
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "radarKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio",
+                        "sharedSheet": {
+                          "key": "provider",
+                          "eq": "tomorrowio",
+                          "sheetId": "providerKeyTomorrowio"
+                        }
                       }
                     },
                     "picker": "radarProvider",
@@ -5366,49 +5441,6 @@
                 "showWhen": {
                   "key": "radarMode",
                   "ne": "off"
-                }
-              },
-              {
-                "type": "text",
-                "messageKey": "tomorrowioApiKey",
-                "label": "Tomorrow.io API key",
-                "defaultValue": "",
-                "joinPrevious": "loose",
-                "suffixAction": "testTomorrowioKey",
-                "suffixLabel": "Test",
-                "hint": "<a target='_blank' href='https://app.tomorrow.io/signup'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b><button type=\"button\" class=\"copybtn\" data-copy=\"https://app.tomorrow.io/development/keys\" title=\"Copy the API-keys page link\" aria-label=\"Copy the API-keys page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io's mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser's desktop-site mode.</b>",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "tomorrowio"
-                    },
-                    {
-                      "key": "provider",
-                      "ne": "tomorrowio"
-                    }
-                  ]
-                }
-              },
-              {
-                "type": "toggle",
-                "messageKey": "tomorrowioFitBudget",
-                "label": "Fit update interval to rate limit",
-                "defaultValue": true,
-                "joinPrevious": "loose",
-                "blockBefore": "tomorrowioBudget",
-                "hint": "Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.",
-                "showWhen": {
-                  "all": [
-                    {
-                      "key": "radarProvider",
-                      "eq": "tomorrowio"
-                    },
-                    {
-                      "key": "provider",
-                      "ne": "tomorrowio"
-                    }
-                  ]
                 }
               },
               {
@@ -5590,6 +5622,79 @@
                     {
                       "key": "radarMode",
                       "ne": "off"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "sheetOnly": true,
+            "sheetId": "radarKeyTomorrowio",
+            "showWhen": {
+              "all": [
+                {
+                  "key": "radarProvider",
+                  "eq": "tomorrowio"
+                },
+                {
+                  "key": "radarMode",
+                  "ne": "off"
+                },
+                {
+                  "key": "provider",
+                  "ne": "tomorrowio"
+                }
+              ]
+            },
+            "title": "Tomorrow.io",
+            "items": [
+              {
+                "type": "text",
+                "messageKey": "tomorrowioApiKey",
+                "label": "API key",
+                "defaultValue": "",
+                "suffixAction": "testTomorrowioKey",
+                "suffixLabel": "Test",
+                "hint": "<a target='_blank' href='https://app.tomorrow.io/signup'>Create a free tomorrow.io account</a> (no credit card needed), then open <b>https://app.tomorrow.io/development/keys</b><button type=\"button\" class=\"copybtn\" data-copy=\"https://app.tomorrow.io/development/keys\" title=\"Copy the API-keys page link\" aria-label=\"Copy the API-keys page link\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"9\" width=\"11\" height=\"11\" rx=\"2\"/><path d=\"M5 15V5a2 2 0 0 1 2-2h10\"/></svg></button>, copy your key and paste it here, then Test it. The free plan is plenty — see the call budget below.<br><b>IMPORTANT: On a phone, tomorrow.io's mobile site shows an error (404) on the API-keys page — tap the copy button, then open the link in your browser's desktop-site mode.</b>",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarProvider",
+                      "eq": "tomorrowio"
+                    },
+                    {
+                      "key": "radarMode",
+                      "ne": "off"
+                    },
+                    {
+                      "key": "provider",
+                      "ne": "tomorrowio"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "toggle",
+                "messageKey": "tomorrowioFitBudget",
+                "label": "Fit update interval to rate limit",
+                "defaultValue": true,
+                "joinPrevious": "loose",
+                "blockBefore": "tomorrowioBudget",
+                "hint": "Only offer update intervals that fit the free plan. Turn off to pick any interval — over-budget calls are rejected by tomorrow.io until the limit resets, and the watch keeps its last data.",
+                "showWhen": {
+                  "all": [
+                    {
+                      "key": "radarProvider",
+                      "eq": "tomorrowio"
+                    },
+                    {
+                      "key": "radarMode",
+                      "ne": "off"
+                    },
+                    {
+                      "key": "provider",
+                      "ne": "tomorrowio"
                     }
                   ]
                 }

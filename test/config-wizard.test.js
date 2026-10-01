@@ -457,7 +457,9 @@ function fakeWizardDom() {
     },
     querySelectorAll: () => [],
     parentNode: null,
-    click: (closest) => (listeners.click || []).forEach((fn) => fn({ target: { closest } }))
+    click: (closest) => (listeners.click || []).forEach((fn) => fn({ target: { closest } })),
+    // Any other overlay event (the upsell key field's 'input'), with the target given.
+    fire: (ev, target) => (listeners[ev] || []).forEach((fn) => fn({ target }))
   };
 
   global.document = {
@@ -571,6 +573,68 @@ test('a health pick that keeps the enable state leaves a customized health row a
   assert.equal(ctx.S.healthMode, 'status');
   assert.deepEqual([ctx.S.statusHealthLeft, ctx.S.statusHealthMid, ctx.S.statusHealthRight],
     ['sleep', 'steps', 'empty']);
+});
+
+// --- the tomorrow.io upsell on the "All set" step -----------------------------------------
+// It renders the settings page's own tomorrow.io key row. Both copies of that row sit in key
+// sheets titled "Tomorrow.io" (the weather provider's on the General tab, the radar-only one on
+// the Radar tab) and read just "API key"; the upsell has no sheet title above it, so it names
+// the provider itself. The field is pinned to the exact markup it had while the Radar tab's
+// copy was a page row labelled "Tomorrow.io API key".
+
+/**
+ * Re-run setup for `saved` and walk to the last step ("All set").
+ * @param {Object} saved Stored settings.
+ * @returns {{ctx: Object, dom: Object, body: string}} The wizard state, the fake DOM and the
+ *   last step's body HTML.
+ */
+function wizardDoneStep(saved) {
+  const dom = fakeWizardDom();
+  const ctx = wizCtx({ saved: Object.assign({ onboardingDone: true }, saved) });
+  Object.assign(ctx, { cfg: { onboardingDone: true }, set: (k, v) => { ctx.S[k] = v; }, save: () => {}, render: () => {} });
+  const nav = (v) => dom.overlay.click((sel) => (sel === '[data-wiz-nav]' ? { getAttribute: () => v } : null));
+  PConf.hooks.runReady(ctx);
+  PConf.actions.startWizard();
+  let guard = 0;
+  while (!/data-wiz-nav="save"/.test(dom.overlay.querySelector('[data-wiz-foot]').innerHTML) && guard++ < 20) { nav('next'); }
+  return { ctx, dom, body: dom.overlay.querySelector('[data-wiz-body]').innerHTML };
+}
+
+test('the tomorrow.io upsell shows the key row as before: "Tomorrow.io API key", its hint and Test', async () => {
+  const hint = items => items.find((i) => i.messageKey === 'tomorrowioApiKey').hint;
+  const copies = [];
+  PConf.schemaWalk.eachItem(schema, (it) => { if (it.messageKey === 'tomorrowioApiKey') { copies.push(it); } });
+  assert.equal(copies.length, 2, 'the weather provider\'s and the radar-only key sheet\'s copies');
+  copies.forEach((it) => assert.equal(it.label, 'API key', 'each copy is labelled by its sheet\'s title'));
+  const field = '<div class="row stack"><div class="lbl">Tomorrow.io API key</div><div class="hint">' + hint(copies)
+    + '</div><div><div class="txt-act"><input type="text" data-k="tomorrowioApiKey" value="" placeholder="">'
+    + '<button class="txt-act-btn" data-action="testTomorrowioKey">Test</button></div>'
+    + '<div class="hint txt-act-result" data-action-result="tomorrowioApiKey"></div></div></div>';
+  // Whatever the radar runs on: the upsell is the same field.
+  [{ holidayCountry: 'US' }, { holidayCountry: 'US', radarProvider: 'tomorrowio', radarMode: 'graph' },
+    { holidayCountry: 'GB', provider: 'tomorrowio', radarProvider: 'tomorrowio' }].forEach((saved) => {
+    const { body } = wizardDoneStep(saved);
+    const at = body.indexOf('<div class="wiz-tio">');
+    assert.ok(at !== -1, JSON.stringify(saved) + ': the upsell shows');
+    assert.ok(body.indexOf(field, at) !== -1, JSON.stringify(saved) + ': the key field, exactly as before');
+  });
+  // Germany gets DWD: no upsell.
+  assert.equal(wizardDoneStep({ holidayCountry: 'DE' }).body.indexOf('wiz-tio'), -1);
+  await drain();
+});
+
+test('a key typed into the upsell makes tomorrow.io the weather provider; clearing it reverts to the country\'s', async () => {
+  const { ctx, dom } = wizardDoneStep({ holidayCountry: 'US', provider: 'dwd' });
+  assert.equal(ctx.S.provider, 'dwd', 'a re-run keeps the stored provider');
+  const inp = { value: 'tio-key', getAttribute: (n) => (n === 'data-k' ? 'tomorrowioApiKey' : null) };
+  inp.closest = (sel) => (sel === 'input[type=text][data-k]' ? inp : null);
+  dom.overlay.fire('input', inp);
+  assert.equal(ctx.S.tomorrowioApiKey, 'tio-key');
+  assert.equal(ctx.S.provider, 'tomorrowio');
+  inp.value = '';
+  dom.overlay.fire('input', inp);
+  assert.equal(ctx.S.provider, 'openmeteo');
+  await drain();
 });
 
 // --- the fresh-install country inference ------------------------------------------------

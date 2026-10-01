@@ -552,12 +552,17 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // The tomorrow.io upsell, shown between the first two "All set" paragraphs when the resulting
     // weather provider isn't DWD or Met.no (i.e. outside their strong regions): a free tomorrow.io key
     // unlocks the precise worldwide nowcast. Reuses the real settings field (renderRow) so the signup
-    // instructions, key input and Test button match the Provider-settings tab exactly. Entering a key
+    // instructions, key input and Test button match the Tomorrow.io key sheets exactly. Entering a key
     // switches the weather provider to tomorrow.io (see onTomorrowioKey), wired in openWizard.
+    // Both copies of the key's row (the weather provider's Tomorrow.io sheet and the radar-only one)
+    // are labelled just "API key" under a sheet titled "Tomorrow.io"; any copy will do (same hint,
+    // same Test), and the row here, with no sheet title above it, names the provider itself.
+    var TOMORROWIO_UPSELL_LABEL = 'Tomorrow.io API key';
     function tomorrowioUpsell() {
         var item = findItem(W.ctx.schema, 'tomorrowioApiKey');
         if (!item) { return ''; }
-        var field = PConf.engine.renderRow(item, { value: W.ctx.S.tomorrowioApiKey || '' });
+        var field = PConf.engine.renderRow(Object.assign({}, item, { label: TOMORROWIO_UPSELL_LABEL }),
+            { value: W.ctx.S.tomorrowioApiKey || '' });
         return '<div class="wiz-tio">'
             + '<p><b>Get the most precise forecast.</b> For your region, a free <b>Tomorrow.io</b> account unlocks a hyperlocal forecast anywhere in the world. Set it up below, or skip it to keep the auto-picked provider.</p>'
             + field
