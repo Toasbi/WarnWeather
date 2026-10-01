@@ -1448,7 +1448,8 @@ function onDemandSideSheet(bar, side) {
         title: 'Alerts ' + side,
         intro: '<b>' + OD_BAR_NAMES[bar] + '</b><br>Ticked items show at this bar’s ' + side + ' edge only while '
             + 'they have something to say. The first sits next to the status slot there; when the bar runs short '
-            + 'of room, the last ones drop first.',
+            + 'of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, '
+            + 'with its colors, instead of adding its alert icon.',
         items: [{
             type: 'checklist',
             messageKey: key,

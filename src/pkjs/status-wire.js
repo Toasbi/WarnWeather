@@ -418,23 +418,27 @@ function alertHeader(kind, level, mark) {
 }
 
 /**
- * Bake the weather alerts' metric entries (ALERT_ENTRIES_UINT8): one entry per
- * ACTIVE metric alert — placed on any bar (enabledAlerts, read with a watch that
- * draws On demand: the tuple only rides to one) and active today or, with Days
- * 'tomorrow', tomorrow (alertPick) — in ALERT_KINDS order: gust, UV, AQI, pollen,
- * wind. A tomorrow entry carries the alert's mark (alert<Key>NextDayMark). The
- * value bytes are there only when the kind's Look is 'value' (alert<Key>Display)
- * and the text is printable ASCII of at most ALERT_LEN_MAX bytes. Entries that
- * would push the bytes past ALERT_ENTRIES_MAX_BYTES are dropped from the TAIL
- * (wind first) — the rule the watch applies to its pixels.
+ * The weather alerts' metric entries the bake sends (ALERT_ENTRIES_UINT8,
+ * packAlerts): one per ACTIVE metric alert — placed on any bar (enabledAlerts, read
+ * with a watch that draws On demand: the tuple only rides to one) and active today
+ * or, with Days 'tomorrow', tomorrow (alertPick) — in ALERT_KINDS order: gust, UV,
+ * AQI, pollen, wind. A tomorrow entry carries the alert's mark
+ * (alert<Key>NextDayMark). The value text is there only when the kind's Look is
+ * 'value' (alert<Key>Display) and it is printable ASCII of at most ALERT_LEN_MAX
+ * bytes. Entries that would push the bytes past ALERT_ENTRIES_MAX_BYTES are dropped
+ * from the TAIL (wind first) — the rule the watch applies to its pixels. The slots
+ * read the same list (status-lines.js): a slot merges only an entry that rides.
  * @param {Object} payload weather payload (pre-transform, trends present)
  * @param {Object} settings Clay settings blob
- * @returns {number[]} the entry bytes, [] when nothing is alerting
+ * @returns {Array<{code: string, kindId: number, level: number, nextDay: boolean,
+ *     mark: string, text: string}>} the entries in wire order, [] when nothing is
+ *     alerting
  */
-function bakeAlerts(payload, settings) {
+function bakedAlerts(payload, settings) {
   var out = [];
   if (!payload || !settings) { return out; }
   var alerts = thresholds.enabledAlerts(settings);
+  var bytes = 0;
   for (var i = 0; i < alerts.length; i++) {
     var a = alerts[i];
     var pick = alertPick(a, payload, settings);
@@ -443,11 +447,40 @@ function bakeAlerts(payload, settings) {
     if (text.length > ALERT_LEN_MAX || !/^[\x20-\x7E]*$/.test(text)) { text = ''; }
     // Tail-drop: a prefix of the fixed order, never a later entry that happens
     // to be shorter — the watch fits the row by the same rule.
-    if (out.length + 1 + text.length > ALERT_ENTRIES_MAX_BYTES) { break; }
-    out.push(alertHeader(a.kindId, pick.level, pick.nextDay ? a.mark : null));
-    for (var c = 0; c < text.length; c++) { out.push(text.charCodeAt(c)); }
+    bytes += 1 + text.length;
+    if (bytes > ALERT_ENTRIES_MAX_BYTES) { break; }
+    out.push({code: a.code, kindId: a.kindId, level: pick.level, nextDay: pick.nextDay,
+      mark: a.mark, text: text});
   }
   return out;
+}
+
+/**
+ * Pack the entries bakedAlerts picked into the ALERT_ENTRIES_UINT8 bytes: a header
+ * per entry, then its value text.
+ * @param {Array<{kindId: number, level: number, nextDay: boolean, mark: string,
+ *     text: string}>} entries bakedAlerts' list
+ * @returns {number[]} the entry bytes, [] when nothing is alerting
+ */
+function packAlerts(entries) {
+  var out = [];
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    out.push(alertHeader(e.kindId, e.level, e.nextDay ? e.mark : null));
+    for (var c = 0; c < e.text.length; c++) { out.push(e.text.charCodeAt(c)); }
+  }
+  return out;
+}
+
+/**
+ * Bake the weather alerts' metric entries (ALERT_ENTRIES_UINT8): bakedAlerts' list,
+ * packed.
+ * @param {Object} payload weather payload (pre-transform, trends present)
+ * @param {Object} settings Clay settings blob
+ * @returns {number[]} the entry bytes, [] when nothing is alerting
+ */
+function bakeAlerts(payload, settings) {
+  return packAlerts(bakedAlerts(payload, settings));
 }
 
 module.exports = {
@@ -467,5 +500,7 @@ module.exports = {
   ALERT_DAY_SHIFT: ALERT_DAY_SHIFT,
   ALERT_LEN_MAX: ALERT_LEN_MAX,
   ALERT_ENTRIES_MAX_BYTES: ALERT_ENTRIES_MAX_BYTES,
+  bakedAlerts: bakedAlerts,
+  packAlerts: packAlerts,
   bakeAlerts: bakeAlerts
 };

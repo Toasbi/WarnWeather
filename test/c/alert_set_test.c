@@ -3,10 +3,10 @@
 #include "c/appendix/alert_set.h"
 
 // Host test for the weather alerts' pure half (appendix/alert_set.c): the metric
-// entries' parse, item map and text lanes, and the rain alert's text. Built with
-// -DWW_ON_DEMAND, the flag wscript sets on every platform but aplite — without it
-// the module body is compiled out and nothing here would link — and the
-// WW_THRESHOLD_HIGHLIGHT alert_set.h requires beside it.
+// entries' parse, item map, which slot merges an entry, and text lanes, and the rain
+// alert's text. Built with -DWW_ON_DEMAND, the flag wscript sets on every platform but
+// aplite — without it the module body is compiled out and nothing here would link —
+// and the WW_THRESHOLD_HIGHLIGHT alert_set.h requires beside it.
 
 static int s_failures = 0;
 
@@ -235,6 +235,73 @@ static void item_tests(void) {
            (1 << OD_GUST) | (1 << OD_UV) | (1 << OD_AQI) | (1 << OD_POLLEN) | (1 << OD_WIND));
 }
 
+// alert_set_merge: a slot merges the entry of the metric it shows (its ThreshKind)
+// when that entry's item sits on the slot's own side of the bar — the left slot with
+// a left item, the right slot with a right one. The middle never merges, a slot on
+// the far side never does, and Wind speed never takes a gust entry.
+static void merge_tests(void) {
+    // UV warn (today), gust danger (tomorrow, »), pollen warn.
+    uint8_t bytes[] = {
+        header(THRESH_UV, THRESH_LEVEL_WARN, 0), '8',
+        header(THRESH_GUST, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_RAQUO), '9', '0',
+        header(THRESH_POLLEN, THRESH_LEVEL_WARN, 0),
+    };
+    AlertSet set;
+    alert_set_parse(bytes, sizeof(bytes), &set);
+    uint8_t side[OD_ITEM_COUNT] = { 0 };
+    side[OD_UV] = OD_SIDE_LEFT;
+    side[OD_GUST] = OD_SIDE_RIGHT;
+    side[OD_POLLEN] = OD_SIDE_RIGHT;
+
+    // The left slot showing UV beside a left UV alert: the alert's level, item UV.
+    set.merged[0] = set.merged[1] = 0xFF;
+    expect("merge.left.level", alert_set_merge(&set, side, 0, THRESH_UV), THRESH_LEVEL_WARN);
+    expect("merge.left.item", set.merged[0], OD_UV + 1);
+    expect("merge.left.other_side_untouched", set.merged[1], 0xFF);
+    // The right slot showing gusts beside a right gust alert: tomorrow's danger.
+    expect("merge.right.level", alert_set_merge(&set, side, 2, THRESH_GUST),
+           THRESH_LEVEL_DANGER);
+    expect("merge.right.item", set.merged[1], OD_GUST + 1);
+    // The same metric on the far side: the UV alert sits left, the slot right.
+    expect("merge.far.level", alert_set_merge(&set, side, 2, THRESH_UV), 0);
+    expect("merge.far.item", set.merged[1], 0);
+    // ... and the gust alert sits right, the slot left.
+    expect("merge.far_left.level", alert_set_merge(&set, side, 0, THRESH_GUST), 0);
+    expect("merge.far_left.item", set.merged[0], 0);
+    // The middle never merges, and leaves both sides as they were.
+    set.merged[0] = set.merged[1] = 0xFF;
+    expect("merge.middle.uv", alert_set_merge(&set, side, 1, THRESH_UV), 0);
+    expect("merge.middle.gust", alert_set_merge(&set, side, 1, THRESH_GUST), 0);
+    expect("merge.middle.untouched", set.merged[0] == 0xFF && set.merged[1] == 0xFF, 1);
+    // Wind speed is not the gusts' metric: no merge beside the right gust alert.
+    expect("merge.wind_slot_gust_alert", alert_set_merge(&set, side, 2, THRESH_WIND), 0);
+    expect("merge.wind_slot_gust_alert.item", set.merged[1], 0);
+    // A pollen alert with no value merges too (its level only).
+    expect("merge.pollen.level", alert_set_merge(&set, side, 2, THRESH_POLLEN),
+           THRESH_LEVEL_WARN);
+    expect("merge.pollen.item", set.merged[1], OD_POLLEN + 1);
+    // Every other slot kind, and no slot (-1), merges nothing.
+    for (int kind = -1; kind < THRESH_KIND_COUNT; kind++) {
+        if (kind == THRESH_UV) { continue; }
+        char name[40];
+        snprintf(name, sizeof(name), "merge.left.kind%d", kind);
+        expect(name, alert_set_merge(&set, side, 0, kind), 0);
+    }
+    // An alert of this metric on no side of this bar (it sits on another bar).
+    side[OD_UV] = OD_SIDE_NONE;
+    expect("merge.other_bar", alert_set_merge(&set, side, 0, THRESH_UV), 0);
+    expect("merge.other_bar.item", set.merged[0], 0);
+    // No entry of the metric (the AQI alert is not active).
+    side[OD_AQI] = OD_SIDE_LEFT;
+    expect("merge.inactive", alert_set_merge(&set, side, 0, THRESH_AQI), 0);
+    // Nothing parsed: nothing merges.
+    AlertSet none;
+    alert_set_parse(bytes, 0, &none);
+    side[OD_UV] = OD_SIDE_LEFT;
+    expect("merge.empty", alert_set_merge(&none, side, 0, THRESH_UV), 0);
+    expect("merge.empty.item", none.merged[0], 0);
+}
+
 // The lane of the first entry `bytes` parses to, with `values` as its On demand lane
 // has it.
 static const char *lane_of(const uint8_t *bytes, size_t len, bool values, char *out,
@@ -392,6 +459,7 @@ int main(void) {
     bytes_ok_tests();
     icon_tests();
     item_tests();
+    merge_tests();
     lane_tests();
     rain_text_tests();
     if (s_failures) { printf("%d alert_set failure(s)\n", s_failures); return 1; }

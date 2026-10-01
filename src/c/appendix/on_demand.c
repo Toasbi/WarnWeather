@@ -68,13 +68,15 @@ typedef struct {
                                 // (0: none, or the item dropped)
     uint8_t first[2];           // 1: the side's item 0 is that Battery item
     uint8_t n[2];               // items still in, past it
+    uint8_t merged[2];          // 1 + the side's merged alert while it is in; 0: none
 } Pass;
 
 // The forms and lanes one geometry check runs with, effective ones: a form that
 // changes nothing is already folded to the one it equals.
 typedef struct {
     uint8_t first[2];   // the side's first item: 0 once the Battery item stands in
-    uint8_t n[2];       // its items from there; 0: the side is not active
+    uint8_t n[2];       // its items drawn from there; 0: the side is not active
+    uint8_t skip[2];    // 1 + the item passed over (its merged alert); 0: none
     uint8_t own[2];     // a side's own slot (an inactive side: its plain form)
     uint8_t mid;
     bool mid_free;
@@ -172,11 +174,12 @@ static int16_t item_gap(const OdSideIn *s, int b) {
 __attribute__((noinline)) static int16_t span_w(const Pass *p, const Conf *c, int d,
                                                 int lane) {
     const OdSideIn *s = &p->sides[d];
-    int end = c->first[d] + c->n[d];
     int w = 0;
+    const int end = c->first[d] + c->n[d] + (c->skip[d] != 0);
     for (int i = c->first[d]; i < end; i++) {
+        if (i + 1 == c->skip[d]) { continue; }
+        if (w) { w += item_gap(s, i); }
         w += s->w[lane][i];
-        if (i + 1 < end) { w += item_gap(s, i + 1); }
     }
     return (int16_t)w;
 }
@@ -188,19 +191,25 @@ __attribute__((noinline)) static int16_t span_w(const Pass *p, const Conf *c, in
 // so once the other side has hidden the middle the slot is back, and the side climbs
 // on only if its claim is then in the way (§5.4, attribution).
 // The Battery item is in exactly where every battery slot is hidden (§5.4, the
-// stand-in): the forms are taken without it first and, when they hide all of those
-// slots, again with it in. That second take keeps them hidden: a side the item alone
-// makes active only had a slot plain hid there, the middle takes only harsher
-// requests, and a battery slot keeps its row's form (no slot back beside a middle
-// the second take hides) — so the item stays in.
+// stand-in), and a side's merged alert exactly where its own slot is: the forms are
+// taken without them first and, when they hide those slots, again with them in, until
+// no other comes in (at most three takes). A later take keeps them hidden: a side an
+// item alone makes active only had a slot plain hid there (or a battery slot of the
+// other side's or the middle's), the middle takes only harsher requests, and the slot
+// a stand-in replaces keeps its row's form (no slot back beside a middle a later take
+// hides) — so every item that came in stays in.
 static void conf_of(const Pass *p, const uint8_t pos[2], Conf *c) {
-    uint8_t in = 0;
+    uint8_t in = 0;   // bit 0: the Battery item; bit 1 + d: side d's merged alert
     for (;;) {
         memset(c, 0, sizeof(*c));
         uint8_t mid = OD_FULL;
         for (int d = 0; d < 2; d++) {
             c->first[d] = (uint8_t)(p->first[d] & ~in);
             c->n[d] = (uint8_t)(p->n[d] + p->first[d] - c->first[d]);
+            if (p->merged[d] && !(in & (2 << d))) {
+                c->skip[d] = p->merged[d];
+                c->n[d]--;
+            }
             if (!c->n[d]) { continue; }
             const OdStage *row = &STAGE[ROW(pos[d])];
             c->lane[d] = LOOK(pos[d]);
@@ -210,18 +219,21 @@ static void conf_of(const Pass *p, const uint8_t pos[2], Conf *c) {
         // mid_free is read only while the middle shows (geometry, place), so a hidden
         // middle's flag needs no clearing.
         c->mid = eff_form(p, 1, mid);
+        uint8_t want = 0;
         for (int d = 0; d < 2; d++) {
             uint8_t form = OD_FULL;
             if (c->n[d] && (c->mid != OD_HIDDEN || ROW(pos[d]) >= MID_ROWS
-                           || (in & (p->batt >> OWN(d))))) {
+                           || (((in >> (d + 1)) | (in & (p->batt >> OWN(d)))) & 1))) {
                 form = STAGE[ROW(pos[d])].own;
             }
             c->own[d] = eff_form(p, OWN(d), form);
+            if (p->merged[d] && c->own[d] == OD_HIDDEN) { want |= (uint8_t)(2 << d); }
         }
         const uint8_t shown = (uint8_t)((c->own[0] != OD_HIDDEN) | (c->mid != OD_HIDDEN) << 1
                                         | (c->own[1] != OD_HIDDEN) << 2);
-        if (in || !p->batt || (p->batt & shown)) { return; }
-        in = 1;
+        if (p->batt && !(p->batt & shown)) { want |= 1; }
+        if (!(want & ~in)) { return; }
+        in |= want;
     }
 }
 
@@ -340,14 +352,15 @@ static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *
             if (c->own[d] != OD_HIDDEN) { out->place[i] = p->plain[i]; }
         } else {
             out->first[d] = c->first[d];
-            out->n[d] = c->n[d];
+            out->n[d] = (uint8_t)(c->n[d] + (c->skip[d] != 0));
+            out->skip[d] = c->skip[d];
             out->lane[d] = c->lane[d];
             out->stage[d] = ROW(pos[d]);
             const OdSideIn *s = &p->sides[d];
-            const int end = c->first[d] + c->n[d];
             // Each side is laid out in its own frame, `u` in from its edge, and mirrored
             // for the right side: the own slot at the edge, then its run.
             int16_t u = (int16_t)-p->bleed[d];
+            int16_t u0;
             if (c->own[d] != OD_HIDDEN) {
                 uint8_t v = 0;
                 int16_t w = p->plain_w[i];
@@ -363,10 +376,14 @@ static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *
                                      &out->place[i]);
                 u = (int16_t)(w + GAP);
             }
+            u0 = u;
+            const int end = c->first[d] + out->n[d];
             for (int k = c->first[d]; k < end; k++) {
+                if (k + 1 == c->skip[d]) { continue; }
+                if (u != u0) { u = (int16_t)(u + item_gap(s, k)); }
                 const int16_t wk = s->w[c->lane[d]][k];
                 out->item_x[d][k] = d ? (int16_t)(W - u - wk) : u;
-                u = (int16_t)(u + wk + (k + 1 < end ? item_gap(s, k + 1) : 0));
+                u = (int16_t)(u + wk);
             }
             claim = u;
         }
@@ -520,10 +537,11 @@ static bool middle_costs_look(Pass *p, uint8_t pos[2], Geom *g) {
     for (int d = 0; d < 2; d++) {
         uint8_t t[2];
         if (!look_back(p, pos, d, d ? own0 : own1, t, g)) { continue; }
-        // A battery slot is the stand-in's to show or hide (conf_of), never owed.
+        // A battery slot, and a slot with a merged alert, is the stand-in's to show or
+        // hide (conf_of), never owed.
         for (int s = 0; s < 2; s++) {
             const int i = OWN(s);
-            if (g->c.n[s] && g->c.own[s] != OD_FULL && !((p->batt >> i) & 1)
+            if (g->c.n[s] && g->c.own[s] != OD_FULL && !((p->batt >> i) & 1) && !p->merged[s]
                 && g->run[s] + p->plain_w[i] + 2 * GAP <= ((p->w + GAP) >> 1)) {
                 p->plain_w[1] = 0;
                 return true;
@@ -597,9 +615,10 @@ static bool ladder(Pass *p, uint8_t pos[2], Geom *g) {
         }
         // The tail is the Battery item itself only on a side it stands in on alone
         // (n 0, so the tail is item 0): then it leaves for good, and no geometry check
-        // brings it in again (conf_of).
+        // brings it in again (conf_of). A merged alert that drops leaves its slot.
         if (p->n[drop]) {
             p->n[drop]--;
+            if (p->merged[drop] > p->first[drop] + p->n[drop]) { p->merged[drop] = 0; }
         } else {
             p->batt = 0;
         }
@@ -678,6 +697,7 @@ void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[
             p.first[d] = 1;
             p.n[d]--;
         }
+        p.merged[d] = sides[d].merged;
     }
     layout_pass(&p, out);
 }

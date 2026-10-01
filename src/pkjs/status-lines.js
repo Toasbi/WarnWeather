@@ -11,6 +11,7 @@ var isPolarSunPair = require('./weather/sun-events.js').isPolarSunPair;
 var statusPair = require('./status-pair.js');
 var wireUnits = require('./wire-units.js');
 var cityLadder = require('./city-ladder.js');
+var onDemand = require('./on-demand.js');
 
 // Slot positions by index, the catalog's slot-context vocabulary.
 var POSITIONS = ['left', 'mid', 'right'];
@@ -299,9 +300,13 @@ function phoneBatterySupported() {
  *   the wire.
  * @param {?Object} [dayMax] A day-max kind's pick, wireUnits.dayMaxShown -- packLine
  *   reads it once per slot for the text and the arrow; absent = read here.
+ * @param {?{text: string, nextDay: boolean, mark: *}} [alert] The weather alert of
+ *   this slot's metric that it merged (packLine's mergedAlert, its mark the one a
+ *   tomorrow value takes here): the slot shows both values once
+ *   (status-pair.js mergeAlert). Absent = none.
  * @returns {string} display text, '--' when the value is unavailable
  */
-function formatValue(code, payload, settings, slotKey, cap, dayMax) {
+function formatValue(code, payload, settings, slotKey, cap, dayMax, alert) {
   var v;
   if (code === 'countdown') {
     return formatCountdown(settings && slotKey
@@ -355,12 +360,14 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax) {
     // gusts append their unit label when the whole text still fits ('12/30kph').
     var shown = typeof dayMax === 'undefined'
       ? wireUnits.dayMaxShown(code, payload, settings) : dayMax;
-    if (!shown) { return '--'; }
+    // A merged alert's value joins what the slot shows (null: it adds nothing).
+    var merged = alert ? statusPair.mergeAlert(code, shown, alert, settings, cap) : null;
+    if (!shown && merged === null) { return '--'; }
     // The unit gives way to the direction arrow (packLine appends it after the
     // text, only into a free byte): '12/30' + arrow, never '12/30kph' without one.
     var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
-    var arrowByte = (settings[code + 'SlotDirection'] && shown.now !== null) ? 1 : 0;
-    return withUnit(statusPair.formatPeak(code, shown, settings, cap),
+    var arrowByte = (settings[code + 'SlotDirection'] && shown && shown.now !== null) ? 1 : 0;
+    return withUnit(merged !== null ? merged : statusPair.formatPeak(code, shown, settings, cap),
       dayMaxUnit(code, settings), limit - arrowByte);
   }
   if (code === 'pressure') {
@@ -386,8 +393,14 @@ function formatValue(code, payload, settings, slotKey, cap, dayMax) {
       unitEnabled(settings, 'dewSlotUnit') ? DEGREE : '', cap);
   }
   if (code === 'pollen') {
-    return payload.POLLEN_TODAY === null || typeof payload.POLLEN_TODAY === 'undefined'
-      ? '--' : String(payload.POLLEN_TODAY);
+    var band = payload.POLLEN_TODAY === null || typeof payload.POLLEN_TODAY === 'undefined'
+      ? null : String(payload.POLLEN_TODAY);
+    // A merged pollen alert pairs with today's band like a Both pair (the slot has no
+    // pair settings: the slash, today first).
+    var pollen = alert ? statusPair.mergeAlert(code, band === null ? null
+      : { now: band, peak: null, nextDay: false }, alert, settings, cap) : null;
+    if (pollen !== null) { return pollen; }
+    return band === null ? '--' : band;
   }
   // Both phone-battery items render the same text; they differ only in the icon
   // id they pack (see iconFor). The value is baked here from the phone's own
@@ -466,8 +479,9 @@ function directionSentinel(code, payload, settings, env, text, dayMax) {
   // Day max alone prints the peak, not the wind the arrow describes (the current
   // hour's), so it draws none; Both keeps it, its first reading being now's. The
   // pick is the one the text was formatted from, so the two never judge
-  // different peaks.
-  if (dayMax && dayMax.now === null) { return 0; }
+  // different peaks. A slot with no reading of its own draws none either, even
+  // where a merged alert's value fills it.
+  if (!dayMax || dayMax.now === null) { return 0; }
   var from = trendHead(payload && payload.WIND_DIR_TREND);
   if (typeof from !== 'number' || !isFinite(from)) { return 0; }
   // Normalize into [0,360) before the flip so no input can push the byte outside
@@ -505,13 +519,41 @@ function iconFor(code, item) {
 }
 
 /**
+ * The weather alert a slot merges (the owner, 2026-10-01): an edge slot showing the
+ * metric of an alert the bake sends whose item sits on that slot's side of this bar.
+ * The middle slot never merges, nor does a slot on the other side; the watch draws
+ * the merged slot at the alert's level and its item only where the slot hides
+ * (alert_set_merge in src/c/appendix/alert_set.c reads the same three facts: the
+ * entries, the side cells and the slot's metric).
+ * @param {?Array<{code: string}>} alerts status-wire.js bakedAlerts' list; null for
+ *   a watch the entries do not ride to
+ * @param {Object} settings Clay settings blob
+ * @param {Object} env platform environment
+ * @param {string} bar the line's bar (an on-demand.js BARS bar)
+ * @param {number} s the slot's position, 0..2
+ * @param {string} code the slot's item code
+ * @returns {?Object} the alert's entry; null for none
+ */
+function mergedAlert(alerts, settings, env, bar, s, code) {
+  if (!alerts || s === 1) { return null; }
+  for (var i = 0; i < alerts.length; i++) {
+    if (alerts[i].code === code) {
+      return onDemand.sideOf(settings, bar, code, env) === POSITIONS[s] ? alerts[i] : null;
+    }
+  }
+  return null;
+}
+
+/**
  * @param {Object} line catalog line definition
  * @param {Object} payload weather payload
  * @param {Object} settings Clay settings blob
  * @param {Object} env platform environment
+ * @param {?Array<Object>} [alerts] the weather alerts the bake sends (status-wire.js
+ *   bakedAlerts); absent or null = none (a watch the entries do not ride to)
  * @returns {number[]} packed three-slot line
  */
-function packLine(line, payload, settings, env) {
+function packLine(line, payload, settings, env, alerts) {
   var bytes = [];
   for (var s = 0; s < 3; s++) {
     var key = line.slots[s];
@@ -545,10 +587,16 @@ function packLine(line, payload, settings, env) {
       // A day-max kind's pick (null for every other kind), read once: the text
       // and the wind arrow below must judge the same peak.
       var dayMax = wireUnits.dayMaxShown(code, payload, settings);
+      // The weather alert of this slot's metric on its side, which the slot then
+      // shows too; a tomorrow value takes the slot's own mark where it has one
+      // (the day-max kinds), else the alert's (pollen).
+      var merged = mergedAlert(alerts, settings, env, line.id, s, code);
+      var alert = merged && { text: merged.text, nextDay: merged.nextDay,
+        mark: wireUnits.isDayMaxKind(code) ? settings[code + 'SlotNextDayMark'] : merged.mark };
       // The cap goes DOWN into formatValue so a per-kind unit can decline to
       // append itself rather than be silently chopped off again by utf8Truncate
       // below (see withUnit). The truncation still guards the value itself.
-      var text = formatValue(code, payload, settings, key, textCap(s), dayMax);
+      var text = formatValue(code, payload, settings, key, textCap(s), dayMax, alert);
       // An edge slot's city walks the watch's word ladder before the cap cuts it: the
       // first form that fits ('B. Soden', not 'Bad Sode'), whose words the watch can
       // still shorten from there. A name no form fits whole is cut as before ('New
@@ -590,6 +638,10 @@ function packLine(line, payload, settings, env) {
  */
 function buildStatusLines(payload, settings, watchInfo) {
   var env = platformLib.computeEnv(watchInfo);
+  // The weather alerts' entries, judged before the lines: a slot showing an alert's
+  // metric on the alert's side merges it (packLine). Only for a watch they ride to
+  // (see below); null elsewhere, so aplite's lines bake exactly as before.
+  var alerts = env.thresholds ? statusWire.bakedAlerts(payload, settings) : null;
   // computeEnv derives WATCH facts from watchInfo and nothing else, but the two
   // phone-battery items are gated on a PHONE fact: whether this PKJS host
   // exposes the Battery Status API (Android's Chromium WebView only). The flag
@@ -601,7 +653,7 @@ function buildStatusLines(payload, settings, watchInfo) {
   env.phoneBattery = phoneBatterySupported();
   for (var l = 0; l < catalog.LINES.length; l++) {
     var line = catalog.LINES[l];
-    payload[line.wireKey] = packLine(line, payload, settings, env);
+    payload[line.wireKey] = packLine(line, payload, settings, env, alerts);
   }
   // Packed weather-kind threshold levels: computed here because the raw
   // AQI/pollen/wind/gust values exist only phone-side (the watch gets text).
@@ -619,7 +671,7 @@ function buildStatusLines(payload, settings, watchInfo) {
     // radar cache. On demand is compiled out on exactly the platforms the highlight
     // is (WW_ON_DEMAND and WW_THRESHOLD_HIGHLIGHT: every platform but aplite), so
     // this gate is the right one, and aplite's inbox never budgets for the tuple.
-    payload.ALERT_ENTRIES_UINT8 = statusWire.bakeAlerts(payload, settings);
+    payload.ALERT_ENTRIES_UINT8 = statusWire.packAlerts(alerts);
   }
   return payload;
 }

@@ -236,20 +236,84 @@ function formatTempPair(actual, feels, settings, cap) {
 function formatPeak(prefix, shown, settings, cap) {
     var s = settings || {};
     if (shown.peak === null) { return String(shown.now); }
-    var peak = shown.nextDay ? markNextDay(String(shown.peak), s[prefix + 'SlotNextDayMark'])
-        : String(shown.peak);
+    var text = pairText(prefix, shown, s, cap, s[prefix + 'SlotNextDayMark']);
+    // Three-digit readings (gusts, AQI) can outgrow even the plain slash with a
+    // mark: '152/»178' is 9 bytes, and truncation would print the false peak
+    // '152/»17'. The current reading alone is the honest fallback -- the same
+    // one every mode takes when no peak is known.
+    return text === null ? String(shown.now) : text;
+}
+
+/**
+ * The text of a peak (shown.peak non-null), alone or paired with shown.now in the
+ * kind's own order, separator and spacing; the peak inside `mark` when it is
+ * tomorrow's.
+ * @param {string} prefix the kind's settings prefix
+ * @param {{now: ?(number|string), peak: (number|string), nextDay: boolean}} shown
+ * @param {Object} s Clay settings blob (non-null)
+ * @param {number} [cap] the slot's byte cap
+ * @param {*} mark the next-day mark key (NEXT_DAY_MARKS; absent = '»')
+ * @returns {?string} e.g. '»6', '3/7'; null when the pair outgrows the cap
+ */
+function pairText(prefix, shown, s, cap, mark) {
+    var peak = shown.nextDay ? markNextDay(String(shown.peak), mark) : String(shown.peak);
     if (shown.now === null) { return peak; }
     var now = String(shown.now);
     var maxFirst = s[prefix + 'SlotOrder'] === 'max';
     var text = joinPair(maxFirst ? peak : now, maxFirst ? now : peak,
         s[prefix + 'SlotSeparator'], s[prefix + 'SlotSeparatorCustom'],
         s[prefix + 'SlotSeparatorSpaced'], cap, defaultSeparator(prefix));
-    // Three-digit readings (gusts, AQI) can outgrow even the plain slash with a
-    // mark: '152/»178' is 9 bytes, and truncation would print the false peak
-    // '152/»17'. The current reading alone is the honest fallback -- the same
-    // one every mode takes when no peak is known.
     var limit = typeof cap === 'number' ? cap : catalog.CAPS.EDGE_TEXT_MAX;
-    return utf8.byteLength(text) <= limit ? text : now;
+    return utf8.byteLength(text) <= limit ? text : null;
+}
+
+/**
+ * A slot's text once it merged the weather alert of its own metric on its side of
+ * the bar (the owner, 2026-10-01: "the icon showing more info wins"): what the slot
+ * shows and the alert's value, each value once. A value the slot already shows
+ * (the same number on the same day) adds nothing, nor does an alert with the Icon
+ * look, which has no value. Otherwise the slot's first value (its current reading,
+ * or with Day max alone its peak) and the alert's make the pair, today's first,
+ * joined like a Both pair in the slot's own order, separator and spacing — so Both,
+ * whose pair would grow to three values, keeps its current reading and the alert's
+ * value ('3/4' and tomorrow's 9: '3/»9'). A pair that outgrows the cap, or a slot
+ * with no reading, shows the alert's value alone.
+ * @param {string} prefix the slot kind's settings prefix: 'uv' | 'wind' | 'gust' |
+ *     'aqi' | 'pollen'
+ * @param {?{now: ?(number|string), peak: ?(number|string), nextDay: boolean}} shown
+ *     what the slot shows (wire-units' dayMaxShown; pollen its band as `now`); null
+ *     without a reading
+ * @param {{text: string, nextDay: boolean, mark: *}} alert the alert as the bake
+ *     sends it: its value text ('' for the Icon look), whether it is tomorrow's, and
+ *     the mark a tomorrow value takes in this slot
+ * @param {Object} settings Clay settings blob
+ * @param {number} [cap] the slot's byte cap
+ * @returns {?string} the merged text, e.g. '3/8', '4/»9'; null where the slot's own
+ *     text already says it all
+ */
+function mergeAlert(prefix, shown, alert, settings, cap) {
+    if (!alert.text) { return null; }
+    var mine = { v: alert.text, next: alert.nextDay };
+    var first = null;
+    if (shown) {
+        var now = shown.now === null ? null : String(shown.now);
+        var peak = shown.peak === null ? null : String(shown.peak);
+        if ((!mine.next && mine.v === now)
+                || (peak !== null && mine.next === shown.nextDay && mine.v === peak)) {
+            return null;
+        }
+        first = now !== null ? { v: now, next: false } : { v: peak, next: shown.nextDay };
+    }
+    var alone = mine.next ? markNextDay(mine.v, alert.mark) : mine.v;
+    if (!first) { return alone; }
+    var second = mine;
+    if (first.next && !mine.next) {
+        second = first;
+        first = mine;
+    }
+    var text = pairText(prefix, { now: first.v, peak: second.v, nextDay: second.next },
+        settings || {}, cap, alert.mark);
+    return text === null ? alone : text;
 }
 
 
@@ -265,5 +329,6 @@ module.exports = {
     joinPair: joinPair,
     markNextDay: markNextDay,
     formatTempPair: formatTempPair,
-    formatPeak: formatPeak
+    formatPeak: formatPeak,
+    mergeAlert: mergeAlert
 };

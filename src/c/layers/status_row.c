@@ -404,9 +404,11 @@ typedef struct {
 
 // Resolve one slot of an already-loaded pass (load_pass filled `view`). `base` is
 // the row's regular font; a slot whose bold verdict is set takes the bold
-// companion instead.
+// companion instead. `i` is the slot's position in a draw (0 left, 1 middle, 2
+// right), after status_on_demand_collect(), so it can take the level of a weather
+// alert it merged; -1 outside a draw.
 static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView *view,
-                         ResolvedSlot *out) {
+                         ResolvedSlot *out, int i) {
     out->slot = *view;
     out->dir = resolve_slot_text(row, &out->slot, out->text, sizeof(out->text));
     // The ThreshKind is scaffolding, not a result: every consumer of it lives in
@@ -416,9 +418,15 @@ static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView 
                                                               out->slot.icon);
     // NORMAL while the kind's Highlight switch is off; weather kinds read the
     // phone-computed levels word (the watch has no raw AQI/wind ints), health kinds
-    // compare the live reading against the Clay-sent pair.
-    out->level = (uint8_t)status_threshold_slot_level(s_thresh_scratch, s_levels_word,
-        thresh_kind, slot_health_value(thresh_kind));
+    // compare the live reading against the Clay-sent pair. A slot that merged a
+    // weather alert takes the alert's level instead, today's or tomorrow's, whatever
+    // its own switch says: it shows the alert in the alert icon's place, and the look
+    // below is the one that icon would have drawn (the same kind, the same level).
+    // Never on the refresh path: what a merge depends on (the entries, the cells, the
+    // slot) is signed there already.
+    const uint8_t merged = i < 0 ? 0 : status_on_demand_merge(&s_od_pass, i, thresh_kind);
+    out->level = merged ? merged : (uint8_t)status_threshold_slot_level(s_thresh_scratch,
+        s_levels_word, thresh_kind, slot_health_value(thresh_kind));
     // The box (none at NORMAL, filled at DANGER, the kind's warn look at WARN), the
     // bold bit and the accent byte — the function the alert icon of the same kind
     // asks at its level, so the two cannot disagree. Bold is its own per-kind
@@ -442,7 +450,7 @@ static void resolve_row(const StatusRow *row, const StatusSlotView views[STATUS_
                         ResolvedSlot out[STATUS_SLOT_COUNT]) {
     GFont base = row_font(row->tier, row->line_id);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, base, &views[i], &out[i]);
+        resolve_slot(row, base, &views[i], &out[i], -1);
     }
 }
 
@@ -728,8 +736,12 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     ResolvedSlot slots[STATUS_SLOT_COUNT];
     StatusSlotMeasure measures[STATUS_SLOT_COUNT];
 
+    // The bar's On demand items first: a slot that merged a weather alert is resolved
+    // at the alert's level, so it measures with the font it is drawn in.
+    const int8_t bar = (int8_t)status_threshold_bar_of_line(row->line_id);
+    status_on_demand_collect(&row->od, &s_od_pass, bar, s_thresh_scratch);
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {
-        resolve_slot(row, font, &views[i], &slots[i]);
+        resolve_slot(row, font, &views[i], &slots[i], i);
         // The resolver's font, not `font`: a bold slot's glyphs are wider, so it
         // must MEASURE with the font it is about to be drawn with.
         measures[i] = measure_slot(row, i, slots[i].font, content_w,
@@ -760,7 +772,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         .text_y = (int16_t)text_y,
         .content_h = (int16_t)content_h,
         .icon_h = icon_target_h(row, content_h),
-        .bar = (int8_t)status_threshold_bar_of_line(row->line_id),
+        .bar = bar,
         .bleed_left = top ? STATUS_ROW_MARGIN : 0,
         .top_strip = top,
         .full_date = row->full_date

@@ -11,6 +11,7 @@
 var statusCatalog = require('./status-line-catalog.js');
 var statusThresholds = require('./status-thresholds.js');
 var lineStyle = require('./line-style.js');
+var onDemand = require('./on-demand.js');
 
 /**
  * Does a top stripe change the weather bake? Under one the bake leaves the top of a
@@ -30,6 +31,39 @@ function topStripeOverTempAxis(settings) {
         }
     }
     return false;
+}
+
+/**
+ * @param {*} code A status item code.
+ * @returns {boolean} whether a metric weather alert has that code (ALERT_KINDS)
+ */
+function isAlertCode(code) {
+    return statusThresholds.ALERT_KINDS.some(function (a) { return a.code === code; });
+}
+
+/**
+ * The edge slots that merge the weather alert of their metric (status-lines.js
+ * mergedAlert): each bar's left or right slot whose selection (stored, else its
+ * default) is an alert's code while that alert is ticked on the slot's side of the
+ * bar. Such a slot bakes the alert's value into its text, so moving the alert onto
+ * or off that side re-bakes it; moving it anywhere else does not.
+ * @param {Object} settings Clay settings.
+ * @returns {string} e.g. 'radar.left.uv', comma-joined; '' for none
+ */
+function mergedSlots(settings) {
+    var out = [];
+    for (var l = 0; l < statusCatalog.LINES.length; l++) {
+        var line = statusCatalog.LINES[l];
+        for (var s = 0; s < 3; s += 2) {
+            var key = line.slots[s];
+            var code = settings[key] || statusCatalog.slotDefault(key);
+            var side = s ? 'right' : 'left';
+            if (isAlertCode(code) && onDemand.sideOf(settings, line.id, code) === side) {
+                out.push(line.id + '.' + side + '.' + code);
+            }
+        }
+    }
+    return out.join(',');
 }
 
 /**
@@ -149,6 +183,9 @@ function renderSignature(settings) {
     parts.push(statusThresholds.enabledAlerts(settings).map(function (a) {
         return a.code + (a.showValue ? '+v' : '') + (a.days === 'tomorrow' ? '>' + a.mark : '');
     }).join(','));
+    // The one placement that does bake: an alert on the side whose slot shows its
+    // metric, which merges into that slot's text (mergedSlots).
+    parts.push(mergedSlots(settings));
     return parts.join('|');
 }
 

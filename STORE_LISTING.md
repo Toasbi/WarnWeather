@@ -81,6 +81,8 @@ STATUS LINES
    - On by default: Bluetooth, quiet time, sleep and the rain alert at the top left, and the
      battery with the wind gust, UV index, air quality and wind speed alerts at the top right;
      the pollen alert is off
+   - A weather alert next to a status slot showing the same value goes into that slot: the
+     slot shows both values once ("3/8") in the alert's colors
    - When a bar runs short of room, its slots switch to short forms first (outside calendar
      views the date to its day number, "New York" to "N. York", sleep "7h", steps "12k",
      units dropped), then the slot beside the items hides and the middle slot moves aside

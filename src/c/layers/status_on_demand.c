@@ -381,6 +381,12 @@ static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
     in->n = v;
 }
 
+void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *pass,
+                              int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]) {
+    pass->state.set.count = 0;
+    if (row->assigned && bar >= 0) { collect(&pass->state, bar, blob); }
+}
+
 void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
                              const StatusOnDemandEnv *env, const StatusOnDemandSlot slots[3],
                              StatusSlotMeasure m[3], StatusSlotPlace places[3],
@@ -391,7 +397,6 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         return;
     }
     StatusOnDemandState *s = &pass->state;
-    collect(s, env->bar, env->blob);
     // The glyphs the active items need; the cache is created by the first draw that
     // has one, and emptied of the rest by every draw.
     uint8_t keys[GLYPH_SLOTS];
@@ -413,8 +418,11 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         int16_t w[OD_LANES];
         measure(s, row, env, item, w);
         if (w[0] <= 0) { continue; }   // nothing to draw (a glyph that failed to load)
-        OdSideIn *side = &pass->sides[s->side[item] == OD_SIDE_LEFT ? 0 : 1];
+        const int d = s->side[item] == OD_SIDE_LEFT ? 0 : 1;
+        OdSideIn *side = &pass->sides[d];
         int i = side->n++;
+        // The alert its own slot merged stands in for that slot only (on_demand.h).
+        if (item + 1 == s->set.merged[d]) { side->merged = (uint8_t)(i + 1); }
         side->rank[i] = (uint8_t)item;
         for (int lane = 0; lane < OD_LANES; lane++) { side->w[lane][i] = w[lane]; }
     }
@@ -516,6 +524,7 @@ void status_on_demand_paint(GContext *ctx, const StatusOnDemandRow *row,
     for (int d = 0; d < 2; d++) {
         const OdSideIn *side = &pass->sides[d];
         for (int k = l->first[d]; k < l->first[d] + l->n[d]; k++) {
+            if (k + 1 == l->skip[d]) { continue; }   // the merged alert its slot says
             paint_item(ctx, row, &pass->state, env, side->rank[k], l->lane[d],
                        (int16_t)(env->x + l->item_x[d][k]), side->w[l->lane[d]][k]);
         }

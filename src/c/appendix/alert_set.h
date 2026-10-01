@@ -96,6 +96,10 @@ typedef struct {
 
 typedef struct {
     uint8_t count;
+    // Per side of the bar a draw resolves (0 left, 1 right), 1 + the OdItem its own
+    // slot merged, 0 for none (alert_set_merge; alert_set_parse leaves it alone). In
+    // the bytes the alignment of the entries leaves free.
+    uint8_t merged[2];
     AlertEntry entries[ALERT_SET_MAX];
 } AlertSet;
 
@@ -106,6 +110,31 @@ uint8_t alert_set_icon(int kind);
 // The On demand item (an OdItem) a metric kind's entry is; -1 for a kind that is
 // not an alert kind (alert_set_parse already skips those).
 int alert_set_item(int kind);
+
+// Whether slot `slot` of a bar (0 left, 1 middle, 2 right) merged a weather alert: an
+// entry of the metric the slot shows (`kind`, the slot's ThreshKind,
+// status_threshold_kind_for_slot — so Wind speed never takes a gust entry) whose item
+// sits on that slot's side of the bar (`side`: each OdItem's OdSide there). The phone
+// baked that slot's text as the two values once (status-lines.js), so the slot is
+// drawn at the entry's level and the item stands in only where the layout hides the
+// slot. The middle slot never merges, and an alert on the other side never does.
+// Returns the entry's level (THRESH_LEVEL_WARN or _DANGER) and writes 1 + its OdItem
+// to set->merged[slot / 2]; 0 and 0 for none (merged is not touched for the middle).
+static inline uint8_t alert_set_merge(AlertSet *set, const uint8_t side[OD_ITEM_COUNT],
+                                      int slot, int kind) {
+    if (slot == 1) { return 0; }
+    uint8_t *m = &set->merged[slot >> 1];
+    *m = 0;
+    for (int i = 0; i < set->count; i++) {
+        const AlertEntry *e = &set->entries[i];
+        const int item = alert_set_item(e->kind);
+        if (e->kind == kind && side[item] == (slot >> 1) + OD_SIDE_LEFT) {
+            *m = (uint8_t)(item + 1);
+            return e->level;
+        }
+    }
+    return 0;
+}
 
 // Whether an ALERT_ENTRIES_UINT8 payload is well formed: at most
 // ALERT_ENTRIES_MAX_BYTES, starting on a header (a value byte before any header

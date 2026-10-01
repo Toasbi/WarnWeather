@@ -2169,7 +2169,8 @@ test('the side sheets: one checklist per bar and side, in the items\' priority o
     assert.equal(s.title, 'Alerts ' + side);
     assert.equal(s.intro, '<b>' + NAMES[bar] + '</b><br>Ticked items show at this bar’s ' + side
       + ' edge only while they have something to say. The first sits next to the status slot there; when'
-      + ' the bar runs short of room, the last ones drop first.');
+      + ' the bar runs short of room, the last ones drop first. A weather alert for the value that slot'
+      + ' shows goes into the slot, with its colors, instead of adding its alert icon.');
     const key = 'status' + bar + 'OnDemand' + m[2] + 'Items';
     assert.deepEqual(s.items, [{
       type: 'checklist', messageKey: key, label: 'Items', defaultValue: OD.DEFAULTS[key],

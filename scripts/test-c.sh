@@ -73,17 +73,18 @@ cc $CFLAGS -DWW_ON_DEMAND -DWW_THRESHOLD_HIGHLIGHT test/c/alert_lane_dump.c src/
    src/c/appendix/status_threshold.c -o build/host/alert_lane_dump
 build/host/alert_lane_dump > build/host/alert_lane.txt
 node scripts/check-alert-lane-lockstep.js build/host/alert_lane.txt
-# The On demand layout (appendix/on_demand.c), in four tests sharing
+# The On demand layout (appendix/on_demand.c), in five tests sharing
 # test/c/on_demand_fixtures.h: the make-room ladder (one side, looks before slots, the
 # bleed, the drops, the invariants over random bars, down to "a quiet bar is the plain
 # row layout, byte for byte"); two sides at once (the shared middle, the drop order, the
-# far slot, the relax); the Battery stand-in; and which short form a slot draws (the
-# widest that fits with the gap to its neighbours, on either side, the elastic city's
-# floor, the real date/week/sun families from status_short_text.h). The module's body
-# sits behind WW_ON_DEMAND like alert_set.c's, and it places its slots through the row
-# layout it is linked with. on_demand_ladder_test.c includes the engine's source (its
-# middle invariants measure layouts through the engine's own eval()), so the other
-# three link it.
+# far slot, the relax); the Battery stand-in; a weather alert merged into the slot on
+# its side (out while that slot shows, standing in where it hides); and which short
+# form a slot draws (the widest that fits with the gap to its neighbours, on either
+# side, the elastic city's floor, the real date/week/sun families from
+# status_short_text.h). The module's body sits behind WW_ON_DEMAND like alert_set.c's,
+# and it places its slots through the row layout it is linked with.
+# on_demand_ladder_test.c includes the engine's source (its middle invariants measure
+# layouts through the engine's own eval()), so the other four link it.
 cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_ladder_test.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_ladder_test
 build/host/on_demand_ladder_test
@@ -93,6 +94,9 @@ build/host/on_demand_sides_test
 cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_battery_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_battery_test
 build/host/on_demand_battery_test
+cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_merge_test.c src/c/appendix/on_demand.c \
+   src/c/layers/status_row_layout.c -o build/host/on_demand_merge_test
+build/host/on_demand_merge_test
 cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_short_test.c src/c/appendix/on_demand.c \
    src/c/layers/status_row_layout.c -o build/host/on_demand_short_test
 build/host/on_demand_short_test

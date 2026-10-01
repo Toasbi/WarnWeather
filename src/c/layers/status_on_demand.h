@@ -31,7 +31,11 @@
 //  - Rain         the watch-resolved rain countdown: the drops tinted by the radar
 //                 tier, the text per the rain look.
 //  - the metric alerts (gust, UV, AQI, pollen, wind): an ALERT_ENTRIES entry of the
-//                 kind, drawn as a mini status slot at its real level.
+//                 kind, drawn as a mini status slot at its real level. Where the
+//                 status slot on its side of the bar shows the same metric, that
+//                 slot shows it instead (alert_set_merge): the phone baked both
+//                 values into its text, the row draws it at the entry's level, and
+//                 the item stands in only where the layout hides the slot.
 // Each metric alert draws as a MINI STATUS SLOT, `[icon][gap][text?]`, styled like a
 // highlighted slot of its kind at the entry's level (status_threshold_look) — the
 // kind's warn look at WARN (none, outline or fill), filled at DANGER with the glyph
@@ -126,8 +130,23 @@ typedef struct {
     bool any;                                  // items were laid out
 } StatusOnDemandPass;
 
-// Draw-time, before any paint: lay the bar's three slots out into `places`. With an
-// active item, through od_layout() — the slots make room as the ladder says, and a
+// Draw-time, first: which items of `bar` (a ThreshBar; -1 none) are active and what
+// they show, into the pass, read from `blob` as status_on_demand_fold() reads it. A
+// row with no item assigned collects nothing, so none of its slots merges an alert.
+void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *pass,
+                              int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]);
+
+// After status_on_demand_collect(), once per slot `i` (0 left, 1 middle, 2 right) of
+// the draw, `kind` its ThreshKind: the level the slot is drawn at for the weather alert
+// it merged (alert_set_merge) — the alert's, whatever the slot's own Alert
+// highlighting says — and 0 for a slot that merged none. The layout reads which.
+static inline uint8_t status_on_demand_merge(StatusOnDemandPass *pass, int i, int kind) {
+    return alert_set_merge(&pass->state.set, pass->state.side, i, kind);
+}
+
+// Draw-time, after status_on_demand_collect() and before any paint: lay the bar's three
+// slots out into `places`. With an active item, through od_layout() — the slots make
+// room as the ladder says, a merged alert stands in only where its slot hides, and a
 // slot that takes a short form gets that member's measure in `m` (the wind arrow or
 // the battery's bolt lane dropped) and its text over `slots[i].text`. Without one,
 // exactly status_row_layout(content_w, m, places) with `m` and the texts untouched,

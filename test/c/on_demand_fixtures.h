@@ -7,8 +7,9 @@
 // The fixtures the On demand host tests share: on_demand_ladder_test.c (the make-room
 // ladder: one side, looks before slots, the bleed, the drops, the invariants),
 // on_demand_sides_test.c (two sides at once, the far slot, the relax),
-// on_demand_battery_test.c (the Battery stand-in) and on_demand_short_test.c (which
-// short form a slot draws). Each test is one translation unit, so each gets its own
+// on_demand_battery_test.c (the Battery stand-in), on_demand_merge_test.c (a weather
+// alert merged into the slot on its side) and on_demand_short_test.c (which short
+// form a slot draws). Each test is one translation unit, so each gets its own
 // failure count and its own random stream. Static inline, so a test that uses only
 // some of them compiles without unused-function warnings.
 

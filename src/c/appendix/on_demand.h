@@ -135,6 +135,11 @@ typedef struct {
 typedef struct {
     uint8_t n;
     uint8_t rank[OD_SIDE_MAX];            // the item's OdItem
+    // 1 + the index of the weather alert the side's own slot merged (that slot shows
+    // the alert's metric, so it shows the alert's value and look itself): left out
+    // while the slot shows, standing in at its place in the run where the layout hides
+    // the slot. 0: none. (Here, in the byte the alignment of w leaves free.)
+    uint8_t merged;
     int16_t w[OD_LANES][OD_SIDE_MAX];     // its footprint per lane (> 0)
 } OdSideIn;
 
@@ -142,18 +147,20 @@ typedef struct {
 // kept, their lane and where they sit. A slot's form is in them: hidden where its
 // place does not show, short where it draws a member past 0, else full. Side d draws
 // its input items first[d] .. first[d] + n[d] - 1 (first is 1 only when the Battery
-// item was left out beside a battery slot); item_x is indexed like the input. Index 0
-// of every per-side array is the left side, 1 the right.
+// item was left out beside a battery slot), all but item skip[d] - 1 (its merged
+// alert while the own slot shows); item_x is indexed like the input. Index 0 of every
+// per-side array is the left side, 1 the right.
 typedef struct {
     uint8_t variant[3];                    // the member drawn: 0 full, else short
     StatusSlotPlace place[3];              // its fit: an elastic member's text_w is
                                            // its ellipsized width
     uint8_t first[2];                      // the first input item kept
     uint8_t n[2];                          // items kept (0: no run)
+    uint8_t skip[2];                       // 1 + the kept item not drawn; 0: none
     uint8_t lane[2];                       // their lane
     uint8_t stage[2];                      // the ladder row the side ends on, at its
                                            // look lane[] (after the relax)
-    int16_t item_x[2][OD_SIDE_MAX];        // each kept item's left edge
+    int16_t item_x[2][OD_SIDE_MAX];        // each drawn item's left edge
 } OdLayout;
 
 // Lay a bar out: its three slots (`slots`, each with m[0] its full measure) and its
@@ -192,6 +199,8 @@ typedef struct {
 // and stands in where the layout hides every one of them — a low charge shows the
 // battery in a slot or in the item, never both. The ladder measures the item in
 // wherever a row hides them all, so a battery slot hides only where the looks still
-// fit beside the item: an item wider than the slot it replaces frees no room.
+// fit beside the item: an item wider than the slot it replaces frees no room. A
+// side's merged alert (OdSideIn.merged) stands in for its own slot the same way: out
+// while that slot shows, measured in on every row that hides it.
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out);
