@@ -27,7 +27,7 @@
 
 #if defined(WW_ON_DEMAND)
 
-// Glyph keys: the metric icons are their StatusIconId (all < 0x40), the system
+// Glyph keys: the metric icons are their StatusIconId (to STATUS_ICON_MAX), the system
 // glyphs their in-memory ids (status_row_icons.h), and the rain drops the flag bit
 // plus the drop bucket, so drizzle -> rain swaps the glyph.
 #define RAIN_KEY_FLAG 0x80
