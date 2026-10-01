@@ -343,6 +343,31 @@
     }
 
     /**
+     * Where a step that starts at series value `v` starts, as the settings page prints
+     * it: levelText of the smallest number N in the display unit such that every reading
+     * shown as N or more (shownNumber) is at least `v`. In kph, and for UV (printed in
+     * its tenths), that is levelText(v) itself. In mph and knots the number `v` converts
+     * to can also show for a reading just below `v`, so N is then the next one up: the
+     * gust stripe full from 86 km/h is "from 54 mph", since 85 km/h shows as 53 mph too.
+     * @param {Object} settings Clay settings blob (windUnits).
+     * @param {string} metric 'wind' | 'gust' | 'uv'.
+     * @param {number} v Series value (whole km/h, or UV x 10), the first one in the step.
+     * @returns {string}
+     */
+    function levelFromText(settings, metric, v) {
+        var meta = metaOf(metric);
+        if (!meta.wind) { return levelText(settings, metric, v); }
+        var variant = thresholds.scaleVariant(meta.stem, settings);
+        var perUnit = KMH_PER_WIND_UNIT[variant];
+        if (perUnit === 1) { return levelText(settings, metric, v); }
+        // The series comes in whole km/h, and the smallest one shown as n is
+        // ceil((n - 0.5) * perUnit) (shownNumber rounds half up).
+        var n = Math.round(v / perUnit);
+        while (Math.ceil((n - 0.5) * perUnit) < v) { n += 1; }
+        return n + ' ' + variant;
+    }
+
+    /**
      * A metric's warn level as the settings page prints it (levelText): '40 kph', 'UV 6'.
      * @param {Object} settings Clay settings blob (windUnits, the Alert levels pair).
      * @param {string} metric 'wind' | 'gust' | 'uv'.
@@ -391,6 +416,7 @@
         alertPermille: alertPermille,
         scalePercent: scalePercent,
         levelText: levelText,
+        levelFromText: levelFromText,
         warnText: warnText,
         signature: signature
     };

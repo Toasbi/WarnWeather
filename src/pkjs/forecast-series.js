@@ -172,9 +172,10 @@ function metricBytes(metric, permille, alertOnly) {
     });
 }
 
-// A stripe metric -> its raw series in buildForecastSeries' input (the same series
-// metricPermille reads).
-var STRIPE_SERIES = { precip_prob: 'precips', cloud: 'clouds', wind: 'winds', gust: 'gusts', uv: 'uvs' };
+// An amount metric (every stripe metric, line-style.js STRIPE_METRIC_IDS) -> its raw
+// series in buildForecastSeries' input: the one map metricPermille and stripeBytes both
+// read the samples through.
+var AMOUNT_SERIES = { precip_prob: 'precips', cloud: 'clouds', wind: 'winds', gust: 'gusts', uv: 'uvs' };
 
 /**
  * A line drawn as a stripe, as wire bytes: each hour's level on the metric's own scale
@@ -191,7 +192,7 @@ var STRIPE_SERIES = { precip_prob: 'precips', cloud: 'clouds', wind: 'winds', gu
  * @returns {number[]} Wire bytes, each one of stripe-levels.js LEVEL_BYTES.
  */
 function stripeBytes(metric, raw, settings, band) {
-    return (raw[STRIPE_SERIES[metric]] || []).map(function (v) {
+    return (raw[AMOUNT_SERIES[metric]] || []).map(function (v) {
         return stripeLevels.metricByte(metric, lineAlert.scalePercent(settings, metric, v, band),
             Boolean(band));
     });
@@ -410,15 +411,17 @@ function tempAxisPermille(series, band) {
  * @returns {Array.<(number|null)>|null} Permille series, or null for an unknown metric.
  */
 function metricPermille(metric, raw, settings, band) {
+    // An amount metric's samples (AMOUNT_SERIES, the map stripeBytes reads too).
+    var values = Object.prototype.hasOwnProperty.call(AMOUNT_SERIES, metric)
+        ? raw[AMOUNT_SERIES[metric]] : null;
     if (metric === 'precip_prob') {
-        return (raw.precips || []).map(function(p) { return p * 10; }); // %→permille
+        return (values || []).map(function(p) { return p * 10; }); // %→permille
     }
     if (metric === 'cloud') {
-        return scaleToPermille(raw.clouds, 100);   // cloud cover %, clamped 0..100
+        return scaleToPermille(values, 100);   // cloud cover %, clamped 0..100
     }
     if (metric === 'wind' || metric === 'gust' || metric === 'uv') {
         // km/h for wind and gusts against the Wind graph scale, UV tenths against UV 11.
-        var values = metric === 'wind' ? raw.winds : (metric === 'gust' ? raw.gusts : raw.uvs);
         if (band) { return lineAlert.alertPermille(settings, metric, values, band); }
         return scaleToPermille(values, lineAlert.scaleTop(settings, metric));
     }

@@ -290,8 +290,11 @@ if (typeof require !== 'undefined') {
         if (!band) { return ''; }
         var lo = lineAlert.levelText(S, metric, band.bottom);
         if (stripe) {
+            // The first reading, as the slot shows it, from which every one is full colour
+            // (levelFromText: in mph and knots one up from the converted value when a
+            // reading just below the step shows the same number).
             return 'Faintest colour = ' + lo + ', full colour from '
-                + lineAlert.levelText(S, metric, stripeStepValue(4, band.bottom, band.top)) + '.';
+                + lineAlert.levelFromText(S, metric, stripeStepValue(4, band.bottom, band.top)) + '.';
         }
         return 'Graph bottom = ' + lo + ', full height = ' + lineAlert.levelText(S, metric, band.top) + '.';
     }

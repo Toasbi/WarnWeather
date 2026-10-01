@@ -342,6 +342,43 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
         assert.deepEqual(bytes, [L3, FULL], m + ' ' + JSON.stringify(over) + ' full from ' + full);
       });
     });
+  // Show: Alert in mph and knots: the named number is the first one from which EVERY
+  // reading shown as that number or more is full, and a reading shown one below is not
+  // (the step's first km/h converts to a number that a reading just below it can show
+  // too, so the hint names the next one: the seed gust band in mph is full from 86 km/h,
+  // and 85 km/h shows as 53 mph like 86 does, so "from 54 mph").
+  assert.equal(hint('gust', { secondaryLine: 'gust', thirdLine: 'off', windUnits: 'mph',
+    gustLineOnlyAlert: 'alert' }), 'Faintest colour = 40 mph, full colour from 54 mph. One cell per hour.');
+  let checked = 0;
+  ['mph', 'knots'].forEach((windUnits) => {
+    [{ gustLineOnlyAlert: 'alert' }, { windLineOnlyAlert: 'alert' },
+      { windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' },
+      { gustLineOnlyAlert: 'alert', threshGustWarn: '30', threshGustDanger: '70', windScale: 'high' },
+      { windLineOnlyAlert: 'alert', threshWindWarn: '12', threshWindDanger: '21', windScale: 'low' }]
+      .forEach((over) => {
+        ['wind', 'gust'].forEach((m) => {
+          if (!lineAlert.onlyAlertOn(over, m)) { return; }
+          const S = Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', windUnits }, over);
+          const label = windUnits === 'mph' ? 'mph' : 'kn';
+          const full = Number(new RegExp('full colour from (\\d+) ' + label).exec(hint(m, S))[1]);
+          const settings = Object.assign({ barSource: 'off', secondaryLineStyle: m === 'wind' ? 'stripeTop' : 'line',
+            thirdLineStyle: m === 'gust' ? 'stripeTop' : 'line' }, S);
+          const key = m === 'wind' ? 'SECONDARY_LINE_TREND_UINT8' : 'THIRD_LINE_TREND_UINT8';
+          const kmh = [];
+          for (let v = 1; v <= 200; v += 1) { kmh.push(v); }
+          const bytes = buildForecastSeries(Object.assign({}, RAW, { winds: kmh, gusts: kmh }), settings)[key];
+          const what = m + ' ' + windUnits + ' ' + JSON.stringify(over) + ' full from ' + full;
+          kmh.forEach((v, i) => {
+            const shown = lineAlert.shownNumber(S, m, v);
+            if (shown >= full) { assert.equal(bytes[i], FULL, what + ': ' + v + ' km/h shows ' + shown); }
+          });
+          assert.ok(kmh.some((v, i) => lineAlert.shownNumber(S, m, v) === full - 1 && bytes[i] !== FULL),
+            what + ': a reading shown one below is not full');
+          checked += 1;
+        });
+      });
+  });
+  assert.equal(checked, 12, 'premise: every unit and line was checked');
   // UV on Alert: the band UV 6..11, full from UV 10.5.
   assert.equal(hint('uv', { secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }),
     'Faintest colour = UV 6, full colour from UV 10.5. One cell per hour.');

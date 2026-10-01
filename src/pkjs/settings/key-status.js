@@ -1,7 +1,8 @@
 // src/pkjs/settings/key-status.js — ES5, WebView + Node. The key status of a picker
 // whose options include sources that need the user's own API key (the Weather provider
-// row, and the Radar provider row's "Rainbow (own key)"): which state that key is in,
-// and the resolvers that show it.
+// row's OpenWeatherMap, Tomorrow.io and Yandex Weather, and the Radar provider row's
+// "Rainbow (own key)" and Tomorrow.io): which state that key is in, and the resolvers
+// that show it.
 //
 // A picker row describes its keyed sources in ONE table, handed to every resolver below
 // as args.keyed — by the picker's value: {name, sheetId, keyField, test, reasons?,

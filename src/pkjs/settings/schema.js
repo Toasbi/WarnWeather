@@ -1931,7 +1931,7 @@ var RADAR_WHY = {
     dwd: 'Precise weather radar — rain at your exact spot and nearby (~2 km). Germany only.',
     metno: 'Precise weather radar — rain at your exact spot. Nordics only.',
     // Rainbow's terms ask for a "Powered by Rainbow.ai" link wherever its data shows, so
-    // both Rainbow notes end on it.
+    // both Rainbow why-hints end on it.
     // "Rainbow (limited)": why the shared radar is limited — the developer pays for the
     // calls every user shares, and the rainbow-nowcast proxy caps that account at
     // RAINBOW_MONTHLY_BUDGET upstream calls (DEV.md; default the free 5,000), so past it
@@ -1939,7 +1939,7 @@ var RADAR_WHY = {
     rainbow: 'A worldwide nowcast blending satellite and radar. I pay for the Rainbow calls everyone shares, and with a growing number of users I can only provide a limited number of them, so the shared radar refreshes at most every 30 minutes. Pick “Rainbow (own key)” for a refresh at every update — a key is free. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
     // "Rainbow (own key)": the same nowcast on the user's own Rainbow account.
     rainbowkey: 'A worldwide nowcast blending satellite and radar, on your own Rainbow key, so it refreshes at every update. A key is free: Rainbow\'s free plan covers 5,000 calls a month. Powered by <a target=\'_blank\' href=\'https://rainbow.ai\'>Rainbow.ai</a>.',
-    // Without a key the amber note under the row says what goes missing, so the note
+    // Without a key the amber note under the row says what goes missing, so the why-hint
     // here only says whose key and whose budget.
     tomorrowio: 'A precise ML rain nowcast, worldwide. Uses your tomorrow.io API key and counts against the same call budget.'
 };

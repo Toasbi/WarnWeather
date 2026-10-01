@@ -137,6 +137,26 @@ test('a sample reaches warn on its shown number; a zero never does', () => {
   assert.equal(lineAlert.reachesWarn({ threshGustWarn: '30', threshGustDanger: '40' }, 'gust', 29), false);
 });
 
+test('a step\'s start prints as the first shown number from which every reading is in it', () => {
+  // kph and UV print the series value itself.
+  assert.equal(lineAlert.levelFromText({}, 'gust', 88), '88 kph');
+  assert.equal(lineAlert.levelFromText({}, 'uv', 105), 'UV 10.5');
+  // mph: 86 km/h and 85 km/h both show as 53 mph, so a step from 86 km/h starts at 54.
+  assert.equal(lineAlert.levelFromText({ windUnits: 'mph' }, 'gust', 86), '54 mph');
+  // Exhaustively: N is the smallest number whose every reading (whole km/h) is >= v.
+  ['mph', 'knots'].forEach((windUnits) => {
+    const S = { windUnits };
+    for (let v = 1; v <= 150; v += 1) {
+      const n = Number(/^(\d+) /.exec(lineAlert.levelFromText(S, 'wind', v))[1]);
+      for (let k = 0; k <= 300; k += 1) {
+        if (lineAlert.shownNumber(S, 'wind', k) >= n) { assert.ok(k >= v, windUnits + ' ' + v + ': ' + k); }
+      }
+      assert.ok([...Array(300).keys()].some((k) => k < v && lineAlert.shownNumber(S, 'wind', k) === n - 1)
+        || n <= 1, windUnits + ' ' + v + ': ' + (n - 1) + ' already has a reading below the step');
+    }
+  });
+});
+
 // --- the band ---------------------------------------------------------------------
 
 test('one line\'s band: its warn level at the bottom, the higher of its usual top and its danger level at the top', () => {
