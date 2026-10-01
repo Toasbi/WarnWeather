@@ -81,7 +81,8 @@ var provider = {
 // What the next cycle runs with: the radar settings, and the clock whose 5-min
 // slot-0 epoch the radar is pinned to (every slotZero here is 5-min aligned).
 // current.radarId is the radar SOURCE; the own-key source 'rainbowkey' is stored the
-// way the settings page stores it: Rainbow with "Use your own key" on.
+// way the settings page stores "Rainbow (own key)": radarProvider 'rainbow' plus
+// rainbowOwnKey true.
 var current = null;
 const fetchCycle = createFetchCycle({
   getSettings: function() {

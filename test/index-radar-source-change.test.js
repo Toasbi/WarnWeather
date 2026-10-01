@@ -1,7 +1,8 @@
 // test/index-radar-source-change.test.js
 //
-// Rainbow's "Use your own key" switch changes which radar source runs (radar-source-id.js:
-// 'rainbow' <-> 'rainbowkey') without touching the stored radarProvider. Closing the
+// Picking "Rainbow (own key)" or "Rainbow (limited)" flips the stored rainbowOwnKey, which
+// changes which radar source runs (radar-source-id.js: 'rainbow' <-> 'rainbowkey') without
+// touching the stored radarProvider. Closing the
 // settings page has to see that as a radar change and fetch at once (index.js ->
 // config-close.js radarProviderChanged), exactly as picking another radar does — else the
 // watch keeps the other source's window until the next scheduled refresh.
@@ -29,14 +30,14 @@ function bootFresh(t, settings) {
   return h;
 }
 
-test('switching "Use your own key" on and off again fetches straight away each time', (t) => {
+test('picking "Rainbow (own key)" and back to "Rainbow (limited)" fetches straight away each time', (t) => {
   const h = bootFresh(t, { radarProvider: 'rainbow', rainbowOwnKey: false });
   h.saveSettings({ rainbowOwnKey: true });
   h.advance(5 * 1000);
-  assert.equal(h.count(FETCHING), 1, 'on: the radar moved to the own-key source');
+  assert.equal(h.count(FETCHING), 1, 'own key: the radar moved to the own-key source');
   h.saveSettings({ rainbowOwnKey: false });
   h.advance(5 * 1000);
-  assert.equal(h.count(FETCHING), 2, 'off: back on the shared radar');
+  assert.equal(h.count(FETCHING), 2, 'limited: back on the shared radar');
 });
 
 test('a save that leaves the radar source alone does not fetch', (t) => {
@@ -46,15 +47,15 @@ test('a save that leaves the radar source alone does not fetch', (t) => {
   assert.equal(h.count(FETCHING), 0, 'nothing changed');
 });
 
-test('the switch left on under another radar source changes nothing, so no fetch', (t) => {
-  // Only Rainbow reads the switch: under DWD it is not the radar source.
+test('rainbowOwnKey left true under another radar source changes nothing, so no fetch', (t) => {
+  // Only Rainbow reads rainbowOwnKey: under DWD it is not the radar source.
   const h = bootFresh(t, { radarProvider: 'dwd', rainbowOwnKey: false });
   h.saveSettings({ rainbowOwnKey: true });
   h.advance(5 * 1000);
   assert.equal(h.count(FETCHING), 0, 'DWD stays DWD');
 });
 
-test('picking Rainbow with the switch already on fetches, like any radar switch', (t) => {
+test('picking Rainbow with rainbowOwnKey already true fetches, like any change of radar', (t) => {
   const h = bootFresh(t, { radarProvider: 'dwd', rainbowOwnKey: true });
   h.saveSettings({ radarProvider: 'rainbow' });
   h.advance(5 * 1000);

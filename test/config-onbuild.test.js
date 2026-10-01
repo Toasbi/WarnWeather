@@ -170,8 +170,8 @@ test('onSubmit leaves an interval alone when it fits, the guard is off, or no to
 });
 
 // --- the own-key Rainbow budget guard at save time ------------------------------------
-// Same trap as tomorrow.io: Rainbow's "Use your own key" is switched on on the Radar tab,
-// the interval lives on General. 5000 calls/month over a 31-day month: 5 min needs an
+// Same trap as tomorrow.io: "Rainbow (own key)" is picked on the Radar tab, the
+// interval lives on General. 5000 calls/month over a 31-day month: 5 min needs an
 // 11 h pause.
 function rainbowCtx(over) {
     return budgetCtx(Object.assign({
@@ -206,7 +206,7 @@ test('onSubmit leaves the interval alone when the Rainbow guard is off, it fits,
 
     var shared = rainbowCtx({ rainbowOwnKey: false });
     OB.onSubmit(shared.ctx);
-    assert.equal(shared.store.fetchIntervalMin, '5', '"Use your own key" off: the shared radar bills the user nothing');
+    assert.equal(shared.store.fetchIntervalMin, '5', '"Rainbow (limited)": the shared radar bills the user nothing');
 });
 
 test('onSubmit fits to every active guard: the tomorrow.io toggle does not switch off Rainbow\'s', function () {

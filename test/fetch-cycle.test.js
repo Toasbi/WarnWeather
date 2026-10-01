@@ -634,7 +634,7 @@ test('radar: one fix feeds both legs — the radar request and the forecast get 
     assert.equal(typeof call.payloadTransform, 'function');
 });
 
-test('radar: Rainbow with "Use your own key" on sends the user\'s key in the request header', () => {
+test('radar: "Rainbow (own key)" sends the user\'s key in the request header', () => {
     resetStore();
     const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'rainbow',
         rainbowOwnKey: true, rainbowApiKey: 'K' };
@@ -1184,7 +1184,7 @@ test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cyc
         { radarProvider: 'dwd' }
     ].forEach(function (over) {
         resetStore();
-        // A shared-Rainbow record from before the switch is forgotten on the first radar step.
+        // A shared-Rainbow record from before the change of source is forgotten on the first radar step.
         store[RB_KEY] = JSON.stringify({ id: 'rainbow', at: RB_T0 });
         const h = rbHarness({ settings: Object.assign({ fetchIntervalMin: '15', radarMode: 'graph', radarSky: false }, over) });
         [0, 5, 15].forEach(function (m) {
@@ -1202,15 +1202,15 @@ test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cyc
     });
 });
 
-test('radar throttle: the "Use your own key" switch picks the Rainbow source, and switching back asks the proxy afresh', () => {
+test('radar throttle: rainbowOwnKey picks the Rainbow source, and going back to "Rainbow (limited)" asks the proxy afresh', () => {
     resetStore();
     const settings = Object.assign({}, RB_SETTINGS, { rainbowOwnKey: false, rainbowApiKey: 'K' });
     const h = rbHarness({ settings: settings });
-    // Switch off: the shared proxy, one request per slot.
+    // "Rainbow (limited)": the shared proxy, one request per slot.
     assert.equal(rbCycle(h, RB_T0).requested, true, 'the shared radar asks the proxy');
     assert.equal(rbCycle(h, RB_T0 + 5 * MIN).requested, false, 'and is throttled within the slot');
     assert.equal(readJson(RB_KEY).id, 'rainbow');
-    // Switch on: Rainbow directly on the user's key, every cycle, and no throttle record.
+    // "Rainbow (own key)": Rainbow directly on the user's key, every cycle, and no throttle record.
     settings.rainbowOwnKey = true;
     [10, 15].forEach(function (m) {
         h.setNow(RB_T0 + m * MIN);
@@ -1225,9 +1225,9 @@ test('radar throttle: the "Use your own key" switch picks the Rainbow source, an
         h.provider.succeed();
         assert.equal(store[RB_KEY], undefined, 'the own key keeps no record');
     });
-    assert.equal(proxyRequests().length, 1, 'the proxy was asked only while the switch was off');
-    // Switch off again, still inside the first slot: the shared record went with the
-    // switch, so the proxy is asked afresh rather than skipped.
+    assert.equal(proxyRequests().length, 1, 'the proxy was asked only while on "Rainbow (limited)"');
+    // Back to "Rainbow (limited)", still inside the first slot: the shared record went with
+    // the change of source, so the proxy is asked afresh rather than skipped.
     settings.rainbowOwnKey = false;
     assert.equal(rbCycle(h, RB_T0 + 20 * MIN).requested, true, 'back on the proxy, asked afresh');
 });

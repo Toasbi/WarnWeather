@@ -16,10 +16,10 @@ test('the own-key source id is the factory\'s registered \'rainbowkey\'', () => 
 });
 
 test('every radarProvider x rainbowOwnKey combination', () => {
-  // Only a real true turns the switch on: a toggle stores a boolean, and a truthy
+  // Only a real true picks the own key: Save stores a boolean (storedPair), and a truthy
   // stand-in must not silently move the radar onto the user's bill. Expected values are
   // spelled out, not recomputed, so the grid can catch a wrong rule on its own.
-  const switches = [true, false, undefined, null, 'true', 1];
+  const ownKeyValues = [true, false, undefined, null, 'true', 1];
   const K = 'rainbowkey';
   const U = undefined;
   const grid = [
@@ -33,8 +33,8 @@ test('every radarProvider x rainbowOwnKey combination', () => {
     [U,            [U,            U,            U,            U,            U,            U]]
   ];
   grid.forEach(([radarProvider, row]) => {
-    assert.equal(row.length, switches.length, 'one expected value per switch state');
-    switches.forEach((rainbowOwnKey, i) => {
+    assert.equal(row.length, ownKeyValues.length, 'one expected value per rainbowOwnKey value');
+    ownKeyValues.forEach((rainbowOwnKey, i) => {
       const settings = { radarProvider: radarProvider, rainbowOwnKey: rainbowOwnKey };
       assert.equal(effectiveRadarId(settings), row[i],
         'radarProvider=' + radarProvider + ' rainbowOwnKey=' + JSON.stringify(rainbowOwnKey));
@@ -42,18 +42,18 @@ test('every radarProvider x rainbowOwnKey combination', () => {
   });
 });
 
-test('the switch only matters for Rainbow', () => {
+test('rainbowOwnKey only matters for Rainbow', () => {
   assert.equal(effectiveRadarId({ radarProvider: 'rainbow', rainbowOwnKey: true }), 'rainbowkey');
   assert.equal(effectiveRadarId({ radarProvider: 'rainbow', rainbowOwnKey: false }), 'rainbow');
-  assert.equal(effectiveRadarId({ radarProvider: 'rainbow' }), 'rainbow', 'a switch never touched is off');
+  assert.equal(effectiveRadarId({ radarProvider: 'rainbow' }), 'rainbow', 'an unset rainbowOwnKey is the limited radar');
   ['dwd', 'metno', 'tomorrowio'].forEach((p) => {
-    assert.equal(effectiveRadarId({ radarProvider: p, rainbowOwnKey: true }), p, p + ' ignores a left-on switch');
+    assert.equal(effectiveRadarId({ radarProvider: p, rainbowOwnKey: true }), p, p + ' ignores a left-on rainbowOwnKey');
   });
 });
 
 test('unset radarProvider and missing settings stay unset (the factory then clears)', () => {
   assert.equal(effectiveRadarId({}), undefined);
-  assert.equal(effectiveRadarId({ rainbowOwnKey: true }), undefined, 'the switch alone picks no source');
+  assert.equal(effectiveRadarId({ rainbowOwnKey: true }), undefined, 'rainbowOwnKey alone picks no source');
   assert.equal(effectiveRadarId(null), undefined);
   assert.equal(effectiveRadarId(undefined), undefined);
 });

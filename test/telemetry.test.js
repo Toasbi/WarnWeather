@@ -272,7 +272,7 @@ test('buildSettingsSnapshot includes radarMode (default graph)', () => {
 });
 
 // Rainbow on the user's own key needs no new telemetry field: radarProvider reports the
-// source in EFFECT (radar-source-id.js), so the "Use your own key" switch shows up as
+// source in EFFECT (radar-source-id.js), so "Rainbow (own key)" shows up as
 // 'rainbowkey' — the value the ingest already takes (any string; see its schemas_test.ts
 // pin). What this also pins: the user's API key never leaves the phone in a snapshot
 // (buildSettingsSnapshot is an explicit allowlist), and neither does rainbowFitBudget —
@@ -282,7 +282,7 @@ test('a Rainbow install on its own key reports the own-key radar source, never i
     rainbowApiKey: 'SECRET-RBW', rainbowFitBudget: false }, null);
   assert.strictEqual(snapshot.radarProvider, 'rainbowkey');
   assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowOwnKey'),
-    'the switch rides radarProvider, not a field of its own');
+    'rainbowOwnKey rides radarProvider, not a field of its own');
   assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowApiKey'),
     'the Rainbow API key must never be a snapshot field');
   assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowFitBudget'),
@@ -291,13 +291,13 @@ test('a Rainbow install on its own key reports the own-key radar source, never i
     'the key must not appear anywhere in the snapshot');
 });
 
-test('radarProvider reports the effective radar source for every switch position', () => {
+test('radarProvider reports the effective radar source for every rainbowOwnKey value', () => {
   const report = (s) => buildSettingsSnapshot(s, null).radarProvider;
   assert.strictEqual(report({ radarProvider: 'rainbow', rainbowOwnKey: false }), 'rainbow', 'the shared radar');
-  assert.strictEqual(report({ radarProvider: 'rainbow' }), 'rainbow', 'a switch never touched is off');
+  assert.strictEqual(report({ radarProvider: 'rainbow' }), 'rainbow', 'an unset rainbowOwnKey is the limited radar');
   assert.strictEqual(report({ radarProvider: 'rainbow', rainbowOwnKey: true }), 'rainbowkey', 'the own key');
   ['dwd', 'metno', 'tomorrowio'].forEach((p) => {
-    assert.strictEqual(report({ radarProvider: p, rainbowOwnKey: true }), p, p + ' ignores a left-on switch');
+    assert.strictEqual(report({ radarProvider: p, rainbowOwnKey: true }), p, p + ' ignores a left-on rainbowOwnKey');
   });
   assert.strictEqual(report({}), undefined, 'unset stays unset');
 });
