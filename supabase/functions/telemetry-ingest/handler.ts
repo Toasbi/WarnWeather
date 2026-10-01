@@ -160,9 +160,11 @@ const settingsSchema = z
     // bar that shows, l/r ticked on a Disabled side or a hidden bar, '-' not ticked
     // (e.g. 'RLLLRRRR-R' + 30 '-', an untouched install). Absent on aplite, whose
     // showQt/batteryLowOnly above still say what it draws; elsewhere those two are
-    // leftovers and onDemand is the truth. DEPLOY-ORDERING: ship this function before
-    // the app release that sends these, or the strip step drops them silently.
-    onDemand: z.string().max(40).optional(),
+    // leftovers and onDemand is the truth. z.string() with no length bound, like alerts
+    // and warnLooks: a future item lengthens the code and must not 400 the batch.
+    // DEPLOY-ORDERING: ship this function before the app release that sends these, or
+    // the strip step drops them silently.
+    onDemand: z.string().optional(),
     // The Battery item's warn level as stored (a percentage) and its look ('icon' /
     // 'value'); z.string() per threshPhoneBatteryBoldMode's rule above.
     batteryLowLevel: z.number().int().min(0).max(100).optional(),

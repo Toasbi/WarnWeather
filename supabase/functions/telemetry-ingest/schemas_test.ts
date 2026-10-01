@@ -72,8 +72,9 @@ Deno.test("a rainbowkey radarProvider is accepted and kept", () => {
   assertEquals(parsed.data.settings.radarProvider, "rainbowkey");
 });
 
-// The On demand fields (1.24.0) survive the strip step; the code and the level refuse a
-// value no watch sends.
+// The On demand fields (1.24.0) survive the strip step; the level refuses a value no
+// watch sends. The code has no length bound (like alerts and warnLooks): a longer one,
+// from a build with an item this ingest does not know, is kept, not a 400.
 Deno.test("onDemand, batteryLowLevel and batteryLowDisplay are accepted and kept", () => {
   const onDemand = "RLLLRRRR-R" + "-".repeat(30);
   const parsed = telemetryPayloadSchema.safeParse({
@@ -84,7 +85,11 @@ Deno.test("onDemand, batteryLowLevel and batteryLowDisplay are accepted and kept
   assertEquals(parsed.data.settings.onDemand, onDemand);
   assertEquals(parsed.data.settings.batteryLowLevel, 25);
   assertEquals(parsed.data.settings.batteryLowDisplay, "value");
-  const bad = [{ onDemand: onDemand + "-" }, { batteryLowLevel: 101 }, { batteryLowLevel: 12.5 }];
+  const longer = onDemand + "-".repeat(4);
+  const future = telemetryPayloadSchema.safeParse({ ...LEGACY, settings: { onDemand: longer } });
+  assert(future.success);
+  assertEquals(future.data.settings.onDemand, longer);
+  const bad = [{ batteryLowLevel: 101 }, { batteryLowLevel: 12.5 }];
   for (const settings of bad) {
     assert(!telemetryPayloadSchema.safeParse({ ...LEGACY, settings }).success, JSON.stringify(settings));
   }

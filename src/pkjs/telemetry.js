@@ -156,6 +156,7 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // them strips unknown keys, but a known field failing validation 400s the batch.
     var customExt = customCycle ? customCycle.map(viewCycle.packExt) : null;
     // What this watch can show (the config page's own facts): no On demand on aplite.
+    // An unknown watch (watchInfo absent) answers like basalt: colour, no LED.
     var env = configUi.computeEnv(watchInfo);
     // --- the Nighttime card's gates, resolved once for the fields below ---------
     // Dim backlight is HARDWARE-gated, not only setting-gated: the red tint is
@@ -163,10 +164,9 @@ function buildSettingsSnapshot(settings, watchInfo) {
     // (config-ui/lib/platform.js, the platform->capability SoT). The toggle ships ON,
     // so an ungated Boolean() would report a fleet of basalt watches "using" a
     // feature their hardware cannot perform. Same convention as the graph colours on
-    // a B&W watch: no capability, no fields. watchInfo absent reads as basalt, as it
-    // does for the colours above — which answers false, the safe direction.
-    var hasColorBacklight = configUi.isColorBacklightPlatform(
-        (watchInfo && watchInfo.platform) ? watchInfo.platform : 'basalt');
+    // a B&W watch: no capability, no fields. An unknown watch answers false, the safe
+    // direction.
+    var hasColorBacklight = env.colorBacklight;
     var dimOn = Boolean(hasColorBacklight && boolDefaultOn(safe.backlightDim));
     var snapshot = {
         temperatureUnits: safe.temperatureUnits,
@@ -231,9 +231,8 @@ function buildSettingsSnapshot(settings, watchInfo) {
         alerts: alertsReport(safe, env),
         rainAlertDisplay: statusThresholds.rainAlert(safe).look,
         // The warn box per paired kind (see warnLooksReport). The platform decides the
-        // default, and watchInfo absent reads as basalt (colour), as for the colours.
-        warnLooks: warnLooksReport(safe, configUi.isColorPlatform(
-            (watchInfo && watchInfo.platform) ? watchInfo.platform : 'basalt')),
+        // default, and an unknown watch reads as colour, as for the colours.
+        warnLooks: warnLooksReport(safe, env.color),
         // The battery saver's window — the saver's OWN pair, as it has always been;
         // the Nighttime card groups it with two other features but shares no hours
         // with them. Present only while the saver is on ("value in effect"), which is
