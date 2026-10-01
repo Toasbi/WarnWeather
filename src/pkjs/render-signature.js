@@ -85,11 +85,12 @@ function renderSignature(settings) {
     // style edit that bakes nothing forces no fetch...
     var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine, settings.fifthLine,
         topStripeOverTempAxis(settings) ? 'topStripe' : '',
-        // ...the wind, gust and UV lines' "Only alert" (line-alert.js: gaps below the
-        // warn level, the line scaled from it), signed as the drawn metrics it is on, so
-        // the page hydrating an absent key to false, or ticking it for a metric no line
-        // draws, forces no fetch. The band's other inputs (the lines, windScale,
-        // windUnits, the resolved pairs below) are signed on their own...
+        // ...the wind, gust and UV lines' Show: Alert (line-alert.js: gaps below the
+        // warn level, the line scaled from it), signed as the drawn metrics set to it, so
+        // the page hydrating an absent key to 'all', picking Alert for a metric no line
+        // draws, or writing a dev phone's old true back as 'alert', forces no fetch. The
+        // band's other inputs (the lines, windScale, windUnits, the resolved pairs below)
+        // are signed on their own...
         lineAlert.signature(settings),
         settings.barSource, settings.windScale, settings.pressureScale,
         // Status-line bake inputs: value formatting...

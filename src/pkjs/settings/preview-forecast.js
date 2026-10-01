@@ -30,7 +30,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // sent. Both are in the page bundle ahead of this file.
     var lineStyle = (typeof require !== 'undefined')
         ? require('../line-style.js') : window.LineStyle;
-    // The wind, gust and UV lines' scale and their "Only alert" band and gaps, from the
+    // The wind, gust and UV lines' scale and their Show: Alert band and gaps, from the
     // module the bake reads them through (in the page bundle ahead of this file).
     var lineAlert = (typeof require !== 'undefined')
         ? require('../line-alert.js') : window.LineAlert;
@@ -303,14 +303,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
 
         var windMax = lineAlert.scaleTop(state, 'wind');
         var pCurve = PRESSURE_CURVES[state.pressureScale] || PRESSURE_CURVES.mid;
-        // A wind, gust or UV line drawn "Only alert": the band the bake maps it over, for
-        // the lines this watch draws (the shared wind/gust band only where both draw).
-        var alertBands = lineAlert.alertBands(state, !stylesFrozen);
+        // A wind, gust or UV line drawn Show: Alert: the band the bake maps it over, for
+        // the lines this watch draws (the shared wind/gust band only where both draw), on
+        // a watch with Alert settings (aplite draws every line All).
+        var alertBands = lineAlert.alertBands(state, !stylesFrozen, lineAlert.alertsDrawn(env));
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
         // feels and dew have no max: they ride the shared temperature axis
         // (lineStyle.isTempAxisMetric), so they map through yT like the temp curve
         // instead of a 0..max scale; pressure maps through its curve. `alert`: the
-        // metric's "Only alert" band, or null; `perUnit`: series units per sample unit
+        // metric's Show: Alert band, or null; `perUnit`: series units per sample unit
         // there (the bake's UV series is UV x 10, the sample is the index).
         var METRIC = {
             precip_prob: { vals: precip, max: 100, fill: true },
@@ -397,7 +398,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * curve draws EVERY reading — a deep low off the visible band is real
          * data clamped to the baseline, never a skippable zero, mirroring
          * forecast-series.pressurePermille's floor-clamp so the preview and
-         * the watch don't diverge. An "Only alert" line maps over its band
+         * the watch don't diverge. A Show: Alert line maps over its band
          * (line-alert.js alertPermille, as the bake does): a sample below the
          * warn level is a gap like a zero, one at the bottom is lifted off it
          * by the bake's 2 ‰ floor (forecast-series.js BAND_FLOOR_PERMILLE).

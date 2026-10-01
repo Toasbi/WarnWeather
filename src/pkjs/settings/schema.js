@@ -21,8 +21,8 @@ var PRESSURE_SCALE_CURVE_HPA = require('../forecast-series.js').PRESSURE_SCALE_C
 // wire — so the settings page cannot offer a colour the renderer doesn't know, miss one
 // it does, or carry a transcribed default hex that drifts away from what the graph paints.
 var lineStyle = require('../line-style.js');
-// The wind, gust and UV lines' "Only alert": the metrics that have it and their keys,
-// from the module the bake reads them through.
+// The wind, gust and UV lines' Show [All | Alert]: the metrics that have it, their keys
+// and values, from the module the bake reads them through.
 var LINE_ALERT = require('../line-alert.js');
 // The Custom-layout block (the per-view storage items, their sheetOnly section and
 // the Edit-button row) lives in its own module so its capability gates are BUILT
@@ -168,10 +168,10 @@ function lineContextWhen(pickerKey, matchOf) {
     return when;
 }
 // One windScale copy: the line-context cascade AND the given windUnits value,
-// with the pre-rendered hint set for that unit. While a drawn wind or gust line is
-// "Only alert" its top is its band's (the danger level when the scale sits below the
-// warn level), so blocks.js' 'windScaleHint' names the real tops instead; it answers
-// null otherwise, and the row shows hintByValue.
+// with the pre-rendered hint set for that unit. While a drawn wind or gust line shows
+// Alert its top is its band's (the higher of the scale and the danger level), so
+// blocks.js' 'windScaleHint' names the real tops instead; it answers null otherwise,
+// and the row shows hintByValue.
 function windScaleCopy(pickerKey, unit, hints) {
     var lineWhen = lineContextWhen(pickerKey, function (key) {
         return {key: key, in: ['wind', 'gust']};
@@ -189,29 +189,31 @@ function windScaleCopy(pickerKey, unit, hints) {
     };
 }
 /**
- * One metric's "Only alert" switch under one line-context: shown while that picker
+ * One metric's Show [All | Alert] row under one line-context: shown while that picker
  * shows the metric (the line-context cascade, so a stored repeat on a later picker
- * shows it once). The wind speed, wind gust and UV index lines have one each
- * (line-alert.js METRIC_IDS, the graph metrics with Alert levels), stored per metric, so
- * the row follows its metric from picker to picker. The page's boolean control is the
- * switch, as for "Fill area below the line". The hint (blocks.js 'onlyAlertHint') names
- * the warn level it gaps below, and only while it is on.
+ * shows it once), on a watch with Alert settings (ON_DEMAND_WHEN: aplite has none, and
+ * its lines always draw All, line-alert.js alertsDrawn). The wind speed, wind gust and
+ * UV index lines have one each (line-alert.js METRIC_IDS, the graph metrics with Alert
+ * levels), stored per metric, so the row follows its metric from picker to picker. Each
+ * value has its own hint (blocks.js 'lineShowHint'); Alert's names the warn level it
+ * gaps below.
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {string} metric 'wind' | 'gust' | 'uv'.
  * @returns {Object} Schema item.
  */
-function onlyAlertCopy(pickerKey, metric) {
-    var when = lineContextWhen(pickerKey, function (key) {
+function lineShowCopy(pickerKey, metric) {
+    var when = [ON_DEMAND_WHEN].concat(lineContextWhen(pickerKey, function (key) {
         return {key: key, eq: metric};
-    });
+    }));
     return {
-        type: 'toggle',
+        type: 'segmented',
         messageKey: LINE_ALERT.settingKey(metric),
-        label: 'Only alert',
-        defaultValue: false,
+        label: 'Show',
+        defaultValue: LINE_ALERT.SHOW_ALL,
         joinPrevious: true,
-        hintFrom: {resolver: 'onlyAlertHint', args: {metric: metric}},
-        showWhen: when.length === 1 ? when[0] : {all: when}
+        hintFrom: {resolver: 'lineShowHint', args: {metric: metric}},
+        options: [['All', LINE_ALERT.SHOW_ALL], ['Alert', LINE_ALERT.SHOW_ALERT]],
+        showWhen: {all: when}
     };
 }
 // "A health item can appear in some status slot" — the gate for settings that are
@@ -2537,9 +2539,9 @@ module.exports = {
             windScaleCopy('secondaryLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('secondaryLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('secondaryLine'),
-            onlyAlertCopy('secondaryLine', 'wind'),
-            onlyAlertCopy('secondaryLine', 'gust'),
-            onlyAlertCopy('secondaryLine', 'uv'),
+            lineShowCopy('secondaryLine', 'wind'),
+            lineShowCopy('secondaryLine', 'gust'),
+            lineShowCopy('secondaryLine', 'uv'),
             {
                 type: 'select',
                 messageKey: 'thirdLine',
@@ -2553,9 +2555,9 @@ module.exports = {
             windScaleCopy('thirdLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('thirdLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('thirdLine'),
-            onlyAlertCopy('thirdLine', 'wind'),
-            onlyAlertCopy('thirdLine', 'gust'),
-            onlyAlertCopy('thirdLine', 'uv'),
+            lineShowCopy('thirdLine', 'wind'),
+            lineShowCopy('thirdLine', 'gust'),
+            lineShowCopy('thirdLine', 'uv'),
             {
                 type: 'select',
                 messageKey: 'fourthLine',
@@ -2575,9 +2577,9 @@ module.exports = {
             windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('fourthLine'),
-            onlyAlertCopy('fourthLine', 'wind'),
-            onlyAlertCopy('fourthLine', 'gust'),
-            onlyAlertCopy('fourthLine', 'uv'),
+            lineShowCopy('fourthLine', 'wind'),
+            lineShowCopy('fourthLine', 'gust'),
+            lineShowCopy('fourthLine', 'uv'),
             {
                 type: 'select',
                 messageKey: 'fifthLine',
@@ -2593,9 +2595,9 @@ module.exports = {
             windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
             pressureScaleCopy('fifthLine'),
-            onlyAlertCopy('fifthLine', 'wind'),
-            onlyAlertCopy('fifthLine', 'gust'),
-            onlyAlertCopy('fifthLine', 'uv'),
+            lineShowCopy('fifthLine', 'wind'),
+            lineShowCopy('fifthLine', 'gust'),
+            lineShowCopy('fifthLine', 'uv'),
             {
                 type: 'segmented',
                 messageKey: 'barSource',

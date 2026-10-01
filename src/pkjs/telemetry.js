@@ -13,6 +13,8 @@ var radarSourceId = require('./weather/radar-source-id.js');
 var statusThresholds = require('./status-thresholds.js');
 // telemetryCode — where each On demand item is ticked, read like the bake reads it.
 var onDemand = require('./on-demand.js');
+// showOf — a graph line's Show choice, read like the bake reads it.
+var lineAlert = require('./line-alert.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -298,11 +300,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
         secondaryLine: safe.secondaryLine,
         secondaryLineFill: Boolean(safe.secondaryLineFill),
         windScale: safe.windScale,
-        // The wind, gust and UV lines' "Only alert" (line-alert.js), as stored: whether
-        // that metric is on a line at all is the four line fields here.
-        windLineOnlyAlert: Boolean(safe.windLineOnlyAlert),
-        gustLineOnlyAlert: Boolean(safe.gustLineOnlyAlert),
-        uvLineOnlyAlert: Boolean(safe.uvLineOnlyAlert),
+        // The wind, gust and UV lines' Show, 'all' or 'alert' (line-alert.js showOf: a
+        // dev phone's old true reads 'alert'), as chosen: whether that metric is on a
+        // line at all is the four line fields here.
+        windLineOnlyAlert: lineAlert.showOf(safe, 'wind'),
+        gustLineOnlyAlert: lineAlert.showOf(safe, 'gust'),
+        uvLineOnlyAlert: lineAlert.showOf(safe, 'uv'),
         pressureScale: safe.pressureScale,
         thirdLine: safe.thirdLine,
         fourthLine: safe.fourthLine,

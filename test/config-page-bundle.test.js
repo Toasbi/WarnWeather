@@ -93,10 +93,11 @@ test('the custom-layout editor reaches the generated page, after view-cycle', ()
 });
 
 // line-alert.js binds window.StatusThresholds and window.LineStyle while its own body
-// runs, and blocks.js and preview-forecast.js bind window.LineAlert while theirs do: out
-// of order, the "Only alert" hint and the preview of such a line throw on a real phone
-// while every Node test passes through require().
-test('the "Only alert" module is bundled after its deps and before its readers', () => {
+// runs, and blocks.js, preview-forecast.js and onbuild.js bind window.LineAlert while
+// theirs do: out of order, the Show row's hint, the preview of an Alert line and the
+// page's boot (onLoad's heal) throw on a real phone while every Node test passes
+// through require().
+test('the Show [All | Alert] module is bundled after its deps and before its readers', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith(suffix));
@@ -111,11 +112,13 @@ test('the "Only alert" module is bundled after its deps and before its readers',
     'line-alert.js must precede preview-forecast.js');
   assert.ok(idx('pkjs/line-alert.js') < idx('settings/blocks.js'),
     'line-alert.js must precede blocks.js');
+  assert.ok(idx('pkjs/line-alert.js') < idx('settings/onbuild.js'),
+    'line-alert.js must precede onbuild.js');
   const src = page();
   assert.ok(src.indexOf('window.LineAlert = api') !== -1,
     'nothing assigns window.LineAlert in the generated page');
-  assert.ok(src.indexOf("PConf.hintResolvers.register('onlyAlertHint'") !== -1,
-    'nothing registers the "Only alert" hint in the generated page');
+  assert.ok(src.indexOf("PConf.hintResolvers.register('lineShowHint'") !== -1,
+    'nothing registers the Show row\'s hint in the generated page');
 });
 
 // The key status under a keyed weather provider: key-status.js reads window.KeyFingerprint

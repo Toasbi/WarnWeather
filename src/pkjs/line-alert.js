@@ -1,23 +1,31 @@
-// src/pkjs/line-alert.js — ES5. A forecast line's "Only alert": the wind speed, wind
-// gust and UV index lines (the graph metrics with Alert levels) can each be drawn only
-// where the value reaches the metric's warn level. THE one reading of the setting and
-// of the scale it puts the line on, for the bake (forecast-series.js), the render
-// signature, and the settings page (the row's hint, the style hint's scale, the
-// forecast preview), so the three can never disagree.
+// src/pkjs/line-alert.js — ES5. A forecast line's Show [All | Alert]: the wind speed,
+// wind gust and UV index lines (the graph metrics with Alert levels) can each be drawn
+// whole (All) or only where the value reaches the metric's warn level (Alert). THE one
+// reading of the setting and of the scale Alert puts the line on, for the bake
+// (forecast-series.js), the render signature, telemetry and the settings page (the
+// row's hint, the scale hints, the forecast preview), so they can never disagree.
 //
 // Phone-side only, by design: a sample below the warn level ships as wire byte 0, which
 // the watch already draws as "no value" on the metric lines (forecast-series.js' WIRE
 // INVARIANT, chart.c's zero_absent breaks the polyline into runs), and a sample at or
 // above it is scaled from the band's bottom to its top. No watch code, no wire format.
+// A watch without Alert settings (aplite: no WW_ON_DEMAND) hides the row and always
+// draws All (alertsDrawn).
+//
+// THE SETTING. One key per metric (METRICS), holding 'all' or 'alert' (SHOW_ALL,
+// SHOW_ALERT). The first build stored a switch there, true or false, which never
+// shipped; showValue reads a dev phone's true as 'alert' and anything else as 'all', and
+// the settings page writes the string back on its next Save (onbuild.js), no migration.
 //
 // THE BAND (alertBand). Bottom: the metric's warn level in the series' unit (km/h for
-// wind and gusts, UV x 10 for UV). Top: the scale the line has without the setting (the
-// Wind graph scale for wind and gusts, UV 11 for UV). Wind and gusts share one scale, so
-// when BOTH are drawn with "Only alert" they share one band: the lower warn level is the
-// bottom, so the two lines stay comparable. A warn level at or above the top leaves no
-// usable range: the top is then the highest danger level of the band's metrics, else
-// that warn level + 50 %. A line drawn normally beside an "Only alert" one keeps its own
-// 0-based scale, and the "Only alert" one its own bottom.
+// wind and gusts, UV x 10 for UV). Top: the higher of the scale the line has with All
+// (the Wind graph scale for wind and gusts, UV 11 for UV) and the metric's danger level,
+// so the top never jumps as the levels or the scale move. Wind and gusts share one
+// scale, so when BOTH are drawn with Alert they share one band: the lower warn level is
+// the bottom, so the two lines stay comparable, and the top is the higher of the scale
+// and the two danger levels. A danger level equal to a warn level at or above the scale
+// leaves no range: the top is then that warn level + 50 %. A line drawn All beside an
+// Alert one keeps its own 0-based scale, and the Alert one its own band.
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
 // <script> in the settings-page webview (scripts/build-config-page.js' APP_FILES, after
@@ -39,18 +47,23 @@
     // holds the two equal, and shownNumber to wire-units' slot reading.
     var KMH_PER_WIND_UNIT = { kph: 1, mph: 1.60934, kn: 1.852 };
 
-    // The metrics a line can draw "Only alert", each with its setting and its Alert
-    // levels' key stem. `wind`: it rides the Wind graph scale.
+    // The metrics whose line has a Show row, each with its setting and its Alert levels'
+    // key stem. `wind`: it rides the Wind graph scale. The keys keep the first build's
+    // names (the switch was "Only alert"); only the stored type changed.
     var METRICS = {
         wind: { key: 'windLineOnlyAlert', stem: 'Wind', wind: true },
         gust: { key: 'gustLineOnlyAlert', stem: 'Gust', wind: true },
         uv: { key: 'uvLineOnlyAlert', stem: 'Uv', wind: false }
     };
     var METRIC_IDS = ['wind', 'gust', 'uv'];
+    // The Show row's two values: every value (the default), or only where it reaches
+    // the warn level.
+    var SHOW_ALL = 'all';
+    var SHOW_ALERT = 'alert';
 
     /**
      * @param {*} metric A graph metric id.
-     * @returns {?Object} its METRICS entry; null for a metric without "Only alert"
+     * @returns {?Object} its METRICS entry; null for a metric without a Show row
      */
     function metaOf(metric) {
         return (typeof metric === 'string' && Object.prototype.hasOwnProperty.call(METRICS, metric))
@@ -59,8 +72,8 @@
 
     /**
      * @param {*} metric A graph metric id.
-     * @returns {?string} its "Only alert" setting key, e.g. 'windLineOnlyAlert'; null
-     *     for a metric without one
+     * @returns {?string} its Show setting key, e.g. 'windLineOnlyAlert'; null for a
+     *     metric without one
      */
     function settingKey(metric) {
         var meta = metaOf(metric);
@@ -68,14 +81,48 @@
     }
 
     /**
-     * Whether a metric's line is set to "Only alert" (stored true; absent reads off).
+     * A stored Show value as the line draws it: 'alert' for 'alert', and for the true a
+     * dev phone kept from the first build's switch; 'all' for anything else (absent,
+     * 'all', that switch's false, junk).
+     * @param {*} v The stored value.
+     * @returns {string} SHOW_ALL or SHOW_ALERT.
+     */
+    function showValue(v) {
+        return (v === SHOW_ALERT || v === true) ? SHOW_ALERT : SHOW_ALL;
+    }
+
+    /**
+     * A metric line's Show choice (showValue of its key); 'all' for a metric without one.
+     * @param {Object} settings Clay settings blob.
+     * @param {*} metric A graph metric id.
+     * @returns {string} SHOW_ALL or SHOW_ALERT.
+     */
+    function showOf(settings, metric) {
+        var meta = metaOf(metric);
+        return (meta && settings) ? showValue(settings[meta.key]) : SHOW_ALL;
+    }
+
+    /**
+     * Whether a metric's line is set to Show: Alert (showOf).
      * @param {Object} settings Clay settings blob.
      * @param {*} metric A graph metric id.
      * @returns {boolean}
      */
     function onlyAlertOn(settings, metric) {
-        var meta = metaOf(metric);
-        return Boolean(meta) && Boolean(settings) && settings[meta.key] === true;
+        return showOf(settings, metric) === SHOW_ALERT;
+    }
+
+    /**
+     * Whether a watch draws a line's Show: Alert at all: every watch with Alert settings
+     * (the config-UI env's onDemand, the WW_ON_DEMAND mirror). aplite has none, so the
+     * page hides the row there and the line always draws All, whatever is stored. An env
+     * without the fact (an unknown watch, a test's env) reads capable, as on-demand.js
+     * facts() does.
+     * @param {?Object} [env] config-ui platform.js computeEnv() facts.
+     * @returns {boolean}
+     */
+    function alertsDrawn(env) {
+        return !(env && env.onDemand === false);
     }
 
     /**
@@ -136,7 +183,7 @@
     }
 
     /**
-     * The top of a metric's scale without "Only alert", in the series' unit.
+     * The top of a metric's scale with Show: All, in the series' unit.
      * @param {Object} settings Clay settings blob (windScale).
      * @param {string} metric 'wind' | 'gust' | 'uv'.
      * @returns {number}
@@ -168,47 +215,58 @@
     }
 
     /**
-     * The band a drawn "Only alert" line is scaled over, in the series' unit (see the
-     * header): null for a metric that is not set to "Only alert".
+     * The band a drawn Show: Alert line is scaled over, in the series' unit (see the
+     * header): null for a metric whose line shows All. `topDanger` names the metric whose
+     * danger level tops the band, for the page's scale hints; null while the scale's own
+     * top (or the no-range fallback) is the top.
      * @param {Object} settings Clay settings blob.
      * @param {string} metric A graph metric id.
      * @param {string[]} drawn The metrics the watch draws (drawnMetrics).
-     * @returns {?{bottom: number, top: number}}
+     * @returns {?{bottom: number, top: number, topDanger: ?string}}
      */
     function alertBand(settings, metric, drawn) {
         if (!onlyAlertOn(settings, metric)) { return null; }
         var members = [metric];
         if (metaOf(metric).wind) {
             var other = metric === 'wind' ? 'gust' : 'wind';
-            if (drawn.indexOf(other) !== -1 && onlyAlertOn(settings, other)) { members.push(other); }
+            // In one fixed order, so the two lines' shared band is one and the same.
+            if (drawn.indexOf(other) !== -1 && onlyAlertOn(settings, other)) { members = ['wind', 'gust']; }
         }
-        var bottom = Infinity, highestWarn = -Infinity, highestDanger = -Infinity;
+        var bottom = Infinity, highestWarn = -Infinity, highestDanger = -Infinity, dangerOf = null;
         for (var i = 0; i < members.length; i++) {
             var warn = levelInSeries(settings, members[i], 'warn');
             var danger = levelInSeries(settings, members[i], 'danger');
             if (warn < bottom) { bottom = warn; }
             if (warn > highestWarn) { highestWarn = warn; }
-            if (danger > highestDanger) { highestDanger = danger; }
+            if (danger > highestDanger) { highestDanger = danger; dangerOf = members[i]; }
         }
-        var top = scaleTop(settings, metric);
-        if (top <= highestWarn) {
-            top = highestDanger > highestWarn ? highestDanger : highestWarn * 1.5;
-        }
+        // The higher of the scale's top and the danger level, so neither a level nor the
+        // scale moving past the other makes the top jump.
+        var top = scaleTop(settings, metric), topDanger = null;
+        if (highestDanger > top) { top = highestDanger; topDanger = dangerOf; }
+        // A danger level equal to its warn level, both at or above the scale's top: no
+        // range above the (higher) warn level, so give it half again.
+        if (top <= highestWarn) { top = highestWarn * 1.5; topDanger = null; }
         // A warn level at or below zero cannot leave top <= bottom above, but a stored
         // pair can hold anything: keep a range to divide by.
-        if (top <= bottom) { top = bottom + 1; }
-        return { bottom: bottom, top: top };
+        if (top <= bottom) { top = bottom + 1; topDanger = null; }
+        return { bottom: bottom, top: top, topDanger: topDanger };
     }
 
     /**
-     * Every drawn "Only alert" line's band, by metric.
+     * Every drawn Show: Alert line's band, by metric. None on a watch without Alert
+     * settings (alerts false: aplite), which draws every line All.
      * @param {Object} settings Clay settings blob.
      * @param {boolean} allLines The watch draws the Third and Fourth metric lines.
-     * @returns {Object<string, {bottom: number, top: number}>} {} when none is on.
+     * @param {boolean} [alerts] The watch draws Show: Alert (alertsDrawn); omitted reads
+     *   true, a watch with Alert settings.
+     * @returns {Object<string, {bottom: number, top: number, topDanger: ?string}>} {}
+     *   when no drawn line shows Alert.
      */
-    function alertBands(settings, allLines) {
-        var drawn = drawnMetrics(settings, allLines);
+    function alertBands(settings, allLines, alerts) {
         var out = {};
+        if (alerts === false) { return out; }
+        var drawn = drawnMetrics(settings, allLines);
         for (var i = 0; i < drawn.length; i++) {
             var band = alertBand(settings, drawn[i], drawn);
             if (band) { out[drawn[i]] = band; }
@@ -217,7 +275,7 @@
     }
 
     /**
-     * An "Only alert" line's permille series: null where a sample does not reach the
+     * A Show: Alert line's permille series: null where a sample does not reach the
      * warn level (the gap, wire byte 0), else its place in the band, 0..1000. The caller
      * floors the non-null values off zero (forecast-series.js metricBytes) so a sample
      * exactly at the bottom still draws.
@@ -263,9 +321,10 @@
     }
 
     /**
-     * What the render signature signs: the drawn metrics set to "Only alert", on a watch
-     * that draws every line (the bake's platform gate at worst costs aplite one
-     * redundant fetch). Each band's other inputs — the lines, windScale, windUnits and
+     * What the render signature signs: the drawn metrics set to Show: Alert, on a watch
+     * that draws every line and has Alert settings (the bake's platform gates at worst
+     * cost aplite one redundant fetch). A dev phone's stored true and the 'alert' its
+     * next Save writes sign the same, so that Save forces no fetch. Each band's other inputs — the lines, windScale, windUnits and
      * the resolved Alert levels pairs — are signed on their own.
      * @param {Object} settings Clay settings blob.
      * @returns {string} e.g. 'wind,uv'; '' for none.
@@ -284,8 +343,13 @@
         UV_FULL_SCALE_TENTHS: UV_FULL_SCALE_TENTHS,
         KMH_PER_WIND_UNIT: KMH_PER_WIND_UNIT,
         METRIC_IDS: METRIC_IDS,
+        SHOW_ALL: SHOW_ALL,
+        SHOW_ALERT: SHOW_ALERT,
         settingKey: settingKey,
+        showValue: showValue,
+        showOf: showOf,
         onlyAlertOn: onlyAlertOn,
+        alertsDrawn: alertsDrawn,
         shownNumber: shownNumber,
         reachesWarn: reachesWarn,
         scaleTop: scaleTop,

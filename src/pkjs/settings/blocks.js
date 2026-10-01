@@ -44,7 +44,7 @@ if (typeof require !== 'undefined') {
     // window.LineStyle exists by the time the page boots.
     var lineStyle = (typeof require !== 'undefined')
         ? require('../line-style.js') : window.LineStyle;
-    // The wind, gust and UV lines' "Only alert" (line-alert.js): the band the bake scales
+    // The wind, gust and UV lines' Show: Alert (line-alert.js): the band the bake scales
     // such a line over, so its hints name the levels the graph draws. Concatenated after
     // status-thresholds.js and line-style.js and ahead of this file.
     var lineAlert = (typeof require !== 'undefined')
@@ -232,20 +232,23 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The scale of a line drawn "Only alert" (line-alert.js): the band the bake maps it
-     * over, as numbers — its bottom (the warn level, or with wind and gusts both "Only
-     * alert" the lower of the two) and its top. Replaces the metric's usual scale copy,
-     * whose anchors ("Half height = UV 5.5") no longer hold there.
+     * The scale of a line drawn Show: Alert (line-alert.js): the band the bake maps it
+     * over, as numbers — its bottom (the warn level, or with wind and gusts both on
+     * Alert the lower of the two) and its top (the higher of the line's usual top and the
+     * danger level). Replaces the metric's usual scale copy, whose anchors ("Half height
+     * = UV 5.5") no longer hold there.
      * @param {string} metric The line's metric.
      * @param {boolean} stripe The line is drawn as a stripe (colour strength, not height).
      * @param {Object} [S] Live settings state.
      * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
-     *   and Fourth metric lines (whose metrics can share a band).
-     * @returns {string} The scale sentence, '' when the line is not "Only alert".
+     *   and Fourth metric lines (whose metrics can share a band); `onDemand` false = no
+     *   Alert settings (aplite), so every line draws All.
+     * @returns {string} The scale sentence, '' when the line does not show Alert.
      */
     function alertScaleCopy(metric, stripe, S, env) {
         if (!S || !lineAlert.onlyAlertOn(S, metric)) { return ''; }
-        var band = lineAlert.alertBands(S, Boolean(env && env.lineStyles))[metric];
+        var band = lineAlert.alertBands(S, Boolean(env && env.lineStyles),
+            lineAlert.alertsDrawn(env))[metric];
         if (!band) { return ''; }
         var lo = lineAlert.levelText(S, metric, band.bottom);
         var hi = lineAlert.levelText(S, metric, band.top);
@@ -255,11 +258,11 @@ if (typeof require !== 'undefined') {
 
     /**
      * A metric picker's hint: the metric's own note, and — only on a watch without
-     * style pickers — its height scale after it (an "Only alert" line's band instead).
+     * style pickers — its height scale after it (a Show: Alert line's band instead).
      * @param {string} metric The picker's shown metric (or 'off').
      * @param {Object} [env] Platform env; `lineStyles` truthy = style pickers exist
      *   (the same truthy test as the schema's {env: 'lineStyles'} row gate).
-     * @param {Object} [S] Live settings state (the "Only alert" switches).
+     * @param {Object} [S] Live settings state (the Show rows).
      * @returns {string} The hint, '' for none.
      */
     function forecastMetricHint(metric, env, S) {
@@ -270,11 +273,11 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * A line-style picker's hint: its line's scale as this style shows it (an "Only
-     * alert" line's band instead), then the style's own note.
+     * A line-style picker's hint: its line's scale as this style shows it (a Show:
+     * Alert line's band instead), then the style's own note.
      * @param {string} metric The metric of the line this picker styles.
      * @param {string} style The picker's shown style.
-     * @param {Object} [S] Live settings state (the "Only alert" switches).
+     * @param {Object} [S] Live settings state (the Show rows).
      * @param {Object} [env] Platform env (see alertScaleCopy).
      * @returns {string} The hint, '' for none.
      */
@@ -286,85 +289,95 @@ if (typeof require !== 'undefined') {
             copyOf(STYLE_NOTES, style)]);
     }
 
-    // What the "Only alert" switch does, per metric, ahead of "your warn level (40 kph)".
-    var ONLY_ALERT_LEADS = {
-        wind: 'Draws wind only where it reaches',
-        gust: 'Draws gusts only where they reach',
-        uv: 'Draws UV only where it reaches'
+    // The Show row's hint per metric and value: All's whole sentence, and the start of
+    // Alert's, ahead of "your warn level (40 kph)".
+    var SHOW_HINTS = {
+        wind: { all: 'Draws every wind value, the whole curve, calm hours included.',
+            alert: 'Draws wind only where it reaches' },
+        gust: { all: 'Draws every gust value, the whole curve, calm hours included.',
+            alert: 'Draws gusts only where they reach' },
+        uv: { all: 'Draws every UV value, the whole curve, low-UV hours included.',
+            alert: 'Draws UV only where it reaches' }
     };
 
     /**
-     * The "Only alert" switch's hint: while on, what it draws and the warn level it gaps
-     * below, in the unit the Alert levels are set in; nothing while off.
+     * The Show row's hint, for the selected value only: All draws the whole curve, Alert
+     * only where the value reaches the warn level, named in the unit the Alert levels are
+     * set in. A value the page has not healed yet (a dev phone's true or false) reads the
+     * way the bake reads it (line-alert.js showValue).
      * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
-     * @param {{value: *, metric: string}} args The switch's shown value and its metric.
-     * @returns {string} The hint, '' for none.
+     * @param {Object} env Platform env (unused: the row only shows where Alert draws).
+     * @param {{value: *, metric: string}} args The row's shown value and its metric.
+     * @returns {string} The hint, '' for a metric without one.
      */
-    function onlyAlertHint(S, env, args) {
-        if (args.value !== true) { return ''; }
-        var lead = copyOf(ONLY_ALERT_LEADS, args.metric);
-        if (!lead) { return ''; }
-        return lead + ' your warn level (' + lineAlert.warnText(S || {}, args.metric)
-            + '), so the small graph stays clear until it matters.';
+    function lineShowHint(S, env, args) {
+        var copy = copyOf(SHOW_HINTS, args.metric);
+        if (!copy) { return ''; }
+        if (lineAlert.showValue(args.value) !== lineAlert.SHOW_ALERT) { return copy.all; }
+        return copy.alert + ' your warn level (' + lineAlert.warnText(S || {}, args.metric)
+            + '), so the small graph stays empty until it matters.';
     }
 
-    // The Wind graph scale row's hint while a wind or gust line is drawn "Only alert":
-    // such a line runs from its warn level up to its band's top (line-alert.js
-    // alertBand), which is the scale's value only while that sits above the warn level
-    // (else the danger level), so the row's own "Tops out at 50 kph — typical winds sit
-    // mid-graph" no longer holds. Each line's start of the sentence, for when the drawn
-    // wind and gust lines top out at different values.
+    // The Wind graph scale row's hint while a drawn wind or gust line shows Alert: such
+    // a line runs from its warn level up to its band's top (line-alert.js alertBand),
+    // the higher of the scale's value and the danger level, so the row's own "Tops out at
+    // 50 kph — typical winds sit mid-graph" no longer holds. Each line's start of the
+    // sentence, for when the drawn wind and gust lines top out at different values, and
+    // its name in "your gust danger level".
     var WIND_LINE_TOPS = {
-        wind: { lead: 'Wind tops out at ', tail: 'wind at ' },
-        gust: { lead: 'Gusts top out at ', tail: 'gusts at ' }
+        wind: { lead: 'Wind tops out at ', tail: 'wind at ', danger: 'wind' },
+        gust: { lead: 'Gusts top out at ', tail: 'gusts at ', danger: 'gust' }
     };
 
     /**
-     * The Wind graph scale row's hint while a drawn wind or gust line is "Only alert":
-     * where each drawn wind and gust line tops out (an "Only alert" line at its band's
-     * top, the other at the scale's value), without the row's usual note on what the
-     * value emphasizes, which compares the scales of a 0-based line. One shared top:
-     * "Tops out at 90 kph while Only alert is on." (just "Tops out at 50 kph." when one
-     * of the two lines draws normally); two: "Wind tops out at 50 kph, gusts at 90 kph
-     * while Only alert is on." Reads the stored scale, like the bake.
+     * The Wind graph scale row's hint while a drawn wind or gust line shows Alert: where
+     * each drawn wind and gust line tops out (an Alert line at its band's top, an All
+     * line at the scale's value) and, where a danger level is that top, whose — without
+     * the row's usual note on what the value emphasizes, which compares the scales of a
+     * 0-based line. Every drawn wind and gust line on Alert (one top, shared): "Tops out
+     * at 90 kph, your gust danger level, while Show is set to Alert." (without the danger
+     * clause while the scale's own value is the top). One on Alert beside one on All:
+     * "Tops out at 70 kph." for one top; "Wind tops out at 30 kph, gusts at 90 kph, your
+     * gust danger level." for two. Reads the stored scale, like the bake.
      * @param {Object} S Live settings state.
      * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
-     *   and Fourth metric lines.
+     *   and Fourth metric lines; `onDemand` false = no Alert settings (aplite).
      * @returns {?string} The hint; null for "use the row's hintByValue" (no drawn wind
-     *   or gust line is "Only alert").
+     *   or gust line shows Alert).
      */
     function windScaleHint(S, env) {
         if (!S) { return null; }
         var allLines = Boolean(env && env.lineStyles);
         var drawn = lineAlert.drawnMetrics(S, allLines);
-        var bands = lineAlert.alertBands(S, allLines);
-        var lines = [], anyOnly = false, i, m;
+        var bands = lineAlert.alertBands(S, allLines, lineAlert.alertsDrawn(env));
+        var lines = [], anyAlert = false, i, m;
         for (i = 0; i < drawn.length; i += 1) {
             m = drawn[i];
             if (!Object.prototype.hasOwnProperty.call(WIND_LINE_TOPS, m)) { continue; }
-            lines.push({ metric: m, only: Boolean(bands[m]),
+            lines.push({ metric: m, band: bands[m] || null,
                 top: lineAlert.levelText(S, m, bands[m] ? bands[m].top : lineAlert.scaleTop(S, m)) });
-            if (bands[m]) { anyOnly = true; }
+            if (bands[m]) { anyAlert = true; }
         }
-        if (!anyOnly) { return null; }
-        if (lines.length === 1 || lines[0].top === lines[1].top) {
-            return 'Tops out at ' + lines[0].top
-                + (lines.length === 1 || lines[0].only === lines[1].only ? ' while Only alert is on.' : '.');
+        if (!anyAlert) { return null; }
+        // The line on Alert (the first, when both are: they share one band).
+        var alert = lines[0].band ? lines[0] : lines[1];
+        var danger = alert.band.topDanger
+            ? ', your ' + WIND_LINE_TOPS[alert.band.topDanger].danger + ' danger level' : '';
+        if (lines.length === 1 || (lines[0].band && lines[1].band)) {
+            return 'Tops out at ' + alert.top + (danger ? danger + ',' : '') + ' while Show is set to Alert.';
         }
-        // Two tops: an "Only alert" line beside one drawn normally (both "Only alert"
-        // share one band). The normal line leads; the "Only alert" one names the switch.
-        var plain = lines[0].only ? lines[1] : lines[0];
-        var only = lines[0].only ? lines[0] : lines[1];
+        // One on Alert beside one on All.
+        var plain = lines[0].band ? lines[1] : lines[0];
+        if (plain.top === alert.top) { return 'Tops out at ' + alert.top + '.'; }
         return WIND_LINE_TOPS[plain.metric].lead + plain.top + ', '
-            + WIND_LINE_TOPS[only.metric].tail + only.top + ' while Only alert is on.';
+            + WIND_LINE_TOPS[alert.metric].tail + alert.top + danger + '.';
     }
 
     PConf.hintResolvers.register('forecastMetricHint', function (S, env, args) {
         return forecastMetricHint(args.value, env, S);
     });
-    // The Wind graph scale row: null (its hintByValue) unless a wind or gust line is
-    // "Only alert".
+    // The Wind graph scale row: null (its hintByValue) unless a drawn wind or gust line
+    // shows Alert.
     PConf.hintResolvers.register('windScaleHint', function (S, env) {
         return windScaleHint(S, env);
     });
@@ -372,7 +385,7 @@ if (typeof require !== 'undefined') {
     PConf.hintResolvers.register('lineStyleHint', function (S, env, args) {
         return lineStyleHint(S ? S[args.metricKey] : undefined, args.value, S, env);
     });
-    PConf.hintResolvers.register('onlyAlertHint', onlyAlertHint);
+    PConf.hintResolvers.register('lineShowHint', lineShowHint);
 
     /**
      * The AQI slot's Day max / Both hint while its source note applies: the by-value
@@ -1661,7 +1674,7 @@ if (typeof require !== 'undefined') {
             thresholdRangeCfg: thresholdRangeCfg,
             forecastMetricHint: forecastMetricHint,
             lineStyleHint: lineStyleHint,
-            onlyAlertHint: onlyAlertHint,
+            lineShowHint: lineShowHint,
             windScaleHint: windScaleHint,
             STRIPE_SCALE: STRIPE_SCALE
         };

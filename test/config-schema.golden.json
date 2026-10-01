@@ -2314,54 +2314,105 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "windLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "wind"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
-                  "key": "secondaryLine",
-                  "eq": "wind"
+                  "all": [
+                    {
+                      "env": "onDemand"
+                    },
+                    {
+                      "key": "secondaryLine",
+                      "eq": "wind"
+                    }
+                  ]
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "gustLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "gust"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
-                  "key": "secondaryLine",
-                  "eq": "gust"
+                  "all": [
+                    {
+                      "env": "onDemand"
+                    },
+                    {
+                      "key": "secondaryLine",
+                      "eq": "gust"
+                    }
+                  ]
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "uvLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "uv"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
-                  "key": "secondaryLine",
-                  "eq": "uv"
+                  "all": [
+                    {
+                      "env": "onDemand"
+                    },
+                    {
+                      "key": "secondaryLine",
+                      "eq": "uv"
+                    }
+                  ]
                 }
               },
               {
@@ -2616,19 +2667,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "windLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "wind"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "key": "thirdLine",
                       "eq": "wind"
@@ -2643,19 +2707,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "gustLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "gust"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "key": "thirdLine",
                       "eq": "gust"
@@ -2670,19 +2747,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "uvLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "uv"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "key": "thirdLine",
                       "eq": "uv"
@@ -2997,19 +3087,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "windLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "wind"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "env": "lineStyles"
                     },
@@ -3033,19 +3136,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "gustLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "gust"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "env": "lineStyles"
                     },
@@ -3069,19 +3185,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "uvLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "uv"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "env": "lineStyles"
                     },
@@ -3439,19 +3568,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "windLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "wind"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "env": "lineStyles"
                     },
@@ -3481,19 +3623,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "gustLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "gust"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "env": "lineStyles"
                     },
@@ -3523,19 +3678,32 @@
                 }
               },
               {
-                "type": "toggle",
+                "type": "segmented",
                 "messageKey": "uvLineOnlyAlert",
-                "label": "Only alert",
-                "defaultValue": false,
+                "label": "Show",
+                "defaultValue": "all",
                 "joinPrevious": true,
                 "hintFrom": {
-                  "resolver": "onlyAlertHint",
+                  "resolver": "lineShowHint",
                   "args": {
                     "metric": "uv"
                   }
                 },
+                "options": [
+                  [
+                    "All",
+                    "all"
+                  ],
+                  [
+                    "Alert",
+                    "alert"
+                  ]
+                ],
                 "showWhen": {
                   "all": [
+                    {
+                      "env": "onDemand"
+                    },
                     {
                       "env": "lineStyles"
                     },

@@ -464,6 +464,8 @@ const HEAVIEST_SETTINGS = {
   // the heaviest pairs are stripe metrics: 'pressure' (8) could only report a 4-char
   // style, 'wind' (4) reports 'stripeBottom' (12).
   fourthLine: 'gust', fifthLine: 'cloud',
+  // The three lines' Show on its longer value.
+  windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert',
   secondaryLineStyle: 'stripeBottom', thirdLineStyle: 'stripeBottom',
   fourthLineStyle: 'stripeBottom', fifthLineStyle: 'stripeBottom',
   rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
@@ -848,7 +850,9 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // (windLineOnlyAlert, gustLineOnlyAlert, uvLineOnlyAlert) are 76 B, taking the legacy
 // envelope to 4053 B and the custom-layout one to 4163 B, past the cap. Both are still
 // measured and printed, but only the batch header is asserted now: 3033 of 4096,
-// headroom 1063.
+// headroom 1063. The switches then became each line's Show, 'all' or 'alert' (82 B on
+// 'alert', which the fixture now sets): 4059 B and 4169 B, the batch header 3039 of
+// 4096, headroom 1057.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

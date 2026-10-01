@@ -194,12 +194,13 @@ const settingsSchema = z
     secondaryLine: z.string().optional(),
     secondaryLineFill: z.boolean().optional(),
     windScale: z.string().optional(),
-    // The wind, gust and UV lines' "Only alert" (1.24.0, src/pkjs/line-alert.js), as
-    // stored. DEPLOY-ORDERING: ship this function before the app release that sends
-    // them, or the strip step drops them silently.
-    windLineOnlyAlert: z.boolean().optional(),
-    gustLineOnlyAlert: z.boolean().optional(),
-    uvLineOnlyAlert: z.boolean().optional(),
+    // The wind, gust and UV lines' Show, 'all' or 'alert' (1.24.0, src/pkjs/line-alert.js
+    // showOf). DEPLOY-ORDERING: ship this function before the app release that sends
+    // them, or the strip step drops them silently. z.string(), not z.enum: a future
+    // Show value must not 400 the batch.
+    windLineOnlyAlert: z.string().optional(),
+    gustLineOnlyAlert: z.string().optional(),
+    uvLineOnlyAlert: z.string().optional(),
     pressureScale: z.string().optional(),
     thirdLine: z.string().optional(),
     fourthLine: z.string().optional(),

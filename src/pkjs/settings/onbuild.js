@@ -21,6 +21,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // and published as PConf.radarSourceId).
     var radarSourceId = (typeof require !== 'undefined')
         ? require('../weather/radar-source-id.js') : PConf.radarSourceId;
+    // The graph lines' Show reading (line-alert.js, window.LineAlert, concatenated ahead
+    // of this file).
+    var lineAlert = (typeof require !== 'undefined')
+        ? require('../line-alert.js') : window.LineAlert;
     var COLOR_ROLES = ['Warn', 'Danger'];
 
     /**
@@ -92,6 +96,26 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
+     * Read each graph line's Show the way the bake does (line-alert.js showOf) on every
+     * open, so its [All | Alert] row shows the choice the watch draws: the first build of
+     * the setting was a switch, and a dev phone still holds its true / false, which the
+     * segmented control matches to neither option. They become 'alert' / 'all' here and
+     * are stored as such on the next Save; the render signature reads the two alike, so
+     * that Save forces no fetch. No migration marker: the switch never shipped. A value
+     * is written back only when it changed.
+     * @param {{ get: function, set: function }} ctx onLoad context
+     * @returns {void}
+     */
+    function healLineShow(ctx) {
+        for (var i = 0; i < lineAlert.METRIC_IDS.length; i++) {
+            var key = lineAlert.settingKey(lineAlert.METRIC_IDS[i]);
+            var stored = ctx.get(key);
+            var show = lineAlert.showValue(stored);
+            if (stored !== show) { ctx.set(key, show); }
+        }
+    }
+
+    /**
      * The radar source the stored pair runs (radar-source-id.js effectiveRadarId).
      * @param {{ get: function }} ctx onLoad / onSubmit context
      * @returns {(string|undefined)} Radar source id.
@@ -158,6 +182,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         foldRadarSource(ctx);
         healThresholdColors(ctx);
         healOnDemandLists(ctx);
+        healLineShow(ctx);
         if (ctx.env && ctx.env.platform === 'aplite') {
             ctx.set('radarMode', 'off');
             ctx.set('healthMode', 'off');
