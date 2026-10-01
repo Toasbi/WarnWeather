@@ -2035,8 +2035,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // so "which controls work inside the sheet" stops being an implicit
     // hand-curated duplicate of #scroll's list. Returns true when handled.
     // (The two hosts used to check these in different orders; no element matches
-    // two of the selectors — data-action rides button rows, .lbl-act and
-    // .txt-act-btn, none nested in toggle/data-v/color controls — so one
+    // two of the selectors — data-action rides button rows, .lbl-act, .txt-act-btn
+    // and the intros' .txt-link, none nested in toggle/data-v/color controls — so one
     // canonical order serves both.)
     function controlClick(e) {
       var t;

@@ -1067,9 +1067,10 @@ function highlightToggle(keyStem) {
 }
 // The five alert kinds' slot sheets carry this pointer instead of the levels group,
 // right under the 'Alert highlighting' switch: the levels and colors live in ONE
-// place, the kind's alert sheet in the Alert settings card. No link or sheet swap — the engine opens one sheet
-// at a time, and the owner asked for the plain note. A fresh object per call, like
-// every item.
+// place, the kind's alert sheet in the Alert settings card (General tab, its first card; the
+// slot sheet opens from the Status slots tab, so the note names the tab). No link or sheet
+// swap — the engine opens one sheet at a time, and the owner asked for the plain note. A
+// fresh object per call, like every item.
 /**
  * @returns {Object} The info-box staticText in an alert kind's slot sheet.
  */
@@ -1077,7 +1078,7 @@ function alertLevelsNote() {
     return {
         type: 'staticText',
         style: 'info',
-        text: 'Alert levels and colors are set in Alert settings, under Weather alerts.'
+        text: 'Alert levels and colors are set in General → Alert settings, under Weather alerts.'
     };
 }
 // The rain alert's two choices, named once: the Rain sheet's rows offer them and the
@@ -1638,12 +1639,26 @@ function onDemandCardItems() {
             {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}}, true);
     }));
 }
-// The Alert settings card's intro: what an item is, then where they are chosen, with the
+/**
+ * An inline text button inside a card's intro copy: it reads like the link in the
+ * Telemetry hint (More tab, "Telemetry section") — the link colour and underline in the
+ * copy's own font, flowing after the last sentence — and dispatches through the engine's
+ * shared [data-action] handler like any button (shell.html .txt-link). The Alert settings
+ * card's and the status card's resets ride it.
+ * @param {string} action A registered PConf.actions id, e.g. 'resetOnDemand'.
+ * @param {string} label The button's text (a constant here, printed as is).
+ * @returns {string} The button's HTML.
+ */
+function introAction(action, label) {
+    return '<button type="button" class="txt-link" data-action="' + action + '">' + label + '</button>';
+}
+// The Alert settings card's intro: what an item is, then where they are chosen (the
+// card sits on the General tab, the bars' Alerts rows on the Status slots tab), with the
 // card's reset (the item settings; the ticks ride the status card's reset).
 var ON_DEMAND_INTRO = 'Alerts show at the edge of a status bar only while they have something to say: '
     + 'the battery when it runs low, Bluetooth when it disconnects, a weather alert while it is active. Tick them '
-    + 'under Alerts on each status bar, left or right.'
-    + ' <button type="button" class="txt-act-btn" data-action="resetOnDemand">Reset alert settings to defaults</button>';
+    + 'under Alerts on each status bar (Status slots tab), left or right. '
+    + introAction('resetOnDemand', 'Reset alert settings to defaults');
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this
 // sheetId — but the Bold row is the sheet's only standing control: no group
@@ -1946,12 +1961,29 @@ module.exports = {
         }]
     }, {
         id: 'general', label: 'General', openDefault: true, sections: [{
+            // The fetch-error notices stay first: the panel draws nothing until a fetch
+            // fails, and then it is the news the page opens on.
             block: 'noticesPanel',
             items: [{
                 type: 'hidden',
                 messageKey: 'fetchNoticeAck',
                 defaultValue: false
             }]
+        }, {
+            // The Alert settings card leads the tab (owner, 2026-10-01: "alert settings move
+            // to the general settings to the top, below it the theme and location"). Battery
+            // and Bluetooth open a sheet each, Quiet time and Sleep only print their rule, and
+            // the weather alerts open their sheets (the levels' one home). Its reset reverts
+            // the items' settings; the ticks ride the status card's reset (Status slots tab,
+            // where each bar's Alerts row stays). The rows store nothing — their sheets do,
+            // and those stay with the bars' sheets on the Status slots tab (renderEditModal
+            // finds a sheet on any tab), so moving the card moved no key in the save order.
+            // aplite: gated off (ON_DEMAND_WHEN), so its General tab is unchanged.
+            id: 'onDemand',
+            title: 'Alert settings',
+            showWhen: ON_DEMAND_WHEN,
+            intro: ON_DEMAND_INTRO,
+            items: onDemandCardItems()
         }, {
             items: [{
                 type: 'select',
@@ -2720,13 +2752,13 @@ module.exports = {
             // single card (each title becomes an in-card sub-header). Time/Calendar below stay
             // their own cards.
             groupCard: 'watchStatus',
-            // The intro's reset chip reverts every slot AND the bold settings in one
-            // tap (blocks.js resetStatusSlots — the engine injects section intros as
-            // raw HTML and dispatches [data-action] clicks globally). Deliberately
+            // The intro's inline reset (introAction) reverts every slot AND the bold
+            // settings in one tap (blocks.js resetStatusSlots — the engine injects section
+            // intros as raw HTML and dispatches [data-action] clicks globally). Deliberately
             // NOT thresholds-gated: aplite has slots but no bold machinery, and
             // "status bars" stays truthful there either way.
-            intro: 'Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below.'
-                + ' <button type="button" class="txt-act-btn" data-action="resetStatusSlots">Reset status bars to defaults</button>',
+            intro: 'Every view has its own status bar — one row with a left, middle, and right slot you can fill with weather, time, health, and more. Choose what each view shows below. '
+                + introAction('resetStatusSlots', 'Reset status bars to defaults'),
             items: [
                 // Master bold switch over EVERY slot kind. It lives in the card's
                 // title-less intro section — ABOVE the per-bar sub-headers — because
@@ -2755,18 +2787,11 @@ module.exports = {
                 }
             ]
         }, {
-            groupCard: 'watchStatus',
-            title: 'Forecast Status Bar',
-            items: barSlots('statusForecast', null)
-        }, {
-            groupCard: 'watchStatus',
-            title: 'Radar Status Bar',
-            items: barSlots('statusRadar', RADAR_BAR_WHEN)
-        }, {
-            groupCard: 'watchStatus',
-            title: 'Health Status Bar',
-            items: barSlots('statusHealth', HEALTH_BAR_WHEN)
-        }, {
+            // The bars in the owner's order (2026-10-01: "1: watch status bar 2 weather 3
+            // health 4 radar"; before it Forecast, Radar, Health, Watch): the page's order
+            // only. on-demand.js BARS (top, forecast, radar, health), the wire and the keys
+            // keep theirs, and the save blob carries the same keys (the bars' keys just come
+            // out in this order).
             groupCard: 'watchStatus',
             title: 'Watch Status Bar',
             // aplite has no On demand (ON_DEMAND_WHEN): it keeps the bar's fixed battery,
@@ -2797,17 +2822,17 @@ module.exports = {
                 }
             ], {not: ON_DEMAND_WHEN}))
         }, {
-            // The Alert settings card: after the status card's sections and before the sheets (a
-            // sheetOnly section between two groupCard sections would split the status
-            // card). Battery and Bluetooth open a sheet each, Quiet time and Sleep only
-            // print their rule, and the weather alerts open their sheets (the levels' one
-            // home). Its reset reverts the items' settings; the ticks ride the status
-            // card's reset.
-            id: 'onDemand',
-            title: 'Alert settings',
-            showWhen: ON_DEMAND_WHEN,
-            intro: ON_DEMAND_INTRO,
-            items: onDemandCardItems()
+            groupCard: 'watchStatus',
+            title: 'Forecast Status Bar',
+            items: barSlots('statusForecast', null)
+        }, {
+            groupCard: 'watchStatus',
+            title: 'Health Status Bar',
+            items: barSlots('statusHealth', HEALTH_BAR_WHEN)
+        }, {
+            groupCard: 'watchStatus',
+            title: 'Radar Status Bar',
+            items: barSlots('statusRadar', RADAR_BAR_WHEN)
         },
         // Threshold edit sheets (sheetOnly): reachable only through the pencil next to a
         // status slot whose selected value has thresholds — never rendered as cards here.
@@ -2967,8 +2992,11 @@ module.exports = {
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery')
         // The four bar sheets (opened from each bar's Alerts row), then the item sheets
-        // (opened from the Alert settings card's rows): Battery, Bluetooth, rain, then one
-        // per metric alert kind holding its Look, Days and levels (the levels' one home).
+        // (opened from the Alert settings card's rows, General tab): Battery, Bluetooth, rain,
+        // then one per metric alert kind holding its Look, Days and levels (the levels' one
+        // home). The item sheets stay here though their card moved: a sheet opens from any
+        // tab, and here the keys they share with earlier rows (rainCountdownHorizon with the
+        // Radar tab, vibe and btIcons with aplite's Watch Status Bar) keep their order.
         ].concat(onDemandBarSheets(), [batterySheet(), bluetoothSheet(), rainAlertSheet()],
             ALERT_KINDS.map(function (k) {
                 return alertSheet(k.keyStem, k.title, k.subject, k.iconName, k.hint || '', k.coda || '');

@@ -763,8 +763,8 @@ if (typeof require !== 'undefined') {
         return {label: 'Edit', ariaNote: hex, chip: hex};
     });
 
-    // Reset-to-defaults for the whole status-bar card (the text button in the Watch
-    // tab's intro — schema.js watchStatus): every slot of every bar back to its
+    // Reset-to-defaults for the whole status-bar card (the inline text button closing the
+    // Status slots tab's intro — schema.js introAction): every slot of every bar back to its
     // platform-aware default (the same statusSlotDefault seed a fresh install gets,
     // hrDefaults flavor included), and every other covered key back to ITS SCHEMA
     // DEFAULT, resolved through the engine — no value is mirrored here, because
@@ -847,13 +847,13 @@ if (typeof require !== 'undefined') {
         return true;
     };
 
-    // Reset-to-defaults for the Alert settings card (the text button in its intro — schema.js
-    // ON_DEMAND_INTRO): the items' own settings back to their schema defaults, via the
-    // engine's resolver like resetStatusSlots above — the Battery item's warn level and
-    // Look, the Bluetooth item's Show and vibration, the rain alert's window and look,
-    // and each metric alert's Look, Days and tomorrow mark (the contract's ALERT_KINDS,
-    // the five the card lists). Deliberately untouched: the levels, warn looks and
-    // colours (each sheet's Alert levels header has its own reset, which also serves the
+    // Reset-to-defaults for the Alert settings card (the inline text button closing its intro
+    // on the General tab — schema.js ON_DEMAND_INTRO): the items' own settings back to their
+    // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
+    // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
+    // window and look, and each metric alert's Look, Days and tomorrow mark (the contract's
+    // ALERT_KINDS, the five the card lists). Deliberately untouched: the levels, warn looks
+    // and colours (each sheet's Alert levels header has its own reset, which also serves the
     // slots' highlight) and which bar ticks which item (the status card's reset).
     /**
      * @param {*} arg Unused (the engine passes the button's data-action-arg).

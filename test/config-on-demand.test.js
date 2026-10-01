@@ -1,10 +1,10 @@
 'use strict';
-// test/config-on-demand.test.js — On demand on the Status slots tab, end to end on the
-// REAL generated settings page (test/helpers/page-harness.js): each bar's Alerts row (both
-// sides' ticked items as its live hint, and Edit; a side is on while it ticks something),
-// the bar's Alerts sheet with a Left and a Right tick per item, the Alert settings card with
-// its live texts and item sheets, the rain notes, the resets, and the aplite page, which
-// has none of it. The schema shape itself
+// test/config-on-demand.test.js — On demand on the settings page, end to end on the
+// REAL generated settings page (test/helpers/page-harness.js): each bar's Alerts row on the
+// Status slots tab (both sides' ticked items as its live hint, and Edit; a side is on while
+// it ticks something), the bar's Alerts sheet with a Left and a Right tick per item, the
+// Alert settings card at the top of the General tab with its live texts and item sheets,
+// the rain notes, the resets, and the aplite page, which has none of it. The schema shape itself
 // is pinned in test/config-schema.test.js; this file checks what the page renders and does.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -30,6 +30,18 @@ const PC = global.PConf;
 function watchTab(cfg, platformName) {
   const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, cfg || {}), platformName);
   page.clickTab('watch');
+  return page;
+}
+
+/**
+ * Boot the page on the General tab, whose first card is Alert settings.
+ * @param {Object} [cfg] stored settings (provider dwd unless given)
+ * @param {string} [platformName] Pebble platform (default basalt)
+ * @returns {Object} the page-harness handle
+ */
+function generalTab(cfg, platformName) {
+  const page = bootGeneratedPage(Object.assign({ provider: 'dwd' }, cfg || {}), platformName);
+  page.clickTab('general');
   return page;
 }
 
@@ -156,6 +168,27 @@ test('each bar ends on one Alerts row: both sides\' ticks as the summary, and Ed
   assert.ok(html.indexOf('data-edit-sheet="odRadar"') !== -1, 'the radar bar exists by default');
 });
 
+test('the Status slots tab: the bars in the owner\'s order, the reset inline in the intro', () => {
+  // The owner, 2026-10-01: "1: watch status bar 2 weather 3 health 4 radar" (the page only;
+  // the wire keeps its order). The health bar needs a health mode with a status bar.
+  const html = watchTab({ healthMode: 'status' }).scroll.innerHTML;
+  const at = (title) => html.indexOf('<div class="subhdr">' + title + '</div>');
+  const order = ['Watch Status Bar', 'Forecast Status Bar', 'Health Status Bar', 'Radar Status Bar'];
+  order.forEach((t) => assert.ok(at(t) !== -1, t + ' renders'));
+  assert.deepEqual(order.slice().sort((a, b) => at(a) - at(b)), order, 'Watch, Forecast, Health, Radar');
+  // Each bar's Alerts row sits under its own sub-header.
+  [['odTop', 'Watch Status Bar', 'Forecast Status Bar'], ['odForecast', 'Forecast Status Bar', 'Health Status Bar'],
+    ['odHealth', 'Health Status Bar', 'Radar Status Bar']].forEach(([id, from, to]) => {
+    const row = html.indexOf('data-edit-sheet="' + id + '"');
+    assert.ok(row > at(from) && row < at(to), id + ' under ' + from);
+  });
+  assert.ok(html.indexOf('data-edit-sheet="odRadar"') > at('Radar Status Bar'), 'odRadar under the radar bar');
+  assert.ok(html.indexOf('Choose what each view shows below. <button type="button" class="txt-link" '
+    + 'data-action="resetStatusSlots">Reset status bars to defaults</button></div>') !== -1,
+  'the status card\'s reset: an inline text button closing its intro');
+  assert.equal(html.indexOf('txt-act-btn'), -1, 'no boxed chip on the tab');
+});
+
 test('a side is on as soon as a tick in its column, and off again once its column is empty', () => {
   const page = watchTab();
   page.openEditSheet('odForecast');
@@ -263,13 +296,22 @@ test('the sheet\'s notes: Rain needs the radar, Pollen needs DWD — ticks kept,
     'Rain left out while the radar is off');
 });
 
-test('the Alert settings card: its intro and rows with icons and live texts, under the status card', () => {
-  const html = watchTab().scroll.innerHTML;
+test('the Alert settings card: its intro and rows with icons and live texts, at the top of the General tab', () => {
+  const html = generalTab().scroll.innerHTML;
   const card = html.indexOf('<span class="ttl">Alert settings</span>');
   assert.ok(card !== -1, 'a titled card');
-  assert.ok(html.indexOf('data-k="statusBoldAll"') < card, 'after the status card');
+  // The owner, 2026-10-01: "alert settings move to the general settings to the top, below
+  // it the theme and location". The notices panel above it draws nothing without notices.
+  assert.equal(html.indexOf('<div class="card'), html.lastIndexOf('<div class="card', card), 'the tab\'s first card');
+  assert.ok(html.indexOf('data-select="theme"') > card, 'the theme card follows it');
+  assert.ok(html.indexOf('data-k="locationMode"') > html.indexOf('data-select="theme"'), 'then the location rows');
+  assert.equal(watchTab().scroll.innerHTML.indexOf('<span class="ttl">Alert settings</span>'), -1,
+    'no longer on the Status slots tab');
   assert.ok(html.indexOf('Alerts show at the edge of a status bar only while they have something to say') > card);
-  assert.ok(html.indexOf('data-action="resetOnDemand"') > card, 'with its reset');
+  // The reset is an inline text button closing the intro, like the Telemetry hint's link.
+  assert.ok(html.indexOf('Tick them under Alerts on each status bar (Status slots tab), left or right. '
+    + '<button type="button" class="txt-link" data-action="resetOnDemand">Reset alert settings to defaults</button></div>')
+    > card, 'with its inline reset');
   assert.ok(html.indexOf('<div class="subhdr grp"><span>System info</span></div>') > card);
   assert.ok(html.indexOf('<div class="subhdr grp"><span>Weather alerts</span></div>') > card);
   const row = (needle, icon, label) => {
@@ -466,7 +508,10 @@ test('moving the Warn level thumb stores one plain integer on the watch\'s step'
 test('aplite: no On demand rows, card or sheets — the Watch Status Bar keeps its own rows', () => {
   const html = watchTab({}, 'aplite').scroll.innerHTML;
   assert.equal(html.indexOf('OnDemand'), -1, 'no side rows');
-  assert.equal(html.indexOf('<span class="ttl">Alert settings</span>'), -1, 'no card');
+  const general = generalTab({}, 'aplite').scroll.innerHTML;
+  assert.equal(general.indexOf('<span class="ttl">Alert settings</span>'), -1, 'no card');
+  assert.equal(general.indexOf('resetOnDemand'), -1, 'no card reset');
+  assert.ok(general.indexOf('data-k="locationMode"') !== -1, 'the General tab opens on its theme + location card');
   ['batteryLowOnly', 'showQt', 'vibe'].forEach((k) =>
     assert.ok(html.indexOf('data-k="' + k + '" data-toggle="1"') !== -1, k + ' row'));
   assert.ok(html.indexOf('data-select="btIcons"') !== -1, 'btIcons row');
@@ -510,7 +555,7 @@ test('the card reset reverts the items\' settings; the status card reset reverts
 const NO_TOP_NOTE = 'Your Default view has no Watch Status Bar, so Alerts won’t show there.';
 
 test('no Watch Status Bar on the Default view and no On demand items on its bars: the card says so', () => {
-  const shows = (cfg) => watchTab(cfg).scroll.innerHTML.indexOf(NO_TOP_NOTE) !== -1;
+  const shows = (cfg) => generalTab(cfg).scroll.innerHTML.indexOf(NO_TOP_NOTE) !== -1;
   // Weather only drops the strip in every radar mode but 'Rain alert only'.
   assert.ok(shows({ layoutPreset: 'weatherOnly', radarMode: 'graph' }), 'Weather only, defaults: shown');
   assert.ok(!shows({ layoutPreset: 'weatherOnly', radarMode: 'graph',
@@ -581,7 +626,8 @@ test('the Radar tab carries a copy of the rain window; entering Rain alert only 
 test('the slot pencil sheet points at the Alert settings card for the levels', () => {
   const page = watchTab();
   page.openEditSheet('threshUv');
-  assert.ok(page.modal.innerHTML.indexOf('<div class="static join info nbl"><div class="info-box">Alert levels and colors are set in Alert settings, under Weather alerts.</div></div>') !== -1,
+  // The sheet opens from the Status slots tab; the card is on the General tab.
+  assert.ok(page.modal.innerHTML.indexOf('<div class="static join info nbl"><div class="info-box">Alert levels and colors are set in General → Alert settings, under Weather alerts.</div></div>') !== -1,
     'the info-box pointer');
 });
 

@@ -559,10 +559,36 @@ const basaltEnv = platform.computeEnv({ platform: 'basalt' });
 const emeryEnv = platform.computeEnv({ platform: 'emery' });
 const visIn = (env) => (item, S) => showWhen.isVisible(item, Object.assign({ env: env }, S));
 
+test('the General tab opens on the Alert settings card, then the theme + location card', () => {
+  // The owner, 2026-10-01: "alert settings move to the general settings to the top, below
+  // it the theme and location". sections[0] is the block-only notices panel (it draws
+  // nothing until a fetch fails); then the Alert settings card, gated to a watch with On
+  // demand (aplite's General tab opens on the theme card as before); then the theme +
+  // location card, then the rest as it was.
+  const general = schema.tabs.find((t) => t.id === 'general');
+  assert.equal(general.sections[0].block, 'noticesPanel', 'the notices panel stays first');
+  const card = general.sections[1];
+  assert.equal(card.id, 'onDemand');
+  assert.equal(card.title, 'Alert settings');
+  assert.deepEqual(card.showWhen, { env: 'onDemand' }, 'gated off on aplite');
+  const topKeys = general.sections[2].items.map((i) => i.messageKey).filter(Boolean);
+  assert.deepEqual(topKeys, ['theme', 'theme', 'locationMode', 'location', 'gpsCacheMin'],
+    'the theme + location card follows it');
+  assert.deepEqual(general.sections.filter((s) => !s.sheetOnly).map((s) => s.title || s.block || '(untitled)'),
+    ['noticesPanel', 'Alert settings', '(untitled)', 'Nighttime settings', 'Provider settings', 'Units'],
+    'the rest of the tab keeps its order (sheets aside)');
+  // No other tab holds the card.
+  schema.tabs.forEach((t) => {
+    if (t.id === 'general') { return; }
+    assert.ok(!t.sections.some((s) => s.id === 'onDemand'), t.id + ' holds no Alert settings card');
+  });
+});
+
 test('the Nighttime card sits between the top General card and Provider settings', () => {
   const general = schema.tabs.find((t) => t.id === 'general');
-  // sections[0] is the block-only notices panel; the top card (theme + location) is [1].
-  const topCard = general.sections[1];
+  // sections[0] is the block-only notices panel, [1] the Alert settings card; the top
+  // card (theme + location) is [2].
+  const topCard = general.sections[2];
   const topKeys = topCard.items.map((i) => i.messageKey).filter(Boolean);
   assert.deepEqual(topKeys, ['theme', 'theme', 'locationMode', 'location', 'gpsCacheMin'],
     'the top card keeps the theme pickers and the location rows, and nothing nightly');
@@ -2064,7 +2090,7 @@ test('AQI provider is a dropdown whose explanation switches per selected value',
   assert.ok(src.hintByValue.openmeteo.length > 0, 'Open-Meteo has its own hint');
 });
 
-test('Status-slots tab (id watch) opens with the status card: its intro and the four bars in forecast/radar/health/top order, then the Alert settings card', () => {
+test('Status-slots tab (id watch) is the status card: its intro and the four bars in watch/forecast/health/radar order, then the sheets', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   // The label was renamed with the Time/Calendar move; the id stays 'watch' —
   // deep links and this very lookup key on it.
@@ -2074,32 +2100,41 @@ test('Status-slots tab (id watch) opens with the status card: its intro and the 
   assert.equal(intro.groupCard, 'watchStatus');
   assert.ok(/status bar/i.test(intro.intro), 'general intro describes status bars once');
   const titles = watch.sections.map((s) => s.title).filter(Boolean);
+  // The owner's order (2026-10-01: "1: watch status bar 2 weather 3 health 4 radar"),
+  // the page's only (it was Forecast, Radar, Health, Watch): on-demand.js BARS and the
+  // wire keep their own order.
   assert.deepEqual(titles.slice(0, 4),
-    ['Forecast Status Bar', 'Radar Status Bar', 'Health Status Bar', 'Watch Status Bar'],
+    ['Watch Status Bar', 'Forecast Status Bar', 'Health Status Bar', 'Radar Status Bar'],
     'the four status bars lead the titled sections, in order');
-  assert.equal(titles[4], 'Alert settings', 'the Alert settings card follows the status card');
+  assert.deepEqual(require('../src/pkjs/on-demand.js').BARS.map((b) => b.bar), ['top', 'forecast', 'radar', 'health'],
+    'the contract\'s bar order stays');
+  assert.ok(!watch.sections.some((s) => s.id === 'onDemand'), 'the Alert settings card moved to the General tab');
+  assert.deepEqual(watch.sections.filter((s) => !s.sheetOnly).map((s) => s.groupCard),
+    ['watchStatus', 'watchStatus', 'watchStatus', 'watchStatus', 'watchStatus'],
+    'the status card is the tab\'s only card');
   // The per-slot edit sheets (sheetOnly, opened from a slot's Edit button — never
   // cards) follow in the sections array (see alertSlotSheet / goalSlotSheet). Each is
   // titled after the SLOT: it configures the slot's bold mode as well as its
   // thresholds/goals, so the goal-vs-threshold split lives on the group header inside,
   // not in the sheet title.
-  assert.deepEqual(titles.slice(5, 13),
+  assert.deepEqual(titles.slice(4, 12),
     ['Air quality (AQI) slot', 'Pollen slot', 'Wind speed slot',
       'Wind gusts slot', 'UV index slot', 'Steps slot', 'Sleep slot',
       'Walked distance slot'],
-    'per-slot edit sheets follow the Alert settings card, in kind order');
+    'per-slot edit sheets follow the status card, in kind order');
   // The bold-only slot sheets (level-less kinds, one Bold row each) follow, in
   // the contract's wire-id order (KINDS 8..19). 'Phone battery slot' is last and
   // serves BOTH phone-battery kinds (18 and 19) — they share key 'PhoneBattery',
   // so there are eleven sheets for twelve bold-only kinds.
-  assert.deepEqual(titles.slice(13, 24),
+  assert.deepEqual(titles.slice(12, 23),
     ['Temperature slot', 'Air pressure (hPa) slot', 'Sunrise/sunset slot',
       'Date slot', 'Calendar week slot', 'City slot', 'Date countdown slot',
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
       'Phone battery slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
-  // The four bars' Alerts sheets, then the Alert settings card's item sheets, close the tab.
-  assert.deepEqual(titles.slice(24),
+  // The four bars' Alerts sheets, then the Alert settings card's item sheets (the card is
+  // on the General tab; a sheet opens from any tab), close the tab.
+  assert.deepEqual(titles.slice(23),
     ['Alerts', 'Alerts', 'Alerts', 'Alerts',
       'Battery', 'Bluetooth', 'Rain alert', 'Wind gusts alert', 'UV index alert',
       'Air quality (AQI) alert', 'Pollen alert', 'Wind speed alert'],
@@ -2127,7 +2162,8 @@ const ON_DEMAND_WHEN = { env: 'onDemand' };
 const RADAR_BAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
 const HEALTH_BAR = { all: [{ env: 'health' }, { key: 'healthMode', in: ['status', 'all'] }] };
 const OD = require('../src/pkjs/on-demand.js');
-const onDemandSection = () => schema.tabs.find((t) => t.id === 'watch').sections.find((s) => s.id === 'onDemand');
+// The Alert settings card leads the General tab (owner, 2026-10-01).
+const onDemandSection = () => schema.tabs.find((t) => t.id === 'general').sections.find((s) => s.id === 'onDemand');
 
 test('each status bar ends on one Alerts row: both sides\' summary and Edit, no switch', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
@@ -2186,11 +2222,12 @@ test('the Alert settings card: gated to a watch with On demand, its intro, reset
   assert.equal(sec.title, 'Alert settings');
   assert.equal(sec.groupCard, undefined, 'a card of its own');
   assert.deepEqual(sec.showWhen, ON_DEMAND_WHEN);
-  assert.equal(sec.intro.split(' <button')[0], 'Alerts show at the edge of a status bar only while they'
+  // The card is on the General tab, the bars' Alerts rows on the Status slots tab: the
+  // intro names the tab. Its reset is an inline text button at the end of the copy.
+  assert.equal(sec.intro, 'Alerts show at the edge of a status bar only while they'
     + ' have something to say: the battery when it runs low, Bluetooth when it disconnects, a weather alert while it'
-    + ' is active. Tick them under Alerts on each status bar, left or right.');
-  assert.ok(sec.intro.indexOf('data-action="resetOnDemand"') !== -1, 'the intro carries the card reset');
-  assert.ok(sec.intro.indexOf('Reset alert settings to defaults') !== -1);
+    + ' is active. Tick them under Alerts on each status bar (Status slots tab), left or right.'
+    + ' <button type="button" class="txt-link" data-action="resetOnDemand">Reset alert settings to defaults</button>');
   const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
   assert.equal(showWhen.isVisible(sec, ctx('aplite')), false, 'gone on aplite');
   ['basalt', 'diorite', 'chalk', 'emery', 'flint'].forEach((p) =>
@@ -2373,12 +2410,14 @@ test('the alert Days and tomorrow-mark rows agree with the contract', () => {
 test('the Watch intro carries the reset-status-bars button, ungated', () => {
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const intro = watch.sections[0];
-  assert.ok(intro.intro.indexOf('data-action="resetStatusSlots"') !== -1,
-    'the intro embeds the [data-action] button (blocks.js resetStatusSlots)');
-  assert.ok(intro.intro.indexOf('class="txt-act-btn"') !== -1,
-    'the button reuses the shared text-action chip style');
-  assert.ok(intro.intro.indexOf('Reset status bars to defaults') !== -1,
-    'the label covers slots + Bold and stays truthful on aplite');
+  // An inline text button at the end of the copy (owner, 2026-10-01: "the reset to default
+  // button should be an inline text button, like the telemetry section"), dispatching
+  // blocks.js resetStatusSlots through the engine's [data-action] handler. Its label
+  // covers slots + Bold and stays truthful on aplite.
+  assert.ok(intro.intro.endsWith('Choose what each view shows below. '
+    + '<button type="button" class="txt-link" data-action="resetStatusSlots">Reset status bars to defaults</button>'),
+    'the intro ends on the inline reset');
+  assert.equal(intro.intro.indexOf('txt-act-btn'), -1, 'not the boxed chip any more');
   // The button resets slots too, which every platform has — so unlike the Bold
   // machinery it must NOT be thresholds-gated (the intro section stays ungated).
   assert.equal(intro.showWhen, undefined, 'the intro section carries no platform gate');
@@ -2529,7 +2568,7 @@ test('threshold config lives in per-slot edit sheets: pencils + sheet on basalt,
   // kind's one home for them).
   const basaltSheet = eng.renderEditModal(schema, watchCx('basalt', 'threshAqi'));
   ['data-k="threshAqiBoldMode"', 'data-k="threshAqiOn"', 'Air quality (AQI) slot',
-    '<div class="info-box">Alert levels and colors are set in Alert settings, under Weather alerts.</div>']
+    '<div class="info-box">Alert levels and colors are set in General → Alert settings, under Weather alerts.</div>']
     .forEach((frag) => assert.ok(basaltSheet.indexOf(frag) !== -1, 'basalt slot sheet carries ' + frag));
   assert.equal(basaltSheet.indexOf('data-range="threshAqiWarn"'), -1, 'no levels in the slot sheet');
   const alertSheet = eng.renderEditModal(schema, watchCx('basalt', 'alertAqi'));

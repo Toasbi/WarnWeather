@@ -1370,7 +1370,7 @@ test('Bold sits above the group and is never gated by the master toggle', () => 
     }, stem + ' the highlight group opens on its switch');
     assert.deepEqual(items[n - 2], {
       type: 'staticText', style: 'info', joinPrevious: true,
-      text: 'Alert levels and colors are set in Alert settings, under Weather alerts.'
+      text: 'Alert levels and colors are set in General → Alert settings, under Weather alerts.'
     }, stem + ' the On demand pointer hugs the switch');
     assert.equal(items[n - 1], boldFor(stem), stem + ' Bold closes the sheet');
     assert.equal(boldFor(stem).joinPrevious, 'loose', stem + ' Bold joins the group without a divider');
