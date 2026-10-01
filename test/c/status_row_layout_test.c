@@ -675,9 +675,6 @@ static void placed_w_pins(void) {
     StatusSlotMeasure text[3] = { { false, 0, 0, 0 }, { true, 0, 40, 0 }, { false, 0, 0, 0 } };
     status_row_layout(140, text, p);
     expect("placed_w.text_only", status_slot_placed_w(&p[1], &text[1]), 40);
-    StatusSlotMeasure neg[3] = { { true, -5, 20, -3 }, { false, 0, 0, 0 }, { false, 0, 0, 0 } };
-    status_row_layout(140, neg, p);
-    expect("placed_w.negative_reads_zero", status_slot_placed_w(&p[0], &neg[0]), 20);
 }
 
 int main(void) {

@@ -37,7 +37,8 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 // and the same placement status_row_layout() gives each of its three slots, so a
 // slot placed here is byte-compatible with one the row layout placed. Handing it a
 // slot's width from status_row_layout() reproduces that slot's place exactly, at any
-// x. Negative measures read as 0, as in the row layout. Returns the group's width;
+// x. The measure is non-negative (the row layout clamps its own; the On demand
+// layout's are). Returns the group's width;
 // 0 when the slot does not show, and `out` is then all zero. The On demand layout
 // (appendix/on_demand.c) places its slots through this.
 int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_w,
@@ -45,8 +46,8 @@ int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_
 
 // A placed slot's group width, the width its fit gave it: the icon, the gap + text
 // while the text shows, then the suffix lane (whose gap goes with the text). 0 for a
-// hidden slot. `m` is the measure the slot was laid out with; negative measures read
-// as 0. The same sum the row layout sizes its slots by, so status_slot_place_at()
+// hidden slot. `m` is the non-negative measure the slot was laid out with. The same
+// sum the row layout sizes its slots by, so status_slot_place_at()
 // handed this width reproduces the slot. The On demand layout reads each slot's full
 // width back through it.
 int16_t status_slot_placed_w(const StatusSlotPlace *place, const StatusSlotMeasure *m);

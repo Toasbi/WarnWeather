@@ -159,23 +159,15 @@ void status_row_layout(int16_t content_w, const StatusSlotMeasure m[3],
 int16_t status_slot_place_at(const StatusSlotMeasure *m, int16_t x, int16_t max_w,
                              StatusSlotPlace *out) {
     *out = (StatusSlotPlace) { false, false, 0, 0, 0, 0 };
-    const StatusSlotMeasure n = {
-        m->present,
-        m->icon_w > 0 ? m->icon_w : 0,
-        m->text_w > 0 ? m->text_w : 0,
-        m->suffix_w > 0 ? m->suffix_w : 0
-    };
-    GroupFit fit = fit_group(&n, max_w);
-    place_group(&n, &fit, x, out);
+    GroupFit fit = fit_group(m, max_w);
+    place_group(m, &fit, x, out);
     return fit.visible ? fit.group_w : 0;
 }
 
 int16_t status_slot_placed_w(const StatusSlotPlace *place, const StatusSlotMeasure *m) {
     if (!place->visible) { return 0; }
     // The fit's text width is the place's while the text shows, else none.
-    return group_w(m->icon_w > 0 ? m->icon_w : 0,
-                   place->text_visible ? place->text_w : 0,
-                   m->suffix_w > 0 ? m->suffix_w : 0);
+    return group_w(m->icon_w, place->text_visible ? place->text_w : 0, m->suffix_w);
 }
 
 void status_slot_ink(const StatusSlotPlace *place, const StatusSlotMeasure *m,

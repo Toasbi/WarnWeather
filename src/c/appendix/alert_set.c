@@ -108,10 +108,10 @@ _Static_assert(STATUS_ALERT_DAY_TODAY == 0 && STATUS_ALERT_MARK_RAQUO == 1
                && STATUS_ALERT_MARK_GT == 2 && STATUS_ALERT_MARK_PLUS == 3
                && STATUS_ALERT_MARK_STAR == 4 && STATUS_ALERT_MARK_NONE == 5,
                "MARK_PRE/MARK_POST are indexed by the day code");
-static const char *const MARK_PRE[STATUS_ALERT_MARK_NONE + 1] = {
+static const char MARK_PRE[STATUS_ALERT_MARK_NONE + 1][3] = {
     "", "\xC2\xBB", ">", "+", "", ""
 };
-static const char *const MARK_POST[STATUS_ALERT_MARK_NONE + 1] = {
+static const char MARK_POST[STATUS_ALERT_MARK_NONE + 1][2] = {
     "", "", "", "", "*", ""
 };
 
