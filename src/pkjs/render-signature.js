@@ -35,6 +35,28 @@ function topStripeOverTempAxis(settings) {
 }
 
 /**
+ * The drawn metrics whose line is a stripe: a stripe line's bytes are level bytes on the
+ * metric's own scale (forecast-series.js stripeBytes, stripe-levels.js), so moving a
+ * line between a stripe and a curve, dots or marks re-bakes it. Signed as the metrics
+ * (each line's effective metric, line-style.js effectiveLineMetric, with its effective
+ * style, lineStyleValue — never a stripe on a metric that cannot be one), so a stripe
+ * moved between the top and the bottom edge, or a stored stripe on a line that is off
+ * or draws no stripe, signs nothing new. Platform-free: the bake's watch gate (aplite
+ * draws no stripes) at worst costs aplite one redundant fetch.
+ * @param {Object} settings Clay settings.
+ * @returns {string} e.g. 'cloud,uv'; '' for none.
+ */
+function stripeMetrics(settings) {
+    var out = [];
+    for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+        var line = lineStyle.FORECAST_LINES[i];
+        var metric = lineStyle.effectiveLineMetric(settings, line.key);
+        if (metric && lineStyle.isStripeStyle(settings, line.styleKey)) { out.push(metric); }
+    }
+    return out.join(',');
+}
+
+/**
  * @param {*} code A status item code.
  * @returns {boolean} whether a metric weather alert has that code (ALERT_KINDS)
  */
@@ -80,11 +102,12 @@ function renderSignature(settings) {
     // the line colours, the fill flag, the ...LineStyle keys and the
     // threshold auto-colours all ride the Clay message now (line-style.js,
     // palette-wire.js, status-wire.js' buildSettingsBlob), and the auto theme
-    // switch already flips with a Clay-only resend. The one style fact the bake does
-    // read — a top stripe over a feels/dew curve — joins as a derived flag, so a
-    // style edit that bakes nothing forces no fetch...
+    // switch already flips with a Clay-only resend. The two style facts the bake does
+    // read — a top stripe over a feels/dew curve, and which lines are stripes at all
+    // (their level bytes) — join as derived values, so a style edit that bakes nothing
+    // forces no fetch...
     var parts = [settings.secondaryLine, settings.thirdLine, settings.fourthLine, settings.fifthLine,
-        topStripeOverTempAxis(settings) ? 'topStripe' : '',
+        topStripeOverTempAxis(settings) ? 'topStripe' : '', stripeMetrics(settings),
         // ...the wind, gust and UV lines' Show: Alert (line-alert.js: gaps below the
         // warn level, the line scaled from it), signed as the drawn metrics set to it, so
         // the page hydrating an absent key to 'all', picking Alert for a metric no line

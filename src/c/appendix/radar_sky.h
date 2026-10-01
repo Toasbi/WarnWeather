@@ -10,9 +10,10 @@
 //   [5 .. 5+N)       cloud cover per slot, 0..250 (the stripe wire scale)
 //   [5+N .. 5+2N)    sun strength per slot, 0..250 (share of clear-sky sun)
 //   [5+2N .. 5+2N+1] lightning bitmask (uint16), bit k = lightning in slot k
-// The phone sends both rows already rounded to the nearest stripe level (bytes
-// 0/62/125/187/250, which chart_stripe_level maps back to levels 0..4), so the
-// watch reads them on the plain 0..250 scale.
+// The phone sends both rows already as stripe levels, each picked on the row's
+// own scale (src/pkjs/stripe-levels.js), as bytes 0/62/125/187/250, which
+// chart_stripe_level maps back to levels 0..4, so the watch reads them on the
+// plain 0..250 scale.
 // Slot k covers [start + k * RADAR_SKY_SLOT_SECONDS, + RADAR_SKY_SLOT_SECONDS).
 // The start is absolute (not relative to RAIN_RADAR_START), because the radar
 // category can be deduped out of a send while the sky changes, and because the

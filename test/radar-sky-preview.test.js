@@ -1,10 +1,10 @@
 // test/radar-sky-preview.test.js
 //
-// The settings page's radar preview draws the sky rows' sample with its own copy
-// of the phone's nearest-level quantiser (preview-radar.js skyLevel): the webview
-// bundle does not carry radar-sky.js. These pin the copy to the phone's
-// shareToLevelByte as the watch reads it back (chart_stripe_level, mirrored by
-// preview-stripe.js levelOfByte), and the sample to the rows' meaning.
+// The settings page's radar preview draws the sky rows' sample on the rows' own
+// scales (preview-radar.js skyLevel, over stripe-levels.js, which the webview bundle
+// carries; it does not carry radar-sky.js). These pin it to the bytes the phone
+// sends (radar-sky.js skyByte) as the watch reads them back (chart_stripe_level,
+// mirrored by preview-stripe.js levelOfByte), and the sample to the rows' meaning.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -16,26 +16,30 @@ const PS = require('../src/pkjs/settings/preview-stripe.js');
 const radarSky = require('../src/pkjs/weather/radar-sky.js');
 
 /**
- * The level the watch draws for a sky percentage sent the way fixture-weather.js
- * sends it: the phone's quantiser, then chart_stripe_level.
- * @param {*} pct Percent of the full row.
+ * The level the watch draws for a sky percentage sent the way radar-sky.js and
+ * fixture-weather.js send it: the row's level byte, then chart_stripe_level.
+ * @param {string} row 'cloud' | 'sun'.
+ * @param {*} pct Percent of what the row draws.
  * @returns {number} Level 0..4.
  */
-function watchLevel(pct) {
-  return PS.levelOfByte(radarSky.shareToLevelByte(Number(pct) / 100));
+function watchLevel(row, pct) {
+  return PS.levelOfByte(radarSky.skyByte(row, pct));
 }
 
-test('the preview\'s sky quantiser draws the level the watch draws, for every percentage', () => {
-  for (let tenths = -100; tenths <= 1500; tenths += 1) {
-    const pct = tenths / 10;
-    assert.equal(RD.skyLevel(pct), watchLevel(pct), pct + ' %');
-  }
-  [null, undefined, NaN, 'x', '', '50', Infinity, -Infinity].forEach((pct) => {
-    assert.equal(RD.skyLevel(pct), watchLevel(pct), String(pct));
+test('the preview\'s sky rows draw the level the watch draws, for every percentage', () => {
+  ['cloud', 'sun'].forEach((row) => {
+    for (let tenths = -100; tenths <= 1500; tenths += 1) {
+      const pct = tenths / 10;
+      assert.equal(RD.skyLevel(row, pct), watchLevel(row, pct), row + ' ' + pct + ' %');
+    }
+    [null, undefined, NaN, 'x', '', '50', Infinity, -Infinity].forEach((pct) => {
+      assert.equal(RD.skyLevel(row, pct), watchLevel(row, pct), row + ' ' + String(pct));
+    });
+    // The level edges, spelled out: under 10 % draws nothing, full from 90 %, each
+    // percentage taken as the whole percent it rounds to.
+    assert.deepEqual([0, 9.4, 9.5, 29.4, 29.5, 59.4, 59.5, 89.4, 89.5, 100, 130]
+      .map((pct) => RD.skyLevel(row, pct)), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4], row);
   });
-  // The level edges, spelled out: under 12.5 % draws nothing.
-  assert.deepEqual([0, 12.4, 12.5, 37.4, 37.5, 62.5, 87.4, 87.5, 100, 130].map(RD.skyLevel),
-    [0, 0, 1, 1, 2, 3, 3, 4, 4, 4]);
 });
 
 // The radar's 24 slots span preview x 11..196; a quarter hour is three of them.
@@ -72,6 +76,13 @@ function drawnLevels() {
   };
   return { cloud: read(cloudY, '#AAAAFF'), sun: read(sunY, '#FFFF00') };
 }
+
+test('the preview sample\'s cells are drawn on the rows\' scales', () => {
+  // Cloud 45, 50, 80, 100, 100, 70, 30, 5 % and sun 100, 90, 35, 0, 0, 10, 60, 100 %
+  // (preview-radar.js SKY_CLOUD_PCT / SKY_SUN_PCT): empty under 10 %, then 10-29,
+  // 30-59, 60-89 and 90-100 %.
+  assert.deepEqual(drawnLevels(), { cloud: [2, 2, 3, 4, 4, 3, 2, 0], sun: [4, 4, 2, 0, 0, 1, 3, 4] });
+});
 
 test('the preview sample shows thin high cloud under a full sun row, not sun = 100 - cloud', () => {
   const { cloud, sun } = drawnLevels();

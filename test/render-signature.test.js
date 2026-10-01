@@ -369,17 +369,21 @@ test('health thresholds and threshold colors do NOT change the render signature'
 // (forecast-series.js topStripeDrawn -> padJointTempAxisBand), which re-bakes
 // TEMP_TREND_UINT8 and the curve's bytes. So it joins the signature — as ONE derived
 // flag, not the raw ...LineStyle keys, so a style edit that bakes nothing forces no fetch.
+// (A stripe's own level bytes join on their own, the next test; each case here starts
+// from a bottom stripe, which has them already, so only the top pad is in play.)
 test('a top stripe joins the signature only while it squeezes a feels/dew curve', () => {
   const withStyle = (base, over) => renderSignature(Object.assign({}, base, over));
-  const feels = { secondaryLine: 'feels', thirdLine: 'uv', thirdLineStyle: 'dots', barSource: 'off' };
+  const feels = { secondaryLine: 'feels', thirdLine: 'uv', thirdLineStyle: 'stripeBottom', barSource: 'off' };
   assert.notEqual(withStyle(feels, {}), withStyle(feels, { thirdLineStyle: 'stripeTop' }),
-    'uv dots -> top stripe re-bakes the temperature band');
-  const dew = { secondaryLine: 'precip_prob', fourthLine: 'dew', fifthLine: 'cloud', fifthLineStyle: 'x' };
+    'uv bottom -> top stripe re-bakes the temperature band');
+  const dew = { secondaryLine: 'precip_prob', fourthLine: 'dew', fifthLine: 'cloud',
+    fifthLineStyle: 'stripeBottom' };
   assert.notEqual(withStyle(dew, {}), withStyle(dew, { fifthLineStyle: 'stripeTop' }),
     'a cloud top stripe over a dew curve on another line');
-  // Neither a bottom stripe nor a switch between strokes and marks bakes anything.
-  ['line', 'bold', 'x', 'stripeBottom'].forEach((style) => {
-    assert.equal(withStyle(feels, {}), withStyle(feels, { thirdLineStyle: style }), style);
+  // A switch between strokes and marks bakes nothing.
+  const marks = Object.assign({}, feels, { thirdLineStyle: 'dots' });
+  ['line', 'bold', 'x'].forEach((style) => {
+    assert.equal(withStyle(marks, {}), withStyle(marks, { thirdLineStyle: style }), style);
   });
   // A stored stripe on a metric that cannot be one draws as a line (line-style.js
   // lineStyleValue), and a line that is off or repeats another draws nothing.
@@ -391,8 +395,36 @@ test('a top stripe joins the signature only while it squeezes a feels/dew curve'
   assert.equal(withStyle(feels, { fifthLine: 'uv' }),
     withStyle(feels, { fifthLine: 'uv', fifthLineStyle: 'stripeTop' }), 'repeats the uv line');
   // Without a temperature-axis curve there is no band to pad.
-  const rain = { secondaryLine: 'precip_prob', thirdLine: 'uv', thirdLineStyle: 'dots' };
+  const rain = { secondaryLine: 'precip_prob', thirdLine: 'uv', thirdLineStyle: 'stripeBottom' };
   assert.equal(withStyle(rain, {}), withStyle(rain, { thirdLineStyle: 'stripeTop' }), 'no feels/dew drawn');
+});
+
+// A line drawn as a stripe bakes level bytes on its metric's own scale
+// (forecast-series.js stripeBytes, stripe-levels.js) where a curve, dots or marks bake
+// its exact values, so moving a line onto or off a stripe re-bakes it. It joins as the
+// metrics drawn as stripes, never the raw ...LineStyle keys: the edge a stripe sits on,
+// a switch between strokes and marks, or a stored stripe that draws none bakes nothing.
+test('a line moved onto or off a stripe joins the signature, by its metric', () => {
+  const sig = (over) => renderSignature(Object.assign({ secondaryLine: 'precip_prob',
+    secondaryLineStyle: 'line', thirdLine: 'uv', thirdLineStyle: 'dots', barSource: 'off' }, over));
+  ['stripeTop', 'stripeBottom'].forEach((st) => {
+    assert.notEqual(sig({}), sig({ thirdLineStyle: st }), 'uv dots -> ' + st);
+    assert.notEqual(sig({}), sig({ secondaryLineStyle: st }), 'rain chance line -> ' + st);
+    assert.notEqual(sig({ fifthLine: 'cloud', fifthLineStyle: 'x' }),
+      sig({ fifthLine: 'cloud', fifthLineStyle: st }), 'cloud x marks on the Fourth metric line -> ' + st);
+  });
+  assert.equal(sig({ thirdLineStyle: 'stripeTop' }), sig({ thirdLineStyle: 'stripeBottom' }),
+    'the edge bakes nothing without a feels/dew curve');
+  ['line', 'bold', 'x'].forEach((st) => assert.equal(sig({}), sig({ thirdLineStyle: st }), st));
+  // A stored stripe on a metric that cannot be one, on a line that is off, or on one
+  // repeating another line's metric draws no stripe.
+  assert.equal(sig({ fifthLine: 'pressure' }), sig({ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }),
+    'pressure stripe');
+  assert.equal(sig({ fifthLine: 'off' }), sig({ fifthLine: 'off', fifthLineStyle: 'stripeTop' }), 'line off');
+  assert.equal(sig({ fifthLine: 'uv' }), sig({ fifthLine: 'uv', fifthLineStyle: 'stripeTop' }),
+    'repeats the uv line');
+  // The same stripe on another metric re-bakes too (each line's metric is signed anyway).
+  assert.notEqual(sig({ thirdLineStyle: 'stripeTop' }), sig({ thirdLine: 'wind', thirdLineStyle: 'stripeTop' }));
 });
 
 // The metric alerts change the bake (the ALERT_ENTRIES_UINT8 tuple) AND the fetch set (a

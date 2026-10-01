@@ -8,7 +8,9 @@
 // Phone-side only, by design: a sample below the warn level ships as wire byte 0, which
 // the watch already draws as "no value" on the metric lines (forecast-series.js' WIRE
 // INVARIANT, chart.c's zero_absent breaks the polyline into runs), and a sample at or
-// above it is scaled from the band's bottom to its top. No watch code, no wire format.
+// above it is scaled from the band's bottom to its top (a line drawn as a stripe: its
+// cell is shaded by the same place in the band, scalePercent). No watch code, no wire
+// format.
 // A watch without Alert settings (aplite: no WW_ON_DEMAND) hides the row and always
 // draws All (alertsDrawn).
 //
@@ -297,6 +299,35 @@
     }
 
     /**
+     * Where one graph value sits on its line's scale, in percent: what a stripe cell is
+     * shaded by (stripe-levels.js metricLevel), for the bake (forecast-series.js) and the
+     * forecast preview alike. Rain chance and cloud cover are percentages already. A wind,
+     * gust or UV value sits between 0 and the scale's top (scaleTop) on a line drawn All,
+     * and between the band's bottom (the warn level) and its top on one drawn Alert, where
+     * a sample below the warn level is null (the line's gap). Clamped to 0..100 and left
+     * unrounded, so the stripe rounds it once.
+     * @param {Object} settings Clay settings blob (windScale, windUnits, the Alert levels).
+     * @param {string} metric 'precip_prob' | 'cloud' | 'wind' | 'gust' | 'uv'.
+     * @param {*} v Series value (percent; km/h; UV x 10).
+     * @param {?{bottom: number, top: number}} [band] The line's Show: Alert band (alertBand),
+     *   or null for a line drawn All.
+     * @returns {?number} Percent 0..100, or null below the warn level on an Alert line.
+     */
+    function scalePercent(settings, metric, v, band) {
+        var n = Number(v) || 0;
+        var pct;
+        if (!metaOf(metric)) {
+            pct = n;
+        } else if (band) {
+            if (!reachesWarn(settings, metric, n)) { return null; }
+            pct = (n - band.bottom) / (band.top - band.bottom) * 100;
+        } else {
+            pct = n / scaleTop(settings, metric) * 100;
+        }
+        return pct < 0 ? 0 : (pct > 100 ? 100 : pct);
+    }
+
+    /**
      * A series-unit value as the settings page prints it: the wind units' whole number
      * plus its unit ('40 kph'), or the UV index ('UV 6', one decimal where it has one).
      * @param {Object} settings Clay settings blob (windUnits).
@@ -358,6 +389,7 @@
         alertBand: alertBand,
         alertBands: alertBands,
         alertPermille: alertPermille,
+        scalePercent: scalePercent,
         levelText: levelText,
         warnText: warnText,
         signature: signature

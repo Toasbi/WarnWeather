@@ -49,6 +49,11 @@ if (typeof require !== 'undefined') {
     // status-thresholds.js and line-style.js and ahead of this file.
     var lineAlert = (typeof require !== 'undefined')
         ? require('../line-alert.js') : window.LineAlert;
+    // A stripe cell's level on its metric's own scale (stripe-levels.js), the table the
+    // bake shades every stripe by: the stripe hints name its colour steps. Concatenated
+    // ahead of this file.
+    var stripeLevels = (typeof require !== 'undefined')
+        ? require('../stripe-levels.js') : window.StripeLevels;
     // The theme vocabulary (polarity, B&W, whether the watch draws colour), concatenated
     // ahead of line-style.js and so of this file.
     var resolveInk = (typeof require !== 'undefined')
@@ -181,16 +186,48 @@ if (typeof require !== 'undefined') {
         feels: 'Drawn on the same scale as the temperature curve.',
         dew: 'Drawn on the same scale as the temperature curve.'
     };
-    // A stripe cell's colour strength steps with the value (chart_stripe.h: four
-    // levels), so the half/full anchors read as colour instead of height. Keyed by
-    // exactly the metrics a stripe can show (line-style.js STRIPE_METRIC_IDS — a test
-    // holds the two lists equal).
+    /**
+     * A stripe scale's four colour steps as whole-percent ranges, e.g. '1–10%, 11–30%,
+     * 31–60% and 61–100%', written from stripe-levels.js SCALES so the hint cannot drift
+     * from the table the bake shades by.
+     * @param {string} scale 'rain' | 'cloud'.
+     * @returns {string} The ranges.
+     */
+    function stripeStepsText(scale) {
+        var starts = stripeLevels.SCALES[scale], parts = [];
+        for (var i = 0; i < starts.length; i += 1) {
+            parts.push(starts[i] + '–' + (i + 1 < starts.length ? starts[i + 1] - 1 : 100) + '%');
+        }
+        return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+    }
+
+    /**
+     * The first series value (a whole km/h, or UV x 10 — the steps the series come in) a
+     * wind, gust or UV stripe draws at a colour step, on a line scaled from `bottom` to
+     * `top`: the band scale's start for that step (stripe-levels.js percentFrom) up the
+     * span, rounded up to a whole series step.
+     * @param {number} level Colour step 1..4 (4 = full colour).
+     * @param {number} bottom The line's scale bottom, series units.
+     * @param {number} top The line's scale top, series units.
+     * @returns {number} Series value.
+     */
+    function stripeStepValue(level, bottom, top) {
+        return Math.ceil(bottom + (top - bottom) * stripeLevels.percentFrom('band', level) / 100 - 1e-9);
+    }
+
+    // A stripe cell's colour strength steps with the value, on the metric's own scale
+    // (stripe-levels.js: four steps above an empty cell), so the copy names where the
+    // steps sit instead of a height. Keyed by exactly the metrics a stripe can show
+    // (line-style.js STRIPE_METRIC_IDS — a test holds the two lists equal).
+    var UV_TOP = lineAlert.UV_FULL_SCALE_TENTHS;
     var STRIPE_SCALE = {
-        precip_prob: 'Half-strength colour = 50% chance of rain, full colour = 100%.',
-        cloud: 'Half-strength colour = half the sky covered, full colour = overcast.',
-        wind: 'Colour strength follows the Wind graph scale setting.',
-        gust: 'Colour strength follows the Wind graph scale setting.',
-        uv: 'Half-strength colour = UV 5.5, full colour = UV 11 (extreme).'
+        precip_prob: 'Four colour steps: ' + stripeStepsText('rain') + ' chance of rain.',
+        cloud: 'Four colour steps: ' + stripeStepsText('cloud') + ' of the sky covered.',
+        wind: 'Colour strength follows the Wind graph scale setting, full colour from 90% of its top.',
+        gust: 'Colour strength follows the Wind graph scale setting, full colour from 90% of its top.',
+        uv: 'Colour steps up at ' + lineAlert.levelText({}, 'uv', stripeStepValue(2, 0, UV_TOP))
+            + ' and ' + stripeStepValue(3, 0, UV_TOP) / 10 + ', full colour from '
+            + lineAlert.levelText({}, 'uv', stripeStepValue(4, 0, UV_TOP)) + '.'
     };
     // What the metric picker says whatever the style.
     var METRIC_NOTES = {
@@ -235,8 +272,9 @@ if (typeof require !== 'undefined') {
      * The scale of a line drawn Show: Alert (line-alert.js): the band the bake maps it
      * over, as numbers — its bottom (the warn level, or with wind and gusts both on
      * Alert the lower of the two) and its top (the higher of the line's usual top and the
-     * danger level). Replaces the metric's usual scale copy, whose anchors ("Half height
-     * = UV 5.5") no longer hold there.
+     * danger level); drawn as a stripe, where its faintest colour starts (the bottom) and
+     * where full colour does (90 % up the band, stripe-levels.js). Replaces the metric's
+     * usual scale copy, whose anchors ("Half height = UV 5.5") no longer hold there.
      * @param {string} metric The line's metric.
      * @param {boolean} stripe The line is drawn as a stripe (colour strength, not height).
      * @param {Object} [S] Live settings state.
@@ -251,9 +289,11 @@ if (typeof require !== 'undefined') {
             lineAlert.alertsDrawn(env))[metric];
         if (!band) { return ''; }
         var lo = lineAlert.levelText(S, metric, band.bottom);
-        var hi = lineAlert.levelText(S, metric, band.top);
-        return stripe ? 'Faintest colour = ' + lo + ', full colour = ' + hi + '.'
-            : 'Graph bottom = ' + lo + ', full height = ' + hi + '.';
+        if (stripe) {
+            return 'Faintest colour = ' + lo + ', full colour from '
+                + lineAlert.levelText(S, metric, stripeStepValue(4, band.bottom, band.top)) + '.';
+        }
+        return 'Graph bottom = ' + lo + ', full height = ' + lineAlert.levelText(S, metric, band.top) + '.';
     }
 
     /**

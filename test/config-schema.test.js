@@ -1123,12 +1123,15 @@ const HEIGHT = {
   feels: 'Drawn on the same scale as the temperature curve.',
   dew: 'Drawn on the same scale as the temperature curve.'
 };
+// A stripe's colour steps on its metric's own scale (stripe-levels.js): rain chance
+// 1-10 / 11-30 / 31-60 / 61-100 %, cloud 10-29 / 30-59 / 60-89 / 90-100 %, and wind,
+// gusts and UV from 1, 30, 60 and 90 % up their scale (UV 11: 3.3, 6.6, 9.9).
 const STRIPE = {
-  precip_prob: 'Half-strength colour = 50% chance of rain, full colour = 100%.',
-  cloud: 'Half-strength colour = half the sky covered, full colour = overcast.',
-  wind: 'Colour strength follows the Wind graph scale setting.',
-  gust: 'Colour strength follows the Wind graph scale setting.',
-  uv: 'Half-strength colour = UV 5.5, full colour = UV 11 (extreme).'
+  precip_prob: 'Four colour steps: 1–10%, 11–30%, 31–60% and 61–100% chance of rain.',
+  cloud: 'Four colour steps: 10–29%, 30–59%, 60–89% and 90–100% of the sky covered.',
+  wind: 'Colour strength follows the Wind graph scale setting, full colour from 90% of its top.',
+  gust: 'Colour strength follows the Wind graph scale setting, full colour from 90% of its top.',
+  uv: 'Colour steps up at UV 3.3 and 6.6, full colour from UV 9.9.'
 };
 const NOTE = {
   cloud: 'Not available with Yandex.',
@@ -1220,8 +1223,9 @@ test('line-style hint: every metric x style reads height for curves and marks, c
   });
   // Spelled out once, so the composed copy reads as written.
   const S = { secondaryLine: 'precip_prob', secondaryLineStyle: 'stripeBottom' };
-  assert.equal(hintOf('secondaryLineStyle', S, STYLED_ENV), 'Half-strength colour = 50% chance of rain, '
-    + 'full colour = 100%. One cell per hour. Below the zero line, where bars and lines never cover it.');
+  assert.equal(hintOf('secondaryLineStyle', S, STYLED_ENV), 'Four colour steps: 1–10%, 11–30%, '
+    + '31–60% and 61–100% chance of rain. One cell per hour. Below the zero line, where bars '
+    + 'and lines never cover it.');
   assert.equal(hintOf('secondaryLineStyle', { secondaryLine: 'uv', secondaryLineStyle: 'x' }, STYLED_ENV),
     'Half height = UV 5.5, full height = UV 11 (extreme). Aligned to the rain bars.');
 });

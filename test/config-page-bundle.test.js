@@ -121,6 +121,25 @@ test('the Show [All | Alert] module is bundled after its deps and before its rea
     'nothing registers the Show row\'s hint in the generated page');
 });
 
+// stripe-levels.js (window.StripeLevels) is the table the bake shades every stripe by;
+// preview-forecast.js, preview-radar.js and blocks.js bind it while their own bodies run
+// (blocks.js writes its stripe hints from it at load). Out of the page, or after them,
+// the forecast and radar previews and the page's boot throw on a real phone while every
+// Node test passes through require().
+test('the stripe scales are bundled before the previews and blocks.js that read them', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  ['settings/preview-forecast.js', 'settings/preview-radar.js', 'settings/blocks.js'].forEach((reader) => {
+    assert.ok(idx('pkjs/stripe-levels.js') < idx(reader), 'stripe-levels.js must precede ' + reader);
+  });
+  assert.ok(page().indexOf('window.StripeLevels = api') !== -1,
+    'nothing assigns window.StripeLevels in the generated page');
+});
+
 // The key status under a keyed weather provider: key-status.js reads window.KeyFingerprint
 // while its own body runs, and blocks.js registers tomorrow.io's usage line into
 // PConf.keyStatus while ITS body runs. Out of the page, the Edit button, its summary line,

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 const radarSky = require('../src/pkjs/weather/radar-sky.js');
+const stripeLevels = require('../src/pkjs/stripe-levels.js');
 
 const Q = radarSky.SLOT_SECONDS;
 const SLOT0 = 1790200800 + 5 * 60;   // a 5-min radar slot, 5 min past a quarter hour
@@ -13,18 +14,10 @@ const SLOT0 = 1790200800 + 5 * 60;   // a 5-min radar slot, 5 min past a quarter
 const HONOLULU = [21.3, -157.86];
 const BERLIN = [52.5, 13.4];
 const PERTH = [-31.95, 115.86];
+// The level bytes (stripe-levels.js LEVEL_BYTES, round-tripped through the watch's
+// chart_stripe_level in test/stripe-levels.test.js). Both rows are empty under 10 %,
+// then 10-29, 30-59, 60-89 and 90-100 % (the cloud and sun scales).
 const [NONE, L1, L2, L3, FULL] = [0, 62, 125, 187, 250];
-
-/**
- * chart_stripe_level(v, 0, 250) (src/c/appendix/chart_stripe.h) ported: the level
- * the watch draws for a received byte. It rounds UP, ceil(v * 4 / 250).
- * @param {number} v Byte 0..250.
- * @returns {number} Level 0..4.
- */
-function chartStripeLevel(v) {
-  if (v <= 0) { return 0; }
-  return Math.min(4, Math.ceil(v * 4 / 250));
-}
 
 /**
  * A minutely_15 response with one bucket per quarter hour from `from`.
@@ -84,7 +77,7 @@ test('maps weighted cloud, sun strength and lightning by timestamp onto the slot
   const start = radarSky.skyStartFor(SLOT0);
   // The response starts one bucket early (past_minutely_15=1): the mapper must
   // pick by timestamp, not by index. Bucket i is stamped start + (i - 1) Q.
-  const layers = { 1: [0, 0, 100], 2: [100, 0, 0], 3: [30, 0, 0], 4: [0, 0, 0] };
+  const layers = { 1: [0, 0, 100], 2: [100, 0, 0], 3: [20, 0, 0], 4: [0, 0, 0] };
   const json = response(start - Q, 12, {
     // Total cover reads 100 % in every bucket: only the layers tell a veil of
     // high cloud (slot 0) from an overcast (slot 1).
@@ -103,12 +96,13 @@ test('maps weighted cloud, sun strength and lightning by timestamp onto the slot
   assert.equal(sky.start, start);
   assert.equal(sky.clouds.length, 9);
   assert.deepEqual(sky.clouds.slice(0, 4), [L2, FULL, L1, NONE],
-    'thin high cloud alone counts half; overcast is full; 30 % low cloud is level 1; clear is nothing');
+    'thin high cloud alone counts half (50 %, level 2); overcast is full; 20 % low cloud is level 1; '
+    + 'clear is nothing');
   assert.deepEqual(sky.suns.slice(0, 3), [FULL, L2, NONE],
     'above 80 % of a clear sky\'s beam is full, half of that is level 2');
   assert.deepEqual(sky.bolts.slice(0, 5), [false, false, true, true, false],
     'thunderstorm code in slot 2, lightning potential in slot 3');
-  sky.clouds.concat(sky.suns).forEach((b) => assert.ok(radarSky.LEVEL_BYTES.indexOf(b) >= 0,
+  sky.clouds.concat(sky.suns).forEach((b) => assert.ok(stripeLevels.LEVEL_BYTES.indexOf(b) >= 0,
     b + ' is a level byte'));
 });
 
@@ -133,7 +127,7 @@ test('slot k\'s sun comes from the bucket stamped at its END; cloud and lightnin
   const cut = radarSky.mapOpenMeteoSky(short, SLOT0, ...HONOLULU);
   assert.equal(cut.suns[radarSky.NUM_SLOTS - 1], NONE, 'a missing end bucket reads sunless');
   assert.equal(cut.suns[radarSky.NUM_SLOTS - 2], FULL);
-  assert.equal(cut.clouds[radarSky.NUM_SLOTS - 1], L2, '40 % total cover (no layers) is nearest level 2');
+  assert.equal(cut.clouds[radarSky.NUM_SLOTS - 1], L2, '40 % total cover (no layers) is level 2 (30-59 %)');
 });
 
 test('the sun\'s elevation is taken half way through the quarter hour the beam was measured over', () => {
@@ -172,30 +166,21 @@ test('a clear low-sun morning draws a full sun row, a hazy one a weaker row', ()
   hazy.suns.slice(1).forEach((b, k) => assert.ok(b === L1 || b === L2, 'slot ' + (k + 1) + ': ' + b));
 });
 
-test('shareToLevelByte: the nearest of the four levels; missing or negative is 0, above 1 is full', () => {
-  [null, undefined, NaN, 'x', Infinity, -0.5, 0, 0.1249].forEach((v) => {
-    assert.equal(radarSky.shareToLevelByte(v), NONE, String(v));
+test('skyByte: each row on its own scale; missing or negative is empty, above 100 is full', () => {
+  ['cloud', 'sun'].forEach((row) => {
+    [null, undefined, NaN, 'x', Infinity, -5, 0, 9.4].forEach((v) => {
+      assert.equal(radarSky.skyByte(row, v), NONE, row + ' ' + String(v));
+    });
+    // Every band edge: a percentage counts as the whole percent it rounds to, half up.
+    [[9.5, L1], [10, L1], [29.4, L1], [29.5, L2], [30, L2], [59.4, L2], [59.5, L3], [60, L3],
+      [89.4, L3], [89.5, FULL], [90, FULL], [100, FULL], [170, FULL], ['50', L2]].forEach(([pct, byte]) => {
+      assert.equal(radarSky.skyByte(row, pct), byte, row + ' ' + String(pct));
+    });
   });
-  [[0.125, L1], [0.3749, L1], [0.375, L2], [0.5, L2], [0.6249, L2], [0.625, L3], [0.8749, L3],
-    [0.875, FULL], [1, FULL], [1.7, FULL], ['0.5', L2]].forEach(([share, byte]) => {
-    assert.equal(radarSky.shareToLevelByte(share), byte, String(share));
-  });
-});
-
-test('LEVEL_BYTES: each byte draws exactly its level on the watch, and is the largest that does', () => {
-  assert.deepEqual(radarSky.LEVEL_BYTES, [0, 62, 125, 187, 250]);
-  assert.equal(radarSky.LEVEL_BYTES[4], radarSky.FULL_SCALE);
-  radarSky.LEVEL_BYTES.forEach((b, level) => {
-    assert.equal(chartStripeLevel(b), level, b + ' draws level ' + level);
-    if (level < 4) { assert.equal(chartStripeLevel(b + 1), level + 1, (b + 1) + ' is already the next level'); }
-  });
-  // Rounded rather than floored, the odd levels' bytes would draw a level too high.
-  assert.equal(chartStripeLevel(Math.round(250 / 4)), 2);
-  assert.equal(chartStripeLevel(Math.round(3 * 250 / 4)), 4);
-  // End to end: any share draws the level nearest to it (ties up), never one more.
-  for (let i = 0; i <= 1000; i += 1) {
-    const share = i / 1000;
-    assert.equal(chartStripeLevel(radarSky.shareToLevelByte(share)), Math.round(share * 4), 'share ' + share);
+  // The rows read the cloud and sun scales of stripe-levels.js, by those names.
+  for (let tenths = -50; tenths <= 1100; tenths += 1) {
+    assert.equal(radarSky.skyByte('cloud', tenths / 10), stripeLevels.byteOf('cloud', tenths / 10));
+    assert.equal(radarSky.skyByte('sun', tenths / 10), stripeLevels.byteOf('sun', tenths / 10));
   }
 });
 
@@ -216,14 +201,14 @@ test('sunShare: the beam against 80 % of a clear sky\'s at that elevation; no su
   [5, 12, 30, 60, 85].forEach((h) => {
     const full = radarSky.SUN_FULL_CLEAR_SHARE * radarSky.clearSkyDni(h);
     assert.equal(radarSky.sunShare(full, h), 1, '0.8 x clear is full at ' + h + ' deg');
-    assert.equal(radarSky.shareToLevelByte(radarSky.sunShare(full, h)), FULL);
+    assert.equal(radarSky.skyByte('sun', radarSky.sunShare(full, h) * 100), FULL);
     assert.equal(radarSky.sunShare(full * 1.3, h), 1, 'a clearer sky than the model clamps at full');
     assert.equal(radarSky.sunShare(full / 2, h), 0.5);
-    assert.equal(radarSky.shareToLevelByte(radarSky.sunShare(full / 2, h)), L2, 'half is level 2');
+    assert.equal(radarSky.skyByte('sun', radarSky.sunShare(full / 2, h) * 100), L2, 'half is level 2');
   });
   // A clear low sun: at 8 deg a clear sky's beam is some 360 W/m², so a clear
   // morning's 300 W/m² is full, where a fixed W/m² scale would show it weak.
-  assert.equal(radarSky.shareToLevelByte(radarSky.sunShare(300, 8)), FULL);
+  assert.equal(radarSky.skyByte('sun', radarSky.sunShare(300, 8) * 100), FULL);
   assert.equal(radarSky.sunShare(500, 0.99), 0, 'below 1 deg there is no sun to draw');
   assert.equal(radarSky.sunShare(500, -10), 0);
   assert.equal(radarSky.sunShare(500, 1), 1, 'from 1 deg on');
@@ -243,10 +228,10 @@ test('solarElevationDeg: SunCalc\'s altitude in degrees; no location is null', (
   assert.equal(radarSky.solarElevationDeg(mid, 'x', 13.4), null);
 });
 
-test('the fixture sky rows take the live path\'s nearest-level quantiser', () => {
+test('the fixture sky rows take the live path\'s level bytes, each row on its own scale', () => {
   const { getFixtureRadarTuples } = require('../src/pkjs/fixture-weather.js');
-  const cloudPct = [50, null, 120, 'x', 12, 12.5, 80, undefined];
-  const sunPct = [-10, 33, 100, 0, 37.5, 87.5, NaN, 62];
+  const cloudPct = [50, null, 120, 'x', 9.4, 9.5, 89.5, undefined];
+  const sunPct = [-10, 29.4, 100, 0, 29.5, 59.5, NaN, 89.4];
   const tuples = getFixtureRadarTuples({ weather: {
     rainRadarExactMm: [0], rainRadarAreaMm: [0], radarStartEpoch: SLOT0,
     sky: { cloudPct, sunPct, lightning: [0, 1, 0, 0, 0, 0, 0, 0] }
@@ -254,12 +239,14 @@ test('the fixture sky rows take the live path\'s nearest-level quantiser', () =>
   const bytes = tuples.RADAR_SKY_UINT8;
   assert.equal(bytes[4], 8, 'eight slots');
   assert.equal(bytes.length, 5 + 8 + 8 + 2);
-  assert.deepEqual(bytes.slice(5, 13), [L2, NONE, FULL, NONE, NONE, L1, L3, NONE],
-    'clouds: null, a non-number and undefined read 0 (not NaN); 120 % clamps; under 12.5 % draws nothing');
-  assert.deepEqual(bytes.slice(13, 21), [NONE, L1, FULL, NONE, L2, FULL, NONE, L2],
-    'suns: a negative and NaN read 0; each percentage takes its nearest level');
-  cloudPct.concat(sunPct).forEach((pct, k) => assert.equal(bytes[5 + k],
-    radarSky.shareToLevelByte(Number(pct) / 100), 'byte ' + k + ' is the live quantiser\'s'));
+  assert.deepEqual(bytes.slice(5, 13), [L2, NONE, FULL, NONE, NONE, L1, FULL, NONE],
+    'clouds: null, a non-number and undefined read 0 (not NaN); 120 % clamps; under 9.5 % draws nothing');
+  assert.deepEqual(bytes.slice(13, 21), [NONE, L1, FULL, NONE, L2, L3, NONE, L3],
+    'suns: a negative and NaN read 0; each percentage takes its step on the sun scale');
+  cloudPct.forEach((pct, k) => assert.equal(bytes[5 + k], radarSky.skyByte('cloud', pct),
+    'cloud byte ' + k + ' is the live path\'s'));
+  sunPct.forEach((pct, k) => assert.equal(bytes[13 + k], radarSky.skyByte('sun', pct),
+    'sun byte ' + k + ' is the live path\'s'));
   assert.deepEqual(bytes.slice(21), [0x02, 0x00], 'lightning in slot 1');
 });
 
@@ -268,7 +255,7 @@ test('a slot the response lacks reads as clear, sunless and calm; no slots at al
   const sky = radarSky.mapOpenMeteoSky(response(start, 3, {
     cloud_cover: () => 80, direct_normal_irradiance: () => 1000, weather_code: () => 3
   }), SLOT0, ...HONOLULU);
-  assert.equal(sky.clouds[2], L3, '80 % is nearest level 3');
+  assert.equal(sky.clouds[2], L3, '80 % is level 3 (60-89 %)');
   assert.equal(sky.clouds[3], NONE);
   assert.equal(sky.suns[1], FULL, 'slot 1 reads bucket 2, the last one');
   assert.equal(sky.suns[2], NONE);
@@ -285,7 +272,7 @@ test('without a location the sun row is empty; the cloud and lightning rows stil
     cloud_cover: () => 60, direct_normal_irradiance: () => 1000, weather_code: () => 95
   }), SLOT0);
   assert.deepEqual(sky.suns, Array(radarSky.NUM_SLOTS).fill(NONE));
-  assert.deepEqual(sky.clouds, Array(radarSky.NUM_SLOTS).fill(L2));
+  assert.deepEqual(sky.clouds, Array(radarSky.NUM_SLOTS).fill(L3), '60 % cloud is level 3 (60-89 %)');
   assert.deepEqual(sky.bolts, Array(radarSky.NUM_SLOTS).fill(true));
 });
 

@@ -70,6 +70,12 @@ var APP_FILES = [
   // readers bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/line-alert.js'),
+  // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
+  // bake shades every stripe by, which the forecast and radar previews shade their cells
+  // by and blocks.js' stripe hints are written from. It reads nothing at load, and its
+  // three readers bind it while their own bodies run, so it precedes them —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/stripe-levels.js'),
   // The five preview blocks, split by concern. Same load-bearing order rule as the
   // three above: preview-svg.js publishes window.PreviewSvg and preview-rain.js
   // window.PreviewRain, and the four block files read them while their OWN top-level

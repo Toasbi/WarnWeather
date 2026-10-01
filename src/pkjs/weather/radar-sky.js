@@ -13,39 +13,32 @@
 // at a direct beam of 180 W/m², a fifth of a clear sky's. So the cloud row is
 // the three layers combined with high cloud at half weight (cloud-cover.js),
 // and the sun row is sun STRENGTH: the direct beam against what a clear sky
-// gives at that solar elevation (sunShare), full from 80 % of it.
+// gives at that solar elevation (sunShare), 100 % from 80 % of it.
 //
 // Wire: one RADAR_SKY_UINT8 byte array, its own outbox category — layout in
 // src/c/appendix/radar_sky.h, packed here by packSky. It carries an ABSOLUTE
 // start epoch, so the watch places the rows by time against whatever radar
 // window it holds (the radar category can be deduped out of a send, and the
 // watch self-advances the radar between fetches). Each cloud and sun byte is
-// already one of the stripe's five levels (shareToLevelByte), so the watch
-// draws exactly the level chosen here.
+// already one of the stripe's five level bytes, the level picked on the row's own
+// scale (skyByte, ../stripe-levels.js), so the watch draws exactly that level.
 
 var SunCalc = require('suncalc');
 var cloudCover = require('./cloud-cover.js');
 var WeatherProvider = require('./provider.js');
 var radarWire = require('./radar-wire.js');
+var stripeLevels = require('../stripe-levels.js');
 
 var SLOT_SECONDS = 15 * 60;
 // Slots that always cover the radar window: 120 min from a 5-min pinned slot 0
 // spans at most nine quarter-hours when slot 0 is not itself on a quarter hour.
 var NUM_SLOTS = Math.ceil((radarWire.NUM_BARS * radarWire.SLOT_SECONDS + SLOT_SECONDS - radarWire.SLOT_SECONDS)
     / SLOT_SECONDS);
-// The stripe wire scale (forecast-series.js permilleToByte's 0..250).
-var FULL_SCALE = 250;
-// The stripe's levels above "nothing" (chart_stripe.h CHART_STRIPE_LEVELS).
-var STRIPE_LEVELS = 4;
-// The byte sent for each level 0..4. The watch reads a byte back with
-// chart_stripe_level(v, 0, 250), which rounds UP (ceil(v * 4 / 250)), so each
-// entry is the LARGEST byte of its level, floor(k * 250 / 4): a rounded 63 or
-// 188 would draw one level too high. test/radar-sky.test.js round-trips them.
-var LEVEL_BYTES = [0, 62, 125, 187, 250];
-// The share of a clear sky's direct beam that already draws a full sun row,
-// fitted in the same satellite comparison (2888 daytime quarter hours): a
-// clear day through ordinary haze falls somewhat short of the model's beam and
-// should still draw full.
+// The share of a clear sky's direct beam that already counts as 100 % sun
+// strength (the sun row's scale draws full colour from 90 % of that), fitted
+// in the same satellite comparison (2888 daytime quarter hours): a clear day
+// through ordinary haze falls somewhat short of the model's beam and should
+// still draw full.
 var SUN_FULL_CLEAR_SHARE = 0.8;
 // Solar elevation (degrees) below which the sun row is empty: the clear-sky
 // beam shrinks toward nothing at the horizon, where a stray few W/m² would
@@ -109,20 +102,19 @@ function reading(v) {
 }
 
 /**
- * A share of the full stripe as the byte of its NEAREST level:
- * floor(share * 4 + 0.5) picks level 0..4, sent as LEVEL_BYTES. Nearest, not
- * up: under 12.5 % draws nothing, where rounding up drew a level-1 tick for a
- * sky 1-4 % cloudy all day. A missing, non-numeric or negative share is 0;
- * above 1 is full. Shared with fixture-weather.js's sky rows, so the fixture
- * and live paths quantise alike (and the settings preview mirrors it, pinned
- * by test/radar-sky-preview.test.js).
- * @param {*} share Share of the full stripe, 0..1.
- * @returns {number} One of LEVEL_BYTES.
+ * A sky row's percentage as the byte of its level on the row's own scale
+ * (../stripe-levels.js: 'cloud' for the cloud row, 'sun' for the sun row; both
+ * empty under 10 %, full from 90 %, the percentage rounded half up). A missing,
+ * non-numeric or negative percentage is empty; above 100 is full. Shared with
+ * fixture-weather.js's sky rows, so the fixture and live paths quantise alike,
+ * and the settings preview reads the same scales (preview-radar.js skyLevel).
+ * @param {string} row 'cloud' | 'sun'.
+ * @param {*} pct Percent of what the row draws: the weighted cloud cover, or the
+ *   sun's strength against a clear sky (sunShare x 100).
+ * @returns {number} One of stripe-levels.js LEVEL_BYTES.
  */
-function shareToLevelByte(share) {
-    var n = reading(share);
-    if (n === null || n <= 0) { return 0; }
-    return LEVEL_BYTES[Math.min(STRIPE_LEVELS, Math.floor(n * STRIPE_LEVELS + 0.5))];
+function skyByte(row, pct) {
+    return stripeLevels.byteOf(row, pct);
 }
 
 /**
@@ -193,8 +185,8 @@ function isLightning(code, potential) {
  * Meteo's mean over the PRECEDING 15 minutes, read from the bucket stamped at
  * its END, start + (k + 1) * 15 min, and weighed against the clear sky at the
  * elevation half way through that quarter hour. Read at the start, the sun row
- * ran a slot early. Both rows go out as level bytes (shareToLevelByte). A
- * bucket the response lacks reads as clear, sunless and calm.
+ * ran a slot early. Both rows go out as level bytes (skyByte). A bucket the
+ * response lacks reads as clear, sunless and calm.
  * @param {Object} json Parsed Open-Meteo response.
  * @param {number} slotZeroEpoch The radar's 5-min pinned slot-0 epoch.
  * @param {number} lat Latitude in decimal degrees (for the solar elevation).
@@ -218,10 +210,10 @@ function mapOpenMeteoSky(json, slotZeroEpoch, lat, lon) {
         var sunEnd = start + (k + 1) * SLOT_SECONDS;
         var sunIdx = byTime[sunEnd];
         if (idx !== undefined || sunIdx !== undefined) { found += 1; }
-        sky.clouds.push(shareToLevelByte(cloudCover.weightedCloudCover(pick('cloud_cover_low', idx),
-            pick('cloud_cover_mid', idx), pick('cloud_cover_high', idx), pick('cloud_cover', idx)) / 100));
-        sky.suns.push(shareToLevelByte(sunShare(pick('direct_normal_irradiance', sunIdx),
-            solarElevationDeg(sunEnd - SLOT_SECONDS / 2, lat, lon))));
+        sky.clouds.push(skyByte('cloud', cloudCover.weightedCloudCover(pick('cloud_cover_low', idx),
+            pick('cloud_cover_mid', idx), pick('cloud_cover_high', idx), pick('cloud_cover', idx))));
+        sky.suns.push(skyByte('sun', sunShare(pick('direct_normal_irradiance', sunIdx),
+            solarElevationDeg(sunEnd - SLOT_SECONDS / 2, lat, lon)) * 100));
         sky.bolts.push(isLightning(pick('weather_code', idx), pick('lightning_potential', idx)));
     }
     return found > 0 ? sky : null;
@@ -379,14 +371,12 @@ function joinRadarAndSky(startRadar, startSky, callback) {
 module.exports = {
     SLOT_SECONDS: SLOT_SECONDS,
     NUM_SLOTS: NUM_SLOTS,
-    FULL_SCALE: FULL_SCALE,
-    LEVEL_BYTES: LEVEL_BYTES,
     SUN_FULL_CLEAR_SHARE: SUN_FULL_CLEAR_SHARE,
     SUN_MIN_ELEVATION_DEG: SUN_MIN_ELEVATION_DEG,
     LIGHTNING_POTENTIAL_MIN: LIGHTNING_POTENTIAL_MIN,
     skyStartFor: skyStartFor,
     buildOpenMeteoSkyUrl: buildOpenMeteoSkyUrl,
-    shareToLevelByte: shareToLevelByte,
+    skyByte: skyByte,
     clearSkyDni: clearSkyDni,
     solarElevationDeg: solarElevationDeg,
     sunShare: sunShare,

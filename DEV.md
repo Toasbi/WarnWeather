@@ -480,7 +480,7 @@ Fields supported in `fixtures/<name>.json`:
 - `weather.rainMm` — hourly rain-amount array (mm); drives the optional rain bars
 - `weather.windKmh` / `weather.gustKmh` — hourly wind / gust speed arrays (km/h); a non-zero gust array turns the gust line on
 - `weather.rainRadarExactMm` / `weather.rainRadarAreaMm` — radar rain per 5-minute frame (mm/h): rain at the exact location, and the strongest rain within 2 km. Supply both or radar is skipped
-- `weather.sky` — optional radar sky rows: `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start (percent of what each row draws: cloud cover and sun strength against a clear sky, rounded to the nearest of the four stripe levels, so under 12.5 % draws nothing; lightning 0/1); sent as `RADAR_SKY_UINT8` with the radar
+- `weather.sky` — optional radar sky rows: `{ cloudPct, sunPct, lightning }`, one entry per 15-minute slot from the quarter hour holding the radar start (percent of what each row draws: cloud cover and sun strength against a clear sky, each shaded on its row's own scale in `src/pkjs/stripe-levels.js`: under 10 % draws nothing, 10–29 / 30–59 / 60–89 % the three lighter steps, 90 % and up full colour; lightning 0/1); sent as `RADAR_SKY_UINT8` with the radar
 - `weather.radarStartEpoch` — optional Unix-seconds anchor for the radar window (defaults to the forecast start; the time-lapse uses it to scroll radar independently of the forecast)
 - `weather.sunEvents` — next two sun events, authored as local fields `{ type, dayOffset, hour, minute }` and normalized to `{ type, epoch }`
 

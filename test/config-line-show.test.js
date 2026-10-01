@@ -186,8 +186,12 @@ test('on Alert, the style hint gives the line\'s band instead of the 0-based sca
     'Graph bottom = 40 kph, full height = 60 kph.');
   assert.equal(B.lineStyleHint('wind', 'line', Object.assign({ windLineOnlyAlert: 'alert' }, S,
     { windScale: 'high' }), env), 'Graph bottom = 40 kph, full height = 70 kph.');
+  // A stripe: its faintest colour from the warn level, full colour from 90 % up the band
+  // (stripe-levels.js' band scale; the gust band 65..90 kph is full from 87.4, so 88).
   assert.equal(B.lineStyleHint('gust', 'stripeTop', Object.assign({ gustLineOnlyAlert: 'alert' }, S), env),
-    'Faintest colour = 65 kph, full colour = 90 kph. One cell per hour.');
+    'Faintest colour = 65 kph, full colour from 88 kph. One cell per hour.');
+  assert.equal(B.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }, env),
+    'Faintest colour = UV 6, full colour from UV 10.5. One cell per hour.');
   // Both on Alert: the shared band, the lower warn at the bottom.
   const both = Object.assign({ windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' }, S);
   assert.equal(B.lineStyleHint('gust', 'dots', both, env),

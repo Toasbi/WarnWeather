@@ -34,6 +34,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // module the bake reads them through (in the page bundle ahead of this file).
     var lineAlert = (typeof require !== 'undefined')
         ? require('../line-alert.js') : window.LineAlert;
+    // A stripe cell's level on its metric's own scale: the table the bake reads.
+    var stripeLevels = (typeof require !== 'undefined')
+        ? require('../stripe-levels.js') : window.StripeLevels;
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -582,20 +585,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // scale (7 px an hour, 8 on emery), not its phase (preview-stripe.js cell).
         var STRIPE_UNIT = 2, STRIPE_ORIGIN = 0;
         /**
-         * A metric value's stripe level, 0..4: the watch's chart_stripe_level on the
-         * wire byte (0..250), so a cell shades exactly where the watch's does. Only
-         * intensity metrics are ever stripes (line-style.js metricAllowsStripe —
-         * styleFor never hands this a feels, dew or pressure stripe), so every value
-         * maps from its own 0..max scale.
+         * A metric value's stripe level, 0..4, as the bake picks it (forecast-series.js
+         * stripeBytes): the value's place on its line's scale (line-alert.js
+         * scalePercent — the Show: Alert band when the line has one), on the metric's
+         * own scale (stripe-levels.js), read back from the wire byte the way the
+         * watch's chart_stripe_level reads it. Only intensity metrics are ever stripes
+         * (line-style.js metricAllowsStripe — styleFor never hands this a feels, dew or
+         * pressure stripe).
          * @param {Object} m METRIC entry.
          * @param {number} i Sample index.
          * @returns {number} 0 (draws nothing) .. 4 (full colour).
          */
         function stripeLevel(m, i) {
-            var y = metricY(m, i, true);
-            if (y === null) { return 0; }
-            var b = Math.round((PB - y) / (PB - MT) * 250);
-            return previewStripe.levelOfByte(b);
+            var pct = lineAlert.scalePercent(state, m.id, m.vals[i] * (m.perUnit || 1), m.alert);
+            return previewStripe.levelOfByte(stripeLevels.metricByte(m.id, pct, Boolean(m.alert)));
         }
         // The cell look itself (tint + lines on colour, dither on B&W) is shared with
         // the radar preview's sky rows: preview-stripe.js, chart_stripe_fill_cell's mirror.

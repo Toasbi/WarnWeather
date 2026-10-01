@@ -201,9 +201,10 @@ int main(void) {
     assert(radar_bolt_on(0, 6) && !radar_bolt_on(4, 6));
     assert(!radar_bolt_on(5, 3) && !radar_bolt_on(0, 7));
 
-    // The rows' wire bytes: the phone rounds each share to the nearest stripe
-    // level and sends these bytes (radar-sky.js LEVEL_BYTES), which the watch's
-    // round-up chart_stripe_level maps back to exactly levels 0..4.
+    // The rows' wire bytes (and a forecast stripe's): the phone picks each
+    // cell's level on its own scale and sends these bytes (stripe-levels.js
+    // LEVEL_BYTES), which the watch's round-up chart_stripe_level maps back to
+    // exactly levels 0..4.
     const int level_bytes[] = { 0, 62, 125, 187, 250 };
     for (int i = 0; i <= CHART_STRIPE_LEVELS; ++i) {
         assert(chart_stripe_level(level_bytes[i], 0, 250) == i);

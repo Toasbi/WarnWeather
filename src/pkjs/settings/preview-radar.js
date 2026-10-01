@@ -29,6 +29,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var drawsColor = resolveInkLib.drawsColor;
     var previewStripe = (typeof require !== 'undefined')
         ? require('./preview-stripe.js') : window.PreviewStripe;
+    // The sky rows' scales: the table the phone's radar-sky.js picks their bytes by.
+    var stripeLevels = (typeof require !== 'undefined')
+        ? require('../stripe-levels.js') : window.StripeLevels;
     var thresholds = (typeof require !== 'undefined')
         ? require('../status-thresholds.js') : window.StatusThresholds;
     // Which side of the Watch Status Bar shows the rain icon (on-demand.js sideOf).
@@ -41,7 +44,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // A veil of thin high cloud first, which the cloud row counts half while the sun
     // still shines at full strength through it; then clouds thickening into the
     // shower with a thunderstorm at its peak; then breaking up, the last quarter hour
-    // under 12.5 % cloud (which draws nothing) and in full sun again. The two rows
+    // under 10 % cloud (which draws nothing) and in full sun again. The two rows
     // are independent, not sun = 100 - cloud: that is what the watch shows too.
     var SKY_CLOUD_PCT = [45, 50, 80, 100, 100, 70, 30, 5];
     var SKY_SUN_PCT = [100, 90, 35, 0, 0, 10, 60, 100];
@@ -50,20 +53,18 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     var BOLT_ROWS = [0x03, 0x06, 0x0C, 0x1F, 0x06, 0x0C, 0x18];
 
     /**
-     * A sky-row percentage's stripe level as the watch draws it: the phone sends
-     * the NEAREST of the four levels (radar-sky.js shareToLevelByte, level =
-     * floor(share * 4 + 0.5)), which the watch's chart_stripe_level reads back
-     * unchanged. The webview cannot load radar-sky.js (it is not in the page
-     * bundle), so this is a mirror; test/radar-sky-preview.test.js pins the two
+     * A sky-row percentage's stripe level as the watch draws it: the byte the phone
+     * sends for it (radar-sky.js skyByte — the row's own scale in stripe-levels.js,
+     * which the page bundle carries too), read back the way the watch's
+     * chart_stripe_level reads it. test/radar-sky-preview.test.js pins the two
      * together.
-     * @param {*} pct Percent of the full row (missing, non-numeric or negative
+     * @param {string} row 'cloud' | 'sun'.
+     * @param {*} pct Percent of what the row draws (missing, non-numeric or negative
      *   draws nothing; above 100 is full).
      * @returns {number} Level 0..4.
      */
-    function skyLevel(pct) {
-        var share = Number(pct) / 100;
-        if (!isFinite(share) || share <= 0) { return 0; }
-        return Math.min(4, Math.floor(share * 4 + 0.5));
+    function skyLevel(row, pct) {
+        return previewStripe.levelOfByte(stripeLevels.byteOf(row, pct));
     }
 
     /**
@@ -222,9 +223,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             for (var q = 0; q < SKY_CLOUD_PCT.length; q += 1) {
                 var qx = PX0 + q * 3 * step, qw = 3 * step;
                 e += previewStripe.cell(isColor, qx, skyY, qw, SKY_H * unit, sc.cloud,
-                    skyLevel(SKY_CLOUD_PCT[q]), ink.bg, 'rsd', unit, PX0);
+                    skyLevel('cloud', SKY_CLOUD_PCT[q]), ink.bg, 'rsd', unit, PX0);
                 e += previewStripe.cell(isColor, qx, skyY + (SKY_H + 1) * unit, qw, SKY_H * unit,
-                    sc.sun, skyLevel(SKY_SUN_PCT[q]), ink.bg, 'rsd', unit, PX0);
+                    sc.sun, skyLevel('sun', SKY_SUN_PCT[q]), ink.bg, 'rsd', unit, PX0);
             }
             // The bolts in watch pixels, placed as draw_radar_sky places them: centred
             // on the quarter hour and on the two rows, clipped to the band and plot.

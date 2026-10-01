@@ -199,18 +199,21 @@ function getFixtureRadarTuples(fixture) {
     // Optional sky rows (radar-sky.js): weather.sky = { cloudPct, sunPct, lightning },
     // one entry per 15-min slot from the quarter-hour holding the radar start. The
     // percentages are of what the rows DRAW (the weighted cloud cover, the sun's
-    // strength against a clear sky), so they take the live path's nearest-level
-    // quantiser as they are: a missing, non-numeric or negative entry draws
-    // nothing, above 100 draws full.
+    // strength against a clear sky), so they take the live path's level bytes as
+    // they are, each on its row's own scale (radarSky.skyByte): a missing,
+    // non-numeric or negative entry draws nothing, above 100 draws full.
     var sky = weather.sky;
     if (sky && Array.isArray(sky.cloudPct) && Array.isArray(sky.sunPct)) {
-        var pctToByte = function(p) {
-            return radarSky.shareToLevelByte(Number(p) / 100);
+        var cloudByte = function(p) {
+            return radarSky.skyByte('cloud', p);
+        };
+        var sunByte = function(p) {
+            return radarSky.skyByte('sun', p);
         };
         tuples.RADAR_SKY_UINT8 = radarSky.packSky({
             start: radarSky.skyStartFor(radarStart),
-            clouds: sky.cloudPct.map(pctToByte),
-            suns: sky.sunPct.map(pctToByte),
+            clouds: sky.cloudPct.map(cloudByte),
+            suns: sky.sunPct.map(sunByte),
             bolts: sky.cloudPct.map(function(_, k) {
                 return Array.isArray(sky.lightning) && Boolean(sky.lightning[k]);
             })

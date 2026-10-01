@@ -11,6 +11,8 @@ var wireUnits = require('./wire-units.js');     // dayMaxPayloadKeys — the day
 var pressurePlausibility = require('./weather/pressure-plausibility.js');
 // A wind, gust or UV line's Show: Alert: its band and which samples reach warn.
 var lineAlert = require('./line-alert.js');
+// A line drawn as a stripe: each hour's level on the metric's own scale.
+var stripeLevels = require('./stripe-levels.js');
 
 /**
  * Quantize a permille value (0..1000) to a 0..250 byte for the wire.
@@ -133,6 +135,10 @@ var BAND_FLOOR_PERMILLE = 2;
 // becomes wire bytes. Adding a metric here rather than hand-clamping inside its
 // own permille function is what stops this from recurring — see the
 // "no band-scaled metric ever emits wire byte 0" test.
+//
+// A line DRAWN AS A STRIPE skips the permille: stripeBytes() sends each hour as one of
+// the five level bytes (stripe-levels.js), picked on the metric's own scale, and byte 0
+// still means "nothing" there (no reading, nothing of the metric, below the warn level).
 var BAND_SCALED_METRICS = ['pressure'].concat(lineStyle.TEMP_AXIS_METRIC_IDS);
 
 /**
@@ -163,6 +169,31 @@ function metricBytes(metric, permille, alertOnly) {
     return permille.map(function (pm) {
         if (pm === null) { return 0; }
         return permilleToByte(pm < floorPm ? floorPm : pm);
+    });
+}
+
+// A stripe metric -> its raw series in buildForecastSeries' input (the same series
+// metricPermille reads).
+var STRIPE_SERIES = { precip_prob: 'precips', cloud: 'clouds', wind: 'winds', gust: 'gusts', uv: 'uvs' };
+
+/**
+ * A line drawn as a stripe, as wire bytes: each hour's level on the metric's own scale
+ * (stripe-levels.js), sent as the byte the watch reads back as exactly that level. The
+ * percentage comes straight from the reading, unrounded (line-alert.js scalePercent: rain
+ * chance and cloud cover as they are; wind, gusts and UV on their line's scale, or on the
+ * Show: Alert band when the line has one), so it is rounded once, by the scale. An hour
+ * below the warn level on a Show: Alert line is byte 0, nothing, as on every style. An
+ * absent series is [] (line off, as metricPermille degrades).
+ * @param {string} metric A stripe metric (stripe-levels.js scaleOf).
+ * @param {Object} raw Raw provider series (buildForecastSeries' input).
+ * @param {Object} settings Clay settings (windScale, windUnits, the Alert levels).
+ * @param {?{bottom: number, top: number}} band The line's Show: Alert band, or null.
+ * @returns {number[]} Wire bytes, each one of stripe-levels.js LEVEL_BYTES.
+ */
+function stripeBytes(metric, raw, settings, band) {
+    return (raw[STRIPE_SERIES[metric]] || []).map(function (v) {
+        return stripeLevels.metricByte(metric, lineAlert.scalePercent(settings, metric, v, band),
+            Boolean(band));
     });
 }
 
@@ -409,20 +440,23 @@ function metricPermille(metric, raw, settings, band) {
  *
  * Values only: the lines' COLOURS and styles (and the fill flag) are
  * settings-derived, so they ride the Clay settings message instead — see
- * line-style.js and clay-payload.js's CLAY_LINE_STYLE_UINT8. The two platform
- * facts the values read — which lines the watch draws, for the band a wind and a
- * gust line both drawn Show: Alert share, and whether it has Alert settings at
- * all — arrive as raw.alertBands (from applyForecastSeries, the way the temp axis
- * band does); without it the bands are those of a watch that draws every line and
- * has Alert settings.
+ * line-style.js and clay-payload.js's CLAY_LINE_STYLE_UINT8. The style reaches the
+ * values in one place: a line drawn as a stripe sends level bytes (stripeBytes). The
+ * platform facts the values read — which lines the watch draws, for the band a wind
+ * and a gust line both drawn Show: Alert share, whether it has Alert settings at all,
+ * and whether it draws the line styles (raw.lineStyles: aplite draws its frozen line
+ * and dots whatever is stored, so its lines never take stripe bytes) — arrive on raw
+ * from applyForecastSeries, the way the temp axis band does; without them the values
+ * are those of a watch that draws every line and style and has Alert settings.
  *
- * @param {{precips:number[], clouds:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], dews:Array, tempBand:Object, alertBands:Object}} raw Raw series (+ the temp axis band the feels and dew metrics share, and the Show: Alert lines' bands, line-alert.js alertBands).
+ * @param {{precips:number[], clouds:number[], rains:number[], winds:number[], gusts:number[], uvs:number[], pressures:number[], feels:number[], dews:Array, tempBand:Object, alertBands:Object, lineStyles:boolean}} raw Raw series (+ the temp axis band the feels and dew metrics share, the Show: Alert lines' bands, line-alert.js alertBands, and whether the watch draws the line styles).
  * @param {{secondaryLine:string, thirdLine:string, fourthLine:string, fifthLine:string, windScale:string, barSource:string}} settings Settings.
  * @returns {Object} Wire fields (see module interface).
  */
 function buildForecastSeries(raw, settings) {
     var out = {};
     var bands = raw.alertBands || lineAlert.alertBands(settings, true);
+    var stylesDrawn = raw.lineStyles !== false;
 
     // One symmetric block per ordered line (line-style.js FORECAST_LINES).
     var LINE_TREND_KEYS = {
@@ -436,8 +470,20 @@ function buildForecastSeries(raw, settings) {
         var metric = lineStyle.effectiveLineMetric(settings, key);
         var band = (metric && Object.prototype.hasOwnProperty.call(bands, metric))
             ? bands[metric] : null;
-        out[LINE_TREND_KEYS[key]] = metric
-            ? metricBytes(metric, metricPermille(metric, raw, settings, band), Boolean(band)) : [];
+        // Drawn as a stripe: the watch draws the styles and the line's effective style is
+        // a stripe (lineStyleValue never resolves one on a metric that cannot be one). A
+        // stripe metric without a scale of its own would keep the exact bytes below.
+        var stripe = Boolean(metric) && stylesDrawn
+            && lineStyle.isStripeStyle(settings, lineStyle.FORECAST_LINES[i].styleKey)
+            && stripeLevels.scaleOf(metric) !== null;
+        if (!metric) {
+            out[LINE_TREND_KEYS[key]] = [];
+        } else if (stripe) {
+            out[LINE_TREND_KEYS[key]] = stripeBytes(metric, raw, settings, band);
+        } else {
+            out[LINE_TREND_KEYS[key]] = metricBytes(metric, metricPermille(metric, raw, settings, band),
+                Boolean(band));
+        }
     }
 
     // Rain bars: independent of the metric lines.
@@ -454,11 +500,12 @@ function buildForecastSeries(raw, settings) {
  * @param {Object} settings Clay settings.
  * @param {Object} watchInfo getActiveWatchInfo() result, or null/undefined; threaded
  *   through to the status-line bake for its platform env. The series themselves are
- *   platform-independent now that the line styling rides the Clay message, save three
+ *   platform-independent now that the line styling rides the Clay message, save four
  *   gates: a feels or dew line is dropped on aplite, which cannot draw it (tempAxisLineDrawn),
- *   the fourth line's key is suppressed on platforms without WW_LINE_STYLE, and a line
+ *   the fourth line's key is suppressed on platforms without WW_LINE_STYLE, a line
  *   draws Show: Alert only on a watch with Alert settings (not aplite), a wind and a
- *   gust line sharing its band only where the watch draws both.
+ *   gust line sharing its band only where the watch draws both, and a line stored as a
+ *   stripe takes stripe level bytes only where the watch draws the styles (not aplite).
  * @returns {Object} The same payload, raw keys removed and wire keys set.
  */
 function applyForecastSeries(payload, settings, watchInfo) {
@@ -526,6 +573,9 @@ function applyForecastSeries(payload, settings, watchInfo) {
     var watchEnv = envOf(watchInfo);
     raw.alertBands = lineAlert.alertBands(settings, watchEnv.lineStyles,
         lineAlert.alertsDrawn(watchEnv));
+    // Whether the watch draws the line styles (WW_LINE_STYLE): only then does a line
+    // stored as a stripe take stripe level bytes. aplite draws its frozen line and dots.
+    raw.lineStyles = watchEnv.lineStyles !== false;
     payload.TEMP_TREND_UINT8 = tempTrendToBytes(rawTemps, tempBand || undefined).bytes;
     var series = buildForecastSeries(raw, settings);
     delete payload.TEMP_RAW_TREND; // transient PKJS-only; encoded into TEMP_TREND_UINT8 above, never wired
