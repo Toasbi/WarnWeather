@@ -26,7 +26,7 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
 * Configurable metrics such as precipitation, cloud cover, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
 * Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or (for precipitation, cloud cover, UV, wind and gusts) a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
-* Only alert: a wind speed, wind gust or UV index line can show only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays clear until it matters
+* Show: All | Alert: a wind speed, wind gust or UV index line draws every value, or only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays empty until it matters (not on Pebble Classic/Steel)
 * Optional day/night shading
 * Recolor the forecast graph per metric
 * Multiple weather providers, including regional and worldwide sources
