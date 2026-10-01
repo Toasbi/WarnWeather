@@ -7,8 +7,8 @@
 // (appendix/on_demand.c, §5.5): the widest member that fits its room — left and right
 // own slots and the middle, each keeping the gap to its neighbours — the elastic
 // city's floor, and the real date / week / sun families from status_short_text.h.
-// Built like on_demand_test.c (-DWW_ON_DEMAND, linked with the row layout), whose
-// fixtures it shares (on_demand_fixtures.h).
+// Built like on_demand_ladder_test.c (-DWW_ON_DEMAND, linked with the row layout),
+// whose fixtures it shares (on_demand_fixtures.h).
 
 // --- short forms: the widest member that fits ---------------------------------------
 //
