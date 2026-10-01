@@ -1337,7 +1337,7 @@ function alertSheet(keyStem, title, subject, iconName, hint, coda) {
         showWhen: ON_DEMAND_WHEN,
         title: title + ' alert',
         // "reaches … today": the entry fires on the highest value left today, so the
-        // morning icon for an afternoon peak is by design (status-thresholds alertReading).
+        // morning icon for an afternoon peak is by design (status-wire alertReading).
         // `coda` closes it for a kind whose look-ahead depends on its source (AQI).
         intro: 'Shows the ' + iconName + ' icon on a status bar’s On demand side when ' + subject
             + ' reaches your warn level at any point left today, so an afternoon peak shows from the morning on.'

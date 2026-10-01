@@ -6,10 +6,10 @@
 #include "on_demand.h"   // OdItem / OdSide: the On demand cells' order and values
 
 // Status-slot threshold-highlight contract, shared with the phone.
-// LOCKSTEP: src/pkjs/status-thresholds.js mirrors the kind order, level values,
-// and blob layout below; test/status-thresholds-contract.test.js greps this
-// header to enforce it. Deliberately no <pebble.h> so the module host-compiles
-// (scripts/test-c.sh).
+// LOCKSTEP: src/pkjs/status-thresholds.js mirrors the kind order and level
+// values below, src/pkjs/status-wire.js the blob layout;
+// test/status-thresholds-contract.test.js greps this header to enforce both.
+// Deliberately no <pebble.h> so the module host-compiles (scripts/test-c.sh).
 //
 // NOT LINKED ON APLITE: aplite paints its status rows from the lean
 // layers/status_row_aplite.c twin, which carries no highlighting, so the whole

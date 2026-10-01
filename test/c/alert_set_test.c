@@ -23,7 +23,7 @@ static void expect_str(const char *name, const char *got, const char *want) {
     }
 }
 
-// One wire header byte, as status-thresholds.js bakeAlerts packs it: `day` is
+// One wire header byte, as status-wire.js bakeAlerts packs it: `day` is
 // STATUS_ALERT_DAY_TODAY or tomorrow's STATUS_ALERT_MARK_* code.
 static uint8_t header(int kind, int level, int day) {
     return (uint8_t)(STATUS_ALERT_HEADER | (kind & STATUS_ALERT_KIND_MASK)

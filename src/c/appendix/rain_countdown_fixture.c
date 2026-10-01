@@ -17,10 +17,11 @@
 // hand-port interface changes.
 //
 // The real module's on/off gate IS reproduced (rain_off): no entry while the horizon is
-// 0 (the rain alert switched off, or radar off — clay-payload sends 0 for both) or the
-// radar is snoozed, so a fixture's frame never contradicts its own settings. The
-// minutes are canned, though: a window shorter than the fixture's minutes does not
-// hide the entry.
+// 0 (clay-payload sends 0 for radar mode off, and passes through a stored window of 0,
+// which some showcase scenes set) or the radar is snoozed, so a fixture's frame never
+// contradicts its own settings. Whether Rain is placed at all is its On demand cell,
+// which status_on_demand.c reads, not this gate. The minutes are canned, though: a
+// window shorter than the fixture's minutes does not hide the entry.
 
 // The real module's gate: rain_countdown_format()'s `horizon <= 0 || s_rc_snooze`,
 // with the snooze latch read live (the twin has no refresh cache to hold it).
