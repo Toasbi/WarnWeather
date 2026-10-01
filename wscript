@@ -208,9 +208,10 @@ def build(ctx):
         # slot; the items' inputs (the thresholds blob, rain_countdown.c) are
         # aplite-absent already, and the phone never sends it the tuple. The tuple's
         # inbox handler and its persist accessors (app_message.c, persist.c), and the
-        # bar and window hooks (status_bar.c, main_window.c, the system-change hook in
-        # top_status_layer.h), ride this macro too, so aplite's image does not grow by
-        # a byte. The feature's own code lives in four leaf files whose bodies sit
+        # bar and window hooks (status_bar.c, main_window.c), ride this macro too, so
+        # aplite's image does not grow by a byte; the strip's Bluetooth and battery
+        # handlers call status_bar_tick_on_demand from layers/top_status_layer.c,
+        # which aplite replaces with its twin. The feature's own code lives in four leaf files whose bodies sit
         # behind the macro, so aplite compiles each to an empty object and pays zero
         # bytes: appendix/on_demand.c (the pure two-side layout and its make-room
         # ladder), appendix/alert_set.c (the weather alerts' entries and text lanes),
