@@ -13,6 +13,8 @@ FORECAST
   wind, air pressure, feels-like temperature and dew point
 - Show any metric as a line, dots or x marks, and precipitation, cloud cover, UV, wind or
   gusts also as a shaded stripe along the top or bottom of the graph
+- Only alert: show the wind, gust or UV line only where it reaches your warn level, so the
+  small graph stays clear until it matters
 - Feels-like your way: the provider's own value, or the Steadman formula
   (temperature, humidity, wind) applied the same on every provider
 - Optional day/night shading
