@@ -766,7 +766,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         if (!config_dirty && !status_dirty) {
             top_status_layer_refresh();
 #if defined(WW_ON_DEMAND)
-            main_window_tick_on_demand();
+            status_bar_tick_on_demand();
 #endif
         }
 #if defined(WW_RAIN_RADAR)

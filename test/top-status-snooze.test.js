@@ -52,6 +52,12 @@ test('the strip has one paint path and no rain takeover', function() {
   var proc = BASE.slice(BASE.indexOf('static void top_status_update_proc'),
     BASE.indexOf('void top_status_layer_create'));
   assert.equal(proc.split('status_row_draw(').length - 1, 1, 'one row paint');
-  // The countdown's segment cache is still primed at create, for every Rain item.
-  assert.match(BASE, /rain_countdown_refresh\(watch_services_now\(\)\)/);
+  // The countdown's segment cache is primed at boot, before the window loads, so every
+  // bar's first refresh finds it; the strip's create no longer does it.
+  assert.doesNotMatch(BASE, /rain_countdown/);
+  var boot = fs.readFileSync(path.join(ROOT, 'src/c/watchface.c'), 'utf8');
+  var init = boot.slice(boot.indexOf('static void init'), boot.indexOf('static void deinit'));
+  var prime = init.indexOf('rain_countdown_refresh(watch_services_now())');
+  assert.ok(prime >= 0, 'init primes the countdown');
+  assert.ok(prime < init.indexOf('main_window_create()'), 'before the window loads');
 });

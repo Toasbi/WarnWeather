@@ -270,7 +270,7 @@ static bool show_qt_icon(void) {
     return config_get()->show_qt && quiet_time_is_active();
 }
 
-void status_icons_refresh() {
+static void status_icons_refresh() {
     // A full strip repaint resyncs the per-minute QT baseline so the next
     // top_status_layer_tick() only fires on a genuine QT transition.
     s_last_qt_active = show_qt_icon();

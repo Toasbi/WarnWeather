@@ -1,9 +1,9 @@
 #include "top_status_layer.h"
 #include "battery_draw.h"
+#include "status_bar.h"   // status_bar_tick_on_demand (a system change reaches the bars)
 #include "status_row.h"
 #include "c/appendix/config.h"
 #include "c/appendix/memory_log.h"
-#include "c/appendix/rain_countdown.h"
 #include "c/appendix/status_line.h"
 #include "c/services/watch_services.h"
 #include "c/windows/layout.h"   // LayoutTier (status_row tier param)
@@ -16,9 +16,6 @@ static void battery_state_callback(BatteryChargeState charge);
 static Layer *s_top_status_layer;
 static StatusRow *s_row;
 static bool s_full_date;
-// The window's hook for a Bluetooth or battery change (main_window.c): it reaches
-// every bar's On demand items, this strip's included.
-static TopStatusSystemChange s_on_system_change;
 
 // The configurable slots (status_row's left slot / date mid slot / right slot) span
 // the strip. Bluetooth, Quiet time, Sleep and the low battery are On demand items the
@@ -74,14 +71,6 @@ void top_status_layer_create(Layer* parent_layer, GRect frame) {
         battery_state_service_subscribe(battery_state_callback);
     }
     status_row_apply(s_row, content_rect(), LAYOUT_TIER_FULL, STATUS_LINE_TOP);
-
-    // Prime the rain countdown's segment cache from the persisted radar before the
-    // strip's first refresh: every bar's Rain item derives from that cache, and after
-    // boot only a radar payload rescans it. Only the strip's first refresh finds it
-    // primed: main_window_load creates the band rows earlier, and their first refresh
-    // (status_bar_create_all) finds the cache empty, so a band bar's Rain item appears
-    // at its next refresh — the minute tick (main_window_tick_on_demand) at the latest.
-    rain_countdown_refresh(watch_services_now());
     top_status_layer_refresh();
 
     layer_set_update_proc(s_top_status_layer, top_status_update_proc);
@@ -109,18 +98,12 @@ Layer *top_status_layer_get_root(void) {
 }
 #endif
 
-void top_status_layer_set_on_system_change(TopStatusSystemChange cb) {
-    s_on_system_change = cb;
-}
-
-// A Bluetooth or battery change: every bar's items re-resolve through the window's
-// hook; before it is registered, the strip refreshes itself.
+// A Bluetooth or battery change reaches every bar's On demand items at once, not at
+// the next minute tick: the visible band bars, then this strip. Rows are
+// signature-gated, so a bar the change does not touch costs one refresh and no repaint.
 static void system_changed(void) {
-    if (s_on_system_change) {
-        s_on_system_change();
-    } else {
-        top_status_layer_refresh();
-    }
+    status_bar_tick_on_demand();
+    top_status_layer_refresh();
 }
 
 static void bluetooth_callback(bool connected) {
@@ -132,10 +115,6 @@ static void bluetooth_callback(bool connected) {
 static void battery_state_callback(BatteryChargeState charge) {
     (void)charge;
     system_changed();
-}
-
-void status_icons_refresh() {
-    layer_mark_dirty(s_top_status_layer);
 }
 
 void top_status_layer_tick() {
@@ -154,10 +133,8 @@ void top_status_layer_refresh() {
     // On demand items are read by the row itself. A refresh always repaints the strip
     // (a theme change reaches it through here), and the row refresh keeps its
     // signature current.
-    status_icons_refresh();
-    if (status_row_refresh(s_row)) {
-        layer_mark_dirty(s_top_status_layer);
-    }
+    status_row_refresh(s_row);
+    layer_mark_dirty(s_top_status_layer);
 }
 
 bool top_status_layer_uses_live_health(void) {
@@ -170,7 +147,6 @@ void top_status_layer_destroy() {
     if (!watch_services_battery_is_fixture()) {
         battery_state_service_unsubscribe();
     }
-    s_on_system_change = NULL;
     battery_draw_deinit();
     status_row_destroy(s_row);
     s_row = NULL;

@@ -19,8 +19,9 @@
 // unrepresentable.
 //
 // THE TOP STRIP IS DELIBERATELY NOT HERE. top_status_layer.c owns two service
-// subscriptions and the system-change hook (aplite's twin: three lazily-loaded
-// indicator bitmaps and the low-battery override); it carves its own content rect
+// subscriptions, whose handlers also tick these bars' On demand items
+// (status_bar_tick_on_demand); aplite's twin adds three lazily-loaded indicator
+// bitmaps and the low-battery override. The strip carves its own content rect
 // instead of taking the band's full bounds, has no render tier, no band assignment
 // and no visibility toggle, ticks on the minute, and has a full aplite lean twin.
 // The abstraction those four rows genuinely share is StatusRow, and that seam is
@@ -98,8 +99,10 @@ void status_bar_refresh_live_health(const ViewSpec *spec);
 // derived from the radar cache on every refresh, so only a refresh notices that
 // either moved on. Called on the minute tick (beside top_status_layer_tick), after a
 // radar rescan (app_message's radar_dirty block) and on a Bluetooth or battery
-// change (the strip's system-change hook, main_window.c), so a band bar's items keep
-// pace with the strip's. Hidden bars are skipped for the live-health reason above:
-// the refresh_all that unhides one re-resolves it. Absent on aplite (no On demand).
-void status_bar_tick_on_demand(const ViewSpec *spec);
+// change (the strip's event handlers, top_status_layer.c), so a band bar's items
+// keep pace with the strip's. Visible is the bar's layer not hidden, as
+// status_bar_apply_view last set it for the view on screen, so no caller passes a
+// ViewSpec. Hidden bars are skipped for the live-health reason above: the
+// refresh_all that unhides one re-resolves it. Absent on aplite (no On demand).
+void status_bar_tick_on_demand(void);
 #endif

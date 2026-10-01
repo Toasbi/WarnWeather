@@ -126,6 +126,7 @@ void layer_set_frame(Layer *layer, GRect frame) {
 GRect layer_get_frame(const Layer *layer) { return layer->frame; }
 
 void layer_set_hidden(Layer *layer, bool hidden) { layer->hidden = hidden; }
+bool layer_get_hidden(const Layer *layer) { return layer->hidden; }
 
 // --- StatusRow stubs ---------------------------------------------------------
 
@@ -372,9 +373,10 @@ static void live_health_gate(void) {
 }
 
 #if defined(WW_ON_DEMAND)
-// The minute tick (and a radar rescan) must reach On demand items in ANY visible bar —
-// Quiet time and the rain alert are re-derived only by a refresh — and nothing else:
-// a bar without items, or a hidden one, spends no persist reads.
+// The minute tick (and a radar rescan, and a Bluetooth or battery change) must reach
+// On demand items in ANY visible bar — Quiet time and the rain alert are re-derived
+// only by a refresh — and nothing else: a bar without items, or one the view on screen
+// hides, spends no persist reads. Visible is what status_bar_apply_view last wrote.
 static void tick_on_demand_refreshes_visible_item_bars(void) {
     Layer parent = {0};
     s_refresh_changed = true;
@@ -384,30 +386,38 @@ static void tick_on_demand_refreshes_visible_item_bars(void) {
     ViewSpec spec = spec_of(2, STATUS_SRC_FORECAST, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
     MainLayout L = layout_of(GRect(0, 4, 144, 20), GRect(0, 90, 144, 16));
     status_bar_create_all(&parent, &spec, &L);
+    status_bar_apply_view(&spec, &L);
     const int fc = STATUS_LINE_FORECAST;
 
     reset_records();
-    status_bar_tick_on_demand(&spec);
+    status_bar_tick_on_demand();
     expect_int("on_demand.no_slot_no_refresh", s_refresh_count[fc], 0);
 
     s_uses_on_demand[fc] = true;
     reset_records();
-    status_bar_tick_on_demand(&spec);
+    status_bar_tick_on_demand();
     expect_int("on_demand.visible_refreshed", s_refresh_count[fc], 1);
     expect_int("on_demand.visible_dirtied", s_dirty_count[fc], 1);
 
     // An unchanged signature refreshes but does not repaint.
     s_refresh_changed = false;
     reset_records();
-    status_bar_tick_on_demand(&spec);
+    status_bar_tick_on_demand();
     expect_int("on_demand.quiet_minute_refreshed", s_refresh_count[fc], 1);
     expect_int("on_demand.quiet_minute_no_dirty", s_dirty_count[fc], 0);
     s_refresh_changed = true;
 
     ViewSpec hidden = spec_of(2, STATUS_SRC_NONE, STATUS_SRC_NONE, LAYOUT_TIER_COMPACT);
+    status_bar_apply_view(&hidden, &L);
     reset_records();
-    status_bar_tick_on_demand(&hidden);
+    status_bar_tick_on_demand();
     expect_int("on_demand.hidden_not_refreshed", s_refresh_count[fc], 0);
+
+    // The next view that shows the bar again brings it back into the tick.
+    status_bar_apply_view(&spec, &L);
+    reset_records();
+    status_bar_tick_on_demand();
+    expect_int("on_demand.shown_again_refreshed", s_refresh_count[fc], 1);
 
     // Independent of the live-health gate in both directions.
     expect_int("on_demand.not_live_health", status_bar_any_visible_uses_live_health(&spec), 0);

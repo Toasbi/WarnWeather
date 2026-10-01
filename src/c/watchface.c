@@ -4,6 +4,8 @@
 #include "appendix/config.h"
 #include "appendix/memory_log.h"
 #include "appendix/persist.h"
+#include "appendix/rain_countdown.h"
+#include "services/watch_services.h"
 
 
 static void init() {
@@ -12,6 +14,13 @@ static void init() {
     MEMORY_LOG_HEAP("boot");
     app_message_init();
     config_load();
+    // Prime the rain countdown's segment cache from the persisted radar before the
+    // window loads, so every status row's first refresh finds it: each bar's Rain item
+    // reads that cache, and after boot only a radar payload rescans it (app_message.c).
+    // Not on aplite, which has no rain alert: the same guard as that rescan.
+#ifndef PBL_PLATFORM_APLITE
+    rain_countdown_refresh(watch_services_now());
+#endif
     main_window_create();
     MEMORY_LOG_HEAP("after_main_window_create");
 }
