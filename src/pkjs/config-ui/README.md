@@ -260,7 +260,7 @@ Schema
 | `button` | Tappable action row; no key | — (not serialized) | — |
 | `subheader` | In-section group header; no key | — (not serialized) | — |
 | `sheet` | Tappable row that opens a `sheetOnly` section; no key | — (not serialized) | — |
-| `checklist` | One checkbox per option, in groups under `meta.groupHeader` options | comma list of the ticked values in option order (`''` = none) | — |
+| `checklist` | One checkbox row per option, a card per `meta.groupHeader` group, its rows joined | comma list of the ticked values in option order (`''` = none) | — |
 | `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
 A `sheet` item is a whole-row chevron target by default. Give it an
@@ -306,9 +306,11 @@ A `checklist` stores ONE string, the ticked option values joined by commas in th
 order (`'bt,qt,snooze'`, `''` when nothing is ticked) — a string, not an array, so the shallow
 copy of the loaded state and every `===` comparison downstream (serialize, change detection)
 keep working. Its options are `[label, value, meta]` like a select's: `meta.groupHeader` starts a
-titled sub-group (each one an `aria` group of its own), `meta.desc` prints a muted line under the
-name, and `meta.disabled` or an `optionDisabledWhen` gate renders the option inert **with its
-tick**, so a gate never rewrites a stored value. `optionsFrom` lists are materialized as for a
+card titled by it, like a page card (each one an `aria` group of its own; options before any
+header share one untitled card), whose rows are ordinary rows joined as by `joinPrevious: true`
+(no divider, the tight rhythm). `meta.desc` prints as the row's hint, and `meta.disabled` or an
+`optionDisabledWhen` gate renders the option inert **with its tick**, so a gate never rewrites a
+stored value. `optionsFrom` lists are materialized as for a
 select, but a checklist is never snapped to an option. A tap flips one option, re-canonicalises
 the list, stores it and fires the item's `onChange` (old and new list) once. The row's `label`
 names the list for assistive tech (its `aria-label`) instead of heading the row.

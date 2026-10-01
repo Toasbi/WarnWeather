@@ -931,39 +931,46 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * A `checklist` control: one checkbox button per option, in sub-groups under each
-   * meta.groupHeader option (each group an aria group of its own). meta.desc prints a
-   * muted line under the name; meta.disabled or an optionDisabledWhen gate
-   * (view.disabledOptions) renders the option inert WITH its tick, so a stored value is
-   * never rewritten by a gate.
+   * A `checklist` control: one checkbox row per option, each meta.groupHeader option
+   * opening a card titled by it (an aria group of its own; options before any header
+   * share one untitled card). A card's rows are the page's ordinary rows, joined: no
+   * divider between them, the tight rhythm of joinPrevious. meta.desc prints as the row's
+   * hint; meta.disabled or an optionDisabledWhen gate (view.disabledOptions) renders the
+   * option inert WITH its tick, so a stored value is never rewritten by a gate.
    * @param {Object} item Checklist item with its options materialized (resolveRowItem).
    * @param {{value: *, disabledOptions: (string[]|undefined)}} view Render state.
    * @returns {string} Control HTML.
    */
   function renderChecklist(item, view) {
     var have = checklistCodes(view.value), off = view.disabledOptions || [];
-    var h = '<div class="chk-list" role="group" aria-label="' + esc(String(item.label || 'Items')) + '">';
-    var inGroup = false, i, o, meta, on, gated;
+    var groups = [], cur = null, i, j, o, meta, on, gated, g;
     for (i = 0; i < (item.options || []).length; i++) {
       o = item.options[i];
-      meta = o[2] || {};
-      if (meta.groupHeader) {
-        if (inGroup) { h += '</div>'; }
-        h += '<div class="chk-grp" role="group" aria-label="' + esc(o[0]) + '">'
-          + '<div class="ssel-group" role="presentation"><span>' + esc(o[0]) + '</span></div>';
-        inGroup = true;
-        continue;
-      }
-      on = have.indexOf(o[1]) >= 0;
-      gated = Boolean(meta.disabled) || off.indexOf(o[1]) >= 0;
-      h += '<button type="button" class="chk-opt' + (on ? ' on' : '') + '" role="checkbox" aria-checked="'
-        + (on ? 'true' : 'false') + '" data-k="' + esc(item.messageKey) + '" data-check="' + esc(o[1]) + '"'
-        + (gated ? ' disabled aria-disabled="true"' : '') + '>'
-        + '<span class="chk-txt"><span class="chk-name">' + esc(o[0]) + '</span>'
-        + (meta.desc ? '<span class="chk-desc">' + esc(meta.desc) + '</span>' : '') + '</span>'
-        + '<span class="chk-box" aria-hidden="true"></span></button>';
+      if (o[2] && o[2].groupHeader) { cur = { title: o[0], opts: [] }; groups.push(cur); continue; }
+      if (!cur) { cur = { title: null, opts: [] }; groups.push(cur); }
+      cur.opts.push(o);
     }
-    if (inGroup) { h += '</div>'; }
+    var h = '<div class="chk-list" role="group" aria-label="' + esc(String(item.label || 'Items')) + '">';
+    for (i = 0; i < groups.length; i++) {
+      g = groups[i];
+      if (!g.opts.length) { continue; }
+      h += g.title === null ? '<div class="card chk-grp nohdr"><div>'
+        : '<div class="card chk-grp" role="group" aria-label="' + esc(g.title) + '">'
+          + '<div class="cardHdr"><span class="ttl">' + esc(g.title) + '</span></div><div>';
+      for (j = 0; j < g.opts.length; j++) {
+        o = g.opts[j];
+        meta = o[2] || {};
+        on = have.indexOf(o[1]) >= 0;
+        gated = Boolean(meta.disabled) || off.indexOf(o[1]) >= 0;
+        h += '<button type="button" class="row chk-opt' + (on ? ' on' : '') + nbClass(j < g.opts.length - 1)
+          + '" role="checkbox" aria-checked="' + (on ? 'true' : 'false') + '" data-k="' + esc(item.messageKey)
+          + '" data-check="' + esc(o[1]) + '"' + (gated ? ' disabled aria-disabled="true"' : '') + '>'
+          + '<span class="lft"><span class="lbl">' + esc(o[0]) + '</span>'
+          + (meta.desc ? '<span class="hint">' + esc(meta.desc) + '</span>' : '') + '</span>'
+          + '<span class="chk-box" aria-hidden="true"></span></button>';
+      }
+      h += '</div></div>';
+    }
     return h + '</div>';
   }
 
@@ -1084,7 +1091,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // row wrap it onto a full-width line of its own. The row does NOT become .stack, so
     // the trigger stays exactly where it was.
     var inlineList = view.inlineList || '';
-    var rowCls = 'row' + (stacked ? ' stack' : '') + (wideSegmented ? ' segwide' : '') + nbClass(noDivider)
+    // A checklist's cards carry their own titles and rows: its row is only their frame.
+    var rowCls = 'row' + (stacked ? ' stack' : '') + (item.type === 'checklist' ? ' chk-row' : '')
+      + (wideSegmented ? ' segwide' : '') + nbClass(noDivider)
       + ((item.type === 'searchSelect' || isCompact) && !stacked ? ' slot' : '')
       + (inlineList ? ' isel-open' : '')
       // A disabled row (item.disabledWhen) stays visible — showing what WOULD be

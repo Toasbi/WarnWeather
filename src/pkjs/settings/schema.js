@@ -1584,18 +1584,22 @@ var BT_ICON_OPTIONS = [['Disconnected', 'disconnected'], ['Connected', 'connecte
  * @param {?Object} showWhen The row's own gate, or null.
  * @param {Object} hintFrom The live-state hint resolver ({resolver, args}).
  * @param {Object} editBadgeFrom The badge resolver ({resolver, args}).
+ * @param {boolean} [joins] Whether the row joins the one above (no divider).
  * @returns {Object} Schema item.
  */
-function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFrom) {
+function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFrom, joins) {
     var row = {type: 'sheet', sheetId: sheetId, label: label, icon: icon, hintFrom: hintFrom,
         editBadgeFrom: editBadgeFrom};
+    if (joins) { row.joinPrevious = true; }
     if (showWhen) { row.showWhen = showWhen; }
     return row;
 }
 /**
  * The On demand card's rows: the no-Watch-Status-Bar note, then System info (Battery and
  * Bluetooth with a sheet each, Quiet time and Sleep as read-only rows) and Weather alerts
- * (Rain, then the five metric alerts). Every row prints its item's live state.
+ * (Rain, then the five metric alerts). Every row prints its item's live state. Each
+ * group is one joined block, like the Graph colors card: every row after its sub-header's
+ * first joins the one above.
  * @returns {Object[]} The card's items, in order.
  */
 function onDemandCardItems() {
@@ -1612,10 +1616,12 @@ function onDemandCardItems() {
         onDemandSheetRow('odBattery', 'Battery', 'battery', null,
             {resolver: 'onDemandBatteryText'}, {resolver: 'onDemandBadge'}),
         onDemandSheetRow('odBluetooth', 'Bluetooth', 'bluetooth', null,
-            {resolver: 'onDemandBluetoothText'}, {resolver: 'onDemandBadge'}),
+            {resolver: 'onDemandBluetoothText'}, {resolver: 'onDemandBadge'}, true),
         {type: 'readout', label: 'Quiet time', icon: 'quiet',
-            hintFrom: {resolver: 'onDemandPlainText', args: {code: 'qt', text: 'While Quiet Time is on'}}},
-        {type: 'readout', label: 'Sleep', icon: 'snooze', hintFrom: {resolver: 'onDemandSleepText'}},
+            hintFrom: {resolver: 'onDemandPlainText', args: {code: 'qt', text: 'While Quiet Time is on'}},
+            joinPrevious: true},
+        {type: 'readout', label: 'Sleep', icon: 'snooze', hintFrom: {resolver: 'onDemandSleepText'},
+            joinPrevious: true},
         {type: 'subheader', text: 'Weather alerts'},
         onDemandSheetRow('alertRain', 'Rain', 'rain', null,
             {resolver: 'rainAlertHint', args: {windows: RAIN_WINDOW_OPTIONS, looks: RAIN_LOOK_OPTIONS}},
@@ -1623,7 +1629,7 @@ function onDemandCardItems() {
     ].concat(ALERT_KINDS.map(function (k) {
         return onDemandSheetRow('alert' + k.keyStem, k.label, k.icon, k.gate || null,
             {resolver: 'alertLevelsHint', args: {keyStem: k.keyStem, days: ALERT_DAYS_OPTIONS}},
-            {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}});
+            {resolver: 'alertLevelBadge', args: {keyStem: k.keyStem}}, true);
     }));
 }
 // The On demand card's intro: what an item is, then where they are chosen, with the

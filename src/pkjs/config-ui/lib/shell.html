@@ -325,17 +325,20 @@
   /* "(Recommended)" marker appended to a select option's name (recommendFrom resolver) */
   .ssel-rec { color: var(--link); font-weight: 800; white-space: nowrap; }
   .ssel-none { padding: 14px 13px; font: 600 13px 'Inter', sans-serif; color: var(--faint); }
-  /* checklist control (engine renderChecklist): the option list's box and rows, one
-     checkbox per option. A ticked box fills with the accent gradient and draws a CSS tick;
-     a gated option stays visible, keeps its tick, and dims. */
-  .chk-list { background: var(--ctl); border: 1px solid var(--ctl-line-soft); border-radius: 10px; overflow: hidden; }
-  .chk-grp:first-child .ssel-group { border-top: none; }
-  .chk-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; cursor: pointer; padding: 11px 13px; font: 600 13.5px 'Inter', sans-serif; border: none; border-bottom: 1px solid var(--row-line); background: transparent; color: var(--muted); }
-  .chk-grp:last-child .chk-opt:last-child, .chk-list > .chk-opt:last-child { border-bottom: none; }
-  .chk-opt.on { color: var(--fg); }
+  /* checklist control (engine renderChecklist): one card per option group, titled like a
+     page card, its rows the page's ordinary rows joined (.row.nb: no divider, the tight
+     rhythm), one checkbox per row. Its row (.chk-row) is only the cards' frame: no top
+     padding, no divider. Inside the sheet the cards take the control surface, so they stand
+     off the sheet as page cards stand off the page (lighter in dark, darker in light). A
+     ticked box fills with the accent gradient and draws a CSS tick; a gated option stays
+     visible, keeps its tick, and dims. */
+  .row.chk-row { padding-top: 0; border-bottom: none; }
+  .row.chk-row > div:last-child { margin-top: 0; }
+  .chk-list .card:last-child { margin-bottom: 0; }
+  dialog#modal .esheet .chk-list .card { background: var(--ctl); }
+  .chk-opt { width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; background: transparent; border-top: none; border-left: none; border-right: none; }
+  .chk-opt .lbl, .chk-opt .hint { display: block; }
   .chk-opt[disabled] { opacity: .38; cursor: not-allowed; }
-  .chk-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .chk-desc { font: 500 12px 'Inter', sans-serif; color: var(--hint); line-height: 1.35; }
   .chk-box { flex: none; position: relative; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--ctl-line); box-sizing: border-box; }
   .chk-opt.on .chk-box { border-color: transparent; background: linear-gradient(135deg, #FA4A35, #D93A24); }
   .chk-opt.on .chk-box::after { content: ''; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 9px; border: solid #FFFFFF; border-width: 0 2px 2px 0; transform: rotate(45deg); }

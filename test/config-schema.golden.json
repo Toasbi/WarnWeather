@@ -5562,7 +5562,8 @@
                 },
                 "editBadgeFrom": {
                   "resolver": "onDemandBadge"
-                }
+                },
+                "joinPrevious": true
               },
               {
                 "type": "readout",
@@ -5574,7 +5575,8 @@
                     "code": "qt",
                     "text": "While Quiet Time is on"
                   }
-                }
+                },
+                "joinPrevious": true
               },
               {
                 "type": "readout",
@@ -5582,7 +5584,8 @@
                 "icon": "snooze",
                 "hintFrom": {
                   "resolver": "onDemandSleepText"
-                }
+                },
+                "joinPrevious": true
               },
               {
                 "type": "subheader",
@@ -5656,7 +5659,8 @@
                   "args": {
                     "keyStem": "Gust"
                   }
-                }
+                },
+                "joinPrevious": true
               },
               {
                 "type": "sheet",
@@ -5684,7 +5688,8 @@
                   "args": {
                     "keyStem": "Uv"
                   }
-                }
+                },
+                "joinPrevious": true
               },
               {
                 "type": "sheet",
@@ -5712,7 +5717,8 @@
                   "args": {
                     "keyStem": "Aqi"
                   }
-                }
+                },
+                "joinPrevious": true
               },
               {
                 "type": "sheet",
@@ -5741,6 +5747,7 @@
                     "keyStem": "Pollen"
                   }
                 },
+                "joinPrevious": true,
                 "showWhen": {
                   "key": "provider",
                   "eq": "dwd"
@@ -5772,7 +5779,8 @@
                   "args": {
                     "keyStem": "Wind"
                   }
-                }
+                },
+                "joinPrevious": true
               }
             ]
           },

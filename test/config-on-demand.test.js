@@ -155,8 +155,15 @@ test('a side sheet: the bar\'s name, two groups in priority order, and an item m
   assert.ok(sheet.indexOf('aria-label="System info"') < order[0], 'System info heads the system items');
   assert.ok(order[3] < sheet.indexOf('aria-label="Weather alerts"')
     && sheet.indexOf('aria-label="Weather alerts"') < order[4], 'Weather alerts heads the weather items');
+  // Two normal cards, each titled by its group, every row of a card joined to the next.
+  ['System info', 'Weather alerts'].forEach((title) => assert.ok(sheet.indexOf('<div class="card chk-grp" role="group" aria-label="'
+    + title + '"><div class="cardHdr"><span class="ttl">' + title + '</span></div>') !== -1, title + ': a titled card'));
+  const joined = (code) => new RegExp('class="row chk-opt( on)? nb"[^>]*data-check="' + code + '"').test(sheet);
+  ['battery', 'bt', 'qt', 'rain', 'gust', 'uv', 'aqi', 'pollen'].forEach((code) =>
+    assert.ok(joined(code), code + ' joins the row below it'));
+  ['snooze', 'wind'].forEach((code) => assert.ok(!joined(code), code + ' closes its card'));
   // Bluetooth is on the left side: its note says so, and ticking moves it here.
-  assert.match(sheet, /data-check="bt"><span class="chk-txt"><span class="chk-name">Bluetooth<\/span><span class="chk-desc">On the left side now; ticking moves it here<\/span>/);
+  assert.match(sheet, /data-check="bt"><span class="lft"><span class="lbl">Bluetooth<\/span><span class="hint">On the left side now; ticking moves it here<\/span>/);
   tick(page, 'statusTopOnDemandRightItems', 'bt');
   assert.equal(page.S.statusTopOnDemandRightItems, 'battery,bt,rain,gust,uv,aqi,wind');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'qt,snooze', 'gone from the left');
@@ -168,8 +175,8 @@ test('the checklist notes: Rain needs the radar, Pollen needs DWD — ticks kept
   const page = watchTab({ radarMode: 'off', provider: 'openmeteo' });
   page.openEditSheet('odTopRight');
   const sheet = page.modal.innerHTML;
-  assert.match(sheet, /aria-checked="true" data-k="statusTopOnDemandRightItems" data-check="rain" disabled aria-disabled="true"><span class="chk-txt"><span class="chk-name">Rain<\/span><span class="chk-desc">Needs the rain radar \(Radar tab\)<\/span>/);
-  assert.match(sheet, /aria-checked="false" data-k="statusTopOnDemandRightItems" data-check="pollen" disabled aria-disabled="true"><span class="chk-txt"><span class="chk-name">Pollen<\/span><span class="chk-desc">DWD provider only<\/span>/);
+  assert.match(sheet, /aria-checked="true" data-k="statusTopOnDemandRightItems" data-check="rain" disabled aria-disabled="true"><span class="lft"><span class="lbl">Rain<\/span><span class="hint">Needs the rain radar \(Radar tab\)<\/span>/);
+  assert.match(sheet, /aria-checked="false" data-k="statusTopOnDemandRightItems" data-check="pollen" disabled aria-disabled="true"><span class="lft"><span class="lbl">Pollen<\/span><span class="hint">DWD provider only<\/span>/);
   const t = { getAttribute: n => (n === 'data-k' ? 'statusTopOnDemandRightItems' : n === 'data-check' ? 'pollen'
     : n === 'disabled' ? '' : null), closest: sel => (sel === '[data-check]' ? t : null) };
   page.modal.dispatch('click', { target: t });
@@ -211,6 +218,15 @@ test('the On demand card: its intro and rows with icons and live texts, under th
     const r = row('data-edit-sheet="alert' + stem + '"', icon, label);
     assert.ok(r.indexOf('<div class="hint">' + text + '</div>') !== -1, stem + ': ' + r);
   });
+  // Each group is one joined block: no divider between its rows (.nb on every row but
+  // the group's last, which gives the next sub-header its line or closes the card).
+  const rowCls = (needle) => /^<div class="([^"]*)"/.exec(rowOf(html, needle))[1].split(' ');
+  ['data-edit-sheet="odBattery"', 'data-edit-sheet="odBluetooth"', '>Quiet time</div>',
+    'data-edit-sheet="alertRain"', 'data-edit-sheet="alertGust"', 'data-edit-sheet="alertUv"',
+    'data-edit-sheet="alertAqi"', 'data-edit-sheet="alertPollen"'].forEach((needle) =>
+    assert.ok(rowCls(needle).indexOf('nb') !== -1, needle + ' joins the row below'));
+  assert.equal(rowCls('>Sleep</div>').indexOf('nb'), -1, 'Sleep closes System info');
+  assert.equal(rowCls('data-edit-sheet="alertWind"').indexOf('nb'), -1, 'Wind speed closes the card');
   assert.ok(rowOf(html, 'data-edit-sheet="alertUv"').indexOf('pen-dot') !== -1, 'a placed alert shows its colours');
   assert.equal(rowOf(html, 'data-edit-sheet="alertPollen"').indexOf('pen-dot'), -1, 'an unplaced one none');
 });

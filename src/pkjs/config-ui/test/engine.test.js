@@ -2374,23 +2374,32 @@ test('checklist: toggling flips one option and canonicalises to option order', (
   assert.equal(E.checklistToggle(undefined, 'bt', CHECK_OPTIONS), 'bt', 'absent reads as empty');
 });
 
-test('checklist: grouped checkbox buttons, ticks kept on gated options, no row label', () => {
+test('checklist: a titled card per group, its checkbox rows joined, ticks kept on gated options', () => {
   const item = { type: 'checklist', messageKey: 'items', label: 'Items', options: CHECK_OPTIONS };
   const html = E.renderRow(item, { value: 'rain,bt' });
-  assert.match(html, /class="row stack"/, 'a checklist is a stacked row');
-  assert.doesNotMatch(html, /class="lbl"/, 'the label names the list, it does not head the row');
+  assert.match(html, /^<div class="row stack chk-row">/, 'a checklist is a stacked row, only the cards\' frame');
   assert.match(html, /<div class="chk-list" role="group" aria-label="Items">/);
-  assert.match(html, /<div class="chk-grp" role="group" aria-label="System info">/);
-  assert.match(html, /<div class="chk-grp" role="group" aria-label="Weather alerts">/);
-  assert.match(html, /class="chk-opt on" role="checkbox" aria-checked="true" data-k="items" data-check="bt">/);
-  assert.match(html, /class="chk-opt" role="checkbox" aria-checked="false" data-k="items" data-check="battery">/);
+  assert.match(html, /<div class="card chk-grp" role="group" aria-label="System info"><div class="cardHdr"><span class="ttl">System info<\/span><\/div><div>/,
+    'a group is a card titled like a page card');
+  assert.match(html, /<div class="card chk-grp" role="group" aria-label="Weather alerts"><div class="cardHdr"><span class="ttl">Weather alerts<\/span><\/div>/);
+  assert.match(html, /class="row chk-opt on" role="checkbox" aria-checked="true" data-k="items" data-check="bt">/);
+  assert.match(html, /class="row chk-opt nb" role="checkbox" aria-checked="false" data-k="items" data-check="battery">/);
   assert.match(html,
-    /class="chk-opt on" role="checkbox" aria-checked="true" data-k="items" data-check="rain" disabled aria-disabled="true">/,
+    /class="row chk-opt on nb" role="checkbox" aria-checked="true" data-k="items" data-check="rain" disabled aria-disabled="true">/,
     'a disabled option keeps its tick');
-  assert.match(html, /<span class="chk-desc">Needs the rain radar<\/span>/);
+  assert.match(html, /data-check="rain" disabled aria-disabled="true"><span class="lft"><span class="lbl">Rain<\/span><span class="hint">Needs the rain radar<\/span><\/span>/,
+    'the name is the row\'s label, the note its hint');
+  // Every row but a card's last joins the next (.nb); the last carries no join.
+  const last = (code) => new RegExp('class="row chk-opt( on)?" role="checkbox" aria-checked="(true|false)" data-k="items" data-check="' + code + '"');
+  assert.match(html, last('bt'), 'System info\'s last row');
+  assert.match(html, last('gust'), 'Weather alerts\' last row');
   const idxBattery = html.indexOf('data-check="battery"');
   const idxWeather = html.indexOf('aria-label="Weather alerts"');
   assert.ok(idxBattery < idxWeather, 'options sit under their own header');
+  // Options before any header share one untitled card.
+  const plain = E.renderRow({ type: 'checklist', messageKey: 'p', label: 'P', options: [['One', 'a'], ['Two', 'b']] },
+    { value: 'b' });
+  assert.match(plain, /<div class="card chk-grp nohdr"><div><button type="button" class="row chk-opt nb"[^>]*data-check="a"><span class="lft"><span class="lbl">One<\/span><\/span>/);
   // optionDisabledWhen gates through the view like any other control.
   const gated = E.renderRow(item, { value: '', disabledOptions: ['gust'] });
   assert.match(gated, /data-check="gust" disabled aria-disabled="true"/);

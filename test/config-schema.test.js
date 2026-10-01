@@ -2204,12 +2204,16 @@ test('the On demand card: gated to a watch with On demand, its intro, reset, and
   assert.deepEqual(it[1], { type: 'subheader', text: 'System info' });
   assert.deepEqual(it[2], { type: 'sheet', sheetId: 'odBattery', label: 'Battery', icon: 'battery',
     hintFrom: { resolver: 'onDemandBatteryText' }, editBadgeFrom: { resolver: 'onDemandBadge' } });
+  // Each group is one joined block: every row after its sub-header's first joins the one
+  // above.
   assert.deepEqual(it[3], { type: 'sheet', sheetId: 'odBluetooth', label: 'Bluetooth', icon: 'bluetooth',
-    hintFrom: { resolver: 'onDemandBluetoothText' }, editBadgeFrom: { resolver: 'onDemandBadge' } });
+    hintFrom: { resolver: 'onDemandBluetoothText' }, editBadgeFrom: { resolver: 'onDemandBadge' },
+    joinPrevious: true });
   assert.deepEqual(it[4], { type: 'readout', label: 'Quiet time', icon: 'quiet',
-    hintFrom: { resolver: 'onDemandPlainText', args: { code: 'qt', text: 'While Quiet Time is on' } } });
+    hintFrom: { resolver: 'onDemandPlainText', args: { code: 'qt', text: 'While Quiet Time is on' } },
+    joinPrevious: true });
   assert.deepEqual(it[5], { type: 'readout', label: 'Sleep', icon: 'snooze',
-    hintFrom: { resolver: 'onDemandSleepText' } });
+    hintFrom: { resolver: 'onDemandSleepText' }, joinPrevious: true });
   assert.deepEqual(it[6], { type: 'subheader', text: 'Weather alerts' });
   assert.deepEqual(it[7], {
     type: 'sheet', sheetId: 'alertRain', label: 'Rain', icon: 'rain',
@@ -2228,7 +2232,7 @@ test('the On demand card: gated to a watch with On demand, its intro, reset, and
     const row = { type: 'sheet', sheetId: 'alert' + stem, label, icon,
       hintFrom: { resolver: 'alertLevelsHint',
         args: { keyStem: stem, days: [['Today', 'today'], ['Today + tomorrow', 'tomorrow']] } },
-      editBadgeFrom: { resolver: 'alertLevelBadge', args: { keyStem: stem } } };
+      editBadgeFrom: { resolver: 'alertLevelBadge', args: { keyStem: stem } }, joinPrevious: true };
     if (stem === 'Pollen') { row.showWhen = { key: 'provider', eq: 'dwd' }; }
     assert.deepEqual(it[8 + k], row, stem + ' row');
     assert.deepEqual(it[8 + k].hintFrom.args.days, byKey('alert' + stem + 'Days').options, stem);
