@@ -44,7 +44,7 @@ test('zeroFilledArray clamps non-positive lengths to an empty array', () => {
   assert.deepEqual(zeroFilledArray(-1), []);
 });
 
-// uvShown — the UV slot's shared reader (status-lines text AND status-thresholds
+// uvShown — the UV slot's shared reader (status-lines text AND status-wire
 // level): the WHOLE numbers the slot prints. dayPeaks is UV_DAY_PEAKS: [rest of
 // today, tomorrow, today's hours already begun] in tenths, null = unknown.
 const S = (now, peak, nextDay) => ({ now, peak, nextDay });
