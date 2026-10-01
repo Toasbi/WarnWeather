@@ -81,9 +81,9 @@ struct StatusRow {
 // paint a row.
 static uint8_t s_blob_scratch[STATUS_LINE_MAX_BYTES];
 // Threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8), reloaded per
-// refresh/draw like the packed line blobs; len 0 = nothing configured yet.
+// refresh/draw like the packed line blobs and normalized to the full layout as it
+// loads (status_threshold_normalize: whatever is stored, or nothing).
 static uint8_t s_thresh_scratch[THRESH_SETTINGS_BYTES];
-static int s_thresh_len;
 // One draw's On demand pass (status_on_demand.h): the resolved items, their measures
 // and the layout. Too big for the app stack beside the rest of a draw, and draws are
 // serialized, so every row's draw reuses this one.
@@ -332,16 +332,10 @@ static int8_t resolve_slot_text(const StatusRow *row, const StatusSlotView *slot
 }
 
 static void load_thresholds(void) {
-    s_thresh_len = persist_get_threshold_settings(s_thresh_scratch,
-                                                  sizeof(s_thresh_scratch));
-    // Judge the blob ONCE per refresh/draw pass: an invalid length collapses to
-    // 0 ("nothing configured") here, so the per-slot accessor calls below all
-    // see an already-normalized (blob, len) pair.
-    if (s_thresh_len < 0
-        || !status_threshold_settings_validate(s_thresh_scratch,
-                                               (size_t)s_thresh_len)) {
-        s_thresh_len = 0;
-    }
+    // Judge the blob ONCE per refresh/draw pass: the per-slot accessor calls below
+    // all read the normalized full layout.
+    status_threshold_normalize(s_thresh_scratch,
+        persist_get_threshold_settings(s_thresh_scratch, sizeof(s_thresh_scratch)));
     s_levels_word = persist_get_status_levels();
 }
 
@@ -423,8 +417,8 @@ static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView 
     // NORMAL while the kind's Highlight switch is off; weather kinds read the
     // phone-computed levels word (the watch has no raw AQI/wind ints), health kinds
     // compare the live reading against the Clay-sent pair.
-    out->level = (uint8_t)status_threshold_slot_level(s_thresh_scratch,
-        (size_t)s_thresh_len, s_levels_word, thresh_kind, slot_health_value(thresh_kind));
+    out->level = (uint8_t)status_threshold_slot_level(s_thresh_scratch, s_levels_word,
+        thresh_kind, slot_health_value(thresh_kind));
     // The box (none at NORMAL, filled at DANGER, the kind's warn look at WARN), the
     // bold bit and the accent byte — the function the alert icon of the same kind
     // asks at its level, so the two cannot disagree. Bold is its own per-kind
@@ -433,8 +427,7 @@ static void resolve_slot(const StatusRow *row, GFont base, const StatusSlotView 
     // resolved, for every slot and every level: an accent nobody paints costs one
     // blob read, while one left unwritten on some paths is the uninitialised-read
     // bug this struct exists to make impossible.
-    out->look = status_threshold_look(s_thresh_scratch, (size_t)s_thresh_len,
-                                      thresh_kind, out->level);
+    out->look = status_threshold_look(s_thresh_scratch, thresh_kind, out->level);
     // A crossed slot renders BOLD — the calendar's today-highlight pattern applied
     // to slots. The bold Gothic shares its regular sibling's metrics, so only
     // glyph WIDTHS change, which is why the font has to travel with the slot:
@@ -535,7 +528,7 @@ bool status_row_refresh(StatusRow *row) {
     // same item moved to the other side is a new paint, and so is a bar that stops
     // drawing one. Also where row->od.assigned is derived.
     sig = status_on_demand_fold(&row->od, sig, status_threshold_bar_of_line(row->line_id),
-                                s_thresh_scratch, (size_t)s_thresh_len);
+                                s_thresh_scratch);
     // All three slots, always — including the ones On demand may slide, shorten or
     // hide at paint time: how the slots make room is a paint decision (it depends on
     // measured widths), not a content rule, and a signature describing only part of
@@ -768,7 +761,6 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         .font = font,
         .bold = row_font_bold(row->tier, row->line_id),
         .blob = s_thresh_scratch,
-        .blob_len = (size_t)s_thresh_len,
         .band = row->bounds,
         .x = x0,
         .glyph_cy = (int16_t)glyph_cy,

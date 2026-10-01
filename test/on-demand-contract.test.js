@@ -64,9 +64,11 @@ test('the compiled Watch Status Bar defaults are the phone\'s DEFAULTS', () => {
     const want = phone === 'left' ? 'OD_SIDE_LEFT' : phone === 'right' ? 'OD_SIDE_RIGHT' : 'OD_SIDE_NONE';
     assert.equal(sideOfC[C_ITEMS[item.code]], want, item.code + ' on the Watch Status Bar');
   });
-  // Every other bar has no item on either side, on the watch (the C default answers
-  // OD_SIDE_NONE off the top bar) and on the phone.
-  assert.match(thresholdC, /bar == THRESH_BAR_TOP \? \(OdSide\)OD_DEFAULT_TOP\[item\] : OD_SIDE_NONE/);
+  // Every other bar has no item on either side, on the watch (a blob without the
+  // cells takes OD_DEFAULT_TOP's sides as its cell bytes whole, and the top bar's cell
+  // is bits 0-1, so every other bar's reads none) and on the phone.
+  assert.match(thresholdC, /memcpy\(blob \+ THRESH_ON_DEMAND_OFFSET, OD_DEFAULT_TOP, OD_ITEM_COUNT\)/);
+  assert.match(thresholdC, /_Static_assert\(THRESH_BAR_TOP == 0,/);
   ['forecast', 'radar', 'health'].forEach((bar) => {
     OD.ITEMS.forEach((item) => {
       assert.equal(OD.sideOf({radarMode: 'graph', healthMode: 'all'}, bar, item.code), null, bar + ' ' + item.code);

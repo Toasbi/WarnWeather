@@ -43,9 +43,8 @@ var weatherKindOf = thresholds.weatherKindOf;
 // 29-byte pre-bold layout: 1.11.0 shipped 33 (the bold area for kinds 0..15);
 // 1.12.0 shipped 34 (battery %, kind 16, opened byte 33); 1.24.0 ships 48 (the
 // rain look, the On demand Battery item, the two warn-look bytes and the ten On
-// demand cells). The watch also accepts the development branch's 38 (read with
-// its compiled On demand defaults) and 34, 33 and 29; the interim 31-, 35- and
-// 36-byte formats never shipped — they existed only on feature branches — so
+// demand cells). The watch also accepts 34, 33 and 29; the interim 31-, 35-, 36-
+// and 38-byte formats never shipped — they existed only on feature branches — so
 // they validate as garbage, not as legacy (see status_threshold.h). Byte 33
 // holds FOUR 2-bit cells (kinds 16..19): dew point (17) and the two
 // phone-battery kinds (18, 19) all appended into it for free — and it is FULL,

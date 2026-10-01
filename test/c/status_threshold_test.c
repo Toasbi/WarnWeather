@@ -11,22 +11,85 @@ static void expect(const char *name, int got, int want) {
     }
 }
 
-static void level_tests(void) {
-    // Above-is-worse (weather): crossing is inclusive at both boundaries.
-    expect("above.normal", status_threshold_level(99, 100, 200, false), THRESH_LEVEL_NORMAL);
-    expect("above.warn_at", status_threshold_level(100, 100, 200, false), THRESH_LEVEL_WARN);
-    expect("above.warn_mid", status_threshold_level(150, 100, 200, false), THRESH_LEVEL_WARN);
-    expect("above.danger_at", status_threshold_level(200, 100, 200, false), THRESH_LEVEL_DANGER);
-    expect("above.danger", status_threshold_level(999, 100, 200, false), THRESH_LEVEL_DANGER);
+// Every read goes the way the watch's does (status_row.c load_thresholds): `len`
+// bytes of `blob` stored, read into a scratch that still holds the previous load's
+// bytes past them (one buffer serves every pass), then normalized. A test's `len` is
+// therefore the STORED length, and 0 or a negative one means nothing stored.
+static uint8_t s_scratch[THRESH_SETTINGS_BYTES];
 
-    // Below-is-worse (health goals): inverted comparisons, inclusive.
-    expect("below.normal", status_threshold_level(9000, 8000, 4000, true), THRESH_LEVEL_NORMAL);
-    expect("below.warn_at", status_threshold_level(8000, 8000, 4000, true), THRESH_LEVEL_WARN);
-    expect("below.danger_at", status_threshold_level(4000, 8000, 4000, true), THRESH_LEVEL_DANGER);
-    expect("below.danger", status_threshold_level(0, 8000, 4000, true), THRESH_LEVEL_DANGER);
+static const uint8_t *load(const uint8_t *blob, int len) {
+    memset(s_scratch, 0xA5, sizeof(s_scratch));   // the last pass's bytes
+    if (len > 0) {
+        memcpy(s_scratch, blob,
+               (size_t)(len < THRESH_SETTINGS_BYTES ? len : THRESH_SETTINGS_BYTES));
+    }
+    status_threshold_normalize(s_scratch, len);
+    return s_scratch;
+}
 
-    // Equal thresholds: danger wins at the shared boundary.
-    expect("equal.danger", status_threshold_level(100, 100, 100, false), THRESH_LEVEL_DANGER);
+static ThreshLook look_of(const uint8_t *blob, int len, int kind, int level) {
+    return status_threshold_look(load(blob, len), kind, level);
+}
+
+static int box_of(const uint8_t *blob, int len, int kind, int level) {
+    return look_of(blob, len, kind, level).box;
+}
+
+static int bold_of(const uint8_t *blob, int len, int kind, int level) {
+    return look_of(blob, len, kind, level).bold;
+}
+
+static int color_of(const uint8_t *blob, int len, int kind, int level) {
+    return look_of(blob, len, kind, level).color8;
+}
+
+// The kind's Bold mode, read back off the ladder it drives (kind >= 0): Always bolds
+// the normal zone, Warn the warn level, Off neither (danger bolds under every mode).
+static int mode_of(const uint8_t *blob, int len, int kind) {
+    return bold_of(blob, len, kind, THRESH_LEVEL_NORMAL) ? THRESH_BOLD_ALWAYS
+        : bold_of(blob, len, kind, THRESH_LEVEL_WARN) ? THRESH_BOLD_WARN : THRESH_BOLD_OFF;
+}
+
+// The kind's warn look: the box it draws at WARN (ThreshBox and ThreshWarnLook are
+// both 0 none, 1 outline, 2 fill: box.enum, look.enum).
+static int warn_look_of(const uint8_t *blob, int len, int kind) {
+    return box_of(blob, len, kind, THRESH_LEVEL_WARN);
+}
+
+static int level_of(const uint8_t *blob, int len, int levels_word, int kind, int health) {
+    return status_threshold_slot_level(load(blob, len), levels_word, kind, health);
+}
+
+// Whether the kind's Highlight switch (its enable bit) is on: only then does a slot
+// reach a level, and an all-danger levels word or a reading past every u16 pair
+// reaches one.
+static int enabled_of(const uint8_t *blob, int len, int kind) {
+    return level_of(blob, len, 0xFFFF, kind, 0xFFFF) != THRESH_LEVEL_NORMAL;
+}
+
+static int rain_of(const uint8_t *blob, int len) {
+    return status_threshold_rain_display(load(blob, len));
+}
+
+static int side_of(const uint8_t *blob, int len, int bar, int item) {
+    return status_threshold_on_demand_side(load(blob, len), bar, item);
+}
+
+static int battery_level_of(const uint8_t *blob, int len) {
+    return status_threshold_battery_level(load(blob, len));
+}
+
+static int battery_value_of(const uint8_t *blob, int len) {
+    return status_threshold_battery_value(load(blob, len));
+}
+
+// A health pair in the blob: kind's warn and danger thresholds, LE u16.
+static void set_pair(uint8_t *blob, int kind, int warn, int danger) {
+    int off = THRESH_HEALTH_OFFSET + 4 * (kind - THRESH_STEPS);
+    blob[off] = (uint8_t)(warn & 0xFF);
+    blob[off + 1] = (uint8_t)(warn >> 8);
+    blob[off + 2] = (uint8_t)(danger & 0xFF);
+    blob[off + 3] = (uint8_t)(danger >> 8);
 }
 
 static void kind_tests(void) {
@@ -114,25 +177,75 @@ static void kind_tests(void) {
            THRESH_PHONE_BATTERY == 18 && THRESH_PHONE_BATTERY_PLAIN == 19, 1);
     expect("kind.battery", status_threshold_kind_for_slot(SLOT_LIVE_BATTERY, STATUS_ICON_NONE), -1);
     expect("kind.empty", status_threshold_kind_for_slot(SLOT_EMPTY, STATUS_ICON_NONE), -1);
-    // Direction is a fixed property of the kind — and since the goal rework the
-    // health trio celebrates upward like the weather kinds (close -> goal), so no
-    // shipped kind is below-is-worse anymore.
-    expect("dir.aqi", status_threshold_below_is_worse(THRESH_AQI), 0);
-    expect("dir.gust", status_threshold_below_is_worse(THRESH_GUST), 0);
-    expect("dir.steps", status_threshold_below_is_worse(THRESH_STEPS), 0);
-    expect("dir.distance", status_threshold_below_is_worse(THRESH_DISTANCE), 0);
 }
 
-static void weather_byte_tests(void) {
-    // aqi=warn(01) pollen=danger(10) wind=normal(00) gust=warn(01) -> 0x49.
-    uint8_t packed = 0x49;
-    expect("wire.aqi", status_threshold_weather_level(packed, THRESH_AQI), THRESH_LEVEL_WARN);
-    expect("wire.pollen", status_threshold_weather_level(packed, THRESH_POLLEN), THRESH_LEVEL_DANGER);
-    expect("wire.wind", status_threshold_weather_level(packed, THRESH_WIND), THRESH_LEVEL_NORMAL);
-    expect("wire.gust", status_threshold_weather_level(packed, THRESH_GUST), THRESH_LEVEL_WARN);
-    // Reserved 2-bit value 3 clamps to danger; non-weather kinds never read this byte.
-    expect("wire.clamp", status_threshold_weather_level(0x03, THRESH_AQI), THRESH_LEVEL_DANGER);
-    expect("wire.range", status_threshold_weather_level(0xFF, THRESH_STEPS), THRESH_LEVEL_NORMAL);
+// The judge on the wire (app_message.c) and in store (normalize): exactly the four
+// lengths that shipped — 48, the pre-alerts 34, the 16-kind 33 and the pre-bold 29.
+// The interim 31-byte (8-kind bold), 35-, 36- and 38-byte formats existed only on
+// feature branches, so they are garbage, not legacy; 27 is the pre-UV layout whose
+// health offsets moved; 49 and up a FUTURE, wider format, rejected until such a
+// widening actually happens.
+static void validate_tests(void) {
+    uint8_t wide[64];
+    memset(wide, 0, sizeof(wide));
+    for (int len = 0; len < (int)sizeof(wide); len++) {
+        char name[32];
+        snprintf(name, sizeof(name), "validate.len%d", len);
+        expect(name, status_threshold_settings_validate(wide, (size_t)len),
+               len == 48 || len == 34 || len == 33 || len == 29);
+    }
+    expect("validate.null", status_threshold_settings_validate(NULL, THRESH_SETTINGS_BYTES), 0);
+    expect("validate.lengths", THRESH_SETTINGS_BYTES_PRE_ALERTS * 10000
+           + THRESH_SETTINGS_BYTES_PRE_KIND16 * 100 + THRESH_SETTINGS_BYTES_PRE_BOLD, 343329);
+}
+
+// normalize() is the one place a stored length means anything: what it hands every
+// accessor is the full 48-byte layout, whatever the scratch held before.
+static void normalize_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    for (int i = 0; i < THRESH_SETTINGS_BYTES; i++) { blob[i] = (uint8_t)(i * 37 + 11); }
+    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0;   // wind: the no-box warn colour
+    // A 48-B blob is read exactly as stored.
+    expect("norm.full_as_stored", memcmp(load(blob, THRESH_SETTINGS_BYTES), blob,
+                                         THRESH_SETTINGS_BYTES), 0);
+    // Nothing stored: all zero — no switch on, no pair, the default bold ladder, the
+    // rain look Text, no warn box — but opaque-white colours, the Battery item at
+    // 10 %, Icon, and the compiled On demand cells (on_demand_default_tests).
+    uint8_t none[THRESH_SETTINGS_BYTES];
+    memcpy(none, load(NULL, 0), sizeof(none));
+    for (int i = 0; i < THRESH_ON_DEMAND_OFFSET; i++) {
+        int want = i >= THRESH_COLORS_OFFSET && i < THRESH_HEALTH_OFFSET ? 0xFF
+            : i == THRESH_BATTERY_OFFSET ? THRESH_BATTERY_LEVEL_DEFAULT : 0;
+        expect("norm.none_byte", none[i], want);
+    }
+    // Every length that is not accepted reads exactly as nothing stored — the
+    // never-shipped 38 included: a watch that ran the 1.24.0 development build shows
+    // the defaults until the first settings send of 1.24.0 lands.
+    int bad[] = { -1, 1, 27, 28, 30, 31, 32, 35, 36, 37, 38, 39, 47, 49 };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        expect("norm.invalid_is_none", memcmp(load(blob, bad[i]), none, sizeof(none)), 0);
+    }
+    // An accepted shorter blob keeps every stored byte; past them it reads as nothing
+    // stored, except the warn looks, derived from the stored warn colours (0x00 none,
+    // any colour an outline).
+    uint8_t derived[2] = { 0, 0 };
+    for (int k = 0; k < THRESH_PAIRED_KIND_COUNT; k++) {
+        if (blob[THRESH_COLORS_OFFSET + 2 * k] != 0) {
+            derived[k >> 2] |= (uint8_t)(THRESH_WARN_LOOK_OUTLINE << (2 * (k & 3)));
+        }
+    }
+    expect("norm.derived_bytes", derived[0] * 256 + derived[1], 0x4555);
+    int lens[] = { THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_SETTINGS_BYTES_PRE_KIND16,
+                   THRESH_SETTINGS_BYTES_PRE_BOLD };
+    for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
+        const uint8_t *b = load(blob, lens[i]);
+        expect("norm.short_keeps", memcmp(b, blob, (size_t)lens[i]), 0);
+        expect("norm.short_tail", memcmp(b + lens[i], none + lens[i],
+                                         (size_t)(THRESH_WARN_LOOK_OFFSET - lens[i])), 0);
+        expect("norm.short_looks", memcmp(b + THRESH_WARN_LOOK_OFFSET, derived, 2), 0);
+        expect("norm.short_cells", memcmp(b + THRESH_ON_DEMAND_OFFSET,
+                                          none + THRESH_ON_DEMAND_OFFSET, OD_ITEM_COUNT), 0);
+    }
 }
 
 static void blob_tests(void) {
@@ -141,55 +254,32 @@ static void blob_tests(void) {
     blob[0] = (uint8_t)((1 << THRESH_AQI) | (1 << THRESH_STEPS));
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI] = 0xE4;        // warn color
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI + 1] = 0xF0;    // danger color
-    blob[THRESH_HEALTH_OFFSET] = 0x40;      // steps warn 8000 (LE)
-    blob[THRESH_HEALTH_OFFSET + 1] = 0x1F;
-    blob[THRESH_HEALTH_OFFSET + 2] = 0xA0;  // steps danger 4000 (LE)
-    blob[THRESH_HEALTH_OFFSET + 3] = 0x0F;
+    int n = sizeof(blob);
 
-    expect("blob.valid", status_threshold_settings_validate(blob, sizeof(blob)), 1);
-    // 47 .. 39 are truncations of the 48-byte blob, while 38 (the development
-    // branch), 34 (pre-alerts) and 33 (16-kind) are accepted legacy lengths (see
-    // legacy_blob_tests).
-    expect("blob.short47", status_threshold_settings_validate(blob, sizeof(blob) - 1), 0);
-    expect("blob.short46", status_threshold_settings_validate(blob, sizeof(blob) - 2), 0);
-    expect("blob.short45", status_threshold_settings_validate(blob, sizeof(blob) - 3), 0);
-    expect("blob.short39", status_threshold_settings_validate(blob, sizeof(blob) - 9), 0);
-    expect("blob.short32", status_threshold_settings_validate(blob, 32), 0);
-    expect("blob.null", status_threshold_settings_validate(NULL, sizeof(blob)), 0);
-    expect("blob.aqi_on", status_threshold_enabled(blob, sizeof(blob), THRESH_AQI), 1);
-    expect("blob.wind_off", status_threshold_enabled(blob, sizeof(blob), THRESH_WIND), 0);
-    expect("blob.steps_on", status_threshold_enabled(blob, sizeof(blob), THRESH_STEPS), 1);
-    expect("blob.warn_color", status_threshold_color8(blob, sizeof(blob), THRESH_AQI, THRESH_LEVEL_WARN), 0xE4);
-    expect("blob.danger_color", status_threshold_color8(blob, sizeof(blob), THRESH_AQI, THRESH_LEVEL_DANGER), 0xF0);
-    expect("blob.steps_warn", status_threshold_health_warn(blob, sizeof(blob), THRESH_STEPS), 8000);
-    expect("blob.steps_danger", status_threshold_health_danger(blob, sizeof(blob), THRESH_STEPS), 4000);
-    expect("blob.sleep_zero", status_threshold_health_warn(blob, sizeof(blob), THRESH_SLEEP), 0);
-    // Out-of-domain access degrades safely.
-    expect("blob.weather_u16", status_threshold_health_warn(blob, sizeof(blob), THRESH_AQI), 0);
-    expect("blob.bad_len_enabled", status_threshold_enabled(blob, 5, THRESH_AQI), 0);
+    expect("blob.aqi_on", enabled_of(blob, n, THRESH_AQI), 1);
+    expect("blob.wind_off", enabled_of(blob, n, THRESH_WIND), 0);
+    expect("blob.steps_on", enabled_of(blob, n, THRESH_STEPS), 1);
+    expect("blob.sleep_off", enabled_of(blob, n, THRESH_SLEEP), 0);
+    expect("blob.warn_color", color_of(blob, n, THRESH_AQI, THRESH_LEVEL_WARN), 0xE4);
+    expect("blob.danger_color", color_of(blob, n, THRESH_AQI, THRESH_LEVEL_DANGER), 0xF0);
+    expect("blob.normal_no_color", color_of(blob, n, THRESH_AQI, THRESH_LEVEL_NORMAL), 0xFF);
+    // A blob of no accepted length is nothing stored: no switch is on.
+    expect("blob.bad_len_enabled", enabled_of(blob, 5, THRESH_AQI), 0);
 }
 
 // The paired accessors are bounded by THRESH_PAIRED_KIND_COUNT: byte 0 has
 // exactly 8 enable bits, and a bold-only kind's would-be color/health offsets
-// collide with later fields — so kinds 8..15 must degrade, not read.
+// collide with later fields — so kinds 8..19 must degrade, not read.
 static void paired_bound_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0xFF, sizeof(blob));   // every bit set, valid length
+    int n = sizeof(blob);
 
-    expect("paired.count_inside_kinds",
-           THRESH_PAIRED_KIND_COUNT <= THRESH_KIND_COUNT, 1);
-    expect("paired.enabled_uv", status_threshold_enabled(blob, sizeof(blob), THRESH_UV), 1);
-    expect("paired.enabled_temp", status_threshold_enabled(blob, sizeof(blob), THRESH_TEMP), 0);
-    expect("paired.enabled_pressure", status_threshold_enabled(blob, sizeof(blob), THRESH_PRESSURE), 0);
-    expect("paired.enabled_hr", status_threshold_enabled(blob, sizeof(blob), THRESH_HR), 0);
-    expect("paired.enabled_battery_pct",
-           status_threshold_enabled(blob, sizeof(blob), THRESH_BATTERY_PCT), 0);
-    expect("paired.enabled_dew",
-           status_threshold_enabled(blob, sizeof(blob), THRESH_DEW), 0);
-    expect("paired.enabled_phone_battery",
-           status_threshold_enabled(blob, sizeof(blob), THRESH_PHONE_BATTERY), 0);
-    expect("paired.enabled_phone_battery_plain",
-           status_threshold_enabled(blob, sizeof(blob), THRESH_PHONE_BATTERY_PLAIN), 0);
+    expect("paired.count_inside_kinds", THRESH_PAIRED_KIND_COUNT <= THRESH_KIND_COUNT, 1);
+    expect("paired.enabled_uv", enabled_of(blob, n, THRESH_UV), 1);
+    for (int k = THRESH_PAIRED_KIND_COUNT; k < THRESH_KIND_COUNT; k++) {
+        expect("paired.enabled_bold_only", enabled_of(blob, n, k), 0);
+    }
     // color8 for a bold-only kind would land inside the health-u16 area
     // (1 + 2*9 = 19 >= THRESH_HEALTH_OFFSET); it must return the fallback, not
     // that byte. Prove it with a distinctive byte at the colliding offset.
@@ -197,13 +287,66 @@ static void paired_bound_tests(void) {
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_PRESSURE] = 0x12;
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_PRESSURE + 1] = 0x34;
     expect("paired.color_pressure_warn",
-           status_threshold_color8(blob, sizeof(blob), THRESH_PRESSURE, THRESH_LEVEL_WARN), 0xFF);
+           color_of(blob, n, THRESH_PRESSURE, THRESH_LEVEL_WARN), 0xFF);
     expect("paired.color_pressure_danger",
-           status_threshold_color8(blob, sizeof(blob), THRESH_PRESSURE, THRESH_LEVEL_DANGER), 0xFF);
-    expect("paired.color_uv_still_reads",
-           status_threshold_color8(blob, sizeof(blob), THRESH_UV, THRESH_LEVEL_WARN), 0);
-    expect("paired.health_bold_only",
-           status_threshold_health_warn(blob, sizeof(blob), THRESH_PRESSURE), 0);
+           color_of(blob, n, THRESH_PRESSURE, THRESH_LEVEL_DANGER), 0xFF);
+    expect("paired.color_uv_still_reads", color_of(blob, n, THRESH_UV, THRESH_LEVEL_WARN), 0);
+}
+
+// A health kind's level: its live reading against the blob's pair, inclusive at both
+// edges and rising toward the goal — no shipped kind warns downward since the goal
+// rework, so a reading past the goal is the goal reached.
+static void pair_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    blob[0] = 0xFF;
+    int n = sizeof(blob);
+    set_pair(blob, THRESH_STEPS, 100, 200);
+    expect("pair.normal", level_of(blob, n, 0, THRESH_STEPS, 99), THRESH_LEVEL_NORMAL);
+    expect("pair.warn_at", level_of(blob, n, 0, THRESH_STEPS, 100), THRESH_LEVEL_WARN);
+    expect("pair.warn_mid", level_of(blob, n, 0, THRESH_STEPS, 150), THRESH_LEVEL_WARN);
+    expect("pair.danger_at", level_of(blob, n, 0, THRESH_STEPS, 200), THRESH_LEVEL_DANGER);
+    expect("pair.danger", level_of(blob, n, 0, THRESH_STEPS, 999), THRESH_LEVEL_DANGER);
+    // Equal thresholds: danger wins at the shared boundary.
+    set_pair(blob, THRESH_STEPS, 100, 100);
+    expect("pair.equal_danger", level_of(blob, n, 0, THRESH_STEPS, 100), THRESH_LEVEL_DANGER);
+    expect("pair.equal_below", level_of(blob, n, 0, THRESH_STEPS, 99), THRESH_LEVEL_NORMAL);
+    // Each health kind reads its own pair.
+    set_pair(blob, THRESH_SLEEP, 420, 480);
+    set_pair(blob, THRESH_DISTANCE, 50, 100);
+    expect("pair.sleep_close", level_of(blob, n, 0, THRESH_SLEEP, 450), THRESH_LEVEL_WARN);
+    expect("pair.distance_goal", level_of(blob, n, 0, THRESH_DISTANCE, 120), THRESH_LEVEL_DANGER);
+    expect("pair.distance_below", level_of(blob, n, 0, THRESH_DISTANCE, 49), THRESH_LEVEL_NORMAL);
+    expect("pair.steps_untouched", level_of(blob, n, 0, THRESH_STEPS, 100), THRESH_LEVEL_DANGER);
+    // Both bytes of each u16 count, up to the top of the range.
+    set_pair(blob, THRESH_STEPS, 0xFFFE, 0xFFFF);
+    expect("pair.u16_normal", level_of(blob, n, 0, THRESH_STEPS, 0xFFFD), THRESH_LEVEL_NORMAL);
+    expect("pair.u16_warn", level_of(blob, n, 0, THRESH_STEPS, 0xFFFE), THRESH_LEVEL_WARN);
+    expect("pair.u16_danger", level_of(blob, n, 0, THRESH_STEPS, 0xFFFF), THRESH_LEVEL_DANGER);
+}
+
+// A weather kind's level is the phone's: 2 bits per kind in the packed levels word,
+// kinds 0..3 at bits 2k, UV at bits 8..9.
+static void weather_level_tests(void) {
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    blob[0] = 0xFF;   // every switch on
+    int n = sizeof(blob);
+    // aqi=warn(01) pollen=danger(10) wind=normal(00) gust=warn(01) -> 0x49; UV warn.
+    int packed = 0x49 | (THRESH_LEVEL_WARN << 8);
+    expect("wire.aqi", level_of(blob, n, packed, THRESH_AQI, -1), THRESH_LEVEL_WARN);
+    expect("wire.pollen", level_of(blob, n, packed, THRESH_POLLEN, -1), THRESH_LEVEL_DANGER);
+    expect("wire.wind", level_of(blob, n, packed, THRESH_WIND, -1), THRESH_LEVEL_NORMAL);
+    expect("wire.gust", level_of(blob, n, packed, THRESH_GUST, -1), THRESH_LEVEL_WARN);
+    expect("wire.uv", level_of(blob, n, packed, THRESH_UV, -1), THRESH_LEVEL_WARN);
+    // The reserved 2-bit value 3 clamps to danger.
+    expect("wire.clamp", level_of(blob, n, 0x03, THRESH_AQI, -1), THRESH_LEVEL_DANGER);
+    expect("wire.uv_clamp", level_of(blob, n, 0x300, THRESH_UV, -1), THRESH_LEVEL_DANGER);
+    // UV's bits and the first four's never mix.
+    expect("wire.uv_apart", level_of(blob, n, 0x300, THRESH_AQI, -1), THRESH_LEVEL_NORMAL);
+    expect("wire.uv_own_bits", level_of(blob, n, 0xFF, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
+    // A health kind never reads the word.
+    expect("wire.health_ignores", level_of(blob, n, 0xFFFF, THRESH_STEPS, -1), THRESH_LEVEL_NORMAL);
 }
 
 // Per-kind bold mode: a monotone ladder over the level. DANGER always prints
@@ -212,128 +355,61 @@ static void paired_bound_tests(void) {
 static void bold_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
+    int n = sizeof(blob);
 
-    // An all-zero blob is the shipped behaviour: bold from warn up.
-    expect("bold.default_mode", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_WARN);
-    expect("bold.warn_normal", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL), 0);
-    expect("bold.warn_warn", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), 1);
-    expect("bold.warn_danger", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+    // An all-zero blob is the shipped behaviour for every kind: bold from warn up.
+    for (int k = 0; k < THRESH_KIND_COUNT; k++) {
+        expect("bold.default_mode", mode_of(blob, n, k), THRESH_BOLD_WARN);
+    }
+    expect("bold.warn_danger", bold_of(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
 
     // OFF drops the warn level; danger still wins.
     blob[THRESH_BOLD_OFFSET] = (uint8_t)(THRESH_BOLD_OFF << (2 * THRESH_WIND));
-    expect("bold.off_mode", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_OFF);
-    expect("bold.off_normal", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL), 0);
-    expect("bold.off_warn", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), 0);
-    expect("bold.off_danger", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+    expect("bold.off_mode", mode_of(blob, n, THRESH_WIND), THRESH_BOLD_OFF);
+    expect("bold.off_danger", bold_of(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
 
     // ALWAYS adds the normal zone — and needs no enabled bit (blob[0] is 0 here),
     // so a kind with no thresholds configured still prints bold.
     blob[THRESH_BOLD_OFFSET] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * THRESH_WIND));
-    expect("bold.always_mode", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_ALWAYS);
-    expect("bold.always_disabled_kind", status_threshold_enabled(blob, n, THRESH_WIND), 0);
-    expect("bold.always_normal", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL), 1);
-    expect("bold.always_danger", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
+    expect("bold.always_mode", mode_of(blob, n, THRESH_WIND), THRESH_BOLD_ALWAYS);
+    expect("bold.always_disabled_kind", enabled_of(blob, n, THRESH_WIND), 0);
+    expect("bold.always_danger", bold_of(blob, n, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
 
-    // Neighbouring kinds share the byte without bleeding into each other.
+    // Every kind reads its own cell, byte 29 + (k >> 2) at bits 2 * (k & 3), and no
+    // two neighbours in a byte share a mode, so a mis-shifted cell reads the wrong one.
+    // Kinds 0..7 own bytes 29/30, the bold-only kinds 8..15 bytes 31/32, and 16..19
+    // (battery %, dew point, the iconed and the no-icon phone battery) byte 33's four
+    // cells, which is why the last three cost the wire nothing.
+    enum { W = THRESH_BOLD_WARN, O = THRESH_BOLD_OFF, A = THRESH_BOLD_ALWAYS };
+    static const uint8_t MODE[THRESH_KIND_COUNT] = {
+        A, W, O, A,   O, W, A, O,   A, W, A, O,   O, A, W, A,   A, O, A, O,
+    };
     memset(blob, 0, sizeof(blob));
-    blob[THRESH_BOLD_OFFSET] = (uint8_t)((THRESH_BOLD_ALWAYS << (2 * THRESH_AQI))
-                                         | (THRESH_BOLD_OFF << (2 * THRESH_GUST)));
-    expect("bold.pack_aqi", status_threshold_bold_mode(blob, n, THRESH_AQI), THRESH_BOLD_ALWAYS);
-    expect("bold.pack_pollen", status_threshold_bold_mode(blob, n, THRESH_POLLEN), THRESH_BOLD_WARN);
-    expect("bold.pack_gust", status_threshold_bold_mode(blob, n, THRESH_GUST), THRESH_BOLD_OFF);
-
-    // Kinds 4..7 live in the second bold byte.
-    blob[THRESH_BOLD_OFFSET + 1] = (uint8_t)((THRESH_BOLD_OFF << (2 * (THRESH_STEPS & 3)))
-                                             | (THRESH_BOLD_ALWAYS << (2 * (THRESH_UV & 3))));
-    expect("bold.pack_steps", status_threshold_bold_mode(blob, n, THRESH_STEPS), THRESH_BOLD_OFF);
-    expect("bold.pack_sleep", status_threshold_bold_mode(blob, n, THRESH_SLEEP), THRESH_BOLD_WARN);
-    expect("bold.pack_uv", status_threshold_bold_mode(blob, n, THRESH_UV), THRESH_BOLD_ALWAYS);
-    expect("bold.pack_wind_untouched", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_WARN);
-
-    // The bold-only kinds (8..15) live in the third and fourth bold bytes
-    // (blob bytes 31/32), same 2-bit formula: byte 29 + (k >> 2), bits 2*(k & 3).
-    blob[THRESH_BOLD_OFFSET + 2] = (uint8_t)((THRESH_BOLD_ALWAYS << (2 * (THRESH_TEMP & 3)))
-                                             | (THRESH_BOLD_OFF << (2 * (THRESH_DATE & 3))));
-    blob[THRESH_BOLD_OFFSET + 3] = (uint8_t)((THRESH_BOLD_OFF << (2 * (THRESH_WEEK & 3)))
-                                             | (THRESH_BOLD_ALWAYS << (2 * (THRESH_HR & 3))));
-    expect("bold.pack_temp", status_threshold_bold_mode(blob, n, THRESH_TEMP), THRESH_BOLD_ALWAYS);
-    expect("bold.pack_pressure_default", status_threshold_bold_mode(blob, n, THRESH_PRESSURE), THRESH_BOLD_WARN);
-    expect("bold.pack_date", status_threshold_bold_mode(blob, n, THRESH_DATE), THRESH_BOLD_OFF);
-    expect("bold.pack_week", status_threshold_bold_mode(blob, n, THRESH_WEEK), THRESH_BOLD_OFF);
-    expect("bold.pack_hr", status_threshold_bold_mode(blob, n, THRESH_HR), THRESH_BOLD_ALWAYS);
-    expect("bold.pack_uv_untouched", status_threshold_bold_mode(blob, n, THRESH_UV), THRESH_BOLD_ALWAYS);
+    for (int k = 0; k < THRESH_KIND_COUNT; k++) {
+        blob[THRESH_BOLD_OFFSET + (k >> 2)] |= (uint8_t)(MODE[k] << (2 * (k & 3)));
+    }
+    static const uint8_t BYTES[5] = { 0x92, 0x61, 0x62, 0x89, 0x66 };
+    expect("bold.bytes", memcmp(blob + THRESH_BOLD_OFFSET, BYTES, sizeof(BYTES)), 0);
+    for (int k = 0; k < THRESH_KIND_COUNT; k++) {
+        expect("bold.own_cell", mode_of(blob, n, k), MODE[k]);
+    }
     // A level-less kind only ever resolves THRESH_LEVEL_NORMAL, so its unset
     // default ('warn') renders NON-bold and ALWAYS is the only mode that bolds.
-    expect("bold.levelless_default",
-           status_threshold_is_bold(blob, n, THRESH_PRESSURE, THRESH_LEVEL_NORMAL), 0);
-    expect("bold.levelless_always",
-           status_threshold_is_bold(blob, n, THRESH_TEMP, THRESH_LEVEL_NORMAL), 1);
+    expect("bold.levelless_default", bold_of(blob, n, THRESH_PRESSURE, THRESH_LEVEL_NORMAL), 0);
+    expect("bold.levelless_always", bold_of(blob, n, THRESH_TEMP, THRESH_LEVEL_NORMAL), 1);
 
-    // Kinds 16 (battery %) and 17 (dew point) share the fifth bold byte (blob
-    // byte 33), which holds four 2-bit cells — so appending dew costs the wire
-    // nothing and the two must not bleed into each other.
-    blob[THRESH_BOLD_OFFSET + 4] = (uint8_t)((THRESH_BOLD_ALWAYS << (2 * (THRESH_BATTERY_PCT & 3)))
-                                             | (THRESH_BOLD_OFF << (2 * (THRESH_DEW & 3))));
-    expect("bold.pack_battery_pct",
-           status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_ALWAYS);
-    expect("bold.battery_pct_bolds",
-           status_threshold_is_bold(blob, n, THRESH_BATTERY_PCT, THRESH_LEVEL_NORMAL), 1);
-    expect("bold.pack_dew", status_threshold_bold_mode(blob, n, THRESH_DEW), THRESH_BOLD_OFF);
-    blob[THRESH_BOLD_OFFSET + 4] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * (THRESH_DEW & 3)));
-    expect("bold.pack_dew_always", status_threshold_bold_mode(blob, n, THRESH_DEW), THRESH_BOLD_ALWAYS);
-    expect("bold.dew_bolds",
-           status_threshold_is_bold(blob, n, THRESH_DEW, THRESH_LEVEL_NORMAL), 1);
-    expect("bold.battery_pct_untouched_by_dew",
-           status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
-    // Dew is level-less like its byte-mates: its unset default ('warn') renders
-    // NON-bold, so only ALWAYS ever changes anything.
-    expect("bold.dew_default_non_bold",
-           status_threshold_is_bold(blob, n, THRESH_BATTERY_PCT, THRESH_LEVEL_NORMAL), 0);
-    expect("bold.pack_hr_untouched", status_threshold_bold_mode(blob, n, THRESH_HR), THRESH_BOLD_ALWAYS);
-
-    // Kinds 18/19 (phone battery, iconed and no-icon) take byte 33's LAST two
-    // cells, which is why the whole feature costs the wire nothing. All four
-    // cells of the byte are exercised at once so a mis-shifted cell shows up as
-    // a neighbour reading the wrong mode rather than as a silent pass.
-    blob[THRESH_BOLD_OFFSET + 4] =
-        (uint8_t)((THRESH_BOLD_ALWAYS << (2 * (THRESH_BATTERY_PCT & 3)))
-                  | (THRESH_BOLD_OFF << (2 * (THRESH_DEW & 3)))
-                  | (THRESH_BOLD_ALWAYS << (2 * (THRESH_PHONE_BATTERY & 3)))
-                  | (THRESH_BOLD_OFF << (2 * (THRESH_PHONE_BATTERY_PLAIN & 3))));
-    expect("bold.pack_phone_battery",
-           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY), THRESH_BOLD_ALWAYS);
-    expect("bold.pack_phone_battery_plain",
-           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_OFF);
-    expect("bold.phone_battery_mate_battery_pct",
-           status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_ALWAYS);
-    expect("bold.phone_battery_mate_dew",
-           status_threshold_bold_mode(blob, n, THRESH_DEW), THRESH_BOLD_OFF);
-    expect("bold.phone_battery_bolds",
-           status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY, THRESH_LEVEL_NORMAL), 1);
-    // Level-less like every byte-33 kind: OFF and the unset 'warn' default both
-    // render non-bold, so ALWAYS is the only mode that changes anything.
-    expect("bold.phone_battery_plain_off_non_bold",
-           status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY_PLAIN, THRESH_LEVEL_NORMAL), 0);
-
-    // The phone writes ONE mode into BOTH cells (the two catalog items share the
-    // settings key 'PhoneBattery', so they share one Bold sheet). Reproduce that
-    // wire shape exactly: byte 33 = 0b10100000, both variants ALWAYS, byte-mates
+    // The phone writes ONE mode into BOTH phone-battery cells (the two catalog items
+    // share the settings key 'PhoneBattery', so they share one Bold sheet). Reproduce
+    // that wire shape exactly: byte 33 = 0b10100000, both variants ALWAYS, byte-mates
     // back at their unset default.
-    blob[THRESH_BOLD_OFFSET + 4] =
-        (uint8_t)((THRESH_BOLD_ALWAYS << (2 * (THRESH_PHONE_BATTERY & 3)))
-                  | (THRESH_BOLD_ALWAYS << (2 * (THRESH_PHONE_BATTERY_PLAIN & 3))));
-    expect("bold.phone_battery_pair_byte", blob[THRESH_BOLD_OFFSET + 4], 0xA0);
+    blob[THRESH_BOLD_OFFSET + 4] = 0xA0;
     expect("bold.phone_battery_pair_iconed",
-           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY), THRESH_BOLD_ALWAYS);
+           mode_of(blob, n, THRESH_PHONE_BATTERY), THRESH_BOLD_ALWAYS);
     expect("bold.phone_battery_pair_plain",
-           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_ALWAYS);
+           mode_of(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_ALWAYS);
     expect("bold.phone_battery_pair_leaves_battery_pct",
-           status_threshold_bold_mode(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
-    expect("bold.phone_battery_pair_leaves_dew",
-           status_threshold_bold_mode(blob, n, THRESH_DEW), THRESH_BOLD_WARN);
-    expect("bold.phone_battery_plain_bolds",
-           status_threshold_is_bold(blob, n, THRESH_PHONE_BATTERY_PLAIN, THRESH_LEVEL_NORMAL), 1);
+           mode_of(blob, n, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
+    expect("bold.phone_battery_pair_leaves_dew", mode_of(blob, n, THRESH_DEW), THRESH_BOLD_WARN);
 
     // The blob width is pinned: byte 33's four cells cover kinds 16..19, and
     // the only widening since is 1.24.0's 34 -> 48 (the rain look, the Battery
@@ -342,11 +418,9 @@ static void bold_tests(void) {
     // test/inbox-size.test.js).
     expect("bold.blob_width_pinned", THRESH_SETTINGS_BYTES, 48);
     expect("bold.kind_count_pinned", THRESH_KIND_COUNT, 20);
-    expect("bold.top_kind_inside_bold_area",
-           THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2) < THRESH_ALERTS_OFFSET, 1);
     // Byte 33 is FULL — kinds 16..19 claim all four cells — and the alert bytes
     // sit right after it, so kind 20 is a layout change (a sixth bold byte AND
-    // both alert bytes relocated), not an append. status_threshold.h's
+    // everything behind it relocated), not an append. status_threshold.h's
     // _Static_asserts are the compile-time half of this pin.
     expect("bold.byte33_is_the_last_bold_byte",
            THRESH_BOLD_OFFSET + ((THRESH_KIND_COUNT - 1) >> 2), THRESH_ALERTS_OFFSET - 1);
@@ -356,16 +430,13 @@ static void bold_tests(void) {
     expect("bold.cells_end_blob", THRESH_ON_DEMAND_OFFSET + OD_ITEM_COUNT, THRESH_SETTINGS_BYTES);
     expect("bold.byte33_full", THRESH_KIND_COUNT % 4, 0);
 
-    // Degrade safely: the reserved wire value, a bad blob and a slot with no
-    // threshold kind all fall back to the shipped behaviour.
+    // Degrade safely: the reserved wire value, a bad blob, a kind past the last and
+    // a slot with no threshold kind all fall back to the shipped behaviour.
     memset(blob, 0xFF, sizeof(blob));
-    expect("bold.reserved_mode", status_threshold_bold_mode(blob, n, THRESH_WIND), THRESH_BOLD_WARN);
-    expect("bold.reserved_normal", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_NORMAL), 0);
-    expect("bold.reserved_warn", status_threshold_is_bold(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), 1);
-    expect("bold.bad_len", status_threshold_bold_mode(blob, 5, THRESH_WIND), THRESH_BOLD_WARN);
-    expect("bold.null_blob", status_threshold_bold_mode(NULL, n, THRESH_WIND), THRESH_BOLD_WARN);
-    expect("bold.oob_kind", status_threshold_bold_mode(blob, n, THRESH_KIND_COUNT), THRESH_BOLD_WARN);
-    expect("bold.no_kind", status_threshold_is_bold(blob, n, -1, THRESH_LEVEL_DANGER), 0);
+    expect("bold.reserved_mode", mode_of(blob, n, THRESH_WIND), THRESH_BOLD_WARN);
+    expect("bold.bad_len", mode_of(blob, 5, THRESH_WIND), THRESH_BOLD_WARN);
+    expect("bold.oob_kind", mode_of(blob, n, THRESH_KIND_COUNT), THRESH_BOLD_WARN);
+    expect("bold.no_kind", bold_of(blob, n, -1, THRESH_LEVEL_DANGER), 0);
 }
 
 // A blob from before the bold bytes existed (29 B) must still work: the widening
@@ -379,85 +450,42 @@ static void legacy_blob_tests(void) {
     blob[0] = (uint8_t)((1 << THRESH_AQI) | (1 << THRESH_STEPS));
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI] = 0xE4;
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI + 1] = 0xF0;
-    blob[THRESH_HEALTH_OFFSET] = 0x40;      // steps warn 8000 (LE)
-    blob[THRESH_HEALTH_OFFSET + 1] = 0x1F;
-    blob[THRESH_HEALTH_OFFSET + 2] = 0xA0;  // steps danger 4000 (LE)
-    blob[THRESH_HEALTH_OFFSET + 3] = 0x0F;
-    size_t legacy = THRESH_SETTINGS_BYTES_PRE_BOLD;
+    set_pair(blob, THRESH_STEPS, 8000, 10000);
+    // Bold bytes a 29-B blob does not hold, so a read past its end would show: every
+    // cell Always.
+    memset(blob + THRESH_BOLD_OFFSET, 0xAA, THRESH_ALERTS_OFFSET - THRESH_BOLD_OFFSET);
+    int legacy = THRESH_SETTINGS_BYTES_PRE_BOLD;
 
-    expect("legacy.valid", status_threshold_settings_validate(blob, legacy), 1);
-    expect("legacy.aqi_on", status_threshold_enabled(blob, legacy, THRESH_AQI), 1);
-    expect("legacy.wind_off", status_threshold_enabled(blob, legacy, THRESH_WIND), 0);
-    expect("legacy.warn_color",
-           status_threshold_color8(blob, legacy, THRESH_AQI, THRESH_LEVEL_WARN), 0xE4);
-    expect("legacy.danger_color",
-           status_threshold_color8(blob, legacy, THRESH_AQI, THRESH_LEVEL_DANGER), 0xF0);
-    expect("legacy.steps_warn", status_threshold_health_warn(blob, legacy, THRESH_STEPS), 8000);
-    expect("legacy.steps_danger", status_threshold_health_danger(blob, legacy, THRESH_STEPS), 4000);
+    expect("legacy.aqi_on", enabled_of(blob, legacy, THRESH_AQI), 1);
+    expect("legacy.wind_off", enabled_of(blob, legacy, THRESH_WIND), 0);
+    expect("legacy.warn_color", color_of(blob, legacy, THRESH_AQI, THRESH_LEVEL_WARN), 0xE4);
+    expect("legacy.danger_color", color_of(blob, legacy, THRESH_AQI, THRESH_LEVEL_DANGER), 0xF0);
+    expect("legacy.steps_warn", level_of(blob, legacy, 0, THRESH_STEPS, 8000), THRESH_LEVEL_WARN);
+    expect("legacy.steps_goal", level_of(blob, legacy, 0, THRESH_STEPS, 10000),
+           THRESH_LEVEL_DANGER);
     // No bold bytes to read: every kind reports the shipped bold-from-warn ladder.
-    expect("legacy.bold_mode", status_threshold_bold_mode(blob, legacy, THRESH_WIND), THRESH_BOLD_WARN);
-    expect("legacy.bold_normal",
-           status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_NORMAL), 0);
-    expect("legacy.bold_warn",
-           status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_WARN), 1);
-    expect("legacy.bold_danger",
-           status_threshold_is_bold(blob, legacy, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
-    expect("legacy.phone_battery_default",
-           status_threshold_bold_mode(blob, legacy, THRESH_PHONE_BATTERY), THRESH_BOLD_WARN);
-    expect("legacy.phone_battery_plain_default",
-           status_threshold_bold_mode(blob, legacy, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_WARN);
-    // Only the four known lengths are accepted — no partial bold byte, no slack.
-    expect("legacy.reject_30", status_threshold_settings_validate(blob, legacy + 1), 0);
-    expect("legacy.reject_28", status_threshold_settings_validate(blob, legacy - 1), 0);
-    expect("legacy.reject_27", status_threshold_settings_validate(blob, 27), 0);
-    // The interim 31-byte format (8-kind bold area) never shipped — it existed
-    // only on an unmerged branch — so it is garbage, not legacy: a stored 31-B
-    // blob reads invalid until the phone re-syncs the 33-B one.
-    expect("legacy.reject_31", status_threshold_settings_validate(blob, 31), 0);
-    expect("legacy.reject_32", status_threshold_settings_validate(blob, 32), 0);
-    // The accepted set is exactly {48, 38, 34, 33, 29}. The 35-byte and 36-byte
-    // formats existed only on the 1.24.0 feature branch, so like the 31-byte one
-    // they are garbage, not legacy; the branch's 38 is accepted as the phone that
-    // has not learnt the On demand cells yet. 37 is half a warn-look area, 39..47
-    // a part of the cells, and 49 a blob from a FUTURE, wider format: reject them
-    // until such a widening actually happens (see status_threshold.h).
-    expect("legacy.accept_34", status_threshold_settings_validate(blob, 34), 1);
-    expect("legacy.reject_35", status_threshold_settings_validate(blob, 35), 0);
-    expect("legacy.reject_36", status_threshold_settings_validate(blob, 36), 0);
-    expect("legacy.reject_37", status_threshold_settings_validate(blob, 37), 0);
-    {
-        uint8_t wide[50];
-        memset(wide, 0, sizeof(wide));
-        expect("legacy.accept_38", status_threshold_settings_validate(wide, 38), 1);
-        for (size_t len = 39; len < 48; len++) {
-            expect("legacy.reject_39_47", status_threshold_settings_validate(wide, len), 0);
-        }
-        expect("legacy.accept_48", status_threshold_settings_validate(wide, 48), 1);
-        expect("legacy.reject_49", status_threshold_settings_validate(wide, 49), 0);
+    for (int k = 0; k < THRESH_KIND_COUNT; k++) {
+        expect("legacy.bold_default", mode_of(blob, legacy, k), THRESH_BOLD_WARN);
     }
+    expect("legacy.bold_danger", bold_of(blob, legacy, THRESH_WIND, THRESH_LEVEL_DANGER), 1);
 
-    // A 33-byte blob (16-kind bold era, every current install at upgrade time)
-    // keeps kinds 0..15's bold settings and reads kind 16 as the default.
-    size_t pre16 = THRESH_SETTINGS_BYTES_PRE_KIND16;
+    // A 33-byte blob (the 16-kind bold era) keeps kinds 0..15's bold settings and
+    // reads kinds 16..19, whose byte 33 it does not hold, as the default.
+    int pre16 = THRESH_SETTINGS_BYTES_PRE_KIND16;
+    memset(blob + THRESH_BOLD_OFFSET, 0, 4);
     blob[THRESH_BOLD_OFFSET] = (uint8_t)(THRESH_BOLD_ALWAYS << (2 * THRESH_AQI));
     blob[THRESH_BOLD_OFFSET + 2] = (uint8_t)(THRESH_BOLD_OFF << (2 * (THRESH_TEMP & 3)));
-    expect("legacy33.valid", status_threshold_settings_validate(blob, pre16), 1);
-    expect("legacy33.bold_aqi", status_threshold_bold_mode(blob, pre16, THRESH_AQI), THRESH_BOLD_ALWAYS);
-    expect("legacy33.bold_temp", status_threshold_bold_mode(blob, pre16, THRESH_TEMP), THRESH_BOLD_OFF);
-    expect("legacy33.battery_pct_default",
-           status_threshold_bold_mode(blob, pre16, THRESH_BATTERY_PCT), THRESH_BOLD_WARN);
-    expect("legacy33.dew_default",
-           status_threshold_bold_mode(blob, pre16, THRESH_DEW), THRESH_BOLD_WARN);
-    // Byte 33 does not exist in a 33-byte blob, so both phone-battery cells read
-    // as the shipped default rather than off the end of the buffer.
-    expect("legacy33.phone_battery_default",
-           status_threshold_bold_mode(blob, pre16, THRESH_PHONE_BATTERY), THRESH_BOLD_WARN);
-    expect("legacy33.phone_battery_plain_default",
-           status_threshold_bold_mode(blob, pre16, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_WARN);
-    expect("legacy33.phone_battery_non_bold",
-           status_threshold_is_bold(blob, pre16, THRESH_PHONE_BATTERY, THRESH_LEVEL_NORMAL), 0);
-    expect("legacy33.aqi_on", status_threshold_enabled(blob, pre16, THRESH_AQI), 1);
-    expect("legacy33.steps_warn", status_threshold_health_warn(blob, pre16, THRESH_STEPS), 8000);
+    expect("legacy33.bold_aqi", mode_of(blob, pre16, THRESH_AQI), THRESH_BOLD_ALWAYS);
+    expect("legacy33.bold_temp", mode_of(blob, pre16, THRESH_TEMP), THRESH_BOLD_OFF);
+    expect("legacy33.bold_wind", mode_of(blob, pre16, THRESH_WIND), THRESH_BOLD_WARN);
+    for (int k = THRESH_BATTERY_PCT; k < THRESH_KIND_COUNT; k++) {
+        expect("legacy33.kind16_default", mode_of(blob, pre16, k), THRESH_BOLD_WARN);
+    }
+    expect("legacy33.aqi_on", enabled_of(blob, pre16, THRESH_AQI), 1);
+    expect("legacy33.steps_warn", level_of(blob, pre16, 0, THRESH_STEPS, 8000), THRESH_LEVEL_WARN);
+    // A 34-byte one (1.12.0 to 1.23.2) holds byte 33 too.
+    expect("legacy34.phone_battery", mode_of(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS,
+                                             THRESH_PHONE_BATTERY), THRESH_BOLD_ALWAYS);
 }
 
 // The alerts byte [34]: bits 0-1 carry the Rain item's look. A pre-alerts
@@ -466,44 +494,36 @@ static void legacy_blob_tests(void) {
 static void rain_display_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
+    int n = sizeof(blob);
     expect("rain.offset_pinned", THRESH_ALERTS_OFFSET, 34);
     expect("rain.pre_alerts_pinned", THRESH_SETTINGS_BYTES_PRE_ALERTS, 34);
-    expect("rain.text", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_TEXT);
+    expect("rain.text", rain_of(blob, n), THRESH_RAIN_DISPLAY_TEXT);
     blob[THRESH_ALERTS_OFFSET] = 1;
-    expect("rain.icon", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_ICON);
+    expect("rain.icon", rain_of(blob, n), THRESH_RAIN_DISPLAY_ICON);
     blob[THRESH_ALERTS_OFFSET] = 2;
-    expect("rain.minutes", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_MINUTES);
+    expect("rain.minutes", rain_of(blob, n), THRESH_RAIN_DISPLAY_MINUTES);
     // The reserved value 3 reads as the legacy look.
     blob[THRESH_ALERTS_OFFSET] = 3;
-    expect("rain.reserved", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_TEXT);
+    expect("rain.reserved", rain_of(blob, n), THRESH_RAIN_DISPLAY_TEXT);
     // Bits 2-7 are reserved (DWD warnings later): they never leak into the look.
     blob[THRESH_ALERTS_OFFSET] = (uint8_t)(0xFC | 2);
-    expect("rain.reserved_bits_ignored", status_threshold_rain_display(blob, n),
-           THRESH_RAIN_DISPLAY_MINUTES);
+    expect("rain.reserved_bits_ignored", rain_of(blob, n), THRESH_RAIN_DISPLAY_MINUTES);
     // The byte lives past every bold cell: writing it moves no kind's bold mode.
-    expect("rain.no_bold_alias",
-           status_threshold_bold_mode(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_WARN);
+    expect("rain.no_bold_alias", mode_of(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_BOLD_WARN);
     // A pre-alerts blob: byte 34 is not there — text, never a read past the end.
-    expect("rain.pre_alerts_text",
-           status_threshold_rain_display(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS),
+    expect("rain.pre_alerts_text", rain_of(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS),
            THRESH_RAIN_DISPLAY_TEXT);
-    expect("rain.pre_kind16_text",
-           status_threshold_rain_display(blob, THRESH_SETTINGS_BYTES_PRE_KIND16),
+    expect("rain.pre_kind16_text", rain_of(blob, THRESH_SETTINGS_BYTES_PRE_KIND16),
            THRESH_RAIN_DISPLAY_TEXT);
-    expect("rain.pre_bold_text",
-           status_threshold_rain_display(blob, THRESH_SETTINGS_BYTES_PRE_BOLD),
+    expect("rain.pre_bold_text", rain_of(blob, THRESH_SETTINGS_BYTES_PRE_BOLD),
            THRESH_RAIN_DISPLAY_TEXT);
-    expect("rain.bad_len", status_threshold_rain_display(blob, 27), THRESH_RAIN_DISPLAY_TEXT);
-    expect("rain.null", status_threshold_rain_display(NULL, n), THRESH_RAIN_DISPLAY_TEXT);
+    expect("rain.bad_len", rain_of(blob, 27), THRESH_RAIN_DISPLAY_TEXT);
+    // The never-shipped 38 is no blob at all: text, though it holds the byte.
+    expect("rain.dev38_rejected", rain_of(blob, 38), THRESH_RAIN_DISPLAY_TEXT);
     // The Battery byte next door never leaks into the look.
     blob[THRESH_ALERTS_OFFSET] = 1;
     blob[THRESH_BATTERY_OFFSET] = 0xFF;
-    expect("rain.battery_no_alias", status_threshold_rain_display(blob, n),
-           THRESH_RAIN_DISPLAY_ICON);
-    // The development branch's 38-B blob carries the byte too.
-    expect("rain.dev38", status_threshold_rain_display(blob, THRESH_SETTINGS_BYTES_PRE_ON_DEMAND),
-           THRESH_RAIN_DISPLAY_ICON);
+    expect("rain.battery_no_alias", rain_of(blob, n), THRESH_RAIN_DISPLAY_ICON);
 }
 
 // The On demand cells [38 + item]: one byte per OdItem, 2 bits per bar at bits
@@ -512,7 +532,7 @@ static void rain_display_tests(void) {
 static void on_demand_cell_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
+    int n = sizeof(blob);
     expect("cells.offset_pinned", THRESH_ON_DEMAND_OFFSET, 38);
     expect("cells.bars", THRESH_BAR_COUNT, 4);
     expect("cells.items", OD_ITEM_COUNT, 10);
@@ -520,62 +540,45 @@ static void on_demand_cell_tests(void) {
     // All zero: nothing anywhere, the Watch Status Bar too.
     for (int bar = 0; bar < THRESH_BAR_COUNT; bar++) {
         for (int item = 0; item < OD_ITEM_COUNT; item++) {
-            expect("cells.zero_none", status_threshold_on_demand_side(blob, n, bar, item),
-                   OD_SIDE_NONE);
+            expect("cells.zero_none", side_of(blob, n, bar, item), OD_SIDE_NONE);
         }
     }
     // Rain: top right, forecast left, radar the reserved 3, health right.
     blob[THRESH_ON_DEMAND_OFFSET + OD_RAIN] = (uint8_t)(OD_SIDE_RIGHT
         | (OD_SIDE_LEFT << 2) | (3 << 4) | (OD_SIDE_RIGHT << 6));
-    expect("cells.rain_top", status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_RAIN),
-           OD_SIDE_RIGHT);
-    expect("cells.rain_forecast",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_FORECAST, OD_RAIN), OD_SIDE_LEFT);
-    expect("cells.rain_radar_reserved",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_RADAR, OD_RAIN), OD_SIDE_NONE);
-    expect("cells.rain_health",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_HEALTH, OD_RAIN), OD_SIDE_RIGHT);
+    expect("cells.rain_top", side_of(blob, n, THRESH_BAR_TOP, OD_RAIN), OD_SIDE_RIGHT);
+    expect("cells.rain_forecast", side_of(blob, n, THRESH_BAR_FORECAST, OD_RAIN), OD_SIDE_LEFT);
+    expect("cells.rain_radar_reserved", side_of(blob, n, THRESH_BAR_RADAR, OD_RAIN), OD_SIDE_NONE);
+    expect("cells.rain_health", side_of(blob, n, THRESH_BAR_HEALTH, OD_RAIN), OD_SIDE_RIGHT);
     // Each item reads its own byte: its neighbours stay none.
-    expect("cells.sleep_untouched",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_SLEEP), OD_SIDE_NONE);
-    expect("cells.gust_untouched",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_GUST), OD_SIDE_NONE);
+    expect("cells.sleep_untouched", side_of(blob, n, THRESH_BAR_TOP, OD_SLEEP), OD_SIDE_NONE);
+    expect("cells.gust_untouched", side_of(blob, n, THRESH_BAR_TOP, OD_GUST), OD_SIDE_NONE);
     // The first and the last cell byte.
     blob[THRESH_ON_DEMAND_OFFSET + OD_BATTERY] = OD_SIDE_LEFT;
     blob[THRESH_ON_DEMAND_OFFSET + OD_WIND] = (uint8_t)(OD_SIDE_LEFT << 6);
-    expect("cells.battery_top_left",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_LEFT);
-    expect("cells.wind_health_left",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_HEALTH, OD_WIND), OD_SIDE_LEFT);
-    expect("cells.wind_top_none",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_WIND), OD_SIDE_NONE);
+    expect("cells.battery_top_left", side_of(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_LEFT);
+    expect("cells.wind_health_left", side_of(blob, n, THRESH_BAR_HEALTH, OD_WIND), OD_SIDE_LEFT);
+    expect("cells.wind_top_none", side_of(blob, n, THRESH_BAR_TOP, OD_WIND), OD_SIDE_NONE);
     // Out of range: none, never a read past the end.
-    expect("cells.oob_bar_neg", status_threshold_on_demand_side(blob, n, -1, OD_RAIN), OD_SIDE_NONE);
-    expect("cells.oob_bar", status_threshold_on_demand_side(blob, n, THRESH_BAR_COUNT, OD_RAIN),
-           OD_SIDE_NONE);
-    expect("cells.oob_item_neg", status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, -1),
-           OD_SIDE_NONE);
-    expect("cells.oob_item",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_ITEM_COUNT), OD_SIDE_NONE);
+    expect("cells.oob_bar_neg", side_of(blob, n, -1, OD_RAIN), OD_SIDE_NONE);
+    expect("cells.oob_bar", side_of(blob, n, THRESH_BAR_COUNT, OD_RAIN), OD_SIDE_NONE);
+    expect("cells.oob_item_neg", side_of(blob, n, THRESH_BAR_TOP, -1), OD_SIDE_NONE);
+    expect("cells.oob_item", side_of(blob, n, THRESH_BAR_TOP, OD_ITEM_COUNT), OD_SIDE_NONE);
     // The warn-look and Battery bytes never leak into the cells, nor they into them.
     memset(blob, 0, sizeof(blob));
     blob[THRESH_WARN_LOOK_OFFSET + 1] = 0xFF;
     blob[THRESH_BATTERY_OFFSET] = 0xFF;
-    expect("cells.no_alias_from_look",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_NONE);
+    expect("cells.no_alias_from_look", side_of(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_NONE);
     memset(blob, 0, sizeof(blob));
     memset(blob + THRESH_ON_DEMAND_OFFSET, 0xFF, OD_ITEM_COUNT);
-    expect("cells.no_alias_into_look",
-           status_threshold_warn_look(blob, n, THRESH_UV), THRESH_WARN_LOOK_NONE);
-    expect("cells.no_alias_into_battery", status_threshold_battery_level(blob, n),
-           THRESH_BATTERY_LEVEL_DEFAULT);
-    expect("cells.all_reserved_none",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_RADAR, OD_UV), OD_SIDE_NONE);
+    expect("cells.no_alias_into_look", warn_look_of(blob, n, THRESH_UV), THRESH_WARN_LOOK_NONE);
+    expect("cells.no_alias_into_battery", battery_level_of(blob, n), THRESH_BATTERY_LEVEL_DEFAULT);
+    expect("cells.all_reserved_none", side_of(blob, n, THRESH_BAR_RADAR, OD_UV), OD_SIDE_NONE);
 }
 
-// A blob without the cells — the development branch's 38, the 1.23.2 shapes 34/33/29,
-// a bad length, none stored — reads the compiled defaults: the phone's defaults for the
-// Watch Status Bar, and nothing on any other bar.
+// A blob without the cells — the 1.23.2 shapes 34/33/29, an invalid length (the
+// never-shipped 38 among them), none stored — reads the compiled defaults: the
+// phone's defaults for the Watch Status Bar, and nothing on any other bar.
 static void on_demand_default_tests(void) {
     static const int TOP[OD_ITEM_COUNT] = {
         [OD_BATTERY] = OD_SIDE_RIGHT, [OD_BLUETOOTH] = OD_SIDE_LEFT,
@@ -585,39 +588,24 @@ static void on_demand_default_tests(void) {
     };
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    // The development blob's byte 35 was the placement; whatever it holds, it is
-    // neither a battery level nor a cell.
+    // Byte 35 as a 48-B blob would read it: 21 %, Icon + value. No other length
+    // holds it.
     blob[THRESH_BATTERY_OFFSET] = 0x55;
-    size_t lens[] = { THRESH_SETTINGS_BYTES_PRE_ON_DEMAND, THRESH_SETTINGS_BYTES_PRE_ALERTS,
-                      THRESH_SETTINGS_BYTES_PRE_KIND16, THRESH_SETTINGS_BYTES_PRE_BOLD,
-                      47, 35, 27, 0 };
+    expect("defaults.full_reads_level", battery_level_of(blob, THRESH_SETTINGS_BYTES), 21);
+    expect("defaults.full_reads_value", battery_value_of(blob, THRESH_SETTINGS_BYTES), 1);
+    int lens[] = { THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_SETTINGS_BYTES_PRE_KIND16,
+                   THRESH_SETTINGS_BYTES_PRE_BOLD, 47, 38, 35, 27, 0, -1 };
     for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
         for (int item = 0; item < OD_ITEM_COUNT; item++) {
-            expect("defaults.top", status_threshold_on_demand_side(blob, lens[i],
-                   THRESH_BAR_TOP, item), TOP[item]);
+            expect("defaults.top", side_of(blob, lens[i], THRESH_BAR_TOP, item), TOP[item]);
             for (int bar = THRESH_BAR_FORECAST; bar < THRESH_BAR_COUNT; bar++) {
-                expect("defaults.others_none",
-                       status_threshold_on_demand_side(blob, lens[i], bar, item), OD_SIDE_NONE);
+                expect("defaults.others_none", side_of(blob, lens[i], bar, item), OD_SIDE_NONE);
             }
         }
-        expect("defaults.battery_level", status_threshold_battery_level(blob, lens[i]),
+        expect("defaults.battery_level", battery_level_of(blob, lens[i]),
                THRESH_BATTERY_LEVEL_DEFAULT);
-        expect("defaults.battery_icon", status_threshold_battery_value(blob, lens[i]), 0);
+        expect("defaults.battery_icon", battery_value_of(blob, lens[i]), 0);
     }
-    for (int item = 0; item < OD_ITEM_COUNT; item++) {
-        expect("defaults.null_top",
-               status_threshold_on_demand_side(NULL, THRESH_SETTINGS_BYTES, THRESH_BAR_TOP, item),
-               TOP[item]);
-    }
-    expect("defaults.null_level", status_threshold_battery_level(NULL, THRESH_SETTINGS_BYTES),
-           THRESH_BATTERY_LEVEL_DEFAULT);
-    // The spelled-out right side: battery, rain, gust, UV, AQI, wind — pollen off.
-    int right = 0;
-    for (int item = 0; item < OD_ITEM_COUNT; item++) {
-        if (TOP[item] == OD_SIDE_RIGHT) { right |= 1 << item; }
-    }
-    expect("defaults.right_set", right, (1 << OD_BATTERY) | (1 << OD_RAIN) | (1 << OD_GUST)
-           | (1 << OD_UV) | (1 << OD_AQI) | (1 << OD_WIND));
 }
 
 // The Battery byte [35]: bits 0-5 the warn level, bit 6 the Look, bit 7 reserved.
@@ -626,33 +614,33 @@ static void on_demand_default_tests(void) {
 static void battery_byte_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
+    int n = sizeof(blob);
     expect("battery.offset_pinned", THRESH_BATTERY_OFFSET, 35);
     expect("battery.default_pinned", THRESH_BATTERY_LEVEL_DEFAULT, 10);
-    expect("battery.zero", status_threshold_battery_level(blob, n), 10);
-    expect("battery.zero_icon", status_threshold_battery_value(blob, n), 0);
+    expect("battery.zero", battery_level_of(blob, n), 10);
+    expect("battery.zero_icon", battery_value_of(blob, n), 0);
     for (int level = 5; level <= 30; level++) {
         blob[THRESH_BATTERY_OFFSET] = (uint8_t)level;
-        expect("battery.verbatim", status_threshold_battery_level(blob, n), level);
+        expect("battery.verbatim", battery_level_of(blob, n), level);
     }
     blob[THRESH_BATTERY_OFFSET] = 15;
-    expect("battery.never_rounds", status_threshold_battery_level(blob, n), 15);
+    expect("battery.never_rounds", battery_level_of(blob, n), 15);
     int bad[] = { 1, 4, 31, 45, 63 };
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         blob[THRESH_BATTERY_OFFSET] = (uint8_t)bad[i];
-        expect("battery.out_of_range", status_threshold_battery_level(blob, n), 10);
+        expect("battery.out_of_range", battery_level_of(blob, n), 10);
     }
     // The Look bit and the reserved bit 7 stay out of the level.
     blob[THRESH_BATTERY_OFFSET] = (uint8_t)(THRESH_BATTERY_VALUE_BIT | 20);
-    expect("battery.value_level", status_threshold_battery_level(blob, n), 20);
-    expect("battery.value", status_threshold_battery_value(blob, n), 1);
+    expect("battery.value_level", battery_level_of(blob, n), 20);
+    expect("battery.value", battery_value_of(blob, n), 1);
     blob[THRESH_BATTERY_OFFSET] = (uint8_t)(0x80 | 25);
-    expect("battery.bit7_level", status_threshold_battery_level(blob, n), 25);
-    expect("battery.bit7_icon", status_threshold_battery_value(blob, n), 0);
+    expect("battery.bit7_level", battery_level_of(blob, n), 25);
+    expect("battery.bit7_icon", battery_value_of(blob, n), 0);
     // The rain look next door never leaks in.
     blob[THRESH_BATTERY_OFFSET] = 30;
     blob[THRESH_ALERTS_OFFSET] = 0xFF;
-    expect("battery.rain_no_alias", status_threshold_battery_level(blob, n), 30);
+    expect("battery.rain_no_alias", battery_level_of(blob, n), 30);
     // The item is active AT the level, not only below it.
     expect("battery.low_below", status_threshold_battery_low(9, 10), 1);
     expect("battery.low_at", status_threshold_battery_low(10, 10), 1);
@@ -677,18 +665,18 @@ static void bar_of_line_tests(void) {
     // cell and no other.
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
+    int n = sizeof(blob);
     blob[THRESH_ON_DEMAND_OFFSET + OD_UV] = (uint8_t)(OD_SIDE_LEFT
         | (OD_SIDE_RIGHT << 2) | (OD_SIDE_NONE << 4) | (OD_SIDE_LEFT << 6));
-    expect("line.top_cell", status_threshold_on_demand_side(blob, n,
+    expect("line.top_cell", side_of(blob, n,
            status_threshold_bar_of_line(STATUS_LINE_TOP), OD_UV), OD_SIDE_LEFT);
-    expect("line.forecast_cell", status_threshold_on_demand_side(blob, n,
+    expect("line.forecast_cell", side_of(blob, n,
            status_threshold_bar_of_line(STATUS_LINE_FORECAST), OD_UV), OD_SIDE_RIGHT);
-    expect("line.radar_cell", status_threshold_on_demand_side(blob, n,
+    expect("line.radar_cell", side_of(blob, n,
            status_threshold_bar_of_line(STATUS_LINE_RADAR), OD_UV), OD_SIDE_NONE);
-    expect("line.health_cell", status_threshold_on_demand_side(blob, n,
+    expect("line.health_cell", side_of(blob, n,
            status_threshold_bar_of_line(STATUS_LINE_HEALTH), OD_UV), OD_SIDE_LEFT);
-    expect("line.oob_cell_none", status_threshold_on_demand_side(blob, n,
+    expect("line.oob_cell_none", side_of(blob, n,
            status_threshold_bar_of_line(STATUS_LINE_COUNT), OD_UV), OD_SIDE_NONE);
 }
 
@@ -698,14 +686,14 @@ static void bar_of_line_tests(void) {
 static void warn_look_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
+    int n = sizeof(blob);
     expect("look.offset_pinned", THRESH_WARN_LOOK_OFFSET, 36);
     expect("look.enum", THRESH_WARN_LOOK_NONE * 100 + THRESH_WARN_LOOK_OUTLINE * 10
            + THRESH_WARN_LOOK_FILL, 12);
     // All zero: every paired kind none, even with a warn colour set.
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI] = 0xFF;
     for (int k = 0; k < THRESH_PAIRED_KIND_COUNT; k++) {
-        expect("look.zero_none", status_threshold_warn_look(blob, n, k), THRESH_WARN_LOOK_NONE);
+        expect("look.zero_none", warn_look_of(blob, n, k), THRESH_WARN_LOOK_NONE);
     }
     // aqi fill, pollen outline, wind none, gust fill | steps outline, sleep fill,
     // distance none, uv outline.
@@ -715,182 +703,123 @@ static void warn_look_tests(void) {
     blob[THRESH_WARN_LOOK_OFFSET + 1] = (uint8_t)(THRESH_WARN_LOOK_OUTLINE
         | (THRESH_WARN_LOOK_FILL << 2) | (THRESH_WARN_LOOK_NONE << 4)
         | (THRESH_WARN_LOOK_OUTLINE << 6));
-    expect("look.aqi", status_threshold_warn_look(blob, n, THRESH_AQI), THRESH_WARN_LOOK_FILL);
-    expect("look.pollen", status_threshold_warn_look(blob, n, THRESH_POLLEN), THRESH_WARN_LOOK_OUTLINE);
-    expect("look.wind", status_threshold_warn_look(blob, n, THRESH_WIND), THRESH_WARN_LOOK_NONE);
-    expect("look.gust", status_threshold_warn_look(blob, n, THRESH_GUST), THRESH_WARN_LOOK_FILL);
-    expect("look.steps", status_threshold_warn_look(blob, n, THRESH_STEPS), THRESH_WARN_LOOK_OUTLINE);
-    expect("look.sleep", status_threshold_warn_look(blob, n, THRESH_SLEEP), THRESH_WARN_LOOK_FILL);
-    expect("look.distance", status_threshold_warn_look(blob, n, THRESH_DISTANCE), THRESH_WARN_LOOK_NONE);
-    expect("look.uv", status_threshold_warn_look(blob, n, THRESH_UV), THRESH_WARN_LOOK_OUTLINE);
+    expect("look.aqi", warn_look_of(blob, n, THRESH_AQI), THRESH_WARN_LOOK_FILL);
+    expect("look.pollen", warn_look_of(blob, n, THRESH_POLLEN), THRESH_WARN_LOOK_OUTLINE);
+    expect("look.wind", warn_look_of(blob, n, THRESH_WIND), THRESH_WARN_LOOK_NONE);
+    expect("look.gust", warn_look_of(blob, n, THRESH_GUST), THRESH_WARN_LOOK_FILL);
+    expect("look.steps", warn_look_of(blob, n, THRESH_STEPS), THRESH_WARN_LOOK_OUTLINE);
+    expect("look.sleep", warn_look_of(blob, n, THRESH_SLEEP), THRESH_WARN_LOOK_FILL);
+    expect("look.distance", warn_look_of(blob, n, THRESH_DISTANCE), THRESH_WARN_LOOK_NONE);
+    expect("look.uv", warn_look_of(blob, n, THRESH_UV), THRESH_WARN_LOOK_OUTLINE);
     // The reserved value 3 reads as outline.
     blob[THRESH_WARN_LOOK_OFFSET] = 0x03;
-    expect("look.reserved", status_threshold_warn_look(blob, n, THRESH_AQI), THRESH_WARN_LOOK_OUTLINE);
+    expect("look.reserved", warn_look_of(blob, n, THRESH_AQI), THRESH_WARN_LOOK_OUTLINE);
     // Non-paired kinds (bold-only, out of range) own no look: none.
     blob[THRESH_WARN_LOOK_OFFSET] = 0xFF;
     blob[THRESH_WARN_LOOK_OFFSET + 1] = 0xFF;
-    expect("look.temp_none", status_threshold_warn_look(blob, n, THRESH_TEMP), THRESH_WARN_LOOK_NONE);
+    expect("look.temp_none", warn_look_of(blob, n, THRESH_TEMP), THRESH_WARN_LOOK_NONE);
     expect("look.phone_none",
-           status_threshold_warn_look(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_WARN_LOOK_NONE);
-    expect("look.neg_none", status_threshold_warn_look(blob, n, -1), THRESH_WARN_LOOK_NONE);
-    expect("look.oob_none", status_threshold_warn_look(blob, n, THRESH_KIND_COUNT), THRESH_WARN_LOOK_NONE);
+           warn_look_of(blob, n, THRESH_PHONE_BATTERY_PLAIN), THRESH_WARN_LOOK_NONE);
+    expect("look.neg_none", warn_look_of(blob, n, -1), THRESH_WARN_LOOK_NONE);
+    expect("look.oob_none", warn_look_of(blob, n, THRESH_KIND_COUNT), THRESH_WARN_LOOK_NONE);
     // The look bytes never leak into the rain look, the Battery byte or the cells
     // around them, nor they into it.
-    expect("look.rain_no_alias", status_threshold_rain_display(blob, n), THRESH_RAIN_DISPLAY_TEXT);
-    expect("look.battery_no_alias", status_threshold_battery_level(blob, n),
-           THRESH_BATTERY_LEVEL_DEFAULT);
-    expect("look.cells_no_alias",
-           status_threshold_on_demand_side(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_NONE);
+    expect("look.rain_no_alias", rain_of(blob, n), THRESH_RAIN_DISPLAY_TEXT);
+    expect("look.battery_no_alias", battery_level_of(blob, n), THRESH_BATTERY_LEVEL_DEFAULT);
+    expect("look.cells_no_alias", side_of(blob, n, THRESH_BAR_TOP, OD_BATTERY), OD_SIDE_NONE);
     blob[THRESH_WARN_LOOK_OFFSET] = 0;
     blob[THRESH_BATTERY_OFFSET] = 0xFF;
     blob[THRESH_ALERTS_OFFSET] = 0xFF;
     blob[THRESH_ON_DEMAND_OFFSET] = 0xFF;
-    expect("look.alerts_no_alias", status_threshold_warn_look(blob, n, THRESH_AQI), THRESH_WARN_LOOK_NONE);
-    // The development branch's 38-B blob carries the look bytes and reads them.
+    expect("look.alerts_no_alias", warn_look_of(blob, n, THRESH_AQI), THRESH_WARN_LOOK_NONE);
+    // The never-shipped 38-B blob is no blob: no look, though it holds the bytes.
     blob[THRESH_WARN_LOOK_OFFSET] = THRESH_WARN_LOOK_FILL;
-    expect("look.dev38", status_threshold_warn_look(blob, THRESH_SETTINGS_BYTES_PRE_ON_DEMAND,
-           THRESH_AQI), THRESH_WARN_LOOK_FILL);
+    expect("look.full_fill", warn_look_of(blob, n, THRESH_AQI), THRESH_WARN_LOOK_FILL);
+    expect("look.dev38_rejected", warn_look_of(blob, 38, THRESH_AQI), THRESH_WARN_LOOK_NONE);
     // Legacy lengths derive from the warn color byte: 0x00 none, else outline —
     // whatever the (absent) look bytes would have said.
     memset(blob, 0, sizeof(blob));
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_AQI] = 0xFF;       // aqi: white warn outline
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_STEPS] = 0xCC;     // steps: green close outline
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND + 1] = 0xF0;  // wind: danger colour only
-    blob[THRESH_WARN_LOOK_OFFSET] = 0xAA;                     // would read fill if 38+ B
-    size_t lens[] = { THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_SETTINGS_BYTES_PRE_KIND16,
-                      THRESH_SETTINGS_BYTES_PRE_BOLD };
+    blob[THRESH_WARN_LOOK_OFFSET] = 0xAA;                     // would read fill at 48 B
+    int lens[] = { THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_SETTINGS_BYTES_PRE_KIND16,
+                   THRESH_SETTINGS_BYTES_PRE_BOLD };
     for (size_t i = 0; i < sizeof(lens) / sizeof(lens[0]); i++) {
         expect("look.legacy_aqi_outline",
-               status_threshold_warn_look(blob, lens[i], THRESH_AQI), THRESH_WARN_LOOK_OUTLINE);
+               warn_look_of(blob, lens[i], THRESH_AQI), THRESH_WARN_LOOK_OUTLINE);
         expect("look.legacy_steps_outline",
-               status_threshold_warn_look(blob, lens[i], THRESH_STEPS), THRESH_WARN_LOOK_OUTLINE);
+               warn_look_of(blob, lens[i], THRESH_STEPS), THRESH_WARN_LOOK_OUTLINE);
         expect("look.legacy_wind_none",
-               status_threshold_warn_look(blob, lens[i], THRESH_WIND), THRESH_WARN_LOOK_NONE);
+               warn_look_of(blob, lens[i], THRESH_WIND), THRESH_WARN_LOOK_NONE);
+        expect("look.legacy_pollen_none",
+               warn_look_of(blob, lens[i], THRESH_POLLEN), THRESH_WARN_LOOK_NONE);
         expect("look.legacy_temp_none",
-               status_threshold_warn_look(blob, lens[i], THRESH_TEMP), THRESH_WARN_LOOK_NONE);
+               warn_look_of(blob, lens[i], THRESH_TEMP), THRESH_WARN_LOOK_NONE);
     }
-    // Invalid input: none, never a read past the end. The never-shipped 36 and
-    // 35 are invalid too, so aqi's white warn colour derives no outline there.
-    expect("look.bad_len", status_threshold_warn_look(blob, 37, THRESH_AQI), THRESH_WARN_LOOK_NONE);
-    expect("look.len36", status_threshold_warn_look(blob, 36, THRESH_AQI), THRESH_WARN_LOOK_NONE);
-    expect("look.len35", status_threshold_warn_look(blob, 35, THRESH_AQI), THRESH_WARN_LOOK_NONE);
-    expect("look.len27", status_threshold_warn_look(blob, 27, THRESH_AQI), THRESH_WARN_LOOK_NONE);
-    expect("look.null", status_threshold_warn_look(NULL, n, THRESH_AQI), THRESH_WARN_LOOK_NONE);
+    // Invalid input: none — nothing stored derives no outline from aqi's white warn
+    // colour. The never-shipped 36 and 35 are invalid too.
+    int bad[] = { 37, 36, 35, 27 };
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        expect("look.bad_len", warn_look_of(blob, bad[i], THRESH_AQI), THRESH_WARN_LOOK_NONE);
+    }
 }
 
 static void health_value_tests(void) {
-    // Wire-unit conversion for the watch-side comparison (spec: "C-side:
-    // threshold comparison for steps/sleep/distance against health values").
+    // Wire-unit conversion for the watch-side comparison: steps as-is, sleep seconds
+    // to minutes, distance metres to 100 m units.
     expect("hv.steps", status_threshold_health_value(THRESH_STEPS, 8421, 0, 0), 8421);
     // Unavailable (INT_MIN-derived negative from health_summary_steps()) must
     // sentinel to -1 like sleep/distance below, NOT clamp to 0 — a clamp here
-    // would defeat the caller's "-1 = never highlight" guard (see the
-    // regression test right after this one).
+    // would defeat the "-1 = never highlight" guard (the regression pin below).
     expect("hv.steps_none", status_threshold_health_value(THRESH_STEPS, -3, 0, 0), -1);
     expect("hv.sleep", status_threshold_health_value(THRESH_SLEEP, 0, 27000, 0), 450);
     expect("hv.sleep_none", status_threshold_health_value(THRESH_SLEEP, 0, 0, 0), -1);
     expect("hv.dist", status_threshold_health_value(THRESH_DISTANCE, 0, 0, 5000), 50);
     expect("hv.dist_none", status_threshold_health_value(THRESH_DISTANCE, 0, 0, -1), -1);
     expect("hv.weather", status_threshold_health_value(THRESH_AQI, 1, 1, 1), -1);
-    // End to end: 7h30 sleep vs warn 480 min / danger 300 min -> Warn.
-    expect("hv.level", status_threshold_level(
-        status_threshold_health_value(THRESH_SLEEP, 0, 27000, 0), 480, 300, true),
-        THRESH_LEVEL_WARN);
-    // Regression pin: an unavailable steps reading must never paint Danger.
-    // status_threshold_level() itself has no -1 guard (a raw 0 legitimately
-    // reads Danger under below-is-worse — see "below.danger" above, and low
-    // steps early in the day is an accepted product quirk); the consumer
-    // (status_threshold_slot_level(), pinned end to end in slot_level_tests) is
-    // responsible for intercepting a negative health_value() result before ever
-    // calling status_threshold_level(). This
-    // reproduces that exact two-step contract for steps: before the fix,
-    // health_value_tests's old "hv.steps_neg" clamped -3 to 0, and 0 fed
-    // straight into status_threshold_level(..., below_is_worse=true) below
-    // warn/danger thresholds of 8000/4000 came back DANGER — a false alarm on
-    // absent data. After the fix it sentinels to -1 and the guard below
-    // short-circuits to NORMAL instead.
-    int steps_value = status_threshold_health_value(THRESH_STEPS, -3, 0, 0);
-    int steps_level = steps_value < 0 ? THRESH_LEVEL_NORMAL
-        : status_threshold_level(steps_value, 8000, 4000, true);
-    expect("hv.steps_none_not_danger", steps_level, THRESH_LEVEL_NORMAL);
-}
-
-static int box_of(const uint8_t *blob, size_t len, int kind, int level) {
-    return status_threshold_look(blob, len, kind, level).box;
-}
-
-// The box decision both draw paths (slot + alert icon) share: NORMAL none,
-// DANGER fill whatever the look, WARN exactly the look; the look reads the
-// kind's warn look from the blob and matches the pure form for every level x look.
-static void box_tests(void) {
-    expect("box.enum", THRESH_BOX_NONE * 100 + THRESH_BOX_OUTLINE * 10 + THRESH_BOX_FILL, 12);
-    int looks[] = { THRESH_WARN_LOOK_NONE, THRESH_WARN_LOOK_OUTLINE, THRESH_WARN_LOOK_FILL };
-    for (int i = 0; i < 3; i++) {
-        expect("box.normal_none",
-               status_threshold_box_for(THRESH_LEVEL_NORMAL, looks[i]), THRESH_BOX_NONE);
-        expect("box.danger_fill",
-               status_threshold_box_for(THRESH_LEVEL_DANGER, looks[i]), THRESH_BOX_FILL);
-    }
-    expect("box.warn_none",
-           status_threshold_box_for(THRESH_LEVEL_WARN, THRESH_WARN_LOOK_NONE), THRESH_BOX_NONE);
-    expect("box.warn_outline",
-           status_threshold_box_for(THRESH_LEVEL_WARN, THRESH_WARN_LOOK_OUTLINE), THRESH_BOX_OUTLINE);
-    expect("box.warn_fill",
-           status_threshold_box_for(THRESH_LEVEL_WARN, THRESH_WARN_LOOK_FILL), THRESH_BOX_FILL);
-    expect("box.warn_reserved", status_threshold_box_for(THRESH_LEVEL_WARN, 3), THRESH_BOX_OUTLINE);
-    expect("box.bad_level", status_threshold_box_for(7, THRESH_WARN_LOOK_FILL), THRESH_BOX_NONE);
-
+    // End to end: 7h30 of sleep against close 420 min / goal 480 min -> close.
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
-    // aqi none, pollen outline, wind fill, gust fill | steps outline (goal close).
-    blob[THRESH_WARN_LOOK_OFFSET] = (uint8_t)(THRESH_WARN_LOOK_NONE
-        | (THRESH_WARN_LOOK_OUTLINE << 2) | (THRESH_WARN_LOOK_FILL << 4)
-        | (THRESH_WARN_LOOK_FILL << 6));
-    blob[THRESH_WARN_LOOK_OFFSET + 1] = (uint8_t)THRESH_WARN_LOOK_OUTLINE;
-    // The warn colour bytes say nothing about the box on a 38-byte blob: a 0x00
-    // warn colour under 'fill' still fills.
-    blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0x00;
-    blob[THRESH_COLORS_OFFSET + 2 * THRESH_POLLEN] = 0xFF;
-    expect("box.blob_aqi_none",
-           box_of(blob, n, THRESH_AQI, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
-    expect("box.blob_pollen_outline",
-           box_of(blob, n, THRESH_POLLEN, THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
-    expect("box.blob_wind_fill_zero_colour",
-           box_of(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), THRESH_BOX_FILL);
-    expect("box.blob_steps_outline",
-           box_of(blob, n, THRESH_STEPS, THRESH_LEVEL_WARN), THRESH_BOX_OUTLINE);
-    expect("box.blob_aqi_danger_fill",
-           box_of(blob, n, THRESH_AQI, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
-    expect("box.blob_aqi_normal_none",
-           box_of(blob, n, THRESH_AQI, THRESH_LEVEL_NORMAL), THRESH_BOX_NONE);
-    for (int k = 0; k < THRESH_PAIRED_KIND_COUNT; k++) {
-        for (int lv = THRESH_LEVEL_NORMAL; lv <= THRESH_LEVEL_DANGER; lv++) {
-            expect("box.blob_matches_pure", box_of(blob, n, k, lv),
-                   status_threshold_box_for(lv, status_threshold_warn_look(blob, n, k)));
-        }
-    }
-    // A pre-alerts 34-byte blob (every install at upgrade time): the warn
-    // colour's 0x00 still means no box (derived inside the look accessor only),
-    // any colour an outline.
-    expect("box.legacy_wind_none",
-           box_of(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_WIND, THRESH_LEVEL_WARN),
-           THRESH_BOX_NONE);
-    expect("box.legacy_pollen_outline",
-           box_of(blob, THRESH_SETTINGS_BYTES_PRE_ALERTS, THRESH_POLLEN, THRESH_LEVEL_WARN),
-           THRESH_BOX_OUTLINE);
-    // A kind without a pair has no look: no box at warn; danger still fills.
-    expect("box.temp_warn_none",
-           box_of(blob, n, THRESH_TEMP, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
-    expect("box.temp_danger_fill",
-           box_of(blob, n, THRESH_TEMP, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
-    expect("box.invalid_warn_none",
-           box_of(NULL, n, THRESH_AQI, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+    int n = sizeof(blob);
+    blob[0] = (uint8_t)((1 << THRESH_STEPS) | (1 << THRESH_SLEEP));
+    set_pair(blob, THRESH_SLEEP, 420, 480);
+    expect("hv.level", level_of(blob, n, 0, THRESH_SLEEP,
+           status_threshold_health_value(THRESH_SLEEP, 0, 27000, 0)), THRESH_LEVEL_WARN);
+    // Regression pin: an unavailable steps reading must never paint the goal. Against
+    // a 0/0 pair a real reading of 0 sits at the goal, while the -1 an unavailable
+    // reading sentinels to is never highlighted (status_threshold_slot_level). Before
+    // the sentinel, -3 clamped to 0 and came back as a false alarm on absent data.
+    set_pair(blob, THRESH_STEPS, 0, 0);
+    expect("hv.steps_zero_goal", level_of(blob, n, 0, THRESH_STEPS,
+           status_threshold_health_value(THRESH_STEPS, 0, 0, 0)), THRESH_LEVEL_DANGER);
+    expect("hv.steps_none_not_goal", level_of(blob, n, 0, THRESH_STEPS,
+           status_threshold_health_value(THRESH_STEPS, -3, 0, 0)), THRESH_LEVEL_NORMAL);
 }
 
-static void expect_look(const char *name, int on, const uint8_t *blob, size_t len,
+// The box decision both draw paths (slot + alert icon) share: NORMAL none, DANGER
+// fill whatever the look, WARN exactly the kind's warn look (warn_look_tests reads it
+// so; every look, kind and level in look_tests).
+static void box_tests(void) {
+    expect("box.enum", THRESH_BOX_NONE * 100 + THRESH_BOX_OUTLINE * 10 + THRESH_BOX_FILL, 12);
+    uint8_t blob[THRESH_SETTINGS_BYTES];
+    memset(blob, 0, sizeof(blob));
+    int n = sizeof(blob);
+    expect("box.bad_level", box_of(blob, n, THRESH_AQI, 7), THRESH_BOX_NONE);
+    // The warn colour bytes say nothing about the box on a 48-byte blob: a 0x00
+    // warn colour under 'fill' still fills.
+    blob[THRESH_WARN_LOOK_OFFSET] = (uint8_t)(THRESH_WARN_LOOK_FILL << (2 * THRESH_WIND));
+    expect("box.wind_fill_zero_colour",
+           box_of(blob, n, THRESH_WIND, THRESH_LEVEL_WARN), THRESH_BOX_FILL);
+    // A kind without a pair has no look: no box at warn; danger still fills.
+    expect("box.temp_warn_none", box_of(blob, n, THRESH_TEMP, THRESH_LEVEL_WARN), THRESH_BOX_NONE);
+    expect("box.temp_danger_fill",
+           box_of(blob, n, THRESH_TEMP, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
+}
+
+static void expect_look(const char *name, int on, const uint8_t *blob, int len,
                         int kind, int level, int box, int bold, int color8) {
-    ThreshLook l = status_threshold_look(blob, len, kind, level);
+    ThreshLook l = look_of(blob, len, kind, level);
     char full[64];
     snprintf(full, sizeof(full), "%s.on%d.box", name, on);
     expect(full, l.box, box);
@@ -908,7 +837,7 @@ static void expect_look(const char *name, int on, const uint8_t *blob, size_t le
 static void look_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
+    int n = sizeof(blob);
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV] = 0xF8;        // UV warn colour
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_UV + 1] = 0xF0;    // UV danger colour
     blob[THRESH_COLORS_OFFSET + 2 * THRESH_WIND] = 0xFF;      // wind warn colour
@@ -946,28 +875,36 @@ static void look_tests(void) {
         expect_look("look.gust_danger_bold", on, blob, n, THRESH_GUST, THRESH_LEVEL_DANGER,
                     THRESH_BOX_FILL, 1, 0x00);
     }
-    // Every field is exactly its accessor, for every paired kind, level and look.
+    // Every field, for every paired kind, level and look: the box per box_tests, bold
+    // per the kind's ladder (gust Off, UV Always, the rest Warn), and the level's
+    // colour byte (none at NORMAL).
     for (int look = 0; look < 4; look++) {
-        uint8_t all = (uint8_t)(look | (look << 2) | (look << 4) | (look << 6));
+        uint8_t all = (uint8_t)(look * 0x55);
         blob[THRESH_WARN_LOOK_OFFSET] = all;
         blob[THRESH_WARN_LOOK_OFFSET + 1] = all;
         for (int k = 0; k < THRESH_PAIRED_KIND_COUNT; k++) {
+            int mode = k == THRESH_GUST ? THRESH_BOLD_OFF
+                : k == THRESH_UV ? THRESH_BOLD_ALWAYS : THRESH_BOLD_WARN;
             for (int lv = THRESH_LEVEL_NORMAL; lv <= THRESH_LEVEL_DANGER; lv++) {
-                ThreshLook l = status_threshold_look(blob, n, k, lv);
-                expect("look.box_is_box_for", l.box,
-                       status_threshold_box_for(lv, status_threshold_warn_look(blob, n, k)));
-                expect("look.bold_is_is_bold", l.bold,
-                       status_threshold_is_bold(blob, n, k, lv));
-                expect("look.color8_is_color8", l.color8,
-                       status_threshold_color8(blob, n, k, lv));
+                ThreshLook l = look_of(blob, n, k, lv);
+                expect("look.box", l.box, lv == THRESH_LEVEL_NORMAL ? THRESH_BOX_NONE
+                       : lv == THRESH_LEVEL_DANGER ? THRESH_BOX_FILL
+                       : look == 3 ? THRESH_BOX_OUTLINE : look);
+                expect("look.bold", l.bold, lv == THRESH_LEVEL_DANGER
+                       || mode == THRESH_BOLD_ALWAYS
+                       || (mode == THRESH_BOLD_WARN && lv == THRESH_LEVEL_WARN));
+                expect("look.color8", l.color8, lv == THRESH_LEVEL_NORMAL ? 0xFF
+                       : blob[THRESH_COLORS_OFFSET + 2 * k + (lv == THRESH_LEVEL_DANGER)]);
             }
         }
     }
-    // Kind -1 (no threshold-capable content) is plain; an invalid blob draws no
-    // warn box but keeps the default Warn ladder, the accessors' own fallbacks.
+    // Kind -1 (no threshold-capable content) is plain; nothing stored draws no warn
+    // box but keeps the default Warn ladder and the opaque-white colour.
     expect_look("look.no_kind", 1, blob, n, -1, THRESH_LEVEL_NORMAL, THRESH_BOX_NONE, 0, 0xFF);
-    expect_look("look.invalid_blob", 1, NULL, n, THRESH_UV, THRESH_LEVEL_WARN,
+    expect_look("look.invalid_blob", 1, blob, 5, THRESH_UV, THRESH_LEVEL_WARN,
                 THRESH_BOX_NONE, 1, 0xFF);
+    expect_look("look.invalid_blob_danger", 1, blob, 5, THRESH_UV, THRESH_LEVEL_DANGER,
+                THRESH_BOX_FILL, 1, 0xFF);
 }
 
 // A status slot's level: NORMAL while the kind's enable bit is off (the slot's
@@ -976,80 +913,51 @@ static void look_tests(void) {
 static void slot_level_tests(void) {
     uint8_t blob[THRESH_SETTINGS_BYTES];
     memset(blob, 0, sizeof(blob));
-    size_t n = sizeof(blob);
+    int n = sizeof(blob);
     // Steps close 8000 / goal 10000; sleep warn and danger both 0, so any real
     // reading — even 0 — would sit at the goal.
-    size_t steps_off = THRESH_HEALTH_OFFSET + 4 * (THRESH_STEPS - THRESH_STEPS);
-    blob[steps_off] = 8000 & 0xFF;
-    blob[steps_off + 1] = 8000 >> 8;
-    blob[steps_off + 2] = 10000 & 0xFF;
-    blob[steps_off + 3] = 10000 >> 8;
+    set_pair(blob, THRESH_STEPS, 8000, 10000);
     // Wind warn (1), UV danger (2) in the levels word.
     int levels = (THRESH_LEVEL_WARN << (2 * THRESH_WIND)) | (THRESH_LEVEL_DANGER << 8);
 
     // Every switch off: NORMAL, whatever the levels word or the reading says.
-    expect("slot.off_wind", status_threshold_slot_level(blob, n, levels, THRESH_WIND, -1),
-           THRESH_LEVEL_NORMAL);
-    expect("slot.off_uv", status_threshold_slot_level(blob, n, levels, THRESH_UV, -1),
-           THRESH_LEVEL_NORMAL);
-    expect("slot.off_steps",
-           status_threshold_slot_level(blob, n, levels, THRESH_STEPS, 12000),
-           THRESH_LEVEL_NORMAL);
+    expect("slot.off_wind", level_of(blob, n, levels, THRESH_WIND, -1), THRESH_LEVEL_NORMAL);
+    expect("slot.off_uv", level_of(blob, n, levels, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
+    expect("slot.off_steps", level_of(blob, n, levels, THRESH_STEPS, 12000), THRESH_LEVEL_NORMAL);
     // ... so the slot's look is plain, while an alert entry at the real level
     // still gets its box (look_tests).
     expect("slot.off_no_box",
-           box_of(blob, n, THRESH_UV,
-                  status_threshold_slot_level(blob, n, levels, THRESH_UV, -1)),
-           THRESH_BOX_NONE);
+           box_of(blob, n, THRESH_UV, level_of(blob, n, levels, THRESH_UV, -1)), THRESH_BOX_NONE);
     expect("slot.off_alert_still_boxed",
            box_of(blob, n, THRESH_UV, THRESH_LEVEL_DANGER), THRESH_BOX_FILL);
 
-    blob[0] = 0xFF;   // every switch on
-    expect("slot.wind_warn", status_threshold_slot_level(blob, n, levels, THRESH_WIND, -1),
-           THRESH_LEVEL_WARN);
-    expect("slot.uv_danger", status_threshold_slot_level(blob, n, levels, THRESH_UV, -1),
-           THRESH_LEVEL_DANGER);
-    expect("slot.gust_normal", status_threshold_slot_level(blob, n, levels, THRESH_GUST, -1),
-           THRESH_LEVEL_NORMAL);
-    // Reserved wire value 3 clamps to danger (status_threshold_weather_level).
-    expect("slot.aqi_reserved", status_threshold_slot_level(blob, n, 3, THRESH_AQI, -1),
-           THRESH_LEVEL_DANGER);
+    blob[0] = 0xFF;   // every switch on (the levels themselves: pair_tests, weather_level_tests)
+    expect("slot.wind_warn", level_of(blob, n, levels, THRESH_WIND, -1), THRESH_LEVEL_WARN);
+    expect("slot.uv_danger", level_of(blob, n, levels, THRESH_UV, -1), THRESH_LEVEL_DANGER);
+    expect("slot.steps_goal", level_of(blob, n, 0, THRESH_STEPS, 12000), THRESH_LEVEL_DANGER);
     // A weather kind ignores the health reading.
     expect("slot.weather_ignores_health",
-           status_threshold_slot_level(blob, n, 0, THRESH_WIND, 99999), THRESH_LEVEL_NORMAL);
-    // Health: the reading against the pair, inclusive at both edges.
-    expect("slot.steps_below", status_threshold_slot_level(blob, n, 0, THRESH_STEPS, 7999),
-           THRESH_LEVEL_NORMAL);
-    expect("slot.steps_close", status_threshold_slot_level(blob, n, 0, THRESH_STEPS, 8000),
-           THRESH_LEVEL_WARN);
-    expect("slot.steps_goal", status_threshold_slot_level(blob, n, 0, THRESH_STEPS, 10000),
-           THRESH_LEVEL_DANGER);
+           level_of(blob, n, 0, THRESH_WIND, 99999), THRESH_LEVEL_NORMAL);
     // -1 (unavailable, or no HealthService) is never highlighted — not even
     // against a 0/0 pair, where a real 0 reading would sit at the goal.
-    expect("slot.sleep_zero_goal", status_threshold_slot_level(blob, n, 0, THRESH_SLEEP, 0),
-           THRESH_LEVEL_DANGER);
-    expect("slot.sleep_unavailable",
-           status_threshold_slot_level(blob, n, 0, THRESH_SLEEP, -1), THRESH_LEVEL_NORMAL);
-    // No pair, no level: kind -1, the bold-only kinds, an invalid blob.
-    expect("slot.no_kind", status_threshold_slot_level(blob, n, 0xFFFF, -1, 5),
-           THRESH_LEVEL_NORMAL);
-    expect("slot.bold_only", status_threshold_slot_level(blob, n, 0xFFFF, THRESH_TEMP, 5),
-           THRESH_LEVEL_NORMAL);
-    expect("slot.invalid_blob",
-           status_threshold_slot_level(NULL, n, levels, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
-    expect("slot.bad_len",
-           status_threshold_slot_level(blob, 36, levels, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
+    expect("slot.sleep_zero_goal", level_of(blob, n, 0, THRESH_SLEEP, 0), THRESH_LEVEL_DANGER);
+    expect("slot.sleep_unavailable", level_of(blob, n, 0, THRESH_SLEEP, -1), THRESH_LEVEL_NORMAL);
+    // No pair, no level: kind -1, the bold-only kinds, nothing stored.
+    expect("slot.no_kind", level_of(blob, n, 0xFFFF, -1, 5), THRESH_LEVEL_NORMAL);
+    expect("slot.bold_only", level_of(blob, n, 0xFFFF, THRESH_TEMP, 5), THRESH_LEVEL_NORMAL);
+    expect("slot.invalid_blob", level_of(blob, 5, levels, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
+    expect("slot.bad_len", level_of(blob, 36, levels, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
+    expect("slot.dev38", level_of(blob, 38, levels, THRESH_UV, -1), THRESH_LEVEL_NORMAL);
 }
 
 int main(void) {
-    level_tests();
-    box_tests();
-    look_tests();
-    slot_level_tests();
     kind_tests();
-    weather_byte_tests();
+    validate_tests();
+    normalize_tests();
     blob_tests();
     paired_bound_tests();
+    pair_tests();
+    weather_level_tests();
     bold_tests();
     legacy_blob_tests();
     rain_display_tests();
@@ -1059,6 +967,9 @@ int main(void) {
     bar_of_line_tests();
     warn_look_tests();
     health_value_tests();
+    box_tests();
+    look_tests();
+    slot_level_tests();
     if (s_failures) { printf("%d failure(s)\n", s_failures); return 1; }
     printf("status_threshold_test OK\n");
     return 0;

@@ -375,17 +375,14 @@ test('Clay settings message keeps its recorded size (and headroom)', () => {
   // the smallest inbox) 21 -> 19 B.
   // 517 -> 519 when CLAY_CURVE_INSET_UINT8 grew 3 -> 5: feels-like and dew point
   // allowed on the third and fourth metric lines (headroom 19 -> 17 B).
-  // 519 -> 523 in 1.24.0 when the threshold blob widened 34 -> 38: the alerts byte
-  // (the Alerts row's rain look, bits 0-1; bits 2-7 reserved), the per-bar Alerts
-  // placement byte (2 bits per status bar) and the two warn-look bytes (2 bits per
-  // paired kind — none / outline / fill, the box at the warn level). The metric
-  // alerts themselves ride the weather message (ALERT_ENTRIES_UINT8, recorded
-  // above). Headroom 17 -> 13 B.
-  // 523 -> 522 in 1.24.0 when the threshold blob widened 38 -> 48 (+10 B: the Battery
-  // item byte took the placement byte's place, and the ten On demand cells joined) and
+  // 519 -> 522 in 1.24.0 when the threshold blob widened 34 -> 48 (+14 B: the alerts
+  // byte with the rain look in bits 0-1 and bits 2-7 reserved, the On demand Battery
+  // item byte, the two warn-look bytes at 2 bits per paired kind (none / outline /
+  // fill, the box at the warn level) and the ten On demand cells) and
   // CLAY_BATTERY_LOW_ONLY (7 B tuple header + 4 B int = 11 B) left every bundle but a
-  // known aplite's: the low-battery takeover is aplite's alone, every other watch shows
-  // the battery as the On demand Battery item. Headroom 13 -> 14 B.
+  // known aplite's: the low-battery takeover is aplite's alone, every other watch
+  // shows the battery as the On demand Battery item. The metric alerts themselves ride
+  // the weather message (ALERT_ENTRIES_UINT8, recorded above). Headroom 17 -> 14 B.
   assert.equal(size, 522,'update the recorded Clay message size when its wire contract changes');
   assert.ok(inbox - size >= 10, `headroom ${inbox - size} B is below the 10 B floor`);
 });

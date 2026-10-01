@@ -165,7 +165,7 @@ static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
 // O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
 // and after a radar rescan; the metric alerts from the stored tuple (one flash read —
 // app_message.c has already checked it with alert_set_bytes_ok).
-static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t len) {
+static void collect(StatusOnDemandState *s, int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     s->set.count = 0;
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
@@ -175,7 +175,7 @@ static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t
     s->battery_value = false;
     bool metric = false;
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
-        s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, len, bar, item);
+        s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, bar, item);
         s->active[item] = false;
         if (item >= OD_GUST && s->side[item] != OD_SIDE_NONE) { metric = true; }
     }
@@ -183,8 +183,8 @@ static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t
         BatteryChargeState bs = watch_services_battery_state();
         s->charge = bs.charge_percent;
         s->charging = bs.is_charging || bs.is_plugged;
-        s->level = status_threshold_battery_level(blob, len);
-        s->battery_value = status_threshold_battery_value(blob, len);
+        s->level = status_threshold_battery_level(blob);
+        s->battery_value = status_threshold_battery_value(blob);
         s->active[OD_BATTERY] = status_threshold_battery_low(s->charge, s->level);
     }
     if (s->side[OD_BLUETOOTH] != OD_SIDE_NONE) {
@@ -201,7 +201,7 @@ static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t
         s->active[OD_SLEEP] = persist_get_is_sleeping();
     }
     if (s->side[OD_RAIN] != OD_SIDE_NONE) {
-        s->rain_display = status_threshold_rain_display(blob, len);
+        s->rain_display = status_threshold_rain_display(blob);
         s->active[OD_RAIN] = rain_countdown_get(&s->rain, watch_services_now());
     }
     if (!metric) { return; }
@@ -237,7 +237,7 @@ static GFont item_text(const StatusOnDemandState *s, int item, int lane,
     const AlertEntry *e = item_entry(s, item);
     if (!e) { return env->font; }
     alert_set_lane(e, values, buf, cap);
-    return status_threshold_look(env->blob, env->blob_len, e->kind, e->level).bold
+    return status_threshold_look(env->blob, e->kind, e->level).bold
         ? env->bold : env->font;
 }
 
@@ -297,10 +297,10 @@ static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
 // noun, follow the tier), and its minutes and whether it rains only while a look
 // prints them, or an icon-only rain alert would repaint every minute for nothing.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
-                               const uint8_t *blob, size_t len) {
+                               const uint8_t blob[THRESH_SETTINGS_BYTES]) {
     if (!row) { return sig; }
     StatusOnDemandState s;
-    collect(&s, bar, blob, len);
+    collect(&s, bar, blob);
     bool assigned = false;
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         if (s.side[item] != OD_SIDE_NONE) { assigned = true; }
@@ -325,7 +325,7 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
         uint8_t head[3] = { e->kind, e->level, e->day };
         sig = sig_fold(sig, head, sizeof(head));
         sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
-        ThreshLook look = status_threshold_look(blob, len, e->kind, e->level);
+        ThreshLook look = status_threshold_look(blob, e->kind, e->level);
         sig = sig_fold(sig, (const uint8_t *)&look, sizeof(look));
     }
     if (s.active[OD_RAIN]) {
@@ -402,7 +402,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         return;
     }
     StatusOnDemandState *s = &pass->state;
-    collect(s, env->bar, env->blob, env->blob_len);
+    collect(s, env->bar, env->blob);
     // The glyphs the active items need; the cache is created by the first draw that
     // has one, and emptied of the rest by every draw.
     uint8_t keys[GLYPH_SLOTS];
@@ -484,7 +484,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
     // not shift when a box appears.
     if (od_item_boxed(item)) {
         const AlertEntry *e = item_entry(s, item);
-        ThreshLook look = status_threshold_look(env->blob, env->blob_len, e->kind, e->level);
+        ThreshLook look = status_threshold_look(env->blob, e->kind, e->level);
         if (look.box != THRESH_BOX_NONE) {
             StatusHighlightExtent v = status_highlight_extent(
                 env->band.origin.y, env->band.size.h, env->glyph_cy, env->content_h,

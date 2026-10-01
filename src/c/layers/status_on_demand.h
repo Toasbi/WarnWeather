@@ -65,7 +65,7 @@ typedef struct {
 void status_on_demand_release(StatusOnDemandRow *row);
 
 // Refresh-time: read which items sit on `bar` (a ThreshBar) from `blob` (the
-// thresholds settings blob, already judged: len 0 = none stored), set
+// thresholds settings blob, normalized: status_threshold_normalize), set
 // row->assigned, and fold everything the items paint into the row's signature — the
 // bar's cells, the Battery warn level and Look, each assigned item's state (the
 // charge, plugged and "at or below" for Battery; the Bluetooth variant; Quiet time;
@@ -74,15 +74,14 @@ void status_on_demand_release(StatusOnDemandRow *row);
 // The rain alert is re-derived from the radar cache on every call (O(1),
 // flash-free), which is why a bar with items is refreshed on the minute tick.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
-                               const uint8_t *blob, size_t len);
+                               const uint8_t blob[THRESH_SETTINGS_BYTES]);
 
 // What the row hands the layout and the paint, in absolute coordinates in the row's
 // layer.
 typedef struct {
     GFont font;             // the row's regular font
     GFont bold;             // its bold companion
-    const uint8_t *blob;    // thresholds settings blob, already judged (len 0 = none)
-    size_t blob_len;
+    const uint8_t *blob;    // thresholds settings blob, normalized (THRESH_SETTINGS_BYTES)
     GRect band;             // the row's band — the highlight boxes clamp to it
     int16_t x;              // left edge of the row's content (the slots' origin)
     int16_t glyph_cy;       // the digits' cap centre (status_glyph_center_y)
