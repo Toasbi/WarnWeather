@@ -96,7 +96,7 @@ test('content that fits under the cap is never clamped', () => {
 function bootSelectSheet() {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js',
-    'range-control.js', 'engine.js']
+    'range-control.js', 'rgb-control.js', 'engine.js']
     .map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.engine.boot();';
   const SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [

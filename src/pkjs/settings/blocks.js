@@ -48,12 +48,12 @@ if (typeof require !== 'undefined') {
     // ahead of every app file), rather than a fourth local copy of the same six digits.
     var intToHex = (typeof require !== 'undefined')
         ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
-    // The rgb control's own value helpers (config-ui/lib/range-control.js, likewise
+    // The rgb control's own value helpers (config-ui/lib/rgb-control.js, likewise
     // concatenated ahead of the app files): a badge previewing an rgb key parses the
     // stored "r,g,b" string with the same parser — fallbacks included — as the sliders
     // behind it, so the dot cannot show a colour the sheet would not open on.
-    var rangeControl = (typeof require !== 'undefined')
-        ? require('../config-ui/lib/range-control.js') : PConf.rangeControl;
+    var rgbControl = (typeof require !== 'undefined')
+        ? require('../config-ui/lib/rgb-control.js') : PConf.rgbControl;
     // The threshold contract (status-thresholds.js): the kinds, their seed pairs, the
     // colour and warn-look rules and the alert vocabulary — the module the watch's
     // blob is packed and its alerts baked from, so the sheets, badges and hints read
@@ -739,7 +739,7 @@ if (typeof require !== 'undefined') {
     // once and three readouts would not fit a row — chip is the ONE-colour shape.
     //
     // The hex is derived, not stored: the value is the control's "r,g,b" wire string,
-    // parsed by range-control.js' own parser so an unset or bruised value (blank, two
+    // parsed by rgb-control.js' own parser so an unset or bruised value (blank, two
     // channels, 300) badges exactly the colour the sliders would open on rather than a
     // second reading of the format.
     /**
@@ -754,8 +754,8 @@ if (typeof require !== 'undefined') {
      *     when the row named no key to preview.
      */
     PConf.badgeResolvers.register('rgbSwatch', function (S, env, args) {
-        if (!rangeControl || !args || !args.key) { return null; }
-        var hex = rangeControl.rgbHex(rangeControl.parseRgb(S ? S[args.key] : null,
+        if (!rgbControl || !args || !args.key) { return null; }
+        var hex = rgbControl.rgbHex(rgbControl.parseRgb(S ? S[args.key] : null,
             {defaultValue: args.defaultValue}));
         // The readout is aria-hidden (it is a preview, and its hex would be read out a
         // character at a time), so ariaNote stays the announcement of the colour — the

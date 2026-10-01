@@ -1032,6 +1032,7 @@ function bootWithCapturedListeners(schema, env, opts) {
     + '\n' + fs.readFileSync(path.join(LIB, 'html.js'), 'utf8')
     + '\n' + fs.readFileSync(path.join(LIB, 'date-picker.js'), 'utf8')
     + '\n' + fs.readFileSync(path.join(LIB, 'range-control.js'), 'utf8')
+    + '\n' + fs.readFileSync(path.join(LIB, 'rgb-control.js'), 'utf8')
     + '\n' + fs.readFileSync(path.join(LIB, 'engine.js'), 'utf8')
     + '\nPConf.hooks.onLoad(function (ctx) { module.exports.loadEnv = ctx.env; });'
     + '\nPConf.hooks.onReady(function (ctx) {'

@@ -1,7 +1,7 @@
 // src/pkjs/config-ui/lib/html.js — shared HTML primitives: the escape helper
 // every renderer interpolates through, the sheet-header chrome the three modals
 // share, and the colour readout the rgb control and a row's colour badge both
-// print. A leaf: loaded before engine.js/date-picker.js/range-control.js
+// print. A leaf: loaded before date-picker.js/range-control.js/rgb-control.js/engine.js
 // in the page concat (build-page.js LIB_PAGE_FILES), required under Node.
 // Dual-context export mirrors color.js: attached to the shared PConf global
 // for the concatenated page (and the test bundle), module.exports under Node.
@@ -46,7 +46,7 @@ function sheetHeader(titleId, titleHtml, afterTitleHtml) {
  * hex, with nothing to press (.sw-ro drops the pointer cursor).
  *
  * It renders in two places from this one builder: above the channel sliders in a
- * colour sheet (range-control.js renderRgb) and, at the same chip size, as a
+ * colour sheet (rgb-control.js renderRgb) and, at the same chip size, as a
  * row's colour badge (engine.js editSwatchHtml, via a resolver's badge.chip) —
  * so a row previews its value in exactly the vocabulary the sheet it opens uses.
  *

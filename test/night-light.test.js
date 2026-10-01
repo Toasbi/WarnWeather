@@ -9,7 +9,7 @@ const nightLight = require('../src/pkjs/night-light.js');
 const sleepWindow = require('../src/pkjs/sleep-window.js');
 // The settings page's own "r,g,b" reader — the parser night-light.js hand-keeps a
 // copy of, pinned to it by the parity test at the bottom of this file.
-const rangeControl = require('../src/pkjs/config-ui/lib/range-control.js');
+const rgbControl = require('../src/pkjs/config-ui/lib/rgb-control.js');
 // The schema's own default, READ rather than mirrored. A literal here would defeat the
 // parity test below: it would feed both parsers the same stale string and report
 // agreement while the page ran on a different default. That is not hypothetical — it
@@ -228,7 +228,7 @@ test('no OTHER Nighttime key moves the tuple (a settings-message no-op stays one
 
 // --- mirror parity ----------------------------------------------------------
 
-// The colour parser is a hand-kept copy of the settings page's (range-control.js's
+// The colour parser is a hand-kept copy of the settings page's (rgb-control.js's
 // parseRgbStrict/parseRgb, which the sliders and the card's swatch read the same
 // string with) — the page bundle is a flat concatenation the watch runtime does not
 // load. Pin the two together over the whole input matrix: a change to one that isn't
@@ -242,14 +242,14 @@ test('the colour parser matches the settings page exactly (mirror parity)', () =
     '0, 0, 0', 42, true, {}, [], '-0,-0,-0', '-0,5,-0'];
   // Compared as COLOURS, which is what the mirror is for. The one licensed
   // difference is the SIGN OF A ZERO: '-0' parses to a negative zero, which
-  // range-control.js keeps (it feeds a slider and a CSS swatch, where it renders as
+  // rgb-control.js keeps (it feeds a slider and a CSS swatch, where it renders as
   // "0") and night-light.js deliberately normalises away (its output is a byte
   // array bound for the wire — see clampChannel). -0 and 0 are the same colour, so
   // this normalisation is the point of the exception rather than a hole in it.
   const sameColour = (a, b) => ['r', 'g', 'b'].every((k) => a[k] === b[k]);
   VALUES.forEach((value) => {
     const mine = parseDimColor({ backlightDimColor: value });
-    const page = rangeControl.parseRgb(value, ITEM);
+    const page = rgbControl.parseRgb(value, ITEM);
     assert.ok(sameColour(mine, page),
       'mirror drifted for ' + JSON.stringify(value) + ': ' +
       JSON.stringify(mine) + ' vs ' + JSON.stringify(page));

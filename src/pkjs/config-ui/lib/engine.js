@@ -10,7 +10,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var esc = htmlLib.esc;
   var sheetHeader = htmlLib.sheetHeader;
   // The chip+hex colour readout a badge's `chip` prints — the SAME builder the rgb
-  // control renders above its sliders (range-control.js renderRgb), so a row and the
+  // control renders above its sliders (rgb-control.js renderRgb), so a row and the
   // sheet it opens show one colour in one vocabulary.
   var swatchReadout = htmlLib.swatchReadout;
   // The date control (value helpers + renderers + wheel wiring) lives in
@@ -27,14 +27,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   var thresholdValues = rangeControl.thresholdValues;
   var paintThresholdRange = rangeControl.paintThresholdRange;
   var renderRange = rangeControl.renderRange;
-  // The three-channel colour control (type: 'rgb') is the same module's
-  // single-thumb mode, composed three times — see range-control.js.
-  var parseRgb = rangeControl.parseRgb;
-  var formatRgb = rangeControl.formatRgb;
-  var rgbHex = rangeControl.rgbHex;
-  var setRgbChannel = rangeControl.setRgbChannel;
-  var renderRgb = rangeControl.renderRgb;
-  var paintRgb = rangeControl.paintRgb;
+  // The three-channel colour control (type: 'rgb') lives in lib/rgb-control.js: the
+  // slider's single-thumb track, composed three times. Same alias discipline.
+  var rgbControl = (typeof require !== 'undefined') ? require('./rgb-control.js') : PConf.rgbControl;
+  var parseRgb = rgbControl.parseRgb;
+  var formatRgb = rgbControl.formatRgb;
+  var rgbHex = rgbControl.rgbHex;
+  var setRgbChannel = rgbControl.setRgbChannel;
+  var renderRgb = rgbControl.renderRgb;
+  var paintRgb = rgbControl.paintRgb;
   var formatDateValue = datePicker.formatDateValue;
   var parseDateParts = datePicker.parseDateParts;
   var dateValueFromParts = datePicker.dateValueFromParts;

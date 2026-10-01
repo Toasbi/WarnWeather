@@ -186,7 +186,7 @@ const HINT_RE = /(<div class="hint" data-hint-for=")([^"]*)(">)([\s\S]*?)(<\/div
 function bootNudgePage(schema, env) {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js',
-    'range-control.js', 'engine.js']
+    'range-control.js', 'rgb-control.js', 'engine.js']
     .map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.engine.boot();';
   const listeners = {};

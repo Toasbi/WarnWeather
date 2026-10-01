@@ -712,8 +712,10 @@ rename, so a concurrent reader never sees a half-written file), and returns `out
    - `lib/html.js` — the escape helper, the shared sheet header, and the swatch+hex
      colour readout the `rgb` control and a `chip` badge both print (`PConf.html`)
    - `lib/date-picker.js` — the date control: value helpers, wheel renderers, scroll-settle wiring (`PConf.datePicker`)
-   - `lib/range-control.js` — the dual-thumb/threshold slider AND the `rgb` control (three single-thumb
-     channel tracks sharing the same drag wiring): numeric rules, renderers, drag wiring (`PConf.rangeControl`)
+   - `lib/range-control.js` — the dual-thumb, one-thumb and threshold sliders: numeric rules, renderers,
+     the single-thumb track, and the drag wiring every slider and the `rgb` control share (`PConf.rangeControl`)
+   - `lib/rgb-control.js` — the `rgb` control: the `"r,g,b"` value rules, the swatch readout above three
+     single-thumb channel tracks, and its in-place repaint (`PConf.rgbControl`)
    - `lib/engine.js` — render engine, registries, hooks, modal shell, event wiring
    - each file in `appFiles` — the app's blocks and hooks
    - `PConf.engine.boot();` — boot runs last, after all registrations

@@ -36,7 +36,7 @@ const OPT_H = 44, PAD = 88, WHEEL_H = 220;
 function bootDateSheet() {
   const LIB = path.join(__dirname, '..', 'lib');
   const BUNDLE = ['schema-walk.js', 'color.js', 'show-when.js', 'html.js', 'date-picker.js',
-    'range-control.js', 'engine.js']
+    'range-control.js', 'rgb-control.js', 'engine.js']
     .map((f) => fs.readFileSync(path.join(LIB, f), 'utf8')).join('\n')
     + '\nPConf.engine.boot();';
 

@@ -246,8 +246,8 @@ const NO_TARGET = { closest: () => null };
 
 test('the sliders drag and nudge inside the sheet, and the card\'s swatch follows', () => {
   // This boots the flat concatenated page, where nothing require()s: it is also the
-  // one test that exercises the badge resolver's webview branch (PConf.rangeControl
-  // rather than a require of range-control.js) — the card swatch below repaints
+  // one test that exercises the badge resolver's webview branch (PConf.rgbControl
+  // rather than a require of rgb-control.js) — the card swatch below repaints
   // through it.
   const page = bootGeneratedPage({ provider: 'dwd' }, 'emery');
   assert.ok(page.scroll.innerHTML.indexOf('data-edit-sheet="' + SHEET_ID + '"') !== -1,
