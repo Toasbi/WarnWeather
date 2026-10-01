@@ -267,12 +267,12 @@ test('the fill toggle hides for feels-like and stays visible for every other met
   assert.equal(byKey('secondaryLine').onChange, 'forecastMetricFill');
 });
 
-test('tomorrow.io key renders under whichever picker uses it: General (weather) or Radar (radar-only)', () => {
+test('tomorrow.io key renders under whichever picker uses it: its key sheet (weather) or the Radar tab (radar-only)', () => {
   const keys = items.filter((i) => i.messageKey === 'tomorrowioApiKey');
   assert.equal(keys.length, 2, 'one instance per context (mutually exclusive)');
   const whens = keys.map((k) => JSON.stringify(k.showWhen));
   assert.ok(whens.includes(JSON.stringify({ key: 'provider', eq: 'tomorrowio' })),
-    'weather-provider instance (General tab)');
+    'weather-provider instance (the General tab\'s Tomorrow.io key sheet)');
   assert.ok(whens.includes(JSON.stringify(
     { all: [{ key: 'radarProvider', eq: 'tomorrowio' }, { key: 'provider', ne: 'tomorrowio' }] })),
     'radar-only instance (Radar tab)');
@@ -280,12 +280,23 @@ test('tomorrow.io key renders under whichever picker uses it: General (weather) 
 });
 
 test('provider API-key rows join their picker loosely (grouped, but normal spacing)', () => {
-  // The key/budget rows that hang off a provider picker use the roomy join (no divider, but
-  // full padding) rather than the tight `true` grouping, so they do not read as cramped.
-  ['owmApiKey', 'yandexApiKey', 'tomorrowioApiKey', 'tomorrowioFitBudget', 'rainbowOwnKey', 'rainbowApiKey', 'rainbowFitBudget'].forEach((key) => {
-    const instances = items.filter((i) => i.messageKey === key);
-    assert.ok(instances.length >= 1, 'missing ' + key);
+  // The key/budget rows that hang off the RADAR picker on the page use the roomy join (no
+  // divider, but full padding) rather than the tight `true` grouping, so they do not read as
+  // cramped. The weather providers' key rows left the page for their key sheets.
+  const radar = schema.tabs.find((t) => t.id === 'radar');
+  const radarItems = [].concat.apply([], radar.sections.map((s) => s.items));
+  ['tomorrowioApiKey', 'tomorrowioFitBudget', 'rainbowOwnKey', 'rainbowApiKey', 'rainbowFitBudget'].forEach((key) => {
+    const instances = radarItems.filter((i) => i.messageKey === key);
+    assert.equal(instances.length, 1, 'one ' + key + ' on the Radar tab');
     instances.forEach((item) => assert.equal(item.joinPrevious, 'loose', key + ' uses the loose join'));
+  });
+  // In a key sheet the key field is the first row, so it joins nothing; the tomorrow.io
+  // budget guard below it keeps the loose join to the field (the read-out between them).
+  const sheets = schema.tabs.find((t) => t.id === 'general').sections.filter((s) => /^providerKey/.test(s.sheetId || ''));
+  assert.equal(sheets.length, 3, 'three key sheets');
+  sheets.forEach((sheet) => {
+    assert.equal(sheet.items[0].joinPrevious, undefined, sheet.sheetId + ' opens on its key field');
+    sheet.items.slice(1).forEach((item) => assert.equal(item.joinPrevious, 'loose', item.messageKey));
   });
 });
 
@@ -316,7 +327,7 @@ test('fetchIntervalMin derives its ladder from the budget resolver (no static op
 
 test('budget toggle (both contexts) carries the info block above it', () => {
   const toggles = items.filter((i) => i.messageKey === 'tomorrowioFitBudget');
-  assert.equal(toggles.length, 2, 'General (weather) + Radar (radar-only) instances');
+  assert.equal(toggles.length, 2, 'key sheet (weather) + Radar (radar-only) instances');
   toggles.forEach((item) => {
     assert.equal(item.defaultValue, true);
     assert.equal(item.label, 'Fit update interval to rate limit');
@@ -538,15 +549,10 @@ test('Provider-settings section leads with Update interval, then weather provide
   const ps = general.sections.find((s) => s.title === 'Provider settings');
   assert.ok(ps, 'General tab has a titled "Provider settings" section');
   const keys = ps.items.map((i) => i.messageKey).filter(Boolean);
-  assert.equal(keys[0], 'fetchIntervalMin', 'update interval is the first setting in Provider settings');
-  assert.ok(keys.indexOf('fetchIntervalMin') < keys.indexOf('provider'),
-    'update interval precedes the weather provider selection');
-  assert.ok(keys.indexOf('provider') < keys.indexOf('aqiSource'),
-    'weather provider selection comes before the AQI provider selection');
-  assert.ok(keys.indexOf('owmApiKey') < keys.indexOf('aqiSource'),
-    'the weather-provider block (including its API key field) precedes the AQI provider selection');
-  assert.ok(keys.indexOf('yandexApiKey') < keys.indexOf('aqiSource'),
-    'the weather-provider block (including the Yandex API key field) precedes the AQI provider selection');
+  // The key rows live in the keyed providers' key sheets (the Edit button after the weather
+  // provider dropdown), so the card holds the three pickers alone.
+  assert.deepEqual(keys, ['fetchIntervalMin', 'provider', 'aqiSource'],
+    'update interval, then the weather provider, then the AQI provider, and no key rows');
   // The battery saver moved OUT of this section, up into the Nighttime card.
   assert.ok(keys.indexOf('sleepNightEnabled') === -1, 'the battery saver is not in Provider settings');
   const unitsSection = general.sections.find((s) => s.title === 'Units');

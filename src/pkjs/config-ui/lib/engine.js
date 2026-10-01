@@ -2036,11 +2036,14 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // hand-curated duplicate of #scroll's list. Returns true when handled.
     // (The two hosts used to check these in different orders; no element matches
     // two of the selectors — data-action rides button rows, .lbl-act, .txt-act-btn
-    // and the intros' .txt-link, none nested in toggle/data-v/color controls — so one
-    // canonical order serves both.)
+    // and the intros' .txt-link, data-copy the hints' .copybtn, none nested in
+    // toggle/data-v/color controls — so one canonical order serves both.)
     function controlClick(e) {
       var t;
       if ((t = e.target.closest('[data-max-edit]'))) { rangeWiring.openMaxEdit(t); return true; }
+      // A hint's tap-to-copy button (.copybtn): a key field's hint carries one, and that
+      // field can sit in an edit sheet (a weather provider's key sheet) as well as a tab.
+      if ((t = e.target.closest('[data-copy]'))) { copyText(t.getAttribute('data-copy')); return true; }
       if ((t = e.target.closest('[data-toggle]'))) {
         // A disabled switch (a hosted toggle under its disabledWhen, renderToggle)
         // swallows the tap: the setting is held by another one for now.
@@ -2238,7 +2241,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           return;
         }
         if ((t = e.target.closest('[data-coll]'))) { var sid = t.getAttribute('data-coll'); collapsed[sid] = !collapsed[sid]; render(); return; }
-        if ((t = e.target.closest('[data-copy]'))) { copyText(t.getAttribute('data-copy')); return; }
         // Everything else a tab body can host is a shared control case.
         controlClick(e);
       });

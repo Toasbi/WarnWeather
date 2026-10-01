@@ -285,9 +285,10 @@ entry sets `ring` and filled otherwise, for a row previewing several colours at 
 several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
 actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
 
-Rows inside an open sheet behave as they do in a card, with one difference: a `select` row
-there expands its option list IN PLACE, under the row inside the sheet (the colour palette's
-pattern), instead of opening the select modal. The trigger stays where it was and reads as
+Rows inside an open sheet behave as they do in a card (a text row's `suffixAction` button and
+its verdict line, and a hint's tap-to-copy `[data-copy]` button, included), with one
+difference: a `select` row there expands its option list IN PLACE, under the row inside the
+sheet (the colour palette's pattern), instead of opening the select modal. The trigger stays where it was and reads as
 open (`aria-expanded="true"`, the row gains `isel-open`); the list reuses the modal's option
 rows, so the current value's check, a recommended option and gated (`meta.disabled` /
 `optionDisabledWhen`) options look and behave the same. A pick stores the value, fires the

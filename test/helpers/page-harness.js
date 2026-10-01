@@ -9,7 +9,9 @@
 // scale-max editor) and test/config-night-color-sheet.test.js (the dim-backlight colour
 // sheet) — the two places where a control has to be exercised INSIDE the edit-sheet
 // dialog, which renders outside #scroll and wires its own handlers — and by
-// test/config-rainbow-radar-label.test.js (a text commit relabelling a select trigger).
+// test/config-rainbow-radar-label.test.js (a text commit relabelling a select trigger)
+// and test/config-provider-key-sheets.test.js (a weather provider's key sheet: a text
+// field, its Test button and a hint's copy button inside the dialog).
 'use strict';
 const assert = require('node:assert/strict');
 const vm = require('vm');
@@ -132,9 +134,11 @@ function makeEl(id) {
 /** Boot the real generated page in a vm sandbox with a fake DOM.
  * @param {Object} [cfg] stored settings to hydrate from (onboardingDone defaults to true)
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
- * @returns {{S: Object, scroll: Object, modal: Object, clickTab: function,
+ * @returns {{S: Object, scroll: Object, modal: Object, window: Object, clickTab: function,
  *   openEditSheet: function, clickModalToggle: function, clickToggle: function,
  *   typeText: function, openSelect: function, pickOption: function, save: function}}
+ *   `window` is the sandbox's global, for a test that stubs a browser API the page
+ *   reads at call time (navigator.clipboard).
  */
 function bootGeneratedPage(cfg, platformName) {
   const html = require('../../src/pkjs/config-ui/scripts/build-page.js').previewPage({
@@ -168,6 +172,7 @@ function bootGeneratedPage(cfg, platformName) {
     S: ready.S,
     scroll: els.scroll,
     modal: els.modal,
+    window: sandbox,
     clickTab(tabId) {
       const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };
       els.tabs.dispatch('click', { target: t });

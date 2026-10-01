@@ -1791,11 +1791,21 @@ var RADAR_PROVIDER_OPTIONS = [
     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
 ];
 // The tomorrow.io key + budget guard render under whichever picker actually uses the key:
-// the General tab when it's the WEATHER provider, the Radar tab when it's radar-only (so the
-// key never sits in the weather section for a non-weather provider). Both contexts reuse the
-// same messageKeys (mutually-exclusive showWhen, like the theme color/B&W split).
+// the Tomorrow.io key sheet (the Edit button after the General tab's Weather provider
+// dropdown) when it's the WEATHER provider, the Radar tab's page when it's radar-only (so
+// the key never sits with the weather provider for a non-weather provider). Both contexts
+// reuse the same messageKeys (mutually-exclusive showWhen, like the theme color/B&W split).
 var TOMORROWIO_WEATHER_WHEN = {key: 'provider', eq: 'tomorrowio'};
 var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'provider', ne: 'tomorrowio'}]};
+// The weather providers that need an API key, by their `provider` value: the sheet the
+// Edit button after the Weather provider dropdown opens (blocks.js providerKeySheet) and
+// the field that sheet stores the key in (providerKeyHint reads it for the "Tap Edit"
+// pointer). A provider missing here has no key, so its row shows no Edit button.
+var PROVIDER_KEY_SHEETS = {
+    openweathermap: {sheetId: 'providerKeyOwm', keyField: 'owmApiKey'},
+    tomorrowio: {sheetId: 'providerKeyTomorrowio', keyField: 'tomorrowioApiKey'},
+    yandex: {sheetId: 'providerKeyYandex', keyField: 'yandexApiKey'}
+};
 // The Rainbow radar's "Use your own key" switch sits under the radar picker while Rainbow
 // drives a running radar; the key + budget guard follow it only while the switch is on
 // (the runtime then fetches the own-key source, radar-source-id.js). The radarMode clause
@@ -1888,6 +1898,31 @@ var TOMORROWIO_BUDGET_HINT = 'Only offer update intervals that fit the free plan
 // Nowcast API's first 5,000 calls each calendar month are free, then $0.10 per 1,000.
 var RAINBOW_KEY_HINT = '<b>How to get a key:</b><br>1. <a target=\'_blank\' href=\'https://developer.rainbow.ai/signup/\'>Sign up at developer.rainbow.ai</a>. Rainbow asks for a credit card, but the first 5,000 calls each month are free.<br>2. Open your <a target=\'_blank\' href=\'https://developer.rainbow.ai/profile\'>profile page</a>' + copyBtn('https://developer.rainbow.ai/profile', 'Copy the profile page link') + ', copy the API key and paste it here.<br>3. Tap Test.<br>Keep "Fit update interval to rate limit" on and the watch stays within the free 5,000 calls.';
 var RAINBOW_BUDGET_HINT = 'Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.';
+
+/**
+ * A keyed weather provider's key sheet (sheetOnly; the sheet PROVIDER_KEY_SHEETS names for
+ * it), opened by the Edit button after the Weather provider dropdown while that provider
+ * is picked. It holds everything about the key — the field with its Test button and
+ * verdict line, the hint with its links, any budget read-out and guard — so the Provider
+ * settings card keeps only the pickers. The sheet's title is the provider's name, so the
+ * key row's label is just "API key". The section and every item share the provider's
+ * gate: findShownItem picks a key's shown copy by the item's own gate, which keeps the
+ * Radar tab's radar-only tomorrow.io copy apart from this one.
+ * @param {string} provider The `provider` value, a PROVIDER_KEY_SHEETS key.
+ * @param {string} title The provider's name as the dropdown shows it.
+ * @param {Object} when The provider's gate, set on the section and on every item.
+ * @param {Object[]} items The sheet's rows, the key field first (they get `when`).
+ * @returns {Object} Schema section (sheetOnly).
+ */
+function providerKeySheet(provider, title, when, items) {
+    return {
+        sheetOnly: true,
+        sheetId: PROVIDER_KEY_SHEETS[provider].sheetId,
+        showWhen: when,
+        title: title,
+        items: items.map(function (item) { return Object.assign({}, item, {showWhen: when}); })
+    };
+}
 // The Nighttime card's gates. "Dim backlight" is emery-only: env.colorBacklight
 // (config-ui/lib/platform.js) is a fact about the BACKLIGHT, not the screen — only
 // emery's board carries the RGB LED driver light_set_color_rgb888() needs, so
@@ -2268,6 +2303,13 @@ module.exports = {
                 // the label stays short so the collapsed trigger doesn't overlap the field label.
                 // DWD carries a `short` so the trigger reads "DWD" while the sheet keeps the full name.
                 hintByValue: PROVIDER_WHY,
+                // A provider that needs a key gets an Edit button after the dropdown, opening its
+                // key sheet (the sheetOnly sections below this card) — the key field, its Test, the
+                // links and any budget guard live there, not on the card. While that key is empty
+                // the hint above ends with the pointer to it (blocks.js providerKeyHint, reading
+                // the same PROVIDER_WHY table, so the two cannot drift).
+                editSheetFrom: {resolver: 'providerKeySheet', args: {keyed: PROVIDER_KEY_SHEETS}},
+                hintFrom: {resolver: 'providerKeyHint', args: {keyed: PROVIDER_KEY_SHEETS, hints: PROVIDER_WHY}},
                 options: [
                     ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
                     ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
@@ -2277,47 +2319,6 @@ module.exports = {
                     ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
                     ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
                 ]
-            }, {
-                type: 'text',
-                messageKey: 'owmApiKey',
-                label: 'OpenWeatherMap API key',
-                defaultValue: '',
-                joinPrevious: 'loose',
-                suffixAction: 'testOwmKey',
-                suffixLabel: 'Test',
-                hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401.',
-                showWhen: {key: 'provider', eq: 'openweathermap'}
-            }, {
-                type: 'text',
-                messageKey: 'yandexApiKey',
-                label: 'Yandex Weather API key',
-                defaultValue: '',
-                joinPrevious: 'loose',
-                hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.',
-                showWhen: {key: 'provider', eq: 'yandex'}
-            }, {
-                // Shown here only when tomorrow.io is the WEATHER provider; when it's radar-only the
-                // same key + budget guard render in the Radar tab instead (see TOMORROWIO_RADAR_ONLY_WHEN).
-                type: 'text',
-                messageKey: 'tomorrowioApiKey',
-                label: 'Tomorrow.io API key',
-                defaultValue: '',
-                joinPrevious: 'loose',
-                suffixAction: 'testTomorrowioKey',
-                suffixLabel: 'Test',
-                hint: TOMORROWIO_KEY_HINT,
-                showWhen: TOMORROWIO_WEATHER_WHEN
-            }, {
-                type: 'toggle',
-                messageKey: 'tomorrowioFitBudget',
-                label: 'Fit update interval to rate limit',
-                defaultValue: true,
-                joinPrevious: 'loose',
-                // blockBefore: the usage read-out sits between the API key field and this
-                // toggle, joined into the same tomorrow.io group.
-                blockBefore: 'tomorrowioBudget',
-                hint: TOMORROWIO_BUDGET_HINT,
-                showWhen: TOMORROWIO_WEATHER_WHEN
             }, {
                 type: 'select',
                 messageKey: 'aqiSource',
@@ -2330,7 +2331,48 @@ module.exports = {
                 },
                 options: [['Auto', 'auto'], ['WAQI', 'waqi'], ['Open-Meteo', 'openmeteo']]
             }]
+        },
+        // The keyed weather providers' key sheets, opened by the Edit button after the Weather
+        // provider dropdown in the card above and rendered nowhere else (sheetOnly, like the dim
+        // colour's sheet). The keys, their trimming and refetch on Save (onbuild.js) and the Test
+        // actions are the ones the card's rows carried.
+        providerKeySheet('openweathermap', 'OpenWeatherMap', {key: 'provider', eq: 'openweathermap'}, [{
+            type: 'text',
+            messageKey: 'owmApiKey',
+            label: 'API key',
+            defaultValue: '',
+            suffixAction: 'testOwmKey',
+            suffixLabel: 'Test',
+            hint: '<a href=\'https://openweathermap.org/\'>Register an OpenWeatherMap account</a> and paste your API key here, then Test it. The key must be subscribed to <a href=\'https://openweathermap.org/api/one-call-3\'>One Call API 3.0</a> (it has a free allowance) or fetches fail with a 401.'
+        }]),
+        // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
+        // + budget guard render on the Radar tab instead (see TOMORROWIO_RADAR_ONLY_WHEN).
+        providerKeySheet('tomorrowio', 'Tomorrow.io', TOMORROWIO_WEATHER_WHEN, [{
+            type: 'text',
+            messageKey: 'tomorrowioApiKey',
+            label: 'API key',
+            defaultValue: '',
+            suffixAction: 'testTomorrowioKey',
+            suffixLabel: 'Test',
+            hint: TOMORROWIO_KEY_HINT
         }, {
+            type: 'toggle',
+            messageKey: 'tomorrowioFitBudget',
+            label: 'Fit update interval to rate limit',
+            defaultValue: true,
+            joinPrevious: 'loose',
+            // blockBefore: the usage read-out sits between the API key field and this
+            // toggle, joined into the same tomorrow.io group.
+            blockBefore: 'tomorrowioBudget',
+            hint: TOMORROWIO_BUDGET_HINT
+        }]),
+        providerKeySheet('yandex', 'Yandex Weather', {key: 'provider', eq: 'yandex'}, [{
+            type: 'text',
+            messageKey: 'yandexApiKey',
+            label: 'API key',
+            defaultValue: '',
+            hint: 'Register a Yandex Weather API key at <a href=\'https://yandex.com/dev/weather/\'>yandex.com/dev/weather</a> and paste it here.'
+        }]), {
             title: 'Units', items: [{
                 type: 'segmented',
                 messageKey: 'temperatureUnits',
@@ -2620,7 +2662,9 @@ module.exports = {
             }, {
                 // Tomorrow.io key + budget guard, radar-only: shown here (under the radar picker) when
                 // tomorrow.io drives the radar but is NOT the weather provider, so the key isn't orphaned
-                // in the weather section. Same messageKeys as the General-tab pair (mutually exclusive).
+                // in the weather section. Same messageKeys as the Tomorrow.io key sheet's pair (mutually
+                // exclusive). This copy keeps the provider's name in its label: setup's tomorrow.io
+                // upsell (wizard.js, the walk's LAST copy of the key) renders it with no sheet title.
                 type: 'text',
                 messageKey: 'tomorrowioApiKey',
                 label: 'Tomorrow.io API key',
