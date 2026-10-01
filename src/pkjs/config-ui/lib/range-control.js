@@ -150,6 +150,52 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return which;
   }
 
+  // ---- one single-thumb track ---------------------------------------------
+  // The one-thumb range and each rgb channel draw the same track: a fill from the
+  // track start to the thumb, and the thumb. It is built and repainted here only, so
+  // the two controls cannot drift apart. The caller computes the thumb's percentage.
+
+  /**
+   * The fill's right edge for a thumb at pct: the rest of the track, one decimal.
+   * @param {number} pct Thumb position as a percentage of the track.
+   * @returns {number} Percentage in [0, 100].
+   */
+  function fillRight(pct) { return Math.round((100 - pct) * 10) / 10; }
+
+  /**
+   * One single-thumb track: a fill from the track start to the thumb, and the thumb.
+   * @param {string} thumbId The thumb's data-range-thumb name ('v', or a channel 'r' | 'g' | 'b').
+   * @param {number} pct Thumb position as a percentage of the track, one decimal.
+   * @param {number} value The thumb's value (aria-valuenow).
+   * @param {number} min Value at the track start (aria-valuemin).
+   * @param {number} max Value at the track end (aria-valuemax).
+   * @param {string} ariaLabel The thumb's aria-label, unescaped.
+   * @param {string} fillAttrs Extra attribute markup for the fill: '' or ' name="value"'.
+   * @returns {string} Track HTML.
+   */
+  function singleTrackHtml(thumbId, pct, value, min, max, ariaLabel, fillAttrs) {
+    return '<div class="rng-track">'
+      + '<div class="rng-fill"' + fillAttrs + ' style="left:0;right:' + fillRight(pct) + '%"></div>'
+      + '<button type="button" class="rng-th" data-range-thumb="' + thumbId + '" style="left:' + pct
+      + '%" role="slider" aria-label="' + esc(ariaLabel) + '" aria-valuemin="' + min
+      + '" aria-valuemax="' + max + '" aria-valuenow="' + value + '"></button>'
+      + '</div>';
+  }
+
+  /**
+   * Repaint one single-thumb track in place (no re-render): the fill's right edge, the
+   * thumb's position and its aria-valuenow. A missing node is skipped.
+   * @param {?Element} fill The track's .rng-fill.
+   * @param {?Element} thumb The track's thumb.
+   * @param {number} pct Thumb position as a percentage of the track, one decimal.
+   * @param {number} value The thumb's value.
+   * @returns {void}
+   */
+  function paintSingleTrack(fill, thumb, pct, value) {
+    if (fill) { fill.style.right = fillRight(pct) + '%'; }
+    if (thumb) { thumb.style.left = pct + '%'; thumb.setAttribute('aria-valuenow', value); }
+  }
+
   // ---- single (one-thumb) range value helpers ------------------------------
   // A `single: true` range stores ONE plain integer string ('10') under its key, with
   // the dual range's min/max/step/unit (no dangerKey, no minSpan). A stored value off
@@ -213,9 +259,21 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * One-thumb range track (range item with `single: true`): the value readout, a fill
-   * from the track start to the thumb, and the min/max ends. The shown value rides the
-   * root as data-v for the drag handler, as a dual range rides data-lo/data-hi.
+   * A one-thumb value's track offset as a percentage, one decimal: the thumb's `left`
+   * and, through fillRight, the fill's `right`, at render and repaint alike.
+   * @param {number} v Value.
+   * @param {Object} item Single range item (min/max).
+   * @returns {number} Percentage in [0, 100].
+   */
+  function singlePct(v, item) {
+    var min = Number(item.min), max = Number(item.max);
+    return Math.round(((v - min) * 1000) / ((max - min) || 1)) / 10;
+  }
+
+  /**
+   * One-thumb range (range item with `single: true`): the value readout, the single-thumb
+   * track and the min/max ends. The shown value rides the root as data-v for the drag
+   * handler, as a dual range rides data-lo/data-hi.
    * @param {Object} item Single range item (messageKey/label/min/max/step/unit).
    * @param {{value:*}} view Render state.
    * @returns {string} Control HTML.
@@ -223,16 +281,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   function renderSingleRange(item, view) {
     var v = parseSingle(view.value, item);
     var min = Number(item.min), max = Number(item.max);
-    var span = (max - min) || 1;
-    var pct = Math.round(((v - min) * 1000) / span) / 10;
     return '<div class="rng single" data-range="' + esc(item.messageKey) + '" data-v="' + v + '">'
       + '<div class="rng-val">' + esc(singleReadout(v, item)) + '</div>'
-      + '<div class="rng-track">'
-      + '<div class="rng-fill" style="left:0;right:' + (Math.round((100 - pct) * 10) / 10) + '%"></div>'
-      + '<button type="button" class="rng-th" data-range-thumb="v" style="left:' + pct
-      + '%" role="slider" aria-label="' + esc(String(item.label || 'Value'))
-      + '" aria-valuemin="' + min + '" aria-valuemax="' + max + '" aria-valuenow="' + v + '"></button>'
-      + '</div>'
+      + singleTrackHtml('v', singlePct(v, item), v, min, max, String(item.label || 'Value'), '')
       + '<div class="rng-ends"><span>' + esc(singleReadout(min, item)) + '</span><span>'
       + esc(singleReadout(max, item)) + '</span></div>'
       + '</div>';
@@ -240,23 +291,18 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * Repaint one one-thumb range in place during a drag or keyboard nudge (no
-   * re-render): readout, fill, thumb and the data-v state.
+   * re-render): readout, track and the data-v state.
    * @param {Element} root .rng.single element.
    * @param {Object} item Single range item.
    * @param {{v:number}} r New state.
    * @returns {void}
    */
   function paintSingleRange(root, item, r) {
-    var min = Number(item.min), max = Number(item.max);
-    var span = (max - min) || 1;
-    var pct = ((r.v - min) * 100) / span;
     root.setAttribute('data-v', r.v);
     var val = root.querySelector('.rng-val');
-    var fill = root.querySelector('.rng-fill');
-    var th = root.querySelector('[data-range-thumb=v]');
     if (val) { val.textContent = singleReadout(r.v, item); }
-    if (fill) { fill.style.right = (100 - pct) + '%'; }
-    if (th) { th.style.left = pct + '%'; th.setAttribute('aria-valuenow', r.v); }
+    paintSingleTrack(root.querySelector('.rng-fill'), root.querySelector('[data-range-thumb=v]'),
+      singlePct(r.v, item), r.v);
   }
 
   // ---- rgb (three-channel colour) value helpers ----------------------------
@@ -399,8 +445,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * Three-channel colour control (type: 'rgb'): a live swatch + hex readout above
-   * one single-thumb track per channel. Composed from the range slider's OWN
-   * track/thumb markup, so the drag, keyboard-nudge, focus and disabled-row rules
+   * one single-thumb track per channel — the one-thumb range's own track
+   * (singleTrackHtml), so the drag, keyboard-nudge, focus and disabled-row rules
    * in createRangeWiring serve it unchanged; only the value shape differs, and it
    * rides on the root as data-r/data-g/data-b the way a range rides data-lo/data-hi.
    * @param {Object} item Rgb schema item (messageKey/label/step/defaultValue).
@@ -415,17 +461,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       + '" data-g="' + c.g + '" data-b="' + c.b + '">'
       + '<div class="rgb-head">' + swatchReadout(hex, true) + '</div>';
     for (var i = 0; i < RGB_CHANNELS.length; i++) {
-      var ch = RGB_CHANNELS[i], v = c[ch], chrome = RGB_CHROME[ch], pct = rgbPct(v);
+      var ch = RGB_CHANNELS[i], v = c[ch], chrome = RGB_CHROME[ch];
       h += '<div class="rgb-ch" style="--th-c:' + chrome.tint + ';--th-glow:' + chrome.glow + '">'
         + '<span class="rgb-ch-lbl" aria-hidden="true">' + chrome.short + '</span>'
-        + '<div class="rng-track">'
-        + '<div class="rng-fill" data-rgb-fill="' + ch + '" style="left:0;right:'
-        + (Math.round((100 - pct) * 10) / 10) + '%"></div>'
-        + '<button type="button" class="rng-th" data-range-thumb="' + ch
-        + '" style="left:' + pct + '%" role="slider" aria-label="'
-        + esc(label + ' ' + chrome.name) + '" aria-valuemin="' + RGB_MIN
-        + '" aria-valuemax="' + RGB_MAX + '" aria-valuenow="' + v + '"></button>'
-        + '</div>'
+        + singleTrackHtml(ch, rgbPct(v), v, RGB_MIN, RGB_MAX, label + ' ' + chrome.name,
+          ' data-rgb-fill="' + ch + '"')
         + '<span class="rgb-ch-val" data-rgb-val="' + ch + '">' + v + '</span>'
         + '</div>';
     }
@@ -450,13 +490,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (sw) { sw.style.background = hex; }
     if (tx) { tx.textContent = hex; }
     for (var i = 0; i < RGB_CHANNELS.length; i++) {
-      var ch = RGB_CHANNELS[i], v = c[ch], pct = rgbPct(v);
+      var ch = RGB_CHANNELS[i], v = c[ch];
       root.setAttribute('data-' + ch, v);
-      var fill = root.querySelector('[data-rgb-fill=' + ch + ']');
-      var th = root.querySelector('[data-range-thumb=' + ch + ']');
+      paintSingleTrack(root.querySelector('[data-rgb-fill=' + ch + ']'),
+        root.querySelector('[data-range-thumb=' + ch + ']'), rgbPct(v), v);
       var val = root.querySelector('[data-rgb-val=' + ch + ']');
-      if (fill) { fill.style.right = (Math.round((100 - pct) * 10) / 10) + '%'; }
-      if (th) { th.style.left = pct + '%'; th.setAttribute('aria-valuenow', v); }
       if (val) { val.textContent = v; }
     }
   }
