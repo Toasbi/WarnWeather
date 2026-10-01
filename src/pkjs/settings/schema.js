@@ -168,7 +168,10 @@ function lineContextWhen(pickerKey, matchOf) {
     return when;
 }
 // One windScale copy: the line-context cascade AND the given windUnits value,
-// with the pre-rendered hint set for that unit.
+// with the pre-rendered hint set for that unit. While a drawn wind or gust line is
+// "Only alert" its top is its band's (the danger level when the scale sits below the
+// warn level), so blocks.js' 'windScaleHint' names the real tops instead; it answers
+// null otherwise, and the row shows hintByValue.
 function windScaleCopy(pickerKey, unit, hints) {
     var lineWhen = lineContextWhen(pickerKey, function (key) {
         return {key: key, in: ['wind', 'gust']};
@@ -180,6 +183,7 @@ function windScaleCopy(pickerKey, unit, hints) {
         defaultValue: 'mid',
         joinPrevious: true,
         hintByValue: hints,
+        hintFrom: {resolver: 'windScaleHint'},
         options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
         showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
     };

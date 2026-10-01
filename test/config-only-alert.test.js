@@ -180,3 +180,79 @@ test('the preview draws an "Only alert" line only where it reaches warn', () => 
   // A warn level of 20: the two windy stretches draw.
   assert.equal(strokes(windSvg({ windLineOnlyAlert: true, threshWindWarn: '20', threshWindDanger: '30' })), 2);
 });
+
+// The Wind graph scale row: while a drawn wind or gust line is "Only alert" its top is
+// its band's, not the scale's value (the danger level when the scale sits below the
+// warn level), so the row's "Tops out at 30 kph — emphasizes light, gentle winds." gives
+// way to the real tops (blocks.js windScaleHint).
+test('the Wind graph scale hint names the "Only alert" line\'s real top', () => {
+  const env = { lineStyles: true };
+  const gust = (over) => Object.assign({ secondaryLine: 'gust', thirdLine: 'off' }, over);
+  assert.equal(B.windScaleHint(gust({ windScale: 'low' }), env), null, 'off: the row\'s own hint');
+  // Low and Mid sit below the gust warn level (60 kph): the band tops at its danger level.
+  assert.equal(B.windScaleHint(gust({ windScale: 'low', gustLineOnlyAlert: true }), env),
+    'Tops out at 90 kph while Only alert is on.');
+  assert.equal(B.windScaleHint(gust({ windScale: 'mid', gustLineOnlyAlert: true }), env),
+    'Tops out at 90 kph while Only alert is on.');
+  // High sits above it: the scale's value is the top, but not "keeps strong gusts from
+  // flattening" — its 60-70 band is the narrowest of the three.
+  assert.equal(B.windScaleHint(gust({ windScale: 'high', gustLineOnlyAlert: true }), env),
+    'Tops out at 70 kph while Only alert is on.');
+  assert.equal(B.windScaleHint(gust({ windScale: 'low', windUnits: 'knots', gustLineOnlyAlert: true }), env),
+    'Tops out at 50 kn while Only alert is on.');
+  // A UV line set to "Only alert" leaves the wind scale alone.
+  assert.equal(B.windScaleHint(gust({ thirdLine: 'uv', uvLineOnlyAlert: true }), env), null);
+});
+
+test('the Wind graph scale hint with wind and gusts both drawn', () => {
+  const env = { lineStyles: true };
+  const S = (over) => Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'low' }, over);
+  // Both "Only alert": one shared band.
+  assert.equal(B.windScaleHint(S({ windLineOnlyAlert: true, gustLineOnlyAlert: true }), env),
+    'Tops out at 90 kph while Only alert is on.');
+  // One of each, different tops: each line named, the normal one first.
+  assert.equal(B.windScaleHint(S({ gustLineOnlyAlert: true }), env),
+    'Wind tops out at 30 kph, gusts at 90 kph while Only alert is on.');
+  assert.equal(B.windScaleHint(S({ secondaryLine: 'gust', thirdLine: 'wind', windLineOnlyAlert: true }), env),
+    'Gusts top out at 30 kph, wind at 60 kph while Only alert is on.');
+  // One of each, one top (the scale sits above the wind warn level): no comparison note.
+  assert.equal(B.windScaleHint(S({ windScale: 'mid', windLineOnlyAlert: true }), env), 'Tops out at 50 kph.');
+  // aplite draws only the first two lines: a gust line on the third picker is not drawn.
+  assert.equal(B.windScaleHint({ secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'gust', windScale: 'low',
+    gustLineOnlyAlert: true }, { lineStyles: false }), null);
+});
+
+test('the Forecast tab\'s Wind graph scale row shows the "Only alert" top, through the real engine', () => {
+  const count = (html, s) => html.split(s).length - 1;
+  const body = (stored, env) => {
+    const S = E.hydrate(schema, stored);
+    return E.renderBody(schema, 'forecast', { S, ENV: env, USERDATA: {}, openColor: null,
+      openSelect: null, openDate: null, openEdit: null, selectQuery: '', collapsed: {},
+      evalCtx: Object.assign({}, S, { env }) });
+  };
+  const basalt = { color: true, lineStyles: true, platform: 'basalt' };
+  const aplite = { color: false, lineStyles: false, platform: 'aplite' };
+  [basalt, aplite].forEach((env) => {
+    const low = body({ secondaryLine: 'gust', windScale: 'low', gustLineOnlyAlert: true }, env);
+    assert.equal(count(low, 'Tops out at 90 kph while Only alert is on.'), 1, env.platform + ' Low');
+    assert.equal(count(low, 'Tops out at 30 kph'), 0, env.platform + ' Low: not the scale\'s own top');
+    const high = body({ secondaryLine: 'gust', windScale: 'high', gustLineOnlyAlert: true }, env);
+    assert.equal(count(high, 'Tops out at 70 kph while Only alert is on.'), 1, env.platform + ' High');
+    assert.equal(count(high, 'keeps strong gusts from flattening'), 0, env.platform + ' High: no comparison note');
+    // Off: the row's own hint.
+    assert.equal(count(body({ secondaryLine: 'gust', windScale: 'low' }, env),
+      'Tops out at 30 kph — emphasizes light, gentle winds.'), 1, env.platform + ' off');
+  });
+  // Knots, gusts on the Fourth metric picker: the band's top in knots.
+  const kn = body({ secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'gust', windUnits: 'knots',
+    windScale: 'mid', gustLineOnlyAlert: true }, basalt);
+  assert.equal(count(kn, 'Tops out at 50 kn while Only alert is on.'), 1);
+  assert.equal(count(kn, 'Tops out at 27 kn'), 0);
+});
+
+test('every Wind graph scale row derives its hint through windScaleHint', () => {
+  const rows = forecastItems.filter((i) => i.messageKey === 'windScale');
+  assert.equal(rows.length, 12);
+  rows.forEach((r) => assert.deepEqual(r.hintFrom, { resolver: 'windScaleHint' }));
+  assert.equal(typeof global.PConf.hintResolvers.get('windScaleHint'), 'function');
+});

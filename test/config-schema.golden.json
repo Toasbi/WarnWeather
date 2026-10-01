@@ -2025,6 +2025,9 @@
                   "mid": "Tops out at 50 kph — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 70 kph — keeps strong gusts from flattening against the top."
                 },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
+                },
                 "options": [
                   [
                     "Low",
@@ -2066,6 +2069,9 @@
                   "mid": "Tops out at 31 mph — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 43 mph — keeps strong gusts from flattening against the top."
                 },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
+                },
                 "options": [
                   [
                     "Low",
@@ -2106,6 +2112,9 @@
                   "low": "Tops out at 16 kn — emphasizes light, gentle winds.",
                   "mid": "Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 38 kn — keeps strong gusts from flattening against the top."
+                },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
                 },
                 "options": [
                   [
@@ -2281,6 +2290,9 @@
                   "mid": "Tops out at 50 kph — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 70 kph — keeps strong gusts from flattening against the top."
                 },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
+                },
                 "options": [
                   [
                     "Low",
@@ -2331,6 +2343,9 @@
                   "mid": "Tops out at 31 mph — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 43 mph — keeps strong gusts from flattening against the top."
                 },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
+                },
                 "options": [
                   [
                     "Low",
@@ -2380,6 +2395,9 @@
                   "low": "Tops out at 16 kn — emphasizes light, gentle winds.",
                   "mid": "Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 38 kn — keeps strong gusts from flattening against the top."
+                },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
                 },
                 "options": [
                   [
@@ -2608,6 +2626,9 @@
                   "mid": "Tops out at 50 kph — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 70 kph — keeps strong gusts from flattening against the top."
                 },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
+                },
                 "options": [
                   [
                     "Low",
@@ -2670,6 +2691,9 @@
                   "mid": "Tops out at 31 mph — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 43 mph — keeps strong gusts from flattening against the top."
                 },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
+                },
                 "options": [
                   [
                     "Low",
@@ -2731,6 +2755,9 @@
                   "low": "Tops out at 16 kn — emphasizes light, gentle winds.",
                   "mid": "Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 38 kn — keeps strong gusts from flattening against the top."
+                },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
                 },
                 "options": [
                   [
@@ -3008,6 +3035,9 @@
                   "mid": "Tops out at 50 kph — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 70 kph — keeps strong gusts from flattening against the top."
                 },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
+                },
                 "options": [
                   [
                     "Low",
@@ -3079,6 +3109,9 @@
                   "mid": "Tops out at 31 mph — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 43 mph — keeps strong gusts from flattening against the top."
                 },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
+                },
                 "options": [
                   [
                     "Low",
@@ -3149,6 +3182,9 @@
                   "low": "Tops out at 16 kn — emphasizes light, gentle winds.",
                   "mid": "Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.",
                   "high": "Tops out at 38 kn — keeps strong gusts from flattening against the top."
+                },
+                "hintFrom": {
+                  "resolver": "windScaleHint"
                 },
                 "options": [
                   [

@@ -305,8 +305,64 @@ if (typeof require !== 'undefined') {
             + '), so the small graph stays clear until it matters.';
     }
 
+    // The Wind graph scale row's hint while a wind or gust line is drawn "Only alert":
+    // such a line runs from its warn level up to its band's top (line-alert.js
+    // alertBand), which is the scale's value only while that sits above the warn level
+    // (else the danger level), so the row's own "Tops out at 50 kph — typical winds sit
+    // mid-graph" no longer holds. Each line's start of the sentence, for when the drawn
+    // wind and gust lines top out at different values.
+    var WIND_LINE_TOPS = {
+        wind: { lead: 'Wind tops out at ', tail: 'wind at ' },
+        gust: { lead: 'Gusts top out at ', tail: 'gusts at ' }
+    };
+
+    /**
+     * The Wind graph scale row's hint while a drawn wind or gust line is "Only alert":
+     * where each drawn wind and gust line tops out (an "Only alert" line at its band's
+     * top, the other at the scale's value), without the row's usual note on what the
+     * value emphasizes, which compares the scales of a 0-based line. One shared top:
+     * "Tops out at 90 kph while Only alert is on." (just "Tops out at 50 kph." when one
+     * of the two lines draws normally); two: "Wind tops out at 50 kph, gusts at 90 kph
+     * while Only alert is on." Reads the stored scale, like the bake.
+     * @param {Object} S Live settings state.
+     * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
+     *   and Fourth metric lines.
+     * @returns {?string} The hint; null for "use the row's hintByValue" (no drawn wind
+     *   or gust line is "Only alert").
+     */
+    function windScaleHint(S, env) {
+        if (!S) { return null; }
+        var allLines = Boolean(env && env.lineStyles);
+        var drawn = lineAlert.drawnMetrics(S, allLines);
+        var bands = lineAlert.alertBands(S, allLines);
+        var lines = [], anyOnly = false, i, m;
+        for (i = 0; i < drawn.length; i += 1) {
+            m = drawn[i];
+            if (!Object.prototype.hasOwnProperty.call(WIND_LINE_TOPS, m)) { continue; }
+            lines.push({ metric: m, only: Boolean(bands[m]),
+                top: lineAlert.levelText(S, m, bands[m] ? bands[m].top : lineAlert.scaleTop(S, m)) });
+            if (bands[m]) { anyOnly = true; }
+        }
+        if (!anyOnly) { return null; }
+        if (lines.length === 1 || lines[0].top === lines[1].top) {
+            return 'Tops out at ' + lines[0].top
+                + (lines.length === 1 || lines[0].only === lines[1].only ? ' while Only alert is on.' : '.');
+        }
+        // Two tops: an "Only alert" line beside one drawn normally (both "Only alert"
+        // share one band). The normal line leads; the "Only alert" one names the switch.
+        var plain = lines[0].only ? lines[1] : lines[0];
+        var only = lines[0].only ? lines[0] : lines[1];
+        return WIND_LINE_TOPS[plain.metric].lead + plain.top + ', '
+            + WIND_LINE_TOPS[only.metric].tail + only.top + ' while Only alert is on.';
+    }
+
     PConf.hintResolvers.register('forecastMetricHint', function (S, env, args) {
         return forecastMetricHint(args.value, env, S);
+    });
+    // The Wind graph scale row: null (its hintByValue) unless a wind or gust line is
+    // "Only alert".
+    PConf.hintResolvers.register('windScaleHint', function (S, env) {
+        return windScaleHint(S, env);
     });
     // args.metricKey names the metric picker this style picker sits under.
     PConf.hintResolvers.register('lineStyleHint', function (S, env, args) {
@@ -1644,6 +1700,7 @@ if (typeof require !== 'undefined') {
             forecastMetricHint: forecastMetricHint,
             lineStyleHint: lineStyleHint,
             onlyAlertHint: onlyAlertHint,
+            windScaleHint: windScaleHint,
             STRIPE_SCALE: STRIPE_SCALE
         };
     }
