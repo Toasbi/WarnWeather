@@ -99,7 +99,7 @@ int persist_get_status_levels(void);
 bool persist_set_status_levels(int levels);
 
 // Threshold-highlight settings blob (CLAY_THRESHOLDS_UINT8 tuple; layout in
-// status_threshold.h). Get returns bytes read, <= 0 when absent.
+// status_threshold.h). Get returns bytes read, 0 when absent.
 int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size);
 bool persist_set_threshold_settings(const uint8_t *data, size_t len);
 #endif

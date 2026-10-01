@@ -165,15 +165,18 @@ static bool write_sized_data_if_changed(const uint32_t key, const void *data,
     return true;
 }
 
-#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND)
+#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND) || defined(WW_THRESHOLD_HIGHLIGHT)
 // A blob stored only while it has content (the radar's sky rows, the weather alert
 // entries): a read gives its bytes, 0 while it is absent; an empty write deletes it.
+// The thresholds blob is read the same way.
 static int read_present_blob(const uint32_t key, uint8_t *out, const size_t cap) {
     if (!persist_exists(key)) { return 0; }
     const int n = persist_read_data(key, out, cap);
     return n > 0 ? n : 0;
 }
+#endif
 
+#if defined(WW_RAIN_RADAR) || defined(WW_ON_DEMAND)
 static bool write_present_blob(const uint32_t key, const uint8_t *data, const size_t len) {
     if (len == 0) {
         if (!persist_exists(key)) { return false; }
@@ -714,8 +717,7 @@ bool persist_set_status_levels(int levels) {
 }
 
 int persist_get_threshold_settings(uint8_t *buffer, size_t buffer_size) {
-    if (!persist_exists(THRESHOLD_SETTINGS)) { return 0; }
-    return persist_read_data(THRESHOLD_SETTINGS, buffer, buffer_size);
+    return read_present_blob(THRESHOLD_SETTINGS, buffer, buffer_size);
 }
 
 bool persist_set_threshold_settings(const uint8_t *data, size_t len) {
