@@ -1411,6 +1411,10 @@ test('on demand: a seeded 1.23.2 install keeps the default ticks and asks for on
   assert.equal(read.statusForecastOnDemandLeft, 'off');
   assert.equal(read.statusForecastOnDemandLeftItems, '');
   assert.equal(res.clayRequired, true, 'the watch needs the 48-B blob');
+  const fresh = loadLedger(null);
+  fresh.claySettings.seedDefaults(COLORS);
+  assert.equal(fresh.run(ON_DEMAND, { hadExistingInstall: false }).clayRequired, false,
+    'a fresh install sends its whole blob at boot anyway');
 });
 
 test('on demand: the 1.23.2 battery and quiet-time switches untick their items', () => {

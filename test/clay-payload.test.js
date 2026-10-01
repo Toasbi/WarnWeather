@@ -156,7 +156,6 @@ test('CLAY_RAIN_COUNTDOWN_HORIZON on every combination of window and radar mode'
   });
 });
 
-
 test('maps topViewMode to CLAY_TOP_VIEW_MODE int (full=0, compact=1, none=2), default compact', () => {
   assert.strictEqual(buildClayPayload(baseSettings(), null, NOW).CLAY_TOP_VIEW_MODE, 1); // unset → compact
   const full = baseSettings(); full.topViewMode = 'full';
