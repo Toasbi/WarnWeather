@@ -25,8 +25,9 @@
   // concatenated ahead of this file (scripts/build-config-page.js APP_FILES).
   var VC = (typeof require !== 'undefined') ? require('./view-cycle.js') : window.VIEW_CYCLE;
 
-  // The items, in priority order: outermost first, and the last drops first when a bar
-  // runs short of room. The index is the watch's OdItem and the cell byte's offset.
+  // The items, in priority order: nearest the side's status slot first, and the last
+  // drops first when a bar runs short of room. The index is the watch's OdItem and the
+  // cell byte's offset.
   // `label` is the page's name for the item (the checklist, the summaries, the card).
   var ITEMS = [
     {code: 'battery', group: 'system', label: 'Battery'},

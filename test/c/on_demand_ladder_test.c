@@ -109,10 +109,14 @@ static void ladder_every_row_in_order(void) {
         // The right slot never moves: its side has no item.
         snprintf(name, sizeof(name), "ladder.far k%d", k);
         expect(name, out.place[2].icon_x, 130);
-        // The own slot sits next to its run.
-        if (OWN_OF[row] != OD_HIDDEN) {
+        // The own slot keeps the edge and the run lines up beside it (40 full, 20
+        // short); with the slot hidden the run starts at the edge.
+        const int own_w = OWN_OF[row] == OD_FULL ? 40 : OWN_OF[row] == OD_SHORT ? 20 : 0;
+        snprintf(name, sizeof(name), "ladder.run_x k%d", k);
+        expect(name, out.item_x[0][0], own_w ? own_w + STATUS_ROW_GROUP_GAP : 0);
+        if (own_w) {
             snprintf(name, sizeof(name), "ladder.own_x k%d", k);
-            expect(name, out.place[0].icon_x, run + STATUS_ROW_GROUP_GAP);
+            expect(name, out.place[0].icon_x, 0);
         }
         if (MID_OF[row] == OD_HIDDEN) { continue; }
         // The middle sits exactly on its target on every row that does not free it:
@@ -200,8 +204,8 @@ typedef struct {
     int last_v;
     uint8_t row, lane;
     uint8_t own, mid;
-    int own_x, mid_x;        // where a shown slot sits: at x, or at x - v when own_v / mid_v
-    bool own_v, mid_v;
+    int own_x, mid_x;        // where a shown slot sits: at x, the middle at x - v when mid_v
+    bool mid_v;
 } ValueRange;
 
 static void value_ranges(const char *tag, const OdSlotIn slots[3], const ValueRange *r,
@@ -222,9 +226,14 @@ static void value_ranges(const char *tag, const OdSlotIn slots[3], const ValueRa
         expect(name, out.lane[1], w->lane);
         expect(name, form_of(&out, 2), w->own);
         expect(name, form_of(&out, 1), w->mid);
+        // The right slot keeps the edge and the gust lines up beside it; with the slot
+        // hidden the gust ends at the edge.
         if (w->own != OD_HIDDEN) {
-            expect(name, out.place[2].icon_x, w->own_v ? w->own_x - v : w->own_x);
+            expect(name, out.place[2].icon_x, w->own_x);
         }
+        const int run = w->lane == 2 ? 17 : v;
+        expect(name, out.item_x[1][0],
+               (w->own != OD_HIDDEN ? w->own_x - STATUS_ROW_GROUP_GAP : 132) - run);
         if (w->mid != OD_HIDDEN) {
             expect(name, out.place[1].icon_x, w->mid_v ? w->mid_x - v : w->mid_x);
         }
@@ -236,14 +245,14 @@ static void value_alert_keeps_its_value(void) {
     // week on the right (24, no short form: it hides at its turn).
     OdSlotIn date_mid[3] = { slot_text(29, 0), slot_text(40, 12), slot_text(24, 0) };
     static const ValueRange DATE[] = {
-        { 28, 2, 0, OD_FULL,   OD_SHORT,  104, 60,  true,  false },  // the date short
-        { 42, 3, 0, OD_HIDDEN, OD_FULL,     0, 46,  false, false },  // the week hides
-        { 56, 4, 0, OD_HIDDEN, OD_SHORT,    0, 60,  false, false },
-        { 83, 5, 0, OD_HIDDEN, OD_SHORT,    0, 116, false, true  },  // the date moves
-        { 99, 8, 0, OD_HIDDEN, OD_HIDDEN,   0, 0,   false, false },  // and hides
+        { 28, 2, 0, OD_FULL,   OD_SHORT,  108, 60,  false },  // the date short
+        { 42, 3, 0, OD_HIDDEN, OD_FULL,     0, 46,  false },  // the week hides
+        { 56, 4, 0, OD_HIDDEN, OD_SHORT,    0, 60,  false },
+        { 83, 5, 0, OD_HIDDEN, OD_SHORT,    0, 116, true  },  // the date moves
+        { 99, 8, 0, OD_HIDDEN, OD_HIDDEN,   0, 0,   false },  // and hides
         // Only now the value goes (v + GAP + 29 > 132), and the room the icon leaves
         // goes back to the slots: the week whole, the date short.
-        { 140, 2, 2, OD_FULL,  OD_SHORT,   87, 60,  false, false },
+        { 140, 2, 2, OD_FULL,  OD_SHORT,  108, 60,  false },
     };
     value_ranges("value.date", date_mid, DATE, (int)(sizeof(DATE) / sizeof(DATE[0])));
 
@@ -252,13 +261,13 @@ static void value_alert_keeps_its_value(void) {
     // it fits, the value kept.
     OdSlotIn week_mid[3] = { slot_text(29, 0), slot_text(24, 0), slot_text(24, 14) };
     static const ValueRange WEEK[] = {
-        { 22, 0, 0, OD_FULL,   OD_FULL,   104, 54,  true,  false },
-        { 32, 1, 0, OD_SHORT,  OD_FULL,   114, 54,  true,  false },  // the slot short
-        { 50, 3, 0, OD_HIDDEN, OD_FULL,     0, 54,  false, false },  // and hidden
-        { 71, 5, 0, OD_HIDDEN, OD_FULL,     0, 104, false, true  },  // the week moves
-        { 81, 7, 0, OD_SHORT,  OD_HIDDEN, 114, 0,   true,  false },  // and hides
-        { 99, 8, 0, OD_HIDDEN, OD_HIDDEN,   0, 0,   false, false },
-        { 140, 0, 2, OD_FULL,  OD_FULL,    87, 54,  false, false },  // the value goes
+        { 22, 0, 0, OD_FULL,   OD_FULL,   108, 54,  false },
+        { 32, 1, 0, OD_SHORT,  OD_FULL,   118, 54,  false },  // the slot short
+        { 50, 3, 0, OD_HIDDEN, OD_FULL,     0, 54,  false },  // and hidden
+        { 71, 5, 0, OD_HIDDEN, OD_FULL,     0, 104, true  },  // the week moves
+        { 81, 7, 0, OD_SHORT,  OD_HIDDEN, 118, 0,   false },  // and hides
+        { 99, 8, 0, OD_HIDDEN, OD_HIDDEN,   0, 0,   false },
+        { 140, 0, 2, OD_FULL,  OD_FULL,   108, 54,  false },  // the value goes
     };
     value_ranges("value.week", week_mid, WEEK, (int)(sizeof(WEEK) / sizeof(WEEK[0])));
 }
@@ -375,7 +384,7 @@ static void inside_half_keeps_all(void) {
         for (int d = 0; d < 2; d++) {
             const OdSideIn *s = &sides[d];
             const int own = d ? 2 : 0;
-            int run = -bleed[d];
+            int run = 0;
             for (int i = 0; i < s->n; i++) {
                 run += s->w[0][i];
                 if (i + 1 < s->n) {
@@ -383,8 +392,11 @@ static void inside_half_keeps_all(void) {
                         ? OD_PADDED_GAP : OD_ITEM_GAP;
                 }
             }
+            // The whole slot at the edge with the run beside it; without one, the run
+            // from the edge, past its bleed.
             const int own_w = status_slot_placed_w(&plain[own], &slots[own].m[0]);
-            const int claim = (run > 0 ? run : 0) + (own_w > 0 ? STATUS_ROW_GROUP_GAP + own_w : 0);
+            int claim = own_w > 0 ? own_w + STATUS_ROW_GROUP_GAP + run : run - bleed[d];
+            if (claim < 0) { claim = 0; }
             if (2 * claim + STATUS_ROW_GROUP_GAP > w) { continue; }
             checked++;
             bool keeps = out.n[d] == s->n
@@ -495,9 +507,8 @@ static void middle_hides_only_at_a_cost(void) {
 // --- bleed, order, drops ----------------------------------------------------------------
 
 static void bleed_and_order(void) {
-    // Emery's strip (content 192): the first left item starts 2 px into the margin
-    // (content x -2 = screen x 4, where the old indicator icon drew), the right run
-    // ends at the content edge, and each slot sits next to its run.
+    // Emery's strip (content 192): each slot keeps its edge (slots never bleed) and its
+    // run lines up beside it, so the bleed is not read while the slot shows.
     OdSlotIn slots[3];
     strip_slots(slots);
     OdSideIn sides[2] = { side_none(), side_none() };
@@ -505,11 +516,20 @@ static void bleed_and_order(void) {
     add_icon(&sides[1], OD_BATTERY, 17);
     OdLayout out;
     od_layout(192, slots, sides, STRIP_BLEED, 0, &out);
-    expect("bleed.left_item", out.item_x[0][0], -2);
-    expect("bleed.left_slot", out.place[0].icon_x, 10 - 2 + STATUS_ROW_GROUP_GAP);
-    expect("bleed.right_run_end", out.item_x[1][0] + 17, 192);
-    expect("bleed.right_slot", out.place[2].icon_x, 192 - 17 - STATUS_ROW_GROUP_GAP - 29);
+    expect("bleed.left_slot", out.place[0].icon_x, 0);
+    expect("bleed.left_item", out.item_x[0][0], 24 + STATUS_ROW_GROUP_GAP);
+    expect("bleed.right_slot", out.place[2].icon_x, 192 - 29);
+    expect("bleed.right_run_end", out.item_x[1][0] + 17, 192 - 29 - STATUS_ROW_GROUP_GAP);
     expect("bleed.middle", out.place[1].icon_x, 72);
+
+    // With the left slot empty (the strip's default on every watch but emery) the run
+    // sits at the edge itself: its first item starts 2 px into the margin (content x
+    // -2 = screen x 4, where the old indicator icon drew).
+    slots[0] = slot_empty();
+    od_layout(192, slots, sides, STRIP_BLEED, 0, &out);
+    expect("bleed.edge_item", out.item_x[0][0], -2);
+    expect("bleed.edge_middle", out.place[1].icon_x, 72);
+    strip_slots(slots);
 
     // A quiet strip is the plain layout exactly: no 2 px shift anywhere.
     OdSideIn quiet[2] = { side_none(), side_none() };
@@ -520,9 +540,9 @@ static void bleed_and_order(void) {
         expect_true("bleed.quiet_plain", place_eq(&out.place[i], &plain[i]));
     }
 
-    // Outermost first on both sides: the left run left to right, the right run from
-    // the right edge leftwards, so Battery is the rightmost; a boxed alert's
-    // neighbours sit 2 px from it, the rest 4.
+    // In item order from the edge on both sides (no slots here): the left run left to
+    // right, the right run from the right edge leftwards, so Battery is the rightmost;
+    // a boxed alert's neighbours sit 2 px from it, the rest 4.
     OdSlotIn none[3] = { slot_empty(), slot_empty(), slot_empty() };
     OdSideIn runs[2] = { side_none(), side_none() };
     add_icon(&runs[0], OD_BLUETOOTH, 10);
@@ -566,7 +586,8 @@ static void drops(void) {
     expect("drop.restart_n", out.n[0], 1);
     expect("drop.restart_stage", out.stage[0], 0);
     expect("drop.slot_comes_back", form_of(&out, 0), OD_FULL);
-    expect("drop.slot_x", out.place[0].icon_x, 10 + STATUS_ROW_GROUP_GAP);
+    expect("drop.slot_x", out.place[0].icon_x, 0);
+    expect("drop.item_x", out.item_x[0][0], 30 + STATUS_ROW_GROUP_GAP);
     expect("drop.middle_centred", out.place[1].icon_x, 52);
 }
 

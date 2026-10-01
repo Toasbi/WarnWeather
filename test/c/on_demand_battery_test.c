@@ -252,7 +252,7 @@ static void battery_standin(void) {
     add(&owner_sides[1], OD_AQI, 28, 28, 19);
     od_layout(132, owner, owner_sides, STRIP_BLEED, BATT_R, &out);
     expect("standin.i.slot", out.place[2].visible, 1);
-    expect("standin.i.slot_x", out.place[2].icon_x, 30);
+    expect("standin.i.slot_x", out.place[2].icon_x, 132 - 22);
     expect("standin.i.middle_hidden", out.place[1].visible, 0);
     expect("standin.i.item_absent", battery_drawn(owner_sides, &out), 0);
     expect("standin.i.n", out.n[1], 3);
@@ -300,7 +300,7 @@ static void battery_standin(void) {
     od_layout(132, date_pct, pct_sides, STRIP_BLEED, BATT_R, &out);
     expect("standin.k.middle_short", form_of(&out, 1), OD_SHORT);
     expect("standin.k.middle_x", out.place[1].icon_x, 23);
-    expect("standin.k.slot_x", out.place[2].icon_x, 41);
+    expect("standin.k.slot_x", out.place[2].icon_x, 132 - 22);
     expect("standin.k.item_absent", battery_drawn(pct_sides, &out), 0);
     expect("standin.k.lane", out.lane[1], 0);
     expect("standin.k.n", out.n[1], 2);
@@ -327,7 +327,7 @@ static void battery_standin(void) {
     add(&t418_sides[1], OD_UV, 11, 11, 11);
     od_layout(108, t418, t418_sides, NO_BLEED, BATT_R, &out);
     expect("standin.l.glyph", out.place[2].visible, 1);
-    expect("standin.l.glyph_x", out.place[2].icon_x, 44);
+    expect("standin.l.glyph_x", out.place[2].icon_x, 108 - 29);
     expect("standin.l.item_absent", battery_drawn(t418_sides, &out), 0);
     expect("standin.l.left_n", out.n[0], 2);
     expect("standin.l.left_lane", out.lane[0], 1);

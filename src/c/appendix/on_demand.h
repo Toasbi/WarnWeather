@@ -19,8 +19,8 @@
 
 // The items, in priority order, which is also the wire order of the thresholds
 // blob's item cells (status_threshold.h, THRESH_ON_DEMAND_OFFSET) and the order the
-// phone's item list keeps. Inside a side the items run outermost first in this
-// order, and the last one drops first.
+// phone's item list keeps. Inside a side the items run in this order from the side's
+// own slot inward, and the last one drops first.
 typedef enum {
     OD_BATTERY = 0,
     OD_BLUETOOTH = 1,
@@ -129,8 +129,9 @@ typedef struct {
     int16_t floor_w;
 } OdSlotIn;
 
-// One side's items, outermost first (ascending OdItem, so rank[] rises). Whether an
-// item is boxed, and so the air beside it, is read off its rank (od_item_boxed).
+// One side's items, nearest the side's own slot first (ascending OdItem, so rank[]
+// rises). Whether an item is boxed, and so the air beside it, is read off its rank
+// (od_item_boxed).
 typedef struct {
     uint8_t n;
     uint8_t rank[OD_SIDE_MAX];            // the item's OdItem
@@ -160,11 +161,13 @@ typedef struct {
 //  - With no item on either side the result IS status_row_layout() of the full
 //    measures, byte for byte, and `bleed` is never read: a quiet bar draws as if On
 //    demand did not exist.
-//  - Otherwise each side climbs the make-room ladder (on_demand.c) while its own
-//    claim is in the way: its slot slides inward and shortens, the middle shortens,
-//    its slot hides, the middle leaves the centre, the middle hides (its slot trying
-//    back beside it gone); only then does the side's look shorten (the rain Text to
-//    its minutes, then the values off), and finally its lowest-priority item drops.
+//  - Otherwise a side's own slot keeps the bar's edge and its items line up inward
+//    beside it, nearest the slot first (at the edge themselves where the slot does
+//    not show), and each side climbs the make-room ladder (on_demand.c) while its own
+//    claim is in the way: its slot shortens, the middle shortens, its slot hides, the
+//    middle leaves the centre, the middle hides (its slot trying back beside it
+//    gone); only then does the side's look shorten (the rain Text to its minutes,
+//    then the values off), and finally its lowest-priority item drops.
 //    Where a look shortened, both sides climb again from their first rows at the
 //    looks they have, so the slots and the middle it leaves room for come back. Once
 //    both have settled, each side in turn takes back the longest look, then the
@@ -181,9 +184,10 @@ typedef struct {
 //    slot draws the widest member its room allows, the middle first, then the left
 //    slot, then the right.
 // `bleed[d]` is how far side d's run may reach past the content edge into the row
-// margin (the top strip's left run starts where the old indicator icons did). Slots
-// never bleed. `battery_slots` (bit i: slot i shows the watch battery, the Watch
-// battery glyph or the Battery %; nonzero only while the Battery item is on a side):
+// margin while it sits at the edge (the top strip's left run then starts where the old
+// indicator icons did). Slots never bleed. `battery_slots` (bit i: slot i shows the
+// watch battery, the Watch battery glyph or the Battery %; nonzero only while the
+// Battery item is on a side):
 // the Battery item, whatever its Look, is left out while any of those slots shows,
 // and stands in where the layout hides every one of them — a low charge shows the
 // battery in a slot or in the item, never both. The ladder measures the item in

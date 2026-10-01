@@ -16,8 +16,8 @@
 // 30, the right slot 40 with none (plain: 0..60, the middle at 70..130, 160..200). A
 // Bluetooth icon k px wide on the left. The ladder measures a short slot at its
 // narrowest member; once settled, the middle takes the widest member that fits its
-// check (centred on its full centre, 100, unless free) and the left slot the widest
-// that fits between its run and the middle.
+// check (centred on its full centre, 100, unless free) and the left slot, at the
+// edge, the widest that leaves its run room before the middle.
 
 static void widest_member_bar(OdSlotIn slots[3]) {
     slots[0] = slot_text(60, 0);
@@ -34,8 +34,9 @@ static void widest_member_bar(OdSlotIn slots[3]) {
 // As a sweep over `slots` (the fixture's, or with the middle emptied): whatever member
 // the short left slot draws fits with the gap to its neighbours, and the next wider
 // one would not — the middle (chosen first, beside the left slot's narrowest member)
-// centred on its full centre unless its row frees it, then the left slot up to the
-// middle, or with no middle up to the right slot's gap. Returns the members the short
+// centred on its full centre unless its row frees it, then the left slot at the edge
+// with its run beside it up to the middle, or with no middle up to the right slot's
+// gap. Returns the members the short
 // left slot drew, as a mask (bit v: member v), so a caller can tell the sweep reached
 // every one.
 static unsigned sweep_left(const OdSlotIn slots[3], const char *tag) {
@@ -55,13 +56,14 @@ static unsigned sweep_left(const OdSlotIn slots[3], const char *tag) {
         if (form_of(&out, 0) == OD_SHORT) {
             seen |= 1u << out.variant[0];
             snprintf(name, sizeof(name), "%s.left_fits k%d", tag, k);
-            expect(name, out.place[0].icon_x, k + 4);
-            expect_true(name, k + 4 + LEFT_W[out.variant[0]] <= bound);
+            expect(name, out.place[0].icon_x, 0);
+            expect(name, out.item_x[0][0], LEFT_W[out.variant[0]] + 4);
+            expect_true(name, LEFT_W[out.variant[0]] + 4 + k <= bound);
         }
         if (form_of(&out, 0) == OD_SHORT && out.variant[0] > 1) {
             int wider = LEFT_W[out.variant[0] - 1];
             snprintf(name, sizeof(name), "%s.left k%d", tag, k);
-            expect_true(name, k + 4 + wider > bound);
+            expect_true(name, wider + 4 + k > bound);
         }
         int claim = form_of(&out, 0) == OD_SHORT ? 20 + 4 : form_of(&out, 0) == OD_FULL ? 60 + 4 : 0;
         int lo = k + 4 + claim;
@@ -87,11 +89,11 @@ static void short_widest_member(void) {
         int left_v, left_x;     // left_v -1: hidden
         int mid_v, mid_x;
     } CASES[] = {
-        {  10, 1,  1, 14, 0,  70 },   // room 14..66: 50 fits
-        {  20, 1,  2, 24, 0,  70 },   // room 24..66: 40
-        {  30, 1,  3, 34, 0,  70 },   // room 34..66: only 20
-        {  45, 2,  3, 49, 1,  75 },   // the middle's 50 still centres: 75 >= lo 73
-        {  50, 2,  3, 54, 2,  85 },   // lo 78 > 75: the 30 centres at 85
+        {  10, 1,  1,  0, 0,  70 },   // slot + run in 0..66: 50 fits (50 + 4 + 10)
+        {  20, 1,  2,  0, 0,  70 },   // 40
+        {  30, 1,  3,  0, 0,  70 },   // only 20
+        {  45, 2,  3,  0, 1,  75 },   // the middle's 50 still centres: 75 >= lo 73
+        {  50, 2,  3,  0, 2,  85 },   // lo 78 > 75: the 30 centres at 85
         {  60, 3, -1,  0, 0,  70 },   // own slot hidden: the middle whole again
         {  70, 4, -1,  0, 1,  75 },   // ... short: the 50 still centres (75 >= lo 74)
         {  80, 4, -1,  0, 2,  85 },   // lo 84 > 75: the 30 centres at 85
@@ -131,10 +133,10 @@ static void short_widest_member(void) {
 
 // The mirror: W 200, the left slot 40 wide with no short form (plain 0..40), the
 // middle 60 with 50 / 30 (70..130), the right slot 60 with members 50 / 40 / 20
-// (140..200). A Bluetooth icon k px wide on the RIGHT, so its run ends at 200 and the
-// right slot sits GAP left of it. The middle is chosen first (beside the right slot's
-// narrowest member), then the right slot takes the widest member that fits between
-// the middle's gap and its run's.
+// (140..200). A Bluetooth icon k px wide on the RIGHT: the right slot keeps the edge
+// (it ends at 200) and the run sits GAP left of it. The middle is chosen first (beside
+// the right slot's narrowest member), then the right slot takes the widest member that
+// leaves its run room after the middle's gap.
 
 static void widest_member_bar_right(OdSlotIn slots[3]) {
     slots[0] = slot_text(40, 0);
@@ -149,8 +151,8 @@ static void widest_member_bar_right(OdSlotIn slots[3]) {
 }
 
 // As a sweep over `slots` (the fixture's, or with the middle emptied): the right slot
-// ends GAP left of its run, keeps GAP to the middle, or with no middle to the left
-// slot's claim (40 + GAP), and the next wider member would not. Returns the members
+// ends at the edge, its run GAP left of it keeps GAP to the middle, or with no middle
+// to the left slot's claim (40 + GAP), and the next wider member would not. Returns the members
 // the short right slot drew, as a mask (bit v: member v).
 static unsigned sweep_right(const OdSlotIn slots[3], const char *tag) {
     static const int16_t RIGHT_W[4] = { 60, 50, 40, 20 };
@@ -167,13 +169,14 @@ static unsigned sweep_right(const OdSlotIn slots[3], const char *tag) {
         int far_end = out.place[0].icon_x + status_slot_placed_w(&out.place[0], &slots[0].m[0]);
         int bound = out.place[1].visible ? out.place[1].icon_x + MID_W[out.variant[1]] + 4
                                          : far_end + 4;
-        int end = 200 - k - 4;
+        const int end = 200 - k - 4;   // where the run's gap ends, less the slot
         if (form_of(&out, 2) == OD_SHORT) {
             int w = RIGHT_W[out.variant[2]];
             seen |= 1u << out.variant[2];
             snprintf(name, sizeof(name), "%s.fits k%d", tag, k);
-            expect(name, out.place[2].icon_x + w, end);
-            expect_true(name, out.place[2].icon_x >= bound);
+            expect(name, out.place[2].icon_x + w, 200);
+            expect(name, out.item_x[1][0], 200 - w - 4 - k);
+            expect_true(name, end - w >= bound);
             if (out.variant[2] > 1) {
                 snprintf(name, sizeof(name), "%s.widest k%d", tag, k);
                 expect_true(name, end - RIGHT_W[out.variant[2] - 1] < bound);
@@ -190,11 +193,11 @@ static void short_widest_member_right(void) {
         int right_v, right_x;   // right_v -1: hidden
         int mid_v, mid_x;
     } CASES[] = {
-        {  10, 1,  1, 136, 0,  70 },   // room 134..186: 50 fits, ends at 186
-        {  20, 1,  2, 136, 0,  70 },   // room 134..176: 40
-        {  30, 1,  3, 146, 0,  70 },   // room 134..166: only 20
-        {  45, 2,  3, 131, 1,  75 },   // the middle's 50 still centres (ends 125 <= 127)
-        {  50, 2,  3, 126, 2,  85 },   // 125 > 122: the 30 centres at 85; room 119..146
+        {  10, 1,  1, 150, 0,  70 },   // run + slot in 134..200: 50 fits (10 + 4 + 50)
+        {  20, 1,  2, 160, 0,  70 },   // 40
+        {  30, 1,  3, 180, 0,  70 },   // only 20
+        {  45, 2,  3, 180, 1,  75 },   // the middle's 50 still centres (ends 125 <= 127)
+        {  50, 2,  3, 180, 2,  85 },   // 125 > 122: the 30 centres at 85
     };
     OdSlotIn slots[3];
     widest_member_bar_right(slots);
@@ -304,8 +307,9 @@ static void elastic_city(void) {
     od_layout(140, slots, sides, NO_BLEED, 0, &out);
     expect("elastic.leaves_centre", out.stage[0], 5);
 
-    // As the right side's own slot the elastic city ellipsizes to its room — from the
-    // left edge to the run's gap — never below its floor: with less room, it hides.
+    // As the right side's own slot the elastic city, at the edge, ellipsizes to its
+    // room — the bar less its run and the run's gap — never below its floor: with
+    // less room, it hides.
     OdSlotIn own[3] = { slot_empty(), slot_empty(), slot_city() };
     bool own_ellipsis = false;
     for (int k = 1; k <= 140; k++) {
@@ -320,7 +324,8 @@ static void elastic_city(void) {
             int w = status_slot_placed_w(&o.place[2], &own[2].m[o.variant[2]]);
             expect_true(name, w >= 24 && w <= room);
             expect(name, w, room >= 60 ? 60 : room);
-            expect(name, o.place[2].icon_x, room - w);
+            expect(name, o.place[2].icon_x, 140 - w);
+            expect(name, o.item_x[1][0], 140 - w - 4 - k);
             if (w < 60) { own_ellipsis = true; }
         } else if (form_of(&o, 2) == OD_HIDDEN) {
             expect_true(name, room < 24);

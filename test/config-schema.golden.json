@@ -8867,7 +8867,7 @@
               "env": "onDemand"
             },
             "title": "Alerts left",
-            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits next to the status slot there; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
                 "type": "checklist",
@@ -8892,7 +8892,7 @@
               "env": "onDemand"
             },
             "title": "Alerts right",
-            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits next to the status slot there; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
                 "type": "checklist",
@@ -8917,7 +8917,7 @@
               "env": "onDemand"
             },
             "title": "Alerts left",
-            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits next to the status slot there; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
                 "type": "checklist",
@@ -8942,7 +8942,7 @@
               "env": "onDemand"
             },
             "title": "Alerts right",
-            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits next to the status slot there; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
                 "type": "checklist",
@@ -8985,7 +8985,7 @@
               ]
             },
             "title": "Alerts left",
-            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits next to the status slot there; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
                 "type": "checklist",
@@ -9028,7 +9028,7 @@
               ]
             },
             "title": "Alerts right",
-            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits next to the status slot there; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
                 "type": "checklist",
@@ -9071,7 +9071,7 @@
               ]
             },
             "title": "Alerts left",
-            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s left edge only while they have something to say. The first sits next to the status slot there; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
                 "type": "checklist",
@@ -9114,7 +9114,7 @@
               ]
             },
             "title": "Alerts right",
-            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits outermost; when the bar runs short of room, the last ones drop first.",
+            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s right edge only while they have something to say. The first sits next to the status slot there; when the bar runs short of room, the last ones drop first.",
             "items": [
               {
                 "type": "checklist",

@@ -1447,8 +1447,8 @@ function onDemandSideSheet(bar, side) {
         showWhen: gate ? {all: [ON_DEMAND_WHEN, gate]} : ON_DEMAND_WHEN,
         title: 'Alerts ' + side,
         intro: '<b>' + OD_BAR_NAMES[bar] + '</b><br>Ticked items show at this bar’s ' + side + ' edge only while '
-            + 'they have something to say. The first sits outermost; when the bar runs short of room, the last '
-            + 'ones drop first.',
+            + 'they have something to say. The first sits next to the status slot there; when the bar runs short '
+            + 'of room, the last ones drop first.',
         items: [{
             type: 'checklist',
             messageKey: key,

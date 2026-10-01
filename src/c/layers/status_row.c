@@ -530,7 +530,7 @@ bool status_row_refresh(StatusRow *row) {
     // The items' entries tuple and live state. Also where row->od.assigned is derived.
     sig = status_on_demand_fold(&row->od, sig, status_threshold_bar_of_line(row->line_id),
                                 s_thresh_scratch);
-    // All three slots, always — including the ones On demand may slide, shorten or
+    // All three slots, always — including the ones On demand may move, shorten or
     // hide at paint time: how the slots make room is a paint decision (it depends on
     // measured widths), not a content rule, and a signature describing only part of
     // the row would let a slot that changed while hidden come back stale.
@@ -746,8 +746,9 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
     // room for it (on_demand.c's ladder), down to their short forms, and a slot that
     // takes one comes back with that member's measure and text; otherwise the bar lays
     // out exactly as it would without the feature. The top strip's left run may reach
-    // STATUS_ROW_MARGIN into the margin, so its first item sits where the old
-    // indicators drew (screen x 4) while its content rect stays the quiet one.
+    // STATUS_ROW_MARGIN into the margin while no left slot shows beside it, so its
+    // first item sits where the old indicators drew (screen x 4) while its content
+    // rect stays the quiet one.
     const bool top = row->line_id == STATUS_LINE_TOP;
     const StatusOnDemandEnv od_env = {
         .font = font,

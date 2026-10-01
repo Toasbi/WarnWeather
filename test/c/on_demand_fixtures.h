@@ -176,10 +176,10 @@ static inline int look_at(const OdSideIn *s, int from, int end, int lane) {
 }
 
 // The STAGE[] table's forms, restated here so the tests pin the order (the owner's,
-// 2026-09-30): the own slot slides inward, shortens, the middle shortens, the own
-// slot hides (the middle retries full, then short), the middle leaves the centre,
-// the middle hides — and beside it gone the own slot tries back whole, then short,
-// then hides. A side climbs these rows once per look.
+// 2026-09-30): nothing given up, then the own slot shortens, the middle
+// shortens, the own slot hides (the middle retries full, then short), the middle
+// leaves the centre, the middle hides — and beside it gone the own slot tries back
+// whole, then short, then hides. A side climbs these rows once per look.
 static const uint8_t OWN_OF[OD_LAST_STAGE + 1] = { OD_FULL, OD_SHORT, OD_SHORT, OD_HIDDEN,
                                                    OD_HIDDEN, OD_HIDDEN, OD_FULL, OD_SHORT,
                                                    OD_HIDDEN };

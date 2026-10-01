@@ -13,11 +13,12 @@
 #define OWN(d) ((d) ? 2 : 0)
 
 // The make-room ladder, one row per step a crowded side takes with its slots, in
-// order. The owner's steps (2026-09-30): the own slot slides inward (row 0),
-// shortens, then the middle shortens (1-2); the own slot hides and the middle
-// retries full and centred, then short and centred (3-4); only then does the middle
-// leave the centre (5), and then it hides — and in the room it leaves, the own slot
-// tries back whole, then short, and hides again only when neither fits (6-8). The
+// order. Row 0 gives nothing up: the own slot keeps the bar's edge, the side's items
+// line up beside it, the middle is centred. Then the owner's steps (2026-09-30):
+// the own slot shortens, then the middle shortens (1-2); the own slot hides and the
+// middle retries full and centred, then short and centred (3-4); only then does the
+// middle leave the centre (5), and then it hides — and in the room it leaves, the own
+// slot tries back whole, then short, and hides again only when neither fits (6-8). The
 // side's looks give way only after that: an alert the user gave a value keeps it
 // while a slot of its side can still give way. Past row 8 the side takes its next
 // shorter look (the rain Text to its minutes, then the values off), its slot and the
@@ -33,7 +34,7 @@ typedef struct {
 } OdStage;
 
 static const OdStage STAGE[OD_LAST_STAGE + 1] = {
-    { OD_FULL,   OD_FULL,   false },   // 0 own slot slides inward, middle centred
+    { OD_FULL,   OD_FULL,   false },   // 0 nothing given up, middle centred
     { OD_SHORT,  OD_FULL,   false },   // 1 own slot short ...
     { OD_SHORT,  OD_SHORT,  false },   // 2 ... then the middle short
     { OD_HIDDEN, OD_FULL,   false },   // 3 own slot hides; middle full + centred ...
@@ -86,7 +87,7 @@ typedef struct {
     bool ok;
     uint8_t violated;   // bit d: side d's claim is in the way
     bool mid_shown;
-    int16_t run[2];     // content px each run occupies, after its bleed
+    int16_t run[2];     // each run's width, its items and the gaps between them
     int16_t claim[2];   // how far each side's claim reaches in from its own edge (0: none)
     int16_t mw;         // the middle's width, target x, and the span it may use
     int16_t target;
@@ -225,8 +226,9 @@ static void conf_of(const Pass *p, const uint8_t pos[2], Conf *c) {
 }
 
 // Where every claim ends, and whether they fit. Each side is measured in from its own
-// edge: an active side claims its run (past its bleed) plus its own slot beside it,
-// an inactive side its plain slot, and its edge is where the next thing may start (the
+// edge: an active side claims its own slot, at the edge, plus its run beside it (or,
+// with the slot not shown, its run alone, from the edge less its bleed), an inactive
+// side its plain slot, and its edge is where the next thing may start (the
 // claim and a gap). The middle must sit between the edges, on its target unless it is
 // free; with no middle, the two claims must keep a gap. A side is marked violated when
 // its edge is what is in the way: past the middle's target, or, with no middle, past
@@ -242,10 +244,9 @@ __attribute__((noinline)) static void geometry(const Pass *p, Geom *g) {
         int claim = form_w(p, OWN(d), c->own[d]);
         int run = 0;
         if (c->n[d]) {
-            run = span_w(p, c, d, c->lane[d]) - p->bleed[d];
-            if (run < 0) { run = 0; }
-            if (claim > 0) { claim += GAP; }
-            claim += run;
+            run = span_w(p, c, d, c->lane[d]);
+            claim = claim > 0 ? claim + GAP + run : run - p->bleed[d];
+            if (claim < 0) { claim = 0; }
         }
         g->run[d] = (int16_t)run;
         g->claim[d] = (int16_t)claim;
@@ -295,14 +296,15 @@ static void plain_out(const Pass *p, OdLayout *out) {
 }
 
 // Place a settled layout (§5.5): the middle at its target (clamped into its span
-// when free), each own slot next to its run, each far slot where plain put it, and
-// the items outermost first. Each side is laid out in from its own edge and mirrored
-// for the right side, so Battery is the outermost item on either side. A short slot
-// draws the widest member its room allows (pick_short), which gives back what the
-// ladder's narrowest member did not need: the middle first, centred on its full
-// form's centre (or anywhere in its span when free), then the left slot up to the
-// middle, or with the middle hidden up to the right claim, then the right slot from
-// whatever the left one left.
+// when free), each own slot at its edge with its run beside it, each far slot where
+// plain put it, and the items in order from the own slot inward — from the edge
+// itself, past the bleed, where the slot does not show. Each side is laid out in from
+// its own edge and mirrored for the right side, so Battery is the item nearest the
+// slot on either side. A short slot draws the widest member its room allows
+// (pick_short), which gives back what the ladder's narrowest member did not need: the
+// middle first, centred on its full form's centre (or anywhere in its span when
+// free), then the left slot up to the middle less its run, or with the middle hidden
+// up to the right claim, then the right slot from whatever the left one left.
 static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *out) {
     const Conf *c = &g->c;
     memset(out, 0, sizeof(*out));
@@ -343,30 +345,30 @@ static void place(const Pass *p, const Geom *g, const uint8_t pos[2], OdLayout *
             out->stage[d] = ROW(pos[d]);
             const OdSideIn *s = &p->sides[d];
             const int end = c->first[d] + c->n[d];
-            // Each run is laid out in its own frame, `u` in from its edge, and mirrored
-            // for the right side, so its item 0 is the outermost on either side.
+            // Each side is laid out in its own frame, `u` in from its edge, and mirrored
+            // for the right side: the own slot at the edge, then its run.
             int16_t u = (int16_t)-p->bleed[d];
-            for (int k = c->first[d]; k < end; k++) {
-                const int16_t wk = s->w[c->lane[d]][k];
-                out->item_x[d][k] = d ? (int16_t)(W - u - wk) : u;
-                if (k + 1 < end) { u = (int16_t)(u + wk + item_gap(s, k + 1)); }
-            }
             if (c->own[d] != OD_HIDDEN) {
                 uint8_t v = 0;
                 int16_t w = p->plain_w[i];
-                u = (int16_t)(g->run[d] + GAP);
                 if (c->own[d] == OD_SHORT) {
                     if (!g->mid_shown) {
                         reach[d] = (int16_t)(W - (other > 0 ? other + GAP : 0));
                     }
-                    const Fit f = { 0, (int16_t)(reach[d] - u), 0, 0, true };
+                    const Fit f = { 0, (int16_t)(reach[d] - GAP - g->run[d]), 0, 0, true };
                     w = pick_short(p, i, &f, &v);
                 }
                 out->variant[i] = v;
-                status_slot_place_at(&p->slots[i].m[v], d ? (int16_t)(W - u - w) : u, w,
+                status_slot_place_at(&p->slots[i].m[v], d ? (int16_t)(W - w) : 0, w,
                                      &out->place[i]);
-                claim = (int16_t)(u + w);
+                u = (int16_t)(w + GAP);
             }
+            for (int k = c->first[d]; k < end; k++) {
+                const int16_t wk = s->w[c->lane[d]][k];
+                out->item_x[d][k] = d ? (int16_t)(W - u - wk) : u;
+                u = (int16_t)(u + wk + (k + 1 < end ? item_gap(s, k + 1) : 0));
+            }
+            claim = u;
         }
         other = claim;
     }

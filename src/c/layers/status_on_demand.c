@@ -405,7 +405,8 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         ensure(row->cache, keys, nkeys, s->active[OD_RAIN] ? s->rain.tier : 0, env->icon_h,
                env->top_strip);
     }
-    // Each side's active items, outermost first: the item order is the priority.
+    // Each side's active items, nearest the side's own slot first: the item order is
+    // the priority.
     memset(pass->sides, 0, sizeof(pass->sides));
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         if (!s->active[item]) { continue; }
