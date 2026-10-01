@@ -79,6 +79,7 @@ var UPDATE_CHECK_STORES = [
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_NOTICES = storageKeys.NOTICES_KEY;
+var KEY_AUTH_BACKOFF = storageKeys.AUTH_BACKOFF_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
 var DEFAULT_COLOR_WHITE = pebbleColors.GColorWhite;
@@ -185,6 +186,11 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // it from today: the page shows it without a request (weather-tab-cache.js).
         weatherTabCache: weatherTabCache.forPage(values, graphsSeed, nowMs),
         notices: localStorage.getItem(KEY_NOTICES),
+        // The auth backoff's record (auth-backoff.js) — which provider refused which
+        // key, by fingerprint — as stored, or null: the key status under a keyed
+        // provider marks that key as rejected (settings/key-status.js). lastFetchSuccess
+        // above carries the fingerprint of the key the last good update used.
+        authBackoff: localStorage.getItem(KEY_AUTH_BACKOFF),
         // Day totals + the newest events, never the raw 7-day log: that pushed the
         // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).
         devStats: devStats.summarize(),

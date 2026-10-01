@@ -59,11 +59,14 @@ function closeSheet(page) {
 test('the keyed providers are exactly the options whose tag says they need a key', () => {
   const needsKey = providerRow.options.filter((o) => /needs (a free |an? )?key/.test(o[2].desc)).map((o) => o[1]);
   assert.deepEqual(needsKey.sort(), Object.keys(KEYED).sort());
-  assert.deepEqual(providerRow.editSheetFrom.resolver, 'providerKeySheet');
+  assert.deepEqual(providerRow.editSheetFrom.resolver, 'keySheet');
   assert.deepEqual(Object.keys(providerRow.editSheetFrom.args.keyed).sort(), Object.keys(KEYED).sort());
-  assert.equal(providerRow.hintFrom.resolver, 'providerKeyHint');
+  assert.equal(providerRow.hintFrom.resolver, 'keySummaryHint');
   assert.equal(providerRow.hintFrom.args.hints, providerRow.hintByValue,
-    'the pointer closes the same "why" copy the row shows, so the two cannot drift');
+    'the summary rides under the same "why" copy the row shows, so the two cannot drift');
+  // Every key-status resolver on the row reads ONE table.
+  [providerRow.editBadgeFrom, providerRow.hintFrom, providerRow.attentionFrom].forEach((from) =>
+    assert.equal(from.args.keyed, providerRow.editSheetFrom.args.keyed, from.resolver));
 });
 
 test('each key sheet sits right below the card, sheetOnly, gated on its provider, rows and all', () => {
@@ -91,25 +94,26 @@ test('each key sheet sits right below the card, sheetOnly, gated on its provider
     'the call-budget read-out rides into the sheet with its guard');
 });
 
-test('providerKeySheet: the picked provider\'s key sheet, nothing for a provider without a key', () => {
-  const fn = PC.sheetResolvers.get('providerKeySheet');
+test('keySheet: the picked provider\'s key sheet, nothing for a provider without a key', () => {
+  const fn = PC.sheetResolvers.get('keySheet');
   const args = Object.assign({ messageKey: 'provider' }, providerRow.editSheetFrom.args);
   Object.keys(KEYED).forEach((p) => assert.equal(fn({ provider: p }, {}, args), KEYED[p][0], p));
   ['dwd', 'metno', 'openmeteo', 'wunderground', 'constructor', '', undefined].forEach((p) =>
     assert.equal(fn({ provider: p }, {}, args), null, String(p)));
 });
 
-test('providerKeyHint: the "why" closes on "Tap Edit to add it." only while the key is empty', () => {
-  const fn = PC.hintResolvers.get('providerKeyHint');
+test('keySummaryHint: the "why" alone while the key is empty, the key\'s summary under it once it is in', () => {
+  const fn = PC.hintResolvers.get('keySummaryHint');
   const why = providerRow.hintByValue;
   const args = (value) => Object.assign({ messageKey: 'provider', value }, providerRow.hintFrom.args);
-  assert.equal(fn({ owmApiKey: '' }, {}, args('openweathermap')), why.openweathermap + ' Tap Edit to add it.');
-  assert.equal(fn({}, {}, args('yandex')), why.yandex + ' Tap Edit to add it.', 'an unset key is empty');
-  assert.equal(fn({ tomorrowioApiKey: '  \n' }, {}, args('tomorrowio')), why.tomorrowio + ' Tap Edit to add it.',
+  assert.equal(fn({ owmApiKey: '' }, {}, args('openweathermap')), why.openweathermap,
+    'no "Tap Edit" pointer any more: the amber note and the "Add key" button say it');
+  assert.equal(fn({}, {}, args('yandex')), why.yandex, 'an unset key is empty');
+  assert.equal(fn({ tomorrowioApiKey: '  \n' }, {}, args('tomorrowio')), why.tomorrowio,
     'a blank key is empty (Save trims it to nothing)');
-  assert.equal(fn({ tomorrowioApiKey: 'k' }, {}, args('tomorrowio')), null, 'a key in: hintByValue answers');
-  assert.equal(fn({ owmApiKey: 'k' }, {}, args('yandex')), why.yandex + ' Tap Edit to add it.',
-    'another provider\'s key does not count');
+  assert.equal(fn({ owmApiKey: 'abcd1234' }, {}, args('openweathermap')),
+    why.openweathermap + '<br>Key ••••1234 · not tested yet');
+  assert.equal(fn({ owmApiKey: 'k' }, {}, args('yandex')), why.yandex, 'another provider\'s key does not count');
   ['dwd', 'wunderground', 'constructor'].forEach((p) => assert.equal(fn({}, {}, args(p)), null, p));
 });
 
@@ -122,7 +126,9 @@ test('page: Edit after the dropdown opens the provider\'s key sheet; no key rows
       provider + ': Edit trails the dropdown');
     assert.ok(!new RegExp('data-edit-sheet="' + id + '"[^]*?data-select="provider"').test(body));
     keys.forEach((k) => assert.equal(body.indexOf('data-k="' + k + '"'), -1, k + ' is not on the page'));
-    assert.match(body, /data-hint-for="provider">[^<]*Tap Edit to add it\.<\/div>/);
+    assert.ok(body.indexOf('<span>Add key</span>') !== -1, provider + ': the empty key\'s button reads Add key');
+    assert.ok(body.indexOf('Needs an API key. Without one, the watch gets no forecast.') !== -1,
+      provider + ': and the amber note says why');
 
     page.openEditSheet(id);
     const sheet = page.modal.innerHTML;
@@ -140,7 +146,8 @@ test('page: a provider without a key shows no Edit button and keeps its plain hi
   ['dwd', 'metno', 'openmeteo', 'wunderground'].forEach((provider) => {
     const page = bootGeneratedPage({ provider });
     assert.doesNotMatch(page.scroll.innerHTML, /data-edit-sheet="providerKey/, provider);
-    assert.doesNotMatch(page.scroll.innerHTML, /Tap Edit to add it/, provider);
+    assert.doesNotMatch(page.scroll.innerHTML, /Needs an API key|Key ••••/, provider);
+    assert.doesNotMatch(page.scroll.innerHTML, /tab-dot/, provider + ': no tab carries a dot');
   });
 });
 
@@ -151,7 +158,9 @@ test('page: a key typed in the sheet is stored, drops the pointer and saves trim
   assert.equal(page.S.owmApiKey, '  abc123 ');
   closeSheet(page);
   assert.equal(page.modal.innerHTML, '', 'the sheet closed');
-  assert.doesNotMatch(page.scroll.innerHTML, /Tap Edit to add it/, 'the pointer goes once a key is in');
+  assert.doesNotMatch(page.scroll.innerHTML, /Needs an API key/, 'the note goes once a key is in');
+  assert.ok(page.scroll.innerHTML.indexOf('<span>Edit</span>') !== -1, 'and the button reads Edit again');
+  assert.ok(page.scroll.innerHTML.indexOf('Key ••••c123 · not tested yet') !== -1, 'the summary names the key');
   const saved = await page.save();
   assert.equal(saved.owmApiKey, 'abc123', 'Save trims it as before (onbuild.js)');
   assert.equal(saved.provider, 'openweathermap');

@@ -27,6 +27,10 @@ if (typeof require !== 'undefined') {
         ? require('./tomorrowio-budget.js') : PConf.tomorrowioBudget;
     var rainbowBudget = (typeof require !== 'undefined')
         ? require('./rainbow-budget.js') : PConf.rainbowBudget;
+    // The key status under a keyed provider (key-status.js, concatenated ahead of this
+    // file): tomorrow.io's usage line registers into it.
+    var keyStatus = (typeof require !== 'undefined')
+        ? require('./key-status.js') : PConf.keyStatus;
     // The update-interval ladder under every active budget guard, shared with onbuild.js's
     // save-time fit so the page and the save clamp can't drift apart.
     var intervalBudget = (typeof require !== 'undefined')
@@ -1564,6 +1568,21 @@ if (typeof require !== 'undefined') {
     PConf.blocks.register('tomorrowioBudget', tomorrowioBudgetBlock);
 
     /**
+     * Tomorrow.io's usage on the key status line under the Weather provider row
+     * (key-status.js, the source's `usage`): the calls a day the current settings come to,
+     * the read-out's own figure, against the free plan's daily limit — "~96 of 500 calls a
+     * day". A projection: the phone does not count the calls it makes.
+     * @param {Object} state Settings state.
+     * @returns {?string} The line, or null when no tomorrow.io call is made.
+     */
+    function tomorrowioUsageLine(state) {
+        var B = tomorrowioBudget;
+        if (B.callsPerCycle(state) === 0) { return null; }
+        return '~' + Math.round(B.dailyCalls(state, readoutInterval(state))) + ' of ' + B.LIMIT_DAY + ' calls a day';
+    }
+    if (keyStatus) { keyStatus.registerUsage('tomorrowio', tomorrowioUsageLine); }
+
+    /**
      * Monthly-usage info block under the Rainbow API key field (Rainbow with "Use your
      * own key" on): the free plan's monthly ceiling, the user's projected month at the
      * current settings, a ✓/✗ verdict and the derived sleep->cadence unlock rule. Unlike tomorrow.io's block
@@ -1617,53 +1636,6 @@ if (typeof require !== 'undefined') {
     });
 
     /**
-     * A keyed weather provider's entry in the Weather provider row's table (schema.js
-     * PROVIDER_KEY_SHEETS, handed over as args.keyed), or null for a provider without a key.
-     * @param {{keyed: Object<string, {sheetId: string, keyField: string}>}} args The row's args.
-     * @param {*} provider A `provider` value.
-     * @returns {?{sheetId: string, keyField: string}} The entry, or null.
-     */
-    function keyedProviderOf(args, provider) {
-        var keyed = (args && args.keyed) || {};
-        return (typeof provider === 'string' && Object.prototype.hasOwnProperty.call(keyed, provider))
-            ? keyed[provider] : null;
-    }
-
-    /**
-     * The Weather provider row's Edit sheet (editSheetFrom): the picked provider's key sheet
-     * while it needs a key, null (no Edit button) for a provider without one.
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
-     * @param {{messageKey: string, keyed: Object}} args The row's key and PROVIDER_KEY_SHEETS.
-     * @returns {?string} The key sheet's sheetId, or null.
-     */
-    function providerKeySheet(S, env, args) {
-        var entry = keyedProviderOf(args, (S || {})[args.messageKey]);
-        return entry ? entry.sheetId : null;
-    }
-    PConf.sheetResolvers.register('providerKeySheet', providerKeySheet);
-
-    /**
-     * The Weather provider row's hint while the picked provider's key is empty (blank once
-     * trimmed, as onbuild.js stores it): the provider's own hint (args.hints, the row's
-     * hintByValue table) closed on a pointer to the Edit button that holds the key. Null
-     * otherwise, so hintByValue answers — a provider without a key, or one whose key is in.
-     * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused).
-     * @param {{value: string, keyed: Object, hints: Object<string, string>}} args The row's
-     *   shown value, PROVIDER_KEY_SHEETS and PROVIDER_WHY.
-     * @returns {?string} The hint with its pointer, or null for "use hintByValue".
-     */
-    function providerKeyHint(S, env, args) {
-        var entry = keyedProviderOf(args, args.value);
-        if (!entry) { return null; }
-        var key = (S || {})[entry.keyField];
-        if (typeof key === 'string' && key.replace(/\s/g, '') !== '') { return null; }
-        return joinHint([copyOf(args.hints || {}, args.value), 'Tap Edit to add it.']);
-    }
-    PConf.hintResolvers.register('providerKeyHint', providerKeyHint);
-
-    /**
      * Whether the Rainbow radar runs on the user's own key: "Use your own key" on AND a key
      * that isn't blank once trimmed (onbuild.js trims it on Save). The switch on with the
      * field still empty is not "in use" yet, so the option stays the limited one until a
@@ -1695,6 +1667,7 @@ if (typeof require !== 'undefined') {
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             tomorrowioBudgetBlock: tomorrowioBudgetBlock,
+            tomorrowioUsageLine: tomorrowioUsageLine,
             rainbowBudgetBlock: rainbowBudgetBlock,
             thresholdRangeCfg: thresholdRangeCfg,
             forecastMetricHint: forecastMetricHint,

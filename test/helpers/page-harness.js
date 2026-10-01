@@ -11,7 +11,9 @@
 // dialog, which renders outside #scroll and wires its own handlers — and by
 // test/config-rainbow-radar-label.test.js (a text commit relabelling a select trigger)
 // and test/config-provider-key-sheets.test.js (a weather provider's key sheet: a text
-// field, its Test button and a hint's copy button inside the dialog).
+// field, its Test button and a hint's copy button inside the dialog), and by
+// test/config-key-status.test.js (the key's status: the tab bar's dot and the Save
+// button's confirm dialog, which needs `dialog` below).
 'use strict';
 const assert = require('node:assert/strict');
 const vm = require('vm');
@@ -120,7 +122,7 @@ function makeEl(id) {
       while ((m = TRIGGER_RE.exec(raw))) { keys.push(unescHtml(m[2])); }
       return keys.map(triggerStub);
     },
-    classList: { add() {}, remove() {} },
+    classList: { add() {}, remove() {}, contains() { return false; } },
     style: {},
     focus() {}, getAttribute() { return null; }, setAttribute() {}
   };
@@ -134,13 +136,19 @@ function makeEl(id) {
 /** Boot the real generated page in a vm sandbox with a fake DOM.
  * @param {Object} [cfg] stored settings to hydrate from (onboardingDone defaults to true)
  * @param {string} [platformName] Pebble platform for the injected env (default basalt)
- * @returns {{S: Object, scroll: Object, modal: Object, window: Object, clickTab: function,
- *   openEditSheet: function, clickModalToggle: function, clickToggle: function,
- *   typeText: function, openSelect: function, pickOption: function, save: function}}
+ * @param {{userData: (Object|undefined), dialog: (boolean|undefined)}} [opts] `userData`:
+ *   what the phone injects (default {}); `dialog`: give #modal a native <dialog>'s
+ *   showModal()/close()/open, so the Save button's confirm dialog can open (without it
+ *   the page behaves like a webview with no <dialog>, and Save saves at once).
+ * @returns {{S: Object, scroll: Object, modal: Object, tabs: Object, window: Object,
+ *   clickTab: function, openEditSheet: function, clickModalToggle: function,
+ *   clickToggle: function, typeText: function, openSelect: function, pickOption: function,
+ *   save: function, tapSave: function, saved: function}}
  *   `window` is the sandbox's global, for a test that stubs a browser API the page
  *   reads at call time (navigator.clipboard).
  */
-function bootGeneratedPage(cfg, platformName) {
+function bootGeneratedPage(cfg, platformName, opts) {
+  opts = opts || {};
   const html = require('../../src/pkjs/config-ui/scripts/build-page.js').previewPage({
     appFiles: require('../../scripts/build-config-page.js').APP_FILES,
     schema, env: platformLib.computeEnv({ platform: platformName || 'basalt' }),
@@ -148,7 +156,7 @@ function bootGeneratedPage(cfg, platformName) {
     // and without onboardingDone the first-run wizard would auto-open over the page
     // (wizard.js shouldShow). A caller can still pass onboardingDone: false.
     cfg: Object.assign({ onboardingDone: true }, cfg || { provider: 'dwd' }),
-    userData: {}, returnTo: '#'
+    userData: opts.userData || {}, returnTo: '#'
   });
   const src = html.match(/<script>([\s\S]*)<\/script>/)[1]
     .replace(/PConf\.engine\.boot\(\);\s*$/, '');   // boot explicitly, after wiring onReady
@@ -162,6 +170,12 @@ function bootGeneratedPage(cfg, platformName) {
   };
   sandbox.navigator = {};
   sandbox.location = { href: '' };   // save() navigates to RETURN_TO + the saved blob
+  if (opts.dialog) {
+    const modal = sandbox.document.getElementById('modal');
+    modal.open = false;
+    modal.showModal = function () { modal.open = true; };
+    modal.close = function () { modal.open = false; };
+  }
   vm.createContext(sandbox);
   vm.runInContext(src, sandbox, { filename: 'generated-page.js' });
   let ready = null;
@@ -172,6 +186,7 @@ function bootGeneratedPage(cfg, platformName) {
     S: ready.S,
     scroll: els.scroll,
     modal: els.modal,
+    tabs: els.tabs,
     window: sandbox,
     clickTab(tabId) {
       const t = { getAttribute: n => (n === 'data-tab' ? tabId : null), closest: sel => (sel === '[data-tab]' ? t : null) };
@@ -243,6 +258,18 @@ function bootGeneratedPage(cfg, platformName) {
       els.save.dispatch('click', { target: els.save });
       return new Promise(resolve => setTimeout(() => {
         resolve(JSON.parse(decodeURIComponent(sandbox.location.href.slice(1))));
+      }, 350));
+    },
+    // Tap Save and return at once: a confirm dialog may open in #modal instead of a save
+    // (see `saved`).
+    tapSave() {
+      els.save.dispatch('click', { target: els.save });
+    },
+    // After the toast delay: the saved blob, or null when nothing navigated (no save).
+    saved() {
+      return new Promise(resolve => setTimeout(() => {
+        const href = sandbox.location.href;
+        resolve(href ? JSON.parse(decodeURIComponent(href.slice(1))) : null);
       }, 350));
     }
   };

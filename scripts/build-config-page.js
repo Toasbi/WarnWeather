@@ -29,6 +29,16 @@ var APP_FILES = [
   // interval-budget.js reads both; blocks.js reads all three at load — keep this order.
   path.join(ROOT, 'src/pkjs/settings/rainbow-budget.js'),
   path.join(ROOT, 'src/pkjs/settings/interval-budget.js'),
+  // The key status under a keyed provider (settings/key-status.js) and the key fingerprint
+  // it compares (window.KeyFingerprint, read while key-status.js's own body runs, so it
+  // comes first). blocks.js registers tomorrow.io's usage line into PConf.keyStatus while
+  // ITS body runs, so both precede it; key-test.js reads PConf.keyStatus only when a test
+  // answers. Every Node test takes the require() branch, so neither a dropped file (no
+  // Edit button, summary line, missing-key note, tab dot or Save dialog — or, without the
+  // fingerprint, a throw at the first keyed provider's render) nor a wrong order shows
+  // there: test/config-page-bundle.test.js pins both into the generated page.
+  path.join(ROOT, 'src/pkjs/key-fingerprint.js'),
+  path.join(ROOT, 'src/pkjs/settings/key-status.js'),
   // The graph-colour resolver the forecast preview draws from, plus its two deps.
   // ORDER IS LOAD-BEARING and stricter than the globals above: each of these reads the
   // previous one's window global while its OWN top-level body runs (resolve-ink needs

@@ -1833,15 +1833,26 @@ var RADAR_PROVIDER_OPTIONS = [
 // reuse the same messageKeys (mutually-exclusive showWhen, like the theme color/B&W split).
 var TOMORROWIO_WEATHER_WHEN = {key: 'provider', eq: 'tomorrowio'};
 var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'provider', ne: 'tomorrowio'}]};
-// The weather providers that need an API key, by their `provider` value: the sheet the
-// Edit button after the Weather provider dropdown opens (blocks.js providerKeySheet) and
-// the field that sheet stores the key in (providerKeyHint reads it for the "Tap Edit"
-// pointer). A provider missing here has no key, so its row shows no Edit button.
-var PROVIDER_KEY_SHEETS = {
-    openweathermap: {sheetId: 'providerKeyOwm', keyField: 'owmApiKey'},
-    tomorrowio: {sheetId: 'providerKeyTomorrowio', keyField: 'tomorrowioApiKey'},
-    yandex: {sheetId: 'providerKeyYandex', keyField: 'yandexApiKey'}
+// The weather providers that need an API key, by their `provider` value — the table every
+// key-status resolver on the Weather provider row reads (settings/key-status.js): the
+// provider's name as the dropdown shows it (the key sheet's title, the Save dialog's), the
+// sheet the Edit button after the dropdown opens, the field that sheet stores the key in,
+// whether that field has a Test button (`test`: the summary then says "not tested yet"
+// for a key it knows nothing about), a refusal's short reason by HTTP status where the
+// default ("invalid key", "no access") says less, and a usage line (blocks.js
+// registers tomorrow.io's projected calls). A provider missing here has no key, so its
+// row shows no Edit button and no key status.
+var PROVIDER_KEYS = {
+    openweathermap: {name: 'OpenWeatherMap', sheetId: 'providerKeyOwm', keyField: 'owmApiKey', test: true,
+        // OpenWeatherMap answers 401 for a wrong key AND for one not on the One Call 3.0 plan.
+        reasons: {401: 'not valid for One Call 3.0'}},
+    tomorrowio: {name: 'Tomorrow.io', sheetId: 'providerKeyTomorrowio', keyField: 'tomorrowioApiKey', test: true,
+        reasons: {403: 'no access to this data'}, usage: 'tomorrowio'},
+    yandex: {name: 'Yandex Weather', sheetId: 'providerKeyYandex', keyField: 'yandexApiKey', test: false}
 };
+// The Weather provider row's key-status args: the table, the picker, and what goes
+// missing without a working key (the missing-key note and the Save dialog's sentence).
+var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: 'the watch gets no forecast'};
 // The Rainbow radar's "Use your own key" switch sits under the radar picker while Rainbow
 // drives a running radar; the key + budget guard follow it only while the switch is on
 // (the runtime then fetches the own-key source, radar-source-id.js). The radarMode clause
@@ -1936,26 +1947,25 @@ var RAINBOW_KEY_HINT = '<b>How to get a key:</b><br>1. <a target=\'_blank\' href
 var RAINBOW_BUDGET_HINT = 'Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.';
 
 /**
- * A keyed weather provider's key sheet (sheetOnly; the sheet PROVIDER_KEY_SHEETS names for
- * it), opened by the Edit button after the Weather provider dropdown while that provider
+ * A keyed weather provider's key sheet (sheetOnly; the sheet PROVIDER_KEYS names for it),
+ * opened by the Edit button after the Weather provider dropdown while that provider
  * is picked. It holds everything about the key — the field with its Test button and
  * verdict line, the hint with its links, any budget read-out and guard — so the Provider
  * settings card keeps only the pickers. The sheet's title is the provider's name, so the
  * key row's label is just "API key". The section and every item share the provider's
  * gate: findShownItem picks a key's shown copy by the item's own gate, which keeps the
  * Radar tab's radar-only tomorrow.io copy apart from this one.
- * @param {string} provider The `provider` value, a PROVIDER_KEY_SHEETS key.
- * @param {string} title The provider's name as the dropdown shows it.
+ * @param {string} provider The `provider` value, a PROVIDER_KEYS key (its name titles the sheet).
  * @param {Object} when The provider's gate, set on the section and on every item.
  * @param {Object[]} items The sheet's rows, the key field first (they get `when`).
  * @returns {Object} Schema section (sheetOnly).
  */
-function providerKeySheet(provider, title, when, items) {
+function providerKeySheet(provider, when, items) {
     return {
         sheetOnly: true,
-        sheetId: PROVIDER_KEY_SHEETS[provider].sheetId,
+        sheetId: PROVIDER_KEYS[provider].sheetId,
         showWhen: when,
-        title: title,
+        title: PROVIDER_KEYS[provider].name,
         items: items.map(function (item) { return Object.assign({}, item, {showWhen: when}); })
     };
 }
@@ -2341,11 +2351,17 @@ module.exports = {
                 hintByValue: PROVIDER_WHY,
                 // A provider that needs a key gets an Edit button after the dropdown, opening its
                 // key sheet (the sheetOnly sections below this card) — the key field, its Test, the
-                // links and any budget guard live there, not on the card. While that key is empty
-                // the hint above ends with the pointer to it (blocks.js providerKeyHint, reading
-                // the same PROVIDER_WHY table, so the two cannot drift).
-                editSheetFrom: {resolver: 'providerKeySheet', args: {keyed: PROVIDER_KEY_SHEETS}},
-                hintFrom: {resolver: 'providerKeyHint', args: {keyed: PROVIDER_KEY_SHEETS, hints: PROVIDER_WHY}},
+                // links and any budget guard live there, not on the card. The row shows the key's
+                // status (settings/key-status.js, all from PROVIDER_KEYS): the button reads "Add
+                // key" in the warn look while the key is empty; under the "why" hint (the same
+                // PROVIDER_WHY table, so the two cannot drift) a line "Key ••••1234 · ✓ works";
+                // and a key that is missing or known to be rejected puts a dot on this tab and
+                // a dialog in front of Save ("Add key" / "Save anyway"). The missing-key note
+                // is the staticText right below.
+                editSheetFrom: {resolver: 'keySheet', args: PROVIDER_KEY_ARGS},
+                editBadgeFrom: {resolver: 'keyBadge', args: PROVIDER_KEY_ARGS},
+                hintFrom: {resolver: 'keySummaryHint', args: Object.assign({hints: PROVIDER_WHY}, PROVIDER_KEY_ARGS)},
+                attentionFrom: {resolver: 'keyAttention', args: PROVIDER_KEY_ARGS},
                 options: [
                     ['Deutscher Wetterdienst', 'dwd', {desc: 'Best in Germany · no key', short: 'DWD'}],
                     ['Met.no', 'metno', {desc: 'Best in the Nordics (behind yr.no) · no key'}],
@@ -2355,6 +2371,14 @@ module.exports = {
                     ['Weather Underground', 'wunderground', {desc: 'Crowd-sourced network of 250,000+ local stations · no key'}],
                     ['Yandex Weather', 'yandex', {desc: 'Best across Russia & CIS · needs a key'}]
                 ]
+            }, {
+                // The keyed provider's empty key, said where it cannot be missed: an amber note
+                // hugging the row, only while the picked provider's key is blank (textFrom
+                // answers '' otherwise and the note is gone, divider and all).
+                type: 'staticText',
+                style: 'info',
+                joinPrevious: true,
+                textFrom: {resolver: 'keyMissingNote', args: PROVIDER_KEY_ARGS}
             }, {
                 type: 'select',
                 messageKey: 'aqiSource',
@@ -2372,7 +2396,7 @@ module.exports = {
         // provider dropdown in the card above and rendered nowhere else (sheetOnly, like the dim
         // colour's sheet). The keys, their trimming and refetch on Save (onbuild.js) and the Test
         // actions are the ones the card's rows carried.
-        providerKeySheet('openweathermap', 'OpenWeatherMap', {key: 'provider', eq: 'openweathermap'}, [{
+        providerKeySheet('openweathermap', {key: 'provider', eq: 'openweathermap'}, [{
             type: 'text',
             messageKey: 'owmApiKey',
             label: 'API key',
@@ -2383,7 +2407,7 @@ module.exports = {
         }]),
         // Shown only while tomorrow.io is the WEATHER provider; when it is radar-only the same key
         // + budget guard render on the Radar tab instead (see TOMORROWIO_RADAR_ONLY_WHEN).
-        providerKeySheet('tomorrowio', 'Tomorrow.io', TOMORROWIO_WEATHER_WHEN, [{
+        providerKeySheet('tomorrowio', TOMORROWIO_WEATHER_WHEN, [{
             type: 'text',
             messageKey: 'tomorrowioApiKey',
             label: 'API key',
@@ -2402,7 +2426,7 @@ module.exports = {
             blockBefore: 'tomorrowioBudget',
             hint: TOMORROWIO_BUDGET_HINT
         }]),
-        providerKeySheet('yandex', 'Yandex Weather', {key: 'provider', eq: 'yandex'}, [{
+        providerKeySheet('yandex', {key: 'provider', eq: 'yandex'}, [{
             type: 'text',
             messageKey: 'yandexApiKey',
             label: 'API key',

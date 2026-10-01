@@ -59,14 +59,27 @@ function isActive() {
 /**
  * Record an auth-failure backoff so subsequent non-forced fetches are skipped.
  *
+ * The record also says which provider refused which key (its key-fingerprint.js
+ * fingerprint, never the key), so the settings page can mark exactly that key as
+ * rejected and leave a key typed since alone (settings/key-status.js, which reads the
+ * record through userData.authBackoff).
+ *
  * @param {{stage: string, code: string}} failure Failure that triggered backoff.
+ * @param {{provider: string, keyHash: string}} [source] The refusing provider's id and
+ *   the fingerprint of the key the request carried ('' or absent for a keyless one).
  * @returns {void}
  */
-function set(failure) {
+function set(failure, source) {
     var record = {
         code: (failure && typeof failure.code === 'string') ? failure.code : 'auth',
         since: Date.now()
     };
+    if (source && typeof source.provider === 'string' && source.provider) {
+        record.provider = source.provider;
+    }
+    if (source && typeof source.keyHash === 'string' && source.keyHash) {
+        record.keyHash = source.keyHash;
+    }
     localStorage.setItem(AUTH_BACKOFF_KEY, JSON.stringify(record));
 }
 

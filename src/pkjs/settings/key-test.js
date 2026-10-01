@@ -81,6 +81,26 @@
         }
 
         /**
+         * Hand the latest test's answer to the page's key status (key-status.js,
+         * PConf.keyStatus, looked up now: the page concatenates it ahead of this file, a
+         * Node test may not load it at all), so the summary under the picker row, the
+         * tab's dot and the Save dialog know whether this exact key works. A stale
+         * answer is dropped like its verdict line.
+         * @param {number} mine The ticket the request took.
+         * @param {string} key The key as tested.
+         * @param {number} status The status the verdict was read from.
+         * @returns {void}
+         */
+        function recordResult(mine, key, status) {
+            if (mine !== seq) { return; }
+            var P = (typeof global !== 'undefined' && global.PConf) ? global.PConf
+                : (typeof window !== 'undefined' && window.PConf) ? window.PConf : null;
+            if (P && P.keyStatus && typeof P.keyStatus.recordTest === 'function') {
+                P.keyStatus.recordTest(config.dataKey, key, status);
+            }
+        }
+
+        /**
          * The Test button's action: read the key field, send the test request and
          * write its verdict into the field's result line.
          * @returns {void}
@@ -107,7 +127,11 @@
             try {
                 xhr.open(config.method || 'GET', url);
                 xhr.timeout = 8000;
-                xhr.onload = function () { showResult(mine, resultEl, interpretStatus(statusOf(xhr)).message); };
+                xhr.onload = function () {
+                    var status = statusOf(xhr);
+                    recordResult(mine, key, status);
+                    showResult(mine, resultEl, interpretStatus(status).message);
+                };
                 xhr.onerror = function () { showResult(mine, resultEl, interpretStatus(0).message); };
                 xhr.ontimeout = function () {
                     showResult(mine, resultEl, '\u2717 Timed out reaching ' + config.host + '.');

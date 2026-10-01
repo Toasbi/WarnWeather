@@ -208,3 +208,29 @@ test('an open() that throws reports "Couldn\'t reach" instead of hanging on Test
   last.onload();
   assert.equal(h.result.textContent, '✓ Key works.');
 });
+
+test('the latest test\'s answer reaches the page\'s key status, with the key it tested', () => {
+  const h = harness();
+  const recorded = [];
+  global.PConf.keyStatus = { recordTest: (field, key, status) => recorded.push([field, key, status]) };
+  h.field.value = 'old-key';
+  h.run();
+  h.field.value = 'new-key';
+  h.run();
+  h.xhrs[1].status = 401;
+  h.xhrs[1].onload();
+  h.xhrs[0].status = 200;
+  h.xhrs[0].onload();                       // stale: dropped like its verdict line
+  h.run();
+  h.xhrs[2].ontimeout();                    // no answer: nothing to hand over
+  assert.deepEqual(recorded, [['tomorrowioApiKey', 'new-key', 401]]);
+});
+
+test('no key status on the page (a Node caller, an old bundle): the verdict line works as before', () => {
+  const h = harness();
+  h.field.value = 'some-key';
+  h.run();
+  h.xhrs[0].status = 200;
+  h.xhrs[0].onload();
+  assert.equal(h.result.textContent, '✓ Key works.');
+});

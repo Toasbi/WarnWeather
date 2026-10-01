@@ -118,6 +118,31 @@ test('the "Only alert" module is bundled after its deps and before its readers',
     'nothing registers the "Only alert" hint in the generated page');
 });
 
+// The key status under a keyed weather provider: key-status.js reads window.KeyFingerprint
+// while its own body runs, and blocks.js registers tomorrow.io's usage line into
+// PConf.keyStatus while ITS body runs. Out of the page, the Edit button, its summary line,
+// the missing-key note, the tab's dot and the Save dialog all quietly vanish on a real
+// phone while every Node test passes through require().
+test('the key status and its fingerprint are bundled before blocks.js and the key tests', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/key-fingerprint.js') < idx('settings/key-status.js'),
+    'key-fingerprint.js must precede key-status.js');
+  assert.ok(idx('settings/key-status.js') < idx('settings/blocks.js'),
+    'key-status.js must precede blocks.js');
+  assert.ok(idx('settings/key-status.js') < idx('settings/key-test.js'),
+    'key-status.js must precede key-test.js');
+  const src = page();
+  ['window.KeyFingerprint = api', "PConf.attentionResolvers.register('keyAttention'",
+    "PConf.badgeResolvers.register('keyBadge'", "PConf.hintResolvers.register('keyMissingNote'",
+    "keyStatus.registerUsage('tomorrowio'"].forEach((s) =>
+    assert.ok(src.indexOf(s) !== -1, 'the generated page lacks ' + s));
+});
+
 // The forecast preview resolves every graph colour through line-style.js (and its two
 // deps) instead of re-implementing the colour model. Same silent-no-op hazard as the
 // defaults policy above, one step worse: these three must also be in the RIGHT ORDER,

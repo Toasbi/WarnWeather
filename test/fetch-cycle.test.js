@@ -701,6 +701,36 @@ test('failure: a provider 401 arms the auth backoff, raises the notice, sends it
     assert.equal(h.cycle.start(true), true, 'a forced one retries');
 });
 
+test('a keyed provider\'s records name the key it sent, by fingerprint — the settings page\'s key status', () => {
+    const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
+    resetStore();
+    const keyed = makeProvider('openweathermap');
+    keyed.apiKey = 'OWMSECRET_abcdef';
+    const h = makeHarness({ provider: keyed });
+    assert.equal(h.cycle.start(false), true);
+    keyed.fix(52.5, 13.4);
+    keyed.fail(AUTH_401);
+    const refused = readJson(KEYS.AUTH_BACKOFF_KEY);
+    assert.equal(refused.provider, 'openweathermap', 'the backoff names the refusing provider');
+    assert.equal(refused.keyHash, fingerprint('OWMSECRET_abcdef'), 'and the key it refused');
+    assert.equal(store[KEYS.AUTH_BACKOFF_KEY].indexOf('OWMSECRET'), -1, 'never the key itself');
+
+    assert.equal(h.cycle.start(true), true);
+    keyed.fix(52.5, 13.4);
+    keyed.succeed();
+    const served = readJson(KEYS.LAST_FETCH_SUCCESS_KEY);
+    assert.deepEqual(served, Object.assign(recordFor(keyed, T0), { keyHash: fingerprint('OWMSECRET_abcdef') }));
+    assert.equal(authBackoff.isActive(), false);
+
+    // A keyless provider's records stay as they were (no keyHash).
+    resetStore();
+    const plain = makeHarness();
+    assert.equal(plain.cycle.start(false), true);
+    plain.provider.fix(52.5, 13.4);
+    plain.provider.succeed();
+    assert.deepEqual(readJson(KEYS.LAST_FETCH_SUCCESS_KEY), recordFor(plain.provider, T0));
+});
+
 test('failure: on a radar-capable watch the 401 notice and this cycle\'s radar CLEAR share one send', () => {
     resetStore();
     const h = makeHarness({ settings: { fetchIntervalMin: '60', radarMode: 'off' }, watchInfo: BASALT });

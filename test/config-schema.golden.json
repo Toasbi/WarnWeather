@@ -1607,41 +1607,76 @@
                   "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
                 },
                 "editSheetFrom": {
-                  "resolver": "providerKeySheet",
+                  "resolver": "keySheet",
                   "args": {
                     "keyed": {
                       "openweathermap": {
+                        "name": "OpenWeatherMap",
                         "sheetId": "providerKeyOwm",
-                        "keyField": "owmApiKey"
+                        "keyField": "owmApiKey",
+                        "test": true,
+                        "reasons": {
+                          "401": "not valid for One Call 3.0"
+                        }
                       },
                       "tomorrowio": {
+                        "name": "Tomorrow.io",
                         "sheetId": "providerKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey"
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio"
                       },
                       "yandex": {
+                        "name": "Yandex Weather",
                         "sheetId": "providerKeyYandex",
-                        "keyField": "yandexApiKey"
+                        "keyField": "yandexApiKey",
+                        "test": false
                       }
-                    }
+                    },
+                    "picker": "provider",
+                    "outcome": "the watch gets no forecast"
+                  }
+                },
+                "editBadgeFrom": {
+                  "resolver": "keyBadge",
+                  "args": {
+                    "keyed": {
+                      "openweathermap": {
+                        "name": "OpenWeatherMap",
+                        "sheetId": "providerKeyOwm",
+                        "keyField": "owmApiKey",
+                        "test": true,
+                        "reasons": {
+                          "401": "not valid for One Call 3.0"
+                        }
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "providerKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio"
+                      },
+                      "yandex": {
+                        "name": "Yandex Weather",
+                        "sheetId": "providerKeyYandex",
+                        "keyField": "yandexApiKey",
+                        "test": false
+                      }
+                    },
+                    "picker": "provider",
+                    "outcome": "the watch gets no forecast"
                   }
                 },
                 "hintFrom": {
-                  "resolver": "providerKeyHint",
+                  "resolver": "keySummaryHint",
                   "args": {
-                    "keyed": {
-                      "openweathermap": {
-                        "sheetId": "providerKeyOwm",
-                        "keyField": "owmApiKey"
-                      },
-                      "tomorrowio": {
-                        "sheetId": "providerKeyTomorrowio",
-                        "keyField": "tomorrowioApiKey"
-                      },
-                      "yandex": {
-                        "sheetId": "providerKeyYandex",
-                        "keyField": "yandexApiKey"
-                      }
-                    },
                     "hints": {
                       "dwd": "Germany's national weather service — the most accurate forecasts across Germany and decent across Central Europe (ICON model). No API key needed.",
                       "metno": "The service behind yr.no — best across the Nordics with a 2.5 km model, and solid worldwide. No API key needed.",
@@ -1650,7 +1685,70 @@
                       "tomorrowio": "Minute-by-minute hyperlocal forecasts worldwide, from proprietary ML models and satellites. Needs a free API key.",
                       "wunderground": "A huge crowd-sourced network of 250,000+ personal weather stations — dense local readings, strongest across the US and Europe. No API key needed.",
                       "yandex": "Best across Russia and the CIS, using the Meteum machine-learning forecast. Needs an API key."
-                    }
+                    },
+                    "keyed": {
+                      "openweathermap": {
+                        "name": "OpenWeatherMap",
+                        "sheetId": "providerKeyOwm",
+                        "keyField": "owmApiKey",
+                        "test": true,
+                        "reasons": {
+                          "401": "not valid for One Call 3.0"
+                        }
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "providerKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio"
+                      },
+                      "yandex": {
+                        "name": "Yandex Weather",
+                        "sheetId": "providerKeyYandex",
+                        "keyField": "yandexApiKey",
+                        "test": false
+                      }
+                    },
+                    "picker": "provider",
+                    "outcome": "the watch gets no forecast"
+                  }
+                },
+                "attentionFrom": {
+                  "resolver": "keyAttention",
+                  "args": {
+                    "keyed": {
+                      "openweathermap": {
+                        "name": "OpenWeatherMap",
+                        "sheetId": "providerKeyOwm",
+                        "keyField": "owmApiKey",
+                        "test": true,
+                        "reasons": {
+                          "401": "not valid for One Call 3.0"
+                        }
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "providerKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio"
+                      },
+                      "yandex": {
+                        "name": "Yandex Weather",
+                        "sheetId": "providerKeyYandex",
+                        "keyField": "yandexApiKey",
+                        "test": false
+                      }
+                    },
+                    "picker": "provider",
+                    "outcome": "the watch gets no forecast"
                   }
                 },
                 "options": [
@@ -1705,6 +1803,45 @@
                     }
                   ]
                 ]
+              },
+              {
+                "type": "staticText",
+                "style": "info",
+                "joinPrevious": true,
+                "textFrom": {
+                  "resolver": "keyMissingNote",
+                  "args": {
+                    "keyed": {
+                      "openweathermap": {
+                        "name": "OpenWeatherMap",
+                        "sheetId": "providerKeyOwm",
+                        "keyField": "owmApiKey",
+                        "test": true,
+                        "reasons": {
+                          "401": "not valid for One Call 3.0"
+                        }
+                      },
+                      "tomorrowio": {
+                        "name": "Tomorrow.io",
+                        "sheetId": "providerKeyTomorrowio",
+                        "keyField": "tomorrowioApiKey",
+                        "test": true,
+                        "reasons": {
+                          "403": "no access to this data"
+                        },
+                        "usage": "tomorrowio"
+                      },
+                      "yandex": {
+                        "name": "Yandex Weather",
+                        "sheetId": "providerKeyYandex",
+                        "keyField": "yandexApiKey",
+                        "test": false
+                      }
+                    },
+                    "picker": "provider",
+                    "outcome": "the watch gets no forecast"
+                  }
+                }
               },
               {
                 "type": "select",

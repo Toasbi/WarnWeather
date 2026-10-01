@@ -111,7 +111,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // LEADS the control: `chip` is ONE colour printed the way a colour sheet prints it (a
   // swatch and its '#RRGGBB', html.js swatchReadout), `dots` are small outlined (`ring`) or
   // filled pips for a row that previews SEVERAL colours at once; `label` is the trigger
-  // button's text and `ariaNote` a parenthesised state word appended to its aria-label.
+  // button's text and `ariaNote` a parenthesised state word appended to its aria-label;
+  // `tone: 'warn'` draws the button in the info amber (something in its sheet is missing).
   // The library prints what it is given and knows nothing of what the colours mean — a
   // resolver picks chip or dots by how many colours the row owns, not by what they are.
   // Read at render time like the sheet resolver, and only consulted when a sheet
@@ -140,6 +141,22 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // list. args carries the row's messageKey and its shown value, merged UNDER
   // hintFrom.args.
   PConf.hintResolvers = makeRegistry();
+
+  // --- attention-resolver registry --- a row opts into "needs attention" by name
+  // (item.attentionFrom: {resolver, args}); fn(S, env, args) returns null (nothing to
+  // fix) or {note, title, body, actionLabel, confirmLabel?, sheet?}: something the user
+  // should fix before saving (e.g. a picked source whose API key is still empty, or
+  // known to be refused). The engine reads it in two places. The label of the tab
+  // that holds the row carries a small dot (`note` is appended to its aria-label), and
+  // the Save button first opens a confirm dialog in the shared sheet: `title`, `body`,
+  // then `actionLabel`, which opens the fix (`sheet`, else the row's editSheetFrom sheet,
+  // else the sheetOnly section the row sits in) on the row's tab WITHOUT saving, and
+  // `confirmLabel` ("Save anyway" when omitted), which saves exactly as Save does. It
+  // never blocks saving: no answer, no title, or a page that cannot open a <dialog>
+  // saves at once. args carries the row's messageKey and its stored value, merged UNDER
+  // attentionFrom.args. Read at render time (every render repaints the tab bar), like the
+  // hint resolver.
+  PConf.attentionResolvers = makeRegistry();
 
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is.
@@ -509,7 +526,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * @param {Object} S Live settings state.
    * @param {Object} env Platform env.
    * @returns {?{label: (string|undefined), ariaNote: (string|undefined),
-   *   chip: (string|undefined),
+   *   chip: (string|undefined), tone: (string|undefined),
    *   dots: Array<{color: string, ring: (boolean|undefined)}>}} Badge, or null.
    */
   function resolveEditBadge(item, S, env) {
@@ -566,6 +583,113 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var args = Object.assign({ messageKey: item.messageKey, value: value }, item.hintFrom.args || {});
     var hint = fn(S, env, args);
     return hint == null ? undefined : String(hint);
+  }
+
+  /**
+   * A staticText's HTML: its `text`, or a text DERIVED from the live settings by a named
+   * hint resolver (item.textFrom: {resolver, args}) — for a note whose words, or whether
+   * it shows at all, depend on more than a showWhen can test (e.g. "this key is still
+   * empty", where a blank of only spaces counts as empty). The resolver gets
+   * textFrom.args verbatim (a staticText has no messageKey or value to merge); a
+   * null/undefined answer falls back to `text`, and '' means "no note now": the item
+   * renders nothing, its blocks included, and the row above keeps its divider
+   * (nextVisibleJoins skips it).
+   *
+   * @param {Object} item staticText item (text, optional textFrom).
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @returns {string} The note's HTML ('' for none).
+   */
+  function resolveStaticText(item, S, env) {
+    if (!item.textFrom) { return item.text || ''; }
+    var fn = PConf.hintResolvers.get(item.textFrom.resolver);
+    var t = fn ? fn(S, env, Object.assign({}, item.textFrom.args || {})) : null;
+    return t == null ? (item.text || '') : String(t);
+  }
+
+  /**
+   * Whether a staticText whose text is derived (textFrom) has nothing to say right now,
+   * so it renders nothing although its showWhen holds.
+   * @param {Object} item Schema item.
+   * @param {Object} cx Render context ({S, ENV}).
+   * @returns {boolean} True for a textFrom staticText resolving to ''.
+   */
+  function derivedTextEmpty(item, cx) {
+    return item.type === 'staticText' && Boolean(item.textFrom) && resolveStaticText(item, cx.S, cx.ENV) === '';
+  }
+
+  /**
+   * What a row needs fixed, via the item's named attention resolver — null when the item
+   * opts out, the resolver is missing or it reports nothing. See PConf.attentionResolvers.
+   * @param {Object} item Schema item (attentionFrom: {resolver, args}).
+   * @param {Object} S Live settings state.
+   * @param {Object} env Platform env.
+   * @returns {?{note: (string|undefined), title: (string|undefined), body: (string|undefined),
+   *   actionLabel: (string|undefined), confirmLabel: (string|undefined),
+   *   sheet: (string|undefined)}} The resolver's answer, or null.
+   */
+  function resolveAttention(item, S, env) {
+    if (!item.attentionFrom) { return null; }
+    var fn = PConf.attentionResolvers.get(item.attentionFrom.resolver);
+    if (!fn) { return null; }
+    var args = Object.assign({ messageKey: item.messageKey, value: (S || {})[item.messageKey] },
+      item.attentionFrom.args || {});
+    return fn(S, env, args) || null;
+  }
+
+  /**
+   * The first row that needs attention, in schema order: a visible attentionFrom row in a
+   * visible section (a sheetOnly section counts for the tab whose sections hold it) of a
+   * visible tab — or, given `tabId`, of that tab only. Drives the tab bar's dots and the
+   * Save button's confirm dialog.
+   * @param {Object} schema Config schema.
+   * @param {{S: Object, ENV: Object, evalCtx: Object}} cx Render context.
+   * @param {string} [tabId] Only look at this tab.
+   * @returns {?{tab: string, item: Object, section: Object, attention: Object}} The row, or null.
+   */
+  function findAttention(schema, cx, tabId) {
+    var tabs = schema.tabs || [], ti, si, ii, tab, secs, sec, item, att;
+    for (ti = 0; ti < tabs.length; ti++) {
+      tab = tabs[ti];
+      if ((tabId && tab.id !== tabId) || !PConf.showWhen.isVisible(tab, cx.evalCtx)) { continue; }
+      secs = tab.sections || [];
+      for (si = 0; si < secs.length; si++) {
+        sec = secs[si];
+        if (sec.showWhen && !PConf.showWhen.isVisible(sec, cx.evalCtx)) { continue; }
+        for (ii = 0; ii < (sec.items || []).length; ii++) {
+          item = sec.items[ii];
+          if (!item.attentionFrom || !PConf.showWhen.isVisible(item, cx.evalCtx)) { continue; }
+          att = resolveAttention(item, cx.S, cx.ENV);
+          if (att) { return { tab: tab.id, item: item, section: sec, attention: att }; }
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The Save button's confirm dialog (a row needs attention, see PConf.attentionResolvers),
+   * rendered into the shared sheet like the select and edit sheets: the title in the sheet
+   * header (with its close button), one plain sentence, then the fix (`actionLabel`, when
+   * the attention offers one) and "Save anyway" (`confirmLabel`). Both texts are escaped.
+   * Buttons sit side by side with a margin rather than a flex gap, which old Android
+   * WebViews do not lay out.
+   * @param {?{title: string, body: (string|undefined), actionLabel: (string|undefined),
+   *   confirmLabel: (string|undefined)}} confirm The open dialog, or null.
+   * @returns {string} Sheet header + body HTML, or '' when no dialog is open.
+   */
+  function renderConfirmModal(confirm) {
+    if (!confirm) { return ''; }
+    return sheetHeader('cfm-ttl', esc(String(confirm.title || '')))
+      + '<div class="cfm">'
+      + (confirm.body ? '<p class="cfm-body">' + esc(String(confirm.body)) + '</p>' : '')
+      + '<div class="cfm-btns">'
+      + (confirm.actionLabel
+        ? '<button type="button" class="cfm-btn pri" data-confirm="action">' + esc(String(confirm.actionLabel)) + '</button>'
+        : '')
+      + '<button type="button" class="cfm-btn" data-confirm="save">'
+      + esc(String(confirm.confirmLabel || 'Save anyway')) + '</button>'
+      + '</div></div>';
   }
 
   // Rotate-ccw glyph for a label's reset-to-defaults button (item.labelAction).
@@ -644,7 +768,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     if (!view.editSheet) { return ''; }
     var badge = view.editBadge;
     var label = (badge && badge.label) || 'Edit';
-    return '<button type="button" class="thr-btn" data-edit-sheet="' + esc(view.editSheet)
+    // badge.tone 'warn' gives the button the page's info amber (.thr-btn.warn): the
+    // sheet behind it holds something still missing (e.g. an "Add key" button).
+    var tone = (badge && badge.tone === 'warn') ? ' warn' : '';
+    return '<button type="button" class="thr-btn' + tone + '" data-edit-sheet="' + esc(view.editSheet)
       + '" aria-label="' + esc(label) + ' settings for the '
       + esc(String(item.label || 'selected'))
       + ' value' + esc((badge && badge.ariaNote) ? ' (' + String(badge.ariaNote) + ')' : '') + '">'
@@ -1287,13 +1414,16 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // tinted, left-ruled .notice-item) in the page's info amber — a pointer the reader
       // should not scroll past as body copy (e.g. "this is set on another tab").
       var isInfo = item.style === 'info';
+      // textFrom: a note derived from the live settings; '' renders nothing at all.
+      var staticText = resolveStaticText(item, cx.S, cx.ENV);
+      if (item.textFrom && staticText === '') { return { html: '', kind: 'hidden' }; }
       var staticCls = 'static' + (item.joinPrevious === true ? ' join' : '') + (item.hinted ? ' hinted' : '')
         + (isInfo ? ' info' : '') + nbClass(noDivider);
       // A staticText may host preview blocks too (blockBefore/block) — e.g. the Layout tab's
       // after-flick preview rides a caption. renderBlock() no-ops when the id is absent.
       var staticHtml = renderBlock(item.blockBefore, cx.S, cx.ENV, cx.USERDATA, item.blockBeforeSticky)
         + '<div class="' + staticCls + '">'
-        + (isInfo ? '<div class="info-box">' + (item.text || '') + '</div>' : (item.text || '')) + '</div>'
+        + (isInfo ? '<div class="info-box">' + staticText + '</div>' : staticText) + '</div>'
         + renderBlock(item.block, cx.S, cx.ENV, cx.USERDATA);
       return { html: staticHtml, kind: 'static' };
     }
@@ -1414,11 +1544,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // its divider; 'tight' also tightens the padding, 'loose' keeps the normal row spacing. Skips
   // hidden items — so the divider returns automatically when the joining group is hidden — and
   // hosted-suppressed toggles (isHostedRow), whose rows never render at all. A `subheader` item
-  // always reads as 'loose' (see below): it draws its own line above.
+  // always reads as 'loose' (see below): it draws its own line above. A staticText whose
+  // derived text (textFrom) is empty right now renders nothing, so it is skipped too.
   function nextVisibleJoins(items, from, cx, hosted) {
     var j, jp;
     for (j = from; j < items.length; j++) {
       if (isHostedRow(items[j], hosted)) { continue; }
+      if (derivedTextEmpty(items[j], cx)) { continue; }
       if (PConf.showWhen.isVisible(items[j], cx.evalCtx)) {
         // A `subheader` ITEM opens a new group and paints the separating line ITSELF
         // (.subhdr.grp's border-top in shell.html) rather than borrowing the preceding
@@ -1562,20 +1694,26 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * Render the tab-bar buttons, marking the active tab with the on class.
+   * Render the tab-bar buttons, marking the active tab with the on class. A tab holding
+   * a row that needs attention (findAttention) carries a small dot after its label
+   * (.tab-dot, aria-hidden) and the attention's note in its aria-label.
    *
    * @param {Object} schema Config schema (schema.tabs).
    * @param {string} activeTab Active tab id.
    * @param {Object} [cx] Render context; when given, tabs whose showWhen resolves
-   *   false against cx.evalCtx are skipped.
+   *   false against cx.evalCtx are skipped and attention dots are drawn.
    * @returns {string} Tab-bar buttons HTML.
    */
   function renderTabBar(schema, activeTab, cx) {
-    var h = '', i, tab;
+    var h = '', i, tab, att, aria;
     for (i = 0; i < schema.tabs.length; i++) {
       tab = schema.tabs[i];
       if (cx && !PConf.showWhen.isVisible(tab, cx.evalCtx)) { continue; }
-      h += '<button class="tab' + (activeTab === tab.id ? ' on' : '') + '" data-tab="' + esc(tab.id) + '">' + esc(tab.label) + '</button>';
+      att = cx ? findAttention(schema, cx, tab.id) : null;
+      aria = (att && att.attention.note)
+        ? ' aria-label="' + esc(String(tab.label) + ' (' + String(att.attention.note) + ')') + '"' : '';
+      h += '<button class="tab' + (activeTab === tab.id ? ' on' : '') + '" data-tab="' + esc(tab.id) + '"' + aria + '>'
+        + esc(tab.label) + (att ? '<span class="tab-dot" aria-hidden="true"></span>' : '') + '</button>';
     }
     return h;
   }
@@ -1710,6 +1848,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     var S = hydrate(SCHEMA, INJECTED_CFG, ENV), INITIAL = Object.assign({}, S);
     var activeTab = initialTab(SCHEMA, S);
     var openColor = null, openSelect = null, openDate = null, openEdit = null;
+    // The Save button's confirm dialog while it is open (requestSave): {title, body,
+    // actionLabel, confirmLabel, tab, sheet} — a row needs attention
+    // (PConf.attentionResolvers). Shares the one sheet with the others, one at a time.
+    var openConfirm = null;
     // The messageKey of the `select` expanded in place inside the open edit sheet
     // (renderInlineList), or null. One expander at a time: opening a list clears
     // openColor and opening a palette clears this, and every path that clears openColor
@@ -1773,7 +1915,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     function syncDialog() {
       var dlg = document.getElementById('modal');
       if (!dlg || !dlg.showModal) { return; }
-      var sheetOpen = openSelect || openDate || openEdit;
+      var sheetOpen = openSelect || openDate || openEdit || openConfirm;
       var opening = Boolean(sheetOpen && !dlg.open);
       if (sheetOpen) {
         if (opening) { dlg.showModal(); }
@@ -1875,10 +2017,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var selectKey = lastSelectKey;
       var dateKey = openDate;
       var editKey = lastEditSheet;
+      var confirmShown = Boolean(openConfirm);
       dateWiring.flushPending();
       openSelect = null;
       openDate = null;
       openEdit = null;
+      openConfirm = null;
       // openColor is one variable serving palettes in BOTH surfaces — the tab body and an
       // edit sheet — so clear it only when a sheet is what's closing. A palette expanded
       // inside the sheet is going away with it (and would come back expanded on reopen);
@@ -1887,9 +2031,11 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // sheet, and goes with it the same way.
       if (editKey) { openColor = null; openInline = null; }
       render();
+      // A dismissed Save dialog hands focus back to Save.
       var selector = selectKey ? '[data-select="' + selectKey + '"]'
         : dateKey ? '[data-date="' + dateKey + '"]'
-        : editKey ? '[data-edit-sheet="' + editKey + '"]' : null;
+        : editKey ? '[data-edit-sheet="' + editKey + '"]'
+        : confirmShown ? '#save' : null;
       var trigger = selector ? document.querySelector(selector) : null;
       if (trigger) { trigger.focus(); }
       lastSelectKey = null;
@@ -1940,8 +2086,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var prevList = modalEl.querySelector ? modalEl.querySelector('.ssel-list') : null;
       var keepTop = prevList ? prevList.scrollTop : 0;
       var editShown = Boolean(openEdit);
-      var modalHtml = openDate
-        ? renderDateModal(SCHEMA, cx)
+      var modalHtml = openConfirm ? renderConfirmModal(openConfirm)
+        : openDate ? renderDateModal(SCHEMA, cx)
         : editShown ? renderEditModal(SCHEMA, cx) : renderSelectModal(SCHEMA, cx);
       // An open list lives only while its row renders live. A row hidden by its showWhen
       // or muted by its disabledWhen (one tap away, in the same sheet) draws no list, and
@@ -1970,7 +2116,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
       syncDialog();
       document.getElementById('scroll').className =
-        'scroll' + (openSelect || openDate || openEdit ? ' locked' : '');
+        'scroll' + (openSelect || openDate || openEdit || openConfirm ? ' locked' : '');
       applyTheme();
     }
 
@@ -1992,6 +2138,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         openSelect = null;
         openDate = null;
         openEdit = null;
+        openConfirm = null;
         lastEditSheet = null;
         render();
         scroll.scrollTop = tabScroll[activeTab] || 0;
@@ -2287,6 +2434,12 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       var modal = document.getElementById('modal');
       modal.addEventListener('click', function (e) {
         var t;
+        // The Save dialog's two buttons (renderConfirmModal); its close button and the
+        // backdrop fall through to the shared close below and save nothing.
+        if (openConfirm && e.target.closest && (t = e.target.closest('[data-confirm]'))) {
+          confirmChoice(t.getAttribute('data-confirm'));
+          return;
+        }
         if (e.target.closest && (t = e.target.closest('[data-select-pick]'))) {
           var k = t.getAttribute('data-k'), v = t.getAttribute('data-select-pick');
           setValue(k, v);
@@ -2458,8 +2611,70 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       el.classList.add('show');
       setTimeout(function () { location.href = RETURN_TO + encodeURIComponent(JSON.stringify(blob)); }, 300);
     }
+    /**
+     * The Save button: saves at once, unless a row needs attention
+     * (PConf.attentionResolvers, findAttention) — then the confirm dialog opens first,
+     * offering the fix and "Save anyway". It never stands between the user and a save:
+     * no attention, an attention without a title, a resolver that throws, or a page that
+     * cannot open a <dialog> (no showModal) all save straight away. Only the Save
+     * button asks; the setup wizard's own finish saves directly (runReady's save).
+     * @returns {void}
+     */
+    function requestSave() {
+      var dlg = document.getElementById('modal');
+      var found = null;
+      try { found = findAttention(SCHEMA, { S: S, ENV: ENV, evalCtx: evalCtx() }); } catch (err) { found = null; }
+      if (!found || !found.attention.title || !dlg || typeof dlg.showModal !== 'function') { save(); return; }
+      var att = found.attention;
+      dateWiring.flushPending();
+      openSelect = null;
+      openDate = null;
+      openEdit = null;
+      openColor = null;
+      openInline = null;
+      lastSelectKey = null;
+      lastEditSheet = null;
+      openConfirm = {
+        title: att.title,
+        body: att.body,
+        actionLabel: att.actionLabel,
+        confirmLabel: att.confirmLabel,
+        tab: found.tab,
+        sheet: att.sheet || resolveEditSheet(found.item, S, ENV)
+          || (found.section.sheetOnly ? found.section.sheetId : null)
+      };
+      render();
+      focusInModal(['[data-confirm="action"]', '[data-confirm="save"]']);
+    }
+
+    /**
+     * A tap on one of the Save dialog's buttons. "save" closes it and saves exactly as
+     * Save does; "action" closes it WITHOUT saving and opens the fix on the row's tab:
+     * that tab comes to the front (its scroll offset kept as a tab tap keeps it) and the
+     * row's sheet opens over it, so closing the sheet lands on the row it belongs to.
+     * @param {string} which 'save' | 'action'.
+     * @returns {void}
+     */
+    function confirmChoice(which) {
+      var cf = openConfirm;
+      openConfirm = null;
+      if (which === 'save') { render(); save(); return; }
+      var scroll = document.getElementById('scroll');
+      var switching = Boolean(cf && cf.tab && cf.tab !== activeTab);
+      if (switching) {
+        tabScroll[activeTab] = scroll.scrollTop;
+        activeTab = cf.tab;
+      }
+      if (cf && cf.sheet) {
+        openEdit = cf.sheet;
+        lastEditSheet = cf.sheet;
+      }
+      render();
+      if (switching) { scroll.scrollTop = tabScroll[activeTab] || 0; }
+    }
+
     function wireSave() {
-      document.getElementById('save').addEventListener('click', save);
+      document.getElementById('save').addEventListener('click', requestSave);
     }
 
     document.getElementById('appTitle').textContent = SCHEMA.appName;
@@ -2522,7 +2737,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     resolveDefaultFrom: resolveDefaultFrom, resolveHint: resolveHint,
     resolveTheme: resolveTheme,
     fitSelectPeek: fitSelectPeek,
-    checklistToggle: checklistToggle
+    checklistToggle: checklistToggle,
+    resolveStaticText: resolveStaticText, resolveAttention: resolveAttention,
+    findAttention: findAttention, renderConfirmModal: renderConfirmModal
   };
 })();
 if (typeof module !== 'undefined' && module.exports) {
@@ -2557,6 +2774,11 @@ if (typeof module !== 'undefined' && module.exports) {
     resolveHint: PConf.engine.resolveHint,
     resolveTheme: PConf.engine.resolveTheme,
     fitSelectPeek: PConf.engine.fitSelectPeek,
-    checklistToggle: PConf.engine.checklistToggle
+    checklistToggle: PConf.engine.checklistToggle,
+    attentionResolvers: PConf.attentionResolvers,
+    resolveStaticText: PConf.engine.resolveStaticText,
+    resolveAttention: PConf.engine.resolveAttention,
+    findAttention: PConf.engine.findAttention,
+    renderConfirmModal: PConf.engine.renderConfirmModal
   };
 }

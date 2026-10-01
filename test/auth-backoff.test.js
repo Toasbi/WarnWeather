@@ -71,3 +71,20 @@ test('isActive treats a corrupt stored value as inactive and clears it', () => {
   assert.equal(authBackoff.isActive(), false);
   assert.equal(Object.prototype.hasOwnProperty.call(map, AUTH_KEY), false, 'corrupt value removed');
 });
+
+test('set records which provider refused which key (by fingerprint), for the settings page', () => {
+  const map = {};
+  withLocalStorage(map);
+  authBackoff.set({ stage: 'provider_data', code: 'owm_status_401' }, { provider: 'openweathermap', keyHash: '0a1b2c3d' });
+  const rec = JSON.parse(map[AUTH_KEY]);
+  assert.equal(rec.code, 'owm_status_401');
+  assert.equal(rec.provider, 'openweathermap');
+  assert.equal(rec.keyHash, '0a1b2c3d');
+  assert.equal(typeof rec.since, 'number');
+  // A keyless provider (or an old caller) leaves the fields it has nothing for out.
+  authBackoff.set({ stage: 'provider_data', code: 'fake_status_403' }, { provider: 'dwd', keyHash: '' });
+  assert.deepEqual(Object.keys(JSON.parse(map[AUTH_KEY])).sort(), ['code', 'provider', 'since']);
+  authBackoff.set({ stage: 'provider_data', code: 'fake_status_403' });
+  assert.deepEqual(Object.keys(JSON.parse(map[AUTH_KEY])).sort(), ['code', 'since']);
+  assert.equal(authBackoff.isActive(), true);
+});

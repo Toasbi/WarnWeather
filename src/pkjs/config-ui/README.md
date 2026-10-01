@@ -31,6 +31,7 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [Defaults-resolver registry — PConf.defaultsResolvers](#defaults-resolver-registry--pconfdefaultsresolvers)
    - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
    - [Hint-resolver registry — PConf.hintResolvers](#hint-resolver-registry--pconfhintresolvers)
+   - [Attention-resolver registry — PConf.attentionResolvers](#attention-resolver-registry--pconfattentionresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
    - [Hook registry — PConf.hooks](#hook-registry--pconfhooks)
 6. [Build step — buildPage](#build-step--buildpage)
@@ -284,6 +285,10 @@ and the sheet it opens name a colour identically. `dots` are small pips, outline
 entry sets `ring` and filled otherwise, for a row previewing several colours at once where
 several readouts would not fit. Both preview lanes are `aria-hidden`, so `ariaNote` is what
 actually announces the state: it is appended to the Edit button's `aria-label` in parentheses.
+A badge's `tone: 'warn'` gives the Edit button the page's info amber (`.thr-btn.warn`: the
+info box's rule and tint, the label in its usual colour), for a sheet that holds something
+still missing — WarnWeather's Weather provider row reads "Add key" in that look while the
+picked provider's API key is empty. Any other `tone` is ignored.
 
 Rows inside an open sheet behave as they do in a card (a text row's `suffixAction` button and
 its verdict line, and a hint's tap-to-copy `[data-copy]` button, included), with one
@@ -356,6 +361,13 @@ tinted, left-ruled look of the General tab's fetch-notice items, in the page's i
 (`--info-tint` / `--info-rule` in `shell.html`, shared with those notice items and flipped by
 the light theme; error boxes stay red) — for a pointer the reader should not skim past as
 body copy ("this is set on another tab").
+`textFrom: { resolver, args }` derives the note from the live settings through a named
+[hint resolver](#hint-resolver-registry--pconfhintresolvers), for a note whose words, or
+whether it shows at all, depend on more than a `showWhen` can test (WarnWeather's "Needs an
+API key" note, where a key of only spaces counts as empty). The resolver gets `textFrom.args`
+as they are (no messageKey or value: a staticText has none); `null`/`undefined` falls back to
+`text`, and `''` means "no note now": the item renders nothing, blocks included, and the row
+above keeps its divider even when the note would `joinPrevious` it.
 
 `color` items offer all 64 Pebble swatches; `excludeColors` subtracts specific ones (e.g.
 white from the holiday picker, where white means "no highlight" rather than a real color). A
@@ -392,12 +404,14 @@ picking the shown swatch is what writes it.
 | `description` | string | HTML description rendered below the label |
 | `hint` | string | HTML hint rendered below the control |
 | `hintByValue` | `{ value: string }` | Per-value hints; overrides `hint` for the current value |
+| `attentionFrom` | `{ resolver, args }` | The row needs fixing before a save, per a named [attention resolver](#attention-resolver-registry--pconfattentionresolvers): its tab's label gets a dot, and Save asks first. |
 | `hintFrom` | `{ resolver, args }` | A DERIVED hint from a named [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a hint that depends on other keys than the row's own value; overrides `hintByValue`/`hint` unless the resolver answers `null`/`undefined`. Value rows and badged `sheet` rows (`editBadgeFrom`, see above) — not `button`/chevron `sheet` rows or `inline` cells. On value rows also re-resolved in place after a keyboard nudge on a range thumb. |
 | `icon` | string | Id of a glyph in the [icon registry](#icon-registry--pconficons), printed before the label text on a value row and on a `button`/`sheet` row alike. An unregistered id prints nothing. |
 | `attributes.placeholder` | string | Placeholder text for `text` items |
 | `capabilities` | `["COLOR"]` | Clay-compatible sugar: hides the item on b&w platforms |
 | `showWhen` | Predicate | Conditional-visibility predicate (see grammar below) |
 | `text` | string | HTML body for `staticText` items |
+| `textFrom` | `{ resolver, args }` | `staticText` only: the body derived by a named hint resolver; `''` renders nothing (see above) |
 | `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
 | `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
 | `single` | boolean | `range` only: one thumb, a plain integer string (see above). |
@@ -638,6 +652,48 @@ after it instead — `renderRow` marks every derived hint element with `data-hin
 and the engine rewrites just that element's markup, replacing no node. WarnWeather's day-max
 hints (`dayMaxHint`) rely on it: they quote the warn level the slider below them sets. A hint
 that rendered empty (no element) and the row's wrap layout wait for the next full render.
+
+### Attention-resolver registry — PConf.attentionResolvers
+
+An item with an `attentionFrom: { resolver: id, args }` field can say that it needs fixing
+before the user saves — WarnWeather's Weather provider row, while the picked provider's API
+key is missing or the provider is known to have rejected it:
+
+```js
+// Returns null (nothing to fix) or what to say about it.
+PConf.attentionResolvers.register('keyAttention', function (state, env, args) {
+  // args carries the row's messageKey and its stored value, merged UNDER attentionFrom.args
+  if (state.owmApiKey) { return null; }
+  return {
+    note: 'OpenWeatherMap has no API key',        // appended to the tab's aria-label
+    title: 'OpenWeatherMap has no API key',       // the Save dialog's title
+    body: 'Without one, the watch gets no forecast.',
+    actionLabel: 'Add key',                       // the fix; omit for "Save anyway" alone
+    sheet: 'providerKeyOwm'                       // optional; see below
+    // confirmLabel: 'Save anyway' is the default
+  };
+});
+```
+
+The engine reads it in two places, every render:
+
+- **The tab bar.** The label of a tab holding a visible row that needs attention (in a
+  visible section, a `sheetOnly` one included) ends in a small dot in the info amber
+  (`.tab-dot`, `aria-hidden`), and the first such row's `note` joins the tab's
+  `aria-label` in parentheses.
+- **The Save button.** It first walks the visible tabs in order; the first row that needs
+  attention and has a `title` opens a confirm dialog in the shared sheet instead of saving:
+  the title in the sheet header, `body` (plain text, escaped) and two buttons. `actionLabel`
+  closes the dialog WITHOUT saving, brings the row's tab to the front and opens the fix:
+  `sheet`, else the row's `editSheetFrom` sheet, else the `sheetOnly` section the row sits
+  in. `confirmLabel` ("Save anyway") saves exactly as Save does. The close button, the
+  backdrop and Escape close it and save nothing.
+
+It never stands between the user and a save: with nothing to fix, an attention without a
+`title`, a resolver that throws, or a webview that cannot open a `<dialog>`
+(`showModal` missing), Save saves at once. Only the Save button asks — `runReady`'s
+`save()` (the setup wizard's finish) saves directly. The dialog's buttons sit side by side
+with a margin, not a flex `gap`, which old Android WebViews do not lay out.
 
 ### Action registry — PConf.actions
 
