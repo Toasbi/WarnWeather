@@ -1,7 +1,9 @@
 #include "hatch.h"
 #include "theme.h"
 
-void hatch_fill_rect_raw(GContext *ctx, GRect rect, GColor color, int stride)
+// The one dot loop behind both entry points: every column's hatch dots inside `rect`,
+// each over a bg backing run when `backing` (hatch_fill_rect's B&W case).
+static void hatch_fill(GContext *ctx, GRect rect, GColor color, int stride, bool backing)
 {
     if (stride <= 0 || rect.size.w <= 0 || rect.size.h <= 0)
     {
@@ -9,6 +11,10 @@ void hatch_fill_rect_raw(GContext *ctx, GRect rect, GColor color, int stride)
     }
 
     graphics_context_set_stroke_color(ctx, color);
+    if (backing)
+    {
+        graphics_context_set_fill_color(ctx, theme_bg());
+    }
 
     const int16_t x_end = rect.origin.x + rect.size.w;
     const int16_t y_end = rect.origin.y + rect.size.h;
@@ -17,10 +23,23 @@ void hatch_fill_rect_raw(GContext *ctx, GRect rect, GColor color, int stride)
         int16_t hatch_y = hatch_first_y(x, rect.origin.y, (int16_t)stride);
         for (int16_t y = hatch_y; y < y_end; y += stride)
         {
+            if (backing)
+            {
+                graphics_fill_rect(ctx, GRect(x, y - 1, 1, 3), 0, GCornerNone);
+            }
             graphics_draw_pixel(ctx, GPoint(x, y));
         }
     }
 }
+
+// Only chart.c's line-style extension and its colour-only area dither call the bare
+// emitter; elsewhere (aplite) hatch_fill keeps its one caller and folds `backing`.
+#if defined(PBL_COLOR) || defined(WW_LINE_STYLE)
+void hatch_fill_rect_raw(GContext *ctx, GRect rect, GColor color, int stride)
+{
+    hatch_fill(ctx, rect, color, stride, false);
+}
+#endif
 
 void hatch_fill_rect(GContext *ctx, GRect rect, GColor color, int stride)
 {
@@ -30,17 +49,7 @@ void hatch_fill_rect(GContext *ctx, GRect rect, GColor color, int stride)
     // bw theme, so this backing is not a color-only concern (unlike chart_render_area's
     // checkerboard dither, which real hardware already gets for free from its own
     // dithering and must not double up on).
-    if (!theme_is_bw())
-    {
-        hatch_fill_rect_raw(ctx, rect, color, stride);
-        return;
-    }
-
-    if (stride <= 0 || rect.size.w <= 0 || rect.size.h <= 0)
-    {
-        return;
-    }
-
+    //
     // Fix 3's neutrality argument applies here too: a bg backing over an
     // already-bg pixel (background, or a bar/fill that happens to be bg-colored)
     // is a no-op; it only matters where the fg dot would otherwise land on fg
@@ -54,18 +63,5 @@ void hatch_fill_rect(GContext *ctx, GRect rect, GColor color, int stride)
     // fringe of the diagonal (and spilling past the band's x edges too). Keeping
     // the run to the dot's own column removes both hazards while still giving the
     // dot a bg channel above/below so it reads over a fill/bar.
-    graphics_context_set_stroke_color(ctx, color);
-    graphics_context_set_fill_color(ctx, theme_bg());
-
-    const int16_t x_end = rect.origin.x + rect.size.w;
-    const int16_t y_end = rect.origin.y + rect.size.h;
-    for (int16_t x = rect.origin.x; x < x_end; ++x)
-    {
-        int16_t hatch_y = hatch_first_y(x, rect.origin.y, (int16_t)stride);
-        for (int16_t y = hatch_y; y < y_end; y += stride)
-        {
-            graphics_fill_rect(ctx, GRect(x, y - 1, 1, 3), 0, GCornerNone);
-            graphics_draw_pixel(ctx, GPoint(x, y));
-        }
-    }
+    hatch_fill(ctx, rect, color, stride, theme_is_bw());
 }
