@@ -2,14 +2,17 @@
 #include <string.h>
 #include <time.h>
 #include "c/appendix/date_format.h"
+#include "c/appendix/on_demand.h"
 #include "c/appendix/status_short_text.h"
 
 // Host tests for the status slots' short forms (appendix/status_short_text.h,
 // header-only): every row of the 1.24.0 spec's §5.6 table, as the whole family a slot
-// switches through when On demand needs its room, widest first. A member prints as
-// its text, then " -arrow" when it drops the wind arrow, " -lane" when it is the
-// Watch battery glyph without its bolt lane, and " ~" when it is elastic (the layout
-// may ellipsize it down to status_short_floor).
+// switches through when On demand needs its room, widest first — status_short_member
+// for v = 1, 2, … up to its first 0, as status_on_demand.c asks. A member prints as its
+// text, then " -arrow" when it drops the wind arrow, " -lane" when it is the Watch
+// battery glyph without its bolt lane, and " ~" when it is elastic (the layout may
+// ellipsize it down to status_short_floor). `mday` is the day of the month outside a
+// calendar view, 0 in one.
 
 static int s_failures = 0;
 
@@ -30,11 +33,27 @@ static void expect_true(const char *name, int cond) {
 #define FAMILY(...) ((const char *const[]) { __VA_ARGS__, NULL })
 #define NONE ((const char *const[]) { NULL })
 
+// The members of one slot's family (v = 1, 2, … up to the first 0), printed as above
+// into got[] (at most `max`); returns how many.
+static int members(uint8_t kind, uint8_t icon, uint8_t mday, const char *full, bool suffix,
+                   bool charging, char got[][48], int max) {
+    int n = 0;
+    for (; n < max; n++) {
+        char text[STATUS_SHORT_CAP];
+        uint8_t flags = status_short_member(kind, icon, mday, full, suffix, charging,
+                                            (uint8_t)(n + 1), text, sizeof(text));
+        if (!flags) { break; }
+        snprintf(got[n], 48, "%s%s%s%s", text, (flags & SST_NO_SUFFIX) ? " -arrow" : "",
+                 (flags & SST_NO_LANE) ? " -lane" : "", (flags & SST_ELASTIC) ? " ~" : "");
+    }
+    return n;
+}
+
 // The family of one slot against `want` (NULL-terminated, widest first).
-static void family(const char *name, uint8_t kind, uint8_t icon, bool full_date, uint8_t mday,
+static void family(const char *name, uint8_t kind, uint8_t icon, uint8_t mday,
                    const char *full, bool suffix, bool charging, const char *const *want) {
-    StatusShortMember fam[STATUS_SHORT_MEMBERS];
-    uint8_t n = status_short_family(kind, icon, full_date, mday, full, suffix, charging, fam);
+    char got[8][48];
+    int n = members(kind, icon, mday, full, suffix, charging, got, 8);
     int nwant = 0;
     while (want[nwant]) { nwant++; }
     if (n != nwant) {
@@ -43,36 +62,23 @@ static void family(const char *name, uint8_t kind, uint8_t icon, bool full_date,
         return;
     }
     for (int i = 0; i < n; i++) {
-        char text[STATUS_SHORT_CAP];
-        if (fam[i].step == 0) {
-            snprintf(text, sizeof(text), "%s", full);
-        } else if (!status_short_text(kind, icon, full_date, mday, full, fam[i].step, text,
-                                      sizeof(text))) {
-            printf("FAIL %s: member %d has no text\n", name, i);
-            s_failures++;
-            return;
-        }
-        char got[48];
-        snprintf(got, sizeof(got), "%s%s%s%s", text, fam[i].no_suffix ? " -arrow" : "",
-                 fam[i].no_lane ? " -lane" : "", fam[i].elastic ? " ~" : "");
         char label[96];
         snprintf(label, sizeof(label), "%s [%d]", name, i);
-        expect_str(label, got, want[i]);
+        expect_str(label, got[i], want[i]);
     }
 }
 
 // A TEXT slot's family (the phone baked `full`), no arrow.
 static void text_family(const char *name, uint8_t icon, const char *full,
                         const char *const *want) {
-    family(name, SLOT_TEXT, icon, false, 7, full, false, false, want);
+    family(name, SLOT_TEXT, icon, 0, full, false, false, want);
 }
 
-// A slot kind with no short form at all: no family, and status_short_text has no
-// first member.
+// A slot kind with no short form at all: not even a first member, outside a calendar
+// view or in one.
 static void no_family(const char *name, uint8_t kind, uint8_t icon, const char *full) {
-    char out[STATUS_SHORT_CAP];
-    family(name, kind, icon, true, 7, full, false, false, NONE);
-    expect_true(name, !status_short_text(kind, icon, true, 7, full, 1, out, sizeof(out)));
+    family(name, kind, icon, 7, full, false, false, NONE);
+    family(name, kind, icon, 0, full, false, false, NONE);
 }
 
 // --- the table, row by row --------------------------------------------------------
@@ -94,13 +100,13 @@ static void wind_and_gusts(void) {
         const char *name = k ? "gust" : "wind";
         char label[64];
         snprintf(label, sizeof(label), "%s pair arrow", name);
-        family(label, SLOT_TEXT, ICONS[k], false, 7, "12 / 30kph", true, false,
+        family(label, SLOT_TEXT, ICONS[k], 0, "12 / 30kph", true, false,
                FAMILY("12/30kph", "12/30", "12/30 -arrow"));
         snprintf(label, sizeof(label), "%s pair", name);
-        family(label, SLOT_TEXT, ICONS[k], false, 7, "12 / 30kph", false, false,
+        family(label, SLOT_TEXT, ICONS[k], 0, "12 / 30kph", false, false,
                FAMILY("12/30kph", "12/30"));
         snprintf(label, sizeof(label), "%s now arrow", name);
-        family(label, SLOT_TEXT, ICONS[k], false, 7, "12kph", true, false,
+        family(label, SLOT_TEXT, ICONS[k], 0, "12kph", true, false,
                FAMILY("12", "12 -arrow"));
         snprintf(label, sizeof(label), "%s mph", name);
         text_family(label, ICONS[k], "12mph", FAMILY("12"));
@@ -109,7 +115,7 @@ static void wind_and_gusts(void) {
         snprintf(label, sizeof(label), "%s tomorrow mark", name);
         text_family(label, ICONS[k], "12/30*kph", FAMILY("12/30*"));
         snprintf(label, sizeof(label), "%s unit off arrow", name);
-        family(label, SLOT_TEXT, ICONS[k], false, 7, "12/30", true, false, FAMILY("12/30 -arrow"));
+        family(label, SLOT_TEXT, ICONS[k], 0, "12/30", true, false, FAMILY("12/30 -arrow"));
         snprintf(label, sizeof(label), "%s unit off", name);
         no_family(label, SLOT_TEXT, ICONS[k], "12/30");
         snprintf(label, sizeof(label), "%s missing", name);
@@ -148,31 +154,31 @@ static void other_readings(void) {
 static void live_kinds(void) {
     no_family("empty", SLOT_EMPTY, STATUS_ICON_NONE, "");
     no_family("week", SLOT_LIVE_WEEK, STATUS_ICON_NONE, "W40");
-    family("steps", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, false, 7, "12.3k", false, false,
+    family("steps", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, 0, "12.3k", false, false,
            FAMILY("12k"));
-    family("steps small", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, false, 7, "1.9k", false, false,
+    family("steps small", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, 0, "1.9k", false, false,
            FAMILY("1k"));
     no_family("steps whole", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, "12k");
     no_family("steps under 1000", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, "999");
-    family("distance km", SLOT_LIVE_DISTANCE, STATUS_ICON_DISTANCE, false, 7, "3.4km", false,
+    family("distance km", SLOT_LIVE_DISTANCE, STATUS_ICON_DISTANCE, 0, "3.4km", false,
            false, FAMILY("3.4"));
-    family("distance mi", SLOT_LIVE_DISTANCE_MI, STATUS_ICON_DISTANCE, false, 7, "2.1mi", false,
+    family("distance mi", SLOT_LIVE_DISTANCE_MI, STATUS_ICON_DISTANCE, 0, "2.1mi", false,
            false, FAMILY("2.1"));
     no_family("distance missing", SLOT_LIVE_DISTANCE, STATUS_ICON_DISTANCE, "--");
     no_family("heart rate", SLOT_LIVE_HR, STATUS_ICON_HR, "72");
-    family("sleep", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, false, 7, "7h32", false, false,
+    family("sleep", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, 0, "7h32", false, false,
            FAMILY("7h"));
-    family("sleep whole hour", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, false, 7, "7h00", false,
+    family("sleep whole hour", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, 0, "7h00", false,
            false, FAMILY("7h"));
     no_family("sleep missing", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "--");
     // Under an hour: "0h" would read as no sleep at all, so it hides at its turn.
     no_family("sleep under an hour", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "0h45");
-    family("sleep ten hours", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, false, 7, "10h05", false,
+    family("sleep ten hours", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, 0, "10h05", false,
            false, FAMILY("10h"));
     // The Watch battery glyph: its bolt lane goes while it is empty.
-    family("battery glyph", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, false, 7, "", false, false,
+    family("battery glyph", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, 0, "", false, false,
            FAMILY(" -lane"));
-    family("battery glyph charging", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, false, 7, "", false,
+    family("battery glyph charging", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, 0, "", false,
            true, NONE);
     // The Battery % is whole or hidden: its % never drops (owner, 2026-09-30).
     no_family("battery pct", SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "82%");
@@ -213,10 +219,10 @@ static void date_calendar(void) {
         snprintf(name, sizeof(name), "date calendar %s", CASES[i].full);
         expect_str(name, full, CASES[i].full);
         if (CASES[i].year) {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, false, 7, full, false, false,
+            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, 0, full, false, false,
                    FAMILY(CASES[i].year));
         } else {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, false, 7, full, false, false, NONE);
+            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, 0, full, false, false, NONE);
         }
     }
 }
@@ -253,10 +259,10 @@ static void date_no_calendar(void) {
         snprintf(name, sizeof(name), "date no-calendar %s", CASES[i].full);
         expect_str(name, full, CASES[i].full);
         if (CASES[i].year) {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, true, 7, full, false, false,
+            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, 7, full, false, false,
                    FAMILY(CASES[i].year, "7"));
         } else {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, true, 7, full, false, false,
+            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, 7, full, false, false,
                    FAMILY("7"));
         }
     }
@@ -264,17 +270,18 @@ static void date_no_calendar(void) {
     struct tm late = sample_tm(29);
     char full[STATUS_SHORT_CAP];
     date_format_full(full, sizeof(full), &late, DATE_FULL_LONG, false);
-    family("date no-calendar 29", SLOT_LIVE_DATE, STATUS_ICON_NONE, true, 29, full, false, false,
+    family("date no-calendar 29", SLOT_LIVE_DATE, STATUS_ICON_NONE, 29, full, false, false,
            FAMILY("29.09.26", "29"));
 }
 
 // --- the city ----------------------------------------------------------------------
 
 // CITY_VECTORS: the city's word ladder, one row per name: the name, then its
-// abbreviated members widest first, then NULL. The phone walks the same ladder before
-// its 8-byte edge-slot cap (src/pkjs/city-ladder.js), and test/city-ladder.test.js
-// parses this table and runs the twin over it: keep one row per line, in this shape,
-// with plain UTF-8 in the strings.
+// abbreviated forms widest first, then NULL. The watch draws the ladder's first and
+// last rung; the phone walks every rung before its 8-byte edge-slot cap
+// (src/pkjs/city-ladder.js), and test/city-ladder.test.js parses this table and runs
+// the twin over it: keep one row per line, in this shape, with plain UTF-8 in the
+// strings.
 static const char *const CITY_VECTORS[][5] = {
     { "New York", "N. York", NULL },
     { "Bad Berleburg", "B. Berleburg", NULL },
@@ -302,30 +309,30 @@ static const char *const CITY_VECTORS[][5] = {
     { "--", NULL },
 };
 
+// Member `v` of a city slot's family (SLOT_TEXT without an icon): its flags.
+static uint8_t city_member(const char *full, uint8_t v, char *out, size_t cap) {
+    return status_short_member(SLOT_TEXT, STATUS_ICON_NONE, 0, full, false, false, v, out, cap);
+}
+
 static void city(void) {
-    for (size_t v = 0; v < sizeof(CITY_VECTORS) / sizeof(CITY_VECTORS[0]); v++) {
-        const char *full = CITY_VECTORS[v][0];
+    for (size_t r = 0; r < sizeof(CITY_VECTORS) / sizeof(CITY_VECTORS[0]); r++) {
+        const char *full = CITY_VECTORS[r][0];
         int ladder = 0;
-        while (CITY_VECTORS[v][1 + ladder]) { ladder++; }
-        // The ladder, then the elastic member (the full name) when it has more than
-        // three code points to ellipsize.
-        bool elastic = sst_cps(full, (int)strlen(full)) > STATUS_SHORT_FLOOR_CPS;
+        while (CITY_VECTORS[r][1 + ladder]) { ladder++; }
+        // The ladder's first rung, its last when it has more, then the elastic member
+        // (the full name) when it has more than three code points to ellipsize.
+        const char *want[4] = { NULL, NULL, NULL, NULL };
+        int n = 0;
+        if (ladder > 0) { want[n++] = CITY_VECTORS[r][1]; }
+        if (ladder > 1) { want[n++] = CITY_VECTORS[r][ladder]; }
+        char elastic[48];
+        if (sst_cps(full, (int)strlen(full)) > STATUS_SHORT_FLOOR_CPS) {
+            snprintf(elastic, sizeof(elastic), "%s ~", full);
+            want[n++] = elastic;
+        }
         char name[64];
         snprintf(name, sizeof(name), "city %s", full);
-        for (int s = 0; s < ladder; s++) {
-            char out[STATUS_SHORT_CAP];
-            bool ok = status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7, full,
-                                        (uint8_t)(s + 1), out, sizeof(out));
-            expect_true(name, ok);
-            if (ok) { expect_str(name, out, CITY_VECTORS[v][1 + s]); }
-        }
-        char out[STATUS_SHORT_CAP];
-        bool more = status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7, full,
-                                      (uint8_t)(ladder + 1), out, sizeof(out));
-        expect_true(name, more == elastic);
-        if (more) { expect_str(name, out, full); }
-        expect_true(name, !status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7, full,
-                                             (uint8_t)(ladder + 2), out, sizeof(out)));
+        family(name, SLOT_TEXT, STATUS_ICON_NONE, 0, full, false, false, want);
     }
     // As families: the ladder, then the elastic member last.
     text_family("city family", STATUS_ICON_NONE, "Frankfurt am Main",
@@ -334,18 +341,25 @@ static void city(void) {
     text_family("city two words", STATUS_ICON_NONE, "New York", FAMILY("N. York", "New York ~"));
     no_family("city short", SLOT_TEXT, STATUS_ICON_NONE, "Ulm");
     no_family("city missing", SLOT_TEXT, STATUS_ICON_NONE, "--");
-    // A long name keeps its first member and its last ones (STATUS_SHORT_MEMBERS).
+    // A long name: its first rung (the shortest word), its last (all but the longest)
+    // and the elastic member.
     text_family("city long", STATUS_ICON_NONE, "Bad Soden am Taunus",
                 FAMILY("Bad Soden a. Taunus", "B. S. a. Taunus", "Bad Soden am Taunus ~"));
-    // Every word is ranked, however many: eleven words, and only the longest (the
-    // eleventh) stays whole on the last rung. test/city-ladder.test.js pins the phone's
-    // twin to the same form. (Past any slot's cap, so a big buffer.)
+    // Every word is ranked, however many: eleven words, the first rung abbreviates the
+    // leftmost of the shortest, and on the last only the longest (the eleventh) stays
+    // whole. test/city-ladder.test.js pins the phone's twin to the same last form.
+    // (Past any slot's cap, so a big buffer.)
+    const char *eleven = "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kkk";
     char many[48];
-    expect_true("city eleven words", status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
-                "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kkk", 10, many, sizeof(many)));
+    expect_true("city eleven words first",
+                city_member(eleven, 1, many, sizeof(many)) == SST_MEMBER);
+    expect_str("city eleven words first", many, "A. Bb Cc Dd Ee Ff Gg Hh Ii Jj Kkk");
+    expect_true("city eleven words", city_member(eleven, 2, many, sizeof(many)) == SST_MEMBER);
     expect_str("city eleven words", many, "A. B. C. D. E. F. G. H. I. J. Kkk");
-    expect_true("city eleven words end", !status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
-                "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kkk", 12, many, sizeof(many)));
+    expect_true("city eleven words elastic",
+                city_member(eleven, 3, many, sizeof(many)) == (SST_MEMBER | SST_ELASTIC));
+    expect_str("city eleven words elastic", many, eleven);
+    expect_true("city eleven words end", !city_member(eleven, 4, many, sizeof(many)));
 
     // The elastic floor: three code points and the ellipsis, UTF-8 safe.
     char floor[STATUS_SHORT_CAP];
@@ -370,23 +384,72 @@ static void city(void) {
 // fails one byte short instead of overrunning; and a buffer too small fails.
 static void caps(void) {
     char out[STATUS_SHORT_CAP];
-    expect_true("cap slot", status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
-                                              "Halle-Neustadt Süd", 1, out, sizeof(out)));
+    expect_true("cap slot", city_member("Halle-Neustadt Süd", 1, out, sizeof(out)));
     expect_str("cap slot", out, "Halle-Neustadt S.");
     char exact[sizeof("Halle-Neustadt S.")];
-    expect_true("cap exact", status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
-                                               "Halle-Neustadt Süd", 1, exact, sizeof(exact)));
+    expect_true("cap exact", city_member("Halle-Neustadt Süd", 1, exact, sizeof(exact)));
     expect_str("cap exact", exact, "Halle-Neustadt S.");
-    expect_true("cap one short", !status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
-                                                    "Halle-Neustadt Süd", 1, exact,
-                                                    sizeof(exact) - 1));
+    expect_true("cap one short",
+                !city_member("Halle-Neustadt Süd", 1, exact, sizeof(exact) - 1));
     char tiny[4];
-    expect_true("cap tiny city", !status_short_text(SLOT_TEXT, STATUS_ICON_NONE, false, 7,
-                                                    "New York", 1, tiny, sizeof(tiny)));
-    expect_true("cap tiny year", !status_short_text(SLOT_LIVE_DATE, STATUS_ICON_NONE, false, 7,
-                                                    "Sep 2026", 1, tiny, sizeof(tiny)));
-    expect_true("cap zero", !status_short_text(SLOT_TEXT, STATUS_ICON_TEMP, false, 7, "12 | 10", 1,
-                                               out, 0));
+    expect_true("cap tiny city", !city_member("New York", 1, tiny, sizeof(tiny)));
+    expect_true("cap tiny year", !status_short_member(SLOT_LIVE_DATE, STATUS_ICON_NONE, 0,
+                                                      "Sep 2026", false, false, 1, tiny,
+                                                      sizeof(tiny)));
+    expect_true("cap zero", !status_short_member(SLOT_TEXT, STATUS_ICON_TEMP, 0, "12 | 10",
+                                                 false, false, 1, out, 0));
+}
+
+// --- the OD_VARIANTS bound -----------------------------------------------------------
+
+// A slot's full form and its short members fill OdSlotIn.m (on_demand.h):
+// status_on_demand.c measures members from v = 1 and stops at OD_VARIANTS, so a family
+// with a member there would lose it without a word — a new wind step would drop the
+// arrow-less member first. No family has one: every kind (and some past the enum) and
+// every icon, over the table's texts and the city vectors, with and without the arrow
+// and a charge, in and outside a calendar view. And the widest family fills the places
+// exactly, so OD_VARIANTS is the families' own bound, not slack on the paint stack.
+static void od_variants(void) {
+    static const char *const TEXTS[] = {
+        "12\xC2\xB0", "-3\xC2\xB0", "12 | 10", "12 (10)", "12 / 30kph", "12 / 30 kph",
+        "12/30*kph", "12kph", "12mph", "12/30kn", "12/30", "1013hPa", "8\xC2\xB0", "3 / 7",
+        ("3 / \xC2\xBB" "8"), "42 / 58", "2-3", "06:12", "6:12p", "12d", "now", "--", "31%",
+        "100%", "", "W40", "12.3k", "1.9k", "12k", "999", "3.4km", "2.1mi", "72", "7h32",
+        "10h05", "0h45", "82%", "Sep 2026", "September 2026", "09.2026", "09/2026", "2026-09",
+        "07.09.26", "07.09.2026", "7.9.", "7/9/26", "2026-09-07", "7 Sep", "7. Sep 2026",
+        "Sep 7, 2026",
+    };
+    const int ntexts = (int)(sizeof(TEXTS) / sizeof(TEXTS[0]));
+    const int ncities = (int)(sizeof(CITY_VECTORS) / sizeof(CITY_VECTORS[0]));
+    static const uint8_t MDAYS[3] = { 0, 7, 29 };
+    int widest = 0;
+    int over = 0;
+    for (int t = 0; t < ntexts + ncities; t++) {
+        const char *full = t < ntexts ? TEXTS[t] : CITY_VECTORS[t - ntexts][0];
+        for (int kind = 0; kind < 16; kind++) {
+            for (int icon = 0; icon < 36; icon++) {
+                for (int c = 0; c < 12; c++) {
+                    uint8_t mday = MDAYS[c / 4];
+                    bool suffix = (c & 1) != 0;
+                    bool charging = (c & 2) != 0;
+                    char got[8][48];
+                    int n = members((uint8_t)kind, (uint8_t)icon, mday, full, suffix, charging,
+                                    got, 8);
+                    if (n > widest) { widest = n; }
+                    char out[STATUS_SHORT_CAP];
+                    if (status_short_member((uint8_t)kind, (uint8_t)icon, mday, full, suffix,
+                                            charging, OD_VARIANTS, out, sizeof(out))) {
+                        if (over++ < 5) {
+                            printf("FAIL variants: kind %d icon %d \"%s\" has a member at "
+                                   "OD_VARIANTS\n", kind, icon, full);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    expect_true("variants.none_at_the_bound", over == 0);
+    expect_true("variants.widest_fills_the_bound", widest == OD_VARIANTS - 1);
 }
 
 int main(void) {
@@ -398,6 +461,7 @@ int main(void) {
     date_no_calendar();
     city();
     caps();
+    od_variants();
     if (s_failures) {
         printf("%d status_short_text failure(s)\n", s_failures);
         return 1;

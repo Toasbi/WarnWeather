@@ -1,10 +1,11 @@
 'use strict';
 
 // The city's word ladder on the phone (src/pkjs/city-ladder.js) and where the bake
-// uses it (status-lines.js packLine, edge slots only). The watch walks the same
-// ladder (src/c/appendix/status_short_text.h); the vectors both are held to live in
-// the C test (test/c/status_short_text_test.c, CITY_VECTORS) and are parsed from it
-// here, the date-format-contract pattern, so neither side can drift alone.
+// uses it (status-lines.js packLine, edge slots only). The watch draws the same
+// ladder's first and last rung (src/c/appendix/status_short_text.h); the vectors both
+// are held to live in the C test (test/c/status_short_text_test.c, CITY_VECTORS) and
+// are parsed from it here, the date-format-contract pattern, so neither side can drift
+// alone.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

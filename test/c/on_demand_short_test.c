@@ -331,21 +331,23 @@ static void elastic_city(void) {
 
 // --- the real families ----------------------------------------------------------------
 
-// A slot built from its resolved text the way status_on_demand.c builds it, with 6 px
-// per byte standing in for the font.
-static OdSlotIn slot_family(uint8_t kind, uint8_t icon, bool full_date, uint8_t mday,
-                            const char *full, char texts[OD_VARIANTS][STATUS_SHORT_CAP]) {
+// A slot built from its resolved text the way status_on_demand.c builds it (member v
+// at m[v], up to the first none or OD_VARIANTS), with 6 px per byte standing in for
+// the font. `mday`: the day of the month outside a calendar view, 0 in one.
+static OdSlotIn slot_family(uint8_t kind, uint8_t icon, uint8_t mday, const char *full,
+                            char texts[OD_VARIANTS][STATUS_SHORT_CAP]) {
     OdSlotIn s = slot_text((int16_t)(6 * strlen(full)), 0);
     snprintf(texts[0], STATUS_SHORT_CAP, "%s", full);
-    StatusShortMember fam[STATUS_SHORT_MEMBERS];
-    uint8_t n = status_short_family(kind, icon, full_date, mday, full, false, false, fam);
-    for (int j = 0; j < n; j++) {
-        status_short_text(kind, icon, full_date, mday, full, fam[j].step, texts[1 + j],
-                          STATUS_SHORT_CAP);
-        s.m[1 + j] = (StatusSlotMeasure) { true, 0, (int16_t)(6 * strlen(texts[1 + j])), 0 };
-        if (fam[j].elastic) { s.floor_w = 24; }
+    uint8_t v = 1;
+    while (v < OD_VARIANTS) {
+        uint8_t flags = status_short_member(kind, icon, mday, full, false, false, v, texts[v],
+                                            STATUS_SHORT_CAP);
+        if (!flags) { break; }
+        s.m[v] = (StatusSlotMeasure) { true, 0, (int16_t)(6 * strlen(texts[v])), 0 };
+        if (flags & SST_ELASTIC) { s.floor_w = 24; }
+        v++;
     }
-    s.n = (uint8_t)(1 + n);
+    s.n = v;
     return s;
 }
 
@@ -358,7 +360,8 @@ static char s_seen_texts[OD_VARIANTS][STATUS_SHORT_CAP];
 static int date_texts(bool full_date, const char *full, const char *seen[OD_VARIANTS]) {
     char texts[OD_VARIANTS][STATUS_SHORT_CAP];
     OdSlotIn slots[3] = { slot_empty(),
-                          slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, full_date, 7, full, texts),
+                          slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, full_date ? 7 : 0,
+                                      full, texts),
                           slot_empty() };
     int n = 0;
     int last = -1;
@@ -408,11 +411,11 @@ static void date_families(void) {
 // hides.
 static void no_short_form(void) {
     char texts[OD_VARIANTS][STATUS_SHORT_CAP];
-    OdSlotIn week = slot_family(SLOT_LIVE_WEEK, STATUS_ICON_NONE, false, 7, "W40", texts);
-    OdSlotIn sun = slot_family(SLOT_TEXT, STATUS_ICON_DRAWN_SUN, false, 7, "6:12p", texts);
+    OdSlotIn week = slot_family(SLOT_LIVE_WEEK, STATUS_ICON_NONE, 0, "W40", texts);
+    OdSlotIn sun = slot_family(SLOT_TEXT, STATUS_ICON_DRAWN_SUN, 0, "6:12p", texts);
     expect("noshort.week.n", week.n, 1);
     expect("noshort.sun.n", sun.n, 1);
-    OdSlotIn date = slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, false, 7, "Sep 2026", texts);
+    OdSlotIn date = slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, 0, "Sep 2026", texts);
     const OdSlotIn *own_kinds[2] = { &week, &sun };
     for (int o = 0; o < 2; o++) {
         OdSlotIn slots[3] = { *own_kinds[o], date, slot_empty() };

@@ -326,32 +326,32 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
     return sig;
 }
 
-// One draw's short forms: the three slots' families as the layout takes them, and
-// which member each is, so the one a slot ends up drawing can be written out again.
-// On the draw's stack, used only while a side has an item.
+// One draw's short forms: the three slots' families as the layout takes them, and the
+// two inputs their members take beside the slot itself, so the member a slot ends up
+// drawing can be derived again. On the draw's stack, used only while a side has an
+// item.
 typedef struct {
     OdSlotIn in[3];
-    StatusShortMember member[3][STATUS_SHORT_MEMBERS];
-    uint8_t mday;   // the day of the month a date's family ends on (0: a calendar
-                    // view, whose date has no day-number member)
+    uint8_t mday;    // the day of the month a date's family ends on (0: a calendar
+                     // view, whose date has no day-number member)
+    bool charging;   // the watch is charging: the battery glyph keeps its bolt lane
 } Families;
 
-// measure_family() writes a slot's full form to m[0] and its short members after it.
-_Static_assert(STATUS_SHORT_MEMBERS + 1 == OD_VARIANTS,
-               "a slot's full form and its short members fill OdSlotIn.m exactly");
-
-// Member `step` of slot `slot`'s text family into `buf` (status_short_text).
-static bool family_text(const Families *f, const StatusOnDemandEnv *env,
-                        const StatusOnDemandSlot *slot, uint8_t step, char *buf) {
-    return status_short_text(slot->kind, slot->icon, env->full_date, f->mday, slot->text, step,
-                             buf, STATUS_SHORT_CAP);
+// Member `v` of slot `slot`'s short family into `buf` (status_short_member): its
+// flags, 0 for none. `suffix`: the slot's full form draws the wind arrow.
+static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, bool suffix,
+                             uint8_t v, char *buf) {
+    return status_short_member(slot->kind, slot->icon, f->mday, slot->text, suffix,
+                               f->charging, v, buf, STATUS_SHORT_CAP);
 }
 
-// Slot i's short family (status_short_text.h), measured into f->in[i]: each member is
-// the full measure with its own text width, without the suffix (the wind arrow) or
-// the battery glyph's bolt lane where it drops them, and the elastic city's floor
-// ("Fra…") is measured too. Run only once a side has an item to show, so a quiet bar
-// measures nothing extra.
+// Slot i's short family (status_short_text.h), measured into f->in[i]: member v sits
+// at m[v], the full measure with its own text width, without the suffix (the wind
+// arrow) or the battery glyph's bolt lane where it drops them, and the elastic city's
+// floor ("Fra…") is measured too. m[] holds the full form and OD_VARIANTS - 1
+// members, as many as any family has (test/c/status_short_text_test.c holds every
+// kind to that). Run only once a side has an item to show, so a quiet bar measures
+// nothing extra.
 static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
                            const StatusSlotMeasure *full, const StatusOnDemandEnv *env,
                            int16_t content_w) {
@@ -359,26 +359,22 @@ static void measure_family(Families *f, int i, const StatusOnDemandSlot *slot,
     memset(in, 0, sizeof(*in));
     in->m[0] = *full;
     if (!full->present) { return; }
-    BatteryChargeState bs = watch_services_battery_state();
-    StatusShortMember *fam = f->member[i];
-    uint8_t k = status_short_family(slot->kind, slot->icon, env->full_date, f->mday,
-                                    slot->text, full->suffix_w > 0,
-                                    bs.is_charging || bs.is_plugged, fam);
     const int16_t h = env->band.size.h;
     char buf[STATUS_SHORT_CAP];
-    for (uint8_t j = 0; j < k; j++) {
+    uint8_t v = 1;
+    while (v < OD_VARIANTS) {
+        uint8_t flags = family_member(f, slot, full->suffix_w > 0, v, buf);
+        if (!flags) { break; }
         StatusSlotMeasure m = *full;
-        if (fam[j].step > 0 && family_text(f, env, slot, fam[j].step, buf)) {
-            m.text_w = status_row_text_w(buf, slot->font, content_w, h);
-        }
-        if (fam[j].no_suffix) { m.suffix_w = 0; }
-        if (fam[j].no_lane) { m.icon_w = (int16_t)(m.icon_w - STATUS_SHORT_BATTERY_LANE_W); }
-        in->m[1 + j] = m;
-        if (fam[j].elastic && status_short_floor(slot->text, buf, sizeof(buf))) {
+        m.text_w = status_row_text_w(buf, slot->font, content_w, h);
+        if (flags & SST_NO_SUFFIX) { m.suffix_w = 0; }
+        if (flags & SST_NO_LANE) { m.icon_w = (int16_t)(m.icon_w - STATUS_SHORT_BATTERY_LANE_W); }
+        if ((flags & SST_ELASTIC) && status_short_floor(slot->text, buf, sizeof(buf))) {
             in->floor_w = status_row_text_w(buf, slot->font, content_w, h);
         }
+        in->m[v++] = m;
     }
-    in->n = (uint8_t)(1 + k);
+    in->n = v;
 }
 
 void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
@@ -427,6 +423,8 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     // not give ("07.09.26").
     Families f;
     f.mday = (uint8_t)(env->full_date ? watch_services_localtime().tm_mday : 0);
+    BatteryChargeState bs = watch_services_battery_state();
+    f.charging = bs.is_charging || bs.is_plugged;
     for (int i = 0; i < 3; i++) { measure_family(&f, i, &slots[i], &m[i], env, content_w); }
     const int8_t bleed[2] = { env->bleed_left, 0 };
     // W7: a slot of this bar that shows the watch battery (the glyph or the Battery %,
@@ -438,17 +436,17 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     }
     od_layout(content_w, f.in, pass->sides, bleed, battery_slots, &pass->layout);
     // Each slot draws the member the layout picked: its measure (the boxes and the
-    // paint read it) and its text, written over the full one.
+    // paint read it) and its text, derived again as measure_family() derived it and
+    // written over the full one.
     for (int i = 0; i < 3; i++) {
         places[i] = pass->layout.place[i];
         uint8_t v = pass->layout.variant[i];
         if (v == 0 || v >= f.in[i].n) { continue; }
-        m[i] = f.in[i].m[v];
         char buf[STATUS_SHORT_CAP];
-        uint8_t step = f.member[i][v - 1].step;
-        if (step > 0 && family_text(&f, env, &slots[i], step, buf)) {
+        if (family_member(&f, &slots[i], f.in[i].m[0].suffix_w > 0, v, buf)) {
             snprintf(slots[i].text, slots[i].cap, "%s", buf);
         }
+        m[i] = f.in[i].m[v];
     }
     pass->any = true;
 }

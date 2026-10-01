@@ -6,10 +6,11 @@
 // first (the leftmost first on a tie), until only the longest is whole. "Frankfurt am
 // Main" -> "Frankfurt a. Main" -> "Frankfurt a. M.".
 //
-// The watch walks the same ladder (src/c/appendix/status_short_text.h,
-// sst_city_member) when On demand needs a status slot's room. The phone walks it
-// before an edge slot's 8-byte cap (status-lines.js packLine), so an edge city
-// arrives as the first form that fits ("B. Soden") instead of cut short ("Bad Sode").
+// The watch draws the same ladder's first and last rung (src/c/appendix/
+// status_short_text.h, sst_city_member) when On demand needs a status slot's room.
+// The phone walks every rung before an edge slot's 8-byte cap (status-lines.js
+// packLine), so an edge city arrives as the first form that fits ("B. Soden") instead
+// of cut short ("Bad Sode").
 // A name no form fits whole is cut as before ("New York City" -> "New York").
 // test/city-ladder.test.js runs this twin over the C test's vector table
 // (test/c/status_short_text_test.c, CITY_VECTORS), which holds both to one table.
@@ -37,7 +38,7 @@ function members(city) {
   var text = typeof city === 'string' ? city : '';
   // The space-separated parts; '' for the gap between two spaces, so joining them with
   // one space gives the name back byte for byte. Every word is ranked, as on the
-  // watch (sst_rank walks them all).
+  // watch (sst_city_member reads them all).
   var parts = text.split(' ');
   var cps = [];
   var order = [];

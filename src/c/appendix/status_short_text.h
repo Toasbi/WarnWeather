@@ -13,7 +13,7 @@
 //  - a reading drops its unit: the degree, kph / mph / kn, hPa, the countdown's d,
 //    km / mi;
 //  - wind and gusts then drop their direction arrow, a suffix beside the text
-//    (status_short_family flags it);
+//    (status_short_member flags it);
 //  - the date shortens a four-digit year in its format's own shape ("Sep '26",
 //    "07.09.26"; never the month), and outside a calendar view ends on the day of
 //    the month ("7");
@@ -21,18 +21,21 @@
 //    ("7h32" -> "7h"; under an hour it has none, as "0h" would read as no sleep);
 //  - the Watch battery glyph drops its bolt lane while the watch is not charging
 //    (the lane is empty then);
-//  - the city abbreviates its shorter words ("Frankfurt am Main" -> "Frankfurt a.
-//    Main" -> "Frankfurt a. M."), and its last member is elastic: the full name,
-//    which the layout may ellipsize down to 3 characters + "…" ("Fra…").
+//  - the city abbreviates its shortest word, then all but its longest ("Frankfurt am
+//    Main" -> "Frankfurt a. Main" -> "Frankfurt a. M."), and its last member is
+//    elastic: the full name, which the layout may ellipsize down to 3 characters +
+//    "…" ("Fra…").
 // The week (already "W40"), sunrise/sunset, heart rate, pollen, the Watch battery
 // percentage and the phone battery have no short form: they hide at their turn. A
 // battery number shows whole or not at all; its % is never dropped (owner,
 // 2026-09-30).
 //
 // Written for size — the app image comes out of the heap on every platform — so the
-// transforms work in place and the city ladder ranks its words instead of sorting
-// them. NOT ON APLITE: the callers are On demand's (layers/status_on_demand.c, behind
-// WW_ON_DEMAND) and the host tests, so aplite never compiles a body.
+// caller asks for one member at a time (status_short_member) and gets that one
+// computed, the transforms work in place, and the city finds its two rungs in one
+// pass over its words. NOT ON APLITE: the callers are On demand's
+// (layers/status_on_demand.c, behind WW_ON_DEMAND) and the host tests, so aplite never
+// compiles a body.
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -41,9 +44,6 @@
 #include <string.h>
 #include "status_line.h"
 
-// The short members a slot keeps beside its full form (on_demand.h's OD_VARIANTS
-// minus the full one).
-#define STATUS_SHORT_MEMBERS 3
 // The Watch battery glyph's bolt lane in front of its body: battery_draw.c's
 // BATTERY_POWER_ICON_W (7) + ICON_SPACING (3), pinned by
 // test/battery-item-lockstep.test.js. Empty while the watch is not charging.
@@ -54,18 +54,12 @@
 // Holds any member: none is longer than the full text (at most STATUS_TEXT_MID_MAX
 // bytes), and the floor is at most 3 code points (12 B) + the ellipsis.
 #define STATUS_SHORT_CAP (STATUS_TEXT_MID_MAX + 1)
-// The most text members any family can have, with room to spare: a 19-byte city has at
-// most 6 abbreviable words (two code points each, "Aa Bb Cc Dd Ee Ff"), so 5 ladder
-// steps and the elastic member; every other kind has at most SST_STEPS.
-#define STATUS_SHORT_STEPS_MAX 12
 
-// One member of a slot's short family (status_short_family).
-typedef struct {
-    uint8_t step;      // the status_short_text() member it prints; 0 = the full text
-    bool no_suffix;    // drawn without the slot's suffix (the wind arrow)
-    bool no_lane;      // the Watch battery glyph without its bolt lane
-    bool elastic;      // may ellipsize down to its floor (status_short_floor)
-} StatusShortMember;
+// What a short member is beside its text: status_short_member's flags (0: no member).
+#define SST_MEMBER 1u      // the member exists
+#define SST_NO_SUFFIX 2u   // drawn without the slot's suffix (the wind arrow)
+#define SST_NO_LANE 4u     // the Watch battery glyph without its bolt lane
+#define SST_ELASTIC 8u     // may ellipsize down to its floor (status_short_floor)
 
 static inline bool sst_is_digit(char c) {
     return c >= '0' && c <= '9';
@@ -124,12 +118,12 @@ static inline bool sst_unit_byte(char c) {
 //     space ("Sep '26", "Sep 7, '26", "7. Sep '26"), the century dropped after '.' or
 //     '/' ("09.26", "07.09.26"), as the two-digit formats already print it; none for a
 //     year-first ISO date or a text without exactly one four-digit run;
-//  3  outside a calendar view, the date becomes the day of the month (no zero pad,
-//     clamped like date_format_clamped_tm);
+//  3  outside a calendar view (`mday` > 0), the date becomes the day of the month
+//     (no zero pad, clamped like date_format_clamped_tm);
 //  4  steps drop their tenths: "12.3k" -> "12k" (truncated, never rounded up);
 //  5  sleep drops its minutes: "7h32" -> "7h"; none under an hour ("0h45").
-static inline bool sst_apply(uint8_t kind, uint8_t icon, bool full_date, uint8_t mday, int t,
-                             char *s, size_t cap) {
+static inline bool sst_apply(uint8_t kind, uint8_t icon, uint8_t mday, int t, char *s,
+                             size_t cap) {
     int len = (int)strlen(s);
     switch (t) {
         case 0: {
@@ -178,8 +172,8 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, bool full_date, uint8_t
             return true;
         }
         case 3: {
-            if (kind != SLOT_LIVE_DATE || !full_date) { return false; }
-            int n = snprintf(s, cap, "%d", mday < 1 ? 1 : mday > 31 ? 31 : mday);
+            if (kind != SLOT_LIVE_DATE || mday == 0) { return false; }
+            int n = snprintf(s, cap, "%d", mday > 31 ? 31 : mday);
             return n > 0 && (size_t)n < cap;
         }
         case 4:
@@ -231,41 +225,42 @@ static inline int sst_word_cps(const char *s, int at, int end) {
     return cps;
 }
 
-// Where the word at `at` (`cps` code points) comes in the ladder's order, shortest
-// first and the leftmost first on a tie: the abbreviable words before it. With `cps`
-// larger than any word's, the number of abbreviable words.
-static inline int sst_rank(const char *s, int at, int cps) {
-    int rank = 0;
+// Member `v` of the city's family into `out`: its flags, 0 for none. The ladder
+// abbreviates words to their first code point and a dot in its order — the shortest
+// first, the leftmost first on a tie — until only the longest is whole; the watch
+// draws two of its rungs. Rung 1 abbreviates the first word in that order, which takes
+// two abbreviable words; rung 2 every abbreviable word but the last in that order (the
+// longest, the rightmost on a tie), which takes three: with two, rung 1 is that form
+// already. Then the elastic member, the full name, which exists only when it has more
+// than STATUS_SHORT_FLOOR_CPS code points to ellipsize.
+static inline uint8_t sst_city_member(const char *s, uint8_t v, char *out, size_t cap) {
+    const int len = (int)strlen(s);
+    int words = 0;   // the abbreviable words
+    int first = -1;  // the first of them in the ladder's order, and the last
+    int last = -1;
+    int first_cps = 0x7FFF;
+    int last_cps = 0;
     int end;
     for (int w = sst_word(s, 0, &end); w < end; w = sst_word(s, end, &end)) {
-        int n = sst_word_cps(s, w, end);
-        if (n > 0 && (n < cps || (n == cps && w < at))) { rank++; }
+        int cps = sst_word_cps(s, w, end);
+        if (cps == 0) { continue; }
+        words++;
+        if (cps < first_cps) { first_cps = cps; first = w; }
+        if (cps >= last_cps) { last_cps = cps; last = w; }
     }
-    return rank;
-}
-
-// Member `step` of the city's family: steps 1 .. K abbreviate one more word each, in
-// the ladder's order, to its first code point and a dot, until only the longest is
-// whole (K = the abbreviable words - 1); step K + 1 is the elastic member, the full
-// name, which exists only when it has more than STATUS_SHORT_FLOOR_CPS code points
-// to ellipsize.
-static inline bool sst_city_member(const char *s, int step, char *out, size_t cap) {
-    const int len = (int)strlen(s);
-    const int ladder = sst_rank(s, len, 0x7FFF) - 1;
-    if (step > ladder) {
-        return step == (ladder > 0 ? ladder : 0) + 1 && sst_cps(s, len) > STATUS_SHORT_FLOOR_CPS
-            && sst_copy(out, cap, s, (size_t)len);
+    const int rungs = words > 3 ? 2 : words - 1;
+    if (v > rungs) {
+        return v == (rungs > 0 ? rungs : 0) + 1 && sst_cps(s, len) > STATUS_SHORT_FLOOR_CPS
+            && sst_copy(out, cap, s, (size_t)len) ? (SST_MEMBER | SST_ELASTIC) : 0;
     }
     size_t n = 0;
     int from = 0;   // the next byte of `s` to copy
-    int end;
     for (int w = sst_word(s, 0, &end); w <= len; w = sst_word(s, end, &end)) {
         // The bytes up to the word, or the whole word when it stays; an abbreviated
         // one keeps its first code point, then its dot.
-        int cps = w < end ? sst_word_cps(s, w, end) : 0;
-        bool abbr = cps > 0 && sst_rank(s, w, cps) < step;
+        bool abbr = w < end && sst_word_cps(s, w, end) > 0 && (v == 1 ? w == first : w != last);
         int upto = abbr ? w + sst_cp_len(s + w, end - w) : end;
-        if (n + (size_t)(upto - from) + (abbr ? 2 : 1) > cap) { return false; }
+        if (n + (size_t)(upto - from) + (abbr ? 2 : 1) > cap) { return 0; }
         memcpy(out + n, s + from, (size_t)(upto - from));
         n += (size_t)(upto - from);
         if (abbr) { out[n++] = '.'; }
@@ -273,7 +268,7 @@ static inline bool sst_city_member(const char *s, int step, char *out, size_t ca
         if (w == end) { break; }
     }
     out[n] = '\0';
-    return true;
+    return SST_MEMBER;
 }
 
 // --- the families ------------------------------------------------------------------
@@ -281,23 +276,6 @@ static inline bool sst_city_member(const char *s, int step, char *out, size_t ca
 // The city is the one slot kind whose last member is elastic.
 static inline bool status_short_elastic(uint8_t kind, uint8_t icon) {
     return kind == SLOT_TEXT && icon == STATUS_ICON_NONE;
-}
-
-// Writes member `step` (1 = the first short member) of the text family of a slot of
-// `kind` / `icon` whose full text is `full` into `out`; false when there is none.
-// `full_date` is a date outside a calendar view, `mday` today's day of the month.
-static inline bool status_short_text(uint8_t kind, uint8_t icon, bool full_date, uint8_t mday,
-                                     const char *full, uint8_t step, char *out, size_t cap) {
-    if (!full || !out || cap == 0 || step == 0) { return false; }
-    if (status_short_elastic(kind, icon)) { return sst_city_member(full, step, out, cap); }
-    if (!sst_copy(out, cap, full, strlen(full))) { return false; }
-    uint8_t found = 0;
-    for (int t = 0; t < SST_STEPS; t++) {
-        if (sst_apply(kind, icon, full_date, mday, t, out, cap) && ++found == step) {
-            return true;
-        }
-    }
-    return false;
 }
 
 // The elastic city's floor: its first STATUS_SHORT_FLOOR_CPS code points and the
@@ -314,42 +292,28 @@ static inline bool status_short_floor(const char *full, char *out, size_t cap) {
     return true;
 }
 
-// A slot's whole short family, widest first, into `out`; returns the member count
-// (0: the slot has no short form and hides at its turn). The text members
-// (status_short_text), then for a slot with a suffix (`suffix`: the wind arrow) the
-// last text drawn without it. The Watch battery glyph has one member, without its
-// bolt lane, and only while it is not `charging`. A family longer than
-// STATUS_SHORT_MEMBERS keeps its first member and its last ones — a long city name's
-// most abbreviated form and its elastic member.
-static inline uint8_t status_short_family(uint8_t kind, uint8_t icon, bool full_date,
-                                          uint8_t mday, const char *full, bool suffix,
-                                          bool charging,
-                                          StatusShortMember out[STATUS_SHORT_MEMBERS]) {
-    memset(out, 0, sizeof(StatusShortMember) * STATUS_SHORT_MEMBERS);
+// Member `v` (1 = the first short member) of the short family of a slot of `kind` /
+// `icon` whose full text is `full`, widest first: its text into `out` and its flags
+// (SST_*), 0 when there is none — the members run 1, 2, … up to the first 0 (none at
+// all: the slot hides at its turn). The text members — the chain's steps that change
+// the text (sst_apply), or the city's rungs and its elastic name (sst_city_member) —
+// then, for a slot with a `suffix` (the wind arrow), the last text drawn without it.
+// The Watch battery glyph has one member, its text unchanged and without its bolt
+// lane, and only while it is not `charging`. `mday` is today's day of the month for a
+// date outside a calendar view, 0 in one. No family has more than OD_VARIANTS - 1
+// members (on_demand.h), which test/c/status_short_text_test.c holds every kind to.
+static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, uint8_t mday,
+                                          const char *full, bool suffix, bool charging,
+                                          uint8_t v, char *out, size_t cap) {
+    if (!full || !out || v == 0) { return 0; }
+    if (status_short_elastic(kind, icon)) { return sst_city_member(full, v, out, cap); }
+    if (!sst_copy(out, cap, full, strlen(full))) { return 0; }
     if (kind == SLOT_LIVE_BATTERY) {
-        out[0].no_lane = !charging;
-        return charging ? 0 : 1;
+        return v == 1 && !charging ? (SST_MEMBER | SST_NO_LANE) : 0;
     }
-    char scratch[STATUS_SHORT_CAP];
-    int k = 0;
-    while (k < STATUS_SHORT_STEPS_MAX
-           && status_short_text(kind, icon, full_date, mday, full, (uint8_t)(k + 1), scratch,
-                                sizeof(scratch))) {
-        k++;
+    uint8_t found = 0;
+    for (int t = 0; t < SST_STEPS; t++) {
+        if (sst_apply(kind, icon, mday, t, out, cap) && ++found == v) { return SST_MEMBER; }
     }
-    const int room = suffix ? STATUS_SHORT_MEMBERS - 1 : STATUS_SHORT_MEMBERS;
-    uint8_t n = 0;
-    for (int s = 1; s <= k; s++) {
-        if (s == 1 || s > k - (room - 1)) { out[n++].step = (uint8_t)s; }
-    }
-    if (n > 0 && status_short_elastic(kind, icon)) {
-        // The city's last step is its elastic member (sst_city_member).
-        out[n - 1].elastic = true;
-    }
-    if (suffix) {
-        out[n].step = n > 0 ? out[n - 1].step : 0;
-        out[n].no_suffix = true;
-        n++;
-    }
-    return n;
+    return suffix && found + 1 == v ? (SST_MEMBER | SST_NO_SUFFIX) : 0;
 }

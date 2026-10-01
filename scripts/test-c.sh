@@ -109,8 +109,9 @@ cc $CFLAGS test/c/date_format_test.c -o build/host/date_format_test
 build/host/date_format_test
 # The status slots' short forms (status_short_text.h, header-only like date_format.h):
 # every kind's family, the date's year and day members over date_format.h's real
-# outputs, and the city's word ladder, whose vector table test/city-ladder.test.js also
-# runs the phone's twin over. Only On demand's callers include it, so aplite never does.
+# outputs, the city's word ladder, whose vector table test/city-ladder.test.js also
+# runs the phone's twin over, and that no family outgrows on_demand.h's OD_VARIANTS.
+# Only On demand's callers include it, so aplite never does.
 cc $CFLAGS test/c/status_short_text_test.c -o build/host/status_short_text_test
 build/host/status_short_text_test
 # The fixed Quiet Time / Bluetooth / snooze indicators, which only aplite's strip twin

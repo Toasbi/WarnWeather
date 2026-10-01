@@ -49,7 +49,9 @@ typedef enum { OD_SIDE_NONE = 0, OD_SIDE_LEFT = 1, OD_SIDE_RIGHT = 2 } OdSide;
 // The last row of the make-room ladder (STAGE[] in on_demand.c), which a side
 // climbs once per look.
 #define OD_LAST_STAGE 8
-// A slot's members: [0] its full form, then its short family, widest first.
+// A slot's members: [0] its full form, then its short family, widest first. The widest
+// family has OD_VARIANTS - 1 members; test/c/status_short_text_test.c fails when one
+// would have more.
 #define OD_VARIANTS 4
 // The air between two items: the row's group gap, or less beside a boxed alert
 // (whose padding already sits inside its footprint).
