@@ -131,15 +131,15 @@ test('the wind arrow stays in Both (its first reading is now) and leaves Day max
 
 test('wind, gust and AQI highlights judge the highest of today\'s numbers shown', () => {
   const p = { WIND_TREND_UINT8: [12], WIND_DAY_PEAKS: [30, 45, null],
-    GUST_TREND_UINT8: [30], GUST_DAY_PEAKS: [30, 60, null],
+    GUST_TREND_UINT8: [30], GUST_DAY_PEAKS: [30, 65, null],
     AQI_TREND: [42], AQI_DAY_PEAKS: [58, 61, null] };
   assert.equal(judged('wind', p, settings()), 12, 'Now mode: the reading');
   assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both' })), 30);
   assert.equal(judged('wind', p, settings({ windSlotDisplay: 'both', windUnits: 'mph' })), 19);
-  // "30/»60": tomorrow's peak never counts; a lone "»60" is not judged at all. So
-  // neither packs the kph seed's warn (60/90) that tomorrow's 60 would reach.
+  // "30/»65": tomorrow's peak never counts; a lone "»65" is not judged at all. So
+  // neither packs the kph seed's warn (65/90) that tomorrow's 65 would reach.
   assert.equal(statusLines.formatValue('gust', p, settings({ gustSlotDisplay: 'both',
-    gustSlotUnit: false })), '30/' + RAQUO + '60');
+    gustSlotUnit: false })), '30/' + RAQUO + '65');
   assert.equal(judged('gust', p, settings({ gustSlotDisplay: 'both' })), 30);
   assert.equal(judged('gust', p, settings({ gustSlotDisplay: 'max' })), null);
   assert.equal(packedLevel('gust', p, settings({ gustSlotDisplay: 'both' })), 0);

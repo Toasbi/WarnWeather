@@ -500,7 +500,7 @@ test('look-ahead: wind in km/h (warn 40 / danger 60), and the building storm', (
     [{ kind: 2, level: 2, value: '43', mark: 'raquo' }]);
   // Gusts read their own peaks.
   assert.deepEqual(decodeAlerts(wire.bakeAlerts({ GUST_TREND_UINT8: [20], GUST_DAY_PEAKS: [30, 65, 0] },
-    on(['gust']))), [{ kind: 3, level: 1, value: '', mark: 'raquo' }], 'gust 65 vs 60/90, icon only');
+    on(['gust']))), [{ kind: 3, level: 1, value: '', mark: 'raquo' }], 'gust 65 vs the seed 65/90, icon only');
 });
 
 test('look-ahead: tomorrow must be known and above 0 — never a »0', () => {
