@@ -1481,9 +1481,10 @@ function onDemandBarSheet(bar) {
         showWhen: gate ? {all: [ON_DEMAND_WHEN, gate]} : ON_DEMAND_WHEN,
         title: 'Alerts',
         intro: '<b>' + OD_BAR_NAMES[bar] + '</b><br>Ticked items show at this bar’s left or right edge only '
-            + 'while they have something to say, each on one side at most. The first on a side sits next to the '
-            + 'status slot there; when the bar runs short of room, the last ones drop first. A weather alert for '
-            + 'the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.',
+            + 'when they reach their warn level or are active right now, each on one side at most. The first on '
+            + 'a side sits next to the status slot there; when the bar runs short of room, the last ones drop '
+            + 'first. A weather alert for the value that slot shows goes into the slot, with its colors, instead '
+            + 'of adding its alert icon.',
         items: [{
             type: 'checklist',
             messageKey: left,
@@ -1685,12 +1686,14 @@ function onDemandCardItems() {
 function introAction(action, label) {
     return '<button type="button" class="txt-link" data-action="' + action + '">' + label + '</button>';
 }
-// The Alert settings card's intro: what an item is, then where they are chosen (the
-// card sits on the General tab, the bars' Alerts rows on the Status slots tab), with the
-// card's reset (the item settings; the ticks ride the status card's reset).
-var ON_DEMAND_INTRO = 'Alerts show at the edge of a status bar only while they have something to say: '
-    + 'the battery when it runs low, Bluetooth when it disconnects, a weather alert while it is active. Tick them '
-    + 'under Alerts on each status bar (Status slots tab), left or right. '
+// The Alert settings card's intro (the owner's wording, 2026-10-01): when an alert shows,
+// then examples, then where they are chosen (the card sits on the General tab, the bars'
+// Alerts rows on the Status slots tab), with the card's reset (the item settings; the
+// ticks ride the status card's reset).
+var ON_DEMAND_INTRO = 'An alert shows at the edge of a status bar only when it reaches its warn level or is '
+    + 'active right now, and stays hidden the rest of the time, so the watch face only shows what matters. '
+    + 'For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn '
+    + 'level. Tick them under Alerts on each status bar (Status slots tab), left or right. '
     + introAction('resetOnDemand', 'Reset alert settings to defaults');
 // Bold-only edit sheet for a slot kind WITHOUT thresholds (temp, date, city, …):
 // the same pencil machinery — the contract's KINDS maps the slot code to this

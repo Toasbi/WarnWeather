@@ -214,8 +214,9 @@ test('a bar\'s Alerts sheet: the bar\'s name, two sub-headers, a Left and a Righ
   page.openEditSheet('odTop');
   const sheet = page.modal.innerHTML;
   assert.ok(sheet.indexOf('id="esheet-ttl-odTop">Alerts</span>') !== -1, 'the title');
-  assert.ok(sheet.indexOf('<b>Watch Status Bar</b><br>Ticked items show at this bar’s left or right edge only while'
-    + ' they have something to say, each on one side at most.') !== -1, 'the bar\'s name leads the intro');
+  assert.ok(sheet.indexOf('<b>Watch Status Bar</b><br>Ticked items show at this bar’s left or right edge only when'
+    + ' they reach their warn level or are active right now, each on one side at most.') !== -1,
+    'the bar\'s name leads the intro');
   assert.equal(sheet.indexOf('class="card'), -1, 'no cards inside the sheet');
   const order = ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi', 'pollen', 'wind']
     .map((c) => sheet.indexOf('data-check="' + c + '"'));
@@ -307,7 +308,8 @@ test('the Alert settings card: its intro and rows with icons and live texts, at 
   assert.ok(html.indexOf('data-k="locationMode"') > html.indexOf('data-select="theme"'), 'then the location rows');
   assert.equal(watchTab().scroll.innerHTML.indexOf('<span class="ttl">Alert settings</span>'), -1,
     'no longer on the Status slots tab');
-  assert.ok(html.indexOf('Alerts show at the edge of a status bar only while they have something to say') > card);
+  assert.ok(html.indexOf('An alert shows at the edge of a status bar only when it reaches its warn level or is active'
+    + ' right now') > card);
   // The reset is an inline text button closing the intro, like the Telemetry hint's link.
   assert.ok(html.indexOf('Tick them under Alerts on each status bar (Status slots tab), left or right. '
     + '<button type="button" class="txt-link" data-action="resetOnDemand">Reset alert settings to defaults</button></div>')

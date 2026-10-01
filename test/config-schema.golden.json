@@ -96,7 +96,7 @@
             "showWhen": {
               "env": "onDemand"
             },
-            "intro": "Alerts show at the edge of a status bar only while they have something to say: the battery when it runs low, Bluetooth when it disconnects, a weather alert while it is active. Tick them under Alerts on each status bar (Status slots tab), left or right. <button type=\"button\" class=\"txt-link\" data-action=\"resetOnDemand\">Reset alert settings to defaults</button>",
+            "intro": "An alert shows at the edge of a status bar only when it reaches its warn level or is active right now, and stays hidden the rest of the time, so the watch face only shows what matters. For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level. Tick them under Alerts on each status bar (Status slots tab), left or right. <button type=\"button\" class=\"txt-link\" data-action=\"resetOnDemand\">Reset alert settings to defaults</button>",
             "items": [
               {
                 "type": "staticText",
@@ -9234,7 +9234,7 @@
               "env": "onDemand"
             },
             "title": "Alerts",
-            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s left or right edge only while they have something to say, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
+            "intro": "<b>Watch Status Bar</b><br>Ticked items show at this bar’s left or right edge only when they reach their warn level or are active right now, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
             "items": [
               {
                 "type": "checklist",
@@ -9270,7 +9270,7 @@
               "env": "onDemand"
             },
             "title": "Alerts",
-            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s left or right edge only while they have something to say, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
+            "intro": "<b>Forecast Status Bar</b><br>Ticked items show at this bar’s left or right edge only when they reach their warn level or are active right now, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
             "items": [
               {
                 "type": "checklist",
@@ -9324,7 +9324,7 @@
               ]
             },
             "title": "Alerts",
-            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s left or right edge only while they have something to say, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
+            "intro": "<b>Radar Status Bar</b><br>Ticked items show at this bar’s left or right edge only when they reach their warn level or are active right now, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
             "items": [
               {
                 "type": "checklist",
@@ -9378,7 +9378,7 @@
               ]
             },
             "title": "Alerts",
-            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s left or right edge only while they have something to say, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
+            "intro": "<b>Health Status Bar</b><br>Ticked items show at this bar’s left or right edge only when they reach their warn level or are active right now, each on one side at most. The first on a side sits next to the status slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that slot shows goes into the slot, with its colors, instead of adding its alert icon.",
             "items": [
               {
                 "type": "checklist",

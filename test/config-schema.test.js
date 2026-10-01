@@ -2216,7 +2216,8 @@ test('the Alerts sheets: one per bar, a checklist with a Left and a Right column
     assert.deepEqual(s.showWhen, gate ? { all: [ON_DEMAND_WHEN, gate] } : ON_DEMAND_WHEN, s.sheetId);
     assert.equal(s.title, 'Alerts');
     assert.equal(s.intro, '<b>' + NAMES[bar] + '</b><br>Ticked items show at this bar’s left or right edge only'
-      + ' while they have something to say, each on one side at most. The first on a side sits next to the status'
+      + ' when they reach their warn level or are active right now, each on one side at most. The first on a side'
+      + ' sits next to the status'
       + ' slot there; when the bar runs short of room, the last ones drop first. A weather alert for the value that'
       + ' slot shows goes into the slot, with its colors, instead of adding its alert icon.');
     const left = 'status' + bar + 'OnDemandLeftItems';
@@ -2239,9 +2240,11 @@ test('the Alert settings card: gated to a watch with On demand, its intro, reset
   assert.deepEqual(sec.showWhen, ON_DEMAND_WHEN);
   // The card is on the General tab, the bars' Alerts rows on the Status slots tab: the
   // intro names the tab. Its reset is an inline text button at the end of the copy.
-  assert.equal(sec.intro, 'Alerts show at the edge of a status bar only while they'
-    + ' have something to say: the battery when it runs low, Bluetooth when it disconnects, a weather alert while it'
-    + ' is active. Tick them under Alerts on each status bar (Status slots tab), left or right.'
+  // The owner's wording, 2026-10-01: when an alert shows, then examples.
+  assert.equal(sec.intro, 'An alert shows at the edge of a status bar only when it reaches its warn level or is'
+    + ' active right now, and stays hidden the rest of the time, so the watch face only shows what matters.'
+    + ' For example: the battery low, Bluetooth disconnected, rain coming, a UV or wind forecast at its warn level.'
+    + ' Tick them under Alerts on each status bar (Status slots tab), left or right.'
     + ' <button type="button" class="txt-link" data-action="resetOnDemand">Reset alert settings to defaults</button>');
   const ctx = (p) => ({ env: platform.computeEnv({ platform: p }) });
   assert.equal(showWhen.isVisible(sec, ctx('aplite')), false, 'gone on aplite');

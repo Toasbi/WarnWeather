@@ -71,8 +71,10 @@ STATUS LINES
   (not on Pebble Classic/Steel)
 - Alert highlighting: bold, outline, or fill a status slot when a metric reaches the warn or
   danger level you set (its Alert levels) (not on Pebble Classic/Steel)
-- Alerts: items that show at a status bar's edge, next to the status slot there, only while
-  they have something to say (not on Pebble Classic/Steel). Every status bar has Alerts, where you tick each item
+- Alerts: items that show at a status bar's edge, next to the status slot there, only when
+  they reach their warn level or are active right now (low battery, Bluetooth disconnected, rain
+  coming, a high UV or wind forecast), so the watch face stays free of distractions the rest of
+  the time (not on Pebble Classic/Steel). Every status bar has Alerts, where you tick each item
   Left or Right, and Alert settings holds the items' settings:
    - System info: the watch battery at or below a warn level you set, Bluetooth when it
      disconnects, quiet time while it is on, and a sleep icon during the battery saver hours
