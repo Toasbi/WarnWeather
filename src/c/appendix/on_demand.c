@@ -69,6 +69,8 @@ typedef struct {
     uint8_t first[2];           // 1: the side's item 0 is that Battery item
     uint8_t n[2];               // items still in, past it
     uint8_t merged[2];          // 1 + the side's merged alert while it is in; 0: none
+    uint8_t allow;              // the stand-ins conf_of may bring in, as its `in` bits
+                                // (od_layout: 1 while it holds the merged alerts out)
 } Pass;
 
 // The forms and lanes one geometry check runs with, effective ones: a form that
@@ -197,7 +199,8 @@ __attribute__((noinline)) static int16_t span_w(const Pass *p, const Conf *c, in
 // item alone makes active only had a slot plain hid there (or a battery slot of the
 // other side's or the middle's), the middle takes only harsher requests, and the slot
 // a stand-in replaces keeps its row's form (no slot back beside a middle a later take
-// hides) — so every item that came in stays in.
+// hides) — so every item that came in stays in. Only the stand-ins p->allow lets in
+// come in: od_layout's first pass leaves the merged alerts out on every row.
 static void conf_of(const Pass *p, const uint8_t pos[2], Conf *c) {
     uint8_t in = 0;   // bit 0: the Battery item; bit 1 + d: side d's merged alert
     for (;;) {
@@ -232,6 +235,7 @@ static void conf_of(const Pass *p, const uint8_t pos[2], Conf *c) {
         const uint8_t shown = (uint8_t)((c->own[0] != OD_HIDDEN) | (c->mid != OD_HIDDEN) << 1
                                         | (c->own[1] != OD_HIDDEN) << 2);
         if (p->batt && !(p->batt & shown)) { want |= 1; }
+        want &= p->allow;
         if (!(want & ~in)) { return; }
         in |= want;
     }
@@ -538,15 +542,23 @@ static bool middle_costs_look(Pass *p, uint8_t pos[2], Geom *g) {
         uint8_t t[2];
         if (!look_back(p, pos, d, d ? own0 : own1, t, g)) { continue; }
         // A battery slot is the stand-in's to show or hide (conf_of), never owed. A slot
-        // with a merged alert is owed like any other: the alert is in the run here only
-        // while the slot hides, standing in, and then the claim tested is wider than the
-        // slot whole beside the run without it, so the slot is never owed wrongly.
+        // with a merged alert is owed like any other, against the run without that
+        // alert: it is in the run here only while the slot hides, standing in, and it
+        // leaves the run once the slot shows (a slot plain did not show never does, so
+        // its alert stays). `g` is measured again below.
         for (int s = 0; s < 2; s++) {
             const int i = OWN(s);
-            if (g->c.n[s] && g->c.own[s] != OD_FULL && !((p->batt >> i) & 1)
-                && g->run[s] + p->plain_w[i] + 2 * GAP <= ((p->w + GAP) >> 1)) {
-                p->plain_w[1] = 0;
-                return true;
+            if (g->c.n[s] && g->c.own[s] != OD_FULL && !((p->batt >> i) & 1)) {
+                int run = g->run[s];
+                if (p->merged[s] && !g->c.skip[s] && p->plain_w[i] > 0) {
+                    g->c.skip[s] = p->merged[s];
+                    g->c.n[s]--;
+                    run = span_w(p, &g->c, s, g->c.lane[s]);
+                }
+                if (run + p->plain_w[i] + 2 * GAP <= ((p->w + GAP) >> 1)) {
+                    p->plain_w[1] = 0;
+                    return true;
+                }
             }
         }
         pos[0] = t[0];
@@ -688,20 +700,35 @@ static void pass_init(Pass *p, int16_t content_w, const OdSlotIn slots[3],
 void od_layout(int16_t content_w, const OdSlotIn slots[3], const OdSideIn sides[2],
                const int8_t bleed[2], uint8_t battery_slots, OdLayout *out) {
     Pass p;
-    pass_init(&p, content_w, slots, sides, bleed);
-    // The Battery item (its side's item 0) stands in for the battery slots: every
-    // geometry check measures it in exactly where the forms hide all of them
-    // (conf_of), so a battery slot hides only where the looks still fit beside the
-    // item, and it shows the charge wherever the layout keeps one.
-    p.batt = battery_slots;
-    for (int d = 0; d < 2; d++) {
-        if (battery_slots && p.n[d] > 0 && sides[d].rank[0] == OD_BATTERY) {
-            p.first[d] = 1;
-            p.n[d]--;
+    // A merged alert draws nothing while its slot shows, so the bar is laid out first
+    // with the merged alerts held out on every row (allow 1: the Battery item only).
+    // Where that shows the slot of every side with a merged alert, it is the bar's: an
+    // alert its slot merges changes nothing there. Else the bar is laid out again with
+    // them standing in wherever their slots hide, measured row by row like the Battery
+    // item (allow 7), so a slot hides for its alert only where the looks still fit
+    // beside it. Bars with no merged alert are laid out once.
+    for (uint8_t allow = 1;; allow = 7) {
+        pass_init(&p, content_w, slots, sides, bleed);
+        p.allow = allow;
+        // The Battery item (its side's item 0) stands in for the battery slots: every
+        // geometry check measures it in exactly where the forms hide all of them
+        // (conf_of), so a battery slot hides only where the looks still fit beside the
+        // item, and it shows the charge wherever the layout keeps one.
+        p.batt = battery_slots;
+        bool stands = false;   // a side's merged alert has to stand in
+        for (int d = 0; d < 2; d++) {
+            if (battery_slots && p.n[d] > 0 && sides[d].rank[0] == OD_BATTERY) {
+                p.first[d] = 1;
+                p.n[d]--;
+            }
+            p.merged[d] = sides[d].merged;
         }
-        p.merged[d] = sides[d].merged;
+        layout_pass(&p, out);
+        for (int d = 0; d < 2; d++) {
+            if (sides[d].merged && !out->place[OWN(d)].visible) { stands = true; }
+        }
+        if (allow != 1 || !stands) { return; }
     }
-    layout_pass(&p, out);
 }
 
 #endif
