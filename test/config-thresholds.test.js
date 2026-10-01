@@ -252,7 +252,7 @@ test('wind/gust/distance scales follow the General-tab unit pickers', () => {
   const mph = B.thresholdRangeCfg({ windUnits: 'mph' }, ENV, { keyStem: 'Wind' });
   assert.deepEqual([mph.max, mph.seedWarn, mph.seedDanger, mph.unit], [75, 25, 40, 'mph']);
   const kn = B.thresholdRangeCfg({ windUnits: 'knots' }, ENV, { keyStem: 'Gust' });
-  assert.deepEqual([kn.max, kn.seedWarn, kn.seedDanger, kn.unit], [85, 30, 50, 'kn']);
+  assert.deepEqual([kn.max, kn.seedWarn, kn.seedDanger, kn.unit], [85, 35, 50, 'kn']);
   // Distance seeds order upward since the goal rework (close, then the goal).
   const km = B.thresholdRangeCfg({}, ENV, { keyStem: 'Distance' });
   assert.deepEqual([km.max, km.seedWarn, km.seedDanger, km.unit], [20, 4, 5, 'km']);

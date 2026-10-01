@@ -195,12 +195,16 @@
   // the phone bake, the alert bake and the settings page's slider seeds (blocks.js
   // thresholdRangeCfg) all read it through seedPair, so a blank pair means the same
   // numbers everywhere. Goal kinds: warn = "close" (~80% of the goal), danger = the
-  // goal.
+  // goal. Gusts sit on the DWD's storm gusts (from 65 kph, 34 kn) and severe storm
+  // gusts (from 90 kph, 48 kn), each unit on its nearest 5-step; wind's danger at gale
+  // force (Beaufort 8, from 62 kph, 39 mph, 34 kn), kph on the step just below it.
+  // 1.24.0 moved gust warn kph 60 -> 65 and kn 30 -> 35, and wind danger kn 30 -> 35;
+  // the pairs the page pinned before then are frozen in migrations/seed-pairs.js.
   var SEEDS = {
     Uv: {'': {warn: 6, danger: 8}},
     Pollen: {'': {warn: 2, danger: 3}},
-    Wind: {kph: {warn: 40, danger: 60}, mph: {warn: 25, danger: 40}, kn: {warn: 20, danger: 30}},
-    Gust: {kph: {warn: 60, danger: 90}, mph: {warn: 40, danger: 55}, kn: {warn: 30, danger: 50}},
+    Wind: {kph: {warn: 40, danger: 60}, mph: {warn: 25, danger: 40}, kn: {warn: 20, danger: 35}},
+    Gust: {kph: {warn: 65, danger: 90}, mph: {warn: 40, danger: 55}, kn: {warn: 35, danger: 50}},
     Aqi: {us: {warn: 100, danger: 150}, eu: {warn: 60, danger: 80}},
     Steps: {'': {warn: 8000, danger: 10000}},
     Sleep: {'': {warn: 6.5, danger: 7.5}},
@@ -220,24 +224,6 @@
     }
     var seed = SEEDS[keyStem][scaleVariant(keyStem, settings)];
     return {warn: seed.warn, danger: seed.danger};
-  }
-
-  /**
-   * Every seed pair a kind has, one per scaleVariant, whichever is in effect — what a
-   * pair pinned under any unit or AQI scale can hold (migrations/seed-pairs.js).
-   * @param {string} keyStem Kind key stem, e.g. 'Wind'.
-   * @returns {Array<{warn: number, danger: number}>} fresh copies in display units;
-   *     empty for a stem without a seed (the bold-only kinds, an unknown stem)
-   */
-  function allSeedPairs(keyStem) {
-    if (!Object.prototype.hasOwnProperty.call(SEEDS, keyStem)) { return []; }
-    var out = [];
-    for (var variant in SEEDS[keyStem]) {
-      if (Object.prototype.hasOwnProperty.call(SEEDS[keyStem], variant)) {
-        out.push({warn: SEEDS[keyStem][variant].warn, danger: SEEDS[keyStem][variant].danger});
-      }
-    }
-    return out;
   }
 
   /**
@@ -670,7 +656,6 @@
     pairOrdered: pairOrdered,
     scaleVariant: scaleVariant,
     seedPair: seedPair,
-    allSeedPairs: allSeedPairs,
     resolvedPair: resolvedPair,
     isGoalKind: isGoalKind,
     isWeatherKind: isWeatherKind,

@@ -139,7 +139,7 @@ test('each value has its own hint: All the whole curve, Alert the warn level', (
 
 test('the Forecast tab renders the row, the picked value lit and its hint, through the real engine', () => {
   const allHint = 'Draws every gust value, the whole curve, calm hours included.';
-  const alertHint = 'Draws gusts only where they reach your warn level (60 kph)';
+  const alertHint = 'Draws gusts only where they reach your warn level (65 kph)';
   const all = body({ secondaryLine: 'precip_prob', thirdLine: 'gust' }, BASALT);
   assert.equal(count(all, '>Show<'), 1, 'one row, under the gust line');
   assert.match(all, /<button class="on" data-k="gustLineOnlyAlert" data-v="all">All<\/button>/);
@@ -149,7 +149,7 @@ test('the Forecast tab renders the row, the picked value lit and its hint, throu
   assert.match(alert, /<button class="on" data-k="gustLineOnlyAlert" data-v="alert">Alert<\/button>/);
   assert.equal(count(alert, alertHint), 1, 'Alert\'s hint');
   assert.equal(count(alert, allHint), 0);
-  assert.ok(alert.indexOf('Graph bottom = 60 kph, full height = 90 kph.') !== -1,
+  assert.ok(alert.indexOf('Graph bottom = 65 kph, full height = 90 kph.') !== -1,
     'the gust line\'s style hint gives its band');
   assert.equal(count(body({ secondaryLine: 'precip_prob', thirdLine: 'cloud' }, BASALT), '>Show<'), 0,
     'no row for metrics without Alert levels');
@@ -187,7 +187,7 @@ test('on Alert, the style hint gives the line\'s band instead of the 0-based sca
   assert.equal(B.lineStyleHint('wind', 'line', Object.assign({ windLineOnlyAlert: 'alert' }, S,
     { windScale: 'high' }), env), 'Graph bottom = 40 kph, full height = 70 kph.');
   assert.equal(B.lineStyleHint('gust', 'stripeTop', Object.assign({ gustLineOnlyAlert: 'alert' }, S), env),
-    'Faintest colour = 60 kph, full colour = 90 kph. One cell per hour.');
+    'Faintest colour = 65 kph, full colour = 90 kph. One cell per hour.');
   // Both on Alert: the shared band, the lower warn at the bottom.
   const both = Object.assign({ windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' }, S);
   assert.equal(B.lineStyleHint('gust', 'dots', both, env),

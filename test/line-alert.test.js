@@ -165,11 +165,11 @@ test('one line\'s band: its warn level at the bottom, the higher of its usual to
 });
 
 test('the top never jumps: it follows the higher of the scale and the danger level', () => {
-  // The gusts' seed 60/90 tops every scale: 90 under Low, Mid AND High (the first build
+  // The gusts' seed 65/90 tops every scale: 90 under Low, Mid AND High (the first build
   // dropped to High's 70 once the scale passed the warn level).
   ['low', 'mid', 'high'].forEach((windScale) => assert.deepEqual(lineAlert.alertBands(
     { secondaryLine: 'gust', gustLineOnlyAlert: 'alert', windScale }, true),
-  { gust: band(60, 90, 'gust') }, windScale));
+  { gust: band(65, 90, 'gust') }, windScale));
   // Danger swept past the mid scale (50) with warn 40: the top is max(50, danger) all the way.
   for (let danger = 40; danger <= 100; danger += 1) {
     const b = lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: 'alert', windScale: 'mid',
@@ -222,7 +222,7 @@ test('a shared band with one equal pair keeps its range: the higher of the scale
 test('wind and gusts both on Alert share one band: the lower warn at the bottom, the higher danger or the scale on top', () => {
   const both = { secondaryLine: 'wind', thirdLine: 'gust', windLineOnlyAlert: 'alert',
     gustLineOnlyAlert: 'alert', windScale: 'high' };
-  // Seeds 40/60 (wind) and 60/90 (gusts): 40..90 under every scale, the gust danger on top.
+  // Seeds 40/60 (wind) and 65/90 (gusts): 40..90 under every scale, the gust danger on top.
   ['low', 'mid', 'high'].forEach((windScale) => assert.deepEqual(
     lineAlert.alertBands(Object.assign({}, both, { windScale }), true),
     { wind: band(40, 90, 'gust'), gust: band(40, 90, 'gust') }, windScale));
@@ -234,7 +234,7 @@ test('wind and gusts both on Alert share one band: the lower warn at the bottom,
 
 test('a line on All beside one on Alert: each keeps its own scale', () => {
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', thirdLine: 'gust',
-    gustLineOnlyAlert: 'alert', windScale: 'mid' }, true), { gust: band(60, 90, 'gust') });
+    gustLineOnlyAlert: 'alert', windScale: 'mid' }, true), { gust: band(65, 90, 'gust') });
   // Not drawn at all (Alert stored on an unpicked metric) shares nothing either.
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', thirdLine: 'uv',
     windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert', windScale: 'mid' }, true),
@@ -280,17 +280,18 @@ test('Alert: below warn is byte 0 (the gap), warn is byte 1, the top is 250', ()
   // The dev phone's old true bakes the same.
   assert.deepEqual(bake({ secondaryLine: 'wind', windLineOnlyAlert: true }).SECONDARY_LINE_TREND_UINT8,
     [0, 0, 0, 1, 63, 125, 250]);
-  // Gusts alone, 60..90.
+  // Gusts alone, 65..90: 59 and 60 km/h gap, 75 is 40 % of the way up.
   assert.deepEqual(bake({ secondaryLine: 'gust', gustLineOnlyAlert: 'alert' }).SECONDARY_LINE_TREND_UINT8,
-    [0, 0, 1, 125, 250, 250, 0]);
+    [0, 0, 0, 100, 250, 250, 0]);
   // UV 60..110 tenths: 5.5 shows as 6, so it draws, at the floor.
   assert.deepEqual(bake({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }).SECONDARY_LINE_TREND_UINT8,
     [0, 1, 1, 20, 100, 250, 250]);
 });
 
 test('Alert on wind and gusts: one band, each gated by its own warn level', () => {
+  // Gusts on a stored 60/90, so a 60 km/h sample reaches warn on both lines.
   const out = bake({ secondaryLine: 'wind', thirdLine: 'gust', windLineOnlyAlert: 'alert',
-    gustLineOnlyAlert: 'alert' });
+    gustLineOnlyAlert: 'alert', threshGustWarn: '60', threshGustDanger: '90' });
   // Band 40..90 for both; a 59 km/h gust is above the shared bottom but under its own 60.
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 0, 0, 1, 25, 50, 100]);
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 0, 100, 175, 250, 250, 0]);
@@ -301,7 +302,7 @@ test('Alert on wind and gusts: one band, each gated by its own warn level', () =
 test('Alert on gusts beside a wind line on All: each keeps its own scale', () => {
   const out = bake({ secondaryLine: 'wind', thirdLine: 'gust', gustLineOnlyAlert: 'alert' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 50, 195, 200, 225, 250, 250]);
-  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 0, 1, 125, 250, 250, 0]);
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 0, 0, 100, 250, 250, 0]);
 });
 
 test('Alert follows its metric to any line, the Fourth metric line included', () => {
@@ -334,11 +335,12 @@ test('applyForecastSeries: Alert only where the watch has Alert settings, the ba
   const aplite = forecastSeries.applyForecastSeries(payload(), s, { platform: 'aplite' });
   assert.deepEqual(aplite.SECONDARY_LINE_TREND_UINT8, [0, 50, 195, 200, 225, 250, 250]);
   assert.deepEqual(aplite.THIRD_LINE_TREND_UINT8, [0, 125, 136, 146, 182, 250, 250]);
-  // basalt draws all four lines and Alert: wind and gusts share 40..90.
+  // basalt draws all four lines and Alert: wind and gusts share 40..90, gusts gapping
+  // under their own 65.
   const basalt = forecastSeries.applyForecastSeries(payload(), s, { platform: 'basalt' });
   assert.deepEqual(basalt.SECONDARY_LINE_TREND_UINT8, [0, 0, 0, 1, 25, 50, 100]);
   assert.deepEqual(basalt.THIRD_LINE_TREND_UINT8, [0, 1, 1, 20, 100, 250, 250]);
-  assert.deepEqual(basalt.FOURTH_LINE_TREND_UINT8, [0, 0, 100, 175, 250, 250, 0]);
+  assert.deepEqual(basalt.FOURTH_LINE_TREND_UINT8, [0, 0, 0, 175, 250, 250, 0]);
   // The B&W diorite has Alert settings too.
   assert.deepEqual(forecastSeries.applyForecastSeries(payload(), s, { platform: 'diorite' })
     .SECONDARY_LINE_TREND_UINT8, [0, 0, 0, 1, 25, 50, 100]);

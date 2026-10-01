@@ -140,10 +140,10 @@ test('seedPair: the per-kind seeds, in display units, following the unit pickers
   assert.deepEqual(th.seedPair('Wind', {}), { warn: 40, danger: 60 }, 'kph by default');
   assert.deepEqual(th.seedPair('Wind', { windUnits: 'kph' }), { warn: 40, danger: 60 });
   assert.deepEqual(th.seedPair('Wind', { windUnits: 'mph' }), { warn: 25, danger: 40 });
-  assert.deepEqual(th.seedPair('Wind', { windUnits: 'knots' }), { warn: 20, danger: 30 });
-  assert.deepEqual(th.seedPair('Gust', { windUnits: 'kph' }), { warn: 60, danger: 90 });
+  assert.deepEqual(th.seedPair('Wind', { windUnits: 'knots' }), { warn: 20, danger: 35 });
+  assert.deepEqual(th.seedPair('Gust', { windUnits: 'kph' }), { warn: 65, danger: 90 });
   assert.deepEqual(th.seedPair('Gust', { windUnits: 'mph' }), { warn: 40, danger: 55 });
-  assert.deepEqual(th.seedPair('Gust', { windUnits: 'knots' }), { warn: 30, danger: 50 });
+  assert.deepEqual(th.seedPair('Gust', { windUnits: 'knots' }), { warn: 35, danger: 50 });
   // AQI: the European scale only for Open-Meteo with a non-US scale picked;
   // WAQI and auto report US-style AQI whatever the picker says.
   assert.deepEqual(th.seedPair('Aqi', {}), { warn: 100, danger: 150 });

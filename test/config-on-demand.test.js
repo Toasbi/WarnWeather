@@ -334,7 +334,7 @@ test('the Alert settings card: its intro and rows with icons and live texts, at 
   assert.ok(sleep.indexOf(ICONS.snooze) !== -1
     && sleep.indexOf('<div class="hint">During the Battery saver hours, 0:00–7:00</div>') !== -1);
   assert.ok(row('data-edit-sheet="alertRain"', 'rain', 'Rain').indexOf('<div class="hint">Within 60 min · Text</div>') !== -1);
-  [['Uv', 'uv', 'UV index', 'Warn 6 · Danger 8'], ['Gust', 'gust', 'Wind gusts', 'Warn 60 kph · Danger 90 kph'],
+  [['Uv', 'uv', 'UV index', 'Warn 6 · Danger 8'], ['Gust', 'gust', 'Wind gusts', 'Warn 65 kph · Danger 90 kph'],
     ['Pollen', 'pollen', 'Pollen', 'Not in any status bar']].forEach(([stem, icon, label, text]) => {
     const r = row('data-edit-sheet="alert' + stem + '"', icon, label);
     assert.ok(r.indexOf('<div class="hint">' + text + '</div>') !== -1, stem + ': ' + r);

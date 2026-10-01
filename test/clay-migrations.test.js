@@ -1250,10 +1250,11 @@ test('seed pairs: a pair equal to the seed in effect goes blank; a moved or half
 
 test('seed pairs: a pin under the unit in effect leaves the bytes and the refetch signature put', () => {
   // Also the owner's dev install, whose page pinned seeds under the branch's own rules.
+  // (The knots pins are the next test's: 1.24.0 moved both knots seeds.)
   [PINNED_AND_MOVED, SAVED_ON_THE_1_24_PAGE,
     Object.assign({}, PINNED_AND_MOVED, { windUnits: 'knots', aqiSource: 'openmeteo',
-      threshAqiWarn: '60', threshAqiDanger: '80', threshWindWarn: '20', threshWindDanger: '30',
-      threshGustWarn: '30', threshGustDanger: '50' })
+      threshAqiWarn: '60', threshAqiDanger: '80', threshWindWarn: '35', threshWindDanger: '45',
+      threshGustWarn: '45', threshGustDanger: '60' })
   ].forEach((blob, n) => {
     const { before, read: after } = stepOn(blankSeeds, blob, true);
     [{ color: true }, { color: false }].forEach((env) => {
@@ -1269,6 +1270,61 @@ test('seed pairs: a pin under the unit in effect leaves the bytes and the refetc
   });
 });
 
+// The seeds 1.24.0 moved (status-thresholds.js SEEDS): gust warn kph 60 -> 65 and kn
+// 30 -> 35, wind danger kn 30 -> 35. The step matches the pairs the 1.23 page pinned
+// (seed-pairs.js PINNED_SEEDS), not the live seeds, so a pin of a moved seed goes blank
+// and takes the new default, and a 1.23 pair equal only to a new seed stays as dragged.
+test('seed pairs: a pin of a seed 1.24.0 moved goes blank and takes the new default', () => {
+  [[{ windUnits: 'knots', threshWindOn: true, threshWindWarn: '20', threshWindDanger: '30',
+    threshGustOn: true, threshGustWarn: '30', threshGustDanger: '50' }, [20, 35], [35, 50]],
+  [{ threshGustOn: true, threshGustWarn: '60', threshGustDanger: '90' }, [40, 60], [65, 90]]
+  ].forEach(([blob, wind, gust]) => {
+    const { changed, before, read: after } = stepOn(blankSeeds, blob, true);
+    assert.equal(changed, true);
+    ['Wind', 'Gust'].forEach((stem) =>
+      assert.deepEqual(pairOf(after, stem), ['', ''], stem + ': the old pin goes blank'));
+    assert.deepEqual(resolved('Wind', after), wind, 'wind: the new default');
+    assert.deepEqual(resolved('Gust', after), gust, 'gusts: the new default');
+    // The weather pairs ride no Clay byte; the phone bakes the new levels on the next
+    // fetch, which the changed signature asks for.
+    [{ color: true }, { color: false }].forEach((env) => {
+      assert.deepEqual(wire.buildSettingsBlob(after, env), wire.buildSettingsBlob(before, env),
+        'CLAY_THRESHOLDS_UINT8');
+    });
+    assert.notEqual(renderSignature(after), renderSignature(before), 'the bake reads new levels');
+  });
+});
+
+test('seed pairs: the pairs matched are the ones the 1.23 page pinned, apart from the live seeds by the three moves', () => {
+  const variants = { kph: { windUnits: 'kph' }, mph: { windUnits: 'mph' }, kn: { windUnits: 'knots' },
+    us: { aqiSource: 'waqi' }, eu: { aqiSource: 'openmeteo', aqiScale: 'european' },
+    km: { distanceUnits: 'metric' }, mi: { distanceUnits: 'imperial' }, '': {} };
+  const moved = [];
+  const stems = thresholdsContract.KINDS.filter((k) => !k.boldOnly).map((k) => k.key);
+  assert.deepEqual(Object.keys(seedPairs.PINNED_SEEDS).sort(), stems.slice().sort(), 'a row per paired kind');
+  stems.forEach((stem) => Object.keys(seedPairs.PINNED_SEEDS[stem]).forEach((variant) => {
+    const S = variants[variant];
+    assert.equal(thresholdsContract.scaleVariant(stem, S), variant, stem + ' ' + variant);
+    const live = thresholdsContract.seedPair(stem, S);
+    const pinned = seedPairs.PINNED_SEEDS[stem][variant];
+    if (live.warn !== pinned.warn || live.danger !== pinned.danger) {
+      moved.push(stem + ' ' + variant + ' ' + pinned.warn + '/' + pinned.danger + ' -> '
+        + live.warn + '/' + live.danger);
+    }
+  }));
+  assert.deepEqual(moved, ['Wind kn 20/30 -> 20/35', 'Gust kph 60/90 -> 65/90', 'Gust kn 30/50 -> 35/50']);
+});
+
+test('seed pairs: a 1.23 pair equal only to a new seed was dragged there and stays', () => {
+  const blob = { windUnits: 'mph',
+    threshWindWarn: '20', threshWindDanger: '35',   // the new knots wind seed, under mph
+    threshGustWarn: '65', threshGustDanger: '90' }; // the new kph gust seed, under mph
+  const { changed, read } = stepOn(blankSeeds, blob);
+  assert.equal(changed, false, 'nothing to move');
+  ['Wind', 'Gust'].forEach((stem) => assert.deepEqual(pairOf(read, stem), pairOf(blob, stem), stem));
+  assert.deepEqual(resolved('Gust', read), [65, 90], 'judged in mph as the user set it');
+});
+
 // Pins that no longer match the install's unit: the wizard's US AQI pin on an install
 // since moved to Open-Meteo (European scale by default), highlights switched on in kph
 // and in knots on an install now in mph.
@@ -1276,7 +1332,7 @@ const PINNED_UNDER_ANOTHER_UNIT = {
   windUnits: 'mph', aqiSource: 'openmeteo',
   threshAqiOn: true, threshAqiWarn: '100', threshAqiDanger: '150',   // US seed on the EU scale
   threshWindOn: true, threshWindWarn: '40', threshWindDanger: '60',  // kph seed under mph
-  threshGustWarn: '30', threshGustDanger: '50'                       // knots seed under mph
+  threshGustWarn: '30', threshGustDanger: '50'                       // 1.23 knots seed under mph
 };
 
 test('seed pairs: a pin under another unit or AQI scale goes blank and takes the seed in effect', () => {
