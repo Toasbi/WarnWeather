@@ -4,6 +4,7 @@
 // emits no code, so aplite still compiles this file to an empty object.
 #include <pebble.h>
 #include "status_highlight.h"
+#include "status_icon_weight.h"
 #include "../appendix/theme.h"
 
 #if defined(WW_THRESHOLD_HIGHLIGHT)
@@ -48,12 +49,14 @@ static void set_stroke(GDrawCommandImage *image, GColor color) {
                                stroke_cb, &color);
 }
 
-void status_highlight_draw_glyph(GContext *ctx, GDrawCommandImage *image, GPoint origin,
-                                 GColor ink) {
+void status_highlight_draw_glyph(GContext *ctx, GDrawCommandImage *image, int16_t x,
+                                 int16_t cap_cy, uint8_t key, GColor ink) {
+    GSize gs = gdraw_command_image_get_bounds_size(image);
     GColor fg = theme_fg();
     bool restroke = !gcolor_equal(ink, fg);
     if (restroke) { set_stroke(image, ink); }
-    gdraw_command_image_draw(ctx, image, origin);
+    gdraw_command_image_draw(ctx, image,
+                             GPoint(x, status_icon_top_y(cap_cy, gs.h, status_icon_weight_pct(key))));
     if (restroke) { set_stroke(image, fg); }
 }
 

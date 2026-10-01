@@ -1,6 +1,5 @@
 #include "status_row.h"
 #include "status_row_icons.h"
-#include "status_icon_weight.h"
 #include "status_row_direction.h"
 #include "status_row_layout.h"
 #include "status_highlight.h"
@@ -825,15 +824,11 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
             battery_draw(ctx, GRect(icon_x - lane, glyph_cy - BATTERY_GLYPH_H / 2,
                                     BATTERY_GLYPH_W, BATTERY_GLYPH_H), ink);
         } else if (row->glyphs[i]) {
-            GSize gs = gdraw_command_image_get_bounds_size(row->glyphs[i]);
-            // Seat the glyph on the cap centre at its per-icon optical-centre
-            // weight (status_icon_weight.h). Every weight ships at 50 today,
-            // which reduces this to the historical `glyph_cy - gs.h / 2`.
-            // glyph_icons[i] is the id whose PDC is in glyphs[i] (ensure_glyphs
-            // keeps the two together).
-            status_highlight_draw_glyph(ctx, row->glyphs[i],
-                GPoint(icon_x, status_icon_top_y(glyph_cy, gs.h,
-                    status_icon_weight_pct(row->glyph_icons[i]))), ink);
+            // Seated on the cap centre at its per-icon optical-centre weight
+            // (status_icon_weight.h). glyph_icons[i] is the id whose PDC is in
+            // glyphs[i] (ensure_glyphs keeps the two together).
+            status_highlight_draw_glyph(ctx, row->glyphs[i], icon_x, glyph_cy,
+                                        row->glyph_icons[i], ink);
         } else if (slots[i].slot.icon == STATUS_ICON_DRAWN_SUN
                    && measures[i].icon_w > 0) {
             bool arrow_up = persist_get_sun_event_start_type() == 0;

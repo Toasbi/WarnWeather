@@ -18,9 +18,11 @@
 // glyph and text draw in: legible over a fill, the theme foreground otherwise.
 GColor status_highlight_paint(GContext *ctx, GRect frame, ThreshLook look);
 
-// Draw a cached status glyph at `origin` in `ink`. The glyph caches hold every glyph
-// stroked in the theme foreground, so any other ink is restroked for the draw and
-// restored after; a foreground ink draws the glyph as cached, which is also what
+// Draw a cached status glyph in `ink`, its left edge at `x`, seated on the digits' cap
+// centre `cap_cy` at the optical-centre weight of `key` (status_icon_weight.h: a
+// StatusIconId; any other key seats on the centre). The glyph caches hold every
+// glyph stroked in the theme foreground, so any other ink is restroked for the draw
+// and restored after; a foreground ink draws the glyph as cached, which is also what
 // keeps the rain drops' tinted fills intact (they are never boxed).
-void status_highlight_draw_glyph(GContext *ctx, GDrawCommandImage *image, GPoint origin,
-                                 GColor ink);
+void status_highlight_draw_glyph(GContext *ctx, GDrawCommandImage *image, int16_t x,
+                                 int16_t cap_cy, uint8_t key, GColor ink);

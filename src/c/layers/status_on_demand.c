@@ -9,7 +9,6 @@
 #include "status_on_demand.h"
 #include "battery_item.h"
 #include "status_highlight.h"
-#include "status_icon_weight.h"
 #include "status_row.h"
 #include "status_row_icons.h"
 #include "status_row_layout.h"
@@ -535,10 +534,8 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
         uint8_t key = item_key(s, item);
         GDrawCommandImage *image = image_for(row->cache, key);
         if (image) {
-            GSize gs = gdraw_command_image_get_bounds_size(image);
             // The system and rain glyphs are no StatusIconId: they seat on the centre.
-            status_highlight_draw_glyph(ctx, image,
-                GPoint(icon_x, status_icon_top_y(env->glyph_cy, gs.h, status_icon_weight_pct(key))),
+            status_highlight_draw_glyph(ctx, image, icon_x, env->glyph_cy, key,
                 item != OD_BLUETOOTH ? ink
                     : bt_ink(key == STATUS_ROW_ICON_BT ? GColorPictonBlue : GColorRed));
         }
