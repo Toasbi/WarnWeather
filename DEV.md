@@ -371,9 +371,9 @@ static compile-time fixture, so screenshot builds swap in two canned twins (wire
   tier: 3 }` prints "Rain in 15'" with the 'text' rain look and `15'` with the 'minutes'
   one, and `{ mins: 20, raining: true, tier: 3 }` "Rain for 20'" / `+20'` (tier 1-2 reads
   "Drizzle"; `mins: 100` is past the 99-minute cap).
-  Like the real alert it shows nothing while the fixture's settings tick Rain on no
-  Enabled side (or switch the radar off) or the radar is snoozed. The minutes are canned,
-  though: a time window shorter than them does not hide the alert.
+  Like the real alert it shows nothing while the fixture's settings tick Rain on no side
+  (or switch the radar off) or the radar is snoozed. The minutes are canned, though: a
+  time window shorter than them does not hide the alert.
 
 Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`,
 and only some scenes via `SCENE_IDS` (the other frames stay as they are):
