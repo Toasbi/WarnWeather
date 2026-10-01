@@ -258,32 +258,35 @@ static uint8_t item_key(const StatusOnDemandState *s, int item) {
     }
 }
 
-static int16_t icon_width(GDrawCommandImage *image) {
+// The width of active item `item`'s glyph: the battery's, Sleep's square, a cached
+// glyph's bounds; 0 = no glyph. Needs the glyphs, so ensure() runs first. The measure
+// and the paint both ask it, in the same draw, so they agree.
+static int16_t item_icon_w(const StatusOnDemandRow *row, const StatusOnDemandState *s,
+                           const StatusOnDemandEnv *env, int item) {
+    if (item == OD_BATTERY) { return battery_item_width(env->icon_h, s->charging); }
+    if (item == OD_SLEEP) { return env->icon_h; }
+    GDrawCommandImage *image = image_for(row->cache, item_key(s, item));
     return image ? gdraw_command_image_get_bounds_size(image).w : 0;
 }
 
-// Measure `item` on every lane into its cell, and its footprint per lane into `w`
-// (od_item_footprint: a boxed metric entry pads STATUS_ON_DEMAND_BOX_PAD_X a side).
-// Needs the glyphs, so ensure() runs first.
-static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
+// The width of a lane's text `buf` in `font`. A lane's text is never cut: measured in a
+// box no text reaches. The measure and the paint both take it, on the same text in the
+// same draw, so the paint draws each lane at the width the layout placed.
+static int16_t lane_text_w(const char *buf, GFont font) {
+    return status_row_text_w(buf, font, 1000, 100);
+}
+
+// Measure `item`'s footprint on every lane into `w` (od_item_footprint: a boxed metric
+// entry pads STATUS_ON_DEMAND_BOX_PAD_X a side).
+static void measure(const StatusOnDemandState *s, const StatusOnDemandRow *row,
                     const StatusOnDemandEnv *env, int item, int16_t w[OD_LANES]) {
-    const StatusOnDemandState *s = &p->state;
-    StatusOnDemandCell *c = &p->cells[item];
-    if (item == OD_BATTERY) {
-        c->icon_w = battery_item_width(env->icon_h, s->charging);
-    } else if (item == OD_SLEEP) {
-        c->icon_w = env->icon_h;
-    } else {
-        c->icon_w = icon_width(image_for(row->cache, item_key(s, item)));
-    }
-    c->pad = od_item_boxed(item) ? STATUS_ON_DEMAND_BOX_PAD_X : 0;
+    const int16_t icon_w = item_icon_w(row, s, env, item);
     for (int lane = 0; lane < OD_LANES; lane++) {
         char buf[ALERT_SET_LANE_CAP];
         GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
-        // A lane's text is never cut: measured in a box no text reaches.
-        int16_t tw = status_row_text_w(buf, font, 1000, 100);
-        c->text_w[lane] = tw;
-        int16_t fw = od_item_footprint(c->icon_w, tw, od_item_boxed(item), c->pad);
+        int16_t tw = lane_text_w(buf, font);
+        int16_t fw = od_item_footprint(icon_w, tw, od_item_boxed(item),
+                                       STATUS_ON_DEMAND_BOX_PAD_X);
         // A lane with nothing left to draw keeps the lane before's width: it can give
         // nothing more.
         if (fw <= 0 && lane > 0) { fw = w[lane - 1]; }
@@ -407,7 +410,7 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         if (!s->active[item]) { continue; }
         int16_t w[OD_LANES];
-        measure(pass, row, env, item, w);
+        measure(s, row, env, item, w);
         if (w[0] <= 0) { continue; }   // nothing to draw (a glyph that failed to load)
         OdSideIn *side = &pass->sides[s->side[item] == OD_SIDE_LEFT ? 0 : 1];
         int i = side->n++;
@@ -451,17 +454,17 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     pass->any = true;
 }
 
-// Paint one item at content-absolute `x`, `w` wide (its footprint on `lane`).
+// Paint one item at content-absolute `x`, `w` wide (its footprint on `lane`). Its parts
+// are derived again as measure() derived them: the same state, glyphs and text.
 static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
-                       const StatusOnDemandPass *p, const StatusOnDemandEnv *env,
+                       const StatusOnDemandState *s, const StatusOnDemandEnv *env,
                        int item, int lane, int16_t x, int16_t w) {
-    const StatusOnDemandState *s = &p->state;
-    const StatusOnDemandCell *c = &p->cells[item];
     char buf[ALERT_SET_LANE_CAP];
     GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
-    int16_t text_w = c->text_w[lane];
-    int16_t icon_x = (int16_t)(x + c->pad);
-    int16_t text_x = (int16_t)(icon_x + c->icon_w + (c->icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
+    int16_t text_w = lane_text_w(buf, font);
+    int16_t icon_w = item_icon_w(row, s, env, item);
+    int16_t icon_x = (int16_t)(x + (od_item_boxed(item) ? STATUS_ON_DEMAND_BOX_PAD_X : 0));
+    int16_t text_x = (int16_t)(icon_x + icon_w + (icon_w > 0 ? STATUS_ROW_ICON_TEXT_GAP : 0));
     int16_t icon_top = (int16_t)(env->glyph_cy - env->icon_h / 2);
     GColor ink = theme_fg();
     // A metric entry is boxed at DANGER always (filled) and at WARN per its kind's
@@ -512,7 +515,7 @@ void status_on_demand_paint(GContext *ctx, const StatusOnDemandRow *row,
     for (int d = 0; d < 2; d++) {
         const OdSideIn *side = &pass->sides[d];
         for (int k = l->first[d]; k < l->first[d] + l->n[d]; k++) {
-            paint_item(ctx, row, pass, env, side->rank[k], l->lane[d],
+            paint_item(ctx, row, &pass->state, env, side->rank[k], l->lane[d],
                        (int16_t)(env->x + l->item_x[d][k]), side->w[l->lane[d]][k]);
         }
     }

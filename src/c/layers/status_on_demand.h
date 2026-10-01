@@ -101,13 +101,6 @@ typedef struct {
     size_t cap;             // over it, in a buffer of this size
 } StatusOnDemandSlot;
 
-// One item's measured parts.
-typedef struct {
-    int16_t icon_w;             // the glyph's width; 0 = no glyph
-    int16_t text_w[OD_LANES];   // the text lane's width per On demand lane; 0 = none
-    uint8_t pad;                // air each side inside a box: STATUS_ON_DEMAND_BOX_PAD_X
-} StatusOnDemandCell;
-
 // The entries and item states one pass resolves.
 typedef struct {
     uint8_t bytes[ALERT_ENTRIES_MAX_BYTES];    // the stored ALERT_ENTRIES tuple
@@ -128,7 +121,6 @@ typedef struct {
 // file-scope pass that every row's draw reuses (draws are serialized).
 typedef struct {
     StatusOnDemandState state;
-    StatusOnDemandCell cells[OD_ITEM_COUNT];
     OdSideIn sides[2];
     OdLayout layout;
     bool any;                                  // items were laid out
