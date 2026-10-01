@@ -51,7 +51,8 @@ cc $CFLAGS test/c/status_line_test.c src/c/appendix/status_line.c -o build/host/
 build/host/status_line_test
 cc $CFLAGS test/c/status_threshold_test.c src/c/appendix/status_threshold.c -o build/host/status_threshold_test
 build/host/status_threshold_test
-# The weather alerts' pure half (entry parse, rain merge and the lane ladder).
+# The weather alerts' pure half (the entries' parse, item map and text lanes, and the
+# rain alert's text).
 # Its body sits behind WW_ON_DEMAND (wscript: every platform but aplite), so the flag
 # is required here or the module compiles to nothing and the test fails to link; its
 # companion WW_THRESHOLD_HIGHLIGHT too, which alert_set.h requires beside it (every

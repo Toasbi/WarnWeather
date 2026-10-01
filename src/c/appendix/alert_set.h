@@ -4,28 +4,28 @@
 #include <stdbool.h>
 #include "status_line.h"
 #include "status_threshold.h"
+#include "rain_countdown.h"   // RainCountdown (that header is SDK-free too)
 
-// The weather alerts' entry set: the metric alerts the phone baked, the rain alert
-// the watch resolves, and the text lanes they print. Pure integer code —
+// The weather alerts' texts: the metric alerts' entry set the phone baked, the text
+// lanes its entries print, and the rain alert's countdown text. Pure code —
 // deliberately no <pebble.h> (nor rain_tier.h, which pulls it in), so the module
-// host-compiles (scripts/test-c.sh) like status_threshold.c. Where the entries sit
-// is On demand's business (appendix/on_demand.c lays the items out); the SDK side —
-// glyphs, text, paint — is layers/status_on_demand.c.
+// host-compiles (scripts/test-c.sh) like status_threshold.c. Where the items sit is
+// On demand's business (appendix/on_demand.c lays them out); the SDK side — glyphs,
+// text, paint — is layers/status_on_demand.c.
 //
 // NOT LINKED ON APLITE: On demand is aplite-absent (WW_ON_DEMAND in wscript), so the
 // .c body sits behind that macro and compiles to an empty object there. These
 // declarations stay visible everywhere (they emit nothing); every CALL site is
 // guarded, or in a file aplite never compiles (status_row.c's lean twin replaces it).
 //
-// Where the entries come from:
+// Where the alerts come from:
 //  - the metric alerts are baked by the phone into their own weather tuple,
 //    ALERT_ENTRIES_UINT8 (encoding below), which app_message.c checks with
-//    alert_set_bytes_ok() and persists — alert_set_parse() reads them;
-//  - the rain alert is resolved on the watch from its own radar cache
-//    (rain_countdown_format() / rain_countdown_peak_tier()) — the SDK caller
-//    collapses the tier to a bucket and hands both in to alert_set_prepend_rain().
-// The set keeps rain first, then the metric entries in wire order; each entry
-// becomes the On demand item of its kind, which orders the items by priority.
+//    alert_set_bytes_ok() and persists — alert_set_parse() reads them, in wire
+//    order; each entry is the On demand item of its kind (alert_set_item), and the
+//    item order is the priority;
+//  - the rain alert is no entry: the watch resolves it from its own radar cache as
+//    numbers (rain_countdown_get()), and alert_set_rain_text() prints them.
 
 // The two macros gate different wire concerns (WW_THRESHOLD_HIGHLIGHT the thresholds
 // blob and levels word, WW_ON_DEMAND the entries tuple), but On demand cannot stand
@@ -34,16 +34,11 @@
 #error "WW_ON_DEMAND needs WW_THRESHOLD_HIGHLIGHT: the alert items paint the threshold looks"
 #endif
 
-#define ALERT_SET_MAX 6   // rain + the five metric kinds
+#define ALERT_SET_MAX 5   // the five metric kinds
 
-// The rain entry's kind, in memory only (it never rides the tuple): no ThreshKind
-// (all < THRESH_KIND_COUNT), so every accessor a kind reaches answers its
-// out-of-range default — no icon (alert_set_icon), and at NORMAL no box, no bold
-// and the fallback colour byte (status_threshold_look). It used to be kind 0 and so
-// read AQI's settings: with AQI's Bold 'Always' its look value came out with bold
-// set. The rain text never drew bold (lane_text keeps it regular), but no kind's
-// settings should reach the rain entry at all.
-#define ALERT_KIND_RAIN 0xFF
+// A text lane's buffer: the longest lane is the rain alert's full text,
+// "Downpour for +99'", + NUL.
+#define ALERT_SET_LANE_CAP 18
 
 // ALERT_ENTRIES_UINT8 (weather message, status category): one entry per ACTIVE
 // metric alert, in the fixed order UV, wind, gust, AQI, pollen (the phone bakes
@@ -90,18 +85,13 @@
 #define STATUS_ALERT_MARK_NONE 5     // tomorrow's, unmarked
 
 typedef struct {
-    uint8_t kind;          // ThreshKind of a metric entry (AQI, pollen, wind, gust,
-                           // UV); ALERT_KIND_RAIN for the rain entry
-    uint8_t level;         // ThreshLevel of a metric entry: WARN or DANGER
-    uint8_t day;           // STATUS_ALERT_DAY_TODAY for today's value (and the rain
-                           // entry); a tomorrow entry's STATUS_ALERT_MARK_* code
+    uint8_t kind;          // ThreshKind: AQI, pollen, wind, gust or UV
+    uint8_t level;         // ThreshLevel: WARN or DANGER
+    uint8_t day;           // STATUS_ALERT_DAY_TODAY for today's value; a tomorrow
+                           // entry's STATUS_ALERT_MARK_* code
     uint8_t value_len;     // bytes at `value`, 0..STATUS_ALERT_LEN_MAX
     const char *value;     // INTO the slot bytes, NOT NUL-terminated; NULL when
                            // value_len is 0 (the kind's Look is 'icon' on the phone)
-    bool rain;             // the watch-resolved rain entry: ALERT_KIND_RAIN at
-                           // NORMAL (whose look draws no box), no value
-    uint8_t rain_bucket;   // 1 drizzle, 2 rain, 3 downpour (rain_tier_to_bucket3)
-    uint8_t rain_tier;     // radar tier 1..5 of the segment's peak — the drop's tint
 } AlertEntry;
 
 typedef struct {
@@ -112,6 +102,10 @@ typedef struct {
 // The StatusIconId a metric kind draws with; STATUS_ICON_NONE for a kind that is
 // not an alert kind (the health trio, the bold-only kinds, out of range).
 uint8_t alert_set_icon(int kind);
+
+// The On demand item (an OdItem) a metric kind's entry is; -1 for a kind that is
+// not an alert kind (alert_set_parse already skips those).
+int alert_set_item(int kind);
 
 // Whether an ALERT_ENTRIES_UINT8 payload is well formed: at most
 // ALERT_ENTRIES_MAX_BYTES, starting on a header (a value byte before any header
@@ -131,59 +125,24 @@ bool alert_set_bytes_ok(const uint8_t *bytes, size_t len);
 // STATUS_ALERT_MARK_NONE, and the parse stops at ALERT_SET_MAX. Returns out->count.
 int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out);
 
-// Put the rain entry FIRST when `active`; a no-op otherwise. A full set drops its
-// last entry to make room (rain outranks every metric alert). `bucket` is clamped
-// to 1..3 — the caller passes rain_tier_to_bucket3(tier), which is 0 only for a
-// tier-0 segment. Call once per parse.
-void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier);
-
-// One step down the text-lane ladder: the rain text shortens to its minutes first
-// ("Rain in 12'" -> "12'"), then every lane goes (metric values off, rain icon
-// only). A tomorrow entry's mark is not a value and stays (alert_set_lane), so a
-// tomorrow alert never reads as today's. Returns false once there is nothing left
-// to shorten. status_on_demand.c walks it to build each side's lanes (on_demand.h
-// OD_LANES): the chosen looks, the rain text as minutes, the values off.
-// `rain_display` is a ThreshRainDisplay; any value that is not ICON or MINUTES reads
-// as TEXT, as status_threshold_rain_display would read it.
-bool alert_set_degrade(int *rain_display, bool *values);
-
-// The rain look and the values flag of On demand lane `lane` (0..OD_LANES - 1), from
-// the chosen rain look `chosen`: lane 0 as chosen, lane 1 the rain Text as its
-// minutes (a step only a Text look takes: Icon and Icon + minutes keep theirs, and
-// the values stay), lane 2 the values off and the rain drop alone —
-// alert_set_degrade's ladder, a step per lane. Header-inline so the one caller
-// (status_on_demand.c item_text) pays no call, and the host test pins it.
-static inline void alert_set_lane_look(int chosen, int lane, int *rain_display, bool *values) {
-    int rd = chosen;
-    bool v = true;
-    if (lane >= 1 && rd != THRESH_RAIN_DISPLAY_ICON && rd != THRESH_RAIN_DISPLAY_MINUTES) {
-        alert_set_degrade(&rd, &v);
-    }
-    if (lane >= 2) {
-        while (alert_set_degrade(&rd, &v)) {}
-    }
-    *rain_display = rd;
-    *values = v;
-}
-
 // A metric entry's text lane, what its item prints after its icon, into `out`
-// (NUL-terminated; "" = none): the baked value while `values` (the lane ladder's
-// flag), wrapped in tomorrow's mark — the slot's "Tomorrow's peak mark" texts
-// (status-pair.js NEXT_DAY_MARKS): "»8", ">8", "+8", "8*", or "8" unmarked. Today's
-// entry prints its value alone. The mark is no value: it stays when `values` is off
-// or the Look is Icon (no value bytes), so the lane is then the mark alone ("»", "*",
-// or "" unmarked). "»" is U+00BB in UTF-8 — Latin-1, which the Gothic fonts carry,
-// as the slot's own "»8" relies on. Each part is written whole or not at all, so a
-// short `cap` never splits the "»" or prints a cut number; cap >= 10 fits every lane
-// (a 2-byte mark + STATUS_ALERT_LEN_MAX value bytes + NUL). The rain entry has no
-// lane here (status_on_demand.c builds its countdown): it writes "". Returns the bytes
-// written.
+// (NUL-terminated; "" = none): the baked value while `values` (the lane's values flag,
+// on_demand.h od_lane_look), wrapped in tomorrow's mark — the slot's "Tomorrow's peak
+// mark" texts (status-pair.js NEXT_DAY_MARKS): "»8", ">8", "+8", "8*", or "8"
+// unmarked. Today's entry prints its value alone. The mark is no value: it stays when
+// `values` is off or the Look is Icon (no value bytes), so the lane is then the mark
+// alone ("»", "*", or "" unmarked). "»" is U+00BB in UTF-8 — Latin-1, which the Gothic
+// fonts carry, as the slot's own "»8" relies on. Each part is written whole or not at
+// all, so a short `cap` never splits the "»" or prints a cut number; cap >= 10 fits
+// every lane (a 2-byte mark + STATUS_ALERT_LEN_MAX value bytes + NUL). Returns the
+// bytes written.
 size_t alert_set_lane(const AlertEntry *e, bool values, char *out, size_t cap);
 
-// The rain entry's MINUTES lane from rain_countdown_format()'s text: the minute
-// token ("Rain in 12'" -> "12'"), marked "+" while it is raining now ("Rain for 20'"
-// -> "+20'"). A count past rain_countdown's 99-minute cap ("+99'") reads ">99'" for
-// an upcoming shower and "+99'" while it falls. Writes "" and returns
-// false for a NULL/empty/token-less string. `out` NUL-terminated; cap >= 6 fits
-// every token.
-bool alert_set_rain_minutes(const char *countdown, char *out, size_t cap);
+// The rain alert's text into `out` (NUL-terminated, cut at `cap`): the noun by the
+// drops' bucket ("Drizzle", "Rain", "Downpour"), then "in" the minutes until it starts
+// or "for" the minutes it keeps falling — "Rain in 12'", "Drizzle for 20'". With
+// `minutes_only` (the Icon + minutes look, and the Text look's shorter lane) the
+// minutes alone, marked "+" while it rains — "12'", "+20'". Past the 99-minute cap the
+// count reads "+99'" (">99'" for an upcoming shower with `minutes_only`, so it never
+// reads as rain falling now). ALERT_SET_LANE_CAP fits every text.
+void alert_set_rain_text(const RainCountdown *rc, bool minutes_only, char *out, size_t cap);

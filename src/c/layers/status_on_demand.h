@@ -2,7 +2,6 @@
 #include <pebble.h>
 #include "../appendix/alert_set.h"
 #include "../appendix/on_demand.h"
-#include "../appendix/rain_countdown.h"   // RAIN_COUNTDOWN_TEXT_CAP
 
 // On demand's SDK half: which items of a bar are active, their glyphs, measures and
 // paint, and the slots' short forms measured. The layout — how the bar's slots make
@@ -70,10 +69,10 @@ void status_on_demand_release(StatusOnDemandRow *row);
 // row->assigned, and fold everything the items paint into the row's signature — the
 // bar's cells, the Battery warn level and Look, each assigned item's state (the
 // charge, plugged and "at or below" for Battery; the Bluetooth variant; Quiet time;
-// Sleep) and the weather alerts (entries, levels, days, values, looks, the rain look
-// and the countdown text while a look prints it). The rain entry is re-derived from
-// the radar cache on every call (O(1), flash-free), which is why a bar with items is
-// refreshed on the minute tick.
+// Sleep) and the weather alerts (entries, levels, days, values, looks; the rain look,
+// the drops' tier, and the minutes and whether it rains while a look prints them).
+// The rain alert is re-derived from the radar cache on every call (O(1),
+// flash-free), which is why a bar with items is refreshed on the minute tick.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                                const uint8_t *blob, size_t len);
 
@@ -116,12 +115,11 @@ typedef struct {
 // The entries and item states one pass resolves.
 typedef struct {
     uint8_t bytes[ALERT_ENTRIES_MAX_BYTES];    // the stored ALERT_ENTRIES tuple
-    AlertSet set;                              // metric entries, rain in front
-    char rain_text[RAIN_COUNTDOWN_TEXT_CAP];   // countdown text; "" = no rain entry
+    AlertSet set;                              // the metric entries, in wire order
+    RainCountdown rain;                        // the rain alert, while Rain is active
     int rain_display;                          // ThreshRainDisplay, from the blob
     uint8_t side[OD_ITEM_COUNT];               // OdSide of each item on this bar
     bool active[OD_ITEM_COUNT];
-    uint8_t entry[OD_ITEM_COUNT];              // a weather item's entry in `set`
     uint8_t bt_key;                            // the Bluetooth glyph (0: none)
     uint8_t charge;                            // the charge in %, Battery assigned
     uint8_t level;                             // the Battery item's warn level

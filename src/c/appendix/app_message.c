@@ -699,7 +699,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     // The rain-countdown rescan comes FIRST, before anything paints: the countdown is
     // pure data that every On demand bar's refresh reads (status_on_demand.c), and
     // the status rows are signature-gated (an unchanged signature repaints nothing), so
-    // a row refreshed ahead of the rescan would keep showing the old rain entry until
+    // a row refreshed ahead of the rescan would keep showing the old rain alert until
     // the next minute tick. The radar payload (or the snooze latch/release) is the
     // countdown's only data-change source, hence the radar_dirty gate.
     // aplite drops the rain-countdown alert (24 KB budget), so it skips the rescan and

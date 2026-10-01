@@ -172,7 +172,7 @@ const SCENES = [
       statusForecastLeft: 'wind', statusForecastRight: 'gust',
     },
     radar: { exact: RAIN_APPROACH_EXACT, area: RAIN_APPROACH_AREA },
-    countdown: { text: "Rain in 15'", tier: 3 },
+    countdown: { mins: 15, raining: false, tier: 3 },
   },
   // Miami, from the fixtures of the same name (live OpenWeatherMap data, pinned): UV as
   // dots, cloud cover and rain chance as top stripes, feels-like as a curve. Colour
@@ -254,7 +254,7 @@ const SCENES = [
       timeFont: 'bitham',
     },
     radar: { exact: RAIN_NOW_EXACT, area: RAIN_NOW_AREA },
-    countdown: { text: "Rain for 20'", tier: 3 },
+    countdown: { mins: 20, raining: true, tier: 3 },
   },
   // The Miami scenes again in the Light theme: captured with the showcase (for the store
   // and the README) but left out of the GIF and the reel intro (inShowcase: false).

@@ -1851,6 +1851,34 @@ static void item_decisions(void) {
         expect(name, od_item_boxed(item), item >= OD_GUST && item <= OD_WIND);
     }
 
+    // The lanes' looks: lane 0 as chosen, lane 1 the rain Text as its minutes (Icon
+    // and Icon + minutes keep theirs, and the values stay on), lane 2 the values off
+    // and the rain icon alone.
+    static const struct { int chosen; int lane; int rd; int values; } LOOKS[] = {
+        { THRESH_RAIN_DISPLAY_TEXT, 0, THRESH_RAIN_DISPLAY_TEXT, 1 },
+        { THRESH_RAIN_DISPLAY_TEXT, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
+        { THRESH_RAIN_DISPLAY_TEXT, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
+        { THRESH_RAIN_DISPLAY_MINUTES, 0, THRESH_RAIN_DISPLAY_MINUTES, 1 },
+        { THRESH_RAIN_DISPLAY_MINUTES, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
+        { THRESH_RAIN_DISPLAY_MINUTES, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
+        { THRESH_RAIN_DISPLAY_ICON, 0, THRESH_RAIN_DISPLAY_ICON, 1 },
+        { THRESH_RAIN_DISPLAY_ICON, 1, THRESH_RAIN_DISPLAY_ICON, 1 },
+        { THRESH_RAIN_DISPLAY_ICON, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
+        // The reserved wire value 3 reads as Text.
+        { 3, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
+        { 3, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
+    };
+    for (size_t i = 0; i < sizeof(LOOKS) / sizeof(LOOKS[0]); i++) {
+        int rd = -1;
+        bool values = false;
+        od_lane_look(LOOKS[i].chosen, LOOKS[i].lane, &rd, &values);
+        char name[48];
+        snprintf(name, sizeof(name), "lane_look.%d.%d.rd", LOOKS[i].chosen, LOOKS[i].lane);
+        expect(name, rd, LOOKS[i].rd);
+        snprintf(name, sizeof(name), "lane_look.%d.%d.values", LOOKS[i].chosen, LOOKS[i].lane);
+        expect(name, values, LOOKS[i].values);
+    }
+
     // The footprint: icon, the icon-text gap only between the two, and a box's padding
     // on both sides measured by its ink (+1 for a last icon, -1 for a last text).
     const int gap = STATUS_ROW_ICON_TEXT_GAP;

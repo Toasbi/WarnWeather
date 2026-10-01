@@ -1,4 +1,5 @@
 #include "alert_set.h"
+#include <stdio.h>
 #include <string.h>
 
 // Only the BODY is guarded, the include stays above it: waf's dependency scanner
@@ -15,6 +16,17 @@ uint8_t alert_set_icon(int kind) {
         case THRESH_AQI:    return STATUS_ICON_AQI;
         case THRESH_POLLEN: return STATUS_ICON_POLLEN;
         default:            return STATUS_ICON_NONE;
+    }
+}
+
+int alert_set_item(int kind) {
+    switch (kind) {
+        case THRESH_GUST:   return OD_GUST;
+        case THRESH_UV:     return OD_UV;
+        case THRESH_AQI:    return OD_AQI;
+        case THRESH_POLLEN: return OD_POLLEN;
+        case THRESH_WIND:   return OD_WIND;
+        default:            return -1;
     }
 }
 
@@ -55,49 +67,8 @@ int alert_set_parse(const uint8_t *bytes, size_t len, AlertSet *out) {
         e->day = (uint8_t)day;
         e->value_len = (uint8_t)n;
         e->value = n > 0 ? (const char *)(bytes + start) : NULL;
-        e->rain = false;
-        e->rain_bucket = 0;
-        e->rain_tier = 0;
     }
     return out->count;
-}
-
-void alert_set_prepend_rain(AlertSet *set, bool active, int bucket, int tier) {
-    if (!set || !active) { return; }
-    int count = set->count;
-    if (count >= ALERT_SET_MAX) { count = ALERT_SET_MAX - 1; }   // the tail yields
-    for (int i = count; i > 0; i--) {
-        set->entries[i] = set->entries[i - 1];
-    }
-    if (bucket < 1) { bucket = 1; }
-    if (bucket > 3) { bucket = 3; }
-    if (tier < 0) { tier = 0; }
-    if (tier > UINT8_MAX) { tier = UINT8_MAX; }
-    AlertEntry *e = &set->entries[0];
-    e->kind = ALERT_KIND_RAIN;
-    e->level = THRESH_LEVEL_NORMAL;
-    e->day = STATUS_ALERT_DAY_TODAY;
-    e->value_len = 0;
-    e->value = NULL;
-    e->rain = true;
-    e->rain_bucket = (uint8_t)bucket;
-    e->rain_tier = (uint8_t)tier;
-    set->count = (uint8_t)(count + 1);
-}
-
-bool alert_set_degrade(int *rain_display, bool *values) {
-    if (!rain_display || !values) { return false; }
-    if (*rain_display != THRESH_RAIN_DISPLAY_ICON
-            && *rain_display != THRESH_RAIN_DISPLAY_MINUTES) {
-        *rain_display = THRESH_RAIN_DISPLAY_MINUTES;
-        return true;
-    }
-    if (*values || *rain_display == THRESH_RAIN_DISPLAY_MINUTES) {
-        *values = false;
-        *rain_display = THRESH_RAIN_DISPLAY_ICON;
-        return true;
-    }
-    return false;
 }
 
 // Tomorrow's marks by day code (STATUS_ALERT_DAY_TODAY, then STATUS_ALERT_MARK_*):
@@ -125,7 +96,7 @@ static void lane_put(char *out, size_t cap, size_t *o, const char *s, size_t n) 
 size_t alert_set_lane(const AlertEntry *e, bool values, char *out, size_t cap) {
     if (!out || cap == 0) { return 0; }
     out[0] = '\0';
-    if (!e || e->rain) { return 0; }
+    if (!e) { return 0; }
     // The parse already reads the unused codes as unmarked; a hand-built entry too.
     int day = e->day <= STATUS_ALERT_MARK_NONE ? e->day : STATUS_ALERT_MARK_NONE;
     size_t o = 0;
@@ -136,37 +107,22 @@ size_t alert_set_lane(const AlertEntry *e, bool values, char *out, size_t cap) {
     return o;
 }
 
-bool alert_set_rain_minutes(const char *countdown, char *out, size_t cap) {
-    if (!out || cap == 0) { return false; }
+void alert_set_rain_text(const RainCountdown *rc, bool minutes_only, char *out, size_t cap) {
+    if (!out || cap == 0) { return; }
     out[0] = '\0';
-    if (!countdown) { return false; }
-    // rain_countdown_format() writes "<noun> in <token>" (upcoming) or
-    // "<noun> for <token>" (raining now); the token is the last word.
-    const char *token = NULL;
-    bool raining = false;
-    for (const char *p = countdown; *p; p++) {
-        if (*p != ' ') { continue; }
-        token = p + 1;
-        if (p[1] == 'f' && p[2] == 'o' && p[3] == 'r' && p[4] == ' ') { raining = true; }
+    if (!rc) { return; }
+    bool capped = rc->mins > RAIN_COUNTDOWN_MINS_MAX;
+    int mins = capped ? RAIN_COUNTDOWN_MINS_MAX : rc->mins;
+    if (minutes_only) {
+        // The '+' marks rain that is falling NOW, and past the cap "at least" too.
+        // Ahead, the cap reads '>' (">99'": rain further out than two digits can say,
+        // never a false "99'"), so an upcoming shower never reads as falling for 99+.
+        snprintf(out, cap, "%s%d'", rc->raining ? "+" : capped ? ">" : "", mins);
+        return;
     }
-    if (!token || *token == '\0') { return false; }
-    size_t o = 0;
-    // The '+' marks rain that is falling NOW ("for"). rain_countdown's capped
-    // token already carries one ("+99'" for anything past 99 min), which on an
-    // upcoming shower would read as "raining for 99+ min" — so the sign follows
-    // `raining`, never the token. Ahead, the cap becomes '>' (">99'": rain further
-    // out than two digits can say, never a false "99'"); while it falls it stays
-    // "+99'", the '+' saying both "falling" and "at least".
-    bool capped = *token == '+';
-    if (capped) { token++; }
-    if (raining) {
-        if (o + 1 < cap) { out[o++] = '+'; }
-    } else if (capped && o + 1 < cap) {
-        out[o++] = '>';
-    }
-    while (*token && o + 1 < cap) { out[o++] = *token++; }
-    out[o] = '\0';
-    return o > 0;
+    const char *noun = rc->bucket == 1 ? "Drizzle" : rc->bucket == 3 ? "Downpour" : "Rain";
+    snprintf(out, cap, "%s %s %s%d'", noun, rc->raining ? "for" : "in", capped ? "+" : "",
+             mins);
 }
 
 #endif

@@ -72,6 +72,28 @@ static inline bool od_item_boxed(int item) {
     return item >= OD_GUST;
 }
 
+// The Rain item's look — bits 0-1 of the thresholds blob's alerts byte
+// (status_threshold.h, status_threshold_rain_display). Here rather than there because
+// the lane rule below reads it, and status_threshold.h includes this header.
+typedef enum {
+    THRESH_RAIN_DISPLAY_TEXT = 0,      // the full countdown, "Rain in 12'" (legacy)
+    THRESH_RAIN_DISPLAY_ICON = 1,      // the drop alone
+    THRESH_RAIN_DISPLAY_MINUTES = 2,   // the drop + "12'"
+} ThreshRainDisplay;
+
+// The looks of text lane `lane` (0..OD_LANES - 1), from the chosen rain look `chosen`
+// (a ThreshRainDisplay): lane 0 as chosen; lane 1 the rain Text as its minutes (Icon
+// and Icon + minutes keep theirs); lane 2 the rain icon alone. `values` (the metric
+// alerts' values and the Battery's "8%") is off on lane 2 only — a tomorrow alert
+// keeps its mark there (alert_set_lane). A chosen look that is neither Icon nor Icon +
+// minutes reads as Text, as status_threshold_rain_display reads the reserved value 3.
+static inline void od_lane_look(int chosen, int lane, int *rain_display, bool *values) {
+    *values = lane < 2;
+    *rain_display = lane <= 0 ? chosen
+        : lane == 1 && chosen != THRESH_RAIN_DISPLAY_ICON ? THRESH_RAIN_DISPLAY_MINUTES
+        : THRESH_RAIN_DISPLAY_ICON;
+}
+
 // Whether a slot of `kind` (a StatusSlotKind) shows the watch battery — the Watch
 // battery glyph or the Battery % — and so counts in od_layout's `battery_slots`.
 static inline bool od_slot_shows_battery(int kind) {

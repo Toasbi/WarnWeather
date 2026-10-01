@@ -127,7 +127,7 @@ const GRAPH_SEGMENTS = [
   { id: 'graph-4', group: 'graph', flicks: 1, platforms: 'emery basalt flint',
     clay: { layoutPreset: 'noCal', theme: 'dark', timeFont: 'leco',
       radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60', healthMode: 'off' },
-    radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
+    radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { mins: 15, raining: false, tier: 3 } },
   { id: 'graph-5', group: 'graph', flicks: 1, platforms: 'emery basalt flint',
     clay: { layoutPreset: 'noCal', theme: 'dark', timeFont: 'leco', healthMode: 'all', radarProvider: 'disabled' },
     // emery only: HR needs the sensor; base (basalt/flint) keeps the plain health-graph frame.

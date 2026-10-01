@@ -61,33 +61,7 @@ void rain_countdown_refresh(time_t now) {
     s_rc_valid = true;
 }
 
-// Alert noun for the cached segment's peak intensity (indexed by 3-bucket; index 0
-// is an unreachable fallback since a cached segment always has >= 1 rain slot).
-static const char *rc_noun(void) {
-    static const char *const NOUNS[4] = { "Rain", "Drizzle", "Rain", "Downpour" };
-    int bucket = rain_tier_to_bucket3(rain_tier_of_tenths((int) s_rc_peak_tenths));
-    if (bucket < 1 || bucket > 3) { return "Rain"; }
-    return NOUNS[bucket];
-}
-
-int rain_countdown_peak_tier(void) {
-    if (!s_rc_valid || s_rc_snooze) { return 0; }
-    return rain_tier_of_tenths((int) s_rc_peak_tenths);
-}
-
-// Minute token for the strip, using `'` as the minute mark and capping anything
-// over 99 at "+99'" so the count never grows to 3 digits — that keeps the noun
-// readable on the 144 px strip (and the lean aplite twin, which has no ellipsize
-// ladder). Buffer needs >= 5 bytes ("+99'" + NUL).
-static void rc_mins_token(char *buf, size_t buf_size, int mins) {
-    if (mins > 99) {
-        snprintf(buf, buf_size, "+99'");
-    } else {
-        snprintf(buf, buf_size, "%d'", mins);
-    }
-}
-
-bool rain_countdown_format(char *out, size_t out_size, time_t now) {
+bool rain_countdown_get(RainCountdown *rc, time_t now) {
     // Segment-end self-heal: one rescan to chain to the next segment in the
     // same data. After a fresh refresh rain_end > now, so this never loops.
     if (s_rc_valid && now >= s_rc_rain_end) {
@@ -99,27 +73,31 @@ bool rain_countdown_format(char *out, size_t out_size, time_t now) {
         return false;
     }
 
-    char mins_token[6];
-    if (now < s_rc_rain_start) {
+    const bool raining = now >= s_rc_rain_start;
+    int mins;
+    if (!raining) {
         // Upcoming: minutes until rain starts, rounded to nearest, min 1.
-        int mins = (int) ((s_rc_rain_start - now + 30) / 60);
+        mins = (int) ((s_rc_rain_start - now + 30) / 60);
         if (mins < 1) {
             mins = 1;
         }
         if (mins > horizon) {
-            return false;  // beyond the configured look-ahead → show the month
+            return false;  // beyond the configured look-ahead: no alert yet
         }
-        rc_mins_token(mins_token, sizeof(mins_token), mins);
-        snprintf(out, out_size, "%s in %s", rc_noun(), mins_token);
-        return true;
+    } else {
+        // Raining now: minutes until rain stops, rounded up, min 1.
+        mins = (int) ((s_rc_rain_end - now + 59) / 60);
+        if (mins < 1) {
+            mins = 1;
+        }
     }
-
-    // Raining now: minutes until rain stops, rounded up, min 1.
-    int mins = (int) ((s_rc_rain_end - now + 59) / 60);
-    if (mins < 1) {
-        mins = 1;
-    }
-    rc_mins_token(mins_token, sizeof(mins_token), mins);
-    snprintf(out, out_size, "%s for %s", rc_noun(), mins_token);
+    // A cached segment has at least one rain slot, so its tier is never 0; the bucket
+    // is clamped all the same, so the drops always draw.
+    const int tier = rain_tier_of_tenths((int) s_rc_peak_tenths);
+    const int bucket = rain_tier_to_bucket3(tier);
+    rc->mins = (uint8_t) (mins > RAIN_COUNTDOWN_MINS_MAX ? RAIN_COUNTDOWN_MINS_MAX + 1 : mins);
+    rc->raining = raining;
+    rc->tier = (uint8_t) tier;
+    rc->bucket = (uint8_t) (bucket < 1 ? 1 : bucket);
     return true;
 }

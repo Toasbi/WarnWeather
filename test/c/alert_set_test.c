@@ -2,7 +2,8 @@
 #include <string.h>
 #include "c/appendix/alert_set.h"
 
-// Host test for the weather alerts' pure half (appendix/alert_set.c). Built with
+// Host test for the weather alerts' pure half (appendix/alert_set.c): the metric
+// entries' parse, item map and text lanes, and the rain alert's text. Built with
 // -DWW_ON_DEMAND, the flag wscript sets on every platform but aplite — without it
 // the module body is compiled out and nothing here would link — and the
 // WW_THRESHOLD_HIGHLIGHT alert_set.h requires beside it.
@@ -48,7 +49,6 @@ static void parse_tests(void) {
     expect("parse.0.len", set.entries[0].value_len, 1);
     // Values point INTO the buffer (not copies): the set lives as long as it.
     expect("parse.0.value_ptr", set.entries[0].value == (const char *)&bytes[1], 1);
-    expect("parse.0.rain", set.entries[0].rain, 0);
     expect("parse.1.kind", set.entries[1].kind, THRESH_WIND);
     expect("parse.1.level", set.entries[1].level, THRESH_LEVEL_WARN);
     expect("parse.1.len", set.entries[1].value_len, 0);
@@ -118,7 +118,9 @@ static void parse_tests(void) {
     expect("parse.skips.value", set.entries[0].value[0], '2');
     expect("parse.skips.len", set.entries[0].value_len, 1);
 
-    // Capped at ALERT_SET_MAX however many headers arrive.
+    // Capped at ALERT_SET_MAX — one entry per metric kind — however many headers
+    // arrive.
+    expect("parse.max_pinned", ALERT_SET_MAX, 5);
     uint8_t many[9];
     for (int i = 0; i < 9; i++) { many[i] = header(THRESH_UV, THRESH_LEVEL_WARN, 0); }
     expect("parse.cap", alert_set_parse(many, sizeof(many), &set), ALERT_SET_MAX);
@@ -209,130 +211,32 @@ static void icon_tests(void) {
     expect("icon.negative", alert_set_icon(-1), STATUS_ICON_NONE);
 }
 
-static void prepend_rain_tests(void) {
-    // Tomorrow's entries both, so the slot rain takes holds a day it must clear.
-    uint8_t bytes[] = {
-        header(THRESH_UV, THRESH_LEVEL_DANGER, STATUS_ALERT_MARK_STAR),
-        header(THRESH_WIND, THRESH_LEVEL_WARN, STATUS_ALERT_MARK_GT),
-    };
-    AlertSet set;
-    alert_set_parse(bytes, sizeof(bytes), &set);
-
-    // Inactive: untouched.
-    alert_set_prepend_rain(&set, false, 2, 3);
-    expect("rain.inactive.count", set.count, 2);
-    expect("rain.inactive.first", set.entries[0].kind, THRESH_UV);
-
-    // Active: rain first, the metric entries shifted behind it in order.
-    alert_set_prepend_rain(&set, true, 2, 4);
-    expect("rain.count", set.count, 3);
-    expect("rain.0.rain", set.entries[0].rain, 1);
-    expect("rain.0.bucket", set.entries[0].rain_bucket, 2);
-    expect("rain.0.tier", set.entries[0].rain_tier, 4);
-    expect("rain.0.value_null", set.entries[0].value == NULL, 1);
-    expect("rain.0.day", set.entries[0].day, STATUS_ALERT_DAY_TODAY);
-    expect("rain.1.kind", set.entries[1].kind, THRESH_UV);
-    expect("rain.1.rain", set.entries[1].rain, 0);
-    expect("rain.1.day", set.entries[1].day, STATUS_ALERT_MARK_STAR);
-    expect("rain.2.kind", set.entries[2].kind, THRESH_WIND);
-    expect("rain.2.day", set.entries[2].day, STATUS_ALERT_MARK_GT);
-
-    // Rain alone, into an empty set.
-    alert_set_parse(bytes, 0, &set);
-    alert_set_prepend_rain(&set, true, 1, 1);
-    expect("rain.alone.count", set.count, 1);
-    expect("rain.alone.rain", set.entries[0].rain, 1);
-
-    // Bucket clamped to 1..3 (a tier-0 segment collapses to bucket 0).
-    alert_set_parse(bytes, 0, &set);
-    alert_set_prepend_rain(&set, true, 0, 0);
-    expect("rain.bucket_floor", set.entries[0].rain_bucket, 1);
-    alert_set_parse(bytes, 0, &set);
-    alert_set_prepend_rain(&set, true, 9, 5);
-    expect("rain.bucket_ceiling", set.entries[0].rain_bucket, 3);
-
-    // A full set: rain still goes first, the LAST metric entry yields.
-    uint8_t six[ALERT_SET_MAX];
-    six[0] = header(THRESH_UV, THRESH_LEVEL_WARN, 0);
-    for (int i = 1; i < ALERT_SET_MAX - 1; i++) {
-        six[i] = header(THRESH_WIND, THRESH_LEVEL_WARN, 0);
+// Each metric kind's entry is the On demand item of that kind; every other kind none.
+static void item_tests(void) {
+    expect("item.gust", alert_set_item(THRESH_GUST), OD_GUST);
+    expect("item.uv", alert_set_item(THRESH_UV), OD_UV);
+    expect("item.aqi", alert_set_item(THRESH_AQI), OD_AQI);
+    expect("item.pollen", alert_set_item(THRESH_POLLEN), OD_POLLEN);
+    expect("item.wind", alert_set_item(THRESH_WIND), OD_WIND);
+    // Exactly the kinds with an icon have an item, and every metric item has its kind.
+    int items = 0;
+    for (int kind = -1; kind <= THRESH_KIND_COUNT; kind++) {
+        char name[32];
+        snprintf(name, sizeof(name), "item.kind%d", kind);
+        int item = alert_set_item(kind);
+        expect(name, item >= 0, alert_set_icon(kind) != STATUS_ICON_NONE);
+        if (item >= 0) {
+            snprintf(name, sizeof(name), "item.kind%d.metric", kind);
+            expect(name, item >= OD_GUST && item < OD_ITEM_COUNT, 1);
+            items |= 1 << item;
+        }
     }
-    six[ALERT_SET_MAX - 1] = header(THRESH_POLLEN, THRESH_LEVEL_WARN, 0);
-    expect("rain.full.parsed", alert_set_parse(six, sizeof(six), &set), ALERT_SET_MAX);
-    alert_set_prepend_rain(&set, true, 2, 3);
-    expect("rain.full.count", set.count, ALERT_SET_MAX);
-    expect("rain.full.first", set.entries[0].rain, 1);
-    expect("rain.full.second", set.entries[1].kind, THRESH_UV);
-    expect("rain.full.last_not_pollen", set.entries[ALERT_SET_MAX - 1].kind, THRESH_WIND);
-
-    alert_set_prepend_rain(NULL, true, 1, 1);   // must not crash
+    expect("item.every_metric_item", items,
+           (1 << OD_GUST) | (1 << OD_UV) | (1 << OD_AQI) | (1 << OD_POLLEN) | (1 << OD_WIND));
 }
 
-static void degrade_tests(void) {
-    int rd = THRESH_RAIN_DISPLAY_TEXT;
-    bool values = true;
-    expect("degrade.1", alert_set_degrade(&rd, &values), 1);
-    expect("degrade.1.rd", rd, THRESH_RAIN_DISPLAY_MINUTES);
-    expect("degrade.1.values", values, 1);
-    expect("degrade.2", alert_set_degrade(&rd, &values), 1);
-    expect("degrade.2.rd", rd, THRESH_RAIN_DISPLAY_ICON);
-    expect("degrade.2.values", values, 0);
-    expect("degrade.3", alert_set_degrade(&rd, &values), 0);
-    expect("degrade.3.rd", rd, THRESH_RAIN_DISPLAY_ICON);
-
-    // Icons-only rain but values on: one step turns the values off.
-    rd = THRESH_RAIN_DISPLAY_ICON;
-    values = true;
-    expect("degrade.values_only", alert_set_degrade(&rd, &values), 1);
-    expect("degrade.values_only.values", values, 0);
-    expect("degrade.values_only.done", alert_set_degrade(&rd, &values), 0);
-
-    // Minutes with values off: the minutes go.
-    rd = THRESH_RAIN_DISPLAY_MINUTES;
-    values = false;
-    expect("degrade.minutes", alert_set_degrade(&rd, &values), 1);
-    expect("degrade.minutes.rd", rd, THRESH_RAIN_DISPLAY_ICON);
-
-    // The reserved wire value 3 reads as text.
-    rd = 3;
-    values = false;
-    expect("degrade.reserved", alert_set_degrade(&rd, &values), 1);
-    expect("degrade.reserved.rd", rd, THRESH_RAIN_DISPLAY_MINUTES);
-
-    expect("degrade.null", alert_set_degrade(NULL, &values), 0);
-}
-
-// The On demand lanes' looks (status_on_demand.c item_text): lane 0 as chosen, lane 1
-// the rain Text as its minutes (Icon and Icon + minutes keep theirs, and the values
-// stay on), lane 2 the values off and the rain drop alone.
-static void lane_look_tests(void) {
-    static const struct { int chosen; int lane; int rd; int values; } CASES[] = {
-        { THRESH_RAIN_DISPLAY_TEXT, 0, THRESH_RAIN_DISPLAY_TEXT, 1 },
-        { THRESH_RAIN_DISPLAY_TEXT, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
-        { THRESH_RAIN_DISPLAY_TEXT, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
-        { THRESH_RAIN_DISPLAY_MINUTES, 0, THRESH_RAIN_DISPLAY_MINUTES, 1 },
-        { THRESH_RAIN_DISPLAY_MINUTES, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
-        { THRESH_RAIN_DISPLAY_MINUTES, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
-        { THRESH_RAIN_DISPLAY_ICON, 0, THRESH_RAIN_DISPLAY_ICON, 1 },
-        { THRESH_RAIN_DISPLAY_ICON, 1, THRESH_RAIN_DISPLAY_ICON, 1 },
-        { THRESH_RAIN_DISPLAY_ICON, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
-        // The reserved wire value 3 reads as Text.
-        { 3, 1, THRESH_RAIN_DISPLAY_MINUTES, 1 },
-        { 3, 2, THRESH_RAIN_DISPLAY_ICON, 0 },
-    };
-    for (size_t i = 0; i < sizeof(CASES) / sizeof(CASES[0]); i++) {
-        int rd = -1;
-        bool values = false;
-        alert_set_lane_look(CASES[i].chosen, CASES[i].lane, &rd, &values);
-        char name[48];
-        snprintf(name, sizeof(name), "lane_look.%d.%d.rd", CASES[i].chosen, CASES[i].lane);
-        expect(name, rd, CASES[i].rd);
-        snprintf(name, sizeof(name), "lane_look.%d.%d.values", CASES[i].chosen, CASES[i].lane);
-        expect(name, values, CASES[i].values);
-    }
-}
-
-// The lane of the first entry `bytes` parses to, with `values` as the ladder has it.
+// The lane of the first entry `bytes` parses to, with `values` as its On demand lane
+// has it.
 static const char *lane_of(const uint8_t *bytes, size_t len, bool values, char *out,
                            size_t cap) {
     AlertSet set;
@@ -403,22 +307,16 @@ static void lane_tests(void) {
         expect_str(name, out, row_lanes[i]);
     }
 
-    // The ladder run to its end — every lane shortened as far as it goes — leaves a
+    // The last On demand lane — every look shortened as far as it goes — leaves a
     // tomorrow entry its mark and a today entry nothing: the two never look alike.
-    int rd = THRESH_RAIN_DISPLAY_TEXT;
+    int rd;
     bool values = true;
-    while (alert_set_degrade(&rd, &values)) { }
-    expect("lane.degraded.values_off", values, 0);
+    od_lane_look(THRESH_RAIN_DISPLAY_TEXT, OD_LANES - 1, &rd, &values);
+    expect("lane.last_lane.values_off", values, 0);
     alert_set_lane(&set.entries[0], values, out, sizeof(out));
-    expect_str("lane.degraded.tomorrow_keeps_mark", out, ">");
+    expect_str("lane.last_lane.tomorrow_keeps_mark", out, ">");
     alert_set_lane(&set.entries[1], values, out, sizeof(out));
-    expect_str("lane.degraded.today_empty", out, "");
-    // The rain entry prepended in front has no lane here (status_on_demand.c builds
-    // its countdown), whatever the flag.
-    alert_set_prepend_rain(&set, true, 2, 3);
-    strcpy(out, "junk");
-    expect("lane.rain.len", (long)alert_set_lane(&set.entries[0], true, out, sizeof(out)), 0);
-    expect_str("lane.rain", out, "");
+    expect_str("lane.last_lane.today_empty", out, "");
 
     // Each part whole or not at all: the widest lane (a 2-byte mark + 7 value bytes)
     // fits 10 bytes with its NUL; one byte fewer keeps the mark and drops the value
@@ -437,68 +335,65 @@ static void lane_tests(void) {
     expect("lane.cap0", (long)alert_set_lane(&set.entries[1], true, out, 0), 0);
 }
 
-// The rain entry draws no box and never bolds. status_on_demand.c judges every entry
-// through status_threshold_look (pinned in status_threshold_test.c), the rain entry
-// included, and the prepended entry is ALERT_KIND_RAIN at NORMAL: no ThreshKind, so
-// no kind's settings reach it. As kind 0 it read AQI's Bold 'Always' as its own.
-static void rain_look_tests(void) {
-    uint8_t blob[THRESH_SETTINGS_BYTES];
-    memset(blob, 0xFF, sizeof(blob));   // every switch on, every colour set
-    blob[THRESH_WARN_LOOK_OFFSET] = THRESH_WARN_LOOK_FILL;   // AQI: warn fills
-    blob[THRESH_BOLD_OFFSET] = (uint8_t)(0xFC | THRESH_BOLD_ALWAYS);   // AQI: always bold
-    AlertSet set;
-    alert_set_parse(blob, 0, &set);
-    alert_set_prepend_rain(&set, true, 2, 3);
-    const AlertEntry *rain = &set.entries[0];
-    expect("rain_look.kind", rain->kind, ALERT_KIND_RAIN);
-    expect("rain_look.no_threshold_kind", rain->kind >= THRESH_KIND_COUNT, 1);
-    expect("rain_look.no_icon", alert_set_icon(rain->kind), STATUS_ICON_NONE);
-    expect("rain_look.level", rain->level, THRESH_LEVEL_NORMAL);
-    ThreshLook look = status_threshold_look(blob, sizeof(blob), rain->kind, rain->level);
-    expect("rain_look.no_box", look.box, THRESH_BOX_NONE);
-    expect("rain_look.no_bold", look.bold, 0);
-    // The AQI it used to pose as does bold here: the case the kind now avoids.
-    expect("rain_look.aqi_bolds",
-           status_threshold_look(blob, sizeof(blob), THRESH_AQI, THRESH_LEVEL_NORMAL).bold, 1);
+// One rain alert's two texts: the full one and the minutes alone.
+static void expect_rain(const char *name, int mins, bool raining, int bucket,
+                        const char *full, const char *minutes) {
+    RainCountdown rc = { .mins = (uint8_t)mins, .raining = raining, .tier = 3,
+                         .bucket = (uint8_t)bucket };
+    char out[ALERT_SET_LANE_CAP];
+    char label[48];
+    alert_set_rain_text(&rc, false, out, sizeof(out));
+    snprintf(label, sizeof(label), "rain.%s.full", name);
+    expect_str(label, out, full);
+    alert_set_rain_text(&rc, true, out, sizeof(out));
+    snprintf(label, sizeof(label), "rain.%s.minutes", name);
+    expect_str(label, out, minutes);
 }
 
-static void rain_minutes_tests(void) {
-    char out[8];
-    expect("minutes.in", alert_set_rain_minutes("Rain in 12'", out, sizeof(out)), 1);
-    expect_str("minutes.in.text", out, "12'");
-    alert_set_rain_minutes("Downpour in 5'", out, sizeof(out));
-    expect_str("minutes.noun", out, "5'");
-    alert_set_rain_minutes("Drizzle for 20'", out, sizeof(out));
-    expect_str("minutes.for", out, "+20'");
-    // The capped token carries its own '+'; only rain falling NOW keeps the sign,
-    // so an upcoming shower past 99 min cannot read as "raining for 99+ min" — nor
-    // as a false "99'": it reads ">99'".
-    alert_set_rain_minutes("Rain in +99'", out, sizeof(out));
-    expect_str("minutes.capped_in", out, ">99'");
-    alert_set_rain_minutes("Rain in 99'", out, sizeof(out));
-    expect_str("minutes.at_cap_in", out, "99'");
-    alert_set_rain_minutes("Downpour for +99'", out, sizeof(out));
-    expect_str("minutes.capped_for", out, "+99'");
-    expect("minutes.empty", alert_set_rain_minutes("", out, sizeof(out)), 0);
-    expect_str("minutes.empty.text", out, "");
-    expect("minutes.null", alert_set_rain_minutes(NULL, out, sizeof(out)), 0);
-    expect("minutes.no_token", alert_set_rain_minutes("Rain ", out, sizeof(out)), 0);
-    // A short buffer truncates, still NUL-terminated.
+// alert_set_rain_text: the noun by the drops' bucket, "in" the minutes until the rain
+// starts or "for" the minutes it keeps falling; the minutes alone marked "+" while it
+// rains. Past the 99-minute cap the count reads "+99'", and the minutes of an upcoming
+// shower ">99'", never a "+" that would say it is raining now.
+static void rain_text_tests(void) {
+    expect_rain("upcoming", 12, false, 2, "Rain in 12'", "12'");
+    expect_rain("drizzle", 15, false, 1, "Drizzle in 15'", "15'");
+    expect_rain("downpour", 5, false, 3, "Downpour in 5'", "5'");
+    expect_rain("raining", 20, true, 1, "Drizzle for 20'", "+20'");
+    expect_rain("one_minute", 1, true, 2, "Rain for 1'", "+1'");
+    expect_rain("at_cap", RAIN_COUNTDOWN_MINS_MAX, false, 2, "Rain in 99'", "99'");
+    expect_rain("capped_upcoming", RAIN_COUNTDOWN_MINS_MAX + 1, false, 2,
+                "Rain in +99'", ">99'");
+    expect_rain("capped_raining", RAIN_COUNTDOWN_MINS_MAX + 1, true, 3,
+                "Downpour for +99'", "+99'");
+    expect_rain("past_cap_reads_capped", 200, true, 2, "Rain for +99'", "+99'");
+    // A bucket outside 1..3 reads as rain.
+    expect_rain("bucket0", 12, false, 0, "Rain in 12'", "12'");
+    expect_rain("bucket4", 12, false, 4, "Rain in 12'", "12'");
+
+    // The longest text fills ALERT_SET_LANE_CAP exactly, uncut.
+    expect("rain.cap_pinned", (long)strlen("Downpour for +99'") + 1, ALERT_SET_LANE_CAP);
+    // A short buffer cuts the text, still NUL-terminated.
+    RainCountdown rc = { .mins = 20, .raining = true, .tier = 3, .bucket = 2 };
     char tiny[3];
-    alert_set_rain_minutes("Rain for 20'", tiny, sizeof(tiny));
-    expect_str("minutes.tiny", tiny, "+2");
+    alert_set_rain_text(&rc, true, tiny, sizeof(tiny));
+    expect_str("rain.tiny", tiny, "+2");
+    char out[ALERT_SET_LANE_CAP];
+    strcpy(out, "junk");
+    alert_set_rain_text(NULL, false, out, sizeof(out));
+    expect_str("rain.null_countdown", out, "");
+    alert_set_rain_text(&rc, false, NULL, 8);   // must not crash
+    strcpy(out, "junk");
+    alert_set_rain_text(&rc, false, out, 0);
+    expect_str("rain.cap0_untouched", out, "junk");
 }
 
 int main(void) {
     parse_tests();
     bytes_ok_tests();
     icon_tests();
-    prepend_rain_tests();
-    degrade_tests();
-    lane_look_tests();
+    item_tests();
     lane_tests();
-    rain_look_tests();
-    rain_minutes_tests();
+    rain_text_tests();
     if (s_failures) { printf("%d alert_set failure(s)\n", s_failures); return 1; }
     printf("alert_set OK\n");
     return 0;

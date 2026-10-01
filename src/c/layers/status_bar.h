@@ -94,7 +94,7 @@ void status_bar_refresh_live_health(const ViewSpec *spec);
 
 #if defined(WW_ON_DEMAND)
 // Re-resolve the VISIBLE bars that carry On demand items
-// (status_row_uses_on_demand) — Quiet time has no event and the rain entry is
+// (status_row_uses_on_demand) — Quiet time has no event and the rain alert is
 // derived from the radar cache on every refresh, so only a refresh notices that
 // either moved on. Called on the minute tick (beside top_status_layer_tick), after a
 // radar rescan (app_message's radar_dirty block) and on a Bluetooth or battery

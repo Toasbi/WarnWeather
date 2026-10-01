@@ -132,10 +132,11 @@ test('radar states: rain approaching (2, 4), raining now (6)', () => {
   assert.ok(Math.max(...rain) > 0.5 && Math.max(...rain) <= 2, 'scene 6 peak is rain-tier');
 });
 
-test('countdown strip text/tier is baked on 2 & 6 only; the rest keep their top strips (horizon 0)', () => {
+test('countdown numbers are baked on 2 & 6 only; the rest keep their top strips (horizon 0)', () => {
   const byId = generateIntoTmp();
-  assert.deepStrictEqual(byId[2].countdown, { text: "Rain in 15'", tier: 3 });
-  assert.deepStrictEqual(byId[6].countdown, { text: "Rain for 20'", tier: 3 });
+  // "Rain in 15'" and "Rain for 20'": tier 3 is the rain bucket, whose noun is "Rain".
+  assert.deepStrictEqual(byId[2].countdown, { mins: 15, raining: false, tier: 3 });
+  assert.deepStrictEqual(byId[6].countdown, { mins: 20, raining: true, tier: 3 });
   for (const id of [1, 4, 5, 7, 8, 9]) {
     assert.strictEqual(byId[id].countdown, undefined, 'scene ' + id + ' has no baked countdown');
   }

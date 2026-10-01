@@ -373,7 +373,7 @@ static void live_health_gate(void) {
 
 #if defined(WW_ON_DEMAND)
 // The minute tick (and a radar rescan) must reach On demand items in ANY visible bar —
-// Quiet time and the rain entry are re-derived only by a refresh — and nothing else:
+// Quiet time and the rain alert are re-derived only by a refresh — and nothing else:
 // a bar without items, or a hidden one, spends no persist reads.
 static void tick_on_demand_refreshes_visible_item_bars(void) {
     Layer parent = {0};

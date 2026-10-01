@@ -94,21 +94,30 @@ def build(ctx):
                 fixture_battery['charging'] = '1' if charging else '0'
             else:
                 ctx.fatal('Fixture watch.battery.charging must be true or false')
-        # Optional top-level "countdown" block: a pre-formatted rain-countdown string +
-        # peak tier baked into the build via the rain_countdown_fixture.c twin, so a
-        # screenshot fixture shows a deterministic alert strip (see that file).
+        # Optional top-level "countdown" block: the rain alert's numbers (the minutes,
+        # whether it is raining now, the peak tier) baked into the build via the
+        # rain_countdown_fixture.c twin, so a screenshot fixture shows a deterministic
+        # Rain item (see that file).
         countdown_fixture = fixture.get('countdown')
         if countdown_fixture is not None:
             if not isinstance(countdown_fixture, dict):
                 ctx.fatal('Fixture countdown must be an object')
-            text = countdown_fixture.get('text')
-            if not isinstance(text, str) or text == '':
-                ctx.fatal('Fixture countdown.text must be a non-empty string')
+            try:
+                mins = int(countdown_fixture.get('mins'))
+            except (TypeError, ValueError):
+                ctx.fatal('Fixture countdown.mins must be an integer')
+            if not (1 <= mins <= 100):
+                ctx.fatal('Fixture countdown.mins must be 1-100 (100: past the 99-minute cap)')
+            raining = countdown_fixture.get('raining', False)
+            if not isinstance(raining, bool):
+                ctx.fatal('Fixture countdown.raining must be true or false')
             try:
                 tier = int(countdown_fixture.get('tier', 0))
             except (TypeError, ValueError):
                 ctx.fatal('Fixture countdown.tier must be an integer')
-            fixture_countdown = {'text': text, 'tier': tier}
+            if not (0 <= tier <= 5):
+                ctx.fatal('Fixture countdown.tier must be 0-5')
+            fixture_countdown = {'mins': mins, 'raining': '1' if raining else '0', 'tier': tier}
 
     build_worker = os.path.exists('worker_src')
     binaries = []
@@ -278,7 +287,8 @@ def build(ctx):
             ]
         if fixture_countdown is not None:
             ctx.env.CFLAGS += [
-                '-DWW_FIXTURE_COUNTDOWN_TEXT="{}"'.format(fixture_countdown['text']),
+                '-DWW_FIXTURE_COUNTDOWN_MINS={}'.format(fixture_countdown['mins']),
+                '-DWW_FIXTURE_COUNTDOWN_RAINING={}'.format(fixture_countdown['raining']),
                 '-DWW_FIXTURE_COUNTDOWN_TIER={}'.format(fixture_countdown['tier']),
             ]
         ctx.set_group(ctx.env.PLATFORM_NAME)

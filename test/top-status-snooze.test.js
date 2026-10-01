@@ -43,7 +43,10 @@ test('aplite top-status resolves snooze but draws it as cheap text', function() 
 // (status_row.c), so the strip has one paint path and no longer resolves the
 // countdown itself.
 test('the strip has one paint path and no rain takeover', function() {
-  assert.doesNotMatch(BASE, /rain_countdown_format|rain_countdown_peak_tier/);
+  assert.doesNotMatch(BASE, /rain_countdown_get/);
+  // The pattern names a live symbol, so the check above cannot pass vacuously.
+  var items = fs.readFileSync(path.join(ROOT, 'src/c/layers/status_on_demand.c'), 'utf8');
+  assert.match(items, /rain_countdown_get\(/);
   assert.doesNotMatch(BASE, /status_row_set_suppress_edges|status_row_right_slot_width/);
   assert.doesNotMatch(BASE, /draw_indicators|s_rain_alert|rain_glyph/);
   var proc = BASE.slice(BASE.indexOf('static void top_status_update_proc'),

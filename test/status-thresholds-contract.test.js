@@ -15,9 +15,14 @@ function cDefine(name) {
   return Number(m[1]);
 }
 
-function cEnum(name) {
-  const m = header.match(new RegExp(name + '\\s*=\\s*(\\d+)'));
-  assert.ok(m, name + ' missing from status_threshold.h');
+// ThreshRainDisplay sits in on_demand.h, which status_threshold.h includes: the On
+// demand lane rule there reads it.
+const onDemandHeader = fs.readFileSync(
+  path.join(__dirname, '..', 'src', 'c', 'appendix', 'on_demand.h'), 'utf8');
+
+function cEnum(name, text = header, file = 'status_threshold.h') {
+  const m = text.match(new RegExp(name + '\\s*=\\s*(\\d+)'));
+  assert.ok(m, name + ' missing from ' + file);
   return Number(m[1]);
 }
 
@@ -99,9 +104,10 @@ test('the bold bytes cover every kind at 2 bits each', () => {
 // a pre-alerts blob (no byte 34) and an unset setting both read today's look.
 test('the rain look wire values are in lockstep with ThreshRainDisplay', () => {
   assert.equal(wire.ALERTS_OFFSET, 34);
-  assert.equal(th.RAIN_DISPLAY.text, cEnum('THRESH_RAIN_DISPLAY_TEXT'));
-  assert.equal(th.RAIN_DISPLAY.icon, cEnum('THRESH_RAIN_DISPLAY_ICON'));
-  assert.equal(th.RAIN_DISPLAY.minutes, cEnum('THRESH_RAIN_DISPLAY_MINUTES'));
+  const rainEnum = name => cEnum(name, onDemandHeader, 'on_demand.h');
+  assert.equal(th.RAIN_DISPLAY.text, rainEnum('THRESH_RAIN_DISPLAY_TEXT'));
+  assert.equal(th.RAIN_DISPLAY.icon, rainEnum('THRESH_RAIN_DISPLAY_ICON'));
+  assert.equal(th.RAIN_DISPLAY.minutes, rainEnum('THRESH_RAIN_DISPLAY_MINUTES'));
   assert.equal(th.RAIN_DISPLAY.text, 0);
   assert.equal(wire.BATTERY_OFFSET, wire.ALERTS_OFFSET + 1, 'the Battery byte follows it');
 });
@@ -130,8 +136,7 @@ test('the Battery byte and the On demand cells close the 48-B blob', () => {
   assert.equal(cDefine('THRESH_ON_DEMAND_OFFSET'), 38);
   assert.equal(cDefine('THRESH_SETTINGS_BYTES'), 48);
   assert.equal(cDefine('THRESH_BATTERY_LEVEL_DEFAULT'), 10);
-  const onDemand = fs.readFileSync(
-    path.join(__dirname, '..', 'src', 'c', 'appendix', 'on_demand.h'), 'utf8');
+  const onDemand = onDemandHeader;
   const items = ['OD_BATTERY', 'OD_BLUETOOTH', 'OD_QUIET_TIME', 'OD_SLEEP', 'OD_RAIN',
     'OD_GUST', 'OD_UV', 'OD_AQI', 'OD_POLLEN', 'OD_WIND'];
   items.forEach((name, i) => {

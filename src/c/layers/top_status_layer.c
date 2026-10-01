@@ -141,7 +141,7 @@ void status_icons_refresh() {
 void top_status_layer_tick() {
     // Per-minute hook. The row refresh IS the per-minute On demand pass: it re-reads
     // Quiet time (no SDK event exists for it), the charge against the Battery item's
-    // warn level and the rain entry from the cached countdown (flash-free; the radar
+    // warn level and the rain alert from the cached countdown (flash-free; the radar
     // scan itself runs only on data change), and folds them into the row signature,
     // so "Rain in 12'" -> "11'" and a Quiet Time window's start repaint here.
     if (status_row_refresh(s_row)) {

@@ -17,7 +17,6 @@
 #include "../appendix/palette.h"
 #include "../appendix/persist.h"
 #include "../appendix/rain_countdown.h"
-#include "../appendix/rain_tier.h"
 #include "../appendix/snooze.h"
 #include "../appendix/status_short_text.h"
 #include "../appendix/status_threshold.h"
@@ -32,9 +31,6 @@
 #define RAIN_KEY_FLAG 0x80
 // Quiet time, one Bluetooth variant, rain and the five metric kinds.
 #define GLYPH_SLOTS 8
-// A text lane's buffer: the longest lane is the full rain countdown.
-#define LANE_CAP RAIN_COUNTDOWN_TEXT_CAP
-#define NO_ENTRY 0xFF
 
 struct StatusOnDemandCache {
     GDrawCommandImage *images[GLYPH_SLOTS];
@@ -92,10 +88,6 @@ static uint32_t rain_resource(uint8_t bucket) {
         case 2:  return RESOURCE_ID_RAIN_RAIN;
         default: return RESOURCE_ID_RAIN_DOWNPOUR;   // bucket 3 (emery-only)
     }
-}
-
-static uint8_t entry_key(const AlertEntry *e) {
-    return e->rain ? (uint8_t)(RAIN_KEY_FLAG | e->rain_bucket) : alert_set_icon(e->kind);
 }
 
 static int find_key(const StatusOnDemandCache *cache, uint8_t key) {
@@ -156,55 +148,36 @@ static GDrawCommandImage *image_for(const StatusOnDemandCache *cache, uint8_t ke
     return slot >= 0 ? cache->images[slot] : NULL;
 }
 
-// The On demand item an alert entry is: rain, or its metric kind's item. -1 for a
-// kind with no item (alert_set_parse already skips those).
-static int entry_item(const AlertEntry *e) {
-    if (e->rain) { return OD_RAIN; }
-    switch (e->kind) {
-        case THRESH_GUST:   return OD_GUST;
-        case THRESH_UV:     return OD_UV;
-        case THRESH_AQI:    return OD_AQI;
-        case THRESH_POLLEN: return OD_POLLEN;
-        case THRESH_WIND:   return OD_WIND;
-        default:            return -1;
+// The entry of metric item `item`: the first of its kind in the set (the phone bakes at
+// most one per kind); NULL for none, and for every other item.
+static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
+    for (int i = 0; i < s->set.count; i++) {
+        if (alert_set_item(s->set.entries[i].kind) == item) { return &s->set.entries[i]; }
     }
-}
-
-// Resolve the weather entries: the metric alerts from the stored tuple (one flash
-// read — app_message.c has already checked it with alert_set_bytes_ok), the rain entry
-// derived here, every pass, from the radar cache rain_countdown_refresh() keeps —
-// O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
-// and after a radar rescan. The tier is collapsed to its drop bucket HERE, on the SDK
-// side: rain_tier.h pulls <pebble.h>, which the pure alert_set.c must not.
-static void resolve_entries(StatusOnDemandState *s, const uint8_t *blob, size_t len) {
-    int n = persist_get_alert_entries(s->bytes, sizeof(s->bytes));
-    alert_set_parse(s->bytes, n > 0 ? (size_t)n : 0, &s->set);
-    bool rain = rain_countdown_format(s->rain_text, sizeof(s->rain_text), watch_services_now());
-    if (!rain) { s->rain_text[0] = '\0'; }
-    int tier = rain ? rain_countdown_peak_tier() : 0;
-    alert_set_prepend_rain(&s->set, rain, rain_tier_to_bucket3(tier), tier);
-    s->rain_display = status_threshold_rain_display(blob, len);
+    return NULL;
 }
 
 // Everything that decides what the bar's items draw: which item sits on which side
 // of `bar`, which of them are active, and what they show. Only what an assigned item
-// needs is read — the charge for Battery, the link for Bluetooth, the entries for a
-// weather item — so a bar without items costs ten cell reads.
+// needs is read — the charge for Battery, the link for Bluetooth, the radar cache for
+// Rain, the entries for a metric alert — so a bar without items costs ten cell reads.
+// The rain alert comes from the cache rain_countdown_refresh() keeps, every pass —
+// O(1) and flash-free — which is why a bar with items is refreshed on the minute tick
+// and after a radar rescan; the metric alerts from the stored tuple (one flash read —
+// app_message.c has already checked it with alert_set_bytes_ok).
 static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t len) {
     s->set.count = 0;
-    s->rain_text[0] = '\0';
     s->rain_display = THRESH_RAIN_DISPLAY_TEXT;
     s->bt_key = 0;
     s->charge = 0;
     s->level = THRESH_BATTERY_LEVEL_DEFAULT;
     s->charging = false;
     s->battery_value = false;
-    bool weather = false;
+    bool metric = false;
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         s->side[item] = (uint8_t)status_threshold_on_demand_side(blob, len, bar, item);
         s->active[item] = false;
-        s->entry[item] = NO_ENTRY;
-        if (item >= OD_RAIN && s->side[item] != OD_SIDE_NONE) { weather = true; }
+        if (item >= OD_GUST && s->side[item] != OD_SIDE_NONE) { metric = true; }
     }
     if (s->side[OD_BATTERY] != OD_SIDE_NONE) {
         BatteryChargeState bs = watch_services_battery_state();
@@ -227,62 +200,58 @@ static void collect(StatusOnDemandState *s, int bar, const uint8_t *blob, size_t
     if (s->side[OD_SLEEP] != OD_SIDE_NONE) {
         s->active[OD_SLEEP] = persist_get_is_sleeping();
     }
-    if (!weather) { return; }
-    resolve_entries(s, blob, len);
-    for (int i = 0; i < s->set.count; i++) {
-        int item = entry_item(&s->set.entries[i]);
-        if (item >= 0 && s->side[item] != OD_SIDE_NONE && s->entry[item] == NO_ENTRY) {
-            s->entry[item] = (uint8_t)i;
-            s->active[item] = true;
-        }
+    if (s->side[OD_RAIN] != OD_SIDE_NONE) {
+        s->rain_display = status_threshold_rain_display(blob, len);
+        s->active[OD_RAIN] = rain_countdown_get(&s->rain, watch_services_now());
+    }
+    if (!metric) { return; }
+    int n = persist_get_alert_entries(s->bytes, sizeof(s->bytes));
+    alert_set_parse(s->bytes, n > 0 ? (size_t)n : 0, &s->set);
+    for (int item = OD_GUST; item < OD_ITEM_COUNT; item++) {
+        s->active[item] = s->side[item] != OD_SIDE_NONE && item_entry(s, item);
     }
 }
 
-static const AlertEntry *item_entry(const StatusOnDemandState *s, int item) {
-    return s->entry[item] != NO_ENTRY ? &s->set.entries[s->entry[item]] : NULL;
-}
-
-// The item's text on `lane` into `buf` ("" = none), and the font it prints in: the
-// Battery's "8%" with the Look Icon + value (off with the values), the rain countdown
-// or its minutes, and a metric entry's alert_set_lane — its value inside tomorrow's
-// mark, in bold when its look says so (danger, warn per the kind's Bold mode,
-// 'Always'). Bluetooth, Quiet time and Sleep have no text; the rain text never bolds.
+// The active item's text on `lane` into `buf` ("" = none), and the font it prints in:
+// the Battery's "8%" with the Look Icon + value (off with the values), the rain
+// alert's text or its minutes (alert_set_rain_text), and a metric entry's
+// alert_set_lane — its value inside tomorrow's mark, in bold when its look says so
+// (danger, warn per the kind's Bold mode, 'Always'). Bluetooth, Quiet time and Sleep
+// have no text; the rain text never bolds.
 static GFont item_text(const StatusOnDemandState *s, int item, int lane,
                        const StatusOnDemandEnv *env, char *buf, size_t cap) {
     buf[0] = '\0';
     int rd;
     bool values;
-    alert_set_lane_look(s->rain_display, lane, &rd, &values);
+    od_lane_look(s->rain_display, lane, &rd, &values);
     if (item == OD_BATTERY) {
         if (s->battery_value && values) { snprintf(buf, cap, "%d%%", s->charge); }
         return env->font;
     }
-    const AlertEntry *e = item_entry(s, item);
-    if (!e) { return env->font; }
-    if (e->rain) {
-        if (s->rain_text[0] != '\0' && rd == THRESH_RAIN_DISPLAY_MINUTES) {
-            alert_set_rain_minutes(s->rain_text, buf, cap);
-        } else if (s->rain_text[0] != '\0' && rd != THRESH_RAIN_DISPLAY_ICON) {
-            strncpy(buf, s->rain_text, cap - 1);
-            buf[cap - 1] = '\0';
+    if (item == OD_RAIN) {
+        if (rd != THRESH_RAIN_DISPLAY_ICON) {
+            alert_set_rain_text(&s->rain, rd == THRESH_RAIN_DISPLAY_MINUTES, buf, cap);
         }
         return env->font;
     }
+    const AlertEntry *e = item_entry(s, item);
+    if (!e) { return env->font; }
     alert_set_lane(e, values, buf, cap);
     return status_threshold_look(env->blob, env->blob_len, e->kind, e->level).bold
         ? env->bold : env->font;
 }
 
-// The glyph an item draws; 0 for the procedural Battery and Sleep.
+// The glyph an active item draws; 0 for the procedural Battery and Sleep.
 static uint8_t item_key(const StatusOnDemandState *s, int item) {
     switch (item) {
         case OD_BATTERY:
         case OD_SLEEP:      return 0;
         case OD_BLUETOOTH:  return s->bt_key;
         case OD_QUIET_TIME: return STATUS_ROW_ICON_QUIET;
+        case OD_RAIN:       return (uint8_t)(RAIN_KEY_FLAG | s->rain.bucket);
         default: {
             const AlertEntry *e = item_entry(s, item);
-            return e ? entry_key(e) : 0;
+            return e ? alert_set_icon(e->kind) : 0;
         }
     }
 }
@@ -307,7 +276,7 @@ static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
     }
     c->pad = od_item_boxed(item) ? STATUS_ON_DEMAND_BOX_PAD_X : 0;
     for (int lane = 0; lane < OD_LANES; lane++) {
-        char buf[LANE_CAP];
+        char buf[ALERT_SET_LANE_CAP];
         GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
         // A lane's text is never cut: measured in a box no text reaches.
         int16_t tw = status_row_text_w(buf, font, 1000, 100);
@@ -321,11 +290,12 @@ static void measure(StatusOnDemandPass *p, const StatusOnDemandRow *row,
 }
 
 // The fold covers what the items paint (see status_on_demand.h): the bar's cells,
-// every assigned system item's state, and each active weather item's entry — its
-// day (today's, or tomorrow's with its mark), value, level and the look it reads
-// from the blob at that level (a Clay save that only recolours or re-looks must
-// repaint), the drop's bucket and tier, and the countdown text only while a look
-// prints it, or an icon-only rain alert would repaint every minute for nothing.
+// every assigned system item's state, each active metric alert's entry — its day
+// (today's, or tomorrow's with its mark), value, level and the look it reads from the
+// blob at that level (a Clay save that only recolours or re-looks must repaint) —
+// and the active rain alert: its look and tier (the drops' bucket and tint, and the
+// noun, follow the tier), and its minutes and whether it rains only while a look
+// prints them, or an icon-only rain alert would repaint every minute for nothing.
 uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
                                const uint8_t *blob, size_t len) {
     if (!row) { return sig; }
@@ -349,23 +319,20 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
         uint8_t charge[2] = { s.charge, (uint8_t)s.charging };
         sig = sig_fold(sig, charge, sizeof(charge));
     }
-    for (int item = OD_RAIN; item < OD_ITEM_COUNT; item++) {
+    for (int item = OD_GUST; item < OD_ITEM_COUNT; item++) {
         const AlertEntry *e = s.active[item] ? item_entry(&s, item) : NULL;
         if (!e) { continue; }
-        uint8_t head[6] = { (uint8_t)item, e->kind, e->level, e->day, e->rain_bucket,
-                            e->rain_tier };
+        uint8_t head[3] = { e->kind, e->level, e->day };
         sig = sig_fold(sig, head, sizeof(head));
-        if (e->rain) { continue; }
         sig = sig_fold(sig, (const uint8_t *)e->value, e->value_len);
         ThreshLook look = status_threshold_look(blob, len, e->kind, e->level);
         sig = sig_fold(sig, (const uint8_t *)&look, sizeof(look));
     }
     if (s.active[OD_RAIN]) {
-        uint8_t display = (uint8_t)s.rain_display;
-        sig = sig_fold(sig, &display, 1);
-        if (s.rain_display != THRESH_RAIN_DISPLAY_ICON) {
-            sig = sig_fold(sig, (const uint8_t *)s.rain_text, strlen(s.rain_text));
-        }
+        bool text = s.rain_display != THRESH_RAIN_DISPLAY_ICON;
+        uint8_t rain[4] = { (uint8_t)s.rain_display, s.rain.tier, text ? s.rain.mins : 0,
+                            (uint8_t)(text && s.rain.raining) };
+        sig = sig_fold(sig, rain, sizeof(rain));
     }
     return sig;
 }
@@ -440,15 +407,14 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
     // has one, and emptied of the rest by every draw.
     uint8_t keys[GLYPH_SLOTS];
     int nkeys = 0;
-    int tier = 0;
     for (int item = 0; item < OD_ITEM_COUNT; item++) {
         uint8_t key = s->active[item] ? item_key(s, item) : 0;
         if (key != 0 && nkeys < GLYPH_SLOTS) { keys[nkeys++] = key; }
-        if (item == OD_RAIN && s->active[item]) { tier = item_entry(s, item)->rain_tier; }
     }
     if (!row->cache && nkeys > 0) { row->cache = cache_create(); }
     if (row->cache) {
-        ensure(row->cache, keys, nkeys, tier, env->icon_h, env->top_strip);
+        ensure(row->cache, keys, nkeys, s->active[OD_RAIN] ? s->rain.tier : 0, env->icon_h,
+               env->top_strip);
     }
     // Each side's active items, outermost first: the item order is the priority.
     memset(pass->sides, 0, sizeof(pass->sides));
@@ -504,7 +470,7 @@ static void paint_item(GContext *ctx, const StatusOnDemandRow *row,
                        int item, int lane, int16_t x, int16_t w) {
     const StatusOnDemandState *s = &p->state;
     const StatusOnDemandCell *c = &p->cells[item];
-    char buf[LANE_CAP];
+    char buf[ALERT_SET_LANE_CAP];
     GFont font = item_text(s, item, lane, env, buf, sizeof(buf));
     int16_t text_w = c->text_w[lane];
     int16_t icon_x = (int16_t)(x + c->pad);

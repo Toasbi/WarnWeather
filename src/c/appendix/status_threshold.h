@@ -280,16 +280,10 @@ uint16_t status_threshold_health_danger(const uint8_t *blob, size_t len, int kin
 // for an invalid blob, an out-of-range kind, or the reserved wire value 3.
 int status_threshold_bold_mode(const uint8_t *blob, size_t len, int kind);
 
-// The Rain item's look — bits 0-1 of the alerts byte.
-typedef enum {
-    THRESH_RAIN_DISPLAY_TEXT = 0,      // the full countdown, "Rain in 12'" (legacy)
-    THRESH_RAIN_DISPLAY_ICON = 1,      // the drop alone
-    THRESH_RAIN_DISPLAY_MINUTES = 2,   // the drop + "12'"
-} ThreshRainDisplay;
-
-// The rain look from the alerts byte. THRESH_RAIN_DISPLAY_TEXT for an invalid
-// blob, a pre-alerts blob (34/33/29 B — an upgrading watch keeps today's look
-// until the phone resends its settings) and the reserved wire value 3.
+// The rain look (a ThreshRainDisplay, on_demand.h) from bits 0-1 of the alerts byte.
+// THRESH_RAIN_DISPLAY_TEXT for an invalid blob, a pre-alerts blob (34/33/29 B — an
+// upgrading watch keeps today's look until the phone resends its settings) and the
+// reserved wire value 3.
 int status_threshold_rain_display(const uint8_t *blob, size_t len);
 
 // The box a paired kind draws at the WARN level (a goal kind's "close"), for its

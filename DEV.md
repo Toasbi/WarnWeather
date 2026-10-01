@@ -366,12 +366,14 @@ static compile-time fixture, so screenshot builds swap in two canned twins (wire
 - `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
 - a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the rain alert
   on every Enabled On demand side that has Rain ticked (the Watch Status Bar's right side
-  by default; each bar's On demand left/right rows): its `tier` picks the drops and their
-  colour, and its `text` is the exact "Rain in 15'" / "Drizzle in 15'" / "Rain for 20'"
-  the 'text' rain look prints (the 'minutes' look shows its minute token, `15'` / `+20'`).
+  by default; each bar's On demand left/right rows): `{ mins, raining, tier }`, where
+  `tier` (1-5) picks the drops, their colour and the noun, so `{ mins: 15, raining: false,
+  tier: 3 }` prints "Rain in 15'" with the 'text' rain look and `15'` with the 'minutes'
+  one, and `{ mins: 20, raining: true, tier: 3 }` "Rain for 20'" / `+20'` (tier 1-2 reads
+  "Drizzle"; `mins: 100` is past the 99-minute cap).
   Like the real alert it shows nothing while the fixture's settings tick Rain on no
   Enabled side (or switch the radar off) or the radar is snoozed. The minutes are canned,
-  though: a time window shorter than them does not hide the entry.
+  though: a time window shorter than them does not hide the alert.
 
 Capture the default platforms (aplite, basalt, flint, emery), or a subset via `PLATFORMS`,
 and only some scenes via `SCENE_IDS` (the other frames stay as they are):

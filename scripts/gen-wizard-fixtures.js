@@ -56,7 +56,7 @@ const SHOTS = [
   { slug: 'health-all',           group: 'healthMode', val: 'all',    flicks: 1, platforms: HEALTH_NONHR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all',    radarProvider: 'disabled' }, FORECAST) },
   { slug: 'health-all-emery',     group: 'healthMode', val: 'all',    flicks: 1, platforms: HEALTH_HR,    clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'all',    radarProvider: 'disabled', statusHealthMid: 'sleep', statusHealthRight: 'hr' }, FORECAST) },
   { slug: 'radar',             group: 'radar',        val: '_',          flicks: 1, platforms: HEALTH_RADAR, clay: Object.assign({ layoutPreset: 'noCal', healthMode: 'off', radarProvider: 'dwd', radarColor: 'multicolor', rainCountdownHorizon: '60' }, FORECAST),
-    radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { text: "Rain in 15'", tier: 3 } },
+    radar: { exact: RAIN_EXACT, area: RAIN_AREA }, countdown: { mins: 15, raining: false, tier: 3 } },
   { slug: 'theme-dark',     group: 'theme', val: 'dark',     flicks: 0, platforms: THEME, clay: Object.assign({ layoutPreset: 'compactCal', healthMode: 'off', radarProvider: 'disabled', theme: 'dark' }, FORECAST) },
   // colorTime is normally flipped white→black by the config-UI 'themeConvert' hook on switching to
   // a light polarity; the fixture bypasses that, and clay-payload sends colorTime verbatim, so set it
