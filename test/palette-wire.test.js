@@ -54,3 +54,51 @@ test('an absent bar colour resolves to the polarity default, not always multicol
   assert.equal(picked.BAR_PALETTE_UINT8.length, 15,
     'a light install that chose Multicolor keeps it');
 });
+
+// --- Bars from: Top in bit 7 of each blob's byte [1] (draw-from.js markPalette) ----
+// Byte [1] is stop 0's from_hi, which every palette starts at 0, so the flag reads as a
+// negative stop-0 threshold on the watch. Each chart has its own key and its own blob.
+const MULTI = [0, 0, 234, 140, 0, 223, 84, 1, 204, 48, 2, 252, 12, 3, 245];
+
+test('Bars from on Bottom, absent or junk: the blobs the build before it sent', () => {
+  [{}, { rainBarFrom: 'bottom', radarBarFrom: 'bottom' }, { rainBarFrom: 'TOP', radarBarFrom: true }]
+    .forEach((over) => {
+      const color = paletteWire.buildPaletteTuples({ platform: 'basalt' },
+        Object.assign({ rainBarColor: 'multicolor', radarColor: 'multicolor' }, over));
+      assert.deepEqual(color.BAR_PALETTE_UINT8, MULTI, JSON.stringify(over));
+      assert.deepEqual(color.RADAR_PALETTE_UINT8, MULTI, JSON.stringify(over));
+      const bw = paletteWire.buildPaletteTuples({ platform: 'diorite' }, over);
+      assert.deepEqual(bw.BAR_PALETTE_UINT8, [0, 0, 192]);
+      assert.deepEqual(bw.RADAR_PALETTE_UINT8, [0, 0, 192]);
+    });
+});
+
+test('Bars from: Top marks byte [1] of its own chart\'s blob only, on every palette shape', () => {
+  const cases = [
+    ['emery multicolor', { platform: 'emery' }, { rainBarColor: 'multicolor', radarColor: 'multicolor' }],
+    ['emery Solid', { platform: 'emery' }, { rainBarColor: 'white', radarColor: 'white' }],
+    ['emery light Solid', { platform: 'emery' }, { rainBarColor: 'white', radarColor: 'white', theme: 'light' }],
+    ['basalt bw theme', { platform: 'basalt' }, { theme: 'bw' }],
+    ['diorite', { platform: 'diorite' }, {}],
+    ['flint bw-light', { platform: 'flint' }, { theme: 'bw-light' }]
+  ];
+  cases.forEach(([name, watch, settings]) => {
+    const base = paletteWire.buildPaletteTuples(watch, settings);
+    const flag = (blob) => { const out = blob.slice(); out[1] |= 0x80; return out; };
+    const rain = paletteWire.buildPaletteTuples(watch, Object.assign({ rainBarFrom: 'top' }, settings));
+    assert.deepEqual(rain.BAR_PALETTE_UINT8, flag(base.BAR_PALETTE_UINT8), name + ': forecast bars');
+    assert.deepEqual(rain.RADAR_PALETTE_UINT8, base.RADAR_PALETTE_UINT8, name + ': the radar untouched');
+    const radar = paletteWire.buildPaletteTuples(watch, Object.assign({ radarBarFrom: 'top' }, settings));
+    assert.deepEqual(radar.BAR_PALETTE_UINT8, base.BAR_PALETTE_UINT8, name + ': the forecast untouched');
+    assert.deepEqual(radar.RADAR_PALETTE_UINT8, flag(base.RADAR_PALETTE_UINT8), name + ': radar bars');
+    assert.equal(base.BAR_PALETTE_UINT8[1], 0, name + ': premise, stop 0 starts at 0');
+  });
+  // An unknown watch reads basalt: it hangs too.
+  assert.equal(paletteWire.buildPaletteTuples(null, { rainBarFrom: 'top' }).BAR_PALETTE_UINT8[1], 0x80);
+});
+
+test('Bars from: never on aplite, which ignores incoming palettes anyway', () => {
+  const plain = paletteWire.buildPaletteTuples({ platform: 'aplite' }, {});
+  const top = paletteWire.buildPaletteTuples({ platform: 'aplite' }, { rainBarFrom: 'top', radarBarFrom: 'top' });
+  assert.deepEqual(top, plain);
+});

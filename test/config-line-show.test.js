@@ -1,5 +1,6 @@
-// test/config-line-show.test.js — the settings page's side of a graph line's Show
-// [All | Alert] (src/pkjs/line-alert.js): the joined row under whichever Forecast-tab
+// test/config-line-show.test.js — the settings page's side of a graph line's Visible
+// values [All | Alert] (src/pkjs/line-alert.js, internally "Show"; the row's label was
+// "Show" until the owner renamed it, 2026-10-01): the joined row under whichever Forecast-tab
 // picker shows wind speed, wind gusts or the UV index (under no other metric, and not
 // on aplite, which has no Alert settings), each value's hint, the heal of a dev phone's
 // old switch, the style and Wind graph scale hints while it is on Alert, and the
@@ -22,7 +23,7 @@ const SHOW_KEYS = { wind: 'windLineOnlyAlert', gust: 'gustLineOnlyAlert', uv: 'u
 const BASALT = platform.computeEnv({ platform: 'basalt' });
 const APLITE = platform.computeEnv({ platform: 'aplite' });
 const forecastItems = schema.tabs.find((t) => t.id === 'forecast').sections[0].items;
-const showItems = forecastItems.filter((i) => i.label === 'Show');
+const showItems = forecastItems.filter((i) => i.label === 'Visible values');
 
 /**
  * The Show rows the page shows for a settings state.
@@ -52,6 +53,7 @@ const count = (html, s) => html.split(s).length - 1;
 
 test('twelve rows: one per metric with Alert levels, under each of the four pickers', () => {
   assert.equal(showItems.length, 12);
+  assert.equal(forecastItems.filter((i) => i.label === 'Show').length, 0, 'the old "Show" label is gone');
   showItems.forEach((it) => {
     assert.equal(it.type, 'segmented');
     assert.deepEqual(it.options, [['All', 'all'], ['Alert', 'alert']]);
@@ -69,7 +71,7 @@ test('each row sits in its own picker\'s group, after the picker and before the 
     const next = p + 1 < PICKERS.length
       ? forecastItems.findIndex((i) => i.messageKey === PICKERS[p + 1])
       : forecastItems.findIndex((i) => i.messageKey === 'barSource');
-    const rows = forecastItems.slice(at + 1, next).filter((i) => i.label === 'Show');
+    const rows = forecastItems.slice(at + 1, next).filter((i) => i.label === 'Visible values');
     assert.deepEqual(rows.map((r) => r.messageKey),
       ['windLineOnlyAlert', 'gustLineOnlyAlert', 'uvLineOnlyAlert'], picker);
   });
@@ -110,38 +112,39 @@ test('every watch with Alert settings shows the row; aplite, without them, never
   }));
   // Through the engine: no Show row on aplite's Forecast tab, Alert stored or not.
   assert.equal(count(body({ secondaryLine: 'wind', thirdLine: 'uv', windLineOnlyAlert: 'alert' }, APLITE),
-    '>Show<'), 0);
-  assert.equal(count(body({ secondaryLine: 'wind', thirdLine: 'uv' }, BASALT), '>Show<'), 2);
+    '>Visible values<'), 0);
+  assert.equal(count(body({ secondaryLine: 'wind', thirdLine: 'uv' }, BASALT), '>Visible values<'), 2);
 });
 
 test('each value has its own hint: All the whole curve, Alert the warn level', () => {
   const hint = (S, metric, value) => B.lineShowHint(S, {}, { metric, value });
-  assert.equal(hint({}, 'wind', 'all'), 'Draws every wind value, the whole curve, calm hours included.');
-  assert.equal(hint({}, 'gust', 'all'), 'Draws every gust value, the whole curve, calm hours included.');
-  assert.equal(hint({}, 'uv', 'all'), 'Draws every UV value, the whole curve, low-UV hours included.');
+  // The owner's wording (2026-10-01).
+  assert.equal(hint({}, 'wind', 'all'), 'The line is always visible, calm hours included.');
+  assert.equal(hint({}, 'gust', 'all'), 'The line is always visible, calm hours included.');
+  assert.equal(hint({}, 'uv', 'all'), 'The line is always visible, low-UV hours included.');
   assert.equal(hint({}, 'wind', 'alert'),
-    'Draws wind only where it reaches your warn level (40 kph), so the small graph stays empty until it matters.');
+    'Draws wind only where it reaches your warn level (40 kph), so the line is only visible when you actually care.');
   assert.equal(hint({ windUnits: 'mph' }, 'gust', 'alert'),
-    'Draws gusts only where they reach your warn level (40 mph), so the small graph stays empty until it matters.');
+    'Draws gusts only where they reach your warn level (40 mph), so the line is only visible when you actually care.');
   assert.equal(hint({ windUnits: 'knots', threshWindWarn: '25', threshWindDanger: '35' }, 'wind', 'alert'),
-    'Draws wind only where it reaches your warn level (25 kn), so the small graph stays empty until it matters.');
+    'Draws wind only where it reaches your warn level (25 kn), so the line is only visible when you actually care.');
   assert.equal(hint({ threshUvWarn: '7', threshUvDanger: '9' }, 'uv', 'alert'),
-    'Draws UV only where it reaches your warn level (UV 7), so the small graph stays empty until it matters.');
+    'Draws UV only where it reaches your warn level (UV 7), so the line is only visible when you actually care.');
   // A dev phone's old switch, before the page heals it, reads like the bake reads it.
   assert.equal(hint({}, 'wind', true), hint({}, 'wind', 'alert'));
   assert.equal(hint({}, 'wind', false), hint({}, 'wind', 'all'));
   assert.equal(hint({}, 'cloud', 'alert'), '', 'no hint for a metric without the row');
-  // The hint never echoes its label or the retired name.
+  // The hint never echoes its label or the retired names.
   ['wind', 'gust', 'uv'].forEach((m) => ['all', 'alert'].forEach((v) => {
-    assert.doesNotMatch(hint({}, m, v), /Show|Only alert/, m + ' ' + v);
+    assert.doesNotMatch(hint({}, m, v), /Visible values|Show|Only alert|stays empty/, m + ' ' + v);
   }));
 });
 
 test('the Forecast tab renders the row, the picked value lit and its hint, through the real engine', () => {
-  const allHint = 'Draws every gust value, the whole curve, calm hours included.';
+  const allHint = 'The line is always visible, calm hours included.';
   const alertHint = 'Draws gusts only where they reach your warn level (65 kph)';
   const all = body({ secondaryLine: 'precip_prob', thirdLine: 'gust' }, BASALT);
-  assert.equal(count(all, '>Show<'), 1, 'one row, under the gust line');
+  assert.equal(count(all, '>Visible values<'), 1, 'one row, under the gust line');
   assert.match(all, /<button class="on" data-k="gustLineOnlyAlert" data-v="all">All<\/button>/);
   assert.equal(count(all, allHint), 1, 'All\'s hint');
   assert.equal(count(all, alertHint), 0);
@@ -151,7 +154,7 @@ test('the Forecast tab renders the row, the picked value lit and its hint, throu
   assert.equal(count(alert, allHint), 0);
   assert.ok(alert.indexOf('Graph bottom = 65 kph, full height = 90 kph.') !== -1,
     'the gust line\'s style hint gives its band');
-  assert.equal(count(body({ secondaryLine: 'precip_prob', thirdLine: 'cloud' }, BASALT), '>Show<'), 0,
+  assert.equal(count(body({ secondaryLine: 'precip_prob', thirdLine: 'cloud' }, BASALT), '>Visible values<'), 0,
     'no row for metrics without Alert levels');
 });
 
@@ -250,16 +253,16 @@ test('the preview draws an Alert line only where it reaches warn, and aplite\'s 
 test('the Wind graph scale hint names an Alert line\'s real top', () => {
   const env = { lineStyles: true };
   const gust = (over) => Object.assign({ secondaryLine: 'gust', thirdLine: 'off' }, over);
-  const dangerTop = 'Tops out at 90 kph, your gust danger level, while Show is set to Alert.';
+  const dangerTop = 'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.';
   assert.equal(B.windScaleHint(gust({ windScale: 'low' }), env), null, 'All: the row\'s own hint');
   // The gust danger level (90 kph) tops Low, Mid and High alike: no jump at High.
   ['low', 'mid', 'high'].forEach((windScale) => assert.equal(
     B.windScaleHint(gust({ windScale, gustLineOnlyAlert: 'alert' }), env), dangerTop, windScale));
   assert.equal(B.windScaleHint(gust({ windScale: 'low', windUnits: 'knots', gustLineOnlyAlert: 'alert' }), env),
-    'Tops out at 50 kn, your gust danger level, while Show is set to Alert.');
+    'Tops out at 50 kn, your gust danger level, while Visible values is set to Alert.');
   // A danger level under the scale: the scale's own value is the top, no danger clause.
   assert.equal(B.windScaleHint(gust({ windScale: 'high', gustLineOnlyAlert: 'alert',
-    threshGustWarn: '30', threshGustDanger: '45' }), env), 'Tops out at 70 kph while Show is set to Alert.');
+    threshGustWarn: '30', threshGustDanger: '45' }), env), 'Tops out at 70 kph while Visible values is set to Alert.');
   // A UV line on Alert leaves the wind scale alone.
   assert.equal(B.windScaleHint(gust({ thirdLine: 'uv', uvLineOnlyAlert: 'alert' }), env), null);
 });
@@ -269,7 +272,7 @@ test('the Wind graph scale hint with wind and gusts both drawn', () => {
   const S = (over) => Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'low' }, over);
   // Both on Alert: one shared band, topped by the higher danger level (gusts' 90).
   assert.equal(B.windScaleHint(S({ windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' }), env),
-    'Tops out at 90 kph, your gust danger level, while Show is set to Alert.');
+    'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.');
   // One of each, different tops: each line named, the All one first.
   assert.equal(B.windScaleHint(S({ gustLineOnlyAlert: 'alert' }), env),
     'Wind tops out at 30 kph, gusts at 90 kph, your gust danger level.');
@@ -286,10 +289,10 @@ test('the Wind graph scale hint with wind and gusts both drawn', () => {
 
 test('the Forecast tab\'s Wind graph scale row shows an Alert line\'s top, through the real engine', () => {
   const low = body({ secondaryLine: 'gust', windScale: 'low', gustLineOnlyAlert: 'alert' }, BASALT);
-  assert.equal(count(low, 'Tops out at 90 kph, your gust danger level, while Show is set to Alert.'), 1, 'Low');
+  assert.equal(count(low, 'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'Low');
   assert.equal(count(low, 'Tops out at 30 kph'), 0, 'Low: not the scale\'s own top');
   const high = body({ secondaryLine: 'gust', windScale: 'high', gustLineOnlyAlert: 'alert' }, BASALT);
-  assert.equal(count(high, 'Tops out at 90 kph, your gust danger level, while Show is set to Alert.'), 1, 'High');
+  assert.equal(count(high, 'Tops out at 90 kph, your gust danger level, while Visible values is set to Alert.'), 1, 'High');
   assert.equal(count(high, 'keeps strong gusts from flattening'), 0, 'High: no comparison note');
   // All: the row's own hint, on both watches; aplite keeps it with Alert stored too.
   [BASALT, APLITE].forEach((env) => assert.equal(count(body({ secondaryLine: 'gust', windScale: 'low' }, env),
@@ -299,7 +302,7 @@ test('the Forecast tab\'s Wind graph scale row shows an Alert line\'s top, throu
   // Knots, gusts on the Fourth metric picker: the band's top in knots.
   const kn = body({ secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'gust', windUnits: 'knots',
     windScale: 'mid', gustLineOnlyAlert: 'alert' }, BASALT);
-  assert.equal(count(kn, 'Tops out at 50 kn, your gust danger level, while Show is set to Alert.'), 1);
+  assert.equal(count(kn, 'Tops out at 50 kn, your gust danger level, while Visible values is set to Alert.'), 1);
   assert.equal(count(kn, 'Tops out at 27 kn'), 0);
 });
 

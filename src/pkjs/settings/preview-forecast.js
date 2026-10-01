@@ -37,6 +37,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // A stripe cell's level on its metric's own scale: the table the bake reads.
     var stripeLevels = (typeof require !== 'undefined')
         ? require('../stripe-levels.js') : window.StripeLevels;
+    // Draw from / Bars from [Bottom | Top]: which lines and the bars hang from the top,
+    // read as the wire reads it (in the page bundle ahead of this file).
+    var drawFrom = (typeof require !== 'undefined')
+        ? require('../draw-from.js') : window.DrawFrom;
     var resolveInkLib = (typeof require !== 'undefined')
         ? require('../resolve-ink.js') : window.ResolveInk;
     var isLightPolarity = resolveInkLib.isLightPolarity;
@@ -146,7 +150,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         //                  is a watch-render fact this preview has never modelled, and
         //                  wiring it in here would change what aplite users see.
         //   lineStyles:    the WW_LINE_STYLE mirror (stylesFrozen below), so a stored
-        //                  stripe cannot switch the fill off on a watch that ignores it.
+        //                  stripe cannot switch the fill off on a watch that ignores it,
+        //                  and nothing hangs from the top there (draw-from.js capable).
         var caps = { color: !(env && !env.color), themePolarity: true,
             lineStyles: !(Boolean(env) && env.lineStyles === false) };
         var cx = lineStyle.renderContextFor(state, caps);
@@ -405,12 +410,14 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
          * (line-alert.js alertPermille, as the bake does): a sample below the
          * warn level is a gap like a zero, one at the bottom is lifted off it
          * by the bake's 2 ‰ floor (forecast-series.js BAND_FLOOR_PERMILLE).
+         * This is the standing (Draw from: Bottom) y; metricY mirrors it for a line
+         * that hangs from the top.
          * @param {Object} m METRIC entry.
          * @param {number} i Sample index.
          * @param {boolean} skipZero Null out a zero-based metric's zero.
          * @returns {?number} y, or null to skip the sample.
          */
-        function metricY(m, i, skipZero) {
+        function metricYRaw(m, i, skipZero) {
             if (m.tempAxis) { return yT(m.vals[i]); }
             if (m.alert) {
                 var apm = lineAlert.alertPermille(state, m.id, [m.vals[i] * m.perUnit], m.alert)[0];
@@ -427,6 +434,36 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 pm = v / m.max;
             }
             return PB - pm * (PB - MT);
+        }
+        /**
+         * Whether a metric's line hangs from the top (Draw from: Top, draw-from.js
+         * metricFromTop on this preview's caps: never previewing aplite). Only the five
+         * amount metrics have the setting; a temperature-axis curve never hangs. Only a
+         * drawn line or marks, or the Main metric's fill, ever asks (stripes shade by
+         * level and keep their own Top/Bottom), which is lineFromTop's rule.
+         * @param {string} metric A metric id.
+         * @returns {boolean}
+         */
+        function hangs(metric) {
+            var m = METRIC[metric];
+            return Boolean(m) && !m.tempAxis && drawFrom.metricFromTop(state, metric, caps);
+        }
+        /**
+         * One metric value's y in column/tick i, as drawn: metricYRaw's, mirrored over
+         * the plot box [PTL, PB] for a line that hangs from the top (the watch's mirror
+         * over its content rows) — zero then lands on PTL, under a top stripe band or at
+         * the plot's top, and full height at PB - (MT - PTL). A Visible values: Alert
+         * line's below-warn PB and its 2 ‰ floor flip with it. The skipped sample and
+         * the temperature axis are unchanged.
+         * @param {Object} m METRIC entry.
+         * @param {number} i Sample index.
+         * @param {boolean} skipZero Null out a zero-based metric's zero.
+         * @returns {?number} y, or null to skip the sample.
+         */
+        function metricY(m, i, skipZero) {
+            var y = metricYRaw(m, i, skipZero);
+            if (y === null || m.tempAxis) { return y; }
+            return hangs(m.id) ? PTL + PB - y : y;
         }
         // Vertex computation for the main-metric FILL contour (the stroke gaps its
         // zeros in lineFor instead): one point per sample, vertices on the hour
@@ -451,7 +488,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         function areaPathFor(metric) {
             var pts = metricPoints(metric);
             if (!pts) { return null; }
-            return smooth(pts) + ' L' + pts[pts.length - 1][0] + ',' + PB + ' L' + pts[0][0] + ',' + PB + ' Z';
+            // The fill closes on its line's zero edge: the plot's top for a hanging line.
+            var edge = hangs(metric) ? PTL : PB;
+            return smooth(pts) + ' L' + pts[pts.length - 1][0] + ',' + edge + ' L' + pts[0][0] + ',' + edge + ' Z';
         }
         // Whether the main metric draws a filled area at all — the resolver's own fill
         // flag, which is the authoritative gate (feels-like never fills: it rides the
@@ -804,8 +843,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             // silhouette, colour-light as the palette/Solid interior with the theme_fg()
             // silhouette over it (barEdge), colour-dark with no outline at all.
             var rainWhite = state.rainBarColor === 'white' || !isColor;
+            // Bars from: Top hangs them from the plot's top (PTL: under a top stripe band),
+            // the way the watch anchors them under its content's top row.
+            var barsTop = drawFrom.barsFromTop(state, 'rain', caps);
             for (var i = 0; i < n - 1; i += 1) {
-                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, PB, plotH, rainWhite, P.rainTiers, !isColor, barFg, ink.bg, barEdge);
+                e += rainBars(rain[i], gapCenter(i) - bw / 2, bw, barsTop ? PTL : PB, plotH, rainWhite,
+                    P.rainTiers, !isColor, barFg, ink.bg, barEdge, barsTop);
             }
         }
         for (var li = 0; li < LINES.length; li += 1) {

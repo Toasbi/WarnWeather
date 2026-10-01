@@ -872,6 +872,11 @@
      *   [14] fourth-metric line colour (GColor8 argb)  ┐ the third tail block:
      *   [15] fourth-metric line style  (kind | field)  ┘ FIFTH_LINE_COLOR / _STYLE.
      *
+     * Each style byte [11], [12], [13], [15] also carries its line's Draw from: Top in
+     * bit 5 (draw-from.js LINE_BIT, persist.h LINE_STYLE_FROM_TOP), which kind | field
+     * never reaches; bits 6-7 stay 0. Never on a stripe, never on aplite, and 0 with
+     * every Draw from on Bottom, so the bytes are then the ones this function always sent.
+     *
      * rgbToGColor8 matches Pebble's GColorFromHEX exactly, so the pixel is identical to
      * sending the full 0xRRGGBB. The watch treats everything past byte [3] as OPTIONAL
      * tail blocks (its length checks are minimums, one per block), so a shorter tuple
@@ -886,6 +891,19 @@
      */
     function buildLineStyleBytes(settings, watchInfo) {
         var s = resolveLineStyle(settings, watchInfo);
+        // Required here, not at load: draw-from.js binds this module while its own body
+        // runs. Phone-only, like rainTier below.
+        var drawFrom = require('./draw-from.js');
+        var caps = capsForWatch(watchInfo);
+        /**
+         * One line's style byte with its Draw from flag.
+         * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
+         * @returns {number} lineStyleByte, bit 5 set while the line hangs from the top.
+         */
+        function styleWithFrom(lineKey) {
+            return drawFrom.styleByte(lineStyleByte(settings, lineKey + 'Style'),
+                drawFrom.lineFromTop(settings, lineKey, caps));
+        }
         return [
             rainTier.rgbToGColor8(s.secondary),
             rainTier.rgbToGColor8(s.fill),
@@ -898,17 +916,19 @@
             rainTier.rgbToGColor8(s.night.areaBoundary),
             s.night.fillExplicit ? FLAG_NIGHT_FILL_EXPLICIT : 0,
             rainTier.rgbToGColor8(s.fourth),
-            lineStyleByte(settings, 'secondaryLineStyle'),
-            lineStyleByte(settings, 'thirdLineStyle'),
-            lineStyleByte(settings, 'fourthLineStyle'),
+            styleWithFrom('secondaryLine'),
+            styleWithFrom('thirdLine'),
+            styleWithFrom('fourthLine'),
             rainTier.rgbToGColor8(s.fifth),
-            lineStyleByte(settings, 'fifthLineStyle')
+            styleWithFrom('fifthLine')
         ];
     }
 
     var api = {
         renderContext: renderContext,
         renderContextFor: renderContextFor,
+        // Phone-only (configUi): palette-wire.js reads the platform's caps through it.
+        capsForWatch: capsForWatch,
         resolveLineStyle: resolveLineStyle,
         resolveGraphColors: resolveGraphColors,
         buildLineStyleBytes: buildLineStyleBytes,

@@ -218,7 +218,11 @@ test('settings that need no refetch stay OUT of the render signature', () => {
     { secondaryLineFill: false },
     // live, but Clay-delivered: the per-line marker styles ride
     // CLAY_LINE_STYLE_UINT8 bytes [11..13], never the weather bake
-    { secondaryLineStyle: 'bold' }, { thirdLineStyle: 'x' }, { fourthLineStyle: 'dots' }
+    { secondaryLineStyle: 'bold' }, { thirdLineStyle: 'x' }, { fourthLineStyle: 'dots' },
+    // live, but Clay-delivered: Draw from / Bars from ride bits of the style bytes and
+    // the palettes (draw-from.js), never the weather bake
+    { precipLineFrom: 'top' }, { cloudLineFrom: 'top' }, { windLineFrom: 'top' },
+    { uvLineFrom: 'top' }, { rainBarFrom: 'top' }, { radarBarFrom: 'top' }
   ].forEach((over) => {
     assert.equal(renderSignature({ sleepNightEnabled: true, sleepStartHour: '0',
       sleepEndHour: '7', ...over }), base,
@@ -269,6 +273,55 @@ test('the weather bake is identical across themes and the area-fill toggle', () 
       });
     });
     assert.ok(compared >= 200, 'the sweep ran');
+  } finally {
+    console.log = origLog;
+  }
+});
+
+// The premise behind keeping Draw from / Bars from out: the weather bake reads none of
+// the six keys (they flip bits on the Clay message only). Swept over the lines that
+// can hang, drawn as lines, marks and stripes, with Visible values: Alert on and the
+// bars and radar on. Should a bake ever read one, this goes red and the key has to join
+// the signature.
+test('the weather bake is identical with every Draw from / Bars from on Top', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const store = {};
+  global.localStorage = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const fixtureWeather = require('../src/pkjs/fixture-weather.js');
+    const defaults = require('../src/pkjs/settings').getDefaults();
+    const TOP = { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top',
+      rainBarFrom: 'top', radarBarFrom: 'top' };
+    const LINES = [
+      { secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'gust', fifthLine: 'uv' },
+      { secondaryLine: 'cloud', thirdLine: 'uv', fourthLine: 'off', fifthLine: 'wind',
+        windLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert' }
+    ];
+    const STYLES = [{}, { secondaryLineStyle: 'bold', thirdLineStyle: 'x', fifthLineStyle: 'stripeTop' }];
+    let compared = 0;
+    ['berlin.json', 'windy.json', 'graph-colors.json'].forEach((name) => {
+      const fx = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', name), 'utf8'));
+      ['basalt', 'aplite', 'emery', 'diorite'].forEach((platform) => {
+        LINES.forEach((lines) => STYLES.forEach((styles) => {
+          const s = Object.assign({}, defaults, fx.claySettings || {}, lines, styles,
+            { barSource: 'rain', radarMode: 'graph' });
+          const bake = (settings) => {
+            const out = fixtureWeather.getFixtureWeatherPayload(JSON.parse(JSON.stringify(fx)), settings, { platform });
+            return JSON.stringify(out, Object.keys(out).sort());
+          };
+          assert.equal(bake(Object.assign({}, s, TOP)), bake(s), [name, platform, JSON.stringify(lines)].join(' '));
+          compared++;
+        }));
+      });
+    });
+    assert.ok(compared >= 48, 'the sweep ran');
   } finally {
     console.log = origLog;
   }

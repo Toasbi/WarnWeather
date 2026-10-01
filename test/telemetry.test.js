@@ -466,6 +466,9 @@ const HEAVIEST_SETTINGS = {
   fourthLine: 'gust', fifthLine: 'cloud',
   // The three lines' Show on its longer value.
   windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert',
+  // Draw from / Bars from on the longer value, 'bottom'.
+  precipLineFrom: 'bottom', cloudLineFrom: 'bottom', windLineFrom: 'bottom', uvLineFrom: 'bottom',
+  rainBarFrom: 'bottom', radarBarFrom: 'bottom',
   secondaryLineStyle: 'stripeBottom', thirdLineStyle: 'stripeBottom',
   fourthLineStyle: 'stripeBottom', fifthLineStyle: 'stripeBottom',
   rainBarColor: 'white', radarProvider: 'rainbow', radarMode: 'countdown',
@@ -852,7 +855,9 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // measured and printed, but only the batch header is asserted now: 3033 of 4096,
 // headroom 1063. The switches then became each line's Show, 'all' or 'alert' (82 B on
 // 'alert', which the fixture now sets): 4059 B and 4169 B, the batch header 3039 of
-// 4096, headroom 1057.
+// 4096, headroom 1057. Draw from / Bars from (precipLineFrom, cloudLineFrom,
+// windLineFrom, uvLineFrom, rainBarFrom, radarBarFrom) are 144 B on 'bottom', the longer
+// value: 4203 B and 4313 B, the batch header 3183 of 4096, headroom 913.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

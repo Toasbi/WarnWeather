@@ -493,6 +493,30 @@ test('aplite gets the line styling too (it has the forecast graph)', function() 
   assert.equal(buildClayPayload(s, null, NOW).CLAY_LINE_STYLE_UINT8.length, 16);
 });
 
+// Draw from / Bars from ride bits of tuples the Clay message already carries (the line
+// style bytes, the two palettes): no tuple joins and none grows. aplite draws nothing
+// from the top, so its whole payload is byte-identical with every key on Top.
+test('Draw from / Bars from: aplite\'s payload is byte-identical on Top; basalt\'s moves only the flag bits', () => {
+  const s = Object.assign(baseSettings(), { secondaryLine: 'precip_prob', thirdLine: 'wind', theme: 'dark',
+    barSource: 'rain', radarMode: 'graph' });
+  const top = Object.assign({}, s, { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top',
+    uvLineFrom: 'top', rainBarFrom: 'top', radarBarFrom: 'top' });
+  assert.deepEqual(buildClayPayload(top, { platform: 'aplite' }, NOW), buildClayPayload(s, { platform: 'aplite' }, NOW));
+  const plain = buildClayPayload(s, { platform: 'basalt' }, NOW);
+  const hung = buildClayPayload(top, { platform: 'basalt' }, NOW);
+  assert.deepEqual(Object.keys(hung).sort(), Object.keys(plain).sort(), 'no tuple joins or leaves');
+  Object.keys(plain).forEach((k) => {
+    if (['CLAY_LINE_STYLE_UINT8', 'BAR_PALETTE_UINT8', 'RADAR_PALETTE_UINT8'].indexOf(k) === -1) {
+      assert.deepEqual(hung[k], plain[k], k + ' unchanged');
+    }
+  });
+  const flip = (b, at, bit) => { const out = b.slice(); out[at] |= bit; return out; };
+  // The Main metric (rain chance, [11]) and the Second (wind, [12]) hang; [13], [15] are off.
+  assert.deepEqual(hung.CLAY_LINE_STYLE_UINT8, flip(flip(plain.CLAY_LINE_STYLE_UINT8, 11, 0x20), 12, 0x20));
+  assert.deepEqual(hung.BAR_PALETTE_UINT8, flip(plain.BAR_PALETTE_UINT8, 1, 0x80));
+  assert.deepEqual(hung.RADAR_PALETTE_UINT8, flip(plain.RADAR_PALETTE_UINT8, 1, 0x80));
+});
+
 test('CLAY_HR_SCALE falls back to 40-150 when unset or malformed', function() {
   const expected = 40 | (150 << 8);
   const s = baseSettings();

@@ -102,10 +102,14 @@
      * theme_fg() top+sides in every theme but colour-dark, so a light colour theme keeps
      * its palette interior (tier bands, or the Solid bar) and gets that open-bottom
      * silhouette stroked on top, unfilled.
+     * `fromTop` (Bars from: Top, draw-from.js) hangs the bar from `baseY` downward
+     * instead: the exact mirror over the anchor, tier bands in the same order outward
+     * from it, the silhouette's open edge still the anchored one (the watch leaves the
+     * anchored edge of a hanging outlined bar open too).
      * @param {number} mm Rain for this column, in mm.
      * @param {number} x Left edge of the bar.
      * @param {number} bw Bar width.
-     * @param {number} baseY Baseline (the plot floor) y.
+     * @param {number} baseY The anchor y: the plot floor, or with `fromTop` the plot's top.
      * @param {number} plotH Full plot height a 1000‰ bar would span.
      * @param {boolean} white Solid/outlined single-colour bar instead of tier bands.
      * @param {Array.<{from: number, color: string}>} tiers The tier ramp (palette.rainTiers).
@@ -114,30 +118,35 @@
      * @param {string} [bg='#000000'] Interior fill of the outlined silhouette.
      * @param {?string} [edge] Stroke colour (theme-fg) of an unfilled open-bottom
      *   silhouette over a coloured interior; colour-light only. Falsy draws none.
+     * @param {boolean} [fromTop] Hang the bar from `baseY` (Bars from: Top).
      * @returns {string} SVG markup.
      */
-    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg, bg, edge) {
+    function rainBars(mm, x, bw, baseY, plotH, white, tiers, outline, fg, bg, edge, fromTop) {
         var H = barPermille(Math.round(mm * 10)) / 1000;
         if (H <= 0) { return ''; }
         fg = fg || '#FFFFFF';
         bg = bg || '#000000';
-        var top = baseY - H * plotH;
-        var walls = 'M' + x + ',' + baseY + ' L' + x + ',' + top + ' L' + (x + bw) + ',' + top
+        // The bar's free end, H of the plot out from the anchor.
+        var end = fromTop ? baseY + H * plotH : baseY - H * plotH;
+        var walls = 'M' + x + ',' + baseY + ' L' + x + ',' + end + ' L' + (x + bw) + ',' + end
             + ' L' + (x + bw) + ',' + baseY;
         if (white && outline) {
             return '<path d="' + walls + '" fill="' + bg + '" stroke="' + fg + '" stroke-width="1"></path>';
         }
         var out = '';
         if (white) {
-            out = rect(x, top, bw, H * plotH, fg);
+            out = rect(x, Math.min(baseY, end), bw, H * plotH, fg);
         } else {
             for (var k = 0; k < tiers.length; k += 1) {
                 var from = tiers[k].from / 1000;
                 if (H <= from) { break; }
                 var to = (k + 1 < tiers.length) ? tiers[k + 1].from / 1000 : 1;
                 var bandTop = Math.min(to, H);
-                var h = (bandTop - from) * plotH - 0.5;
-                out += rect(x, baseY - bandTop * plotH, bw, Math.max(h, 0.5), tiers[k].color);
+                var h = Math.max((bandTop - from) * plotH - 0.5, 0.5);
+                // Standing, a band's far edge is bandTop out from the anchor and its 0.5
+                // gap on the anchor side; hanging, the exact mirror of that rect.
+                var bandY = fromTop ? baseY + bandTop * plotH - h : baseY - bandTop * plotH;
+                out += rect(x, bandY, bw, h, tiers[k].color);
             }
         }
         if (edge) {

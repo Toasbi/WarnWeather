@@ -70,6 +70,12 @@ var APP_FILES = [
   // readers bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/line-alert.js'),
+  // Draw from / Bars from [Bottom | Top] (window.DrawFrom): which lines and bars hang
+  // from the top, for blocks.js' hints and the forecast and radar previews. It binds
+  // window.LineStyle while its own body runs, so it follows line-style.js, and its
+  // readers bind it while theirs run, so it precedes them —
+  // test/config-page-bundle.test.js pins the order.
+  path.join(ROOT, 'src/pkjs/draw-from.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
   // bake shades every stripe by, which the forecast and radar previews shade their cells
   // by and blocks.js' stripe hints are written from. It reads nothing at load, and its

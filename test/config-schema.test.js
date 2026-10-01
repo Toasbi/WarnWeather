@@ -86,6 +86,7 @@ const EXPECTED_KEYS = [
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
   'windLineOnlyAlert','gustLineOnlyAlert','uvLineOnlyAlert',
+  'precipLineFrom','cloudLineFrom','windLineFrom','uvLineFrom','rainBarFrom','radarBarFrom',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
   'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowOwnKey','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
@@ -126,14 +127,18 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // Bar rows, gated apart. rainCountdownHorizon: the Rain sheet and its Radar-tab copy —
   // the one pair that is live at the same time (flat hydrate/serialize cope).
   // windLineOnlyAlert/gustLineOnlyAlert/uvLineOnlyAlert: one per line context, like
-  // pressureScale — the row follows its metric to whichever picker shows it.
+  // pressureScale — the row follows its metric to whichever picker shows it. The four
+  // Draw from keys the same way (rainBarFrom/radarBarFrom are one row each).
   assert.deepEqual(dups.sort(),
-    ['batteryLowLevel', 'btIcons', 'colorUSFederal', 'gustLineOnlyAlert', 'pressureScale',
-      'rainCountdownHorizon', 'theme', 'themeNight', 'tomorrowioApiKey', 'tomorrowioFitBudget',
-      'uvLineOnlyAlert', 'vibe', 'windLineOnlyAlert', 'windScale'],
+    ['batteryLowLevel', 'btIcons', 'cloudLineFrom', 'colorUSFederal', 'gustLineOnlyAlert',
+      'precipLineFrom', 'pressureScale', 'rainCountdownHorizon', 'theme', 'themeNight',
+      'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineOnlyAlert', 'vibe',
+      'windLineFrom', 'windLineOnlyAlert', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  ['windLineOnlyAlert', 'gustLineOnlyAlert', 'uvLineOnlyAlert'].forEach((k) =>
+  ['windLineOnlyAlert', 'gustLineOnlyAlert', 'uvLineOnlyAlert',
+    'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) =>
     assert.equal(counts[k], 4, k + ' appears in four slots (one per line context)'));
+  ['rainBarFrom', 'radarBarFrom'].forEach((k) => assert.equal(counts[k], 1, k + ' appears once'));
   ALERT_STEMS.forEach((stem) => ['On', 'Warn', 'Danger', 'Max', 'WarnLook', 'WarnColor', 'DangerColor']
     .forEach((suffix) => assert.equal(counts['thresh' + stem + suffix], 1,
       'thresh' + stem + suffix + ' appears once (the alert sheet)')));
@@ -450,8 +455,9 @@ test('radarNoRainText: visible default, 24-char UI cap, graph-only', () => {
   const idx = radarItems.indexOf(item);
   assert.ok(idx !== -1, 'lives in the Radar tab');
   assert.equal(radarItems[idx - 1].messageKey, 'radarSky',
-    'follows the radar appearance settings (colour, sky rows), not mid-provider-config');
-  assert.equal(radarItems[idx - 2].messageKey, 'radarColor');
+    'follows the radar appearance settings (colour, bars, sky rows), not mid-provider-config');
+  assert.equal(radarItems[idx - 2].messageKey, 'radarBarFrom');
+  assert.equal(radarItems[idx - 3].messageKey, 'radarColor');
   // End-to-end through the real renderer: the maxlength attribute and the
   // visible default both land on the <input>.
   const eng = require('../src/pkjs/config-ui/lib/engine.js');
@@ -1077,7 +1083,8 @@ test('gpsCacheMin: select, default 30, interval-derived options, GPS-only', () =
 test('forecast line pickers use the new metric-oriented labels', () => {
   assert.equal(byKey('secondaryLine').label, 'Main metric');
   assert.equal(byKey('thirdLine').label, 'Second metric');
-  assert.equal(byKey('secondaryLineFill').label, 'Fill area below the line');
+  // Direction-neutral: with Draw from on Top the fill hangs with its line.
+  assert.equal(byKey('secondaryLineFill').label, 'Area fill');
 });
 
 test('metric options are spelled out fully on both pickers', () => {
@@ -3160,10 +3167,10 @@ test('windScale hints derive from the graph ceilings, strings pinned', () => {
   assert.equal(hintFor('kph').low, 'Tops out at 30 kph — emphasizes light, gentle winds.');
   assert.equal(hintFor('mph').low, 'Tops out at 19 mph — emphasizes light, gentle winds.');
   assert.equal(hintFor('mph').mid, 'Tops out at 31 mph — general use; gusts visible, typical winds sit mid-graph.');
-  assert.equal(hintFor('mph').high, 'Tops out at 43 mph — keeps strong gusts from flattening against the top.');
+  assert.equal(hintFor('mph').high, 'Tops out at 43 mph — keeps strong gusts from flattening at full height.');
   assert.equal(hintFor('knots').low, 'Tops out at 16 kn — emphasizes light, gentle winds.');
   assert.equal(hintFor('knots').mid, 'Tops out at 27 kn — general use; gusts visible, typical winds sit mid-graph.');
-  assert.equal(hintFor('knots').high, 'Tops out at 38 kn — keeps strong gusts from flattening against the top.');
+  assert.equal(hintFor('knots').high, 'Tops out at 38 kn — keeps strong gusts from flattening at full height.');
 });
 
 // --- the Graph-colors card (Forecast tab) ------------------------------------

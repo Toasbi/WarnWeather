@@ -37,6 +37,9 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // Which side of the Watch Status Bar shows the rain icon (on-demand.js sideOf).
     var onDemand = (typeof require !== 'undefined')
         ? require('../on-demand.js') : window.OnDemand;
+    // Bars from [Bottom | Top] (draw-from.js radarBarFrom), read as the wire reads it.
+    var drawFrom = (typeof require !== 'undefined')
+        ? require('../draw-from.js') : window.DrawFrom;
 
     // The radar sky rows' sample (radar-sky.js, rain_radar_layer.c draw_radar_sky):
     // eight quarter hours over the two-hour window, as percentages of what the rows
@@ -214,7 +217,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             e += '<line x1="' + tx + '" y1="' + topY + '" x2="' + tx + '" y2="' + (topY + (big ? 4 : 2)) + '" stroke="' + ink.rgba('0.30') + '" stroke-width="0.6"></line>';
         }
         e += txt(PX0, topY - 3, 7, '#7C828D', 'start', 600, 'now') + txt(PX0 + 12 * step, topY - 3, 7, '#7C828D', 'middle', 600, '+1h') + txt(PX1, topY - 3, 7, '#7C828D', 'end', 600, '+2h');
-        e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
+        // Bars from: Top hangs every bar, the exact spot's and the nearby area's, from the
+        // plot's top (PT: under the time axis and the sky rows); never previewing aplite,
+        // whose env has no line styles (draw-from.js capable). The faint floor line is the
+        // preview's own and goes with standing bars.
+        var barsTop = drawFrom.barsFromTop(state, 'radar', env);
+        var anchor = barsTop ? PT : PB;
+        if (!barsTop) {
+            e += '<line x1="' + PX0 + '" y1="' + PB + '" x2="' + PX1 + '" y2="' + PB + '" stroke="' + ink.rgba('0.18') + '" stroke-width="0.7"></line>';
+        }
         if (skyOn) {
             var sc = skyColors(state.theme, isColor, ink.fg);
             var skyY = topY + 5;   // below the preview's downward ticks
@@ -258,12 +269,13 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var x = PX0 + i * step + (step - bw) / 2;
             var nH = barPermille(Math.round((local[i] + add[i]) * 10)) / 1000;
             if (showNearby && nH > 0) {
-                e += '<rect x="' + x + '" y="' + (PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="' + ink.rgba('0.30') + '" stroke-width="0.7"></rect>';
+                e += '<rect x="' + x + '" y="' + (barsTop ? PT : PB - nH * plotH) + '" width="' + bw + '" height="' + (nH * plotH) + '" fill="none" stroke="' + ink.rgba('0.30') + '" stroke-width="0.7"></rect>';
             }
             // outline (B&W/bw: a theme_bg()-filled silhouette, matching the watch's
             // polarity-aware palette fill) vs. the colour interior (tier bands, or the
             // Solid radarBarFg), with a theme-fg silhouette over it in the light theme.
-            e += rainBars(local[i], x, bw, PB, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg, radarBarEdge);
+            e += rainBars(local[i], x, bw, anchor, plotH, radarWhite, P.rainTiers, !isColor, radarBarFg, ink.bg,
+                radarBarEdge, barsTop);
         }
         // Rain legend (one row): the exact-spot swatch (tier gradient on color, solid
         // theme-fg on B&W) + label, then a hollow grey "nearby" box + label. The nearby

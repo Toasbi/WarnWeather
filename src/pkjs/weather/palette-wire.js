@@ -5,6 +5,10 @@
 
 var rainTier = require('./rain-tier.js');
 var resolveInk = require('../resolve-ink.js');
+// The platform authority (capsForWatch) and the Bars from reading. line-style.js
+// requires rain-tier.js, never this file, so there is no cycle.
+var lineStyle = require('../line-style.js');
+var drawFrom = require('../draw-from.js');
 
 /**
  * Build the packed palette tuples for both channels.
@@ -16,8 +20,15 @@ var resolveInk = require('../resolve-ink.js');
  * and so an absent key would resolve to the right polarity rather than silently to
  * multicolor if the seeding ever changes.
  *
+ * Each blob also carries its chart's Bars from: Top (rainBarFrom, radarBarFrom) in bit 7
+ * of its byte [1], stop 0's threshold, which buildPackedPalette always starts at 0
+ * (draw-from.js markPalette; the watch reads the negative threshold through palette.h
+ * palette_from_top). Never on aplite, and with Bottom the blobs are byte-identical to
+ * the ones sent before the setting existed.
+ *
  * @param {Object|null} watchInfo Active watch info (platform read for packing).
- * @param {Object} settings Clay settings (rainBarColor/radarColor/theme).
+ * @param {Object} settings Clay settings (rainBarColor/radarColor/theme, rainBarFrom/
+ *   radarBarFrom).
  * @returns {{BAR_PALETTE_UINT8: number[], RADAR_PALETTE_UINT8: number[]}} Packed tuples.
  */
 function buildPaletteTuples(watchInfo, settings) {
@@ -25,9 +36,14 @@ function buildPaletteTuples(watchInfo, settings) {
     var resolved = settings || {};
     var theme = resolved.theme || 'dark';
     var fallback = resolveInk.barColorDefault(theme);
+    var caps = lineStyle.capsForWatch(watchInfo);
     return {
-        BAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, resolved.rainBarColor || fallback, theme),
-        RADAR_PALETTE_UINT8: rainTier.buildPackedPalette(platform, resolved.radarColor || fallback, theme)
+        BAR_PALETTE_UINT8: drawFrom.markPalette(
+            rainTier.buildPackedPalette(platform, resolved.rainBarColor || fallback, theme),
+            drawFrom.barsFromTop(resolved, 'rain', caps)),
+        RADAR_PALETTE_UINT8: drawFrom.markPalette(
+            rainTier.buildPackedPalette(platform, resolved.radarColor || fallback, theme),
+            drawFrom.barsFromTop(resolved, 'radar', caps))
     };
 }
 

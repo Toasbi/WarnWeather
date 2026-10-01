@@ -54,6 +54,11 @@ if (typeof require !== 'undefined') {
     // ahead of this file.
     var stripeLevels = (typeof require !== 'undefined')
         ? require('../stripe-levels.js') : window.StripeLevels;
+    // Draw from / Bars from [Bottom | Top] (draw-from.js): the Draw from rows' Top hint
+    // and the Visible values: Alert scale hint's "Graph top" read it. Concatenated after
+    // line-style.js and ahead of this file.
+    var drawFrom = (typeof require !== 'undefined')
+        ? require('../draw-from.js') : window.DrawFrom;
     // The theme vocabulary (polarity, B&W, whether the watch draws colour), concatenated
     // ahead of line-style.js and so of this file.
     var resolveInk = (typeof require !== 'undefined')
@@ -269,18 +274,22 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The scale of a line drawn Show: Alert (line-alert.js): the band the bake maps it
-     * over, as numbers — its bottom (the warn level, or with wind and gusts both on
-     * Alert the lower of the two) and its top (the higher of the line's usual top and the
-     * danger level); drawn as a stripe, where its faintest colour starts (the bottom) and
-     * where full colour does (90 % up the band, stripe-levels.js). Replaces the metric's
-     * usual scale copy, whose anchors ("Half height = UV 5.5") no longer hold there.
+     * The scale of a line drawn Show: Alert (line-alert.js; the row reads "Visible
+     * values"): the band the bake maps it over, as numbers — its bottom (the warn level,
+     * or with wind and gusts both on Alert the lower of the two) and its top (the higher
+     * of the line's usual top and the danger level); drawn as a stripe, where its
+     * faintest colour starts (the bottom) and where full colour does (90 % up the band,
+     * stripe-levels.js). Replaces the metric's usual scale copy, whose anchors ("Half
+     * height = UV 5.5") no longer hold there. A line that hangs from the top (Draw from:
+     * Top, draw-from.js metricFromTop) starts at the graph's top, so its start is named
+     * "Graph top" there; "full height" is a length and reads the same both ways.
      * @param {string} metric The line's metric.
      * @param {boolean} stripe The line is drawn as a stripe (colour strength, not height).
      * @param {Object} [S] Live settings state.
      * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
      *   and Fourth metric lines (whose metrics can share a band); `onDemand` false = no
-     *   Alert settings (aplite), so every line draws All.
+     *   Alert settings (aplite), so every line draws All; `lineStyles` false = nothing
+     *   hangs from the top either.
      * @returns {string} The scale sentence, '' when the line does not show Alert.
      */
     function alertScaleCopy(metric, stripe, S, env) {
@@ -296,7 +305,8 @@ if (typeof require !== 'undefined') {
             return 'Faintest colour = ' + lo + ', full colour from '
                 + lineAlert.levelFromText(S, metric, stripeStepValue(4, band.bottom, band.top)) + '.';
         }
-        return 'Graph bottom = ' + lo + ', full height = ' + lineAlert.levelText(S, metric, band.top) + '.';
+        return (drawFrom.metricFromTop(S, metric, env) ? 'Graph top = ' : 'Graph bottom = ') + lo
+            + ', full height = ' + lineAlert.levelText(S, metric, band.top) + '.';
     }
 
     /**
@@ -332,22 +342,24 @@ if (typeof require !== 'undefined') {
             copyOf(STYLE_NOTES, style)]);
     }
 
-    // The Show row's hint per metric and value: All's whole sentence, and the start of
-    // Alert's, ahead of "your warn level (40 kph)".
+    // The Visible values row's hint per metric and value (the owner's wording,
+    // 2026-10-01): All's whole sentence, and the start of Alert's, ahead of "your warn
+    // level (40 kph)".
     var SHOW_HINTS = {
-        wind: { all: 'Draws every wind value, the whole curve, calm hours included.',
+        wind: { all: 'The line is always visible, calm hours included.',
             alert: 'Draws wind only where it reaches' },
-        gust: { all: 'Draws every gust value, the whole curve, calm hours included.',
+        gust: { all: 'The line is always visible, calm hours included.',
             alert: 'Draws gusts only where they reach' },
-        uv: { all: 'Draws every UV value, the whole curve, low-UV hours included.',
+        uv: { all: 'The line is always visible, low-UV hours included.',
             alert: 'Draws UV only where it reaches' }
     };
 
     /**
-     * The Show row's hint, for the selected value only: All draws the whole curve, Alert
-     * only where the value reaches the warn level, named in the unit the Alert levels are
-     * set in. A value the page has not healed yet (a dev phone's true or false) reads the
-     * way the bake reads it (line-alert.js showValue).
+     * The Visible values row's hint (internally the Show row: line-alert.js), for the
+     * selected value only: All draws the whole line, Alert only where the value reaches
+     * the warn level, named in the unit the Alert levels are set in. A value the page has
+     * not healed yet (a dev phone's true or false) reads the way the bake reads it
+     * (line-alert.js showValue).
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (unused: the row only shows where Alert draws).
      * @param {{value: *, metric: string}} args The row's shown value and its metric.
@@ -358,7 +370,7 @@ if (typeof require !== 'undefined') {
         if (!copy) { return ''; }
         if (lineAlert.showValue(args.value) !== lineAlert.SHOW_ALERT) { return copy.all; }
         return copy.alert + ' your warn level (' + lineAlert.warnText(S || {}, args.metric)
-            + '), so the small graph stays empty until it matters.';
+            + '), so the line is only visible when you actually care.';
     }
 
     // The Wind graph scale row's hint while a drawn wind or gust line shows Alert: such
@@ -378,10 +390,10 @@ if (typeof require !== 'undefined') {
      * line at the scale's value) and, where a danger level is that top, whose — without
      * the row's usual note on what the value emphasizes, which compares the scales of a
      * 0-based line. Every drawn wind and gust line on Alert (one top, shared): "Tops out
-     * at 90 kph, your gust danger level, while Show is set to Alert." (without the danger
-     * clause while the scale's own value is the top). One on Alert beside one on All:
-     * "Tops out at 70 kph." for one top; "Wind tops out at 30 kph, gusts at 90 kph, your
-     * gust danger level." for two. Reads the stored scale, like the bake.
+     * at 90 kph, your gust danger level, while Visible values is set to Alert." (without
+     * the danger clause while the scale's own value is the top). One on Alert beside one
+     * on All: "Tops out at 70 kph." for one top; "Wind tops out at 30 kph, gusts at 90
+     * kph, your gust danger level." for two. Reads the stored scale, like the bake.
      * @param {Object} S Live settings state.
      * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
      *   and Fourth metric lines; `onDemand` false = no Alert settings (aplite).
@@ -407,7 +419,8 @@ if (typeof require !== 'undefined') {
         var danger = alert.band.topDanger
             ? ', your ' + WIND_LINE_TOPS[alert.band.topDanger].danger + ' danger level' : '';
         if (lines.length === 1 || (lines[0].band && lines[1].band)) {
-            return 'Tops out at ' + alert.top + (danger ? danger + ',' : '') + ' while Show is set to Alert.';
+            return 'Tops out at ' + alert.top + (danger ? danger + ',' : '')
+                + ' while Visible values is set to Alert.';
         }
         // One on Alert beside one on All.
         var plain = lines[0].band ? lines[1] : lines[0];
@@ -429,6 +442,27 @@ if (typeof require !== 'undefined') {
         return lineStyleHint(S ? S[args.metricKey] : undefined, args.value, S, env);
     });
     PConf.hintResolvers.register('lineShowHint', lineShowHint);
+
+    // The Draw from row's Top hint: one line, or the wind and the gust line together
+    // (draw-from.js windLineFrom moves both). Bottom, the default, has none.
+    var LINE_FROM_TOP_HINT = 'The higher the value, the further down it reaches.';
+    var LINES_FROM_TOP_HINT = 'Both reach further down the stronger the wind.';
+
+    /**
+     * The Draw from row's hint, for the selected value only: none for Bottom; for Top
+     * what hanging means, said of both lines while the row's key moves two drawn lines
+     * (a wind and a gust line, draw-from.js linesSharing).
+     * @param {Object} S Live settings state.
+     * @param {Object} env Platform env (draw-from.js capable).
+     * @param {{value: *, key: string}} args The row's shown value and its key.
+     * @returns {string} The hint, '' for none.
+     */
+    function lineFromHint(S, env, args) {
+        if (drawFrom.value(args.value) !== drawFrom.TOP) { return ''; }
+        return drawFrom.linesSharing(S || {}, args.key, env) >= 2
+            ? LINES_FROM_TOP_HINT : LINE_FROM_TOP_HINT;
+    }
+    PConf.hintResolvers.register('lineFromHint', lineFromHint);
 
     /**
      * The AQI slot's Day max / Both hint while its source note applies: the by-value
@@ -643,8 +677,8 @@ if (typeof require !== 'undefined') {
     }
     PConf.rangeResolvers.register('thresholdRange', thresholdRangeCfg);
 
-    // Picking feels-like or dew point as the main metric clears "Fill area below the
-    // line": both map against the temperature axis, not a 0..max scale, so their "below the line"
+    // Picking feels-like or dew point as the main metric clears "Area fill": both map
+    // against the temperature axis, not a 0..max scale, so their "below the line"
     // is the arbitrary joint-band floor rather than a zero the fill can mean anything
     // against. The toggle's showWhen hides the row for them; this writes the stored
     // value false so the settings blob agrees with what the watch renders (and with
@@ -1718,6 +1752,7 @@ if (typeof require !== 'undefined') {
             forecastMetricHint: forecastMetricHint,
             lineStyleHint: lineStyleHint,
             lineShowHint: lineShowHint,
+            lineFromHint: lineFromHint,
             windScaleHint: windScaleHint,
             STRIPE_SCALE: STRIPE_SCALE
         };

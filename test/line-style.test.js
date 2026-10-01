@@ -898,3 +898,100 @@ test('topStripeLineDrawn: only a drawn line whose effective style is a top strip
   assert.equal(lineStyle.topStripeLineDrawn({}), false, 'no default is a stripe');
   assert.equal(lineStyle.topStripeLineDrawn(null), false);
 });
+
+// --- Draw from: Top in bit 5 of each line's style byte (draw-from.js) ----------
+// Bytes [11], [12], [13], [15] carry their line's flag (persist.h LINE_STYLE_FROM_TOP,
+// 0x20). Every other byte is untouched, and with every key on Bottom (or absent, or
+// junk) the sixteen bytes are the ones the build before Draw from sent: pinned per
+// platform below, captured from that build.
+const DRAW_FROM_PLATFORMS = ['aplite', 'basalt', 'chalk', 'diorite', 'emery', 'flint'];
+const DRAW_FROM_KEYS = ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom', 'rainBarFrom', 'radarBarFrom'];
+const STYLE_BYTE_OF = { secondaryLine: 11, thirdLine: 12, fourthLine: 13, fifthLine: 15 };
+// The shipped look (rain chance filled, UV dots) and four amount lines in four styles.
+const PRE_DRAW_FROM = {
+  look: {
+    settings: { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'off', fifthLine: 'off',
+      secondaryLineFill: true, theme: 'dark', rainBarColor: 'multicolor' },
+    bytes: {
+      aplite: [255, 234, 255, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
+      basalt: [219, 198, 243, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
+      chalk: [219, 198, 243, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
+      diorite: [255, 234, 255, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
+      emery: [219, 198, 243, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2],
+      flint: [255, 234, 255, 1, 213, 213, 194, 195, 203, 0, 255, 4, 1, 2, 255, 2]
+    }
+  },
+  amounts: {
+    settings: { secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'cloud', fifthLine: 'uv',
+      secondaryLineStyle: 'bold', thirdLineStyle: 'dots', fourthLineStyle: 'x', fifthLineStyle: 'line',
+      secondaryLineFill: true, theme: 'light', rainBarColor: 'white' },
+    bytes: {
+      aplite: [255, 234, 255, 1, 213, 213, 212, 232, 232, 0, 255, 12, 1, 2, 255, 4],
+      basalt: [248, 252, 192, 1, 213, 213, 249, 254, 255, 0, 214, 12, 1, 2, 226, 4],
+      chalk: [248, 252, 192, 1, 213, 213, 249, 254, 255, 0, 214, 12, 1, 2, 226, 4],
+      diorite: [192, 234, 192, 1, 213, 213, 249, 254, 255, 0, 192, 12, 1, 2, 192, 4],
+      emery: [248, 252, 192, 1, 213, 213, 249, 254, 255, 0, 214, 12, 1, 2, 226, 4],
+      flint: [192, 234, 192, 1, 213, 213, 249, 254, 255, 0, 192, 12, 1, 2, 192, 4]
+    }
+  }
+};
+
+test('Draw from on Bottom, absent or junk: the sixteen bytes the build before it sent', () => {
+  Object.keys(PRE_DRAW_FROM).forEach((name) => {
+    const { settings, bytes } = PRE_DRAW_FROM[name];
+    DRAW_FROM_PLATFORMS.forEach((platform) => {
+      const at = { platform };
+      assert.deepEqual(lineStyle.buildLineStyleBytes(settings, at), bytes[platform], name + ' ' + platform);
+      const bottom = Object.assign({}, settings);
+      const junk = Object.assign({}, settings);
+      DRAW_FROM_KEYS.forEach((k) => { bottom[k] = 'bottom'; junk[k] = 'TOP'; });
+      assert.deepEqual(lineStyle.buildLineStyleBytes(bottom, at), bytes[platform], name + ' bottom ' + platform);
+      assert.deepEqual(lineStyle.buildLineStyleBytes(junk, at), bytes[platform], name + ' junk ' + platform);
+    });
+  });
+});
+
+test('Draw from: Top sets bit 5 on exactly the matching line\'s style byte', () => {
+  const { settings, bytes } = PRE_DRAW_FROM.amounts;
+  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((platform) => {
+    const base = bytes[platform];
+    // wind (Main, bold) and gusts (Second, dots) share windLineFrom.
+    [['windLineFrom', ['secondaryLine', 'thirdLine']], ['cloudLineFrom', ['fourthLine']],
+      ['uvLineFrom', ['fifthLine']], ['precipLineFrom', []]].forEach(([key, lines]) => {
+      const got = lineStyle.buildLineStyleBytes(Object.assign({ [key]: 'top' }, settings), { platform });
+      const want = base.slice();
+      lines.forEach((l) => { want[STYLE_BYTE_OF[l]] = base[STYLE_BYTE_OF[l]] | 0x20; });
+      assert.deepEqual(got, want, platform + ' ' + key);
+    });
+  });
+  // An unknown watch reads basalt: it hangs too.
+  assert.equal(lineStyle.buildLineStyleBytes(Object.assign({ uvLineFrom: 'top' }, settings), null)[15], 0x24);
+});
+
+test('Draw from: never on aplite, a stripe, a line not drawn, or a line without the setting', () => {
+  const allTop = {};
+  DRAW_FROM_KEYS.forEach((k) => { allTop[k] = 'top'; });
+  // aplite: byte-identical, every key on Top.
+  Object.keys(PRE_DRAW_FROM).forEach((name) => {
+    const { settings, bytes } = PRE_DRAW_FROM[name];
+    assert.deepEqual(lineStyle.buildLineStyleBytes(Object.assign({}, settings, allTop), { platform: 'aplite' }),
+      bytes.aplite, name);
+  });
+  const emeryAt = { platform: 'emery' };
+  // A stripe keeps its own edge: 0x07 (stripeTop) and 0x03 (stripeBottom) stay.
+  const stripes = lineStyle.buildLineStyleBytes(Object.assign({ secondaryLine: 'uv', thirdLine: 'cloud',
+    secondaryLineStyle: 'stripeTop', thirdLineStyle: 'stripeBottom', theme: 'dark' }, allTop), emeryAt);
+  assert.equal(stripes[11], 0x07);
+  assert.equal(stripes[12], 0x03);
+  // Feels, dew and pressure never hang.
+  const temps = lineStyle.buildLineStyleBytes(Object.assign({ secondaryLine: 'feels', thirdLine: 'dew',
+    fourthLine: 'pressure', fifthLine: 'off', theme: 'dark' }, allTop), emeryAt);
+  [11, 12, 13, 15].forEach((i) => assert.equal(temps[i] & 0x20, 0, 'byte ' + i));
+  // A line that is off, or repeats an earlier pick, sends no flag.
+  const off = lineStyle.buildLineStyleBytes(Object.assign({ secondaryLine: 'precip_prob', thirdLine: 'precip_prob',
+    fourthLine: 'off', fifthLine: 'off', theme: 'dark' }, allTop), emeryAt);
+  assert.equal(off[11] & 0x20, 0x20, 'the drawn rain-chance line hangs');
+  [12, 13, 15].forEach((i) => assert.equal(off[i] & 0x20, 0, 'byte ' + i));
+  // Bits 6 and 7 stay reserved at 0, every byte above.
+  [stripes, temps, off].forEach((b) => [11, 12, 13, 15].forEach((i) => assert.equal(b[i] & 0xC0, 0)));
+});

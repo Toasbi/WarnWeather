@@ -301,6 +301,11 @@ function buildHeaviestClayMessage(watchInfo) {
     radarNoRainText: 'Kein Regen in Sichtweite',
     // The low-battery takeover switched on: its tuple rides aplite's bundle only.
     batteryLowOnly: true,
+    // Draw from / Bars from on Top: their flags are bits of the line-style bytes and the
+    // two palettes (draw-from.js), no byte of their own, so the recorded sizes hold
+    // whatever they say.
+    precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top',
+    rainBarFrom: 'top', radarBarFrom: 'top',
   }, watchInfo === undefined ? { platform: 'emery' } : watchInfo, new Date('2026-06-26T00:00:00Z'));
 
   // The Dim backlight tuple (CLAY_NIGHT_LIGHT_UINT8 = [r, g, b, startHour, endHour])

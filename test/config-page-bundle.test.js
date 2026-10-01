@@ -121,6 +121,28 @@ test('the Show [All | Alert] module is bundled after its deps and before its rea
     'nothing registers the Show row\'s hint in the generated page');
 });
 
+// draw-from.js (window.DrawFrom) binds window.LineStyle while its own body runs, and
+// preview-forecast.js, preview-radar.js and blocks.js bind window.DrawFrom while theirs
+// do: out of order, the Draw from row's hint, the previews and the page's boot throw on
+// a real phone while every Node test passes through require().
+test('the Draw from module is bundled after line-style.js and before its readers', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('pkjs/line-style.js') < idx('pkjs/draw-from.js'), 'line-style.js must precede draw-from.js');
+  ['settings/preview-forecast.js', 'settings/preview-radar.js', 'settings/blocks.js']
+    .forEach((reader) => {
+      assert.ok(idx('pkjs/draw-from.js') < idx(reader), 'draw-from.js must precede ' + reader);
+    });
+  const src = page();
+  assert.ok(src.indexOf('window.DrawFrom = api') !== -1, 'nothing assigns window.DrawFrom in the generated page');
+  assert.ok(src.indexOf("PConf.hintResolvers.register('lineFromHint'") !== -1,
+    'nothing registers the Draw from row\'s hint in the generated page');
+});
+
 // stripe-levels.js (window.StripeLevels) is the table the bake shades every stripe by;
 // preview-forecast.js, preview-radar.js and blocks.js bind it while their own bodies run
 // (blocks.js writes its stripe hints from it at load). Out of the page, or after them,

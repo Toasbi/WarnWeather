@@ -94,3 +94,18 @@ Deno.test("onDemand, batteryLowLevel and batteryLowDisplay are accepted and kept
     assert(!telemetryPayloadSchema.safeParse({ ...LEGACY, settings }).success, JSON.stringify(settings));
   }
 });
+
+// Draw from / Bars from (1.24.0, src/pkjs/draw-from.js) survive the strip step; a value
+// a later build might add is kept, not a 400 (z.string, the Show precedent).
+Deno.test("the six Draw from / Bars from fields are accepted and kept", () => {
+  const keys = ["precipLineFrom", "cloudLineFrom", "windLineFrom", "uvLineFrom", "rainBarFrom", "radarBarFrom"];
+  const settings: Record<string, string> = {};
+  keys.forEach((k, i) => { settings[k] = i % 2 ? "top" : "bottom"; });
+  const parsed = telemetryPayloadSchema.safeParse({ ...LEGACY, settings });
+  assert(parsed.success);
+  for (const k of keys) {
+    assertEquals((parsed.data.settings as Record<string, unknown>)[k], settings[k], k);
+  }
+  const future = telemetryPayloadSchema.safeParse({ ...LEGACY, settings: { windLineFrom: "middle" } });
+  assert(future.success);
+});

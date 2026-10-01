@@ -15,6 +15,8 @@ var statusThresholds = require('./status-thresholds.js');
 var onDemand = require('./on-demand.js');
 // showOf — a graph line's Show choice, read like the bake reads it.
 var lineAlert = require('./line-alert.js');
+// value — a Draw from / Bars from choice, read like the wire reads it.
+var drawFrom = require('./draw-from.js');
 
 /**
  * Parse a value as a base-10 integer for telemetry, omitting invalid input.
@@ -306,6 +308,15 @@ function buildSettingsSnapshot(settings, watchInfo) {
         windLineOnlyAlert: lineAlert.showOf(safe, 'wind'),
         gustLineOnlyAlert: lineAlert.showOf(safe, 'gust'),
         uvLineOnlyAlert: lineAlert.showOf(safe, 'uv'),
+        // Draw from / Bars from, 'bottom' or 'top' (draw-from.js value: absent or junk
+        // reads 'bottom'), as chosen: whether such a line or those bars are drawn at
+        // all is the line, style, barSource and radarMode fields beside them.
+        precipLineFrom: drawFrom.value(safe.precipLineFrom),
+        cloudLineFrom: drawFrom.value(safe.cloudLineFrom),
+        windLineFrom: drawFrom.value(safe.windLineFrom),
+        uvLineFrom: drawFrom.value(safe.uvLineFrom),
+        rainBarFrom: drawFrom.value(safe.rainBarFrom),
+        radarBarFrom: drawFrom.value(safe.radarBarFrom),
         pressureScale: safe.pressureScale,
         thirdLine: safe.thirdLine,
         fourthLine: safe.fourthLine,

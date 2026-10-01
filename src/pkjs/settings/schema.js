@@ -24,6 +24,9 @@ var lineStyle = require('../line-style.js');
 // The wind, gust and UV lines' Show [All | Alert]: the metrics that have it, their keys
 // and values, from the module the bake reads them through.
 var LINE_ALERT = require('../line-alert.js');
+// Draw from / Bars from [Bottom | Top]: the keys, their rows' metrics and the values,
+// from the module the wire packs the flags through.
+var DRAW_FROM = require('../draw-from.js');
 // The Custom-layout block (the per-view storage items, their sheetOnly section and
 // the Edit-button row) lives in its own module so its capability gates are BUILT
 // from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
@@ -121,7 +124,9 @@ function windScaleHints(windUnits, unitLabel) {
     return {
         low: tops('low', 'emphasizes light, gentle winds.'),
         mid: tops('mid', 'general use; gusts visible, typical winds sit mid-graph.'),
-        high: tops('high', 'keeps strong gusts from flattening against the top.')
+        // "At full height", not "against the top": a line drawn from the top reaches
+        // full height at the graph's bottom.
+        high: tops('high', 'keeps strong gusts from flattening at full height.')
     };
 }
 var WIND_SCALE_HINTS_KPH = windScaleHints('kph', 'kph');
@@ -189,14 +194,14 @@ function windScaleCopy(pickerKey, unit, hints) {
     };
 }
 /**
- * One metric's Show [All | Alert] row under one line-context: shown while that picker
- * shows the metric (the line-context cascade, so a stored repeat on a later picker
- * shows it once), on a watch with Alert settings (ON_DEMAND_WHEN: aplite has none, and
- * its lines always draw All, line-alert.js alertsDrawn). The wind speed, wind gust and
- * UV index lines have one each (line-alert.js METRIC_IDS, the graph metrics with Alert
- * levels), stored per metric, so the row follows its metric from picker to picker. Each
- * value has its own hint (blocks.js 'lineShowHint'); Alert's names the warn level it
- * gaps below.
+ * One metric's Visible values [All | Alert] row (the internal name stays "Show", the
+ * row's first label) under one line-context: shown while that picker shows the metric
+ * (the line-context cascade, so a stored repeat on a later picker shows it once), on a
+ * watch with Alert settings (ON_DEMAND_WHEN: aplite has none, and its lines always draw
+ * All, line-alert.js alertsDrawn). The wind speed, wind gust and UV index lines have one
+ * each (line-alert.js METRIC_IDS, the graph metrics with Alert levels), stored per
+ * metric, so the row follows its metric from picker to picker. Each value has its own
+ * hint (blocks.js 'lineShowHint'); Alert's names the warn level it gaps below.
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {string} metric 'wind' | 'gust' | 'uv'.
  * @returns {Object} Schema item.
@@ -208,7 +213,7 @@ function lineShowCopy(pickerKey, metric) {
     return {
         type: 'segmented',
         messageKey: LINE_ALERT.settingKey(metric),
-        label: 'Show',
+        label: 'Visible values',
         defaultValue: LINE_ALERT.SHOW_ALL,
         joinPrevious: true,
         hintFrom: {resolver: 'lineShowHint', args: {metric: metric}},
@@ -216,6 +221,49 @@ function lineShowCopy(pickerKey, metric) {
         showWhen: {all: when}
     };
 }
+/**
+ * One Draw from [Bottom | Top] row (draw-from.js ROWS entry) under one line-context:
+ * shown on a watch with line styles (LINE_STYLES_WHEN, the WW_LINE_STYLE mirror: aplite
+ * never hangs a line), under the FIRST picker that draws one of the row's metrics as a
+ * line or marks. The matcher includes "not a stripe", so when the first wind/gust picker
+ * is a stripe the row moves to the next one that is a line (a stripe keeps its own
+ * Top/Bottom). Stored per metric (wind and gusts share one key), so the row follows its
+ * metric from picker to picker; a stored Top on a stripe or an undrawn line lies
+ * dormant (draw-from.js lineFromTop) and the row hides. Only Top has a hint (blocks.js
+ * 'lineFromHint').
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @param {string} rowKey precipLineFrom|cloudLineFrom|windLineFrom|uvLineFrom.
+ * @returns {Object} Schema item.
+ */
+function lineFromCopy(pickerKey, rowKey) {
+    var metrics = DRAW_FROM.rowOf(rowKey).metrics;
+    var when = [LINE_STYLES_WHEN].concat(lineContextWhen(pickerKey, function (key) {
+        return {all: [{key: key, in: metrics}, {key: key + 'Style', nin: STRIPE_STYLES}]};
+    }));
+    return {
+        type: 'segmented',
+        messageKey: rowKey,
+        label: 'Draw from',
+        defaultValue: DRAW_FROM.BOTTOM,
+        joinPrevious: true,
+        hintFrom: {resolver: 'lineFromHint', args: {key: rowKey}},
+        options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
+        showWhen: {all: when}
+    };
+}
+/**
+ * The four Draw from rows under one picker, in draw-from.js ROWS order. At most one is
+ * visible: the one for the metric the picker draws, if it is an amount metric.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @returns {Object[]} Schema items.
+ */
+function lineFromCopies(pickerKey) {
+    return DRAW_FROM.ROWS.map(function (row) {
+        return lineFromCopy(pickerKey, row.key);
+    });
+}
+// The Bars from rows' one hint, for Top (Bottom, the default, has none).
+var BARS_TOP_HINT = 'The more rain, the further down they reach.';
 // "A health item can appear in some status slot" — the gate for settings that are
 // inert otherwise (the health threshold sub-sections). Mirrors the availability rule
 // the slot catalog itself applies (statusLineCatalog.itemAvailable: needsHealth items
@@ -318,13 +366,15 @@ var GRAPH_COLOR_ROWS = [
 // role names, so a role it stops handing out simply stops being rendered.
 var GRAPH_ROLE_LABELS = {
     Line: 'Line',
-    Fill: 'Fill under the line',
+    // One term for the Main metric's toggle and its colour (direction-neutral: with
+    // Draw from on Top the fill hangs with its line).
+    Fill: 'Area fill',
     Night: 'Night fill tint',
     Hatch: 'Night hatch',
     Boundary: 'Dusk / dawn line'
 };
 var GRAPH_ROLE_HINTS = {
-    Fill: 'Only drawn while this is the Main metric and “Fill area below the line” is on.',
+    Fill: 'Only drawn while this is the Main metric and “Area fill” is on.',
     Night: 'Re-shades the filled area under the night hours. Follows the fill colour until you pick one here.',
     Hatch: 'Only drawn while “Day / night shading” is on.',
     Boundary: 'Only drawn while “Day / night shading” is on.'
@@ -2644,6 +2694,8 @@ module.exports = {
     }, {
         id: 'forecast', label: 'Forecast', sections: [{
             intro: 'The forecast graph looks up to 24 hours ahead. Temperature is always drawn; the metrics and rain bars you pick below join it.',
+            // One flat list: each picker's four Draw from rows (lineFromCopies) are
+            // spliced in right after its Line style.
             items: [{
                 type: 'select',
                 messageKey: 'secondaryLine',
@@ -2655,11 +2707,12 @@ module.exports = {
                 blockBefore: 'forecastPreview',
                 blockBeforeSticky: true
             },
-            lineStyleCopy('secondaryLine'),
-            {
+            lineStyleCopy('secondaryLine')
+            ].concat(lineFromCopies('secondaryLine'), [{
                 type: 'toggle',
                 messageKey: 'secondaryLineFill',
-                label: 'Fill area below the line',
+                // Direction-neutral: with Draw from on Top the fill hangs with its line.
+                label: 'Area fill',
                 defaultValue: true,
                 joinPrevious: true,
                 // Feels-like and dew point ride the temperature axis rather than a 0..max scale, so
@@ -2695,7 +2748,8 @@ module.exports = {
                 hintFrom: METRIC_HINT_FROM,
                 optionsFrom: {resolver: 'forecastMetric', args: {off: true, exclude: ['secondaryLine']}}
             },
-            lineStyleCopy('thirdLine', true),
+            lineStyleCopy('thirdLine', true)
+            ], lineFromCopies('thirdLine'), [
             windScaleCopy('thirdLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('thirdLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('thirdLine', 'knots', WIND_SCALE_HINTS_KNOTS),
@@ -2717,7 +2771,8 @@ module.exports = {
                 // watch that lacks the line.
                 showWhen: LINE_STYLES_WHEN
             },
-            lineStyleCopy('fourthLine', true),
+            lineStyleCopy('fourthLine', true)
+            ], lineFromCopies('fourthLine'), [
             windScaleCopy('fourthLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('fourthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fourthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
@@ -2735,7 +2790,8 @@ module.exports = {
                 // Same row-level gate as the third metric (WW_LINE_STYLE mirror).
                 showWhen: LINE_STYLES_WHEN
             },
-            lineStyleCopy('fifthLine', true),
+            lineStyleCopy('fifthLine', true)
+            ], lineFromCopies('fifthLine'), [
             windScaleCopy('fifthLine', 'kph', WIND_SCALE_HINTS_KPH),
             windScaleCopy('fifthLine', 'mph', WIND_SCALE_HINTS_MPH),
             windScaleCopy('fifthLine', 'knots', WIND_SCALE_HINTS_KNOTS),
@@ -2784,12 +2840,25 @@ module.exports = {
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
                 showWhen: {all: [{key: 'barSource', eq: 'rain'}, COLOR_THEME_WHEN]}
             }, {
+                // Bars from [Bottom | Top] (draw-from.js rainBarFrom): while the bars are
+                // drawn, on a watch with line styles (the WW_LINE_STYLE mirror the watch's
+                // flip sits behind; aplite never hangs them). Joined to Bar color; with
+                // that row hidden (B&W) it joins the bar note, which joins Bars.
+                type: 'segmented',
+                messageKey: 'rainBarFrom',
+                label: 'Bars from',
+                defaultValue: DRAW_FROM.BOTTOM,
+                joinPrevious: true,
+                hintByValue: {top: BARS_TOP_HINT},
+                options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
+                showWhen: {all: [{key: 'barSource', eq: 'rain'}, LINE_STYLES_WHEN]}
+            }, {
                 type: 'toggle',
                 messageKey: 'dayNightShading',
                 label: 'Day / night shading',
                 defaultValue: true,
                 hint: 'Hatches the hours between sunset and sunrise.'
-            }]
+            }])
         }, {
             // One card holding one row per graph metric, plus the night band. Deliberately
             // NOT groupCard: a grouped section renders through renderSectionGroup, which
@@ -2916,6 +2985,21 @@ module.exports = {
                 // right polarity color itself — see rain-tier.js); only the label changes.
                 options: [['Multicolor', 'multicolor'], ['Solid', 'white']],
                 showWhen: {all: [{key: 'radarMode', eq: 'graph'}, COLOR_THEME_WHEN]}
+            }, {
+                // Bars from [Bottom | Top] (draw-from.js radarBarFrom): the radar graph's
+                // rain bars, the exact spot's and DWD's nearby-area ones together, hang
+                // under the time axis (and under the sky rows). Only the graph draws bars;
+                // the tab is already radar-gated, and LINE_STYLES_WHEN states the watch
+                // side's WW_LINE_STYLE dependency. Joined to Radar color; with that row
+                // hidden (B&W) it joins the bar note above it.
+                type: 'segmented',
+                messageKey: 'radarBarFrom',
+                label: 'Bars from',
+                defaultValue: DRAW_FROM.BOTTOM,
+                joinPrevious: true,
+                hintByValue: {top: BARS_TOP_HINT},
+                options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
+                showWhen: {all: [{key: 'radarMode', eq: 'graph'}, LINE_STYLES_WHEN]}
             }, {
                 // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
                 // fetch, on by default (a missing key reads as on everywhere: radar-sky.js
