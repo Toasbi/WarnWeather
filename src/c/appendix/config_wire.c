@@ -1,6 +1,9 @@
 #include <string.h>
 
 #include "config_wire.h"
+// Last: the MESSAGE_KEY_* ids as constants (wscript generates it into build/include),
+// shadowing the SDK's uint32_t globals so --gc-sections drops them.
+#include "message_key_ids.auto.h"
 
 #if !defined(PBL_PLATFORM_APLITE)
 // One CLAY_VIEW_n tuple → the view's 16-bit spec (low half) and its 16-bit EXT word

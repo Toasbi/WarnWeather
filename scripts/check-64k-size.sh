@@ -44,6 +44,7 @@
 # (61168 -> 61388), diorite/flint +220 B (58872 -> 59092), all of it .text in
 # forecast_update_proc and apply_line_style; .data/.bss and the update proc's stack frame
 # unchanged.
+# Message key ids as constants: basalt -1176 B (60212), diorite/flint -1172 B (57920).
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -60,9 +61,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-61388}"
-  "diorite:${DIORITE_IMAGE_CEILING:-59092}"
-  "flint:${FLINT_IMAGE_CEILING:-59092}"
+  "basalt:${BASALT_IMAGE_CEILING:-60212}"
+  "diorite:${DIORITE_IMAGE_CEILING:-57920}"
+  "flint:${FLINT_IMAGE_CEILING:-57920}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).
