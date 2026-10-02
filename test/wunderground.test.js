@@ -393,7 +393,7 @@ test('a freshly scraped key that is refused too reports WU not answering, with a
   var out = runWuCycle('revokedkey', false);
   assert.equal(out.ok, false);
   assert.equal(out.failures.length, 1, 'one failure reported');
-  assert.deepEqual(out.failures[0], { stage: 'provider_data', code: 'wu_current_refused_401',
+  assert.deepEqual(out.failures[0], { stage: 'provider_data', code: 'wu_current_status_401',
     retryAfterMs: WundergroundProvider.UNAVAILABLE_RETRY_MS });
   assert.equal(WundergroundProvider.UNAVAILABLE_RETRY_MS, 60 * 60 * 1000, 'about an hour');
   assert.equal(authBackoff.isAuthFailure(out.failures[0]), false, 'never the indefinite auth backoff');
@@ -420,7 +420,7 @@ test('a forced fetch scrapes up front and does not scrape again on a refusal', (
   }(responder));
   var out = runWuCycle('oldkey', true);
   assert.equal(out.failures.length, 1);
-  assert.equal(out.failures[0].code, 'wu_current_refused_403');
+  assert.equal(out.failures[0].code, 'wu_current_status_403');
   assert.equal(out.failures[0].retryAfterMs, WundergroundProvider.UNAVAILABLE_RETRY_MS);
   assert.equal(log.scrapes, 1);
   assert.equal(log.api.length, 1, 'no second attempt');
@@ -430,7 +430,7 @@ test('a scrape that is refused, or a page without a key, reports WU not answerin
   const authBackoff = require('../src/pkjs/auth-backoff.js');
   responder = function(url, onSuccess, onError) { onError({ code: 'status_403', detail: 'http_status' }); };
   var refused = runWuCycle(null, false);
-  assert.deepEqual(refused.failures, [{ stage: 'provider_data', code: 'wu_api_key_refused_403',
+  assert.deepEqual(refused.failures, [{ stage: 'provider_data', code: 'wu_api_key_status_403',
     retryAfterMs: WundergroundProvider.UNAVAILABLE_RETRY_MS }]);
   assert.equal(authBackoff.isAuthFailure(refused.failures[0]), false);
   responder = function(url, onSuccess) { onSuccess('<html>no key in here</html>'); };

@@ -25,11 +25,17 @@ var AUTH_BACKOFF_KEY = storageKeys.AUTH_BACKOFF_KEY;
  * not the user's key to fix, and must not stop fetching indefinitely — the
  * LocationIQ path arms its own time-limited backoff (weather/provider.js).
  *
- * @param {{stage: string, code: string}|*} failure Normalized failure payload.
+ * A failure that names its own retry (`retryAfterMs` > 0: Weather Underground
+ * refusing even a freshly scraped key) is never permanent, whatever its code.
+ *
+ * @param {{stage: string, code: string, retryAfterMs?: number}|*} failure Normalized failure payload.
  * @returns {boolean} True when the failure is a provider auth rejection.
  */
 function isAuthFailure(failure) {
     if (!failure || failure.stage !== 'provider_data' || typeof failure.code !== 'string') {
+        return false;
+    }
+    if (typeof failure.retryAfterMs === 'number' && failure.retryAfterMs > 0) {
         return false;
     }
     return /(^|_)status_(401|403)$/.test(failure.code);

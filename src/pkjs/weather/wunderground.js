@@ -207,10 +207,11 @@ var UNAVAILABLE_RETRY_MS = 60 * 60 * 1000;
 /**
  * A failure that says Weather Underground will not serve us right now — a refused key
  * (401/403, on the API or on the scrape) or a page without a key to scrape — turned
- * into the neutral "not answering" failure: the code keeps where and which status
- * ('wu_current_status_401' → 'wu_current_refused_401') without the status_ suffix the
- * auth backoff and the "API key error" notice match (the user has no key to fix), and
- * retryAfterMs asks for the timed retry. Any other failure passes through unchanged.
+ * into the neutral "not answering" failure: the code stays as it is, and retryAfterMs
+ * asks for the timed retry. A failure that names its own retry is never the auth
+ * backoff (auth-backoff.js isAuthFailure) nor the "API key error" notice (notices.js
+ * noticeForFailure): the user has no key to fix. Any other failure passes through
+ * unchanged.
  * @param {{stage: string, code: string}} failure The failure.
  * @returns {{stage: string, code: string, retryAfterMs?: number}} The failure to report.
  */
@@ -221,7 +222,7 @@ function asUnavailable(failure) {
     }
     return {
         stage: failure.stage,
-        code: code.replace(/status_(\d+)$/, 'refused_$1'),
+        code: code,
         retryAfterMs: UNAVAILABLE_RETRY_MS
     };
 }

@@ -863,7 +863,7 @@ test('failure: a provider\'s own retry delay raises the neutral notice at once a
     wu.shortName = 'Wunderground';
     wu.scrapesKey = true;
     const h = makeHarness({ provider: wu, settings: { fetchIntervalMin: '15' } });
-    const refused = { stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: HOUR };
+    const refused = { stage: 'provider_data', code: 'wu_current_status_401', retryAfterMs: HOUR };
     assert.equal(h.cycle.start(false), true);
     wu.fix(52.5, 13.4);
     wu.fail(refused);
@@ -909,7 +909,7 @@ test('failure: a provider not answering leaves a good forecast on the watch — 
     wu.succeed();
     w.calls.sendWeather.length = 0;
     w.advance(MIN);
-    failOnce(w, { stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: HOUR });
+    failOnce(w, { stage: 'provider_data', code: 'wu_current_status_401', retryAfterMs: HOUR });
     assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['unavailable']);
     assert.deepEqual(w.calls.sendWeather, [], 'Weather Underground\'s hour of rest keeps the forecast too');
 });

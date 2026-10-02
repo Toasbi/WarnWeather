@@ -44,7 +44,7 @@ test('failureBackoffMs: a rate limit waits the whole interval at once', () => {
 });
 
 test('failureBackoffMs: a provider\'s own retry delay is waited out exactly, whatever the interval', () => {
-  const wu = { stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: HOUR_MS };
+  const wu = { stage: 'provider_data', code: 'wu_current_status_401', retryAfterMs: HOUR_MS };
   assert.equal(failureBackoffMs(1, wu, 15 * MIN), HOUR_MS, 'longer than a 15-min interval');
   assert.equal(failureBackoffMs(6, wu, 3 * HOUR_MS), HOUR_MS, 'and not the capped doubling either');
   assert.equal(failureBackoffMs(1, { code: 'x', retryAfterMs: 0 }, HOUR_MS), MIN, 'no delay: the usual backoff');

@@ -141,7 +141,7 @@ test('noticeForFailure: the neutral notice\'s watch line fits the watch for ever
     var p = providerFactory.createProvider(id, {});
     var failures = [
       { stage: 'provider_data', code: id + '_status_503' },
-      { stage: 'provider_data', code: id + '_refused_401', retryAfterMs: 3600000 }
+      { stage: 'provider_data', code: id + '_status_401', retryAfterMs: 3600000 }
     ];
     failures.forEach(function (f) {
       var n = notices.noticeForFailure(f, p.name, 1, 2, p.shortName);
@@ -163,7 +163,7 @@ test('noticeForFailure: the neutral notice\'s watch line fits the watch for ever
 });
 
 test('noticeForFailure: a provider\'s own retry delay raises the neutral notice at once, saying when it retries', function () {
-  var wu = notices.noticeForFailure({ stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: 3600000 },
+  var wu = notices.noticeForFailure({ stage: 'provider_data', code: 'wu_current_status_401', retryAfterMs: 3600000 },
     'Weather Underground', 900, undefined, 'Wunderground');
   assert.deepStrictEqual(wu, {
     key: 'unavailable', type: 'error', watch: 'Wunderground not answering', whenStale: true, since: 900,
