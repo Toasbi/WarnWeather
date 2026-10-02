@@ -3046,8 +3046,9 @@ module.exports = {
                 // The own key's empty field, said where it cannot be missed: an amber note
                 // hugging the row while "Rainbow (own key)" or Tomorrow.io is picked with no
                 // key. For DWD and Met.no the same note says when the last update's location
-                // lies outside the picked source's area, naming one that covers it
-                // (radar-coverage.js; the phone's record userData.radarCoverage). textFrom
+                // lies outside the picked source's area, or (DWD) inside it with no radar
+                // data from DWD, naming one that covers it (radar-coverage.js; the phone's
+                // record userData.radarCoverage). textFrom
                 // answers '' otherwise. It follows the picker's own gate, so radar off hides
                 // it with the row.
                 type: 'staticText',

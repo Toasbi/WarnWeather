@@ -953,6 +953,87 @@ test('radar: a place outside DWD\'s composite asks nothing, sends the clear with
     assert.equal(store[KEYS.RADAR_COVERAGE_KEY], JSON.stringify({ dwd: false, metno: true }));
 });
 
+test('radar: inside DWD\'s box the second 404 in a row says "DWD: no radar data"; leaving and entering the box start afresh', () => {
+    resetStore();
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'dwd' };
+    const h = makeHarness({ settings: settings, watchInfo: BASALT });
+    const NO_DATA = Object.assign({ RAIN_RADAR_LIMITED: 'DWD: no radar data' }, CLEAR);
+    const OUTSIDE = Object.assign({ RAIN_RADAR_LIMITED: 'DWD radar: Germany only' }, CLEAR);
+    const PARIS = [48.85, 2.35];
+    const MIAMI = [25.76, -80.19];
+    /**
+     * One update at `place`: DWD answers `radar` (an HTTP status to fail with, or a body)
+     * when asked, then the forecast succeeds.
+     * @returns {Object} The radar keys the forecast extras carried.
+     */
+    function update(place, radar) {
+        const asked = radarRequests.length;
+        h.advance(HOUR);
+        assert.equal(h.cycle.start(false), true);
+        h.provider.fix(place[0], place[1]);
+        if (radar !== undefined) {
+            const req = radarRequests[asked];
+            if (typeof radar === 'number') { req.onError({ code: 'status_' + radar, detail: 'http_status' }); }
+            else { req.onSuccess(JSON.stringify(radar)); }
+        }
+        assert.equal(radarRequests.length, asked + (radar === undefined ? 0 : 1), 'a request inside the box only');
+        const extras = h.provider.lastForecast().extras;
+        h.provider.succeed();
+        const out = {};
+        Object.keys(extras).filter((k) => k.indexOf('RAIN_RADAR_') === 0).forEach((k) => { out[k] = extras[k]; });
+        return out;
+    }
+    const record = () => JSON.parse(store[KEYS.RADAR_COVERAGE_KEY]);
+
+    assert.deepEqual(update(PARIS, 404), {}, 'one 404 alone changes nothing: no radar keys');
+    assert.deepEqual(record(), { dwd: false, metno: true, misses: { dwd: 1 } }, 'no position, and no note yet');
+    assert.deepEqual(update(PARIS, 404), NO_DATA, 'the second in a row: the clear with the general line');
+    assert.deepEqual(record(), { dwd: false, metno: true, misses: { dwd: 2 } }, 'inside the box, no data: the note\'s record');
+    assert.deepEqual(update(PARIS, 503), {}, 'a 5xx between keeps what the watch shows');
+    assert.deepEqual(update(PARIS, 404), NO_DATA, 'and the run');
+
+    assert.deepEqual(update(MIAMI), OUTSIDE, 'leaving the box: no request, the coverage line');
+    assert.deepEqual(record(), { dwd: true, metno: true }, 'and the run is over');
+    assert.deepEqual(update(PARIS, 404), {}, 'entering it again: a first 404 once more');
+    assert.deepEqual(update(PARIS, 404), NO_DATA);
+
+    const back = update(PARIS, { latlon_position: { x: 0, y: 0 }, radar: [] });
+    assert.deepEqual(back.RAIN_RADAR_TREND_UINT8, new Array(24).fill(0), 'radar data: a window again, no line');
+    assert.equal('RAIN_RADAR_LIMITED' in back, false);
+    assert.deepEqual(record(), { dwd: false, metno: true }, 'the count and the note are gone');
+    assert.deepEqual(update(PARIS, 404), {}, 'a later 404 is a first one');
+
+    // The second 404 with a failed forecast: the line still reaches the watch.
+    h.advance(HOUR);
+    h.cycle.start(false);
+    h.provider.fix(PARIS[0], PARIS[1]);
+    radarRequests[radarRequests.length - 1].onError({ code: 'status_404', detail: 'http_status' });
+    h.calls.sendWeather.length = 0;
+    h.provider.fail({ stage: 'provider_data', code: 'fake_parse_error' });
+    assert.deepEqual(h.calls.sendWeather, [Object.assign({}, NO_DATA, SKY_CLEAR)]);
+});
+
+test('radar: switching from DWD to another radar source ends DWD\'s run of 404s', () => {
+    resetStore();
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'dwd' };
+    const h = makeHarness({ settings: settings, watchInfo: BASALT });
+    [0, 1].forEach(function (i) {
+        h.advance(HOUR);
+        h.cycle.start(false);
+        h.provider.fix(48.85, 2.35);
+        radarRequests[i].onError({ code: 'status_404', detail: 'http_status' });
+        h.provider.succeed();
+    });
+    assert.deepEqual(JSON.parse(store[KEYS.RADAR_COVERAGE_KEY]).misses, { dwd: 2 });
+    h.setSettings(Object.assign({}, settings, { radarMode: 'off' }));
+    h.advance(HOUR);
+    h.cycle.start(false);
+    h.provider.fix(48.85, 2.35);
+    h.provider.succeed();
+    assert.deepEqual(JSON.parse(store[KEYS.RADAR_COVERAGE_KEY]), { dwd: false, metno: true },
+        'radar off asked DWD nothing: picking DWD again shows no stale note');
+});
+
 test('coordinates: a failed fix is recorded and tracked, and starts no radar, forecast, send or sleep commit', () => {
     resetStore();
     const settings = Object.assign(

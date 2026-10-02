@@ -366,7 +366,9 @@ function createFetchCycle(deps) {
      * (radarWire.limitedRadarTuples), which rides the send in place of the three
      * radar arrays. A place outside a regional source's area (radar-coverage.js)
      * gets the clear with the source's line (radarWire.outOfCoverageRadarTuples),
-     * shipped normally, and the verdicts are kept for the settings page. A
+     * shipped normally, as does one inside DWD's area that DWD sends no radar data
+     * for (its second 404 in a row, "DWD: no radar data"); the verdicts and that run
+     * of 404s are kept for the settings page. A
      * throttled source re-serves its slot's answer (a real window, the limit notice
      * or the clear), or answers null (no RAIN_RADAR_* keys, like a dedupe skip)
      * when the slot's request got none of them; the sky rows still ride.
@@ -451,8 +453,9 @@ function createFetchCycle(deps) {
             skySource.fetchSkyTupleAt(lat, lon, slotZeroEpoch, cb);
         }, function (tuples) {
             // Which regional radar sources can see this place (no position kept), for the
-            // settings page's note under the Radar provider row.
-            radarCoverage.remember(lat, lon, radarId, radarWire.isOutOfCoverageRadarTuples(tuples));
+            // settings page's note under the Radar provider row; an update that did not
+            // ask DWD ends its run of 404s.
+            radarCoverage.remember(lat, lon, radarId, tuples);
             callback(tuples);
         });
     }

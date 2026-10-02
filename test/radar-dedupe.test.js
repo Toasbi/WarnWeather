@@ -151,6 +151,18 @@ test('out of coverage → out of coverage → unchanged; another line → change
   assert.equal(radarComparator(OUTSIDE, Object.assign({}, OUTSIDE, { RAIN_RADAR_LIMITED: 'Met.no radar: Nordics only' })), true);
 });
 
+// DWD's no-data answer (its second 404 in a row from inside its area) is the same clear
+// with the general line: sent once while the 404s go on, and replaced by any other answer.
+const NO_DATA = Object.assign({}, OUTSIDE, { RAIN_RADAR_LIMITED: 'DWD: no radar data' });
+
+test('no data → no data → unchanged; the coverage line, the clear or a window around it → changed', () => {
+  assert.equal(radarComparator(NO_DATA, Object.assign({}, NO_DATA)), false);
+  [OUTSIDE, CLEAR, LIMITED, subset(zeros(), zeros(), REAL_START), null].forEach((other) => {
+    assert.equal(radarComparator(NO_DATA, other), true, JSON.stringify(other));
+    if (other) { assert.equal(radarComparator(other, NO_DATA), true, 'back: ' + JSON.stringify(other)); }
+  });
+});
+
 test('the clear, the limit notice or a window → out of coverage → changed, and back', () => {
   [CLEAR, LIMITED, subset(zeros(), zeros(), REAL_START), null].forEach((other) => {
     assert.equal(radarComparator(OUTSIDE, other), true, JSON.stringify(other));

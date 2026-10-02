@@ -590,6 +590,26 @@ test('page: DWD picked while the last update\'s location lies outside its area â
   assert.match(page.scroll.innerHTML, /Met\.no radar only covers the Nordic countries, and your location is outside it\./);
 });
 
+test('page: DWD picked while it sends no radar data for the place (its second 404 in a row) â€” the general note', () => {
+  const userData = { radarCoverage: JSON.stringify({ dwd: false, metno: true, misses: { dwd: 2 } }) };
+  const page = bootGeneratedPage({ provider: 'openmeteo', radarMode: 'graph', radarProvider: 'dwd' }, 'basalt', { userData });
+  page.clickTab('radar');
+  const note = '<div class="static join info"><div class="info-box">DWD sends no radar data for your location '
+    + 'right now. Rainbow covers the whole world.</div></div>';
+  assert.ok(page.scroll.innerHTML.indexOf(note) !== -1, 'the amber note hugs the row');
+  assert.doesNotMatch(page.scroll.innerHTML, /only covers/, 'not the out-of-area one');
+  page.openSelect('radarProvider');
+  page.pickOption('radarProvider', 'rainbow');
+  assert.doesNotMatch(page.scroll.innerHTML, /sends no radar data/, 'a worldwide source: no note');
+});
+
+test('page: one 404 alone puts no note under the DWD row', () => {
+  const userData = { radarCoverage: JSON.stringify({ dwd: false, metno: true, misses: { dwd: 1 } }) };
+  const page = bootGeneratedPage({ provider: 'openmeteo', radarMode: 'graph', radarProvider: 'dwd' }, 'basalt', { userData });
+  page.clickTab('radar');
+  assert.doesNotMatch(page.scroll.innerHTML, /sends no radar data|only covers/);
+});
+
 test('page: no note while the place is inside, with no record yet, or with radar off', () => {
   const inside = { radarCoverage: JSON.stringify({ dwd: false, metno: true }) };
   const dwd = { provider: 'openmeteo', radarMode: 'graph', radarProvider: 'dwd' };

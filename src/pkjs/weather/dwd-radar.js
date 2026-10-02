@@ -226,10 +226,14 @@ function frameSlot(frame, index, slotZeroEpoch) {
  * single per-cycle acquisition in the orchestrator. A place outside DWD's
  * composite (radar-coverage.js: a box around Germany) gets no request: the
  * out-of-coverage answer, so the watch says "DWD radar: Germany only". A
- * parse/transport failure or missing fields calls back null (transient: the
- * watch keeps and self-advances its last window — see radar-fetch.js; a 404
- * from a point inside the box but off the grid stays one of these); an empty
- * frame list ships the flat 24-zero signal.
+ * 404 from a point inside the box is a miss (radar-coverage.js): Brightsky has
+ * no radar picture there (off the grid: Paris, Vienna) or hiccuped. The first
+ * calls back null; from the second in a row the answer is the clear carrying
+ * "DWD: no radar data" (radarWire.outOfCoverageRadarTuples), until an answer
+ * with radar data ends the run. Any other parse/transport failure or missing
+ * fields calls back null (transient: the watch keeps and self-advances its
+ * last window — see radar-fetch.js) and leaves a run of misses as it is; an
+ * empty frame list ships the flat 24-zero signal.
  *
  * @param {number} lat Latitude in decimal degrees.
  * @param {number} lon Longitude in decimal degrees.
@@ -245,12 +249,26 @@ function fetchRadarTuplesAt(lat, lon, slotZeroEpoch, callback) {
     }
     radarFetch.fetchRadarJson({
         url: buildRadarUrl(lat, lon, slotZeroEpoch),
-        label: 'DWD'
+        label: 'DWD',
+        onTransportError: function (error, cb) {
+            if (!error || error.code !== 'status_404') { return false; }
+            if (radarCoverage.countMiss('dwd')) {
+                console.log('[!] DWD radar: 404 again, no radar data for this location');
+                cb(radarWire.outOfCoverageRadarTuples(radarCoverage.noDataText('dwd')));
+            } else {
+                console.log('[!] DWD radar: 404, taken as transient this once');
+                cb(null);
+            }
+            return true;
+        }
     }, function (body) {
         if (!body || !Array.isArray(body.radar)) {
             console.log('[!] DWD radar: missing fields');
             return null;
         }
+        // Brightsky answered with radar data for the place (frames, or none for this
+        // window): a run of 404s is over.
+        radarCoverage.endMisses('dwd');
         if (body.radar.length === 0) {
             // No frames for this window — a flat signal rather than a failure.
             return radarWire.flatRadarTuples(slotZeroEpoch);

@@ -198,8 +198,9 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // status under the Radar provider row's "Rainbow (own key)" reads it.
         radarKeyResult: localStorage.getItem(KEY_RADAR_KEY_RESULT),
         // Which regional radar sources can see the last update's location
-        // (radar-coverage.js: {dwd, metno}, true = outside; never the position), or null:
-        // the amber note under the Radar provider row while the picked one cannot.
+        // (radar-coverage.js: {dwd, metno}, true = outside, plus DWD's run of 404s; never
+        // the position), or null: the amber note under the Radar provider row while the
+        // picked one cannot.
         radarCoverage: localStorage.getItem(KEY_RADAR_COVERAGE),
         // Day totals + the newest events, never the raw 7-day log: that pushed the
         // data: URL past Android's 2 MiB cap at short update intervals (dev-stats.js).

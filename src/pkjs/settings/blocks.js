@@ -1794,8 +1794,9 @@ if (typeof require !== 'undefined') {
     /**
      * The amber note under the Radar provider row (its staticText's textFrom): the picked
      * source's missing key (key-status.js keyMissingNote), else — for DWD or Met.no — the
-     * last update's location outside that source's area (radar-coverage.js note, from the
-     * phone's record userData.radarCoverage). '' when neither: no note.
+     * last update's location outside that source's area, or for DWD inside it with no
+     * radar data from DWD (its 404s in a row) (radar-coverage.js note, from the phone's
+     * record userData.radarCoverage). '' when neither: no note.
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {Object} args The row's key-status args (RADAR_KEY_ARGS).

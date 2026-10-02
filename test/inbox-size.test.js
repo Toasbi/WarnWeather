@@ -284,19 +284,28 @@ test('the radar limit notice rides alone, so a limited bundle is lighter than th
 // The out-of-coverage answer (radar-wire.js outOfCoverageRadarTuples) is the clear plus
 // the source's line: 7 + 0 + 7 + 0 + 7 + 4 = 25 B of empty arrays and a zero start, and
 // a 7 B header + at most 31 B of line + NUL, so at most 64 B in place of the window's
-// 73 B: an out-of-coverage bundle is never heavier than the heaviest.
-test('the out-of-coverage answer is lighter than the radar window it replaces', () => {
+// 73 B: an out-of-coverage bundle is never heavier than the heaviest. The same shape
+// carries DWD's no-data line (its second 404 in a row from inside its area).
+test('the out-of-coverage and no-data answers are lighter than the radar window they replace', () => {
   const radarWire = require('../src/pkjs/weather/radar-wire.js');
   const radarCoverage = require('../src/pkjs/weather/radar-coverage.js');
+  const lines = [];
   Object.keys(radarCoverage.COVERAGE).forEach(function(id) {
-    const line = radarCoverage.watchText(id);
-    assert.ok(Buffer.byteLength(line) <= 31, id + ': within the watch\'s 32 B notice buffer');
+    lines.push([id, radarCoverage.watchText(id)]);
+    if (radarCoverage.noDataText(id)) { lines.push([id + ' no data', radarCoverage.noDataText(id)]); }
+  });
+  assert.deepEqual(lines.map(function(l) { return l[1]; }),
+    ['DWD radar: Germany only', 'DWD: no radar data', 'Met.no radar: Nordics only']);
+  lines.forEach(function(entry) {
+    const label = entry[0];
+    const line = entry[1];
+    assert.ok(Buffer.byteLength(line) <= 31, label + ': within the watch\'s 32 B notice buffer');
     ['emery', 'aplite'].forEach(function(platform) {
       const heaviest = buildHeaviestBundle(platform);
       const outside = Object.assign({}, heaviest, radarWire.outOfCoverageRadarTuples(line));
       const size = dictSize(buildWeatherOutboxPayload(outside));
-      assert.equal(size, dictSize(heaviest) - 73 + 25 + 7 + Buffer.byteLength(line) + 1, platform + ' ' + id);
-      assert.ok(size < dictSize(heaviest), platform + ' ' + id + ': lighter than the heaviest');
+      assert.equal(size, dictSize(heaviest) - 73 + 25 + 7 + Buffer.byteLength(line) + 1, platform + ' ' + label);
+      assert.ok(size < dictSize(heaviest), platform + ' ' + label + ': lighter than the heaviest');
     });
   });
 });

@@ -134,8 +134,8 @@ module.exports = {
     // quiet; a success, another kind of failure or another provider ends the run.
     SERVER_FAILURE_STREAK_KEY: 'serverFailureStreak',
     // Which regional radar sources can see the last update's location ({dwd, metno}:
-    // true = outside its area; weather/radar-coverage.js), never the position itself. The
-    // settings page reads it as userData.radarCoverage for the note under the Radar
-    // provider row.
+    // true = outside its area; plus misses: {dwd: n}, DWD's 404s in a row from inside its
+    // area; weather/radar-coverage.js), never the position itself. The settings page reads
+    // it as userData.radarCoverage for the note under the Radar provider row.
     RADAR_COVERAGE_KEY: 'radarCoverage'
 };

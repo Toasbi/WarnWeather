@@ -86,9 +86,11 @@ function isLimitedRadarTuples(tuples) {
 
 /**
  * The OUT-OF-COVERAGE answer: the place lies outside the radar source's area
- * (radar-coverage.js), so it has no rain to report there, now or later. The clear
- * (no window to keep or roll forward) with the source's line as the notice, so the
- * watch's radar says why it is empty instead of "no rain". Lighter than a window
+ * (radar-coverage.js), so it has no rain to report there, now or later; or it lies
+ * inside DWD's and DWD sends no radar data for it (its second 404 in a row,
+ * radar-coverage.js misses). The clear (no window to keep or roll forward) with the
+ * source's line as the notice ("DWD radar: Germany only", "DWD: no radar data"), so
+ * the watch's radar says why it is empty instead of "no rain". Lighter than a window
  * (25 B of empty arrays and a zero start, plus the line's tuple, against the
  * window's 73 B), so it never makes the heaviest weather bundle heavier.
  *
