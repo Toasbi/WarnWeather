@@ -73,6 +73,11 @@
 # the eighth did): basalt +8 B (59312 -> 59320), diorite/flint +4 B (57116 -> 57120), all
 # .text in forecast_update_proc (the floor's compare); .data/.bss and its stack frame
 # unchanged.
+# Lowered since: a metric line comes down to the zero row next to a reading (owner,
+# 2026-10-02; chart_runs.h CHART_ZERO_JOIN). The Main line over its fill now computes its
+# own vertices instead of riding the fill's contour, so ChartLineLayer lost its
+# precomputed-points pointer and every ChartLayer 4 B (.bss -128 B on each); .text basalt
+# -28 B, diorite/flint 0 B: basalt 59320 -> 59164, diorite/flint 57120 -> 56992.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -89,9 +94,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59320}"
-  "diorite:${DIORITE_IMAGE_CEILING:-57120}"
-  "flint:${FLINT_IMAGE_CEILING:-57120}"
+  "basalt:${BASALT_IMAGE_CEILING:-59164}"
+  "diorite:${DIORITE_IMAGE_CEILING:-56992}"
+  "flint:${FLINT_IMAGE_CEILING:-56992}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).
