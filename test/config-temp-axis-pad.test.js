@@ -44,9 +44,9 @@ const NONE = { secondaryLine: 'pressure', secondaryLineFill: false, thirdLine: '
 // On Alert the preview redraws the sample against the levels (preview-forecast.js
 // alertSamples), so it still draws, as a line, marks or a stripe: the preview never meets an
 // element with nothing above 0, whose rule test/c/temp_axis_pad_test.c pins on the watch.
-const UV_HIGH = { uvLineOnlyAlert: 'alert', threshUvWarn: 10, threshUvDanger: 11 };
+const UV_HIGH = { uvLineShow: 'alert', threshUvWarn: 10, threshUvDanger: 11 };
 // The same line with a warn level the afternoon reaches.
-const UV_SOME = { uvLineOnlyAlert: 'alert', threshUvWarn: 3, threshUvDanger: 11 };
+const UV_SOME = { uvLineShow: 'alert', threshUvWarn: 3, threshUvDanger: 11 };
 
 /**
  * The temperature curve's vertices (the M point and each cubic's end point), in order.

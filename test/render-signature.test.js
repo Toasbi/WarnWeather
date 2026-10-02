@@ -302,7 +302,7 @@ test('the weather bake is identical with every Draw from / Bars from on Top', ()
     const LINES = [
       { secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'gust', fifthLine: 'uv' },
       { secondaryLine: 'cloud', thirdLine: 'uv', fourthLine: 'off', fifthLine: 'wind',
-        windLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert' }
+        windLineShow: 'alert', uvLineShow: 'alert' }
     ];
     const STYLES = [{}, { secondaryLineStyle: 'bold', thirdLineStyle: 'x', fifthLineStyle: 'stripeTop' }];
     let compared = 0;

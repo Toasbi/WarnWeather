@@ -294,7 +294,7 @@ if (typeof require !== 'undefined') {
      *   printed ('UV 6', '40 kph'); null when the line is not drawn or shows All.
      */
     function alertScaleLevels(metric, S, env) {
-        if (!S || !lineAlert.onlyAlertOn(S, metric)) { return null; }
+        if (!S || !lineAlert.showsAlert(S, metric)) { return null; }
         var band = lineAlert.alertBands(S, Boolean(env && env.lineStyles),
             lineAlert.alertsDrawn(env))[metric];
         if (!band) { return null; }
@@ -429,9 +429,8 @@ if (typeof require !== 'undefined') {
      * The Visible values row's hint (internally the Show row: line-alert.js), for the
      * selected value only: All draws the whole line, Alert only where the value reaches
      * the warn level, named in the unit the Alert levels are set in — on the UV line
-     * followed by the scale it then runs over (showAlertScale). A value the page has not
-     * healed yet (a dev phone's true or false) reads the way the bake reads it
-     * (line-alert.js showValue).
+     * followed by the scale it then runs over (showAlertScale). The value reads the
+     * way the bake reads it (line-alert.js showValue: anything but 'alert' is All).
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env (the scale's: which lines and styles it draws).
      * @param {{value: *, metric: string}} args The row's shown value and its metric.

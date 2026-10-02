@@ -186,7 +186,7 @@ const ROUNDING = 2 * PLOT_H / 1000;
  */
 function sharedState(over) {
   return lineState('wind', Object.assign({ thirdLine: 'gust', thirdLineStyle: 'line',
-    windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' }, over));
+    windLineShow: 'alert', gustLineShow: 'alert' }, over));
 }
 
 /**
@@ -283,14 +283,14 @@ test('wind and gusts on Alert at equal, close or crossed levels draw as two line
 test('a sample on Alert peaks under its band\'s top and starts at the warn level', () => {
   // Gusts at the seed levels in kph: warn 65, danger 90 tops the Mid scale's 50. The plain
   // sample's middle (29 kph) maps to the warn level, its peak (36) 90 % of the way to the top.
-  const S = { secondaryLine: 'gust', gustLineOnlyAlert: 'alert', windScale: 'mid' };
+  const S = { secondaryLine: 'gust', gustLineShow: 'alert', windScale: 'mid' };
   const shown = FC.alertSamples(S, lineAlert.alertBands(S, true, true), SAMPLES).gust;
   assert.equal(shown[10], 65 + 0.9 * (90 - 65), 'the peak');
   assert.ok(shown.every((v) => v <= 90), 'never past the top');
   assert.ok(shown.filter((v) => v >= 65).length === 6 && shown.filter((v) => v < 65 / 2).length === 6,
     'six hours from the warn level up, the other six under half of it');
   // UV at warn 6: the morning's 4 is the warn level itself, the hour drawn at the band's bottom.
-  const U = { secondaryLine: 'uv', uvLineOnlyAlert: 'alert' };
+  const U = { secondaryLine: 'uv', uvLineShow: 'alert' };
   assert.equal(FC.alertSamples(U, lineAlert.alertBands(U, true, true), SAMPLES).uv[2], 6);
 });
 
@@ -298,10 +298,10 @@ test('All, and a watch without Alert settings, keep the plain samples, the very 
   const plain = [
     { secondaryLine: 'wind' }, { secondaryLine: 'gust', thirdLine: 'uv' },
     // Alert stored on a metric that is not drawn.
-    { secondaryLine: 'wind', gustLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert' },
-    { secondaryLine: 'precip_prob', thirdLine: 'cloud', windLineOnlyAlert: 'alert' },
+    { secondaryLine: 'wind', gustLineShow: 'alert', uvLineShow: 'alert' },
+    { secondaryLine: 'precip_prob', thirdLine: 'cloud', windLineShow: 'alert' },
     // On the Fourth metric picker of a watch without it.
-    { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'gust', gustLineOnlyAlert: 'alert' }
+    { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'gust', gustLineShow: 'alert' }
   ];
   plain.forEach((S) => {
     const shown = FC.alertSamples(S, lineAlert.alertBands(S, false, true), SAMPLES);
@@ -317,7 +317,7 @@ test('All, and a watch without Alert settings, keep the plain samples, the very 
   // Alert stored for a line that is not drawn leaves the preview as it was.
   const S = { secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'off' };
   [BASALT, DIORITE, EMERY].forEach((env) => {
-    assert.equal(FC.forecastPreview(Object.assign({ windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert',
-      uvLineOnlyAlert: 'alert' }, S), env), FC.forecastPreview(S, env), env.platform);
+    assert.equal(FC.forecastPreview(Object.assign({ windLineShow: 'alert', gustLineShow: 'alert',
+      uvLineShow: 'alert' }, S), env), FC.forecastPreview(S, env), env.platform);
   });
 });

@@ -14,10 +14,9 @@
 // A watch without Alert settings (aplite: no WW_ON_DEMAND) hides the row and always
 // draws All (alertsDrawn).
 //
-// THE SETTING. One key per metric (METRICS), holding 'all' or 'alert' (SHOW_ALL,
-// SHOW_ALERT). The first build stored a switch there, true or false, which never
-// shipped; showValue reads a dev phone's true as 'alert' and anything else as 'all', and
-// the settings page writes the string back on its next Save (onbuild.js), no migration.
+// THE SETTING. One key per metric (METRICS: <metric>LineShow), holding 'all' or 'alert'
+// (SHOW_ALL, SHOW_ALERT); showValue reads anything but 'alert' as 'all'. The settings
+// page labels the row "Visible values".
 //
 // THE BAND (alertBand). Bottom: the metric's warn level in the series' unit (km/h for
 // wind and gusts, UV x 10 for UV). Top: the higher of the scale the line has with All
@@ -53,12 +52,11 @@
     var KMH_PER_WIND_UNIT = { kph: 1, mph: 1.60934, kn: 1.852 };
 
     // The metrics whose line has a Show row, each with its setting and its Alert levels'
-    // key stem. `wind`: it rides the Wind graph scale. The keys keep the first build's
-    // names (the switch was "Only alert"); only the stored type changed.
+    // key stem. `wind`: it rides the Wind graph scale.
     var METRICS = {
-        wind: { key: 'windLineOnlyAlert', stem: 'Wind', wind: true },
-        gust: { key: 'gustLineOnlyAlert', stem: 'Gust', wind: true },
-        uv: { key: 'uvLineOnlyAlert', stem: 'Uv', wind: false }
+        wind: { key: 'windLineShow', stem: 'Wind', wind: true },
+        gust: { key: 'gustLineShow', stem: 'Gust', wind: true },
+        uv: { key: 'uvLineShow', stem: 'Uv', wind: false }
     };
     var METRIC_IDS = ['wind', 'gust', 'uv'];
     // The Show row's two values: every value (the default), or only where it reaches
@@ -77,7 +75,7 @@
 
     /**
      * @param {*} metric A graph metric id.
-     * @returns {?string} its Show setting key, e.g. 'windLineOnlyAlert'; null for a
+     * @returns {?string} its Show setting key, e.g. 'windLineShow'; null for a
      *     metric without one
      */
     function settingKey(metric) {
@@ -86,14 +84,13 @@
     }
 
     /**
-     * A stored Show value as the line draws it: 'alert' for 'alert', and for the true a
-     * dev phone kept from the first build's switch; 'all' for anything else (absent,
-     * 'all', that switch's false, junk).
+     * A stored Show value as the line draws it: 'alert' for 'alert'; 'all' for anything
+     * else (absent, 'all', junk).
      * @param {*} v The stored value.
      * @returns {string} SHOW_ALL or SHOW_ALERT.
      */
     function showValue(v) {
-        return (v === SHOW_ALERT || v === true) ? SHOW_ALERT : SHOW_ALL;
+        return v === SHOW_ALERT ? SHOW_ALERT : SHOW_ALL;
     }
 
     /**
@@ -113,7 +110,7 @@
      * @param {*} metric A graph metric id.
      * @returns {boolean}
      */
-    function onlyAlertOn(settings, metric) {
+    function showsAlert(settings, metric) {
         return showOf(settings, metric) === SHOW_ALERT;
     }
 
@@ -230,12 +227,12 @@
      * @returns {?{bottom: number, top: number, topDanger: ?string}}
      */
     function alertBand(settings, metric, drawn) {
-        if (!onlyAlertOn(settings, metric)) { return null; }
+        if (!showsAlert(settings, metric)) { return null; }
         var members = [metric];
         if (metaOf(metric).wind) {
             var other = metric === 'wind' ? 'gust' : 'wind';
             // In one fixed order, so the two lines' shared band is one and the same.
-            if (drawn.indexOf(other) !== -1 && onlyAlertOn(settings, other)) { members = ['wind', 'gust']; }
+            if (drawn.indexOf(other) !== -1 && showsAlert(settings, other)) { members = ['wind', 'gust']; }
         }
         var bottom = Infinity, highestDanger = -Infinity, dangerOf = null;
         for (var i = 0; i < members.length; i++) {
@@ -380,9 +377,8 @@
     /**
      * What the render signature signs: the drawn metrics set to Show: Alert, on a watch
      * that draws every line and has Alert settings (the bake's platform gates at worst
-     * cost aplite one redundant fetch). A dev phone's stored true and the 'alert' its
-     * next Save writes sign the same, so that Save forces no fetch. Each band's other inputs — the lines, windScale, windUnits and
-     * the resolved Alert levels pairs — are signed on their own.
+     * cost aplite one redundant fetch). Each band's other inputs — the lines, windScale,
+     * windUnits and the resolved Alert levels pairs — are signed on their own.
      * @param {Object} settings Clay settings blob.
      * @returns {string} e.g. 'wind,uv'; '' for none.
      */
@@ -390,7 +386,7 @@
         var drawn = drawnMetrics(settings, true);
         var out = [];
         for (var i = 0; i < drawn.length; i++) {
-            if (onlyAlertOn(settings, drawn[i])) { out.push(drawn[i]); }
+            if (showsAlert(settings, drawn[i])) { out.push(drawn[i]); }
         }
         return out.join(',');
     }
@@ -405,7 +401,7 @@
         settingKey: settingKey,
         showValue: showValue,
         showOf: showOf,
-        onlyAlertOn: onlyAlertOn,
+        showsAlert: showsAlert,
         alertsDrawn: alertsDrawn,
         shownNumber: shownNumber,
         reachesWarn: reachesWarn,

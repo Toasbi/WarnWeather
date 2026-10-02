@@ -274,16 +274,16 @@ test('a Visible values: Alert line that hangs names its start "Graph top"', () =
   const env = { lineStyles: true };
   [['kph', 'Graph top = 65 kph, full height = 90 kph.'], ['mph', 'Graph top = 40 mph, full height = 55 mph.'],
     ['knots', 'Graph top = 35 kn, full height = 50 kn.']].forEach(([windUnits, want]) => {
-    const S = { secondaryLine: 'gust', thirdLine: 'off', windUnits, gustLineOnlyAlert: 'alert' };
+    const S = { secondaryLine: 'gust', thirdLine: 'off', windUnits, gustLineShow: 'alert' };
     assert.equal(B.lineStyleHint('gust', 'line', Object.assign({ windLineFrom: 'top' }, S), env), want, windUnits);
     assert.equal(B.lineStyleHint('gust', 'line', S, env), want.replace('Graph top', 'Graph bottom'), windUnits + ' Bottom');
   });
-  assert.equal(B.lineStyleHint('uv', 'dots', { secondaryLine: 'uv', uvLineOnlyAlert: 'alert', uvLineFrom: 'top' }, env),
+  assert.equal(B.lineStyleHint('uv', 'dots', { secondaryLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' }, env),
     'Graph top = UV 6, full height = UV 11. Aligned to the rain bars.');
   // A stripe keeps its colour wording; aplite (no line styles) never hangs.
-  assert.equal(B.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineOnlyAlert: 'alert', uvLineFrom: 'top' }, env),
+  assert.equal(B.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' }, env),
     'Faintest colour = UV 6, full colour from UV 10.5. One cell per hour.');
-  assert.equal(B.forecastMetricHint('uv', { lineStyles: false }, { secondaryLine: 'uv', uvLineOnlyAlert: 'alert',
+  assert.equal(B.forecastMetricHint('uv', { lineStyles: false }, { secondaryLine: 'uv', uvLineShow: 'alert',
     uvLineFrom: 'top' }), 'Graph bottom = UV 6, full height = UV 11.');
 });
 
@@ -371,7 +371,7 @@ test('forecast preview: a hanging line is the mirror of its standing line over t
 });
 
 test('forecast preview: a Visible values: Alert line hangs from its band too', () => {
-  const S = Object.assign({}, BASE, { secondaryLine: 'uv', uvLineOnlyAlert: 'alert', threshUvWarn: '3',
+  const S = Object.assign({}, BASE, { secondaryLine: 'uv', uvLineShow: 'alert', threshUvWarn: '3',
     threshUvDanger: '8' });
   const stand = strokeYs(FC.forecastPreview(S, COLOR), STROKE.uv);
   const hang = strokeYs(FC.forecastPreview(Object.assign({ uvLineFrom: 'top' }, S), COLOR), STROKE.uv);

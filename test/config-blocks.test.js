@@ -558,7 +558,7 @@ test('a metric line\'s smoothed curve never swings past the zero row it comes do
   [['bottom', (y) => y <= 94], ['top', (y) => y >= 4]].forEach(([from, inside]) => {
     const svg = FC.forecastPreview(
       { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false, uvLineFrom: from,
-        uvLineOnlyAlert: 'alert', threshUvWarn: '6', threshUvDanger: '8' },
+        uvLineShow: 'alert', threshUvWarn: '6', threshUvDanger: '8' },
       { color: true, platform: 'basalt', lineStyles: true });
     const d = /d="(M[^"]+)" fill="none" stroke="#FF00FF"/.exec(svg);
     assert.ok(d, from + ': the line draws');
@@ -602,7 +602,7 @@ test('Visible values: Alert — a stretch over the warn level rises off the warn
   // occurs in the preview's samples; lineRuns is held to the kernel's "0 5 0" vector for it.
   const svg = FC.forecastPreview(
     { barSource: 'off', secondaryLine: 'wind', windScale: 'mid', windUnits: 'kph', dayNightShading: false,
-      windLineOnlyAlert: 'alert', threshWindWarn: '25', threshWindDanger: '40' },
+      windLineShow: 'alert', threshWindWarn: '25', threshWindDanger: '40' },
     { color: true, platform: 'basalt', lineStyles: true });
   const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FFFF00"/g)].map((m) => pathVertices(m[1]));
   const slots = (p) => p.map((v) => Math.round((v[0] - 20) / (177 / 11)));

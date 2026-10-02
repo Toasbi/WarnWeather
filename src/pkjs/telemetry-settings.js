@@ -312,12 +312,12 @@ function buildSettingsSnapshot(settings, watchInfo) {
         secondaryLine: safe.secondaryLine,
         secondaryLineFill: Boolean(safe.secondaryLineFill),
         windScale: safe.windScale,
-        // The wind, gust and UV lines' Show, 'all' or 'alert' (line-alert.js showOf: a
-        // dev phone's old true reads 'alert'), as chosen: whether that metric is on a
-        // line at all is the four line fields here.
-        windLineOnlyAlert: lineAlert.showOf(safe, 'wind'),
-        gustLineOnlyAlert: lineAlert.showOf(safe, 'gust'),
-        uvLineOnlyAlert: lineAlert.showOf(safe, 'uv'),
+        // The wind, gust and UV lines' Show, 'all' or 'alert' (line-alert.js showOf:
+        // absent or junk reads 'all'), as chosen: whether that metric is on a line at
+        // all is the four line fields here.
+        windLineShow: lineAlert.showOf(safe, 'wind'),
+        gustLineShow: lineAlert.showOf(safe, 'gust'),
+        uvLineShow: lineAlert.showOf(safe, 'uv'),
         // Draw from / Bars from, 'bottom' or 'top' (draw-from.js value: absent or junk
         // reads 'bottom'), as chosen: whether such a line or those bars are drawn at
         // all is the line, style, barSource and radarMode fields beside them.

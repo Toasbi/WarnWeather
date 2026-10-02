@@ -11,8 +11,7 @@
  *
  * It also holds the few writes that move a tick (tickOn, untickFrom, untickEverywhere,
  * placeRainForCountdown), so the settings page's hooks and the upgrade migration move
- * ticks by the same rules they are read by, and the boot's fold of the retired side
- * switches (retireSideSwitches).
+ * ticks by the same rules they are read by.
  *
  * LOCKSTEP: ITEMS is the watch's OdItem order (src/c/appendix/on_demand.h: the priority
  * order and the wire order of the cells), BARS its ThreshBar order, and DEFAULTS for the
@@ -377,33 +376,6 @@
     return out;
   }
 
-  /**
-   * Fold away the retired side switches. A side used to be Enabled or Disabled on a key
-   * of its own (status<Bar>OnDemand<Side>: 'on' | 'off', beside its items list); now a
-   * side is on exactly while it ticks something. Only a development build ever stored
-   * them, no release did. A side stored Disabled showed nothing, so its ticks go and it
-   * stays showing nothing; then every switch key goes. Run on every boot by
-   * clay-settings.js seedDefaults, before anything reads the blob; with the keys gone it
-   * changes nothing. Mutates S.
-   * @param {Object} S Settings blob.
-   * @returns {boolean} whether anything changed
-   */
-  function retireSideSwitches(S) {
-    var changed = false;
-    if (!S) { return false; }
-    for (var b = 0; b < BARS.length; b++) {
-      for (var s = 0; s < SIDES.length; s++) {
-        var items = itemsKey(BARS[b].bar, SIDES[s]);
-        var key = items.replace(/Items$/, '');
-        if (!Object.prototype.hasOwnProperty.call(S, key)) { continue; }
-        if (S[key] === 'off') { S[items] = ''; }
-        delete S[key];
-        changed = true;
-      }
-    }
-    return changed;
-  }
-
   var api = {
     ITEMS: ITEMS,
     BARS: BARS,
@@ -427,7 +399,6 @@
     untickFrom: untickFrom,
     untickEverywhere: untickEverywhere,
     placeRainForCountdown: placeRainForCountdown,
-    retireSideSwitches: retireSideSwitches,
     batteryLevel: batteryLevel,
     batteryShowsValue: batteryShowsValue,
     telemetryCode: telemetryCode

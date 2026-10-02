@@ -199,9 +199,9 @@ const settingsSchema = z
     // showOf). DEPLOY-ORDERING: ship this function before the app release that sends
     // them, or the strip step drops them silently. z.string(), not z.enum: a future
     // Show value must not 400 the batch.
-    windLineOnlyAlert: z.string().optional(),
-    gustLineOnlyAlert: z.string().optional(),
-    uvLineOnlyAlert: z.string().optional(),
+    windLineShow: z.string().optional(),
+    gustLineShow: z.string().optional(),
+    uvLineShow: z.string().optional(),
     // Draw from / Bars from, 'bottom' or 'top' (1.24.0, src/pkjs/draw-from.js value).
     // DEPLOY-ORDERING: ship this function before the app release that sends them, or the
     // strip step drops them silently. z.string(), not z.enum: a future value must not 400

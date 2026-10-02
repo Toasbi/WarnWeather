@@ -12,7 +12,6 @@
 
 var settings = require('./settings');
 var KEYS = require('./storage-keys');
-var onDemand = require('./on-demand.js');   // retireSideSwitches (seedDefaults)
 
 var STORAGE_KEY = 'clay-settings';
 
@@ -257,12 +256,6 @@ function getDefaults(colors) {
  * Clay only considers `defaultValue` on first startup, but we need defaults
  * set even if the user has not made a custom config.
  *
- * It also folds away the retired On demand side switches (on-demand.js
- * retireSideSwitches): a fold with no marker, which only a development build's blob
- * ever needs, and which must land before anything reads the blob. This is the one
- * pass every boot makes over the stored blob before the ledger, the phone's reads and
- * the settings page.
- *
  * @param {{white: number, folly: number, holiday: number}} colors Default color constants.
  * @returns {void}
  */
@@ -298,7 +291,6 @@ function seedDefaults(colors) {
             persistClay[prop] = defaults[prop];
         }
     }
-    onDemand.retireSideSwitches(persistClay);
     // A settings save between the reset and this boot leaves a non-empty blob, so
     // the branch above never ran; the credentials are still parked and belong here.
     restorePreserved(persistClay);

@@ -208,24 +208,3 @@ test('telemetryCode: 40 letters, upper case only while the item shows', () => {
   assert.equal(code.slice(20, 30), '------l---', 'a bar the mode removes reads lower case');
   assert.equal(OD.telemetryCode({}, platform.computeEnv({platform: 'aplite'})), undefined);
 });
-
-test('retireSideSwitches: a Disabled side loses its ticks, every switch key goes, then nothing changes', () => {
-  const S = {
-    statusTopOnDemandLeft: 'on', statusTopOnDemandLeftItems: 'bt,qt',
-    statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,uv',
-    statusForecastOnDemandLeft: 'off', statusForecastOnDemandLeftItems: '',
-    statusHealthOnDemandRight: 'off'
-  };
-  const before = OD.telemetryCode(Object.assign({}, S, {statusTopOnDemandRightItems: ''}));
-  assert.equal(OD.retireSideSwitches(S), true);
-  assert.deepEqual(S, {
-    statusTopOnDemandLeftItems: 'bt,qt', statusTopOnDemandRightItems: '',
-    statusForecastOnDemandLeftItems: '', statusHealthOnDemandRightItems: ''
-  }, 'an Enabled side keeps its ticks; a Disabled one keeps showing nothing');
-  assert.equal(OD.telemetryCode(S), before, 'the watch shows what it showed');
-  assert.equal(OD.retireSideSwitches(S), false, 'the keys are gone: nothing left to do');
-  const clean = { statusTopOnDemandRightItems: 'battery' };
-  assert.equal(OD.retireSideSwitches(clean), false, 'a blob without them is left as stored');
-  assert.deepEqual(clean, { statusTopOnDemandRightItems: 'battery' });
-  assert.equal(OD.retireSideSwitches(null), false);
-});

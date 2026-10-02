@@ -208,7 +208,7 @@ test('a line, thick line, dots or x marks keep their exact bytes', () => {
 test('Show: Alert as a stripe: nothing below the warn level, level 1 from it, full from 90 % up the band', () => {
   // Gusts 65/90 kph (the seed) over the mid scale: the band is 65..90, full from 87.375.
   const settings = { secondaryLine: 'gust', secondaryLineStyle: 'stripeTop', thirdLine: 'off',
-    windScale: 'mid', barSource: 'off', gustLineOnlyAlert: 'alert' };
+    windScale: 'mid', barSource: 'off', gustLineShow: 'alert' };
   const band = lineAlert.alertBand(settings, 'gust', ['gust']);
   assert.deepEqual([band.bottom, band.top], [65, 90], 'premise: the seed band');
   const out = buildForecastSeries(Object.assign({}, RAW, { gusts: [0, 64, 65, 66, 72, 73, 79, 80, 87, 88, 120] }),
@@ -221,7 +221,7 @@ test('Show: Alert as a stripe: nothing below the warn level, level 1 from it, fu
   // level 1 from under the band's bottom; 7.4 / 7.5 are 28 / 30 %, 10.4 / 10.5 88 / 90 %.
   const uv = buildForecastSeries(Object.assign({}, RAW, { uvs: [0, 59, 60, 74, 75, 104, 105] }),
     { secondaryLine: 'uv', secondaryLineStyle: 'stripeBottom', thirdLine: 'off', barSource: 'off',
-      uvLineOnlyAlert: 'alert' }).SECONDARY_LINE_TREND_UINT8;
+      uvLineShow: 'alert' }).SECONDARY_LINE_TREND_UINT8;
   assert.deepEqual(uv, [NONE, L1, L1, L1, L2, L3, FULL]);
 });
 
@@ -309,8 +309,8 @@ test('the forecast preview shades each stripe cell at the level the bake sends',
     });
   });
   // Wind and gusts both drawn on Alert share one band.
-  cases.push({ secondaryLine: 'gust', thirdLine: 'wind', windScale: 'mid', windLineOnlyAlert: 'alert',
-    gustLineOnlyAlert: 'alert', threshWindWarn: '15', threshGustWarn: '30', threshGustDanger: '40' });
+  cases.push({ secondaryLine: 'gust', thirdLine: 'wind', windScale: 'mid', windLineShow: 'alert',
+    gustLineShow: 'alert', threshWindWarn: '15', threshGustWarn: '30', threshGustDanger: '40' });
   let drawn = 0;
   cases.forEach((c) => {
     const state = Object.assign({ thirdLine: 'off', barSource: 'off', secondaryLineStyle: 'stripeTop' }, c);
@@ -340,12 +340,12 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
     { secondaryLine: 'uv', secondaryLineStyle: 'stripeTop', thirdLine: 'off', barSource: 'off' });
   assert.deepEqual(uvAll.SECONDARY_LINE_TREND_UINT8, [L1, L2, L2, L3, L3, FULL]);
   // Show: Alert in kph: the named full-colour value is the bake's first full one.
-  [{ gustLineOnlyAlert: 'alert' }, { windLineOnlyAlert: 'alert' },
-    { windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' },
-    { gustLineOnlyAlert: 'alert', threshGustWarn: '50', threshGustDanger: '120', windScale: 'high' }]
+  [{ gustLineShow: 'alert' }, { windLineShow: 'alert' },
+    { windLineShow: 'alert', gustLineShow: 'alert' },
+    { gustLineShow: 'alert', threshGustWarn: '50', threshGustDanger: '120', windScale: 'high' }]
     .forEach((over) => {
       ['wind', 'gust'].forEach((m) => {
-        if (!lineAlert.onlyAlertOn(over, m)) { return; }
+        if (!lineAlert.showsAlert(over, m)) { return; }
         const S = Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid' }, over);
         const full = Number(/full colour from (\d+) kph/.exec(hint(m, S))[1]);
         const settings = Object.assign({ barSource: 'off', secondaryLineStyle: m === 'wind' ? 'stripeTop' : 'line',
@@ -362,16 +362,16 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
   // too, so the hint names the next one: the seed gust band in mph is full from 86 km/h,
   // and 85 km/h shows as 53 mph like 86 does, so "from 54 mph").
   assert.equal(hint('gust', { secondaryLine: 'gust', thirdLine: 'off', windUnits: 'mph',
-    gustLineOnlyAlert: 'alert' }), 'Faintest colour = 40 mph, full colour from 54 mph. One cell per hour.');
+    gustLineShow: 'alert' }), 'Faintest colour = 40 mph, full colour from 54 mph. One cell per hour.');
   let checked = 0;
   ['mph', 'knots'].forEach((windUnits) => {
-    [{ gustLineOnlyAlert: 'alert' }, { windLineOnlyAlert: 'alert' },
-      { windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' },
-      { gustLineOnlyAlert: 'alert', threshGustWarn: '30', threshGustDanger: '70', windScale: 'high' },
-      { windLineOnlyAlert: 'alert', threshWindWarn: '12', threshWindDanger: '21', windScale: 'low' }]
+    [{ gustLineShow: 'alert' }, { windLineShow: 'alert' },
+      { windLineShow: 'alert', gustLineShow: 'alert' },
+      { gustLineShow: 'alert', threshGustWarn: '30', threshGustDanger: '70', windScale: 'high' },
+      { windLineShow: 'alert', threshWindWarn: '12', threshWindDanger: '21', windScale: 'low' }]
       .forEach((over) => {
         ['wind', 'gust'].forEach((m) => {
-          if (!lineAlert.onlyAlertOn(over, m)) { return; }
+          if (!lineAlert.showsAlert(over, m)) { return; }
           const S = Object.assign({ secondaryLine: 'wind', thirdLine: 'gust', windScale: 'mid', windUnits }, over);
           const label = windUnits === 'mph' ? 'mph' : 'kn';
           const full = Number(new RegExp('full colour from (\\d+) ' + label).exec(hint(m, S))[1]);
@@ -394,9 +394,9 @@ test('the stripe hints name where the bake\'s colour steps start', () => {
   });
   assert.equal(checked, 12, 'premise: every unit and line was checked');
   // UV on Alert: the band UV 6..11, full from UV 10.5.
-  assert.equal(hint('uv', { secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }),
+  assert.equal(hint('uv', { secondaryLine: 'uv', uvLineShow: 'alert' }),
     'Faintest colour = UV 6, full colour from UV 10.5. One cell per hour.');
   assert.deepEqual(buildForecastSeries(Object.assign({}, RAW, { uvs: [104, 105] }),
     { secondaryLine: 'uv', secondaryLineStyle: 'stripeTop', thirdLine: 'off', barSource: 'off',
-      uvLineOnlyAlert: 'alert' }).SECONDARY_LINE_TREND_UINT8, [L3, FULL]);
+      uvLineShow: 'alert' }).SECONDARY_LINE_TREND_UINT8, [L3, FULL]);
 });

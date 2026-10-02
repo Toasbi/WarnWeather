@@ -85,7 +85,7 @@ const EXPECTED_KEYS = [
   'fetchIntervalMin','gpsCacheMin','sleepNightEnabled','sleepStartHour','sleepEndHour','fetch','fetchNoticeAck','locationMode','location',
   'backlightDim','backlightDimStartHour','backlightDimEndHour','backlightDimColor',
   'temperatureUnits','aqiSource','aqiScale','windUnits','distanceUnits','feelsFormula','dayNightShading','healthMode','hrScale','secondaryLine','secondaryLineFill','secondaryLineStyle','windScale','pressureScale','thirdLine','thirdLineStyle','fourthLine','fourthLineStyle','fifthLine','fifthLineStyle','tempSlotDisplay',
-  'windLineOnlyAlert','gustLineOnlyAlert','uvLineOnlyAlert',
+  'windLineShow','gustLineShow','uvLineShow',
   'precipLineFrom','cloudLineFrom','windLineFrom','uvLineFrom','rainBarFrom','radarBarFrom',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
@@ -126,16 +126,16 @@ test('every Clay messageKey present; theme/windScale/colorUSFederal are the only
   // sliders, gated apart. vibe/btIcons: the Bluetooth sheet vs aplite's Watch Status
   // Bar rows, gated apart. rainCountdownHorizon: the Rain sheet and its Radar-tab copy —
   // the one pair that is live at the same time (flat hydrate/serialize cope).
-  // windLineOnlyAlert/gustLineOnlyAlert/uvLineOnlyAlert: one per line context, like
+  // windLineShow/gustLineShow/uvLineShow: one per line context, like
   // pressureScale — the row follows its metric to whichever picker shows it. The four
   // Draw from keys the same way (rainBarFrom/radarBarFrom are one row each).
   assert.deepEqual(dups.sort(),
-    ['batteryLowLevel', 'btIcons', 'cloudLineFrom', 'colorUSFederal', 'gustLineOnlyAlert',
+    ['batteryLowLevel', 'btIcons', 'cloudLineFrom', 'colorUSFederal', 'gustLineShow',
       'precipLineFrom', 'pressureScale', 'rainCountdownHorizon', 'theme', 'themeNight',
-      'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineOnlyAlert', 'vibe',
-      'windLineFrom', 'windLineOnlyAlert', 'windScale'],
+      'tomorrowioApiKey', 'tomorrowioFitBudget', 'uvLineFrom', 'uvLineShow', 'vibe',
+      'windLineFrom', 'windLineShow', 'windScale'],
     'unexpected duplicates: ' + dups.join(','));
-  ['windLineOnlyAlert', 'gustLineOnlyAlert', 'uvLineOnlyAlert',
+  ['windLineShow', 'gustLineShow', 'uvLineShow',
     'precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) =>
     assert.equal(counts[k], 4, k + ' appears in four slots (one per line context)'));
   ['rainBarFrom', 'radarBarFrom'].forEach((k) => assert.equal(counts[k], 1, k + ' appears once'));

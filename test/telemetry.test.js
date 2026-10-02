@@ -465,7 +465,7 @@ const HEAVIEST_SETTINGS = {
   // style, 'wind' (4) reports 'stripeBottom' (12).
   fourthLine: 'gust', fifthLine: 'cloud',
   // The three lines' Show on its longer value.
-  windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert',
+  windLineShow: 'alert', gustLineShow: 'alert', uvLineShow: 'alert',
   // Draw from / Bars from on the longer value, 'bottom'.
   precipLineFrom: 'bottom', cloudLineFrom: 'bottom', windLineFrom: 'bottom', uvLineFrom: 'bottom',
   rainBarFrom: 'bottom', radarBarFrom: 'bottom',
@@ -849,15 +849,13 @@ test('reporting default agrees with the wire painting the built-in', () => {
 // headroom 1139. (So the custom-layout envelope's 9 B is not this client's limit: the
 // next field that tips it over asks for this check to move to the header alone, not for
 // a shorter field.)
-// That field came in 1.24.0: the graph lines' three "Only alert" switches
-// (windLineOnlyAlert, gustLineOnlyAlert, uvLineOnlyAlert) are 76 B, taking the legacy
-// envelope to 4053 B and the custom-layout one to 4163 B, past the cap. Both are still
-// measured and printed, but only the batch header is asserted now: 3033 of 4096,
-// headroom 1063. The switches then became each line's Show, 'all' or 'alert' (82 B on
-// 'alert', which the fixture now sets): 4059 B and 4169 B, the batch header 3039 of
-// 4096, headroom 1057. Draw from / Bars from (precipLineFrom, cloudLineFrom,
-// windLineFrom, uvLineFrom, rainBarFrom, radarBarFrom) are 144 B on 'bottom', the longer
-// value: 4203 B and 4313 B, the batch header 3183 of 4096, headroom 913.
+// That field came in 1.24.0: each graph line's Show (windLineShow, gustLineShow,
+// uvLineShow: 'all' or 'alert', the fixture setting the longer 'alert') took the legacy
+// envelope and the custom-layout one past the cap. Both are still measured and printed,
+// but only the batch header is asserted now. With Draw from / Bars from
+// (precipLineFrom, cloudLineFrom, windLineFrom, uvLineFrom, rainBarFrom, radarBarFrom,
+// 144 B on 'bottom', the longer value) the two envelopes are 4188 B and 4298 B, the
+// batch header 3168 of 4096, headroom 928.
 test('the heaviest realistic telemetry batch header stays under MAX_BODY_BYTES', () => {
   const cap = Number(/const MAX_BODY_BYTES = (\d+)/.exec(ingestSettingsSchema().ts)[1]);
   assert.equal(cap, 4096, 'read the cap from the function, do not pin a stale copy here');

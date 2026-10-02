@@ -1,7 +1,7 @@
 // test/line-alert.test.js — a graph line's Show [All | Alert] (src/pkjs/line-alert.js):
-// the stored value and the dev phone's old switch, the platforms that draw Alert, the
-// band the bake scales a wind, gust or UV line over, the samples it gaps, the bytes it
-// ships (forecast-series.js), the render signature and telemetry.
+// the stored value, the platforms that draw Alert, the band the bake scales a wind, gust
+// or UV line over, the samples it gaps, the bytes it ships (forecast-series.js), the
+// render signature and telemetry.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -54,31 +54,30 @@ function band(bottom, top, topDanger) {
 
 test('only wind, gusts and UV have a Show row, one key each', () => {
   assert.deepEqual(lineAlert.METRIC_IDS, ['wind', 'gust', 'uv']);
-  assert.equal(lineAlert.settingKey('wind'), 'windLineOnlyAlert');
-  assert.equal(lineAlert.settingKey('gust'), 'gustLineOnlyAlert');
-  assert.equal(lineAlert.settingKey('uv'), 'uvLineOnlyAlert');
+  assert.equal(lineAlert.settingKey('wind'), 'windLineShow');
+  assert.equal(lineAlert.settingKey('gust'), 'gustLineShow');
+  assert.equal(lineAlert.settingKey('uv'), 'uvLineShow');
   assert.equal(lineAlert.SHOW_ALL, 'all');
   assert.equal(lineAlert.SHOW_ALERT, 'alert');
   ['precip_prob', 'cloud', 'pressure', 'feels', 'dew', 'off', undefined, 'constructor'].forEach((m) => {
     assert.equal(lineAlert.settingKey(m), null, String(m) + ' has none');
-    assert.equal(lineAlert.showOf({ windLineOnlyAlert: 'alert' }, m), 'all');
-    assert.equal(lineAlert.onlyAlertOn({ windLineOnlyAlert: 'alert' }, m), false);
+    assert.equal(lineAlert.showOf({ windLineShow: 'alert' }, m), 'all');
+    assert.equal(lineAlert.showsAlert({ windLineShow: 'alert' }, m), false);
   });
 });
 
-test('Show reads \'alert\' and the dev phone\'s old true as Alert, anything else as All', () => {
+test('Show reads \'alert\' as Alert, anything else as All', () => {
   assert.equal(lineAlert.showValue('alert'), 'alert');
-  assert.equal(lineAlert.showValue(true), 'alert', 'the first build\'s switch, on');
   assert.equal(lineAlert.showValue('all'), 'all');
-  assert.equal(lineAlert.showValue(false), 'all', 'the first build\'s switch, off');
-  [undefined, null, '', 'true', 'ALERT', 1, 'bogus'].forEach((v) =>
+  // A boolean is junk like any other.
+  [undefined, null, '', 'true', 'ALERT', 1, 'bogus', true, false].forEach((v) =>
     assert.equal(lineAlert.showValue(v), 'all', JSON.stringify(v)));
-  assert.equal(lineAlert.showOf({ windLineOnlyAlert: 'alert' }, 'wind'), 'alert');
-  assert.equal(lineAlert.showOf({ gustLineOnlyAlert: true }, 'gust'), 'alert');
+  assert.equal(lineAlert.showOf({ windLineShow: 'alert' }, 'wind'), 'alert');
+  assert.equal(lineAlert.showOf({ gustLineShow: true }, 'gust'), 'all');
   assert.equal(lineAlert.showOf({}, 'uv'), 'all', 'absent reads All');
   assert.equal(lineAlert.showOf(null, 'wind'), 'all');
-  assert.equal(lineAlert.onlyAlertOn({ uvLineOnlyAlert: 'alert' }, 'uv'), true);
-  assert.equal(lineAlert.onlyAlertOn({ uvLineOnlyAlert: 'all' }, 'uv'), false);
+  assert.equal(lineAlert.showsAlert({ uvLineShow: 'alert' }, 'uv'), true);
+  assert.equal(lineAlert.showsAlert({ uvLineShow: 'all' }, 'uv'), false);
 });
 
 test('every watch with Alert settings draws Alert; aplite, without them, never does', () => {
@@ -161,73 +160,69 @@ test('a step\'s start prints as the first shown number from which every reading 
 
 test('one line\'s band: its warn level at the bottom, the higher of its usual top and its danger level at the top', () => {
   // Wind seed 40/60: over the mid scale (50) the danger level tops it, over high (70) the scale.
-  const s = { secondaryLine: 'wind', windLineOnlyAlert: 'alert', windScale: 'mid' };
+  const s = { secondaryLine: 'wind', windLineShow: 'alert', windScale: 'mid' };
   assert.deepEqual(lineAlert.alertBands(s, true), { wind: band(40, 60, 'wind') });
   assert.deepEqual(lineAlert.alertBands(Object.assign({}, s, { windScale: 'high' }), true),
     { wind: band(40, 70) });
   // UV seed 6/8 under UV 11: the line's usual top.
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }, true),
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'uv', uvLineShow: 'alert' }, true),
     { uv: band(60, 110) });
   // The levels in the series' unit: 25/40 mph is 40.2335/64.3736 km/h.
   const mph = lineAlert.alertBands(Object.assign({ windUnits: 'mph' }, s), true).wind;
   assert.ok(Math.abs(mph.bottom - 25 * 1.60934) < 1e-9, 'got ' + mph.bottom);
   assert.ok(Math.abs(mph.top - 40 * 1.60934) < 1e-9, 'got ' + mph.top);
   assert.equal(mph.topDanger, 'wind');
-  // All (stored, absent, the old false): no band. A metric no line draws: none either.
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: 'all' }, true), {});
+  // All (stored, absent): no band. A metric no line draws: none either.
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'all' }, true), {});
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind' }, true), {});
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: false }, true), {});
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'precip_prob', thirdLine: 'off',
-    windLineOnlyAlert: 'alert' }, true), {});
-  // The dev phone's old true draws Alert.
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: true }, true),
-    { wind: band(40, 60, 'wind') });
+    windLineShow: 'alert' }, true), {});
 });
 
 test('the top never jumps: it follows the higher of the scale and the danger level', () => {
   // The gusts' seed 65/90 tops every scale: 90 under Low, Mid AND High (the first build
   // dropped to High's 70 once the scale passed the warn level).
   ['low', 'mid', 'high'].forEach((windScale) => assert.deepEqual(lineAlert.alertBands(
-    { secondaryLine: 'gust', gustLineOnlyAlert: 'alert', windScale }, true),
+    { secondaryLine: 'gust', gustLineShow: 'alert', windScale }, true),
   { gust: band(65, 90, 'gust') }, windScale));
   // Danger swept past the mid scale (50) with warn 40: the top is max(50, danger) all the way.
   for (let danger = 40; danger <= 100; danger += 1) {
-    const b = lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: 'alert', windScale: 'mid',
+    const b = lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'alert', windScale: 'mid',
       threshWindWarn: '40', threshWindDanger: String(danger) }, true).wind;
     assert.equal(b.top, Math.max(50, danger), 'danger ' + danger);
     assert.equal(b.topDanger, danger > 50 ? 'wind' : null, 'danger ' + danger);
   }
   // A danger level below the scale: the scale's top (wind 20/30 under High).
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: 'alert',
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'alert',
     windScale: 'high', threshWindWarn: '20', threshWindDanger: '30' }, true), { wind: band(20, 70) });
   // UV: danger 12 over UV 11 tops it.
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert',
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'uv', uvLineShow: 'alert',
     threshUvWarn: '11', threshUvDanger: '12' }, true), { uv: band(110, 120, 'uv') });
 });
 
 test('a danger level equal to its warn level at or above the top: one unit above, no jump to the next step', () => {
-  const gust = (warn, danger) => lineAlert.alertBands({ secondaryLine: 'gust', gustLineOnlyAlert: 'alert',
+  const gust = (warn, danger) => lineAlert.alertBands({ secondaryLine: 'gust', gustLineShow: 'alert',
     windScale: 'mid', threshGustWarn: String(warn), threshGustDanger: String(danger) }, true).gust;
   // Gusts 60/60 over the mid scale (50): no range, so 61 — where 60/61 puts it too.
   assert.deepEqual(gust(60, 60), band(60, 61));
   assert.deepEqual(gust(60, 61), band(60, 61, 'gust'));
   // Wind 40/40 over the low scale (30), the same.
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: 'alert',
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'alert',
     windScale: 'low', threshWindWarn: '40', threshWindDanger: '40' }, true), { wind: band(40, 41) });
   // UV 11/11 sits on UV 11 itself: UV 11.1; 11/12 tops out at UV 12.
-  const uv = (warn, danger) => lineAlert.alertBands({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert',
+  const uv = (warn, danger) => lineAlert.alertBands({ secondaryLine: 'uv', uvLineShow: 'alert',
     threshUvWarn: String(warn), threshUvDanger: String(danger) }, true).uv;
   assert.deepEqual(uv(11, 11), band(110, 111));
   assert.deepEqual(uv(11, 12), band(110, 120, 'uv'));
   assert.deepEqual(uv(12, 12), band(120, 121));
   // An equal pair below the scale keeps the scale's top: a range is left.
-  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineOnlyAlert: 'alert',
+  assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', windLineShow: 'alert',
     windScale: 'high', threshWindWarn: '40', threshWindDanger: '40' }, true), { wind: band(40, 70) });
 });
 
 test('a shared band with one equal pair keeps its range: the higher of the scale and the danger levels', () => {
   const both = (gustWarn, gustDanger, extra) => lineAlert.alertBands(Object.assign({
-    secondaryLine: 'wind', thirdLine: 'gust', windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert',
+    secondaryLine: 'wind', thirdLine: 'gust', windLineShow: 'alert', gustLineShow: 'alert',
     windScale: 'low', threshWindWarn: '40', threshWindDanger: '55',
     threshGustWarn: String(gustWarn), threshGustDanger: String(gustDanger) }, extra), true);
   // Wind 40/55, gusts 60/60 under Low (30): 40..60, the gust danger on top — and one step
@@ -240,8 +235,8 @@ test('a shared band with one equal pair keeps its range: the higher of the scale
 });
 
 test('wind and gusts both on Alert share one band: the lower warn at the bottom, the higher danger or the scale on top', () => {
-  const both = { secondaryLine: 'wind', thirdLine: 'gust', windLineOnlyAlert: 'alert',
-    gustLineOnlyAlert: 'alert', windScale: 'high' };
+  const both = { secondaryLine: 'wind', thirdLine: 'gust', windLineShow: 'alert',
+    gustLineShow: 'alert', windScale: 'high' };
   // Seeds 40/60 (wind) and 65/90 (gusts): 40..90 under every scale, the gust danger on top.
   ['low', 'mid', 'high'].forEach((windScale) => assert.deepEqual(
     lineAlert.alertBands(Object.assign({}, both, { windScale }), true),
@@ -254,16 +249,16 @@ test('wind and gusts both on Alert share one band: the lower warn at the bottom,
 
 test('a line on All beside one on Alert: each keeps its own scale', () => {
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', thirdLine: 'gust',
-    gustLineOnlyAlert: 'alert', windScale: 'mid' }, true), { gust: band(65, 90, 'gust') });
+    gustLineShow: 'alert', windScale: 'mid' }, true), { gust: band(65, 90, 'gust') });
   // Not drawn at all (Alert stored on an unpicked metric) shares nothing either.
   assert.deepEqual(lineAlert.alertBands({ secondaryLine: 'wind', thirdLine: 'uv',
-    windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert', windScale: 'mid' }, true),
+    windLineShow: 'alert', gustLineShow: 'alert', windScale: 'mid' }, true),
   { wind: band(40, 60, 'wind') });
 });
 
 test('a watch without the Third metric line: a gust line there does not join the wind line\'s band', () => {
   const s = { secondaryLine: 'wind', thirdLine: 'off', fourthLine: 'gust',
-    windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert', windScale: 'mid',
+    windLineShow: 'alert', gustLineShow: 'alert', windScale: 'mid',
     threshGustWarn: '30', threshGustDanger: '45' };
   assert.deepEqual(lineAlert.alertBands(s, false), { wind: band(40, 60, 'wind') });
   assert.deepEqual(lineAlert.alertBands(s, true),
@@ -271,7 +266,7 @@ test('a watch without the Third metric line: a gust line there does not join the
 });
 
 test('a watch without Alert settings gets no band at all', () => {
-  const s = { secondaryLine: 'wind', thirdLine: 'uv', windLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert' };
+  const s = { secondaryLine: 'wind', thirdLine: 'uv', windLineShow: 'alert', uvLineShow: 'alert' };
   assert.deepEqual(lineAlert.alertBands(s, false, false), {});
   assert.deepEqual(lineAlert.alertBands(s, true, false), {});
   assert.deepEqual(Object.keys(lineAlert.alertBands(s, false, true)), ['wind', 'uv']);
@@ -287,31 +282,28 @@ test('on All the wind, gust and UV bytes are unchanged', () => {
     [100, 250, 250, 250, 250, 250, 0]);
   assert.deepEqual(bake({ secondaryLine: 'uv' }).SECONDARY_LINE_TREND_UINT8,
     [0, 125, 136, 146, 182, 250, 250]);
-  // A stored 'all', or the old false, bakes the same as absent.
-  ['all', false].forEach((v) => assert.deepEqual(
-    bake({ secondaryLine: 'wind', windLineOnlyAlert: v }).SECONDARY_LINE_TREND_UINT8,
+  // A stored 'all', or junk, bakes the same as absent.
+  ['all', true].forEach((v) => assert.deepEqual(
+    bake({ secondaryLine: 'wind', windLineShow: v }).SECONDARY_LINE_TREND_UINT8,
     bake({ secondaryLine: 'wind' }).SECONDARY_LINE_TREND_UINT8, String(v)));
 });
 
 test('Alert: below warn is byte 0 (the gap), warn is byte 1, the top is 250', () => {
   // Wind 40..60 (its danger level over the mid scale): 39 gaps, 40 at the floor, 50 mid-way.
-  assert.deepEqual(bake({ secondaryLine: 'wind', windLineOnlyAlert: 'alert' }).SECONDARY_LINE_TREND_UINT8,
-    [0, 0, 0, 1, 63, 125, 250]);
-  // The dev phone's old true bakes the same.
-  assert.deepEqual(bake({ secondaryLine: 'wind', windLineOnlyAlert: true }).SECONDARY_LINE_TREND_UINT8,
+  assert.deepEqual(bake({ secondaryLine: 'wind', windLineShow: 'alert' }).SECONDARY_LINE_TREND_UINT8,
     [0, 0, 0, 1, 63, 125, 250]);
   // Gusts alone, 65..90: 59 and 60 km/h gap, 75 is 40 % of the way up.
-  assert.deepEqual(bake({ secondaryLine: 'gust', gustLineOnlyAlert: 'alert' }).SECONDARY_LINE_TREND_UINT8,
+  assert.deepEqual(bake({ secondaryLine: 'gust', gustLineShow: 'alert' }).SECONDARY_LINE_TREND_UINT8,
     [0, 0, 0, 100, 250, 250, 0]);
   // UV 60..110 tenths: 5.5 shows as 6, so it draws, at the floor.
-  assert.deepEqual(bake({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }).SECONDARY_LINE_TREND_UINT8,
+  assert.deepEqual(bake({ secondaryLine: 'uv', uvLineShow: 'alert' }).SECONDARY_LINE_TREND_UINT8,
     [0, 1, 1, 20, 100, 250, 250]);
 });
 
 test('Alert on wind and gusts: one band, each gated by its own warn level', () => {
   // Gusts on a stored 60/90, so a 60 km/h sample reaches warn on both lines.
-  const out = bake({ secondaryLine: 'wind', thirdLine: 'gust', windLineOnlyAlert: 'alert',
-    gustLineOnlyAlert: 'alert', threshGustWarn: '60', threshGustDanger: '90' });
+  const out = bake({ secondaryLine: 'wind', thirdLine: 'gust', windLineShow: 'alert',
+    gustLineShow: 'alert', threshGustWarn: '60', threshGustDanger: '90' });
   // Band 40..90 for both; a 59 km/h gust is above the shared bottom but under its own 60.
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 0, 0, 1, 25, 50, 100]);
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 0, 100, 175, 250, 250, 0]);
@@ -320,14 +312,14 @@ test('Alert on wind and gusts: one band, each gated by its own warn level', () =
 });
 
 test('Alert on gusts beside a wind line on All: each keeps its own scale', () => {
-  const out = bake({ secondaryLine: 'wind', thirdLine: 'gust', gustLineOnlyAlert: 'alert' });
+  const out = bake({ secondaryLine: 'wind', thirdLine: 'gust', gustLineShow: 'alert' });
   assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [0, 50, 195, 200, 225, 250, 250]);
   assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [0, 0, 0, 100, 250, 250, 0]);
 });
 
 test('Alert follows its metric to any line, the Fourth metric line included', () => {
   const out = bake({ secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'off',
-    fifthLine: 'uv', uvLineOnlyAlert: 'alert' });
+    fifthLine: 'uv', uvLineShow: 'alert' });
   assert.deepEqual(out.FIFTH_LINE_TREND_UINT8, [0, 1, 1, 20, 100, 250, 250]);
 });
 
@@ -350,7 +342,7 @@ test('applyForecastSeries: Alert only where the watch has Alert settings, the ba
     UV_TREND_UINT8: RAW.uvs.slice()
   });
   const s = { secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'gust', windScale: 'mid',
-    barSource: 'off', windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert' };
+    barSource: 'off', windLineShow: 'alert', gustLineShow: 'alert', uvLineShow: 'alert' };
   // aplite has no Alert settings: both of its lines draw All, whatever is stored.
   const aplite = forecastSeries.applyForecastSeries(payload(), s, { platform: 'aplite' });
   assert.deepEqual(aplite.SECONDARY_LINE_TREND_UINT8, [0, 50, 195, 200, 225, 250, 250]);
@@ -374,30 +366,25 @@ test('applyForecastSeries: Alert only where the watch has Alert settings, the ba
 test('Show: Alert joins the render signature only for a metric a line draws', () => {
   const base = { secondaryLine: 'wind', thirdLine: 'uv', fourthLine: 'off', fifthLine: 'off' };
   const sig = (over) => renderSignature(Object.assign({}, base, over));
-  assert.notEqual(sig({ windLineOnlyAlert: 'alert' }), sig({}), 'Alert on a drawn wind line re-bakes');
-  assert.notEqual(sig({ uvLineOnlyAlert: 'alert' }), sig({}), 'Alert on a drawn UV line re-bakes');
-  assert.notEqual(sig({ windLineOnlyAlert: 'alert' }), sig({ uvLineOnlyAlert: 'alert' }), 'per metric');
-  assert.equal(sig({ windLineOnlyAlert: 'all' }), sig({}), 'the page hydrating All forces no fetch');
-  assert.equal(sig({ gustLineOnlyAlert: 'alert' }), sig({}), 'no line draws gusts: nothing to re-bake');
-  // The page writing a dev phone's old switch back as its string forces no fetch either.
-  assert.equal(sig({ windLineOnlyAlert: true }), sig({ windLineOnlyAlert: 'alert' }));
-  assert.equal(sig({ windLineOnlyAlert: false }), sig({ windLineOnlyAlert: 'all' }));
+  assert.notEqual(sig({ windLineShow: 'alert' }), sig({}), 'Alert on a drawn wind line re-bakes');
+  assert.notEqual(sig({ uvLineShow: 'alert' }), sig({}), 'Alert on a drawn UV line re-bakes');
+  assert.notEqual(sig({ windLineShow: 'alert' }), sig({ uvLineShow: 'alert' }), 'per metric');
+  assert.equal(sig({ windLineShow: 'all' }), sig({}), 'the page hydrating All forces no fetch');
+  assert.equal(sig({ gustLineShow: 'alert' }), sig({}), 'no line draws gusts: nothing to re-bake');
   assert.equal(lineAlert.signature(Object.assign({}, base,
-    { windLineOnlyAlert: 'alert', uvLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' })), 'wind,uv');
+    { windLineShow: 'alert', uvLineShow: 'alert', gustLineShow: 'alert' })), 'wind,uv');
 });
 
 test('telemetry reports each line\'s Show as \'all\' or \'alert\'', () => {
   const off = buildSettingsSnapshot({});
-  assert.strictEqual(off.windLineOnlyAlert, 'all');
-  assert.strictEqual(off.gustLineOnlyAlert, 'all');
-  assert.strictEqual(off.uvLineOnlyAlert, 'all');
-  const on = buildSettingsSnapshot({ windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert',
-    uvLineOnlyAlert: 'alert' });
-  assert.strictEqual(on.windLineOnlyAlert, 'alert');
-  assert.strictEqual(on.gustLineOnlyAlert, 'alert');
-  assert.strictEqual(on.uvLineOnlyAlert, 'alert');
-  // A dev phone's old switch reports as the choice it stands for.
-  const old = buildSettingsSnapshot({ windLineOnlyAlert: true, gustLineOnlyAlert: false });
-  assert.strictEqual(old.windLineOnlyAlert, 'alert');
-  assert.strictEqual(old.gustLineOnlyAlert, 'all');
+  assert.strictEqual(off.windLineShow, 'all');
+  assert.strictEqual(off.gustLineShow, 'all');
+  assert.strictEqual(off.uvLineShow, 'all');
+  const on = buildSettingsSnapshot({ windLineShow: 'alert', gustLineShow: 'alert',
+    uvLineShow: 'alert' });
+  assert.strictEqual(on.windLineShow, 'alert');
+  assert.strictEqual(on.gustLineShow, 'alert');
+  assert.strictEqual(on.uvLineShow, 'alert');
+  // Junk reports as the All it draws.
+  assert.strictEqual(buildSettingsSnapshot({ windLineShow: true }).windLineShow, 'all');
 });

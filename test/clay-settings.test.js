@@ -28,30 +28,20 @@ test('seedDefaults backfills missing keys without clobbering set ones', () => {
   assert.equal(read.temperatureUnits, 'c');     // backfilled
 });
 
-test('seedDefaults folds the retired On demand side switches, and the next boot changes nothing', () => {
-  // A development build's blob: each side had an Enabled/Disabled key beside its list.
-  // A Disabled side showed nothing, so its ticks go; every switch key goes.
+test('seedDefaults only backfills: a stored On demand list keeps its ticks, whatever else the blob holds', () => {
+  // The boot pass rewrites no stored value; a key no schema row has stays until the
+  // page's next Save, which writes schema keys only.
   const store = installFakeStorage();
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
   store['clay-settings'] = JSON.stringify({
     provider: 'dwd',
-    statusTopOnDemandLeft: 'on', statusTopOnDemandLeftItems: 'bt,qt,snooze',
-    statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,rain,uv',
-    statusForecastOnDemandLeft: 'on', statusForecastOnDemandLeftItems: 'gust'
+    statusTopOnDemandRight: 'off', statusTopOnDemandRightItems: 'battery,rain,uv'
   });
   claySettings.seedDefaults(COLORS);
   const read = claySettings.read();
-  assert.equal(read.statusTopOnDemandLeftItems, 'bt,qt,snooze', 'an Enabled side keeps its ticks');
-  assert.equal(read.statusTopOnDemandRightItems, '', 'a Disabled side loses them');
-  assert.equal(read.statusForecastOnDemandLeftItems, 'gust');
-  ['Top', 'Forecast', 'Radar', 'Health'].forEach((bar) => ['Left', 'Right'].forEach((side) => {
-    assert.equal(Object.prototype.hasOwnProperty.call(read, 'status' + bar + 'OnDemand' + side), false,
-      bar + side + ': the switch key is gone');
-  }));
-  const once = store['clay-settings'];
-  claySettings.seedDefaults(COLORS);
-  assert.equal(store['clay-settings'], once, 'idempotent: the next boot writes the same blob');
+  assert.equal(read.statusTopOnDemandRightItems, 'battery,rain,uv');
+  assert.equal(read.statusTopOnDemandRight, 'off');
 });
 
 test('an existing Custom layout gains the size/Position keys at boot and still compiles to ext 0', () => {
