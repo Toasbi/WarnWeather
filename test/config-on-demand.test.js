@@ -800,6 +800,8 @@ test('the rain notes: the Radar tab\'s in Rain alert only, with a link; the Rain
     statusRadarOnDemandLeftItems: 'rain' }, unplaced)), 'the radar bar never shows in this mode: it does not count');
   assert.ok(!onRadarTab(Object.assign({ radarMode: 'countdown', healthMode: 'status',
     statusHealthOnDemandLeftItems: 'rain' }, unplaced)), 'the health bar shows it: hidden');
+  assert.ok(onRadarTab(Object.assign({ radarMode: 'countdown', healthMode: 'off',
+    statusHealthOnDemandRightItems: 'rain' }, unplaced)), 'no health bar without its mode: it does not count');
   // Its link brings the Alerts tab to the front.
   const page = onTab('radar', Object.assign({ radarMode: 'countdown' }, unplaced));
   followTabLink(page.scroll, 'alerts');

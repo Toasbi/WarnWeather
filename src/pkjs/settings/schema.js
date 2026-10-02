@@ -1316,18 +1316,16 @@ function showsOnRows(code, merge) {
     }];
 }
 /**
- * "The item shows on one of these bars" as a showWhen predicate that resolves exactly as
+ * "The item shows on a status bar" as a showWhen predicate that resolves exactly as
  * on-demand.js sideOf does: the watch draws On demand, and on one of the bars a side
  * ticks the item and the bar exists. THE one builder of every "placed" predicate on the
  * page.
  * @param {string} code An on-demand.js ITEMS code.
- * @param {string[]} [bars] The bars to look at (default: all four).
  * @returns {Object} The showWhen predicate.
  */
-function placedWhen(code, bars) {
+function placedWhen(code) {
     var any = [];
     ON_DEMAND.BARS.forEach(function (b) {
-        if (bars && bars.indexOf(b.bar) === -1) { return; }
         ON_DEMAND.SIDES.forEach(function (side) {
             var leaf = {key: ON_DEMAND.itemsKey(b.bar, side), has: code};
             any.push(odBarGate(b.bar) ? {all: [leaf, odBarGate(b.bar)]} : leaf);
@@ -1375,16 +1373,15 @@ var DEFAULT_VIEW_NO_ON_DEMAND_WHEN = {any: [
     {all: [{key: 'layoutPreset', eq: 'custom'}, {key: 'viewStripOff0'},
         {not: {any: [seatOnDemandWhen('viewUpper0'), seatOnDemandWhen('viewLower0')]}}]}
 ]};
-// Rain placed on a bar that exists in radar mode 'Rain alert only' (the Radar tab's note:
-// the radar bar never shows there). The Rain sheet needs no note of its own: its Shows on
-// grid shows where Rain is.
-var RAIN_VISIBLE_WHEN = placedWhen('rain', ['top', 'forecast', 'health']);
 /**
  * The Radar tab's note in radar mode 'Rain alert only', the mode that fetches the radar
  * for the rain icon alone, while no side of a bar that exists in it holds Rain, with a
  * link to the Alerts tab, where the Rain sheet's Shows on grid places it. Not in 'Status'
- * or 'Graph' mode: a user there who took Rain off every bar chose that. A fresh object
- * per call, like every item.
+ * or 'Graph' mode: a user there who took Rain off every bar chose that. The radar bar
+ * never shows in this mode, so placedWhen's own bar gate (RADAR_BAR_WHEN) already
+ * leaves a Rain ticked there out, as on-demand.js placeRainForCountdown's placedAnywhere
+ * does. The Rain sheet needs no note of its own: its Shows on grid shows where Rain is.
+ * A fresh object per call, like every item.
  * @returns {Object} The info-box staticText.
  */
 function rainAlertUnshownNote() {
@@ -1393,7 +1390,7 @@ function rainAlertUnshownNote() {
         style: 'info',
         text: '‘Rain alert only’ fetches the radar for the rain icon, but Rain shows on no status bar ('
             + ALERTS_TAB_LINK + ' → Rain).',
-        showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: RAIN_VISIBLE_WHEN}]}
+        showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: placedWhen('rain')}]}
     };
 }
 /**

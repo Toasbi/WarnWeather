@@ -6303,6 +6303,50 @@
                               {
                                 "all": [
                                   {
+                                    "key": "statusRadarOnDemandLeftItems",
+                                    "has": "rain"
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "env": "radar"
+                                      },
+                                      {
+                                        "key": "radarMode",
+                                        "in": [
+                                          "status",
+                                          "graph"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "statusRadarOnDemandRightItems",
+                                    "has": "rain"
+                                  },
+                                  {
+                                    "all": [
+                                      {
+                                        "env": "radar"
+                                      },
+                                      {
+                                        "key": "radarMode",
+                                        "in": [
+                                          "status",
+                                          "graph"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
                                     "key": "statusHealthOnDemandLeftItems",
                                     "has": "rain"
                                   },
