@@ -266,6 +266,19 @@ const SAMPLE = {
 const PREVIEW_PITCH = (197 - 20) / 11;
 
 /**
+ * The sample a forecast preview draws for a settings state: SAMPLE, with a wind, gust or UV
+ * line drawn Visible values: Alert redrawn against its levels (preview-forecast.js
+ * alertSamples), in the bake's units.
+ * @param {Object} state Live settings.
+ * @returns {Object} buildForecastSeries' raw input.
+ */
+function previewSample(state) {
+  const shown = FC.alertSamples(state, lineAlert.alertBands(state, true, true),
+    { wind: SAMPLE.winds, gust: SAMPLE.gusts, uv: SAMPLE.uvs.map((v) => v / 10) });
+  return Object.assign({}, SAMPLE, { winds: shown.wind, gusts: shown.gust, uvs: shown.uv.map((v) => v * 10) });
+}
+
+/**
  * The levels a B&W forecast preview draws on its main line's top stripe, one per hour
  * column: the dither pattern a cell is filled with is its level (`sd1`..`sd4`), and an
  * hour without a cell is level 0.
@@ -288,7 +301,7 @@ test('the forecast preview shades each stripe cell at the level the bake sends',
       cases.push({ secondaryLine: m, windScale });
       if (lineAlert.settingKey(m)) {
         cases.push({ secondaryLine: m, windScale, [lineAlert.settingKey(m)]: 'alert' });
-        // Lowered levels, so the sample reaches into the Alert band.
+        // Lowered levels: another Alert band.
         cases.push({ secondaryLine: m, windScale, [lineAlert.settingKey(m)]: 'alert',
           threshWindWarn: '15', threshWindDanger: '25', threshGustWarn: '25', threshGustDanger: '35',
           threshUvWarn: '2', threshUvDanger: '7' });
@@ -302,7 +315,8 @@ test('the forecast preview shades each stripe cell at the level the bake sends',
   cases.forEach((c) => {
     const state = Object.assign({ thirdLine: 'off', barSource: 'off', secondaryLineStyle: 'stripeTop' }, c);
     if (c.thirdLine) { state.thirdLineStyle = 'line'; }
-    const bake = buildForecastSeries(SAMPLE, state).SECONDARY_LINE_TREND_UINT8.slice(0, 11).map(chartStripeLevel);
+    const bake = buildForecastSeries(previewSample(state), state).SECONDARY_LINE_TREND_UINT8.slice(0, 11)
+      .map(chartStripeLevel);
     assert.deepEqual(previewLevels(state), bake, JSON.stringify(c));
     drawn += bake.filter((l) => l > 0).length;
   });

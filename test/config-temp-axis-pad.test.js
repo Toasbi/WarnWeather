@@ -40,9 +40,11 @@ const TEMPS = [24, 24, 22, 20, 18, 16, 15, 14, 14, 15, 17, 19];
 // Nothing anchored: the bars off, the Main metric a pressure line (it floats).
 const NONE = { secondaryLine: 'pressure', secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off',
   fifthLine: 'off', barSource: 'off', dayNightShading: false, theme: 'dark' };
-// A UV line drawn Show: Alert whose warn level the sample (UV 8 at most) never reaches: every
-// hour ships as byte 0, so it draws nothing — as a line, marks or a stripe.
-const UV_NEVER = { uvLineOnlyAlert: 'alert', threshUvWarn: 10, threshUvDanger: 11 };
+// A UV line drawn Show: Alert whose warn level the plain sample (UV 8 at most) never reaches.
+// On Alert the preview redraws the sample against the levels (preview-forecast.js
+// alertSamples), so it still draws, as a line, marks or a stripe: the preview never meets an
+// element with nothing above 0, whose rule test/c/temp_axis_pad_test.c pins on the watch.
+const UV_HIGH = { uvLineOnlyAlert: 'alert', threshUvWarn: 10, threshUvDanger: 11 };
 // The same line with a warn level the afternoon reaches.
 const UV_SOME = { uvLineOnlyAlert: 'alert', threshUvWarn: 3, threshUvDanger: 11 };
 
@@ -211,45 +213,37 @@ test('under a top stripe band the top margin becomes the share of the plot below
   assert.ok(near(two.top, BAND2 + 9));
 });
 
-test('a stripe with nothing above 0 takes no band: the plot grows into it', () => {
-  // A top UV stripe that never reaches its warn level: no cells, no band; the graph is the
-  // one with no stripe configured at all, the legend aside.
+test('a stripe on Alert holds its band at any warn level: the preview\'s sample reaches it', () => {
+  // A top UV stripe whose warn level the plain sample never reaches draws its cells all the
+  // same, so it holds its band, as with a warn level the sample reaches and on All.
   const off = preview({ thirdLine: 'uv', thirdLineStyle: 'stripeTop' }), offRows = curveRows(off);
-  const zero = preview(Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeTop' }, UV_NEVER));
   assert.ok(near(offRows.top, BAND), 'premise: a drawn stripe holds its band');
-  assert.deepEqual(curveRows(zero), curveRows(preview({})));
-  // ...with a warn level the sample reaches, the band is back.
-  assert.ok(near(curveRows(preview(Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeTop' }, UV_SOME))).top, BAND));
-  // A hanging line with that all-zero stripe: the top of the whole graph is anchored, and an
-  // eighth of it (10) is under today's 12.
-  const hang = curveRows(preview(Object.assign({ secondaryLine: 'cloud', cloudLineFrom: 'top', thirdLine: 'uv',
-    thirdLineStyle: 'stripeTop' }, UV_NEVER)));
-  assert.ok(near(hang.top, 4 + 3 + 12));
-  // A bottom stripe with nothing above 0: the zero line stays on the axis.
-  assert.equal(zeroLine(preview(Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeBottom' }, UV_NEVER))), PB);
-  assert.equal(zeroLine(preview(Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeBottom' }, UV_SOME))), PB - 6);
+  [UV_HIGH, UV_SOME].forEach((levels) => {
+    const label = JSON.stringify(levels);
+    assert.deepEqual(curveRows(preview(Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeTop' }, levels))),
+      offRows, label);
+    // A hanging line under it: the share (an eighth) of the plot below the band.
+    const hang = curveRows(preview(Object.assign({ secondaryLine: 'cloud', cloudLineFrom: 'top', thirdLine: 'uv',
+      thirdLineStyle: 'stripeTop' }, levels)));
+    assert.ok(near(hang.top, BAND + share(PB - BAND)), label);
+    // A bottom stripe lifts the zero line off the axis.
+    assert.equal(zeroLine(preview(Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeBottom' }, levels))),
+      PB - 6, label);
+  });
 });
 
-test('two top stripes, one with nothing above 0: only that one drops', () => {
+test('two top stripes, one on Alert: both keep their slots', () => {
   const two = { thirdLine: 'uv', thirdLineStyle: 'stripeTop', fourthLine: 'cloud', fourthLineStyle: 'stripeTop' };
-  // Both drawn: two stripes and their gap.
-  assert.ok(near(curveRows(preview(Object.assign({}, two, UV_SOME))).top, 4 + 5 + 1 + 5 + 2));
-  // The UV stripe all zero: the cloud stripe closes up into the first slot.
-  const svg = preview(Object.assign({}, two, UV_NEVER));
-  assert.ok(near(curveRows(svg).top, BAND));
-  const one = preview({ fourthLine: 'cloud', fourthLineStyle: 'stripeTop', thirdLine: 'off' });
-  const cells = (s) => s.match(/<rect x="[\d.]+" y="4" width="[\d.]+" height="5"/g) || [];
-  assert.ok(cells(svg).length > 0, 'the cloud cells draw in the first slot');
-  assert.deepEqual(cells(svg), cells(one));
+  [UV_HIGH, UV_SOME].forEach((levels) => assert.ok(
+    near(curveRows(preview(Object.assign({}, two, levels))).top, 4 + 5 + 1 + 5 + 2), JSON.stringify(levels)));
 });
 
-test('a line with nothing above 0 anchors nothing', () => {
-  // A UV line hanging under a top cloud stripe, Show: Alert: nothing above its warn level,
-  // nothing anchored, the curve right under the band; with a warn level it reaches, the
-  // share (an eighth).
+test('a line on Alert anchors its edge at any warn level', () => {
+  // A UV line hanging under a top cloud stripe, Show: Alert: the share (an eighth) of the plot
+  // below the band, whether the plain sample reaches its warn level or not.
   const S = { thirdLine: 'cloud', thirdLineStyle: 'stripeTop', secondaryLine: 'uv', uvLineFrom: 'top' };
-  assert.ok(near(curveRows(preview(Object.assign({}, S, UV_NEVER))).top, BAND));
-  assert.ok(near(curveRows(preview(Object.assign({}, S, UV_SOME))).top, BAND + share(PB - BAND)));
+  [UV_HIGH, UV_SOME].forEach((levels) => assert.ok(
+    near(curveRows(preview(Object.assign({}, S, levels))).top, BAND + share(PB - BAND)), JSON.stringify(levels)));
 });
 
 test('a feels-like line rides the same margins as the temperature curve', () => {

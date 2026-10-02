@@ -310,28 +310,29 @@ test('aplite: the metric picker\'s height scale stays the 0-based one, Alert sto
   'Graph bottom = 40 kph, full height = 60 kph.');
 });
 
-test('the preview draws an Alert line only where it reaches warn, and aplite\'s whole', () => {
-  // The demo UV series is [8,6,4,2,1,0,0,0,0,0,1,3]: with warn 6 only slots 0-1 are
-  // readings, and the line comes down to the warn row on slot 2 (chart_runs.h JOIN).
+test('the preview draws an Alert line where its sample reaches warn, and aplite\'s whole', () => {
+  // The demo UV series is [8,6,4,2,1,0,0,0,0,0,1,3]. On Alert its upper half is redrawn from
+  // the warn level up (preview-forecast.js alertSamples): slots 0-2 are readings, the rest is
+  // a gap, and the line comes down to the warn row on slot 3 (chart_runs.h JOIN).
   const base = { barSource: 'off', secondaryLine: 'uv', windScale: 'mid', dayNightShading: false };
   const uvPaths = (svg) => [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FF00FF"/g)].map((m) => m[1]);
   assert.equal(uvPaths(FC.forecastPreview(base, { color: true })).length, 2, 'premise: two runs on All');
   const only = uvPaths(FC.forecastPreview(Object.assign({ uvLineOnlyAlert: 'alert' }, base), { color: true }));
   assert.equal(only.length, 1, 'one run: the morning above warn');
   assert.match(only[0], /^M20,/, 'starting on slot 0');
-  assert.equal((only[0].match(/ C/g) || []).length, 2, 'three vertices: slots 0 and 1, then slot 2');
-  assert.match(only[0], /,94$/, 'down to the warn row (the plot\'s baseline) on slot 2');
+  assert.equal((only[0].match(/ C/g) || []).length, 3, 'four vertices: slots 0 to 2, then slot 3');
+  assert.match(only[0], /,94$/, 'down to the warn row (the plot\'s baseline) on slot 3');
   // aplite draws All whatever is stored (B&W: the line's stroke is the theme's ink).
   const apliteSvg = (over) => FC.forecastPreview(Object.assign({}, base, over), APLITE);
   assert.equal(apliteSvg({ uvLineOnlyAlert: 'alert' }), apliteSvg({}), 'aplite: Alert previews as All');
-  // The demo wind never reaches the seed warn (40 kph): nothing drawn.
+  // The demo wind (26 kph at most) never reaches the seed warn (40 kph) by itself; on Alert its
+  // two windy stretches still draw, at the seed warn level and at a lowered one.
   const windSvg = (over) => FC.forecastPreview(Object.assign({ barSource: 'off', secondaryLine: 'wind',
     thirdLine: 'off', windScale: 'mid', dayNightShading: false, secondaryLineFill: false }, over), { color: true });
   // The wind line's yellow stroke runs (the dark colour theme's wind colour).
   const strokes = (svg) => (svg.match(/fill="none" stroke="#FFFF00"/g) || []).length;
-  assert.ok(strokes(windSvg({})) > 0, 'premise: the wind line draws');
-  assert.equal(strokes(windSvg({ windLineOnlyAlert: 'alert' })), 0, 'below warn all day: no line');
-  // A warn level of 20: the two windy stretches draw.
+  assert.equal(strokes(windSvg({})), 1, 'premise: one unbroken wind line on All');
+  assert.equal(strokes(windSvg({ windLineOnlyAlert: 'alert' })), 2, 'the seed warn level');
   assert.equal(strokes(windSvg({ windLineOnlyAlert: 'alert', threshWindWarn: '20', threshWindDanger: '30' })), 2);
 });
 

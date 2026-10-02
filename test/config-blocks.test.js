@@ -549,9 +549,10 @@ test('UV line comes down to the zero row next to its zero stretch and skips the 
 });
 
 test('a metric line\'s smoothed curve never swings past the zero row it comes down to', () => {
-  // UV drawn Alert at warn 6: slot 1 (UV 6) sits just off the warn row, slot 0 well
-  // above it, and the run ends on the warn row on slot 2. Unclamped, the smoothing's
-  // control points would carry the curve below the baseline between slots 1 and 2; the
+  // UV drawn Alert at warn 6, its sample redrawn against the levels (alertSamples): slot 2
+  // (the sample's middle, at the warn level) sits just off the warn row, slots 0-1 well
+  // above it, and the run ends on the warn row on slot 3. Unclamped, the smoothing's
+  // control points would carry the curve below the baseline between slots 2 and 3; the
   // watch strokes straight segments, which never do. Every control point stays on the
   // plot side of the zero row, so the curve (inside their hull) does too.
   [['bottom', (y) => y <= 94], ['top', (y) => y >= 4]].forEach(([from, inside]) => {
@@ -591,21 +592,27 @@ test('lineRuns matches the watch\'s run kernel, vector for vector', () => {
   assert.deepEqual(FC.lineRuns([], true), []);
 });
 
-test('Visible values: Alert — a lone hour over the warn level is a peak off the warn row', () => {
-  // A wind line drawn Alert draws nothing below the warn level (wire byte 0): with the
-  // warn level at 25 km/h only the demo's 26 km/h hour (slot 10) shows, so the line
-  // rises from the warn row (the plot's baseline) on slot 9 and comes back down to it
-  // on slot 11 — a peak, where it used to be a lone square.
+test('Visible values: Alert — a stretch over the warn level rises off the warn row and comes back down', () => {
+  // A wind line drawn Alert draws nothing below the warn level (wire byte 0). The preview
+  // redraws its sample against the user's levels (preview-forecast.js alertSamples): at a
+  // warn level of 25 km/h the afternoon (slots 2-4) and the evening (9-11) are readings, so
+  // the line rises from the warn row (the plot's baseline) on slot 1, comes back down to it
+  // on slot 5 and rises from it again on slot 8 — the watch's JOIN lines (chart_runs.h). A
+  // lone hour over the warn level, a peak where it used to be a lone square, no longer
+  // occurs in the preview's samples; lineRuns is held to the kernel's "0 5 0" vector for it.
   const svg = FC.forecastPreview(
     { barSource: 'off', secondaryLine: 'wind', windScale: 'mid', windUnits: 'kph', dayNightShading: false,
       windLineOnlyAlert: 'alert', threshWindWarn: '25', threshWindDanger: '40' },
     { color: true, platform: 'basalt', lineStyles: true });
   const paths = [...svg.matchAll(/d="(M[^"]+)" fill="none" stroke="#FFFF00"/g)].map((m) => pathVertices(m[1]));
-  assert.equal(paths.length, 1, 'one run');
-  assert.deepEqual(paths[0].map((v) => Math.round((v[0] - 20) / (177 / 11))), [9, 10, 11], 'slots 9-11');
+  const slots = (p) => p.map((v) => Math.round((v[0] - 20) / (177 / 11)));
+  assert.equal(paths.length, 2, 'two runs');
+  assert.deepEqual(slots(paths[0]), [1, 2, 3, 4, 5], 'slots 1-5');
+  assert.deepEqual(slots(paths[1]), [8, 9, 10, 11], 'slots 8-11');
   assert.equal(paths[0][0][1], 94, 'rises from the warn row');
-  assert.equal(paths[0][2][1], 94, 'and comes back down to it');
-  assert.ok(paths[0][1][1] < 94, 'the reading above it');
+  assert.equal(paths[0][4][1], 94, 'and comes back down to it');
+  assert.equal(paths[1][0][1], 94, 'and rises from it again');
+  paths[0].slice(1, 4).concat(paths[1].slice(1)).forEach((v) => assert.ok(v[1] < 94, 'a reading above it'));
 });
 
 test('a filled zero-based main metric keeps its fill contour at the baseline over zeros', () => {

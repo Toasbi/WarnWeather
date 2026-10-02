@@ -209,6 +209,58 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return pts[pts.length - 1][1];
     }
 
+    // A wind, gust or UV line drawn Visible values: Alert (owner, 2026-10-02: "when
+    // enabling alert values only for a gust line, nothing shows in the preview anymore").
+    // The preview's samples are a mild day that never reaches the seed warn levels, so such a
+    // line would draw nothing; on Alert it draws alertSamples' instead.
+    // Series units per sample unit: the bake's UV series is UV x 10, the sample the index.
+    var SERIES_PER_SAMPLE = { wind: 1, gust: 1, uv: 10 };
+    // How far from its warn level towards its band's top a sample on Alert peaks: past the
+    // band scale's full-colour step (stripe-levels.js SCALES.band, 90 %), so a stripe shows
+    // every step from the faintest up.
+    var ALERT_PEAK_SHARE = 0.9;
+
+    /**
+     * The samples a Visible values: Alert line draws: each keeps its shape, redrawn against
+     * the user's own levels. The lower half of its range goes under half the band's bottom:
+     * the line's gaps, whatever the unit rounds. The upper half runs from the metric's warn
+     * level to ALERT_PEAK_SHARE of the way up to the band's top (line-alert.js alertBand:
+     * the higher of the usual top and the danger level). Wind and gusts sharing one band
+     * keep gusts at or above the wind. A metric without a band keeps its very array.
+     * @param {Object} state Live settings (windUnits, windScale, the Alert levels).
+     * @param {Object<string, {bottom: number, top: number}>} bands line-alert.js alertBands.
+     * @param {Object<string, number[]>} samples wind and gust (km/h) and uv (the index).
+     * @returns {Object<string, number[]>} The samples to draw, by metric.
+     */
+    function alertSamples(state, bands, samples) {
+        var out = {};
+        Object.keys(samples).forEach(function (id) {
+            var vals = samples[id], band = bands[id];
+            if (!band) { out[id] = vals; return; }
+            var perUnit = SERIES_PER_SAMPLE[id];
+            var hi = Math.max.apply(null, vals);
+            var mid = (Math.min.apply(null, vals) + hi) / 2;
+            // The metric's own warn level: the bottom of the band its line has alone.
+            var warn = lineAlert.alertBand(state, id, [id]).bottom;
+            var peak = warn + ALERT_PEAK_SHARE * (band.top - warn);
+            out[id] = vals.map(function (s) {
+                if (s < mid) { return s / mid * band.bottom / 2 / perUnit; }
+                // At least one series unit: 0 is no value on these lines, even at warn 0.
+                var x = Math.max(warn + (s - mid) / (hi - mid) * (peak - warn), 1) / perUnit;
+                // A stored warn level with decimals in mph, knots or UV can sit between two
+                // shown numbers (line-alert.js shownNumber rounds): lift to the next one.
+                for (var k = 0; k < 20 && !lineAlert.reachesWarn(state, id, x * perUnit); k += 1) {
+                    x += 1 / perUnit;
+                }
+                return x;
+            });
+        });
+        if (bands.wind && bands.gust && out.wind && out.gust) {
+            out.gust = out.gust.map(function (g, i) { return Math.max(g, out.wind[i]); });
+        }
+        return out;
+    }
+
     /**
      * The forecast-graph preview block: temp curve, up to three metric lines — each
      * in its selected style (thin/thick line, square dots, x marks); the main one
@@ -322,18 +374,20 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // the lines this watch draws (the shared wind/gust band only where both draw), on
         // a watch with Alert settings (aplite draws every line All).
         var alertBands = lineAlert.alertBands(state, !stylesFrozen, lineAlert.alertsDrawn(env));
+        // Such a line draws its sample redrawn against the user's levels (alertSamples).
+        var shown = alertSamples(state, alertBands, { wind: wind, gust: gust, uv: uv });
         // metric -> { sample series, full-scale max, fill? }. Color resolves per render.
         // feels and dew have no max: they ride the shared temperature axis
         // (lineStyle.isTempAxisMetric), so they map through yT like the temp curve
         // instead of a 0..max scale; pressure maps through its curve. `alert`: the
         // metric's Show: Alert band, or null; `perUnit`: series units per sample unit
-        // there (the bake's UV series is UV x 10, the sample is the index).
+        // there (SERIES_PER_SAMPLE).
         var METRIC = {
             precip_prob: { vals: precip, max: 100, fill: true },
             cloud: { vals: cloud, max: 100 },
-            wind: { vals: wind, max: windMax, perUnit: 1 },
-            gust: { vals: gust, max: windMax, perUnit: 1 },
-            uv: { vals: uv, max: 11, perUnit: 10 },
+            wind: { vals: shown.wind, max: windMax, perUnit: SERIES_PER_SAMPLE.wind },
+            gust: { vals: shown.gust, max: windMax, perUnit: SERIES_PER_SAMPLE.gust },
+            uv: { vals: shown.uv, max: 11, perUnit: SERIES_PER_SAMPLE.uv },
             pressure: { vals: pressure, curve: pCurve },
             feels: { vals: feels },
             dew: { vals: dew }
@@ -1040,6 +1094,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             CURVE_INSET_PREV: CURVE_INSET_PREV,
             anchorShare: anchorShare,
             alignLabels: alignLabels,
+            alertSamples: alertSamples,
             pressureCurves: PRESSURE_CURVES,
             lineRuns: lineRuns
         };
