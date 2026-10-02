@@ -191,6 +191,30 @@ test('forecastAnchors: the rain bars while they draw, and the drawn amount lines
   assert.deepEqual(drawFrom.forecastAnchors(undefined, BASALT), { top: false, bottom: false });
 });
 
+test('forecastAnchors: an element with nothing above 0 anchors nothing (hasValue)', () => {
+  const S = { secondaryLine: 'precip_prob', precipLineFrom: 'top', thirdLine: 'uv', fourthLine: 'off', fifthLine: 'off',
+    barSource: 'rain' };
+  const asked = [];
+  const only = (keys) => (key) => { asked.push(key); return keys.indexOf(key) !== -1; };
+  assert.deepEqual(drawFrom.forecastAnchors(S, BASALT), { top: true, bottom: true }, 'absent: every element has one');
+  assert.deepEqual(drawFrom.forecastAnchors(S, BASALT, only(['bars', 'secondaryLine', 'thirdLine'])),
+    { top: true, bottom: true });
+  assert.deepEqual(drawFrom.forecastAnchors(S, BASALT, only([])), { top: false, bottom: false }, 'all zero: nothing');
+  // No rain forecast, the bars hanging: the top is anchored only by the hanging rain-chance line.
+  const hang = Object.assign({}, S, { rainBarFrom: 'top', thirdLine: 'off' });
+  assert.deepEqual(drawFrom.forecastAnchors(hang, BASALT, only(['secondaryLine'])), { top: true, bottom: false });
+  assert.deepEqual(drawFrom.forecastAnchors(hang, BASALT, only([])), { top: false, bottom: false });
+  assert.deepEqual(drawFrom.forecastAnchors(hang, BASALT, only(['bars'])), { top: true, bottom: false });
+  // The standing UV line alone.
+  assert.deepEqual(drawFrom.forecastAnchors(S, BASALT, only(['thirdLine'])), { top: false, bottom: true });
+  // Asked only of the elements that would anchor: the bars and drawn amount lines.
+  asked.length = 0;
+  drawFrom.forecastAnchors({ secondaryLine: 'pressure', thirdLine: 'uv', thirdLineStyle: 'stripeTop', barSource: 'off' },
+    BASALT, only([]));
+  assert.deepEqual(asked, []);
+  assert.deepEqual(drawFrom.forecastAnchors(S, APLITE, only(['bars'])), { top: false, bottom: false }, 'aplite');
+});
+
 test('the bit helpers: bits 5 and 6 of a style byte, bit 7 of a palette\'s byte [1]', () => {
   assert.equal(drawFrom.LINE_BIT, 0x20);
   assert.equal(drawFrom.FLOAT_BIT, 0x40);

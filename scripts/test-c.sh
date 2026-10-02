@@ -106,8 +106,9 @@ build/host/hr_scale_test
 # and a quiet window keeps the 0.1k scale.
 cc $CFLAGS test/c/step_scale_test.c -o build/host/step_scale_test
 build/host/step_scale_test
-# The forecast's temperature-axis margins on anchored edges and the hi/lo labels lined up
-# with the curve (header-only, temp_axis_pad.h).
+# The forecast plot's layout (only a series with a value above 0 takes a stripe band or
+# anchors an edge), the temperature-axis margins on anchored edges and the hi/lo labels lined
+# up with the curve (header-only, temp_axis_pad.h).
 cc $CFLAGS test/c/temp_axis_pad_test.c -o build/host/temp_axis_pad_test
 build/host/temp_axis_pad_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the

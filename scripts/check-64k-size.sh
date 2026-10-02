@@ -51,6 +51,12 @@
 # errors): basalt 59388, diorite/flint 57076.
 # Clock digits loaded per glyph, not as a strip: basalt -104 B (59284), diorite/flint 0 B.
 # A clock glyph that fails to load ends the digits there, not skipped: basalt -4 B (59280).
+# Raised since, inside the same PROVISIONAL Draw-from exception and standing or falling
+# with it: the margin rules reworked on the owner's feedback (2026-10-02;
+# temp_axis_pad.h): the rain bars or a line with no value above 0 in the drawn hours
+# anchor no edge, a stripe with none takes no band, and the share is an eighth instead
+# of a quarter: basalt +12 B (59280 -> 59292), diorite/flint +16 B (57076 -> 57092), all
+# .text in forecast_update_proc; .data/.bss and its stack frame unchanged.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -67,9 +73,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59280}"
-  "diorite:${DIORITE_IMAGE_CEILING:-57076}"
-  "flint:${FLINT_IMAGE_CEILING:-57076}"
+  "basalt:${BASALT_IMAGE_CEILING:-59292}"
+  "diorite:${DIORITE_IMAGE_CEILING:-57092}"
+  "flint:${FLINT_IMAGE_CEILING:-57092}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

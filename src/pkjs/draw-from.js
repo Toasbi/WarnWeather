@@ -26,13 +26,15 @@
 //
 // THE ANCHORED EDGES (owner, 2026-10-02). Whatever is drawn from an edge of the forecast
 // graph anchors it: the rain bars (while barSource draws them) and every drawn amount line,
-// its marks or the Main metric's fill (not a stripe, which keeps a band of its own). On an
-// anchored edge the temperature curve and the lines sharing its axis keep a margin of at
-// least a quarter of the plot (src/c/appendix/temp_axis_pad.h); forecastAnchors is that
-// reading for the settings preview. The watch reads the bars' edge off the palette flag
-// below and a line's off its style byte: bit 5 for the edge, and bit 6 (FLOAT_BIT) on a
-// drawn line that anchors nothing, its metric having no zero to stand on (pressure,
-// feels-like, dew point: every metric without a Draw from key).
+// its marks or the Main metric's fill (not a stripe, which keeps a band of its own), but only
+// while it has a value above 0 in the hours the graph draws: an all-zero one draws nothing
+// and the graph lays out as if it were not there. On an anchored edge the temperature curve
+// and the lines sharing its axis keep a margin of at least an eighth of the plot
+// (src/c/appendix/temp_axis_pad.h); forecastAnchors is that reading for the settings
+// preview, which supplies the data half (its samples). The watch reads the bars' edge off
+// the palette flag below and a line's off its style byte: bit 5 for the edge, and bit 6
+// (FLOAT_BIT) on a drawn line that anchors nothing, its metric having no zero to stand on
+// (pressure, feels-like, dew point: every metric without a Draw from key).
 //
 // THE WIRE (Clay message only; no new tuple, no new length). A line's flag is bit 5 of
 // its own style byte (CLAY_LINE_STYLE_UINT8 [11], [12], [13], [15]; persist.h
@@ -213,22 +215,28 @@
 
     /**
      * The anchored edges of the forecast graph (see the header): the rain bars' edge while
-     * barSource draws them, and each drawn amount line's. Nothing on a watch without line
-     * styles (aplite keeps its frozen margins).
+     * barSource draws them, and each drawn amount line's, each only while it has a value above
+     * 0 (`hasValue`; the watch's one scan, temp_axis_pad.h temp_axis_any_above_zero). Nothing
+     * on a watch without line styles (aplite keeps its frozen margins).
      * @param {Object} settings Clay settings blob.
      * @param {?Object} [caps] Caps or page env (capable).
+     * @param {function(string): boolean} [hasValue] Whether an element has a value above 0 in
+     *   the hours drawn: called with 'bars' for the rain bars, else with the line's key
+     *   (secondaryLine|thirdLine|fourthLine|fifthLine). Absent, every element has one.
      * @returns {{top: boolean, bottom: boolean}}
      */
-    function forecastAnchors(settings, caps) {
+    function forecastAnchors(settings, caps, hasValue) {
         var s = settings || {};
         var out = { top: false, bottom: false };
+        var has = hasValue || function () { return true; };
         if (!capable(caps)) { return out; }
-        if (s.barSource === 'rain') {
+        if (s.barSource === 'rain' && has('bars')) {
             out[barsFromTop(s, 'rain', caps) ? TOP : BOTTOM] = true;
         }
         for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
-            var edge = lineAnchor(s, lineStyle.FORECAST_LINES[i].key, caps);
-            if (edge !== null) { out[edge] = true; }
+            var key = lineStyle.FORECAST_LINES[i].key;
+            var edge = lineAnchor(s, key, caps);
+            if (edge !== null && has(key)) { out[edge] = true; }
         }
         return out;
     }
