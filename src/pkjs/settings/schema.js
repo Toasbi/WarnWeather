@@ -222,15 +222,36 @@ function lineShowCopy(pickerKey, metric) {
     };
 }
 /**
+ * "This picker's line draws one of these metrics", as line-style.js effectiveLineMetric
+ * reads it: the picker's stored pick is one of `metrics` and no earlier picker stores
+ * that same pick (the watch never draws a stored repeat). A plain {in: metrics} is
+ * enough for a cascade whose matcher asks nothing else, since an earlier picker storing
+ * the metric already hides the row there; the Draw from matcher also asks "not a
+ * stripe", which lets the row pass an earlier stripe, so it must not land on a repeat.
+ * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
+ * @param {string[]} metrics Graph metric ids.
+ * @returns {Object} showWhen predicate.
+ */
+function drawnMetricWhen(pickerKey, metrics) {
+    var earlier = LINE_CONTEXTS.slice(0, lineContextIndex(pickerKey));
+    if (!earlier.length) { return {key: pickerKey, in: metrics}; }
+    return {any: metrics.map(function (metric) {
+        return {all: [{key: pickerKey, eq: metric}].concat(earlier.map(function (context) {
+            return {key: context.key, ne: metric};
+        }))};
+    })};
+}
+/**
  * One Draw from [Bottom | Top] row (draw-from.js ROWS entry) under one line-context:
  * shown on a watch with line styles (LINE_STYLES_WHEN, the WW_LINE_STYLE mirror: aplite
- * never hangs a line), under the FIRST picker that draws one of the row's metrics as a
- * line or marks. The matcher includes "not a stripe", so when the first wind/gust picker
- * is a stripe the row moves to the next one that is a line (a stripe keeps its own
- * Top/Bottom). Stored per metric (wind and gusts share one key), so the row follows its
- * metric from picker to picker; a stored Top on a stripe or an undrawn line lies
- * dormant (draw-from.js lineFromTop) and the row hides. Only Top has a hint (blocks.js
- * 'lineFromHint').
+ * never hangs a line), under the FIRST picker whose line the wire would hang from the
+ * key (draw-from.js lineFromTop): it draws one of the row's metrics (drawnMetricWhen,
+ * so never a stored repeat) as a line or marks. The matcher includes "not a stripe", so
+ * when the first wind/gust picker is a stripe the row moves to the next one that is a
+ * line (a stripe keeps its own Top/Bottom). Stored per metric (wind and gusts share one
+ * key), so the row follows its metric from picker to picker; a stored Top on a stripe
+ * or an undrawn line lies dormant (lineFromTop) and the row hides. Only Top has a hint
+ * (blocks.js 'lineFromHint').
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {string} rowKey precipLineFrom|cloudLineFrom|windLineFrom|uvLineFrom.
  * @returns {Object} Schema item.
@@ -238,7 +259,7 @@ function lineShowCopy(pickerKey, metric) {
 function lineFromCopy(pickerKey, rowKey) {
     var metrics = DRAW_FROM.rowOf(rowKey).metrics;
     var when = [LINE_STYLES_WHEN].concat(lineContextWhen(pickerKey, function (key) {
-        return {all: [{key: key, in: metrics}, {key: key + 'Style', nin: STRIPE_STYLES}]};
+        return {all: [drawnMetricWhen(key, metrics), {key: key + 'Style', nin: STRIPE_STYLES}]};
     }));
     return {
         type: 'segmented',

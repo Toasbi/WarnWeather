@@ -2198,9 +2198,19 @@
                     {
                       "all": [
                         {
-                          "key": "thirdLine",
-                          "in": [
-                            "precip_prob"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "thirdLine",
+                                  "eq": "precip_prob"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "precip_prob"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -2264,9 +2274,19 @@
                     {
                       "all": [
                         {
-                          "key": "thirdLine",
-                          "in": [
-                            "cloud"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "thirdLine",
+                                  "eq": "cloud"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "cloud"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -2330,10 +2350,31 @@
                     {
                       "all": [
                         {
-                          "key": "thirdLine",
-                          "in": [
-                            "wind",
-                            "gust"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "thirdLine",
+                                  "eq": "wind"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "wind"
+                                }
+                              ]
+                            },
+                            {
+                              "all": [
+                                {
+                                  "key": "thirdLine",
+                                  "eq": "gust"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "gust"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -2398,9 +2439,19 @@
                     {
                       "all": [
                         {
-                          "key": "thirdLine",
-                          "in": [
-                            "uv"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "thirdLine",
+                                  "eq": "uv"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "uv"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -2842,9 +2893,23 @@
                     {
                       "all": [
                         {
-                          "key": "fourthLine",
-                          "in": [
-                            "precip_prob"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "fourthLine",
+                                  "eq": "precip_prob"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "precip_prob"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "precip_prob"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -2879,9 +2944,19 @@
                       "not": {
                         "all": [
                           {
-                            "key": "thirdLine",
-                            "in": [
-                              "precip_prob"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "precip_prob"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "precip_prob"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -2930,9 +3005,23 @@
                     {
                       "all": [
                         {
-                          "key": "fourthLine",
-                          "in": [
-                            "cloud"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "fourthLine",
+                                  "eq": "cloud"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "cloud"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "cloud"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -2967,9 +3056,19 @@
                       "not": {
                         "all": [
                           {
-                            "key": "thirdLine",
-                            "in": [
-                              "cloud"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "cloud"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "cloud"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3018,10 +3117,39 @@
                     {
                       "all": [
                         {
-                          "key": "fourthLine",
-                          "in": [
-                            "wind",
-                            "gust"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "fourthLine",
+                                  "eq": "wind"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "wind"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "wind"
+                                }
+                              ]
+                            },
+                            {
+                              "all": [
+                                {
+                                  "key": "fourthLine",
+                                  "eq": "gust"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "gust"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "gust"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -3057,10 +3185,31 @@
                       "not": {
                         "all": [
                           {
-                            "key": "thirdLine",
-                            "in": [
-                              "wind",
-                              "gust"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "wind"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "wind"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "gust"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "gust"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3109,9 +3258,23 @@
                     {
                       "all": [
                         {
-                          "key": "fourthLine",
-                          "in": [
-                            "uv"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "fourthLine",
+                                  "eq": "uv"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "uv"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "uv"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -3146,9 +3309,19 @@
                       "not": {
                         "all": [
                           {
-                            "key": "thirdLine",
-                            "in": [
-                              "uv"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "uv"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "uv"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3645,9 +3818,27 @@
                     {
                       "all": [
                         {
-                          "key": "fifthLine",
-                          "in": [
-                            "precip_prob"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "fifthLine",
+                                  "eq": "precip_prob"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "precip_prob"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "precip_prob"
+                                },
+                                {
+                                  "key": "fourthLine",
+                                  "ne": "precip_prob"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -3682,9 +3873,19 @@
                       "not": {
                         "all": [
                           {
-                            "key": "thirdLine",
-                            "in": [
-                              "precip_prob"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "precip_prob"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "precip_prob"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3701,9 +3902,23 @@
                       "not": {
                         "all": [
                           {
-                            "key": "fourthLine",
-                            "in": [
-                              "precip_prob"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "fourthLine",
+                                    "eq": "precip_prob"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "precip_prob"
+                                  },
+                                  {
+                                    "key": "thirdLine",
+                                    "ne": "precip_prob"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3752,9 +3967,27 @@
                     {
                       "all": [
                         {
-                          "key": "fifthLine",
-                          "in": [
-                            "cloud"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "fifthLine",
+                                  "eq": "cloud"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "cloud"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "cloud"
+                                },
+                                {
+                                  "key": "fourthLine",
+                                  "ne": "cloud"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -3789,9 +4022,19 @@
                       "not": {
                         "all": [
                           {
-                            "key": "thirdLine",
-                            "in": [
-                              "cloud"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "cloud"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "cloud"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3808,9 +4051,23 @@
                       "not": {
                         "all": [
                           {
-                            "key": "fourthLine",
-                            "in": [
-                              "cloud"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "fourthLine",
+                                    "eq": "cloud"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "cloud"
+                                  },
+                                  {
+                                    "key": "thirdLine",
+                                    "ne": "cloud"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3859,10 +4116,47 @@
                     {
                       "all": [
                         {
-                          "key": "fifthLine",
-                          "in": [
-                            "wind",
-                            "gust"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "fifthLine",
+                                  "eq": "wind"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "wind"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "wind"
+                                },
+                                {
+                                  "key": "fourthLine",
+                                  "ne": "wind"
+                                }
+                              ]
+                            },
+                            {
+                              "all": [
+                                {
+                                  "key": "fifthLine",
+                                  "eq": "gust"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "gust"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "gust"
+                                },
+                                {
+                                  "key": "fourthLine",
+                                  "ne": "gust"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -3898,10 +4192,31 @@
                       "not": {
                         "all": [
                           {
-                            "key": "thirdLine",
-                            "in": [
-                              "wind",
-                              "gust"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "wind"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "wind"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "gust"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "gust"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3918,10 +4233,39 @@
                       "not": {
                         "all": [
                           {
-                            "key": "fourthLine",
-                            "in": [
-                              "wind",
-                              "gust"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "fourthLine",
+                                    "eq": "wind"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "wind"
+                                  },
+                                  {
+                                    "key": "thirdLine",
+                                    "ne": "wind"
+                                  }
+                                ]
+                              },
+                              {
+                                "all": [
+                                  {
+                                    "key": "fourthLine",
+                                    "eq": "gust"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "gust"
+                                  },
+                                  {
+                                    "key": "thirdLine",
+                                    "ne": "gust"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -3970,9 +4314,27 @@
                     {
                       "all": [
                         {
-                          "key": "fifthLine",
-                          "in": [
-                            "uv"
+                          "any": [
+                            {
+                              "all": [
+                                {
+                                  "key": "fifthLine",
+                                  "eq": "uv"
+                                },
+                                {
+                                  "key": "secondaryLine",
+                                  "ne": "uv"
+                                },
+                                {
+                                  "key": "thirdLine",
+                                  "ne": "uv"
+                                },
+                                {
+                                  "key": "fourthLine",
+                                  "ne": "uv"
+                                }
+                              ]
+                            }
                           ]
                         },
                         {
@@ -4007,9 +4369,19 @@
                       "not": {
                         "all": [
                           {
-                            "key": "thirdLine",
-                            "in": [
-                              "uv"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "thirdLine",
+                                    "eq": "uv"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "uv"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {
@@ -4026,9 +4398,23 @@
                       "not": {
                         "all": [
                           {
-                            "key": "fourthLine",
-                            "in": [
-                              "uv"
+                            "any": [
+                              {
+                                "all": [
+                                  {
+                                    "key": "fourthLine",
+                                    "eq": "uv"
+                                  },
+                                  {
+                                    "key": "secondaryLine",
+                                    "ne": "uv"
+                                  },
+                                  {
+                                    "key": "thirdLine",
+                                    "ne": "uv"
+                                  }
+                                ]
+                              }
                             ]
                           },
                           {

@@ -110,17 +110,22 @@ test('every watch with line styles shows the rows; aplite never does', () => {
   assert.equal(count(body('forecast', S, BASALT), '>Draw from<'), 4);
 });
 
+/**
+ * The picker a Draw from row sits under: the nearest one above it on the tab.
+ * @param {Object} item A Draw from row.
+ * @returns {?string} Its picker's key.
+ */
+function pickerOfRow(item) {
+  let picker = null;
+  for (const i of forecastItems) {
+    if (PICKERS.indexOf(i.messageKey) !== -1) { picker = i.messageKey; }
+    if (i === item) { return picker; }
+  }
+  return null;
+}
+
 test('wind and gusts: one row, under the first picker that draws either as a line', () => {
-  // The picker a row sits under: the nearest one above it on the tab.
-  const pickerOf = (item) => {
-    let picker = null;
-    for (const i of forecastItems) {
-      if (PICKERS.indexOf(i.messageKey) !== -1) { picker = i.messageKey; }
-      if (i === item) { return picker; }
-    }
-    return null;
-  };
-  const at = (S) => visibleRows(S, BASALT).map((r) => r.messageKey + '@' + pickerOf(r));
+  const at = (S) => visibleRows(S, BASALT).map((r) => r.messageKey + '@' + pickerOfRow(r));
   const both = { secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'off', fifthLine: 'off' };
   assert.deepEqual(at(both), ['windLineFrom@secondaryLine']);
   // The first is a stripe: the row moves to the gust line, the one that hangs.
@@ -144,6 +149,67 @@ test('one visible copy per key, whatever the pickers draw', () => {
     states += 1;
   })));
   assert.equal(states, 216);
+});
+
+/**
+ * Where the wire says each Draw from key belongs: under the first picker whose line
+ * draw-from.js lineFromTop would hang if that key alone read Top, the wire's own rule
+ * (a drawn line, not a repeat of an earlier pick, not a stripe, a watch with line
+ * styles). A key no line reads has no place.
+ * @param {Object} S Settings.
+ * @param {Object} env Platform env.
+ * @returns {string[]} 'key@picker' per placed key, sorted.
+ */
+function wirePlacement(S, env) {
+  const out = [];
+  drawFrom.ROWS.forEach((row) => {
+    const top = Object.assign({}, S);
+    drawFrom.ROWS.forEach((r) => { top[r.key] = r === row ? 'top' : 'bottom'; });
+    const at = PICKERS.find((p) => drawFrom.lineFromTop(top, p, env));
+    if (at) { out.push(row.key + '@' + at); }
+    assert.equal(Boolean(at), drawFrom.linesSharing(S, row.key, env) > 0, row.key + ' ' + JSON.stringify(S));
+  });
+  return out.sort();
+}
+
+test('the row and the wire agree: a stored repeat hides it, the line that hangs shows it', () => {
+  const at = (S, env) => visibleRows(S, env || BASALT).map((r) => r.messageKey + '@' + pickerOfRow(r)).sort();
+  // Every picker over the amount metrics, one other metric and off, each as marks or a
+  // stripe: every stored repeat, stripe and gap combination of four pickers.
+  const metrics = ['precip_prob', 'cloud', 'wind', 'gust', 'uv', 'pressure', 'off'];
+  const styles = ['dots', 'stripeTop'];
+  const picks = [];
+  metrics.forEach((m) => styles.forEach((st) => picks.push([m, st])));
+  let states = 0;
+  picks.forEach((a) => picks.forEach((b) => picks.forEach((c) => picks.forEach((d) => {
+    const S = {};
+    [a, b, c, d].forEach((pick, i) => {
+      S[PICKERS[i]] = pick[0];
+      S[PICKERS[i] + 'Style'] = pick[1];
+    });
+    const want = wirePlacement(S, BASALT);
+    assert.deepEqual(at(S), want, JSON.stringify(S));
+    states += 1;
+  }))));
+  assert.equal(states, 38416);
+  // The shapes that disagreed before: an earlier picker draws the metric as a stripe and
+  // a later one stores a repeat of it, which the wire never draws (line-style.js
+  // effectiveLineMetric), so the row hides there...
+  const repeat = { secondaryLine: 'cloud', secondaryLineStyle: 'stripeTop', thirdLine: 'cloud',
+    thirdLineStyle: 'dots', fourthLine: 'off', fifthLine: 'off', cloudLineFrom: 'top' };
+  assert.deepEqual(at(repeat), []);
+  assert.equal(drawFrom.lineFromTop(repeat, 'thirdLine', BASALT), false);
+  // ...through the engine too, whose first render still sees the stored repeat (the
+  // picker snaps it as it renders).
+  assert.equal(count(body('forecast', repeat, BASALT), '>Draw from<'), 0);
+  // ...and moves on to a later line that does hang: the gust line, not the repeat above it.
+  const gust = { secondaryLine: 'wind', secondaryLineStyle: 'stripeTop', thirdLine: 'wind',
+    thirdLineStyle: 'dots', fourthLine: 'gust', fourthLineStyle: 'x', fifthLine: 'off' };
+  assert.deepEqual(at(gust), ['windLineFrom@fourthLine']);
+  assert.deepEqual(wirePlacement(gust, BASALT), ['windLineFrom@fourthLine']);
+  // aplite never hangs a line: no row, and the wire agrees.
+  assert.deepEqual(at(gust, APLITE), []);
+  assert.deepEqual(wirePlacement(gust, APLITE), []);
 });
 
 test('Bars from: one row per chart, while its bars are drawn, never on aplite', () => {
