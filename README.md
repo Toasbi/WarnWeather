@@ -26,7 +26,8 @@ A weather watchface for Pebble inspired by ForecasWatch2, with a 24-hour forecas
 * 24-hour forecast with a temperature line and configurable, battery-friendly updates
 * Configurable metrics such as precipitation, cloud cover, UV index, gusts, wind, air pressure, feels-like temperature and dew point (both drawn on the temperature scale)
 * Up to four metric lines at once, each in its own style — thin or thick line, square dots, little x marks, or (for precipitation, cloud cover, UV, wind and gusts) a shaded stripe along the top of the graph or below its zero line, whose colour strengthens with the value (third and fourth metric and style selection on watches with enough memory, not Pebble Classic/Steel)
-* Show: All | Alert: a wind speed, wind gust or UV index line draws every value, or only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays empty until it matters (not on Pebble Classic/Steel)
+* Draw from: Bottom | Top: the precipitation, cloud cover, wind, gust and UV index lines, and with *Bars from* the rain bars of the forecast and of the radar graph, can hang from the top of the graph instead of standing on its bottom, a bigger value reaching further down, so they cover the temperature curve less (wind and gusts move together, and a main metric's area fill hangs with its line; not on Pebble Classic/Steel)
+* Visible values: All | Alert: a wind speed, wind gust or UV index line draws every value, or only where it reaches your warn level (its Alert levels), its scale then starting at that level, so the small graph stays empty until it matters (not on Pebble Classic/Steel)
 * Optional day/night shading
 * Recolor the forecast graph per metric
 * Multiple weather providers, including regional and worldwide sources
@@ -98,7 +99,13 @@ Two things that both involve rain over time, but answer different questions:
   along the top of the graph or in its own band below the zero line (where bars and lines never
   cover it), shaded stronger the higher the value (on black & white watches as denser
   dithering) (defaults: line, dots, x, x; style selection is
-  likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The
+  likewise not on Pebble Classic/Steel, which keeps the classic line + dots look). The rain
+  bars and the precipitation, cloud cover, wind, gust and UV index lines stand on the graph's
+  bottom by default; with *Draw from* (under each line's Line style) or *Bars from* (for the
+  bars) set to *Top* they hang from the top of the graph instead, below any top stripes,
+  so a bigger value reaches further down and they cover the temperature curve less (wind and
+  gusts share one setting, and a main metric's area fill hangs with its line; not on Pebble
+  Classic/Steel). The
   temperature status slot can also show the feels-like value, or both as `12|10`; the UV index
   slot can show the highest UV left today (Day max), or both as `3/7`; today's peak stays
   while it is still ahead or happening now, then tomorrow's shows instead, marked `»` (`4/»8`),
@@ -118,7 +125,9 @@ Two things that both involve rain over time, but answer different questions:
   Instead of a map it's drawn as bars: the provider's radar images for the next 2 hours are
   sampled at your location, and each 5-minute frame becomes one bar whose height is the rain
   amount — solid bars are rain at your exact spot; with DWD, the hatched outline behind
-  them is the strongest rain within 2 km. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
+  them is the strongest rain within 2 km. The bars stand on the graph's bottom, or hang from
+  below its time axis with *Bars from* set to *Top* (Radar tab), heavier
+  rain reaching further down. Available from DWD (Germany), Met.no (Nordics), Rainbow.ai
   (worldwide, exact location only; *Rainbow (limited)* on the shared key refreshes every 30
   minutes, *Rainbow (own key)* on your own Rainbow API key refreshes at your update interval —
   free for 5,000 calls a month, Rainbow asks for a credit card) and Tomorrow.io (worldwide, needs a free API key). Good for *"is it about to rain on me right now?"*

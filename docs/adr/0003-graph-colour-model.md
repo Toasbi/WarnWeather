@@ -266,7 +266,8 @@ magenta, wind yellow, pressure orange, gust the greys, cloud a grey-blue.
 
 ## 7. The wire
 
-Ten bytes on `CLAY_LINE_STYLE_UINT8`, on the **Clay settings message** — these are
+Ten bytes on `CLAY_LINE_STYLE_UINT8` as shipped (sixteen since, see *The style tail and
+Draw from* below), on the **Clay settings message** — these are
 settings-derived, never weather-derived, so per `AGENTS.md`'s message-boundary rule
 they must not ride every weather send. (They replaced four scalar tuples that did: 44 B
 per weather send, 17 B once here. The Clay message sits at 490 B of its 536 B inbox.)
@@ -310,6 +311,51 @@ constants. Sending a "B&W-honest" set was five bytes of ceremony no watch ever r
 Consequence, accepted: on a bw theme these bytes carry whatever the user picked for
 that polarity. The wire is not lying — it is describing colours this render mode
 ignores.
+
+### The style tail and Draw from
+
+The tuple has since grown to sixteen bytes by two more tail blocks, each behind its own
+length check as the growth rule above asks: `[10]` the third-metric line colour,
+`[11..13]` the per-line style bytes (byte-for-byte the watch's `LINE_STYLES` persist
+blob), `[14]` the fourth-metric line colour and `[15]` its style byte (`FIFTH_LINE_STYLE`).
+`buildLineStyleBytes` (`line-style.js`) carries the full layout and `persist.h`'s
+`LINE_STYLES` comment the canonical layout of a style byte. The watch parses `[10..15]`
+only under `WW_LINE_STYLE`, so aplite ignores them.
+
+A style byte packs `kind | (field << 2)`: the kind (0–3) in bits 0–1, the field (a solid
+line's width, a stripe's edge) in bits 2–4. The encoder never reaches bit 5 (its largest
+bytes are `0x0C`, bold, and `0x07`, stripeTop), so **Draw from: Top** (1.24.0) rides
+there: bit 5 (`0x20`; `draw-from.js` `LINE_BIT`, `persist.h` `LINE_STYLE_FROM_TOP`) of
+`[11]`, `[12]`, `[13]` and `[15]` says that line hangs from the plot's top — its stroke
+or marks, and, for the Main metric, its Area fill with it. Bits 6–7 are reserved at 0.
+
+- **The decode is kind-aware** (`line_style_top_edge`). A stripe keeps its own edge in
+  the field's low bit, bit 2; every other kind reads bit 5. Bit 2 is a solid line's width
+  there (`0x04` thin, `0x0C` bold), so reusing the stripe decode would hang every solid
+  line. The phone never sets bit 5 on a stripe byte, nor for aplite (`capsForWatch` →
+  `lineStyles: false`), whatever is stored.
+- **No storage of its own.** `[11..13]` are stored verbatim and `[15]` as an int, so a
+  flip changes the stored value, dirties the forecast and repaints it.
+
+**Bars from: Top cannot ride in this tuple:** `handle_line_style` dirties only the
+forecast, so a radar flag here would not repaint the radar. Each chart's bar flag sits in
+its own palette blob instead, `BAR_PALETTE_UINT8` and `RADAR_PALETTE_UINT8` (3 B per stop,
+`[from_lo, from_hi, GColor8]`, `rain-tier.js` `packPalette`): bit 7 (`0x80`; `draw-from.js`
+`PALETTE_BIT`) of byte `[1]`, stop 0's `from_hi`. Every palette starts at `from = 0`, so
+that byte is otherwise always 0. The flag turns stop 0's threshold negative, which the
+watch reads as `palette_from_top()` (`stops[0].from < 0`): no mask, no persist key, and
+the palette's own change compare dirties exactly the chart the flag belongs to.
+
+This is the one implicit coupling of the feature. Every reader of `ChartColorStop.from`
+clamps a stop below the floor, so a reader that ignores the flag (a 1.23.x watch after a
+downgrade, say) still draws the bars standing; a new consumer of `.from` must clamp too.
+`palette.h`, `chart.h` and `rain-tier.js` say so, and `test/c/chart_flip_test.c` pins the
+flag.
+
+Both flags are settings-derived and leave the weather bake alone, so the six Draw from /
+Bars from keys (`draw-from.js`) stay out of `renderSignature`: a flip is a Clay-only resend. With every
+key on Bottom, absent, or on aplite whatever is stored, all three tuples are byte for
+byte what they were before the feature; no tuple grew, and the Clay budget is unchanged.
 
 ## 8. One render context, three consumers
 
