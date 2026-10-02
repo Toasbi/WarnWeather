@@ -26,7 +26,8 @@ const lineStyle = require('../src/pkjs/line-style.js');
 const lineAlert = require('../src/pkjs/line-alert.js');
 const { buildForecastSeries, applyForecastSeries } = require('../src/pkjs/forecast-series.js');
 const FC = require('../src/pkjs/settings/preview-forecast.js');
-const B = require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/settings/blocks.js');
+const FH = require('../src/pkjs/settings/forecast-hints.js');
 
 const [NONE, L1, L2, L3, FULL] = [0, 62, 125, 187, 250];
 
@@ -327,7 +328,7 @@ test('the forecast preview shades each stripe cell at the level the bake sends',
 
 test('the stripe hints name where the bake\'s colour steps start', () => {
   const env = { lineStyles: true };
-  const hint = (metric, S) => B.lineStyleHint(metric, 'stripeTop', S, env);
+  const hint = (metric, S) => FH.lineStyleHint(metric, 'stripeTop', S, env);
   // Rain chance and cloud: the scale's ranges, as the bake steps.
   assert.equal(hint('precip_prob', { secondaryLine: 'precip_prob' }),
     'Four colour steps: 1–10%, 11–30%, 31–60% and 61–100% chance of rain. One cell per hour.');

@@ -76,9 +76,9 @@ var HOURS = (function () {
 // The metric and line-style pickers' hints are DERIVED (hintFrom), not static: a
 // line's scale depends on its metric AND its style (height for a curve or marks,
 // colour strength for a stripe), so the copy and its composition live with the
-// resolvers in blocks.js ('forecastMetricHint', 'lineStyleHint'). The metric pickers
-// keep only notes true of the metric whatever its style — plus the height wording on a
-// watch without style pickers (aplite), so the scale is still explained there.
+// resolvers in forecast-hints.js ('forecastMetricHint', 'lineStyleHint'). The metric
+// pickers keep only notes true of the metric whatever its style — plus the height wording
+// on a watch without style pickers (aplite), so the scale is still explained there.
 // Every picker carries the full metric set, feels and dew included: each line has its
 // own curve-inset byte (CLAY_CURVE_INSET_UINT8), so any of them can share the
 // temperature axis with the temperature curve.
@@ -114,10 +114,10 @@ function lineStyleCopy(lineKey, offable) {
         defaultValue: lineStyle.LINE_STYLE_DEFAULTS[messageKey],
         joinPrevious: true,
         // The scale of THIS line's metric as this style shows it, plus the style's
-        // own note (blocks.js 'lineStyleHint').
+        // own note (forecast-hints.js 'lineStyleHint').
         hintFrom: {resolver: 'lineStyleHint', args: {metricKey: lineKey}},
         // The six styles, minus the stripes for a metric that cannot be one
-        // (blocks.js 'lineStyleOptions', off line-style.js' metricAllowsStripe).
+        // (forecast-hints.js 'lineStyleOptions', off line-style.js' metricAllowsStripe).
         optionsFrom: {resolver: 'lineStyleOptions', args: {metricKey: lineKey}},
         // A stored stripe on such a metric lies dormant: the row shows the style the
         // watch draws (line-style.js lineStyleValue resolves it the same way for the
@@ -127,7 +127,7 @@ function lineStyleCopy(lineKey, offable) {
         showWhen: {all: when}
     };
 }
-// Both metric pickers resolve through blocks.js' 'forecastMetric' options resolver:
+// Both metric pickers resolve through forecast-hints.js' 'forecastMetric' options resolver:
 // the third line gets Off plus the metrics the secondary line is NOT using (the
 // engine's display-snap resets thirdLine if it ever collides — see engine.js), and
 // feels-like is dropped on aplite (no temp-axis inset compiled there, and the temp
@@ -186,8 +186,8 @@ function lineRowWhen(pickerKey, row) {
 // One windScale copy: under the first picker that draws wind or gusts, AND the given
 // windUnits value, with the pre-rendered hint set for that unit. While a drawn wind or
 // gust line shows Alert its top is its band's (the higher of the scale and the danger
-// level), so blocks.js' 'windScaleHint' names the real tops instead; it answers null
-// otherwise, and the row shows hintByValue.
+// level), so forecast-hints.js' 'windScaleHint' names the real tops instead; it answers
+// null otherwise, and the row shows hintByValue.
 function windScaleCopy(pickerKey, unit, hints) {
     return {
         type: 'segmented',
@@ -209,7 +209,7 @@ function windScaleCopy(pickerKey, unit, hints) {
  * alertsDrawn). The wind speed, wind gust and UV index lines have one
  * each (line-alert.js METRIC_IDS, the graph metrics with Alert levels), stored per
  * metric, so the row follows its metric from picker to picker. Each value has its own
- * hint (blocks.js 'lineShowHint'); Alert's names the warn level it gaps below and, on
+ * hint (forecast-hints.js 'lineShowHint'); Alert's names the warn level it gaps below and, on
  * the UV line, the scale the line then runs over.
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {string} metric 'wind' | 'gust' | 'uv'.
@@ -235,7 +235,8 @@ function lineShowCopy(pickerKey, metric) {
  * a stripe the row moves to the next one that is a line (a stripe keeps its own
  * Top/Bottom). Stored per metric (wind and gusts share one key), so the row follows its
  * metric from picker to picker; a stored Top on a stripe or an undrawn line lies dormant
- * (lineFromTop) and the row hides. Only Top has a hint (blocks.js 'lineFromHint').
+ * (lineFromTop) and the row hides. Only Top has a hint
+ * (forecast-hints.js 'lineFromHint').
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {string} rowKey precipLineFrom|cloudLineFrom|windLineFrom|uvLineFrom.
  * @returns {Object} Schema item.
@@ -287,8 +288,8 @@ function sheetOf(keyStem, title, items) {
 
 // The nine rows of the Graph-colors card, each opening its own sheet. The eight metrics
 // come first, labelled and ordered exactly like the Main/Second metric pickers offer
-// them (blocks.js' FORECAST_METRICS — a user reads the two lists together), then the
-// full-height night band. `scope` is line-style.js' vocabulary: a metric id, or 'night'.
+// them (forecast-hints.js' FORECAST_METRICS — a user reads the two lists together), then
+// the full-height night band. `scope` is line-style.js' vocabulary: a metric id, or 'night'.
 // A row is NOT gated on the metric being selected — its colours are configurable before
 // it is picked, and the feels row simply has fewer pickers in its sheet.
 var GRAPH_COLOR_ROWS = [

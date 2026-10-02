@@ -1,8 +1,8 @@
 // src/pkjs/stripe-levels.js — ES5. A stripe cell's level: THE scales the phone shades
 // every stripe by. Read by the bake — forecast-series.js for a forecast line drawn as a
 // stripe, weather/radar-sky.js for the radar's cloud and sun rows — and by the settings
-// previews (preview-forecast.js, preview-radar.js, and blocks.js' stripe hints), so a
-// preview shades exactly the cells the watch will.
+// previews (preview-forecast.js, preview-radar.js, and forecast-hints.js' stripe hints),
+// so a preview shades exactly the cells the watch will.
 //
 // The watch draws a stripe cell at one of four levels above "nothing"
 // (chart_stripe.h CHART_STRIPE_LEVELS), reading the level off the wire byte with
@@ -32,7 +32,7 @@
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
 // <script> in the settings-page webview (scripts/build-config-page.js' APP_FILES, ahead of
-// the previews and blocks.js, which read it at load), which has no require().
+// the previews and forecast-hints.js, which read it at load), which has no require().
 (function () {
     // The byte sent for each level 0..4. The watch's chart_stripe_level rounds UP,
     // ceil(v * 4 / 250), so each entry is the LARGEST byte of its level, floor(k * 250 / 4):

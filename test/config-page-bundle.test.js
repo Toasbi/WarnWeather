@@ -93,7 +93,7 @@ test('the custom-layout editor reaches the generated page, after view-cycle', ()
 });
 
 // line-alert.js binds window.StatusThresholds and window.LineStyle while its own body
-// runs, and blocks.js and preview-forecast.js bind window.LineAlert while theirs do: out
+// runs, and forecast-hints.js and preview-forecast.js bind window.LineAlert while theirs do: out
 // of order, the Show row's hint and the preview of an Alert line throw on a real phone
 // while every Node test passes through require().
 test('the Show [All | Alert] module is bundled after its deps and before its readers', () => {
@@ -109,8 +109,8 @@ test('the Show [All | Alert] module is bundled after its deps and before its rea
     'line-style.js must precede line-alert.js');
   assert.ok(idx('pkjs/line-alert.js') < idx('settings/preview-forecast.js'),
     'line-alert.js must precede preview-forecast.js');
-  assert.ok(idx('pkjs/line-alert.js') < idx('settings/blocks.js'),
-    'line-alert.js must precede blocks.js');
+  assert.ok(idx('pkjs/line-alert.js') < idx('settings/forecast-hints.js'),
+    'line-alert.js must precede forecast-hints.js');
   const src = page();
   assert.ok(src.indexOf('window.LineAlert = api') !== -1,
     'nothing assigns window.LineAlert in the generated page');
@@ -119,7 +119,7 @@ test('the Show [All | Alert] module is bundled after its deps and before its rea
 });
 
 // draw-from.js (window.DrawFrom) binds window.LineStyle while its own body runs, and
-// preview-forecast.js, preview-radar.js and blocks.js bind window.DrawFrom while theirs
+// preview-forecast.js, preview-radar.js and forecast-hints.js bind window.DrawFrom while theirs
 // do: out of order, the Draw from row's hint, the previews and the page's boot throw on
 // a real phone while every Node test passes through require().
 test('the Draw from module is bundled after line-style.js and before its readers', () => {
@@ -130,7 +130,7 @@ test('the Draw from module is bundled after line-style.js and before its readers
     return at;
   };
   assert.ok(idx('pkjs/line-style.js') < idx('pkjs/draw-from.js'), 'line-style.js must precede draw-from.js');
-  ['settings/preview-forecast.js', 'settings/preview-radar.js', 'settings/blocks.js']
+  ['settings/preview-forecast.js', 'settings/preview-radar.js', 'settings/forecast-hints.js']
     .forEach((reader) => {
       assert.ok(idx('pkjs/draw-from.js') < idx(reader), 'draw-from.js must precede ' + reader);
     });
@@ -158,6 +158,40 @@ test('the when resolvers are bundled after the modules they ask', () => {
   ['lineRow', 'onDemandPlaced', 'defaultViewLacksOnDemand'].forEach((id) =>
     assert.ok(src.indexOf("PConf.whenResolvers.register('" + id + "'") !== -1,
       'nothing registers the ' + id + ' when resolver in the generated page'));
+});
+
+// forecast-hints.js holds the Forecast tab's line resolvers: the metric and style pickers'
+// options and the hints of the rows under them. It binds window.LineStyle, window.LineAlert,
+// window.DrawFrom and window.StripeLevels while its own body runs (the stripe hints are
+// written at load), so it follows all four. Out of the page, nothing throws: the pickers
+// offer no options and those rows lose their hints on a real phone, while every Node test
+// passes through blocks.js' require(). The ids come from the schema: every resolver the
+// Forecast tab's line rows name, each registered by forecast-hints.js's own part of the page.
+test('the forecast line resolvers are bundled after the line modules they read', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  ['pkjs/line-style.js', 'pkjs/line-alert.js', 'pkjs/draw-from.js', 'pkjs/stripe-levels.js'].forEach((dep) =>
+    assert.ok(idx(dep) < idx('settings/forecast-hints.js'), dep + ' must precede forecast-hints.js'));
+  const lines = require('../src/pkjs/settings/schema.js').tabs.find((t) => t.id === 'forecast').sections[0];
+  const ids = new Set();
+  (function collect(node) {
+    if (Array.isArray(node)) { node.forEach(collect); return; }
+    if (!node || typeof node !== 'object') { return; }
+    if (typeof node.resolver === 'string') { ids.add(node.resolver); }
+    Object.keys(node).forEach((k) => collect(node[k]));
+  })(lines);
+  assert.deepEqual([...ids].sort(), ['forecastMetric', 'forecastMetricHint', 'lineFromHint', 'lineShowHint',
+    'lineStyleHint', 'lineStyleOptions', 'windScaleHint'], 'the resolvers the Forecast tab\'s line rows name');
+  const src = page();
+  const from = src.indexOf('/* app: forecast-hints.js */');
+  assert.notEqual(from, -1, 'forecast-hints.js is not in the generated page');
+  const part = src.slice(from, src.indexOf('/* app: ', from + 1));
+  ids.forEach((id) => assert.ok(part.indexOf("Resolvers.register('" + id + "'") !== -1,
+    'forecast-hints.js does not register the ' + id + ' resolver in the generated page'));
 });
 
 // alerts-page.js holds the Alerts tab's resolvers. It binds PConf.thresholdLevels, which
@@ -198,18 +232,18 @@ test('the Alerts tab\'s resolvers are bundled after blocks.js, which they read',
 });
 
 // stripe-levels.js (window.StripeLevels) is the table the bake shades every stripe by;
-// preview-forecast.js, preview-radar.js and blocks.js bind it while their own bodies run
-// (blocks.js writes its stripe hints from it at load). Out of the page, or after them,
-// the forecast and radar previews and the page's boot throw on a real phone while every
-// Node test passes through require().
-test('the stripe scales are bundled before the previews and blocks.js that read them', () => {
+// preview-forecast.js, preview-radar.js and forecast-hints.js bind it while their own bodies
+// run (forecast-hints.js writes its stripe hints from it at load). Out of the page, or after
+// them, the forecast and radar previews and the page's boot throw on a real phone while
+// every Node test passes through require().
+test('the stripe scales are bundled before the previews and the forecast hints that read them', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith(suffix));
     assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
     return at;
   };
-  ['settings/preview-forecast.js', 'settings/preview-radar.js', 'settings/blocks.js'].forEach((reader) => {
+  ['settings/preview-forecast.js', 'settings/preview-radar.js', 'settings/forecast-hints.js'].forEach((reader) => {
     assert.ok(idx('pkjs/stripe-levels.js') < idx(reader), 'stripe-levels.js must precede ' + reader);
   });
   assert.ok(page().indexOf('window.StripeLevels = api') !== -1,

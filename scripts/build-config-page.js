@@ -67,20 +67,20 @@ var APP_FILES = [
   path.join(ROOT, 'src/pkjs/theme-flip.js'),
   path.join(ROOT, 'src/pkjs/line-style.js'),
   // The wind, gust and UV lines' Show [All | Alert] (window.LineAlert): the band the
-  // bake scales such a line over, for blocks.js' hints and the forecast preview. It
+  // bake scales such a line over, for forecast-hints.js' hints and the forecast preview. It
   // binds window.StatusThresholds and window.LineStyle while its own body runs, so it
   // follows both, and its two readers bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/line-alert.js'),
   // Draw from / Bars from [Bottom | Top] (window.DrawFrom): which lines and bars hang
-  // from the top, for blocks.js' hints and the forecast and radar previews. It binds
+  // from the top, for forecast-hints.js' hints and the forecast and radar previews. It binds
   // window.LineStyle while its own body runs, so it follows line-style.js, and its
   // readers bind it while theirs run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/draw-from.js'),
   // A stripe cell's level on its metric's own scale (window.StripeLevels): the table the
   // bake shades every stripe by, which the forecast and radar previews shade their cells
-  // by and blocks.js' stripe hints are written from. It reads nothing at load, and its
+  // by and forecast-hints.js' stripe hints are written from. It reads nothing at load, and its
   // three readers bind it while their own bodies run, so it precedes them —
   // test/config-page-bundle.test.js pins the order.
   path.join(ROOT, 'src/pkjs/stripe-levels.js'),
@@ -117,6 +117,15 @@ var APP_FILES = [
   // Node test passed through blocks.js' require() — test/config-page-bundle.test.js pins
   // its register() calls into the page.
   path.join(ROOT, 'src/pkjs/settings/when-resolvers.js'),
+  // The Forecast tab's line resolvers (the metric and style pickers' options, and the
+  // hints of the scale, Visible values, Wind graph scale and Draw from rows). They bind
+  // window.LineStyle, window.LineAlert, window.DrawFrom and window.StripeLevels while
+  // their own body runs (the stripe hints are written at load), so they follow all four;
+  // they read nothing of blocks.js. Dropped, nothing throws: the metric and style pickers
+  // silently offer no options and those rows lose their hints on a real phone, while every
+  // Node test passes through blocks.js' require() — test/config-page-bundle.test.js pins
+  // the order and its registrations into the page.
+  path.join(ROOT, 'src/pkjs/settings/forecast-hints.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // The Alerts tab's resolvers (the Alert settings card's hints and badges, the Shows on
   // grids' rows, a bar's Alerts row). They bind PConf.thresholdLevels, which blocks.js

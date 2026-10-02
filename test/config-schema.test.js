@@ -1110,7 +1110,7 @@ test('metric options are spelled out fully on both pickers', () => {
   assert.equal(labelOf('precip_prob', 'dew'), 'Dew point');
 });
 
-// --- The forecast line hints (blocks.js 'forecastMetricHint' / 'lineStyleHint') ---
+// --- The forecast line hints (forecast-hints.js 'forecastMetricHint' / 'lineStyleHint') ---
 // The scale explanation rides the LINE-STYLE picker: a curve or its marks show a value
 // by height, a stripe by colour strength. The metric pickers keep only what holds
 // whatever the style — plus the height wording on a watch without style pickers.
@@ -1214,8 +1214,8 @@ test('line-style hint: every metric x style reads height for curves and marks, c
   // The stripe copy covers exactly the metrics a stripe can show (the picker offers no
   // stripe for any other, so no other combination can reach the hint).
   assert.deepEqual(Object.keys(STRIPE).sort(), lineStyle.STRIPE_METRIC_IDS.slice().sort());
-  assert.deepEqual(Object.keys(require('../src/pkjs/settings/blocks.js').STRIPE_SCALE).sort(),
-    lineStyle.STRIPE_METRIC_IDS.slice().sort(), 'blocks.js STRIPE_SCALE keys = STRIPE_METRIC_IDS');
+  assert.deepEqual(Object.keys(require('../src/pkjs/settings/forecast-hints.js').STRIPE_SCALE).sort(),
+    lineStyle.STRIPE_METRIC_IDS.slice().sort(), 'forecast-hints.js STRIPE_SCALE keys = STRIPE_METRIC_IDS');
   const expected = (m, st) => {
     if (st === 'line' || st === 'bold') { return HEIGHT[m]; }
     if (st === 'dots' || st === 'x') { return HEIGHT[m] + ' Aligned to the rain bars.'; }

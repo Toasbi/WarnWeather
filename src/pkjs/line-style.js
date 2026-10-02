@@ -154,7 +154,7 @@
     // Concrete per-polarity values, no "auto" sentinel. ADR-0003 §1-§2.
 
     // Main/second-line metrics, in the order the settings page lists them
-    // (blocks.js' FORECAST_METRICS).
+    // (forecast-hints.js' FORECAST_METRICS).
     var GRAPH_METRICS = ['precip_prob', 'cloud', 'wind', 'uv', 'gust', 'pressure', 'feels', 'dew'];
     // Metric id -> the CamelCase key fragment. The ids are snake_case wire values and
     // would make unreadable key names ('gcPrecip_probLineDark').
@@ -453,7 +453,7 @@
     // percentages, the UV index, wind and gusts. Not feels-like or dew point
     // (drawn against today's temperature band: no zero, and "more" is not
     // "stronger") and not pressure (band-scaled; its trend is the story, not its
-    // size). THE one source: the settings page's style options (blocks.js
+    // size). THE one source: the settings page's style options (forecast-hints.js
     // 'lineStyleOptions') and its fill-row gate, the bake (lineStyleValue — the
     // wire's style bytes, the fill flag, the top-stripe band), the settings
     // preview and telemetry all ask here, so none of them can draw or report a

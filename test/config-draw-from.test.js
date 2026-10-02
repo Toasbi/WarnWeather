@@ -13,7 +13,8 @@ const platform = require('../src/pkjs/config-ui/lib/platform.js');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
 require('../src/pkjs/config-ui/lib/color.js');
 const E = require('../src/pkjs/config-ui/lib/engine.js');
-const B = require('../src/pkjs/settings/blocks.js');
+require('../src/pkjs/settings/blocks.js');
+const FH = require('../src/pkjs/settings/forecast-hints.js');
 const FC = require('../src/pkjs/settings/preview-forecast.js');
 const RD = require('../src/pkjs/settings/preview-radar.js');
 const PR = require('../src/pkjs/settings/preview-rain.js');
@@ -212,7 +213,7 @@ test('Bars from: one row per chart, while its bars are drawn, never on aplite', 
 });
 
 test('hints: none for Bottom, what hanging means for Top', () => {
-  const hint = (S, key, value) => B.lineFromHint(S, BASALT, { key, value });
+  const hint = (S, key, value) => FH.lineFromHint(S, BASALT, { key, value });
   const S = { secondaryLine: 'precip_prob', thirdLine: 'wind', fourthLine: 'off', fifthLine: 'off' };
   ['precipLineFrom', 'cloudLineFrom', 'windLineFrom', 'uvLineFrom'].forEach((k) => {
     assert.equal(hint(S, k, 'bottom'), '', k + ' Bottom');
@@ -242,15 +243,15 @@ test('a Visible values: Alert line that hangs names its start "Graph top"', () =
   [['kph', 'Graph top = 65 kph, full height = 90 kph.'], ['mph', 'Graph top = 40 mph, full height = 55 mph.'],
     ['knots', 'Graph top = 35 kn, full height = 50 kn.']].forEach(([windUnits, want]) => {
     const S = { secondaryLine: 'gust', thirdLine: 'off', windUnits, gustLineShow: 'alert' };
-    assert.equal(B.lineStyleHint('gust', 'line', Object.assign({ windLineFrom: 'top' }, S), env), want, windUnits);
-    assert.equal(B.lineStyleHint('gust', 'line', S, env), want.replace('Graph top', 'Graph bottom'), windUnits + ' Bottom');
+    assert.equal(FH.lineStyleHint('gust', 'line', Object.assign({ windLineFrom: 'top' }, S), env), want, windUnits);
+    assert.equal(FH.lineStyleHint('gust', 'line', S, env), want.replace('Graph top', 'Graph bottom'), windUnits + ' Bottom');
   });
-  assert.equal(B.lineStyleHint('uv', 'dots', { secondaryLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' }, env),
+  assert.equal(FH.lineStyleHint('uv', 'dots', { secondaryLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' }, env),
     'Graph top = UV 6, full height = UV 11. Aligned to the rain bars.');
   // A stripe keeps its colour wording; aplite (no line styles) never hangs.
-  assert.equal(B.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' }, env),
+  assert.equal(FH.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineShow: 'alert', uvLineFrom: 'top' }, env),
     'Faintest colour = UV 6, full colour from UV 10.5. One cell per hour.');
-  assert.equal(B.forecastMetricHint('uv', { lineStyles: false }, { secondaryLine: 'uv', uvLineShow: 'alert',
+  assert.equal(FH.forecastMetricHint('uv', { lineStyles: false }, { secondaryLine: 'uv', uvLineShow: 'alert',
     uvLineFrom: 'top' }), 'Graph bottom = UV 6, full height = UV 11.');
 });
 

@@ -54,8 +54,8 @@
 //
 // Dual-context: a CommonJS module on the phone and in the tests, a plain concatenated
 // <script> in the settings-page webview (scripts/build-config-page.js' APP_FILES, after
-// line-style.js, which it reads at load, and ahead of the previews and blocks.js, which
-// read it at theirs), which has no require().
+// line-style.js, which it reads at load, and ahead of the previews and forecast-hints.js,
+// which read it at theirs), which has no require().
 (function () {
     var lineStyle = (typeof require !== 'undefined')
         ? require('./line-style.js') : window.LineStyle;
