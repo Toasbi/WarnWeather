@@ -87,10 +87,37 @@ function levels(metric, pair) {
 }
 
 /**
- * The hours a colour preview draws a line in: its strokes' vertices and lone squares, in
- * the line's resolved colour, at the 'line' style's width. A vertex on the zero row is the
+ * Where a colour preview draws a line: its strokes' vertices and lone squares, in the
+ * line's resolved colour, at the 'line' style's width. A vertex on the zero row is the
  * zero next to a reading the line comes down to (chart_runs.h JOIN), not a reading: it
  * counts only when `zeros` asks for those hours instead.
+ * @param {string} svg Preview markup.
+ * @param {Object} state The settings it was drawn for.
+ * @param {string} lineKey The line's picker key.
+ * @param {boolean} [zeros] The hours the line comes down to the zero row in instead.
+ * @returns {Map<number, number>} Hour index -> the y the line draws it at.
+ */
+function drawnPoints(svg, state, lineKey, zeros) {
+  const caps = { color: true, themePolarity: true, lineStyles: true };
+  const gc = lineStyle.resolveGraphColors(state, caps);
+  const hex = color.intToHex(gc[{ secondaryLine: 'secondary', thirdLine: 'third' }[lineKey]]);
+  const points = new Map();
+  const slot = (x) => Math.round((Number(x) - 20) / PITCH);
+  const paths = new RegExp('<path d="(M[^"]+)" fill="none" stroke="' + hex + '" stroke-width="1.6">', 'g');
+  [...svg.matchAll(paths)].forEach((m) => {
+    const pts = [...m[1].matchAll(/(-?[\d.e-]+),(-?[\d.e-]+)/g)];
+    pts.filter((p, i) => (i === 0 || i % 3 === 0) && (Number(p[2]) === ZERO_ROW) === Boolean(zeros))
+      .forEach((p) => points.set(slot(p[1]), Number(p[2])));
+  });
+  if (!zeros) {
+    const squares = new RegExp('<rect x="([-\\d.e]+)" y="([-\\d.e]+)" width="1.6" height="1.6" fill="' + hex + '">', 'g');
+    [...svg.matchAll(squares)].forEach((m) => points.set(slot(Number(m[1]) + 0.8), Number(m[2]) + 0.8));
+  }
+  return points;
+}
+
+/**
+ * The hours a colour preview draws a line in (drawnPoints).
  * @param {string} svg Preview markup.
  * @param {Object} state The settings it was drawn for.
  * @param {string} lineKey The line's picker key.
@@ -98,22 +125,7 @@ function levels(metric, pair) {
  * @returns {number[]} Hour indices, ascending.
  */
 function drawnHours(svg, state, lineKey, zeros) {
-  const caps = { color: true, themePolarity: true, lineStyles: true };
-  const gc = lineStyle.resolveGraphColors(state, caps);
-  const hex = color.intToHex(gc[{ secondaryLine: 'secondary', thirdLine: 'third' }[lineKey]]);
-  const hours = new Set();
-  const slot = (x) => Math.round((Number(x) - 20) / PITCH);
-  const paths = new RegExp('<path d="(M[^"]+)" fill="none" stroke="' + hex + '" stroke-width="1.6">', 'g');
-  [...svg.matchAll(paths)].forEach((m) => {
-    const pts = [...m[1].matchAll(/(-?[\d.e-]+),(-?[\d.e-]+)/g)];
-    pts.filter((p, i) => (i === 0 || i % 3 === 0) && (Number(p[2]) === ZERO_ROW) === Boolean(zeros))
-      .forEach((p) => hours.add(slot(p[1])));
-  });
-  if (!zeros) {
-    const squares = new RegExp('<rect x="([-\\d.e]+)" y="[-\\d.e]+" width="1.6" height="1.6" fill="' + hex + '">', 'g');
-    [...svg.matchAll(squares)].forEach((m) => hours.add(slot(Number(m[1]) + 0.8)));
-  }
-  return [...hours].sort((a, b) => a - b);
+  return [...drawnPoints(svg, state, lineKey, zeros).keys()].sort((a, b) => a - b);
 }
 
 /**
@@ -159,27 +171,113 @@ test('every Alert line draws its sample\'s upper half, with its gaps, at any lev
   assert.ok(cases > 500, 'premise: the sweep covers ' + cases + ' cases');
 });
 
-test('wind and gusts sharing one Alert band: both draw, and the gusts never dip under the wind', () => {
-  let cases = 0;
+// The height a Visible values: Alert line spans from its band's bottom to its top, in
+// preview units (the hour axis at 94, less the plot's top 4 and inset 3; no stripe).
+const PLOT_H = 94 - 7;
+// Two lines' points this far apart read as two lines: past a stroke's 1.6, a dot's 4.
+const VISIBLE = 4;
+// The y a preview's alertPermille rounding (1 permille a line) can move a point by.
+const ROUNDING = 2 * PLOT_H / 1000;
+
+/**
+ * The wind on the Main metric picker and gusts on the Third, both Visible values: Alert.
+ * @param {Object} over Further settings (the units, the scale, the levels).
+ * @returns {Object}
+ */
+function sharedState(over) {
+  return lineState('wind', Object.assign({ thirdLine: 'gust', thirdLineStyle: 'line',
+    windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' }, over));
+}
+
+/**
+ * Checks one shared-band preview: both lines draw their sample's upper half, the gusts
+ * never dip under the wind, and wherever the lines draw the gust sits at least a fifth of
+ * the room the band leaves above the wind's warn level higher: visibly apart once that
+ * room is a quarter of the band. (A wind warn level at the band's top leaves none: the
+ * wind can only draw at the top there, and the gusts with it, on the watch as here.)
+ * @param {Object} S Settings (sharedState).
+ * @returns {number} The room above the wind's warn level, as a share of the band.
+ */
+function assertSharedBand(S) {
+  const label = JSON.stringify(S);
+  const bands = lineAlert.alertBands(S, true, true);
+  assert.deepEqual(bands.wind, bands.gust, 'premise: one shared band');
+  const band = bands.wind;
+  const room = (band.top - lineAlert.alertBand(S, 'wind', ['wind']).bottom) / (band.top - band.bottom);
+  const shown = FC.alertSamples(S, bands, SAMPLES);
+  shown.gust.forEach((g, i) => assert.ok(g >= shown.wind[i], label + ' hour ' + i));
+  const svg = FC.forecastPreview(S, BASALT);
+  const wind = drawnPoints(svg, S, 'secondaryLine');
+  const gust = drawnPoints(svg, S, 'thirdLine');
+  assert.deepEqual([...wind.keys()].sort((a, b) => a - b), DRAWN.wind, label);
+  assert.deepEqual([...gust.keys()].sort((a, b) => a - b), DRAWN.gust, label);
+  assert.deepEqual(drawnHours(svg, S, 'secondaryLine', true), JOINED.wind, label);
+  assert.deepEqual(drawnHours(svg, S, 'thirdLine', true), JOINED.gust, label);
+  DRAWN.wind.forEach((h) => {
+    const gap = wind.get(h) - gust.get(h);
+    assert.ok(gap >= 0.2 * room * PLOT_H - ROUNDING, label + ' hour ' + h + ': ' + gap);
+    if (room >= 0.25) { assert.ok(gap >= VISIBLE, label + ' hour ' + h + ': ' + gap); }
+  });
+  return room;
+}
+
+test('wind and gusts sharing one Alert band: both draw, the gusts a step above the wind', () => {
+  let cases = 0, apart = 0;
   ['kph', 'mph', 'knots'].forEach((windUnits) => ['low', 'mid', 'high'].forEach((windScale) => {
     const windPairs = levelPairs('wind').filter((p, i) => i % 3 === 0);
     windPairs.forEach((wp) => levelPairs('gust').filter((p, i) => i % 7 === 0).forEach((gp) => {
-      const S = lineState('wind', Object.assign({ thirdLine: 'gust', thirdLineStyle: 'line', windUnits, windScale,
-        windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' }, levels('wind', wp), levels('gust', gp)));
-      const label = JSON.stringify(S);
-      const bands = lineAlert.alertBands(S, true, true);
-      assert.deepEqual(bands.wind, bands.gust, 'premise: one shared band');
-      const shown = FC.alertSamples(S, bands, SAMPLES);
-      shown.gust.forEach((g, i) => assert.ok(g >= shown.wind[i], label + ' hour ' + i));
-      const svg = FC.forecastPreview(S, BASALT);
-      assert.deepEqual(drawnHours(svg, S, 'secondaryLine'), DRAWN.wind, label);
-      assert.deepEqual(drawnHours(svg, S, 'thirdLine'), DRAWN.gust, label);
-      assert.deepEqual(drawnHours(svg, S, 'secondaryLine', true), JOINED.wind, label);
-      assert.deepEqual(drawnHours(svg, S, 'thirdLine', true), JOINED.gust, label);
+      const S = sharedState(Object.assign({ windUnits, windScale }, levels('wind', wp), levels('gust', gp)));
+      if (assertSharedBand(S) >= 0.25) { apart += 1; }
       cases += 1;
     }));
+    // Every pair a gust can share with the same pair, or with a pair one step off.
+    levelPairs('wind').forEach((wp, i, all) => {
+      [wp, all[i + 1]].filter(Boolean).forEach((gp) => {
+        [[wp, gp], [gp, wp]].forEach((p) => {
+          const S = sharedState(Object.assign({ windUnits, windScale }, levels('wind', p[0]), levels('gust', p[1])));
+          if (assertSharedBand(S) >= 0.25) { apart += 1; }
+          cases += 1;
+        });
+      });
+    });
   }));
-  assert.ok(cases > 200, 'premise: the sweep covers ' + cases + ' cases');
+  assert.ok(cases > 1000 && apart > cases / 2, 'premise: the sweep covers ' + cases + ' cases, ' + apart + ' apart');
+});
+
+test('wind and gusts on Alert at equal, close or crossed levels draw as two lines, and as two rows of dots', () => {
+  // Owner-visible cases from the review: one pair for both, warn levels 5 apart, and the
+  // wind's levels above the gusts'. Before, the gust line covered the wind's evening.
+  const pairs = [
+    [{ warn: '50', danger: '70' }, { warn: '50', danger: '70' }],
+    [{ warn: '50', danger: '70' }, { warn: '55', danger: '70' }],
+    [{ warn: '55', danger: '70' }, { warn: '50', danger: '70' }],
+    [{ warn: '60', danger: '90' }, { warn: '30', danger: '40' }],
+    [{ warn: '', danger: '' }, { warn: '', danger: '' }]
+  ];
+  ['kph', 'mph', 'knots'].forEach((windUnits) => ['low', 'mid', 'high'].forEach((windScale) => {
+    pairs.forEach((p) => {
+      const S = sharedState(Object.assign({ windUnits, windScale }, levels('wind', p[0]), levels('gust', p[1])));
+      const label = JSON.stringify(S);
+      assert.ok(assertSharedBand(S) >= 0.25, 'premise: room to draw apart ' + label);
+      // As dots (the hour columns, 0..10): each wind dot clear of the gust dot over it.
+      const D = Object.assign({}, S, { secondaryLineStyle: 'dots', thirdLineStyle: 'dots' });
+      const gc = lineStyle.resolveGraphColors(D, { color: true, themePolarity: true, lineStyles: true });
+      const dots = (hex) => {
+        const out = new Map();
+        const re = new RegExp('<rect x="([-\\d.e]+)" y="([-\\d.e]+)" width="9" height="([34])" fill="' + hex + '">', 'g');
+        [...FC.forecastPreview(D, BASALT).matchAll(re)].forEach((m) => {
+          out.set(Math.round((Number(m[1]) + 4.5 - 20) / PITCH - 0.5), Number(m[2]) + Number(m[3]) / 2);
+        });
+        return out;
+      };
+      const wind = dots(color.intToHex(gc.secondary));
+      const gust = dots(color.intToHex(gc.third));
+      const columns = DRAWN.wind.filter((h) => h < 11);
+      assert.deepEqual([...wind.keys()].sort((a, b) => a - b), columns, label);
+      assert.deepEqual([...gust.keys()].sort((a, b) => a - b), columns, label);
+      columns.forEach((h) => assert.ok(wind.get(h) - gust.get(h) >= VISIBLE, label + ' column ' + h));
+    });
+  }));
 });
 
 test('a sample on Alert peaks under its band\'s top and starts at the warn level', () => {

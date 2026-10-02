@@ -219,6 +219,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     // band scale's full-colour step (stripe-levels.js SCALES.band, 90 %), so a stripe shows
     // every step from the faintest up.
     var ALERT_PEAK_SHARE = 0.9;
+    // Wind and gusts sharing one band: the wind peaks lower, this share of the way from its
+    // warn level to the band's top, and wherever it draws the gust sits at least
+    // SHARED_GUST_LIFT of the way from the wind up to that top, so the gust line runs clearly
+    // above the wind's, as real gusts do, instead of on it: apart by at least a fifth of the
+    // room the band leaves above the wind's warn level. (A wind warn level at the band's top
+    // leaves none: the wind can only draw at the top there, and the gusts with it, as on
+    // the watch.)
+    var SHARED_WIND_PEAK_SHARE = 0.6;
+    var SHARED_GUST_LIFT = 0.5;
 
     /**
      * The samples a Visible values: Alert line draws: each keeps its shape, redrawn against
@@ -226,13 +235,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * the line's gaps, whatever the unit rounds. The upper half runs from the metric's warn
      * level to ALERT_PEAK_SHARE of the way up to the band's top (line-alert.js alertBand:
      * the higher of the usual top and the danger level). Wind and gusts sharing one band
-     * keep gusts at or above the wind. A metric without a band keeps its very array.
+     * keep gusts above the wind (SHARED_WIND_PEAK_SHARE, SHARED_GUST_LIFT). A metric
+     * without a band keeps its very array.
      * @param {Object} state Live settings (windUnits, windScale, the Alert levels).
      * @param {Object<string, {bottom: number, top: number}>} bands line-alert.js alertBands.
      * @param {Object<string, number[]>} samples wind and gust (km/h) and uv (the index).
      * @returns {Object<string, number[]>} The samples to draw, by metric.
      */
     function alertSamples(state, bands, samples) {
+        var shared = Boolean(bands.wind && bands.gust && samples.wind && samples.gust);
         var out = {};
         Object.keys(samples).forEach(function (id) {
             var vals = samples[id], band = bands[id];
@@ -242,7 +253,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var mid = (Math.min.apply(null, vals) + hi) / 2;
             // The metric's own warn level: the bottom of the band its line has alone.
             var warn = lineAlert.alertBand(state, id, [id]).bottom;
-            var peak = warn + ALERT_PEAK_SHARE * (band.top - warn);
+            var share = (shared && id === 'wind') ? SHARED_WIND_PEAK_SHARE : ALERT_PEAK_SHARE;
+            var peak = warn + share * (band.top - warn);
             out[id] = vals.map(function (s) {
                 if (s < mid) { return s / mid * band.bottom / 2 / perUnit; }
                 // At least one series unit: 0 is no value on these lines, even at warn 0.
@@ -255,8 +267,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
                 return x;
             });
         });
-        if (bands.wind && bands.gust && out.wind && out.gust) {
-            out.gust = out.gust.map(function (g, i) { return Math.max(g, out.wind[i]); });
+        if (shared) {
+            out.gust = out.gust.map(function (g, i) {
+                var w = out.wind[i];
+                // Where the wind draws, the gust a share of the room above it higher (the
+                // wind's own rounding lift can leave it a hair past the top: no room).
+                var lift = lineAlert.reachesWarn(state, 'wind', w)
+                    ? SHARED_GUST_LIFT * Math.max(bands.gust.top - w, 0) : 0;
+                return Math.max(g, w + lift);
+            });
         }
         return out;
     }
