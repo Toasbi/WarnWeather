@@ -758,14 +758,15 @@ test('applyForecastSeries deletes the transient PRESSURE_TREND', () => {
 
 // ---- Feels-like metric ---------------------------------------------------
 // 'feels' rides the SECONDARY/THIRD channels like pressure, but maps against the
-// TEMPERATURE axis: applyForecastSeries widens TEMP_MIN/TEMP_MAX to the joint
-// temp∪feels band and rescales the temp bytes against it, so both curves share
-// one scale and the vertical gap between them is real.
+// TEMPERATURE axis: applyForecastSeries encodes the temps and the feels on their joint
+// temp∪feels band (the plain lowest and highest value of the two), so both curves share
+// one scale and the vertical gap between them is real. The watch fits that scale so the
+// temperature's own range fills its margins (temp_axis_pad.h THE SCALE).
 const { needsFeels } = require('../src/pkjs/forecast-series');
 const { LINE_COLORS, FILL_COLORS } = require('../src/pkjs/line-style.js');
 
 // °F temps 10/20/30, raw off getPayload; applyForecastSeries encodes them
-// against [10, 30] (temp-only) or the padded joint band (feels selected).
+// against [10, 30] (temp-only) or the joint band (feels selected).
 const feelsPayload = (extra) => Object.assign({
   TEMP_RAW_TREND: [10, 20, 30], TEMP_MIN: 10, TEMP_MAX: 30,
   PRECIP_TREND_UINT8: [0, 50, 100], RAIN_TREND_UINT8: [0, 0, 0],
@@ -776,43 +777,48 @@ test('feels selected: temp bytes rescale against the joint band, but TEMP_MIN/MA
   const payload = feelsPayload({ FEELS_TREND: [5, 15, 25], FEELS_CURRENT: 8 });
   const out = applyForecastSeries(payload,
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
-  // Joint band [5, 30], padded below (where feels overshoots) by
-  // ceil(25 * 40/960) = 2 -> [3, 30], span 27.
-  // Temps 10/20/30 -> round((t-3)*250/27) = 65/157/250.
-  assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
+  // Joint band [5, 30], span 25, unpadded: the watch does the fitting.
+  // Temps 10/20/30 -> round((t-5)*250/25) = 50/150/250.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
   // The hi/lo labels name the AIR temperature, never the plot floor: the air never
   // got to 5 °F here, so a "lo" of 5 would be a lie. The feels curve's own extremes
   // are deliberately unlabelled — that is what the grey shadow line means.
   assert.equal(out.TEMP_MIN, 10, 'lo label is the actual temperature low');
   assert.equal(out.TEMP_MAX, 30, 'hi label is the actual temperature high');
-  // Feels 5/15/25 against the SAME padded band -> permille 74/444/815 -> 19/111/204.
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [19, 111, 204]);
+  // Feels 5/15/25 against the SAME band -> permille 0/400/800 -> 1/100/200 (the band floor
+  // lifts the lowest reading off byte 0, which would read as no reading).
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 100, 200]);
   // Its colour rides the Clay message now, not this payload.
   assert.equal(lineStyle.resolveLineStyle(
     { secondaryLine: 'feels', thirdLine: 'off' }, { platform: 'basalt' }).secondary,
     0xAAAAAA); // GColorLightGray
 });
 
-test('the feels curve keeps clear of both plot edges when it overshoots the temp band', () => {
-  // Overshooting BOTH ways: feels 2..38 against temps 10..30.
+test('a feels curve overshooting the temperature: the plain joint band, no padding', () => {
+  // Overshooting BOTH ways: feels 2..38 against temps 10..30. The joint band is the plain
+  // [2, 38] (span 36): the watch reads the temperature's own bytes back (56..194), lands them
+  // on its margin rows, and the feels-like line runs on into the margins on the same scale
+  // (owner, 2026-10-02: "feels like and dew may do that"; temp_axis_pad.h THE SCALE), so the
+  // phone pads nothing: padding would only spend byte resolution.
   const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [2, 20, 38] }),
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
-  const bytes = out.SECONDARY_LINE_TREND_UINT8;
-  assert.ok(Math.min.apply(null, bytes) > 0, 'never flat against the plot floor');
-  assert.ok(Math.max.apply(null, bytes) < 250, 'never flat against the plot ceiling');
-  assert.deepEqual(bytes, [13, 125, 238]);
+  assert.deepEqual(out.TEMP_TREND_UINT8, [56, 125, 194]);
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 125, 250]);
+  // One scale: the same 20 degrees are the same byte on both lines.
+  assert.equal(out.TEMP_TREND_UINT8[1], out.SECONDARY_LINE_TREND_UINT8[1]);
   assert.equal(out.TEMP_MIN, 10);
   assert.equal(out.TEMP_MAX, 30);
 });
 
-test('under a top stripe the feels curve keeps its top pad, as without one', () => {
-  // Feels overshoots above only (temps 10..30, feels up to 38). The watch keeps the curves'
-  // inset under a top stripe band as over the bottom edge (temp_axis_pad.h; owner,
-  // 2026-10-02), so the joint band is padded at the top as it is without a stripe.
+test('a stripe on either edge bakes the same temperature-axis bytes as none', () => {
+  // Feels overshoots above only (temps 10..30, feels up to 38). The watch fits the
+  // temperature into its margins under a top stripe band as over the bottom edge
+  // (temp_axis_pad.h; owner, 2026-10-02), so the joint band is the same with a stripe.
   const settings = { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' };
   const plain = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
     settings, { platform: 'basalt' });
-  assert.ok(Math.max.apply(null, plain.SECONDARY_LINE_TREND_UINT8) < 250, 'premise: padded without a stripe');
+  assert.deepEqual(plain.TEMP_TREND_UINT8, [0, 89, 179], 'premise: the joint band [10, 38]');
+  assert.deepEqual(plain.SECONDARY_LINE_TREND_UINT8, [45, 89, 250]);
   // A drawn top stripe, a stored stripe on a metric that cannot be one (drawn as a line), a
   // bottom stripe: the same bytes, on a colour watch and on aplite (which draws no stripes).
   ['basalt', 'aplite'].forEach((platform) => {
@@ -864,12 +870,11 @@ test('a line-style edit that changes the bake changes the render signature', () 
   assert.ok(changed > 0, 'premise: some style edit re-bakes');
 });
 
-test('no padding when feels stays inside the temp band — the temp curve still spans the plot', () => {
-  // The temperature defines both extremes here, so its curve is supposed to reach the
-  // inset edges: that edge is exactly what the hi/lo labels name.
+test('feels inside the temp band: the joint band is the temperature\'s, byte-identical', () => {
+  // The temperature defines both extremes here, so its bytes span 0..250 as without feels.
   const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [12, 18, 25] }),
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, { platform: 'basalt' });
-  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250], 'unpadded, full-span, byte-identical');
+  assert.deepEqual(out.TEMP_TREND_UINT8, [0, 125, 250], 'full-span, byte-identical');
 });
 
 test('fractional feels widen the band to whole degrees outward (int32 TEMP_MIN/MAX wire keys)', () => {
@@ -883,8 +888,8 @@ test('fractional feels widen the band to whole degrees outward (int32 TEMP_MIN/M
   assert.equal(out.TEMP_MIN, 10);
   assert.equal(out.TEMP_MAX, 30);
   assert.ok(Number.isInteger(out.TEMP_MIN) && Number.isInteger(out.TEMP_MAX));
-  // The fractional feels extremes still land inside the plot: the band floors/ceils
-  // outward before padding, so neither curve is clipped or pinned to an edge.
+  // The fractional feels extremes still land inside the band: it floors/ceils outward,
+  // so no extreme is cut off at a byte edge.
   const bytes = out.SECONDARY_LINE_TREND_UINT8;
   assert.ok(Math.min.apply(null, bytes) > 0 && Math.max.apply(null, bytes) < 250);
   assert.ok(bytes.every(Number.isInteger), 'no floats leak into the wire bytes');
@@ -917,8 +922,8 @@ test('feels as the third line: dots ride the temp axis, light gray, none lost to
   const payload = feelsPayload({ FEELS_TREND: [5, 15, 25] });
   const out = applyForecastSeries(payload,
     { secondaryLine: 'precip_prob', thirdLine: 'feels', barSource: 'off' }, { platform: 'basalt' });
-  assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
-  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [19, 111, 204]);
+  assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [1, 100, 200]);
   // Its colour rides the Clay message now, not this payload.
   assert.equal(lineStyle.resolveLineStyle(
     { secondaryLine: 'precip_prob', thirdLine: 'feels' }, { platform: 'basalt' }).third,
@@ -965,14 +970,14 @@ test('the aplite feels gate is exactly aplite: diorite and an unknown platform k
   for (const watchInfo of [{ platform: 'diorite' }, null, undefined, {}]) {
     const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [5, 15, 25] }),
       { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' }, watchInfo);
-    assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250], JSON.stringify(watchInfo));
-    assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [19, 111, 204], JSON.stringify(watchInfo));
+    assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250], JSON.stringify(watchInfo));
+    assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [1, 100, 200], JSON.stringify(watchInfo));
   }
 });
 
 test('buildForecastSeries without a tempBand: feels scales against its own min/max (self-band degrade)', () => {
   // No band (a direct caller, not the applyForecastSeries path): feels scales against
-  // itself, so there is no overshoot to pad. Its floor is still floated off byte 0 by
+  // itself. Its floor is still floated off byte 0 by
   // metricBytes — feels is band-scaled, so its minimum is a reading, not an absence.
   const out = buildForecastSeries({ feels: [50, 60, 70] },
     { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' });
@@ -1230,15 +1235,14 @@ test('the fourth metric line ships as FIFTH_LINE_TREND_UINT8 off aplite only', (
 test('dew selected: the joint band covers temp, feels AND dew, and TEMP_MIN/MAX stay the actual temps', () => {
   const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [8, 18, 28], DEW_TREND: [0, 4, 9] }),
     { secondaryLine: 'feels', thirdLine: 'dew', barSource: 'off' }, { platform: 'basalt' });
-  // Joint band [0, 30], padded below (dew overshoots) by ceil(30 * 40/960) = 2 -> [-2, 30].
-  // Temps 10/20/30 -> round((t+2)*250/32) = 94/172/250.
-  assert.deepEqual(out.TEMP_TREND_UINT8, [94, 172, 250]);
+  // Joint band [0, 30], unpadded. Temps 10/20/30 -> round(t*250/30) = 83/167/250.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [83, 167, 250]);
   assert.equal(out.TEMP_MIN, 10);
   assert.equal(out.TEMP_MAX, 30);
-  // Dew 0/4/9 against [-2, 30]: 63/188/344 ‰ -> bytes 16/47/86.
-  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [16, 47, 86]);
-  // Feels 8/18/28 against the SAME band: 313/625/938 ‰ -> 78/156/235.
-  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [78, 156, 235]);
+  // Dew 0/4/9 against [0, 30]: 0 (floored to 2)/133/300 ‰ -> bytes 1/33/75.
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [1, 33, 75]);
+  // Feels 8/18/28 against the SAME band: 267/600/933 ‰ -> 67/150/233.
+  assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, [67, 150, 233]);
   assert.equal('DEW_TREND' in out, false, 'transient stripped');
 });
 
@@ -1248,8 +1252,8 @@ test('dew: an hour with no reading ships as byte 0 (drawn as a gap) and never wi
   const bytes = out.SECONDARY_LINE_TREND_UINT8;
   assert.equal(bytes[1], 0, 'the missing hour is absent');
   assert.ok(bytes[0] > 0 && bytes[2] > 0, 'the sourced hours keep their dots');
-  // Band [5, 30] padded to [3, 30] — a null read as 0 °F would have dragged it to 0.
-  assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
+  // Band [5, 30] — a null read as 0 °F would have dragged it to 0.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
 });
 
 test('dew: a feed without dew (DEW_TREND absent or all null) leaves the line off and the band alone', () => {
@@ -1281,9 +1285,9 @@ test('dew on the fourth line widens the joint band through applyForecastSeries',
   const out = applyForecastSeries(feelsPayload({ DEW_TREND: [5, 15, 25] }),
     { secondaryLine: 'precip_prob', thirdLine: 'off', fourthLine: 'dew', barSource: 'off' },
     { platform: 'basalt' });
-  // Band [5, 30] padded to [3, 30], as for dew on the main line.
-  assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250]);
-  assert.deepEqual(out.FOURTH_LINE_TREND_UINT8, [19, 111, 204]);
+  // Band [5, 30], as for dew on the main line.
+  assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250]);
+  assert.deepEqual(out.FOURTH_LINE_TREND_UINT8, [1, 100, 200]);
   assert.equal(out.TEMP_MIN, 10, 'labels stay the actual temps');
   assert.equal(out.TEMP_MAX, 30);
 });
@@ -1294,9 +1298,9 @@ test('feels on the fifth line ("Fourth metric") rides the joint band through app
   for (const watchInfo of [{ platform: 'basalt' }, { platform: 'emery' }, null]) {
     const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [5, 15, 25], FEELS_CURRENT: 8 }),
       settings, watchInfo);
-    // Same joint band as the main-line feels case: [5, 30] padded to [3, 30].
-    assert.deepEqual(out.TEMP_TREND_UINT8, [65, 157, 250], JSON.stringify(watchInfo));
-    assert.deepEqual(out.FIFTH_LINE_TREND_UINT8, [19, 111, 204], JSON.stringify(watchInfo));
+    // Same joint band as the main-line feels case: [5, 30].
+    assert.deepEqual(out.TEMP_TREND_UINT8, [50, 150, 250], JSON.stringify(watchInfo));
+    assert.deepEqual(out.FIFTH_LINE_TREND_UINT8, [1, 100, 200], JSON.stringify(watchInfo));
     assert.equal(out.TEMP_MIN, 10, 'labels stay the actual temps');
   }
 });
@@ -1305,7 +1309,7 @@ test('a feels pick repeated on the fourth line leaves the fourth line empty', ()
   const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [5, 15, 25] }),
     { secondaryLine: 'precip_prob', thirdLine: 'feels', fourthLine: 'feels', barSource: 'off' },
     { platform: 'basalt' });
-  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [19, 111, 204], 'the earlier line draws it');
+  assert.deepEqual(out.THIRD_LINE_TREND_UINT8, [1, 100, 200], 'the earlier line draws it');
   assert.deepEqual(out.FOURTH_LINE_TREND_UINT8, [], 'the duplicate does not');
 });
 

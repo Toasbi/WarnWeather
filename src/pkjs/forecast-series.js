@@ -317,57 +317,13 @@ function jointTempAxisBand(tempMin, tempMax, series) {
     return { min: Math.floor(min), max: Math.ceil(max) };
 }
 
-// How far a feels or dew curve keeps clear of the plot's inset edge, in permille of the
-// plot band (40 ‰ ≈ wire byte 10), whenever it ranges beyond the temperature.
-var TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40;
-
-/**
- * Widen the joint band on whichever side a temperature-axis series (feels, dew)
- * overshoots the temperature, so that curve lands clear of the plot edge instead of
- * flat against it.
- *
- * The clearance has to come from the band, not from the curve inset: the watch maps
- * every line's bytes 0..250 over the same inset plot band, so two series are
- * pixel-aligned only while they share BOTH a band and an inset — and the inset rides
- * the Clay (settings) message, which cannot know how far today's feels-like ran from
- * today's temperature. Padding the band is the same visual effect (more empty plot
- * between the curve and the edge) computed where the weather data actually is.
- *
- * Only the overshooting side is padded. Where the TEMPERATURE defines the extreme,
- * its curve is supposed to reach the inset edge — that edge is what the hi/lo labels
- * name, and the temp curve is a solid line, which the watch never skips.
- *
- * A stripe along the graph's top edge changes nothing here: the watch keeps the
- * curves' inset under its band as over the bottom edge (temp_axis_pad.h; owner,
- * 2026-10-02), so the top is padded like the bottom.
- *
- * @param {{min: number, max: number}} tempBand Actual temperature band.
- * @param {{min: number, max: number}} jointBand Union of tempBand and the feels/dew series.
- * @returns {{min: number, max: number}} Joint band padded away from the overshot edges.
- */
-function padJointTempAxisBand(tempBand, jointBand) {
-    var below = tempBand.min - jointBand.min;   // feels/dew reach below the temp low
-    // feels reaches above the temp high (dew is capped at it)
-    var above = jointBand.max - tempBand.max;
-    var span = jointBand.max - jointBand.min;
-    if (span <= 0 || (below <= 0 && above <= 0)) { return jointBand; }
-    // pad / (span + pad) = clearance  ->  pad = span * c / (1000 - c). Rounded up, and
-    // at least 1 whole degree so a narrow band still visibly clears the edge. (Padding
-    // both sides dilutes each to ~1000c/(1000+c) ‰ — still ~38 ‰, ~byte 10.)
-    var pad = Math.max(1, Math.ceil(
-        span * TEMP_AXIS_EDGE_CLEARANCE_PERMILLE / (1000 - TEMP_AXIS_EDGE_CLEARANCE_PERMILLE)));
-    return {
-        min: below > 0 ? jointBand.min - pad : jointBand.min,
-        max: above > 0 ? jointBand.max + pad : jointBand.max
-    };
-}
-
 /**
  * Permille series for a temperature-axis metric (feels, dew), mapped against the
  * shared temperature axis: the joint band of the temperature and every drawn
  * temperature-axis series (applyForecastSeries has already built it, so all the
- * curves land pixel-aligned in the same value space and the gaps between them are
- * real). No band (a direct buildForecastSeries caller) → the series scales against
+ * curves share one value space and the gaps between them are real; the watch fits
+ * that space so the temperature's own range fills its margins, temp_axis_pad.h).
+ * No band (a direct buildForecastSeries caller) → the series scales against
  * its own min/max. Empty/absent series → [] (line off, same graceful degrade as the
  * other metrics); an hour with no reading → null (metricBytes ships it as absent).
  * @param {Array.<(number|null)>} series Feels-like or dew-point series (°F).
@@ -512,20 +468,23 @@ function applyForecastSeries(payload, settings, watchInfo) {
     statusLines.buildStatusLines(payload, settings, watchInfo);
     // THE one temp encode: getPayload ships whole-degree temps (TEMP_RAW_TREND,
     // transient) and this is where they become wire bytes — with settings in
-    // hand. Joint temp∪feels axis: two curves only read as one graph if they
-    // share a scaling band AND a pixel inset — the watch maps every line's
-    // bytes 0..250 over the same inset plot band, and the phone cannot compute
-    // anything finer because it never learns the plot's pixel height. So with
-    // a feels or dew line selected the temps encode against the padded joint
-    // band, and tempAxisPermille maps those against that same band via
-    // raw.tempBand.
+    // hand. Joint temp∪feels∪dew axis: the curves only read as one graph if they
+    // share one value space, so with a feels or dew line selected the temps
+    // encode against the joint band (the lowest and highest value of the three,
+    // unpadded), and tempAxisPermille maps those against that same band via
+    // raw.tempBand. The FITTING is the watch's: it reads the temperature's own
+    // lowest and highest byte back and lands them on its margin rows, and a
+    // feels or dew value beyond them runs on into the margin on the same scale,
+    // held at the plot's edge (temp_axis_pad.h THE SCALE) — only the watch knows
+    // the plot's height and margins, so padding the band here would only spend
+    // byte resolution.
     //
     // TEMP_MIN/TEMP_MAX are NOT the scaling band: the watch scales purely from
-    // the bytes (forecast_layer.c passes lo=0, hi=250) and reads these two only
-    // to print the hi/lo labels (text_labels_refresh). So they keep carrying
-    // the ACTUAL air temperature range — a "lo" of 52 on a day whose air never
-    // dropped below 60 would be a plain lie, however honest it is about the
-    // plot's floor. The feels and dew curves' own extremes are unlabelled.
+    // the bytes and reads these two only to print the hi/lo labels
+    // (text_labels_refresh). So they keep carrying the ACTUAL air temperature
+    // range, the very window the watch's fit reads off the temperature's bytes —
+    // a "lo" of 52 on a day whose air never dropped below 60 would be a plain
+    // lie. The feels and dew curves' own extremes are unlabelled.
     //
     // A line the watch cannot draw (aplite, see tempAxisLineDrawn) takes the
     // empty-series path: no joint band, and its channel renders off.
@@ -551,8 +510,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     });
     if (drawnAxis.length && tempBand && rawTemps.length) {
         // The scaling band the metric channels must share; TEMP_MIN/TEMP_MAX stay put.
-        tempBand = padJointTempAxisBand(tempBand,
-            jointTempAxisBand(tempBand.min, tempBand.max, drawnAxis));
+        tempBand = jointTempAxisBand(tempBand.min, tempBand.max, drawnAxis);
     }
     raw.tempBand = tempBand;
     // The Show: Alert lines' bands, over the lines THIS watch draws: a gust line on the

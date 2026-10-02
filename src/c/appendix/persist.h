@@ -206,8 +206,8 @@ static inline int line_style_solid_width(uint8_t b, int fallback) {
 // no zero to stand on or hang from (pressure, an absolute curve around mid-plot; feels-like
 // and dew point, on the temperature axis), so it anchors no edge of the plot. An amount
 // metric's line (rain chance, clouds, wind, gusts, UV) leaves it 0: its line, marks or fill
-// anchor the edge it is drawn from (bit 5), and the temperature-axis lines grow their
-// margin there (temp_axis_pad.h). Never set on aplite, which never reads it.
+// anchor the edge it is drawn from (bit 5), and the temperature curve grows its margin
+// there (temp_axis_pad.h). Never set on aplite, which never reads it.
 #define LINE_STYLE_FLOATING 0x40
 // Kind-aware: a stripe's edge is its field's low bit; every other kind's is bit 5 — the
 // field's low bit is a SOLID line's width there (0x04 = 1 px) and must never read as top.

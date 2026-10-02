@@ -418,8 +418,9 @@ test('health thresholds and threshold colors do NOT change the render signature'
 });
 
 // The edge a stripe sits on bakes nothing: the joint temperature band of a drawn
-// feels/dew curve is padded alike under a top stripe (forecast-series.js
-// padJointTempAxisBand; the watch keeps the curves' inset under the band, temp_axis_pad.h).
+// feels/dew curve is the plain lowest and highest value of the three, stripe or none (the
+// watch fits it to its margins under a top stripe band as over the bottom edge,
+// temp_axis_pad.h).
 // So moving a stripe between the edges forces no fetch, beside a feels/dew curve too.
 // (A stripe's own level bytes join on their own, the next test; each case here starts
 // from a bottom stripe, which has them already.)

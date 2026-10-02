@@ -734,8 +734,9 @@ WeatherProvider.prototype.getPayload = function() {
         : [];
     // Whole-degree temps ride as a TRANSIENT series: applyForecastSeries encodes
     // them ONCE, where settings are in hand — against temp's own band, or the
-    // padded joint temp-and-feels band when the feels line is selected. (An
-    // early encode here forced a decode-and-re-encode round trip downstream.)
+    // joint temperature, feels-like and dew point band when such a line is
+    // selected. (An early encode here forced a decode-and-re-encode round trip
+    // downstream.)
     // TEMP_MIN/TEMP_MAX carry the ACTUAL air range either way: the watch reads
     // them only for the hi/lo labels; the scaling band travels in the bytes.
     // They are whole °F int32s, so for °C the watch's f_to_c rounds them a second

@@ -81,6 +81,11 @@
 # The temperature curve keeps its inset at the top under a top stripe band (owner,
 # 2026-10-02; temp_axis_pad.h temp_axis_margins drops its band test): -8 B .text on each,
 # basalt 59164 -> 59156, diorite/flint 56992 -> 56984.
+# The feels-like and dew point lines map on the temperature's own scale (owner,
+# 2026-10-02: "feels like and dew may do that"; temp_axis_pad.h THE SCALE): the watch
+# turns the temperature-axis bytes into rows per redraw and the layers map rows 1:1, so
+# s_temp_margin and the inset arms go: basalt 0 B (59156), diorite/flint -8 B .text
+# (56984 -> 56976), emery -16 B; .data/.bss and the update proc's stack frame unchanged.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -98,8 +103,8 @@ ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
   "basalt:${BASALT_IMAGE_CEILING:-59156}"
-  "diorite:${DIORITE_IMAGE_CEILING:-56984}"
-  "flint:${FLINT_IMAGE_CEILING:-56984}"
+  "diorite:${DIORITE_IMAGE_CEILING:-56976}"
+  "flint:${FLINT_IMAGE_CEILING:-56976}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

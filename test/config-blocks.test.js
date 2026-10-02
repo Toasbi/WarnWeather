@@ -165,24 +165,25 @@ test('feels-like as the second metric draws grey squares, labels still the actua
   assert.equal(svg.indexOf('>11°<'), -1);
 });
 
-test('the preview keeps the feels curve clear of the plot floor (band padding)', () => {
-  // Mirrors forecast-series.padJointTempAxisBand. The sample feels series dips to 11°
-  // under a 14° temp low, so the joint band [11, 24] is padded below by
-  // max(1, ceil(13 * 40/960)) = 1 -> [10, 24]. That leaves the grey curve's lowest
-  // point one band-degree above ybot instead of sitting flat on it.
-  //
-  // ybot = 82.0 in preview units (PB 94 − the 12-unit curve inset), so an UNPADDED
-  // band would put the feels minimum at exactly 82.0; the padded band puts it at
-  // ~78.25. The assertion is tight on purpose: a loose "is it on the plot" bound
-  // would pass either way and pin nothing.
+test('the preview\'s feels and dew curves run on into the margin on the temperature\'s scale, held at the floor', () => {
+  // Mirrors temp_axis_pad.h THE SCALE (owner, 2026-10-02: "feels like and dew may do that").
+  // The temperature's own 14..24 fills the margins: 24 on 19 (PT 4 + 3 + the 12-unit inset),
+  // 14 on ybot = 82.0 (PB 94 - 12), 6.3 units a degree. The sample feels low, 13, runs on a
+  // degree into the bottom margin, 88.3; the dew low, 12, would lie two degrees under (94.6,
+  // past the zero line) and is held one watch row (12/7 units) over it.
   const svg = FC.forecastPreview({ dayNightShading: false, barSource: 'off', windScale: 'mid',
-    secondaryLine: 'feels', thirdLine: 'off', secondaryLineFill: false }, { color: true });
-  const m = /<path d="([^"]+)" fill="none" stroke="#AAAAAA"/.exec(svg);
-  assert.ok(m, 'feels curve path found');
-  const ys = m[1].match(/[\d.]+(?=[,\s]|$)/g).filter((_, i) => i % 2 === 1).map(Number);
-  const lowest = Math.max.apply(null, ys);   // SVG y grows downward
-  assert.ok(Math.abs(lowest - 78.25) < 0.5,
-    'feels bottom should sit at ~78.25 (padded); 82.0 would mean the padding was lost. Got ' + lowest);
+    secondaryLine: 'feels', thirdLine: 'dew', thirdLineStyle: 'line', secondaryLineFill: false }, { color: true });
+  const ysOf = (stroke) => {
+    const m = new RegExp('<path d="([^"]+)" fill="none" stroke="' + stroke + '"').exec(svg);
+    assert.ok(m, stroke + ' curve path found');
+    return [...m[1].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((p) => Number(p[2])).filter((_, i) => i === 0 || i % 3 === 0);
+  };
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const temp = ysOf('#FF0000');
+  assert.ok(near(Math.min.apply(null, temp), 19) && near(Math.max.apply(null, temp), 82),
+    'the temperature fills its margins, with a feels-like and a dew line on');
+  assert.ok(near(Math.max.apply(null, ysOf('#AAAAAA')), 82 + 6.3), 'feels: a degree into the margin');
+  assert.ok(near(Math.max.apply(null, ysOf('#55AAAA')), 94 - 12 / 7), 'dew: held over the zero line');
 });
 
 // The temp curve is the only #FF0000 stroke in the color preview; its path starts at
@@ -1787,27 +1788,29 @@ test('forecastPreview: a stored stripe on feels, dew or pressure previews as the
   });
 });
 
-// The temp curve's path (the only #FF0000 stroke in the colour preview) — it moves
-// exactly when the joint temperature band does.
+// The temp curve's path (the only #FF0000 stroke in the colour preview), and the one thin
+// LightGray path: the feels-like curve drawn as a line.
 const tempCurvePath = (svg) => /<path d="([^"]+)" fill="none" stroke="#FF0000"/.exec(svg)[1];
-test('forecastPreview: feels on the third or fourth metric line widens the joint band like on the second', () => {
+const feelsCurvePath = (svg) => /<path d="([^"]+)" fill="none" stroke="#AAAAAA" stroke-width="1.6"/.exec(svg)[1];
+test('forecastPreview: a feels line on any metric line keeps the temperature on its own scale, and itself on it', () => {
+  // The watch fits the temperature's own range to the margins whatever rides its axis
+  // (temp_axis_pad.h THE SCALE), so the temp curve never moves for a feels-like line, and
+  // the feels-like curve is the same on every line that draws it.
   const base = { dayNightShading: false, barSource: 'off', windScale: 'mid', secondaryLine: 'precip_prob',
     secondaryLineFill: false, thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
   const env = { color: true, platform: 'basalt', lineStyles: true };
   const plain = tempCurvePath(FC.forecastPreview(base, env));
-  const onSecond = tempCurvePath(FC.forecastPreview(Object.assign({}, base, { thirdLine: 'feels' }), env));
-  assert.notEqual(onSecond, plain, 'premise: feels widens the band');
-  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels' }), env)),
-    onSecond, 'feels on the third metric line: same joint band');
-  // Feels on the fourth metric line widens the band too (feels is never a stripe, so
-  // it draws as a curve or marks).
-  assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base,
-    { fifthLine: 'feels', fifthLineStyle: 'dots' }), env)),
-    onSecond, 'feels on the fourth metric line: same joint band');
-  // A watch without WW_LINE_STYLE draws neither line, so a stored pick widens nothing.
+  const onThird = FC.forecastPreview(Object.assign({}, base, { thirdLine: 'feels', thirdLineStyle: 'line' }), env);
+  assert.equal(tempCurvePath(onThird), plain, 'the second metric line');
+  [{ fourthLine: 'feels', fourthLineStyle: 'line' }, { fifthLine: 'feels', fifthLineStyle: 'line' }].forEach((over) => {
+    const svg = FC.forecastPreview(Object.assign({}, base, over), env);
+    assert.equal(tempCurvePath(svg), plain, JSON.stringify(over));
+    assert.equal(feelsCurvePath(svg), feelsCurvePath(onThird), JSON.stringify(over));
+  });
+  // A watch without WW_LINE_STYLE draws neither of those lines; its temperature keeps its scale.
   const frozenEnv = { color: true, platform: 'aplite', lineStyles: false };
   assert.equal(tempCurvePath(FC.forecastPreview(Object.assign({}, base, { fourthLine: 'feels', fifthLine: 'dew' }), frozenEnv)),
-    tempCurvePath(FC.forecastPreview(base, frozenEnv)), 'aplite preview: the band stays the temperature\'s');
+    tempCurvePath(FC.forecastPreview(base, frozenEnv)), 'aplite preview: the temperature\'s own scale');
 });
 
 // Top stripes get their own band above the plot (forecast_layer.c's top_band): every

@@ -307,9 +307,9 @@ function buildClayPayload(settings, watchInfo, now) {
     // [SERIES_FIRST (temp), SERIES_SECOND (main metric), SERIES_THIRD (second
     // metric), SERIES_FOURTH (third metric), SERIES_FIFTH (fourth metric)]. The
     // watch stays metric-agnostic — the phone decides here that feels-like and
-    // dew point share the temp curve's configurable offset (so the two land
-    // pixel-aligned on their joint band) while every other metric keeps the
-    // full-height mapping. Read from the RAW settings: a line that is off or
+    // dew point share the temp curve's offset (the watch then maps them on the
+    // temperature's own scale, temp_axis_pad.h) while every other metric keeps
+    // the full-height mapping. Read from the RAW settings: a line that is off or
     // repeats an earlier line's pick is not drawn on the watch, so its byte is
     // never read and needs no effective-metric resolution. Settings-derived, so
     // it rides the Clay message. Omitted for a watch that compiles the

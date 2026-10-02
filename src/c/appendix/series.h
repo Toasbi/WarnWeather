@@ -43,9 +43,10 @@ typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH / FIF
 #if defined(WW_LINE_STYLE)
     bool    floating;                   // LINE_STYLE_FLOATING: anchors no plot edge (pressure,
                                         // feels, dew). Clear, a line, marks or fill drawn
-                                        // from an edge anchors it, and the temperature-axis
-                                        // lines pad off that edge (temp_axis_pad.h). Sits in
-                                        // the padding before `width`.
+                                        // from an edge anchors it, and the temperature curve
+                                        // pads off that edge (temp_axis_pad.h). Set, its byte 0
+                                        // is a missing reading (fit_temp_axis keeps it 0).
+                                        // Sits in the padding before `width`.
 #endif
     int     width;                      // stroke px (SOLID) / mark box px (DOTS, X)
     int     inset_y;                    // px: FIRST's fixed inset; a temp-axis metric line (feels, dew) shares it, else 0

@@ -250,30 +250,38 @@ static void load_dataset(ForecastDataset *ds) {
  * The ChartLayer for one bar-aligned mark line (SERIES_THIRD / SERIES_FOURTH):
  * the one place their layer literal exists, whatever z-slot the fill decides.
  * aplite reads the frozen DOTS style through series_style_pick (series.h) —
- * only SERIES_THIRD is reachable there, and its style is fixed.
+ * only SERIES_THIRD is reachable there, and its style is fixed. `hi` is the
+ * line's full scale, LINE_HI: its rows on the temperature axis, else 250.
  */
 
-// The temperature-axis lines keep their inset at the top under a top stripe band too, the
-// same 7 px below the band's 2 px gap as over the bottom edge (owner, 2026-10-02: "too
-// cramped otherwise"); all of them alike, so a feels-like or dew line stays aligned with the
-// temperature curve.
+// The temperature curve keeps its inset at the top under a top stripe band too, the same
+// 7 px below the band's 2 px gap as over the bottom edge (owner, 2026-10-02: "too cramped
+// otherwise").
 //
 // On an anchored edge (temp_axis_pad.h: rain bars or an amount line drawn from it, with a
-// value above 0) the temperature-axis lines' margin grows to an eighth of the plot height, or
+// value above 0) the temperature curve's margin grows to an eighth of the plot height, or
 // from 64 rows on its square over TEMP_AXIS_PAD_SQ_DIV, where that is more: the taller the
 // plot, the larger its share.
-// s_temp_margin holds the temperature curve's two margins, set per redraw, and every line
-// with an inset (the phone sends the temperature-axis lines the curve's own) takes them, so
-// they stay pixel-aligned with it; a line with no inset (every metric line off the
-// temperature axis) keeps its full-height mapping. aplite has neither: LINE_TOP /
-// LINE_BOTTOM are the plain inset there, byte-for-byte as before (the frozen fork).
+//
+// The temperature's own lowest and highest point land on the margin rows, and every line with
+// an inset (the phone sends the temperature-axis lines the curve's own) maps on the same scale,
+// so a feels-like or dew point value past the temperature's range runs on into the margin
+// (temp_axis_pad.h THE SCALE). fit_temp_axis turns the curve's and those lines' bytes into
+// their rows in place (temp_axis_rows), so their layers map rows 1:1: lo 0, hi temp_rows
+// (forecast_update_proc's count of the plot's content rows), no insets. A line with no inset
+// (every metric line off the temperature axis) keeps its bytes and its full-height mapping.
+// aplite has neither: its insets are the plain constants and every layer maps bytes,
+// byte-for-byte as before (the frozen fork).
 #if defined(WW_LINE_STYLE)
-static TempMargin s_temp_margin;
-#define LINE_TOP(inset) ((inset) ? s_temp_margin.top : 0)
-#define LINE_BOTTOM(inset) ((inset) ? s_temp_margin.bottom : 0)
+#define LINE_HI(inset) ((inset) ? temp_rows : FORECAST_TREND_FULL_SCALE)
+#define LINE_TOP(inset) 0
+#define LINE_BOTTOM(inset) 0
+#define TEMP_HI temp_rows
 #else
+#define LINE_HI(inset) FORECAST_TREND_FULL_SCALE
 #define LINE_TOP(inset) (inset)
 #define LINE_BOTTOM(inset) (inset)
+#define TEMP_HI FORECAST_TREND_FULL_SCALE
 #endif
 
 // How a metric line reads its wire byte 0, "nothing" (chart_runs.h): a metric with a zero
@@ -288,10 +296,10 @@ static TempMargin s_temp_margin;
 #define LINE_ZERO(s) CHART_ZERO_JOIN
 #endif
 
-static ChartLayer mark_line_layer(const Series *s, int count) {
+static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
     return (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
         .values = s->line.values, .count = count,
-        .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+        .lo = 0, .hi = hi,
         .inset_top = LINE_TOP(s->line.inset_y), .inset_bottom = LINE_BOTTOM(s->line.inset_y),
         .color = s->line.color, .width = s->line.width,
         .style = series_style_pick(s->line, CHART_LINE_DOTS),
@@ -501,6 +509,28 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y) {
 }
 
 
+#if defined(WW_LINE_STYLE)
+// The temperature's own lowest and highest byte, over every hour sent (the window the hi/lo
+// labels name), land on the margin rows of a plot `plot_h` content rows tall with the edges
+// `anchors`; the lines with an inset (feels-like, dew point) map on the same scale, so their
+// values past the temperature's range run on into the margins, up to the plot's edge
+// (temp_axis_pad.h THE SCALE). Their bytes become rows here, in place (load_dataset reloads
+// them on every redraw): the curve's always (TEMP_HI), every line's with an inset (LINE_HI's
+// test). A floating line's byte 0 is a missing reading and stays one; the curve's is data.
+static void fit_temp_axis(ForecastDataset *ds, int plot_h, int anchors) {
+    const Series *first = &ds->series[SERIES_FIRST];
+    const TempAxisFit fit = temp_axis_fit(first->line.values, ds->num_entries,
+                                          temp_axis_margins(first->line.inset_y, plot_h, anchors),
+                                          plot_h, FORECAST_TREND_FULL_SCALE);
+    for (SeriesId sid = SERIES_FIRST; sid < SERIES_BARS; ++sid) {
+        Series *s = &ds->series[sid];
+        if (sid == SERIES_FIRST || (s->present && s->line.inset_y)) {
+            temp_axis_rows(s->line.values, ds->num_entries, fit, s->line.floating);
+        }
+    }
+}
+#endif
+
 static void forecast_update_proc(Layer *layer, GContext *ctx)
 {
     MEMORY_LOG_HEAP("forecast_update:enter");
@@ -582,6 +612,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                               plot_axis_y + 1);
 #if defined(WW_LINE_STYLE)
     const GRect plot = GRect(outer.origin.x, top_band, outer.size.w, outer.size.h - top_band);
+    // The plot's content rows [top_band, plot_axis_y): the temperature axis maps onto them
+    // 1:1 (fit_temp_axis, LINE_HI).
+    const int temp_rows = plot_axis_y - top_band;
 #else
 // aplite: no stripes, the plot is the whole graph. A name for `outer`, not a copy: a
 // GRect copy changes aplite's code generation (its image is frozen at 21700 B).
@@ -642,7 +675,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         scaled_bar_stops[i].color = bar_stops[i].color;
     }
 #if defined(WW_LINE_STYLE)
-    // The temperature curve's margins for this redraw (LINE_TOP / LINE_BOTTOM): its inset on
+    // The temperature curve's margins for this redraw: its inset on
     // both edges, under a top stripe band too, and on each anchored edge at least the share
     // (an eighth, or from 64 rows the square over TEMP_AXIS_PAD_SQ_DIV) of the plot's content
     // rows [top_band, plot_axis_y), the rows between the two stripe bands. The rain bars'
@@ -651,8 +684,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         temp_axis_edges_add(&edges, bars->bars.values, drawn, false, false,
                             palette_from_top(bar_stops));
     }
-    s_temp_margin = temp_axis_margins(first->line.inset_y, plot_axis_y - top_band,
-                                      edges.anchors);
+    fit_temp_axis(&ds, temp_rows, edges.anchors);
 #endif
 
     // Z-order = array order, bottom first. Frame after the data bands so it
@@ -673,7 +705,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (fill_on) {
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
             .values = second->line.values, .export_points = area_pts,
-            .count = ds.num_entries, .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+            .count = ds.num_entries, .lo = 0, .hi = LINE_HI(second->line.inset_y),
 #if defined(WW_CURVE_INSET)
             // The fill's contour must share the line's inset mapping, so the line
             // over the fill rides it; the night re-hatch reuses these exported
@@ -777,7 +809,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (!fill_on) {
         for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
             if (ds.series[sid].present && !SERIES_IS_STRIPE(&ds.series[sid])) {
-                layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries);
+                layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries,
+                                             LINE_HI(ds.series[sid].line.inset_y));
             }
         }
     }
@@ -788,7 +821,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         // zero stretch stays on the zero row.
         layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .from_top = second_top, .line = {
                   .values = second->line.values, .count = ds.num_entries,
-                  .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+                  .lo = 0, .hi = LINE_HI(second->line.inset_y),
                   .inset_top = LINE_TOP(second->line.inset_y),
                   .inset_bottom = LINE_BOTTOM(second->line.inset_y),
                   .export_points = area_pts,
@@ -800,21 +833,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     if (fill_on) {
         for (SeriesId sid = SERIES_THIRD; sid < SERIES_BARS; ++sid) {
             if (ds.series[sid].present && !SERIES_IS_STRIPE(&ds.series[sid])) {
-                layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries);
+                layers[n++] = mark_line_layer(&ds.series[sid], ds.num_entries,
+                                             LINE_HI(ds.series[sid].line.inset_y));
             }
         }
     }
 
     layers[n++] = (ChartLayer){ CHART_LAYER_LINE, .line = {
         .values = first->line.values, .count = ds.num_entries,
-        .lo = 0, .hi = FORECAST_TREND_FULL_SCALE,
+        .lo = 0, .hi = TEMP_HI,
         .inset_top = LINE_TOP(first->line.inset_y), .inset_bottom = LINE_BOTTOM(first->line.inset_y),
-#if defined(WW_LINE_STYLE)
-        // The curve's points land in area_pts, whose other users (the fill, its night
-        // re-shade, the Main line) are all drawn before it: the hi/lo labels read the
-        // curve's highest and lowest rows off them (draw_left_axis).
-        .export_points = area_pts,
-#endif
         .color = first->line.color, .width = first->line.width } };
     layers[n++] = (ChartLayer){ CHART_LAYER_FRAME, .frame = { .frame = {
         .left   = { 1, axis_color },
@@ -853,15 +881,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
 #endif
 
 #if defined(WW_LINE_STYLE)
-    // The temperature curve's highest and lowest rows, off the points its layer exported.
-    int curve_top = area_pts[0].y, curve_bottom = curve_top;
+    // The temperature curve's highest and lowest rows: its values are rows out from the
+    // zero row (plot_axis_y) now (fit_temp_axis), which its layer maps 1:1.
+    int row_hi = first->line.values[0], row_lo = row_hi;
     for (int i = 1; i < ds.num_entries; ++i) {
-        const int y = area_pts[i].y;
-        if (y < curve_top) { curve_top = y; }
-        if (y > curve_bottom) { curve_bottom = y; }
+        const int row = first->line.values[i];
+        if (row > row_hi) { row_hi = row; }
+        if (row < row_lo) { row_lo = row; }
     }
     // hi/lo temp strip: chart-adjacent chrome, not a chart layer
-    draw_left_axis(ctx, h, plot_axis_y, curve_top, curve_bottom);
+    draw_left_axis(ctx, h, plot_axis_y, plot_axis_y - row_hi, plot_axis_y - row_lo);
 #else
     draw_left_axis(ctx, h, plot_axis_y);   // hi/lo temp strip: chart-adjacent chrome, not a chart layer
 #endif

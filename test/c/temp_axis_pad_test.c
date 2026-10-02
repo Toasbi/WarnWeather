@@ -1,7 +1,7 @@
 // Host-compiled test for src/c/appendix/temp_axis_pad.h (header-only, SDK-free): the forecast
-// plot's vertical layout (which series take part, the stripe bands), the temperature-axis
-// margins on the anchored edges, and the hi/lo labels lined up with the curve's extremes
-// (owner, 2026-10-02). forecast_layer.c is SDK-bound and cannot be host-compiled, so its pure
+// plot's vertical layout (which series take part, the stripe bands), the temperature curve's
+// margins on the anchored edges, the scale the temperature-axis lines share with it, and the
+// hi/lo labels lined up with the curve's extremes (owner, 2026-10-02). forecast_layer.c is SDK-bound and cannot be host-compiled, so its pure
 // half is pinned here; the settings preview mirrors the rules (test/config-temp-axis-pad.test.js).
 // Build & run via scripts/test-c.sh.
 #include <assert.h>
@@ -725,6 +725,164 @@ static void test_label_invariants(void) {
     }
 }
 
+// --- THE SCALE (owner, 2026-10-02: "feels like and dew may do that") ----------------------
+//
+// The temperature's own lowest and highest byte land on the margin rows; a feels-like or dew
+// point value beyond them runs on into the margin on the same scale and is held inside the
+// plot's content rows [1, plot_h]. The phone sends the three on their joint band, bytes
+// 0..250 (forecast-series.js), so a degree is the same number of bytes on all three.
+
+#define FULL_SCALE 250   // forecast_layer.c FORECAST_TREND_FULL_SCALE, the wire's byte range
+
+// fit_temp_axis (forecast_layer.c), line for line: the fit off the temperature's bytes over
+// every hour sent, then the temperature (its byte 0 is data) and every line with an inset (a
+// floating line, whose byte 0 is a missing reading) turned into rows, in place.
+static TempAxisFit fit_all(int16_t *temps, int16_t *line, int n, int plot_h, TempMargin m) {
+    const TempAxisFit f = temp_axis_fit(temps, n, m, plot_h, FULL_SCALE);
+    temp_axis_rows(temps, n, f, false);
+    if (line) { temp_axis_rows(line, n, f, true); }
+    return f;
+}
+
+// The rows the temperature's lowest and highest byte take, over every plot and margin the
+// views can lay out and every byte range: exactly the margin rows, the rest between them in
+// order, and a line value equal to a temperature value on the same row.
+static void test_scale_extremes(void) {
+    int checked = 0;
+    for (int plot_h = 24; plot_h <= EMERY_SCREEN_H; ++plot_h) {
+        for (int anchors = 0; anchors <= 3; ++anchors) {
+            const TempMargin m = temp_axis_margins(INSET, plot_h, anchors);
+            if (plot_h - m.top - m.bottom < 0) { continue; }   // margins meet: no view gets here
+            for (int lo = 0; lo < FULL_SCALE; lo += 7) {
+                for (int hi = lo + 1; hi <= FULL_SCALE; hi += (hi < lo + 4 ? 1 : 11)) {
+                    int16_t t[MAX_ENTRIES], line[MAX_ENTRIES];
+                    for (int i = 0; i < MAX_ENTRIES; ++i) {
+                        // A dip and a rise: the extremes inside the window, not at its ends.
+                        const int k = i < 12 ? 11 - i : i - 12;
+                        t[i] = (int16_t)(lo + (hi - lo) * k / 11);
+                        line[i] = t[i] > 0 ? t[i] : 1;   // a line's byte 0 is no reading
+                    }
+                    fit_all(t, line, MAX_ENTRIES, plot_h, m);
+                    int rmin = t[0], rmax = t[0];
+                    for (int i = 0; i < MAX_ENTRIES; ++i) {
+                        if (t[i] < rmin) { rmin = t[i]; }
+                        if (t[i] > rmax) { rmax = t[i]; }
+                        if (line[i] != t[i]) { assert(t[i] == m.bottom && line[i] >= t[i]); }
+                    }
+                    assert(rmin == m.bottom);
+                    assert(rmax == plot_h - m.top);
+                    // In order: the ramp down is non-increasing, the ramp up non-decreasing.
+                    for (int i = 1; i < 12; ++i) { assert(t[i] <= t[i - 1]); }
+                    for (int i = 13; i < MAX_ENTRIES; ++i) { assert(t[i] >= t[i - 1]); }
+                    ++checked;
+                }
+            }
+        }
+    }
+    assert(checked > 100000);
+}
+
+// A worked example, the phone's own numbers (test/forecast-series.test.js: temps 10..30 °F,
+// feels up to 38): the joint band [10, 38], temps on bytes 0, 89, 179, the feels on 45, 89,
+// 250. basalt's default view, 55 rows, the rain bars standing: 7 px both edges (the share, an
+// eighth, is 6), 41 rows between the margins for the temperature's 20 degrees.
+static void test_scale_example(void) {
+    int16_t t[3] = { 0, 89, 179 }, feels[3] = { 45, 89, 250 };
+    const TempMargin m = temp_axis_margins(INSET, BASALT_COMPACTCAL, TEMP_AXIS_ANCHOR_BOTTOM);
+    assert(m.top == INSET && m.bottom == INSET);
+    const TempAxisFit f = fit_all(t, feels, 3, BASALT_COMPACTCAL, m);
+    assert(f.span == 179 && f.d == 41 && f.off == INSET);
+    // The temperature fills its margins: 10 °F on row 7, 30 °F on row 48 (55 - 7).
+    assert(t[0] == 7 && t[1] == 27 && t[2] == 48);
+    // 20 °F is the same row on both lines; the feels-like low 15 °F, inside the range, on 17.
+    assert(feels[1] == t[1] && feels[0] == 17);
+    // 38 °F is 8 degrees over the air's high, 16 rows on a 41-row 20 degrees: past the 7 px
+    // margin, so it is held on the plot's top content row, 55.
+    assert(feels[2] == BASALT_COMPACTCAL);
+    // 32 °F (byte 197) runs 2 degrees on into the top margin, 4 rows over the air's high.
+    int16_t two_over[1] = { 197 };
+    temp_axis_rows(two_over, 1, f, true);
+    assert(two_over[0] == 52 && two_over[0] > t[2] && two_over[0] < BASALT_COMPACTCAL);
+    // The same day's dew point under the air's low (temps 10..30, dew down to 2: the joint band
+    // [2, 30], temps 18..250): the dew line runs on into the bottom margin, then is held on
+    // row 1, the content row over the zero row, never on it.
+    int16_t t2[3] = { 71, 161, 250 }, dew[4] = { 63, 54, 1, 0 };
+    const TempAxisFit f2 = fit_all(t2, NULL, 3, BASALT_COMPACTCAL, m);
+    temp_axis_rows(dew, 4, f2, true);
+    assert(t2[0] == 7 && t2[2] == 48);
+    assert(dew[0] == 5 && dew[1] == 3);   // 1 and 2 degrees under: into the margin
+    assert(dew[2] == 1);                  // 20 degrees under: held over the zero row
+    assert(dew[3] == 0);                  // no reading stays no reading
+}
+
+// Held inside the plot: never past the content rows, whatever a line's bytes, and a missing
+// reading is never turned into a drawn row. Under a top stripe band the far row is the band's
+// foot (the plot's first content row), so a held peak never reaches into the band's gap.
+static void test_scale_clamp(void) {
+    srand(11);
+    for (int iter = 0; iter < 200000; ++iter) {
+        const int plot_h = 24 + rand() % (EMERY_SCREEN_H - 23);
+        const TempMargin m = temp_axis_margins(INSET, plot_h, rand() % 4);
+        if (plot_h - m.top - m.bottom < 0) { continue; }
+        int16_t t[MAX_ENTRIES], line[MAX_ENTRIES];
+        const int n = 2 + rand() % (MAX_ENTRIES - 1);
+        for (int i = 0; i < n; ++i) {
+            t[i] = (int16_t)(rand() % (FULL_SCALE + 1));
+            line[i] = (int16_t)(rand() % 3 ? rand() % (FULL_SCALE + 1) : 0);
+        }
+        int16_t before[MAX_ENTRIES];
+        memcpy(before, line, sizeof(line));
+        fit_all(t, line, n, plot_h, m);
+        for (int i = 0; i < n; ++i) {
+            assert(t[i] >= 1 && t[i] <= plot_h);
+            if (before[i] == 0) {
+                assert(line[i] == 0);
+            } else {
+                assert(line[i] >= 1 && line[i] <= plot_h);
+            }
+        }
+    }
+    // The views under top stripe bands: a feels-like peak far over the air's high is held on
+    // the plot's first content row, the band's foot, not in the gap above it.
+    Ser one[] = { AT(K_STRIPE, true, 0) };
+    Ser three[] = { AT(K_STRIPE, true, 0), AT(K_STRIPE, true, 1), AT(K_STRIPE, true, 2) };
+    const Plot plots[] = { layout(BASALT_COMPACTCAL, INSET, one, 1, MAX_ENTRIES),
+                           layout(EMERY_NOCAL, INSET, three, 3, MAX_ENTRIES) };
+    for (int v = 0; v < 2; ++v) {
+        assert(plots[v].top_band > 0);
+        int16_t t[2] = { 0, 150 }, feels[2] = { 100, 250 };
+        fit_all(t, feels, 2, plots[v].plot_h, plots[v].margin);
+        assert(t[1] == plots[v].plot_h - plots[v].margin.top);
+        assert(feels[1] == plots[v].plot_h);   // y = top_band: the first row under the band
+    }
+}
+
+// A flat temperature has no span of its own: the whole byte range stands in, the joint band
+// on the margin rows (the mapping before THE SCALE). Without a feels-like or dew line the
+// phone sends a flat temperature as byte 125: mid-plot. With one, the joint band puts the
+// temperature on its edge byte and the line across the rest. Never a division by zero.
+static void test_scale_flat(void) {
+    for (int plot_h = 24; plot_h <= EMERY_SCREEN_H; ++plot_h) {
+        const TempMargin m = temp_axis_margins(INSET, plot_h, 0);
+        const int d = plot_h - m.top - m.bottom;
+        for (int v = 0; v <= FULL_SCALE; ++v) {
+            int16_t t[4] = { (int16_t)v, (int16_t)v, (int16_t)v, (int16_t)v };
+            const TempAxisFit f = fit_all(t, NULL, 4, plot_h, m);
+            assert(f.span == FULL_SCALE && f.off == m.bottom);
+            for (int i = 0; i < 4; ++i) { assert(t[i] == m.bottom + v * d / FULL_SCALE); }
+        }
+        int16_t mid[2] = { 125, 125 };
+        fit_all(mid, NULL, 2, plot_h, m);
+        assert(mid[0] == m.bottom + d / 2);
+        // Flat at the joint band's top (feels-like up to a degree under it): the temperature on
+        // the top margin row, the feels-like line's floor on the bottom one.
+        int16_t top[2] = { 250, 250 }, feels[2] = { 1, 250 };
+        fit_all(top, feels, 2, plot_h, m);
+        assert(top[0] == plot_h - m.top && feels[1] == top[0]);
+        assert(feels[0] == m.bottom + d / FULL_SCALE);
+    }
+}
+
 int main(void) {
     test_constants();
     test_drawn_entries();
@@ -738,6 +896,10 @@ int main(void) {
     test_unchanged_frames();
     test_label_examples();
     test_label_invariants();
+    test_scale_extremes();
+    test_scale_example();
+    test_scale_clamp();
+    test_scale_flat();
     printf("temp_axis_pad_test: all passed\n");
     return 0;
 }
