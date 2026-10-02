@@ -1,30 +1,34 @@
 #!/usr/bin/env python3
-"""Generate the anti-aliased clock digit strips for the colour platforms.
+"""Generate the anti-aliased clock digit glyphs for the colour platforms.
 
 The watch's system fonts (and the SDK's TTF font resources) are 1-bit, so the clock
 digits on a colour screen have hard, stair-stepped edges. This script rasterises the
 digits ONCE, here, grid-fitted (see fit_glyph) and with FreeType's anti-aliasing, and
 quantises each pixel's coverage to the 2-bit alpha a GColor8 carries (0, 1/3, 2/3,
-opaque). The SDK packs each strip as a 2-bit palette whose four entries are those four
+opaque). The SDK packs each glyph image as a 2-bit palette whose entries are those
 alpha levels; the watch recolours
 the entries to the clock colour (keeping each one's alpha) and draws with GCompOpSet,
-which blends every pixel at its alpha — so one strip serves every clock colour and
+which blends every pixel at its alpha — so one image serves every clock colour and
 theme, and the blend against whatever sits underneath is the firmware's own
 (src/c/layers/clock_glyphs.c).
 
 Outputs, all committed (run by hand after changing a face or size, like the other
 generators in scripts/):
-  resources/img/clock-<face>~<platform>.png  one strip per face and colour platform:
-      the glyphs '0'..'9' and ':' side by side, each cropped to its own ink columns,
-      all sharing the digits' union ink rows. RGB is black everywhere (the watch
-      replaces it); only alpha carries the glyph, in exactly four levels, so the SDK
-      packs it as a 2-bit palette.
+  resources/img/clock-<face>-<n>~<platform>.png  one image per glyph, face and colour
+      platform, n = 0..9 for the digits and 10 for ':' (package.template.json lists them
+      as the consecutive resources CLOCK_<FACE>_0..10): the glyph cropped to its own ink
+      columns, at the digits' union ink rows. One image per glyph rather than one strip
+      per face, so the watch holds only the glyph it is drawing (basalt's Roboto strip
+      took 2.1 KB of heap for the whole paint; its widest glyph takes 0.3 KB). RGB is
+      black everywhere (the watch replaces it); only alpha carries the glyph, in at most
+      four levels, so the SDK packs it as a 2-bit palette (memoryFormat 2BitPalette,
+      which is exact: a glyph with fewer levels still gets 2 bits and 4 entries).
   src/c/layers/clock_glyphs_ink.h            each face's union ink height per platform —
-      the strip's height, and the ink_h the layout's ClockInk table (clock_ink.c)
+      every glyph image's height, and the ink_h the layout's ClockInk table (clock_ink.c)
       seats the clock band with. Its own header so clock_ink.c takes the one number
       it needs without the glyph tables.
-  src/c/layers/clock_glyphs_metrics.h        each glyph's strip column, width, left
-      bearing and advance — the numbers clock_glyphs.c lays the string out with.
+  src/c/layers/clock_glyphs_metrics.h        each glyph's width, left bearing and
+      advance — the numbers clock_glyphs.c lays the string out with.
 
 The faces are the repo's own TTFs, at the sizes the 1-bit clock already used, so the
 digits keep their size and the layout's measured ink (clock_ink.h) still holds:
@@ -69,7 +73,7 @@ PLATFORM_MACRO = {'basalt': 'PBL_PLATFORM_BASALT', 'emery': 'PBL_PLATFORM_EMERY'
 # a thinned stroke gets its design width back exactly -- the edge the hinter placed nearer the
 # design stays on the grid and the other moves out by the lost fraction (one grey column or row
 # where LIGHT drew two). A stroke counts as thinned when the hinter took SLIVER or more off its
-# design width; less is under the 2-bit alpha's half step, which the strip could not show anyway.
+# design width; less is under the 2-bit alpha's half step, which the glyph could not show anyway.
 # Round strokes across the vertical -- a bowl's top and bottom, the round top of a '0' -- are
 # rounded the same way and restored the same way. Round ones across the horizontal -- a bowl's
 # left and right sides -- are not fitted at all: in x only the straight edges keep their fit, and
@@ -518,26 +522,21 @@ def render_face(ttf, size):
     return glyphs, top, bottom - top + 1
 
 
-def build_strip(glyphs, ink_top, ink_h):
-    """Lay the glyphs side by side; returns (RGBA image, strip x per glyph)."""
-    xs, x = [], 0
-    for g in glyphs:
-        xs.append(x)
-        x += g['w']
-    img = Image.new('RGBA', (x, ink_h), (0, 0, 0, 0))
+def build_glyph(g, ink_top, ink_h):
+    """One glyph's image (RGBA): its own ink columns, at the digits' union ink rows."""
+    img = Image.new('RGBA', (g['w'], ink_h), (0, 0, 0, 0))
     px = img.load()
-    for g, gx in zip(glyphs, xs):
-        for y, row in g['rows'].items():
-            for i, level in enumerate(row):
-                if level:
-                    px[gx + i, y - ink_top] = (0, 0, 0, level * 85)
-    return img, xs
+    for y, row in g['rows'].items():
+        for i, level in enumerate(row):
+            if level:
+                px[i, y - ink_top] = (0, 0, 0, level * 85)
+    return img
 
 
-def c_table(name, glyphs, xs):
+def c_table(name, glyphs):
     lines = ['static const ClockGlyph CLOCK_GLYPHS_%s[CLOCK_GLYPH_COUNT] = {' % name]
-    for g, x in zip(glyphs, xs):
-        lines.append("    { %3d, %2d, %3d, %2d },  // '%s'" % (x, g['w'], g['lsb'], g['adv'], g['char']))
+    for g in glyphs:
+        lines.append("    { %2d, %3d, %2d },  // '%s'" % (g['w'], g['lsb'], g['adv'], g['char']))
     lines.append('};')
     return lines
 
@@ -570,7 +569,7 @@ def write_ink_header(results):
         '// GENERATED by scripts/gen-clock-glyphs.py — do not edit; re-run the script.',
         '//',
         "// Per colour platform, each anti-aliased face's union ink height: the rows its digits",
-        "// occupy, which is also its strip's height. Read by clock_glyphs_metrics.h and by",
+        "// occupy, which is also every glyph image's height. Read by clock_glyphs_metrics.h and by",
         "// clock_ink.c, whose ClockInk table seats the clock band with it.",
         '#pragma once',
         '',
@@ -586,10 +585,10 @@ def write_header(results):
     out = [
         '// GENERATED by scripts/gen-clock-glyphs.py — do not edit; re-run the script.',
         '//',
-        "// Per colour platform and face: each glyph's column in its strip resource",
-        '// (resources/img/clock-<face>~<platform>.png), its ink width, its left bearing (ink',
-        '// start relative to the pen) and its advance, in pixels, for the glyphs \'0\'..\'9\' then',
-        "// ':'. The strips' height is the face's ink height, in clock_glyphs_ink.h. Included by",
+        "// Per colour platform and face: each glyph's ink width (the width of its image,",
+        '// resources/img/clock-<face>-<n>~<platform>.png), its left bearing (ink start relative',
+        '// to the pen) and its advance, in pixels, for the glyphs \'0\'..\'9\' then \':\'. The',
+        "// images' height is the face's ink height, in clock_glyphs_ink.h. Included by",
         '// src/c/layers/clock_glyphs.c only.',
         '#pragma once',
         '',
@@ -599,7 +598,6 @@ def write_header(results):
         '#define CLOCK_GLYPH_COUNT %d' % len(GLYPHS),
         '',
         'typedef struct {',
-        '    uint16_t x;    // first column in the strip',
         '    uint8_t  w;    // ink columns',
         '    int8_t   lsb;  // ink start, relative to the pen',
         '    uint8_t  adv;  // pen advance',
@@ -611,7 +609,7 @@ def write_header(results):
         lines = []
         for name, _stem, _ttf, _sizes in FACES:
             r = results[(platform, name)]
-            lines.extend(c_table(name, r['glyphs'], r['xs']))
+            lines.extend(c_table(name, r['glyphs']))
         return lines
     out.extend(platform_arms(tables))
     return write(os.path.join(ROOT, 'src', 'c', 'layers', 'clock_glyphs_metrics.h'), out)
@@ -627,8 +625,8 @@ def preview(results, outdir):
     os.makedirs(outdir, exist_ok=True)
     samples = ['12:34', '10:08', '9:41', '23:59']
     for (platform, name), r in sorted(results.items()):
-        glyph_by_char = {g['char']: (g, x) for g, x in zip(r['glyphs'], r['xs'])}
-        width = max(sum(glyph_by_char[c][0]['adv'] for c in s) for s in samples) + 8
+        glyph_by_char = {g['char']: g for g in r['glyphs']}
+        width = max(sum(glyph_by_char[c]['adv'] for c in s) for s in samples) + 8
         tile_h = r['ink_h'] + 8
         img = Image.new('RGB', (width * 2, tile_h * len(samples)))
         px = img.load()
@@ -640,7 +638,7 @@ def preview(results, outdir):
                         px[x0 + x, y0 + y] = bg
                 pen = x0 + 4
                 for c in text:
-                    g, _sx = glyph_by_char[c]
+                    g = glyph_by_char[c]
                     for gy, levels in g['rows'].items():
                         for i, level in enumerate(levels):
                             if level:
@@ -663,15 +661,16 @@ def main():
         ttf = os.path.join(ROOT, 'resources', 'fonts', ttf_name)
         for platform in PLATFORMS:
             glyphs, ink_top, ink_h = render_face(ttf, sizes[platform])
-            img, xs = build_strip(glyphs, ink_top, ink_h)
-            path = os.path.join(ROOT, 'resources', 'img', 'clock-%s~%s.png' % (stem, platform))
-            img.save(path, optimize=True)
-            results[(platform, name)] = {'glyphs': glyphs, 'xs': xs, 'ink_top': ink_top,
+            for n, g in enumerate(glyphs):
+                path = os.path.join(ROOT, 'resources', 'img',
+                                    'clock-%s-%d~%s.png' % (stem, n, platform))
+                build_glyph(g, ink_top, ink_h).save(path, optimize=True)
+            results[(platform, name)] = {'glyphs': glyphs, 'ink_top': ink_top,
                                          'ink_h': ink_h, 'size': sizes[platform]}
             adv = dict((g['char'], g['adv']) for g in glyphs)
             widest = max(sum(adv[c] for c in s) for s in ['00:00', '12:34', '20:08', '08:08'])
-            print('%-6s %-6s %2dpx  ink_h %2d  strip %3dx%d  widest-ish time %d px'
-                  % (platform, stem, sizes[platform], ink_h, img.width, img.height, widest))
+            print('%-6s %-6s %2dpx  ink_h %2d  widest glyph %2d px  widest-ish time %d px'
+                  % (platform, stem, sizes[platform], ink_h, max(g['w'] for g in glyphs), widest))
     for path in (write_ink_header(results), write_header(results)):
         print('wrote', os.path.relpath(path, ROOT))
     if args.preview:

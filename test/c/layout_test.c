@@ -3183,7 +3183,7 @@ static const ClockInk CLOCK_INKS[] = {
     {  2, 46 }, {  2, 42 }, {  2, 45 },
 #else
     {  0, 35 }, { -1, 29 }, { -2, 31 },
-    {  0, 34 },    // basalt Roboto, an anti-aliased strip (clock_glyphs_ink.h)
+    {  0, 34 },    // basalt Roboto, anti-aliased glyphs (clock_glyphs_ink.h)
 #endif
     {  7, 20 },    // wildly off-centre, even ink
     { -6, 33 },    // off-centre the other way, odd ink

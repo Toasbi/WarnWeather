@@ -92,11 +92,11 @@ static char s_time_text[8];
 #if defined(PBL_COLOR)
 // The anti-aliased digits (clock_glyphs.h), for the faces that have them, are painted by the
 // container's own update proc: the container already IS the band — main_window re-frames it per
-// view, it clips to it, and it draws before its children, so the strip lands under the AM/PM
+// view, it clips to it, and it draws before its children, so the glyphs land under the AM/PM
 // label just as the text layer's digits do. LECO keeps drawing through s_time_layer. Which of
 // the two renders depends only on the font, so time_layer_refresh() picks it; the tick seats the
-// strip at s_glyph_origin.
-static bool s_glyphs;            // true: the container draws the strip; s_time_layer is hidden
+// glyphs at s_glyph_origin.
+static bool s_glyphs;            // true: the container draws the glyphs; s_time_layer is hidden
 static GPoint s_glyph_origin;    // pen x of the first digit, and the digits' first inked row
 
 static void container_update(Layer *layer, GContext *ctx) {
@@ -179,10 +179,10 @@ void time_layer_tick() {
 
 #if defined(PBL_COLOR)
     if (s_glyphs) {
-        // The strips carry their own metrics, so the digits are seated from the model directly:
+        // The glyphs carry their own metrics, so the digits are seated from the model directly:
         // the pen advance centres them exactly as the text layer's content width does below, and
         // the first inked row is the one the band solver was given (clock_ink_for reports these
-        // faces' ink_h from the same strips), so the band's centring holds with no line box in
+        // faces' ink_h from the same glyphs), so the band's centring holds with no line box in
         // between to measure.
         digits_w = clock_glyphs_width(config_get()->time_font, s_time_text);
         text_left = clock_seat_x(bounds.size.w, digits_w, am_pm_w);
