@@ -548,7 +548,7 @@ test('settings snapshot and the Deno telemetry schema agree on keys and types (l
 
   const snap = buildSettingsSnapshot(HEAVIEST_CUSTOM, HEAVIEST_WATCH);
   assert.deepEqual(Object.keys(snap).sort(), denoKeys.slice().sort(),
-    'buildSettingsSnapshot (telemetry.js) and the Deno settingsSchema must declare the same fields');
+    'buildSettingsSnapshot (telemetry-settings.js) and the Deno settingsSchema must declare the same fields');
   // A field with no value in effect is assigned undefined, never deleted, so the key
   // set cannot depend on the settings: the emptiest snapshot (a B&W watch, nothing
   // set) declares exactly the same keys.
@@ -616,7 +616,7 @@ test('snapshot includes largeGraphFont as a real boolean', () => {
 // graph they colour, which is all the Deno schema and the dashboards know; the storage
 // underneath is per metric and per polarity (gcWindLineDark, …), so there is no list in
 // line-style to derive these from any more — the mapping element -> (metric, role) is
-// telemetry.js's own and this file is the thing that pins it.
+// telemetry-settings.js's own and this file is the thing that pins it.
 //
 // Telemetry reports ONE value per element: the colour for the metric that element is
 // currently painted from, in the polarity the watch ACTUALLY renders, resolved through

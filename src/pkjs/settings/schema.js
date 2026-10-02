@@ -3076,7 +3076,7 @@ module.exports = {
             }, {
                 // The radar's sky rows (radar-sky.js): an extra Open-Meteo request per
                 // fetch, on by default (a missing key reads as on everywhere: radar-sky.js
-                // skySourceIdFor, index.js, telemetry.js). Only the radar GRAPH draws them,
+                // skySourceIdFor, index.js, telemetry-settings.js). Only the radar GRAPH draws them,
                 // like the no-rain text below; fetch-cycle.js (radarSky.skySourceIdFor) clears
                 // them whenever the graph is not shown.
                 type: 'toggle',

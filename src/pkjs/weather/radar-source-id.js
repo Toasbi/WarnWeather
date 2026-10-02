@@ -6,7 +6,7 @@
 // stores them as radarProvider 'rainbow' plus rainbowOwnKey (true = the own key), as it
 // has since 1.23.1; 'rainbowkey' is never a stored radarProvider. Everything that picks
 // behaviour by radar source — fetch-cycle.js (source + throttle), index.js (the forced
-// fetch when the source changes), telemetry.js (the reported radarProvider) and the
+// fetch when the source changes), telemetry-settings.js (the reported radarProvider) and the
 // Rainbow budget math (settings/rainbow-budget.js) — asks here instead of reading
 // radarProvider.
 //
