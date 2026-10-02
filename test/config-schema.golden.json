@@ -5299,11 +5299,6 @@
                   "key": "radarMode",
                   "eq": "graph"
                 }
-              },
-              {
-                "type": "hidden",
-                "messageKey": "rainbowOwnKey",
-                "defaultValue": false
               }
             ]
           },

@@ -271,18 +271,15 @@ test('buildSettingsSnapshot includes radarMode (default graph)', () => {
   assert.strictEqual(buildSettingsSnapshot({}).radarMode, 'graph');
 });
 
-// Rainbow on the user's own key needs no new telemetry field: radarProvider reports the
-// source in EFFECT (radar-source-id.js), so "Rainbow (own key)" shows up as
-// 'rainbowkey' — the value the ingest already takes (any string; see its schemas_test.ts
-// pin). What this also pins: the user's API key never leaves the phone in a snapshot
-// (buildSettingsSnapshot is an explicit allowlist), and neither does rainbowFitBudget —
-// parity with tomorrowioFitBudget, which is not reported either.
+// Rainbow on the user's own key needs no telemetry field of its own: radarProvider is
+// 'rainbowkey' for "Rainbow (own key)" — the value the ingest already takes (any string;
+// see its schemas_test.ts pin). What this also pins: the user's API key never leaves the
+// phone in a snapshot (buildSettingsSnapshot is an explicit allowlist), and neither does
+// rainbowFitBudget — parity with tomorrowioFitBudget, which is not reported either.
 test('a Rainbow install on its own key reports the own-key radar source, never its key', () => {
-  const snapshot = buildSettingsSnapshot({ radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph',
+  const snapshot = buildSettingsSnapshot({ radarProvider: 'rainbowkey', radarMode: 'graph',
     rainbowApiKey: 'SECRET-RBW', rainbowFitBudget: false }, null);
   assert.strictEqual(snapshot.radarProvider, 'rainbowkey');
-  assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowOwnKey'),
-    'rainbowOwnKey rides radarProvider, not a field of its own');
   assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowApiKey'),
     'the Rainbow API key must never be a snapshot field');
   assert.ok(!Object.prototype.hasOwnProperty.call(snapshot, 'rainbowFitBudget'),
@@ -291,13 +288,10 @@ test('a Rainbow install on its own key reports the own-key radar source, never i
     'the key must not appear anywhere in the snapshot');
 });
 
-test('radarProvider reports the effective radar source for every rainbowOwnKey value', () => {
+test('radarProvider reports the stored radar source', () => {
   const report = (s) => buildSettingsSnapshot(s, null).radarProvider;
-  assert.strictEqual(report({ radarProvider: 'rainbow', rainbowOwnKey: false }), 'rainbow', 'the shared radar');
-  assert.strictEqual(report({ radarProvider: 'rainbow' }), 'rainbow', 'an unset rainbowOwnKey is the limited radar');
-  assert.strictEqual(report({ radarProvider: 'rainbow', rainbowOwnKey: true }), 'rainbowkey', 'the own key');
-  ['dwd', 'metno', 'tomorrowio'].forEach((p) => {
-    assert.strictEqual(report({ radarProvider: p, rainbowOwnKey: true }), p, p + ' ignores a left-on rainbowOwnKey');
+  ['dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio'].forEach((p) => {
+    assert.strictEqual(report({ radarProvider: p }), p, p);
   });
   assert.strictEqual(report({}), undefined, 'unset stays unset');
 });

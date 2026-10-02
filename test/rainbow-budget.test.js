@@ -3,12 +3,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const budget = require('../src/pkjs/settings/rainbow-budget.js');
 const tio = require('../src/pkjs/settings/tomorrowio-budget.js');
-const radarSourceId = require('../src/pkjs/weather/radar-source-id.js');
+const radarFactory = require('../src/pkjs/weather/radar-factory.js');
 
-// Base state: radar on "Rainbow (own key)" (rainbowOwnKey true), graph mode, night pause off.
+// Base state: radar on "Rainbow (own key)", graph mode, night pause off.
 function S(over) {
   return Object.assign({
-    radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph',
+    radarProvider: 'rainbowkey', radarMode: 'graph',
     sleepNightEnabled: false, sleepStartHour: '22', sleepEndHour: '7'
   }, over || {});
 }
@@ -35,27 +35,27 @@ test('callsPerCycle: one call whenever Rainbow on the user\'s own key drives a r
 
 test('callsPerCycle: nothing billed with radar off, "Rainbow (limited)" or any other radar source', () => {
   assert.equal(budget.callsPerCycle(S({ radarMode: 'off' })), 0, 'radar off');
-  assert.equal(budget.callsPerCycle(S({ rainbowOwnKey: false })), 0, 'the shared Rainbow radar bills the user nothing');
-  const untouched = S();
-  delete untouched.rainbowOwnKey;
-  assert.equal(budget.callsPerCycle(untouched), 0, 'an unset rainbowOwnKey is the limited radar');
+  assert.equal(budget.callsPerCycle(S({ radarProvider: 'rainbow' })), 0, 'the shared Rainbow radar bills the user nothing');
   ['tomorrowio', 'dwd', 'metno'].forEach((src) => {
-    assert.equal(budget.callsPerCycle(S({ radarProvider: src })), 0, 'radarProvider ' + src + ', rainbowOwnKey left true');
+    assert.equal(budget.callsPerCycle(S({ radarProvider: src })), 0, 'radarProvider ' + src);
   });
+  const unset = S();
+  delete unset.radarProvider;
+  assert.equal(budget.callsPerCycle(unset), 0, 'no radar source');
   assert.equal(budget.callsPerCycle(null), 0, 'no state');
   assert.equal(budget.callsPerCycle({}), 0, 'empty state');
 });
 
-test('callsPerCycle bills exactly when the runtime resolves the own-key source', () => {
-  // The budget and fetch-cycle.js read the same resolver, so the page never budgets a
-  // radar the watch does not fetch, or misses one it does.
-  ['dwd', 'metno', 'rainbow', 'tomorrowio', undefined].forEach((radarProvider) => {
-    [true, false, undefined].forEach((rainbowOwnKey) => {
-      const state = S({ radarProvider: radarProvider, rainbowOwnKey: rainbowOwnKey });
-      const ownKey = radarSourceId.effectiveRadarId(state) === 'rainbowkey';
-      assert.equal(budget.callsPerCycle(state), ownKey ? 1 : 0,
-        'radarProvider=' + radarProvider + ' rainbowOwnKey=' + rainbowOwnKey);
-    });
+test('callsPerCycle bills exactly the radar source the runtime runs on the user\'s key', () => {
+  // fetch-cycle.js runs radarProvider as the radar source, and radar-factory.js runs the
+  // own key under OWN_KEY_RADAR_ID. The page cannot load the runtime's radar modules, so
+  // rainbow-budget.js spells the id itself; pinned equal here, so the page never budgets
+  // a radar the watch does not fetch, or misses one it does.
+  assert.equal(budget.OWN_KEY_RADAR_ID, radarFactory.OWN_KEY_RADAR_ID);
+  assert.ok(radarFactory.isKnownRadarSource(budget.OWN_KEY_RADAR_ID), 'a source the factory runs');
+  Object.keys(radarFactory.RADAR_FACTORIES).concat([undefined]).forEach((radarProvider) => {
+    assert.equal(budget.callsPerCycle(S({ radarProvider: radarProvider })),
+      radarProvider === radarFactory.OWN_KEY_RADAR_ID ? 1 : 0, 'radarProvider=' + radarProvider);
   });
 });
 
@@ -84,7 +84,7 @@ test('monthlyCalls matches every row of the worked budget table', () => {
 test('fittingOptions: drops 5 min with no pause, all five with an 11 h pause, the full ladder when not in play', () => {
   assert.deepEqual(budget.fittingOptions(S()).map((o) => o[1]), ['10', '15', '30', '60']);
   assert.deepEqual(budget.fittingOptions(paused(20)).map((o) => o[1]), ['5', '10', '15', '30', '60']);
-  assert.deepEqual(budget.fittingOptions(S({ rainbowOwnKey: false })).map((o) => o[1]),
+  assert.deepEqual(budget.fittingOptions(S({ radarProvider: 'rainbow' })).map((o) => o[1]),
     ['5', '10', '15', '30', '60']);
   assert.deepEqual(budget.fittingOptions(S({ radarMode: 'off' })).map((o) => o[1]),
     ['5', '10', '15', '30', '60']);
@@ -95,7 +95,7 @@ test('fittingOptions: drops 5 min with no pause, all five with an 11 h pause, th
 test('minSleepHoursFor derives the unlock rule (5 min needs >= 11 h; 10 min needs none)', () => {
   assert.equal(budget.minSleepHoursFor(S(), 5), 11);
   assert.equal(budget.minSleepHoursFor(S(), 10), 0);
-  assert.equal(budget.minSleepHoursFor(S({ rainbowOwnKey: false }), 5), 0, 'no Rainbow key budget in play');
+  assert.equal(budget.minSleepHoursFor(S({ radarProvider: 'rainbow' }), 5), 0, 'no Rainbow key budget in play');
   assert.equal(budget.minSleepHoursFor(S({ radarMode: 'off' }), 5), 0, 'radar off: nothing to unlock');
   // The derived pause really does unlock the interval, and one hour less does not.
   assert.equal(budget.fits(paused(20), 5), true);

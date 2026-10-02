@@ -28,7 +28,6 @@ var fetchOptions = require('./weather/fetch-options.js');
 var sleepWindow = require('./sleep-window.js');
 var platformLib = require('./config-ui/lib/platform.js');
 var radarFactory = require('./weather/radar-factory.js');
-var radarSourceId = require('./weather/radar-source-id.js');
 var radarWire = require('./weather/radar-wire.js');
 var radarSky = require('./weather/radar-sky.js');
 var radarCoverage = require('./weather/radar-coverage.js');
@@ -406,9 +405,9 @@ function createFetchCycle(deps) {
         // at the clock edge, so the adapters stay deterministic (no clock injection).
         // radarMode 'off' clears the watch's radar via the 'disabled' clearing
         // adapter; any non-off mode fetches the full trend (countdown needs it).
-        // The source is the resolved one (radar-source-id.js): "Rainbow (own key)"
-        // runs 'rainbowkey', with its own (absent) throttle.
-        var radarId = (settings.radarMode || 'graph') === 'off' ? 'disabled' : radarSourceId.effectiveRadarId(settings);
+        // "Rainbow (own key)" is radarProvider 'rainbowkey', with its own (absent)
+        // throttle.
+        var radarId = (settings.radarMode || 'graph') === 'off' ? 'disabled' : settings.radarProvider;
         // '' when the build carried no RAINBOW_PROXY_ENDPOINT — the rainbow
         // adapter then clears the watch's radar (it can never answer).
         // tomorrowioApiKey is the user's key from settings; '' likewise

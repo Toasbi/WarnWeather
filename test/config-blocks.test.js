@@ -1205,14 +1205,14 @@ test('radarPreview (rainbow) still renders exact bars and the countdown band', (
 });
 
 // Regression pin, not coverage: preview-radar.js branches on radarProvider === 'dwd' alone
-// (nearby hatching is DWD-only), so "Rainbow (own key)" (rainbowOwnKey true) previews exactly
+// (nearby hatching is DWD-only), so "Rainbow (own key)" ('rainbowkey') previews exactly
 // like the shared "Rainbow (limited)" radar.
 test('radarPreview (Rainbow on your own key) renders the same preview as shared Rainbow', () => {
   [{ color: true }, { color: false }].forEach((env) => {
     ['0', '60'].forEach((horizon) => {
-      const state = { radarProvider: 'rainbow', radarColor: 'multicolor', radarMode: 'graph', rainCountdownHorizon: horizon };
-      const shared = RD.radarPreview(Object.assign({ rainbowOwnKey: false }, state), env);
-      const ownKey = RD.radarPreview(Object.assign({ rainbowOwnKey: true }, state), env);
+      const state = { radarColor: 'multicolor', radarMode: 'graph', rainCountdownHorizon: horizon };
+      const shared = RD.radarPreview(Object.assign({ radarProvider: 'rainbow' }, state), env);
+      const ownKey = RD.radarPreview(Object.assign({ radarProvider: 'rainbowkey' }, state), env);
       assert.equal(ownKey, shared, 'color=' + env.color + ' horizon=' + horizon);
     });
   });
@@ -1437,11 +1437,11 @@ test('fetchIntervalBudget resolver: filters when guard on, passes through when o
     ['5', '10', '15', '30', '60']);
 });
 
-// "Rainbow (own key)" (radarProvider 'rainbow' + rainbowOwnKey true): radar on the user's key,
-// weather elsewhere, no night pause.
+// "Rainbow (own key)" (radarProvider 'rainbowkey'): radar on the user's key, weather
+// elsewhere, no night pause.
 function rainbowState(over) {
   return Object.assign({
-    provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph', fetchIntervalMin: '15',
+    provider: 'openmeteo', radarProvider: 'rainbowkey', radarMode: 'graph', fetchIntervalMin: '15',
     sleepNightEnabled: false, sleepStartHour: '22', sleepEndHour: '7',
     tomorrowioFitBudget: true, rainbowFitBudget: true
   }, over || {});
@@ -1450,8 +1450,8 @@ function rainbowState(over) {
 test('rainbowBudget block: empty unless Rainbow on the user\'s own key drives a running radar', () => {
   const block = global.PConf.blocks.get('rainbowBudget');
   assert.equal(typeof block, 'function', 'the block is registered');
-  assert.equal(block(rainbowState({ rainbowOwnKey: false }), {}), '', 'shared Rainbow bills nothing to the user');
-  assert.equal(block(rainbowState({ radarProvider: 'dwd' }), {}), '', 'another radar source, rainbowOwnKey left true');
+  assert.equal(block(rainbowState({ radarProvider: 'rainbow' }), {}), '', 'shared Rainbow bills nothing to the user');
+  assert.equal(block(rainbowState({ radarProvider: 'dwd' }), {}), '', 'another radar source');
   assert.equal(block(rainbowState({ radarMode: 'off' }), {}), '', 'radar off: no Rainbow call is made');
   assert.equal(B.rainbowBudgetBlock, block, 'the exported renderer is the registered one');
 });
@@ -1525,7 +1525,7 @@ test('fetchIntervalBudget resolver: the intersection of every active guard', () 
   // Own-key Rainbow guard on: 5 min drops out.
   assert.deepEqual(run(rainbowState()), ['10', '15', '30', '60']);
   // "Rainbow (limited)": the shared radar bills nothing, so the full ladder.
-  assert.deepEqual(run(rainbowState({ rainbowOwnKey: false })), ['5', '10', '15', '30', '60']);
+  assert.deepEqual(run(rainbowState({ radarProvider: 'rainbow' })), ['5', '10', '15', '30', '60']);
   // ...off: the full ladder (the block shows the red warning instead).
   assert.deepEqual(run(rainbowState({ rainbowFitBudget: false })), ['5', '10', '15', '30', '60']);
   // Both guards in play (tomorrow.io weather + Rainbow key radar): the intersection.

@@ -25,11 +25,10 @@ const radarRow = radarTab.sections[0].items.find((i) => i.messageKey === 'radarP
 const ARGS = radarRow.attentionFrom.args;
 const SOURCE = ARGS.keyed.rainbowkey;
 const RBW_KEY = 'rbw-secret-0123wxyz';
-// The page's state while open: the picker holds the source (onbuild.js folds the stored pair).
+// Settings with the radar on "Rainbow (own key)".
 const OWN = { radarProvider: 'rainbowkey', radarMode: 'graph', fetchIntervalMin: '15', sleepNightEnabled: false };
 // The same, as the phone stores it.
-const STORED_OWN = { provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph',
-  fetchIntervalMin: '15', sleepNightEnabled: false };
+const STORED_OWN = Object.assign({ provider: 'openmeteo' }, OWN);
 
 /**
  * The phone's answers as it stores them (key-result.js) with one source's answer to a key.
@@ -207,8 +206,7 @@ test('page: a key typed into the sheet is untested, needs no dialog and saves as
   assert.doesNotMatch(page.tabs.innerHTML, /tab-dot/);
   page.tapSave();
   const blob = await page.saved();
-  assert.equal(blob.radarProvider, 'rainbow');
-  assert.equal(blob.rainbowOwnKey, true);
+  assert.equal(blob.radarProvider, 'rainbowkey');
   assert.equal(blob.rainbowApiKey, RBW_KEY);
 });
 
@@ -217,8 +215,7 @@ test('page: "Save anyway" saves the own key without a key, as before', async () 
   page.tapSave();
   tapInModal(page, '[data-confirm]', 'data-confirm', 'save');
   const blob = await page.saved();
-  assert.equal(blob.radarProvider, 'rainbow');
-  assert.equal(blob.rainbowOwnKey, true);
+  assert.equal(blob.radarProvider, 'rainbowkey');
   assert.equal(blob.rainbowApiKey, '');
 });
 
@@ -243,7 +240,7 @@ test('page: a key the radar last went through with reads "✓ works" and saves w
   assert.doesNotMatch(page.tabs.innerHTML, /tab-dot/);
   page.tapSave();
   assert.equal(page.modal.innerHTML, '', 'no dialog');
-  assert.equal((await page.saved()).rainbowOwnKey, true);
+  assert.equal((await page.saved()).radarProvider, 'rainbowkey');
 });
 
 test('page: the Test button\'s answer (through the proxy\'s envelope) reaches the summary', () => {
@@ -280,7 +277,7 @@ test('page: radar off — no note, no dot, no dialog, whatever the own key\'s st
   page.tapSave();
   assert.equal(page.modal.innerHTML, '');
   const blob = await page.saved();
-  assert.equal(blob.rainbowOwnKey, true, 'the pick itself is kept');
+  assert.equal(blob.radarProvider, 'rainbowkey', 'the pick itself is kept');
 });
 
 test('page: a missing weather key and a missing radar key dot both tabs; the dialog asks for the first', () => {
@@ -297,7 +294,7 @@ test('page: aplite has no Radar tab — no dot and no dialog for a stored own ke
   assert.doesNotMatch(page.tabs.innerHTML, /tab-dot/);
   page.tapSave();
   assert.equal(page.modal.innerHTML, '');
-  assert.equal((await page.saved()).rainbowOwnKey, true);
+  assert.equal((await page.saved()).radarProvider, 'rainbowkey');
 });
 
 // --- Tomorrow.io on the radar picker ----------------------------------------------------------

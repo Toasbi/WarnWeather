@@ -80,15 +80,11 @@ var provider = {
 };
 // What the next cycle runs with: the radar settings, and the clock whose 5-min
 // slot-0 epoch the radar is pinned to (every slotZero here is 5-min aligned).
-// current.radarId is the radar SOURCE; the own-key source 'rainbowkey' is stored the
-// way the settings page stores "Rainbow (own key)": radarProvider 'rainbow' plus
-// rainbowOwnKey true.
+// current.radarId is the radar source, stored as radarProvider.
 var current = null;
 const fetchCycle = createFetchCycle({
   getSettings: function() {
-    var ownKey = current.radarId === 'rainbowkey';
-    return { radarMode: 'graph', radarSky: Boolean(current.sky),
-             radarProvider: ownKey ? 'rainbow' : current.radarId, rainbowOwnKey: ownKey,
+    return { radarMode: 'graph', radarSky: Boolean(current.sky), radarProvider: current.radarId,
              tomorrowioApiKey: current.cfg.tomorrowioApiKey, rainbowApiKey: current.cfg.rainbowApiKey };
   },
   getWatchInfo: function() { return null; },   // unknown platform: radar-capable

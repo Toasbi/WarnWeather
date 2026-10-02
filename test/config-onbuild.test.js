@@ -175,7 +175,7 @@ test('onSubmit leaves an interval alone when it fits, the guard is off, or no to
 // 11 h pause.
 function rainbowCtx(over) {
     return budgetCtx(Object.assign({
-        provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwnKey: true, rainbowFitBudget: true
+        provider: 'openmeteo', radarProvider: 'rainbowkey', rainbowFitBudget: true
     }, over || {}));
 }
 
@@ -204,7 +204,7 @@ test('onSubmit leaves the interval alone when the Rainbow guard is off, it fits,
     OB.onSubmit(radarOff.ctx);
     assert.equal(radarOff.store.fetchIntervalMin, '5', 'radar off: no Rainbow call is made');
 
-    var shared = rainbowCtx({ rainbowOwnKey: false });
+    var shared = rainbowCtx({ radarProvider: 'rainbow' });
     OB.onSubmit(shared.ctx);
     assert.equal(shared.store.fetchIntervalMin, '5', '"Rainbow (limited)": the shared radar bills the user nothing');
 });

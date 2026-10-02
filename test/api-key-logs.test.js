@@ -77,7 +77,7 @@ test('settings open/close and provider construction never log an API key', (t) =
   const claySettings = require('../src/pkjs/clay-settings.js');
   const saved = Object.assign({}, claySettings.read(),
     { provider: 'openweathermap', owmApiKey: OWM, yandexApiKey: YDX, tomorrowioApiKey: TIO,
-      rainbowApiKey: RBW, radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'graph' });
+      rainbowApiKey: RBW, radarProvider: 'rainbowkey', radarMode: 'graph' });
   listeners.webviewclosed({ response: encodeURIComponent(JSON.stringify(saved)) });
   listeners.showConfiguration({});
   console.log = realLog;
@@ -98,7 +98,7 @@ test('a Rainbow (own key) radar cycle never logs the key', (t) => {
   // rejection, a network error and an empty 200 (a parse error), then a Save.
   let rainbowCalls = 0;
   const h = bootIndex(t, {
-    settings: { radarMode: 'graph', radarProvider: 'rainbow', rainbowOwnKey: true, rainbowApiKey: RBW, fetchIntervalMin: '5' },
+    settings: { radarMode: 'graph', radarProvider: 'rainbowkey', rainbowApiKey: RBW, fetchIntervalMin: '5' },
     network: (url) => {
       if (/api\.rainbow\.ai/.test(url)) {
         rainbowCalls += 1;

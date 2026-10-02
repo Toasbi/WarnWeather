@@ -84,16 +84,15 @@ test('picking "Rainbow (own key)" on the Radar tab and saving stays within the f
   assert.equal(sheet.indexOf('over budget'), -1);
 
   const saved = await page.save();
-  assert.equal(saved.radarProvider, 'rainbow');
-  assert.equal(saved.rainbowOwnKey, true);
+  assert.equal(saved.radarProvider, 'rainbowkey');
   assert.equal(saved.fetchIntervalMin, '15', 'the default interval, which fits the month');
   assert.ok(rainbowBudget.fits(saved, 15), 'the saved settings fit');
 });
 
-test('saving the shared Rainbow radar leaves the own key off and the interval alone', async () => {
+test('saving the shared Rainbow radar keeps it and leaves the interval alone', async () => {
   const page = bootGeneratedPage(STORED_RB);
   const saved = await page.save();
-  assert.equal(saved.rainbowOwnKey, false, 'the own key saves its default');
+  assert.equal(saved.radarProvider, 'rainbow', '"Rainbow (limited)" stays');
   assert.equal(saved.fetchIntervalMin, '5', 'no own-key budget in play');
 });
 

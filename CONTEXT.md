@@ -129,13 +129,11 @@ on the project's key and its monthly allowance, so it refreshes at most every
 a move within the slot keeps the slot's answer until the next slot); "Rainbow
 (own key)" (id `rainbowkey`) fetches the same nowcast directly on the user's
 own key at every update, on a key whose first 5,000 calls a month are free
-(Rainbow asks for a credit card and bills calls past that). `rainbowkey` is
-never a stored `radarProvider`: the settings store the own key as `rainbow`
-plus `rainbowOwnKey` true (as since 1.23.1, when it was a switch), the page
-folds that pair into the picker while it is open and writes it back on Save,
-and `radar-source-id.js` resolves it everywhere else. Picked without a key, the
-own-key source clears the radar. Wherever the own key can't be set, it is the
-limited one.
+(Rainbow asks for a credit card and bills calls past that). Both ids are
+stored `radarProvider` values. 1.23.x stored the own key as `rainbow` plus a
+`rainbowOwnKey` switch; a 1.24.0 migration folds that pair into `rainbowkey`.
+Picked without a key, the own-key source clears the radar. Wherever the own key
+can't be set, it is the limited one.
 _Avoid_: radar provider in prose (the wire key `radarProvider` keeps its name).
 
 **Radar tuples**:

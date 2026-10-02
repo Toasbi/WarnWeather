@@ -14,7 +14,7 @@
 // test/config-key-status.test.js and test/config-radar-key-status.test.js (the key's
 // status: the tab bar's dot and the Save button's confirm dialog, which needs `dialog`
 // below), and by test/config-radar-rainbow-options.test.js (the Radar tab's two Rainbow
-// options, folded into the picker on open and written back on Save). The trigger stubs
+// options, opened on and saved as radarProvider). The trigger stubs
 // below also report the engine's in-place relabel after a text commit (`relabels`).
 'use strict';
 const assert = require('node:assert/strict');

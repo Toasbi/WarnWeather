@@ -23,12 +23,10 @@
 // RADAR_MIN_REQUEST_INTERVAL_MS, which the cycle reads through
 // minRequestIntervalMs.
 //
-// Source ids are the Clay radarProvider values plus two internal ones that are
-// never stored: 'disabled' (radar off, and the fallback) and 'rainbowkey'
-// (Rainbow on the user's own key). The settings offer them as "Rainbow (limited)"
-// and "Rainbow (own key)" but store both as radarProvider 'rainbow' plus
-// rainbowOwnKey; radar-source-id.js effectiveRadarId resolves that pair to
-// 'rainbow' or 'rainbowkey', and callers pass its answer here.
+// Source ids are the Clay radarProvider values, Rainbow twice: 'rainbow' is
+// "Rainbow (limited)" (the shared proxy) and 'rainbowkey' (OWN_KEY_RADAR_ID) is
+// "Rainbow (own key)" (the user's own key). Plus one internal id that is never
+// stored: 'disabled' (radar off, and the fallback).
 
 var radar = require('./dwd-radar.js');
 var metnoRadar = require('./metno-radar.js');
@@ -37,6 +35,9 @@ var tomorrowioRadar = require('./tomorrowio-radar.js');
 var radarWire = require('./radar-wire.js');
 
 var DEFAULT_RADAR_ID = 'disabled';
+// "Rainbow (own key)" (rainbow-radar.js, which owns the id: it records the key's answers
+// under it, and this module requires that one).
+var OWN_KEY_RADAR_ID = rainbowRadar.OWN_KEY_RADAR_ID;
 
 // Minimum spacing between two requests of one radar source. Only the shared Rainbow proxy:
 // every request is a Supabase edge invocation (log-ingest quota) and a call on the project's
@@ -115,7 +116,7 @@ function canAnswer(radarId, cfg) {
     if (!isKnownRadarSource(radarId) || radarId === DEFAULT_RADAR_ID) { return false; }
     if (radarId === 'rainbow') { return Boolean(cfg && cfg.rainbowEndpoint); }
     if (radarId === 'tomorrowio') { return isNonBlank(cfg && cfg.tomorrowioApiKey); }
-    if (radarId === 'rainbowkey') { return isNonBlank(cfg && cfg.rainbowApiKey); }
+    if (radarId === OWN_KEY_RADAR_ID) { return isNonBlank(cfg && cfg.rainbowApiKey); }
     return true;
 }
 
@@ -137,8 +138,8 @@ function minRequestIntervalMs(radarId) {
  * fall back to the 'disabled' source (clears the watch's radar), matching the
  * legacy default-off behavior.
  *
- * @param {string} radarId Radar source id ('dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio', 'disabled';
- *   radar-source-id.js effectiveRadarId resolves it from the settings).
+ * @param {string} radarId Radar source id ('dwd', 'metno', 'rainbow', 'rainbowkey', 'tomorrowio': the
+ *   settings' radarProvider; 'disabled' while radar is off).
  * @param {Object} cfg Per-source config.
  * @param {string} cfg.rainbowEndpoint Rainbow proxy URL ('' when the build carries none).
  * @param {string} cfg.rainbowApiKey The user's own Rainbow API key for 'rainbowkey' ('' when unset; the adapter clears the watch's radar).
@@ -149,13 +150,14 @@ function createRadarSource(radarId, cfg) {
     // Every radar step builds its source here, so this is where the keyed Rainbow path
     // learns it stopped being the radar in use: another source (or radar off) ends its
     // run of nulls (rainbow-radar.js resetKeyedStreak), and coming back starts afresh.
-    if (radarId !== 'rainbowkey') { rainbowRadar.resetKeyedStreak(); }
+    if (radarId !== OWN_KEY_RADAR_ID) { rainbowRadar.resetKeyedStreak(); }
     var factory = isKnownRadarSource(radarId) ? RADAR_FACTORIES[radarId] : RADAR_FACTORIES[DEFAULT_RADAR_ID];
     return factory(cfg);
 }
 
 module.exports = {
     DEFAULT_RADAR_ID: DEFAULT_RADAR_ID,
+    OWN_KEY_RADAR_ID: OWN_KEY_RADAR_ID,
     RADAR_FACTORIES: RADAR_FACTORIES,
     RADAR_MIN_REQUEST_INTERVAL_MS: RADAR_MIN_REQUEST_INTERVAL_MS,
     isKnownRadarSource: isKnownRadarSource,

@@ -5,7 +5,6 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
 var radarWire = require('./radar-wire.js');
 var radarFetch = require('./radar-fetch.js');
 var coords = require('./coords.js');
-var radarSourceId = require('./radar-source-id.js');
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 
@@ -17,6 +16,11 @@ var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
 // coords.js): the proxy gets it in a POST body, never in a URL its gateway
 // logs, and Rainbow gets no more of it than the radar needs.
 var DIRECT_BASE = 'https://api.rainbow.ai/nowcast/v1/precip-global';
+// The radar source id of Rainbow on the user's own key: the radarProvider value of
+// "Rainbow (own key)", the radar-factory.js entry that runs fetchRadarTuplesWithKey (it
+// re-exports this as OWN_KEY_RADAR_ID; it lives here because radar-factory.js requires
+// this module), and the id each answer to the key is recorded under (key-result.js).
+var OWN_KEY_RADAR_ID = 'rainbowkey';
 // = rainbow-nowcast handler.ts ECHO_TOLERANCE_DEG: catches a lon/lat transposition,
 // tolerates Rainbow's grid snapping of the echoed point.
 var ECHO_TOLERANCE_DEG = 0.5;
@@ -358,7 +362,7 @@ function fetchRadarTuplesWithKey(apiKey, lat, lon, slotZeroEpoch, callback) {
             label: 'Rainbow (own key)',
             headers: { 'Ocp-Apim-Subscription-Key': apiKey },
             // Each answer is the key's verdict for the settings page (key-result.js).
-            keyResult: { id: radarSourceId.OWN_KEY_RADAR_ID, apiKey: apiKey },
+            keyResult: { id: OWN_KEY_RADAR_ID, apiKey: apiKey },
             onTransportError: function (error, cb) {
                 if (error && error.code === 'status_404') {
                     // Out of coverage: flat zeros, NOT a clear (radar-wire.js).
@@ -395,6 +399,7 @@ function fetchRadarTuplesWithKey(apiKey, lat, lon, slotZeroEpoch, callback) {
 }
 
 module.exports = {
+    OWN_KEY_RADAR_ID: OWN_KEY_RADAR_ID,
     fetchRadarTuplesAt: fetchRadarTuplesAt,
     fetchRadarTuplesWithKey: fetchRadarTuplesWithKey,
     resetKeyedStreak: resetKeyedStreak

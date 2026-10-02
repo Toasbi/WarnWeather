@@ -715,10 +715,8 @@ var RADAR_WHY = {
 // tag under each name in the dropdown, mirroring the weather picker. DWD/Met.no are real
 // radar; Rainbow/Tomorrow.io are model nowcasts (Tomorrow.io is the precise, worldwide one).
 // Scope lives in the desc + "why" note, not the label (keeps the trigger short). Rainbow
-// comes twice, one option per radar SOURCE (weather/radar-source-id.js): the shared proxy
-// everyone splits ('rainbow') and the user's own key ('rainbowkey'). The blob still stores
-// the own key as radarProvider 'rainbow' + rainbowOwnKey true; settings/onbuild.js folds
-// that pair into the picker on open and writes it back on Save.
+// comes twice, one option per radar source (weather/radar-factory.js): the shared proxy
+// everyone splits ('rainbow') and the user's own key ('rainbowkey').
 var RADAR_PROVIDER_OPTIONS = [
     ['DWD', 'dwd', {desc: 'Best radar in Germany · exact spot + nearby'}],
     ['Met.no', 'metno', {desc: 'Best radar in the Nordics · exact spot'}],
@@ -1584,14 +1582,12 @@ module.exports = {
                 // "Rainbow (limited)"), the same map the wizard uses. See blocks.js recommend
                 // resolvers; the bracketed name moves the marker onto the desc line (engine.js).
                 recommendFrom: 'recommendedRadarProvider',
-                // Two Rainbow options, one per radar source (radar-source-id.js): "Rainbow
+                // Two Rainbow options, one per radar source (radar-factory.js): "Rainbow
                 // (limited)" ('rainbow') is the shared proxy, at most every 30 min (fetch-cycle.js
                 // throttle; builds without a proxy endpoint still offer it and clear the radar);
                 // "Rainbow (own key)" ('rainbowkey') is api.rainbow.ai directly on the user's
-                // key, at every update, which works without the endpoint. The blob stores the
-                // own key as 'rainbow' + rainbowOwnKey true (the hidden row at the end of this
-                // section): onbuild.js folds the pair into this picker on open and writes it
-                // back on Save, and a changed source forces a fetch (index.js).
+                // key, at every update, which works without the endpoint. A changed source
+                // forces a fetch (index.js).
                 // The selected provider's fuller rationale renders via hintByValue (RADAR_WHY),
                 // wrapping around the trigger — mirroring the weather picker.
                 hintByValue: RADAR_WHY,
@@ -1702,16 +1698,6 @@ module.exports = {
                 attributes: {maxlength: 24},
                 hint: 'Shown in the radar graph when no rain is coming; the default is “You\'re good :)”. Up to 24 characters; leave it empty to show nothing.',
                 showWhen: {key: 'radarMode', eq: 'graph'}
-            }, {
-                // Rainbow on the user's own key: the stored half of "Rainbow (own key)"
-                // (radarProvider 'rainbow' + this true; radar-source-id.js), hydrated and
-                // serialized but never drawn — the picker above is its only control
-                // (onbuild.js folds it in on open and writes it back on Save). Phone-only,
-                // never on the watch wire. Last in the section, so it sits between no two
-                // rows a join could pass through.
-                type: 'hidden',
-                messageKey: 'rainbowOwnKey',
-                defaultValue: false
             }]
             // The rain countdown's time window (rainCountdownHorizon) used to close this
             // section; its home is the Rain alert sheet (the Alerts tab), with a second copy

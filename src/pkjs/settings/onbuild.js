@@ -17,10 +17,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     // concatenated ahead of every app file).
     var intToHex = (typeof require !== 'undefined')
         ? require('../config-ui/lib/color.js').intToHex : PConf.color.intToHex;
-    // The radar-source rule (weather/radar-source-id.js, concatenated ahead of this file
-    // and published as PConf.radarSourceId).
-    var radarSourceId = (typeof require !== 'undefined')
-        ? require('../weather/radar-source-id.js') : PConf.radarSourceId;
     var COLOR_ROLES = ['Warn', 'Danger'];
 
     /**
@@ -92,52 +88,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * The radar source the stored pair runs (radar-source-id.js effectiveRadarId).
-     * @param {{ get: function }} ctx onLoad / onSubmit context
-     * @returns {(string|undefined)} Radar source id.
-     */
-    function radarSource(ctx) {
-        return radarSourceId.effectiveRadarId({
-            radarProvider: ctx.get('radarProvider'),
-            rainbowOwnKey: ctx.get('rainbowOwnKey')
-        });
-    }
-
-    /**
-     * Fold the stored Rainbow pair into the Radar tab's picker on every open. The blob
-     * keeps Rainbow on the user's own key as radarProvider 'rainbow' + rainbowOwnKey
-     * true, but the picker offers the two Rainbow sources as two options, "Rainbow
-     * (limited)" ('rainbow') and "Rainbow (own key)" ('rainbowkey'). So while the page is
-     * open radarProvider holds the radar SOURCE and rainbowOwnKey reads false: the picker
-     * alone says which Rainbow runs, and a pick (or the setup wizard's country pick)
-     * needs nothing else kept in step. unfoldRadarSource writes the pair back on Save.
-     * No new stored value: a fresh install, a 1.23.x blob and a dev phone's blob all
-     * hold the same pair.
-     * @param {{ get: function, set: function }} ctx onLoad context
-     * @returns {void}
-     */
-    function foldRadarSource(ctx) {
-        var source = radarSource(ctx);
-        if (source === radarSourceId.OWN_KEY_RADAR_ID) { ctx.set('radarProvider', source); }
-        ctx.set('rainbowOwnKey', false);
-    }
-
-    /**
-     * On Save, write the picker's radar source back as the stored pair
-     * (radar-source-id.js storedPair): "Rainbow (own key)" is radarProvider 'rainbow' with
-     * rainbowOwnKey true, every other pick stores itself with rainbowOwnKey false. It reads
-     * the source through effectiveRadarId, so a context that never folded (a stored blob
-     * handed straight to the hook) keeps its meaning too.
-     * @param {{ get: function, set: function }} ctx onSubmit context
-     * @returns {void}
-     */
-    function unfoldRadarSource(ctx) {
-        var pair = radarSourceId.storedPair(radarSource(ctx));
-        if (pair.radarProvider !== ctx.get('radarProvider')) { ctx.set('radarProvider', pair.radarProvider); }
-        ctx.set('rainbowOwnKey', pair.rainbowOwnKey);
-    }
-
-    /**
      * onLoad: reset transient toggles so they never persist across open/close, and
      * mirror the stored location into the GPS/Manual picker (locationMode has no
      * watch-side meaning — an empty vs set location is the real GPS/manual contract,
@@ -155,7 +105,6 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         // leave it pre-checked on the next open.
         ctx.set('reset', false);
         ctx.set('locationMode', ctx.get('location') ? 'manual' : 'gps');
-        foldRadarSource(ctx);
         healThresholdColors(ctx);
         healOnDemandLists(ctx);
         if (ctx.env && ctx.env.platform === 'aplite') {
@@ -196,17 +145,15 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * onSubmit: write the radar picker's source back as the stored pair, keep the location
-     * consistent with the picker, trim paste whitespace off the API keys, then force a
-     * re-fetch when any provider-identity field or API key changed. GPS mode must leave location empty so the
+     * onSubmit: fit the update interval to the budgets, keep the location consistent with
+     * the picker, trim paste whitespace off the API keys, then force a re-fetch when any
+     * provider-identity field or API key changed. GPS mode must leave location empty so the
      * watch falls back to GPS; clearing it before the change check also means flipping
      * Manual to GPS is correctly detected as a location change.
      * @param {{ get: function, set: function, getInitial: function }} ctx
      */
     function onSubmit(ctx) {
-        // The stored shape first, so everything below reads what Save stores.
-        unfoldRadarSource(ctx);
-        // Then: the gpsCacheMin raise below must see the interval this may raise.
+        // First: the gpsCacheMin raise below must see the interval this may raise.
         fitIntervalToBudget(ctx);
         if (ctx.get('locationMode') === 'gps') {
             ctx.set('location', '');

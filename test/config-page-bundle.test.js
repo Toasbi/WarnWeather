@@ -481,8 +481,6 @@ test('the budget modules reach the generated page in dependency order, ahead of 
   };
   assert.ok(idx('settings/tomorrowio-budget.js') < idx('settings/rainbow-budget.js'),
     'tomorrowio-budget.js must precede rainbow-budget.js, which reads PConf.tomorrowioBudget at IIFE time');
-  assert.ok(idx('weather/radar-source-id.js') < idx('settings/rainbow-budget.js'),
-    'radar-source-id.js must precede rainbow-budget.js, which reads PConf.radarSourceId at IIFE time');
   assert.ok(idx('settings/rainbow-budget.js') < idx('settings/interval-budget.js'),
     'rainbow-budget.js must precede interval-budget.js, which reads PConf.rainbowBudget at IIFE time');
   assert.ok(idx('settings/interval-budget.js') < idx('settings/blocks.js'),
@@ -496,12 +494,11 @@ test('the budget modules reach the generated page in dependency order, ahead of 
     return i;
   };
   const tioAt = at('PConf.tomorrowioBudget = api');
-  const idAt = at('PConf.radarSourceId = api');
   const rbAt = at('PConf.rainbowBudget = api');
   const ibAt = at('PConf.intervalBudget = api');
   const blockAt = at('register(\'rainbowBudget\'');
-  assert.ok(tioAt < rbAt && idAt < rbAt && rbAt < ibAt && ibAt < blockAt,
-    'the page must define tomorrowio-budget and radar-source-id, then rainbow-budget, then interval-budget, then blocks.js');
+  assert.ok(tioAt < rbAt && rbAt < ibAt && ibAt < blockAt,
+    'the page must define tomorrowio-budget, then rainbow-budget, then interval-budget, then blocks.js');
   assert.ok(src.indexOf('PConf.intervalBudget') !== -1, 'blocks.js / onbuild.js read PConf.intervalBudget');
 });
 

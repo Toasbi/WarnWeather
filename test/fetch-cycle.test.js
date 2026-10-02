@@ -638,8 +638,8 @@ test('radar: one fix feeds both legs — the radar request and the forecast get 
 
 test('radar: "Rainbow (own key)" sends the user\'s key in the request header', () => {
     resetStore();
-    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'rainbow',
-        rainbowOwnKey: true, rainbowApiKey: 'K' };
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'rainbowkey',
+        rainbowApiKey: 'K' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     h.cycle.start(true);
     h.provider.fix(52.5, 13.4);
@@ -652,7 +652,7 @@ test('radar: "Rainbow (own key)" sends the user\'s key in the request header', (
 test('radar: Rainbow on your own key with no key clears, and no sky request goes out for it', () => {
     resetStore();
     // The sky rows are on (radarSky unset), but a radar that can never answer draws no graph.
-    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'rainbow', rainbowOwnKey: true,
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarProvider: 'rainbowkey',
         rainbowApiKey: '' };
     const h = makeHarness({ settings: settings, watchInfo: BASALT });
     h.cycle.start(true);
@@ -1518,7 +1518,7 @@ test('radar throttle: the sky rows are not throttled — they ride a throttled c
 
 test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cycle and keep no record', () => {
     [
-        { radarProvider: 'rainbow', rainbowOwnKey: true, rainbowApiKey: 'K' },
+        { radarProvider: 'rainbowkey', rainbowApiKey: 'K' },
         { radarProvider: 'tomorrowio', tomorrowioApiKey: 'TIO-KEY' },
         { radarProvider: 'dwd' }
     ].forEach(function (over) {
@@ -1531,7 +1531,7 @@ test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cyc
             const before = radarRequests.length;
             assert.equal(h.cycle.start(false), true);
             h.provider.fix(52.5, 13.4);
-            const label = over.rainbowOwnKey ? 'rainbow on the own key' : over.radarProvider;
+            const label = over.radarProvider;
             assert.equal(radarRequests.length, before + 1, label + ' asks at +' + m + ' min');
             radarRequests[radarRequests.length - 1].onError({ code: 'status_503', detail: 'http_status' });
             h.provider.succeed();
@@ -1541,16 +1541,16 @@ test('radar throttle: Rainbow on your own key, tomorrow.io and DWD ask every cyc
     });
 });
 
-test('radar throttle: rainbowOwnKey picks the Rainbow source, and going back to "Rainbow (limited)" asks the proxy afresh', () => {
+test('radar throttle: "Rainbow (own key)" asks Rainbow directly, and going back to "Rainbow (limited)" asks the proxy afresh', () => {
     resetStore();
-    const settings = Object.assign({}, RB_SETTINGS, { rainbowOwnKey: false, rainbowApiKey: 'K' });
+    const settings = Object.assign({}, RB_SETTINGS, { rainbowApiKey: 'K' });
     const h = rbHarness({ settings: settings });
     // "Rainbow (limited)": the shared proxy, one request per slot.
     assert.equal(rbCycle(h, RB_T0).requested, true, 'the shared radar asks the proxy');
     assert.equal(rbCycle(h, RB_T0 + 5 * MIN).requested, false, 'and is throttled within the slot');
     assert.equal(readJson(RB_KEY).id, 'rainbow');
     // "Rainbow (own key)": Rainbow directly on the user's key, every cycle, and no throttle record.
-    settings.rainbowOwnKey = true;
+    settings.radarProvider = 'rainbowkey';
     [10, 15].forEach(function (m) {
         h.setNow(RB_T0 + m * MIN);
         const before = radarRequests.length;
@@ -1567,7 +1567,7 @@ test('radar throttle: rainbowOwnKey picks the Rainbow source, and going back to 
     assert.equal(proxyRequests().length, 1, 'the proxy was asked only while on "Rainbow (limited)"');
     // Back to "Rainbow (limited)", still inside the first slot: the shared record went with
     // the change of source, so the proxy is asked afresh rather than skipped.
-    settings.rainbowOwnKey = false;
+    settings.radarProvider = 'rainbow';
     assert.equal(rbCycle(h, RB_T0 + 20 * MIN).requested, true, 'back on the proxy, asked afresh');
 });
 

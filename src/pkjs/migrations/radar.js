@@ -1,9 +1,9 @@
 // src/pkjs/migrations/radar.js
 //
-// The radar migrations: 1.10.0's radarMode and 1.23.0's no-rain text. Registry
-// bodies (migrations/registry.js): run(blob, ctx) -> {changed, send}, mutating the
-// blob in place; the runner in clay-migrations.js owns the marker, the save and the
-// send.
+// The radar migrations: 1.10.0's radarMode, 1.23.0's no-rain text and 1.24.0's
+// "Rainbow (own key)" source. Registry bodies (migrations/registry.js): run(blob, ctx)
+// -> {changed, send}, mutating the blob in place; the runner in clay-migrations.js owns
+// the marker, the save and the send.
 
 /**
  * Move onto the radarMode tiered setting. Existing installs that disabled radar
@@ -58,7 +58,33 @@ function migrateEmptyNoRainText(blob) {
     return { changed: true, send: text === 'No rain ahead' };
 }
 
+/**
+ * The 1.24.0 move of "Rainbow (own key)" onto a radarProvider value of its own,
+ * 'rainbowkey' (the radar source id radar-factory.js runs it under). Since 1.23.1 the
+ * blob kept it as radarProvider 'rainbow' plus rainbowOwnKey true: a switch in 1.23.x,
+ * a pair the 1.24.0 page wrote back on Save. Only that pair, with a real true, ran the
+ * own key, so only it becomes 'rainbowkey'; every other radarProvider stays, a
+ * rainbowOwnKey left on under another source included (it never picked anything
+ * there). rainbowOwnKey is then deleted wherever it is stored: nothing reads it any
+ * more. Asks for no send: neither key rides the watch wire.
+ *
+ * @param {Object} blob Stored settings, mutated in place.
+ * @returns {{changed: boolean, send: boolean}}
+ */
+function migrateRainbowOwnKeySource(blob) {
+    if (!Object.prototype.hasOwnProperty.call(blob, 'rainbowOwnKey')) {
+        return { changed: false, send: false };
+    }
+    if (blob.radarProvider === 'rainbow' && blob.rainbowOwnKey === true) {
+        blob.radarProvider = 'rainbowkey';
+        console.log('Migrated Rainbow + own key -> radarProvider rainbowkey');
+    }
+    delete blob.rainbowOwnKey;
+    return { changed: true, send: false };
+}
+
 module.exports = {
     migrateRadarProviderToMode: migrateRadarProviderToMode,
-    migrateEmptyNoRainText: migrateEmptyNoRainText
+    migrateEmptyNoRainText: migrateEmptyNoRainText,
+    migrateRainbowOwnKeySource: migrateRainbowOwnKeySource
 };

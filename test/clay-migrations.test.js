@@ -1556,6 +1556,139 @@ test('on demand: Reset watchface marks it done, so ticks picked after the reset 
   assert.equal(mods.claySettings.read().statusTopOnDemandLeftItems, 'bt,qt', 'the 1.24.0 page\'s pick survives');
 });
 
+// --- 1.24.0: "Rainbow (own key)" stored as itself (migrations/radar.js) --------------
+// 1.23.1 to the 1.24.0 dev builds stored it as radarProvider 'rainbow' plus
+// rainbowOwnKey true, and radar-source-id.js (deleted with this move) resolved the pair
+// for every reader. The move stores the source that pair ran as radarProvider and
+// deletes rainbowOwnKey. Its marker is its own: the dev phone and beta installs hold
+// every other 1.24.0 marker and still store the pair.
+const RAINBOW_OWN_KEY = KEYS.RAINBOW_OWN_KEY_SOURCE_MIGRATION_KEY;
+
+/**
+ * The radar source a stored blob ran before the move: radar-source-id.js
+ * effectiveRadarId as it stood at c308d713, frozen here (the module is gone) so the
+ * move is checked against the rule every earlier release read.
+ * @param {Object} blob Stored settings.
+ * @returns {(string|undefined)} Radar source id.
+ */
+function sourceThePairRan(blob) {
+  if (blob.radarProvider === 'rainbow' && blob.rainbowOwnKey === true) { return 'rainbowkey'; }
+  return blob.radarProvider;
+}
+
+test('rainbow own key: the move stores the source each stored pair ran, and rainbowOwnKey goes', () => {
+  const cases = [
+    // [stored, expected radarProvider, label]
+    [{ radarProvider: 'rainbow', rainbowOwnKey: true }, 'rainbowkey', 'the own key'],
+    [{ radarProvider: 'rainbow', rainbowOwnKey: false }, 'rainbow', 'the shared radar'],
+    [{ radarProvider: 'rainbow', rainbowOwnKey: 'true' }, 'rainbow', 'only a real true ran the own key'],
+    [{ radarProvider: 'dwd', rainbowOwnKey: true }, 'dwd', 'DWD with the 1.23.x switch left on'],
+    [{ radarProvider: 'metno', rainbowOwnKey: true }, 'metno', 'Met.no with the switch left on'],
+    [{ radarProvider: 'tomorrowio', rainbowOwnKey: true }, 'tomorrowio', 'Tomorrow.io with the switch left on'],
+    [{ radarProvider: 'rainbow', rainbowOwnKey: true, radarMode: 'off' }, 'rainbowkey', 'radar off keeps its pick'],
+    [{ radarProvider: 'tomorrowio', rainbowOwnKey: false, radarMode: 'off' }, 'tomorrowio', 'radar off, another source']
+  ];
+  cases.forEach(([stored, provider, label]) => {
+    const L = loadLedger(Object.assign({ theme: 'dark', rainbowApiKey: 'k' }, stored));
+    const res = L.run(RAINBOW_OWN_KEY, { hadExistingInstall: true });
+    const read = L.read();
+    assert.equal(read.radarProvider, provider, label);
+    assert.equal(read.radarProvider, sourceThePairRan(stored), label + ': the source the pair ran');
+    assert.ok(!('rainbowOwnKey' in read), label + ': rainbowOwnKey is deleted');
+    assert.equal(read.radarMode, stored.radarMode, label + ': radarMode untouched');
+    assert.equal(read.rainbowApiKey, 'k', label + ': the key stays');
+    assert.equal(L.saves.n, 1, label + ': saved once');
+    assert.equal(res.clayRequired, false, label + ': neither key is on the wire, so no send');
+    assert.equal(L.store[RAINBOW_OWN_KEY], '1', label + ': marked at once');
+  });
+});
+
+test('rainbow own key: a blob without rainbowOwnKey is left alone, and a re-run changes nothing', () => {
+  ['rainbow', 'rainbowkey', 'dwd', undefined].forEach((radarProvider) => {
+    const blob = { theme: 'dark', radarMode: 'graph' };
+    if (radarProvider) { blob.radarProvider = radarProvider; }
+    const L = loadLedger(blob);
+    L.run(RAINBOW_OWN_KEY, { hadExistingInstall: true });
+    assert.deepEqual(L.read(), blob, String(radarProvider));
+    assert.equal(L.saves.n, 0, String(radarProvider) + ': nothing saved');
+  });
+  // Idempotent: over its own output (marker cleared) the move finds nothing to do.
+  const L = loadLedger({ radarProvider: 'rainbow', rainbowOwnKey: true });
+  L.run(RAINBOW_OWN_KEY, { hadExistingInstall: true });
+  const once = L.read();
+  delete L.store[RAINBOW_OWN_KEY];
+  L.saves.n = 0;
+  L.run(RAINBOW_OWN_KEY, { hadExistingInstall: true });
+  assert.deepEqual(L.read(), once);
+  assert.deepEqual(once, { radarProvider: 'rainbowkey' });
+  assert.equal(L.saves.n, 0, 'nothing saved again');
+});
+
+/**
+ * One boot through the whole ledger, in boot order: the blob stored (none when null),
+ * `marked` set, seedDefaults, then every unmarked entry.
+ * @param {?Object} blob Stored settings.
+ * @param {string[]} marked Markers the install holds.
+ * @param {boolean} existing Whether a blob was stored before this boot.
+ * @returns {{L: Object, seeded: Object, res: Object, read: Object}}
+ */
+function bootWholeLedger(blob, marked, existing) {
+  const L = loadLedger(blob);
+  marked.forEach((k) => { L.store[k] = '1'; });
+  L.claySettings.seedDefaults(COLORS);
+  const seeded = L.read();
+  L.saves.n = 0;
+  const res = L.run(null, { platform: 'basalt', hadExistingInstall: existing });
+  return { L, seeded, res, read: L.read() };
+}
+
+test('rainbow own key, upgrade paths: a fresh install opens on "Rainbow (limited)" and stores no switch', () => {
+  const { L, read } = bootWholeLedger(null, [], false);
+  assert.equal(read.radarProvider, 'rainbow');
+  assert.ok(!('rainbowOwnKey' in read), 'the seeded blob holds no rainbowOwnKey');
+  assert.equal(L.store[RAINBOW_OWN_KEY], '1');
+});
+
+test('rainbow own key, upgrade paths: a 1.23.2 install keeps the Rainbow it ran', () => {
+  const own = bootWholeLedger({ theme: 'dark', radarMode: 'graph', radarProvider: 'rainbow',
+    rainbowOwnKey: true, rainbowApiKey: 'k' }, THROUGH_1_23_1, true);
+  assert.equal(own.read.radarProvider, 'rainbowkey', 'the switch on: "Rainbow (own key)"');
+  assert.ok(!('rainbowOwnKey' in own.read));
+  assert.equal(own.read.rainbowApiKey, 'k');
+  assert.equal(own.L.store[RAINBOW_OWN_KEY], '1');
+  const shared = bootWholeLedger({ theme: 'dark', radarMode: 'graph', radarProvider: 'rainbow',
+    rainbowOwnKey: false }, THROUGH_1_23_1, true);
+  assert.equal(shared.read.radarProvider, 'rainbow', 'the switch off: "Rainbow (limited)"');
+  assert.ok(!('rainbowOwnKey' in shared.read));
+  const dwd = bootWholeLedger({ theme: 'dark', radarMode: 'graph', radarProvider: 'dwd',
+    rainbowOwnKey: true }, THROUGH_1_23_1, true);
+  assert.equal(dwd.read.radarProvider, 'dwd', 'a switch left on under DWD');
+  // A 1.23.0 or older install never had the switch.
+  const older = bootWholeLedger({ theme: 'dark', radarMode: 'graph', radarProvider: 'rainbow' },
+    THROUGH_1_23_1, true);
+  assert.equal(older.read.radarProvider, 'rainbow');
+  assert.ok(!('rainbowOwnKey' in older.read));
+});
+
+test('rainbow own key, upgrade paths: the dev phone holding every other marker moves its pair, and only that', () => {
+  const others = REGISTRY.map((e) => e.key).filter((k) => k !== RAINBOW_OWN_KEY);
+  const marked = others.concat(DEV_1_24_MARKERS);
+  const stored = Object.assign({ radarProvider: 'rainbow', rainbowOwnKey: true, rainbowApiKey: 'k' },
+    SAVED_ON_THE_1_24_PAGE);
+  const { L, seeded, res, read } = bootWholeLedger(stored, marked, true);
+  const expected = Object.assign({}, seeded, { radarProvider: 'rainbowkey' });
+  delete expected.rainbowOwnKey;
+  assert.deepEqual(read, expected, 'every other setting the 1.24.0 page saved stands');
+  assert.equal(L.saves.n, 1);
+  assert.equal(res.clayRequired, false, 'nothing for the watch');
+  assert.equal(L.store[RAINBOW_OWN_KEY], '1');
+  // Its next boot runs nothing.
+  L.saves.n = 0;
+  assert.equal(L.run(null, { platform: 'basalt', hadExistingInstall: true }).clayRequired, false);
+  assert.deepEqual(L.read(), expected);
+  assert.equal(L.saves.n, 0);
+});
+
 // --- The ledger itself ---------------------------------------------------------------
 
 test('every registry entry has a unique marker declared in storage-keys.js, and a valid policy', () => {
@@ -1592,7 +1725,8 @@ test('the ledger order and marker policies are pinned: a released entry never mo
     ['v1.23.1_fifth_line_style_default_migration', 'now', true],
     ['v1.23.1_stripe_metric_rule_resend_migration', 'ack', false],
     ['v1.24.0_warn_look_migration', 'now', true],
-    ['v1.24.0_on_demand_migration', 'now', true]
+    ['v1.24.0_on_demand_migration', 'now', true],
+    ['v1.24.0_rainbow_own_key_source_migration', 'now', true]
   ]);
 });
 
@@ -1674,7 +1808,7 @@ test('every reset-safe entry, and no other, is marked by Reset watchface', () =>
   const clayMigrations = require('../src/pkjs/clay-migrations');
   assert.deepEqual(clayMigrations.RESET_SAFE_MARKERS, ['v1.23.0_norain_default_text_migration',
     'v1.23.1_fifth_line_style_default_migration', 'v1.24.0_warn_look_migration',
-    'v1.24.0_on_demand_migration']);
+    'v1.24.0_on_demand_migration', 'v1.24.0_rainbow_own_key_source_migration']);
   const L = loadLedger({ theme: 'dark' });
   L.claySettings.resetAll(L.clayMigrations.RESET_SAFE_MARKERS);
   REGISTRY.forEach((e) => assert.equal(L.store[e.key], e.markOnReset ? '1' : undefined, e.key));

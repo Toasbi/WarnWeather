@@ -5,6 +5,8 @@ const schema = require('../src/pkjs/settings/schema.js');
 const { REGION_OPTIONS } = require('../src/pkjs/settings/holiday-data.js');
 const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
+// The settings instance clay-settings.js seeds a fresh install from (getDefaults).
+const settings = require('../src/pkjs/settings');
 // Pulled in so PConf.optionsResolvers is populated (blocks.js registers layoutPresetOptions
 // et al.) — needed to resolve layoutPreset's optionsFrom.resolver end-to-end below.
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -89,7 +91,7 @@ const EXPECTED_KEYS = [
   'precipLineFrom','cloudLineFrom','windLineFrom','uvLineFrom','rainBarFrom','radarBarFrom',
   'tempSlotSeparator','tempSlotSeparatorCustom','tempSlotSeparatorSpaced','tempSlotOrder',
   'dateSlotMonthFormat','dateSlotFullFormat',
-  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowOwnKey','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
+  'barSource','rainBarColor','provider','owmApiKey','yandexApiKey','tomorrowioApiKey','tomorrowioFitBudget','rainbowApiKey','rainbowFitBudget','radarMode','radarProvider','radarColor','radarSky','radarNoRainText','rainCountdownHorizon',
   'layoutPreset','largeGraphFont','viewResetMin','swapClockStatus','configTheme','showQt','vibe','btIcons','telemetryEnabled','onboardingDone','startOnWeatherTab','devStatsEnabled','devStatsClear','reset',
   // Custom-layout storage (sheetOnly section; see customViewItems in custom-layout-schema.js).
   'viewCount','customLayoutSeeded',
@@ -1573,7 +1575,7 @@ test('radarProvider is a dropdown offering DWD/Met.no/Rainbow (limited)/Rainbow 
     ['Rainbow (limited)', 'rainbow'],
     ['Rainbow (own key)', 'rainbowkey'],
     ['Tomorrow.io', 'tomorrowio']
-  ], 'Rainbow twice, one option per radar source (radar-source-id.js)');
+  ], 'Rainbow twice, one option per radar source (radar-factory.js)');
   assert.ok(item.hintByValue && item.hintByValue.rainbow && item.hintByValue.rainbowkey,
     'per-provider "why" lives in hintByValue on the picker, one per Rainbow option');
   assert.equal(item.defaultValue, 'rainbow', 'a fresh install runs the radar that needs no key');
@@ -1643,13 +1645,10 @@ test('the radar picker reads ONE key table for its Edit button, badge, summary, 
   assert.match(scaleNote.text, /don't scale linearly/, 'right before the SCALE_NOTE staticText');
 });
 
-test('rainbowOwnKey is no control any more: a hidden row, last in the radar section', () => {
-  const rows = items.filter((i) => i.messageKey === 'rainbowOwnKey');
-  assert.equal(rows.length, 1, 'one instance');
-  assert.equal(rows[0].type, 'hidden', 'hydrated and serialized, never drawn');
-  assert.equal(rows[0].defaultValue, false, 'the shared radar until the user picks the own key');
-  const section = radarPickerSection();
-  assert.equal(section.items[section.items.length - 1], rows[0], 'last, so no join passes through it');
+test('rainbowOwnKey is no setting any more: the picker\'s own value names the Rainbow', () => {
+  assert.equal(items.filter((i) => i.messageKey === 'rainbowOwnKey').length, 0,
+    'no row, so the page neither hydrates nor saves it (migrations/radar.js deleted it from the blob)');
+  assert.ok(!('rainbowOwnKey' in settings.getDefaults()), 'and a fresh install is not seeded with it');
 });
 
 test('"Rainbow (own key)"\'s key sheet: the key field and the budget guard, only while it drives a running radar', () => {
@@ -1668,9 +1667,6 @@ test('"Rainbow (own key)"\'s key sheet: the key field and the budget guard, only
   ['dwd', 'metno', 'rainbow', 'tomorrowio'].forEach((p) => {
     assert.equal(showWhen.isVisible(sheet, { radarProvider: p, radarMode: 'graph' }), false, 'closed for ' + p);
   });
-  // A stored blob never holds 'rainbowkey' (onbuild.js folds rainbow + rainbowOwnKey into it
-  // only while the page is open), so the stored pair alone opens nothing.
-  assert.equal(showWhen.isVisible(sheet, { radarProvider: 'rainbow', radarMode: 'graph', rainbowOwnKey: true }), false);
 });
 
 test('radar-only Tomorrow.io\'s key sheet: the weather provider\'s Tomorrow.io rows, only while it drives a running radar alone', () => {

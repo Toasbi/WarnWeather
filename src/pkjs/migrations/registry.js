@@ -105,5 +105,13 @@ module.exports = [
     // blob is seeded with the On demand defaults, and a list or a side saved before the
     // next boot is the 1.24.0 page's own pick.
     { key: KEYS.ON_DEMAND_MIGRATION_KEY, markOn: 'now', markOnReset: true,
-      run: v124.migrateOnDemand }
+      run: v124.migrateOnDemand },
+    // 1.24.0: "Rainbow (own key)" stored as radarProvider 'rainbowkey', the 1.23.1 pair
+    // ('rainbow' + rainbowOwnKey) folded in and rainbowOwnKey deleted. After the radar
+    // provider -> mode move, which can write radarProvider; nothing else here reads
+    // either key. Asks for no send: neither key is on the wire. Reset-safe: the seeded
+    // blob holds no rainbowOwnKey and the page no longer saves one, so there is nothing
+    // left for it to move.
+    { key: KEYS.RAINBOW_OWN_KEY_SOURCE_MIGRATION_KEY, markOn: 'now', markOnReset: true,
+      run: radar.migrateRainbowOwnKeySource }
 ];

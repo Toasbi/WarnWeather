@@ -283,8 +283,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             ? PConf.onChange.get('clearPollenForProvider') : null;
         if (cleanup) { cleanup(S, oldProvider, m.provider); }
         // The country's Rainbow pick is "Rainbow (limited)" ('rainbow'); a radar already on
-        // "Rainbow (own key)" ('rainbowkey' while the page is open, onbuild.js) stays there,
-        // as it did when the own key was a switch beside the one Rainbow option.
+        // "Rainbow (own key)" ('rainbowkey') stays there, as it did when the own key was a
+        // switch beside the one Rainbow option.
         var ownKey = S.radarProvider === 'rainbowkey' && m.radarProvider === 'rainbow';
         S.radarProvider = ownKey ? 'rainbowkey' : m.radarProvider;
         S.temperatureUnits = m.temperatureUnits;

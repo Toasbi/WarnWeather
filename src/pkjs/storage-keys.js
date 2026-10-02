@@ -34,6 +34,11 @@ module.exports = {
     ALERT_LEVELS_MIGRATION_KEY: 'v1.24.0_warn_look_migration',
     // 1.24.0: the status bars moved onto On demand (migrations/v1_24.js migrateOnDemand).
     ON_DEMAND_MIGRATION_KEY: 'v1.24.0_on_demand_migration',
+    // 1.24.0: "Rainbow (own key)" is stored as radarProvider 'rainbowkey' instead of
+    // 'rainbow' plus rainbowOwnKey (migrations/radar.js migrateRainbowOwnKeySource). A
+    // marker of its own, not a step of the alert levels' or On demand's: dev and beta
+    // installs already hold both of those, and they still store the pair.
+    RAINBOW_OWN_KEY_SOURCE_MIGRATION_KEY: 'v1.24.0_rainbow_own_key_source_migration',
     FETCH_ATTEMPT_KEY: 'weather_fetch_attempt',
     LAST_FETCH_SUCCESS_KEY: 'lastFetchSuccess',
     LAST_FETCH_ATTEMPT_KEY: 'lastFetchAttempt',

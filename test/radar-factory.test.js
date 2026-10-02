@@ -5,7 +5,6 @@ const metnoRadar = require('../src/pkjs/weather/metno-radar.js');
 const rainbowRadar = require('../src/pkjs/weather/rainbow-radar.js');
 const tomorrowioRadar = require('../src/pkjs/weather/tomorrowio-radar.js');
 const radarFactory = require('../src/pkjs/weather/radar-factory.js');
-const radarSourceId = require('../src/pkjs/weather/radar-source-id.js');
 const schema = require('../src/pkjs/settings/schema.js');
 
 const CLEAR = { RAIN_RADAR_TREND_UINT8: [], RAIN_RADAR_TREND_AREA_UINT8: [], RAIN_RADAR_START: 0 };
@@ -104,9 +103,8 @@ test('schema radarProvider options are all registered factory ids; the registry 
   // As of the radarMode tier, "disabled" is no longer a user-selectable radarProvider
   // option (radarMode owns on/off) but the factory registry keeps it as the fallback
   // for unknown/unset ids (see radar-factory.js DEFAULT_RADAR_ID) and as the id
-  // radar-fetch gating still routes to when radarMode is 'off'. "rainbowkey" is a picker
-  // option ("Rainbow (own key)") but never a stored value: the page writes it back as
-  // 'rainbow' + rainbowOwnKey, which radar-source-id.js resolves to it again.
+  // radar-fetch gating still routes to when radarMode is 'off'. "rainbowkey" is the picker
+  // option and stored value of "Rainbow (own key)" (OWN_KEY_RADAR_ID).
   const items = [];
   schema.tabs.forEach(function(t) {
     t.sections.forEach(function(sec) {
@@ -125,10 +123,12 @@ test('schema radarProvider options are all registered factory ids; the registry 
   assert.ok(registryIds.indexOf('disabled') >= 0,
     '"disabled" stays registered as the internal fallback factory');
   // Every registered source is reachable from the settings: a picker option or the
-  // radar-off clear. The own-key option's stored pair resolves back to it.
+  // radar-off clear.
   const reachable = schemaIds.concat(['disabled']).sort();
-  assert.equal(radarSourceId.effectiveRadarId(radarSourceId.storedPair('rainbowkey')), 'rainbowkey');
   assert.deepEqual(registryIds, reachable, 'no registered source is out of the settings\' reach');
+  assert.equal(radarFactory.OWN_KEY_RADAR_ID, 'rainbowkey', '"Rainbow (own key)"');
+  assert.equal(radarFactory.OWN_KEY_RADAR_ID, rainbowRadar.OWN_KEY_RADAR_ID,
+    'the id the keyed path records its answers under');
 });
 
 test("createRadarSource('tomorrowio') binds cfg.tomorrowioApiKey and routes to tomorrowioRadar", () => {

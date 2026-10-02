@@ -408,7 +408,7 @@ test('reset keeps the Rainbow (own key) radar key, and a post-reset save fills i
   delete require.cache[require.resolve('../src/pkjs/clay-settings')];
   const claySettings = require('../src/pkjs/clay-settings');
 
-  store['clay-settings'] = JSON.stringify({ rainbowApiKey: 'rbw-secret', radarProvider: 'rainbow', rainbowOwnKey: true, timeFont: 'bitham' });
+  store['clay-settings'] = JSON.stringify({ rainbowApiKey: 'rbw-secret', radarProvider: 'rainbowkey', timeFont: 'bitham' });
   const kept = claySettings.resetAll([]);
   assert.deepEqual(kept, { rainbowApiKey: 'rbw-secret' }, 'handed back for the live session');
   assert.equal(claySettings.read(), null, 'settings blob must stay absent');
