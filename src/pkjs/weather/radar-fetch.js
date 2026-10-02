@@ -1,9 +1,11 @@
 // src/pkjs/weather/radar-fetch.js — the shared transport skeleton of the
-// point-radar sources (Met.no, Rainbow, Tomorrow.io): one request, one guarded
-// JSON.parse, one log-and-null error policy. Each source keeps its own
-// COVERAGE POLICY in its interpret function (what counts as out-of-coverage vs
-// transient vs data), and pre-flight guards (missing key/endpoint) stay in the
-// source files — this module is strictly transport-level. It also owns the two
+// point-radar sources (DWD, Met.no, Rainbow, Tomorrow.io): one request, one
+// guarded JSON.parse, one log-and-null error policy. Each source keeps its own
+// COVERAGE POLICY in its interpret function and its onTransportError hook (what
+// counts as out-of-coverage vs transient vs data: Met.no's 422, DWD's run of
+// 404s, which radar-coverage.js counts), and pre-flight guards (missing
+// key/endpoint, a place outside the coverage box) stay in the source files —
+// this module is strictly transport-level. It also owns the two
 // transport-level verdicts the limited sources share: isKeyRejection (401/403)
 // and isRateLimited (429).
 
@@ -16,18 +18,22 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
 /**
  * request -> JSON.parse -> interpret(body). A parse error or transport error
  * logs and calls back null — unless the source's onTransportError hook claims
- * the error first (met.no turns a 422 into an out-of-coverage clear,
- * tomorrow.io a 401/403 key rejection into clearRadarTuples() and a 429 into
- * radarWire.limitedRadarTuples(), the shared Rainbow proxy a 404/405 — the
- * proxy missing — into clearRadarTuples()).
+ * the error first (met.no turns a 422 into an out-of-coverage clear, DWD a
+ * 404 from inside its box into null the first time and, from the second in a
+ * row (radar-coverage.js counts the run), into the clear carrying "DWD: no
+ * radar data", tomorrow.io a 401/403 key rejection into clearRadarTuples() and
+ * a 429 into radarWire.limitedRadarTuples(), the shared Rainbow proxy a
+ * 404/405 — the proxy missing — into clearRadarTuples()).
  *
  * null means TRANSIENT: the radar keys stay out of this send, so the watch
  * keeps its last window and, at each fetch boundary, self-advances it with a
  * zero-filled tail exactly as for a deduped (validated-dry) skip — it cannot
  * tell the two apart. So null must only ever answer a failure that can heal
  * on the next cycle; one that cannot (missing key/endpoint, rejected key,
- * missing proxy) calls back radarWire.clearRadarTuples() instead, and a source
- * refusing us over a request limit calls back radarWire.limitedRadarTuples().
+ * missing proxy) calls back radarWire.clearRadarTuples() instead, a source
+ * with no radar data for the place calls back
+ * radarWire.outOfCoverageRadarTuples(line), and a source refusing us over a
+ * request limit calls back radarWire.limitedRadarTuples().
  *
  * @param {Object} opts
  *   {string} opts.url Request URL.
