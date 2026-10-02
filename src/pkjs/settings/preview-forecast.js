@@ -160,10 +160,10 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
      * the labels stay where they always were, as the watch's do. The lo label sits on the
      * plot's floor on both, so its reach is always the inset row over it. The hi label's place
      * is fixed to the top of the graph on both, not to a top stripe band, so under a band there
-     * is no gate (`reachTop` -Infinity, the watch's plain rule): one stripe leaves the curve's
-     * top above the label's ink and it stays; two or three push the curve's top below it and
-     * the label follows, as the watch's does wherever its band reaches past the label's ink
-     * (basalt's default view from two stripes on; temp_axis_pad.h temp_labels_align).
+     * is no gate (`reachTop` -Infinity, the watch's plain rule): the curve's top keeps its inset
+     * below the band, which lies below the label's ink under any band, and the label follows
+     * it, as basalt's does (its default view under one stripe: row 13 against the ink's centre
+     * row 9; temp_axis_pad.h temp_labels_align).
      * @param {number} hiBase Today's hi baseline.
      * @param {number} loBase Today's lo baseline.
      * @param {number} curveTop The curve's highest y.
@@ -471,16 +471,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             ? bottomStripes * STRIPE_H + (bottomStripes - 1) * STRIPE_GAP + 1 : 0;
         // Top stripes get a band of their own ABOVE the plot (forecast_layer.c's top_band):
         // stacked from the top edge, 2 free rows under the last. The plot — lines, fill,
-        // bars — starts below it (PTL), and the lines drop their own top inset there, as
-        // the watch does. Only the night shading runs on up through the band (PT).
-        // topStripesSet counts every configured top stripe, drawn or not: the phone's joint
-        // band reads the settings (forecast-series.js topStripeDrawn), not the samples.
-        var topStripes = 0, topStripesSet = 0;
+        // bars — starts below it (PTL); the metric lines run up to it, the temperature
+        // curve keeps its inset under it, as over the bottom edge, as the watch does. Only
+        // the night shading runs on up through the band (PT).
+        var topStripes = 0;
         for (var ts = 0; ts < LINES.length; ts += 1) {
-            if (LINES[ts].on && LINES[ts].style === 'stripeTop') {
-                topStripesSet += 1;
-                if (LINES[ts].drawn) { topStripes += 1; }
-            }
+            if (LINES[ts].drawn && LINES[ts].style === 'stripeTop') { topStripes += 1; }
         }
         var TOP_BAND_GAP = 2;
         var topBand = topStripes
@@ -522,8 +518,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             var jMax = Math.max(tmax, Math.max.apply(null, axisSeries));
             var jPad = Math.max(1, Math.ceil((jMax - jMin) * 40 / 960));
             tmin = jMin < tLabelMin ? jMin - jPad : jMin;
-            // No top padding under a top stripe: its band keeps the curve clear already.
-            tmax = (jMax > tLabelMax && !topStripesSet) ? jMax + jPad : jMax;
+            tmax = jMax > tLabelMax ? jMax + jPad : jMax;
         }
         // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric
         // below) is inset symmetrically from the shared full-height band
@@ -537,7 +532,8 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // draw-from.js forecastAnchors; none previewing aplite, whose margins are frozen) the
         // margin is at least the share (anchorShare: the eighth, or the curve past it) of the
         // band [MT, PB], the plot the metrics map into between the stripe bands —
-        // temp_axis_pad.h temp_axis_margin, mirrored.
+        // temp_axis_pad.h temp_axis_margin, mirrored. Both edges start from the inset, the
+        // top under a top stripe band too.
         var anchored = drawFrom.forecastAnchors(state, caps, function (key) {
             if (key === 'bars') { return rainDrawn; }
             for (var li = 0; li < LINES.length; li += 1) {
@@ -546,8 +542,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
             return false;
         });
         var share = anchorShare(PB - MT);
-        var topToday = topBand ? 0 : curveInsetPrev;
-        var topMargin = topToday, bottomMargin = curveInsetPrev;
+        var topMargin = curveInsetPrev, bottomMargin = curveInsetPrev;
         if (anchored.top && share > topMargin) { topMargin = share; }
         if (anchored.bottom && share > bottomMargin) { bottomMargin = share; }
         var ytop = MT + topMargin, ybot = PB - bottomMargin;

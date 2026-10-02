@@ -27,9 +27,11 @@
 // (B - T)^2 / TEMP_AXIS_PAD_SQ_DIV, so a tall graph keeps light bars clear of the temperature
 // line and only heavy ones reach into it, and the taller the graph, the larger its share; a
 // plot under 64 rows keeps its 7 px inset, which an eighth of it does not exceed. An edge
-// nothing is anchored on keeps today's margin exactly (the inset, or 0 at the top under a top
-// stripe band, whose gap keeps the curve clear). The bars' scale and the metric lines'
-// mapping (inset 0) do not change.
+// nothing is anchored on keeps the inset exactly, the top under a top stripe band too: the
+// curve keeps the same 7 px under the band's 2 px gap as over the bottom edge (owner,
+// 2026-10-02: "it needs to be more, minimum how it is at the bottom.. it's too cramped
+// otherwise"; until then the top dropped its inset under a band). The bars' scale and the
+// metric lines' mapping (inset 0) do not change.
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -41,13 +43,12 @@
 // flat eighth that came before is its floor, so the curve only ever adds room: below
 // TEMP_AXIS_PAD_SQ_DIV / 8 = 64 rows, where the curve's share is smaller, the margin is the
 // eighth, as before (never more than the 7 px inset there, so the calendar views keep their
-// 7, and under a top stripe band a hanging element keeps the eighth's rows). The owner's
-// first pick was a flat quarter, then "much less" made it a flat eighth; "with more space in
-// larger graphs, the padding to top and bottom can be larger than the 1/8" (2026-10-02) made
-// it this curve over that eighth. The one knob he tunes: a larger divisor, smaller margins in
-// the tall graphs (the curve then passes the eighth further up); the eighth floor stays. The
-// two margins would meet at TEMP_AXIS_PAD_SQ_DIV / 2 = 256 rows (half the plot each), past
-// emery's 228-row screen.
+// 7, under a top stripe band too). The owner's first pick was a flat quarter, then "much
+// less" made it a flat eighth; "with more space in larger graphs, the padding to top and
+// bottom can be larger than the 1/8" (2026-10-02) made it this curve over that eighth. The
+// one knob he tunes: a larger divisor, smaller margins in the tall graphs (the curve then
+// passes the eighth further up); the eighth floor stays. The two margins would meet at
+// TEMP_AXIS_PAD_SQ_DIV / 2 = 256 rows (half the plot each), past emery's 228-row screen.
 #define TEMP_AXIS_PAD_SQ_DIV 512
 
 // The anchored edges, as a mask: one bit per edge something is drawn from.
@@ -113,10 +114,10 @@ static inline bool temp_axis_edges_add(TempAxisEdges *e, const int16_t *values, 
     return true;
 }
 
-// The temperature curve's margin at one edge: `today` (its inset there; 0 at the top under a
-// top stripe band), or, on an anchored edge, the share of the plot's content height `plot_h`
-// (0 .. the screen's height) where that is more: an eighth of it, or from the knee on (64
-// rows) its square over TEMP_AXIS_PAD_SQ_DIV, which is then at least the eighth. One multiply
+// The temperature curve's margin at one edge: `today` (its inset), or, on an anchored edge,
+// the share of the plot's content height `plot_h` (0 .. the screen's height) where that is
+// more: an eighth of it, or from the knee on (64 rows) its square over
+// TEMP_AXIS_PAD_SQ_DIV, which is then at least the eighth. One multiply
 // does both: plot_h * MAX(plot_h, knee) / TEMP_AXIS_PAD_SQ_DIV is plot_h / 8 below the knee
 // and the square from it on (integer floors alike). So an anchored margin is never less than
 // the flat eighth's, whatever `today` and `plot_h`. The product is taken in 32 bits: emery's
@@ -129,13 +130,12 @@ static inline int temp_axis_margin(int today, bool anchored, int plot_h) {
     return (anchored && share > today) ? share : today;
 }
 
-// Both margins, for a curve inset by `inset` in a plot `plot_h` content rows tall under a top
-// stripe band `top_band` rows tall (0 without one), with the edges `anchors`.
+// Both margins, for a curve inset by `inset` in a plot `plot_h` content rows tall, with the
+// edges `anchors`. The same rule on both edges, whatever stripe band the plot sits under.
 typedef struct { int16_t top, bottom; } __attribute__((aligned(4))) TempMargin;
-static inline TempMargin temp_axis_margins(int inset, int top_band, int plot_h, int anchors) {
+static inline TempMargin temp_axis_margins(int inset, int plot_h, int anchors) {
     return (TempMargin){
-        .top    = (int16_t)temp_axis_margin(top_band ? 0 : inset,
-                                            anchors & TEMP_AXIS_ANCHOR_TOP, plot_h),
+        .top    = (int16_t)temp_axis_margin(inset, anchors & TEMP_AXIS_ANCHOR_TOP, plot_h),
         .bottom = (int16_t)temp_axis_margin(inset, anchors & TEMP_AXIS_ANCHOR_BOTTOM, plot_h) };
 }
 
@@ -149,9 +149,11 @@ static inline TempMargin temp_axis_margins(int inset, int top_band, int plot_h, 
 // inset row there, which lies outward of today's label ink centre (rows 7 against 9, basalt;
 // 7 against 14, emery), so that label moves only where the curve stops short of the inset (a
 // feels-like or dew point line widening the band). Under a top stripe band the curve's top
-// is the band's foot, while the hi label stays fixed to the top of the graph: one stripe's
-// band ends above its ink centre, two or three can end below it (basalt's default view: 11
-// or 16 against 9), and then the label follows the curve down even with nothing anchored.
+// is its inset row below the band's foot, while the hi label stays fixed to the top of the
+// graph: on basalt that row lies below the label's ink centre under any band (one stripe in
+// the default view: 6 + 7 = 13 against 9), so the label follows the curve down even with
+// nothing anchored; on emery one stripe's row in the calendar views does not (13 and 14
+// against 14), the no-calendar view's (15) and two stripes' do.
 //
 // Today's minimum: the smallest gap the labels leave in any preset's view, emery's 68 px band
 // (fullCal, compactDense) at GOTHIC_24 (forecast_layer.c draw_left_axis). basalt's tightest,

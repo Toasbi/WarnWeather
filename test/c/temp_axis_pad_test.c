@@ -168,23 +168,28 @@ static void test_margins(void) {
     assert(temp_axis_margin(INSET, true, EMERY_NOCAL) == 16);            // 91 rows: 11 / 16
     assert(temp_axis_margin(INSET, true, 63) == INSET);
     assert(temp_axis_margin(INSET, true, 64) == 8);
-    // Under a top stripe band the top margin is 0 today, and the share when something hangs:
-    // the eighth in a small plot (49 rows, basalt's default view under one stripe: 6, where
-    // the curve alone would give 4), the curve in a tall one.
+    // A margin of 0 stays 0 unanchored, and takes the share anchored: the eighth in a small
+    // plot (49 rows: 6, where the curve alone would give 4), the curve in a tall one.
     assert(temp_axis_margin(0, false, 80) == 0);
     assert(temp_axis_margin(0, true, 49) == 6);
     assert(temp_axis_margin(0, true, 80) == 12);
-    // Both edges at once.
-    TempMargin m = temp_axis_margins(INSET, 0, 80, 0);
+    // Both edges at once, by the one rule (a top stripe band only shortens the plot).
+    TempMargin m = temp_axis_margins(INSET, 80, 0);
     assert(m.top == INSET && m.bottom == INSET);
-    m = temp_axis_margins(INSET, 0, 80, TEMP_AXIS_ANCHOR_TOP | TEMP_AXIS_ANCHOR_BOTTOM);
+    m = temp_axis_margins(INSET, 80, TEMP_AXIS_ANCHOR_TOP | TEMP_AXIS_ANCHOR_BOTTOM);
     assert(m.top == 12 && m.bottom == 12);
-    m = temp_axis_margins(INSET, 6, 80, 0);
-    assert(m.top == 0 && m.bottom == INSET);
-    m = temp_axis_margins(INSET, 6, 80, TEMP_AXIS_ANCHOR_TOP);
+    m = temp_axis_margins(INSET, 80, TEMP_AXIS_ANCHOR_TOP);
     assert(m.top == 12 && m.bottom == INSET);
-    m = temp_axis_margins(0, 0, 80, TEMP_AXIS_ANCHOR_BOTTOM);   // inset 0: a curve off the axis
+    m = temp_axis_margins(INSET, 49, TEMP_AXIS_ANCHOR_TOP);       // the eighth's 6: the inset
+    assert(m.top == INSET && m.bottom == INSET);
+    m = temp_axis_margins(0, 80, TEMP_AXIS_ANCHOR_BOTTOM);   // inset 0: a curve off the axis
     assert(m.top == 0 && m.bottom == 12);
+    // Every plot and anchoring: the two edges are the one rule, mirrored.
+    for (int plot_h = 0; plot_h <= EMERY_SCREEN_H; ++plot_h) {
+        const TempMargin top = temp_axis_margins(INSET, plot_h, TEMP_AXIS_ANCHOR_TOP);
+        const TempMargin bottom = temp_axis_margins(INSET, plot_h, TEMP_AXIS_ANCHOR_BOTTOM);
+        assert(top.top == bottom.bottom && top.bottom == INSET && bottom.top == INSET);
+    }
 }
 
 // The curve (owner, 2026-10-02: "with more space in larger graphs, the padding to top and
@@ -196,7 +201,7 @@ static void test_curve(void) {
     assert(temp_axis_margin(0, true, 128) == 128 / 4);
     assert(temp_axis_margin(0, true, BASALT_NOCAL - 8) == 9);
     // Below 64 rows the eighth is the floor: the curve's 4 in 49 rows, 2 in 36, 0 in 22 would
-    // take room from a hanging element under a top stripe band.
+    // give an anchored edge less room than the flat eighth did.
     assert(temp_axis_margin(0, true, 49) == 6 && curve(49) == 4);
     assert(temp_axis_margin(0, true, 36) == 4 && curve(36) == 2);
     assert(temp_axis_margin(0, true, 22) == 2 && curve(22) == 0);
@@ -217,7 +222,7 @@ static void test_curve(void) {
         // from 64 on.
         assert((temp_axis_margin(INSET, true, plot_h) == INSET) == (plot_h < 64));
         // Both edges anchored still leave the curve rows of its own, up to the whole screen.
-        const TempMargin m = temp_axis_margins(INSET, 0, plot_h,
+        const TempMargin m = temp_axis_margins(INSET, plot_h,
                                                TEMP_AXIS_ANCHOR_TOP | TEMP_AXIS_ANCHOR_BOTTOM);
         assert(m.top == m.bottom && m.top == (share > INSET ? share : INSET));
         if (plot_h >= 64) { assert(m.top + m.bottom < plot_h); }
@@ -228,10 +233,10 @@ static void test_curve(void) {
     assert(EMERY_TALLEST * EMERY_TALLEST > INT16_MAX && 181 * 181 <= INT16_MAX);
     assert(temp_axis_margin(INSET, true, EMERY_TALLEST) == 79);     // 40804 / 512
     assert(temp_axis_margin(INSET, true, EMERY_SCREEN_H) == 101);   // 51984 / 512
-    const TempMargin tall = temp_axis_margins(INSET, 0, EMERY_TALLEST,
+    const TempMargin tall = temp_axis_margins(INSET, EMERY_TALLEST,
                                               TEMP_AXIS_ANCHOR_TOP | TEMP_AXIS_ANCHOR_BOTTOM);
     assert(tall.top == 79 && tall.bottom == 79);
-    const TempMargin screen = temp_axis_margins(INSET, 8, EMERY_SCREEN_H, TEMP_AXIS_ANCHOR_TOP);
+    const TempMargin screen = temp_axis_margins(INSET, EMERY_SCREEN_H, TEMP_AXIS_ANCHOR_TOP);
     assert(screen.top == 101 && screen.bottom == INSET);
     // An int16 plot height, the widest the caller can pass, squares without wrapping.
     assert(temp_axis_margin(0, true, INT16_MAX) == (int)((uint32_t)INT16_MAX * INT16_MAX / 512));
@@ -252,7 +257,9 @@ static void test_never_below_eighth(void) {
         }
     }
     // Both edges, through temp_axis_margins, over the views' plots with 0..3 stripes on each
-    // edge and every anchoring: never below the flat eighth's, the same below 64 rows.
+    // edge and every anchoring: never below the flat eighth's over the inset, the same below
+    // 64 rows. Under a top stripe band the top never comes in closer than the inset either
+    // (owner, 2026-10-02), where the flat eighth's rule had started it from 0.
     const int sizes[] = { BASALT_FULLCAL, BASALT_COMPACTCAL, BASALT_NOCAL,
                           EMERY_FULLCAL, EMERY_COMPACTCAL, EMERY_NOCAL, EMERY_TALLEST };
     for (unsigned v = 0; v < sizeof(sizes) / sizeof(sizes[0]); ++v) {
@@ -263,13 +270,17 @@ static void test_never_below_eighth(void) {
                 const int plot_h = sizes[v] - top_band
                     - forecast_stripe_band(bottom, stripe_h, FORECAST_BOTTOM_BAND_GAP);
                 for (int anchors = 0; anchors <= 3; ++anchors) {
-                    const TempMargin m = temp_axis_margins(INSET, top_band, plot_h, anchors);
-                    const int old_top = margin_eighth(top_band ? 0 : INSET,
-                                                      anchors & TEMP_AXIS_ANCHOR_TOP, plot_h);
+                    const TempMargin m = temp_axis_margins(INSET, plot_h, anchors);
+                    const int old_top = margin_eighth(INSET, anchors & TEMP_AXIS_ANCHOR_TOP,
+                                                      plot_h);
                     const int old_bottom = margin_eighth(INSET, anchors & TEMP_AXIS_ANCHOR_BOTTOM,
                                                          plot_h);
                     assert(m.top >= old_top && m.bottom >= old_bottom);
+                    assert(m.top >= INSET && m.bottom >= INSET);
                     if (plot_h < 64) { assert(m.top == old_top && m.bottom == old_bottom); }
+                    if (top_band) {
+                        assert(m.top >= margin_eighth(0, anchors & TEMP_AXIS_ANCHOR_TOP, plot_h));
+                    }
                 }
             }
         }
@@ -317,7 +328,7 @@ static Plot layout(int axis_y, int inset, const Ser *s, int count, int n) {
         p.kept[i] = true;            // bars never leave: a bar of 0 draws nothing anyway
     }
     p.plot_h = plot_axis_y - p.top_band;
-    p.margin = temp_axis_margins(inset, p.top_band, p.plot_h, edges.anchors);
+    p.margin = temp_axis_margins(inset, p.plot_h, edges.anchors);
     p.anchors = edges.anchors;
     return p;
 }
@@ -392,7 +403,8 @@ static void test_layout_cases(void) {
 
     // The hours past the screen's edge: basalt draws 19 of the 24 sent (the narrowest label
     // strip), so rain only at hours 19..23 is never seen. Bars from Top then anchor nothing,
-    // in the no-calendar view (7 px, not the curve's 11) and under a top stripe (0, not 6).
+    // in the no-calendar view (7 px, not the curve's 11) and under a top stripe there (7 px
+    // under the band, not the curve's 9 of the 69 rows below it).
     const int basalt_n = temp_axis_drawn_entries(MAX_ENTRIES, BASALT_W - GRAPH_LEFT_MIN,
                                                  BASALT_PITCH);
     Ser rain_late = ZERO(K_BARS, true);
@@ -402,9 +414,9 @@ static void test_layout_cases(void) {
     assert(p.anchors == 0 && same_layout(p, none));
     assert(layout(BASALT_NOCAL, INSET, off_screen, 1, MAX_ENTRIES).margin.top == 11);
     Ser under_stripe[] = { AT(K_STRIPE, true, 3), rain_late };
-    p = layout(BASALT_COMPACTCAL, INSET, under_stripe, 2, basalt_n);
-    assert(p.top_band == 6 && p.anchors == 0 && p.margin.top == 0);
-    assert(layout(BASALT_COMPACTCAL, INSET, under_stripe, 2, MAX_ENTRIES).margin.top == 6);
+    p = layout(BASALT_NOCAL, INSET, under_stripe, 2, basalt_n);
+    assert(p.top_band == 8 && p.anchors == 0 && p.margin.top == INSET);
+    assert(layout(BASALT_NOCAL, INSET, under_stripe, 2, MAX_ENTRIES).margin.top == 9);
     // A December afternoon at 15:00: a top UV stripe whose UV starts at 10:00 tomorrow (hours
     // 19..22) is empty in every cell on screen. It drops: no band, the curve takes its rows.
     Ser uv_late = ZERO(K_STRIPE, true);
@@ -452,7 +464,7 @@ static void test_layout_cases(void) {
     assert(p.kept[0] && !p.kept[1]);
     assert(p.top_band == forecast_stripe_band(1, 4, FORECAST_TOP_BAND_GAP));
     assert(p.top_band == 6 && p.plot_h == BASALT_COMPACTCAL - 6);
-    assert(p.margin.top == 0 && p.margin.bottom == INSET);   // nothing anchored: today's
+    assert(p.margin.top == INSET && p.margin.bottom == INSET);   // nothing anchored: the inset
     Ser two_rev[] = { ZERO(K_STRIPE, true), AT(K_STRIPE, true, 23) };
     p = layout(BASALT_COMPACTCAL, INSET, two_rev, 2, n);
     assert(!p.kept[0] && p.kept[1] && p.top_band == 6);
@@ -494,23 +506,79 @@ static void test_layout_cases(void) {
     assert(p.top_band == 8 && p.stripe_band == 0 && p.plot_h == EMERY_NOCAL - 8);
     assert(p.margin.top == 13 && p.margin.bottom == INSET);            // 83 rows
     p = layout(EMERY_FULLCAL, INSET, emery_band, 3, n);
-    assert(p.top_band == 6 && p.plot_h == 42 && p.margin.top == 5);    // the eighth, from 0
+    assert(p.top_band == 6 && p.plot_h == 42 && p.margin.top == INSET);   // the eighth's 5: less
     p = layout(EMERY_COMPACTCAL, INSET, emery_band, 3, n);
-    assert(p.top_band == 7 && p.plot_h == 55 && p.margin.top == 6);    // the eighth, from 0
-    // basalt's calendar views under one top stripe with the rain bars hanging: the eighth of
-    // the rows under the band, 4 in fullCal (36 rows) and 6 in the default view (49 rows),
-    // where the curve alone would give 2 and 4.
+    assert(p.top_band == 7 && p.plot_h == 55 && p.margin.top == INSET);   // the eighth's 6: less
+    // basalt's calendar views under one top stripe with the rain bars hanging: the inset, which
+    // the eighth of the rows under the band (4 in fullCal's 36 rows, 6 in the default view's
+    // 49) does not reach, nor the curve (2 and 4).
     Ser hanging_bars[] = { AT(K_STRIPE, true, 1), FULL(K_BARS, true) };
     p = layout(BASALT_FULLCAL, INSET, hanging_bars, 2, n);
-    assert(p.top_band == 5 && p.plot_h == 36 && p.margin.top == 4 && p.margin.bottom == INSET);
+    assert(p.top_band == 5 && p.plot_h == 36 && p.margin.top == INSET && p.margin.bottom == INSET);
     p = layout(BASALT_COMPACTCAL, INSET, hanging_bars, 2, n);
-    assert(p.top_band == 6 && p.plot_h == 49 && p.margin.top == 6 && p.margin.bottom == INSET);
+    assert(p.top_band == 6 && p.plot_h == 49 && p.margin.top == INSET && p.margin.bottom == INSET);
+}
+
+// The owner's rule for the top under a top stripe band (2026-10-02: "it needs to be more,
+// minimum how it is at the bottom.. it's too cramped otherwise"): the temperature curve keeps
+// at least its inset there, the 7 px it keeps over the bottom edge, and the anchored-edge rule
+// stays on top of it. Every view, 1..3 top stripes, with and without a bottom stripe band.
+static void test_top_band_inset(void) {
+    const int n = MAX_ENTRIES;
+    const int sizes[] = { BASALT_FULLCAL, BASALT_COMPACTCAL, BASALT_NOCAL,
+                          EMERY_FULLCAL, EMERY_COMPACTCAL, EMERY_NOCAL, EMERY_TALLEST };
+    for (unsigned v = 0; v < sizeof(sizes) / sizeof(sizes[0]); ++v) {
+        for (int top = 1; top <= 3; ++top) {
+            for (int bottom = 0; bottom <= 1; ++bottom) {
+                Ser s[5];
+                int count = 0;
+                for (int i = 0; i < top; ++i) { s[count++] = AT(K_STRIPE, true, i); }
+                if (bottom) { s[count++] = AT(K_STRIPE, false, 4); }
+                // Nothing anchored: 7 at the top, under the band, as at the bottom.
+                const Plot plain = layout(sizes[v], INSET, s, count, n);
+                assert(plain.top_band > 0 && plain.anchors == 0);
+                assert(plain.margin.top == INSET && plain.margin.bottom == INSET);
+                // The rain bars hanging: max(7, plot/8, plot^2/512) of the rows under the band,
+                // worked out here apart from the header; the bottom keeps its 7.
+                s[count] = FULL(K_BARS, true);
+                const Plot hung = layout(sizes[v], INSET, s, count + 1, n);
+                assert(hung.top_band == plain.top_band && hung.plot_h == plain.plot_h);
+                assert(hung.anchors == TEMP_AXIS_ANCHOR_TOP);
+                const int h = hung.plot_h;
+                int want = INSET;
+                if (h / 8 > want) { want = h / 8; }
+                if (h * h / 512 > want) { want = h * h / 512; }
+                assert(hung.margin.top == want && hung.margin.bottom == INSET);
+                // A line hanging instead of the bars: the same.
+                s[count] = FULL(K_LINE, true);
+                assert(same_layout(layout(sizes[v], INSET, s, count + 1, n), hung));
+            }
+        }
+    }
+    // The views, by name. basalt's default view under one stripe (49 rows): 7 either way, the
+    // curve's top on row 6 + 7 = 13 (it was 6 with nothing anchored, 12 with the bars hanging).
+    Ser one[] = { AT(K_STRIPE, true, 0), FULL(K_BARS, true) };
+    Plot p = layout(BASALT_COMPACTCAL, INSET, one, 1, n);
+    assert(p.top_band == 6 && p.margin.top == INSET);
+    p = layout(BASALT_COMPACTCAL, INSET, one, 2, n);
+    assert(p.top_band == 6 && p.margin.top == INSET);
+    // basalt's no-calendar view under one stripe (69 rows): 7, and the curve's 9 hanging.
+    p = layout(BASALT_NOCAL, INSET, one, 1, n);
+    assert(p.top_band == 8 && p.margin.top == INSET);
+    p = layout(BASALT_NOCAL, INSET, one, 2, n);
+    assert(p.top_band == 8 && p.plot_h == 69 && p.margin.top == 9);
+    // emery's no-calendar view under one stripe (83 rows): 7, and the curve's 13 hanging.
+    p = layout(EMERY_NOCAL, INSET, one, 1, n);
+    assert(p.top_band == 8 && p.margin.top == INSET);
+    p = layout(EMERY_NOCAL, INSET, one, 2, n);
+    assert(p.top_band == 8 && p.plot_h == 83 && p.margin.top == 13);
 }
 
 // Over random graphs: when 7e6cc716 anchored nothing and no stripe is all zero, the layout is
 // 7e6cc716's exactly (the same bands, rows and margins; every series drawn as before), so
-// those frames are pixel-identical by construction. Always: an edge anchored now was anchored
-// then, every margin is at least today's, and a stripe drops exactly when it is all zero.
+// those frames are pixel-identical by construction, but for the top under a top stripe band,
+// which keeps the inset now. Always: an edge anchored now was anchored then, every margin is
+// at least the inset, and a stripe drops exactly when it is all zero.
 static void test_unchanged_frames(void) {
     srand(7);
     const int sizes[] = { BASALT_FULLCAL, BASALT_COMPACTCAL, BASALT_NOCAL,
@@ -536,12 +604,19 @@ static void test_unchanged_frames(void) {
         const Plot then = layout_7e6cc716(axis_y, INSET, s, count);
         assert((now.anchors & ~then.anchors) == 0);
         assert(now.margin.bottom >= INSET);
-        assert(now.margin.top >= (now.top_band ? 0 : INSET));
+        assert(now.margin.top >= INSET);   // a top stripe band too (owner, 2026-10-02)
         for (int i = 0; i < count; ++i) {
             assert(now.kept[i] == !(s[i].kind == K_STRIPE && !temp_axis_any_above_zero(s[i].values, n)));
         }
         if (then.anchors == 0 && !stripe_zero) {
-            assert(same_layout(now, then));
+            // The one deliberate change since: under a top stripe band the top keeps the
+            // inset, where 7e6cc716 ran the curve up to the band.
+            Plot want = then;
+            if (then.top_band) {
+                assert(then.margin.top == 0);
+                want.margin.top = INSET;
+            }
+            assert(same_layout(now, want));
             ++unchanged;
         }
     }
@@ -590,17 +665,25 @@ static void test_label_examples(void) {
     temp_labels_align(&hi, &lo, 24, INSET, EMERY_NOCAL - 16);
     assert(hi == hi_today(24, true) && lo == 58);
     assert(ink_top(lo, 24) == 75 - 7);
-    // basalt's default view under a top stripe (band 6) with a line hanging: the curve's top,
-    // 0 under the band today, comes down an eighth of the 49 rows under it to row 12 (the
-    // curve's 4 would be less: the eighth is the floor). The hi label moves down 3 rows, its
-    // ink centred there; the lo label keeps today's place.
+    // basalt's default view under a top stripe (band 6), with a line hanging or nothing
+    // anchored: the curve's top keeps its 7 px inset under the band, row 13 (an eighth of the
+    // 49 rows under it, 6, is less). That lies below the hi label's ink centre (row 9), so
+    // the label moves down 4 rows, its ink centred there; the lo label keeps today's place.
     const Ser hanging[] = { AT(K_STRIPE, true, 3), FULL(K_LINE, true) };
     const Plot hung = layout(BASALT_COMPACTCAL, INSET, hanging, 2, MAX_ENTRIES);
-    assert(hung.top_band == 6 && hung.margin.top == 6);
+    assert(hung.top_band == 6 && hung.margin.top == INSET);
+    assert(same_layout(layout(BASALT_COMPACTCAL, INSET, hanging, 1, MAX_ENTRIES), hung));
     hi = hi_today(18, false); lo = lo_today(18, BASALT_COMPACTCAL);
-    temp_labels_align(&hi, &lo, 18, 6 + 6, BASALT_COMPACTCAL - INSET);
-    assert(hi == 0 && lo == lo_today(18, BASALT_COMPACTCAL));
-    assert(ink_top(hi, 18) == 12 - 5);
+    temp_labels_align(&hi, &lo, 18, 6 + INSET, BASALT_COMPACTCAL - INSET);
+    assert(hi == 1 && lo == lo_today(18, BASALT_COMPACTCAL));
+    assert(ink_top(hi, 18) == 13 - 5);
+    // emery's default view under one stripe (band 7): the curve's top on row 14, the hi
+    // label's ink centre at GOTHIC_24: it stays.
+    const Plot emery_one = layout(EMERY_COMPACTCAL, INSET, hanging, 1, MAX_ENTRIES);
+    assert(emery_one.top_band == 7 && emery_one.margin.top == INSET);
+    hi = hi_today(24, true); lo = lo_today(24, EMERY_COMPACTCAL);
+    temp_labels_align(&hi, &lo, 24, 7 + INSET, EMERY_COMPACTCAL - INSET);
+    assert(hi == hi_today(24, true) && lo == lo_today(24, EMERY_COMPACTCAL));
     // A curve floor 10 rows up in basalt's 41-row fullCal plot: the lo label's ink centres on
     // row 31, exactly 11 blank rows under the hi label's: it fits.
     hi = hi_today(18, false); lo = lo_today(18, BASALT_FULLCAL);
@@ -651,6 +734,7 @@ int main(void) {
     test_curve();
     test_never_below_eighth();
     test_layout_cases();
+    test_top_band_inset();
     test_unchanged_frames();
     test_label_examples();
     test_label_invariants();

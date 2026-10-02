@@ -45,8 +45,7 @@ function migrateFifthLineStyleDefault(blob) {
  * holds the old byte, and an IN-PLACE upgrade sends no Clay (the handshake reports
  * hasConfig true; see graph-colors.js migrateGraphNightColorsResend), so without this
  * it keeps drawing the stripe until the next day-change or settings save — while the
- * next weather bake already drops the top-stripe padding (forecast-series.js
- * topStripeDrawn) under it.
+ * next weather bake already treats the line as no stripe (lineStyleValue).
  *
  * Rewrites nothing: the stored stripe stays a pick (the settings page keeps it dormant
  * and brings it back with an intensity metric). A line that is off or repeats an

@@ -805,46 +805,41 @@ test('the feels curve keeps clear of both plot edges when it overshoots the temp
   assert.equal(out.TEMP_MAX, 30);
 });
 
-test('under a top stripe the feels curve reaches the top: the band keeps it clear, not a pad', () => {
-  // Feels overshoots above only (temps 10..30, feels up to 38). With a top stripe drawn,
-  // the watch lays the plot out below the stripe band, so the top is not padded.
+test('under a top stripe the feels curve keeps its top pad, as without one', () => {
+  // Feels overshoots above only (temps 10..30, feels up to 38). The watch keeps the curves'
+  // inset under a top stripe band as over the bottom edge (temp_axis_pad.h; owner,
+  // 2026-10-02), so the joint band is padded at the top as it is without a stripe.
   const settings = { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' };
-  const padded = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
+  const plain = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
     settings, { platform: 'basalt' });
-  assert.ok(Math.max.apply(null, padded.SECONDARY_LINE_TREND_UINT8) < 250, 'premise: padded without a stripe');
-  const striped = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
-    Object.assign({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, settings), { platform: 'basalt' });
-  assert.equal(Math.max.apply(null, striped.SECONDARY_LINE_TREND_UINT8), 250, 'up to the top of the plot');
-  // aplite draws no stripes: its band keeps the pad.
-  const aplite = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
-    Object.assign({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }, settings), { platform: 'aplite' });
-  assert.deepEqual(aplite.TEMP_TREND_UINT8, applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
-    settings, { platform: 'aplite' }).TEMP_TREND_UINT8);
-});
-
-test('a stored top stripe on a metric that cannot be one keeps the band padded', () => {
-  // Stripes are for intensity metrics only (line-style.js metricAllowsStripe): a stored
-  // stripe on feels, dew or pressure is drawn as a line, so it opens no top band and
-  // the feels curve keeps its top pad.
-  const settings = { secondaryLine: 'feels', thirdLine: 'off', barSource: 'off' };
-  const plain = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }), settings, { platform: 'basalt' });
-  [{ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' },
-    { secondaryLineStyle: 'stripeTop' }].forEach((over) => {
-    const stored = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
-      Object.assign({}, settings, over), { platform: 'basalt' });
-    assert.deepEqual(stored.SECONDARY_LINE_TREND_UINT8, plain.SECONDARY_LINE_TREND_UINT8, JSON.stringify(over));
-    assert.deepEqual(stored.TEMP_TREND_UINT8, plain.TEMP_TREND_UINT8, JSON.stringify(over));
+  assert.ok(Math.max.apply(null, plain.SECONDARY_LINE_TREND_UINT8) < 250, 'premise: padded without a stripe');
+  // A drawn top stripe, a stored stripe on a metric that cannot be one (drawn as a line), a
+  // bottom stripe: the same bytes, on a colour watch and on aplite (which draws no stripes).
+  ['basalt', 'aplite'].forEach((platform) => {
+    const base = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }), settings, { platform });
+    [{ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' },
+      { fifthLine: 'cloud', fifthLineStyle: 'stripeBottom' },
+      { fifthLine: 'pressure', fifthLineStyle: 'stripeTop' },
+      { secondaryLineStyle: 'stripeTop' }].forEach((over) => {
+      const out = applyForecastSeries(feelsPayload({ FEELS_TREND: [15, 20, 38] }),
+        Object.assign({}, settings, over), { platform });
+      const label = platform + ' ' + JSON.stringify(over);
+      assert.deepEqual(out.SECONDARY_LINE_TREND_UINT8, base.SECONDARY_LINE_TREND_UINT8, label);
+      assert.deepEqual(out.TEMP_TREND_UINT8, base.TEMP_TREND_UINT8, label);
+    });
   });
 });
 
 // The force-fetch rule for the line styles: a style edit that changes the baked weather
 // bytes must change renderSignature (render-signature.js), or the new band only shows
 // after the next scheduled fetch. Every pair of styles on an intensity line beside a
-// feels or dew curve, on every line slot.
+// feels or dew curve, on every line slot. The intensity lines carry readings, so a stripe's
+// level bytes differ from a curve's exact values.
 test('a line-style edit that changes the bake changes the render signature', () => {
   const { renderSignature } = require('../src/pkjs/render-signature.js');
   const STYLES = ['line', 'bold', 'dots', 'x', 'stripeTop', 'stripeBottom'];
-  const payload = () => feelsPayload({ FEELS_TREND: [15, 20, 38], DEW_TREND: [5, 8, 12] });
+  const payload = () => feelsPayload({ FEELS_TREND: [15, 20, 38], DEW_TREND: [5, 8, 12],
+    UV_TREND_UINT8: [10, 33, 77], CLOUD_TREND: [10, 33, 77], WIND_TREND_UINT8: [10, 33, 77] });
   const bake = (s) => {
     const out = applyForecastSeries(payload(), s, { platform: 'basalt' });
     return JSON.stringify([out.TEMP_TREND_UINT8, out.SECONDARY_LINE_TREND_UINT8, out.THIRD_LINE_TREND_UINT8,

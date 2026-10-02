@@ -248,19 +248,6 @@ function pressurePermille(arr, scale) {
 }
 
 /**
- * Does the watch draw a stripe along the graph's top edge? Only watches that draw the
- * line styles at all (not aplite) draw stripes; a line that is off draws nothing.
- * @param {Object} settings Clay settings blob.
- * @param {?{platform: string}} watchInfo The watch.
- * @returns {boolean} True when some drawn line is styled 'stripeTop'.
- */
-function topStripeDrawn(settings, watchInfo) {
-    var platform = watchInfo && watchInfo.platform ? watchInfo.platform : '';
-    if (platform === 'aplite' || !configUi.isLineStylePlatform(platform)) { return false; }
-    return lineStyle.topStripeLineDrawn(settings);
-}
-
-/**
  * Whether a temperature-axis line (feels, dew) is the effective metric of a
  * forecast line this watch actually DRAWS. Every line carries its own curve-inset
  * byte (clay-payload.js' CLAY_CURVE_INSET_UINT8), so any of them can share the
@@ -350,19 +337,18 @@ var TEMP_AXIS_EDGE_CLEARANCE_PERMILLE = 40;
  * its curve is supposed to reach the inset edge — that edge is what the hi/lo labels
  * name, and the temp curve is a solid line, which the watch never skips.
  *
- * With a stripe along the graph's top edge the watch draws the plot below the stripe
- * band, which already keeps every curve clear of the stripes: the top is not padded
- * then (`noTopPad`), so the feels-like curve runs right up to the band.
+ * A stripe along the graph's top edge changes nothing here: the watch keeps the
+ * curves' inset under its band as over the bottom edge (temp_axis_pad.h; owner,
+ * 2026-10-02), so the top is padded like the bottom.
  *
  * @param {{min: number, max: number}} tempBand Actual temperature band.
  * @param {{min: number, max: number}} jointBand Union of tempBand and the feels/dew series.
- * @param {boolean} [noTopPad] A top stripe is drawn: leave the top edge unpadded.
  * @returns {{min: number, max: number}} Joint band padded away from the overshot edges.
  */
-function padJointTempAxisBand(tempBand, jointBand, noTopPad) {
+function padJointTempAxisBand(tempBand, jointBand) {
     var below = tempBand.min - jointBand.min;   // feels/dew reach below the temp low
     // feels reaches above the temp high (dew is capped at it)
-    var above = noTopPad ? 0 : jointBand.max - tempBand.max;
+    var above = jointBand.max - tempBand.max;
     var span = jointBand.max - jointBand.min;
     if (span <= 0 || (below <= 0 && above <= 0)) { return jointBand; }
     // pad / (span + pad) = clearance  ->  pad = span * c / (1000 - c). Rounded up, and
@@ -566,8 +552,7 @@ function applyForecastSeries(payload, settings, watchInfo) {
     if (drawnAxis.length && tempBand && rawTemps.length) {
         // The scaling band the metric channels must share; TEMP_MIN/TEMP_MAX stay put.
         tempBand = padJointTempAxisBand(tempBand,
-            jointTempAxisBand(tempBand.min, tempBand.max, drawnAxis),
-            topStripeDrawn(settings, watchInfo));
+            jointTempAxisBand(tempBand.min, tempBand.max, drawnAxis));
     }
     raw.tempBand = tempBand;
     // The Show: Alert lines' bands, over the lines THIS watch draws: a gust line on the

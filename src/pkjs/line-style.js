@@ -531,23 +531,6 @@
     }
 
     /**
-     * Does some drawn line (effectiveLineMetric) resolve to a stripe along the graph's
-     * TOP edge? Platform-free: the bake (forecast-series.js topStripeDrawn) adds the
-     * watch gate, the render signature (render-signature.js) signs it as is.
-     * @param {Object} settings Clay settings blob.
-     * @returns {boolean} True when a drawn line's effective style is 'stripeTop'.
-     */
-    function topStripeLineDrawn(settings) {
-        for (var i = 0; i < FORECAST_LINES.length; i++) {
-            if (effectiveLineMetric(settings, FORECAST_LINES[i].key)
-                    && lineStyleValue(settings, FORECAST_LINES[i].styleKey) === 'stripeTop') {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * The packed wire/persist byte for one line-style key (layout above).
      * @param {Object} settings Clay settings blob.
      * @param {string} key secondaryLineStyle|thirdLineStyle|fourthLineStyle|fifthLineStyle.
@@ -959,7 +942,6 @@
         lineStyleValue: lineStyleValue,
         lineStyleByte: lineStyleByte,
         isStripeStyle: isStripeStyle,
-        topStripeLineDrawn: topStripeLineDrawn,
         FLAG_NIGHT_FILL_EXPLICIT: FLAG_NIGHT_FILL_EXPLICIT,
         LINE_COLORS: LINE_COLORS,
         FILL_COLORS: FILL_COLORS,

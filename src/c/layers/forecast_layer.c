@@ -253,9 +253,9 @@ static void load_dataset(ForecastDataset *ds) {
  * only SERIES_THIRD is reachable there, and its style is fixed.
  */
 
-// With top stripes, the band above the plot already keeps the lines clear of the
-// stripes (its 2 px gap), so the lines drop their own top inset and may run right up
-// to it; all of them alike, so a feels-like or dew line stays aligned with the
+// The temperature-axis lines keep their inset at the top under a top stripe band too, the
+// same 7 px below the band's 2 px gap as over the bottom edge (owner, 2026-10-02: "too
+// cramped otherwise"); all of them alike, so a feels-like or dew line stays aligned with the
 // temperature curve.
 //
 // On an anchored edge (temp_axis_pad.h: rain bars or an amount line drawn from it, with a
@@ -567,8 +567,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // below it: stacked from the top edge with a 1 px gap between them, and a 2 px gap
     // under the last so even a full rain bar never touches them. The plot starts below
     // the band, so no fill, bar or line maps into it, and every line maps its values
-    // as if the graph began there, without its own top inset (LINE_TOP): a UV 11, the
-    // hottest hour or a full rain bar ends just under the stripes. Only the night
+    // as if the graph began there: a UV 11 or a full rain bar ends just under the
+    // stripes, the hottest hour its inset below them (LINE_TOP). Only the night
     // shading runs on up through the band (the full-height hatch's extend_top), and the
     // stripe cells, drawn after the plot and opaque, cover it wherever they draw.
     const int16_t top_band = (int16_t)forecast_stripe_band(edges.top_stripes, stripe_h,
@@ -642,17 +642,16 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         scaled_bar_stops[i].color = bar_stops[i].color;
     }
 #if defined(WW_LINE_STYLE)
-    // The temperature curve's margins for this redraw (LINE_TOP / LINE_BOTTOM): its inset,
-    // none at the top under a top stripe band (whose 2 px gap keeps it clear), and on each
-    // anchored edge at least the share (an eighth, or from 64 rows the square over
-    // TEMP_AXIS_PAD_SQ_DIV) of the plot's content rows [top_band, plot_axis_y), the rows
-    // between the two stripe bands. The rain bars' edge joins the lines' edges here, when a
-    // bar on screen has a value above 0.
+    // The temperature curve's margins for this redraw (LINE_TOP / LINE_BOTTOM): its inset on
+    // both edges, under a top stripe band too, and on each anchored edge at least the share
+    // (an eighth, or from 64 rows the square over TEMP_AXIS_PAD_SQ_DIV) of the plot's content
+    // rows [top_band, plot_axis_y), the rows between the two stripe bands. The rain bars'
+    // edge joins the lines' edges here, when a bar on screen has a value above 0.
     if (bars_on) {
         temp_axis_edges_add(&edges, bars->bars.values, drawn, false, false,
                             palette_from_top(bar_stops));
     }
-    s_temp_margin = temp_axis_margins(first->line.inset_y, top_band, plot_axis_y - top_band,
+    s_temp_margin = temp_axis_margins(first->line.inset_y, plot_axis_y - top_band,
                                       edges.anchors);
 #endif
 

@@ -885,21 +885,6 @@ test('effectiveLineMetric: every forecast line may carry a temperature-axis metr
   assert.equal(lineStyle.effectiveLineMetric({}, 'fifthLine'), null, 'unset is off');
 });
 
-// The bake's top-stripe band and the render signature both read this one predicate:
-// a DRAWN line (effectiveLineMetric) whose effective style is 'stripeTop'.
-test('topStripeLineDrawn: only a drawn line whose effective style is a top stripe', () => {
-  assert.equal(lineStyle.topStripeLineDrawn({ fifthLine: 'cloud', fifthLineStyle: 'stripeTop' }), true);
-  assert.equal(lineStyle.topStripeLineDrawn({ secondaryLine: 'uv', secondaryLineStyle: 'stripeTop' }), true);
-  assert.equal(lineStyle.topStripeLineDrawn({ fifthLine: 'cloud', fifthLineStyle: 'stripeBottom' }), false, 'bottom');
-  assert.equal(lineStyle.topStripeLineDrawn({ fifthLine: 'off', fifthLineStyle: 'stripeTop' }), false, 'off');
-  assert.equal(lineStyle.topStripeLineDrawn({ fifthLine: 'pressure', fifthLineStyle: 'stripeTop' }), false,
-    'a metric that cannot be a stripe draws its non-stripe style');
-  assert.equal(lineStyle.topStripeLineDrawn({ secondaryLine: 'uv', fifthLine: 'uv', fifthLineStyle: 'stripeTop' }),
-    false, 'a repeat of an earlier pick draws nothing');
-  assert.equal(lineStyle.topStripeLineDrawn({}), false, 'no default is a stripe');
-  assert.equal(lineStyle.topStripeLineDrawn(null), false);
-});
-
 // --- Draw from: Top in bit 5 of each line's style byte (draw-from.js) ----------
 // Bytes [11], [12], [13], [15] carry their line's flag (persist.h LINE_STYLE_FROM_TOP,
 // 0x20). Every other byte is untouched, and with every key on Bottom (or absent, or

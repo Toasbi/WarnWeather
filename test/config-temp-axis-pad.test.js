@@ -5,11 +5,12 @@
 // from (the rain bars, an amount line, its marks or fill) the temperature curve and the lines on
 // its axis keep at least an eighth of the plot between the stripe bands, or from 64 watch rows
 // on its square over 512 (a share that grows with the plot, taken in watch rows); an edge
-// nothing is drawn from keeps today's margin. The labels sit level with the curve's extremes
-// when there is space, and stay put while the curve reaches today's margins on an edge without
-// a stripe band; under a top stripe band the hi label follows the watch's plain rule. The
-// watch half is pinned on the host by test/c/temp_axis_pad_test.c; this file pins the preview
-// and the constants both share.
+// nothing is drawn from keeps the inset, the top under a top stripe band too (owner,
+// 2026-10-02: "minimum how it is at the bottom.. it's too cramped otherwise"). The labels sit
+// level with the curve's extremes when there is space, and stay put while the curve reaches
+// today's margins on an edge without a stripe band; under a top stripe band the hi label
+// follows the watch's plain rule. The watch half is pinned on the host by
+// test/c/temp_axis_pad_test.c; this file pins the preview and the constants both share.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -28,12 +29,12 @@ const COLOR = { color: true };
 
 // The preview's plot (preview-forecast.js): PT 4, PB 94 without a bottom stripe, MT = PT + 3
 // (where a full-height metric lands) or the foot of a top stripe band (11 under one stripe:
-// 5 rows and its 2 gap rows). Today's margins are 12 units at the bottom and at the top (none
-// under a top stripe band). An eighth of the 87-unit band is 10, under today's 12, and the
-// curve, taken in watch rows (12 units to the watch's 7 px), gives less there (50 rows: 4 px,
-// 6.9 units): it passes the eighth only from 64 rows, so every preview plot keeps the flat
-// eighth's margins and they only grow under a top stripe band (0 today) — as in the watch's
-// default view, whose 55 rows also keep their 7 px.
+// 5 rows and its 2 gap rows). The inset is 12 units at the bottom and at the top, under a top
+// stripe band too. An eighth of the 87-unit band is 10, under the 12, and the curve, taken in
+// watch rows (12 units to the watch's 7 px), gives less there (50 rows: 4 px, 6.9 units): it
+// passes the eighth only from 64 rows, so every preview plot keeps the flat eighth's share,
+// which never passes the inset: an anchored edge keeps its 12 units, as the watch's default
+// view, whose 55 rows (49 under one top stripe) keep their 7 px.
 const PB = 94;
 const BAND = 4 + 5 + 2;
 const TEMPS = [24, 24, 22, 20, 18, 16, 15, 14, 14, 15, 17, 19];
@@ -187,45 +188,56 @@ test('the share of the unbanded plot is under today\'s 12: the anchored edges ke
   assert.ok(near(lifted.bottom, PB - 6 - 12));
 });
 
-test('under a top stripe band the top margin becomes the share of the plot below it while something hangs', () => {
+test('under a top stripe band the top keeps the inset, the same 12 units as the bottom', () => {
+  // The owner's rule (2026-10-02): at least the inset under the band, max(inset, share) when
+  // something hangs. The share of the plot under one band (83 units) is an eighth, 10 (the
+  // curve alone: 48 watch rows, 4 px), under the 12, so hanging or not the top keeps 12 —
+  // as the watch's default view does (49 rows under one stripe: 7 px either way).
   const S = { thirdLine: 'uv', thirdLineStyle: 'stripeTop' };
   const hung = share(PB - BAND);
   assert.equal(hung, 10, '83 units: an eighth, 10 (the curve alone: 48 watch rows, 4 px)');
-  assert.ok(near(curveRows(preview(S)).top, BAND), 'nothing hangs: right under the band');
+  const plain = curveRows(preview(S));
+  assert.ok(near(plain.top, BAND + 12), 'nothing hangs: the inset under the band');
+  assert.ok(near(plain.bottom, PB - 12), 'as at the bottom');
   const hang = curveRows(preview(Object.assign({ secondaryLine: 'cloud', cloudLineFrom: 'top' }, S)));
-  assert.ok(near(hang.top, BAND + hung));
+  assert.ok(near(hang.top, BAND + Math.max(12, hung)));
   const bars = curveRows(preview(Object.assign({ barSource: 'rain', rainBarFrom: 'top' }, S)));
-  assert.ok(near(bars.top, BAND + hung), 'hanging bars too');
+  assert.ok(near(bars.top, BAND + Math.max(12, hung)), 'hanging bars too');
   ['dots', 'x'].forEach((style) => {
     const marks = curveRows(preview(Object.assign({ secondaryLine: 'uv', secondaryLineStyle: style, uvLineFrom: 'top',
       thirdLine: 'cloud', thirdLineStyle: 'stripeTop' })));
-    assert.ok(near(marks.top, BAND + hung), style);
+    assert.ok(near(marks.top, BAND + Math.max(12, hung)), style);
   });
-  // A pressure line floats: it anchors nothing, as feels-like and dew point do
-  // (draw-from.test.js lineAnchor).
-  assert.ok(near(curveRows(preview(Object.assign({ fourthLine: 'feels' }, S))).top, BAND));
-  // Under two top stripe bands (17 units) a hanging line keeps an eighth of the 77 under them,
-  // 9 (the curve alone: 44 watch rows, 3 px, 5.1 units).
+  // A floating line (pressure, feels-like, dew point) anchors nothing (draw-from.test.js
+  // lineAnchor): the inset.
+  assert.ok(near(curveRows(preview(Object.assign({ fourthLine: 'feels' }, S))).top, BAND + 12));
+  // Under two top stripe bands (17 units) a hanging line's share is an eighth of the 77 under
+  // them, 9 (the curve alone: 44 watch rows, 3 px, 5.1 units): the inset again.
   const BAND2 = 4 + 5 + 1 + 5 + 2;
   const two = curveRows(preview(Object.assign({ secondaryLine: 'precip_prob', precipLineFrom: 'top',
     fourthLine: 'cloud', fourthLineStyle: 'stripeTop' }, S, UV_SOME)));
   assert.equal(share(PB - BAND2), 9);
-  assert.ok(near(two.top, BAND2 + 9));
+  assert.ok(near(two.top, BAND2 + 12));
+  // The curve spans the plot under the band less the inset at each edge: as much less than
+  // without a band as the band's foot (11) lies below the plain plot's top (7).
+  const none = curveRows(preview({}));
+  assert.ok(near(plain.bottom - plain.top, none.bottom - none.top - (BAND - (4 + 3))));
 });
 
 test('a stripe on Alert holds its band at any warn level: the preview\'s sample reaches it', () => {
   // A top UV stripe whose warn level the plain sample never reaches draws its cells all the
   // same, so it holds its band, as with a warn level the sample reaches and on All.
   const off = preview({ thirdLine: 'uv', thirdLineStyle: 'stripeTop' }), offRows = curveRows(off);
-  assert.ok(near(offRows.top, BAND), 'premise: a drawn stripe holds its band');
+  assert.ok(near(offRows.top, BAND + 12), 'premise: a drawn stripe holds its band');
   [UV_HIGH, UV_SOME].forEach((levels) => {
     const label = JSON.stringify(levels);
     assert.deepEqual(curveRows(preview(Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeTop' }, levels))),
       offRows, label);
-    // A hanging line under it: the share (an eighth) of the plot below the band.
+    // A hanging line under it: the inset, which the share (an eighth) of the plot below the
+    // band does not reach.
     const hang = curveRows(preview(Object.assign({ secondaryLine: 'cloud', cloudLineFrom: 'top', thirdLine: 'uv',
       thirdLineStyle: 'stripeTop' }, levels)));
-    assert.ok(near(hang.top, BAND + share(PB - BAND)), label);
+    assert.ok(near(hang.top, BAND + Math.max(12, share(PB - BAND))), label);
     // A bottom stripe lifts the zero line off the axis.
     assert.equal(zeroLine(preview(Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeBottom' }, levels))),
       PB - 6, label);
@@ -235,22 +247,24 @@ test('a stripe on Alert holds its band at any warn level: the preview\'s sample 
 test('two top stripes, one on Alert: both keep their slots', () => {
   const two = { thirdLine: 'uv', thirdLineStyle: 'stripeTop', fourthLine: 'cloud', fourthLineStyle: 'stripeTop' };
   [UV_HIGH, UV_SOME].forEach((levels) => assert.ok(
-    near(curveRows(preview(Object.assign({}, two, levels))).top, 4 + 5 + 1 + 5 + 2), JSON.stringify(levels)));
+    near(curveRows(preview(Object.assign({}, two, levels))).top, 4 + 5 + 1 + 5 + 2 + 12), JSON.stringify(levels)));
 });
 
-test('a line on Alert anchors its edge at any warn level', () => {
-  // A UV line hanging under a top cloud stripe, Show: Alert: the share (an eighth) of the plot
-  // below the band, whether the plain sample reaches its warn level or not.
+test('a line on Alert hanging under a top stripe: the top keeps its inset at any warn level', () => {
+  // A UV line hanging under a top cloud stripe, Show: Alert: max(the inset, the share of the
+  // plot below the band), the inset in the preview's plot, whether the plain sample reaches
+  // its warn level or not.
   const S = { thirdLine: 'cloud', thirdLineStyle: 'stripeTop', secondaryLine: 'uv', uvLineFrom: 'top' };
   [UV_HIGH, UV_SOME].forEach((levels) => assert.ok(
-    near(curveRows(preview(Object.assign({}, S, levels))).top, BAND + share(PB - BAND)), JSON.stringify(levels)));
+    near(curveRows(preview(Object.assign({}, S, levels))).top, BAND + Math.max(12, share(PB - BAND))),
+    JSON.stringify(levels)));
 });
 
 test('a feels-like line rides the same margins as the temperature curve', () => {
   const FEELS = [21, 21, 19, 17, 15, 13, 12, 11, 11, 12, 15, 17];
   // The Main metric off, so the feels-like line is the one thin path; rain-chance dots hang
-  // under a top cloud stripe, so the top margin is the share (an eighth) of the plot under the
-  // band.
+  // under a top cloud stripe, so the top margin is max(the inset, the share of the plot under
+  // the band): the inset.
   const svg = preview({ secondaryLine: 'off', thirdLine: 'feels', thirdLineStyle: 'line', fourthLine: 'cloud',
     fourthLineStyle: 'stripeTop', fifthLine: 'precip_prob', fifthLineStyle: 'dots', precipLineFrom: 'top' });
   const temp = tempVertices(svg).map((p) => p[1]);
@@ -259,8 +273,9 @@ test('a feels-like line rides the same margins as the temperature curve', () => 
   const feels = [...m[1].matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((p) => Number(p[2]))
     .filter((p, i) => i === 0 || i % 3 === 0);
   assert.equal(feels.length, FEELS.length);
-  // The joint band's top is the air's high (no padding under a top stripe): the share down.
-  assert.ok(near(Math.min.apply(null, temp), BAND + share(PB - BAND)));
+  // The feels-like line never passes the air's high, so the joint band's top is the air's
+  // high, unpadded: the inset down.
+  assert.ok(near(Math.min.apply(null, temp), BAND + Math.max(12, share(PB - BAND))));
   // One linear map for both: y = ybot - (t - tmin) * k.
   const k = (temp[7] - temp[0]) / (24 - 14);
   FEELS.forEach((f, i) => assert.ok(near(feels[i], temp[i] + (TEMPS[i] - f) * k), 'hour ' + i));
@@ -286,15 +301,13 @@ test('nothing anchored, or nothing moved: the labels keep today\'s corners, as t
 });
 
 test('under a top stripe band the hi label follows the curve\'s top with nothing anchored, as the watch\'s does', () => {
-  // The watch's hi label is fixed to the top of the graph, not to the band: one stripe leaves
-  // the curve's top above the label's ink, so it stays; two or three push the curve's top below
-  // it (basalt's default view: band 11 or 16 rows against the ink's centre row 9) and the label
-  // moves down with it (temp_axis_pad.h temp_labels_align, no reach gate there).
+  // The watch's hi label is fixed to the top of the graph, not to the band: the curve's top
+  // keeps its inset under the band, below the label's ink from one stripe on (basalt's default
+  // view: row 6 + 7 = 13 against the ink's centre row 9), and the label moves down with it
+  // (temp_axis_pad.h temp_labels_align, no reach gate there).
   const top = (over) => Object.assign({ thirdLine: 'uv', thirdLineStyle: 'stripeTop' }, UV_SOME, over);
-  const one = preview(top({}), BASALT);
-  assert.ok(near(curveRows(one).top, BAND), 'premise: nothing anchored, right under the band');
-  assert.ok(near(labelBases(one).hi, 4 + 11), 'one stripe: the hi label keeps its corner');
   const cases = [
+    { over: {}, band: BAND },
     { over: { fourthLine: 'cloud', fourthLineStyle: 'stripeTop' }, band: 4 + 5 + 1 + 5 + 2 },
     { over: { fourthLine: 'cloud', fourthLineStyle: 'stripeTop', fifthLine: 'precip_prob',
       fifthLineStyle: 'stripeTop' }, band: 4 + 3 * 5 + 2 * 1 + 2 }
@@ -303,22 +316,28 @@ test('under a top stripe band the hi label follows the curve\'s top with nothing
     const svg = preview(top(c.over), BASALT);
     const rows = curveRows(svg);
     const labels = labelBases(svg);
-    assert.ok(near(rows.top, c.band), 'premise: nothing anchored, the curve right under the band');
+    assert.ok(near(rows.top, c.band + 12), 'premise: nothing anchored, the inset under the band');
     // The ink (the cap above the baseline) is centred on the curve's top; the lo label stays.
     assert.ok(near(labels.hi - FC.LABEL_CAP / 2, rows.top), JSON.stringify(c.over));
     assert.ok(near(labels.lo, PB - 1));
   });
-  // 19.8 and 25.8: where 7e6cc716's preview put them, in step with the watch.
-  assert.ok(near(labelBases(preview(top(cases[0].over), BASALT)).hi, 19.8));
-  assert.ok(near(labelBases(preview(top(cases[1].over), BASALT)).hi, 25.8));
+  // 25.8, 31.8 and 37.8: 12 units below where the curve's top and the label stood before the
+  // inset came back (one stripe's label kept its corner then, at 15).
+  assert.ok(near(labelBases(preview(top(cases[0].over), BASALT)).hi, 25.8));
+  assert.ok(near(labelBases(preview(top(cases[1].over), BASALT)).hi, 31.8));
+  assert.ok(near(labelBases(preview(top(cases[2].over), BASALT)).hi, 37.8));
 });
 
-test('the hi label sits level with the curve\'s top once a hanging element pushes it down', () => {
-  const svg = preview({ thirdLine: 'cloud', thirdLineStyle: 'stripeTop', secondaryLine: 'precip_prob',
-    precipLineFrom: 'top' }, BASALT);
+test('under a top stripe band a hanging element moves neither the curve\'s top nor the hi label', () => {
+  // The share of the plot under the band (10) stays under the 12-unit inset, so the curve's
+  // top and the hi label level with it are where they are with nothing hanging.
+  const S = { thirdLine: 'cloud', thirdLineStyle: 'stripeTop' };
+  const svg = preview(Object.assign({ secondaryLine: 'precip_prob', precipLineFrom: 'top' }, S), BASALT);
   const rows = curveRows(svg);
   const labels = labelBases(svg);
-  assert.ok(near(rows.top, BAND + share(PB - BAND)), 'premise: the top margin grew');
+  assert.ok(near(rows.top, BAND + 12), 'premise: the inset under the band');
+  assert.deepEqual(rows, curveRows(preview(S, BASALT)));
+  assert.deepEqual(labels, labelBases(preview(S, BASALT)));
   // The ink (the cap above the baseline) is centred on the row; the lo label stays.
   assert.ok(near(labels.hi - FC.LABEL_CAP / 2, rows.top));
   assert.ok(near(labels.lo, PB - 1));

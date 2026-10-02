@@ -78,6 +78,9 @@
 # own vertices instead of riding the fill's contour, so ChartLineLayer lost its
 # precomputed-points pointer and every ChartLayer 4 B (.bss -128 B on each); .text basalt
 # -28 B, diorite/flint 0 B: basalt 59320 -> 59164, diorite/flint 57120 -> 56992.
+# The temperature curve keeps its inset at the top under a top stripe band (owner,
+# 2026-10-02; temp_axis_pad.h temp_axis_margins drops its band test): -8 B .text on each,
+# basalt 59164 -> 59156, diorite/flint 56992 -> 56984.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -94,9 +97,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59164}"
-  "diorite:${DIORITE_IMAGE_CEILING:-56992}"
-  "flint:${FLINT_IMAGE_CEILING:-56992}"
+  "basalt:${BASALT_IMAGE_CEILING:-59156}"
+  "diorite:${DIORITE_IMAGE_CEILING:-56984}"
+  "flint:${FLINT_IMAGE_CEILING:-56984}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).
