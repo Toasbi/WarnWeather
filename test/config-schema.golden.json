@@ -1642,28 +1642,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "key": "secondaryLine",
-                          "in": [
-                            "precip_prob"
-                          ]
-                        },
-                        {
-                          "key": "secondaryLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "secondaryLine",
+                    "from": "precipLineFrom"
+                  }
                 }
               },
               {
@@ -1689,28 +1672,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "key": "secondaryLine",
-                          "in": [
-                            "cloud"
-                          ]
-                        },
-                        {
-                          "key": "secondaryLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "secondaryLine",
+                    "from": "cloudLineFrom"
+                  }
                 }
               },
               {
@@ -1736,29 +1702,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "key": "secondaryLine",
-                          "in": [
-                            "wind",
-                            "gust"
-                          ]
-                        },
-                        {
-                          "key": "secondaryLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "secondaryLine",
+                    "from": "windLineFrom"
+                  }
                 }
               },
               {
@@ -1784,28 +1732,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "key": "secondaryLine",
-                          "in": [
-                            "uv"
-                          ]
-                        },
-                        {
-                          "key": "secondaryLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "secondaryLine",
+                    "from": "uvLineFrom"
+                  }
                 }
               },
               {
@@ -1883,11 +1814,14 @@
                 "showWhen": {
                   "all": [
                     {
-                      "key": "secondaryLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "secondaryLine",
+                        "metrics": [
+                          "wind",
+                          "gust"
+                        ]
+                      }
                     },
                     {
                       "key": "windUnits",
@@ -1927,11 +1861,14 @@
                 "showWhen": {
                   "all": [
                     {
-                      "key": "secondaryLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "secondaryLine",
+                        "metrics": [
+                          "wind",
+                          "gust"
+                        ]
+                      }
                     },
                     {
                       "key": "windUnits",
@@ -1971,11 +1908,14 @@
                 "showWhen": {
                   "all": [
                     {
-                      "key": "secondaryLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "secondaryLine",
+                        "metrics": [
+                          "wind",
+                          "gust"
+                        ]
+                      }
                     },
                     {
                       "key": "windUnits",
@@ -2010,8 +1950,13 @@
                   ]
                 ],
                 "showWhen": {
-                  "key": "secondaryLine",
-                  "eq": "pressure"
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "secondaryLine",
+                    "metrics": [
+                      "pressure"
+                    ]
+                  }
                 }
               },
               {
@@ -2042,8 +1987,13 @@
                       "env": "onDemand"
                     },
                     {
-                      "key": "secondaryLine",
-                      "eq": "wind"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "secondaryLine",
+                        "metrics": [
+                          "wind"
+                        ]
+                      }
                     }
                   ]
                 }
@@ -2076,8 +2026,13 @@
                       "env": "onDemand"
                     },
                     {
-                      "key": "secondaryLine",
-                      "eq": "gust"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "secondaryLine",
+                        "metrics": [
+                          "gust"
+                        ]
+                      }
                     }
                   ]
                 }
@@ -2110,8 +2065,13 @@
                       "env": "onDemand"
                     },
                     {
-                      "key": "secondaryLine",
-                      "eq": "uv"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "secondaryLine",
+                        "metrics": [
+                          "uv"
+                        ]
+                      }
                     }
                   ]
                 }
@@ -2191,57 +2151,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "thirdLine",
-                                  "eq": "precip_prob"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "precip_prob"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "thirdLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "precip_prob"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "thirdLine",
+                    "from": "precipLineFrom"
+                  }
                 }
               },
               {
@@ -2267,57 +2181,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "thirdLine",
-                                  "eq": "cloud"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "cloud"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "thirdLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "cloud"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "thirdLine",
+                    "from": "cloudLineFrom"
+                  }
                 }
               },
               {
@@ -2343,70 +2211,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "thirdLine",
-                                  "eq": "wind"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "wind"
-                                }
-                              ]
-                            },
-                            {
-                              "all": [
-                                {
-                                  "key": "thirdLine",
-                                  "eq": "gust"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "gust"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "thirdLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "wind",
-                              "gust"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "thirdLine",
+                    "from": "windLineFrom"
+                  }
                 }
               },
               {
@@ -2432,57 +2241,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "thirdLine",
-                                  "eq": "uv"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "uv"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "thirdLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "uv"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "thirdLine",
+                    "from": "uvLineFrom"
+                  }
                 }
               },
               {
@@ -2516,16 +2279,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "key": "thirdLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "thirdLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -2569,16 +2326,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "key": "thirdLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "thirdLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -2622,16 +2373,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "key": "thirdLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "thirdLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -2670,18 +2415,13 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "key": "thirdLine",
-                      "eq": "pressure"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "pressure"
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "thirdLine",
+                    "metrics": [
+                      "pressure"
+                    ]
+                  }
                 }
               },
               {
@@ -2712,13 +2452,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "key": "thirdLine",
-                      "eq": "wind"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "wind"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "thirdLine",
+                        "metrics": [
+                          "wind"
+                        ]
                       }
                     }
                   ]
@@ -2752,13 +2491,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "key": "thirdLine",
-                      "eq": "gust"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "gust"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "thirdLine",
+                        "metrics": [
+                          "gust"
+                        ]
                       }
                     }
                   ]
@@ -2792,13 +2530,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "key": "thirdLine",
-                      "eq": "uv"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "uv"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "thirdLine",
+                        "metrics": [
+                          "uv"
+                        ]
                       }
                     }
                   ]
@@ -2883,93 +2620,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "fourthLine",
-                                  "eq": "precip_prob"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "precip_prob"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "precip_prob"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "fourthLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "precip_prob"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "precip_prob"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "precip_prob"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "thirdLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fourthLine",
+                    "from": "precipLineFrom"
+                  }
                 }
               },
               {
@@ -2995,93 +2650,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "fourthLine",
-                                  "eq": "cloud"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "cloud"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "cloud"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "fourthLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "cloud"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "cloud"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "cloud"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "thirdLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fourthLine",
+                    "from": "cloudLineFrom"
+                  }
                 }
               },
               {
@@ -3107,122 +2680,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "fourthLine",
-                                  "eq": "wind"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "wind"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "wind"
-                                }
-                              ]
-                            },
-                            {
-                              "all": [
-                                {
-                                  "key": "fourthLine",
-                                  "eq": "gust"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "gust"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "gust"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "fourthLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "wind",
-                              "gust"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "wind"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "wind"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "gust"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "gust"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "thirdLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fourthLine",
+                    "from": "windLineFrom"
+                  }
                 }
               },
               {
@@ -3248,93 +2710,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "fourthLine",
-                                  "eq": "uv"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "uv"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "uv"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "fourthLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "uv"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "uv"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "uv"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "thirdLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fourthLine",
+                    "from": "uvLineFrom"
+                  }
                 }
               },
               {
@@ -3368,28 +2748,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fourthLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fourthLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -3433,28 +2795,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fourthLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fourthLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -3498,28 +2842,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fourthLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fourthLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -3558,27 +2884,13 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fourthLine",
-                      "eq": "pressure"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "pressure"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "eq": "pressure"
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fourthLine",
+                    "metrics": [
+                      "pressure"
+                    ]
+                  }
                 }
               },
               {
@@ -3609,22 +2921,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fourthLine",
-                      "eq": "wind"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "wind"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "eq": "wind"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fourthLine",
+                        "metrics": [
+                          "wind"
+                        ]
                       }
                     }
                   ]
@@ -3658,22 +2960,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fourthLine",
-                      "eq": "gust"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "gust"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "eq": "gust"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fourthLine",
+                        "metrics": [
+                          "gust"
+                        ]
                       }
                     }
                   ]
@@ -3707,22 +2999,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fourthLine",
-                      "eq": "uv"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "uv"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "eq": "uv"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fourthLine",
+                        "metrics": [
+                          "uv"
+                        ]
                       }
                     }
                   ]
@@ -3808,130 +3090,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "fifthLine",
-                                  "eq": "precip_prob"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "precip_prob"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "precip_prob"
-                                },
-                                {
-                                  "key": "fourthLine",
-                                  "ne": "precip_prob"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "fifthLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "precip_prob"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "precip_prob"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "precip_prob"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "thirdLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "fourthLine",
-                                    "eq": "precip_prob"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "precip_prob"
-                                  },
-                                  {
-                                    "key": "thirdLine",
-                                    "ne": "precip_prob"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "fourthLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fifthLine",
+                    "from": "precipLineFrom"
+                  }
                 }
               },
               {
@@ -3957,130 +3120,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "fifthLine",
-                                  "eq": "cloud"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "cloud"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "cloud"
-                                },
-                                {
-                                  "key": "fourthLine",
-                                  "ne": "cloud"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "fifthLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "cloud"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "cloud"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "cloud"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "thirdLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "fourthLine",
-                                    "eq": "cloud"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "cloud"
-                                  },
-                                  {
-                                    "key": "thirdLine",
-                                    "ne": "cloud"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "fourthLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fifthLine",
+                    "from": "cloudLineFrom"
+                  }
                 }
               },
               {
@@ -4106,179 +3150,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "fifthLine",
-                                  "eq": "wind"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "wind"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "wind"
-                                },
-                                {
-                                  "key": "fourthLine",
-                                  "ne": "wind"
-                                }
-                              ]
-                            },
-                            {
-                              "all": [
-                                {
-                                  "key": "fifthLine",
-                                  "eq": "gust"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "gust"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "gust"
-                                },
-                                {
-                                  "key": "fourthLine",
-                                  "ne": "gust"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "fifthLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "wind",
-                              "gust"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "wind"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "wind"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "gust"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "gust"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "thirdLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "fourthLine",
-                                    "eq": "wind"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "wind"
-                                  },
-                                  {
-                                    "key": "thirdLine",
-                                    "ne": "wind"
-                                  }
-                                ]
-                              },
-                              {
-                                "all": [
-                                  {
-                                    "key": "fourthLine",
-                                    "eq": "gust"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "gust"
-                                  },
-                                  {
-                                    "key": "thirdLine",
-                                    "ne": "gust"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "fourthLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fifthLine",
+                    "from": "windLineFrom"
+                  }
                 }
               },
               {
@@ -4304,130 +3180,11 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "all": [
-                        {
-                          "any": [
-                            {
-                              "all": [
-                                {
-                                  "key": "fifthLine",
-                                  "eq": "uv"
-                                },
-                                {
-                                  "key": "secondaryLine",
-                                  "ne": "uv"
-                                },
-                                {
-                                  "key": "thirdLine",
-                                  "ne": "uv"
-                                },
-                                {
-                                  "key": "fourthLine",
-                                  "ne": "uv"
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "key": "fifthLineStyle",
-                          "nin": [
-                            "stripeTop",
-                            "stripeBottom"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "key": "secondaryLine",
-                            "in": [
-                              "uv"
-                            ]
-                          },
-                          {
-                            "key": "secondaryLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "thirdLine",
-                                    "eq": "uv"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "uv"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "thirdLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "all": [
-                          {
-                            "any": [
-                              {
-                                "all": [
-                                  {
-                                    "key": "fourthLine",
-                                    "eq": "uv"
-                                  },
-                                  {
-                                    "key": "secondaryLine",
-                                    "ne": "uv"
-                                  },
-                                  {
-                                    "key": "thirdLine",
-                                    "ne": "uv"
-                                  }
-                                ]
-                              }
-                            ]
-                          },
-                          {
-                            "key": "fourthLineStyle",
-                            "nin": [
-                              "stripeTop",
-                              "stripeBottom"
-                            ]
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fifthLine",
+                    "from": "uvLineFrom"
+                  }
                 }
               },
               {
@@ -4461,37 +3218,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fifthLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "fourthLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fifthLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -4535,37 +3265,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fifthLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "fourthLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fifthLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -4609,37 +3312,10 @@
                 "showWhen": {
                   "all": [
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fifthLine",
-                      "in": [
-                        "wind",
-                        "gust"
-                      ]
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "in": [
-                          "wind",
-                          "gust"
-                        ]
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "fourthLine",
-                        "in": [
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fifthLine",
+                        "metrics": [
                           "wind",
                           "gust"
                         ]
@@ -4678,33 +3354,13 @@
                   ]
                 ],
                 "showWhen": {
-                  "all": [
-                    {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fifthLine",
-                      "eq": "pressure"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "pressure"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "eq": "pressure"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "fourthLine",
-                        "eq": "pressure"
-                      }
-                    }
-                  ]
+                  "when": "lineRow",
+                  "args": {
+                    "picker": "fifthLine",
+                    "metrics": [
+                      "pressure"
+                    ]
+                  }
                 }
               },
               {
@@ -4735,28 +3391,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fifthLine",
-                      "eq": "wind"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "wind"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "eq": "wind"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "fourthLine",
-                        "eq": "wind"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fifthLine",
+                        "metrics": [
+                          "wind"
+                        ]
                       }
                     }
                   ]
@@ -4790,28 +3430,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fifthLine",
-                      "eq": "gust"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "gust"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "eq": "gust"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "fourthLine",
-                        "eq": "gust"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fifthLine",
+                        "metrics": [
+                          "gust"
+                        ]
                       }
                     }
                   ]
@@ -4845,28 +3469,12 @@
                       "env": "onDemand"
                     },
                     {
-                      "env": "lineStyles"
-                    },
-                    {
-                      "key": "fifthLine",
-                      "eq": "uv"
-                    },
-                    {
-                      "not": {
-                        "key": "secondaryLine",
-                        "eq": "uv"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "thirdLine",
-                        "eq": "uv"
-                      }
-                    },
-                    {
-                      "not": {
-                        "key": "fourthLine",
-                        "eq": "uv"
+                      "when": "lineRow",
+                      "args": {
+                        "picker": "fifthLine",
+                        "metrics": [
+                          "uv"
+                        ]
                       }
                     }
                   ]

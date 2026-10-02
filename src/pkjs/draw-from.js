@@ -3,9 +3,9 @@
 // start. Bottom (the default) stands them on the graph's bottom, as always; Top hangs
 // them from the top of the graph, a bigger value reaching further down. THE one reading
 // of the six settings, for the wire (line-style.js buildLineStyleBytes, weather/
-// palette-wire.js buildPaletteTuples), telemetry and the settings page (the rows' hints,
-// the Visible values: Alert scale hint, the forecast and radar previews), so they can
-// never disagree.
+// palette-wire.js buildPaletteTuples), telemetry and the settings page (which picker a
+// Draw from row sits under, the rows' hints, the Visible values: Alert scale hint, the
+// forecast and radar previews), so they can never disagree.
 //
 // THE SETTINGS. One key per amount metric with a real zero (line-style.js
 // STRIPE_METRIC_IDS: rain chance, clouds, wind, gusts, UV), except that wind speed and
@@ -243,6 +243,38 @@
     }
 
     /**
+     * The forecast lines that read one Draw from key on this watch, in line order: each
+     * drawn as a line or marks (drawnLineMetric) of a metric with that key.
+     * @param {Object} settings Clay settings blob.
+     * @param {string} rowKey A Draw from key.
+     * @param {?Object} [caps] Caps or page env (capable).
+     * @returns {string[]} Line keys (secondaryLine|thirdLine|fourthLine|fifthLine).
+     */
+    function linesOfRow(settings, rowKey, caps) {
+        var out = [];
+        for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+            var key = lineStyle.FORECAST_LINES[i].key;
+            var metric = drawnLineMetric(settings, key, caps);
+            if (metric !== null && settingKey(metric) === rowKey) { out.push(key); }
+        }
+        return out;
+    }
+
+    /**
+     * The line a Draw from key's row sits under on the settings page: the first line that
+     * reads the key (linesOfRow), so the row follows its metric from picker to picker and
+     * hides while no line reads it (a stored Top lies dormant then).
+     * @param {Object} settings Clay settings blob.
+     * @param {string} rowKey A Draw from key.
+     * @param {?Object} [caps] Caps or page env (capable).
+     * @returns {?string} A line key, or null.
+     */
+    function rowLine(settings, rowKey, caps) {
+        var lines = linesOfRow(settings, rowKey, caps);
+        return lines.length ? lines[0] : null;
+    }
+
+    /**
      * How many drawn lines, not stripes, read one Draw from key on this watch: 2 for
      * windLineFrom with a wind and a gust line both drawn as lines, else 0 or 1. The
      * page's Top hint speaks of both lines then.
@@ -252,18 +284,7 @@
      * @returns {number}
      */
     function linesSharing(settings, rowKey, caps) {
-        if (!capable(caps)) { return 0; }
-        var s = settings || {};
-        var count = 0;
-        for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
-            var line = lineStyle.FORECAST_LINES[i];
-            var metric = lineStyle.effectiveLineMetric(s, line.key);
-            if (metric !== null && settingKey(metric) === rowKey
-                    && !lineStyle.isStripeStyle(s, line.styleKey)) {
-                count += 1;
-            }
-        }
-        return count;
+        return linesOfRow(settings, rowKey, caps).length;
     }
 
     /**
@@ -324,6 +345,7 @@
         lineAnchor: lineAnchor,
         lineFloats: lineFloats,
         forecastAnchors: forecastAnchors,
+        rowLine: rowLine,
         linesSharing: linesSharing,
         barsFromTop: barsFromTop,
         styleByte: styleByte,

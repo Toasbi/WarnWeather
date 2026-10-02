@@ -11,7 +11,8 @@ PConf.showWhen = (function () {
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   /**
    * Evaluate a showWhen predicate against a context of current values/env.
-   * Supports all/any/not combinators and eq/ne/in/nin/has/truthy leaf tests; an array is treated as { all: [...] }.
+   * Supports all/any/not combinators, eq/ne/in/nin/has/truthy leaf tests and the `when`
+   * resolver leaf; an array is treated as { all: [...] }.
    * @param {(Object|Array|null|undefined)} pred Predicate tree; null/undefined is treated as always-true.
    * @param {Object} ctx Context with setting values by key and an optional .env map.
    * @returns {boolean} Whether the predicate is satisfied.
@@ -22,6 +23,16 @@ PConf.showWhen = (function () {
     if (pred.all) { for (var i = 0; i < pred.all.length; i += 1) { if (!evaluate(pred.all[i], ctx)) { return false; } } return true; }
     if (pred.any) { for (var j = 0; j < pred.any.length; j += 1) { if (evaluate(pred.any[j], ctx)) { return true; } } return false; }
     if (has(pred, 'not')) { return !evaluate(pred.not, ctx); }
+    // `when` asks a named rule (PConf.whenResolvers, engine.js; the host app registers
+    // them): { when: 'lineRow', args: { picker: 'thirdLine', metrics: ['uv'] } } holds while
+    // fn(ctx, ctx.env, args) answers truthy. It is for a rule a module the page loads
+    // already answers, so the schema asks that module instead of rebuilding the rule as a
+    // tree of leaves. An unregistered name reads false, as a fact the host never supplied
+    // does below.
+    if (has(pred, 'when')) {
+      var fn = PConf.whenResolvers ? PConf.whenResolvers.get(pred.when) : undefined;
+      return typeof fn === 'function' ? Boolean(fn(ctx, ctx.env, pred.args || {})) : false;
+    }
     // `env` reads a capability fact rather than a setting value. The fact names are
     // owned by lib/platform.js computeEnv() (the platform SoT) — `color`, `round`,
     // `platform`, `health`, `radar`, `themePolarity`, `hr`, `thresholds`, `lineStyles`,

@@ -107,6 +107,14 @@ var APP_FILES = [
   // an unregistered icon id just prints no glyph — so
   // test/config-page-bundle.test.js pins its register() calls into the page.
   path.join(ROOT, 'src/pkjs/settings/status-slot-icons.js'),
+  // The schema's when resolvers (PConf.whenResolvers: lineRow). They bind window.LineStyle
+  // and window.DrawFrom while their own body runs, so they follow both; they register
+  // while it runs and are asked at render time. Dropping the file throws nothing: an
+  // unregistered when-leaf reads false, so every Draw from, Visible values and graph-scale
+  // row would silently never show on a real phone while every Node test passed through
+  // blocks.js' require() — test/config-page-bundle.test.js pins its register() calls into
+  // the page.
+  path.join(ROOT, 'src/pkjs/settings/when-resolvers.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),

@@ -6,7 +6,8 @@
 // preview-layout.js, over the shared preview-svg.js / preview-rain.js; under Node
 // this file requires the four registering ones, so requiring blocks.js registers
 // every block and not just its own (the webview concatenates every file instead —
-// see scripts/build-config-page.js APP_FILES).
+// see scripts/build-config-page.js APP_FILES). It requires the schema's when resolvers
+// (when-resolvers.js) the same way.
 /* global PConf, COUNTRY_DEFAULTS, INJECTED_USERDATA */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
@@ -17,6 +18,7 @@ if (typeof require !== 'undefined') {
     require('./preview-radar.js');
     require('./preview-diagnostics.js');
     require('./preview-layout.js');
+    require('./when-resolvers.js');
 }
 (function () {
     // Dual-context pattern (see line-style.js): CommonJS under Node, a

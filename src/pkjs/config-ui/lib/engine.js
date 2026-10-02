@@ -157,6 +157,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // hint resolver.
   PConf.attentionResolvers = makeRegistry();
 
+  // --- when-resolver registry --- a showWhen (or disabledWhen / optionDisabledWhen) leaf
+  // asks a rule by name (show-when.js { when: id, args }); fn(S, env, args) answers
+  // whether it holds. S is the evaluation context (the settings, plus their env), so a
+  // resolver reads any key, and the page re-renders after every change, as for the hint
+  // resolver. An unregistered id reads false.
+  PConf.whenResolvers = makeRegistry();
+
   // --- onChange registry --- a schema item opts into a post-change side effect by
   // name (item.onChange: id) without the engine knowing what that side effect is.
   // fn(S, oldValue, newValue, env) runs synchronously, right after the click handler
@@ -2787,6 +2794,7 @@ if (typeof module !== 'undefined' && module.exports) {
     fitSelectPeek: PConf.engine.fitSelectPeek,
     checkWriters: PConf.checkWriters,
     attentionResolvers: PConf.attentionResolvers,
+    whenResolvers: PConf.whenResolvers,
     resolveStaticText: PConf.engine.resolveStaticText,
     resolveAttention: PConf.engine.resolveAttention,
     findAttention: PConf.engine.findAttention,

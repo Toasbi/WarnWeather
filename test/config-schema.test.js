@@ -521,27 +521,23 @@ test('feels-like is left out of both metric pickers on aplite', () => {
   assert.deepEqual(third, ['off', 'cloud', 'wind', 'gust', 'uv', 'pressure']);
 });
 
-test('windScale has twelve contextual slots: four line-contexts × three wind units', () => {
+test('windScale has twelve contextual slots: one per picker and wind unit, and one shows', () => {
   const slots = items.filter((i) => i.messageKey === 'windScale');
   assert.equal(slots.length, 12, 'twelve windScale slots');
-  // Leaf conditions only: the fourth-line copies name the other two lines inside
-  // {not: …} wrappers, which carry no .key, so each filter matches one context.
-  const secondary = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'secondaryLine' && c.in));
-  const third = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'thirdLine' && c.in));
-  const fourth = slots.filter((s) => s.showWhen.all.some((c) => c.key === 'fourthLine' && c.in));
-  assert.equal(secondary.length, 3, 'three secondary-line copies (one per unit)');
-  assert.equal(third.length, 3, 'three third-line copies (one per unit)');
-  assert.equal(fourth.length, 3, 'three fourth-line copies (one per unit)');
+  const pickers = ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'];
+  const units = ['kph', 'mph', 'knots'];
   const midShows = { kph: '50 kph', mph: '31 mph', knots: '27 kn' };
-  ['kph', 'mph', 'knots'].forEach((unit) => {
-    [secondary, third, fourth].forEach((group) => {
-      const copy = group.find((s) => s.showWhen.all.some((c) => c.key === 'windUnits' && c.eq === unit));
-      assert.ok(copy, unit + ' copy present in every context');
-      assert.ok(copy.hintByValue.mid.indexOf(midShows[unit]) >= 0,
-        unit + ' mid hint should show ' + midShows[unit] + '; got: ' + copy.hintByValue.mid);
-    });
-  });
-  slots.forEach((s) => assert.equal(s.messageKey, 'windScale'));
+  const env = platform.computeEnv({ platform: 'basalt' });
+  // Wind on one picker in one unit: exactly that picker's copy for that unit shows, the
+  // copies in picker order, each picker's three in unit order.
+  pickers.forEach((picker, p) => units.forEach((windUnits, u) => {
+    const S = { secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'off', fifthLine: 'off', windUnits };
+    S[picker] = 'wind';
+    const shown = slots.filter((s) => showWhen.isVisible(s, Object.assign({ env }, S)));
+    assert.deepEqual(shown, [slots[p * 3 + u]], picker + ' ' + windUnits);
+    assert.ok(shown[0].hintByValue.mid.indexOf(midShows[windUnits]) >= 0,
+      windUnits + ' mid hint should show ' + midShows[windUnits] + '; got: ' + shown[0].hintByValue.mid);
+  }));
 });
 
 test('Units section groups temperature, AQI scale, wind + distance units in the General tab', () => {
@@ -3067,17 +3063,23 @@ test('the Third metric row and every line-style row hide behind the lineStyles c
     { all: [LINE_STYLES_GATE, { key: 'thirdLine', ne: 'off' }] });
   assert.deepEqual(byKey('fourthLineStyle').showWhen,
     { all: [LINE_STYLES_GATE, { key: 'fourthLine', ne: 'off' }] });
-  // The fourth-context wind-scale copies carry the same gate (via the
-  // LINE_CONTEXTS cascade), or a re-paired incapable watch (stored fourthLine
-  // preserved by the row-level hide above) would render an orphaned scale row
-  // for a line it never draws. The pressure copy's gate is pinned in its own
-  // showWhen test.
-  const fourthWinds = items.filter((i) => i.messageKey === 'windScale'
-    && i.showWhen.all.some((c) => c.key === 'fourthLine'));
-  assert.equal(fourthWinds.length, 3, 'one fourth-context wind-scale copy per unit');
-  fourthWinds.forEach((w) => assert.deepEqual(w.showWhen.all[0], LINE_STYLES_GATE));
   // The capability itself exists in the platform SoT and folds exactly aplite.
   const platformLib = require('../src/pkjs/config-ui/lib/platform.js');
+  // The rows that follow a metric (the graph scales, Visible values, Draw from) never
+  // show under the Third or Fourth metric on a watch without the lines either, or a
+  // re-paired incapable watch (its stored pick kept by the row-level hide above) would
+  // render an orphaned row for a line it never draws.
+  const followers = forecastItems(schema).filter((i) => i.messageKey === 'windScale'
+    || i.messageKey === 'pressureScale' || i.label === 'Visible values' || i.label === 'Draw from');
+  assert.equal(followers.length, 44, 'twelve wind scales, four pressure scales, twelve Visible values, sixteen Draw from');
+  ['wind', 'gust', 'uv', 'pressure', 'precip_prob'].forEach((metric) => ['fourthLine', 'fifthLine'].forEach((line) => {
+    const S = { secondaryLine: 'feels', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off', windUnits: 'kph' };
+    S[line] = metric;
+    const shown = (p) => followers.filter((i) =>
+      showWhen.isVisible(i, Object.assign({ env: platformLib.computeEnv({ platform: p }) }, S)));
+    assert.deepEqual(shown('aplite'), [], 'aplite ' + line + '=' + metric);
+    assert.ok(shown('basalt').length > 0, 'basalt ' + line + '=' + metric);
+  }));
   assert.equal(platformLib.computeEnv({ platform: 'aplite' }).lineStyles, false);
   assert.equal(platformLib.computeEnv({ platform: 'basalt' }).lineStyles, true);
   assert.equal(platformLib.computeEnv(null).lineStyles, true, 'unknown watch keeps the feature');
@@ -3159,25 +3161,21 @@ test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
 
 test('pressureScale shows for the main line, and for a later line only when no earlier line is pressure', () => {
   const scales = items.filter((i) => i.messageKey === 'pressureScale');
-  const sec = scales.find((s) => s.showWhen.key === 'secondaryLine');
-  assert.deepEqual(sec.showWhen, { key: 'secondaryLine', eq: 'pressure' });
-  const third = scales.find((s) => s.showWhen.all
-    && s.showWhen.all.some((c) => c.key === 'thirdLine'));
-  assert.deepEqual(third.showWhen, { all: [
-    { key: 'thirdLine', eq: 'pressure' },
-    { not: { key: 'secondaryLine', eq: 'pressure' } }
-  ]});
-  const fourth = scales.find((s) => s.showWhen.all
-    && s.showWhen.all.some((c) => c.key === 'fourthLine'));
-  // The fourth arm also carries the lineStyles capability gate: its line is
-  // hidden on incapable watches with the stored value preserved, so the scale
-  // row must never orphan there.
-  assert.deepEqual(fourth.showWhen, { all: [
-    { env: 'lineStyles' },
-    { key: 'fourthLine', eq: 'pressure' },
-    { not: { key: 'secondaryLine', eq: 'pressure' } },
-    { not: { key: 'thirdLine', eq: 'pressure' } }
-  ]});
+  const pickers = ['secondaryLine', 'thirdLine', 'fourthLine', 'fifthLine'];
+  const shown = (S, p) => scales.filter((s) =>
+    showWhen.isVisible(s, Object.assign({ env: platform.computeEnv({ platform: p || 'basalt' }) }, S)));
+  const none = { secondaryLine: 'cloud', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off' };
+  assert.deepEqual(shown(none), [], 'no pressure line: no scale');
+  pickers.forEach((picker, p) => {
+    const S = Object.assign({}, none, { [picker]: 'pressure' });
+    assert.deepEqual(shown(S), [scales[p]], picker + ': its own copy');
+    // A stored repeat on every later picker still shows the one copy, the first one.
+    pickers.slice(p + 1).forEach((later) => { S[later] = 'pressure'; });
+    assert.deepEqual(shown(S), [scales[p]], picker + ' and repeats after it');
+    // The Third and Fourth metric lines are not drawn on aplite: no scale for them there.
+    assert.deepEqual(shown(Object.assign({}, none, { [picker]: 'pressure' }), 'aplite'),
+      p < 2 ? [scales[p]] : [], 'aplite ' + picker);
+  });
 });
 
 // A hardcoded copy of the curve numbers here is the third copy (forecast-series.js and

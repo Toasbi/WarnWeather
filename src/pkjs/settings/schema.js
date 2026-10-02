@@ -53,9 +53,10 @@ var HOURS = (function () {
 // temperature axis with the temperature curve.
 var METRIC_HINT_FROM = {resolver: 'forecastMetricHint'};
 // "This watch draws the third metric line and selectable styles at all" — the
-// WW_LINE_STYLE mirror (platform.js), one gate for the Third-metric row, every
-// line-style picker and the fourth-line scale contexts. Fails open for an
-// unknown platform, like every feature-absence capability.
+// WW_LINE_STYLE mirror (platform.js), one gate for the Third- and Fourth-metric rows
+// and every line-style picker (the rows under those pickers ask lineRow, which reads
+// the same fact). Fails open for an unknown platform, like every feature-absence
+// capability.
 var LINE_STYLES_WHEN = {env: 'lineStyles'};
 // The two stripe styles (line-style.js isStripeValue).
 var STRIPE_STYLES = ['stripeTop', 'stripeBottom'];
@@ -132,55 +133,31 @@ function windScaleHints(windUnits, unitLabel) {
 var WIND_SCALE_HINTS_KPH = windScaleHints('kph', 'kph');
 var WIND_SCALE_HINTS_MPH = windScaleHints('mph', 'mph');
 var WIND_SCALE_HINTS_KNOTS = windScaleHints('knots', 'kn');
-// The ordered line-contexts every per-metric graph-scale row cascades over: a
-// scale row renders under the FIRST context whose picker selects its metric
-// family, each later context yielding to every earlier one, and the fourth
-// context additionally gated on the watch carrying the line at all
-// (LINE_STYLES_WHEN). One list — a future line is one entry here, not four
-// hand-edited WHEN families.
-var LINE_CONTEXTS = [
-    {key: 'secondaryLine'},
-    {key: 'thirdLine'},
-    {key: 'fourthLine', gates: [LINE_STYLES_WHEN]},
-    {key: 'fifthLine', gates: [LINE_STYLES_WHEN]}
-];
+// The rows that follow a metric from picker to picker (Draw from, Visible values, the
+// Wind and the Pressure graph scales) each sit under ONE picker, and the page asks which
+// through one when-leaf (settings/when-resolvers.js lineRow): the first picker whose line
+// draws one of the row's metrics (the Third and Fourth metric pickers only on a watch
+// with line styles), or for a Draw from row the first line that hangs from its key
+// (draw-from.js rowLine). A future line is one entry in line-style.js FORECAST_LINES,
+// not a new family of trees here.
 /**
- * Index of one picker key in LINE_CONTEXTS.
+ * The when-leaf "this row sits under `pickerKey`".
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
- * @returns {number} Its position.
+ * @param {{metrics: (string[]|undefined), from: (string|undefined)}} row The row's metrics,
+ *   or its Draw from key.
+ * @returns {Object} showWhen predicate.
  */
-function lineContextIndex(pickerKey) {
-    for (var i = 0; i < LINE_CONTEXTS.length; i += 1) {
-        if (LINE_CONTEXTS[i].key === pickerKey) { return i; }
-    }
-    return -1;
+function lineRowWhen(pickerKey, row) {
+    var args = {picker: pickerKey};
+    if (row.from) { args.from = row.from; } else { args.metrics = row.metrics; }
+    return {when: 'lineRow', args: args};
 }
-/**
- * The showWhen conditions ARRAY for one line-context's scale row: the
- * context's gates, then the matcher on its own picker, then a {not: ...} of
- * the matcher on every earlier picker.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
- * @param {function(string): Object} matchOf Picker key -> matcher leaf.
- * @returns {Array.<Object>} Conditions, for {all: ...} (or bare when single).
- */
-function lineContextWhen(pickerKey, matchOf) {
-    var index = lineContextIndex(pickerKey);
-    var when = (LINE_CONTEXTS[index].gates || []).slice();
-    when.push(matchOf(pickerKey));
-    for (var i = 0; i < index; i += 1) {
-        when.push({not: matchOf(LINE_CONTEXTS[i].key)});
-    }
-    return when;
-}
-// One windScale copy: the line-context cascade AND the given windUnits value,
-// with the pre-rendered hint set for that unit. While a drawn wind or gust line shows
-// Alert its top is its band's (the higher of the scale and the danger level), so
-// blocks.js' 'windScaleHint' names the real tops instead; it answers null otherwise,
-// and the row shows hintByValue.
+// One windScale copy: under the first picker that draws wind or gusts, AND the given
+// windUnits value, with the pre-rendered hint set for that unit. While a drawn wind or
+// gust line shows Alert its top is its band's (the higher of the scale and the danger
+// level), so blocks.js' 'windScaleHint' names the real tops instead; it answers null
+// otherwise, and the row shows hintByValue.
 function windScaleCopy(pickerKey, unit, hints) {
-    var lineWhen = lineContextWhen(pickerKey, function (key) {
-        return {key: key, in: ['wind', 'gust']};
-    });
     return {
         type: 'segmented',
         messageKey: 'windScale',
@@ -190,15 +167,15 @@ function windScaleCopy(pickerKey, unit, hints) {
         hintByValue: hints,
         hintFrom: {resolver: 'windScaleHint'},
         options: [['Low', 'low'], ['Mid', 'mid'], ['High', 'high']],
-        showWhen: {all: lineWhen.concat([{key: 'windUnits', eq: unit}])}
+        showWhen: {all: [lineRowWhen(pickerKey, {metrics: ['wind', 'gust']}), {key: 'windUnits', eq: unit}]}
     };
 }
 /**
  * One metric's Visible values [All | Alert] row (internally the Show row: line-alert.js)
- * under one line-context: shown while that picker shows the metric (the line-context
- * cascade, so a stored repeat on a later picker shows it once), on a watch with Alert
- * settings (ON_DEMAND_WHEN: aplite has none, and its lines always draw All,
- * line-alert.js alertsDrawn). The wind speed, wind gust and UV index lines have one
+ * under one picker: shown while that picker's line draws the metric (lineRowWhen, so a
+ * stored repeat on a later picker shows it once), on a watch with Alert settings
+ * (ON_DEMAND_WHEN: aplite has none, and its lines always draw All, line-alert.js
+ * alertsDrawn). The wind speed, wind gust and UV index lines have one
  * each (line-alert.js METRIC_IDS, the graph metrics with Alert levels), stored per
  * metric, so the row follows its metric from picker to picker. Each value has its own
  * hint (blocks.js 'lineShowHint'); Alert's names the warn level it gaps below and, on
@@ -208,9 +185,6 @@ function windScaleCopy(pickerKey, unit, hints) {
  * @returns {Object} Schema item.
  */
 function lineShowCopy(pickerKey, metric) {
-    var when = [ON_DEMAND_WHEN].concat(lineContextWhen(pickerKey, function (key) {
-        return {key: key, eq: metric};
-    }));
     return {
         type: 'segmented',
         messageKey: LINE_ALERT.settingKey(metric),
@@ -219,49 +193,23 @@ function lineShowCopy(pickerKey, metric) {
         joinPrevious: true,
         hintFrom: {resolver: 'lineShowHint', args: {metric: metric}},
         options: [['All', LINE_ALERT.SHOW_ALL], ['Alert', LINE_ALERT.SHOW_ALERT]],
-        showWhen: {all: when}
+        showWhen: {all: [ON_DEMAND_WHEN, lineRowWhen(pickerKey, {metrics: [metric]})]}
     };
 }
 /**
- * "This picker's line draws one of these metrics", as line-style.js effectiveLineMetric
- * reads it: the picker's stored pick is one of `metrics` and no earlier picker stores
- * that same pick (the watch never draws a stored repeat). A plain {in: metrics} is
- * enough for a cascade whose matcher asks nothing else, since an earlier picker storing
- * the metric already hides the row there; the Draw from matcher also asks "not a
- * stripe", which lets the row pass an earlier stripe, so it must not land on a repeat.
- * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
- * @param {string[]} metrics Graph metric ids.
- * @returns {Object} showWhen predicate.
- */
-function drawnMetricWhen(pickerKey, metrics) {
-    var earlier = LINE_CONTEXTS.slice(0, lineContextIndex(pickerKey));
-    if (!earlier.length) { return {key: pickerKey, in: metrics}; }
-    return {any: metrics.map(function (metric) {
-        return {all: [{key: pickerKey, eq: metric}].concat(earlier.map(function (context) {
-            return {key: context.key, ne: metric};
-        }))};
-    })};
-}
-/**
- * One Draw from [Bottom | Top] row (draw-from.js ROWS entry) under one line-context:
- * shown on a watch with line styles (LINE_STYLES_WHEN, the WW_LINE_STYLE mirror: aplite
- * never hangs a line), under the FIRST picker whose line the wire would hang from the
- * key (draw-from.js lineFromTop): it draws one of the row's metrics (drawnMetricWhen,
- * so never a stored repeat) as a line or marks. The matcher includes "not a stripe", so
- * when the first wind/gust picker is a stripe the row moves to the next one that is a
- * line (a stripe keeps its own Top/Bottom). Stored per metric (wind and gusts share one
- * key), so the row follows its metric from picker to picker; a stored Top on a stripe
- * or an undrawn line lies dormant (lineFromTop) and the row hides. Only Top has a hint
- * (blocks.js 'lineFromHint').
+ * One Draw from [Bottom | Top] row (draw-from.js ROWS entry) under one picker: shown under
+ * the FIRST line that hangs from the key (draw-from.js rowLine, the wire's own reading):
+ * one that draws one of the row's metrics (never a stored repeat) as a line or marks, on
+ * a watch with line styles (aplite never hangs a line). When the first wind/gust line is
+ * a stripe the row moves to the next one that is a line (a stripe keeps its own
+ * Top/Bottom). Stored per metric (wind and gusts share one key), so the row follows its
+ * metric from picker to picker; a stored Top on a stripe or an undrawn line lies dormant
+ * (lineFromTop) and the row hides. Only Top has a hint (blocks.js 'lineFromHint').
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {string} rowKey precipLineFrom|cloudLineFrom|windLineFrom|uvLineFrom.
  * @returns {Object} Schema item.
  */
 function lineFromCopy(pickerKey, rowKey) {
-    var metrics = DRAW_FROM.rowOf(rowKey).metrics;
-    var when = [LINE_STYLES_WHEN].concat(lineContextWhen(pickerKey, function (key) {
-        return {all: [drawnMetricWhen(key, metrics), {key: key + 'Style', nin: STRIPE_STYLES}]};
-    }));
     return {
         type: 'segmented',
         messageKey: rowKey,
@@ -270,7 +218,7 @@ function lineFromCopy(pickerKey, rowKey) {
         joinPrevious: true,
         hintFrom: {resolver: 'lineFromHint', args: {key: rowKey}},
         options: [['Bottom', DRAW_FROM.BOTTOM], ['Top', DRAW_FROM.TOP]],
-        showWhen: {all: when}
+        showWhen: lineRowWhen(pickerKey, {from: rowKey})
     };
 }
 /**
@@ -2035,15 +1983,13 @@ var PRESSURE_SCALE_HINTS = {
     high: pressureHint('high', 'keeps storm-depth swings in the detailed range.')
 };
 /**
- * One pressureScale control for a line-context. Unlike windScaleCopy this needs no
- * per-unit duplication — pressure ships hPa only, so one copy per context is enough.
+ * One pressureScale control under one picker, shown while that picker's line draws
+ * pressure (lineRowWhen). Unlike windScaleCopy this needs no per-unit duplication —
+ * pressure ships hPa only, so one copy per picker is enough.
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @returns {Object} Schema item.
  */
 function pressureScaleCopy(pickerKey) {
-    var when = lineContextWhen(pickerKey, function (key) {
-        return {key: key, eq: 'pressure'};
-    });
     return {
         type: 'segmented',
         messageKey: 'pressureScale',
@@ -2055,7 +2001,7 @@ function pressureScaleCopy(pickerKey) {
         // pressure graph reads as *low pressure*, not *narrow band*. The stored
         // values stay low|mid|high so the code vocabulary matches windScale.
         options: [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']],
-        showWhen: when.length === 1 ? when[0] : {all: when}
+        showWhen: lineRowWhen(pickerKey, {metrics: ['pressure']})
     };
 }
 // Color swatches (5 intensity bands) — shown only in the Multicolor hint.

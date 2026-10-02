@@ -127,6 +127,29 @@ test('linesSharing counts the drawn lines, not stripes, a key moves', () => {
   assert.equal(drawFrom.linesSharing(S, 'windLineFrom', APLITE), 0, 'aplite hangs nothing');
 });
 
+test('rowLine: the first line that hangs from a key, where the settings page puts its row', () => {
+  const S = { secondaryLine: 'wind', thirdLine: 'gust', fourthLine: 'uv', fifthLine: 'cloud' };
+  assert.equal(drawFrom.rowLine(S, 'windLineFrom', BASALT), 'secondaryLine', 'wind and gusts: the first of the two');
+  assert.equal(drawFrom.rowLine(S, 'uvLineFrom', BASALT), 'fourthLine');
+  assert.equal(drawFrom.rowLine(S, 'cloudLineFrom', BASALT), 'fifthLine');
+  assert.equal(drawFrom.rowLine(S, 'precipLineFrom', BASALT), null, 'no line reads it');
+  assert.equal(drawFrom.rowLine(S, 'rainBarFrom', BASALT), null, 'a bar key has no line');
+  // A stripe keeps its own Top/Bottom: the row moves on to the next line that hangs.
+  assert.equal(drawFrom.rowLine(Object.assign({}, S, { secondaryLineStyle: 'stripeTop' }), 'windLineFrom', BASALT),
+    'thirdLine');
+  // A stored repeat is not drawn, so it never hosts the row, even after an earlier stripe.
+  const repeat = { secondaryLine: 'cloud', secondaryLineStyle: 'stripeBottom', thirdLine: 'cloud', fourthLine: 'off' };
+  assert.equal(drawFrom.rowLine(repeat, 'cloudLineFrom', BASALT), null);
+  // Metrics without a key never host one; aplite hangs nothing.
+  assert.equal(drawFrom.rowLine({ secondaryLine: 'pressure', thirdLine: 'feels' }, 'precipLineFrom', BASALT), null);
+  assert.equal(drawFrom.rowLine(S, 'windLineFrom', APLITE), null);
+  assert.equal(drawFrom.rowLine(S, 'windLineFrom', platform.computeEnv({ platform: 'aplite' })), null, 'the page env too');
+  // Where the row is, the wire hangs that line once the key reads Top, and no earlier one.
+  const top = Object.assign({ fifthLineStyle: 'dots', cloudLineFrom: 'top' }, S);
+  assert.equal(drawFrom.lineFromTop(top, 'fifthLine', BASALT), true);
+  ['secondaryLine', 'thirdLine', 'fourthLine'].forEach((k) => assert.equal(drawFrom.lineFromTop(top, k, BASALT), false, k));
+});
+
 test('the bars hang per chart, whatever barSource and radarMode say', () => {
   assert.equal(drawFrom.barsFromTop({}, 'rain', BASALT), false);
   assert.equal(drawFrom.barsFromTop({ rainBarFrom: 'top' }, 'rain', BASALT), true);

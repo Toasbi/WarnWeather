@@ -140,6 +140,23 @@ test('the Draw from module is bundled after line-style.js and before its readers
     'nothing registers the Draw from row\'s hint in the generated page');
 });
 
+// when-resolvers.js answers the schema's { when } leaves. It binds window.LineStyle and
+// window.DrawFrom while its own body runs, so it follows both. Out of the page, nothing
+// throws: an unregistered leaf reads false, so every row that asks it would silently never
+// show on a real phone while every Node test passes through blocks.js' require().
+test('the when resolvers are bundled after the modules they ask', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  ['pkjs/line-style.js', 'pkjs/draw-from.js'].forEach((dep) =>
+    assert.ok(idx(dep) < idx('settings/when-resolvers.js'), dep + ' must precede when-resolvers.js'));
+  assert.ok(page().indexOf("PConf.whenResolvers.register('lineRow'") !== -1,
+    'nothing registers the lineRow when resolver in the generated page');
+});
+
 // stripe-levels.js (window.StripeLevels) is the table the bake shades every stripe by;
 // preview-forecast.js, preview-radar.js and blocks.js bind it while their own bodies run
 // (blocks.js writes its stripe hints from it at load). Out of the page, or after them,

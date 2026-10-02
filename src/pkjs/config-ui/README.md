@@ -32,6 +32,7 @@ each consuming app supplies its schema, custom blocks, and hooks.
    - [Display-resolver registry — PConf.displayResolvers](#display-resolver-registry--pconfdisplayresolvers)
    - [Hint-resolver registry — PConf.hintResolvers](#hint-resolver-registry--pconfhintresolvers)
    - [Attention-resolver registry — PConf.attentionResolvers](#attention-resolver-registry--pconfattentionresolvers)
+   - [When-resolver registry — PConf.whenResolvers](#when-resolver-registry--pconfwhenresolvers)
    - [Action registry — PConf.actions](#action-registry--pconfactions)
    - [Hook registry — PConf.hooks](#hook-registry--pconfhooks)
 6. [Build step — buildPage](#build-step--buildpage)
@@ -439,6 +440,7 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 { key: "statusTopOnDemandRightItems", has: "rain" }  // the comma list holds the code
 { env: "color",  eq: true }                   // environment fact with operator
 { env: "color" }                              // environment fact — truthy shorthand
+{ when: "lineRow", args: { picker: "thirdLine", metrics: ["uv"] } }  // a named resolver's answer
 
 // Compound forms
 { all: [ <pred>, <pred>, … ] }               // AND
@@ -449,6 +451,8 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 
 Operators supported on `key` and `env`: `eq`, `ne`, `in`, `nin`, `has`, and bare truthy (no operator key).
 `has` treats the value as a comma list (an absent value is the empty list).
+A `when` leaf asks a [when resolver](#when-resolver-registry--pconfwhenresolvers) by name; an
+unregistered name reads false.
 
 `capabilities: ["COLOR"]` is Clay-compatible sugar internally translated to
 `{ env: "color", eq: true }` ANDed with any existing `showWhen`.
@@ -704,6 +708,26 @@ It never stands between the user and a save: with nothing to fix, an attention w
 (`showModal` missing), Save saves at once. Only the Save button asks — `runReady`'s
 `save()` (the setup wizard's finish) saves directly. The dialog's buttons sit side by side
 with a margin, not a flex `gap`, which old Android WebViews do not lay out.
+
+### When-resolver registry — PConf.whenResolvers
+
+A `{ when: id, args }` leaf in a `showWhen`, `disabledWhen` or `optionDisabledWhen` predicate
+asks a named resolver whether it holds, for a rule the app already answers in one of its own
+modules: the schema asks that module instead of rebuilding the rule as a tree of `key` leaves
+that tests then have to keep equal to it. WarnWeather's Forecast tab rows ask which picker's
+line draws their metric.
+
+```js
+// fn(state, env, args): a truthy answer holds. `state` is the evaluation context, the
+// settings with `env` on it; args is the leaf's args ({} when it has none).
+PConf.whenResolvers.register('lineRow', function (state, env, args) {
+  return hostLine(state, env, args) === args.picker;
+});
+```
+
+The page re-renders its whole body after every change, so the leaf follows every key the
+resolver reads with no dependency list, as a hint resolver does. An unregistered id reads
+false, as an `env` fact the host never supplied does.
 
 ### Action registry — PConf.actions
 
