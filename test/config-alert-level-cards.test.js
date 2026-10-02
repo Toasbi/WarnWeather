@@ -1,6 +1,6 @@
 'use strict';
 // test/config-alert-level-cards.test.js — each weather alert's cards on its default
-// levels (schema.js ALERT_LEVEL_CARDS, after the levels slider in the alert<Stem> sheet).
+// levels (settings/alerts-schema.js ALERT_LEVEL_CARDS, after the levels slider in the alert<Stem> sheet).
 // The cards write the seed numbers out next to the published levels they sit on, so
 // nothing derives them: this holds every card to its unit's or scale's seed pair
 // (status-thresholds.js seedPair), and its gate to the contract's scaleVariant, so that

@@ -1300,7 +1300,7 @@ test('the group header owns the title and the reset action', () => {
   assert.equal(headerFor('Steps').text, 'Goals');
 });
 
-// Each sheet builder picks its voice record (schema.js GOAL_VOICE / ALERT_VOICE), so
+// Each sheet builder picks its voice record (level-rows-schema.js GOAL_VOICE / ALERT_VOICE), so
 // nothing ties the page's words to the contract but this: the kinds the watch packs
 // as goals (isGoalKind: green defaults, an outline look) are the kinds worded as goals,
 // and the rest are the alert kinds.

@@ -2397,7 +2397,7 @@ test('the Alert settings card: gated to a watch with On demand, its intro, reset
   assert.ok(!it.some((r) => r.messageKey), 'no control on the card: every row reads or opens a sheet');
 });
 
-// schema.js keeps its own presentation list of the metric alerts (labels, icons, sheet
+// alerts-schema.js keeps its own presentation list of the metric alerts (labels, icons, sheet
 // copy — they really do differ per kind), but which alerts exist and their order are
 // the contract's (status-thresholds.js ALERT_KINDS): the card's rows and the tab's
 // alert sheets follow it, stem for stem.

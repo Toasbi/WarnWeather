@@ -170,7 +170,7 @@ function nextDayMarkOptions() {
 // (capability + bw theme).
 // The group has ONE home per kind: the goal kinds' slot pencil sheet
 // (schema.js goalSlotSheet, below the slot's Bold row), and for the five alert kinds the
-// alert sheet the Alert settings card opens (alertSheet, the Alerts tab) — their slot
+// alert sheet the Alert settings card opens (alerts-schema.js alertSheet, the Alerts tab) — their slot
 // sheets carry a pointer there instead (schema.js alertSlotSheet's alertLevelsNote), so every key
 // renders in exactly one place.
 // It is built in two halves: levelLead (the header, the slider, the cards and the hidden
@@ -187,7 +187,7 @@ function nextDayMarkOptions() {
  *     none).
  * @param {?Object} gate Extra showWhen for the whole group, or null.
  * @param {Array<{text: string, showWhen: (Object|undefined)}>} [why] An alert group's
- *     cards on its default levels (ALERT_LEVEL_CARDS), one per unit or scale; absent
+ *     cards on its default levels (alerts-schema.js ALERT_LEVEL_CARDS), one per unit or scale; absent
  *     for a goal group.
  * @returns {Object[]} Those items, in order.
  */

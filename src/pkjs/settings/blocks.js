@@ -696,7 +696,7 @@ if (typeof require !== 'undefined') {
      * @param {Object} env Platform env.
      * @param {{keyStem: string, chips: ({warn: string, danger: string}|undefined)}} args
      *     Kind key stem, e.g. 'Steps', and the chips' words from the group's voice
-     *     (schema.js GOAL_VOICE / ALERT_VOICE); without them the slider says Warn /
+     *     (level-rows-schema.js GOAL_VOICE / ALERT_VOICE); without them the slider says Warn /
      *     Danger (range-control.js).
      * @returns {Object} Config the engine merges over the schema item.
      */
@@ -793,7 +793,7 @@ if (typeof require !== 'undefined') {
     });
 
     // The warn look's hint (thresh<K>WarnLook's hintFrom), for the SELECTED look,
-    // from the group voice's look copy the row passes as `copy` (schema.js
+    // from the group voice's look copy the row passes as `copy` (level-rows-schema.js
     // GOAL_VOICE / ALERT_VOICE `look`):
     //  - a B&W watch or B&W day theme: its `bw` set — the box is drawn in the text
     //    colour, the pickers are hidden, and a fill is the danger (reached-goal) fill;
@@ -811,7 +811,7 @@ if (typeof require !== 'undefined') {
         if (!copy) { return null; }
         var value = args.value;
         var st = S || {};
-        // By DAY: the case the colour pickers are hidden for (schema.js
+        // By DAY: the case the colour pickers are hidden for (schema-gates.js
         // COLOR_THEME_WHEN) and every highlight is drawn in the text colour.
         if (!resolveInk.drawsColor(env, st.theme)) {
             var bwText = copy.bw && copy.bw[value];
@@ -1045,7 +1045,7 @@ if (typeof require !== 'undefined') {
     });
 
     // Reset-to-defaults for the whole status-bar card (the inline text button closing the
-    // Status slots tab's intro — schema.js introAction): every slot of every bar back to its
+    // Status slots tab's intro — schema-gates.js introAction): every slot of every bar back to its
     // platform-aware default (the same statusSlotDefault seed a fresh install gets,
     // hrDefaults flavor included), and every other covered key back to ITS SCHEMA
     // DEFAULT, resolved through the engine — no value is mirrored here, because
@@ -1140,7 +1140,7 @@ if (typeof require !== 'undefined') {
     }
 
     // Reset-to-defaults for the Alert settings card (the inline text button closing its intro
-    // on the Alerts tab — schema.js ON_DEMAND_INTRO): the items' own settings back to their
+    // on the Alerts tab — alerts-schema.js ON_DEMAND_INTRO): the items' own settings back to their
     // schema defaults, via the engine's resolver like resetStatusSlots above — the Battery
     // item's warn level and Look, the Bluetooth item's Show and vibration, the rain alert's
     // window and look, each metric alert's Look, Days and tomorrow mark (the contract's
@@ -1338,7 +1338,7 @@ if (typeof require !== 'undefined') {
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {{keyStem: string, days: Array<Array<string>>}} args The row's kind key
-     *     stem, e.g. 'Wind', and the Days options (schema.js ALERT_DAYS_OPTIONS).
+     *     stem, e.g. 'Wind', and the Days options (alerts-schema.js ALERT_DAYS_OPTIONS).
      * @returns {?string} The hint, or null where the levels do not exist (aplite,
      *     a stem with no metric alert) — the engine then falls back to the static hint.
      */
@@ -1392,7 +1392,7 @@ if (typeof require !== 'undefined') {
      * @param {Object} S Live settings state.
      * @param {Object} env Platform env.
      * @param {{windows: Array<Array<string>>, looks: Array<Array<string>>}} args The
-     *     sheet's option lists (schema.js RAIN_WINDOW_OPTIONS, RAIN_LOOK_OPTIONS).
+     *     sheet's option lists (alerts-schema.js RAIN_WINDOW_OPTIONS, RAIN_LOOK_OPTIONS).
      * @returns {string} The hint.
      */
     function rainAlertHint(S, env, args) {
@@ -1423,7 +1423,7 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The rows of an item's Shows on grid (schema.js showsOnRows; a checklist): one per
+     * The rows of an item's Shows on grid (alerts-schema.js showsOnRows; a checklist): one per
      * status bar the watch draws (on-demand.js barExists, the rule the Status slots tab's
      * bar gates RADAR_BAR_WHEN / HEALTH_BAR_WHEN state), in the page's order. Each row
      * names its two side lists in meta.keys (Left, Right), the lists its ticks read and

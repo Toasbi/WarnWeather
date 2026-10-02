@@ -195,7 +195,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * One tap in an item's Shows on grid (schema.js showsOnRows names this writer;
+     * One tap in an item's Shows on grid (alerts-schema.js showsOnRows names this writer;
      * engine.js renderChecklist), stored by on-demand.js, the side lists' writer: a tick
      * places the item on that side of the bar in the priority order and takes it off the
      * bar's other side (tickOn); an untick takes it off that side alone (untickFrom).

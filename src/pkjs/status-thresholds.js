@@ -201,7 +201,7 @@
   // 1.24.0 moved gust warn kph 60 -> 65 and kn 30 -> 35, and wind danger kn 30 -> 35;
   // the pairs the page pinned before then are frozen in migrations/seed-pairs.js.
   // Each weather alert's sheet explains its pair in an info card per unit or scale
-  // (schema.js ALERT_LEVEL_CARDS), which quotes these numbers next to the references
+  // (settings/alerts-schema.js ALERT_LEVEL_CARDS), which quotes these numbers next to the references
   // they sit on; test/config-alert-level-cards.test.js holds the two equal.
   var SEEDS = {
     Uv: {'': {warn: 6, danger: 8}},
@@ -484,7 +484,7 @@
   // (status-wire.js) — goes through alertOn / alertDays / alertNextDayMark or
   // enabledAlerts; all of them rest on alertOn. The order is also the bake's, so
   // the entries' 20-B cap drops Wind speed first. The settings page's
-  // presentation list (schema.js, its labels and sheet copy) is pinned to this
+  // presentation list (settings/alerts-schema.js, its labels and sheet copy) is pinned to this
   // order by a test.
   var ALERT_KINDS = [
     { code: 'gust', key: 'Gust' },
