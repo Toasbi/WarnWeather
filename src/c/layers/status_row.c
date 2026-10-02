@@ -464,7 +464,7 @@ StatusRow *status_row_create(uint8_t line_id) {
     if (!s_arrow_path) {
         s_arrow_path = gpath_create(&ARROW_PATH_INFO);
         if (!s_arrow_path) {
-            APP_LOG(APP_LOG_LEVEL_ERROR, "status_row_create: failed to allocate arrow path");
+            APP_LOG(APP_LOG_LEVEL_ERROR, "No arrow path");
         }
     }
     return row;

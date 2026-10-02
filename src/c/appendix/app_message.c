@@ -43,6 +43,29 @@ typedef struct {
     uint32_t trend_key;     // MESSAGE_KEY_* (values unchanged)
 } SeriesWire;
 
+// Which handler skipped a malformed tuple or an incomplete payload: the first number
+// of warn_bad's log line. The comments name the three numbers that follow it.
+typedef enum {
+    BAD_FORECAST = 1,    // trend, start and count tuples present (1/0)
+    BAD_STATUS_LINE,     // line number (1-4), bytes
+    BAD_STATUS_LEVELS,   // bytes
+    BAD_THRESHOLDS,      // bytes
+    BAD_ALERT_ENTRIES,   // bytes
+    BAD_RADAR,           // exact, area and start tuples present (1/0)
+    BAD_RADAR_SHORT,     // exact bytes, area bytes
+    BAD_RADAR_SKY,       // bytes
+    BAD_CURVE_INSETS,    // bytes
+    BAD_LINE_STYLE,      // bytes
+    BAD_NIGHT_LIGHT,     // bytes
+} BadTuple;
+
+// One log call and one format string for every skip below. noinline: aplite has only
+// three callers and would inline it back into each (48 B more there).
+static __attribute__((noinline)) void warn_bad(BadTuple what, unsigned a, unsigned b,
+                                               unsigned c) {
+    APP_LOG(APP_LOG_LEVEL_WARNING, "Bad tuple %u: %u %u %u", (unsigned) what, a, b, c);
+}
+
 static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) {
     Tuple *temp_trend_tuple = dict_find(iterator, MESSAGE_KEY_TEMP_TREND_UINT8);
     Tuple *forecast_start_tuple = dict_find(iterator, MESSAGE_KEY_FORECAST_START);
@@ -55,11 +78,8 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
 
     if (!(temp_trend_tuple && forecast_start_tuple && num_entries_tuple)) {
         if (temp_trend_tuple || forecast_start_tuple || num_entries_tuple) {
-            APP_LOG(APP_LOG_LEVEL_WARNING,
-                    "Forecast payload incomplete (temp=%d start=%d entries=%d) — skipping",
-                    temp_trend_tuple != NULL,
-                    forecast_start_tuple != NULL,
-                    num_entries_tuple != NULL);
+            warn_bad(BAD_FORECAST, temp_trend_tuple != NULL,
+                     forecast_start_tuple != NULL, num_entries_tuple != NULL);
         }
         return false;
     }
@@ -151,9 +171,7 @@ static bool handle_status_lines(DictionaryIterator *iterator, bool *status_dirty
         if (tuple->type != TUPLE_BYTE_ARRAY ||
             !status_line_validate(tuple->value->data, tuple->length)) {
             // Reject atomically; the last good persisted line stays intact.
-            APP_LOG(APP_LOG_LEVEL_WARNING,
-                    "Status line %d invalid (%u bytes) — skipping", i + 1,
-                    (unsigned) tuple->length);
+            warn_bad(BAD_STATUS_LINE, (unsigned) (i + 1), tuple->length, 0);
             continue;
         }
         changed |= persist_set_status_line((uint8_t) i, tuple->value->data,
@@ -170,9 +188,7 @@ static bool handle_status_levels(DictionaryIterator *iterator, bool *status_dirt
     Tuple *tuple = dict_find(iterator, MESSAGE_KEY_STATUS_LEVELS_UINT8);
     if (!tuple) { return false; }
     if (tuple->type != TUPLE_BYTE_ARRAY || tuple->length < 1) {
-        APP_LOG(APP_LOG_LEVEL_WARNING,
-                "Status levels tuple malformed (%u bytes) — skipping",
-                (unsigned) tuple->length);
+        warn_bad(BAD_STATUS_LEVELS, tuple->length, 0, 0);
         return true;
     }
     // 2 LE bytes since UV joined the weather kinds (bits 8-9); a 1-byte value
@@ -191,9 +207,7 @@ static bool handle_thresholds(DictionaryIterator *iterator, bool *status_dirty) 
     if (tuple->type != TUPLE_BYTE_ARRAY ||
         !status_threshold_settings_validate(tuple->value->data, tuple->length)) {
         // Reject atomically; the last good persisted blob stays intact.
-        APP_LOG(APP_LOG_LEVEL_WARNING,
-                "Threshold settings invalid (%u bytes) — skipping",
-                (unsigned) tuple->length);
+        warn_bad(BAD_THRESHOLDS, tuple->length, 0, 0);
         return true;
     }
     *status_dirty |= persist_set_threshold_settings(tuple->value->data,
@@ -213,9 +227,7 @@ static bool handle_alert_entries(DictionaryIterator *iterator, bool *status_dirt
     if (!tuple) { return false; }
     if (tuple->type != TUPLE_BYTE_ARRAY
             || !alert_set_bytes_ok(tuple->value->data, tuple->length)) {
-        APP_LOG(APP_LOG_LEVEL_WARNING,
-                "Alert entries malformed (%u bytes) — skipping",
-                (unsigned) tuple->length);
+        warn_bad(BAD_ALERT_ENTRIES, tuple->length, 0, 0);
         return true;
     }
     *status_dirty |= persist_set_alert_entries(tuple->value->data, tuple->length);
@@ -275,11 +287,8 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
         if (rain_radar_exact_tuple || rain_radar_area_tuple) {
             // Partial radar payload — log and discard so persist never holds half-state.
             // RAIN_RADAR_START alone is too generic an int32 to count as radar-flavoured.
-            APP_LOG(APP_LOG_LEVEL_WARNING,
-                    "Rain-radar payload incomplete (exact=%d area=%d start=%d) — skipping",
-                    rain_radar_exact_tuple != NULL,
-                    rain_radar_area_tuple  != NULL,
-                    rain_radar_start_tuple != NULL);
+            warn_bad(BAD_RADAR, rain_radar_exact_tuple != NULL,
+                     rain_radar_area_tuple != NULL, rain_radar_start_tuple != NULL);
         } else if (!limited_sent) {
             return false;
         }
@@ -293,10 +302,8 @@ static bool handle_rain_radar(DictionaryIterator *iterator, bool *radar_dirty) {
     } else if (rain_radar_exact_tuple->length < 24 || rain_radar_area_tuple->length < 24) {
         // Short arrays (version skew / corrupt payload) — discard rather than
         // overread the inbox and persist the trailing bytes as intensities.
-        APP_LOG(APP_LOG_LEVEL_WARNING,
-                "Rain-radar arrays too short (exact=%u area=%u) — skipping",
-                (unsigned) rain_radar_exact_tuple->length,
-                (unsigned) rain_radar_area_tuple->length);
+        warn_bad(BAD_RADAR_SHORT, rain_radar_exact_tuple->length,
+                 rain_radar_area_tuple->length, 0);
     } else {
         changed |= persist_set_rain_radar_trend(
             (uint8_t*) rain_radar_exact_tuple->value->data, 24);
@@ -330,8 +337,7 @@ static bool handle_radar_sky(DictionaryIterator *iterator, bool *radar_dirty) {
     }
     if (tuple->length > RADAR_SKY_MAX_BYTES
             || radar_sky_count(tuple->value->data, (int) tuple->length) == 0) {
-        APP_LOG(APP_LOG_LEVEL_WARNING, "Radar sky blob malformed (%u bytes) — skipping",
-                (unsigned) tuple->length);
+        warn_bad(BAD_RADAR_SKY, tuple->length, 0, 0);
         return true;
     }
     *radar_dirty |= persist_set_radar_sky(tuple->value->data, tuple->length);
@@ -395,9 +401,7 @@ static bool handle_curve_insets(DictionaryIterator *iterator, bool *forecast_dir
     if (!tuple) { return false; }
     if (tuple->type != TUPLE_BYTE_ARRAY || tuple->length != CURVE_INSET_BYTES) {
         // Reject atomically; the last good persisted tuple stays intact.
-        APP_LOG(APP_LOG_LEVEL_WARNING,
-                "Curve-inset tuple malformed (%u bytes) — skipping",
-                (unsigned) tuple->length);
+        warn_bad(BAD_CURVE_INSETS, tuple->length, 0, 0);
         return true;
     }
     // Defensive clamp to the slider's 0..14 px range so a skewed sender can
@@ -463,9 +467,7 @@ static bool handle_line_style(DictionaryIterator *iterator, bool *forecast_dirty
     if (!tuple) { return false; }
     if (tuple->type != TUPLE_BYTE_ARRAY || tuple->length < LINE_STYLE_BYTES) {
         // Reject atomically; the last good persisted colors stay intact.
-        APP_LOG(APP_LOG_LEVEL_WARNING,
-                "Line-style tuple malformed (%u bytes) — skipping",
-                (unsigned) tuple->length);
+        warn_bad(BAD_LINE_STYLE, tuple->length, 0, 0);
         return true;
     }
     // The phone packs each color as a single GColor8 argb byte (the encoding
@@ -552,9 +554,7 @@ static bool handle_night_light(DictionaryIterator *iterator, bool *night_light_d
         // Reject atomically; the last good persisted tuple stays intact. An hour
         // byte outside 0..23 lands here too: clamping it would invent a window the
         // user never picked, and for this feature the window IS the on/off state.
-        APP_LOG(APP_LOG_LEVEL_WARNING,
-                "Night-light tuple malformed (%u bytes) — skipping",
-                (unsigned) tuple->length);
+        warn_bad(BAD_NIGHT_LIGHT, tuple->length, 0, 0);
         return true;
     }
     *night_light_dirty |= persist_set_night_light(tuple->value->data);
@@ -816,7 +816,7 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 #endif
     if (!handled) {
-        APP_LOG(APP_LOG_LEVEL_WARNING, "Bad payload received in app_message.c");
+        APP_LOG(APP_LOG_LEVEL_WARNING, "Bad payload");
     }
 }
 
