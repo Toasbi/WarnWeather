@@ -1620,17 +1620,14 @@ test('the radar picker reads ONE key table for its Edit button, badge, summary, 
   assert.equal(args.outcome, 'the watch gets no rain radar');
   assert.deepEqual(Object.keys(args.keyed), ['rainbowkey', 'tomorrowio'], 'the own key and Tomorrow.io');
   assert.deepEqual(args.keyed.rainbowkey, { name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey',
-    test: true, usage: 'rainbow', evidence: 'radar' });
-  // Tomorrow.io's key is the weather provider's: the same entry (one key, one verdict), only
-  // its own sheet differs, and while Tomorrow.io is the weather provider too the General
-  // tab's sheet holds the key. The radar's own verdicts answer while no weather update says
-  // anything about the key (radarEvidence: the radar runs it alone).
+    test: true, usage: 'rainbow' });
+  // Tomorrow.io's key is the weather provider's: the same entry (one key, one verdict: the
+  // phone keeps both pickers' answers to it under the one id), only its own sheet differs, and
+  // while Tomorrow.io is the weather provider too the General tab's sheet holds the key.
   const weatherTio = byKey('provider').editSheetFrom.args.keyed.tomorrowio;
   assert.deepEqual(args.keyed.tomorrowio, Object.assign({}, weatherTio, { sheetId: 'radarKeyTomorrowio',
-    radarEvidence: 'tomorrowio',
     sharedSheet: { key: 'provider', eq: 'tomorrowio', sheetId: 'providerKeyTomorrowio' } }));
   assert.equal(weatherTio.sheetId, 'providerKeyTomorrowio');
-  assert.equal(weatherTio.evidence, undefined, 'the weather updates\' records, for both pickers');
 
   const section = radarPickerSection();
   const at = section.items.indexOf(item);

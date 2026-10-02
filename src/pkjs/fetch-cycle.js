@@ -34,7 +34,7 @@ var radarSky = require('./weather/radar-sky.js');
 var radarCoverage = require('./weather/radar-coverage.js');
 var WeatherProvider = require('./weather/provider.js');
 var forecastSeries = require('./forecast-series.js');
-var keyFingerprint = require('./key-fingerprint.js');
+var keyResult = require('./key-result.js');
 
 var KEY_FETCH_ATTEMPT = storageKeys.FETCH_ATTEMPT_KEY;
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
@@ -565,12 +565,6 @@ function createFetchCycle(deps) {
             id: provider.id,
             name: provider.name
         };
-        // A keyed provider's records say which key this fetch carried (its fingerprint,
-        // never the key): the settings page reads the last success and the auth backoff
-        // to show that key as working or rejected, and nothing for a key typed since
-        // (settings/key-status.js). A keyless provider's records stay as they were.
-        var keyHash = keyFingerprint.fingerprint(provider.apiKey);
-        if (keyHash) { fetchStatus.keyHash = keyHash; }
         // The IS_SLEEPING value this fetch's payload carries (null until built).
         var sentSleeping = null;
 
@@ -616,6 +610,9 @@ function createFetchCycle(deps) {
             if (!settle()) { return; }
             // Success: record the fetch time and reset the attempt counter.
             localStorage.setItem(KEY_LAST_FETCH_SUCCESS, JSON.stringify(fetchStatus));
+            // A keyed provider served the key this fetch carried: the settings page's key
+            // status (key-result.js; a keyless provider records nothing).
+            keyResult.record(provider.id, provider.apiKey, 200);
             resetFetchAttemptCounter();
             // The payload reached the watch (ACK, or unchanged since the last ACK):
             // only now is its IS_SLEEPING the watch's state.
@@ -648,7 +645,10 @@ function createFetchCycle(deps) {
             // re-fetching a doomed key every cycle until the user forces a retry.
             if (deps.authBackoff.isAuthFailure(failure)) {
                 console.log('[!] Auth failure — pausing auto-fetch until Force fetch or config change.');
-                deps.authBackoff.set(failure, { provider: provider.id, keyHash: keyHash });
+                deps.authBackoff.set(failure);
+                // And the key's verdict, kept apart from the gate: a forced fetch clears
+                // the backoff, never this (key-result.js).
+                keyResult.record(provider.id, provider.apiKey, keyResult.statusOfCode(failure.code));
             }
             // No weather data is available on failure, so whatever the watch still
             // needs rides alone, bundled into ONE send (the channel is half-duplex;

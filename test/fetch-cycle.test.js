@@ -7,8 +7,10 @@
 // outbox and the telemetry sink — except auth-backoff.js and notices.js, which
 // are the real modules over the storage mock. Assertions stay on outcomes: the
 // return values, the four storage records (weather_fetch_attempt,
-// lastFetchSuccess, lastFetchAttempt, lastIsSleeping), the calls the fakes saw
-// and the telemetry event. Never on log text, never on module internals.
+// lastFetchSuccess, lastFetchAttempt, lastIsSleeping), the key's answers
+// (keyResults) and the key status the settings page reads from them, the calls
+// the fakes saw and the telemetry event. Never on log text, never on module
+// internals.
 //
 // Radar observation seam: with radarProvider 'tomorrowio' and a key, the radar
 // leg asks WeatherProvider.request (looked up at call time) for a URL carrying
@@ -701,8 +703,27 @@ test('failure: a provider 401 arms the auth backoff, raises the notice, sends it
     assert.equal(h.cycle.start(true), true, 'a forced one retries');
 });
 
-test('a keyed provider\'s records name the key it sent, by fingerprint — the settings page\'s key status', () => {
-    const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
+// --- the key's answers (key-result.js), for the settings page's key status ------------------
+
+const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
+const keyStatus = require('../src/pkjs/settings/key-status.js');
+const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
+
+/**
+ * The key status the settings page would show for a keyed source, from what the phone
+ * stored: index.js hands the page localStorage's KEY_RESULTS_KEY as userData.keyResults.
+ * @param {string} picker 'provider' or 'radarProvider'.
+ * @param {string} id The picker's value.
+ * @param {Object} S The settings (the key field).
+ * @returns {Object} key-status.js statusOf's answer.
+ */
+function pageStatus(picker, id, S) {
+    global.INJECTED_USERDATA = { keyResults: localStorage.getItem(KEYS.KEY_RESULTS_KEY) };
+    try { return keyStatus.statusOf(KEY_SOURCES[picker].sources[id], id, S); }
+    finally { delete global.INJECTED_USERDATA; }
+}
+
+test('a keyed provider\'s answers are kept by key fingerprint under its id; the update records name no key', () => {
     resetStore();
     const keyed = makeProvider('openweathermap');
     keyed.apiKey = 'OWMSECRET_abcdef';
@@ -710,25 +731,97 @@ test('a keyed provider\'s records name the key it sent, by fingerprint — the s
     assert.equal(h.cycle.start(false), true);
     keyed.fix(52.5, 13.4);
     keyed.fail(AUTH_401);
-    const refused = readJson(KEYS.AUTH_BACKOFF_KEY);
-    assert.equal(refused.provider, 'openweathermap', 'the backoff names the refusing provider');
-    assert.equal(refused.keyHash, fingerprint('OWMSECRET_abcdef'), 'and the key it refused');
-    assert.equal(store[KEYS.AUTH_BACKOFF_KEY].indexOf('OWMSECRET'), -1, 'never the key itself');
+    assert.deepEqual(readJson(KEYS.KEY_RESULTS_KEY), { openweathermap: { keyHash: fingerprint('OWMSECRET_abcdef'), status: 401 } },
+        'the refusal, with the status the failure code carries');
+    assert.deepEqual(Object.keys(readJson(KEYS.AUTH_BACKOFF_KEY)).sort(), ['code', 'since'], 'the gate names no key');
+    assert.deepEqual(readJson(KEYS.LAST_FETCH_ATTEMPT_KEY), recordFor(keyed, T0, AUTH_401), 'nor does the attempt');
 
     assert.equal(h.cycle.start(true), true);
     keyed.fix(52.5, 13.4);
     keyed.succeed();
-    const served = readJson(KEYS.LAST_FETCH_SUCCESS_KEY);
-    assert.deepEqual(served, Object.assign(recordFor(keyed, T0), { keyHash: fingerprint('OWMSECRET_abcdef') }));
+    assert.deepEqual(readJson(KEYS.KEY_RESULTS_KEY), { openweathermap: { keyHash: fingerprint('OWMSECRET_abcdef'), status: 200 } });
+    assert.deepEqual(readJson(KEYS.LAST_FETCH_SUCCESS_KEY), recordFor(keyed, T0), 'the success names no key');
+    Object.keys(store).forEach((k) => assert.equal(store[k].indexOf('OWMSECRET'), -1, k + ' never holds the key'));
     assert.equal(authBackoff.isActive(), false);
 
-    // A keyless provider's records stay as they were (no keyHash).
+    // A non-auth failure (a 429) says nothing about the key here; a keyless provider records nothing.
+    assert.equal(h.cycle.start(false), true);
+    keyed.fix(52.5, 13.4);
+    keyed.fail({ stage: 'provider_data', code: 'owm_status_429' });
+    assert.equal(readJson(KEYS.KEY_RESULTS_KEY).openweathermap.status, 200);
     resetStore();
     const plain = makeHarness();
     assert.equal(plain.cycle.start(false), true);
     plain.provider.fix(52.5, 13.4);
     plain.provider.succeed();
     assert.deepEqual(readJson(KEYS.LAST_FETCH_SUCCESS_KEY), recordFor(plain.provider, T0));
+    assert.equal(store[KEYS.KEY_RESULTS_KEY], undefined);
+});
+
+// The owner-approved fix (thermo-js-2 PHONE-3): the auth backoff is the "stop fetching" gate, and a
+// forced fetch (the Force toggle, a location or key change) clears it. It used to be the key's
+// verdict too, so a forced fetch that then failed for another reason (offline, a timeout, no
+// position fix) erased the refusal, and the page fell back to an older success with the same key:
+// "✓ works" for a key whose last answer was a 401.
+test('a forced fetch that fails for another reason keeps a refused key refused on the settings page', () => {
+    resetStore();
+    const keyed = makeProvider('openweathermap');
+    keyed.apiKey = 'OWM-revoked-1234';
+    const S = { owmApiKey: 'OWM-revoked-1234' };
+    const h = makeHarness({ provider: keyed });
+    h.cycle.start(false);
+    keyed.fix(52.5, 13.4);
+    keyed.succeed();
+    assert.equal(pageStatus('provider', 'openweathermap', S).state, 'ok', 'the key worked');
+    h.cycle.start(false);
+    keyed.fix(52.5, 13.4);
+    keyed.fail(AUTH_401);
+    assert.deepEqual(pageStatus('provider', 'openweathermap', S), { state: 'rejected', tail: '1234', status: 401 },
+        'then it was revoked');
+
+    // Force fetch: the gate opens, and the fetch dies before the provider answers.
+    assert.equal(h.cycle.start(true), true);
+    assert.equal(authBackoff.isActive(), false, 'the forced fetch cleared the gate');
+    keyed.fix(52.5, 13.4);
+    keyed.fail({ stage: 'provider_data', code: 'timeout' });
+    assert.deepEqual(pageStatus('provider', 'openweathermap', S), { state: 'rejected', tail: '1234', status: 401 },
+        'still refused after a timeout');
+    h.cycle.start(true);
+    keyed.noFix({ stage: 'location', code: 'gps_3' });
+    assert.deepEqual(pageStatus('provider', 'openweathermap', S), { state: 'rejected', tail: '1234', status: 401 },
+        'still refused after a forced fetch with no position fix');
+});
+
+// Tomorrow.io's key serves the forecast and the radar: one id, one entry, so the newest answer
+// either of them got is the key's verdict on both rows (the owner's call, thermo-js-2 PHONE-3).
+test('Tomorrow.io as forecast and radar: the newest answer the key got, weather or radar, is its verdict', () => {
+    const KEY = 'TIO-shared-9876';
+    const settings = { fetchIntervalMin: '60', radarMode: 'graph', radarSky: false, radarProvider: 'tomorrowio',
+        tomorrowioApiKey: KEY, provider: 'tomorrowio' };
+    const run = (radarAnswer, weather) => {
+        resetStore();
+        const p = makeProvider('tomorrowio');
+        p.apiKey = KEY;
+        const h = makeHarness({ settings: settings, watchInfo: BASALT, provider: p });
+        h.cycle.start(false);
+        p.fix(52.5, 13.4);
+        assert.equal(radarRequests.length, 1, 'the radar asks with the same key');
+        radarAnswer(radarRequests[0]);
+        weather(p);
+        return ['provider', 'radarProvider'].map((picker) => pageStatus(picker, 'tomorrowio', settings));
+    };
+    // The radar is asked first; a forecast that answers after it has the last word.
+    assert.deepEqual(run((r) => r.onError({ code: 'status_403', detail: 'http_status' }), (p) => p.succeed()),
+        [{ state: 'ok', tail: '9876' }, { state: 'ok', tail: '9876' }], 'radar refused, then the forecast went through');
+    assert.deepEqual(run((r) => r.onSuccess(timelinesBody(radarWire.slotZeroEpochFor(T0), 0)),
+        (p) => p.fail({ stage: 'provider_data', code: 'tomorrowio_status_401' })),
+        [{ state: 'rejected', tail: '9876', status: 401 }, { state: 'rejected', tail: '9876', status: 401 }],
+        'radar served, then the forecast was refused');
+    // A forecast that says nothing about the key leaves the radar's answer standing, on both rows.
+    assert.deepEqual(run((r) => r.onError({ code: 'status_403', detail: 'http_status' }),
+        (p) => p.fail({ stage: 'provider_data', code: 'timeout' })),
+        [{ state: 'rejected', tail: '9876', status: 403 }, { state: 'rejected', tail: '9876', status: 403 }],
+        'radar refused, the forecast timed out');
 });
 
 test('failure: on a radar-capable watch the 401 notice and this cycle\'s radar CLEAR share one send', () => {

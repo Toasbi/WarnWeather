@@ -30,15 +30,19 @@ var APP_FILES = [
   // interval-budget.js reads both; blocks.js reads all three at load — keep this order.
   path.join(ROOT, 'src/pkjs/settings/rainbow-budget.js'),
   path.join(ROOT, 'src/pkjs/settings/interval-budget.js'),
-  // The key status under a keyed provider (settings/key-status.js) and the key fingerprint
-  // it compares (window.KeyFingerprint, read while key-status.js's own body runs, so it
-  // comes first). blocks.js registers tomorrow.io's usage line into PConf.keyStatus while
-  // ITS body runs, so both precede it; key-test.js reads PConf.keyStatus only when a test
-  // answers. Every Node test takes the require() branch, so neither a dropped file (no
-  // Edit button, summary line, missing-key note, tab dot or Save dialog — or, without the
-  // fingerprint, a throw at the first keyed provider's render) nor a wrong order shows
-  // there: test/config-page-bundle.test.js pins both into the generated page.
+  // The key status under a keyed provider (settings/key-status.js), the key fingerprint
+  // it compares (window.KeyFingerprint) and the reader of the phone's answers to each key
+  // (window.KeyResult, key-result.js: what a status says about a key, and the
+  // userData.keyResults record), both read while key-status.js's own body runs, so they
+  // come first. blocks.js registers tomorrow.io's usage line into PConf.keyStatus while
+  // ITS body runs, so all three precede it; key-test.js reads PConf.keyStatus only when a
+  // test answers. Every Node test takes the require() branch, so neither a dropped file
+  // (no Edit button, summary line, missing-key note, tab dot or Save dialog — or, without
+  // the fingerprint or the key results, a throw at the first keyed provider's render) nor
+  // a wrong order shows there: test/config-page-bundle.test.js pins all three into the
+  // generated page.
   path.join(ROOT, 'src/pkjs/key-fingerprint.js'),
+  path.join(ROOT, 'src/pkjs/key-result.js'),
   path.join(ROOT, 'src/pkjs/settings/key-status.js'),
   // The regional radar sources' areas (window.RadarCoverage): blocks.js's note under the
   // Radar provider row reads it when it renders, after the missing-key note above.

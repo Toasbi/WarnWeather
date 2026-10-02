@@ -3,9 +3,9 @@
 // provider row ("Key ••••1234 · ✓ works"), the "Add key" button and amber note while the key
 // is missing, the dot on the tab and the Save dialog while it is missing or known to be
 // rejected. The states come from the Test button's last result for that exact key and from
-// the phone's records of the last weather update (userData.lastFetchSuccess /
-// userData.authBackoff, each stamped with the key's fingerprint). Module first, then the
-// resolvers, then the REAL generated page (page-harness).
+// the provider's last answer to it on the phone (userData.keyResults, key-result.js: per
+// source, the key's fingerprint and the status). Module first, then the resolvers, then the
+// REAL generated page (page-harness).
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -28,6 +28,17 @@ const ARGS = providerRow.attentionFrom.args;
 const KEYED = ARGS.keyed;
 const OWM_KEY = 'owm-secret-0123abcd';
 const TIO_KEY = 'tio-secret-9876wxyz';
+
+/**
+ * The phone's answers to the keys as it stores them (key-result.js), by source id.
+ * @param {Object<string, Array>} entries id -> [the key the request carried, the status].
+ * @returns {string} The stored JSON (userData.keyResults).
+ */
+function results(entries) {
+  const map = {};
+  Object.keys(entries).forEach((id) => { map[id] = { keyHash: fingerprint(entries[id][0]), status: entries[id][1] }; });
+  return JSON.stringify(map);
+}
 
 /**
  * The row resolvers' args the engine builds (messageKey + shown value merged under the row's).
@@ -131,50 +142,47 @@ test('a refusal\'s short reason: the provider\'s own, else the default', () => {
   assert.equal(line('tomorrowio', S), 'Key ••••wxyz · ✗ rejected: no access to this data (403)');
 });
 
-test('the last weather update: a refusal or a success with THIS key and provider counts', () => {
+test('the provider\'s last answer on the phone: a refusal or a success for THIS key counts', () => {
   const S = { owmApiKey: OWM_KEY };
-  const hash = fingerprint(OWM_KEY);
-  global.INJECTED_USERDATA = {
-    authBackoff: JSON.stringify({ code: 'owm_status_401', since: 1, provider: 'openweathermap', keyHash: hash })
-  };
+  global.INJECTED_USERDATA = { keyResults: results({ openweathermap: [OWM_KEY, 401] }) };
   assert.equal(line('openweathermap', S), 'Key ••••abcd · ✗ rejected: not valid for One Call 3.0 (401)');
   assert.equal(line('openweathermap', { owmApiKey: 'another-key-0000' }), 'Key ••••0000 · not tested yet',
     'a key typed since is not the one refused');
-  global.INJECTED_USERDATA = {
-    authBackoff: JSON.stringify({ code: 'owm_status_401', since: 1, provider: 'yandex', keyHash: hash })
-  };
-  assert.equal(keyStatus.statusOf(KEYED.openweathermap, 'openweathermap', S).state, 'untested', 'another provider');
-  global.INJECTED_USERDATA = { authBackoff: JSON.stringify({ code: 'owm_status_401', since: 1 }) };
+  global.INJECTED_USERDATA = { keyResults: results({ yandex: [OWM_KEY, 401] }) };
   assert.equal(keyStatus.statusOf(KEYED.openweathermap, 'openweathermap', S).state, 'untested',
-    'a record from before the fingerprint names no key');
-  global.INJECTED_USERDATA = { authBackoff: '{oops' };
+    'another provider\'s answer, even to the same key');
+  global.INJECTED_USERDATA = { keyResults: '{oops' };
   assert.equal(keyStatus.statusOf(KEYED.openweathermap, 'openweathermap', S).state, 'untested', 'unreadable');
 
-  global.INJECTED_USERDATA = {
-    lastFetchSuccess: JSON.stringify({ time: 'x', id: 'openweathermap', name: 'OpenWeatherMap', keyHash: hash })
-  };
+  global.INJECTED_USERDATA = { keyResults: results({ openweathermap: [OWM_KEY, 200] }) };
   assert.equal(line('openweathermap', S), 'Key ••••abcd · ✓ works');
-  global.INJECTED_USERDATA = { lastFetchSuccess: JSON.stringify({ time: 'x', id: 'openweathermap', name: 'OWM' }) };
+  // The update records name no key, so they say nothing about one.
+  global.INJECTED_USERDATA = {
+    lastFetchSuccess: JSON.stringify({ time: 'x', id: 'openweathermap', name: 'OWM', keyHash: fingerprint(OWM_KEY) }),
+    authBackoff: JSON.stringify({ code: 'owm_status_401', since: 1, provider: 'openweathermap', keyHash: fingerprint(OWM_KEY) })
+  };
   assert.equal(keyStatus.statusOf(KEYED.openweathermap, 'openweathermap', S).state, 'untested');
 
-  // A success clears the backoff on the phone, so a backoff on record is the newer one;
-  // a test on this page is newer still.
-  global.INJECTED_USERDATA = {
-    lastFetchSuccess: JSON.stringify({ id: 'openweathermap', keyHash: hash }),
-    authBackoff: JSON.stringify({ code: 'owm_status_403', provider: 'openweathermap', keyHash: hash })
-  };
+  // The phone keeps the newest answer; a test on this page is newer still.
+  global.INJECTED_USERDATA = { keyResults: results({ openweathermap: [OWM_KEY, 403] }) };
   assert.equal(line('openweathermap', S), 'Key ••••abcd · ✗ rejected: no access (403)');
   keyStatus.recordTest('owmApiKey', OWM_KEY, 200);
   assert.equal(line('openweathermap', S), 'Key ••••abcd · ✓ works');
 });
 
+test('each provider keeps its own last answer: switching to another and back still reads it', () => {
+  // One entry per source (key-result.js): a newer answer from Tomorrow.io leaves
+  // OpenWeatherMap's standing.
+  global.INJECTED_USERDATA = { keyResults: results({ openweathermap: [OWM_KEY, 200], tomorrowio: [TIO_KEY, 401] }) };
+  assert.equal(keyStatus.statusOf(KEYED.openweathermap, 'openweathermap', { owmApiKey: OWM_KEY }).state, 'ok');
+  assert.equal(keyStatus.statusOf(KEYED.tomorrowio, 'tomorrowio', { tomorrowioApiKey: TIO_KEY }).state, 'rejected');
+});
+
 test('Yandex: no Test, so only the last update says something about its key', () => {
   const S = { yandexApiKey: 'ydx-5555' };
-  global.INJECTED_USERDATA = {
-    authBackoff: JSON.stringify({ code: 'yandex_status_403', provider: 'yandex', keyHash: fingerprint('ydx-5555') })
-  };
+  global.INJECTED_USERDATA = { keyResults: results({ yandex: ['ydx-5555', 403] }) };
   assert.equal(line('yandex', S), 'Key ••••5555 · ✗ rejected: no access (403)');
-  global.INJECTED_USERDATA = { lastFetchSuccess: JSON.stringify({ id: 'yandex', keyHash: fingerprint('ydx-5555') }) };
+  global.INJECTED_USERDATA = { keyResults: results({ yandex: ['ydx-5555', 200] }) };
   assert.equal(line('yandex', S), 'Key ••••5555 · ✓ works');
 });
 
@@ -322,9 +330,7 @@ test('page: "Save anyway" saves as Save does; the close button saves nothing', a
 });
 
 test('page: a key the last update was refused with — the summary, the dot and the "rejected" dialog', async () => {
-  const userData = {
-    authBackoff: JSON.stringify({ code: 'owm_status_401', since: 1, provider: 'openweathermap', keyHash: fingerprint(OWM_KEY) })
-  };
+  const userData = { keyResults: results({ openweathermap: [OWM_KEY, 401] }) };
   const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: OWM_KEY }, 'basalt', { userData, dialog: true });
   assert.ok(page.scroll.innerHTML.indexOf('<br>Key ••••abcd · ✗ rejected: not valid for One Call 3.0 (401)</div>') !== -1);
   assert.match(page.scroll.innerHTML, /class="thr-btn" data-edit-sheet="providerKeyOwm"[^>]*\(API key rejected\)[^>]*><span>Edit<\/span>/);
@@ -348,8 +354,7 @@ test('page: a key the last update was refused with — the summary, the dot and 
 });
 
 test('page: a key the last update went through with reads "✓ works"', () => {
-  const userData = { lastFetchSuccess: JSON.stringify({ time: '2026-10-01T10:00:00Z', id: 'tomorrowio',
-    name: 'Tomorrow.io', keyHash: fingerprint(TIO_KEY) }) };
+  const userData = { keyResults: results({ tomorrowio: [TIO_KEY, 200] }) };
   const page = bootGeneratedPage({ provider: 'tomorrowio', tomorrowioApiKey: TIO_KEY, radarProvider: 'rainbow',
     fetchIntervalMin: '15', sleepNightEnabled: false }, 'basalt', { userData });
   assert.ok(page.scroll.innerHTML.indexOf('Key ••••wxyz · ✓ works · ~96 of 500 calls a day') !== -1);

@@ -1,9 +1,7 @@
 var radarWire = require('./radar-wire.js');
 var radarFetch = require('./radar-fetch.js');
-// The radar's verdicts on the key, for the settings page's key status under the Radar
-// provider row while Tomorrow.io runs as the radar alone (no weather update carries the
-// key then).
-var radarKeyResult = require('./radar-key-result.js');
+// The radar's source id, which names its answers to the key (radar-fetch.js
+// opts.keyResult): the Tomorrow.io weather provider's too, so the key has one verdict.
 var RADAR_ID = 'tomorrowio';
 var NUM_BARS = radarWire.NUM_BARS;         // shared wire invariant (24 frames)
 var SLOT_SECONDS = radarWire.SLOT_SECONDS; // shared wire invariant (300 s/slot)
@@ -85,10 +83,8 @@ function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
     radarFetch.fetchRadarJson({
         url: buildNowcastUrl(apiKey, lat, lon, slotZeroEpoch),
         label: 'Tomorrow.io',
+        keyResult: { id: RADAR_ID, apiKey: apiKey },
         onTransportError: function (error, cb) {
-            // A 401/403 (refused) or 429 (known, over its allowance) is the key's verdict;
-            // record() leaves any other status alone.
-            radarKeyResult.record(RADAR_ID, apiKey, radarKeyResult.statusOfError(error));
             if (radarFetch.isRateLimited(error)) {
                 console.log('[!] Tomorrow.io radar: request limit reached (' + error.code + ')');
                 cb(radarWire.limitedRadarTuples());
@@ -100,8 +96,6 @@ function fetchRadarTuplesAt(apiKey, lat, lon, slotZeroEpoch, callback) {
             return true;
         }
     }, function (body) {
-        // Tomorrow.io served this key (2xx with a JSON body), whatever the body holds.
-        if (body && typeof body === 'object') { radarKeyResult.record(RADAR_ID, apiKey, 200); }
         var timelines = body && body.data && body.data.timelines;
         var intervals = (Array.isArray(timelines) && timelines[0] && Array.isArray(timelines[0].intervals))
             ? timelines[0].intervals : [];

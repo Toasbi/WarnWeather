@@ -7,9 +7,12 @@
 // key/endpoint, a place outside the coverage box) stay in the source files —
 // this module is strictly transport-level. It also owns the two
 // transport-level verdicts the limited sources share: isKeyRejection (401/403)
-// and isRateLimited (429).
+// and isRateLimited (429). A keyed source names itself and its key
+// (opts.keyResult), and the transport records each answer as that key's verdict
+// for the settings page (key-result.js).
 
 var WeatherProvider = require('./provider.js');
+var keyResult = require('../key-result.js');
 var radarWire = require('./radar-wire.js');
 var wireUnits = require('../wire-units.js');
 var clampByte = wireUnits.clampByte;
@@ -43,6 +46,10 @@ var zeroFilledArray = wireUnits.zeroFilledArray;
  *   {Object} [opts.headers] Request headers.
  *   {function(Object, Function): boolean} [opts.onTransportError] Receives
  *     (error, callback); return true to claim the error.
+ *   {{id: string, apiKey: string}} [opts.keyResult] A keyed source's id and the
+ *     key the request carries: the answer is recorded as that key's verdict
+ *     (key-result.js) — 200 for a body that parses to an object, before
+ *     interpret runs; a failed request's status, before onTransportError runs.
  * @param {function(Object): ?Object} interpret Parsed body -> radar tuples,
  *   or null for a transient miss (it may log its own reasons).
  * @param {Function} callback Receives the tuples object or null.
@@ -59,6 +66,10 @@ function fetchRadarJson(opts, interpret, callback) {
             callback(null);
             return;
         }
+        // The source served this key (2xx with a JSON body), whatever the body holds.
+        if (opts.keyResult && body && typeof body === 'object') {
+            keyResult.record(opts.keyResult.id, opts.keyResult.apiKey, 200);
+        }
         // Radar is best-effort: an interpret throw preserves the watch's radar
         // like any other bad response, rather than stranding the fetch chain.
         var tuples;
@@ -71,6 +82,11 @@ function fetchRadarJson(opts, interpret, callback) {
         }
         callback(tuples);
     }, function (error) {
+        // A 401/403 (refused) or 429 (known, over its allowance) is the key's verdict;
+        // record() leaves any other status alone.
+        if (opts.keyResult) {
+            keyResult.record(opts.keyResult.id, opts.keyResult.apiKey, keyResult.statusOfCode(error && error.code));
+        }
         if (opts.onTransportError && opts.onTransportError(error, callback)) { return; }
         console.log('[!] ' + opts.label + ' radar fetch failed: ' + JSON.stringify(error));
         callback(null);

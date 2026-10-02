@@ -24,20 +24,14 @@
 //                  ("invalid key", "no access") says less.
 //   usage?         A usage line the summary appends, by name (blocks.js registers
 //                  tomorrow.io's projected calls and Rainbow's monthly projection).
-//   updateId?      The provider id the phone's update records name, when it is not the
-//                  picker's value (no source sets one today).
-//   evidence?      'radar': the key never rides a weather update, so its update evidence
-//                  is the last radar update's verdict (userData.radarKeyResult,
-//                  weather/radar-key-result.js) instead of the weather update records.
-//   radarEvidence? A radar source whose key is a weather provider's too: it reads that
-//                  provider's update records, and the verdict of this radar source
-//                  (recorded by tomorrowio-radar.js) answers when no weather update says
-//                  anything about the key (the radar runs it alone).
+//   updateId?      The source id the phone's answers to the key are kept under
+//                  (key-result.js), when it is not the picker's value (no source sets one
+//                  today).
 //   sharedSheet?   {key, eq, sheetId}: while settings[key] === eq the other picker picks
 //                  the source too, its own sheet is gated off, and the key lives in
 //                  sheetId, which the Edit button and the Save dialog then open.
 // A key two pickers share (the Tomorrow.io key) is one key with one verdict: both sources
-// name the same keyField and read the same evidence, so they show one state.
+// name the same keyField and the same source id, so they show one state.
 //
 // Plain CommonJS, like schema.js: the schema is built in PKJS and reaches the page as data,
 // these tables inside the rows' resolver args.
@@ -54,18 +48,19 @@ var PROVIDER_SOURCES = {
 
 // The radar sources that need the user's own key, by their `radarProvider` value.
 // "Rainbow (own key)": its key never rides a weather update, so its status comes from the
-// Test button and the last radar update's verdict; its usage line is the monthly
-// projection. Tomorrow.io: its key is the Tomorrow.io weather provider's, so its entry IS
-// that provider's (name, key field, Test, reasons, the daily usage line and the weather
-// updates' evidence) with only the sheet changed, plus the radar's own verdicts. Radar-only,
-// the key lives in the Radar tab's own Tomorrow.io sheet; while Tomorrow.io is the weather
-// provider too, the General tab's sheet holds it (sharedSheet), so the Radar row's Edit
-// button and Save dialog open that one, and its summary and tab dot read the Weather
-// provider row's state.
+// Test button and the radar's answers to it (kept under 'rainbowkey'); its usage line is
+// the monthly projection. Tomorrow.io: its key is the Tomorrow.io weather provider's, so
+// its entry IS that provider's (name, key field, Test, reasons, the daily usage line)
+// with only the sheet changed; the weather updates and the radar requests keep their
+// answers under the one id 'tomorrowio', so the newest of them is the key's verdict on
+// both rows. Radar-only, the key lives in the Radar tab's own Tomorrow.io sheet; while
+// Tomorrow.io is the weather provider too, the General tab's sheet holds it (sharedSheet),
+// so the Radar row's Edit button and Save dialog open that one, and its summary and tab
+// dot read the Weather provider row's state.
 var RADAR_SOURCES = {
     rainbowkey: {name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey', test: true,
-        usage: 'rainbow', evidence: 'radar'},
-    tomorrowio: Object.assign({}, PROVIDER_SOURCES.tomorrowio, {sheetId: 'radarKeyTomorrowio', radarEvidence: 'tomorrowio',
+        usage: 'rainbow'},
+    tomorrowio: Object.assign({}, PROVIDER_SOURCES.tomorrowio, {sheetId: 'radarKeyTomorrowio',
         sharedSheet: {key: 'provider', eq: 'tomorrowio', sheetId: PROVIDER_SOURCES.tomorrowio.sheetId}})
 };
 

@@ -123,11 +123,14 @@ module.exports = {
     // cycles of that slot re-serve its answer. Persisted so a PKJS relaunch doesn't reset
     // it; a reset's localStorage.clear() drops it (the next fetch then requests).
     RADAR_REQUEST_THROTTLE_KEY: 'radarRequestThrottle',
-    // The last radar update's verdict on the user's own radar key ({id, keyHash, status}:
-    // the radar source, the key's fingerprint — never the key — and the HTTP status that
-    // answered it; weather/radar-key-result.js). The settings page reads it as
-    // userData.radarKeyResult for the key status under the Radar provider row.
-    RADAR_KEY_RESULT_KEY: 'radarKeyResult',
+    // The last answer each keyed source gave the user's own API key ({<id>: {keyHash,
+    // status}}: the key's fingerprint — never the key — and the HTTP status that answered
+    // it, per weather provider or radar source; key-result.js). The settings page reads it
+    // as userData.keyResults for the key status under the Weather and Radar provider rows.
+    // Replaced, never released: dev builds of 1.24.0 kept the radar's verdict alone under
+    // 'radarKeyResult' ({id, keyHash, status}); nothing reads that string any more, and it
+    // is not reused.
+    KEY_RESULTS_KEY: 'keyResults',
     // The weather provider's run of server failures ({id, n}: the provider id and how
     // many updates in a row it answered with a 5xx, a timeout or no connection;
     // fetch-cycle.js). Its notice waits for the second one, so a one-off outage stays

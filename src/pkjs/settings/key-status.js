@@ -6,34 +6,28 @@
 //
 // A picker row describes its keyed sources in ONE table, handed to every resolver below
 // as args.keyed — by the picker's value: {name, sheetId, keyField, test, reasons?,
-// usage?, updateId?, evidence?, radarEvidence?, sharedSheet?}. The tables and what each
-// field means live in settings/key-sources.js, one per picker. A key two pickers share
-// (the Tomorrow.io key: the weather provider's and the radar's) is one key with one
-// verdict: both sources name the same keyField and evidence, so they read one state. The
-// row's other args: `picker`, the picker's messageKey (row resolvers get it as their own
-// messageKey too), and `outcome`, what goes missing without a working key ("the watch
-// gets no forecast").
+// usage?, updateId?, sharedSheet?}. The tables and what each field means live in
+// settings/key-sources.js, one per picker. A key two pickers share (the Tomorrow.io key:
+// the weather provider's and the radar's) is one key with one verdict: both sources name
+// the same keyField and the same source id, so they read one state. The row's other
+// args: `picker`, the picker's messageKey (row resolvers get it as their own messageKey
+// too), and `outcome`, what goes missing without a working key ("the watch gets no
+// forecast").
 //
 // The states of the picked source's key:
 //   missing   — the key field is blank (once trimmed, as onbuild.js stores it);
 //   ok        — this exact key answered the Test button (2xx, or 429: known but over
-//               its allowance), or the last weather update went through with it;
-//   rejected  — this exact key got a 401/403 from the Test button, or the last weather
-//               update was refused with it (the auth backoff, auth-backoff.js);
+//               its allowance), or the source's last answer to it on the phone did;
+//   rejected  — this exact key got a 401/403 from the Test button, or the source's last
+//               answer to it on the phone was one;
 //   untested  — anything else: a key the page knows nothing about yet.
 // "This exact key" is its fingerprint (key-fingerprint.js): the Test result is kept per
-// key field with the fingerprint of the key it tested, and the phone stamps the
-// fingerprint of the key it sent on the last success (userData.lastFetchSuccess) and on
-// the auth backoff (userData.authBackoff). A key edited since — even one character —
-// matches none of them and reads as untested until it is tested or used.
-// A radar source's key (`evidence: 'radar'`) is never sent with a weather update, so the
-// update records above say nothing about it: its evidence is the last radar update's
-// verdict instead (userData.radarKeyResult, weather/radar-key-result.js — the source id,
-// the key's fingerprint and the HTTP status that answered it, ok or rejected by
-// classify below). A radar source whose key is a weather provider's too (Tomorrow.io)
-// sets no `evidence`: it reads that provider's update records, so the two agree, and
-// names its radar source as `radarEvidence`, whose radar verdict answers when no weather
-// update says anything about the key (the radar runs it alone).
+// key field with the fingerprint of the key it tested, and the phone keeps each source's
+// last answer with the fingerprint of the key it sent (userData.keyResults, key-result.js:
+// weather updates and radar requests alike, by the source id — the picker's value, or
+// the source's updateId). A key edited since — even one character — matches neither and
+// reads as untested until it is tested or used. What a status says about a key is
+// key-result.js's classify, for the Test button and the phone's answers alike.
 //
 // What the page shows from it:
 //   keySheet         (sheetResolvers)     the Edit button: the sheet holding the picked
@@ -47,13 +41,17 @@
 //   keyAttention     (attentionResolvers) missing or rejected: the tab's dot and the Save
 //                                         dialog ("<Name> has no API key", Add key /
 //                                         Save anyway).
-// Test results live for this page open only; the update evidence comes from the phone.
+// Test results live for this page open only; the phone's answers come with each open.
 (function () {
     var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         : (typeof window !== 'undefined' && window.PConf) ? window.PConf
         : null;
     var keyFingerprint = (typeof require !== 'undefined')
         ? require('../key-fingerprint.js') : window.KeyFingerprint;
+    // The phone's answers to each key, and what a status says about a key (window.KeyResult
+    // in the page, concatenated ahead of this file).
+    var keyResult = (typeof require !== 'undefined')
+        ? require('../key-result.js') : window.KeyResult;
     // The page's one escape helper (config-ui/lib/html.js, concatenated ahead of every app
     // file): the key's last characters are user input, and hints print as raw HTML.
     var esc = (typeof require !== 'undefined')
@@ -72,30 +70,16 @@
     var usageLines = {};
 
     /**
-     * The verdict a key test's HTTP status gives about the KEY: 'ok' when the provider
-     * served it (2xx) or knows it but is rate-limiting it (429), 'rejected' for a
-     * 401/403, null for anything that says nothing about the key (no answer, a timeout,
-     * a server error, an unexpected status).
-     * @param {number} status The status the test read (key-test.js).
-     * @returns {?string} 'ok', 'rejected' or null.
-     */
-    function classify(status) {
-        if ((status >= 200 && status < 300) || status === 429) { return 'ok'; }
-        if (status === 401 || status === 403) { return 'rejected'; }
-        return null;
-    }
-
-    /**
      * Remember a finished key test (key-test.js calls this for the test whose verdict it
      * shows): a conclusive one replaces the field's last result; one that says nothing
-     * about the key (classify null) leaves it as it was.
+     * about the key (key-result.js classify null) leaves it as it was.
      * @param {string} keyField The key's messageKey.
      * @param {string} key The key as tested.
      * @param {number} status The status the test read.
      * @returns {void}
      */
     function recordTest(keyField, key, status) {
-        var state = classify(status);
+        var state = keyResult.classify(status);
         var hash = keyFingerprint.fingerprint(key);
         if (!state || !hash) { return; }
         tests[keyField] = { hash: hash, state: state, status: status };
@@ -118,21 +102,6 @@
      */
     function registerUsage(name, fn) {
         usageLines[name] = fn;
-    }
-
-    /**
-     * A JSON record the phone injected as a string (userData), or null.
-     * @param {*} raw The stored string.
-     * @returns {?Object} The record, or null when absent or unreadable.
-     */
-    function parseRecord(raw) {
-        if (typeof raw !== 'string' || !raw) { return null; }
-        try {
-            var r = JSON.parse(raw);
-            return (r && typeof r === 'object') ? r : null;
-        } catch (e) {
-            return null;
-        }
     }
 
     /**
@@ -183,9 +152,11 @@
     }
 
     /**
-     * The status of a source's key in the live settings.
-     * @param {Object} source The source ({keyField, updateId?, evidence?, radarEvidence?}).
-     * @param {string} id The picker value that picks it (the phone's provider id, unless
+     * The status of a source's key in the live settings: this page open's Test answer for
+     * this exact key, else the source's last answer to it on the phone
+     * (userData.keyResults), else untested.
+     * @param {Object} source The source ({keyField, updateId?}).
+     * @param {string} id The picker value that picks it (the phone's source id, unless
      *   the source names another as updateId).
      * @param {Object} S Live settings state.
      * @returns {{state: string, tail: (string|undefined), status: (number|undefined)}}
@@ -200,47 +171,10 @@
         var tail = key.slice(-4);
         var t = tests[source.keyField];
         if (t && t.hash === hash) { return { state: t.state, tail: tail, status: t.status }; }
-        var ud = userData();
-        var updateId = source.updateId || id;
-        if (source.evidence === 'radar') {
-            return radarVerdict(ud, updateId, hash, tail) || { state: 'untested', tail: tail };
-        }
-        // A success clears the backoff (fetch-cycle.js), so a backoff on record is the
-        // newer of the two.
-        var refused = parseRecord(ud.authBackoff);
-        if (refused && refused.keyHash === hash && refused.provider === updateId) {
-            var m = /status_(\d+)$/.exec(String(refused.code || ''));
-            return { state: 'rejected', tail: tail, status: m ? parseInt(m[1], 10) : undefined };
-        }
-        var served = parseRecord(ud.lastFetchSuccess);
-        if (served && served.keyHash === hash && served.id === updateId) {
-            return { state: 'ok', tail: tail };
-        }
-        // A key the radar uses too (Tomorrow.io): with no weather update to go by (the radar
-        // runs it alone), the last radar update's verdict on it.
-        if (source.radarEvidence) {
-            return radarVerdict(ud, source.radarEvidence, hash, tail) || { state: 'untested', tail: tail };
-        }
-        return { state: 'untested', tail: tail };
-    }
-
-    /**
-     * The last radar update's verdict on a key (userData.radarKeyResult: one record, the
-     * newest radar source's), when it is about this source and this exact key.
-     * @param {Object} ud The phone's userData.
-     * @param {string} radarId The radar source id the record must name.
-     * @param {string} hash The key's fingerprint.
-     * @param {string} tail The key's last four characters.
-     * @returns {?{state: string, tail: string, status: (number|undefined)}} The status, or
-     *   null when the record says nothing about this key.
-     */
-    function radarVerdict(ud, radarId, hash, tail) {
-        var radar = parseRecord(ud.radarKeyResult);
-        var verdict = (radar && radar.id === radarId && radar.keyHash === hash)
-            ? classify(radar.status) : null;
-        if (!verdict) { return null; }
-        return verdict === 'rejected' ? { state: verdict, tail: tail, status: radar.status }
-            : { state: verdict, tail: tail };
+        var v = keyResult.verdictOf(userData().keyResults, source.updateId || id, hash);
+        if (!v) { return { state: 'untested', tail: tail }; }
+        return v.state === 'rejected' ? { state: v.state, tail: tail, status: v.status }
+            : { state: v.state, tail: tail };
     }
 
     /**
@@ -378,7 +312,6 @@
     }
 
     var api = {
-        classify: classify,
         recordTest: recordTest,
         resetTests: resetTests,
         registerUsage: registerUsage,

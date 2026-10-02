@@ -79,8 +79,7 @@ var UPDATE_CHECK_STORES = [
 var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_NOTICES = storageKeys.NOTICES_KEY;
-var KEY_AUTH_BACKOFF = storageKeys.AUTH_BACKOFF_KEY;
-var KEY_RADAR_KEY_RESULT = storageKeys.RADAR_KEY_RESULT_KEY;
+var KEY_KEY_RESULTS = storageKeys.KEY_RESULTS_KEY;
 var KEY_RADAR_COVERAGE = storageKeys.RADAR_COVERAGE_KEY;
 var KEY_GEOCODE_CACHE = storageKeys.GEOCODE_CACHE_KEY;
 var KEY_GEOCODE_BACKOFF = storageKeys.GEOCODE_BACKOFF_KEY;
@@ -188,15 +187,11 @@ Pebble.addEventListener('showConfiguration', function(e) {
         // it from today: the page shows it without a request (weather-tab-cache.js).
         weatherTabCache: weatherTabCache.forPage(values, graphsSeed, nowMs),
         notices: localStorage.getItem(KEY_NOTICES),
-        // The auth backoff's record (auth-backoff.js) — which provider refused which
-        // key, by fingerprint — as stored, or null: the key status under a keyed
-        // provider marks that key as rejected (settings/key-status.js). lastFetchSuccess
-        // above carries the fingerprint of the key the last good update used.
-        authBackoff: localStorage.getItem(KEY_AUTH_BACKOFF),
-        // The last radar update's verdict on the user's own radar key (radar-key-result.js:
-        // the source, the key's fingerprint and the status), as stored, or null: the key
-        // status under the Radar provider row's "Rainbow (own key)" reads it.
-        radarKeyResult: localStorage.getItem(KEY_RADAR_KEY_RESULT),
+        // The last answer each keyed source gave the user's own key (key-result.js: per
+        // weather provider or radar source, the key's fingerprint and the status), as
+        // stored, or null: the key status under the Weather and Radar provider rows
+        // (settings/key-status.js) reads it.
+        keyResults: localStorage.getItem(KEY_KEY_RESULTS),
         // Which regional radar sources can see the last update's location
         // (radar-coverage.js: {dwd, metno}, true = outside, plus DWD's run of 404s; never
         // the position), or null: the amber note under the Radar provider row while the

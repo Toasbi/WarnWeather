@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 // Mock the shared XHR BEFORE requiring the module under test (it captures
 // WeatherProvider.request at load time — same pattern as rainbow-radar.test.js).
-// A localStorage mock for the key verdicts (radar-key-result.js reads it at call time).
+// A localStorage mock for the key's answers (key-result.js reads it at call time).
 var store = {};
 global.localStorage = {
   getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
@@ -118,11 +118,11 @@ test('a 401/403 key rejection clears the watch radar', () => {
   });
 });
 
-test('the radar records its verdicts on the key (fingerprint only), for the Radar row\'s key status', () => {
+test('the radar records its answers to the key (fingerprint only) under the id the weather provider shares', () => {
   const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
   const KEYS = require('../src/pkjs/storage-keys.js');
-  const verdict = () => JSON.parse(store[KEYS.RADAR_KEY_RESULT_KEY]);
-  const expect = (status) => ({ id: 'tomorrowio', keyHash: fingerprint('KEY123'), status });
+  const verdict = () => JSON.parse(store[KEYS.KEY_RESULTS_KEY]).tomorrowio;
+  const expect = (status) => ({ keyHash: fingerprint('KEY123'), status });
   for (const k in store) { delete store[k]; }
   responder = (url, type, onSuccess) => onSuccess(JSON.stringify(body([0])));
   fetchTuples(() => {});
@@ -137,5 +137,5 @@ test('the radar records its verdicts on the key (fingerprint only), for the Rada
     fetchTuples(() => {});
     assert.deepEqual(verdict(), expect(429), err.code + ' says nothing about the key: the last verdict stands');
   });
-  assert.equal(store[KEYS.RADAR_KEY_RESULT_KEY].indexOf('KEY123'), -1, 'never the key itself');
+  assert.equal(store[KEYS.KEY_RESULTS_KEY].indexOf('KEY123'), -1, 'never the key itself');
 });

@@ -251,11 +251,12 @@ test('the stripe scales are bundled before the previews and the forecast hints t
 });
 
 // The key status under a keyed weather provider: key-status.js reads window.KeyFingerprint
-// while its own body runs, and blocks.js registers tomorrow.io's usage line into
-// PConf.keyStatus while ITS body runs. Out of the page, the Edit button, its summary line,
-// the missing-key note, the tab's dot and the Save dialog all quietly vanish on a real
-// phone while every Node test passes through require().
-test('the key status and its fingerprint are bundled before blocks.js and the key tests', () => {
+// and window.KeyResult (the phone's answers to each key) while its own body runs, and
+// blocks.js registers tomorrow.io's usage line into PConf.keyStatus while ITS body runs. Out
+// of the page, the Edit button, its summary line, the missing-key note, the tab's dot and the
+// Save dialog all quietly vanish on a real phone while every Node test passes through
+// require().
+test('the key status, its fingerprint and the key results are bundled before blocks.js and the key tests', () => {
   const appFiles = require('../scripts/build-config-page.js').APP_FILES;
   const idx = (suffix) => {
     const at = appFiles.findIndex((f) => f.endsWith(suffix));
@@ -264,12 +265,14 @@ test('the key status and its fingerprint are bundled before blocks.js and the ke
   };
   assert.ok(idx('pkjs/key-fingerprint.js') < idx('settings/key-status.js'),
     'key-fingerprint.js must precede key-status.js');
+  assert.ok(idx('pkjs/key-result.js') < idx('settings/key-status.js'),
+    'key-result.js must precede key-status.js');
   assert.ok(idx('settings/key-status.js') < idx('settings/blocks.js'),
     'key-status.js must precede blocks.js');
   assert.ok(idx('settings/key-status.js') < idx('settings/key-test.js'),
     'key-status.js must precede key-test.js');
   const src = page();
-  ['window.KeyFingerprint = api', "PConf.attentionResolvers.register('keyAttention'",
+  ['window.KeyFingerprint = api', 'window.KeyResult = api', "PConf.attentionResolvers.register('keyAttention'",
     "PConf.badgeResolvers.register('keyBadge'", "PConf.hintResolvers.register('keyMissingNote'",
     "keyStatus.registerUsage('tomorrowio'"].forEach((s) =>
     assert.ok(src.indexOf(s) !== -1, 'the generated page lacks ' + s));

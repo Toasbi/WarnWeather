@@ -3,10 +3,10 @@
 // key" button beside the dropdown, the summary line ("Key ••••1234 · ✓ works · ~2,976 of 5,000
 // calls a month"), the amber note while the key is missing, the dot on the Radar tab and the Save
 // dialog while it is missing or known to be rejected. Its key never rides a weather update, so
-// the evidence is the Test button's answer and the last radar update's verdict
-// (userData.radarKeyResult, weather/radar-key-result.js) — never the weather records. Module
-// first, then the REAL generated page (page-harness). Radar-only Tomorrow.io gets the same, its
-// key shared with the Tomorrow.io weather provider (the section at the end).
+// the evidence is the Test button's answer and the radar's last answer to the key
+// (userData.keyResults under 'rainbowkey', key-result.js). Module first, then the REAL
+// generated page (page-harness). Radar-only Tomorrow.io gets the same, its key shared with the
+// Tomorrow.io weather provider (the section at the end).
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -32,14 +32,16 @@ const STORED_OWN = { provider: 'openmeteo', radarProvider: 'rainbow', rainbowOwn
   fetchIntervalMin: '15', sleepNightEnabled: false };
 
 /**
- * A radar verdict record as the phone stores it (radar-key-result.js).
+ * The phone's answers as it stores them (key-result.js) with one source's answer to a key.
  * @param {string} key The key the request carried.
  * @param {number} status The status that answered it.
- * @param {string} [id] The radar source.
- * @returns {string} The stored JSON.
+ * @param {string} [id] The source ('rainbowkey' unless named).
+ * @returns {string} The stored JSON (userData.keyResults).
  */
 function radarRecord(key, status, id) {
-  return JSON.stringify({ id: id || 'rainbowkey', keyHash: fingerprint(key), status });
+  const map = {};
+  map[id || 'rainbowkey'] = { keyHash: fingerprint(key), status };
+  return JSON.stringify(map);
 }
 
 /**
@@ -89,9 +91,9 @@ test('missing, then untested: a key the page knows nothing about', () => {
   assert.deepEqual(stateOf(Object.assign({ rainbowApiKey: RBW_KEY }, OWN)), { state: 'untested', tail: 'wxyz' });
 });
 
-test('the last radar update\'s verdict on THIS key counts: 2xx and 429 work, 401/403 are refused', () => {
+test('the radar\'s last answer to THIS key counts: 2xx and 429 work, 401/403 are refused', () => {
   const S = Object.assign({ rainbowApiKey: RBW_KEY }, OWN);
-  const at = (record) => { global.INJECTED_USERDATA = { radarKeyResult: record }; return stateOf(S); };
+  const at = (record) => { global.INJECTED_USERDATA = { keyResults: record }; return stateOf(S); };
   assert.deepEqual(at(radarRecord(RBW_KEY, 200)), { state: 'ok', tail: 'wxyz' });
   assert.deepEqual(at(radarRecord(RBW_KEY, 429)), { state: 'ok', tail: 'wxyz' }, 'known, over its allowance');
   assert.deepEqual(at(radarRecord(RBW_KEY, 401)), { state: 'rejected', tail: 'wxyz', status: 401 });
@@ -103,17 +105,18 @@ test('the last radar update\'s verdict on THIS key counts: 2xx and 429 work, 401
   assert.equal(at(null).state, 'untested', 'no record');
 });
 
-test('the weather update\'s records never speak for the radar key', () => {
+test('only the own key\'s source speaks for it: no other source\'s answer, and no update record', () => {
   const hash = fingerprint(RBW_KEY);
   global.INJECTED_USERDATA = {
+    keyResults: JSON.stringify({ rainbow: { keyHash: hash, status: 401 }, openweathermap: { keyHash: hash, status: 401 } }),
     authBackoff: JSON.stringify({ code: 'status_401', since: 1, provider: 'rainbowkey', keyHash: hash }),
     lastFetchSuccess: JSON.stringify({ id: 'rainbowkey', keyHash: hash })
   };
   assert.equal(stateOf(Object.assign({ rainbowApiKey: RBW_KEY }, OWN)).state, 'untested');
 });
 
-test('a Test answer this page open wins over the record, for the key it tested', () => {
-  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(RBW_KEY, 401) };
+test('a Test answer this page open wins over the phone\'s answer, for the key it tested', () => {
+  global.INJECTED_USERDATA = { keyResults: radarRecord(RBW_KEY, 401) };
   keyStatus.recordTest('rainbowApiKey', RBW_KEY, 200);
   assert.equal(stateOf(Object.assign({ rainbowApiKey: RBW_KEY }, OWN)).state, 'ok');
   assert.equal(stateOf(Object.assign({ rainbowApiKey: 'edited-key' }, OWN)).state, 'untested', 'a key edited since');
@@ -125,9 +128,9 @@ test('a Test answer this page open wins over the record, for the key it tested',
 test('the summary adds the month\'s calls the settings come to, unless the key is refused', () => {
   const S = Object.assign({ rainbowApiKey: RBW_KEY }, OWN);
   assert.equal(keyStatus.summaryLine(SOURCE, stateOf(S), S), 'Key ••••wxyz · not tested yet · ~2,976 of 5,000 calls a month');
-  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(RBW_KEY, 200) };
+  global.INJECTED_USERDATA = { keyResults: radarRecord(RBW_KEY, 200) };
   assert.equal(keyStatus.summaryLine(SOURCE, stateOf(S), S), 'Key ••••wxyz · ✓ works · ~2,976 of 5,000 calls a month');
-  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(RBW_KEY, 401) };
+  global.INJECTED_USERDATA = { keyResults: radarRecord(RBW_KEY, 401) };
   assert.equal(keyStatus.summaryLine(SOURCE, stateOf(S), S), 'Key ••••wxyz · ✗ rejected: invalid key (401)');
 });
 
@@ -219,8 +222,8 @@ test('page: "Save anyway" saves the own key without a key, as before', async () 
   assert.equal(blob.rainbowApiKey, '');
 });
 
-test('page: a key the last radar update was refused with — the summary, the dot and the "rejected" dialog', () => {
-  const userData = { radarKeyResult: radarRecord(RBW_KEY, 403) };
+test('page: a key the radar was last refused with — the summary, the dot and the "rejected" dialog', () => {
+  const userData = { keyResults: radarRecord(RBW_KEY, 403) };
   const page = bootGeneratedPage(Object.assign({ rainbowApiKey: RBW_KEY }, STORED_OWN), 'basalt', { userData, dialog: true });
   page.clickTab('radar');
   assert.ok(page.scroll.innerHTML.indexOf('<br>Key ••••wxyz · ✗ rejected: no access (403)</div>') !== -1);
@@ -232,8 +235,8 @@ test('page: a key the last radar update was refused with — the summary, the do
   assert.ok(page.modal.innerHTML.indexOf('data-confirm="action">Edit key</button>') !== -1);
 });
 
-test('page: a key the last radar update went through with reads "✓ works" and saves without a dialog', async () => {
-  const userData = { radarKeyResult: radarRecord(RBW_KEY, 200) };
+test('page: a key the radar last went through with reads "✓ works" and saves without a dialog', async () => {
+  const userData = { keyResults: radarRecord(RBW_KEY, 200) };
   const page = bootGeneratedPage(Object.assign({ rainbowApiKey: RBW_KEY }, STORED_OWN), 'basalt', { userData, dialog: true });
   page.clickTab('radar');
   assert.ok(page.scroll.innerHTML.indexOf('Key ••••wxyz · ✓ works · ~2,976 of 5,000 calls a month') !== -1);
@@ -346,17 +349,13 @@ test('Tomorrow.io: radar-only its own sheet; while it is the weather provider to
 });
 
 test('Tomorrow.io: one key, one verdict — the radar row reads exactly the weather provider\'s state', () => {
-  const hash = fingerprint(TIO_KEY);
   const S = Object.assign({ tomorrowioApiKey: TIO_KEY }, TIO_BOTH);
   const cases = [
     ['missing', Object.assign({}, S, { tomorrowioApiKey: '  ' }), null, null, 'missing'],
     ['untested', S, null, null, 'untested'],
-    ['the last weather update went through with it', S,
-      { lastFetchSuccess: JSON.stringify({ id: 'tomorrowio', keyHash: hash }) }, null, 'ok'],
-    ['the last weather update was refused with it', S,
-      { authBackoff: JSON.stringify({ code: 'status_401', since: 1, provider: 'tomorrowio', keyHash: hash }) }, null,
-      'rejected'],
-    ['another provider\'s success', S, { lastFetchSuccess: JSON.stringify({ id: 'openweathermap', keyHash: hash }) },
+    ['its last answer served it', S, { keyResults: radarRecord(TIO_KEY, 200, 'tomorrowio') }, null, 'ok'],
+    ['its last answer refused it', S, { keyResults: radarRecord(TIO_KEY, 401, 'tomorrowio') }, null, 'rejected'],
+    ['another provider\'s answer to the same key', S, { keyResults: radarRecord(TIO_KEY, 200, 'openweathermap') },
       null, 'untested'],
     ['Test: works', S, null, 200, 'ok'],
     ['Test: refused', S, null, 403, 'rejected']
@@ -375,29 +374,29 @@ test('Tomorrow.io: one key, one verdict — the radar row reads exactly the weat
   });
 });
 
-test('Tomorrow.io radar-only: the radar\'s own verdict on the key answers when no weather update says anything', () => {
-  const hash = fingerprint(TIO_KEY);
+// The owner's call (thermo-js-2 PHONE-3): the weather updates and the radar requests keep their
+// answers to the Tomorrow.io key under the one id 'tomorrowio', so the newest answer either got is
+// the key's verdict on BOTH rows. It used to be "the Weather provider row goes by weather updates
+// only": a radar-only refusal left that row "not tested yet", and a weather success outranked a
+// newer radar refusal on the Radar row. The phone side (which answer is the newest) is pinned in
+// test/fetch-cycle.test.js.
+test('Tomorrow.io: the radar\'s answer to the key is its verdict on the Weather provider row too', () => {
   const S = Object.assign({ tomorrowioApiKey: TIO_KEY }, TIO_RADAR_ONLY);
-  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(TIO_KEY, 401, 'tomorrowio') };
+  global.INJECTED_USERDATA = { keyResults: radarRecord(TIO_KEY, 401, 'tomorrowio') };
   assert.deepEqual(keyStatus.statusOf(TIO, 'tomorrowio', S), { state: 'rejected', tail: 'wxyz', status: 401 });
-  assert.equal(keyStatus.statusOf(WEATHER_TIO, 'tomorrowio', S).state, 'untested',
-    'the Weather provider row goes by weather updates only');
-  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(TIO_KEY, 200, 'tomorrowio') };
+  assert.deepEqual(keyStatus.statusOf(WEATHER_TIO, 'tomorrowio', S), { state: 'rejected', tail: 'wxyz', status: 401 },
+    'the Weather provider row reads the same answer: the key was refused');
+  global.INJECTED_USERDATA = { keyResults: radarRecord(TIO_KEY, 200, 'tomorrowio') };
   assert.deepEqual(keyStatus.statusOf(TIO, 'tomorrowio', S), { state: 'ok', tail: 'wxyz' });
-  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(TIO_KEY, 401, 'rainbowkey') };
-  assert.equal(keyStatus.statusOf(TIO, 'tomorrowio', S).state, 'untested', 'another radar source\'s verdict');
-  global.INJECTED_USERDATA = { radarKeyResult: radarRecord('another-key', 401, 'tomorrowio') };
-  assert.equal(keyStatus.statusOf(TIO, 'tomorrowio', S).state, 'untested', 'another key\'s verdict');
-  // A weather update that says something wins: then the two rows keep one verdict.
-  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(TIO_KEY, 401, 'tomorrowio'),
-    lastFetchSuccess: JSON.stringify({ id: 'tomorrowio', keyHash: hash }) };
-  const both = Object.assign({}, S, { provider: 'tomorrowio' });
-  assert.equal(keyStatus.statusOf(TIO, 'tomorrowio', both).state, 'ok');
-  assert.deepEqual(keyStatus.statusOf(TIO, 'tomorrowio', both), keyStatus.statusOf(WEATHER_TIO, 'tomorrowio', both));
+  assert.deepEqual(keyStatus.statusOf(WEATHER_TIO, 'tomorrowio', S), { state: 'ok', tail: 'wxyz' });
+  global.INJECTED_USERDATA = { keyResults: radarRecord(TIO_KEY, 401, 'rainbowkey') };
+  assert.equal(keyStatus.statusOf(TIO, 'tomorrowio', S).state, 'untested', 'another radar source\'s answer');
+  global.INJECTED_USERDATA = { keyResults: radarRecord('another-key', 401, 'tomorrowio') };
+  assert.equal(keyStatus.statusOf(TIO, 'tomorrowio', S).state, 'untested', 'another key\'s answer');
 });
 
-test('page: radar-only Tomorrow.io refused by the last radar update — the summary, the dot and the "rejected" dialog', () => {
-  const userData = { radarKeyResult: radarRecord(TIO_KEY, 403, 'tomorrowio') };
+test('page: radar-only Tomorrow.io refused by the radar — the summary, the dot and the "rejected" dialog', () => {
+  const userData = { keyResults: radarRecord(TIO_KEY, 403, 'tomorrowio') };
   const page = bootGeneratedPage(Object.assign({ tomorrowioApiKey: TIO_KEY }, TIO_RADAR_ONLY), 'basalt',
     { userData, dialog: true });
   page.clickTab('radar');
@@ -543,8 +542,7 @@ test('page: both — Save asks once, for the General tab\'s row, and "Add key" o
 });
 
 test('page: both — a refusal on record reads the same on both rows and dots both tabs', () => {
-  const userData = { authBackoff: JSON.stringify({ code: 'status_403', since: 1, provider: 'tomorrowio',
-    keyHash: fingerprint(TIO_KEY) }) };
+  const userData = { keyResults: radarRecord(TIO_KEY, 403, 'tomorrowio') };
   const page = bootGeneratedPage(Object.assign({ tomorrowioApiKey: TIO_KEY }, TIO_BOTH), 'basalt', { userData });
   const line = 'Key ••••wxyz · ✗ rejected: no access to this data (403)';
   assert.ok(page.scroll.innerHTML.indexOf('<br>' + line + '</div>') !== -1, 'the Weather provider row');
