@@ -170,8 +170,9 @@ bool persist_set_fifth_line_style(uint8_t style);
 // "keep the built-in width". For CHART_LINE_STRIPE its low bit is the edge:
 // 1 = top, 0 = bottom (line_style_stripe_top). Bit 5 (LINE_STYLE_FROM_TOP) of any
 // NON-stripe byte: the line hangs from the plot's top ("Draw from: Top"); the phone
-// never sets it on a stripe byte and the watch ignores it there. Bits 6-7 are
-// reserved (0). The fourth line's FIFTH_LINE_STYLE byte (wire [15]) is the same
+// never sets it on a stripe byte and the watch ignores it there. Bit 6
+// (LINE_STYLE_FLOATING) of a NON-stripe byte: the line anchors no edge of the plot (the
+// phone never sets it on a stripe byte either). Bit 7 is reserved (0). The fourth line's FIFTH_LINE_STYLE byte (wire [15]) is the same
 // layout. Get always fills out[], defaulting to the
 // pre-feature look — solid 1 px, dots, x — when the slot is unset/short.
 #define LINE_STYLE_STYLE_BYTES 3
@@ -199,8 +200,15 @@ static inline int line_style_solid_width(uint8_t b, int fallback) {
     return width > 0 ? width : fallback;
 }
 // Bit 5 of a NON-stripe style byte: the line, its marks and (Main metric) its Area fill
-// hang from the plot's top ("Draw from: Top", draw-from.js LINE_BIT). Bits 6-7 reserved (0).
+// hang from the plot's top ("Draw from: Top", draw-from.js LINE_BIT). Bit 7 reserved (0).
 #define LINE_STYLE_FROM_TOP 0x20
+// Bit 6 of a NON-stripe style byte (draw-from.js FLOAT_BIT): the line floats: its metric has
+// no zero to stand on or hang from (pressure, an absolute curve around mid-plot; feels-like
+// and dew point, on the temperature axis), so it anchors no edge of the plot. An amount
+// metric's line (rain chance, clouds, wind, gusts, UV) leaves it 0: its line, marks or fill
+// anchor the edge it is drawn from (bit 5), and the temperature-axis lines grow their
+// margin there (temp_axis_pad.h). Never set on aplite, which never reads it.
+#define LINE_STYLE_FLOATING 0x40
 // Kind-aware: a stripe's edge is its field's low bit; every other kind's is bit 5 — the
 // field's low bit is a SOLID line's width there (0x04 = 1 px) and must never read as top.
 static inline bool line_style_top_edge(uint8_t b) {

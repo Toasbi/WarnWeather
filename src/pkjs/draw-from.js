@@ -24,15 +24,27 @@
 // function of its key (and the watch), independent of barSource and radarMode: inert
 // while those bars are off, and toggling them never changes the palette bytes.
 //
+// THE ANCHORED EDGES (owner, 2026-10-02). Whatever is drawn from an edge of the forecast
+// graph anchors it: the rain bars (while barSource draws them) and every drawn amount line,
+// its marks or the Main metric's fill (not a stripe, which keeps a band of its own). On an
+// anchored edge the temperature curve and the lines sharing its axis keep a margin of at
+// least a quarter of the plot (src/c/appendix/temp_axis_pad.h); forecastAnchors is that
+// reading for the settings preview. The watch reads the bars' edge off the palette flag
+// below and a line's off its style byte: bit 5 for the edge, and bit 6 (FLOAT_BIT) on a
+// drawn line that anchors nothing, its metric having no zero to stand on (pressure,
+// feels-like, dew point: every metric without a Draw from key).
+//
 // THE WIRE (Clay message only; no new tuple, no new length). A line's flag is bit 5 of
 // its own style byte (CLAY_LINE_STYLE_UINT8 [11], [12], [13], [15]; persist.h
-// LINE_STYLE_FROM_TOP): the encoder's bytes never reach it (kinds 0-3, width 0/1/3 in
-// bits 2-4), and the watch's decode reads only bits 0-4. A chart's bar flag is bit 7 of
+// LINE_STYLE_FROM_TOP), its float bit bit 6 (persist.h LINE_STYLE_FLOATING): the encoder's
+// bytes never reach either (kinds 0-3, width 0/1/3 in bits 2-4), and the watch's decode of
+// the style reads only bits 0-4. A chart's bar flag is bit 7 of
 // byte [1] of its palette blob (BAR_PALETTE_UINT8, RADAR_PALETTE_UINT8): stop 0's
 // threshold, which rain-tier.js always starts at 0, so the watch reads the flag as a
 // negative stop-0 threshold (palette.h palette_from_top) and its renderer clamps that
 // stop to the zero row as it always has. With every key on Bottom (or on aplite, which
-// never gets a bit) both tuples are byte-identical to the build before this setting.
+// never gets a bit) both tuples are byte-identical to the build before this setting, save
+// the float bit on a drawn pressure, feels-like or dew point line.
 //
 // Settings-derived and never baked: forecast-series.js reads none of it, so the keys stay
 // out of render-signature.js and a flip is a Clay-only resend, no weather fetch.
@@ -50,6 +62,8 @@
     var TOP = 'top';
     // persist.h LINE_STYLE_FROM_TOP: bit 5 of a non-stripe line's style byte.
     var LINE_BIT = 0x20;
+    // persist.h LINE_STYLE_FLOATING: bit 6 of a non-stripe line's style byte.
+    var FLOAT_BIT = 0x40;
     // palette.h: bit 7 of a palette blob's byte [1] (stop 0's threshold, its bit 15).
     var PALETTE_BIT = 0x80;
     // A line metric -> its setting key. Wind and gusts share one (see the header).
@@ -154,6 +168,72 @@
     }
 
     /**
+     * The drawn metric of one forecast line, when it is drawn as a line or marks (not a
+     * stripe) on a watch that draws line styles; null otherwise.
+     * @param {Object} settings Clay settings blob.
+     * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
+     * @param {?Object} [caps] Caps or page env (capable).
+     * @returns {?string}
+     */
+    function drawnLineMetric(settings, lineKey, caps) {
+        if (!capable(caps)) { return null; }
+        var metric = lineStyle.effectiveLineMetric(settings, lineKey);
+        return metric !== null && !lineStyle.isStripeStyle(settings || {}, lineKey + 'Style')
+            ? metric : null;
+    }
+
+    /**
+     * The edge of the forecast graph one line anchors (see the header): BOTTOM while a drawn
+     * amount line stands on it, TOP while it hangs; null for a line that anchors none (not
+     * drawn, a stripe, a metric without a zero to stand on, or a watch without line styles).
+     * @param {Object} settings Clay settings blob.
+     * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
+     * @param {?Object} [caps] Caps or page env (capable).
+     * @returns {?string} TOP, BOTTOM or null.
+     */
+    function lineAnchor(settings, lineKey, caps) {
+        var metric = drawnLineMetric(settings, lineKey, caps);
+        if (metric === null || settingKey(metric) === null) { return null; }
+        return metricFromTop(settings, metric, caps) ? TOP : BOTTOM;
+    }
+
+    /**
+     * Whether one forecast line floats, as the wire sends it (FLOAT_BIT): it is drawn as a
+     * line or marks, but its metric has no Draw from key (pressure, feels-like, dew point),
+     * so it anchors no edge.
+     * @param {Object} settings Clay settings blob.
+     * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
+     * @param {?Object} [caps] Caps or page env (capable).
+     * @returns {boolean}
+     */
+    function lineFloats(settings, lineKey, caps) {
+        var metric = drawnLineMetric(settings, lineKey, caps);
+        return metric !== null && settingKey(metric) === null;
+    }
+
+    /**
+     * The anchored edges of the forecast graph (see the header): the rain bars' edge while
+     * barSource draws them, and each drawn amount line's. Nothing on a watch without line
+     * styles (aplite keeps its frozen margins).
+     * @param {Object} settings Clay settings blob.
+     * @param {?Object} [caps] Caps or page env (capable).
+     * @returns {{top: boolean, bottom: boolean}}
+     */
+    function forecastAnchors(settings, caps) {
+        var s = settings || {};
+        var out = { top: false, bottom: false };
+        if (!capable(caps)) { return out; }
+        if (s.barSource === 'rain') {
+            out[barsFromTop(s, 'rain', caps) ? TOP : BOTTOM] = true;
+        }
+        for (var i = 0; i < lineStyle.FORECAST_LINES.length; i++) {
+            var edge = lineAnchor(s, lineStyle.FORECAST_LINES[i].key, caps);
+            if (edge !== null) { out[edge] = true; }
+        }
+        return out;
+    }
+
+    /**
      * How many drawn lines, not stripes, read one Draw from key on this watch: 2 for
      * windLineFrom with a wind and a gust line both drawn as lines, else 0 or 1. The
      * page's Top hint speaks of both lines then.
@@ -191,13 +271,15 @@
     }
 
     /**
-     * A packed line-style byte with its Top flag (LINE_BIT) set when `on`.
+     * A packed line-style byte with its Top flag (LINE_BIT) set when `on`, and its float
+     * bit (FLOAT_BIT) when `floats`.
      * @param {number} byte line-style.js lineStyleByte output.
      * @param {boolean} on The line hangs from the top (lineFromTop).
+     * @param {boolean} [floats] The line anchors no edge (lineFloats).
      * @returns {number}
      */
-    function styleByte(byte, on) {
-        return on ? (byte | LINE_BIT) : byte;
+    function styleByte(byte, on, floats) {
+        return (on ? (byte | LINE_BIT) : byte) | (floats ? FLOAT_BIT : 0);
     }
 
     /**
@@ -218,6 +300,7 @@
         BOTTOM: BOTTOM,
         TOP: TOP,
         LINE_BIT: LINE_BIT,
+        FLOAT_BIT: FLOAT_BIT,
         PALETTE_BIT: PALETTE_BIT,
         LINE_KEYS: LINE_KEYS,
         METRIC_IDS: METRIC_IDS,
@@ -229,6 +312,9 @@
         capable: capable,
         metricFromTop: metricFromTop,
         lineFromTop: lineFromTop,
+        lineAnchor: lineAnchor,
+        lineFloats: lineFloats,
+        forecastAnchors: forecastAnchors,
         linesSharing: linesSharing,
         barsFromTop: barsFromTop,
         styleByte: styleByte,

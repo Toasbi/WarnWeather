@@ -100,6 +100,41 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         return lineStyle.isStripeValue(style);
     }
 
+    // The temperature-axis margins and hi/lo labels (src/c/appendix/temp_axis_pad.h),
+    // mirrored: an anchored edge's margin is the plot height over TEMP_AXIS_ANCHOR_DIV, and
+    // the labels keep TEMP_LABEL_MIN_INK_GAP watch px of blank rows between their ink. Both
+    // are the watch's numbers, held equal to the header's by test/config-temp-axis-pad.test.js.
+    // WATCH_INSET_PX is the watch's temperature inset (bottom_view.h
+    // BOTTOM_VIEW_PRIMARY_LINE_INSET_Y), the unit the preview scales watch px by.
+    var TEMP_AXIS_ANCHOR_DIV = 4;
+    var TEMP_LABEL_MIN_INK_GAP = 11;
+    var WATCH_INSET_PX = 7;
+    // The hi/lo labels' digit cap, in preview units: about 0.7 em of their 8-unit font.
+    var LABEL_CAP = 5.6;
+    // The preview's curve inset in units: 12 units stand for the watch's WATCH_INSET_PX.
+    var CURVE_INSET_PREV = 12;
+
+    /**
+     * The hi/lo labels' baselines, aligned with the temperature curve's extremes when there
+     * is space — temp_axis_pad.h temp_labels_align, mirrored. Each label's ink (the cap above
+     * its baseline) is centred on its row, moved only inward from today's baseline, and the
+     * two keep the watch's minimum ink gap apart (scaled like the inset); else both keep
+     * today's.
+     * @param {number} hiBase Today's hi baseline.
+     * @param {number} loBase Today's lo baseline.
+     * @param {number} curveTop The curve's highest y.
+     * @param {number} curveBottom The curve's lowest y.
+     * @returns {{hi: number, lo: number}} The baselines to draw.
+     */
+    function alignLabels(hiBase, loBase, curveTop, curveBottom) {
+        var hi = Math.max(hiBase, curveTop + LABEL_CAP / 2);
+        var lo = Math.min(loBase, curveBottom + LABEL_CAP / 2);
+        if (lo - LABEL_CAP - hi >= TEMP_LABEL_MIN_INK_GAP * CURVE_INSET_PREV / WATCH_INSET_PX) {
+            return { hi: hi, lo: lo };
+        }
+        return { hi: hiBase, lo: loBase };
+    }
+
     // Mirrors forecast-series.PRESSURE_SCALE_CURVE_HPA (+ curvePermille); a drift
     // test keeps the curves equal. Duplicated rather than imported because this file
     // is bundled into the config page, which has no access to the watch modules (the
@@ -298,13 +333,22 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         }
         // Configurable curve offset: the temp axis (temp + feels/dew via isTempAxisMetric
         // below) is inset symmetrically from the shared full-height band
-        // ([PT+3 .. PB], the mapping every other metric uses), mirroring the
+        // ([MT .. PB], the mapping every other metric uses), mirroring the
         // watch's per-series inset_y (fixed 7 px — not a user setting). Scale:
         // the preview band (87 units) is taller than the watch plot; 7 watch px
         // = the preview's long-standing 12-unit bottom clearance over the axis
         // row (the top gains the same symmetric margin the watch actually draws).
-        var curveInsetPrev = 12;
-        var ytop = topBand ? PTL : PT + 3 + curveInsetPrev, ybot = PB - curveInsetPrev;
+        var curveInsetPrev = CURVE_INSET_PREV;
+        // On an anchored edge (the rain bars' or a drawn amount line's: draw-from.js
+        // forecastAnchors; none previewing aplite, whose margins are frozen) the margin is
+        // at least a quarter of the band [MT, PB], the plot the metrics map into —
+        // temp_axis_pad.h temp_axis_margin, mirrored.
+        var anchored = drawFrom.forecastAnchors(state, caps);
+        var anchorQuarter = Math.floor((PB - MT) / TEMP_AXIS_ANCHOR_DIV);
+        var topMargin = topBand ? 0 : curveInsetPrev, bottomMargin = curveInsetPrev;
+        if (anchored.top && anchorQuarter > topMargin) { topMargin = anchorQuarter; }
+        if (anchored.bottom && anchorQuarter > bottomMargin) { bottomMargin = anchorQuarter; }
+        var ytop = MT + topMargin, ybot = PB - bottomMargin;
         var yT = function (t) { return ybot - (t - tmin) / (tmax - tmin || 1) * (ybot - ytop); };
         var n0 = tickX(9), n1 = tickX(n - 1);       // night band: sunset 21:00 (slot 9) -> right edge
         var bw = 9;                                  // rain-bar / dot width
@@ -862,7 +906,11 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
         // wire), never the padded scaling band — the watch prints them as text
         // (forecast_layer.c text_labels_refresh) and a low the air never reached
         // would be a lie. With feels and dew off the two are identical.
-        e += txt(3, PT + 11, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, PB - 1, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
+        // Where there is space each label's ink sits level with the curve's extreme it names
+        // (alignLabels; never previewing aplite, whose labels are frozen).
+        var labels = stylesFrozen ? { hi: PT + 11, lo: PB - 1 }
+            : alignLabels(PT + 11, PB - 1, yT(tLabelMax), yT(tLabelMin));
+        e += txt(3, labels.hi, 8, '#AEB4BD', 'start', 600, tLabelMax + '°') + txt(3, labels.lo, 8, '#AEB4BD', 'start', 600, tLabelMin + '°');
         e += drawAxis();
         e += legend.markup;
         return svgFrame(e, legend.height);
@@ -873,6 +921,12 @@ var PConf = (typeof global !== 'undefined' && global.PConf && global.PConf.block
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             forecastPreview: forecastPreview,
+            TEMP_AXIS_ANCHOR_DIV: TEMP_AXIS_ANCHOR_DIV,
+            TEMP_LABEL_MIN_INK_GAP: TEMP_LABEL_MIN_INK_GAP,
+            WATCH_INSET_PX: WATCH_INSET_PX,
+            LABEL_CAP: LABEL_CAP,
+            CURVE_INSET_PREV: CURVE_INSET_PREV,
+            alignLabels: alignLabels,
             pressureCurves: PRESSURE_CURVES,
             splitRuns: splitRuns
         };

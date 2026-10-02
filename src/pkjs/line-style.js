@@ -874,8 +874,11 @@
      *
      * Each style byte [11], [12], [13], [15] also carries its line's Draw from: Top in
      * bit 5 (draw-from.js LINE_BIT, persist.h LINE_STYLE_FROM_TOP), which kind | field
-     * never reaches; bits 6-7 stay 0. Never on a stripe, never on aplite, and 0 with
-     * every Draw from on Bottom, so the bytes are then the ones this function always sent.
+     * never reaches, and in bit 6 whether the drawn line floats, anchoring no edge of the
+     * graph (draw-from.js FLOAT_BIT, persist.h LINE_STYLE_FLOATING: pressure, feels-like,
+     * dew point); bit 7 stays 0. Neither is ever set on a stripe or on aplite, so with every
+     * Draw from on Bottom and no floating line drawn the bytes are the ones this function
+     * always sent.
      *
      * rgbToGColor8 matches Pebble's GColorFromHEX exactly, so the pixel is identical to
      * sending the full 0xRRGGBB. The watch treats everything past byte [3] as OPTIONAL
@@ -896,13 +899,15 @@
         var drawFrom = require('./draw-from.js');
         var caps = capsForWatch(watchInfo);
         /**
-         * One line's style byte with its Draw from flag.
+         * One line's style byte with its Draw from flag and its float bit.
          * @param {string} lineKey secondaryLine|thirdLine|fourthLine|fifthLine.
-         * @returns {number} lineStyleByte, bit 5 set while the line hangs from the top.
+         * @returns {number} lineStyleByte, bit 5 set while the line hangs from the top, bit 6
+         *   while it is drawn but anchors no edge (pressure, feels-like, dew point).
          */
         function styleWithFrom(lineKey) {
             return drawFrom.styleByte(lineStyleByte(settings, lineKey + 'Style'),
-                drawFrom.lineFromTop(settings, lineKey, caps));
+                drawFrom.lineFromTop(settings, lineKey, caps),
+                drawFrom.lineFloats(settings, lineKey, caps));
         }
         return [
             rainTier.rgbToGColor8(s.secondary),

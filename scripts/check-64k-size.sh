@@ -36,7 +36,14 @@
 # needed): it stands only if that re-measure shows 0 failed allocations with the
 # feature in; otherwise the owner picks a scope cut (design §4.11) and this ceiling
 # comes back down by what the cut saves.) Lowered since: the date's bare day-number short
-# form went (owner, 2026-10-02), -68 B on each (basalt 61168, diorite/flint 58872).
+# form went (owner, 2026-10-02), -68 B on each (basalt 61168, diorite/flint 58872). Raised
+# since, inside that same PROVISIONAL exception and standing or falling with it (the same
+# basalt re-measure): the temperature curve's margin of a quarter of the plot on each edge
+# the rain bars or an amount line are drawn from, and the hi/lo labels lined up with the
+# curve's extremes (request H, owner 2026-10-02; temp_axis_pad.h): basalt +220 B
+# (61168 -> 61388), diorite/flint +220 B (58872 -> 59092), all of it .text in
+# forecast_update_proc and apply_line_style; .data/.bss and the update proc's stack frame
+# unchanged.
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -53,9 +60,9 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-61168}"
-  "diorite:${DIORITE_IMAGE_CEILING:-58872}"
-  "flint:${FLINT_IMAGE_CEILING:-58872}"
+  "basalt:${BASALT_IMAGE_CEILING:-61388}"
+  "diorite:${DIORITE_IMAGE_CEILING:-59092}"
+  "flint:${FLINT_IMAGE_CEILING:-59092}"
 )
 
 # Build if an ELF is missing (a prior `mise build` leaves them in place).

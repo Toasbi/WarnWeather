@@ -61,6 +61,15 @@ int main(void) {
     assert(line_style_kind(0x27) == CHART_LINE_STRIPE && line_style_stripe_top(0x27));
     assert(line_style_kind(0x23) == CHART_LINE_STRIPE && !line_style_stripe_top(0x23));
     assert(LINE_STYLE_FROM_TOP == 0x20);
+    // Bit 6 (LINE_STYLE_FLOATING: the line anchors no edge) leaves the kind, the width and
+    // the edge alone, whichever bits it rides with.
+    assert(LINE_STYLE_FLOATING == 0x40 && (LINE_STYLE_FLOATING & LINE_STYLE_FROM_TOP) == 0);
+    for (int b = 0; b < 0x40; ++b) {
+        const uint8_t f = (uint8_t)(b | LINE_STYLE_FLOATING);
+        assert(line_style_kind(f) == line_style_kind((uint8_t)b));
+        assert(line_style_solid_width(f, 1) == line_style_solid_width((uint8_t)b, 1));
+        assert(line_style_top_edge(f) == line_style_top_edge((uint8_t)b));
+    }
     printf("line_style_decode_test OK\n");
     return 0;
 }

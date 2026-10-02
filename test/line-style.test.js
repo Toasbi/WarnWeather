@@ -850,10 +850,11 @@ test('a stored stripe on a metric that cannot be one resolves to the line\'s non
     fifthLine: 'off', secondaryLineStyle: 'stripeTop', thirdLineStyle: 'stripeBottom',
     fourthLineStyle: 'stripeTop', fifthLineStyle: 'stripeBottom', theme: 'dark' }, emery);
   [11, 12, 13, 15].forEach((i) => assert.notEqual(bytes[i] & 0x03, 3, 'byte ' + i + ' is no stripe'));
+  // Drawn as lines then, all three float (bit 6: no zero to stand on, draw-from.js FLOAT_BIT).
   assert.deepEqual([bytes[11], bytes[12], bytes[13]], [
-    lineStyle.lineStyleByte({ secondaryLineStyle: 'line' }, 'secondaryLineStyle'),
-    lineStyle.lineStyleByte({ thirdLineStyle: 'dots' }, 'thirdLineStyle'),
-    lineStyle.lineStyleByte({ fourthLineStyle: 'x' }, 'fourthLineStyle')
+    lineStyle.lineStyleByte({ secondaryLineStyle: 'line' }, 'secondaryLineStyle') | 0x40,
+    lineStyle.lineStyleByte({ thirdLineStyle: 'dots' }, 'thirdLineStyle') | 0x40,
+    lineStyle.lineStyleByte({ fourthLineStyle: 'x' }, 'fourthLineStyle') | 0x40
   ], 'each line falls back to its own built-in');
 });
 
@@ -992,6 +993,51 @@ test('Draw from: never on aplite, a stripe, a line not drawn, or a line without 
     fourthLine: 'off', fifthLine: 'off', theme: 'dark' }, allTop), emeryAt);
   assert.equal(off[11] & 0x20, 0x20, 'the drawn rain-chance line hangs');
   [12, 13, 15].forEach((i) => assert.equal(off[i] & 0x20, 0, 'byte ' + i));
-  // Bits 6 and 7 stay reserved at 0, every byte above.
-  [stripes, temps, off].forEach((b) => [11, 12, 13, 15].forEach((i) => assert.equal(b[i] & 0xC0, 0)));
+  // Bit 7 stays reserved at 0, every byte above. Bit 6 (the float bit) is set on exactly the
+  // drawn feels, dew and pressure lines: never on a stripe, an amount line or a line not drawn.
+  [stripes, temps, off].forEach((b) => [11, 12, 13, 15].forEach((i) => assert.equal(b[i] & 0x80, 0)));
+  [stripes, off].forEach((b) => [11, 12, 13, 15].forEach((i) => assert.equal(b[i] & 0x40, 0, 'byte ' + i)));
+  assert.deepEqual([11, 12, 13, 15].map((i) => temps[i] & 0x40), [0x40, 0x40, 0x40, 0]);
+});
+
+// --- The float bit: bit 6 of each line's style byte (draw-from.js FLOAT_BIT) -----------
+// A drawn line whose metric has no Draw from key (pressure, feels-like, dew point) anchors
+// no edge of the graph, so the watch's temperature-axis margins ignore it (persist.h
+// LINE_STYLE_FLOATING, temp_axis_pad.h).
+test('the float bit: on every drawn pressure, feels and dew line, as a line or marks, on every capable watch', () => {
+  ['basalt', 'chalk', 'diorite', 'emery', 'flint'].forEach((platform) => {
+    ['pressure', 'feels', 'dew'].forEach((metric) => {
+      Object.keys(STYLE_BYTE_OF).forEach((lineKey) => {
+        ['line', 'bold', 'dots', 'x'].forEach((st) => {
+          const s = { secondaryLine: 'off', thirdLine: 'off', fourthLine: 'off', fifthLine: 'off',
+            [lineKey]: metric, [lineKey + 'Style']: st, theme: 'dark' };
+          const b = lineStyle.buildLineStyleBytes(s, { platform });
+          assert.equal(b[STYLE_BYTE_OF[lineKey]],
+            lineStyle.lineStyleByte(s, lineKey + 'Style') | 0x40, [platform, metric, lineKey, st].join(' '));
+          Object.keys(STYLE_BYTE_OF).filter((k) => k !== lineKey).forEach((k) =>
+            assert.equal(b[STYLE_BYTE_OF[k]] & 0x40, 0, [platform, metric, lineKey, k].join(' ')));
+        });
+      });
+    });
+  });
+});
+
+test('the float bit: never on an amount line, a stripe, a line not drawn, or on aplite', () => {
+  const emeryAt = { platform: 'emery' };
+  // Every amount metric anchors the edge it is drawn from: no float bit, Bottom or Top.
+  ['precip_prob', 'cloud', 'wind', 'gust', 'uv'].forEach((metric) => {
+    [{}, { precipLineFrom: 'top', cloudLineFrom: 'top', windLineFrom: 'top', uvLineFrom: 'top' }].forEach((from) => {
+      const b = lineStyle.buildLineStyleBytes(Object.assign({ secondaryLine: metric, thirdLine: 'off',
+        fourthLine: 'off', fifthLine: 'off', theme: 'dark' }, from), emeryAt);
+      assert.equal(b[11] & 0x40, 0, metric);
+    });
+  });
+  // A repeat of an earlier pick is not drawn: no bit.
+  const repeat = lineStyle.buildLineStyleBytes({ secondaryLine: 'pressure', thirdLine: 'pressure',
+    fourthLine: 'off', fifthLine: 'off', theme: 'dark' }, emeryAt);
+  assert.deepEqual([11, 12, 13, 15].map((i) => repeat[i] & 0x40), [0x40, 0, 0, 0]);
+  // aplite: the PRE_DRAW_FROM bytes, a pressure Main line or not.
+  const pressure = Object.assign({}, PRE_DRAW_FROM.look.settings, { thirdLine: 'pressure' });
+  const ap = lineStyle.buildLineStyleBytes(pressure, { platform: 'aplite' });
+  [11, 12, 13, 15].forEach((i) => assert.equal(ap[i] & 0x40, 0, 'aplite byte ' + i));
 });

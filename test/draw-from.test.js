@@ -139,13 +139,68 @@ test('the bars hang per chart, whatever barSource and radarMode say', () => {
   assert.equal(drawFrom.barsFromTop(ALL_TOP, 'constructor', BASALT), false);
 });
 
-test('the bit helpers: bit 5 of a style byte, bit 7 of a palette\'s byte [1]', () => {
+test('the anchored edges: a drawn amount line anchors the edge it is drawn from', () => {
+  const S = { secondaryLine: 'precip_prob', thirdLine: 'uv', fourthLine: 'wind', fifthLine: 'pressure',
+    secondaryLineStyle: 'line', thirdLineStyle: 'dots', fourthLineStyle: 'x', fifthLineStyle: 'bold' };
+  assert.deepEqual(lineStyle.FORECAST_LINES.map((l) => drawFrom.lineAnchor(S, l.key, BASALT)),
+    ['bottom', 'bottom', 'bottom', null], 'standing; pressure anchors nothing');
+  const top = Object.assign({ precipLineFrom: 'top', windLineFrom: 'top' }, S);
+  assert.deepEqual(lineStyle.FORECAST_LINES.map((l) => drawFrom.lineAnchor(top, l.key, BASALT)),
+    ['top', 'bottom', 'top', null]);
+  // Never: a stripe, a line off or repeated, a temperature-axis metric, aplite.
+  assert.equal(drawFrom.lineAnchor({ secondaryLine: 'uv', secondaryLineStyle: 'stripeTop' }, 'secondaryLine', BASALT), null);
+  assert.equal(drawFrom.lineAnchor({ secondaryLine: 'uv', thirdLine: 'off' }, 'thirdLine', BASALT), null);
+  assert.equal(drawFrom.lineAnchor({ secondaryLine: 'uv', thirdLine: 'uv' }, 'thirdLine', BASALT), null);
+  ['feels', 'dew', 'pressure'].forEach((m) =>
+    assert.equal(drawFrom.lineAnchor({ secondaryLine: m }, 'secondaryLine', BASALT), null, m));
+  lineStyle.FORECAST_LINES.forEach((l) => assert.equal(drawFrom.lineAnchor(S, l.key, APLITE), null, 'aplite ' + l.key));
+});
+
+test('a drawn line floats exactly when its metric has no Draw from key', () => {
+  ['feels', 'dew', 'pressure'].forEach((m) => {
+    assert.equal(drawFrom.lineFloats({ secondaryLine: m }, 'secondaryLine', BASALT), true, m);
+    ['dots', 'x', 'bold'].forEach((st) => assert.equal(drawFrom.lineFloats(
+      { secondaryLine: 'uv', thirdLine: m, thirdLineStyle: st }, 'thirdLine', BASALT), true, m + ' ' + st));
+    assert.equal(drawFrom.lineFloats({ secondaryLine: m }, 'secondaryLine', APLITE), false, 'aplite ' + m);
+    assert.equal(drawFrom.lineFloats({ secondaryLine: m, thirdLine: m }, 'thirdLine', BASALT), false, 'repeat ' + m);
+  });
+  drawFrom.METRIC_IDS.forEach((m) =>
+    assert.equal(drawFrom.lineFloats({ secondaryLine: m }, 'secondaryLine', BASALT), false, m));
+  assert.equal(drawFrom.lineFloats({ secondaryLine: 'off' }, 'secondaryLine', BASALT), false);
+  assert.equal(drawFrom.lineFloats({ secondaryLine: 'uv', secondaryLineStyle: 'stripeBottom' }, 'secondaryLine', BASALT),
+    false, 'a stripe');
+});
+
+test('forecastAnchors: the rain bars while they draw, and the drawn amount lines', () => {
+  const none = { secondaryLine: 'pressure', thirdLine: 'feels', fourthLine: 'off', fifthLine: 'off', barSource: 'off' };
+  assert.deepEqual(drawFrom.forecastAnchors(none, BASALT), { top: false, bottom: false });
+  assert.deepEqual(drawFrom.forecastAnchors(Object.assign({}, none, { barSource: 'rain' }), BASALT),
+    { top: false, bottom: true }, 'standing bars');
+  assert.deepEqual(drawFrom.forecastAnchors(Object.assign({}, none, { barSource: 'rain', rainBarFrom: 'top' }), BASALT),
+    { top: true, bottom: false }, 'hanging bars');
+  assert.deepEqual(drawFrom.forecastAnchors(Object.assign({}, none, { rainBarFrom: 'top' }), BASALT),
+    { top: false, bottom: false }, 'a Bars from: Top with the bars off anchors nothing');
+  assert.deepEqual(drawFrom.forecastAnchors(Object.assign({}, none, { thirdLine: 'cloud', cloudLineFrom: 'top' }), BASALT),
+    { top: true, bottom: false }, 'a hanging cloud line');
+  assert.deepEqual(drawFrom.forecastAnchors(Object.assign({}, none,
+    { barSource: 'rain', thirdLine: 'cloud', cloudLineFrom: 'top' }), BASALT), { top: true, bottom: true });
+  assert.deepEqual(drawFrom.forecastAnchors(Object.assign({}, none,
+    { thirdLine: 'cloud', thirdLineStyle: 'stripeTop' }), BASALT), { top: false, bottom: false }, 'a stripe');
+  assert.deepEqual(drawFrom.forecastAnchors(Object.assign({}, none, { barSource: 'rain', thirdLine: 'cloud' }), APLITE),
+    { top: false, bottom: false }, 'aplite keeps its frozen margins');
+  assert.deepEqual(drawFrom.forecastAnchors(undefined, BASALT), { top: false, bottom: false });
+});
+
+test('the bit helpers: bits 5 and 6 of a style byte, bit 7 of a palette\'s byte [1]', () => {
   assert.equal(drawFrom.LINE_BIT, 0x20);
+  assert.equal(drawFrom.FLOAT_BIT, 0x40);
   assert.equal(drawFrom.PALETTE_BIT, 0x80);
   [0x04, 0x0C, 0x01, 0x02].forEach((b) => {
     assert.equal(drawFrom.styleByte(b, false), b);
     assert.equal(drawFrom.styleByte(b, true), b | 0x20);
     assert.equal(drawFrom.styleByte(b, true) & 0x1F, b, 'kind and width untouched');
+    assert.equal(drawFrom.styleByte(b, false, true), b | 0x40);
+    assert.equal(drawFrom.styleByte(b, false, false), b);
   });
   const blob = [0, 0, 234, 140, 0, 223];
   assert.equal(drawFrom.markPalette(blob, false), blob, 'Bottom: the blob itself');

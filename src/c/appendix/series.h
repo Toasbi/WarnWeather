@@ -40,6 +40,13 @@ typedef enum { SERIES_KIND_LINE, SERIES_KIND_BARS } SeriesKind;
 typedef struct {                       // FIRST / SECOND / THIRD (/ FOURTH / FIFTH)
     int16_t values[MAX_BOTTOM_VIEW_ENTRIES];
     GColor  color;                      // stroke (resolved at load)
+#if defined(WW_LINE_STYLE)
+    bool    floating;                   // LINE_STYLE_FLOATING: anchors no plot edge (pressure,
+                                        // feels, dew). Clear, a line, marks or fill drawn
+                                        // from an edge anchors it, and the temperature-axis
+                                        // lines pad off that edge (temp_axis_pad.h). Sits in
+                                        // the padding before `width`.
+#endif
     int     width;                      // stroke px (SOLID) / mark box px (DOTS, X)
     int     inset_y;                    // px: FIRST's fixed inset; a temp-axis metric line (feels, dew) shares it, else 0
     uint8_t style;                      // ChartLineStyle — metric lines only, FIRST stays SOLID
