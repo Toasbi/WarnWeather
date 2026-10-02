@@ -149,6 +149,17 @@ function serverReason(code) {
 }
 
 /**
+ * When a provider's own retry delay ends, as the panel says it ("in about an hour").
+ * @param {number} ms The delay (failure.retryAfterMs).
+ * @returns {string} The phrase.
+ */
+function retryPhrase(ms) {
+    var min = Math.round(ms / 60000);
+    if (min >= 55 && min <= 65) { return 'in about an hour'; }
+    return min >= 2 ? 'in about ' + min + ' minutes' : 'in a minute';
+}
+
+/**
  * Build a notice for a fetch failure, or null when the failure is not
  * notice-worthy (GPS, parse errors and a first server failure raise nothing).
  * Every notice names the weather provider, so only its own `provider_data` stage
@@ -156,11 +167,15 @@ function serverReason(code) {
  * is neither the provider refusing nor a key the user can fix.
  * - 401/403: the auth notice (watch overlay + panel): the user's key.
  * - 429: the rate-limit info (panel only).
+ * - A failure the provider gives its own retry delay (failure.retryAfterMs: Weather
+ *   Underground refusing even a freshly scraped key — the user has no key to blame):
+ *   the neutral "not answering" notice (watch overlay + panel) at once, naming when it
+ *   tries again.
  * - A server failure (isServerFailure): the neutral "not answering" notice (watch
  *   overlay + panel), from the second update in a row that failed that way
  *   (`failedUpdates`) — a one-off outage raises nothing, and the watch keeps its last
  *   forecast meanwhile.
- * @param {{stage: string, code: string}|*} failure Normalized fetch failure.
+ * @param {{stage: string, code: string, retryAfterMs?: number}|*} failure Normalized fetch failure.
  * @param {string} providerName Active provider display name.
  * @param {number} now Timestamp (Date.now()).
  * @param {number} [failedUpdates] Updates in a row this provider failed with a server
@@ -171,6 +186,16 @@ function noticeForFailure(failure, providerName, now, failedUpdates) {
     if (!failure || failure.stage !== 'provider_data') { return null; }
     var code = typeof failure.code === 'string' ? failure.code : '';
     var name = providerName || 'The weather provider';
+    if (typeof failure.retryAfterMs === 'number' && failure.retryAfterMs > 0) {
+        return {
+            key: 'unavailable',
+            type: 'error',
+            watch: name + ' not answering',
+            html: '<b>' + name + '</b> is not answering. The watch tries again '
+                + retryPhrase(failure.retryAfterMs) + '.',
+            since: now
+        };
+    }
     if (isServerFailure(failure)) {
         var n = Math.floor(Number(failedUpdates)) || 0;
         if (n < 2) { return null; }

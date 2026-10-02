@@ -77,14 +77,19 @@ function isPastRefreshSlot(lastTimeMs, nowMs, intervalMs) {
  * tick after the first failure, doubling with each consecutive one, capped at
  * the refresh interval so a transient blip never costs more than one normal
  * refresh. A rate limit (HTTP 429) waits the whole interval at once — an
- * earlier retry only spends quota against the limit it is waiting out.
+ * earlier retry only spends quota against the limit it is waiting out. A
+ * provider that names its own delay (failure.retryAfterMs: Weather Underground
+ * refusing even a freshly scraped key) waits exactly that, whatever the interval.
  *
  * @param {number} failures Consecutive failed attempts (the attempt counter).
- * @param {?{code: string}} failure The last attempt's failure.
+ * @param {?{code: string, retryAfterMs?: number}} failure The last attempt's failure.
  * @param {number} intervalMs Refresh interval in ms.
  * @returns {number} Backoff in ms.
  */
 function failureBackoffMs(failures, failure, intervalMs) {
+    if (failure && typeof failure.retryAfterMs === 'number' && failure.retryAfterMs > 0) {
+        return failure.retryAfterMs;
+    }
     var code = (failure && typeof failure.code === 'string') ? failure.code : '';
     if (/(^|_)status_429$/.test(code)) {
         return intervalMs;
@@ -496,8 +501,13 @@ function createFetchCycle(deps) {
             deps.outbox.clearWeatherCaches();
         }
         else if (deps.authBackoff.isActive()) {
-            console.log('Skipping weather fetch: auth failure backoff active (Force fetch to retry).');
-            return false;
+            if (!provider.scrapesKey) {
+                console.log('Skipping weather fetch: auth failure backoff active (Force fetch to retry).');
+                return false;
+            }
+            // A provider whose key is scraped (Weather Underground) never arms it now; a
+            // record an older build left behind for it would stop it until a forced fetch.
+            deps.authBackoff.clear();
         }
 
         if (typeof provider.isGeocodeBackoffActive === 'function' && provider.isGeocodeBackoffActive()) {

@@ -134,3 +134,14 @@ test('noticeForFailure: a server failure raises nothing on the first update, the
   assert.ok(notices.noticeForFailure(f503, 'Weather Underground', 1, 2).watch.length <= 47,
     'the longest provider name still fits the watch\'s 48 B notice buffer');
 });
+
+test('noticeForFailure: a provider\'s own retry delay raises the neutral notice at once, saying when it retries', function () {
+  var wu = notices.noticeForFailure({ stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: 3600000 },
+    'Weather Underground', 900);
+  assert.deepStrictEqual(wu, {
+    key: 'unavailable', type: 'error', watch: 'Weather Underground not answering', since: 900,
+    html: '<b>Weather Underground</b> is not answering. The watch tries again in about an hour.'
+  });
+  assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'x', retryAfterMs: 30 * 60000 }, 'X', 1)
+    .html.indexOf('in about 30 minutes') !== -1);
+});

@@ -43,6 +43,14 @@ test('failureBackoffMs: a rate limit waits the whole interval at once', () => {
   assert.equal(failureBackoffMs(1, { code: 'status_4290' }, HOUR_MS), MIN, 'only a real 429 suffix');
 });
 
+test('failureBackoffMs: a provider\'s own retry delay is waited out exactly, whatever the interval', () => {
+  const wu = { stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: HOUR_MS };
+  assert.equal(failureBackoffMs(1, wu, 15 * MIN), HOUR_MS, 'longer than a 15-min interval');
+  assert.equal(failureBackoffMs(6, wu, 3 * HOUR_MS), HOUR_MS, 'and not the capped doubling either');
+  assert.equal(failureBackoffMs(1, { code: 'x', retryAfterMs: 0 }, HOUR_MS), MIN, 'no delay: the usual backoff');
+  assert.equal(failureBackoffMs(1, { code: 'x', retryAfterMs: 'soon' }, HOUR_MS), MIN);
+});
+
 test('failureBackoffMs: garbage counters still give a sane backoff', () => {
   [0, -3, NaN, undefined, 'x', Infinity, 1e9].forEach((n) => {
     const ms = failureBackoffMs(n, { code: 'timeout' }, HOUR_MS);

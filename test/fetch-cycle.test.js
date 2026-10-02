@@ -856,6 +856,40 @@ test('failure: the run counts one provider\'s server failures in a row — anoth
     assert.match(notices.list()[0].html, /<b>other weather<\/b> is not answering: the last 2 updates failed \(no connection\)/);
 });
 
+test('failure: a provider\'s own retry delay raises the neutral notice at once and holds scheduled fetches that long', () => {
+    resetStore();
+    const wu = makeProvider('wunderground');
+    wu.name = 'Weather Underground';
+    wu.scrapesKey = true;
+    const h = makeHarness({ provider: wu, settings: { fetchIntervalMin: '15' } });
+    const refused = { stage: 'provider_data', code: 'wu_current_refused_401', retryAfterMs: HOUR };
+    assert.equal(h.cycle.start(false), true);
+    wu.fix(52.5, 13.4);
+    wu.fail(refused);
+    assert.equal(authBackoff.isActive(), false, 'no indefinite auth backoff');
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['unavailable'], 'shown at once');
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'Weather Underground not answering' }]);
+    h.setNow(T0 + 30 * MIN);
+    assert.equal(h.cycle.shouldFetchNow(), false, 'past two 15-min slots, still resting');
+    h.setNow(T0 + HOUR);
+    assert.equal(h.cycle.shouldFetchNow(), true, 'the next update after the hour tries again');
+});
+
+test('start: an auth backoff an older build left for a provider whose key is scraped is dropped, not obeyed', () => {
+    resetStore();
+    authBackoff.set({ stage: 'provider_data', code: 'wu_current_status_401' }, { provider: 'wunderground' });
+    const wu = makeProvider('wunderground');
+    wu.scrapesKey = true;
+    const h = makeHarness({ provider: wu });
+    assert.equal(h.cycle.start(false), true, 'a scheduled start goes ahead');
+    assert.equal(authBackoff.isActive(), false, 'and the stale record is gone');
+
+    resetStore();
+    authBackoff.set({ stage: 'provider_data', code: 'owm_status_401' }, { provider: 'openweathermap' });
+    const keyed = makeHarness({ provider: makeProvider('openweathermap') });
+    assert.equal(keyed.cycle.start(false), false, 'a keyed provider still waits for the user');
+});
+
 test('coordinates: a failed fix is recorded and tracked, and starts no radar, forecast, send or sleep commit', () => {
     resetStore();
     const settings = Object.assign(
