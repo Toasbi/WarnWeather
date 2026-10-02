@@ -503,6 +503,8 @@ int persist_get_notice_text(char *buffer, size_t buffer_size) {
 // (10xxxxxx) left at the clamp point so a split multi-byte sequence is never
 // persisted. Empty is stored too (a lone NUL).
 static bool write_bounded_text(const uint32_t key, const char *text, const size_t cap) {
+    _Static_assert(NORAIN_TEXT_BUF_BYTES <= RADAR_NOTICE_BUF_BYTES,
+                   "write_bounded_text's buffer must hold the larger of the two caps");
     char bounded[RADAR_NOTICE_BUF_BYTES];   // the larger of the two caps
     size_t len = text ? strlen(text) : 0;
     if (len > cap - 1) {

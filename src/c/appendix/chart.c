@@ -533,20 +533,20 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
         }
         // The re-shade of the filled area, one column at a time: the rows between the
         // zero row and the contour (standing: contour..axis; hanging: plot top..contour),
-        // the underlay first, then the hatch over it. One loop for both: has_underlay is
-        // false exactly when hatch_fill_rect paints its B&W backing (which sets the fill
-        // colour), so the underlay's colour, set once, holds across the columns, and
-        // interleaving the two per column paints the pixels the two passes did.
-        if (hl->has_underlay) {
-            graphics_context_set_fill_color(ctx, hl->underlay_color);
-        }
+        // the underlay first, then the hatch over it. One loop for both: interleaving the
+        // two per column paints the pixels the two passes did. Each column sets the
+        // underlay's colour itself, since hatch_fill_rect's B&W backing (a bw theme)
+        // changes the fill colour, whatever has_underlay the caller passed. Colour
+        // builds only: no caller asks for an underlay on B&W hardware.
+        const bool underlay = PBL_IF_COLOR_ELSE(hl->has_underlay, false);
         for (int16_t x = x0; x < x1; ++x) {
             int h = chart_flip_h(zero, dir,
                                  chart_contour_y_for_x(hl->contour, hl->contour_count, x));
             if (h > c.size.h) h = c.size.h;   // never past the plot's far edge
             if (h <= 0) continue;             // a zero stretch: nothing, either way
             const GRect col = GRect(x, chart_flip_span_y(zero, dir, 0, h), 1, h);
-            if (hl->has_underlay) {
+            if (underlay) {
+                graphics_context_set_fill_color(ctx, hl->underlay_color);
                 graphics_fill_rect(ctx, col, 0, GCornerNone);
             }
             hatch_fill_rect(ctx, col, hl->hatch_color, hl->spacing);

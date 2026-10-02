@@ -106,7 +106,8 @@ static bool handle_forecast(DictionaryIterator *iterator, bool *forecast_dirty) 
     if (temp_max_tuple) { changed |= persist_set_temp_max((int) temp_max_tuple->value->int32); }
 
     // MESSAGE_KEY_* are compile-time constants (message_key_ids.auto.h), so the
-    // table lives in flash instead of being built on the stack each message.
+    // table is static rodata instead of being built on the stack each message. Not
+    // flash: the whole image loads into app RAM, so its bytes count like any other.
     static const SeriesWire WIRE[] = {
         { SERIES_SECOND, MESSAGE_KEY_SECONDARY_LINE_TREND_UINT8 },
         { SERIES_THIRD,  MESSAGE_KEY_THIRD_LINE_TREND_UINT8     },

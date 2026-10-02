@@ -63,7 +63,8 @@
 #define TEMP_AXIS_PAD_SQ_DIV 512
 
 // The anchored edges, as a mask: one bit per edge something is drawn from.
-// TEMP_AXIS_ANCHOR(from_top) is the bit of the edge a bool from_top names.
+// TEMP_AXIS_ANCHOR(from_top) is the bit of the edge a bool from_top names: BOTTOM + 1 is
+// TOP. Arithmetic, not `from_top ? TOP : BOTTOM`, which costs forecast_update_proc 4 B.
 #define TEMP_AXIS_ANCHOR_BOTTOM 0x01
 #define TEMP_AXIS_ANCHOR_TOP    0x02
 #define TEMP_AXIS_ANCHOR(from_top) (TEMP_AXIS_ANCHOR_BOTTOM + (int)(bool)(from_top))
@@ -143,7 +144,7 @@ static inline int temp_axis_margin(int today, bool anchored, int plot_h) {
 
 // Both margins, for a curve inset by `inset` in a plot `plot_h` content rows tall, with the
 // edges `anchors`. The same rule on both edges, whatever stripe band the plot sits under.
-typedef struct { int16_t top, bottom; } __attribute__((aligned(4))) TempMargin;
+typedef struct { int16_t top, bottom; } TempMargin;
 static inline TempMargin temp_axis_margins(int inset, int plot_h, int anchors) {
     return (TempMargin){
         .top    = (int16_t)temp_axis_margin(inset, anchors & TEMP_AXIS_ANCHOR_TOP, plot_h),
