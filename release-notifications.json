@@ -177,6 +177,6 @@
   },
   "1.24.0": {
     "title": "Alerts",
-    "body": "Battery, Bluetooth, quiet time, sleep and weather alerts now show at a status bar's edge only while they matter. Pick them per bar, left or right, under Alerts in the Status slots tab. (Not on Pebble Classic/Steel.)"
+    "body": "Battery, Bluetooth, quiet time, sleep and weather alerts now show at a status bar's edge only while they matter. Set them up in the new Alerts tab. (Not on Pebble Classic/Steel.)"
   }
 }

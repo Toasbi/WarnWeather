@@ -77,8 +77,8 @@ STATUS LINES
 - Alerts: items that show at a status bar's edge, next to the status slot there, only when
   they reach their warn level or are active right now (low battery, Bluetooth disconnected, rain
   coming, a high UV or wind forecast), so the watch face stays free of distractions the rest of
-  the time (not on Pebble Classic/Steel). Every status bar has Alerts, where you tick each item
-  Left or Right, and Alert settings holds the items' settings:
+  the time (not on Pebble Classic/Steel). The Alerts tab lists them. Open one to set it up and
+  to choose which status bars show it, left or right. The items and how they show:
    - System info: the watch battery at or below a warn level you set, Bluetooth when it
      disconnects, quiet time while it is on, and a sleep icon during the battery saver hours
    - Weather alerts: rain falling or on its way, or wind gusts, UV index, air quality, pollen

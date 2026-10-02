@@ -365,13 +365,13 @@ static compile-time fixture, so screenshot builds swap in two canned twins (wire
 
 - `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
 - a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the rain alert
-  on every side that has Rain ticked (the Watch Status Bar's left side by default; each
-  bar's Alerts sheet ticks it Left or Right): `{ mins, raining, tier }`, where
-  `tier` (1-5) picks the drops, their colour and the noun, so `{ mins: 15, raining: false,
-  tier: 3 }` prints "Rain in 15'" with the 'text' rain look and `15'` with the 'minutes'
-  one, and `{ mins: 20, raining: true, tier: 3 }` "Rain for 20'" / `+20'` (tier 1-2 reads
-  "Drizzle"; `mins: 100` is past the 99-minute cap).
-  Like the real alert it shows nothing while the fixture's settings tick Rain on no side
+  on every side Rain is placed on (the Watch Status Bar's left side by default; the Rain
+  alert's Shows on grid, Alerts tab, puts it Left or Right on any bar):
+  `{ mins, raining, tier }`, where `tier` (1-5) picks the drops, their colour and the noun,
+  so `{ mins: 15, raining: false, tier: 3 }` prints "Rain in 15'" with the 'text' rain look
+  and `15'` with the 'minutes' one, and `{ mins: 20, raining: true, tier: 3 }`
+  "Rain for 20'" / `+20'` (tier 1-2 reads "Drizzle"; `mins: 100` is past the 99-minute cap).
+  Like the real alert it shows nothing while the fixture's settings place Rain on no side
   (or switch the radar off) or the radar is snoozed. The minutes are canned, though: a
   time window shorter than them does not hide the alert.
 
