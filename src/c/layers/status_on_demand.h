@@ -135,11 +135,13 @@ typedef struct {
 void status_on_demand_collect(const StatusOnDemandRow *row, StatusOnDemandPass *pass,
                               int bar, const uint8_t blob[THRESH_SETTINGS_BYTES]);
 
-// After status_on_demand_collect(), once per slot `i` (0 left, 1 middle, 2 right) of
-// the draw, `kind` its ThreshKind: the level the slot is drawn at for the weather alert
-// it merged (alert_set_merge) — the alert's, whatever the slot's own Alert
-// highlighting says — and 0 for a slot that merged none. The layout reads which.
-static inline uint8_t status_on_demand_merge(StatusOnDemandPass *pass, int i, int kind) {
+// After status_on_demand_collect(), for slot `i` (0 left, 1 middle, 2 right) of the
+// draw, `kind` its ThreshKind: the level the slot is drawn at for the weather alert it
+// merged (alert_set_merge) — the alert's, whatever the slot's own Alert highlighting
+// says — and 0 for a slot that merged none. A query: status_on_demand_layout() derives
+// which item merged from the slots it is given, whether or not this ran.
+static inline uint8_t status_on_demand_merge(const StatusOnDemandPass *pass, int i,
+                                             int kind) {
     return alert_set_merge(&pass->state.set, pass->state.side, i, kind);
 }
 

@@ -238,7 +238,8 @@ static void item_tests(void) {
 // alert_set_merge: a slot merges the entry of the metric it shows (its ThreshKind)
 // when that entry's item sits on the slot's own side of the bar — the left slot with
 // a left item, the right slot with a right one. The middle never merges, a slot on
-// the far side never does, and Wind speed never takes a gust entry.
+// the far side never does, and Wind speed never takes a gust entry. A pure query: the
+// set is const, and the item that merged is alert_set_item of the slot's kind.
 static void merge_tests(void) {
     // UV warn (today), gust danger (tomorrow, »), pollen warn.
     uint8_t bytes[] = {
@@ -253,33 +254,23 @@ static void merge_tests(void) {
     side[OD_GUST] = OD_SIDE_RIGHT;
     side[OD_POLLEN] = OD_SIDE_RIGHT;
 
-    // The left slot showing UV beside a left UV alert: the alert's level, item UV.
-    set.merged[0] = set.merged[1] = 0xFF;
+    // The left slot showing UV beside a left UV alert: the alert's level.
     expect("merge.left.level", alert_set_merge(&set, side, 0, THRESH_UV), THRESH_LEVEL_WARN);
-    expect("merge.left.item", set.merged[0], OD_UV + 1);
-    expect("merge.left.other_side_untouched", set.merged[1], 0xFF);
     // The right slot showing gusts beside a right gust alert: tomorrow's danger.
     expect("merge.right.level", alert_set_merge(&set, side, 2, THRESH_GUST),
            THRESH_LEVEL_DANGER);
-    expect("merge.right.item", set.merged[1], OD_GUST + 1);
     // The same metric on the far side: the UV alert sits left, the slot right.
     expect("merge.far.level", alert_set_merge(&set, side, 2, THRESH_UV), 0);
-    expect("merge.far.item", set.merged[1], 0);
     // ... and the gust alert sits right, the slot left.
     expect("merge.far_left.level", alert_set_merge(&set, side, 0, THRESH_GUST), 0);
-    expect("merge.far_left.item", set.merged[0], 0);
-    // The middle never merges, and leaves both sides as they were.
-    set.merged[0] = set.merged[1] = 0xFF;
+    // The middle never merges.
     expect("merge.middle.uv", alert_set_merge(&set, side, 1, THRESH_UV), 0);
     expect("merge.middle.gust", alert_set_merge(&set, side, 1, THRESH_GUST), 0);
-    expect("merge.middle.untouched", set.merged[0] == 0xFF && set.merged[1] == 0xFF, 1);
     // Wind speed is not the gusts' metric: no merge beside the right gust alert.
     expect("merge.wind_slot_gust_alert", alert_set_merge(&set, side, 2, THRESH_WIND), 0);
-    expect("merge.wind_slot_gust_alert.item", set.merged[1], 0);
     // A pollen alert with no value merges too (its level only).
     expect("merge.pollen.level", alert_set_merge(&set, side, 2, THRESH_POLLEN),
            THRESH_LEVEL_WARN);
-    expect("merge.pollen.item", set.merged[1], OD_POLLEN + 1);
     // Every other slot kind, and no slot (-1), merges nothing.
     for (int kind = -1; kind < THRESH_KIND_COUNT; kind++) {
         if (kind == THRESH_UV) { continue; }
@@ -290,7 +281,6 @@ static void merge_tests(void) {
     // An alert of this metric on no side of this bar (it sits on another bar).
     side[OD_UV] = OD_SIDE_NONE;
     expect("merge.other_bar", alert_set_merge(&set, side, 0, THRESH_UV), 0);
-    expect("merge.other_bar.item", set.merged[0], 0);
     // No entry of the metric (the AQI alert is not active).
     side[OD_AQI] = OD_SIDE_LEFT;
     expect("merge.inactive", alert_set_merge(&set, side, 0, THRESH_AQI), 0);
@@ -299,7 +289,16 @@ static void merge_tests(void) {
     alert_set_parse(bytes, 0, &none);
     side[OD_UV] = OD_SIDE_LEFT;
     expect("merge.empty", alert_set_merge(&none, side, 0, THRESH_UV), 0);
-    expect("merge.empty.item", none.merged[0], 0);
+    // The layout's derivation (status_on_demand_layout): the item that merges is the one
+    // alert_set_item gives the slot's kind, one item per alert kind and none for any
+    // other kind, so an active item on the slot's side equal to it is the one merged.
+    int shared = 0;
+    for (int a = -1; a < THRESH_KIND_COUNT; a++) {
+        for (int b = a + 1; b < THRESH_KIND_COUNT; b++) {
+            if (alert_set_item(a) >= 0 && alert_set_item(a) == alert_set_item(b)) { shared++; }
+        }
+    }
+    expect("merge.one_item_per_kind", shared, 0);
 }
 
 // The lane of the first entry `bytes` parses to, with `values` as its On demand lane

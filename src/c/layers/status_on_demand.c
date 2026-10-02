@@ -419,8 +419,13 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         const int d = s->side[item] == OD_SIDE_LEFT ? 0 : 1;
         OdSideIn *side = &pass->sides[d];
         int i = side->n++;
-        // The alert its own slot merged stands in for that slot only (on_demand.h).
-        if (item + 1 == s->set.merged[d]) { side->merged = (uint8_t)(i + 1); }
+        // The alert its own slot (0 left, 2 right) merged stands in for that slot only
+        // (on_demand.h). By alert_set_merge's rule that is the item of the metric the slot
+        // shows, active (its entry is in the set) on the slot's side, as this one is.
+        const StatusOnDemandSlot *own = &slots[2 * d];
+        if (item == alert_set_item(status_threshold_kind_for_slot(own->kind, own->icon))) {
+            side->merged = (uint8_t)(i + 1);
+        }
         side->rank[i] = (uint8_t)item;
         for (int lane = 0; lane < OD_LANES; lane++) { side->w[lane][i] = w[lane]; }
     }
