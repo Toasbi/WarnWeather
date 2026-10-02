@@ -437,7 +437,6 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 { key: "provider",      ne: "dwd" }           // inequality
 { key: "sleepStart",    in:  ["22","23"] }    // membership
 { key: "sleepStart",    nin: ["0","1"] }      // non-membership
-{ key: "statusTopOnDemandRightItems", has: "rain" }  // the comma list holds the code
 { env: "color",  eq: true }                   // environment fact with operator
 { env: "color" }                              // environment fact — truthy shorthand
 { when: "lineRow", args: { picker: "thirdLine", metrics: ["uv"] } }  // a named resolver's answer
@@ -449,8 +448,7 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 [ <pred>, <pred>, … ]                        // shorthand for all:[…]  (AND)
 ```
 
-Operators supported on `key` and `env`: `eq`, `ne`, `in`, `nin`, `has`, and bare truthy (no operator key).
-`has` treats the value as a comma list (an absent value is the empty list).
+Operators supported on `key` and `env`: `eq`, `ne`, `in`, `nin`, and bare truthy (no operator key).
 A `when` leaf asks a [when resolver](#when-resolver-registry--pconfwhenresolvers) by name; an
 unregistered name reads false.
 
@@ -715,7 +713,7 @@ A `{ when: id, args }` leaf in a `showWhen`, `disabledWhen` or `optionDisabledWh
 asks a named resolver whether it holds, for a rule the app already answers in one of its own
 modules: the schema asks that module instead of rebuilding the rule as a tree of `key` leaves
 that tests then have to keep equal to it. WarnWeather's Forecast tab rows ask which picker's
-line draws their metric.
+line draws their metric, and its Alerts gates ask whether an item shows on a status bar.
 
 ```js
 // fn(state, env, args): a truthy answer holds. `state` is the evaluation context, the

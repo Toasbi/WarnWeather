@@ -57,29 +57,6 @@ function effectiveHolidayCountry(settings) {
 }
 
 /**
- * Resolve preset + health + radar to the packed view cycle the watch runs.
- * layoutPreset 'custom' compiles the per-view keys instead (buildCustomCycle);
- * an APLITE watch folds custom to the explicit compactCal preset — aplite is
- * frozen-lean, its settings screen never offers Custom, and resolvePresetKey
- * pins the fold so a legacy topViewMode value can't redirect it. An unknown
- * platform ('' when watchInfo is missing) is treated as custom-capable.
- *
- * @param {Object} settings Clay settings.
- * @param {{platform: string}} env platformLib.computeEnv(watchInfo).
- * @returns {Array<Object>} The view cycle (slot 0 is the default view).
- */
-function resolveViewCycle(settings, env) {
-    if (settings.layoutPreset === 'custom' && env.platform !== 'aplite') {
-        return viewCycle.buildCustomCycle(settings);
-    }
-    // A preset the watch can't draw (Weather only on aplite) runs as the one the
-    // settings radio shows (presetKeyFor, shared with the Layout preview).
-    return viewCycle.buildViewCycle(viewCycle.presetKeyFor(settings, env),
-        settings.healthMode || 'off', settings.radarMode || 'graph',
-        Boolean(settings.swapClockStatus));
-}
-
-/**
  * The holiday window's calendar layout for an already-resolved cycle. The watch
  * picks the calendar rows per ACTIVE view and puts the previous week on top of
  * every 3-row one (config_n_today), while the one HOLIDAYS window serves them
@@ -91,7 +68,7 @@ function resolveViewCycle(settings, env) {
  * fullCal preset (full default, compact flicks) already ships with.
  *
  * @param {Object} settings Clay settings.
- * @param {Array<Object>} cycle resolveViewCycle() result.
+ * @param {Array<Object>} cycle view-cycle.js resolveViewCycle() result.
  * @returns {{startMon: boolean, prevWeek: boolean}} holidayMask window options.
  */
 function holidayWindowOptsForCycle(settings, cycle) {
@@ -120,7 +97,7 @@ function holidayWindowOptsForCycle(settings, cycle) {
  */
 function holidayWindowOpts(settings, watchInfo) {
     return holidayWindowOptsForCycle(settings,
-        resolveViewCycle(settings, platformLib.computeEnv(watchInfo)));
+        viewCycle.resolveViewCycle(settings, platformLib.computeEnv(watchInfo)));
 }
 
 // Fixed vertical inset for the temperature axis (px) — the watch's
@@ -157,9 +134,10 @@ function buildClayPayload(settings, watchInfo, now) {
     // aplite watch is protected by its own wire masking either way.
     var env = platformLib.computeEnv(watchInfo);
 
-    // Resolve the packed view cycle up front — the holiday mask below anchors on it
-    // (holidayWindowOptsForCycle, the same rule index.js's prefetch uses).
-    var cycle = resolveViewCycle(settings, env);
+    // Resolve the packed view cycle up front (view-cycle.js, the reading the Layout
+    // preview shows) — the holiday mask below anchors on it (holidayWindowOptsForCycle,
+    // the same rule index.js's prefetch uses).
+    var cycle = viewCycle.resolveViewCycle(settings, env);
     var defaultIsFull = cycle[0].tier === viewCycle.TIER_FULL;   // slot 0 is the 3-row calendar
     // CLAY_TOP_VIEW_MODE (TopViewMode enum: 0=full,1=compact,2=none) is a boot-time hint the
     // watch overwrites per active view; derive it from the default slot's tier for correctness.

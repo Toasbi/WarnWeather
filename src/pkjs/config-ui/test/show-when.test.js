@@ -44,18 +44,6 @@ test('{ env: colorBacklight } gates an item to the one watch with an RGB backlig
   assert.equal(W.isVisible(item, {}), false, 'no env at all: fail closed');
 });
 
-test('has: a comma list holds a code (the lists a checklist ticks)', () => {
-  const c = { items: 'battery,rain,gust', empty: '', env: {} };
-  assert.equal(W.evaluate({ key: 'items', has: 'rain' }, c), true);
-  assert.equal(W.evaluate({ key: 'items', has: 'battery' }, c), true, 'first code');
-  assert.equal(W.evaluate({ key: 'items', has: 'gust' }, c), true, 'last code');
-  assert.equal(W.evaluate({ key: 'items', has: 'ga' }, c), false, 'whole codes only');
-  assert.equal(W.evaluate({ key: 'items', has: 'rai' }, c), false);
-  assert.equal(W.evaluate({ key: 'empty', has: 'rain' }, c), false);
-  assert.equal(W.evaluate({ key: 'absent', has: 'rain' }, c), false, 'absent is the empty list');
-  assert.equal(W.evaluate({ not: { key: 'items', has: 'uv' } }, c), true);
-});
-
 test('when: a leaf asks the named resolver; an unregistered name reads false', () => {
   // A stand-in for engine.js's registry (PConf.whenResolvers), on the PConf this file shares.
   const fns = {};

@@ -1434,31 +1434,24 @@ test('the middle Bold option goes inert only while nothing gives the kind a leve
     assert.deepEqual(boldFor(stem).optionDisabledWhen,
       { warn: { not: { key: 'thresh' + stem + 'On' } } }, stem);
   });
-  // The weather gate is judged by what it does: over highlight on/off and a range of
-  // On demand states, it holds exactly while the highlight is off and the contract
-  // reads the alert as placed nowhere (on-demand.js placedAnywhere).
+  // The weather gate holds exactly while the highlight is off and the kind's alert shows
+  // on no bar (the onDemandPlaced leaf: on-demand.js placedAnywhere, pinned in
+  // test/when-resolvers.test.js).
   const OD = require('../src/pkjs/on-demand.js');
   const env = { thresholds: true, onDemand: true, radar: true, health: true };
-  const odStates = [
-    {},
-    { statusTopOnDemandRightItems: '' },
-    { statusTopOnDemandRightItems: '', statusForecastOnDemandLeftItems: 'uv,wind,gust,aqi,pollen' },
-    { statusTopOnDemandRightItems: '', statusRadarOnDemandRightItems: 'uv,wind,gust,aqi,pollen', radarMode: 'graph' },
-    { statusTopOnDemandRightItems: '', statusRadarOnDemandRightItems: 'uv,wind,gust,aqi,pollen', radarMode: 'off' },
-    { statusTopOnDemandRightItems: '', statusHealthOnDemandLeftItems: 'aqi,pollen', healthMode: 'status' }
-  ];
   ALERT_STEMS.forEach(stem => {
     const code = thresholds.ALERT_KINDS.find(a => a.key === stem).code;
     const gate = boldFor(stem).optionDisabledWhen.warn;
-    [false, true].forEach(highlight => odStates.forEach(od => {
-      // The page holds every key hydrated: the side keys' defaults under the state.
-      const S = Object.assign({}, OD.DEFAULTS, od);
-      S['thresh' + stem + 'On'] = highlight;
-      const want = !highlight && !OD.placedAnywhere(S, code, env);
-      assert.equal(PC.showWhen.evaluate(gate, Object.assign({ env: env }, S)), want,
-        stem + ' highlight ' + highlight + ' ' + JSON.stringify(od));
-    }));
-    assert.equal(PC.showWhen.evaluate(gate, Object.assign({ env: { onDemand: false } }, OD.DEFAULTS)), true,
+    // The page holds every key hydrated: the side keys' defaults under the state.
+    const unplaced = Object.assign({}, OD.DEFAULTS, { statusTopOnDemandRightItems: '' });
+    const placed = Object.assign({}, unplaced, { statusForecastOnDemandLeftItems: code });
+    [[unplaced, false, true], [unplaced, true, false], [placed, false, false], [placed, true, false]]
+      .forEach(([od, highlight, inert]) => {
+        const S = Object.assign({ env: env }, od, { ['thresh' + stem + 'On']: highlight });
+        assert.equal(PC.showWhen.evaluate(gate, S), inert,
+          stem + ' highlight ' + highlight + (od === placed ? ', placed' : ', not placed'));
+      });
+    assert.equal(PC.showWhen.evaluate(gate, Object.assign({ env: { onDemand: false } }, placed)), true,
       stem + ': a watch without On demand places nothing');
   });
   assert.equal(HEALTH_STEMS.length + ALERT_STEMS.length, STEMS.length, 'every kind covered');

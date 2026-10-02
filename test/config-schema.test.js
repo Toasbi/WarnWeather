@@ -3150,7 +3150,7 @@ test('a stored stripe on a metric that cannot be one shows the drawn style and s
 
 test('pressureScale is a Narrow/Mid/Wide control storing low/mid/high', () => {
   const scales = items.filter((i) => i.messageKey === 'pressureScale');
-  assert.equal(scales.length, 4, 'one copy per line-context (secondary + third + fourth + fifth)');
+  assert.equal(scales.length, 4, 'one copy per picker (secondary + third + fourth + fifth)');
   for (const s of scales) {
     assert.deepEqual(s.options, [['Narrow', 'low'], ['Mid', 'mid'], ['Wide', 'high']]);
     assert.equal(s.defaultValue, 'mid');
@@ -3208,7 +3208,7 @@ test('the wind slot arrows by default, the gust slot beside it does not', () => 
 // in either dependency cannot silently rewrite user-facing copy.
 test('windScale hints derive from the graph ceilings, strings pinned', () => {
   const winds = items.filter((i) => i.messageKey === 'windScale');
-  assert.equal(winds.length, 12, 'three units x four line-contexts');
+  assert.equal(winds.length, 12, 'three units x four pickers');
   const hintFor = (unit) => winds.find((i) =>
     JSON.stringify(i.showWhen).indexOf('"' + unit + '"') >= 0).hintByValue;
   assert.equal(hintFor('kph').low, 'Tops out at 30 kph — emphasizes light, gentle winds.');

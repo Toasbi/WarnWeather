@@ -31,9 +31,6 @@ var DRAW_FROM = require('../draw-from.js');
 // the Edit-button row) lives in its own module so its capability gates are BUILT
 // from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
 var customLayout = require('./custom-layout-schema.js');
-// The same mode lists gate the Alert settings card's "no bar shows items" note
-// (seatOnDemandWhen), so it folds a custom view's seats as the compiler does.
-var VIEW_CYCLE = require('../view-cycle.js');
 var versionLabel = 'v' + meta.version + (meta.buildProfile === 'dev' ? ' (dev)' : '');
 var HOURS = (function () {
     var o = [], h;
@@ -1157,7 +1154,7 @@ function alertSlotSheet(keyStem, extraItems) {
     // a bar, whose value bolds on this ladder too (status_on_demand.c) — inert only while
     // neither is on.
     var noLevelWhen = {all: [{not: {key: 'thresh' + keyStem + 'On'}},
-        {not: placedWhen(alertCodeOf(keyStem))}]};
+        {not: onDemandPlacedWhen(alertCodeOf(keyStem))}]};
     var note = alertLevelsNote();
     note.joinPrevious = true;
     var bold = boldRow(keyStem, ALERT_VOICE, noLevelWhen);
@@ -1215,22 +1212,12 @@ var RAIN_LOOK_OPTIONS = [['Icon', 'icon'], ['Icon + minutes', 'minutes'], ['Text
 
 // On demand (the Alerts): each status bar's two sides and the items on them
 // (src/pkjs/on-demand.js, the one reading the phone and this page share). The bars' names
-// as their sub-headers print them, and each bar's own gate (null = the bar always exists).
+// as their sub-headers print them.
 var OD_BAR_NAMES = {top: 'Watch Status Bar', forecast: 'Forecast Status Bar',
     radar: 'Radar Status Bar', health: 'Health Status Bar'};
 // The bars in the page's order, the Status slots tab's (the owner, 2026-10-01): the rows
 // of every Shows on grid. on-demand.js BARS keeps the wire's ThreshBar order.
 var OD_PAGE_BARS = ['top', 'forecast', 'health', 'radar'];
-/**
- * @param {string} bar An on-demand.js BARS bar.
- * @returns {?Object} the bar's own showWhen gate (RADAR_BAR_WHEN / HEALTH_BAR_WHEN), or
- *     null for a bar that always exists
- */
-function odBarGate(bar) {
-    if (bar === 'radar') { return RADAR_BAR_WHEN; }
-    if (bar === 'health') { return HEALTH_BAR_WHEN; }
-    return null;
-}
 // The note under every Shows on grid: the two side rules a user can act on (one side per
 // bar; the make-room order drops the lowest-priority item first, and on-demand.js ITEMS
 // priority is the Alert settings card's order). The per-bar Alerts sheet's intro said
@@ -1265,72 +1252,23 @@ function showsOnRows(code, merge) {
     }];
 }
 /**
- * "The item shows on a status bar" as a showWhen predicate that resolves exactly as
- * on-demand.js sideOf does: the watch draws On demand, and on one of the bars a side
- * ticks the item and the bar exists. THE one builder of every "placed" predicate on the
- * page.
+ * The when-leaf "the item shows on a status bar" (settings/when-resolvers.js
+ * onDemandPlaced: on-demand.js placedAnywhere, the reading the wire packs).
  * @param {string} code An on-demand.js ITEMS code.
  * @returns {Object} The showWhen predicate.
  */
-function placedWhen(code) {
-    var any = [];
-    ON_DEMAND.BARS.forEach(function (b) {
-        ON_DEMAND.SIDES.forEach(function (side) {
-            var leaf = {key: ON_DEMAND.itemsKey(b.bar, side), has: code};
-            any.push(odBarGate(b.bar) ? {all: [leaf, odBarGate(b.bar)]} : leaf);
-        });
-    });
-    return {all: [ON_DEMAND_WHEN, {any: any}]};
+function onDemandPlacedWhen(code) {
+    return {when: 'onDemandPlaced', args: {code: code}};
 }
-/**
- * "This bar shows On demand items": one of its sides ticks something.
- * @param {string} bar An on-demand.js BARS bar.
- * @returns {Object} The showWhen predicate.
- */
-function barOnDemandWhen(bar) {
-    return {any: ON_DEMAND.SIDES.map(function (side) {
-        return {key: ON_DEMAND.itemsKey(bar, side), ne: ''};
-    })};
-}
-/**
- * Whether a custom view's status seat (viewUpper<i> / viewLower<i>) shows a bar with On
- * demand items: the seat's source, kept only where the compiler keeps it (view-cycle.js
- * buildCustomCycle folds a radar or health seat away without its mode — the same
- * RADAR_ROW_MODES / HEALTH_ROW_MODES tables).
- * @param {string} seatKey The seat's settings key, e.g. 'viewUpper0'.
- * @returns {Object} The showWhen predicate.
- */
-function seatOnDemandWhen(seatKey) {
-    return {any: [
-        {all: [{key: seatKey, eq: 'weather'}, barOnDemandWhen('forecast')]},
-        {all: [{key: seatKey, eq: 'radar'}, {key: 'radarMode', 'in': VIEW_CYCLE.RADAR_ROW_MODES},
-            barOnDemandWhen('radar')]},
-        {all: [{key: seatKey, eq: 'health'}, {key: 'healthMode', 'in': VIEW_CYCLE.HEALTH_ROW_MODES},
-            barOnDemandWhen('health')]}
-    ]};
-}
-// The Default view has no Watch Status Bar AND none of the bars it does show carries On
-// demand items — so no item is drawn there. Derived from view-cycle.js's own inputs:
-// 'Weather only' drops the strip in every radar mode but 'Rain alert only' (its Default
-// view is the forecast bar, plus the radar bar in radar mode 'Status'); a custom layout
-// drops it on its Default view's viewStripOff0, and shows the bars its two seats hold.
-// The Alert settings card's info box says so; the watch does not move the items on its own.
-var DEFAULT_VIEW_NO_ON_DEMAND_WHEN = {any: [
-    {all: [{key: 'layoutPreset', eq: 'weatherOnly'}, {key: 'radarMode', ne: 'countdown'},
-        {not: {any: [barOnDemandWhen('forecast'),
-            {all: [{key: 'radarMode', eq: 'status'}, barOnDemandWhen('radar')]}]}}]},
-    {all: [{key: 'layoutPreset', eq: 'custom'}, {key: 'viewStripOff0'},
-        {not: {any: [seatOnDemandWhen('viewUpper0'), seatOnDemandWhen('viewLower0')]}}]}
-]};
 /**
  * The Radar tab's note in radar mode 'Rain alert only', the mode that fetches the radar
  * for the rain icon alone, while no side of a bar that exists in it holds Rain, with a
  * link to the Alerts tab, where the Rain sheet's Shows on grid places it. Not in 'Status'
  * or 'Graph' mode: a user there who took Rain off every bar chose that. The radar bar
- * never shows in this mode, so placedWhen's own bar gate (RADAR_BAR_WHEN) already
- * leaves a Rain ticked there out, as on-demand.js placeRainForCountdown's placedAnywhere
- * does. The Rain sheet needs no note of its own: its Shows on grid shows where Rain is.
- * A fresh object per call, like every item.
+ * never shows in this mode, so on-demand.js placedAnywhere (onDemandPlacedWhen) leaves a
+ * Rain ticked there out, as placeRainForCountdown does. The Rain sheet needs no note of
+ * its own: its Shows on grid shows where Rain is. A fresh object per call, like every
+ * item.
  * @returns {Object} The info-box staticText.
  */
 function rainAlertUnshownNote() {
@@ -1339,7 +1277,7 @@ function rainAlertUnshownNote() {
         style: 'info',
         text: '‘Rain alert only’ fetches the radar for the rain icon, but Rain shows on no status bar ('
             + ALERTS_TAB_LINK + ' → Rain).',
-        showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: placedWhen('rain')}]}
+        showWhen: {all: [{key: 'radarMode', eq: 'countdown'}, ON_DEMAND_WHEN, {not: onDemandPlacedWhen('rain')}]}
     };
 }
 /**
@@ -1872,12 +1810,15 @@ function onDemandSheetRow(sheetId, label, icon, showWhen, hintFrom, editBadgeFro
 function onDemandCardItems() {
     return [
         {
-            // Nothing moves the items for the user: the note names the gap and the fix.
+            // The Default view the watch runs has no Watch Status Bar and none of the bars
+            // it does show carries an item, so no item is drawn there (settings/
+            // when-resolvers.js defaultViewLacksOnDemand). Nothing moves the items for the
+            // user: the note names the gap and the fix.
             type: 'staticText',
             style: 'info',
             text: 'Your Default view has no Watch Status Bar, so Alerts won’t show there. Open an alert and, '
                 + 'under Shows on, pick another status bar that view shows.',
-            showWhen: DEFAULT_VIEW_NO_ON_DEMAND_WHEN
+            showWhen: {when: 'defaultViewLacksOnDemand'}
         },
         {type: 'subheader', text: 'System info'},
         onDemandSheetRow('odBattery', 'Battery', 'battery', null,

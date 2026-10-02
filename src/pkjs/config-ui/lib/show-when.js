@@ -11,7 +11,7 @@ PConf.showWhen = (function () {
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   /**
    * Evaluate a showWhen predicate against a context of current values/env.
-   * Supports all/any/not combinators, eq/ne/in/nin/has/truthy leaf tests and the `when`
+   * Supports all/any/not combinators, eq/ne/in/nin/truthy leaf tests and the `when`
    * resolver leaf; an array is treated as { all: [...] }.
    * @param {(Object|Array|null|undefined)} pred Predicate tree; null/undefined is treated as always-true.
    * @param {Object} ctx Context with setting values by key and an optional .env map.
@@ -45,11 +45,6 @@ PConf.showWhen = (function () {
     if (has(pred, 'ne')) { return subject !== pred.ne; }
     if (has(pred, 'in')) { return pred['in'].indexOf(subject) >= 0; }
     if (has(pred, 'nin')) { return pred.nin.indexOf(subject) < 0; }
-    // `has` tests a comma list (e.g. a list a checklist ticks, 'bt,qt,snooze') for one code.
-    // An absent value is the empty list.
-    if (has(pred, 'has')) {
-      return (',' + String(subject == null ? '' : subject) + ',').indexOf(',' + pred.has + ',') >= 0;
-    }
     return Boolean(subject);
   }
   /**

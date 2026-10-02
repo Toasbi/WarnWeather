@@ -1,6 +1,8 @@
 // test/when-resolvers.test.js — the settings page's when resolvers
 // (src/pkjs/settings/when-resolvers.js), the rules the schema's { when } leaves ask:
-// lineRow, the picker a Forecast-tab row that follows its metric sits under.
+// lineRow, the picker a Forecast-tab row that follows its metric sits under;
+// onDemandPlaced, an Alerts item on a status bar; defaultViewLacksOnDemand, a Default
+// view that draws no Alerts item.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 require('../src/pkjs/config-ui/lib/schema-walk.js');
@@ -9,6 +11,7 @@ const showWhen = require('../src/pkjs/config-ui/lib/show-when.js');
 require('../src/pkjs/config-ui/lib/engine.js');
 const WR = require('../src/pkjs/settings/when-resolvers.js');
 const drawFrom = require('../src/pkjs/draw-from.js');
+const OD = require('../src/pkjs/on-demand.js');
 const platform = require('../src/pkjs/config-ui/lib/platform.js');
 
 const BASALT = platform.computeEnv({ platform: 'basalt' });
@@ -64,4 +67,66 @@ test('from: a Draw from key sits under draw-from.js rowLine, the line that hangs
   // The stripe the metrics path keeps moves the Draw from row on.
   const striped = { secondaryLine: 'uv', secondaryLineStyle: 'stripeTop', thirdLine: 'off', fourthLine: 'off' };
   assert.equal(WR.hostLine(striped, BASALT, { from: 'uvLineFrom' }), null);
+});
+
+test('onDemandPlaced is on-demand.js placedAnywhere: on a bar that exists, on a watch with Alerts', () => {
+  assert.equal(global.PConf.whenResolvers.get('onDemandPlaced'), WR.onDemandPlaced);
+  const none = Object.assign({}, OD.DEFAULTS, { statusTopOnDemandLeftItems: '', statusTopOnDemandRightItems: '' });
+  const states = [
+    OD.DEFAULTS,
+    none,
+    Object.assign({}, none, { statusForecastOnDemandRightItems: 'rain,uv' }),
+    Object.assign({}, none, { statusRadarOnDemandLeftItems: 'rain', radarMode: 'graph' }),
+    Object.assign({}, none, { statusRadarOnDemandLeftItems: 'rain', radarMode: 'countdown' }),
+    Object.assign({}, none, { statusHealthOnDemandLeftItems: 'uv', healthMode: 'all' }),
+    Object.assign({}, none, { statusHealthOnDemandLeftItems: 'uv', healthMode: 'slot' })
+  ];
+  let held = 0;
+  states.forEach((S) => [BASALT, APLITE].forEach((env) => OD.ITEMS.forEach((item) => {
+    const want = OD.placedAnywhere(S, item.code, env);
+    if (want) { held += 1; }
+    assert.equal(WR.onDemandPlaced(S, env, { code: item.code }), want, item.code + ' ' + JSON.stringify(S));
+    assert.equal(showWhen.evaluate({ when: 'onDemandPlaced', args: { code: item.code } }, Object.assign({ env }, S)),
+      want, 'leaf ' + item.code);
+  })));
+  assert.ok(held > 10, 'premise: the states place items');
+  // The radar bar does not exist in Rain alert only, the health bar not in 'slot'.
+  assert.equal(WR.onDemandPlaced(states[4], BASALT, { code: 'rain' }), false);
+  assert.equal(WR.onDemandPlaced(states[6], BASALT, { code: 'uv' }), false);
+});
+
+test('defaultViewLacksOnDemand: the Default view the watch runs has no strip and no bar with an item', () => {
+  assert.equal(global.PConf.whenResolvers.get('defaultViewLacksOnDemand'), WR.defaultViewLacksOnDemand);
+  const lacks = (over, env) => WR.defaultViewLacksOnDemand(Object.assign({}, OD.DEFAULTS, over), env || BASALT);
+  // Weather only drops the strip in every radar mode but Rain alert only; its Default view
+  // shows the forecast bar, plus the radar bar in radar mode Status.
+  assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'graph' }), true);
+  assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'off' }), true);
+  assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'graph', statusForecastOnDemandLeftItems: 'uv' }), false);
+  assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'status', statusRadarOnDemandRightItems: 'rain' }), false);
+  assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'status' }), true);
+  assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'graph', statusRadarOnDemandRightItems: 'rain' }), true,
+    'no radar bar on the graph mode\'s Default view');
+  assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'countdown' }), false, 'Rain alert only keeps the strip');
+  // The calendar presets keep the strip.
+  ['fullCal', 'compactCal', 'compactDense', 'noCal', 'classic', undefined].forEach((layoutPreset) =>
+    ['off', 'status', 'graph'].forEach((radarMode) => assert.equal(lacks({ layoutPreset, radarMode,
+      statusTopOnDemandLeftItems: '', statusTopOnDemandRightItems: '' }), false, layoutPreset + ' ' + radarMode)));
+  // A custom layout: the Default view's strip switch and the bars its seats keep.
+  const custom = { layoutPreset: 'custom', viewStripOff0: true, viewUpper0: 'weather', viewLower0: 'off' };
+  assert.equal(lacks(custom), true);
+  assert.equal(lacks(Object.assign({}, custom, { statusForecastOnDemandRightItems: 'bt' })), false);
+  assert.equal(lacks(Object.assign({}, custom, { viewStripOff0: false })), false);
+  const health = Object.assign({}, custom, { viewLower0: 'health', statusHealthOnDemandLeftItems: 'battery' });
+  assert.equal(lacks(Object.assign({ healthMode: 'status' }, health)), false, 'a health seat carrying items');
+  assert.equal(lacks(Object.assign({ healthMode: 'off' }, health)), true, 'a health seat folded away');
+  const radar = Object.assign({}, custom, { viewUpper0: 'radar', statusRadarOnDemandLeftItems: 'rain' });
+  assert.equal(lacks(Object.assign({ radarMode: 'status' }, radar)), false, 'a radar seat carrying items');
+  assert.equal(lacks(Object.assign({ radarMode: 'off' }, radar)), true, 'a radar seat folded away');
+  // aplite runs Weather only and a custom layout as Compact calendar, strip and all.
+  assert.equal(lacks({ layoutPreset: 'weatherOnly', radarMode: 'graph' }, APLITE), false);
+  assert.equal(lacks(custom, APLITE), false);
+  // The leaf asks it.
+  assert.equal(showWhen.evaluate({ when: 'defaultViewLacksOnDemand' },
+    Object.assign({ env: BASALT }, OD.DEFAULTS, custom)), true);
 });
