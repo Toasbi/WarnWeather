@@ -92,7 +92,6 @@ typedef struct {
     int8_t bar;             // the row's ThreshBar (-1: none)
     int8_t bleed_left;      // px the left run may reach into the row margin
     bool top_strip;         // the strip's glyph set and box floor
-    bool full_date;         // a date slot prints the full date (no calendar on screen)
 } StatusOnDemandEnv;
 
 // One of the row's slots as the row resolved it: what its short family

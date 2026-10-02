@@ -338,14 +338,14 @@ static void elastic_city(void) {
 
 // A slot built from its resolved text the way status_on_demand.c builds it (member v
 // at m[v], up to the first none or OD_VARIANTS), with 6 px per byte standing in for
-// the font. `mday`: the day of the month outside a calendar view, 0 in one.
-static OdSlotIn slot_family(uint8_t kind, uint8_t icon, uint8_t mday, const char *full,
+// the font.
+static OdSlotIn slot_family(uint8_t kind, uint8_t icon, const char *full,
                             char texts[OD_VARIANTS][STATUS_SHORT_CAP]) {
     OdSlotIn s = slot_text((int16_t)(6 * strlen(full)), 0);
     snprintf(texts[0], STATUS_SHORT_CAP, "%s", full);
     uint8_t v = 1;
     while (v < OD_VARIANTS) {
-        uint8_t flags = status_short_member(kind, icon, mday, full, false, false, v, texts[v],
+        uint8_t flags = status_short_member(kind, icon, full, false, false, v, texts[v],
                                             STATUS_SHORT_CAP);
         if (!flags) { break; }
         s.m[v] = (StatusSlotMeasure) { true, 0, (int16_t)(6 * strlen(texts[v])), 0 };
@@ -362,11 +362,10 @@ static char s_seen_texts[OD_VARIANTS][STATUS_SHORT_CAP];
 // The date in the middle of a 140 px bar, a Bluetooth icon k px wide on the left: the
 // texts it shows while it stays centred, in the order they come. (Once it leaves the
 // centre it may take a wider member again, wherever that fits.)
-static int date_texts(bool full_date, const char *full, const char *seen[OD_VARIANTS]) {
+static int date_texts(const char *full, const char *seen[OD_VARIANTS]) {
     char texts[OD_VARIANTS][STATUS_SHORT_CAP];
     OdSlotIn slots[3] = { slot_empty(),
-                          slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, full_date ? 7 : 0,
-                                      full, texts),
+                          slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, full, texts),
                           slot_empty() };
     int n = 0;
     int last = -1;
@@ -389,41 +388,49 @@ static int date_texts(bool full_date, const char *full, const char *seen[OD_VARI
 static void date_families(void) {
     const char *seen[OD_VARIANTS];
     // A calendar view: the year shortens, the month never does.
-    int n = date_texts(false, "Sep 2026", seen);
+    int n = date_texts("Sep 2026", seen);
     expect("date.calendar.n", n, 2);
     if (n == 2) {
         expect_true("date.calendar.full", strcmp(seen[0], "Sep 2026") == 0);
         expect_true("date.calendar.year", strcmp(seen[1], "Sep '26") == 0);
     }
-    n = date_texts(false, "2026-09", seen);
+    n = date_texts("2026-09", seen);
     expect("date.calendar.iso", n, 1);
-    // No calendar: the year, then the day of the month.
-    n = date_texts(true, "07.09.2026", seen);
-    expect("date.no_calendar.n", n, 3);
-    if (n == 3) {
+    // No calendar: the year shortens, and that is the narrowest it gets — never the bare
+    // day of the month ("7"); past it the date hides.
+    n = date_texts("07.09.2026", seen);
+    expect("date.no_calendar.n", n, 2);
+    if (n == 2) {
         expect_true("date.no_calendar.full", strcmp(seen[0], "07.09.2026") == 0);
         expect_true("date.no_calendar.year", strcmp(seen[1], "07.09.26") == 0);
-        expect_true("date.no_calendar.day", strcmp(seen[2], "7") == 0);
     }
-    n = date_texts(true, "Sep 7, 2026", seen);
-    expect("date.no_calendar.text.n", n, 3);
-    if (n == 3) { expect_true("date.no_calendar.text.year", strcmp(seen[1], "Sep 7, '26") == 0); }
+    n = date_texts("Sep 7, 2026", seen);
+    expect("date.no_calendar.text.n", n, 2);
+    if (n == 2) { expect_true("date.no_calendar.text.year", strcmp(seen[1], "Sep 7, '26") == 0); }
+    // The owner's date (Auto, 2 October): whole while centred, then it hides.
+    n = date_texts("02.10.26", seen);
+    expect("date.no_calendar.auto.n", n, 1);
 }
 
 // A slot with no short form never takes a SHORT step: as the own slot it goes from
 // FULL straight to HIDDEN at its turn (and comes back FULL only beside a hidden
 // middle, the ladder's row 6), and as the middle it leaves the centre whole and then
-// hides.
+// hides. The date outside a calendar view is one, as the middle, when its format has no
+// four-digit year (the owner's "02.10.26", the strip's default seat): it hides rather
+// than shrink to its day number.
 static void no_short_form(void) {
     char texts[OD_VARIANTS][STATUS_SHORT_CAP];
-    OdSlotIn week = slot_family(SLOT_LIVE_WEEK, STATUS_ICON_NONE, 0, "W40", texts);
-    OdSlotIn sun = slot_family(SLOT_TEXT, STATUS_ICON_DRAWN_SUN, 0, "6:12p", texts);
+    OdSlotIn week = slot_family(SLOT_LIVE_WEEK, STATUS_ICON_NONE, "W40", texts);
+    OdSlotIn sun = slot_family(SLOT_TEXT, STATUS_ICON_DRAWN_SUN, "6:12p", texts);
+    OdSlotIn day = slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, "02.10.26", texts);
     expect("noshort.week.n", week.n, 1);
     expect("noshort.sun.n", sun.n, 1);
-    OdSlotIn date = slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, 0, "Sep 2026", texts);
-    const OdSlotIn *own_kinds[2] = { &week, &sun };
+    expect("noshort.date.n", day.n, 1);
+    OdSlotIn date = slot_family(SLOT_LIVE_DATE, STATUS_ICON_NONE, "Sep 2026", texts);
+    const OdSlotIn *kinds[3] = { &week, &sun, &day };
+    // As the own slot: the week and the sun (the date's seat is the middle).
     for (int o = 0; o < 2; o++) {
-        OdSlotIn slots[3] = { *own_kinds[o], date, slot_empty() };
+        OdSlotIn slots[3] = { *kinds[o], date, slot_empty() };
         bool hidden = false;
         bool back = false;
         for (int k = 1; k <= 140; k++) {
@@ -441,8 +448,12 @@ static void no_short_form(void) {
         }
         expect_true("noshort.own.hides", hidden);
         expect_true("noshort.own.back_beside_hidden_middle", back);
-        OdSlotIn mid[3] = { slot_empty(), *own_kinds[o], slot_empty() };
+    }
+    // As the middle: all three.
+    for (int o = 0; o < 3; o++) {
+        OdSlotIn mid[3] = { slot_empty(), *kinds[o], slot_empty() };
         bool moved = false;
+        bool gone = false;
         for (int k = 1; k <= 140; k++) {
             OdSideIn sides[2] = { side_none(), side_none() };
             add_icon(&sides[0], OD_BLUETOOTH, (int16_t)k);
@@ -454,8 +465,12 @@ static void no_short_form(void) {
             if (form_of(&out, 1) == OD_FULL && out.place[1].icon_x != (140 - mid[1].m[0].text_w) / 2) {
                 moved = true;
             }
-            if (form_of(&out, 1) == OD_HIDDEN) { expect_true(name, moved); }
+            if (form_of(&out, 1) == OD_HIDDEN) {
+                expect_true(name, moved);
+                gone = true;
+            }
         }
+        expect_true("noshort.mid.hides", gone);
     }
 }
 

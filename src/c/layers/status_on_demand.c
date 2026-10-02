@@ -331,13 +331,11 @@ uint16_t status_on_demand_fold(StatusOnDemandRow *row, uint16_t sig, int bar,
 }
 
 // One draw's short forms: the three slots' families as the layout takes them, and the
-// two inputs their members take beside the slot itself, so the member a slot ends up
+// one input their members take beside the slot itself, so the member a slot ends up
 // drawing can be derived again. On the draw's stack, used only while a side has an
 // item.
 typedef struct {
     OdSlotIn in[3];
-    uint8_t mday;    // the day of the month a date's family ends on (0: a calendar
-                     // view, whose date has no day-number member)
     bool charging;   // the watch is charging: the battery glyph keeps its bolt lane
 } Families;
 
@@ -345,8 +343,8 @@ typedef struct {
 // flags, 0 for none. `suffix`: the slot's full form draws the wind arrow.
 static uint8_t family_member(const Families *f, const StatusOnDemandSlot *slot, bool suffix,
                              uint8_t v, char *buf) {
-    return status_short_member(slot->kind, slot->icon, f->mday, slot->text, suffix,
-                               f->charging, v, buf, STATUS_SHORT_CAP);
+    return status_short_member(slot->kind, slot->icon, slot->text, suffix, f->charging, v,
+                               buf, STATUS_SHORT_CAP);
 }
 
 // Slot i's short family (status_short_text.h), measured into f->in[i]: member v sits
@@ -430,11 +428,8 @@ void status_on_demand_layout(StatusOnDemandRow *row, StatusOnDemandPass *pass,
         status_row_layout(content_w, m, places);
         return;
     }
-    // The slots' short forms, measured now that a side has something to show. The
-    // date's family ends on the clock's day of the month, which its text alone does
-    // not give ("07.09.26").
+    // The slots' short forms, measured now that a side has something to show.
     Families f;
-    f.mday = (uint8_t)(env->full_date ? watch_services_localtime().tm_mday : 0);
     BatteryChargeState bs = watch_services_battery_state();
     f.charging = bs.is_charging || bs.is_plugged;
     for (int i = 0; i < 3; i++) { measure_family(&f, i, &slots[i], &m[i], env, content_w); }

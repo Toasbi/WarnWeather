@@ -11,8 +11,7 @@
 // for v = 1, 2, … up to its first 0, as status_on_demand.c asks. A member prints as its
 // text, then " -arrow" when it drops the wind arrow, " -lane" when it is the Watch
 // battery glyph without its bolt lane, and " ~" when it is elastic (the layout may
-// ellipsize it down to status_short_floor). `mday` is the day of the month outside a
-// calendar view, 0 in one.
+// ellipsize it down to status_short_floor).
 
 static int s_failures = 0;
 
@@ -35,12 +34,12 @@ static void expect_true(const char *name, int cond) {
 
 // The members of one slot's family (v = 1, 2, … up to the first 0), printed as above
 // into got[] (at most `max`); returns how many.
-static int members(uint8_t kind, uint8_t icon, uint8_t mday, const char *full, bool suffix,
-                   bool charging, char got[][48], int max) {
+static int members(uint8_t kind, uint8_t icon, const char *full, bool suffix, bool charging,
+                   char got[][48], int max) {
     int n = 0;
     for (; n < max; n++) {
         char text[STATUS_SHORT_CAP];
-        uint8_t flags = status_short_member(kind, icon, mday, full, suffix, charging,
+        uint8_t flags = status_short_member(kind, icon, full, suffix, charging,
                                             (uint8_t)(n + 1), text, sizeof(text));
         if (!flags) { break; }
         snprintf(got[n], 48, "%s%s%s%s", text, (flags & SST_NO_SUFFIX) ? " -arrow" : "",
@@ -50,10 +49,10 @@ static int members(uint8_t kind, uint8_t icon, uint8_t mday, const char *full, b
 }
 
 // The family of one slot against `want` (NULL-terminated, widest first).
-static void family(const char *name, uint8_t kind, uint8_t icon, uint8_t mday,
-                   const char *full, bool suffix, bool charging, const char *const *want) {
+static void family(const char *name, uint8_t kind, uint8_t icon, const char *full,
+                   bool suffix, bool charging, const char *const *want) {
     char got[8][48];
-    int n = members(kind, icon, mday, full, suffix, charging, got, 8);
+    int n = members(kind, icon, full, suffix, charging, got, 8);
     int nwant = 0;
     while (want[nwant]) { nwant++; }
     if (n != nwant) {
@@ -71,14 +70,12 @@ static void family(const char *name, uint8_t kind, uint8_t icon, uint8_t mday,
 // A TEXT slot's family (the phone baked `full`), no arrow.
 static void text_family(const char *name, uint8_t icon, const char *full,
                         const char *const *want) {
-    family(name, SLOT_TEXT, icon, 0, full, false, false, want);
+    family(name, SLOT_TEXT, icon, full, false, false, want);
 }
 
-// A slot kind with no short form at all: not even a first member, outside a calendar
-// view or in one.
+// A slot kind with no short form at all: not even a first member.
 static void no_family(const char *name, uint8_t kind, uint8_t icon, const char *full) {
-    family(name, kind, icon, 7, full, false, false, NONE);
-    family(name, kind, icon, 0, full, false, false, NONE);
+    family(name, kind, icon, full, false, false, NONE);
 }
 
 // --- the table, row by row --------------------------------------------------------
@@ -100,13 +97,13 @@ static void wind_and_gusts(void) {
         const char *name = k ? "gust" : "wind";
         char label[64];
         snprintf(label, sizeof(label), "%s pair arrow", name);
-        family(label, SLOT_TEXT, ICONS[k], 0, "12 / 30kph", true, false,
+        family(label, SLOT_TEXT, ICONS[k], "12 / 30kph", true, false,
                FAMILY("12/30kph", "12/30", "12/30 -arrow"));
         snprintf(label, sizeof(label), "%s pair", name);
-        family(label, SLOT_TEXT, ICONS[k], 0, "12 / 30kph", false, false,
+        family(label, SLOT_TEXT, ICONS[k], "12 / 30kph", false, false,
                FAMILY("12/30kph", "12/30"));
         snprintf(label, sizeof(label), "%s now arrow", name);
-        family(label, SLOT_TEXT, ICONS[k], 0, "12kph", true, false,
+        family(label, SLOT_TEXT, ICONS[k], "12kph", true, false,
                FAMILY("12", "12 -arrow"));
         snprintf(label, sizeof(label), "%s mph", name);
         text_family(label, ICONS[k], "12mph", FAMILY("12"));
@@ -115,7 +112,7 @@ static void wind_and_gusts(void) {
         snprintf(label, sizeof(label), "%s tomorrow mark", name);
         text_family(label, ICONS[k], "12/30*kph", FAMILY("12/30*"));
         snprintf(label, sizeof(label), "%s unit off arrow", name);
-        family(label, SLOT_TEXT, ICONS[k], 0, "12/30", true, false, FAMILY("12/30 -arrow"));
+        family(label, SLOT_TEXT, ICONS[k], "12/30", true, false, FAMILY("12/30 -arrow"));
         snprintf(label, sizeof(label), "%s unit off", name);
         no_family(label, SLOT_TEXT, ICONS[k], "12/30");
         snprintf(label, sizeof(label), "%s missing", name);
@@ -154,31 +151,31 @@ static void other_readings(void) {
 static void live_kinds(void) {
     no_family("empty", SLOT_EMPTY, STATUS_ICON_NONE, "");
     no_family("week", SLOT_LIVE_WEEK, STATUS_ICON_NONE, "W40");
-    family("steps", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, 0, "12.3k", false, false,
+    family("steps", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, "12.3k", false, false,
            FAMILY("12k"));
-    family("steps small", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, 0, "1.9k", false, false,
+    family("steps small", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, "1.9k", false, false,
            FAMILY("1k"));
     no_family("steps whole", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, "12k");
     no_family("steps under 1000", SLOT_LIVE_STEPS, STATUS_ICON_STEPS, "999");
-    family("distance km", SLOT_LIVE_DISTANCE, STATUS_ICON_DISTANCE, 0, "3.4km", false,
+    family("distance km", SLOT_LIVE_DISTANCE, STATUS_ICON_DISTANCE, "3.4km", false,
            false, FAMILY("3.4"));
-    family("distance mi", SLOT_LIVE_DISTANCE_MI, STATUS_ICON_DISTANCE, 0, "2.1mi", false,
+    family("distance mi", SLOT_LIVE_DISTANCE_MI, STATUS_ICON_DISTANCE, "2.1mi", false,
            false, FAMILY("2.1"));
     no_family("distance missing", SLOT_LIVE_DISTANCE, STATUS_ICON_DISTANCE, "--");
     no_family("heart rate", SLOT_LIVE_HR, STATUS_ICON_HR, "72");
-    family("sleep", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, 0, "7h32", false, false,
+    family("sleep", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "7h32", false, false,
            FAMILY("7h"));
-    family("sleep whole hour", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, 0, "7h00", false,
+    family("sleep whole hour", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "7h00", false,
            false, FAMILY("7h"));
     no_family("sleep missing", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "--");
     // Under an hour: "0h" would read as no sleep at all, so it hides at its turn.
     no_family("sleep under an hour", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "0h45");
-    family("sleep ten hours", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, 0, "10h05", false,
+    family("sleep ten hours", SLOT_LIVE_SLEEP, STATUS_ICON_SLEEP, "10h05", false,
            false, FAMILY("10h"));
     // The Watch battery glyph: its bolt lane goes while it is empty.
-    family("battery glyph", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, 0, "", false, false,
+    family("battery glyph", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, "", false, false,
            FAMILY(" -lane"));
-    family("battery glyph charging", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, 0, "", false,
+    family("battery glyph charging", SLOT_LIVE_BATTERY, STATUS_ICON_NONE, "", false,
            true, NONE);
     // The Battery % is whole or hidden: its % never drops (owner, 2026-09-30).
     no_family("battery pct", SLOT_LIVE_BATTERY_PCT, STATUS_ICON_NONE, "82%");
@@ -219,22 +216,24 @@ static void date_calendar(void) {
         snprintf(name, sizeof(name), "date calendar %s", CASES[i].full);
         expect_str(name, full, CASES[i].full);
         if (CASES[i].year) {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, 0, full, false, false,
+            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false,
                    FAMILY(CASES[i].year));
         } else {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, 0, full, false, false, NONE);
+            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false, NONE);
         }
     }
 }
 
-// Outside a calendar view: a four-digit year shortens first (W11), then every format
-// ends on the day of the month, in both day/month orders.
+// Outside a calendar view: a four-digit year shortens (W11), in both day/month orders,
+// and that is all — every member keeps the month, so a date with no year to shorten has
+// no short form and hides at its turn. No format ends on a bare day number ("2" reads
+// as nothing; owner, 2026-10-02).
 static void date_no_calendar(void) {
     static const struct {
         uint8_t fmt;
         bool month_first;
         const char *full;
-        const char *year;   // NULL: no year member
+        const char *year;   // NULL: no short form
     } CASES[] = {
         { DATE_FULL_AUTO, false, "07.09.26", NULL },
         { DATE_FULL_AUTO, true, "09.07.26", NULL },
@@ -259,19 +258,39 @@ static void date_no_calendar(void) {
         snprintf(name, sizeof(name), "date no-calendar %s", CASES[i].full);
         expect_str(name, full, CASES[i].full);
         if (CASES[i].year) {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, 7, full, false, false,
-                   FAMILY(CASES[i].year, "7"));
+            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false,
+                   FAMILY(CASES[i].year));
         } else {
-            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, 7, full, false, false,
-                   FAMILY("7"));
+            family(name, SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false, NONE);
         }
     }
-    // The day number is the clock's (`mday`), never read out of the text.
-    struct tm late = sample_tm(29);
+    // The owner's date, 2 October 2026 (Auto): no short form, so no "2".
+    struct tm owner = sample_tm(2);
+    owner.tm_mon = 9;
     char full[STATUS_SHORT_CAP];
-    date_format_full(full, sizeof(full), &late, DATE_FULL_LONG, false);
-    family("date no-calendar 29", SLOT_LIVE_DATE, STATUS_ICON_NONE, 29, full, false, false,
-           FAMILY("29.09.26", "29"));
+    date_format_full(full, sizeof(full), &owner, DATE_FULL_AUTO, false);
+    expect_str("date no-calendar owner", full, "02.10.26");
+    family("date no-calendar owner", SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false,
+           NONE);
+    // Every format, both orders, every day of every month: at most the year member, and
+    // no member is a bare number.
+    for (int fmt = DATE_FULL_AUTO; fmt <= DATE_FULL_TEXTYEAR; fmt++) {
+        for (int c = 0; c < 2 * 12 * 31; c++) {
+            struct tm d = sample_tm(1 + c % 31);
+            d.tm_mon = (c / 31) % 12;
+            date_format_full(full, sizeof(full), &d, (uint8_t)fmt, c >= 12 * 31);
+            char got[8][48];
+            int n = members(SLOT_LIVE_DATE, STATUS_ICON_NONE, full, false, false, got, 8);
+            char name[64];
+            snprintf(name, sizeof(name), "date no-calendar sweep %s", full);
+            expect_true(name, n <= 1);
+            for (int m = 0; m < n; m++) {
+                bool digits = true;
+                for (const char *ch = got[m]; *ch; ch++) { digits = digits && sst_is_digit(*ch); }
+                expect_true(name, !digits);
+            }
+        }
+    }
 }
 
 // --- the city ----------------------------------------------------------------------
@@ -311,7 +330,7 @@ static const char *const CITY_VECTORS[][5] = {
 
 // Member `v` of a city slot's family (SLOT_TEXT without an icon): its flags.
 static uint8_t city_member(const char *full, uint8_t v, char *out, size_t cap) {
-    return status_short_member(SLOT_TEXT, STATUS_ICON_NONE, 0, full, false, false, v, out, cap);
+    return status_short_member(SLOT_TEXT, STATUS_ICON_NONE, full, false, false, v, out, cap);
 }
 
 static void city(void) {
@@ -332,7 +351,7 @@ static void city(void) {
         }
         char name[64];
         snprintf(name, sizeof(name), "city %s", full);
-        family(name, SLOT_TEXT, STATUS_ICON_NONE, 0, full, false, false, want);
+        family(name, SLOT_TEXT, STATUS_ICON_NONE, full, false, false, want);
     }
     // As families: the ladder, then the elastic member last.
     text_family("city family", STATUS_ICON_NONE, "Frankfurt am Main",
@@ -393,10 +412,10 @@ static void caps(void) {
                 !city_member("Halle-Neustadt Süd", 1, exact, sizeof(exact) - 1));
     char tiny[4];
     expect_true("cap tiny city", !city_member("New York", 1, tiny, sizeof(tiny)));
-    expect_true("cap tiny year", !status_short_member(SLOT_LIVE_DATE, STATUS_ICON_NONE, 0,
+    expect_true("cap tiny year", !status_short_member(SLOT_LIVE_DATE, STATUS_ICON_NONE,
                                                       "Sep 2026", false, false, 1, tiny,
                                                       sizeof(tiny)));
-    expect_true("cap zero", !status_short_member(SLOT_TEXT, STATUS_ICON_TEMP, 0, "12 | 10",
+    expect_true("cap zero", !status_short_member(SLOT_TEXT, STATUS_ICON_TEMP, "12 | 10",
                                                  false, false, 1, out, 0));
 }
 
@@ -407,8 +426,8 @@ static void caps(void) {
 // with a member there would lose it without a word — a new wind step would drop the
 // arrow-less member first. No family has one: every kind (and some past the enum) and
 // every icon, over the table's texts and the city vectors, with and without the arrow
-// and a charge, in and outside a calendar view. And the widest family fills the places
-// exactly, so OD_VARIANTS is the families' own bound, not slack on the paint stack.
+// and a charge. And the widest family fills the places exactly, so OD_VARIANTS is the
+// families' own bound, not slack on the paint stack.
 static void od_variants(void) {
     static const char *const TEXTS[] = {
         "12\xC2\xB0", "-3\xC2\xB0", "12 | 10", "12 (10)", "12 / 30kph", "12 / 30 kph",
@@ -421,23 +440,21 @@ static void od_variants(void) {
     };
     const int ntexts = (int)(sizeof(TEXTS) / sizeof(TEXTS[0]));
     const int ncities = (int)(sizeof(CITY_VECTORS) / sizeof(CITY_VECTORS[0]));
-    static const uint8_t MDAYS[3] = { 0, 7, 29 };
     int widest = 0;
     int over = 0;
     for (int t = 0; t < ntexts + ncities; t++) {
         const char *full = t < ntexts ? TEXTS[t] : CITY_VECTORS[t - ntexts][0];
         for (int kind = 0; kind < 16; kind++) {
             for (int icon = 0; icon < 36; icon++) {
-                for (int c = 0; c < 12; c++) {
-                    uint8_t mday = MDAYS[c / 4];
+                for (int c = 0; c < 4; c++) {
                     bool suffix = (c & 1) != 0;
                     bool charging = (c & 2) != 0;
                     char got[8][48];
-                    int n = members((uint8_t)kind, (uint8_t)icon, mday, full, suffix, charging,
-                                    got, 8);
+                    int n = members((uint8_t)kind, (uint8_t)icon, full, suffix, charging, got,
+                                    8);
                     if (n > widest) { widest = n; }
                     char out[STATUS_SHORT_CAP];
-                    if (status_short_member((uint8_t)kind, (uint8_t)icon, mday, full, suffix,
+                    if (status_short_member((uint8_t)kind, (uint8_t)icon, full, suffix,
                                             charging, OD_VARIANTS, out, sizeof(out))) {
                         if (over++ < 5) {
                             printf("FAIL variants: kind %d icon %d \"%s\" has a member at "

@@ -774,8 +774,7 @@ void status_row_draw(StatusRow *row, GContext *ctx) {
         .icon_h = icon_target_h(row, content_h),
         .bar = bar,
         .bleed_left = top ? STATUS_ROW_MARGIN : 0,
-        .top_strip = top,
-        .full_date = row->full_date
+        .top_strip = top
     };
     StatusOnDemandSlot od_slots[STATUS_SLOT_COUNT];
     for (int i = 0; i < STATUS_SLOT_COUNT; i++) {

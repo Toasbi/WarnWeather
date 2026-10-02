@@ -90,11 +90,11 @@ STATUS LINES
      the pollen alert is off
    - A weather alert next to a status slot showing the same value goes into that slot: the
      slot shows both values once ("3/8") in the alert's colors
-   - When a bar runs short of room, its slots switch to short forms first (outside calendar
-     views the date to its day number, "New York" to "N. York", sleep "7h", steps "12k",
-     units dropped), then the slot beside the items hides and the middle slot moves aside
-     and hides, and only then do the alert values and the rain text shorten and the last
-     items drop
+   - When a bar runs short of room, its slots switch to short forms first ("2026" to "'26",
+     "New York" to "N. York", sleep "7h", steps "12k", units dropped; the date keeps its
+     month and hides rather than shrink further), then the slot beside the items hides and
+     the middle slot moves aside and hides, and only then do the alert values and the rain
+     text shorten and the last items drop
 
 WATCHFACE THEMES
 - Dark and Light, plus Black & White and Black & White Inverted options on color watches

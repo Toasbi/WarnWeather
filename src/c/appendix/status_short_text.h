@@ -5,8 +5,6 @@
 // date_format.h, so test/c/status_short_text_test.c pins every family without an
 // emulator. Everything is derived on the watch from the slot's resolved text plus its
 // kind and icon: the phone never bakes a variant, and the forms cost no wire byte.
-// The one fact the text cannot give is the date's day of the month ("07.09.26" does
-// not say which number is the day), so the caller passes it.
 //
 // A slot's short family runs widest first, each member built on the one before:
 //  - a pair drops its spaces: "12 | 10" -> "12|10", "3 / 7" -> "3/7";
@@ -15,8 +13,9 @@
 //  - wind and gusts then drop their direction arrow, a suffix beside the text
 //    (status_short_member flags it);
 //  - the date shortens a four-digit year in its format's own shape ("Sep '26",
-//    "07.09.26"; never the month), and outside a calendar view ends on the day of
-//    the month ("7");
+//    "07.09.26") and goes no further: every form keeps the month, so the date hides
+//    at its turn rather than shrink to a bare day number ("2" reads as nothing; owner,
+//    2026-10-02);
 //  - steps drop their tenths ("12.3k" -> "12k", never rounded up), sleep its minutes
 //    ("7h32" -> "7h"; under an hour it has none, as "0h" would read as no sleep);
 //  - the Watch battery glyph drops its bolt lane while the watch is not charging
@@ -40,7 +39,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 #include "status_line.h"
 
@@ -103,9 +101,9 @@ static inline bool sst_unit_byte(char c) {
     return ((u | 0x20) >= 'a' && (u | 0x20) <= 'z') || u == 0xC2 || u == 0xB0;
 }
 
-// Step `t` of a slot's chain, applied to `s` in place (a `cap`-byte buffer); true when
-// it changed the text. The chain runs in this order, each step on the text the ones
-// before left:
+// Step `t` of a slot's chain, applied to `s` in place; true when it changed the text.
+// No step lengthens it, so it stays inside its buffer. The chain runs in this order,
+// each step on the text the ones before left:
 //  0  a pair's spaces go: "12 | 10" -> "12|10", "12 / 30kph" -> "12/30kph";
 //  1  the unit goes — the trailing run of unit bytes (sst_unit_byte) of a kind that
 //     has one, and only after a reading: "now" and "--" keep theirs, and a mark stays
@@ -114,12 +112,9 @@ static inline bool sst_unit_byte(char c) {
 //     space ("Sep '26", "Sep 7, '26", "7. Sep '26"), the century dropped after '.' or
 //     '/' ("09.26", "07.09.26"), as the two-digit formats already print it; none for a
 //     year-first ISO date or a text without exactly one four-digit run;
-//  3  outside a calendar view (`mday` > 0), the date becomes the day of the month
-//     (no zero pad, clamped like date_format_clamped_tm);
-//  4  steps drop their tenths: "12.3k" -> "12k" (truncated, never rounded up);
-//  5  sleep drops its minutes: "7h32" -> "7h"; none under an hour ("0h45").
-static inline bool sst_apply(uint8_t kind, uint8_t icon, uint8_t mday, int t, char *s,
-                             size_t cap) {
+//  3  steps drop their tenths: "12.3k" -> "12k" (truncated, never rounded up);
+//  4  sleep drops its minutes: "7h32" -> "7h"; none under an hour ("0h45").
+static inline bool sst_apply(uint8_t kind, uint8_t icon, int t, char *s) {
     int len = (int)strlen(s);
     switch (t) {
         case 0: {
@@ -167,12 +162,7 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, uint8_t mday, int t, ch
             memmove(s + start, s + start + drop, (size_t)(len - start - drop + 1));
             return true;
         }
-        case 3: {
-            if (kind != SLOT_LIVE_DATE || mday == 0) { return false; }
-            int n = snprintf(s, cap, "%d", mday > 31 ? 31 : mday);
-            return n > 0 && (size_t)n < cap;
-        }
-        case 4:
+        case 3:
             if (kind != SLOT_LIVE_STEPS || len < 4 || s[len - 1] != 'k' || s[len - 3] != '.'
                     || !sst_is_digit(s[len - 2])) {
                 return false;
@@ -180,7 +170,7 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, uint8_t mday, int t, ch
             s[len - 3] = 'k';
             s[len - 2] = '\0';
             return true;
-        case 5: {
+        case 4: {
             // A loop, not strchr: that would link newlib's 200-byte one into the image.
             int h = 1;
             while (h < len && s[h] != 'h') { h++; }
@@ -194,7 +184,7 @@ static inline bool sst_apply(uint8_t kind, uint8_t icon, uint8_t mday, int t, ch
             return false;
     }
 }
-#define SST_STEPS 6
+#define SST_STEPS 5
 
 // --- the city's word ladder -------------------------------------------------------
 
@@ -295,12 +285,11 @@ static inline bool status_short_floor(const char *full, char *out, size_t cap) {
 // the text (sst_apply), or the city's rungs and its elastic name (sst_city_member) —
 // then, for a slot with a `suffix` (the wind arrow), the last text drawn without it.
 // The Watch battery glyph has one member, its text unchanged and without its bolt
-// lane, and only while it is not `charging`. `mday` is today's day of the month for a
-// date outside a calendar view, 0 in one. No family has more than OD_VARIANTS - 1
+// lane, and only while it is not `charging`. No family has more than OD_VARIANTS - 1
 // members (on_demand.h), which test/c/status_short_text_test.c holds every kind to.
-static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, uint8_t mday,
-                                          const char *full, bool suffix, bool charging,
-                                          uint8_t v, char *out, size_t cap) {
+static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, const char *full,
+                                          bool suffix, bool charging, uint8_t v, char *out,
+                                          size_t cap) {
     if (!full || !out || v == 0) { return 0; }
     if (status_short_elastic(kind, icon)) { return sst_city_member(full, v, out, cap); }
     if (!sst_copy(out, cap, full, strlen(full))) { return 0; }
@@ -309,7 +298,7 @@ static inline uint8_t status_short_member(uint8_t kind, uint8_t icon, uint8_t md
     }
     uint8_t found = 0;
     for (int t = 0; t < SST_STEPS; t++) {
-        if (sst_apply(kind, icon, mday, t, out, cap) && ++found == v) { return SST_MEMBER; }
+        if (sst_apply(kind, icon, t, out) && ++found == v) { return SST_MEMBER; }
     }
     return suffix && found + 1 == v ? (SST_MEMBER | SST_NO_SUFFIX) : 0;
 }
