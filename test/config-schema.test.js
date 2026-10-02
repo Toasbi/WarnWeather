@@ -2937,7 +2937,8 @@ test('no other slot sheet carries a Show unit toggle', () => {
 // its gate line — but a row may bring its OWN showWhen, and the pass must not clobber
 // it (boldSection's idiom). Only the gated sheets (the health kinds) have a gate to
 // apply, and none of their rows brings a showWhen of its own today, so the guarantee
-// is not observable from the built schema: guard the idiom at the source instead.
+// is not observable from the built schema: check that goalSlotSheet goes through the
+// shared pass at the source, and ask the pass itself (settings/schema-gates.js gateAll).
 test('goalSlotSheet gates its slot rows without clobbering their own showWhen', () => {
   const fs = require('node:fs');
   const path = require('node:path');
@@ -2947,12 +2948,13 @@ test('goalSlotSheet gates its slot rows without clobbering their own showWhen', 
     src.indexOf('function alertSlotSheet('));
   assert.ok(body.indexOf('gateAll(') !== -1,
     'goalSlotSheet must gate through the shared gateAll pass');
-  const gateAllBody = src.slice(src.indexOf('function gateAll('),
-    src.indexOf('function sheetOf('));
-  assert.ok(gateAllBody.indexOf('item.showWhen = item.showWhen || gate') !== -1,
-    'gateAll must keep the non-clobbering idiom (a row\'s own showWhen wins)');
-  assert.equal(/item\.showWhen\s*=\s*gate\s*;/.test(gateAllBody), false,
-    'gateAll must not overwrite an item\'s own showWhen with the gate');
+  const gateAll = require('../src/pkjs/settings/schema-gates.js').gateAll;
+  const own = { key: 'a', eq: 'b' };
+  const gate = { env: 'health' };
+  const rows = gateAll([{ showWhen: own }, {}], gate);
+  assert.equal(rows[0].showWhen, own, 'gateAll must keep a row\'s own showWhen');
+  assert.equal(rows[1].showWhen, gate, 'gateAll must gate a row that has none');
+  assert.deepEqual(gateAll([{}], null), [{}], 'a null gate gates nothing');
   // The shipped gated sheet still ends up gated: every VISIBLE row carries the health
   // gate (the two hidden companion rows are never drawn, so they never had one).
   const health = schema.tabs.find((t) => t.id === 'watch').sections
