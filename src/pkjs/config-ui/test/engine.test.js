@@ -499,6 +499,38 @@ test('shell.html defines the info amber for both themes', () => {
   assert.equal(/5A8CFF|90,140,255/i.test(shell), false, 'no info blue is left');
 });
 
+// An info box stands 14px off whatever sits above and below it, joined or not (measured in
+// headless Chrome: the slot sheets' pointer, the key notes, the boxes under an intro).
+// Each rule tops up the padding of the rule it pairs with to the page's 14px row padding.
+test('shell.html: an info box keeps the row standoff on both sides, whatever joins it', () => {
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  [
+    /\.static\.info\.join\s*\{\s*margin-top:\s*0;\s*padding-top:\s*9px;\s*\}/,   // tight join: + .row.nb's 5px
+    /\.static\.info\.nb\s*\{\s*padding-bottom:\s*9px;\s*\}/,                      // a row tight-joined below: + its 5px
+    /\.intro\s*\+\s*\.static\.info\s*\{\s*padding-top:\s*2px;\s*\}/,               // under an intro: + its 12px
+    /\.row\.nbl\s*\+\s*\.static\.info\s*\{\s*padding-top:\s*0;\s*\}/,              // loose-joined under a row
+    /\.static\.info\.nbl\s*\+\s*\.row\s*\{\s*padding-top:\s*0;\s*\}/                // a row loose-joined below
+  ].forEach((re) => assert.match(shell, re));
+  // The paddings those rules complete to 14px.
+  assert.match(shell, /\.row\.nb, \.static\.nb \{ padding-bottom: 5px; \}/);
+  assert.match(shell, /\.row\.nb \+ \.row, \.static\.nb \+ \.row \{ padding-top: 5px; \}/);
+  assert.match(shell, /\.intro \{ padding: 2px 16px 12px;/);
+  assert.match(shell, /\.static \{ padding: 14px 16px;/);
+  assert.match(shell, /\.row \{[^}]*padding: 14px 16px;/);
+  assert.doesNotMatch(shell, /\S:has\(/, 'adjacent siblings only: no :has() for old webviews');
+});
+
+test('shell.html: a toggle\'s switch is its cell\'s whole line (no strut under it)', () => {
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  assert.match(shell, /\.row \.rgt > \.sw\s*\{\s*vertical-align:\s*top;\s*\}/);
+});
+
+test('shell.html: an icon run in a hint never breaks inside', () => {
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  assert.match(shell, /\.ico-run\s*\{\s*display:\s*inline-block;\s*white-space:\s*nowrap;\s*margin-right:\s*12px;\s*\}/);
+  assert.match(shell, /\.ico-run \.lbl-ico\s*\{\s*margin-right:\s*4px;\s*\}/);
+});
+
 test('renderSelectModal: duplicate messageKey resolves the VISIBLE block (theme B&W regression)', () => {
   // Two items share messageKey 'theme': a 4-option color block and a 2-option B/W block,
   // mutually exclusive by showWhen (mirrors schema.js). The open picker must mirror whichever
@@ -1072,7 +1104,10 @@ function bootWithCapturedListeners(schema, env, opts) {
   const sselList = { innerHTML: '', focus: () => {} };
   const generic = () => ({ innerHTML: '', textContent: '', addEventListener: () => {} });
   const tabsListeners = {};
-  const tabs = { innerHTML: '', addEventListener: (type, fn) => { tabsListeners[type] = fn; } };
+  // `opts.tabs` (optional) adds fields to the tab bar's stub — querySelector, rects,
+  // scrollLeft — for the tab-reveal tests; without it the reveal finds no tab and no-ops.
+  const tabs = Object.assign({ innerHTML: '', addEventListener: (type, fn) => { tabsListeners[type] = fn; } },
+    (opts && opts.tabs) || {});
   const ids = { scroll, modal, tabs, save: generic(), appTitle: generic(), toast: generic() };
   // Resolve the selectors boot() issues against `document`: live-search lists and the fresh
   // select/date/edit-sheet triggers that closeModal() may restore focus to after render.
@@ -1096,7 +1131,7 @@ function bootWithCapturedListeners(schema, env, opts) {
   const mod = { exports: {} };
   fn(document, schema, env, {}, {}, 'pebblejs://close#', mod);
   return {
-    listeners, modalListeners, tabsListeners, scroll, modal, sselList, focusCounts,
+    listeners, modalListeners, tabsListeners, scroll, modal, tabs, sselList, focusCounts,
     onChange: mod.exports.onChange, loadEnv: mod.exports.loadEnv,
     openSheet: mod.exports.openSheet, getValue: mod.exports.getValue,
     activeTab: mod.exports.activeTab
@@ -2496,6 +2531,193 @@ test('boot(): a column tick writes its own key and runs the checklist\'s onChang
   // Both lists are saved: the hidden item serializes the Right column.
   const blob = E.serialize(SCH, { lft: 'bt', rgt: 'gust' });
   assert.deepEqual(blob, { lft: 'bt', rgt: 'gust' });
+});
+
+// A transposed checklist (item.check): ONE code, a row per option, and each row's ticks
+// writing that row's own lists (meta.keys, left to right). Each list has a hidden item of
+// its own (a "carrier"), which owns the list's canonical option order and its onChange.
+const CELL_OPTS = [['Pea', 'p'], ['Ex', 'x'], ['Why', 'y']];
+/**
+ * A tab with a transposed checklist over two rows and the four carriers of its lists.
+ * @param {Object[]} [extraCarriers] More hidden items for the carriers' section.
+ * @param {Object} [rowMeta] Merged over the first row's meta ({keys: ['k1', 'k2']}).
+ * @returns {Object} Schema.
+ */
+function cellSchema(extraCarriers, rowMeta) {
+  return { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
+    { title: 'S', items: [
+      { type: 'checklist', label: 'Shows on', check: 'x', columns: [{ label: 'L' }, { label: 'R' }],
+        options: [['Hdr', '', { groupHeader: true }],
+          ['Row 1', 'r1', Object.assign({ keys: ['k1', 'k2'] }, rowMeta || {})],
+          ['Row 2', 'r2', { keys: ['k3', 'k4'] }]] }
+    ] },
+    { sheetOnly: true, sheetId: 'lists', items: [
+      { type: 'hidden', messageKey: 'k1', defaultValue: 'p,y', options: CELL_OPTS, onChange: 'cellSpy' },
+      { type: 'hidden', messageKey: 'k2', defaultValue: '', options: CELL_OPTS, onChange: 'cellSpy' },
+      { type: 'hidden', messageKey: 'k3', defaultValue: 'x', options: CELL_OPTS, onChange: 'cellSpy' },
+      { type: 'hidden', messageKey: 'k4', defaultValue: '', options: CELL_OPTS, onChange: 'cellSpy' }
+    ].concat(extraCarriers || []) }
+  ] }] };
+}
+function cellBody(SCH, S) {
+  return E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, collapsed: {}, evalCtx: Object.assign({}, S, { env: {} }) });
+}
+
+test('checklist transposed (check): a row per option, each tick naming its row\'s own list', () => {
+  const SCH = cellSchema();
+  const S = E.hydrate(SCH, {});
+  const before = JSON.stringify(S);
+  const html = cellBody(SCH, S);
+  assert.equal(JSON.stringify(S), before, 'rendering never rewrites a list');
+  assert.equal((html.match(/<div class="row chk-opt/g) || []).length, 2, 'one row per option');
+  assert.ok(html.indexOf('<div class="subhdr grp chk-hdr"><span>Hdr</span><span class="chk-caps" aria-hidden="true">'
+    + '<span>L</span><span>R</span></span></div>') !== -1, 'the column captions ride the header, over the ticks');
+  assert.deepEqual(html.match(/<button type="button" class="chk-tick[^>]*>/g), [
+    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 1, L" data-list="k1" data-k="k1" data-check="x">',
+    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 1, R" data-list="k2" data-k="k2" data-check="x">',
+    '<button type="button" class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Row 2, L" data-list="k3" data-k="k3" data-check="x">',
+    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 2, R" data-list="k4" data-k="k4" data-check="x">'
+  ], 'a tick names its row\'s list as data-list AND data-k, and the one code as data-check; its state is that list\'s');
+  // meta.disabled: inert ticks that keep their state.
+  const off = cellSchema(null, { disabled: true });
+  const offHtml = cellBody(off, E.hydrate(off, { k1: 'x' }));
+  assert.match(offHtml, /<div class="row chk-opt nb off">/);
+  assert.match(offHtml, /class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Row 1, L" data-list="k1" data-k="k1" data-check="x" disabled aria-disabled="true">/);
+  assert.match(offHtml, /aria-label="Row 1, R" data-list="k2" data-k="k2" data-check="x" disabled aria-disabled="true">/);
+  // A row without a list for a column draws that tick inert and empty.
+  const short = cellSchema(null, { keys: ['k1'] });
+  assert.match(cellBody(short, E.hydrate(short, {})),
+    /aria-checked="false" aria-label="Row 1, R" data-list="" data-k="" data-check="x" disabled aria-disabled="true">/);
+  // The grid stores nothing: only the carriers are saved.
+  assert.deepEqual(E.serialize(SCH, S), { k1: 'p,y', k2: '', k3: 'x', k4: '' });
+});
+
+test('boot(): a transposed tick flips its code in its row\'s list, in the CARRIER\'s order, and runs the carrier\'s onChange', () => {
+  const r = bootWithCapturedListeners(cellSchema(), {});
+  const calls = [];
+  global.PConf.onChange.register('cellSpy', (S, oldV, newV, env, key) => { calls.push([key, oldV, newV]); });
+  const tick = (k, extra) => clickMatching(r.listeners.click, '[data-check]',
+    Object.assign({ 'data-list': k, 'data-k': k, 'data-check': 'x' }, extra || {}));
+  tick('k1');
+  assert.equal(r.getValue('k1'), 'p,x,y', 'the code joins in the carrier\'s option order, the other codes kept');
+  assert.equal(r.getValue('k1'), E.checklistToggle('p,y', 'x', CELL_OPTS), 'the plain checklist\'s own toggle');
+  assert.deepEqual(calls, [['k1', 'p,y', 'p,x,y']], 'the carrier\'s onChange, once, with the list\'s key');
+  assert.match(r.scroll.innerHTML, /aria-checked="true" aria-label="Row 1, L" data-list="k1" data-k="k1" data-check="x"/,
+    'the tick redraws on');
+  tick('k2');
+  assert.equal(r.getValue('k2'), 'x');
+  assert.equal(r.getValue('k1'), 'p,x,y', 'the row\'s other list is the carrier hook\'s business');
+  tick('k1');
+  assert.equal(r.getValue('k1'), 'p,y', 'a second tap takes the code out again');
+  assert.deepEqual(calls[2], ['k1', 'p,x,y', 'p,y']);
+  tick('k3', { disabled: '' });
+  assert.equal(r.getValue('k3'), 'x', 'a gated tick ignores the tap');
+  assert.equal(calls.length, 3, 'and runs no onChange');
+});
+
+test('boot(): a tick whose list owner has no options, or lacks the code, leaves the list alone', () => {
+  const r = bootWithCapturedListeners(cellSchema([
+    { type: 'hidden', messageKey: 'k5', defaultValue: 'a,b', onChange: 'cellSpy2' },
+    { type: 'hidden', messageKey: 'k6', defaultValue: 'b,zzz', options: [['A', 'a'], ['B', 'b']], onChange: 'cellSpy2' }
+  ]), {});
+  const calls = [];
+  global.PConf.onChange.register('cellSpy2', (S, oldV, newV, env, key) => { calls.push(key); });
+  clickMatching(r.listeners.click, '[data-check]', { 'data-list': 'k5', 'data-k': 'k5', 'data-check': 'x' });
+  assert.equal(r.getValue('k5'), 'a,b', 'no options: no write');
+  assert.equal(E.checklistToggle('a,b', 'x', []), '', '(the write the guard refuses would have wiped the list)');
+  clickMatching(r.listeners.click, '[data-check]', { 'data-list': 'k6', 'data-k': 'k6', 'data-check': 'x' });
+  assert.equal(r.getValue('k6'), 'b,zzz', 'options without the code: no write (it could only drop zzz)');
+  assert.deepEqual(calls, [], 'and no onChange');
+});
+
+// The tab switch's other way in: a [data-goto-tab] link in copy. Tabs a and b, and h,
+// whose showWhen fails (a tab its platform lacks); tab a's card and a sheet link to both.
+const tabLink = (tab) => '<button type="button" class="txt-link" data-goto-tab="' + tab + '">' + tab + '</button>';
+const TAB_LINK_SCHEMA = { appName: 'X', versionLabel: 'v0', tabs: [
+  { id: 'a', label: 'A', sections: [
+    { title: 'Sa', items: [
+      { type: 'toggle', messageKey: 'ta', label: 'On A', defaultValue: false },
+      { type: 'staticText', text: 'Go to ' + tabLink('b') + ' or ' + tabLink('h') + '.' },
+      { type: 'sheet', label: 'Open', sheetId: 'sh' }
+    ] },
+    { sheetOnly: true, sheetId: 'sh', title: 'Sheet', items: [
+      { type: 'staticText', style: 'info', text: 'Set in ' + tabLink('b') + ' or ' + tabLink('h') + '.' }
+    ] }
+  ] },
+  { id: 'b', label: 'B', sections: [{ title: 'Sb', items: [{ type: 'toggle', messageKey: 'tb', label: 'On B', defaultValue: false }] }] },
+  { id: 'h', label: 'H', showWhen: { env: 'nope' },
+    sections: [{ title: 'Sh', items: [{ type: 'toggle', messageKey: 'th', label: 'On H', defaultValue: false }] }] }
+] };
+const goTo = (listener, tab) => clickMatching(listener, '[data-goto-tab]', { 'data-goto-tab': tab });
+const tapTab = (r, tab) => r.tabsListeners.click({ target: { closest: () => ({ getAttribute: () => tab }) } });
+
+test('boot(): a [data-goto-tab] link in the tab body brings its tab to the front', () => {
+  const r = bootWithCapturedListeners(TAB_LINK_SCHEMA, {});
+  assert.match(r.scroll.innerHTML, /<button type="button" class="txt-link" data-goto-tab="b">b<\/button>/,
+    'the link is the copy\'s own markup');
+  goTo(r.listeners.click, 'b');
+  assert.equal(r.activeTab(), 'b');
+  assert.match(r.tabs.innerHTML, /<button class="tab on" data-tab="b">/, 'the bar marks the new tab');
+  assert.match(r.scroll.innerHTML, /data-k="tb"/, 'the new tab\'s body renders');
+  assert.doesNotMatch(r.scroll.innerHTML, /data-k="ta"/, 'the old one is gone');
+});
+
+test('boot(): a link to a tab the bar hides, or to no tab, changes nothing', () => {
+  const r = bootWithCapturedListeners(TAB_LINK_SCHEMA, {});
+  assert.doesNotMatch(r.tabs.innerHTML, /data-tab="h"/, 'the env-hidden tab is not in the bar');
+  goTo(r.listeners.click, 'h');
+  assert.equal(r.activeTab(), 'a');
+  goTo(r.listeners.click, 'zz');
+  assert.equal(r.activeTab(), 'a');
+  assert.match(r.scroll.innerHTML, /data-k="ta"/);
+});
+
+test('boot(): a link inside an open sheet closes the sheet and switches; a hidden target keeps it open', () => {
+  const r = bootWithCapturedListeners(TAB_LINK_SCHEMA, {}, { dialog: true });
+  clickMatching(r.listeners.click, '[data-edit-sheet]', { 'data-edit-sheet': 'sh' });
+  assert.equal(r.modal.open, true, 'the sheet opens');
+  assert.match(r.modal.innerHTML, /data-goto-tab="b"/, 'its box carries the link');
+  goTo(r.modalListeners.click, 'h');
+  assert.equal(r.modal.open, true, 'a hidden target leaves the sheet open');
+  assert.equal(r.activeTab(), 'a');
+  goTo(r.modalListeners.click, 'b');
+  assert.equal(r.modal.open, false, 'the sheet closes');
+  assert.equal(r.modal.innerHTML, '', 'nothing is left drawn in the dialog');
+  assert.equal(r.activeTab(), 'b');
+  assert.match(r.scroll.innerHTML, /data-k="tb"/);
+});
+
+test('boot(): each tab keeps its scroll offset, and a switch scrolls an off-screen tab into the bar', () => {
+  // A 360px bar with 18px side padding over tabs at fixed x, less the bar's scrollLeft:
+  // A at 18-58 (where it rests), B at 400-460 (off screen to the right).
+  const X = { a: [18, 58], b: [400, 460] };
+  const bar = { scrollLeft: 0 };
+  const onTab = () => (/class="tab on" data-tab="(\w+)"/.exec(bar.self.innerHTML) || [])[1];
+  Object.assign(bar, {
+    getBoundingClientRect: () => ({ left: 0, right: 360 }),
+    querySelector: (sel) => (sel !== '.tab.on' ? null : { getBoundingClientRect: () => ({
+      left: X[onTab()][0] - bar.self.scrollLeft, right: X[onTab()][1] - bar.self.scrollLeft }) })
+  });
+  global.getComputedStyle = () => ({ paddingLeft: '18px' });
+  try {
+    const r = bootWithCapturedListeners(TAB_LINK_SCHEMA, {}, { tabs: bar });
+    bar.self = r.tabs;
+    r.scroll.scrollTop = 120;
+    goTo(r.listeners.click, 'b');
+    assert.equal(r.tabs.scrollLeft, 460 - (360 - 18), 'B comes into view, the bar\'s padding clear of the edge');
+    assert.equal(r.scroll.scrollTop, 0, 'a tab not visited yet opens at its top');
+    r.scroll.scrollTop = 40;
+    tapTab(r, 'a');
+    assert.equal(r.activeTab(), 'a');
+    assert.equal(r.tabs.scrollLeft, 0, 'the first tab lands where it rests');
+    assert.equal(r.scroll.scrollTop, 120, 'A comes back where it was left');
+    tapTab(r, 'b');
+    assert.equal(r.scroll.scrollTop, 40, 'and so does B');
+    tapTab(r, 'b');
+    assert.equal(r.tabs.scrollLeft, 118, 'a tab already in view leaves the bar where it is');
+  } finally {
+    delete global.getComputedStyle;
+  }
 });
 
 test('readout: label, icon and live hint, no control, no Edit, nothing serialized', () => {

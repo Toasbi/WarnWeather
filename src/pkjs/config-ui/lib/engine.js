@@ -1055,9 +1055,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
 
   /**
    * A checklist's tick columns: item.columns ([{messageKey, label}], each column storing
-   * its own comma list), else one unlabelled column on the item's own key.
+   * its own comma list; a transposed checklist's columns are captions only, [{label}]),
+   * else one unlabelled column on the item's own key.
    * @param {Object} item Checklist item.
-   * @returns {Array.<{messageKey: string, label: string}>} The columns, left to right.
+   * @returns {Array.<{messageKey: (string|undefined), label: string}>} The columns, left to right.
    */
   function checklistColumns(item) {
     return (item.columns && item.columns.length) ? item.columns
@@ -1076,15 +1077,23 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
    * checklist's onChange. meta.disabled or an optionDisabledWhen gate
    * (view.disabledOptions) renders the option's ticks inert WITH their state, so a stored
    * value is never rewritten by a gate.
+   * A TRANSPOSED checklist (item.check: one code) turns this on its side: each option row
+   * names the lists its ticks write in meta.keys (one key per column, left to right), and
+   * every tick flips item.check in its own row's list. Such a tick names that list as both
+   * data-k and data-list, so the tap runs the list's OWN item (its options, its onChange);
+   * item.columns then carries captions only.
    * @param {Object} item Checklist item with its options materialized (resolveRowItem).
-   * @param {{value: *, columnValues: (Array|undefined), disabledOptions: (string[]|undefined)}} view
+   * @param {{value: *, columnValues: (Array|undefined), cellValues: (Object|undefined),
+   *   disabledOptions: (string[]|undefined)}} view
    *   Render state: columnValues holds each column's stored list (resolveRowItem); without
-   *   it the one column reads view.value.
+   *   it the one column reads view.value. A transposed checklist reads its rows' lists by
+   *   key from cellValues (the live state).
    * @returns {string} Control HTML.
    */
   function renderChecklist(item, view) {
     var cols = checklistColumns(item), off = view.disabledOptions || [];
     var multi = cols.length > 1, vals = view.columnValues || [view.value];
+    var cell = item.check != null, cells = view.cellValues || {}, key, val, rowKeys;
     var have = [], groups = [], cur = null, caps = '', i, j, c, k, o, meta, on, gated, g, later, h;
     for (c = 0; c < cols.length; c++) { have.push(checklistCodes(vals[c])); }
     for (i = 0; i < (item.options || []).length; i++) {
@@ -1116,12 +1125,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
           + '<span class="lft"><span class="lbl">' + esc(o[0]) + '</span>'
           + (meta.desc ? '<span class="hint">' + esc(meta.desc) + '</span>' : '') + '</span>'
           + '<span class="chk-ticks">';
+        rowKeys = meta.keys || [];
         for (c = 0; c < cols.length; c++) {
-          on = have[c].indexOf(o[1]) >= 0;
+          // A transposed row without a list for this column draws the tick inert and empty.
+          key = cell ? (rowKeys[c] || '') : cols[c].messageKey;
+          val = cell ? String(item.check) : o[1];
+          on = cell ? (key !== '' && checklistCodes(cells[key]).indexOf(val) >= 0) : have[c].indexOf(o[1]) >= 0;
           h += '<button type="button" class="chk-tick' + (on ? ' on' : '') + '" role="checkbox" aria-checked="'
             + (on ? 'true' : 'false') + '" aria-label="' + esc(multi ? o[0] + ', ' + cols[c].label : o[0])
-            + '" data-list="' + esc(item.messageKey) + '" data-k="' + esc(cols[c].messageKey)
-            + '" data-check="' + esc(o[1]) + '"' + (gated ? ' disabled aria-disabled="true"' : '') + '>'
+            + '" data-list="' + esc(cell ? key : item.messageKey) + '" data-k="' + esc(key)
+            + '" data-check="' + esc(val) + '"'
+            + (gated || (cell && key === '') ? ' disabled aria-disabled="true"' : '') + '>'
             + '<span class="chk-box" aria-hidden="true"></span></button>';
         }
         h += '</span></div>';
@@ -1147,7 +1161,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // is missing from it, so a new control type renders as an empty row until it
     // is listed here.
     rgb: function (item, view) { return renderRgb(item, view); },
-    // Checkboxes storing the ticked option values as one comma list per column.
+    // Checkboxes storing the ticked option values as one comma list per column; transposed
+    // (item.check), one code ticked in or out of each row's own lists.
     checklist: function (item, view) { return renderChecklist(item, view); }
   };
   /**
@@ -1316,9 +1331,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // A checklist's derived options are materialized WITHOUT the single-value snap below:
     // its value is a list, and an option the resolver gates is rendered inert (meta.disabled)
     // rather than dropped, so nothing here ever rewrites cx.S. A checklist with columns
-    // reads every column's list here (the control renderer receives only the view).
+    // reads every column's list here (the control renderer receives only the view). A
+    // transposed checklist (item.check) reads each row's own lists (meta.keys), so its
+    // view carries the whole state instead of one list per column.
     if (item.type === 'checklist') {
-      if (item.columns) {
+      if (item.check != null) {
+        view.cellValues = cx.S;
+      } else if (item.columns) {
         view.columnValues = item.columns.map(function (col) { return cx.S[col.messageKey]; });
       }
       return item.optionsFrom
@@ -2116,28 +2135,73 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       applyTheme();
     }
 
-    // Tab bar: switch the active tab and close any open color/shared-sheet overlays.
     // Each tab keeps its own scroll offset (in-memory only, per page load) so
     // switching away and back returns to where the user left off instead of
     // wherever the previous tab's offset happened to clamp.
     var tabScroll = {};
+    /**
+     * THE tab switch: a tab-bar tap, and a [data-goto-tab] link in an intro, a hint, a note
+     * or an open sheet. It closes whatever is open (a sheet included: render() closes the
+     * dialog on that edge), keeps the old tab's scroll offset, restores the new one's, and
+     * scrolls the tab bar so the new tab shows.
+     * @param {string} id The tab to bring to the front.
+     * @returns {void}
+     */
+    function switchTab(id) {
+      dateWiring.flushPending();
+      var scroll = document.getElementById('scroll');
+      tabScroll[activeTab] = scroll.scrollTop;
+      activeTab = id;
+      openColor = null;
+      openInline = null;
+      openSelect = null;
+      openDate = null;
+      openEdit = null;
+      openConfirm = null;
+      lastEditSheet = null;
+      render();
+      scroll.scrollTop = tabScroll[activeTab] || 0;
+      revealActiveTab();
+    }
+    /**
+     * A tab bar wider than the screen scrolls sideways with its scrollbar hidden, so a
+     * switch the bar did not make (a tab link, the Save dialog's fix) can land on a tab
+     * that is off screen. Scroll the bar until the active tab shows, as far from the edge
+     * as the bar's own side padding (so the first and last tabs land where they rest);
+     * a tab already that far in (most taps) leaves the bar where it is. Rect math, not
+     * scrollIntoView({…}), which old webviews lack.
+     * @returns {void}
+     */
+    function revealActiveTab() {
+      var bar = document.getElementById('tabs');
+      var on = (bar && bar.querySelector) ? bar.querySelector('.tab.on') : null;
+      if (!on || !on.getBoundingClientRect || !bar.getBoundingClientRect) { return; }
+      var b = bar.getBoundingClientRect(), r = on.getBoundingClientRect();
+      var pad = (typeof getComputedStyle === 'function' && parseFloat(getComputedStyle(bar).paddingLeft)) || 16;
+      if (r.left < b.left + pad) {
+        bar.scrollLeft -= b.left + pad - r.left;
+      } else if (r.right > b.right - pad) {
+        bar.scrollLeft += r.right - (b.right - pad);
+      }
+    }
+    /**
+     * Whether a tab is in the bar right now: it exists and its showWhen holds (an env gate
+     * hides a tab a platform lacks). A tab link never opens a tab the bar does not show.
+     * @param {string} id Tab id.
+     * @returns {boolean} True when the tab exists and shows.
+     */
+    function tabShown(id) {
+      var tabs = SCHEMA.tabs || [], i;
+      for (i = 0; i < tabs.length; i++) {
+        if (tabs[i].id === id) { return PConf.showWhen.isVisible(tabs[i], evalCtx()); }
+      }
+      return false;
+    }
+    // Tab bar: a tap switches to its tab.
     function wireTabBar() {
       document.getElementById('tabs').addEventListener('click', function (e) {
         var b = e.target.closest('[data-tab]');
-        if (!b) { return; }
-        dateWiring.flushPending();
-        var scroll = document.getElementById('scroll');
-        tabScroll[activeTab] = scroll.scrollTop;
-        activeTab = b.getAttribute('data-tab');
-        openColor = null;
-        openInline = null;
-        openSelect = null;
-        openDate = null;
-        openEdit = null;
-        openConfirm = null;
-        lastEditSheet = null;
-        render();
-        scroll.scrollTop = tabScroll[activeTab] || 0;
+        if (b) { switchTab(b.getAttribute('data-tab')); }
       });
     }
 
@@ -2179,8 +2243,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // hand-curated duplicate of #scroll's list. Returns true when handled.
     // (The two hosts used to check these in different orders; no element matches
     // two of the selectors — data-action rides button rows, .lbl-act, .txt-act-btn
-    // and the intros' .txt-link, data-copy the hints' .copybtn, none nested in
-    // toggle/data-v/color controls — so one canonical order serves both.)
+    // and the intros' .txt-link, data-goto-tab the copy's tab links (.txt-link too),
+    // data-copy the hints' .copybtn, none nested in toggle/data-v/color controls — so
+    // one canonical order serves both.)
     function controlClick(e) {
       var t;
       if ((t = e.target.closest('[data-max-edit]'))) { rangeWiring.openMaxEdit(t); return true; }
@@ -2211,11 +2276,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         // A gated option keeps its tick and ignores the tap.
         if (t.getAttribute('disabled') != null) { return true; }
         // data-k is the column's key the tick writes; data-list its checklist, which owns
-        // the options and the onChange (the same key unless the checklist has columns).
+        // the options and the onChange (the same key unless the checklist has columns; a
+        // transposed checklist's tick names the key itself, so the key's own item owns them).
         var chK = t.getAttribute('data-k'), chV = t.getAttribute('data-check');
         var chItem = findShownItem(SCHEMA, t.getAttribute('data-list') || chK, evalCtx());
         if (!chItem) { return true; }
-        setValue(chK, checklistToggle(S[chK], chV, resolveOptionsFrom(chItem, S, ENV)), S[chK], chItem);
+        var chOpts = resolveOptionsFrom(chItem, S, ENV);
+        // An owner whose options lack the code cannot flip it: checklistToggle keeps only the
+        // codes its options list, so the write could only drop the others (with no options
+        // at all, wipe the list to ''). Leave the list as it is.
+        if (!optionHasValue(chOpts, chV)) { return true; }
+        setValue(chK, checklistToggle(S[chK], chV, chOpts), S[chK], chItem);
         render();
         var hosts = [document.getElementById('modal'), document.getElementById('scroll')], hi, again;
         for (hi = 0; hi < hosts.length; hi++) {
@@ -2228,6 +2299,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       if ((t = e.target.closest('[data-v]'))) {
         setValue(t.getAttribute('data-k'), t.getAttribute('data-v'));
         render(); return true;
+      }
+      // A tab link (.txt-link data-goto-tab) in copy: brings its tab to the front, from the
+      // tab body or from inside an open sheet (which closes). A tab the bar hides stays put.
+      if ((t = e.target.closest('[data-goto-tab]'))) {
+        var gt = t.getAttribute('data-goto-tab');
+        if (tabShown(gt)) { switchTab(gt); }
+        return true;
       }
       if ((t = e.target.closest('[data-action]'))) {
         var act = t.getAttribute('data-action');
@@ -2646,8 +2724,9 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     /**
      * A tap on one of the Save dialog's buttons. "save" closes it and saves exactly as
      * Save does; "action" closes it WITHOUT saving and opens the fix on the row's tab:
-     * that tab comes to the front (its scroll offset kept as a tab tap keeps it) and the
-     * row's sheet opens over it, so closing the sheet lands on the row it belongs to.
+     * that tab comes to the front (its scroll offset kept as a tab tap keeps it, the tab
+     * bar scrolled so it shows) and the row's sheet opens over it, so closing the sheet
+     * lands on the row it belongs to. Not switchTab: that one closes every sheet.
      * @param {string} which 'save' | 'action'.
      * @returns {void}
      */
@@ -2666,7 +2745,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         lastEditSheet = cf.sheet;
       }
       render();
-      if (switching) { scroll.scrollTop = tabScroll[activeTab] || 0; }
+      if (switching) {
+        scroll.scrollTop = tabScroll[activeTab] || 0;
+        revealActiveTab();
+      }
     }
 
     function wireSave() {

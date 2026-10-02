@@ -140,6 +140,11 @@
   .row .hint a { color: var(--link); }
   .row .lft { min-width: 0; flex: 1; }
   .row .rgt { flex: none; }
+  /* A switch is an inline box on its cell's text baseline, so the line's descent (the
+     strut) hung 4px of air under it: a hint-less toggle row's cell stood 32px tall around
+     a 28px switch, centred 2px high, and anything under it sat 4px further off. Top-
+     aligned, the switch IS the line, so the cell is exactly the switch. */
+  .row .rgt > .sw { vertical-align: top; }
   .row.wrap { display: block; }
   .row.wrap::after { content: ''; display: block; clear: both; }
   .row.wrap .rgt { float: right; margin: 2px 0 8px 14px; }
@@ -165,6 +170,18 @@
      explicit text colour keeps a tight-joined box (.static.join) off the hint grey, which
      is only 3.97:1 on the dark amber. */
   .static.info .info-box { padding: 8px 10px; border-radius: 6px; background: var(--info-tint); border-left: 3px solid var(--info-rule); color: var(--static); }
+  /* An info box is a box, not a hint: a join drops the divider next to it, never its
+     standoff. Every box keeps the page's 14px row padding to the content or line on
+     either side, whatever joins it; without these, the .join pull-up, an intro's 12px or
+     a loose join's second 14px put it flush on one side and 26-28px off the other.
+     (Under a COMPACT row, .row.slot's 8px beats .row.nb's 5px: a box tight-joined there
+     would sit 17px off. None does.) Adjacent-sibling selectors only, no :has(), for old
+     webviews. */
+  .static.info.join { margin-top: 0; padding-top: 9px; }   /* + the joined row's 5px (.row.nb) */
+  .static.info.nb { padding-bottom: 9px; }                 /* + the next row's 5px (.static.nb + .row) */
+  .intro + .static.info { padding-top: 2px; }              /* + the intro's 12px */
+  .row.nbl + .static.info { padding-top: 0; }              /* the row's own 14px is the gap */
+  .static.info.nbl + .row { padding-top: 0; }              /* the box's own 14px is the gap */
   /* inline data block attached to a control (e.g. last-fetch under Force weather fetch) */
   .blockrow { padding: 12px 16px 14px; font-size: 12.5px; color: var(--hint); line-height: 1.55; border-bottom: 1px solid var(--row-line); }
   .blockrow a { color: var(--link); }
@@ -272,6 +289,11 @@
      takes the muted chrome colour here and follows the theme flip with it */
   .lbl-ico { display: inline-flex; vertical-align: -3px; margin-right: 7px; color: var(--muted); line-height: 0; }
   .lbl-ico svg { width: 16px; height: 16px; }
+  /* A run of glyphs in a hint, led by its word ("Left" + icons): one unbreakable run, so a
+     narrow phone wraps between runs, never inside one. .lbl-ico is not scoped to .lbl, so
+     the glyphs keep their size, muted colour and theme flip here. */
+  .ico-run { display: inline-block; white-space: nowrap; margin-right: 12px; }
+  .ico-run .lbl-ico { margin-right: 4px; }
   select { -webkit-appearance: none; appearance: none; border: 1px solid var(--ctl-line); background: var(--ctl); color: var(--lbl); border-radius: 9px; padding: 8px 32px 8px 13px; font: 600 13.5px 'Inter', sans-serif; cursor: pointer; outline: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%23B6BAC2'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; transition: border-color .15s; }
   select:focus { border-color: #FA4A35; }
   body.light select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M0 0l4 6 4-6z' fill='%235A5F6A'/%3E%3C/svg%3E"); }

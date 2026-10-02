@@ -231,6 +231,7 @@ Schema
   └─ tabs[]
        ├─ id            string  (unique)
        ├─ label         string  (tab bar text)
+       ├─ showWhen      Predicate (false: no tab button, no body, no tab link lands there)
        └─ sections[]
             ├─ title        string
             ├─ intro        string  (HTML — displayed above items)
@@ -261,7 +262,7 @@ Schema
 | `button` | Tappable action row; no key | — (not serialized) | — |
 | `subheader` | In-section group header; no key | — (not serialized) | — |
 | `sheet` | Tappable row that opens a `sheetOnly` section; no key | — (not serialized) | — |
-| `checklist` | One plain row per option with a tick per column, a sub-header per `meta.groupHeader` group, its rows joined | comma list of the ticked values in option order (`''` = none), one per column | — |
+| `checklist` | One plain row per option with a tick per column, a sub-header per `meta.groupHeader` group, its rows joined; with `check`, transposed: one code, each row's ticks writing that row's own lists | comma list of the ticked values in option order (`''` = none), one per column; with `check`, nothing of its own (the lists are other items' keys) | — |
 | `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
 A `sheet` item is a whole-row chevron target by default. Give it an
@@ -322,14 +323,41 @@ item's `onChange` (old and new list) once. The row's `label` names the list for 
 (its `aria-label`) instead of heading the row.
 
 `columns: [{messageKey, label}, …]` gives every row one tick per column, each column a list of
-its own (the On demand bar sheets' Left and Right: `[{messageKey: '…LeftItems', label: 'Left'},
-{messageKey: '…RightItems', label: 'Right'}]`). The first column is the item's own `messageKey`;
+its own (e.g. a Left and a Right list: `[{messageKey: 'leftItems', label: 'Left'},
+{messageKey: 'rightItems', label: 'Right'}]`). The first column is the item's own `messageKey`;
 every other column's key needs a `hidden` item of its own for its default and its save, as a
 range's `dangerKey` does. Every sub-header then carries the columns' captions over their ticks
 (an untitled first group gets a caption-only one), and each tick is named "<option>, <column>"
 for assistive tech. A tap writes that column's list and fires the CHECKLIST's `onChange` with
 the column's key, so one hook keeps the columns consistent (e.g. an option ticked in one column
 leaves the others).
+
+`check: '<code>'` turns a checklist on its side: ONE code, ticked in or out of several lists,
+one row per option and, within a row, one list per column. Each option names the lists its
+ticks write in `meta.keys`, one key per column, left to right, and `columns` carries the
+captions only (`[{label: 'Left'}, {label: 'Right'}]`):
+
+```js
+{ type: 'checklist', label: 'Shows on', check: 'rain', columns: [{label: 'Left'}, {label: 'Right'}],
+  options: [['Shows on', '', {groupHeader: true}],
+            ['Top bar',    'top',    {keys: ['topLeftItems', 'topRightItems']}],
+            ['Bottom bar', 'bottom', {keys: ['bottomLeftItems', 'bottomRightItems']}]] }
+```
+
+Every tick shows whether its list holds the code, and a tap flips the code in that list only.
+The checklist has no `messageKey` and stores nothing itself: **every key it writes needs an
+item of its own** (a `hidden` one is enough) that carries the list's `options` /
+`optionsFrom`, and optionally its `onChange`. That item, the one carrying the key, owns the
+write. Its options put the list in canonical order, keeping the other codes already in it, and
+its `onChange` runs with that key. So the hook belongs to the KEY, not to the control: every
+control that writes the list gets it. An item whose options lack the code (or that has no
+options at all) is not written: the tap changes nothing rather than dropping the list's other
+codes. Keep exactly one item per key: with two, the tap goes to whichever one is visible
+(`showWhen`), and that one's options and hook would decide the list. A tick
+renders inert (with its state) under the row's `meta.disabled`, and inert and empty where the
+row names no key for its column. Captions, row joins, the "<option>, <column>" names and focus
+return after a tap work as in the column form, so keep one such grid per sheet: a tick is found
+again by its key and its code.
 
 A `readout` row is a badged `sheet` row with nothing to open: its label (and `icon`) on the left
 and a live `hint`/`hintFrom` line under it, for a setting summary that has no settings of its own.
@@ -359,7 +387,10 @@ chrome. They are not serialized (no `messageKey`). `style: 'info'` boxes the not
 tinted, left-ruled look of the General tab's fetch-notice items, in the page's info amber
 (`--info-tint` / `--info-rule` in `shell.html`, shared with those notice items and flipped by
 the light theme; error boxes stay red) — for a pointer the reader should not skim past as
-body copy ("this is set on another tab").
+body copy ("this is set on another tab"). A boxed note keeps the row padding (14px) to
+whatever sits above and below it. A `joinPrevious` drops the divider next to it, never that
+gap, and the box does not hug the row above the way a plain joined note does. The same holds
+for a box right under an intro (`shell.html`, the `.static.info` standoff rules).
 `textFrom: { resolver, args }` derives the note from the live settings through a named
 [hint resolver](#hint-resolver-registry--pconfhintresolvers), for a note whose words, or
 whether it shows at all, depend on more than a `showWhen` can test (WarnWeather's "Needs an
@@ -413,6 +444,8 @@ picking the shown swatch is what writes it.
 | `textFrom` | `{ resolver, args }` | `staticText` only: the body derived by a named hint resolver; `''` renders nothing (see above) |
 | `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
 | `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
+| `columns` | `[{messageKey, label}]` | `checklist` only: one tick per column, each its own list (see above). With `check`, `[{label}]`: captions only. |
+| `check` | string | `checklist` only: the one code a transposed checklist ticks in its rows' lists (`meta.keys`; see above). |
 | `single` | boolean | `range` only: one thumb, a plain integer string (see above). |
 
 ### showWhen predicate grammar
@@ -710,6 +743,16 @@ PConf.actions.resetThresholds = function (arg, state, env, defaultOf) {
   return true;
 };
 ```
+
+Copy can carry the same dispatch inline: a section `intro`, a hint or a `staticText` may hold
+`<button type="button" class="txt-link" data-action="resetThresholds">…</button>`, drawn as a
+link in the copy's own font (`.txt-link`). A tab link has the same markup with
+`data-goto-tab="<tab id>"` instead: a tap brings that tab to the front, as a tab-bar tap does.
+Each tab keeps its scroll offset, and the tab bar scrolls sideways until the new tab shows.
+From inside an open sheet, the sheet closes first. A tab whose `showWhen` hides it is never
+opened that way: the tap changes nothing, so link only to a tab that exists wherever the copy
+shows (gate the copy with the tab). Keep both kinds of link out of copy that sits inside a
+tap target of its own (a chevron `button`/`sheet` row, a card header): that target's tap wins.
 
 ### Hook registry — PConf.hooks
 
