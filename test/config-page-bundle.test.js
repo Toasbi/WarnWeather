@@ -160,6 +160,43 @@ test('the when resolvers are bundled after the modules they ask', () => {
       'nothing registers the ' + id + ' when resolver in the generated page'));
 });
 
+// alerts-page.js holds the Alerts tab's resolvers. It binds PConf.thresholdLevels, which
+// blocks.js publishes while its own body runs, so it follows blocks.js; before it, the page
+// throws at boot. Out of the page, nothing throws: the Alert settings card's rows, the Shows
+// on grids and the bars' Alerts rows silently lose what those resolvers answer on a real
+// phone, while every Node test passes through blocks.js' require(). The ids come from the
+// schema: every resolver the Alerts tab's sections and a bar's Alerts row name.
+test('the Alerts tab\'s resolvers are bundled after blocks.js, which they read', () => {
+  const appFiles = require('../scripts/build-config-page.js').APP_FILES;
+  const idx = (suffix) => {
+    const at = appFiles.findIndex((f) => f.endsWith(suffix));
+    assert.notEqual(at, -1, suffix + ' is not in APP_FILES at all');
+    return at;
+  };
+  assert.ok(idx('settings/blocks.js') < idx('settings/alerts-page.js'),
+    'blocks.js must precede alerts-page.js, which reads PConf.thresholdLevels at load');
+  const alerts = require('../src/pkjs/settings/alerts-schema.js');
+  const ids = new Set();
+  (function collect(node) {
+    if (Array.isArray(node)) { node.forEach(collect); return; }
+    if (!node || typeof node !== 'object') { return; }
+    if (typeof node.resolver === 'string') { ids.add(node.resolver); }
+    Object.keys(node).forEach((k) => collect(node[k]));
+  })([alerts.cardSection(), alerts.sheetSections(), alerts.onDemandRow('statusTop', null)]);
+  ['alertLevelBadge', 'alertLevelsHint', 'rainAlertHint', 'onDemandBars', 'onDemandBarIcons',
+    'onDemandSleepText'].forEach((id) => assert.ok(ids.has(id), 'the Alerts schema names ' + id));
+  const src = page();
+  const published = src.indexOf('PConf.thresholdLevels = ');
+  assert.notEqual(published, -1, 'nothing publishes PConf.thresholdLevels in the generated page');
+  ids.forEach((id) => {
+    const at = src.indexOf(".register('" + id + "'");
+    assert.notEqual(at, -1, 'nothing registers the ' + id + ' resolver in the generated page');
+  });
+  ['alertLevelBadge', 'onDemandBars', 'onDemandSleepText'].forEach((id) =>
+    assert.ok(src.indexOf(".register('" + id + "'") > published,
+      id + ' must register after blocks.js publishes PConf.thresholdLevels'));
+});
+
 // stripe-levels.js (window.StripeLevels) is the table the bake shades every stripe by;
 // preview-forecast.js, preview-radar.js and blocks.js bind it while their own bodies run
 // (blocks.js writes its stripe hints from it at load). Out of the page, or after them,

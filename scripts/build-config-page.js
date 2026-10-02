@@ -118,6 +118,14 @@ var APP_FILES = [
   // its register() calls into the page.
   path.join(ROOT, 'src/pkjs/settings/when-resolvers.js'),
   path.join(ROOT, 'src/pkjs/settings/blocks.js'),
+  // The Alerts tab's resolvers (the Alert settings card's hints and badges, the Shows on
+  // grids' rows, a bar's Alerts row). They bind PConf.thresholdLevels, which blocks.js
+  // publishes while ITS body runs, so they follow it; before it, the page throws at boot.
+  // Dropped, nothing throws: the card's rows and the grids silently lose everything these
+  // resolvers answer, while every Node test passes through blocks.js' require() —
+  // test/config-page-bundle.test.js pins the file after blocks.js and its registrations
+  // into the page.
+  path.join(ROOT, 'src/pkjs/settings/alerts-page.js'),
   // wizard-screenshots.generated.js assigns PConf.screenshots; must precede wizard.js, which reads it.
   path.join(ROOT, 'src/pkjs/settings/wizard-screenshots.generated.js'),
   // defaults-policy.js assigns window.DefaultsPolicy and must precede wizard.js, which

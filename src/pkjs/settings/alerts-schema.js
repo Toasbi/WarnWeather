@@ -25,7 +25,7 @@ var levelLead = levelRowsSchema.levelLead;
 var levelLook = levelRowsSchema.levelLook;
 
 // The rain alert's two choices, named once: the Rain sheet's rows offer them and the
-// card row's hint (blocks.js rainAlertHint) prints the picked ones by these labels. The
+// card row's hint (alerts-page.js rainAlertHint) prints the picked ones by these labels. The
 // window's segmented control uses the short labels; the card row keeps the long ones.
 var RAIN_WINDOW_OPTIONS = [['Within 30 min', '30'], ['Within 60 min', '60'], ['Within 2 hours', '120']];
 var RAIN_WINDOW_SEGMENTS = [['30 min', '30'], ['60 min', '60'], ['2 hours', '120']];
@@ -47,7 +47,7 @@ var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the 
 /**
  * An item's Shows on grid and its note, the first rows of its sheet (under the sheet's
  * intro): one row per status bar the watch draws, each with a Left and a Right tick
- * for that side's list (blocks.js onDemandBars; a checklist, engine.js renderChecklist).
+ * for that side's list (alerts-page.js onDemandBars; a checklist, engine.js renderChecklist).
  * A tap goes to on-demand.js through the grid's writer (reset-status-defaults.js
  * onDemandTick: tickOn / untickFrom), which keeps the list in priority order and the item
  * on one side of the bar. The grid has no messageKey: it stores nothing of its own.
@@ -103,7 +103,7 @@ function rainAlertUnshownNote() {
 }
 /**
  * The Rain sheet's box while the radar is off, right under its Shows on note: the rain
- * alert cannot show then (blocks.js onDemandBlocked), so the grid's rows go inert and
+ * alert cannot show then (alerts-page.js onDemandBlocked), so the grid's rows go inert and
  * keep their ticks, and this says why. A fresh object per call, like every item.
  * @returns {Object} The info-box staticText.
  */
@@ -186,7 +186,7 @@ function rainAlertSheet() {
     };
 }
 // A metric alert's Days, named once: the sheet's row offers them and the card row's hint
-// (blocks.js alertLevelsHint) prints a pick other than the default by its label. The
+// (alerts-page.js alertLevelsHint) prints a pick other than the default by its label. The
 // values are the contract's (status-thresholds.js ALERT_DAYS — pinned by a test);
 // 'tomorrow' is "Today + tomorrow", never tomorrow alone: today always wins.
 var ALERT_DAYS_OPTIONS = [['Today', 'today'], ['Today + tomorrow', 'tomorrow']];
@@ -437,7 +437,7 @@ var ALERT_KINDS = [
 /**
  * A bar's Alerts row, after its three slots: READ-ONLY (the owner, 2026-10-01). Its hint
  * shows the icons of the items placed on each side ("Left" + icons, "Right" + icons), then
- * where they are set up: the Alerts tab, as a link (blocks.js onDemandBarIcons). A readout:
+ * where they are set up: the Alerts tab, as a link (alerts-page.js onDemandBarIcons). A readout:
  * no key, no Edit, nothing to open; each item's sheet on the Alerts tab places it.
  * @param {string} prefix The bar's key prefix, e.g. 'statusTop'.
  * @param {?Object} barWhen The bar's gate (RADAR_BAR_WHEN …), or null.
