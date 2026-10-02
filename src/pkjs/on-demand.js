@@ -28,7 +28,7 @@
   // drops first when a bar runs short of room. The index is the watch's OdItem and the
   // cell byte's offset.
   // `label` is the page's name for the item (the icons' spoken names on the Status slots
-  // tab's read-only Alerts rows, and the side lists' option names); `icon` its glyph's
+  // tab's read-only Alerts rows); `icon` its glyph's
   // PConf.icons id on the page (status-slot-icons.js: those rows draw the placed items by
   // it). Both page-only.
   var ITEMS = [
@@ -274,10 +274,9 @@
 
   /**
    * Take items off one side's list, which is written back in the canonical order. THE
-   * write that unticks: the page's one-side-per-bar hook (the side lists' onChange, which
-   * every Shows on grid's tick runs), its open-time heal and untickEverywhere all go
-   * through it. Mutates S; a list that held none of them is left
-   * as stored.
+   * write that unticks: a Shows on grid's untick on the page (reset-status-defaults.js
+   * onDemandTick), the page's open-time heal and untickEverywhere all go through it.
+   * Mutates S; a list that held none of them is left as stored.
    * @param {Object} S Settings blob.
    * @param {string} key A side's items key (itemsKey).
    * @param {string[]} codes ITEMS codes to take off.

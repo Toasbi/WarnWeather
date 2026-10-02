@@ -6,7 +6,7 @@ const {
   dedupeStatusSlot,
   resetCountdownDate,
   forceRainOnDemand,
-  onDemandExclusive
+  onDemandTick
 } = require('../src/pkjs/settings/reset-status-defaults.js');
 
 function todayValue() {
@@ -240,16 +240,19 @@ test('forceRainOnDemand: any other mode leaves the ticks alone', () => {
   });
 });
 
-test('onDemandExclusive: an item ticked on one side leaves the bar\'s other side', () => {
-  const S = { statusTopOnDemandLeftItems: 'bt,qt,snooze,battery', statusTopOnDemandRightItems: 'battery,rain',
+test('onDemandTick: a tick places the item on that side, off the bar\'s other side; an untick takes it off that side alone', () => {
+  const S = { statusTopOnDemandLeftItems: 'bt,qt,snooze', statusTopOnDemandRightItems: 'battery,rain',
     statusForecastOnDemandRightItems: 'battery' };
-  onDemandExclusive(S, 'statusTopOnDemandLeftItems', 'bt,qt,snooze', 'battery,bt,qt,snooze');
+  onDemandTick(S, 'statusTopOnDemandLeftItems', 'battery', true);
+  assert.equal(S.statusTopOnDemandLeftItems, 'battery,bt,qt,snooze', 'in the priority order, not the tap order');
   assert.equal(S.statusTopOnDemandRightItems, 'rain', 'moved off the right');
   assert.equal(S.statusForecastOnDemandRightItems, 'battery', 'other bars keep it');
-  // An untick moves nothing back.
-  onDemandExclusive(S, 'statusTopOnDemandLeftItems', 'battery,bt', 'bt');
-  assert.equal(S.statusTopOnDemandRightItems, 'rain');
+  onDemandTick(S, 'statusTopOnDemandLeftItems', 'battery', false);
+  assert.equal(S.statusTopOnDemandLeftItems, 'bt,qt,snooze');
+  assert.equal(S.statusTopOnDemandRightItems, 'rain', 'an untick moves nothing back');
   // Not a side list: nothing happens.
-  onDemandExclusive(S, 'statusTopLeft', 'date', 'battery');
-  assert.equal(S.statusTopOnDemandRightItems, 'rain');
+  const before = JSON.stringify(S);
+  onDemandTick(S, 'statusTopLeft', 'battery', true);
+  onDemandTick(S, 'statusTopLeft', 'rain', false);
+  assert.equal(JSON.stringify(S), before);
 });

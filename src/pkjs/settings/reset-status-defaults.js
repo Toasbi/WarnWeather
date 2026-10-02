@@ -15,13 +15,14 @@
 // (defense in depth); this hook exists so a user-driven toggle never leaves a
 // silently-empty slot behind. The radarMode hook also ticks the rain alert on the
 // Watch Status Bar when the mode that exists only for it is picked and no visible bar
-// shows it (forceRainOnDemand). The On demand side lists carry one more hook,
-// onDemandExclusive: an item sits on at most one side of a bar.
+// shows it (forceRainOnDemand). It also registers the Shows on grids' writer
+// (PConf.checkWriters 'onDemandTick'), which stores each tick through on-demand.js.
 /* global PConf, StatusLineCatalog */
 var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     : (typeof window !== 'undefined' && window.PConf) ? window.PConf
     : (typeof PConf !== 'undefined' && PConf) ? PConf
-    : { onChange: { register: function () {}, get: function () {} } };
+    : { onChange: { register: function () {}, get: function () {} },
+        checkWriters: { register: function () {}, get: function () {} } };
 
 (function () {
     // Node (tests): CommonJS require. Webview: concatenated <script> exposing
@@ -194,22 +195,21 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
     }
 
     /**
-     * Keep an On demand item on at most one side of a bar: whatever a side's list just
-     * gained is removed from the bar's other side. The side lists' own onChange (their
-     * carriers, schema.js onDemandListsSection), so every write through them follows it:
-     * each tick in an item's Shows on grid. Mutates S.
-     * @param {Object} S live settings state (key already set to newValue)
-     * @param {string} key the side list that changed, e.g. 'statusTopOnDemandLeftItems'
-     * @param {*} oldValue its previous list
-     * @param {*} newValue its new list
+     * One tap in an item's Shows on grid (schema.js showsOnRows names this writer;
+     * engine.js renderChecklist), stored by on-demand.js, the side lists' writer: a tick
+     * places the item on that side of the bar in the priority order and takes it off the
+     * bar's other side (tickOn); an untick takes it off that side alone (untickFrom).
+     * Mutates S; a key that is no side's list is left alone.
+     * @param {Object} S live settings state
+     * @param {string} key the tapped side's list, e.g. 'statusTopOnDemandLeftItems'
+     * @param {string} code the sheet's item, an on-demand.js ITEMS code
+     * @param {boolean} on true to tick the item there, false to untick it
      * @returns {void}
      */
-    function onDemandExclusive(S, key, oldValue, newValue) {
+    function onDemandTick(S, key, code, on) {
         var at = onDemand.sideOfKey(key);
         if (!at) { return; }
-        var before = onDemand.parse(oldValue);
-        var added = onDemand.parse(newValue).filter(function (c) { return before.indexOf(c) < 0; });
-        onDemand.untickFrom(S, onDemand.itemsKey(at.bar, onDemand.otherSide(at.side)), added);
+        if (on) { onDemand.tickOn(S, at.bar, at.side, code); } else { onDemand.untickFrom(S, key, [code]); }
     }
 
     PConf.onChange.register('resetStatusRadar', function (S, oldValue, newValue, env) {
@@ -223,9 +223,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
         resetCountdownDate(S, key, oldValue, newValue);
         dedupeStatusSlot(S, key);
     });
-    PConf.onChange.register('onDemandExclusive', function (S, oldValue, newValue, env, key) {
-        onDemandExclusive(S, key, oldValue, newValue);
-    });
+    PConf.checkWriters.register('onDemandTick', onDemandTick);
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
@@ -234,7 +232,7 @@ var PConf = (typeof global !== 'undefined' && global.PConf) ? global.PConf
             dedupeStatusSlot: dedupeStatusSlot,
             resetCountdownDate: resetCountdownDate,
             forceRainOnDemand: forceRainOnDemand,
-            onDemandExclusive: onDemandExclusive
+            onDemandTick: onDemandTick
         };
     }
 })();

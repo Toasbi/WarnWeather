@@ -497,20 +497,24 @@ test('type:sheet honors showWhen like any other row', () => {
   assert.ok(E.renderBody(SCH, 't', cx).indexOf('Graph colors') !== -1, 'shown on a color watch');
 });
 
-test('a sheet renders a checklist in place: plain rows under a sub-header per group, gated options inert with their ticks', () => {
+test('a sheet renders a checklist in place: plain rows under its one header, a gated row inert with its ticks', () => {
   global.PConf.optionsResolvers.register('sheetChecklist', () => [
-    ['Group', '', { groupHeader: true }], ['One', 'a'], ['Two', 'b', { disabled: true, desc: 'Not here' }]]);
+    ['One', 'a', { keys: ['l1', 'r1'] }], ['Two', 'b', { keys: ['l2', 'r2'], disabled: true, desc: 'Not here' }]]);
   const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
     { title: 'Main', items: [{ type: 'sheet', sheetId: 'pick', label: 'Pick' }] },
     { sheetOnly: true, sheetId: 'pick', title: 'Pick things', intro: '<b>Bar</b><br>Tick them.', items: [
-      { type: 'checklist', messageKey: 'things', label: 'Things', defaultValue: 'b',
-        optionsFrom: { resolver: 'sheetChecklist' } }
-    ] }
+      { type: 'checklist', label: 'Things', check: 'c', writeWith: 'pickTick',
+        columns: [{ label: 'L' }, { label: 'R' }], optionsFrom: { resolver: 'sheetChecklist' } }
+    ] },
+    { sheetOnly: true, sheetId: 'lists', items: ['l1', 'r1', 'l2', 'r2'].map((k) =>
+      ({ type: 'hidden', messageKey: k, defaultValue: k === 'r2' ? 'c' : '' })) }
   ] }] };
   const sheet = E.renderEditModal(SCH, cxFor(E.hydrate(SCH, {}), { openEdit: 'pick' }));
   assert.ok(sheet.indexOf('<div class="intro"><b>Bar</b><br>Tick them.</div>') !== -1, 'the intro leads');
-  assert.match(sheet, /<div class="chk-list" role="group" aria-label="Things"><div class="subhdr grp chk-hdr"><span>Group<\/span><\/div><div class="row chk-opt nb">/);
+  assert.ok(sheet.indexOf('<div class="chk-list" role="group" aria-label="Things"><div class="subhdr grp chk-hdr">'
+    + '<span>Things</span><span class="chk-caps" aria-hidden="true"><span>L</span><span>R</span></span></div>'
+    + '<div class="row chk-opt nb">') !== -1, 'the label heads the grid, over the captions');
   assert.equal(sheet.indexOf('class="card'), -1, 'no card inside the sheet');
-  assert.match(sheet, /aria-checked="false" aria-label="One" data-list="things" data-k="things" data-check="a">/);
-  assert.match(sheet, /aria-checked="true" aria-label="Two" data-list="things" data-k="things" data-check="b" disabled aria-disabled="true">/);
+  assert.match(sheet, /aria-checked="false" aria-label="One, L" data-k="l1" data-check="c" data-write="pickTick">/);
+  assert.match(sheet, /aria-checked="true" aria-label="Two, R" data-k="r2" data-check="c" data-write="pickTick" disabled aria-disabled="true">/);
 });

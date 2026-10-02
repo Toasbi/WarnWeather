@@ -11490,74 +11490,42 @@
               {
                 "type": "hidden",
                 "messageKey": "statusTopOnDemandLeftItems",
-                "defaultValue": "bt,qt,snooze,rain",
-                "optionsFrom": {
-                  "resolver": "onDemandItems"
-                },
-                "onChange": "onDemandExclusive"
+                "defaultValue": "bt,qt,snooze,rain"
               },
               {
                 "type": "hidden",
                 "messageKey": "statusTopOnDemandRightItems",
-                "defaultValue": "battery,gust,uv,aqi,wind",
-                "optionsFrom": {
-                  "resolver": "onDemandItems"
-                },
-                "onChange": "onDemandExclusive"
+                "defaultValue": "battery,gust,uv,aqi,wind"
               },
               {
                 "type": "hidden",
                 "messageKey": "statusForecastOnDemandLeftItems",
-                "defaultValue": "",
-                "optionsFrom": {
-                  "resolver": "onDemandItems"
-                },
-                "onChange": "onDemandExclusive"
+                "defaultValue": ""
               },
               {
                 "type": "hidden",
                 "messageKey": "statusForecastOnDemandRightItems",
-                "defaultValue": "",
-                "optionsFrom": {
-                  "resolver": "onDemandItems"
-                },
-                "onChange": "onDemandExclusive"
+                "defaultValue": ""
               },
               {
                 "type": "hidden",
                 "messageKey": "statusRadarOnDemandLeftItems",
-                "defaultValue": "",
-                "optionsFrom": {
-                  "resolver": "onDemandItems"
-                },
-                "onChange": "onDemandExclusive"
+                "defaultValue": ""
               },
               {
                 "type": "hidden",
                 "messageKey": "statusRadarOnDemandRightItems",
-                "defaultValue": "",
-                "optionsFrom": {
-                  "resolver": "onDemandItems"
-                },
-                "onChange": "onDemandExclusive"
+                "defaultValue": ""
               },
               {
                 "type": "hidden",
                 "messageKey": "statusHealthOnDemandLeftItems",
-                "defaultValue": "",
-                "optionsFrom": {
-                  "resolver": "onDemandItems"
-                },
-                "onChange": "onDemandExclusive"
+                "defaultValue": ""
               },
               {
                 "type": "hidden",
                 "messageKey": "statusHealthOnDemandRightItems",
-                "defaultValue": "",
-                "optionsFrom": {
-                  "resolver": "onDemandItems"
-                },
-                "onChange": "onDemandExclusive"
+                "defaultValue": ""
               }
             ]
           },
@@ -11574,6 +11542,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "battery",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -11672,6 +11641,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "bt",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -11760,6 +11730,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "qt",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -11807,6 +11778,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "snooze",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -11854,6 +11826,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "rain",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -11955,6 +11928,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "gust",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -12260,6 +12234,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "uv",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -12535,6 +12510,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "aqi",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -12841,6 +12817,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "pollen",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"
@@ -13116,6 +13093,7 @@
                 "type": "checklist",
                 "label": "Shows on",
                 "check": "wind",
+                "writeWith": "onDemandTick",
                 "columns": [
                   {
                     "label": "Left"

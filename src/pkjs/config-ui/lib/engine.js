@@ -163,6 +163,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   // sets the new value and before the next render(). env is the platform env (INJECTED_ENV).
   PConf.onChange = makeRegistry();
 
+  // --- check-writer registry --- a `checklist` grid names the writer of its lists
+  // (item.writeWith: id), so a tap stores what the lists' own contract stores: the grid
+  // keeps no option order and runs no onChange of its own. fn(S, key, code, on) ticks
+  // `code` into the list stored at S[key] (on) or out of it, and may move it elsewhere
+  // too; it runs synchronously on the tap, before the next render().
+  PConf.checkWriters = makeRegistry();
+
   // --- hook registry ---
   var loadFns = [], submitFns = [], readyFns = [];
   PConf.hooks = {
@@ -1020,10 +1027,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     return h;
   }
   /**
-   * The codes a checklist value holds: its comma list split, blanks dropped. The value
-   * is a STRING (never an array): INITIAL is a shallow copy, and serialize, telemetry
-   * and the change detector compare values with ===.
-   * @param {*} value Stored checklist value, e.g. 'bt,qt,snooze' ('' when none).
+   * The codes a stored list holds: its comma list split, blanks dropped.
+   * @param {*} value Stored list, e.g. 'bt,qt,snooze' ('' when none).
    * @returns {string[]} The codes, in stored order.
    */
   function checklistCodes(value) {
@@ -1033,113 +1038,44 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
   }
 
   /**
-   * A checklist value with one option ticked or unticked, canonicalised to the option
-   * order: unknown codes and duplicates drop out, and '' means nothing ticked.
-   * @param {*} value Current stored value.
-   * @param {string} code The option value to flip.
-   * @param {Array.<Array>} options The item's [label, value, meta] options (group
-   *   headers are skipped).
-   * @returns {string} The new comma list.
-   */
-  function checklistToggle(value, code, options) {
-    var have = checklistCodes(value), on = have.indexOf(code) < 0, out = [], i, o;
-    for (i = 0; i < options.length; i++) {
-      o = options[i];
-      if (o[2] && o[2].groupHeader) { continue; }
-      if (o[1] === code ? on : have.indexOf(o[1]) >= 0) {
-        if (out.indexOf(o[1]) < 0) { out.push(o[1]); }
-      }
-    }
-    return out.join(',');
-  }
-
-  /**
-   * A checklist's tick columns: item.columns ([{messageKey, label}], each column storing
-   * its own comma list; a transposed checklist's columns are captions only, [{label}]),
-   * else one unlabelled column on the item's own key.
-   * @param {Object} item Checklist item.
-   * @returns {Array.<{messageKey: (string|undefined), label: string}>} The columns, left to right.
-   */
-  function checklistColumns(item) {
-    return (item.columns && item.columns.length) ? item.columns
-      : [{ messageKey: item.messageKey, label: '' }];
-  }
-
-  /**
-   * A `checklist` control: one plain row per option, its name as the label and meta.desc
-   * as the hint, with one tick per column on the right. Each meta.groupHeader option opens
-   * a group under a sub-header in the .subhdr.grp look (no card); with several columns
-   * every sub-header also carries the columns' captions over their ticks (an untitled
-   * first group gets a caption-only one). A group's rows are joined (no divider, the
-   * tight rhythm of joinPrevious) and its last row joins the next sub-header loosely, so
-   * the sub-header's own line is the only one. Each tick names its column's key (data-k)
-   * and its checklist (data-list), so a tap writes that column's list and runs the
-   * checklist's onChange. meta.disabled or an optionDisabledWhen gate
-   * (view.disabledOptions) renders the option's ticks inert WITH their state, so a stored
-   * value is never rewritten by a gate.
-   * A TRANSPOSED checklist (item.check: one code) turns this on its side: each option row
-   * names the lists its ticks write in meta.keys (one key per column, left to right), and
-   * every tick flips item.check in its own row's list. Such a tick names that list as both
-   * data-k and data-list, so the tap runs the list's OWN item (its options, its onChange);
-   * item.columns then carries captions only.
+   * A `checklist` control, a grid of ticks for ONE code (item.check): under one sub-header
+   * (item.label, in the .subhdr.grp look, carrying the columns' captions over their ticks),
+   * one plain row per option, its name as the label and meta.desc as the hint, with one
+   * tick per column on the right. Each option names the lists its ticks read and write in
+   * meta.keys, one key per column, left to right; item.columns carries the captions. The
+   * rows are joined (no divider, the tight rhythm of joinPrevious). A tick is on while its
+   * list holds the code, and names its list (data-k), the code (data-check) and the writer
+   * that stores a tap (data-write: item.writeWith, a PConf.checkWriters id). meta.disabled
+   * renders a row's ticks inert WITH their state, so a gate never rewrites a stored list.
    * @param {Object} item Checklist item with its options materialized (resolveRowItem).
-   * @param {{value: *, columnValues: (Array|undefined), cellValues: (Object|undefined),
-   *   disabledOptions: (string[]|undefined)}} view
-   *   Render state: columnValues holds each column's stored list (resolveRowItem); without
-   *   it the one column reads view.value. A transposed checklist reads its rows' lists by
-   *   key from cellValues (the live state).
+   * @param {{lists: Object}} view Render state: lists is the live settings the ticks read.
    * @returns {string} Control HTML.
    */
   function renderChecklist(item, view) {
-    var cols = checklistColumns(item), off = view.disabledOptions || [];
-    var multi = cols.length > 1, vals = view.columnValues || [view.value];
-    var cell = item.check != null, cells = view.cellValues || {}, key, val, rowKeys;
-    var have = [], groups = [], cur = null, caps = '', i, j, c, k, o, meta, on, gated, g, later, h;
-    for (c = 0; c < cols.length; c++) { have.push(checklistCodes(vals[c])); }
-    for (i = 0; i < (item.options || []).length; i++) {
-      o = item.options[i];
-      if (o[2] && o[2].groupHeader) { cur = { title: o[0], opts: [] }; groups.push(cur); continue; }
-      if (!cur) { cur = { title: null, opts: [] }; groups.push(cur); }
-      cur.opts.push(o);
-    }
-    if (multi) {
-      caps = '<span class="chk-caps" aria-hidden="true">';
-      for (c = 0; c < cols.length; c++) { caps += '<span>' + esc(String(cols[c].label || '')) + '</span>'; }
-      caps += '</span>';
-    }
-    h = '<div class="chk-list" role="group" aria-label="' + esc(String(item.label || 'Items')) + '">';
-    for (i = 0; i < groups.length; i++) {
-      g = groups[i];
-      if (!g.opts.length) { continue; }
-      if (g.title !== null || multi) {
-        h += '<div class="subhdr grp chk-hdr"><span>' + esc(g.title || '') + '</span>' + caps + '</div>';
+    var cols = item.columns || [], opts = item.options || [], lists = view.lists || {};
+    var code = String(item.check), label = esc(String(item.label || '')), write = esc(item.writeWith || '');
+    var i, c, meta, key, on, gated;
+    var h = '<div class="chk-list" role="group" aria-label="' + label + '">'
+      + '<div class="subhdr grp chk-hdr"><span>' + label + '</span><span class="chk-caps" aria-hidden="true">';
+    for (c = 0; c < cols.length; c++) { h += '<span>' + esc(String(cols[c].label || '')) + '</span>'; }
+    h += '</span></div>';
+    for (i = 0; i < opts.length; i++) {
+      meta = opts[i][2] || {};
+      gated = Boolean(meta.disabled);
+      h += '<div class="row chk-opt' + nbClass(i < opts.length - 1 ? 'tight' : '') + (gated ? ' off' : '') + '">'
+        + '<span class="lft"><span class="lbl">' + esc(opts[i][0]) + '</span>'
+        + (meta.desc ? '<span class="hint">' + esc(meta.desc) + '</span>' : '') + '</span>'
+        + '<span class="chk-ticks">';
+      for (c = 0; c < cols.length; c++) {
+        key = (meta.keys || [])[c];
+        on = checklistCodes(lists[key]).indexOf(code) >= 0;
+        h += '<button type="button" class="chk-tick' + (on ? ' on' : '') + '" role="checkbox" aria-checked="'
+          + (on ? 'true' : 'false') + '" aria-label="' + esc(opts[i][0] + ', ' + cols[c].label)
+          + '" data-k="' + esc(key) + '" data-check="' + esc(code) + '" data-write="' + write + '"'
+          + (gated ? ' disabled aria-disabled="true"' : '') + '>'
+          + '<span class="chk-box" aria-hidden="true"></span></button>';
       }
-      later = false;
-      for (k = i + 1; k < groups.length; k++) { if (groups[k].opts.length) { later = true; } }
-      for (j = 0; j < g.opts.length; j++) {
-        o = g.opts[j];
-        meta = o[2] || {};
-        gated = Boolean(meta.disabled) || off.indexOf(o[1]) >= 0;
-        h += '<div class="row chk-opt' + nbClass(j < g.opts.length - 1 ? 'tight' : (later ? 'loose' : ''))
-          + (gated ? ' off' : '') + '">'
-          + '<span class="lft"><span class="lbl">' + esc(o[0]) + '</span>'
-          + (meta.desc ? '<span class="hint">' + esc(meta.desc) + '</span>' : '') + '</span>'
-          + '<span class="chk-ticks">';
-        rowKeys = meta.keys || [];
-        for (c = 0; c < cols.length; c++) {
-          // A transposed row without a list for this column draws the tick inert and empty.
-          key = cell ? (rowKeys[c] || '') : cols[c].messageKey;
-          val = cell ? String(item.check) : o[1];
-          on = cell ? (key !== '' && checklistCodes(cells[key]).indexOf(val) >= 0) : have[c].indexOf(o[1]) >= 0;
-          h += '<button type="button" class="chk-tick' + (on ? ' on' : '') + '" role="checkbox" aria-checked="'
-            + (on ? 'true' : 'false') + '" aria-label="' + esc(multi ? o[0] + ', ' + cols[c].label : o[0])
-            + '" data-list="' + esc(cell ? key : item.messageKey) + '" data-k="' + esc(key)
-            + '" data-check="' + esc(val) + '"'
-            + (gated || (cell && key === '') ? ' disabled aria-disabled="true"' : '') + '>'
-            + '<span class="chk-box" aria-hidden="true"></span></button>';
-        }
-        h += '</span></div>';
-      }
+      h += '</span></div>';
     }
     return h + '</div>';
   }
@@ -1161,8 +1097,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // is missing from it, so a new control type renders as an empty row until it
     // is listed here.
     rgb: function (item, view) { return renderRgb(item, view); },
-    // Checkboxes storing the ticked option values as one comma list per column; transposed
-    // (item.check), one code ticked in or out of each row's own lists.
+    // A grid of ticks for one code (item.check), each tick its row's list for its column.
     checklist: function (item, view) { return renderChecklist(item, view); }
   };
   /**
@@ -1242,8 +1177,8 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // a labelAction still needs somewhere to sit. An item.icon leads the label text
     // (labelIconHtml) on every row shape that keeps the box.
     var labelIco = labelIconHtml(item);
-    // A checklist's label names its option group (the list's aria-label) rather than
-    // heading the row: its options carry their own group headers.
+    // A checklist's label heads its grid (the sub-header and the list's aria-label,
+    // renderChecklist) rather than the row.
     var shownLabel = item.type === 'checklist' ? '' : item.label;
     var label = (shownLabel || labelAct || labelIco)
       ? '<div class="lbl">' + labelIco + (shownLabel ? esc(shownLabel) : '') + labelAct + '</div>'
@@ -1262,7 +1197,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // row wrap it onto a full-width line of its own. The row does NOT become .stack, so
     // the trigger stays exactly where it was.
     var inlineList = view.inlineList || '';
-    // A checklist's cards carry their own titles and rows: its row is only their frame.
+    // A checklist's grid carries its own header and rows: its row is only their frame.
     var rowCls = 'row' + (stacked ? ' stack' : '') + (item.type === 'checklist' ? ' chk-row' : '')
       + (wideSegmented ? ' segwide' : '') + nbClass(noDivider)
       + ((item.type === 'searchSelect' || isCompact) && !stacked ? ' slot' : '')
@@ -1328,18 +1263,13 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       view.dangerValue = cx.S[item.dangerKey];
       return resolveRangeItem(item, cx.S, cx.ENV);
     }
-    // A checklist's derived options are materialized WITHOUT the single-value snap below:
-    // its value is a list, and an option the resolver gates is rendered inert (meta.disabled)
-    // rather than dropped, so nothing here ever rewrites cx.S. A checklist with columns
-    // reads every column's list here (the control renderer receives only the view). A
-    // transposed checklist (item.check) reads each row's own lists (meta.keys), so its
-    // view carries the whole state instead of one list per column.
+    // A checklist's derived options (its rows) are materialized WITHOUT the single-value
+    // snap below: it has no value of its own, and a row the resolver gates is rendered
+    // inert (meta.disabled) rather than dropped, so nothing here ever rewrites cx.S. Its
+    // ticks read their rows' lists (meta.keys) from the live state, which the view
+    // carries (the control renderer receives only the view).
     if (item.type === 'checklist') {
-      if (item.check != null) {
-        view.cellValues = cx.S;
-      } else if (item.columns) {
-        view.columnValues = item.columns.map(function (col) { return cx.S[col.messageKey]; });
-      }
+      view.lists = cx.S;
       return item.optionsFrom
         ? Object.assign({}, item, { options: resolveOptionsFrom(item, cx.S, cx.ENV) }) : item;
     }
@@ -2239,12 +2169,10 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     // item's onChange as (S, old, new, ENV, key). This used to be copy-pasted at
     // six sites across the #scroll and #modal handlers — a changed onChange
     // contract needed six synchronized edits.
-    // optOwner names the item whose onChange runs when it is not the key's own item: a
-    // checklist column's key is stored by a `hidden` item, while the checklist runs the hook.
-    function setValue(key, newV, optOldV, optOwner) {
+    function setValue(key, newV, optOldV) {
       var oldV = arguments.length > 2 ? optOldV : S[key];
       S[key] = newV;
-      var item = optOwner || findItem(key);
+      var item = findItem(key);
       var fn = item && item.onChange && PConf.onChange.get(item.onChange);
       if (fn) { fn(S, oldV, newV, ENV, key); }
     }
@@ -2284,20 +2212,15 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
         openColor = (openColor === ck ? null : ck); render(); return true;
       }
       if ((t = e.target.closest('[data-check]'))) {
-        // A gated option keeps its tick and ignores the tap.
+        // A gated tick keeps its state and ignores the tap.
         if (t.getAttribute('disabled') != null) { return true; }
-        // data-k is the column's key the tick writes; data-list its checklist, which owns
-        // the options and the onChange (the same key unless the checklist has columns; a
-        // transposed checklist's tick names the key itself, so the key's own item owns them).
+        // The grid's writer (data-write, a PConf.checkWriters id) stores the tap: it ticks
+        // the code (data-check) into the list (data-k) or out of it, the opposite of what
+        // the tick shows, by the list's own rules (its order, what else moves with it).
         var chK = t.getAttribute('data-k'), chV = t.getAttribute('data-check');
-        var chItem = findShownItem(SCHEMA, t.getAttribute('data-list') || chK, evalCtx());
-        if (!chItem) { return true; }
-        var chOpts = resolveOptionsFrom(chItem, S, ENV);
-        // An owner whose options lack the code cannot flip it: checklistToggle keeps only the
-        // codes its options list, so the write could only drop the others (with no options
-        // at all, wipe the list to ''). Leave the list as it is.
-        if (!optionHasValue(chOpts, chV)) { return true; }
-        setValue(chK, checklistToggle(S[chK], chV, chOpts), S[chK], chItem);
+        var chWrite = PConf.checkWriters.get(t.getAttribute('data-write'));
+        if (!chWrite) { return true; }
+        chWrite(S, chK, chV, t.getAttribute('aria-checked') !== 'true');
         render();
         var hosts = [document.getElementById('modal'), document.getElementById('scroll')], hi, again;
         for (hi = 0; hi < hosts.length; hi++) {
@@ -2826,7 +2749,6 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
     resolveDefaultFrom: resolveDefaultFrom, resolveHint: resolveHint,
     resolveTheme: resolveTheme,
     fitSelectPeek: fitSelectPeek,
-    checklistToggle: checklistToggle,
     resolveStaticText: resolveStaticText, resolveAttention: resolveAttention,
     findAttention: findAttention, renderConfirmModal: renderConfirmModal
   };
@@ -2863,7 +2785,7 @@ if (typeof module !== 'undefined' && module.exports) {
     resolveHint: PConf.engine.resolveHint,
     resolveTheme: PConf.engine.resolveTheme,
     fitSelectPeek: PConf.engine.fitSelectPeek,
-    checklistToggle: PConf.engine.checklistToggle,
+    checkWriters: PConf.checkWriters,
     attentionResolvers: PConf.attentionResolvers,
     resolveStaticText: PConf.engine.resolveStaticText,
     resolveAttention: PConf.engine.resolveAttention,

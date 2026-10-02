@@ -1291,10 +1291,10 @@ var SHOWS_ON_NOTE = 'One side per bar. On a crowded bar, the items lower in the 
 /**
  * An item's Shows on grid and its note, the first rows of its sheet (under the sheet's
  * intro): one row per status bar the watch draws, each with a Left and a Right tick
- * writing that side's list (blocks.js onDemandBars; a transposed checklist, engine.js
- * renderChecklist). Every tick runs its list's own item, the carrier
- * (onDemandListsSection), which keeps the list in priority order and the item on one
- * side of the bar. The grid has no messageKey: it stores nothing of its own.
+ * for that side's list (blocks.js onDemandBars; a checklist, engine.js renderChecklist).
+ * A tap goes to on-demand.js through the grid's writer (reset-status-defaults.js
+ * onDemandTick: tickOn / untickFrom), which keeps the list in priority order and the item
+ * on one side of the bar. The grid has no messageKey: it stores nothing of its own.
  * @param {string} code An on-demand.js ITEMS code.
  * @param {string} [merge] A metric alert's value as its intro names it (e.g. 'the UV
  *     index'): the note then adds the merge into the slot that shows that value
@@ -1306,6 +1306,7 @@ function showsOnRows(code, merge) {
         type: 'checklist',
         label: 'Shows on',
         check: code,
+        writeWith: 'onDemandTick',
         columns: [{label: 'Left'}, {label: 'Right'}],
         optionsFrom: {resolver: 'onDemandBars', args: {code: code, bars: OD_PAGE_BARS, names: OD_BAR_NAMES}}
     }, {
@@ -1749,15 +1750,11 @@ function onDemandRow(prefix, barWhen) {
 }
 /**
  * The eight side lists (status<Bar>OnDemand<Left|Right>Items), never drawn: the ONE item
- * per key, hydrated and serialized here. Every Shows on grid ticks a list through its
- * carrier (engine.js: a transposed checklist's tick runs its key's own item): the options
- * put the list in priority order (blocks.js onDemandItems, on-demand.js ITEMS, every item
- * kept), and the onChange keeps an item on one side of a bar
- * (reset-status-defaults.js onDemandExclusive). Those are the two calls the per-bar
- * Alerts sheets made, so a tick stores the same string as before. In BARS order, left
- * then right, where those sheets stood in the Status slots tab's sections, so the save
+ * per key, which hydrates and serializes it. The Shows on grids write the lists through
+ * on-demand.js (showsOnRows), not through these items. In BARS order, left then right,
+ * where the per-bar Alerts sheets stood in the Status slots tab's sections, so the save
  * blob keeps its order. A section of their own: the engine's join look-ahead counts a
- * hidden item as a row, so carriers between drawn rows would change their dividers.
+ * hidden item as a row, so hidden items between drawn rows would change their dividers.
  * @returns {Object} Schema section (sheetOnly, never opened).
  */
 function onDemandListsSection() {
@@ -1765,8 +1762,7 @@ function onDemandListsSection() {
     ON_DEMAND.BARS.forEach(function (b) {
         ON_DEMAND.SIDES.forEach(function (side) {
             var key = ON_DEMAND.itemsKey(b.bar, side);
-            items.push({type: 'hidden', messageKey: key, defaultValue: ON_DEMAND.DEFAULTS[key],
-                optionsFrom: {resolver: 'onDemandItems'}, onChange: 'onDemandExclusive'});
+            items.push({type: 'hidden', messageKey: key, defaultValue: ON_DEMAND.DEFAULTS[key]});
         });
     });
     return {sheetOnly: true, sheetId: 'odLists', showWhen: ON_DEMAND_WHEN, items: items};
@@ -3220,8 +3216,8 @@ module.exports = {
         // bar, Left or Right); the Status slots tab's Alerts rows only show the result.
         // aplite has no Alerts (ON_DEMAND_WHEN), so the whole tab is env-hidden there
         // (renderTabBar, renderBody and the attention dots all skip a tab whose showWhen
-        // fails). The card stores nothing: its sheets and the eight side lists' carriers
-        // stay at the end of the Status slots tab's sections (renderEditModal finds a sheet
+        // fails). The card stores nothing: its sheets and the eight side lists' hidden
+        // items stay at the end of the Status slots tab's sections (renderEditModal finds a sheet
         // on any tab), so the save blob keeps its key order.
         id: 'alerts', label: 'Alerts', showWhen: ON_DEMAND_WHEN, sections: [{
             id: 'onDemand',
@@ -3477,8 +3473,8 @@ module.exports = {
         // one mode packs into both cells. Android-only on the slot side; the sheet
         // needs no extra gate, because a slot that can't be chosen never opens it.
         boldSection('Phone battery', 'PhoneBattery')
-        // The eight side lists' carriers (where the four per-bar Alerts sheets stood, so the
-        // save blob keeps its order), then the item sheets (opened from the Alert settings
+        // The eight side lists' hidden items (where the four per-bar Alerts sheets stood, so
+        // the save blob keeps its order), then the item sheets (opened from the Alert settings
         // card's rows, the Alerts tab), in the card's order: Battery, Bluetooth, Quiet time,
         // Sleep, rain, then one per metric alert kind holding its Shows on grid, levels,
         // Look and Days (the levels' one home). The item sheets stay here though their card

@@ -2211,7 +2211,7 @@ test('Status-slots tab (id watch) is the status card: its intro and the four bar
       'Heart rate slot', 'Battery percentage slot', 'Dew point slot',
       'Phone battery slot'],
     'bold-only slot sheets follow the threshold sheets, in wire-id order');
-  // The side lists' carriers (untitled, never opened), then the Alert settings card's item
+  // The side lists' hidden items (untitled, never opened), then the Alert settings card's item
   // sheets (the card is on the Alerts tab; a sheet opens from any tab), close the tab.
   assert.deepEqual(titles.slice(23),
     ['Battery', 'Bluetooth', 'Quiet time', 'Sleep', 'Rain alert', 'Wind gusts alert', 'UV index alert',
@@ -2235,7 +2235,7 @@ test('Status-slots tab (id watch) is the status card: its intro and the four bar
   assert.equal(battIdx, alertsIdx + 1, 'aplite\'s battery toggle follows it');
 });
 
-// --- Alerts: each bar's read-only Alerts row, the side lists' carriers, the card and its
+// --- Alerts: each bar's read-only Alerts row, the side lists' hidden items, the card and its
 // item sheets with their Shows on grids ---
 const ON_DEMAND_WHEN = { env: 'onDemand' };
 const RADAR_BAR = { all: [{ env: 'radar' }, { key: 'radarMode', in: ['status', 'graph'] }] };
@@ -2266,14 +2266,14 @@ test('each status bar ends on one read-only Alerts row: the placed items\' icons
     assert.equal(byKey('status' + bar + 'OnDemand' + side), undefined, bar + side + ': no switch key')));
 });
 
-test('the eight side lists: one carrier each, hidden, in the old per-bar sheets\' place and order', () => {
+test('the eight side lists: one plain hidden item each, in the old per-bar sheets\' place and order', () => {
   const keys = [];
   OD.BARS.forEach((b) => OD.SIDES.forEach((side) => keys.push(OD.itemsKey(b.bar, side))));
   keys.forEach((k) => {
-    const carriers = items.filter((i) => i.messageKey === k);
-    assert.equal(carriers.length, 1, k + ': exactly one item (hydrate, serialize, its default and reset)');
-    assert.deepEqual(carriers[0], { type: 'hidden', messageKey: k, defaultValue: OD.DEFAULTS[k],
-      optionsFrom: { resolver: 'onDemandItems' }, onChange: 'onDemandExclusive' }, k);
+    const own = items.filter((i) => i.messageKey === k);
+    assert.equal(own.length, 1, k + ': exactly one item (hydrate, serialize, its default and reset)');
+    assert.deepEqual(own[0], { type: 'hidden', messageKey: k, defaultValue: OD.DEFAULTS[k] },
+      k + ': no options and no onChange (the grids write through on-demand.js)');
   });
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const sec = watchSheet('odLists');
@@ -2302,7 +2302,8 @@ test('every item sheet opens on its Shows on grid and note; the grid stores noth
     const sheet = watchSheet(ITEM_SHEET[code]);
     assert.ok(sheet, code + ': its sheet');
     assert.deepEqual(sheet.items[0], {
-      type: 'checklist', label: 'Shows on', check: code, columns: [{ label: 'Left' }, { label: 'Right' }],
+      type: 'checklist', label: 'Shows on', check: code, writeWith: 'onDemandTick',
+      columns: [{ label: 'Left' }, { label: 'Right' }],
       optionsFrom: { resolver: 'onDemandBars', args: { code, bars: ['top', 'forecast', 'health', 'radar'],
         names: { top: 'Watch Status Bar', forecast: 'Forecast Status Bar', radar: 'Radar Status Bar',
           health: 'Health Status Bar' } } }
@@ -2312,10 +2313,12 @@ test('every item sheet opens on its Shows on grid and note; the grid stores noth
         + ' that slot, with its colors, instead of adding its alert icon.' : '') }, code + ': the note, tight');
     assert.equal(sheet.items.filter((i) => i.check !== undefined).length, 1, code + ': one grid');
   });
-  // Every checklist with a `check` writes other items' keys: none carries one itself.
+  // Every checklist shows other items' keys and writes them through on-demand.js: none
+  // carries one itself.
   items.filter((i) => i.type === 'checklist').forEach((i) => {
     assert.equal(i.messageKey, undefined, 'a Shows on grid stores nothing of its own');
     assert.ok(i.check !== undefined, 'every checklist on the page is a Shows on grid');
+    assert.equal(i.writeWith, 'onDemandTick', 'and taps go to on-demand.js');
   });
 });
 
@@ -2550,7 +2553,7 @@ test('every threshold sheet is sheetOnly and gated off on aplite (which compiles
   const watch = schema.tabs.find((t) => t.id === 'watch');
   const sheets = watch.sections.filter((s) => s.sheetOnly);
   assert.equal(sheets.length, 30,
-    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only) + the side lists\' carriers + 10 item sheets');
+    'one edit sheet per boldable slot kind (8 threshold + 11 bold-only) + the side lists\' section + 10 item sheets');
   assert.deepEqual(sheets.map((s) => s.sheetId),
     ['threshAqi', 'threshPollen', 'threshWind', 'threshGust', 'threshUv',
       'threshSteps', 'threshSleep', 'threshDistance',

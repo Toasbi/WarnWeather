@@ -1421,12 +1421,12 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * An item's Shows on grid (schema.js showsOnRows; a transposed checklist): under the
-     * "Shows on" header, one row per status bar the watch draws (on-demand.js barExists,
-     * the rule the Status slots tab's bar gates RADAR_BAR_WHEN / HEALTH_BAR_WHEN state), in
-     * the page's order. Each row names its two side lists in meta.keys (Left, Right), which
-     * its ticks write through their carriers (schema.js onDemandListsSection). Like those
-     * gates, it ignores the layout: a bar no view draws still gets its row. While the item
+     * The rows of an item's Shows on grid (schema.js showsOnRows; a checklist): one per
+     * status bar the watch draws (on-demand.js barExists, the rule the Status slots tab's
+     * bar gates RADAR_BAR_WHEN / HEALTH_BAR_WHEN state), in the page's order. Each row
+     * names its two side lists in meta.keys (Left, Right), the lists its ticks read and
+     * write (reset-status-defaults.js onDemandTick). Like those gates, it ignores the
+     * layout: a bar no view draws still gets its row. While the item
      * cannot show at all (onDemandBlocked: Rain with the radar off, Pollen off DWD) the
      * rows go inert and keep their ticks; the Rain sheet's box says why, and Pollen's card
      * row (so its sheet) is gone off DWD.
@@ -1439,7 +1439,7 @@ if (typeof require !== 'undefined') {
     function onDemandBars(S, env, args) {
         var a = args || {};
         var inert = onDemandBlocked(S, a.code) !== null;
-        var out = [['Shows on', '', {groupHeader: true}]];
+        var out = [];
         (a.bars || []).forEach(function (bar) {
             if (!onDemand.barExists(S, bar, env)) { return; }
             var meta = {keys: onDemand.SIDES.map(function (side) { return onDemand.itemsKey(bar, side); })};
@@ -1486,20 +1486,6 @@ if (typeof require !== 'undefined') {
         return (runs.length ? runs.join(' ') : 'None of the alerts placed here can show.') + '<br>' + args.where;
     }
     PConf.hintResolvers.register('onDemandBarIcons', onDemandBarIcons);
-
-    /**
-     * The side lists' options (schema.js onDemandListsSection, the carriers every Shows on
-     * grid writes through): the ten items in priority order, so engine.js checklistToggle
-     * rebuilds a list in that order. Every item stays in, one that cannot show too, so a
-     * tick elsewhere keeps it in its list. Never drawn (the grids draw bars, not items), so
-     * the options carry no meta: no group headers, no disabled note — the per-bar sheets
-     * that drew those are gone, and checklistToggle reads only the values.
-     * @returns {Array<Array>} [label, value] options.
-     */
-    function onDemandItems() {
-        return onDemand.ITEMS.map(function (item) { return [item.label, item.code]; });
-    }
-    PConf.optionsResolvers.register('onDemandItems', onDemandItems);
 
     /**
      * Whether a bar that shows the Battery item also shows the watch battery in a slot

@@ -2399,255 +2399,131 @@ test('initialTab: a tab may claim the opening slot, order alone does not', () =>
 
 // ---- On demand engine additions: checklist, readout, compact rows, one-thumb range ----
 
-const CHECK_OPTIONS = [
-  ['System info', '', { groupHeader: true }],
-  ['Battery', 'battery'], ['Bluetooth', 'bt'],
-  ['Weather alerts', '', { groupHeader: true }],
-  ['Rain', 'rain', { desc: 'Needs the rain radar', disabled: true }], ['Wind gusts', 'gust']
-];
-
-test('checklist: toggling flips one option and canonicalises to option order', () => {
-  assert.equal(E.checklistToggle('', 'gust', CHECK_OPTIONS), 'gust');
-  assert.equal(E.checklistToggle('gust', 'battery', CHECK_OPTIONS), 'battery,gust', 'option order, not tap order');
-  assert.equal(E.checklistToggle('battery,gust', 'battery', CHECK_OPTIONS), 'gust', 'untick');
-  assert.equal(E.checklistToggle('gust', 'gust', CHECK_OPTIONS), '', 'nothing ticked is the empty string');
-  assert.equal(E.checklistToggle('gust,zzz,gust,bt', 'rain', CHECK_OPTIONS), 'bt,rain,gust',
-    'unknown codes and duplicates drop out');
-  assert.equal(E.checklistToggle(undefined, 'bt', CHECK_OPTIONS), 'bt', 'absent reads as empty');
-});
-
-test('checklist: plain rows under a sub-header per group, joined, ticks kept on gated options', () => {
-  const item = { type: 'checklist', messageKey: 'items', label: 'Items', options: CHECK_OPTIONS };
-  const html = E.renderRow(item, { value: 'rain,bt' });
-  assert.match(html, /^<div class="row stack chk-row">/, 'a checklist is a stacked row, only the list\'s frame');
-  assert.match(html, /<div class="chk-list" role="group" aria-label="Items">/);
-  assert.equal(html.indexOf('card'), -1, 'no cards');
-  assert.match(html, /<div class="chk-list" role="group" aria-label="Items"><div class="subhdr grp chk-hdr"><span>System info<\/span><\/div><div class="row chk-opt nb">/,
-    'a group opens under a sub-header in the .subhdr.grp look');
-  assert.match(html, /<div class="subhdr grp chk-hdr"><span>Weather alerts<\/span><\/div>/);
-  assert.equal(html.indexOf('chk-caps'), -1, 'one column: no captions');
-  const tick = (code, on, extra) => new RegExp('<button type="button" class="chk-tick' + (on ? ' on' : '')
-    + '" role="checkbox" aria-checked="' + on + '" aria-label="[^"]*" data-list="items" data-k="items" data-check="'
-    + code + '"' + (extra || '') + '>');
-  assert.match(html, tick('bt', true));
-  assert.match(html, tick('battery', false));
-  assert.match(html, tick('rain', true, ' disabled aria-disabled="true"'), 'a disabled option keeps its tick');
-  assert.match(html, /aria-label="Battery" data-list/, 'one column: the tick is named by its option');
-  assert.match(html, /<div class="row chk-opt nb off"><span class="lft"><span class="lbl">Rain<\/span><span class="hint">Needs the rain radar<\/span><\/span>/,
-    'the name is the row\'s label, the note its hint, and a gated row dims');
-  // A group's rows join (.nb); its last joins the next sub-header loosely (.nbl), and the
-  // list's last row carries no join.
-  const rowCls = (code) => {
-    const at = html.indexOf('data-check="' + code + '"');
-    return /<div class="(row chk-opt[^"]*)">/g.exec(html.slice(html.lastIndexOf('<div class="row chk-opt', at)))[1];
-  };
-  assert.equal(rowCls('battery'), 'row chk-opt nb');
-  assert.equal(rowCls('bt'), 'row chk-opt nbl', 'System info\'s last row');
-  assert.equal(rowCls('gust'), 'row chk-opt', 'the list\'s last row');
-  assert.ok(html.indexOf('data-check="battery"') < html.indexOf('<span>Weather alerts</span>'),
-    'options sit under their own header');
-  // Options before any header open the list without a sub-header.
-  const plain = E.renderRow({ type: 'checklist', messageKey: 'p', label: 'P', options: [['One', 'a'], ['Two', 'b']] },
-    { value: 'b' });
-  assert.match(plain, /<div class="chk-list" role="group" aria-label="P"><div class="row chk-opt nb"><span class="lft"><span class="lbl">One<\/span><\/span>/);
-  // optionDisabledWhen gates through the view like any other control.
-  const gated = E.renderRow(item, { value: '', disabledOptions: ['gust'] });
-  assert.match(gated, /data-check="gust" disabled aria-disabled="true"/);
-});
-
-test('checklist columns: one tick per column, each its own key, captions on every sub-header', () => {
-  const item = { type: 'checklist', messageKey: 'l', label: 'Sides', options: CHECK_OPTIONS,
-    columns: [{ messageKey: 'l', label: 'Left' }, { messageKey: 'r', label: 'Right' }] };
-  const html = E.renderRow(item, { value: 'bt', columnValues: ['bt', 'battery,gust'] });
-  const caps = '<span class="chk-caps" aria-hidden="true"><span>Left</span><span>Right</span></span>';
-  assert.ok(html.indexOf('<div class="subhdr grp chk-hdr"><span>System info</span>' + caps + '</div>') !== -1);
-  assert.ok(html.indexOf('<div class="subhdr grp chk-hdr"><span>Weather alerts</span>' + caps + '</div>') !== -1);
-  const ticks = (code) => {
-    const at = html.indexOf('data-check="' + code + '"');
-    const row = html.slice(html.lastIndexOf('<div class="row chk-opt', at), html.indexOf('</span></div>', at));
-    return (row.match(/<button[^>]*>/g) || []);
-  };
-  assert.deepEqual(ticks('battery'), [
-    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Battery, Left" data-list="l" data-k="l" data-check="battery">',
-    '<button type="button" class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Battery, Right" data-list="l" data-k="r" data-check="battery">'
-  ], 'Left then Right, each writing its own key; both name the checklist');
-  assert.match(ticks('bt')[0], /class="chk-tick on"/);
-  assert.match(ticks('bt')[1], /class="chk-tick"/);
-  assert.equal(ticks('rain').filter((b) => / disabled aria-disabled="true"/.test(b)).length, 2,
-    'a gated option\'s every tick is inert');
-  // A caption-only sub-header opens a list whose first options have no group.
-  const plain = E.renderRow(Object.assign({}, item, { options: [['One', 'a']] }), { value: '', columnValues: ['', 'a'] });
-  assert.ok(plain.indexOf('<div class="subhdr grp chk-hdr"><span></span>' + caps + '</div>') !== -1);
-});
-
-test('checklist: optionsFrom is materialized without snapping the stored list', () => {
-  global.PConf.optionsResolvers.register('chkOpts', () => CHECK_OPTIONS);
-  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [{ items: [
-    { type: 'checklist', messageKey: 'items', label: 'Items', defaultValue: 'bt',
-      optionsFrom: { resolver: 'chkOpts' } }
-  ] }] }] };
-  const S = E.hydrate(SCH, { items: 'gust,unknown' });
-  const html = E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, collapsed: {},
-    evalCtx: Object.assign({}, S, { env: {} }) });
-  assert.match(html, /data-check="gust"/);
-  assert.equal(S.items, 'gust,unknown', 'rendering never rewrites a checklist value');
-});
-
-test('boot(): a checklist tap stores the canonical list and fires onChange once', () => {
-  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
-    { title: 'S', items: [
-      { type: 'checklist', messageKey: 'items', label: 'Items', defaultValue: 'gust',
-        options: CHECK_OPTIONS, onChange: 'chkSpy' }
-    ] }
-  ] }] };
-  const r = bootWithCapturedListeners(SCH, {});
-  const calls = [];
-  global.PConf.onChange.register('chkSpy', (S, oldV, newV) => { calls.push([oldV, newV]); });
-  clickMatching(r.listeners.click, '[data-check]', { 'data-k': 'items', 'data-check': 'battery' });
-  assert.equal(r.getValue('items'), 'battery,gust');
-  assert.deepEqual(calls, [['gust', 'battery,gust']]);
-  assert.match(r.scroll.innerHTML, /aria-checked="true" aria-label="Battery" data-list="items" data-k="items" data-check="battery"/,
-    'the tick renders');
-  // A gated option ignores the tap.
-  clickMatching(r.listeners.click, '[data-check]', { 'data-k': 'items', 'data-check': 'rain', disabled: '' });
-  assert.equal(r.getValue('items'), 'battery,gust');
-  assert.equal(calls.length, 1, 'no onChange for a gated tap');
-});
-
-test('boot(): a column tick writes its own key and runs the checklist\'s onChange with that key', () => {
-  const SCH = { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
-    { title: 'S', items: [
-      { type: 'checklist', messageKey: 'lft', label: 'Sides', defaultValue: 'bt', options: CHECK_OPTIONS,
-        columns: [{ messageKey: 'lft', label: 'Left' }, { messageKey: 'rgt', label: 'Right' }],
-        onChange: 'colSpy' },
-      { type: 'hidden', messageKey: 'rgt', defaultValue: 'gust' }
-    ] }
-  ] }] };
-  const r = bootWithCapturedListeners(SCH, {});
-  const calls = [];
-  global.PConf.onChange.register('colSpy', (S, oldV, newV, env, key) => { calls.push([key, oldV, newV]); });
-  assert.match(r.scroll.innerHTML, /aria-checked="true" aria-label="Wind gusts, Right" data-list="lft" data-k="rgt"/,
-    'the hidden item\'s list draws in the Right column');
-  clickMatching(r.listeners.click, '[data-check]', { 'data-list': 'lft', 'data-k': 'rgt', 'data-check': 'battery' });
-  assert.equal(r.getValue('rgt'), 'battery,gust');
-  assert.equal(r.getValue('lft'), 'bt', 'the other column is the hook\'s business');
-  assert.deepEqual(calls, [['rgt', 'gust', 'battery,gust']]);
-  clickMatching(r.listeners.click, '[data-check]', { 'data-list': 'lft', 'data-k': 'lft', 'data-check': 'bt' });
-  assert.equal(r.getValue('lft'), '');
-  assert.deepEqual(calls[1], ['lft', 'bt', '']);
-  // Both lists are saved: the hidden item serializes the Right column.
-  const blob = E.serialize(SCH, { lft: 'bt', rgt: 'gust' });
-  assert.deepEqual(blob, { lft: 'bt', rgt: 'gust' });
-});
-
-// A transposed checklist (item.check): ONE code, a row per option, and each row's ticks
-// writing that row's own lists (meta.keys, left to right). Each list has a hidden item of
-// its own (a "carrier"), which owns the list's canonical option order and its onChange.
-const CELL_OPTS = [['Pea', 'p'], ['Ex', 'x'], ['Why', 'y']];
+// A checklist is a grid of ticks for ONE code (item.check): a row per option, and each
+// row's ticks show that row's own lists (meta.keys, left to right). A tap goes to the
+// writer the grid names (item.writeWith, a PConf.checkWriters id); the grid stores nothing.
 /**
- * A tab with a transposed checklist over two rows and the four carriers of its lists.
- * @param {Object[]} [extraCarriers] More hidden items for the carriers' section.
+ * A tab with a grid over two rows and, in a sheet of their own, the hidden items of its
+ * four lists (k1's carries an onChange, which a tick must not run).
  * @param {Object} [rowMeta] Merged over the first row's meta ({keys: ['k1', 'k2']}).
+ * @param {Object} [grid] Merged over the grid item.
  * @returns {Object} Schema.
  */
-function cellSchema(extraCarriers, rowMeta) {
+function gridSchema(rowMeta, grid) {
   return { appName: 'X', versionLabel: 'v0', tabs: [{ id: 't', label: 'T', sections: [
     { title: 'S', items: [
-      { type: 'checklist', label: 'Shows on', check: 'x', columns: [{ label: 'L' }, { label: 'R' }],
-        options: [['Hdr', '', { groupHeader: true }],
-          ['Row 1', 'r1', Object.assign({ keys: ['k1', 'k2'] }, rowMeta || {})],
-          ['Row 2', 'r2', { keys: ['k3', 'k4'] }]] }
+      Object.assign({ type: 'checklist', label: 'Shows on', check: 'x', writeWith: 'gridSpy',
+        columns: [{ label: 'L' }, { label: 'R' }],
+        options: [['Row 1', 'r1', Object.assign({ keys: ['k1', 'k2'] }, rowMeta || {})],
+          ['Row 2', 'r2', { keys: ['k3', 'k4'], desc: 'Second' }]] }, grid || {})
     ] },
     { sheetOnly: true, sheetId: 'lists', items: [
-      { type: 'hidden', messageKey: 'k1', defaultValue: 'p,y', options: CELL_OPTS, onChange: 'cellSpy' },
-      { type: 'hidden', messageKey: 'k2', defaultValue: '', options: CELL_OPTS, onChange: 'cellSpy' },
-      { type: 'hidden', messageKey: 'k3', defaultValue: 'x', options: CELL_OPTS, onChange: 'cellSpy' },
-      { type: 'hidden', messageKey: 'k4', defaultValue: '', options: CELL_OPTS, onChange: 'cellSpy' }
-    ].concat(extraCarriers || []) }
+      { type: 'hidden', messageKey: 'k1', defaultValue: 'p,y', onChange: 'listSpy' },
+      { type: 'hidden', messageKey: 'k2', defaultValue: '' },
+      { type: 'hidden', messageKey: 'k3', defaultValue: 'x' },
+      { type: 'hidden', messageKey: 'k4', defaultValue: '' }
+    ] }
   ] }] };
 }
 /**
- * Render tab 't' of a cell schema the way the page does, with no env and no userData.
- * @param {Object} SCH The schema (cellSchema()).
+ * Render tab 't' of a grid schema the way the page does, with no env and no userData.
+ * @param {Object} SCH The schema (gridSchema()).
  * @param {Object} S The live settings it renders from (E.hydrate of SCH).
  * @returns {string} The tab body's HTML.
  */
-function cellBody(SCH, S) {
+function gridBody(SCH, S) {
   return E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, collapsed: {}, evalCtx: Object.assign({}, S, { env: {} }) });
 }
+/**
+ * The attributes of the rendered tick that shows one list, read off the markup the way a
+ * browser hands the engine its tapped element.
+ * @param {string} html Rendered markup.
+ * @param {string} key The tick's list (data-k).
+ * @returns {Object<string, string>} Attribute name to value ('' for a bare attribute).
+ */
+function tickAttrs(html, key) {
+  const tag = (html.match(/<button type="button" class="chk-tick[^>]*>/g) || [])
+    .find((b) => b.indexOf(' data-k="' + key + '"') !== -1);
+  assert.ok(tag, 'a tick shows ' + key);
+  const attrs = {};
+  const re = /\s([a-z-]+)(?:="([^"]*)")?/g;
+  let m;
+  while ((m = re.exec(tag.slice('<button'.length, -1)))) { attrs[m[1]] = m[2] === undefined ? '' : m[2]; }
+  return attrs;
+}
 
-test('checklist transposed (check): a row per option, each tick naming its row\'s own list', () => {
-  const SCH = cellSchema();
+test('checklist: one header captioned with the columns, a row per option, each tick naming its list, code and writer', () => {
+  const SCH = gridSchema();
   const S = E.hydrate(SCH, {});
   const before = JSON.stringify(S);
-  const html = cellBody(SCH, S);
+  const html = gridBody(SCH, S);
   assert.equal(JSON.stringify(S), before, 'rendering never rewrites a list');
-  assert.equal((html.match(/<div class="row chk-opt/g) || []).length, 2, 'one row per option');
-  assert.ok(html.indexOf('<div class="subhdr grp chk-hdr"><span>Hdr</span><span class="chk-caps" aria-hidden="true">'
-    + '<span>L</span><span>R</span></span></div>') !== -1, 'the column captions ride the header, over the ticks');
+  assert.match(html, /<div class="row stack chk-row"><div><div class="chk-list" role="group" aria-label="Shows on">/,
+    'a stacked row, only the grid\'s frame; the label names the grid');
+  assert.equal(html.indexOf('<div class="lbl">'), -1, 'the label heads the grid, not the row');
+  assert.ok(html.indexOf('<div class="chk-list" role="group" aria-label="Shows on"><div class="subhdr grp chk-hdr">'
+    + '<span>Shows on</span><span class="chk-caps" aria-hidden="true"><span>L</span><span>R</span></span></div>'
+    + '<div class="row chk-opt nb">') !== -1, 'one sub-header: the label, then the captions over the ticks');
+  assert.equal(html.split('chk-hdr').length - 1, 1, 'exactly one header');
+  assert.equal(html.slice(html.indexOf('<div class="chk-list')).indexOf('card'), -1, 'no cards in the grid');
   assert.deepEqual(html.match(/<button type="button" class="chk-tick[^>]*>/g), [
-    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 1, L" data-list="k1" data-k="k1" data-check="x">',
-    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 1, R" data-list="k2" data-k="k2" data-check="x">',
-    '<button type="button" class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Row 2, L" data-list="k3" data-k="k3" data-check="x">',
-    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 2, R" data-list="k4" data-k="k4" data-check="x">'
-  ], 'a tick names its row\'s list as data-list AND data-k, and the one code as data-check; its state is that list\'s');
+    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 1, L" data-k="k1" data-check="x" data-write="gridSpy">',
+    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 1, R" data-k="k2" data-check="x" data-write="gridSpy">',
+    '<button type="button" class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Row 2, L" data-k="k3" data-check="x" data-write="gridSpy">',
+    '<button type="button" class="chk-tick" role="checkbox" aria-checked="false" aria-label="Row 2, R" data-k="k4" data-check="x" data-write="gridSpy">'
+  ], 'a tick names its row\'s list, the one code and the grid\'s writer; it is on while that list holds the code');
+  assert.ok(html.indexOf('<div class="row chk-opt nb"><span class="lft"><span class="lbl">Row 1</span></span>') !== -1,
+    'the rows join');
+  assert.ok(html.indexOf('<div class="row chk-opt"><span class="lft"><span class="lbl">Row 2</span>'
+    + '<span class="hint">Second</span></span>') !== -1, 'the last row ends the grid; meta.desc is its hint');
   // meta.disabled: inert ticks that keep their state.
-  const off = cellSchema(null, { disabled: true });
-  const offHtml = cellBody(off, E.hydrate(off, { k1: 'x' }));
+  const off = gridSchema({ disabled: true });
+  const offHtml = gridBody(off, E.hydrate(off, { k1: 'x' }));
   assert.match(offHtml, /<div class="row chk-opt nb off">/);
-  assert.match(offHtml, /class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Row 1, L" data-list="k1" data-k="k1" data-check="x" disabled aria-disabled="true">/);
-  assert.match(offHtml, /aria-label="Row 1, R" data-list="k2" data-k="k2" data-check="x" disabled aria-disabled="true">/);
-  // A row without a list for a column draws that tick inert and empty.
-  const short = cellSchema(null, { keys: ['k1'] });
-  assert.match(cellBody(short, E.hydrate(short, {})),
-    /aria-checked="false" aria-label="Row 1, R" data-list="" data-k="" data-check="x" disabled aria-disabled="true">/);
-  // The grid stores nothing: only the carriers are saved.
+  assert.match(offHtml, /class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Row 1, L" data-k="k1" data-check="x" data-write="gridSpy" disabled aria-disabled="true">/);
+  assert.match(offHtml, /aria-label="Row 1, R" data-k="k2" data-check="x" data-write="gridSpy" disabled aria-disabled="true">/);
+  assert.match(offHtml, /aria-label="Row 2, L" data-k="k3" data-check="x" data-write="gridSpy">/, 'the other row stays live');
+  // The grid stores nothing: only the lists' own items are saved.
   assert.deepEqual(E.serialize(SCH, S), { k1: 'p,y', k2: '', k3: 'x', k4: '' });
 });
 
-test('shell: a transposed row\'s inert empty tick is dimmed like a gated option, never twice', () => {
-  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
-  assert.ok(shell.indexOf('.chk-opt:not(.off) .chk-tick[data-k=""] .chk-box { opacity: .38; }') !== -1,
-    'the tick that names no list (data-k="") dims, unless its row is dimmed already');
-  assert.ok(shell.indexOf('.chk-opt.off { opacity: .38; }') !== -1, 'the same dim as a gated row');
+test('checklist: optionsFrom rows are materialized without touching the lists', () => {
+  global.PConf.optionsResolvers.register('gridRows', (S) => [['Only', 'o', { keys: ['k1', 'k2'], disabled: S.k3 === 'x' }]]);
+  const SCH = gridSchema(null, { options: undefined, optionsFrom: { resolver: 'gridRows' } });
+  const S = E.hydrate(SCH, { k1: 'zzz,x' });
+  const html = gridBody(SCH, S);
+  assert.equal((html.match(/<div class="row chk-opt/g) || []).length, 1, 'the resolver\'s rows');
+  assert.match(html, /class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Only, L" data-k="k1" data-check="x" data-write="gridSpy" disabled/,
+    'a list holding other codes too still shows the tick, and the resolver gates the row');
+  assert.equal(S.k1, 'zzz,x', 'rendering never rewrites a list');
 });
 
-test('boot(): a transposed tick flips its code in its row\'s list, in the CARRIER\'s order, and runs the carrier\'s onChange', () => {
-  const r = bootWithCapturedListeners(cellSchema(), {});
-  const calls = [];
-  global.PConf.onChange.register('cellSpy', (S, oldV, newV, env, key) => { calls.push([key, oldV, newV]); });
-  const tick = (k, extra) => clickMatching(r.listeners.click, '[data-check]',
-    Object.assign({ 'data-list': k, 'data-k': k, 'data-check': 'x' }, extra || {}));
-  tick('k1');
-  assert.equal(r.getValue('k1'), 'p,x,y', 'the code joins in the carrier\'s option order, the other codes kept');
-  assert.equal(r.getValue('k1'), E.checklistToggle('p,y', 'x', CELL_OPTS), 'the plain checklist\'s own toggle');
-  assert.deepEqual(calls, [['k1', 'p,y', 'p,x,y']], 'the carrier\'s onChange, once, with the list\'s key');
-  assert.match(r.scroll.innerHTML, /aria-checked="true" aria-label="Row 1, L" data-list="k1" data-k="k1" data-check="x"/,
-    'the tick redraws on');
-  tick('k2');
-  assert.equal(r.getValue('k2'), 'x');
-  assert.equal(r.getValue('k1'), 'p,x,y', 'the row\'s other list is the carrier hook\'s business');
-  tick('k1');
-  assert.equal(r.getValue('k1'), 'p,y', 'a second tap takes the code out again');
-  assert.deepEqual(calls[2], ['k1', 'p,x,y', 'p,y']);
-  tick('k3', { disabled: '' });
-  assert.equal(r.getValue('k3'), 'x', 'a gated tick ignores the tap');
-  assert.equal(calls.length, 3, 'and runs no onChange');
-});
-
-test('boot(): a tick whose list owner has no options, or lacks the code, leaves the list alone', () => {
-  const r = bootWithCapturedListeners(cellSchema([
-    { type: 'hidden', messageKey: 'k5', defaultValue: 'a,b', onChange: 'cellSpy2' },
-    { type: 'hidden', messageKey: 'k6', defaultValue: 'b,zzz', options: [['A', 'a'], ['B', 'b']], onChange: 'cellSpy2' }
-  ]), {});
-  const calls = [];
-  global.PConf.onChange.register('cellSpy2', (S, oldV, newV, env, key) => { calls.push(key); });
-  clickMatching(r.listeners.click, '[data-check]', { 'data-list': 'k5', 'data-k': 'k5', 'data-check': 'x' });
-  assert.equal(r.getValue('k5'), 'a,b', 'no options: no write');
-  assert.equal(E.checklistToggle('a,b', 'x', []), '', '(the write the guard refuses would have wiped the list)');
-  clickMatching(r.listeners.click, '[data-check]', { 'data-list': 'k6', 'data-k': 'k6', 'data-check': 'x' });
-  assert.equal(r.getValue('k6'), 'b,zzz', 'options without the code: no write (it could only drop zzz)');
-  assert.deepEqual(calls, [], 'and no onChange');
+test('boot(): a tick hands the tap to its grid\'s writer, asking for the state the tick does not show', () => {
+  const r = bootWithCapturedListeners(gridSchema(), {});
+  const calls = [], changes = [];
+  global.PConf.onChange.register('listSpy', (S, oldV, newV, env, key) => { changes.push(key); });
+  // A stand-in contract: the code alone, or nothing.
+  global.PConf.checkWriters.register('gridSpy', (S, key, code, on) => {
+    calls.push([key, code, on]);
+    S[key] = on ? code : '';
+  });
+  const tap = (attrs) => clickMatching(r.listeners.click, '[data-check]', attrs);
+  tap(tickAttrs(r.scroll.innerHTML, 'k1'));
+  assert.deepEqual(calls, [['k1', 'x', true]], 'k1 does not hold x: the writer ticks it in');
+  assert.equal(r.getValue('k1'), 'x', 'the writer\'s write stands');
+  assert.match(r.scroll.innerHTML, /class="chk-tick on" role="checkbox" aria-checked="true" aria-label="Row 1, L" data-k="k1"/,
+    'and the grid redraws from it');
+  tap(tickAttrs(r.scroll.innerHTML, 'k1'));
+  assert.deepEqual(calls[1], ['k1', 'x', false], 'a second tap asks for it out again');
+  tap(tickAttrs(r.scroll.innerHTML, 'k3'));
+  assert.deepEqual(calls[2], ['k3', 'x', false], 'k3 holds x: the writer ticks it out');
+  assert.equal(r.getValue('k3'), '');
+  assert.deepEqual(changes, [], 'no onChange runs: the writer is the lists\' contract');
+  // A gated tick ignores the tap, and so does a tick whose writer is not registered.
+  tap(Object.assign(tickAttrs(r.scroll.innerHTML, 'k2'), { disabled: '' }));
+  tap(Object.assign(tickAttrs(r.scroll.innerHTML, 'k2'), { 'data-write': 'nobody' }));
+  assert.equal(calls.length, 3, 'no write for a gated tick or an unknown writer');
+  assert.equal(r.getValue('k2'), '');
 });
 
 // The tab switch's other way in: a [data-goto-tab] link in copy. Tabs a and b, and h,

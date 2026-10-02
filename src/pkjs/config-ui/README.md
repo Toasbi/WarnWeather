@@ -262,7 +262,7 @@ Schema
 | `button` | Tappable action row; no key | — (not serialized) | — |
 | `subheader` | In-section group header; no key | — (not serialized) | — |
 | `sheet` | Tappable row that opens a `sheetOnly` section; no key | — (not serialized) | — |
-| `checklist` | One plain row per option with a tick per column, a sub-header per `meta.groupHeader` group, its rows joined; with `check`, transposed: one code, each row's ticks writing that row's own lists | comma list of the ticked values in option order (`''` = none), one per column; with `check`, nothing of its own (the lists are other items' keys) | — |
+| `checklist` | A grid of ticks for one code (`check`): a plain row per option, a tick per column, joined under one sub-header; a tap goes to the `writeWith` writer | — (not serialized: the ticks show other items' lists) | — |
 | `readout` | Label (+ `icon`) and a live hint; no control, no key | — (not serialized) | — |
 
 A `sheet` item is a whole-row chevron target by default. Give it an
@@ -308,56 +308,33 @@ list collapses with it, and the row comes back collapsed. `searchSelect` has no 
 form: keep it out of `sheetOnly` sections (a schema test enforces it). A select in the tab
 body, and one opened through `openSheet()`, still opens the modal.
 
-A `checklist` stores ONE string, the ticked option values joined by commas in the options'
-order (`'bt,qt,snooze'`, `''` when nothing is ticked) — a string, not an array, so the shallow
-copy of the loaded state and every `===` comparison downstream (serialize, change detection)
-keep working. Its options are `[label, value, meta]` like a select's: each option is a plain row
-(no card), its name the label and `meta.desc` its hint, with the tick on the right.
-`meta.groupHeader` starts a group under a sub-header in the `.subhdr.grp` look; a group's rows
-are joined as by `joinPrevious: true` (no divider, the tight rhythm), and its last row joins the
-next sub-header loosely, so the sub-header's line is the only one. `meta.disabled` or an
-`optionDisabledWhen` gate renders the option inert **with its ticks**, so a gate never rewrites a
-stored value. `optionsFrom` lists are materialized as for a select, but a checklist is never
-snapped to an option. A tap flips one option, re-canonicalises the list, stores it and fires the
-item's `onChange` (old and new list) once. The row's `label` names the list for assistive tech
-(its `aria-label`) instead of heading the row.
-
-`columns: [{messageKey, label}, …]` gives every row one tick per column, each column a list of
-its own (e.g. a Left and a Right list: `[{messageKey: 'leftItems', label: 'Left'},
-{messageKey: 'rightItems', label: 'Right'}]`). The first column is the item's own `messageKey`;
-every other column's key needs a `hidden` item of its own for its default and its save, as a
-range's `dangerKey` does. Every sub-header then carries the columns' captions over their ticks
-(an untitled first group gets a caption-only one), and each tick is named "<option>, <column>"
-for assistive tech. A tap writes that column's list and fires the CHECKLIST's `onChange` with
-the column's key, so one hook keeps the columns consistent (e.g. an option ticked in one column
-leaves the others).
-
-`check: '<code>'` turns a checklist on its side: ONE code, ticked in or out of several lists,
-one row per option and, within a row, one list per column. Each option names the lists its
-ticks write in `meta.keys`, one key per column, left to right, and `columns` carries the
-captions only (`[{label: 'Left'}, {label: 'Right'}]`):
+A `checklist` is a grid of ticks for ONE code (`check`), ticked in or out of several lists: one
+row per option and, within a row, one list per column. Each option names the lists its ticks
+read and write in `meta.keys`, one key per column, left to right; `columns` carries the
+captions, and `label` the grid's one sub-header (in the `.subhdr.grp` look, the captions over
+the ticks), which also names the grid for assistive tech (its `aria-label`):
 
 ```js
-{ type: 'checklist', label: 'Shows on', check: 'rain', columns: [{label: 'Left'}, {label: 'Right'}],
-  options: [['Shows on', '', {groupHeader: true}],
-            ['Top bar',    'top',    {keys: ['topLeftItems', 'topRightItems']}],
+{ type: 'checklist', label: 'Shows on', check: 'rain', writeWith: 'sideTick',
+  columns: [{label: 'Left'}, {label: 'Right'}],
+  options: [['Top bar',    'top',    {keys: ['topLeftItems', 'topRightItems']}],
             ['Bottom bar', 'bottom', {keys: ['bottomLeftItems', 'bottomRightItems']}]] }
 ```
 
-Every tick shows whether its list holds the code, and a tap flips the code in that list only.
-The checklist has no `messageKey` and stores nothing itself: **every key it writes needs an
-item of its own** (a `hidden` one is enough) that carries the list's `options` /
-`optionsFrom`, and optionally its `onChange`. That item, the one carrying the key, owns the
-write. Its options put the list in canonical order, keeping the other codes already in it, and
-its `onChange` runs with that key. So the hook belongs to the KEY, not to the control: every
-control that writes the list gets it. An item whose options lack the code (or that has no
-options at all) is not written: the tap changes nothing rather than dropping the list's other
-codes. Keep exactly one item per key: with two, the tap goes to whichever one is visible
-(`showWhen`), and that one's options and hook would decide the list. A tick
-renders inert (with its state) under the row's `meta.disabled`, and inert and empty where the
-row names no key for its column. Captions, row joins, the "<option>, <column>" names and focus
-return after a tap work as in the column form, so keep one such grid per sheet: a tick is found
-again by its key and its code.
+Every tick shows whether its list (a comma list, `'bt,qt,snooze'`, `''` when empty) holds the
+code. The checklist has no `messageKey` and stores nothing, and the engine writes nothing for
+it: a tap calls the writer `writeWith` names, a function registered on `PConf.checkWriters`
+as `fn(S, key, code, on)`, which ticks `code` into the list at `S[key]` (`on`) or out of it,
+the opposite of what the tick showed. The writer is the lists' own contract, so it decides
+their order and anything else a tick moves (WarnWeather's `onDemandTick` stores through
+on-demand.js, which keeps an item on one side of a bar); no `onChange` runs. Every key a grid
+shows still needs an item of its own (a `hidden` one is enough) for its default and its save.
+The options are `[label, value, meta]` like a select's (`optionsFrom` is materialized as for a
+select, but never snapped); each is a plain row (no card), its name the label and `meta.desc`
+its hint, and the rows are joined as by `joinPrevious: true`. `meta.disabled` renders a row
+inert **with its ticks**, so a gate never rewrites a stored list. Each tick is named
+"<option>, <column>" for assistive tech, and focus returns to it after a tap; it is found again
+by its key and its code, so keep one grid per sheet.
 
 A `readout` row is a badged `sheet` row with nothing to open: its label (and `icon`) on the left
 and a live `hint`/`hintFrom` line under it, for a setting summary that has no settings of its own.
@@ -444,8 +421,9 @@ picking the shown swatch is what writes it.
 | `textFrom` | `{ resolver, args }` | `staticText` only: the body derived by a named hint resolver; `''` renders nothing (see above) |
 | `style` | `'info'` | `staticText` only: render the note as a boxed info note (see above) |
 | `compact` | boolean | Gives any row the tight vertical rhythm of the status-slot rows (`.slot`). |
-| `columns` | `[{messageKey, label}]` | `checklist` only: one tick per column, each its own list (see above). With `check`, `[{label}]`: captions only. |
-| `check` | string | `checklist` only: the one code a transposed checklist ticks in its rows' lists (`meta.keys`; see above). |
+| `columns` | `[{label}]` | `checklist` only: the columns' captions, left to right (see above). |
+| `check` | string | `checklist` only: the one code the grid ticks in its rows' lists (`meta.keys`; see above). |
+| `writeWith` | string | `checklist` only: the `PConf.checkWriters` id that stores a tap (see above). |
 | `single` | boolean | `range` only: one thumb, a plain integer string (see above). |
 
 ### showWhen predicate grammar
@@ -458,7 +436,7 @@ A predicate evaluates against a context of `{ <all current settings>, env }`.
 { key: "provider",      ne: "dwd" }           // inequality
 { key: "sleepStart",    in:  ["22","23"] }    // membership
 { key: "sleepStart",    nin: ["0","1"] }      // non-membership
-{ key: "statusTopOnDemandRightItems", has: "rain" }  // the comma list (a checklist value) holds the code
+{ key: "statusTopOnDemandRightItems", has: "rain" }  // the comma list holds the code
 { env: "color",  eq: true }                   // environment fact with operator
 { env: "color" }                              // environment fact — truthy shorthand
 

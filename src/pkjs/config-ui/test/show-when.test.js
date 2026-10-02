@@ -44,7 +44,7 @@ test('{ env: colorBacklight } gates an item to the one watch with an RGB backlig
   assert.equal(W.isVisible(item, {}), false, 'no env at all: fail closed');
 });
 
-test('has: a comma list holds a code (checklist values)', () => {
+test('has: a comma list holds a code (the lists a checklist ticks)', () => {
   const c = { items: 'battery,rain,gust', empty: '', env: {} };
   assert.equal(W.evaluate({ key: 'items', has: 'rain' }, c), true);
   assert.equal(W.evaluate({ key: 'items', has: 'battery' }, c), true, 'first code');

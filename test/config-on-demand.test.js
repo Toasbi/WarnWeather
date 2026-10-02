@@ -3,7 +3,7 @@
 // the REAL generated settings page (test/helpers/page-harness.js): the Alerts tab and its
 // Alert settings card (live texts, item sheets); each item sheet's Shows on grid (one row per
 // status bar the watch draws, a Left and a Right tick writing that side's list through its
-// carrier), checked against on-demand.js tickOn / untickFrom; each bar's read-only Alerts row
+// writer), checked against on-demand.js tickOn / untickFrom; each bar's read-only Alerts row
 // on the Status slots tab (the placed items' icons per side, then a link to the Alerts tab);
 // the rain notes, the resets, and the aplite page, which has none of it. The schema shape
 // itself is pinned in test/config-schema.test.js; this file checks what the page renders and
@@ -76,17 +76,34 @@ const PAGE_BARS = ['top', 'forecast', 'health', 'radar'];
 const WHERE = 'Set up in the <button type="button" class="txt-link" data-goto-tab="alerts">Alerts tab</button>.';
 
 /**
- * Tap one tick in the open sheet's Shows on grid (the engine's [data-check] path), after
- * checking the sheet RENDERS that tick: a transposed checklist's tick names its list as
- * both data-list and data-k, so the tap runs the list's own item (its carrier).
+ * The attributes of the tick the open sheet draws for one list and one item, read off its
+ * markup the way a browser hands the engine the tapped element.
+ * @param {Object} page the page-harness handle
+ * @param {string} key the side's list, e.g. 'statusTopOnDemandRightItems'
+ * @param {string} code the sheet's item
+ * @returns {Object<string, string>} attribute name to value ('' for a bare attribute)
+ */
+function tickAttrs(page, key, code) {
+  const tag = (page.modal.innerHTML.match(/<button type="button" class="chk-tick[^>]*>/g) || [])
+    .find((b) => b.indexOf(' data-k="' + key + '" data-check="' + code + '" data-write="onDemandTick"') !== -1);
+  assert.ok(tag, 'the open sheet draws the ' + key + ' tick for ' + code + ', written by onDemandTick');
+  const attrs = {};
+  const re = /\s([a-z-]+)(?:="([^"]*)")?/g;
+  let m;
+  while ((m = re.exec(tag.slice('<button'.length, -1)))) { attrs[m[1]] = m[2] === undefined ? '' : m[2]; }
+  return attrs;
+}
+
+/**
+ * Tap one tick in the open sheet's Shows on grid (the engine's [data-check] path), as the
+ * sheet renders it: the tick names its list, the item and the grid's writer
+ * (reset-status-defaults.js onDemandTick), and shows whether the list holds the item.
  * @param {Object} page the page-harness handle
  * @param {string} key the side's list, e.g. 'statusTopOnDemandRightItems'
  * @param {string} code the sheet's item
  */
 function tick(page, key, code) {
-  const attrs = { 'data-k': key, 'data-check': code, 'data-list': key };
-  assert.ok(page.modal.innerHTML.indexOf('data-list="' + key + '" data-k="' + key + '" data-check="' + code + '"')
-    !== -1, 'the open sheet draws the ' + key + ' tick for ' + code);
+  const attrs = tickAttrs(page, key, code);
   const t = {
     getAttribute: n => (Object.prototype.hasOwnProperty.call(attrs, n) ? attrs[n] : null),
     closest: sel => (sel === '[data-check]' ? t : null)
@@ -251,8 +268,8 @@ test('every item sheet opens on its Shows on grid: a row per status bar, a Left 
       assert.equal(t.length, 2, code + ' ' + bar + ': two ticks');
       OD.SIDES.forEach((side, c) => {
         const key = OD.itemsKey(bar, side);
-        assert.match(t[c], new RegExp('aria-label="' + BAR_NAMES[bar] + ', ' + (c ? 'Right' : 'Left') + '" data-list="'
-          + key + '" data-k="' + key + '" data-check="' + code + '"'), code + ' ' + bar + ' ' + side);
+        assert.match(t[c], new RegExp('aria-label="' + BAR_NAMES[bar] + ', ' + (c ? 'Right' : 'Left') + '" data-k="'
+          + key + '" data-check="' + code + '" data-write="onDemandTick"'), code + ' ' + bar + ' ' + side);
       });
       assert.equal(ticked(sheet, bar), bar === 'top' ? TOP_SIDE[code] : 'none', code + ' ' + bar + ': the default');
     });
@@ -385,10 +402,8 @@ test('Rain with the radar off: the grid goes inert and keeps its ticks, and a bo
   assert.ok(box > sheet.indexOf(NOTE), 'the box follows the Shows on note');
   assert.ok(box < sheet.indexOf('data-k="rainAlertDisplay"'), 'and comes before the Look');
   // A tap on an inert tick changes nothing.
-  const key = 'statusTopOnDemandLeftItems';
-  const t = { getAttribute: n => (n === 'data-k' || n === 'data-list' ? key : n === 'data-check' ? 'rain'
-    : n === 'disabled' ? '' : null), closest: sel => (sel === '[data-check]' ? t : null) };
-  page.modal.dispatch('click', { target: t });
+  assert.equal(tickAttrs(page, 'statusTopOnDemandLeftItems', 'rain').disabled, '', 'the tick is disabled');
+  tick(page, 'statusTopOnDemandLeftItems', 'rain');
   assert.equal(page.S.statusTopOnDemandLeftItems, 'bt,qt,snooze,rain', 'a gated tap changes nothing');
   // The radar on: no box, and the rows are live.
   const on = alertsTab({ radarMode: 'graph' });
@@ -426,9 +441,8 @@ test('the grid\'s rows are exactly the bars whose Alerts row the Status slots ta
       const shown = rows.map((row, i) => (showWhen.isVisible(row, Object.assign({ env }, S)) ? titles[i] : null))
         .filter(Boolean);
       const got = bars(S, env, args);
-      assert.deepEqual(got[0], ['Shows on', '', { groupHeader: true }]);
-      assert.deepEqual(got.slice(1).map((o) => o[0]), shown, [p, radarMode, healthMode].join(' '));
-      got.slice(1).forEach((o) => assert.deepEqual(o[2], { keys: [OD.itemsKey(o[1], 'left'), OD.itemsKey(o[1], 'right')] }));
+      assert.deepEqual(got.map((o) => o[0]), shown, [p, radarMode, healthMode].join(' '));
+      got.forEach((o) => assert.deepEqual(o[2], { keys: [OD.itemsKey(o[1], 'left'), OD.itemsKey(o[1], 'right')] }));
     }));
   });
   // Like those rows, the grid ignores the layout: 'Weather only' with the radar on Graph
@@ -439,11 +453,11 @@ test('the grid\'s rows are exactly the bars whose Alerts row the Status slots ta
   assert.equal(showWhen.isVisible(rows[3], Object.assign({ env }, S)), true, 'so does the Status slots row');
   // A blocked item: every row inert.
   assert.ok(bars({ radarMode: 'status', provider: 'dwd' }, env, { code: 'rain', bars: PAGE_BARS, names: BAR_NAMES })
-    .slice(1).every((o) => o[2].disabled === undefined), 'Rain with the radar on: live');
+    .every((o) => o[2].disabled === undefined), 'Rain with the radar on: live');
   assert.ok(bars({ radarMode: 'off', provider: 'dwd' }, env, { code: 'rain', bars: PAGE_BARS, names: BAR_NAMES })
-    .slice(1).every((o) => o[2].disabled === true), 'Rain with the radar off: inert');
+    .every((o) => o[2].disabled === true), 'Rain with the radar off: inert');
   assert.ok(bars({ radarMode: 'graph', provider: 'metno' }, env, { code: 'pollen', bars: PAGE_BARS, names: BAR_NAMES })
-    .slice(1).every((o) => o[2].disabled === true), 'Pollen off DWD: inert');
+    .every((o) => o[2].disabled === true), 'Pollen off DWD: inert');
 });
 
 // --- the Alerts tab and its card ----------------------------------------------------
@@ -588,7 +602,7 @@ test('Bluetooth, Quiet time and Sleep: their rules, the vibration, the Battery s
   assert.equal(sleep(state({ statusTopOnDemandLeftItems: 'bt' }), ENV.basalt), 'Not in any status bar');
 });
 
-test('the Alerts row\'s icons and the side lists\' options, resolver by resolver', () => {
+test('the Alerts row\'s icons, resolver by resolver', () => {
   const icons = hint('onDemandBarIcons');
   const args = { bar: 'top', where: WHERE };
   const right = (list, cfg) => state(Object.assign({ statusTopOnDemandLeftItems: '', statusTopOnDemandRightItems: list },
@@ -609,14 +623,6 @@ test('the Alerts row\'s icons and the side lists\' options, resolver by resolver
   assert.equal(icons(right(''), ENV.basalt, args), WHERE, 'nothing placed: the pointer alone');
   assert.equal(icons(state({ statusForecastOnDemandRightItems: 'aqi' }), ENV.basalt, { bar: 'forecast', where: WHERE }),
     iconRun('right', ['aqi']) + '<br>' + WHERE, 'each bar reads its own lists');
-  // The carriers' options: the canonical order every grid tick rebuilds a list in.
-  const items = PC.optionsResolvers.get('onDemandItems');
-  const opts = items(state({ provider: 'dwd', radarMode: 'graph' }), ENV.basalt);
-  assert.deepEqual(opts.map((o) => o[1]), ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi',
-    'pollen', 'wind']);
-  assert.ok(opts.every((o) => o.length === 2), 'no meta: never drawn, and checklistToggle reads only the values');
-  const offRadar = items(state({ radarMode: 'off', provider: 'metno' }), ENV.basalt);
-  assert.deepEqual(offRadar, opts, 'an item that cannot show stays in, so a tick elsewhere keeps it in its list');
 });
 
 test('the Battery sheet renders one Warn level slider per platform, a stored 15 at the watch\'s step', () => {
