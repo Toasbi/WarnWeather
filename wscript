@@ -224,6 +224,13 @@ def build(ctx):
         # Suppress SDK linker-script RWX segment noise.
         # Pebble's single APP region is expected: https://sourceware.org/binutils/docs/ld/Options.html#index-_002d_002dwarn_002drwx_002dsegments
         ctx.env.LINKFLAGS += ['-Wl,--no-warn-rwx-segments']
+        # Hidden visibility for every symbol (src/c/hidden_visibility.h, force-included
+        # into each C file): the app is one -fPIE image, so a global is addressed
+        # PC-relative instead of through a .got slot, and the image carries no .got
+        # or .got.plt. Measured -72 B on basalt and emery, -76 B on diorite and flint,
+        # -68 B on aplite. The loader's relocations stay the .rel.data ones it already
+        # had; .rel.text holds no absolute relocation either way.
+        ctx.env.CFLAGS += ['-include', ctx.path.find_node('src/c/hidden_visibility.h').abspath()]
         # Rain radar is a rich feature aplite cannot afford: on the 24 KB Pebble
         # Classic the extra layer + drawing code starved the boot heap and the
         # watchface OOM-faulted before first paint. Every other platform defines
