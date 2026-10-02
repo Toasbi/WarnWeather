@@ -145,11 +145,12 @@ static void load_dataset(ForecastDataset *ds) {
     ds->forecast_start = persist_get_forecast_start();
 
     // The temp axis owns the vertical inset: a temperature-axis metric line
-    // (feels-like, dew point) shares the temp curve's offset so the series
-    // scaled against one band land pixel-aligned, while every other metric
-    // keeps the full-height mapping. The watch stays metric-agnostic — the
-    // phone decides, sending one render-ready px value per series in SeriesId
-    // order, [FIRST..FIFTH] (CLAY_CURVE_INSET_UINT8 → persist).
+    // (feels-like, dew point) maps on the temp curve's scale (fit_temp_axis), while
+    // every other metric keeps the full-height mapping. The watch stays
+    // metric-agnostic — the phone decides, sending one byte per series in SeriesId
+    // order, [FIRST..FIFTH] (CLAY_CURVE_INSET_UINT8 → persist). Only the curve's
+    // byte is a px value, its inset (temp_axis_margins); every other series' byte is
+    // a flag, not 0 for a line on the temperature's scale (the phone sends 7 or 0).
 #if defined(WW_CURVE_INSET)
     uint8_t curve_insets[CURVE_INSET_BYTES];
     persist_get_curve_insets(curve_insets);
@@ -246,14 +247,6 @@ static void load_dataset(ForecastDataset *ds) {
     }
 }
 
-/**
- * The ChartLayer for one bar-aligned mark line (SERIES_THIRD / SERIES_FOURTH):
- * the one place their layer literal exists, whatever z-slot the fill decides.
- * aplite reads the frozen DOTS style through series_style_pick (series.h) —
- * only SERIES_THIRD is reachable there, and its style is fixed. `hi` is the
- * line's full scale, LINE_HI: its rows on the temperature axis, else 250.
- */
-
 // The temperature curve keeps its inset at the top under a top stripe band too, the same
 // 7 px below the band's 2 px gap as over the bottom edge (owner, 2026-10-02: "too cramped
 // otherwise").
@@ -296,6 +289,13 @@ static void load_dataset(ForecastDataset *ds) {
 #define LINE_ZERO(s) CHART_ZERO_JOIN
 #endif
 
+/**
+ * The ChartLayer for one bar-aligned mark line (SERIES_THIRD..SERIES_FIFTH):
+ * the one place their layer literal exists, whatever z-slot the fill decides.
+ * aplite reads the frozen DOTS style through series_style_pick (series.h) —
+ * only SERIES_THIRD is reachable there, and its style is fixed. `hi` is the
+ * line's full scale, LINE_HI: its rows on the temperature axis, else 250.
+ */
 static ChartLayer mark_line_layer(const Series *s, int count, int hi) {
     return (ChartLayer){ CHART_LAYER_LINE, .from_top = SERIES_FROM_TOP(s), .line = {
         .values = s->line.values, .count = count,
@@ -452,14 +452,11 @@ static int build_night_bands(ChartBand *out, int max,
 
 static GSize temp_label_string_size(const char *text);
 
-// curve_top / curve_bottom (not on aplite, the frozen fork): the temperature curve's
-// highest and lowest rows, which the labels line up with when there is space.
-#if defined(WW_LINE_STYLE)
+// curve[0..count): the temperature curve as its layer draws it, rows out from baseline_y
+// (fit_temp_axis), which the labels line up with when there is space. aplite, the frozen
+// fork, has no fit: its labels keep today's places and never read the curve.
 static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y,
-                           int curve_top, int curve_bottom) {
-#else
-static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y) {
-#endif
+                           const int16_t *curve, int count) {
     // Mask anything drawn into the label strip. The vertical axis line
     // itself is painted by graph_frame_draw(cfg->frame, ...) earlier in
     // the update proc.
@@ -498,7 +495,7 @@ static void draw_left_axis(GContext *ctx, int h, int16_t baseline_y) {
 #if defined(WW_LINE_STYLE)
     // Those are today's places. Where there is space, each label's ink moves inward to sit
     // level with the curve's extreme it names (temp_axis_pad.h); else both stay.
-    temp_labels_align(&hi_y, &lo_y, hi_size.h, curve_top, curve_bottom);
+    temp_labels_align_to_curve(&hi_y, &lo_y, hi_size.h, curve, count, axis_y);
 #endif
     graphics_draw_text(ctx, s_buffer_hi, font,
                        GRect(0, hi_y, strip_w, hi_size.h),
@@ -598,7 +595,7 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // under the last so even a full rain bar never touches them. The plot starts below
     // the band, so no fill, bar or line maps into it, and every line maps its values
     // as if the graph began there: a UV 11 or a full rain bar ends just under the
-    // stripes, the hottest hour its inset below them (LINE_TOP). Only the night
+    // stripes, the hottest hour its margin below them (fit_temp_axis). Only the night
     // shading runs on up through the band (the full-height hatch's extend_top), and the
     // stripe cells, drawn after the plot and opaque, cover it wherever they draw.
     const int16_t top_band = (int16_t)forecast_stripe_band(edges.top_stripes, stripe_h,
@@ -612,12 +609,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
                               plot_axis_y + 1);
 #if defined(WW_LINE_STYLE)
     const GRect plot = GRect(outer.origin.x, top_band, outer.size.w, outer.size.h - top_band);
-    // The plot's content rows [top_band, plot_axis_y): the temperature axis maps onto them
-    // 1:1 (fit_temp_axis, LINE_HI).
-    const int temp_rows = plot_axis_y - top_band;
 #else
-// aplite: no stripes, the plot is the whole graph. A name for `outer`, not a copy: a
-// GRect copy changes aplite's code generation (its image is frozen at 21700 B).
+// aplite: no stripes, the plot is the whole graph. A name for `outer`, not a copy: a GRect
+// copy costs the frozen fork 4 B of .text in this function (measured 2026-10-02).
 #define plot outer
 #endif
 
@@ -679,7 +673,9 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     // both edges, under a top stripe band too, and on each anchored edge at least the share
     // (an eighth, or from 64 rows the square over TEMP_AXIS_PAD_SQ_DIV) of the plot's content
     // rows [top_band, plot_axis_y), the rows between the two stripe bands. The rain bars'
-    // edge joins the lines' edges here, when a bar on screen has a value above 0.
+    // edge joins the lines' edges here, when a bar on screen has a value above 0. The
+    // temperature axis then maps onto those rows 1:1 (fit_temp_axis, LINE_HI).
+    const int temp_rows = plot_axis_y - top_band;
     if (bars_on) {
         temp_axis_edges_add(&edges, bars->bars.values, drawn, false, false,
                             palette_from_top(bar_stops));
@@ -706,14 +702,6 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
         layers[n++] = (ChartLayer){ CHART_LAYER_AREA, .from_top = second_top, .area = {
             .values = second->line.values, .export_points = area_pts,
             .count = ds.num_entries, .lo = 0, .hi = LINE_HI(second->line.inset_y),
-#if defined(WW_CURVE_INSET)
-            // The fill's contour must share the line's inset mapping, so the line
-            // over the fill rides it; the night re-hatch reuses these exported
-            // points. aplite: insets are compile-time constants there and the
-            // area engine skips the inset math, so nothing to pass.
-            .inset_top = LINE_TOP(second->line.inset_y),
-            .inset_bottom = LINE_BOTTOM(second->line.inset_y),
-#endif
             .fill_color = second->line.fill_color } };
     }
     // night_under re-shades the filled area, so it needs the AREA layer's
@@ -880,20 +868,8 @@ static void forecast_update_proc(Layer *layer, GContext *ctx)
     }
 #endif
 
-#if defined(WW_LINE_STYLE)
-    // The temperature curve's highest and lowest rows: its values are rows out from the
-    // zero row (plot_axis_y) now (fit_temp_axis), which its layer maps 1:1.
-    int row_hi = first->line.values[0], row_lo = row_hi;
-    for (int i = 1; i < ds.num_entries; ++i) {
-        const int row = first->line.values[i];
-        if (row > row_hi) { row_hi = row; }
-        if (row < row_lo) { row_lo = row; }
-    }
     // hi/lo temp strip: chart-adjacent chrome, not a chart layer
-    draw_left_axis(ctx, h, plot_axis_y, plot_axis_y - row_hi, plot_axis_y - row_lo);
-#else
-    draw_left_axis(ctx, h, plot_axis_y);   // hi/lo temp strip: chart-adjacent chrome, not a chart layer
-#endif
+    draw_left_axis(ctx, h, plot_axis_y, first->line.values, ds.num_entries);
 #if !defined(WW_LINE_STYLE)
 #undef plot
 #endif

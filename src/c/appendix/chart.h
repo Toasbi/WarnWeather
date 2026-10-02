@@ -165,8 +165,8 @@ typedef struct {
                                       // Hanging (from_top), the two swap edges: inset_bottom
                                       // is the margin at the zero edge (the top), inset_top
                                       // the one at the full edge (the bottom). Only the
-                                      // temperature-axis lines carry insets, and they never
-                                      // hang.
+                                      // health HR line and aplite's temperature curve
+                                      // carry insets, and they never hang.
     GColor         color;
     int            width;
     uint8_t        style;             // ChartLineStyle — uint8_t so the layer keeps the
@@ -187,17 +187,9 @@ typedef struct {
     const int16_t *values;
     GPoint        *export_points;     // optional out: count + 2 points (closing pts)
     int            count;
-    int            lo, hi;
-#if defined(WW_CURVE_INSET)
-    int            inset_top;         // contour margins, matching ChartLineLayer's
-    int            inset_bottom;      // mapping — so a fill under an inset line hugs
-                                      // it exactly. The fill itself still drops to
-                                      // its zero row (standing: the plot bottom,
-                                      // which the axis closes; hanging: the row
-                                      // above the plot).
-                                      // aplite compiles them out entirely: no curve
-                                      // insets there, and the union must not grow.
-#endif
+    int            lo, hi;            // no insets: the contour maps lo..hi over the whole
+                                      // plot, as an uninset line does (a temperature-axis
+                                      // line's rows are fitted before it reaches a layer)
     GColor         fill_color;
 } ChartAreaLayer;
 

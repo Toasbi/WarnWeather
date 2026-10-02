@@ -150,6 +150,19 @@ static inline TempMargin temp_axis_margins(int inset, int plot_h, int anchors) {
         .bottom = (int16_t)temp_axis_margin(inset, anchors & TEMP_AXIS_ANCHOR_BOTTOM, plot_h) };
 }
 
+// The lowest and highest of values[0..n) (n >= 1): the one scan the fit (over the
+// temperature's bytes) and the labels (over its rows) both take.
+typedef struct { int lo, hi; } TempAxisRange;
+static inline TempAxisRange temp_axis_range(const int16_t *values, int n) {
+    TempAxisRange r = { values[0], values[0] };
+    while (--n > 0) {
+        const int v = *++values;
+        if (v < r.lo) { r.lo = v; }
+        if (v > r.hi) { r.hi = v; }
+    }
+    return r;
+}
+
 // The fit for one redraw (THE SCALE): the temperature's lowest byte over temps[0..n) (n >= 1)
 // lands on the bottom margin's row, its highest on the top margin's, and every byte lies on
 // the straight line through the two: row = off + byte * d / span, held inside the plot's
@@ -163,16 +176,11 @@ static inline TempMargin temp_axis_margins(int inset, int plot_h, int anchors) {
 typedef struct { int off, d, span, rows; } TempAxisFit;
 static inline TempAxisFit temp_axis_fit(const int16_t *temps, int n, TempMargin m, int plot_h,
                                         int full_scale) {
-    int lo = temps[0], hi = lo;
-    while (--n > 0) {
-        const int v = *++temps;
-        if (v < lo) { lo = v; }
-        if (v > hi) { hi = v; }
-    }
-    if (hi == lo) { lo = 0; hi = full_scale; }
+    TempAxisRange r = temp_axis_range(temps, n);
+    if (r.hi == r.lo) { r.lo = 0; r.hi = full_scale; }
     const int d = plot_h - m.top - m.bottom;
-    return (TempAxisFit){ .off = m.bottom - lo * d / (hi - lo), .d = d, .span = hi - lo,
-                          .rows = plot_h };
+    return (TempAxisFit){ .off = m.bottom - r.lo * d / (r.hi - r.lo), .d = d,
+                          .span = r.hi - r.lo, .rows = plot_h };
 }
 
 // A whole series in place, values[0..n): each byte becomes its row on the fit, which the
@@ -232,4 +240,13 @@ static inline void temp_labels_align(int *hi_y, int *lo_y, int h,
         *hi_y = hi;
         *lo_y = lo;
     }
+}
+
+// The same, against the curve as its layer draws it: rows[0..n) (n >= 1) are the
+// temperature's values after temp_axis_rows, rows out from the plot's zero row, screen row
+// `zero_y`, so its highest and lowest screen rows are zero_y less its largest and smallest.
+static inline void temp_labels_align_to_curve(int *hi_y, int *lo_y, int h,
+                                              const int16_t *rows, int n, int zero_y) {
+    const TempAxisRange r = temp_axis_range(rows, n);
+    temp_labels_align(hi_y, lo_y, h, zero_y - r.hi, zero_y - r.lo);
 }

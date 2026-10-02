@@ -725,6 +725,39 @@ static void test_label_invariants(void) {
     }
 }
 
+// The labels against the curve as forecast_layer.c's draw_left_axis hands it over: the
+// temperature's rows (after temp_axis_rows) and the plot's zero row on screen. The curve's
+// highest and lowest screen rows are the zero row less its largest and smallest row, so it
+// places the labels exactly as temp_labels_align does on those two rows, over every curve.
+static void test_label_curve(void) {
+    // basalt's no-calendar view, the bars standing (test_label_examples): a curve whose floor
+    // is row 11 and whose peak is row 70 out from the zero row (77) spans screen rows 7..66.
+    const int16_t rows[5] = { 30, 11, 70, 40, 12 };
+    int hi = hi_today(18, false), lo = lo_today(18, BASALT_NOCAL);
+    temp_labels_align_to_curve(&hi, &lo, 18, rows, 5, BASALT_NOCAL);
+    assert(hi == -3 && lo == 54);
+    srand(7);
+    const int heights[] = { 14, 18, 24 };
+    for (int iter = 0; iter < 100000; ++iter) {
+        const int h = heights[rand() % 3];
+        const int zero_y = 30 + rand() % 140;
+        const int n = 1 + rand() % MAX_ENTRIES;
+        int16_t r[MAX_ENTRIES];
+        int top = zero_y, bottom = 0;
+        for (int i = 0; i < n; ++i) {
+            r[i] = (int16_t)(1 + rand() % zero_y);
+            if (zero_y - r[i] < top) { top = zero_y - r[i]; }
+            if (zero_y - r[i] > bottom) { bottom = zero_y - r[i]; }
+        }
+        const bool emery = rand() % 2;
+        int hi_a = hi_today(h, emery), lo_a = lo_today(h, zero_y);
+        int hi_b = hi_a, lo_b = lo_a;
+        temp_labels_align_to_curve(&hi_a, &lo_a, h, r, n, zero_y);
+        temp_labels_align(&hi_b, &lo_b, h, top, bottom);
+        assert(hi_a == hi_b && lo_a == lo_b);
+    }
+}
+
 // --- THE SCALE (owner, 2026-10-02: "feels like and dew may do that") ----------------------
 //
 // The temperature's own lowest and highest byte land on the margin rows; a feels-like or dew
@@ -896,6 +929,7 @@ int main(void) {
     test_unchanged_frames();
     test_label_examples();
     test_label_invariants();
+    test_label_curve();
     test_scale_extremes();
     test_scale_example();
     test_scale_clamp();

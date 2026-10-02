@@ -588,31 +588,22 @@ static void chart_render_area(const ChartRender *r, const ChartAreaLayer *a) {
     const GRect c          = r->geo.content;
     const int  zero        = CHART_ZERO(r);
     const int  dir         = CHART_DIR(r);
-    // The contour shares CHART_LAYER_LINE's inset mapping (value==lo lands at
-    // plot_bottom - inset_bottom, value==hi at plot_top + inset_top) so a fill
-    // under an inset line hugs that line exactly; the fill itself still drops
-    // to its zero row below — standing, the axis closes it, inset or not.
+    // The contour shares an uninset CHART_LAYER_LINE's mapping (value==lo lands on
+    // the zero row, value==hi on the plot's far row) so the Main line over the fill
+    // rides it exactly; the fill itself drops to its zero row below — standing,
+    // the axis closes it.
     // Hanging, the contour mirrors over the plot and a value above zero is held on
     // the plot's first row like a line vertex (chart_flip_vertex_y), so the Main
     // line over the fill, which computes its vertices by the same mapping, rides this
     // contour exactly; a zero stretch stays on the zero row and fills nothing (the
     // line's zero vertex is held on the first row, off the gap under a top stripe band).
-#if defined(WW_CURVE_INSET)
-    const int  inset_bottom = a->inset_bottom;
-    const int  inner_h      = c.size.h - a->inset_top - inset_bottom;
-#else
-    // aplite: curve insets are compiled out (WW_CURVE_INSET, wscript) and no
-    // caller passes a nonzero area inset there — constant-fold the inset math
-    // away (every image byte counts against the aplite launch guard).
-    const int  inset_bottom = 0;
-    const int  inner_h      = c.size.h;
-#endif
+    const int  inner_h     = c.size.h;
     const int  range       = a->hi - a->lo;
     const int  range_safe  = range > 0 ? range : 1;
     for (int i = 0; i < count; ++i) {
         const int h = (int)(((int32_t)(a->values[i] - a->lo) * inner_h) / range_safe);
         pts[i] = GPoint(chart_slot_tick_x(&r->geo, i),
-                        CHART_VERTEX_Y(zero, dir, h + inset_bottom, a->values[i] > a->lo));
+                        CHART_VERTEX_Y(zero, dir, h, a->values[i] > a->lo));
     }
 
 #ifdef PBL_COLOR
