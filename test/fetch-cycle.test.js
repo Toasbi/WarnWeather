@@ -749,6 +749,16 @@ test('a keyed provider\'s answers are kept by key fingerprint under its id; the 
     keyed.fix(52.5, 13.4);
     keyed.fail({ stage: 'provider_data', code: 'owm_status_429' });
     assert.equal(readJson(KEYS.KEY_RESULTS_KEY).openweathermap.status, 200);
+
+    // A 403 is kept as a 403: the status is read out of the refusal's own code, and the page
+    // gives the reason that status names.
+    assert.equal(h.cycle.start(true), true);
+    keyed.fix(52.5, 13.4);
+    keyed.fail({ stage: 'provider_data', code: 'owm_status_403' });
+    assert.deepEqual(readJson(KEYS.KEY_RESULTS_KEY), { openweathermap: { keyHash: fingerprint('OWMSECRET_abcdef'), status: 403 } },
+        'the refusal, with its 403');
+    assert.deepEqual(pageStatus('provider', 'openweathermap', { owmApiKey: 'OWMSECRET_abcdef' }),
+        { state: 'rejected', tail: 'cdef', status: 403 }, 'the page shows the 403');
     resetStore();
     const plain = makeHarness();
     assert.equal(plain.cycle.start(false), true);
