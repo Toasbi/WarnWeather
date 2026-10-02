@@ -29,7 +29,8 @@ int16_t clock_glyphs_width(int16_t time_font, const char *text);
 // a B&W theme (theme_is_bw()), where the edges snap to 1-bit like a B&W watch's. Loads each
 // glyph's image only while it draws that glyph, so the heap holds one glyph at a time (0.3 KB
 // at most on basalt, where the whole face's set would not fit resident beside everything
-// else). A glyph that fails to load is left out of this frame rather than crashing.
+// else). A glyph that fails to load ends the digits there for this frame (no crash): the
+// clock is cut short, never drawn with a gap that a later glyph could make read as a wrong time.
 void clock_glyphs_draw(GContext *ctx, int16_t time_font, const char *text, GPoint origin,
                        GColor color);
 

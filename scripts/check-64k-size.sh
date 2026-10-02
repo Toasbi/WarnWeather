@@ -50,6 +50,7 @@
 # Measured after merging those cuts with the radar notice moving to the phone (clearer
 # errors): basalt 59388, diorite/flint 57076.
 # Clock digits loaded per glyph, not as a strip: basalt -104 B (59284), diorite/flint 0 B.
+# A clock glyph that fails to load ends the digits there, not skipped: basalt -4 B (59280).
 # Emery's app RAM is 128 KB (8 KB gate), so it is not checked here.
 #
 # Measuring the low point: the ENABLE_MEMORY_LOGGING=1 build adds about 3.1 KB of image
@@ -66,7 +67,7 @@ wt_root=$(git rev-parse --show-toplevel)
 ram=65536
 # platform:ceiling (B of text+data+bss)
 ceilings=(
-  "basalt:${BASALT_IMAGE_CEILING:-59284}"
+  "basalt:${BASALT_IMAGE_CEILING:-59280}"
   "diorite:${DIORITE_IMAGE_CEILING:-57076}"
   "flint:${FLINT_IMAGE_CEILING:-57076}"
 )

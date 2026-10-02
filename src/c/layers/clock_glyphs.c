@@ -74,7 +74,9 @@ void clock_glyphs_draw(GContext *ctx, int16_t time_font, const char *text, GPoin
         const ClockGlyph *g = &face->glyphs[i];
         // One glyph at a time, freed before the next loads: the heap holds at most one glyph
         // (basalt's widest is 0.3 KB) rather than the face's whole set. A glyph that fails to
-        // load is left out of this frame, its advance kept, rather than crashing.
+        // load ends this frame's digits there: skipping it alone could leave a narrower glyph
+        // after it to load and show a wrong time ("21:11" as " 1:11"), while a cut-short
+        // H:MM / HH:MM always lacks its last minute digit, so it never reads as a whole time.
         GBitmap *glyph = gbitmap_create_with_resource(face->first_id + (uint32_t)i);
         if (glyph) {
             // The SDK packs these images as exactly 2 bits (memoryFormat 2BitPalette, even for
@@ -90,8 +92,12 @@ void clock_glyphs_draw(GContext *ctx, int16_t time_font, const char *text, GPoin
             graphics_draw_bitmap_in_rect(ctx, glyph,
                                          GRect(pen + g->lsb, origin.y, g->w, face->ink_h));
             gbitmap_destroy(glyph);
+            pen += g->adv;
+            continue;
         }
-        pen += g->adv;
+        // The failure falls through to the break rather than an early `if (!glyph) break;`:
+        // GCC lays this shape out 16 B smaller, with an 8 B shallower frame.
+        break;
     }
     graphics_context_set_compositing_mode(ctx, GCompOpAssign);
 }
