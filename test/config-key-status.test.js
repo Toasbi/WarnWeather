@@ -287,6 +287,24 @@ test('page: Save with a missing key opens the dialog; "Add key" opens the key sh
   assert.equal(await page.saved(), null, 'nothing was saved');
 });
 
+test('page: the dialog\'s fix on another tab scrolls the tab bar until that tab shows', () => {
+  const page = bootGeneratedPage({ provider: 'openweathermap', owmApiKey: '' }, 'basalt', { dialog: true });
+  // A 360 px bar with 18 px side padding: General rests at 18-90, More sits far right.
+  const X = { general: [18, 90], more: [600, 660] };
+  const onTab = () => (/class="tab on" data-tab="(\w+)"/.exec(page.tabs.innerHTML) || [])[1];
+  page.tabs.getBoundingClientRect = () => ({ left: 0, right: 360 });
+  page.tabs.querySelector = (sel) => (sel !== '.tab.on' ? null : { getBoundingClientRect: () => ({
+    left: (X[onTab()] || [0, 0])[0] - page.tabs.scrollLeft, right: (X[onTab()] || [0, 0])[1] - page.tabs.scrollLeft }) });
+  page.window.getComputedStyle = () => ({ paddingLeft: '18px' });
+  page.tabs.scrollLeft = 0;
+  page.clickTab('more');
+  assert.equal(page.tabs.scrollLeft, 660 - (360 - 18), 'the tap on More scrolled it into view');
+  page.tapSave();
+  tapInModal(page, '[data-confirm]', 'data-confirm', 'action');
+  assert.match(tabButton(page, 'general'), /class="tab on"/, 'the fix opened on General');
+  assert.equal(page.tabs.scrollLeft, 0, 'and the bar scrolled back until General shows (confirmChoice\'s reveal)');
+});
+
 test('page: "Save anyway" saves as Save does; the close button saves nothing', async () => {
   const page = bootGeneratedPage({ provider: 'yandex', yandexApiKey: '' }, 'basalt', { dialog: true });
   page.tapSave();

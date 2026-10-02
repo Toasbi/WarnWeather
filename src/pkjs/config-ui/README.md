@@ -749,10 +749,15 @@ Copy can carry the same dispatch inline: a section `intro`, a hint or a `staticT
 link in the copy's own font (`.txt-link`). A tab link has the same markup with
 `data-goto-tab="<tab id>"` instead: a tap brings that tab to the front, as a tab-bar tap does.
 Each tab keeps its scroll offset, and the tab bar scrolls sideways until the new tab shows.
-From inside an open sheet, the sheet closes first. A tab whose `showWhen` hides it is never
-opened that way: the tap changes nothing, so link only to a tab that exists wherever the copy
-shows (gate the copy with the tab). Keep both kinds of link out of copy that sits inside a
-tap target of its own (a chevron `button`/`sheet` row, a card header): that target's tap wins.
+From inside an open sheet, the sheet closes first, and focus lands on the new tab's button in
+the tab bar. A tab whose `showWhen` hides it is never opened that way: the tap changes nothing,
+so link only to a tab that exists wherever the copy shows (gate the copy with the tab). Keep
+both kinds of link out of copy that sits inside a tap target of its own. Which tap wins
+depends on the target: a chevron `sheet` row, a select or date trigger and a card header are
+matched before the shared controls, so they take the tap and the link never fires; inside a
+`button` row (`data-action`) the link wins instead (`controlClick` checks `[data-goto-tab]`
+before `[data-action]`, and an inline action link is the nearer `[data-action]`), so the
+row's own action never runs.
 
 ### Hook registry — PConf.hooks
 

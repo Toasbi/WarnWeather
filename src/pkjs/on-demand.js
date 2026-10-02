@@ -28,9 +28,10 @@
   // The items, in priority order: nearest the side's status slot first, and the last
   // drops first when a bar runs short of room. The index is the watch's OdItem and the
   // cell byte's offset.
-  // `label` is the page's name for the item (the Alert settings card, the icons' spoken
-  // names); `icon` its glyph's PConf.icons id on the page (status-slot-icons.js: the Status
-  // slots tab's read-only Alerts rows draw the placed items by it). Both page-only.
+  // `label` is the page's name for the item (the icons' spoken names on the Status slots
+  // tab's read-only Alerts rows, and the side lists' option names); `icon` its glyph's
+  // PConf.icons id on the page (status-slot-icons.js: those rows draw the placed items by
+  // it). Both page-only.
   var ITEMS = [
     {code: 'battery', group: 'system', label: 'Battery', icon: 'battery'},
     {code: 'bt', group: 'system', label: 'Bluetooth', icon: 'bluetooth'},

@@ -612,14 +612,11 @@ test('the Alerts row\'s icons and the side lists\' options, resolver by resolver
   // The carriers' options: the canonical order every grid tick rebuilds a list in.
   const items = PC.optionsResolvers.get('onDemandItems');
   const opts = items(state({ provider: 'dwd', radarMode: 'graph' }), ENV.basalt);
-  assert.deepEqual(opts.map((o) => o[1]), ['', 'battery', 'bt', 'qt', 'snooze', '', 'rain', 'gust', 'uv', 'aqi',
+  assert.deepEqual(opts.map((o) => o[1]), ['battery', 'bt', 'qt', 'snooze', 'rain', 'gust', 'uv', 'aqi',
     'pollen', 'wind']);
-  assert.deepEqual(opts[0], ['System info', '', { groupHeader: true }]);
-  assert.deepEqual(opts[5], ['Weather alerts', '', { groupHeader: true }]);
+  assert.ok(opts.every((o) => o.length === 2), 'no meta: never drawn, and checklistToggle reads only the values');
   const offRadar = items(state({ radarMode: 'off', provider: 'metno' }), ENV.basalt);
-  assert.deepEqual(offRadar[6], ['Rain', 'rain', { desc: 'Needs the rain radar (Radar tab)', disabled: true }],
-    'kept in, so a tick elsewhere keeps it in its list');
-  assert.deepEqual(offRadar[10], ['Pollen', 'pollen', { desc: 'DWD provider only', disabled: true }]);
+  assert.deepEqual(offRadar, opts, 'an item that cannot show stays in, so a tick elsewhere keeps it in its list');
 });
 
 test('the Battery sheet renders one Warn level slider per platform, a stored 15 at the watch\'s step', () => {

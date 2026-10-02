@@ -323,8 +323,11 @@ function tabLink(tab, label) {
     return '<button type="button" class="txt-link" data-goto-tab="' + tab + '">' + label + '</button>';
 }
 // "Alerts tab" as a link to it: the slot sheets' pointer, the Status slots tab's read-only
-// Alerts rows and the Radar tab's rain note. Every place that shows it is gated to a watch
-// with Alerts (ON_DEMAND_WHEN), like the tab itself.
+// Alerts rows and the Radar tab's rain note. Every place that shows it is gated off where
+// the tab is (aplite): the rows and the note by ON_DEMAND_WHEN, the tab's own gate, the
+// slot sheets by THRESHOLD_WHEN, which leaves out the same platforms today. A link to a
+// tab the bar hides changes nothing (engine.js tabShown), so a gate that drifted would
+// leave a dead link, not a broken page.
 var ALERTS_TAB_LINK = tabLink('alerts', 'Alerts tab');
 // "This watch reports its battery charge in 5 % steps" (emery): the Battery item's warn
 // level steps by 5 there and by 10 everywhere else.
@@ -1750,8 +1753,8 @@ function onDemandRow(prefix, barWhen) {
  * The eight side lists (status<Bar>OnDemand<Left|Right>Items), never drawn: the ONE item
  * per key, hydrated and serialized here. Every Shows on grid ticks a list through its
  * carrier (engine.js: a transposed checklist's tick runs its key's own item): the options
- * put the list in priority order (blocks.js onDemandItems, on-demand.js ITEMS, blocked
- * items kept), and the onChange keeps an item on one side of a bar
+ * put the list in priority order (blocks.js onDemandItems, on-demand.js ITEMS, every item
+ * kept), and the onChange keeps an item on one side of a bar
  * (reset-status-defaults.js onDemandExclusive). Those are the two calls the per-bar
  * Alerts sheets made, so a tick stores the same string as before. In BARS order, left
  * then right, where those sheets stood in the Status slots tab's sections, so the save

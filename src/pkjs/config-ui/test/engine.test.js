@@ -2566,6 +2566,12 @@ function cellSchema(extraCarriers, rowMeta) {
     ].concat(extraCarriers || []) }
   ] }] };
 }
+/**
+ * Render tab 't' of a cell schema the way the page does, with no env and no userData.
+ * @param {Object} SCH The schema (cellSchema()).
+ * @param {Object} S The live settings it renders from (E.hydrate of SCH).
+ * @returns {string} The tab body's HTML.
+ */
 function cellBody(SCH, S) {
   return E.renderBody(SCH, 't', { S: S, ENV: {}, USERDATA: {}, collapsed: {}, evalCtx: Object.assign({}, S, { env: {} }) });
 }
@@ -2597,6 +2603,13 @@ test('checklist transposed (check): a row per option, each tick naming its row\'
     /aria-checked="false" aria-label="Row 1, R" data-list="" data-k="" data-check="x" disabled aria-disabled="true">/);
   // The grid stores nothing: only the carriers are saved.
   assert.deepEqual(E.serialize(SCH, S), { k1: 'p,y', k2: '', k3: 'x', k4: '' });
+});
+
+test('shell: a transposed row\'s inert empty tick is dimmed like a gated option, never twice', () => {
+  const shell = fs.readFileSync(path.resolve(__dirname, '..', 'lib', 'shell.html'), 'utf8');
+  assert.ok(shell.indexOf('.chk-opt:not(.off) .chk-tick[data-k=""] .chk-box { opacity: .38; }') !== -1,
+    'the tick that names no list (data-k="") dims, unless its row is dimmed already');
+  assert.ok(shell.indexOf('.chk-opt.off { opacity: .38; }') !== -1, 'the same dim as a gated row');
 });
 
 test('boot(): a transposed tick flips its code in its row\'s list, in the CARRIER\'s order, and runs the carrier\'s onChange', () => {
@@ -2667,6 +2680,20 @@ test('boot(): a [data-goto-tab] link in the tab body brings its tab to the front
   assert.match(r.tabs.innerHTML, /<button class="tab on" data-tab="b">/, 'the bar marks the new tab');
   assert.match(r.scroll.innerHTML, /data-k="tb"/, 'the new tab\'s body renders');
   assert.doesNotMatch(r.scroll.innerHTML, /data-k="ta"/, 'the old one is gone');
+});
+
+test('boot(): after a tab link, focus moves to the new tab\'s button, not <body>', () => {
+  const focused = [];
+  const bar = { querySelector: (sel) => (sel !== '.tab.on' ? null
+    : { focus: () => { focused.push((/class="tab on" data-tab="(\w+)"/.exec(bar.self.innerHTML) || [])[1]); } }) };
+  const r = bootWithCapturedListeners(TAB_LINK_SCHEMA, {}, { tabs: bar });
+  bar.self = r.tabs;
+  goTo(r.listeners.click, 'h');
+  assert.deepEqual(focused, [], 'a link to a hidden tab moves nothing');
+  goTo(r.listeners.click, 'b');
+  assert.deepEqual(focused, ['b'], 'the B tab\'s button takes focus');
+  tapTab(r, 'a');
+  assert.deepEqual(focused, ['b'], 'a tab-bar tap keeps focus where the tap put it');
 });
 
 test('boot(): a link to a tab the bar hides, or to no tab, changes nothing', () => {

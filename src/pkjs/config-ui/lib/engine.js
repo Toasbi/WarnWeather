@@ -2185,6 +2185,17 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       }
     }
     /**
+     * Put focus on the active tab's button in the tab bar. A tab link re-renders the page
+     * under the link that had focus, which would leave focus on <body>: a keyboard or
+     * screen-reader user lands on the tab the link brought up instead.
+     * @returns {void}
+     */
+    function focusActiveTab() {
+      var bar = document.getElementById('tabs');
+      var on = (bar && bar.querySelector) ? bar.querySelector('.tab.on') : null;
+      if (on && on.focus) { on.focus(); }
+    }
+    /**
      * Whether a tab is in the bar right now: it exists and its showWhen holds (an env gate
      * hides a tab a platform lacks). A tab link never opens a tab the bar does not show.
      * @param {string} id Tab id.
@@ -2304,7 +2315,7 @@ var PConf = (typeof PConf !== 'undefined') ? PConf
       // tab body or from inside an open sheet (which closes). A tab the bar hides stays put.
       if ((t = e.target.closest('[data-goto-tab]'))) {
         var gt = t.getAttribute('data-goto-tab');
-        if (tabShown(gt)) { switchTab(gt); }
+        if (tabShown(gt)) { switchTab(gt); focusActiveTab(); }
         return true;
       }
       if ((t = e.target.closest('[data-action]'))) {

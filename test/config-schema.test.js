@@ -59,8 +59,8 @@ const THRESH_KEYS = threshKeys(['On', 'BoldMode', 'WarnLook', 'Warn', 'Danger', 
 const UNIT_KEYS = ['tempSlotUnit', 'pressureSlotUnit', 'countdownSlotUnit', 'dewSlotUnit'];
 // The weather alerts' own keys: each alert kind's Look, Days and tomorrow mark and the
 // rain alert's look — and On demand's: each bar's two sides with their ticked items (the
-// bar's Alerts row and sheet) and the Battery item's warn level and Look
-// (on-demand.js DEFAULTS, the one list of them).
+// side lists every alert sheet's Shows on grid writes, on the Alerts tab) and the Battery
+// item's warn level and Look (on-demand.js DEFAULTS, the one list of them).
 const ALERT_KEYS = ALERT_STEMS.reduce((acc, stem) => acc.concat(['alert' + stem + 'Display',
   'alert' + stem + 'Days', 'alert' + stem + 'NextDayMark']),
   ['rainAlertDisplay']).concat(Object.keys(require('../src/pkjs/on-demand.js').DEFAULTS));

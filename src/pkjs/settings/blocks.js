@@ -1421,23 +1421,15 @@ if (typeof require !== 'undefined') {
 
     /**
      * The side lists' options (schema.js onDemandListsSection, the carriers every Shows on
-     * grid writes through): the ten items in priority order under the two group headers, so
-     * engine.js checklistToggle rebuilds a list in that order. An item that cannot show
-     * stays in, disabled with its note, so a tick elsewhere keeps it in its list. Never
-     * drawn now (the grids draw bars, not items); the per-bar sheets drew these.
-     * @param {Object} S Live settings state.
-     * @returns {Array<Array>} [label, value, meta] options.
+     * grid writes through): the ten items in priority order, so engine.js checklistToggle
+     * rebuilds a list in that order. Every item stays in, one that cannot show too, so a
+     * tick elsewhere keeps it in its list. Never drawn (the grids draw bars, not items), so
+     * the options carry no meta: no group headers, no disabled note — the per-bar sheets
+     * that drew those are gone, and checklistToggle reads only the values.
+     * @returns {Array<Array>} [label, value] options.
      */
-    function onDemandItems(S) {
-        var out = [];
-        onDemand.ITEMS.forEach(function (item, i) {
-            if (i === 0 || item.group !== onDemand.ITEMS[i - 1].group) {
-                out.push([item.group === 'system' ? 'System info' : 'Weather alerts', '', {groupHeader: true}]);
-            }
-            var blocked = onDemandBlocked(S, item.code);
-            out.push(blocked ? [item.label, item.code, {desc: blocked, disabled: true}] : [item.label, item.code]);
-        });
-        return out;
+    function onDemandItems() {
+        return onDemand.ITEMS.map(function (item) { return [item.label, item.code]; });
     }
     PConf.optionsResolvers.register('onDemandItems', onDemandItems);
 
