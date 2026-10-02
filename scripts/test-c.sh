@@ -102,6 +102,10 @@ cc $CFLAGS -DWW_ON_DEMAND test/c/on_demand_short_test.c src/c/appendix/on_demand
 build/host/on_demand_short_test
 cc $CFLAGS test/c/hr_scale_test.c src/c/appendix/hr_scale.c -o build/host/hr_scale_test
 build/host/hr_scale_test
+# The health graph's step scale (header-only, step_scale.h): every mark it picks draws,
+# and a quiet window keeps the 0.1k scale.
+cc $CFLAGS test/c/step_scale_test.c -o build/host/step_scale_test
+build/host/step_scale_test
 # Compiled twice like layout_test: status_highlight_extent's strip floor depends on the
 # per-platform STATUS_STRIP_CAL_GAP.
 cc $CFLAGS test/c/status_row_layout_test.c src/c/layers/status_row_layout.c -o build/host/status_row_layout_test
