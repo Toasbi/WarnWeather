@@ -1606,9 +1606,11 @@ test('the radar picker reads ONE key table for its Edit button, badge, summary, 
     test: true, usage: 'rainbow', evidence: 'radar' });
   // Tomorrow.io's key is the weather provider's: the same entry (one key, one verdict), only
   // its own sheet differs, and while Tomorrow.io is the weather provider too the General
-  // tab's sheet holds the key.
+  // tab's sheet holds the key. The radar's own verdicts answer while no weather update says
+  // anything about the key (radarEvidence: the radar runs it alone).
   const weatherTio = byKey('provider').editSheetFrom.args.keyed.tomorrowio;
   assert.deepEqual(args.keyed.tomorrowio, Object.assign({}, weatherTio, { sheetId: 'radarKeyTomorrowio',
+    radarEvidence: 'tomorrowio',
     sharedSheet: { key: 'provider', eq: 'tomorrowio', sheetId: 'providerKeyTomorrowio' } }));
   assert.equal(weatherTio.sheetId, 'providerKeyTomorrowio');
   assert.equal(weatherTio.evidence, undefined, 'the weather updates\' records, for both pickers');

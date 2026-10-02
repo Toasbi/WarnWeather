@@ -6,7 +6,7 @@
 // works", and the Radar tab's dot and the Save dialog while the key is refused). The
 // weather update's records (lastFetchSuccess, authBackoff) never see a radar key, so the
 // radar keeps its own: ONE record in localStorage (storage-keys.js RADAR_KEY_RESULT_KEY),
-// {id, keyHash, status} — the radar source id ('rainbowkey'), the key's fingerprint
+// {id, keyHash, status} — the radar source id ('rainbowkey', 'tomorrowio'), the key's fingerprint
 // (key-fingerprint.js, never the key) and the HTTP status that answered it. Only an
 // answer that says something about the key is kept: a 2xx (stored as 200) or a 429 (the
 // key is known, over its allowance) for a working key, a 401/403 for a refused one.
@@ -19,7 +19,7 @@ var RADAR_KEY_RESULT_KEY = storageKeys.RADAR_KEY_RESULT_KEY;
 
 /**
  * Record a radar request's verdict on the key it carried.
- * @param {string} id The radar source id ('rainbowkey').
+ * @param {string} id The radar source id ('rainbowkey', 'tomorrowio').
  * @param {string} apiKey The key the request carried (fingerprinted, never stored).
  * @param {number} status The HTTP status that answered it.
  * @returns {void}

@@ -2155,7 +2155,9 @@ var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: 'the
 // projection (blocks.js registers it).
 // Tomorrow.io: its key is the Tomorrow.io weather provider's key, one key with one verdict,
 // so its entry IS that provider's (name, key field, Test, reasons, the daily usage line and
-// the weather updates' evidence) with only the sheet changed: radar-only, the key lives in
+// the weather updates' evidence) with only the sheet changed, plus the radar's own verdicts
+// (`radarEvidence`, recorded by tomorrowio-radar.js), which answer while the radar runs the
+// key alone and no weather update says anything about it: radar-only, the key lives in
 // the Radar tab's own Tomorrow.io sheet; while Tomorrow.io is also the weather provider,
 // that sheet is gated off and the General tab's sheet holds the key (`sharedSheet`), so
 // the Radar row's Edit button and Save dialog open that one, and its summary and tab dot
@@ -2163,7 +2165,7 @@ var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: 'the
 var RADAR_KEYS = {
     rainbowkey: {name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey', test: true,
         usage: 'rainbow', evidence: 'radar'},
-    tomorrowio: Object.assign({}, PROVIDER_KEYS.tomorrowio, {sheetId: 'radarKeyTomorrowio',
+    tomorrowio: Object.assign({}, PROVIDER_KEYS.tomorrowio, {sheetId: 'radarKeyTomorrowio', radarEvidence: 'tomorrowio',
         sharedSheet: {key: TOMORROWIO_WEATHER_WHEN.key, eq: TOMORROWIO_WEATHER_WHEN.eq,
             sheetId: PROVIDER_KEYS.tomorrowio.sheetId}})
 };

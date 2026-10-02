@@ -6,7 +6,7 @@
 //
 // A picker row describes its keyed sources in ONE table, handed to every resolver below
 // as args.keyed — by the picker's value: {name, sheetId, keyField, test, reasons?,
-// usage?, updateId?, evidence?, sharedSheet?} (schema.js PROVIDER_KEYS, RADAR_KEYS).
+// usage?, updateId?, evidence?, radarEvidence?, sharedSheet?} (schema.js PROVIDER_KEYS, RADAR_KEYS).
 // A key two pickers share (the Tomorrow.io key: the weather provider's and the radar's)
 // is one key with one verdict: both sources name the same keyField and evidence, so they
 // read one state. Each picker has its own sheet for the key, gated apart; while the
@@ -34,7 +34,9 @@
 // verdict instead (userData.radarKeyResult, weather/radar-key-result.js — the source id,
 // the key's fingerprint and the HTTP status that answered it, ok or rejected by
 // classify below). A radar source whose key is a weather provider's too (Tomorrow.io)
-// sets no `evidence`: it reads that provider's update records, so the two agree.
+// sets no `evidence`: it reads that provider's update records, so the two agree, and
+// names its radar source as `radarEvidence`, whose radar verdict answers when no weather
+// update says anything about the key (the radar runs it alone).
 //
 // What the page shows from it:
 //   keySheet         (sheetResolvers)     the Edit button: the sheet holding the picked
@@ -185,7 +187,7 @@
 
     /**
      * The status of a source's key in the live settings.
-     * @param {Object} source The source ({keyField, updateId?, evidence?}).
+     * @param {Object} source The source ({keyField, updateId?, evidence?, radarEvidence?}).
      * @param {string} id The picker value that picks it (the phone's provider id, unless
      *   the source names another as updateId).
      * @param {Object} S Live settings state.
@@ -204,15 +206,7 @@
         var ud = userData();
         var updateId = source.updateId || id;
         if (source.evidence === 'radar') {
-            // The last radar update's verdict on this key (one record, the newest).
-            var radar = parseRecord(ud.radarKeyResult);
-            var verdict = (radar && radar.id === updateId && radar.keyHash === hash)
-                ? classify(radar.status) : null;
-            if (verdict) {
-                return verdict === 'rejected' ? { state: verdict, tail: tail, status: radar.status }
-                    : { state: verdict, tail: tail };
-            }
-            return { state: 'untested', tail: tail };
+            return radarVerdict(ud, updateId, hash, tail) || { state: 'untested', tail: tail };
         }
         // A success clears the backoff (fetch-cycle.js), so a backoff on record is the
         // newer of the two.
@@ -225,7 +219,31 @@
         if (served && served.keyHash === hash && served.id === updateId) {
             return { state: 'ok', tail: tail };
         }
+        // A key the radar uses too (Tomorrow.io): with no weather update to go by (the radar
+        // runs it alone), the last radar update's verdict on it.
+        if (source.radarEvidence) {
+            return radarVerdict(ud, source.radarEvidence, hash, tail) || { state: 'untested', tail: tail };
+        }
         return { state: 'untested', tail: tail };
+    }
+
+    /**
+     * The last radar update's verdict on a key (userData.radarKeyResult: one record, the
+     * newest radar source's), when it is about this source and this exact key.
+     * @param {Object} ud The phone's userData.
+     * @param {string} radarId The radar source id the record must name.
+     * @param {string} hash The key's fingerprint.
+     * @param {string} tail The key's last four characters.
+     * @returns {?{state: string, tail: string, status: (number|undefined)}} The status, or
+     *   null when the record says nothing about this key.
+     */
+    function radarVerdict(ud, radarId, hash, tail) {
+        var radar = parseRecord(ud.radarKeyResult);
+        var verdict = (radar && radar.id === radarId && radar.keyHash === hash)
+            ? classify(radar.status) : null;
+        if (!verdict) { return null; }
+        return verdict === 'rejected' ? { state: verdict, tail: tail, status: radar.status }
+            : { state: verdict, tail: tail };
     }
 
     /**

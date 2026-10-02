@@ -375,6 +375,39 @@ test('Tomorrow.io: one key, one verdict — the radar row reads exactly the weat
   });
 });
 
+test('Tomorrow.io radar-only: the radar\'s own verdict on the key answers when no weather update says anything', () => {
+  const hash = fingerprint(TIO_KEY);
+  const S = Object.assign({ tomorrowioApiKey: TIO_KEY }, TIO_RADAR_ONLY);
+  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(TIO_KEY, 401, 'tomorrowio') };
+  assert.deepEqual(keyStatus.statusOf(TIO, 'tomorrowio', S), { state: 'rejected', tail: 'wxyz', status: 401 });
+  assert.equal(keyStatus.statusOf(WEATHER_TIO, 'tomorrowio', S).state, 'untested',
+    'the Weather provider row goes by weather updates only');
+  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(TIO_KEY, 200, 'tomorrowio') };
+  assert.deepEqual(keyStatus.statusOf(TIO, 'tomorrowio', S), { state: 'ok', tail: 'wxyz' });
+  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(TIO_KEY, 401, 'rainbowkey') };
+  assert.equal(keyStatus.statusOf(TIO, 'tomorrowio', S).state, 'untested', 'another radar source\'s verdict');
+  global.INJECTED_USERDATA = { radarKeyResult: radarRecord('another-key', 401, 'tomorrowio') };
+  assert.equal(keyStatus.statusOf(TIO, 'tomorrowio', S).state, 'untested', 'another key\'s verdict');
+  // A weather update that says something wins: then the two rows keep one verdict.
+  global.INJECTED_USERDATA = { radarKeyResult: radarRecord(TIO_KEY, 401, 'tomorrowio'),
+    lastFetchSuccess: JSON.stringify({ id: 'tomorrowio', keyHash: hash }) };
+  const both = Object.assign({}, S, { provider: 'tomorrowio' });
+  assert.equal(keyStatus.statusOf(TIO, 'tomorrowio', both).state, 'ok');
+  assert.deepEqual(keyStatus.statusOf(TIO, 'tomorrowio', both), keyStatus.statusOf(WEATHER_TIO, 'tomorrowio', both));
+});
+
+test('page: radar-only Tomorrow.io refused by the last radar update — the summary, the dot and the "rejected" dialog', () => {
+  const userData = { radarKeyResult: radarRecord(TIO_KEY, 403, 'tomorrowio') };
+  const page = bootGeneratedPage(Object.assign({ tomorrowioApiKey: TIO_KEY }, TIO_RADAR_ONLY), 'basalt',
+    { userData, dialog: true });
+  page.clickTab('radar');
+  assert.ok(page.scroll.innerHTML.indexOf('Key ••••wxyz · ✗ rejected: no access to this data (403)') !== -1,
+    'not "not tested yet"');
+  assert.match(tabButton(page, 'radar'), /Radar \(Tomorrow\.io rejected the API key\)/);
+  page.tapSave();
+  assert.ok(page.modal.innerHTML.indexOf('Tomorrow.io rejected the API key') !== -1);
+});
+
 test('page: radar-only Tomorrow.io without a key — "Add key", the amber note, a dot on the Radar tab only', () => {
   const page = bootGeneratedPage(TIO_RADAR_ONLY, 'basalt', { dialog: true });
   assert.doesNotMatch(page.scroll.innerHTML, /data-edit-sheet="(providerKey|radarKey)|Needs an API key|Key ••••/,

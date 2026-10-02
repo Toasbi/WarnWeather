@@ -4,6 +4,13 @@ const assert = require('node:assert/strict');
 
 // Mock the shared XHR BEFORE requiring the module under test (it captures
 // WeatherProvider.request at load time — same pattern as rainbow-radar.test.js).
+// A localStorage mock for the key verdicts (radar-key-result.js reads it at call time).
+var store = {};
+global.localStorage = {
+  getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+  setItem: (k, v) => { store[k] = String(v); },
+  removeItem: (k) => { delete store[k]; }
+};
 const WeatherProvider = require('../src/pkjs/weather/provider.js');
 var responder;
 WeatherProvider.request = function(url, type, onSuccess, onError) { responder(url, type, onSuccess, onError); };
@@ -109,4 +116,26 @@ test('a 401/403 key rejection clears the watch radar', () => {
     fetchTuples((t) => { out = t; });
     assert.deepEqual(out, CLEAR, code);
   });
+});
+
+test('the radar records its verdicts on the key (fingerprint only), for the Radar row\'s key status', () => {
+  const { fingerprint } = require('../src/pkjs/key-fingerprint.js');
+  const KEYS = require('../src/pkjs/storage-keys.js');
+  const verdict = () => JSON.parse(store[KEYS.RADAR_KEY_RESULT_KEY]);
+  const expect = (status) => ({ id: 'tomorrowio', keyHash: fingerprint('KEY123'), status });
+  for (const k in store) { delete store[k]; }
+  responder = (url, type, onSuccess) => onSuccess(JSON.stringify(body([0])));
+  fetchTuples(() => {});
+  assert.deepEqual(verdict(), expect(200), 'served');
+  [401, 403, 429].forEach((status) => {
+    responder = (url, type, onSuccess, onError) => onError({ code: 'status_' + status, detail: 'http_status' });
+    fetchTuples(() => {});
+    assert.deepEqual(verdict(), expect(status), String(status));
+  });
+  [{ code: 'status_503' }, { code: 'timeout' }, { code: 'network_error' }].forEach((err) => {
+    responder = (url, type, onSuccess, onError) => onError(err);
+    fetchTuples(() => {});
+    assert.deepEqual(verdict(), expect(429), err.code + ' says nothing about the key: the last verdict stands');
+  });
+  assert.equal(store[KEYS.RADAR_KEY_RESULT_KEY].indexOf('KEY123'), -1, 'never the key itself');
 });
