@@ -2,9 +2,9 @@
 // values [All | Alert] (src/pkjs/line-alert.js, internally "Show"; the row's label was
 // "Show" until the owner renamed it, 2026-10-01): the joined row under whichever Forecast-tab
 // picker shows wind speed, wind gusts or the UV index (under no other metric, and not
-// on aplite, which has no Alert settings), each value's hint, the heal of a dev phone's
-// old switch, the style and Wind graph scale hints while it is on Alert, and the
-// forecast preview.
+// on aplite, which has no Alert settings), each value's hint (the UV line's Alert hint
+// closing on its scale), the heal of a dev phone's old switch, the style and Wind graph
+// scale hints while it is on Alert, and the forecast preview.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const schema = require('../src/pkjs/settings/schema.js');
@@ -118,7 +118,8 @@ test('every watch with Alert settings shows the row; aplite, without them, never
 
 test('each value has its own hint: All the whole curve, Alert the warn level', () => {
   const hint = (S, metric, value) => B.lineShowHint(S, {}, { metric, value });
-  // The owner's wording (2026-10-01).
+  // The owner's wording (2026-10-01). No line is drawn in these bare states, so the UV
+  // hint stops before its scale sentence (the next test).
   assert.equal(hint({}, 'wind', 'all'), 'The line is always visible, calm hours included.');
   assert.equal(hint({}, 'gust', 'all'), 'The line is always visible, calm hours included.');
   assert.equal(hint({}, 'uv', 'all'), 'The line is always visible, low-UV hours included.');
@@ -138,6 +139,92 @@ test('each value has its own hint: All the whole curve, Alert the warn level', (
   ['wind', 'gust', 'uv'].forEach((m) => ['all', 'alert'].forEach((v) => {
     assert.doesNotMatch(hint({}, m, v), /Visible values|Show|Only alert|stays empty/, m + ' ' + v);
   }));
+});
+
+// The UV line's Alert hint closes on the scale the line then runs over (owner,
+// 2026-10-02): by height from the band's bottom (the warn level) to its top (the higher
+// of UV 11 and the danger level), the edges swapped while it hangs from the top; as a
+// stripe, from faint to the stripe's full colour. The same band the style hint gives.
+test('the UV line\'s Alert hint closes on its scale, per style', () => {
+  const hint = (over, env) => B.lineShowHint(Object.assign({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }, over),
+    env || BASALT, { metric: 'uv', value: 'alert' });
+  const lead = 'Draws UV only where it reaches your warn level (UV 6), so the line is only visible when you'
+    + ' actually care.';
+  const height = lead + ' The graph then runs from UV 6 at the bottom to UV 11 at the top.';
+  const stripe = lead + ' The stripe\'s colour then runs from faint at UV 6 to full at UV 10.5.';
+  ['line', 'bold', 'dots', 'x'].forEach((style) =>
+    assert.equal(hint({ secondaryLineStyle: style }), height, style));
+  assert.equal(hint({ secondaryLineStyle: 'line', secondaryLineFill: true }), height, 'fill');
+  ['stripeTop', 'stripeBottom'].forEach((style) =>
+    assert.equal(hint({ secondaryLineStyle: style }), stripe, style));
+  // The stripe's full colour is the style hint's own.
+  assert.match(B.lineStyleHint('uv', 'stripeTop', { secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }, BASALT),
+    /full colour from UV 10\.5\./);
+  // On whichever picker draws it: a stripe on the Fourth metric line.
+  assert.equal(hint({ secondaryLine: 'precip_prob', thirdLine: 'cloud', fourthLine: 'uv',
+    fourthLineStyle: 'stripeBottom' }), stripe, 'fourth line');
+});
+
+test('the UV line\'s Alert scale flips with Draw from: Top and follows the levels', () => {
+  const hint = (over) => B.lineShowHint(Object.assign({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }, over),
+    BASALT, { metric: 'uv', value: 'alert' });
+  const scale = (over) => hint(over).replace(/^.*actually care\. /, '');
+  assert.equal(scale({ uvLineFrom: 'top' }), 'The graph then runs from UV 6 at the top to UV 11 at the bottom.');
+  assert.equal(scale({ uvLineFrom: 'top', secondaryLineStyle: 'dots' }),
+    'The graph then runs from UV 6 at the top to UV 11 at the bottom.');
+  // A stripe keeps its own edge: Top changes nothing there.
+  assert.equal(scale({ uvLineFrom: 'top', secondaryLineStyle: 'stripeTop' }),
+    'The stripe\'s colour then runs from faint at UV 6 to full at UV 10.5.');
+  // A danger level above UV 11 tops the line.
+  assert.equal(hint({ threshUvWarn: '9', threshUvDanger: '12' }),
+    'Draws UV only where it reaches your warn level (UV 9), so the line is only visible when you actually care.'
+    + ' The graph then runs from UV 9 at the bottom to UV 12 at the top.');
+  assert.equal(scale({ threshUvWarn: '9', threshUvDanger: '12', uvLineFrom: 'top' }),
+    'The graph then runs from UV 9 at the top to UV 12 at the bottom.');
+  assert.equal(scale({ threshUvWarn: '9', threshUvDanger: '12', secondaryLineStyle: 'stripeBottom' }),
+    'The stripe\'s colour then runs from faint at UV 9 to full at UV 11.7.');
+  // The warn level moves the bottom; a danger level under UV 11 leaves the top.
+  assert.equal(scale({ threshUvWarn: '3', threshUvDanger: '5' }),
+    'The graph then runs from UV 3 at the bottom to UV 11 at the top.');
+  assert.equal(scale({ threshUvWarn: '3', threshUvDanger: '5', secondaryLineStyle: 'stripeTop' }),
+    'The stripe\'s colour then runs from faint at UV 3 to full at UV 10.2.');
+});
+
+test('only the UV line\'s Alert hint gets a scale: All, wind and gusts unchanged', () => {
+  const hint = (S, metric, value) => B.lineShowHint(S, BASALT, { metric, value });
+  assert.equal(hint({ secondaryLine: 'uv' }, 'uv', 'all'), 'The line is always visible, low-UV hours included.');
+  assert.equal(hint({ secondaryLine: 'uv', secondaryLineStyle: 'stripeTop', uvLineFrom: 'top' }, 'uv', 'all'),
+    'The line is always visible, low-UV hours included.');
+  // Wind and gusts on Alert, every style and Draw from: their Wind graph scale row names the scale.
+  ['line', 'stripeTop'].forEach((style) => ['bottom', 'top'].forEach((from) => {
+    const S = { secondaryLine: 'wind', thirdLine: 'gust', secondaryLineStyle: style, thirdLineStyle: style,
+      windLineFrom: from, windLineOnlyAlert: 'alert', gustLineOnlyAlert: 'alert' };
+    assert.equal(hint(S, 'wind', 'alert'),
+      'Draws wind only where it reaches your warn level (40 kph), so the line is only visible when you actually care.',
+      'wind ' + style + ' ' + from);
+    assert.equal(hint(S, 'gust', 'alert'),
+      'Draws gusts only where they reach your warn level (65 kph), so the line is only visible when you actually care.',
+      'gust ' + style + ' ' + from);
+    assert.equal(hint(S, 'wind', 'all'), 'The line is always visible, calm hours included.');
+  }));
+  // A watch without Alert settings draws the line All, so there is no scale to name (aplite
+  // shows no row at all).
+  assert.equal(B.lineShowHint({ secondaryLine: 'uv', uvLineOnlyAlert: 'alert' }, APLITE, { metric: 'uv', value: 'alert' }),
+    'Draws UV only where it reaches your warn level (UV 6), so the line is only visible when you actually care.');
+});
+
+test('the Forecast tab\'s UV row shows its Alert scale, through the real engine', () => {
+  const scale = 'The graph then runs from UV 6 at the bottom to UV 11 at the top.';
+  const alert = body({ secondaryLine: 'precip_prob', thirdLine: 'uv', uvLineOnlyAlert: 'alert' }, BASALT);
+  assert.equal(count(alert, 'so the line is only visible when you actually care. ' + scale), 1);
+  const top = body({ secondaryLine: 'precip_prob', thirdLine: 'uv', uvLineOnlyAlert: 'alert', uvLineFrom: 'top' },
+    BASALT);
+  assert.equal(count(top, 'The graph then runs from UV 6 at the top to UV 11 at the bottom.'), 1);
+  const stripe = body({ secondaryLine: 'precip_prob', thirdLine: 'uv', thirdLineStyle: 'stripeTop',
+    uvLineOnlyAlert: 'alert' }, BASALT);
+  assert.equal(count(stripe, 'The stripe\'s colour then runs from faint at UV 6 to full at UV 10.5.'), 1);
+  assert.equal(count(body({ secondaryLine: 'precip_prob', thirdLine: 'uv' }, BASALT), 'The graph then runs'), 0,
+    'All: no scale');
 });
 
 test('the Forecast tab renders the row, the picked value lit and its hint, through the real engine', () => {

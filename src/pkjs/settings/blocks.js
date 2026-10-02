@@ -278,39 +278,59 @@ if (typeof require !== 'undefined') {
     }
 
     /**
-     * The scale of a line drawn Show: Alert (line-alert.js; the row reads "Visible
-     * values"): the band the bake maps it over, as numbers — its bottom (the warn level,
-     * or with wind and gusts both on Alert the lower of the two) and its top (the higher
-     * of the line's usual top and the danger level); drawn as a stripe, where its
-     * faintest colour starts (the bottom) and where full colour does (90 % up the band,
-     * stripe-levels.js). Replaces the metric's usual scale copy, whose anchors ("Half
-     * height = UV 5.5") no longer hold there. A line that hangs from the top (Draw from:
-     * Top, draw-from.js metricFromTop) starts at the graph's top, so its start is named
-     * "Graph top" there; "full height" is a length and reads the same both ways.
+     * The scale of a drawn line on Show: Alert (line-alert.js; the row reads "Visible
+     * values") as the page prints it: the band the bake maps it over — its bottom (the
+     * warn level, or with wind and gusts both on Alert the lower of the two) and its top
+     * (the higher of the line's usual top and the danger level) — and, for a stripe, the
+     * first reading drawn in full colour (90 % up the band, stripe-levels.js). THE one
+     * reading of the band for the page's Alert scale copy: the style hint
+     * (alertScaleCopy) and the UV line's Visible values hint (lineShowHint).
      * @param {string} metric The line's metric.
-     * @param {boolean} stripe The line is drawn as a stripe (colour strength, not height).
      * @param {Object} [S] Live settings state.
      * @param {Object} [env] Platform env; `lineStyles` truthy = the watch draws the Third
      *   and Fourth metric lines (whose metrics can share a band); `onDemand` false = no
-     *   Alert settings (aplite), so every line draws All; `lineStyles` false = nothing
-     *   hangs from the top either.
-     * @returns {string} The scale sentence, '' when the line does not show Alert.
+     *   Alert settings (aplite), so every line draws All.
+     * @returns {?{bottom: string, top: string, full: string}} The three levels as
+     *   printed ('UV 6', '40 kph'); null when the line is not drawn or shows All.
      */
-    function alertScaleCopy(metric, stripe, S, env) {
-        if (!S || !lineAlert.onlyAlertOn(S, metric)) { return ''; }
+    function alertScaleLevels(metric, S, env) {
+        if (!S || !lineAlert.onlyAlertOn(S, metric)) { return null; }
         var band = lineAlert.alertBands(S, Boolean(env && env.lineStyles),
             lineAlert.alertsDrawn(env))[metric];
-        if (!band) { return ''; }
-        var lo = lineAlert.levelText(S, metric, band.bottom);
-        if (stripe) {
+        if (!band) { return null; }
+        return {
+            bottom: lineAlert.levelText(S, metric, band.bottom),
+            top: lineAlert.levelText(S, metric, band.top),
             // The first reading, as the slot shows it, from which every one is full colour
             // (levelFromText: in mph and knots one up from the converted value when a
             // reading just below the step shows the same number).
-            return 'Faintest colour = ' + lo + ', full colour from '
-                + lineAlert.levelFromText(S, metric, stripeStepValue(4, band.bottom, band.top)) + '.';
+            full: lineAlert.levelFromText(S, metric, stripeStepValue(4, band.bottom, band.top))
+        };
+    }
+
+    /**
+     * The scale of a line drawn Show: Alert, as the style hint gives it (alertScaleLevels):
+     * the band's bottom and top as numbers; drawn as a stripe, where its faintest colour
+     * starts (the bottom) and where full colour does. Replaces the metric's usual scale
+     * copy, whose anchors ("Half height = UV 5.5") no longer hold there. A line that
+     * hangs from the top (Draw from: Top, draw-from.js metricFromTop) starts at the
+     * graph's top, so its start is named "Graph top" there; "full height" is a length and
+     * reads the same both ways.
+     * @param {string} metric The line's metric.
+     * @param {boolean} stripe The line is drawn as a stripe (colour strength, not height).
+     * @param {Object} [S] Live settings state.
+     * @param {Object} [env] Platform env (see alertScaleLevels); `lineStyles` false =
+     *   nothing hangs from the top either.
+     * @returns {string} The scale sentence, '' when the line does not show Alert.
+     */
+    function alertScaleCopy(metric, stripe, S, env) {
+        var levels = alertScaleLevels(metric, S, env);
+        if (!levels) { return ''; }
+        if (stripe) {
+            return 'Faintest colour = ' + levels.bottom + ', full colour from ' + levels.full + '.';
         }
-        return (drawFrom.metricFromTop(S, metric, env) ? 'Graph top = ' : 'Graph bottom = ') + lo
-            + ', full height = ' + lineAlert.levelText(S, metric, band.top) + '.';
+        return (drawFrom.metricFromTop(S, metric, env) ? 'Graph top = ' : 'Graph bottom = ')
+            + levels.bottom + ', full height = ' + levels.top + '.';
     }
 
     /**
@@ -348,24 +368,72 @@ if (typeof require !== 'undefined') {
 
     // The Visible values row's hint per metric and value (the owner's wording,
     // 2026-10-01): All's whole sentence, and the start of Alert's, ahead of "your warn
-    // level (40 kph)".
+    // level (40 kph)". `scale`: Alert's hint closes on the scale the line then runs over
+    // (showAlertScale; owner, 2026-10-02) — the UV line's only, as wind and gusts have
+    // the Wind graph scale row for theirs (windScaleHint).
     var SHOW_HINTS = {
         wind: { all: 'The line is always visible, calm hours included.',
             alert: 'Draws wind only where it reaches' },
         gust: { all: 'The line is always visible, calm hours included.',
             alert: 'Draws gusts only where they reach' },
         uv: { all: 'The line is always visible, low-UV hours included.',
-            alert: 'Draws UV only where it reaches' }
+            alert: 'Draws UV only where it reaches', scale: true }
     };
+
+    /**
+     * Whether a metric's drawn line is a stripe on this watch: it has style pickers
+     * (env.lineStyles, as forecastMetricHint reads it) and the picker that draws the
+     * metric (line-style.js effectiveLineMetric: never a repeat) resolves to a stripe
+     * (isStripeStyle, the style the bake draws).
+     * @param {Object} S Live settings state.
+     * @param {string} metric A graph metric id.
+     * @param {Object} [env] Platform env.
+     * @returns {boolean}
+     */
+    function drawnAsStripe(S, metric, env) {
+        if (!env || !env.lineStyles) { return false; }
+        for (var i = 0; i < lineStyle.FORECAST_LINES.length; i += 1) {
+            var line = lineStyle.FORECAST_LINES[i];
+            if (lineStyle.effectiveLineMetric(S, line.key) === metric) {
+                return lineStyle.isStripeStyle(S, line.styleKey);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The sentence a Visible values: Alert hint closes on (SHOW_HINTS `scale`): the scale
+     * the drawn line then runs over (alertScaleLevels). By height from the band's bottom
+     * to its top, edge to edge — the edges swapped while the line hangs from the top
+     * (Draw from: Top, draw-from.js metricFromTop); as a stripe (which keeps its own edge),
+     * its colour from faint at the band's bottom to full at the reading the style hint
+     * names full colour from.
+     * @param {Object} S Live settings state.
+     * @param {Object} [env] Platform env (see alertScaleLevels).
+     * @param {string} metric The row's metric.
+     * @returns {string} The sentence, '' when the line is not drawn on Alert.
+     */
+    function showAlertScale(S, env, metric) {
+        var levels = alertScaleLevels(metric, S, env);
+        if (!levels) { return ''; }
+        if (drawnAsStripe(S, metric, env)) {
+            return 'The stripe\'s colour then runs from faint at ' + levels.bottom
+                + ' to full at ' + levels.full + '.';
+        }
+        var fromTop = drawFrom.metricFromTop(S, metric, env);
+        return 'The graph then runs from ' + levels.bottom + (fromTop ? ' at the top' : ' at the bottom')
+            + ' to ' + levels.top + (fromTop ? ' at the bottom.' : ' at the top.');
+    }
 
     /**
      * The Visible values row's hint (internally the Show row: line-alert.js), for the
      * selected value only: All draws the whole line, Alert only where the value reaches
-     * the warn level, named in the unit the Alert levels are set in. A value the page has
-     * not healed yet (a dev phone's true or false) reads the way the bake reads it
+     * the warn level, named in the unit the Alert levels are set in — on the UV line
+     * followed by the scale it then runs over (showAlertScale). A value the page has not
+     * healed yet (a dev phone's true or false) reads the way the bake reads it
      * (line-alert.js showValue).
      * @param {Object} S Live settings state.
-     * @param {Object} env Platform env (unused: the row only shows where Alert draws).
+     * @param {Object} env Platform env (the scale's: which lines and styles it draws).
      * @param {{value: *, metric: string}} args The row's shown value and its metric.
      * @returns {string} The hint, '' for a metric without one.
      */
@@ -373,8 +441,9 @@ if (typeof require !== 'undefined') {
         var copy = copyOf(SHOW_HINTS, args.metric);
         if (!copy) { return ''; }
         if (lineAlert.showValue(args.value) !== lineAlert.SHOW_ALERT) { return copy.all; }
-        return copy.alert + ' your warn level (' + lineAlert.warnText(S || {}, args.metric)
+        var hint = copy.alert + ' your warn level (' + lineAlert.warnText(S || {}, args.metric)
             + '), so the line is only visible when you actually care.';
+        return copy.scale ? joinHint([hint, showAlertScale(S, env, args.metric)]) : hint;
     }
 
     // The Wind graph scale row's hint while a drawn wind or gust line shows Alert: such

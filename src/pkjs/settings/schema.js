@@ -201,7 +201,8 @@ function windScaleCopy(pickerKey, unit, hints) {
  * All, line-alert.js alertsDrawn). The wind speed, wind gust and UV index lines have one
  * each (line-alert.js METRIC_IDS, the graph metrics with Alert levels), stored per
  * metric, so the row follows its metric from picker to picker. Each value has its own
- * hint (blocks.js 'lineShowHint'); Alert's names the warn level it gaps below.
+ * hint (blocks.js 'lineShowHint'); Alert's names the warn level it gaps below and, on
+ * the UV line, the scale the line then runs over.
  * @param {string} pickerKey secondaryLine|thirdLine|fourthLine|fifthLine.
  * @param {string} metric 'wind' | 'gust' | 'uv'.
  * @returns {Object} Schema item.
