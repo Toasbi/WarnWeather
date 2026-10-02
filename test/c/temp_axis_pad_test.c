@@ -33,11 +33,19 @@ static void test_margins(void) {
             assert(m >= today);
         }
     }
-    // The views (content rows [T, B)): basalt's default calendar view, 41 rows, barely moves
-    // (10 against 7); its no-calendar view and emery's, far taller, keep a quarter clear.
-    assert(temp_axis_margin(INSET, true, 41) == 10);
+    // The views' plots (content rows [T, B), no stripes): the forecast band
+    // (test/c/layout_test.c goldens) less the hour axis, 10 rows (basalt) / 20 (emery, its
+    // 10-row bottom pad too). basalt's fullCal (51 px band, 41 rows) barely moves (10
+    // against 7); the default compactCal view moves a little more, basalt 65 px (55 rows)
+    // and emery 82 px (62 rows); the no-calendar views, basalt 87 px (77 rows) and emery
+    // 111 px (91 rows), keep a quarter clear. emery's fullCal / compactDense, 68 px (48 rows).
+    assert(temp_axis_margin(INSET, true, 51 - 10) == 10);    // basalt fullCal
+    assert(temp_axis_margin(INSET, true, 65 - 10) == 13);    // basalt compactCal (default)
+    assert(temp_axis_margin(INSET, true, 87 - 10) == 19);    // basalt noCal
+    assert(temp_axis_margin(INSET, true, 68 - 20) == 12);    // emery fullCal / compactDense
+    assert(temp_axis_margin(INSET, true, 82 - 20) == 15);    // emery compactCal (default)
+    assert(temp_axis_margin(INSET, true, 111 - 20) == 22);   // emery noCal
     assert(temp_axis_margin(INSET, true, 27) == INSET);   // a quarter under the inset: today's
-    assert(temp_axis_margin(INSET, true, 96) == 24);
     // Under a top stripe band the top margin is 0 today, and a quarter when something hangs.
     assert(temp_axis_margin(0, false, 80) == 0);
     assert(temp_axis_margin(0, true, 80) == 20);
@@ -54,8 +62,8 @@ static int hi_today(int h, bool emery) { return emery ? status_ink_top(18) - sta
 static int lo_today(int h, int baseline) { return baseline - h - 2; }
 
 static void test_label_examples(void) {
-    // basalt's default view: baseline 41, curve 7..34 unanchored (inset 7 both edges). The
-    // curve's extremes sit at or beyond today's labels, so nothing moves.
+    // basalt's fullCal view (51 px band): baseline 41, curve 7..34 unanchored (inset 7 both
+    // edges). The curve's extremes sit at or beyond today's labels, so nothing moves.
     int hi = hi_today(18, false), lo = lo_today(18, 41);
     temp_labels_align(&hi, &lo, 18, 7, 41 - INSET);
     assert(hi == -3 && lo == 21);
@@ -66,21 +74,37 @@ static void test_label_examples(void) {
     assert(hi == -3 && lo == 19);
     assert(ink_top(lo, 18) == 31 - 5 && ink_bottom(lo, 18) == 31 + 5);
     assert(ink_top(lo, 18) - ink_bottom(hi, 18) - 1 == TEMP_LABEL_MIN_INK_GAP);
-    // emery's default view at GOTHIC_24 (baseline 48, the bars standing: curve floor 36):
-    // the lo label would come within 8 rows of the hi label's ink. Too close: today's.
+    // basalt's default compactCal view (65 px band): baseline 55, the bars standing (margin
+    // 13: curve floor 42). The lo label rises 5 rows, its ink centred on the floor.
+    hi = hi_today(18, false); lo = lo_today(18, 55);
+    assert(lo == 35);
+    temp_labels_align(&hi, &lo, 18, 7, 55 - 13);
+    assert(hi == -3 && lo == 30);
+    assert(ink_top(lo, 18) == 42 - 5);
+    // emery's fullCal / compactDense view (68 px band) at GOTHIC_24: baseline 48, the bars
+    // standing (margin 12: curve floor 36). The lo label would come within 8 rows of the hi
+    // label's ink. Too close: today's.
     hi = hi_today(24, true); lo = lo_today(24, 48);
     temp_labels_align(&hi, &lo, 24, 7, 48 - 12);
     assert(hi == hi_today(24, true) && lo == lo_today(24, 48));
-    // A tall graph (no calendar, basalt: baseline 86, plot 86 rows, quarter 21), the rain
+    // emery's default compactCal view (82 px band) at GOTHIC_24: baseline 62, the bars
+    // standing (margin 15: curve floor 47). Room: the lo label rises 6 rows, its ink (14
+    // rows) centred on the floor.
+    hi = hi_today(24, true); lo = lo_today(24, 62);
+    assert(lo == 36);
+    temp_labels_align(&hi, &lo, 24, 7, 62 - 15);
+    assert(hi == hi_today(24, true) && lo == 30);
+    assert(ink_top(lo, 24) == 47 - 7);
+    // A tall graph (basalt's no-calendar view, 87 px band: baseline 77, quarter 19), the rain
     // bars hanging and a rain-chance line standing: both edges a quarter in, both labels
     // centred on the curve's extremes.
-    hi = hi_today(18, false); lo = lo_today(18, 86);
-    temp_labels_align(&hi, &lo, 18, 21, 86 - 21);
-    assert(ink_top(hi, 18) == 21 - 5 && ink_top(lo, 18) == 65 - 5);
+    hi = hi_today(18, false); lo = lo_today(18, 77);
+    temp_labels_align(&hi, &lo, 18, 19, 77 - 19);
+    assert(ink_top(hi, 18) == 19 - 5 && ink_top(lo, 18) == 58 - 5);
     // A flat curve: both on one row, never room for the gap.
-    hi = hi_today(18, false); lo = lo_today(18, 86);
-    temp_labels_align(&hi, &lo, 18, 40, 40);
-    assert(hi == -3 && lo == lo_today(18, 86));
+    hi = hi_today(18, false); lo = lo_today(18, 77);
+    temp_labels_align(&hi, &lo, 18, 38, 38);
+    assert(hi == -3 && lo == lo_today(18, 77));
 }
 
 // Over every placement: either both labels keep today's place, or each moved only inward,
