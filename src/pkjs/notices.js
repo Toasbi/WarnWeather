@@ -120,21 +120,69 @@ function httpLabel(code) {
     return m ? 'HTTP ' + m[1] : 'auth error';
 }
 
+// A weather provider failure on the provider's side or on the way to it: a server
+// error (HTTP 5xx), no answer in time, or no connection. Provider codes carry the
+// transport code as a suffix (weather/http.js: 'status_<n>', 'timeout', 'network_error').
+var SERVER_FAILURE_PATTERN = /(^|_)(status_5\d\d|timeout|network_error)$/;
+
+/**
+ * Whether a fetch failure is the weather provider not answering: a server error
+ * (HTTP 5xx), a timeout or no connection, in its own `provider_data` stage. Such a
+ * failure often heals by the next update, so its notice waits for the second one in
+ * a row (fetch-cycle.js counts them).
+ * @param {{stage: string, code: string}|*} failure Normalized fetch failure.
+ * @returns {boolean} True for a server failure.
+ */
+function isServerFailure(failure) {
+    return Boolean(failure) && failure.stage === 'provider_data' && typeof failure.code === 'string'
+        && SERVER_FAILURE_PATTERN.test(failure.code);
+}
+
+/**
+ * The plain reason a server failure gives, for the settings panel.
+ * @param {string} code Failure code (e.g. 'openmeteo_status_503').
+ * @returns {string} "HTTP 503", "no answer in time" or "no connection".
+ */
+function serverReason(code) {
+    if (/status_\d+$/.test(code)) { return httpLabel(code); }
+    return /timeout$/.test(code) ? 'no answer in time' : 'no connection';
+}
+
 /**
  * Build a notice for a fetch failure, or null when the failure is not
- * notice-worthy (network/GPS/timeout/parse raise nothing). Both notices name
- * the weather provider, so only its own `provider_data` stage raises them: a
- * geocoder's 401/403/429 (stages reverse_geocode / forward_geocode) is neither
- * the provider refusing nor a key the user can fix.
+ * notice-worthy (GPS, parse errors and a first server failure raise nothing).
+ * Every notice names the weather provider, so only its own `provider_data` stage
+ * raises one: a geocoder's 401/403/429 (stages reverse_geocode / forward_geocode)
+ * is neither the provider refusing nor a key the user can fix.
+ * - 401/403: the auth notice (watch overlay + panel): the user's key.
+ * - 429: the rate-limit info (panel only).
+ * - A server failure (isServerFailure): the neutral "not answering" notice (watch
+ *   overlay + panel), from the second update in a row that failed that way
+ *   (`failedUpdates`) — a one-off outage raises nothing, and the watch keeps its last
+ *   forecast meanwhile.
  * @param {{stage: string, code: string}|*} failure Normalized fetch failure.
  * @param {string} providerName Active provider display name.
  * @param {number} now Timestamp (Date.now()).
+ * @param {number} [failedUpdates] Updates in a row this provider failed with a server
+ *   failure, this one included (fetch-cycle.js); read only for a server failure.
  * @returns {?{key: string, type: string, html: string, watch?: string, since: number}}
  */
-function noticeForFailure(failure, providerName, now) {
+function noticeForFailure(failure, providerName, now, failedUpdates) {
     if (!failure || failure.stage !== 'provider_data') { return null; }
     var code = typeof failure.code === 'string' ? failure.code : '';
     var name = providerName || 'The weather provider';
+    if (isServerFailure(failure)) {
+        var n = Math.floor(Number(failedUpdates)) || 0;
+        if (n < 2) { return null; }
+        return {
+            key: 'server',
+            type: 'error',
+            watch: name + ' not answering',
+            html: '<b>' + name + '</b> is not answering: the last ' + n + ' updates failed ('
+                + serverReason(code) + '). The watch tries again at the next update.',
+            since: now
+        };
+    }
     if (/(^|_)status_(401|403)$/.test(code)) {
         return {
             key: 'auth',
@@ -163,6 +211,7 @@ module.exports = {
     dismissAll: dismissAll,
     list: list,
     watchText: watchText,
+    isServerFailure: isServerFailure,
     noticeForFailure: noticeForFailure,
     gc: gc
 };

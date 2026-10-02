@@ -798,6 +798,64 @@ test('failure: a 429 raises a settings-panel notice but sends nothing to the wat
     assert.equal(authBackoff.isActive(), false, 'a rate limit is not an auth failure');
 });
 
+/** Run one forced start that gets a fix and then fails with `failure`. */
+function failOnce(h, failure) {
+    assert.equal(h.cycle.start(true), true);
+    h.provider.fix(52.5, 13.4);
+    h.provider.fail(failure);
+}
+
+test('failure: a server failure stays quiet on the first update and shows from the second; a success ends the run', () => {
+    resetStore();
+    const h = makeHarness();   // aplite: no radar keys ride along
+    const f503 = { stage: 'provider_data', code: 'fake_status_503' };
+    failOnce(h, f503);
+    assert.deepEqual(notices.list(), [], 'the first failed update raises nothing');
+    assert.deepEqual(h.calls.sendWeather, [], 'and sends nothing: the watch keeps its last forecast');
+    assert.equal(authBackoff.isActive(), false);
+
+    h.advance(MIN);
+    failOnce(h, { stage: 'provider_data', code: 'fake_timeout' });
+    const list = notices.list();
+    assert.deepEqual(list.map(function (n) { return n.key; }), ['server'], 'the second one in a row shows');
+    assert.equal(list[0].type, 'error');
+    assert.match(list[0].html, /<b>fake weather<\/b> is not answering: the last 2 updates failed \(no answer in time\)/);
+    assert.deepEqual(h.calls.sendWeather, [{ NOTICE_TEXT: 'fake weather not answering' }], 'the overlay text alone');
+
+    h.advance(MIN);
+    assert.equal(h.cycle.start(true), true);
+    h.provider.fix(52.5, 13.4);
+    h.provider.succeed();
+    assert.deepEqual(notices.list(), [], 'a success clears the notice');
+    assert.equal(store[KEYS.SERVER_FAILURE_STREAK_KEY], undefined, 'and the run');
+    h.calls.sendWeather.length = 0;
+    failOnce(h, f503);
+    assert.deepEqual(notices.list(), [], 'after a success the count starts again');
+    assert.deepEqual(h.calls.sendWeather, []);
+});
+
+test('failure: the run counts one provider\'s server failures in a row — another provider or failure kind starts over', () => {
+    resetStore();
+    const h = makeHarness();
+    const f502 = { stage: 'provider_data', code: 'fake_status_502' };
+    failOnce(h, f502);
+    failOnce(h, { stage: 'provider_data', code: 'fake_parse_error' });
+    failOnce(h, f502);
+    assert.deepEqual(notices.list(), [], 'a parse error in between ends the run');
+
+    h.setProvider(makeProvider('other'));
+    failOnce(h, { stage: 'provider_data', code: 'other_status_500' });
+    assert.deepEqual(notices.list(), [], 'another provider starts its own run');
+
+    assert.equal(h.cycle.start(true), true);
+    h.provider.noFix({ stage: 'coordinates', code: 'timeout' });
+    assert.deepEqual(notices.list(), [], 'no fix: not the provider failing, and no notice');
+    failOnce(h, { stage: 'provider_data', code: 'other_network_error' });
+    assert.deepEqual(notices.list().map(function (n) { return n.key; }), ['server'],
+        'a missing fix neither counts nor ends the run');
+    assert.match(notices.list()[0].html, /<b>other weather<\/b> is not answering: the last 2 updates failed \(no connection\)/);
+});
+
 test('coordinates: a failed fix is recorded and tracked, and starts no radar, forecast, send or sleep commit', () => {
     resetStore();
     const settings = Object.assign(

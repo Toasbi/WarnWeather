@@ -127,5 +127,10 @@ module.exports = {
     // the radar source, the key's fingerprint — never the key — and the HTTP status that
     // answered it; weather/radar-key-result.js). The settings page reads it as
     // userData.radarKeyResult for the key status under the Radar provider row.
-    RADAR_KEY_RESULT_KEY: 'radarKeyResult'
+    RADAR_KEY_RESULT_KEY: 'radarKeyResult',
+    // The weather provider's run of server failures ({id, n}: the provider id and how
+    // many updates in a row it answered with a 5xx, a timeout or no connection;
+    // fetch-cycle.js). Its notice waits for the second one, so a one-off outage stays
+    // quiet; a success, another kind of failure or another provider ends the run.
+    SERVER_FAILURE_STREAK_KEY: 'serverFailureStreak'
 };

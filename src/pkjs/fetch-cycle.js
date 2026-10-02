@@ -40,6 +40,7 @@ var KEY_LAST_FETCH_SUCCESS = storageKeys.LAST_FETCH_SUCCESS_KEY;
 var KEY_LAST_FETCH_ATTEMPT = storageKeys.LAST_FETCH_ATTEMPT_KEY;
 var KEY_LAST_IS_SLEEPING = storageKeys.LAST_IS_SLEEPING_KEY;
 var KEY_RADAR_REQUEST = storageKeys.RADAR_REQUEST_THROTTLE_KEY;
+var KEY_SERVER_STREAK = storageKeys.SERVER_FAILURE_STREAK_KEY;
 // How long an in-flight weather fetch may run before it is presumed lost. A
 // healthy chain is bounded by its own timeouts — GPS 10 s, then the radar,
 // geocode, provider and UV/AQI/pollen XHRs at 5 s each, then the AppMessage
@@ -128,6 +129,41 @@ function incrementFetchAttemptCounter() {
  */
 function resetFetchAttemptCounter() {
     localStorage.setItem(KEY_FETCH_ATTEMPT, '0');
+}
+
+// --- server failure run -----------------------------------------------------
+// The weather provider's run of server failures (a 5xx, a timeout, no connection;
+// notices.isServerFailure), so its notice can wait for the second update in a row:
+// an outage that heals by the next update stays quiet. Read and written at call time
+// only (see the load-time invariant above); a broken store just counts from 1 again.
+
+/**
+ * Count this failure into the provider's run of server failures. Only the provider's
+ * own stage counts: a server failure extends the run of the same provider (another
+ * provider starts a new one), any other provider failure ends it, and a failure before
+ * the provider was asked (no fix, a NACK, the watchdog) leaves it as it is.
+ * @param {string} providerId The failing provider's id.
+ * @param {Object} failure Normalized fetch failure.
+ * @param {function(Object): boolean} isServerFailure notices.isServerFailure.
+ * @returns {number} The run's length with this failure (0 when it is not a server failure).
+ */
+function countServerFailure(providerId, failure, isServerFailure) {
+    if (!failure || failure.stage !== 'provider_data') {
+        return 0;
+    }
+    try {
+        if (!isServerFailure(failure)) {
+            localStorage.removeItem(KEY_SERVER_STREAK);
+            return 0;
+        }
+        var rec = null;
+        try { rec = JSON.parse(localStorage.getItem(KEY_SERVER_STREAK)); } catch (e) { rec = null; }
+        var n = (rec && rec.id === providerId && rec.n > 0) ? Math.floor(rec.n) + 1 : 1;
+        localStorage.setItem(KEY_SERVER_STREAK, JSON.stringify({ id: providerId, n: n }));
+        return n;
+    } catch (e) {
+        return 1;
+    }
 }
 
 // --- radar request throttle -------------------------------------------------
@@ -275,7 +311,7 @@ function runCycle(deps) {
  * @param {function():boolean} deps.isWatchConnected True when a watch is connected.
  * @param {{sendWeather: Function, clearWeatherCaches: Function, clearNoticeCache: Function}} deps.outbox The deduping outbox.
  * @param {Object} deps.authBackoff The auth-backoff module (isAuthFailure/isActive/set/clear).
- * @param {Object} deps.notices The notices module (noticeForFailure/add/watchText/clearErrors).
+ * @param {Object} deps.notices The notices module (isServerFailure/noticeForFailure/add/watchText/clearErrors).
  * @param {function(Object):void} deps.trackWeatherFetch Receives each fetch's telemetry event (the caller owns the telemetry-enabled gate).
  * @param {{waqiToken: string, rainbowEndpoint: string}} deps.env Build-injected secrets (package.json's waqi.token and rainbow.endpoint; '' when absent).
  * @param {function():Date} deps.now Current-time supplier (same contract as the channel scheduler's deps.now).
@@ -542,6 +578,7 @@ function createFetchCycle(deps) {
                 commitSleepState(sentSleeping);
             }
             deps.authBackoff.clear();
+            localStorage.removeItem(KEY_SERVER_STREAK);
             // A successful fetch means the provider is working: drop error notices and
             // reset the notice send-cache so a later identical error re-notifies. The
             // watch clears its overlay on the forecast payload it just received.
@@ -573,8 +610,10 @@ function createFetchCycle(deps) {
             // change-detector skips absent categories).
             var failureSend = {};
             // Surface notice-worthy failures (401/403 → watch overlay + settings panel;
-            // 429 → settings panel only). Other failures raise nothing.
-            var notice = deps.notices.noticeForFailure(failure, provider.name, +deps.now());
+            // 429 → settings panel only; a server failure → watch overlay + settings
+            // panel from the second update in a row). Other failures raise nothing.
+            var serverRun = countServerFailure(provider.id, failure, deps.notices.isServerFailure);
+            var notice = deps.notices.noticeForFailure(failure, provider.name, +deps.now(), serverRun);
             if (notice) {
                 deps.notices.add(notice);
                 if (notice.watch) {

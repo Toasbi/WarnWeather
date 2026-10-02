@@ -103,3 +103,34 @@ test('gc drops entries with a missing or invalid since', function () {
   notices.gc(Date.now());
   assert.deepStrictEqual(notices.list(), []);
 });
+
+test('isServerFailure: the provider\'s own 5xx, timeout or no connection', function () {
+  ['openmeteo_status_503', 'wu_current_status_500', 'dwd_forecast_timeout', 'owm_network_error'].forEach(function (code) {
+    assert.strictEqual(notices.isServerFailure({ stage: 'provider_data', code: code }), true, code);
+  });
+  ['owm_status_401', 'yandex_status_429', 'openmeteo_status_404', 'dwd_forecast_parse_error'].forEach(function (code) {
+    assert.strictEqual(notices.isServerFailure({ stage: 'provider_data', code: code }), false, code);
+  });
+  assert.strictEqual(notices.isServerFailure({ stage: 'forward_geocode', code: 'status_503' }), false,
+    'a geocoder is not the provider');
+  assert.strictEqual(notices.isServerFailure({ stage: 'coordinates', code: 'timeout' }), false);
+  assert.strictEqual(notices.isServerFailure(null), false);
+});
+
+test('noticeForFailure: a server failure raises nothing on the first update, the neutral notice from the second', function () {
+  var f503 = { stage: 'provider_data', code: 'openmeteo_status_503' };
+  assert.strictEqual(notices.noticeForFailure(f503, 'Open-Meteo', 1), null, 'no count: nothing');
+  assert.strictEqual(notices.noticeForFailure(f503, 'Open-Meteo', 1, 1), null, 'the first failed update: nothing');
+  var second = notices.noticeForFailure(f503, 'Open-Meteo', 700, 2);
+  assert.deepStrictEqual(second, {
+    key: 'server', type: 'error', watch: 'Open-Meteo not answering', since: 700,
+    html: '<b>Open-Meteo</b> is not answering: the last 2 updates failed (HTTP 503). '
+      + 'The watch tries again at the next update.'
+  });
+  assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'dwd_forecast_timeout' }, 'DWD', 1, 3)
+    .html.indexOf('the last 3 updates failed (no answer in time)') !== -1);
+  assert.ok(notices.noticeForFailure({ stage: 'provider_data', code: 'owm_network_error' }, 'OpenWeatherMap', 1, 2)
+    .html.indexOf('(no connection)') !== -1);
+  assert.ok(notices.noticeForFailure(f503, 'Weather Underground', 1, 2).watch.length <= 47,
+    'the longest provider name still fits the watch\'s 48 B notice buffer');
+});
