@@ -47,8 +47,11 @@ static inline int chart_flip_span_y(int zero, int dir, int h0, int h1) {
 // first row instead, the way the marks slide back inside the plot: a thin stroke never
 // paints a gap row, and a bold one (3 px) keeps the upper gap row clear. A line's
 // vertex is always held, its zero too: the one a metric line comes down to next to a
-// reading (chart_runs.h CHART_ZERO_JOIN). `held` is false only for a fill's zero, whose
-// stretch stays on the zero row and fills nothing, as it stays on the axis standing.
+// reading (chart_runs.h CHART_ZERO_JOIN). So a bold stroke spills one row past every
+// zero vertex, away from the plot: hanging onto the lower gap row, standing onto the row
+// under the axis row (beside an hour tick, or into a first bottom stripe's empty cell).
+// `held` is false only for a fill's zero, whose stretch stays on the zero row and fills
+// nothing, as it stays on the axis standing.
 static inline int chart_flip_vertex_y(int zero, int dir, int h, bool held) {
     if (held && dir > 0 && h < 1) {
         h = 1;

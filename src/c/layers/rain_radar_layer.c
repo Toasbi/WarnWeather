@@ -388,39 +388,27 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
 #else
     const int sky_band = 0;
 #endif
-    // "Bars from: Top" rides the radar palette (palette.h palette_from_top), so a flip
-    // repaints this chart. Hanging bars anchor on the row above `outer`: the sky band's
-    // trailing gap row, or without sky rows one free row kept under the tick row, so a
-    // hanging bar never meets the ticks and the nearby-area outline in a tick column
-    // never continues a tick. The empty-state text below still keys off sky_band.
-    int radar_num_stops = 0;
-    const ChartColorStop *radar_stops = palette_radar_stops(&radar_num_stops);
-    const bool bars_top = palette_from_top(radar_stops);
-    const int band = sky_band ? sky_band : bars_top;
-    const GRect outer = GRect(axis_outer.origin.x, axis_outer.origin.y + band,
-                              axis_outer.size.w, axis_outer.size.h - band);
 
     // Module-static scratch (not stack): aplite's small app stack overflows
     // otherwise (PC=0/LR=0). Safe — single layer instance, single-threaded,
-    // both recomputed each redraw before use.
+    // both recomputed before each use (exact_pm only on a redraw with rain).
     static int16_t exact_pm[RADAR_NUM_SLOTS];
-    rain_tier_fill_permille(exact_tenths, exact_pm, RADAR_NUM_SLOTS);
     static ChartAxisSlot axis_slots[RADAR_NUM_SLOTS];
     radar_fill_axis_slots(axis_slots, radar_start);
-    RadarAreaCtx area_ctx = {
-        .exact_tenths = exact_tenths,
-        .area_tenths  = area_tenths,
-    };
 
     // The axis hangs off the top of the whole plot (above the sky band); the
-    // bars fill `outer`, below the band. Same slot grid either way.
-    const ChartLayer axis_layers[] = {
-        { CHART_LAYER_AXIS, .axis = {
-              .side = GRAPH_SIDE_TOP, .style = radar_tick_style(),
-              .slots = axis_slots,
-              .label_align = ALIGN_START, .tick_align = ALIGN_START } },
-    };
-    chart_draw(ctx, &RADAR_DEF, axis_outer, axis_layers, 1);
+    // bars fill `outer`, below the band. Same slot grid either way. Its layer
+    // sits in a block of its own, so the bars' layers and the empty-state
+    // buffers below reuse its stack slot: a smaller frame on this paint path.
+    {
+        const ChartLayer axis_layers[] = {
+            { CHART_LAYER_AXIS, .axis = {
+                  .side = GRAPH_SIDE_TOP, .style = radar_tick_style(),
+                  .slots = axis_slots,
+                  .label_align = ALIGN_START, .tick_align = ALIGN_START } },
+        };
+        chart_draw(ctx, &RADAR_DEF, axis_outer, axis_layers, 1);
+    }
 #if defined(WW_RAIN_RADAR)
     if (sky_band > 0) {
         draw_radar_sky(ctx, GRect(axis_outer.origin.x, axis_outer.origin.y,
@@ -429,18 +417,47 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
                        axis_outer.origin.x, chart_def_pitch(&RADAR_DEF));
     }
 #endif
-    // Both passes hang together: the exact bars through chart_render_bars, the
-    // nearby-area bars under them through CHART_ZERO / CHART_DIR.
-    const ChartLayer layers[] = {
-        { CHART_LAYER_CUSTOM, .from_top = bars_top,
-          .custom = { radar_area_bars_layer, &area_ctx } },
-        { CHART_LAYER_BARS, .from_top = bars_top, .bars = {
-              .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
-              .stops = radar_stops, .num_stops = radar_num_stops,
-              .style = BAR_OUTLINED } },
-    };
-    chart_draw(ctx, &RADAR_DEF, outer, layers,
-               (int)(sizeof(layers) / sizeof(layers[0])));
+    bool any_rain = false;
+    for (int i = 0; i < RADAR_NUM_SLOTS; i++) {
+        if (exact_tenths[i] > 0 || area_tenths[i] > 0) { any_rain = true; break; }
+    }
+    // The plot under the sky band (all of it without one): the bars draw in it, and
+    // the empty-state text below centres in it, whatever the bars hang from.
+    const GRect outer = GRect(axis_outer.origin.x, axis_outer.origin.y + sky_band,
+                              axis_outer.size.w, axis_outer.size.h - sky_band);
+    // Bars only when a slot has rain (an all-dry window would draw none), and then no
+    // empty-state line. Everything they use is set up in this block, so its stack slots
+    // are shared with the empty-state buffers.
+    if (any_rain) {
+        rain_tier_fill_permille(exact_tenths, exact_pm, RADAR_NUM_SLOTS);
+        RadarAreaCtx area_ctx = {
+            .exact_tenths = exact_tenths,
+            .area_tenths  = area_tenths,
+        };
+        // Both passes hang together: the exact bars through chart_render_bars, the
+        // nearby-area bars under them through CHART_ZERO / CHART_DIR.
+        ChartLayer layers[] = {
+            { CHART_LAYER_CUSTOM, .custom = { radar_area_bars_layer, &area_ctx } },
+            { CHART_LAYER_BARS, .bars = {
+                  .values = exact_pm, .count = RADAR_NUM_SLOTS, .lo = 0, .hi = 1000,
+                  .style = BAR_OUTLINED } },
+        };
+        // The radar palette goes straight into the bars layer. "Bars from: Top" rides it
+        // (palette.h palette_from_top), so a flip repaints this chart. Hanging bars
+        // anchor on the row above their rect: the sky band's trailing gap row, or
+        // without sky rows one free row kept under the tick row (`gap`), so a hanging
+        // bar never meets the ticks and the nearby-area outline in a tick column never
+        // continues a tick.
+        layers[1].bars.stops = palette_radar_stops(&layers[1].bars.num_stops);
+        const bool bars_top = palette_from_top(layers[1].bars.stops);
+        layers[0].from_top = layers[1].from_top = bars_top;
+        const int gap = !sky_band && bars_top;
+        chart_draw(ctx, &RADAR_DEF,
+                   GRect(outer.origin.x, outer.origin.y + gap, outer.size.w, outer.size.h - gap),
+                   layers, (int)(sizeof(layers) / sizeof(layers[0])));
+        MEMORY_LOG_HEAP("radar_update:exit");
+        return;
+    }
 
     // Empty-state text: a RECEIVED radar window (start > 0 — never the blank
     // fresh-install state) whose slots are all dry would otherwise render as a bare
@@ -456,11 +473,7 @@ static void radar_update_proc(Layer *layer, GContext *ctx) {
     // it (radar_has_view, main_window_radar_has_data).
     char notice[RADAR_NOTICE_BUF_BYTES];
     const bool limited = persist_get_radar_notice(notice, sizeof(notice)) > 0;
-    bool any_rain = false;
-    for (int i = 0; i < RADAR_NUM_SLOTS; i++) {
-        if (exact_tenths[i] > 0 || area_tenths[i] > 0) { any_rain = true; break; }
-    }
-    if (!any_rain && radar_has_view(radar_start > 0, limited)) {
+    if (radar_has_view(radar_start > 0, limited)) {
 #ifdef PBL_PLATFORM_EMERY
         // emery: the taller plot swallows 18px text — step up a font tier.
         GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_24);

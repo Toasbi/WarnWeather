@@ -2,8 +2,10 @@
 // from": Bottom | Top): the zero row and direction, the vertex and span mappings, the
 // hanging vertex hold (§11.1) and the palette's Top flag. chart.c's renderers are
 // SDK-bound and cannot be host-compiled (the chart_absent_test / chart_stripe_test
-// pattern), so their pure half is pinned here: every rect and point they draw, standing
-// or hanging, comes out of these helpers. The settings preview mirrors the same rule
+// pattern), so their pure half is pinned here: the vertex and span mappings, the
+// hanging hold and the palette flag they all draw by, standing or hanging. (The dot and
+// x slide clamps, a full-height hatch's rect and the boundary lines' contour clamp read
+// the plot's edges directly.) The settings preview mirrors the same rule
 // (preview-forecast.js metricY, preview-rain.js rainBars), pinned by
 // test/config-draw-from.test.js.
 #include <assert.h>
@@ -32,6 +34,17 @@ static uint64_t mirror_rows(uint64_t rows, int top, int bottom) {
         }
     }
     return out;
+}
+
+// The rows a stroke of odd width w paints along a segment between the vertex rows ya
+// and yb: w / 2 rows past each vertex (the SDK strokes a wide line with round caps of
+// radius w / 2; chart_render_line's lone reading is exactly that square,
+// GRect(x - w / 2, y - w / 2, w, w)).
+static int stroke_top(int ya, int yb, int w) {
+    return (ya < yb ? ya : yb) - w / 2;
+}
+static int stroke_bottom(int ya, int yb, int w) {
+    return (ya > yb ? ya : yb) + w / 2;
 }
 
 // One plot, content rows [top, bottom): the mapping both ways, as the renderers use it.
@@ -82,7 +95,7 @@ static void check_plot(int top, int bottom) {
         assert(chart_flip_span_y(zt, dt, 0, bar_h + 1) == top);
         assert(chart_flip_span_y(zb, db, 0, bar_h + 1) + bar_h + 1 == bottom);
         // The outline: its free-end wall on the bar's last row out, its side walls
-        // down to the row on the zero row; the anchored end stays open.
+        // down to the row next to the zero row; the anchored end stays open.
         assert(chart_flip_y(zt, dt, bar_h) == top + bar_h - 1);
         assert(chart_flip_y(zt, dt, 1) == top);
         assert(chart_flip_y(zb, db, bar_h) == bottom - bar_h);
@@ -131,14 +144,29 @@ static void check_vertex_hold(int top, int bottom) {
     for (int h = 0; h <= bottom - top; ++h) {
         assert(chart_flip_vertex_y(zb, -1, h, true) == bottom - h);
     }
-    // Strokes centred on a held vertex: a thin (1 px) one paints only plot rows; a
-    // bold (3 px, one row either side) one may reach the lower gap row T-1 but keeps
-    // the upper gap row T-2 clear, so the band keeps 1 px of air.
-    for (int h = -1; h <= 3; ++h) {
-        const int y = chart_flip_vertex_y(zt, 1, h, true);
-        assert(y >= top);
-        assert(y - 1 >= top - 1 && y - 1 > top - 2);
+    // Strokes on held vertices: a thin (1 px) one paints only plot rows; a bold (3 px)
+    // one may reach the lower gap row T-1 but keeps the upper gap row T-2 clear, so the
+    // band keeps 1 px of air. Every segment between two held vertices, from a value
+    // under one pixel (h <= 0) to a full one; a == b is a lone reading's square.
+    const int plot_h = bottom - top;
+    for (int ha = -2; ha <= plot_h; ++ha) {
+        for (int hb = -2; hb <= plot_h; ++hb) {
+            const int ya = chart_flip_vertex_y(zt, 1, ha, true);
+            const int yb = chart_flip_vertex_y(zt, 1, hb, true);
+            assert(stroke_top(ya, yb, 1) >= top);
+            assert(stroke_top(ya, yb, 3) > top - 2);
+        }
     }
+    // A bold stroke on a held zero does take the lower gap row ...
+    const int y_floor = chart_flip_vertex_y(zt, 1, 0, true);
+    assert(stroke_top(y_floor, y_floor, 3) == top - 1);
+    // ... and without the hold it would take the upper one too.
+    assert(stroke_top(chart_flip_y(zt, 1, 0), chart_flip_y(zt, 1, 0), 3) == top - 2);
+    // Standing, a bold stroke on a zero vertex (on the axis row) spills onto the row
+    // under it; a thin one stays on the axis row (chart_flip.h).
+    const int y_axis = chart_flip_vertex_y(zb, -1, 0, true);
+    assert(stroke_bottom(y_axis, y_axis, 3) == bottom + 1);
+    assert(stroke_bottom(y_axis, y_axis, 1) == bottom);
 }
 
 int main(void) {

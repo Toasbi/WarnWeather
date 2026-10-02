@@ -281,8 +281,10 @@ static void load_dataset(ForecastDataset *ds) {
 // (rain chance, clouds, wind, gusts, UV, and a Visible values: Alert line below its warn
 // level) still comes down to the zero row next to a reading (JOIN); a floating line's
 // byte 0 is a missing reading (pressure, feels-like, dew point), a plain gap. aplite has
-// no float bit, so its lines all JOIN: feels-like and dew point are not offered there,
-// and a pressure line comes down next to a missing hour.
+// no float bit, so its lines all JOIN, which changes nothing there: feels-like and dew
+// point are not offered, and a pressure line never carries byte 0 (forecast-series.js:
+// pressurePermille drops a series with any implausible hour, metricBytes floors the
+// rest to byte 1).
 #if defined(WW_LINE_STYLE)
 #define LINE_ZERO(s) ((s)->line.floating ? CHART_ZERO_GAP : CHART_ZERO_JOIN)
 #else

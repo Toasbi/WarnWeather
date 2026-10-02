@@ -172,9 +172,10 @@ bool persist_set_fifth_line_style(uint8_t style);
 // NON-stripe byte: the line hangs from the plot's top ("Draw from: Top"); the phone
 // never sets it on a stripe byte and the watch ignores it there. Bit 6
 // (LINE_STYLE_FLOATING) of a NON-stripe byte: the line anchors no edge of the plot (the
-// phone never sets it on a stripe byte either). Bit 7 is reserved (0). The fourth line's FIFTH_LINE_STYLE byte (wire [15]) is the same
-// layout. Get always fills out[], defaulting to the
-// pre-feature look — solid 1 px, dots, x — when the slot is unset/short.
+// phone never sets it on a stripe byte either). Bit 7 is reserved (0). The fourth
+// line's FIFTH_LINE_STYLE byte (wire [15]) is the same layout. Get always fills out[],
+// defaulting to the pre-feature look — solid 1 px, dots, x — when the slot is
+// unset/short.
 #define LINE_STYLE_STYLE_BYTES 3
 #define LINE_STYLE_KIND_MASK   0x03
 #define LINE_STYLE_WIDTH_SHIFT 2

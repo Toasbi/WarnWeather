@@ -248,10 +248,13 @@ typedef struct {
     uint8_t        from_top;   // nonzero: BARS, LINE, AREA and a contour HATCH (and a CUSTOM
                                // layer through CHART_ZERO/CHART_DIR) hang from the content's
                                // top instead of standing on its bottom (chart_flip.h).
-                               // FRAME, AXIS, STRIPE and a full-height HATCH ignore it. On
-                               // every platform, in the short enum's padding (ChartLayer
-                               // stays 48 B): rain_radar_layer.c still compiles on aplite,
-                               // where nothing reads it.
+                               // FRAME, AXIS and STRIPE ignore it. A full-height HATCH must
+                               // keep it 0: its fill ignores it, but its boundary lines end
+                               // on the row next to the zero row, which hanging is the
+                               // content's first row. On every platform, in the short
+                               // enum's padding (ChartLayer stays 44 B):
+                               // rain_radar_layer.c still compiles on aplite, where nothing
+                               // reads it.
     union {
         ChartFrameLayer  frame;
         ChartAxisLayer   axis;

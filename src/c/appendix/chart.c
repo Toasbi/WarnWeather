@@ -6,8 +6,8 @@
 #include "chart_stripe.h"
 
 // The forecast keeps 12 of these, its bands 7 and 6 in static arrays: the from_top byte
-// sits in the padding after the 1-byte type, so a layer must not grow past 48 B.
-_Static_assert(sizeof(ChartLayer) <= 48, "ChartLayer grew: from_top must stay in padding");
+// sits in the padding after the 1-byte type, so a layer must not grow past 44 B.
+_Static_assert(sizeof(ChartLayer) <= 44, "ChartLayer grew: from_top must stay in padding");
 
 // Shared per-call point scratch for LINE and AREA layers (callers that don't
 // pass export_points). Static, not stack: aplite's small app stack overflows
@@ -261,7 +261,7 @@ static void chart_render_bars(const ChartRender *r, const ChartBarsLayer *b) {
             const int x0     = bar_x;
             const int x1     = bar_x + w - 1;
             const int y_free = chart_flip_y(zero, dir, bar_h);   // the bar's last row out
-            const int y_base = chart_flip_y(zero, dir, 1);       // its row on the zero row
+            const int y_base = chart_flip_y(zero, dir, 1);       // its row next to the zero row
             graphics_context_set_stroke_color(r->ctx, theme_fg());
             graphics_context_set_stroke_width(r->ctx, 1);
             graphics_draw_line(r->ctx, GPoint(x0, y_free), GPoint(x1, y_free));  // free end
@@ -499,8 +499,8 @@ static void chart_render_hatch(const ChartRender *r, const ChartHatchLayer *hl) 
     const int16_t y_top               = c.origin.y;
     const int     zero                = CHART_ZERO(r);
     const int     dir                 = CHART_DIR(r);
-    // The boundary lines' far end: the row on the zero row (standing: the plot's last
-    // row above the axis; a full-height layer always stands).
+    // The boundary lines' far end: the row next to the zero row, h = 1 (standing: the
+    // plot's last row above the axis). A full-height layer must stand (chart.h from_top).
     const int16_t y_base              = chart_flip_y(zero, dir, 1);
 #if defined(WW_LINE_STYLE)
     // Where the full-height arm's boundary lines start: extend_top rows above the
