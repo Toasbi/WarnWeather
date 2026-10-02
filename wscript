@@ -35,7 +35,10 @@ def build(ctx):
     # Screenshot/showcase builds set WW_HEALTH_FIXTURE to swap the live HealthService
     # wrapper (services/health.c) for a canned twin (services/health_fixture.c) so the
     # health view renders deterministic numbers. Off for every normal/dev/store build.
-    health_fixture = os.environ.get('WW_HEALTH_FIXTURE', '').strip().lower() in ('1', 'true', 'yes', 'on')
+    # WW_HEALTH_FIXTURE=low swaps the same twin in with a quiet day's hourly steps (every
+    # hour under 100), the graph's lowest step scale.
+    health_fixture_mode = os.environ.get('WW_HEALTH_FIXTURE', '').strip().lower()
+    health_fixture = health_fixture_mode in ('1', 'true', 'yes', 'on', 'low')
     fixture_name = os.environ.get('FIXTURE', '').strip()
     fixture_now = None
     fixture_clock_24h = None
@@ -286,6 +289,8 @@ def build(ctx):
                 '-DWW_FIXTURE_BATTERY_PERCENT={}'.format(fixture_battery['percent']),
                 '-DWW_FIXTURE_BATTERY_CHARGING={}'.format(fixture_battery['charging']),
             ]
+        if health_fixture_mode == 'low':
+            ctx.env.CFLAGS += ['-DWW_HEALTH_FIXTURE_LOW=1']
         if fixture_countdown is not None:
             ctx.env.CFLAGS += [
                 '-DWW_FIXTURE_COUNTDOWN_MINS={}'.format(fixture_countdown['mins']),

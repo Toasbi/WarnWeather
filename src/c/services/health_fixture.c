@@ -64,13 +64,22 @@ int health_hr_current(void) {
 #endif
 }
 
+// WW_HEALTH_FIXTURE=low (wscript): a quiet day for the graph's step axis, the same curve
+// at 1/16, so every hour stays under 100 steps (peak 75) and the graph shows its lowest
+// step scale.
+#if defined(WW_HEALTH_FIXTURE_LOW)
+#define FIXTURE_STEP_DIV 16
+#else
+#define FIXTURE_STEP_DIV 1
+#endif
+
 // Map each trailing bucket to its local hour-of-day and read the canned curve, matching
 // health.c's out[0]=oldest .. out[count-1]=hour ending at end_hour ordering.
 void health_fill_hourly_steps(int16_t *out, int count, time_t end_hour) {
     for (int i = 0; i < count; ++i) {
         time_t t = end_hour - (time_t)(count - 1 - i) * HOUR_SECS;
         struct tm *lt = localtime(&t);
-        out[i] = s_step_curve[lt->tm_hour % 24];
+        out[i] = s_step_curve[lt->tm_hour % 24] / FIXTURE_STEP_DIV;
     }
 }
 

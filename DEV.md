@@ -364,6 +364,8 @@ static compile-time fixture, so screenshot builds swap in two canned twins (wire
 `wscript`, never shipped in a normal build):
 
 - `WW_HEALTH_FIXTURE=1` → `src/c/services/health_fixture.c` — canned steps / sleep / heart rate.
+  `WW_HEALTH_FIXTURE=low` swaps in the same twin with a quiet day's hourly steps (every hour
+  under 100), which puts the health graph on its lowest step scale (0.1k).
 - a fixture `countdown` block → `src/c/appendix/rain_countdown_fixture.c` — the rain alert
   on every side Rain is placed on (the Watch Status Bar's left side by default; the Rain
   alert's Shows on grid, Alerts tab, puts it Left or Right on any bar):
