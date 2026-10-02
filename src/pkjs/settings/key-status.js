@@ -6,16 +6,13 @@
 //
 // A picker row describes its keyed sources in ONE table, handed to every resolver below
 // as args.keyed — by the picker's value: {name, sheetId, keyField, test, reasons?,
-// usage?, updateId?, evidence?, radarEvidence?, sharedSheet?} (schema.js PROVIDER_KEYS, RADAR_KEYS).
-// A key two pickers share (the Tomorrow.io key: the weather provider's and the radar's)
-// is one key with one verdict: both sources name the same keyField and evidence, so they
-// read one state. Each picker has its own sheet for the key, gated apart; while the
-// settings pick the source in the other picker too, the key lives in that picker's sheet,
-// which the source names as `sharedSheet` {key, eq, sheetId} (open it while
-// settings[key] === eq). The row's other
-// args: `picker`, the picker's messageKey (row resolvers get it as their own messageKey
-// too), and `outcome`, what goes missing without a working key ("the watch gets no
-// forecast").
+// usage?, updateId?, evidence?, radarEvidence?, sharedSheet?}. The tables and what each
+// field means live in settings/key-sources.js, one per picker. A key two pickers share
+// (the Tomorrow.io key: the weather provider's and the radar's) is one key with one
+// verdict: both sources name the same keyField and evidence, so they read one state. The
+// row's other args: `picker`, the picker's messageKey (row resolvers get it as their own
+// messageKey too), and `outcome`, what goes missing without a working key ("the watch
+// gets no forecast").
 //
 // The states of the picked source's key:
 //   missing   — the key field is blank (once trimmed, as onbuild.js stores it);

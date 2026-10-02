@@ -1585,6 +1585,27 @@ const RAINBOW_OWN_KEY_WHEN = { all: [{ key: 'radarProvider', eq: 'rainbowkey' },
 const radarPickerSection = () => schema.tabs.reduce((found, t) => found
   || t.sections.find((sec) => sec.items.some((i) => i.messageKey === 'radarProvider')), null);
 
+// The key tables live in settings/key-sources.js, one per picker, and the schema hands them
+// over as they are: each row's args carry its picker's table and outcome, and the General
+// tab's Tomorrow.io sheet is gated on the radar source's sharedSheet condition, so the
+// sheet the Radar row's Edit opens while Tomorrow.io is both is the one that shows.
+test('the provider and radar rows read their key tables from key-sources.js', () => {
+  const KEY_SOURCES = require('../src/pkjs/settings/key-sources.js');
+  assert.deepEqual(Object.keys(KEY_SOURCES), ['provider', 'radarProvider']);
+  Object.keys(KEY_SOURCES).forEach((picker) => {
+    const args = byKey(picker).editSheetFrom.args;
+    assert.equal(args.keyed, KEY_SOURCES[picker].sources, picker + ': the module\'s own table');
+    assert.equal(args.picker, picker);
+    assert.equal(args.outcome, KEY_SOURCES[picker].outcome, picker);
+  });
+  const shared = KEY_SOURCES.radarProvider.sources.tomorrowio.sharedSheet;
+  const general = schema.tabs.find((t) => t.id === 'general');
+  const sheet = general.sections.find((s) => s.sheetOnly && s.sheetId === shared.sheetId);
+  assert.ok(sheet, 'the shared sheet is the General tab\'s');
+  assert.deepEqual(sheet.showWhen, { key: shared.key, eq: shared.eq });
+  sheet.items.forEach((i) => assert.deepEqual(i.showWhen, { key: shared.key, eq: shared.eq }, i.messageKey));
+});
+
 test('the radar picker reads ONE key table for its Edit button, badge, summary, note and Save dialog', () => {
   const item = radarItem();
   const args = item.editSheetFrom.args;

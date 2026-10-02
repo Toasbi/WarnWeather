@@ -22,6 +22,9 @@ var LINE_ALERT = require('../line-alert.js');
 // Draw from / Bars from [Bottom | Top]: the keys, their rows' metrics and the values,
 // from the module the wire packs the flags through.
 var DRAW_FROM = require('../draw-from.js');
+// The keyed sources of the Weather and Radar provider pickers (their names, key sheets,
+// key fields and evidence), the table their rows' key-status resolvers read.
+var KEY_SOURCES = require('./key-sources.js');
 // The Custom-layout block (the per-view storage items, their sheetOnly section and
 // the Edit-button row) lives in its own module so its capability gates are BUILT
 // from view-cycle.js's mode lists — the same table buildCustomCycle folds by.
@@ -947,6 +950,13 @@ var RADAR_PROVIDER_OPTIONS = [
     ['Rainbow (own key)', 'rainbowkey', {desc: 'Worldwide satellite + radar nowcast · needs a free key'}],
     ['Tomorrow.io', 'tomorrowio', {desc: 'Precise ML rain nowcast, worldwide · uses your key'}]
 ];
+// The Weather and Radar provider rows' key-status args: the row's keyed sources
+// (settings/key-sources.js), the picker, and what goes missing without a working key (the
+// missing-key note and the Save dialog's sentence).
+var PROVIDER_KEYS = KEY_SOURCES.provider.sources;
+var RADAR_KEYS = KEY_SOURCES.radarProvider.sources;
+var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: KEY_SOURCES.provider.outcome};
+var RADAR_KEY_ARGS = {keyed: RADAR_KEYS, picker: 'radarProvider', outcome: KEY_SOURCES.radarProvider.outcome};
 // The tomorrow.io key + budget guard live in a key sheet of whichever picker actually uses
 // the key: the General tab's Tomorrow.io sheet (the Edit button after the Weather provider
 // dropdown) while it is the WEATHER provider, the Radar tab's Tomorrow.io sheet (the Edit
@@ -955,54 +965,11 @@ var RADAR_PROVIDER_OPTIONS = [
 // (TOMORROWIO_KEY_ROWS) under the same messageKeys, gated apart (like the theme color/B&W
 // split). The radar-only gate also needs a running radar (as "Rainbow (own key)"'s sheet
 // does): with radar off no Tomorrow.io radar call is made and the picker is hidden.
-var TOMORROWIO_WEATHER_WHEN = {key: 'provider', eq: 'tomorrowio'};
+// The weather sheet's gate is the radar source's sharedSheet condition, so the sheet the
+// Radar provider row's Edit button opens while Tomorrow.io is both is the one shown.
+var TOMORROWIO_WEATHER_WHEN = {key: RADAR_KEYS.tomorrowio.sharedSheet.key, eq: RADAR_KEYS.tomorrowio.sharedSheet.eq};
 var TOMORROWIO_RADAR_ONLY_WHEN = {all: [{key: 'radarProvider', eq: 'tomorrowio'}, {key: 'radarMode', ne: 'off'},
     {key: 'provider', ne: 'tomorrowio'}]};
-// The weather providers that need an API key, by their `provider` value — the table every
-// key-status resolver on the Weather provider row reads (settings/key-status.js): the
-// provider's name as the dropdown shows it (the key sheet's title, the Save dialog's), the
-// sheet the Edit button after the dropdown opens, the field that sheet stores the key in,
-// whether that field has a Test button (`test`: the summary then says "not tested yet"
-// for a key it knows nothing about), a refusal's short reason by HTTP status where the
-// default ("invalid key", "no access") says less, and a usage line (blocks.js
-// registers tomorrow.io's projected calls). A provider missing here has no key, so its
-// row shows no Edit button and no key status.
-var PROVIDER_KEYS = {
-    openweathermap: {name: 'OpenWeatherMap', sheetId: 'providerKeyOwm', keyField: 'owmApiKey', test: true,
-        // OpenWeatherMap answers 401 for a wrong key AND for one not on the One Call 3.0 plan.
-        reasons: {401: 'not valid for One Call 3.0'}},
-    tomorrowio: {name: 'Tomorrow.io', sheetId: 'providerKeyTomorrowio', keyField: 'tomorrowioApiKey', test: true,
-        reasons: {403: 'no access to this data'}, usage: 'tomorrowio'},
-    yandex: {name: 'Yandex Weather', sheetId: 'providerKeyYandex', keyField: 'yandexApiKey', test: false}
-};
-// The Weather provider row's key-status args: the table, the picker, and what goes
-// missing without a working key (the missing-key note and the Save dialog's sentence).
-var PROVIDER_KEY_ARGS = {keyed: PROVIDER_KEYS, picker: 'provider', outcome: 'the watch gets no forecast'};
-// The radar sources that need the user's own key, by their picker value — the table every
-// key-status resolver on the Radar provider row reads (settings/key-status.js), shaped like
-// PROVIDER_KEYS. "Rainbow (own key)": its key never rides a weather update, so its key
-// status comes from the Test button and from the last radar update's verdict
-// (`evidence: 'radar'`, weather/radar-key-result.js). Its usage line is the monthly
-// projection (blocks.js registers it).
-// Tomorrow.io: its key is the Tomorrow.io weather provider's key, one key with one verdict,
-// so its entry IS that provider's (name, key field, Test, reasons, the daily usage line and
-// the weather updates' evidence) with only the sheet changed, plus the radar's own verdicts
-// (`radarEvidence`, recorded by tomorrowio-radar.js), which answer while the radar runs the
-// key alone and no weather update says anything about it: radar-only, the key lives in
-// the Radar tab's own Tomorrow.io sheet; while Tomorrow.io is also the weather provider,
-// that sheet is gated off and the General tab's sheet holds the key (`sharedSheet`), so
-// the Radar row's Edit button and Save dialog open that one, and its summary and tab dot
-// read the same state as the Weather provider row's.
-var RADAR_KEYS = {
-    rainbowkey: {name: 'Rainbow', sheetId: 'radarKeyRainbow', keyField: 'rainbowApiKey', test: true,
-        usage: 'rainbow', evidence: 'radar'},
-    tomorrowio: Object.assign({}, PROVIDER_KEYS.tomorrowio, {sheetId: 'radarKeyTomorrowio', radarEvidence: 'tomorrowio',
-        sharedSheet: {key: TOMORROWIO_WEATHER_WHEN.key, eq: TOMORROWIO_WEATHER_WHEN.eq,
-            sheetId: PROVIDER_KEYS.tomorrowio.sheetId}})
-};
-// The Radar provider row's key-status args: the table, the picker, and what goes missing
-// without a working key (the missing-key note and the Save dialog's sentence).
-var RADAR_KEY_ARGS = {keyed: RADAR_KEYS, picker: 'radarProvider', outcome: 'the watch gets no rain radar'};
 // "Rainbow (own key)" picked for a running radar: its key sheet's gate. The radarMode
 // clause keeps the sheet (and so the Save dialog's way into it) closed with radar off,
 // when no Rainbow call is made.
@@ -1117,9 +1084,8 @@ var RAINBOW_KEY_HINT = '<b>How to get a key:</b><br>1. <a target=\'_blank\' href
 var RAINBOW_BUDGET_HINT = 'Only offer update intervals that fit the free 5,000 calls a month. Turn off to pick any interval — Rainbow bills calls past 5,000 to your card at $0.10 per 1,000.';
 
 /**
- * A keyed source's key sheet (sheetOnly; the sheet its key table — PROVIDER_KEYS or
- * RADAR_KEYS — names for it), opened by the Edit button after its picker while that
- * source is picked. It holds everything about the key — the field with its Test button
+ * A keyed source's key sheet (sheetOnly; the sheet its key-sources.js entry names for
+ * it), opened by the Edit button after its picker while that source is picked. It holds everything about the key — the field with its Test button
  * and verdict line, the hint with its links, any budget read-out and guard — so the
  * picker's card keeps only the pickers. The sheet's title is the source's name, so the
  * key row's label is just "API key". The section and every item share the source's
@@ -1508,7 +1474,7 @@ module.exports = {
                 // A provider that needs a key gets an Edit button after the dropdown, opening its
                 // key sheet (the sheetOnly sections below this card) — the key field, its Test, the
                 // links and any budget guard live there, not on the card. The row shows the key's
-                // status (settings/key-status.js, all from PROVIDER_KEYS): the button reads "Add
+                // status (settings/key-status.js, all from key-sources.js): the button reads "Add
                 // key" in the warn look while the key is empty; under the "why" hint (the same
                 // PROVIDER_WHY table, so the two cannot drift) a line "Key ••••1234 · ✓ works";
                 // and a key that is missing or known to be rejected puts a dot on this tab and
@@ -1857,7 +1823,7 @@ module.exports = {
                 // opening their key sheet (the sheetOnly sections after this one): the key
                 // field with its Test, the links, the read-out and the budget guard live
                 // there. The row shows the key's status like the Weather provider row
-                // (settings/key-status.js, all from RADAR_KEYS): "Add key" while the key is
+                // (settings/key-status.js, all from key-sources.js): "Add key" while the key is
                 // empty, a line "Key ••••1234 · ✓ works" under the RADAR_WHY hint, and a key
                 // that is missing or known to be rejected puts a dot on this tab and a dialog
                 // in front of Save ("Add key" / "Save anyway"). The missing-key note is the

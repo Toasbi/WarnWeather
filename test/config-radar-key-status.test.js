@@ -1,5 +1,5 @@
 // test/config-radar-key-status.test.js — "Rainbow (own key)" on the Radar provider row has the
-// key status a keyed weather provider has (settings/key-status.js, RADAR_KEYS): the Edit / "Add
+// key status a keyed weather provider has (settings/key-status.js, key-sources.js): the Edit / "Add
 // key" button beside the dropdown, the summary line ("Key ••••1234 · ✓ works · ~2,976 of 5,000
 // calls a month"), the amber note while the key is missing, the dot on the Radar tab and the Save
 // dialog while it is missing or known to be rejected. Its key never rides a weather update, so
